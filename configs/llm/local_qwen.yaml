@@ -1,0 +1,9 @@
+# Local backend on the DGX Spark: Qwen3.6 behind an OpenAI-compatible server
+# (llama.cpp llama-server or vLLM), with MTP speculative decoding.
+# Start it with scripts/serve_qwen_llamacpp.sh or scripts/serve_qwen_vllm.sh.
+type: openai_compat
+base_url: http://127.0.0.1:8080/v1
+model: qwen3.6-27b
+api_key: EMPTY
+supports_vision: true     # Qwen3.6-27B is a unified VLM
+temperature: 0.2

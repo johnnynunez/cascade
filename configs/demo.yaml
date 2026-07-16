@@ -1,0 +1,42 @@
+# Main demo configuration. Camera/arm/llm profiles are merged in at load
+# time (see wrc_demo.config.load_demo_config).
+
+safety:
+  # Base-frame workspace AABB for the TCP (meters). Verified against the RS
+  # URDF top-down IK reachability probe (x 0.15..0.45, y +-0.25).
+  workspace:
+    min: [0.10, -0.30, -0.01]
+    max: [0.50, 0.30, 0.55]
+  table_z: 0.0            # table surface height in base frame
+  table_clearance: 0.02   # TCP keeps this far above the table outside grasps
+  max_joint_vel: 1.2      # rad/s, enforced per streamed waypoint
+  joint_margin: 0.02      # rad inside URDF limits
+  watchdog_s: 5.0         # halt motion if perception is staler than this
+  keep_out: []            # e.g. [{min: [x,y,z], max: [x,y,z]}] for the tripod
+
+grasp:
+  # NOTE: strict top-down tool poses are only IK-reachable below z~0.15 on
+  # the B601-RS (wrist limits); keep grasp_z + offset under that.
+  pregrasp_offset_m: 0.08   # hover height above the grasp along -approach
+  depth_fraction: 0.5       # grasp this far down the object's height
+  exempt_radius_m: 0.07     # grasp-descent safety cylinder radius
+  move_duration_s: 2.5
+  descend_duration_s: 2.0
+  release_height_m: 0.05    # place_at default: this far above the table
+  release_clearance_m: 0.06 # place_on_object: drop height above target top
+  air_grasp_frac: 0.04      # jaw open-fraction below this after close = missed
+  close_settle_s: 0.4       # generic two-stage close dwell (real arm ignores)
+
+memory:
+  horizon_s: 15.0           # episodic window the agent can consult
+
+detector:
+  # Open-vocabulary YOLO (YOLOE / YOLO-World). Weights from the baseline repo.
+  type: yoloe
+  model: /home/spark/Projects/demo/reBot-DevArm-Grasp/models/yoloe-26s-seg.pt
+  device: cuda:0
+  conf: 0.25
+
+# Default vocabulary scanned during get_observation (the agent can localize
+# anything by name on top of this).
+detect_classes: ["cup", "mug", "bottle", "bowl", "box", "cube", "fruit", "toy"]

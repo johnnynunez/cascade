@@ -1,0 +1,27 @@
+# Real reBot DevArm B601, RobStride build, on can0 @ 1 Mbps.
+#
+# Before first use:
+#   sudo ip link set can0 up type can bitrate 1000000
+# and make sure motorbridge-gateway / MotorBridge Studio are NOT running
+# (host-id 0xFD conflict).
+type: rebot_rs
+sdk_path: /home/spark/Projects/demo/reBotArm_control_py
+hw_yaml: rebotarm_rs.yaml
+urdf: ${assets}/urdf/00-arm-rs_asm-v3.urdf
+ee_frame: gripper_end
+n_joints: 6
+home_q: [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
+
+# MIT gains per joint (null = use the SDK's rebotarm_rs.yaml values).
+mit_kp: null
+mit_kd: null
+
+gripper:
+  # !!! Characterized on the DM build (open -6.8 rad / close 0.0). The RS
+  # gripper (rs-00 + rack-pinion) travel and stall torque MUST be re-verified
+  # onsite before the first grasp; adjust these and max_width_m accordingly.
+  open_pos: -6.8
+  closed_pos: 0.0
+  max_width_m: 0.09
+  kp: 6.0
+  kd: 0.4

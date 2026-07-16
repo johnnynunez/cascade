@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# wrc_demo artifacts
+runs/
+datasets/
+skills_library/

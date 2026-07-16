@@ -1,0 +1,42 @@
+[project]
+name = "wrc-demo"
+version = "0.1.0"
+description = "Camera-agnostic agentic grasping demo for the reBot DevArm (RobStride) on DGX Spark"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "Johnny Nunez", email = "johnnync13@gmail.com" }]
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python-headless>=4.8",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Perception extras (open-vocabulary detection). torch comes from the host env.
+perception = ["ultralytics>=8.3"]
+# LLM backends. The OpenAI client also covers llama.cpp / vLLM local servers.
+llm = ["openai>=1.50", "anthropic>=0.40"]
+# Kinematics (FK/IK on the arm URDF).
+kinematics = ["pin>=3.0"]
+# Real arm transport (RobStride over SocketCAN).
+arm = ["motorbridge>=0.4.9"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+wrc-demo = "wrc_demo.apps.demo:main"
+wrc-record = "wrc_demo.apps.record:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "hardware: tests that need a live camera/arm (deselected by default)",
+]
+addopts = "-m 'not hardware'"

@@ -1,0 +1,198 @@
+"""MCP stdio server protocol tests: a real subprocess, real JSON-RPC frames.
+
+Uses the mock camera/arm profiles (env), so this covers everything Hermes /
+Claude Code exercise except physical hardware.
+"""
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from conftest import REPO, has_pinocchio
+
+pytestmark = pytest.mark.skipif(not has_pinocchio(), reason="pinocchio not available")
+
+
+class McpClient:
+    def __init__(self, tmp_run_dir: str):
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(REPO / "src")
+        env["WRC_CAMERA"] = "mock"
+        env["WRC_ARM"] = "mock"
+        env["WRC_RUN_DIR"] = tmp_run_dir
+        self.proc = subprocess.Popen(
+            [sys.executable, "-m", "wrc_demo.apps.mcp_server"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            text=True,
+            bufsize=1,
+        )
+        self._id = 0
+
+    def request(self, method: str, params: dict | None = None, timeout=60):
+        self._id += 1
+        frame = {"jsonrpc": "2.0", "id": self._id, "method": method}
+        if params is not None:
+            frame["params"] = params
+        self.proc.stdin.write(json.dumps(frame) + "\n")
+        self.proc.stdin.flush()
+        line = self.proc.stdout.readline()
+        assert line, f"server died: {self.proc.stderr.read()[-2000:]}"
+        resp = json.loads(line)
+        assert resp["id"] == self._id
+        return resp
+
+    def notify(self, method: str):
+        self.proc.stdin.write(json.dumps({"jsonrpc": "2.0", "method": method}) + "\n")
+        self.proc.stdin.flush()
+
+    def close(self):
+        if self.proc.poll() is None:
+            self.proc.stdin.close()
+            self.proc.wait(timeout=10)
+
+
+@pytest.fixture
+def client(tmp_path):
+    c = McpClient(str(tmp_path / "run"))
+    yield c
+    c.close()
+
+
+def _tool_payload(resp):
+    result = resp["result"]
+    text = next(b["text"] for b in result["content"] if b["type"] == "text")
+    return json.loads(text), result.get("isError", False)
+
+
+def test_initialize_and_tools_list_without_hardware(client):
+    resp = client.request("initialize", {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {},
+        "clientInfo": {"name": "pytest", "version": "0"},
+    })
+    result = resp["result"]
+    assert result["protocolVersion"] == "2025-06-18"
+    assert result["serverInfo"]["name"] == "wrc-demo"
+    assert "tools" in result["capabilities"]
+    client.notify("notifications/initialized")
+
+    resp = client.request("tools/list")
+    tools = {t["name"]: t for t in resp["result"]["tools"]}
+    for expected in (
+        "get_observation", "grasp_object", "place_at", "push_object",
+        "recall_memory", "camera_snapshot", "emergency_stop", "reset_stop",
+    ):
+        assert expected in tools, f"missing tool {expected}"
+    assert "task_done" not in tools  # loop-internal, not exposed
+    for t in tools.values():
+        assert t["inputSchema"]["type"] == "object"
+        assert t["description"]
+
+
+def test_tools_call_observation_and_memory(client):
+    client.request("initialize", {"protocolVersion": "2025-06-18"})
+    client.notify("notifications/initialized")
+
+    payload, is_err = _tool_payload(
+        client.request("tools/call", {"name": "get_observation", "arguments": {}})
+    )
+    assert not is_err
+    assert payload["ok"]
+    assert any(o["label"] == "red cube" for o in payload["objects_visible"])
+
+    payload, is_err = _tool_payload(
+        client.request("tools/call", {"name": "recall_memory",
+                                      "arguments": {"query": "red cube"}})
+    )
+    assert not is_err
+    assert "object_memory" in payload
+
+
+def test_camera_snapshot_returns_image_block(client):
+    client.request("initialize", {"protocolVersion": "2025-06-18"})
+    resp = client.request("tools/call", {"name": "camera_snapshot", "arguments": {}})
+    blocks = resp["result"]["content"]
+    img = next(b for b in blocks if b["type"] == "image")
+    assert img["mimeType"] == "image/jpeg"
+    import base64
+
+    raw = base64.b64decode(img["data"])
+    assert raw[:2] == b"\xff\xd8"  # JPEG magic
+
+
+def test_estop_blocks_motion_until_reset(client):
+    client.request("initialize", {"protocolVersion": "2025-06-18"})
+    client.request("tools/call", {"name": "get_observation", "arguments": {}})
+
+    payload, _ = _tool_payload(
+        client.request("tools/call", {"name": "emergency_stop", "arguments": {}})
+    )
+    assert payload["stopped"]
+    payload, is_err = _tool_payload(
+        client.request("tools/call", {"name": "move_home", "arguments": {}})
+    )
+    assert is_err and "e-stop" in payload["error"]
+    payload, _ = _tool_payload(
+        client.request("tools/call", {"name": "reset_stop", "arguments": {}})
+    )
+    assert payload["stopped"] is False
+    payload, is_err = _tool_payload(
+        client.request("tools/call", {"name": "move_home", "arguments": {}})
+    )
+    assert not is_err, payload
+
+
+def test_unknown_tool_and_method(client):
+    client.request("initialize", {"protocolVersion": "2025-06-18"})
+    payload, is_err = _tool_payload(
+        client.request("tools/call", {"name": "warp_drive", "arguments": {}})
+    )
+    assert is_err and "unknown skill" in payload["error"]
+    resp = client.request("frobnicate/all")
+    assert resp["error"]["code"] == -32601
+
+
+def test_ping_and_stdout_purity(client):
+    """Every stdout line must be a JSON-RPC frame (Hermes chokes otherwise)."""
+    r1 = client.request("initialize", {"protocolVersion": "2024-11-05"})
+    assert r1["result"]["protocolVersion"] == "2024-11-05"
+    r2 = client.request("ping")
+    assert r2["result"] == {}
+    r3 = client.request("tools/call", {"name": "get_observation", "arguments": {}})
+    assert r3["result"]
+    # all three lines parsed as JSON already; nothing else was interleaved
+
+
+def test_hermes_config_upsert():
+    sys.path.insert(0, str(REPO / "scripts"))
+    from setup_hermes import upsert, yaml_block
+
+    block = yaml_block("l515", "rebot_rs", "/usr/bin/python3")
+    # fresh file
+    merged = upsert(None, block)
+    assert merged.startswith("mcp_servers:")
+    assert 'WRC_CAMERA: "l515"' in merged
+    # existing config with another server is preserved
+    existing = (
+        "model: hermes-4\n"
+        "mcp_servers:\n"
+        "  agenticros:\n"
+        '    command: "node"\n'
+        '    args: ["/x/index.js"]\n'
+    )
+    merged = upsert(existing, block)
+    assert "model: hermes-4" in merged
+    assert "agenticros:" in merged
+    assert "wrc-demo:" in merged
+    # idempotent replace: camera changes, no duplicate entries
+    block2 = yaml_block("mock", "mock", "/usr/bin/python3")
+    merged2 = upsert(merged, block2)
+    assert merged2.count("wrc-demo:") == 1
+    assert 'WRC_CAMERA: "mock"' in merged2 and 'WRC_CAMERA: "l515"' not in merged2

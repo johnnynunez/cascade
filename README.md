@@ -93,6 +93,27 @@ Open-vocabulary text prompts (YOLOE/YOLO-World) additionally need
 | `openai` | any OpenAI-compatible cloud endpoint | `OPENAI_API_KEY` |
 | `mock` | scripted | tests / wiring checks |
 
+## Run it under Hermes (or Claude Code / Codex) via MCP
+
+The whole skill runtime is also exposed as an **MCP stdio server**
+(`wrc_demo/apps/mcp_server.py`) — so instead of the built-in loop, any
+MCP-capable agent platform can drive the arm: **Hermes**, Claude Code,
+Claude Desktop, Codex CLI. The agent gets the same 12 safety-gated skills
+plus `camera_snapshot` (returns a live JPEG the agent can *see*) and
+`emergency_stop`/`reset_stop`. Safety harness, tracing and memory are
+identical — only the brain swaps.
+
+```bash
+# register with Hermes (~/.hermes/config.yaml; prints the block without --write)
+python scripts/setup_hermes.py --camera l515 --arm rebot_rs --write
+# then restart the Hermes gateway and ask it:
+#   "take a camera snapshot and grasp the red cube"
+```
+
+Claude Code picks the server up automatically from this repo's `.mcp.json`.
+The server attaches hardware lazily: `initialize`/`tools/list` work with the
+robot powered off, so agents can inspect the toolbox anytime.
+
 ## Safety notes for the live rig
 
 - The safety harness fails closed; motions abort mid-stream on violation.

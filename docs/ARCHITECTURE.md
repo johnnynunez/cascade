@@ -62,7 +62,8 @@ src/wrc_demo/
 ├── skills/
 │   ├── runtime.py      the curated tool surface (12 skills) + JSON schemas
 │   └── library.py      learned-skill markdown store
-└── apps/               demo.py CLI, record.py dataset capture
+└── apps/               demo.py CLI, record.py capture, mcp_server.py (Hermes/
+                        Claude Code front-end: skill runtime over MCP stdio)
 ```
 
 ## Key decisions

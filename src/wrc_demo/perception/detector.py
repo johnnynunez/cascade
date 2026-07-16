@@ -39,6 +39,7 @@ class OpenVocabDetector(Detector):
         self._device = device
         self._conf = conf
         self._classes: list[str] = []
+        self._filter_only = False  # closed-set model: filter by label instead
         if classes:
             self.set_classes(classes)
 
@@ -46,10 +47,16 @@ class OpenVocabDetector(Detector):
         if list(classes) == self._classes:
             return
         # YOLOE needs text embeddings passed explicitly; YOLO-World does not.
+        # Closed-set models (yolo11n, ...) have no set_classes at all: fall
+        # back to post-filtering detections by label (self._filter_only).
+        self._filter_only = False
         try:
             self._model.set_classes(classes, self._model.get_text_pe(classes))
         except (AttributeError, TypeError):
-            self._model.set_classes(classes)
+            try:
+                self._model.set_classes(classes)
+            except (AttributeError, TypeError):
+                self._filter_only = True
         except ModuleNotFoundError as e:
             raise RuntimeError(
                 "open-vocabulary text prompts need ultralytics' CLIP fork: "
@@ -65,7 +72,12 @@ class OpenVocabDetector(Detector):
         results = self._model.predict(
             frame.rgb, conf=self._conf, device=self._device, verbose=False
         )
-        return self._parse(results[0], frame)
+        dets = self._parse(results[0], frame)
+        if self._filter_only and self._classes:
+            # Loose word-overlap match so "red cup" still finds COCO's "cup".
+            wanted = {w for c in self._classes for w in c.lower().split()}
+            dets = [d for d in dets if wanted & set(d.label.lower().split())]
+        return dets
 
     def _parse(self, result, frame: Frame) -> list[Detection]:
         dets: list[Detection] = []

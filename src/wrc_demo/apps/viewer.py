@@ -19,35 +19,7 @@ import numpy as np
 
 from ..config import load_profile
 from ..perception.camera_base import make_camera
-
-
-def depth_colormap(depth_m: np.ndarray, max_m: float = 2.0) -> np.ndarray:
-    d = np.clip(depth_m, 0, max_m) / max_m
-    img = cv2.applyColorMap((255 - d * 255).astype(np.uint8), cv2.COLORMAP_JET)
-    img[depth_m <= 0] = 0
-    return img
-
-
-def draw_hud(img: np.ndarray, lines: list[str]) -> None:
-    y = 26
-    for line in lines:
-        cv2.putText(img, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.62,
-                    (0, 0, 0), 4, cv2.LINE_AA)
-        cv2.putText(img, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.62,
-                    (60, 255, 60), 1, cv2.LINE_AA)
-        y += 26
-
-
-def draw_detections(img: np.ndarray, dets) -> None:
-    for d in dets:
-        x0, y0, x1, y1 = d.bbox.astype(int)
-        cv2.rectangle(img, (x0, y0), (x1, y1), (0, 200, 255), 2)
-        cv2.putText(img, f"{d.label} {d.conf:.2f}", (x0, max(y0 - 6, 14)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 200, 255), 2, cv2.LINE_AA)
-        if d.mask is not None:
-            overlay = img.copy()
-            overlay[d.mask] = (0, 200, 255)
-            cv2.addWeighted(overlay, 0.25, img, 0.75, 0, dst=img)
+from .live_view import depth_colormap, draw_detections, draw_hud
 
 
 def main(argv: list[str] | None = None) -> int:

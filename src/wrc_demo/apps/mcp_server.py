@@ -11,9 +11,12 @@ dependency. stdout carries ONLY protocol frames; everything else goes to
 stderr.
 
 Configuration via environment (set in the MCP server entry):
-    WRC_CAMERA   camera profile (default: mock)
-    WRC_ARM      arm profile    (default: mock)
-    WRC_RUN_DIR  trace directory (default: <repo>/runs/mcp_<pid>)
+    WRC_CAMERA          camera profile (default: mock)
+    WRC_ARM             arm profile    (default: mock)
+    WRC_RUN_DIR         trace directory (default: <repo>/runs/mcp_<pid>)
+    WRC_DETECTOR_MODEL  override detector weights (e.g. a yolo11n.pt path
+                        for closed-set COCO until the CLIP fork is installed)
+    WRC_DETECT_CLASSES  comma-separated default vocabulary for observations
 
 Hardware is attached lazily on the first tools/call, so initialize and
 tools/list always work -- an agent can inspect the toolbox with the robot
@@ -86,6 +89,14 @@ class McpSkillServer:
             # Anything the stack prints must not corrupt the protocol stream.
             with contextlib.redirect_stdout(sys.stderr):
                 cfg = load_demo_config(camera=camera, arm=arm, llm="mock")
+                det_model = os.environ.get("WRC_DETECTOR_MODEL")
+                if det_model:
+                    cfg._data["detector"]["model"] = det_model
+                classes = os.environ.get("WRC_DETECT_CLASSES")
+                if classes:
+                    cfg._data["detect_classes"] = [
+                        c.strip() for c in classes.split(",") if c.strip()
+                    ]
                 self._runtime, self._arm = build_runtime(cfg, run_dir)
             print(f"[wrc-mcp] runtime up: camera={camera} arm={arm}", file=sys.stderr)
         except Exception as e:

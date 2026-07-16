@@ -27,6 +27,7 @@ dev = ["pytest>=8.0"]
 wrc-demo = "wrc_demo.apps.demo:main"
 wrc-record = "wrc_demo.apps.record:main"
 wrc-mcp = "wrc_demo.apps.mcp_server:main"
+wrc-view = "wrc_demo.apps.viewer:main"
 
 [build-system]
 requires = ["setuptools>=68"]

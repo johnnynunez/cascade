@@ -17,6 +17,9 @@ Configuration via environment (set in the MCP server entry):
     WRC_DETECTOR_MODEL  override detector weights (e.g. a yolo11n.pt path
                         for closed-set COCO until the CLIP fork is installed)
     WRC_DETECT_CLASSES  comma-separated default vocabulary for observations
+    WRC_VIEW            "0" disables the live camera window (default: open it
+                        whenever DISPLAY is set, so the audience always sees
+                        what the camera sees)
 
 Hardware is attached lazily on the first tools/call, so initialize and
 tools/list always work -- an agent can inspect the toolbox with the robot
@@ -97,7 +100,10 @@ class McpSkillServer:
                     cfg._data["detect_classes"] = [
                         c.strip() for c in classes.split(",") if c.strip()
                     ]
-                self._runtime, self._arm = build_runtime(cfg, run_dir)
+                view = os.environ.get("WRC_VIEW", "1") != "0" and bool(
+                    os.environ.get("DISPLAY")
+                )
+                self._runtime, self._arm = build_runtime(cfg, run_dir, view=view)
             print(f"[wrc-mcp] runtime up: camera={camera} arm={arm}", file=sys.stderr)
         except Exception as e:
             self._init_error = f"{type(e).__name__}: {e}"

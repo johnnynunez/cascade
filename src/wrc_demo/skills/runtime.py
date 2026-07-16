@@ -65,11 +65,21 @@ class SkillRuntime:
 
     # ── plumbing ─────────────────────────────────────────────────────────
 
+    def _show_status(self, text: str) -> None:
+        """Push agent state to the live view window, if one is attached."""
+        if hasattr(self.camera, "set_overlay"):
+            self.camera.set_overlay(status=text)
+
+    def _show_detections(self, dets) -> None:
+        if hasattr(self.camera, "set_overlay"):
+            self.camera.set_overlay(detections=dets)
+
     def execute(self, name: str, args: dict) -> dict:
         """Dispatch one skill call with tracing. Never raises."""
         fn = getattr(self, f"skill_{name}", None)
         if fn is None:
             return {"ok": False, "error": f"unknown skill {name!r}"}
+        self._show_status(f"{name}({_short(args)})")
         before = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_before"
         )
@@ -97,6 +107,9 @@ class SkillRuntime:
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_after"
         )
         self.trace.record(name, args, result, dur, before, after)
+        self._show_status(
+            f"{name} -> " + ("ok" if result["ok"] else str(result.get("error", ""))[:60])
+        )
         self.memory.add(
             "action" if result["ok"] else "outcome",
             f"{name}({_short(args)}) -> " + ("ok" if result["ok"] else result["error"][:120]),
@@ -168,6 +181,7 @@ class SkillRuntime:
     def skill_get_observation(self) -> dict:
         frame = self.observe()
         dets = self.detector.detect(frame, classes=self._default_classes)
+        self._show_detections(dets)
         objects = self._update_beliefs_from_frame(frame, dets)
         state = self.arm.get_state()
         tcp = self.kin.fk(state.q)[:3, 3]

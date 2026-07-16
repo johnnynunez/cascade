@@ -30,7 +30,7 @@ from ..safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from ..skills.runtime import SkillRuntime
 
 
-def build_runtime(cfg, run_dir: Path) -> tuple[SkillRuntime, object]:
+def build_runtime(cfg, run_dir: Path, view: bool = False) -> tuple[SkillRuntime, object]:
     kin = Kinematics(
         urdf_path=cfg.arm.urdf,
         ee_frame=cfg.arm.get("ee_frame", "gripper_end"),
@@ -42,6 +42,13 @@ def build_runtime(cfg, run_dir: Path) -> tuple[SkillRuntime, object]:
     safe_arm = SafeArm(arm, harness)
 
     camera = make_camera(cfg.camera)
+    if view:
+        # Always-on visualization: wrap the camera in a FrameHub so a live
+        # window shows what the camera sees (plus agent overlays) while the
+        # runtime keeps getting fresh frames from the same stream.
+        from .live_view import FrameHub
+
+        camera = FrameHub(camera, title="wrc-demo :: live", show=True)
     camera.open()
     camera.warm_up(int(cfg.camera.get("warmup_frames", 5)))
     depth = DepthProvider(cfg.camera)
@@ -93,16 +100,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-steps", type=int, default=30)
     p.add_argument("--run-dir", default=None, help="trace output dir")
     p.add_argument("--interactive", action="store_true", help="multi-task REPL")
+    p.add_argument("--no-view", action="store_true",
+                   help="do not open the live camera window")
     args = p.parse_args(argv)
 
     cfg = load_demo_config(camera=args.camera, arm=args.arm, llm=args.llm)
     run_dir = Path(args.run_dir) if args.run_dir else (
         PACKAGE_ROOT / "runs" / time.strftime("%Y%m%d_%H%M%S")
     )
-    print(f"[wrc-demo] camera={args.camera} arm={args.arm} llm={args.llm}")
+    import os
+
+    view = not args.no_view and bool(os.environ.get("DISPLAY"))
+    print(f"[wrc-demo] camera={args.camera} arm={args.arm} llm={args.llm} view={view}")
     print(f"[wrc-demo] traces -> {run_dir}")
 
-    runtime, arm = build_runtime(cfg, run_dir)
+    runtime, arm = build_runtime(cfg, run_dir, view=view)
 
     # Ctrl+C = soft stop (freeze + latch e-stop, no free-fall); a second
     # Ctrl+C raises KeyboardInterrupt and tears the process down.

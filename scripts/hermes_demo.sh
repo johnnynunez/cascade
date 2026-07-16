@@ -2,8 +2,17 @@
 # One-shot Hermes demo: register the wrc-demo MCP server, verify the
 # connection, and drop into a Hermes chat where you can talk to the arm.
 #
-#   ./scripts/hermes_demo.sh                    # L515 camera, mock arm
-#   ./scripts/hermes_demo.sh --arm rebot_rs     # real arm (onsite only!)
+#   ./scripts/hermes_demo.sh                              # default model
+#   ./scripts/hermes_demo.sh --model anthropic/claude-sonnet-4-5
+#   ./scripts/hermes_demo.sh --arm rebot_rs               # real arm (onsite!)
+#
+# The BRAIN is whatever vision-capable model Hermes is pointed at:
+#   - Claude:      needs ANTHROPIC_API_KEY known to Hermes (`hermes model`),
+#                  then --model anthropic/<claude model>
+#   - GPT (Codex): already logged in on this rig (gpt-5.6-sol) - just works
+#   - local VLM:   serve Qwen3.6 (scripts/serve_qwen_llamacpp.sh), define a
+#                  custom provider in ~/.hermes/config.yaml `providers:`
+#                  pointing at http://127.0.0.1:8080/v1, then --provider it
 #
 # Try saying:
 #   "take a camera snapshot and tell me what you see"
@@ -13,6 +22,8 @@ set -euo pipefail
 
 CAMERA="l515"
 ARM="mock"
+MODEL=""
+PROVIDER=""
 PY="/home/spark/Projects/demo/.demo/bin/python"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 DETECTOR="${WRC_DETECTOR_MODEL:-/home/spark/Projects/demo/reBot-DevArm-Grasp/models/yolo11n.pt}"
@@ -22,6 +33,8 @@ while [[ $# -gt 0 ]]; do
         --camera) CAMERA="$2"; shift 2 ;;
         --arm) ARM="$2"; shift 2 ;;
         --detector) DETECTOR="$2"; shift 2 ;;
+        --model) MODEL="$2"; shift 2 ;;
+        --provider) PROVIDER="$2"; shift 2 ;;
         *) echo "unknown flag $1"; exit 1 ;;
     esac
 done
@@ -42,11 +55,21 @@ hermes mcp remove wrc-demo >/dev/null 2>&1 || true
 hermes mcp add wrc-demo \
     --command "$PY" \
     --env "PYTHONPATH=$REPO/src" "WRC_CAMERA=$CAMERA" "WRC_ARM=$ARM" \
-          "WRC_DETECTOR_MODEL=$DETECTOR" \
+          "WRC_DETECTOR_MODEL=$DETECTOR" "DISPLAY=${DISPLAY:-:1}" \
     --args -m wrc_demo.apps.mcp_server
 
 echo "[+] testing the connection"
 hermes mcp test wrc-demo
 
-echo "[+] opening chat (ctrl+d to exit)"
-exec hermes chat -q "Take a camera snapshot and list the objects you can see on the table." || exec hermes chat
+CHAT_ARGS=()
+[[ -n "$MODEL" ]] && CHAT_ARGS+=(-m "$MODEL")
+[[ -n "$PROVIDER" ]] && CHAT_ARGS+=(--provider "$PROVIDER")
+
+cat <<'EOF'
+[+] opening interactive chat (ctrl+d to exit). Ask things like:
+      take a camera snapshot and tell me what you see
+      what objects are on the table?
+      localize the bottle
+      grasp the red cube
+EOF
+exec hermes chat "${CHAT_ARGS[@]}"

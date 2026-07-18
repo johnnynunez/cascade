@@ -1,6 +1,6 @@
-# Kinematic mock arm on the RS URDF (ships in assets/).
+# Kinematic mock arm on the RS USD asset (ships in assets/).
 type: mock
-urdf: ${assets}/urdf/00-arm-rs_asm-v3.urdf
+model: ${assets}/usd/RS-rebot-dev-arm/00-arm-rs_asm-v3.usda
 ee_frame: gripper_end
 n_joints: 6
 home_q: [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]

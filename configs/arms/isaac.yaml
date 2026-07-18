@@ -1,12 +1,12 @@
 # Simulated reBot RS in Isaac Sim via scripts/isaac_bridge.py.
-# Same URDF/kinematics/safety as the real arm: whatever works here
+# Same USD model/kinematics/safety as the real arm: whatever works here
 # transfers to hardware by swapping the profile back to rebot_rs.
 type: isaac
 bridge_host: 127.0.0.1
 bridge_port: 8611
 n_joints: 6
 settle_tol: 0.045
-urdf: ${assets}/urdf/00-arm-rs_asm-v3.urdf
+model: ${assets}/usd/RS-rebot-dev-arm/00-arm-rs_asm-v3.usda
 ee_frame: gripper_end
 home_q: [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
 handover_q: [0.5, 1.2, 1.2, 0.0, 0.75, 0.0]

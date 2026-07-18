@@ -1,9 +1,13 @@
-"""FK/IK on the arm URDF via Pinocchio.
+"""FK/IK on the arm model via Pinocchio.
 
 Self-contained on purpose: reBotArm_control_py's kinematics module reads its
 own global config/rebotarm.yaml (ignoring the hw_yaml passed to RebotArm), so
-using it with the RS arm silently loads the DM URDF. Here the URDF path comes
-from the arm profile explicitly, and the RS URDF ships in this repo's assets.
+using it with the RS arm silently loads the DM model. Here the model path
+comes from the arm profile explicitly, and points at the USD asset that ships
+in this repo (assets/usd/RS-rebot-dev-arm) -- the same asset Isaac Sim loads,
+so sim and host FK/IK can never drift apart. Pinocchio has no USD reader, so
+usd_model translates the USD physics layer to URDF in memory; plain .urdf
+paths still load directly.
 
 The RS model has nq=8 (6 revolute + 2 passive prismatic finger joints); we
 command the first 6 and zero-pad the rest, same convention as the SDK.
@@ -26,18 +30,24 @@ class IKResult:
 
 
 class Kinematics:
-    def __init__(self, urdf_path: str, ee_frame: str, n_controlled: int = 6):
+    def __init__(self, model_path: str, ee_frame: str, n_controlled: int = 6):
         import pinocchio as pin  # heavy import, keep local
 
         self._pin = pin
-        if not Path(urdf_path).exists():
-            raise FileNotFoundError(f"URDF not found: {urdf_path}")
-        self.model = pin.buildModelFromUrdf(str(urdf_path))
+        path = Path(model_path)
+        if not path.exists():
+            raise FileNotFoundError(f"robot model not found: {model_path}")
+        if path.suffix in (".usd", ".usda"):
+            from .usd_model import urdf_xml_from_usd
+
+            self.model = pin.buildModelFromXML(urdf_xml_from_usd(path))
+        else:
+            self.model = pin.buildModelFromUrdf(str(path))
         self.data = self.model.createData()
         self.ee_frame = ee_frame
         self.fid = self.model.getFrameId(ee_frame)
         if self.fid >= len(self.model.frames.tolist()):
-            raise ValueError(f"frame {ee_frame!r} not in URDF")
+            raise ValueError(f"frame {ee_frame!r} not in model")
         self.n = n_controlled
         self.nq = self.model.nq
         lo = np.asarray(self.model.lowerPositionLimit[: self.n])

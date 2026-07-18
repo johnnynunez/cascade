@@ -7,7 +7,7 @@
 type: rebot_rs
 sdk_path: /home/spark/Projects/demo/reBotArm_control_py
 hw_yaml: rebotarm_rs.yaml
-urdf: ${assets}/urdf/00-arm-rs_asm-v3.urdf
+model: ${assets}/usd/RS-rebot-dev-arm/00-arm-rs_asm-v3.usda
 ee_frame: gripper_end
 n_joints: 6
 home_q: [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]

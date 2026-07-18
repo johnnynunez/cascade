@@ -9,7 +9,7 @@ sys.path.insert(0, str(REPO / "src"))
 
 from wrc_demo.config import load_demo_config  # noqa: E402
 
-URDF = REPO / "assets" / "urdf" / "00-arm-rs_asm-v3.urdf"
+MODEL = REPO / "assets" / "usd" / "RS-rebot-dev-arm" / "00-arm-rs_asm-v3.usda"
 
 
 def has_pinocchio() -> bool:
@@ -22,8 +22,8 @@ def has_pinocchio() -> bool:
 
 
 needs_pin = pytest.mark.skipif(
-    not has_pinocchio() or not URDF.exists(),
-    reason="pinocchio or RS URDF not available",
+    not has_pinocchio() or not MODEL.exists(),
+    reason="pinocchio or RS USD model not available",
 )
 
 

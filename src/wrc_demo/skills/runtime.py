@@ -17,6 +17,7 @@ import numpy as np
 from ..agent.trace import TraceLogger
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..memory import BeliefStore, EpisodicMemory
+from ..perception.colors import detection_color, parse_color_query
 from ..perception.grounding import (
     Extrinsics,
     localize_object,
@@ -24,6 +25,14 @@ from ..perception.grounding import (
     oriented_bbox,
 )
 from ..types import Frame, SafetyViolation, SkillError, make_transform, transform_points
+
+#: skills that move the arm: the WorldWatcher is held while they run so the
+#: held/handled object is not re-fused at a bogus mid-air position.
+_MOTION_SKILLS = {
+    "grasp_object", "place_at", "place_on_object", "push_object",
+    "open_gripper", "close_gripper", "move_home", "pick_and_place",
+    "point_at", "wave", "handover", "sort_by_color", "move_relative",
+}
 
 
 def _jpeg(rgb: np.ndarray, quality: int = 85) -> bytes:
@@ -57,6 +66,13 @@ class SkillRuntime:
         self.cfg = cfg
         self.last_frame: Frame | None = None
         self.held_object: str | None = None
+        self._held_det_label: str | None = None
+        self._held_color: str | None = None
+        #: optional WorldWatcher (set by the app wiring); paused during motion
+        self.watcher = None
+        #: natural-language task currently executing (dashboard narration)
+        self.current_task: str | None = None
+        self._graspgenx = None  # lazy GraspGenXPlanner (grasp.backend)
         g = cfg.arm.gripper
         self._grip_open = float(g.get("open_pos", 0.0))
         self._grip_closed = float(g.get("closed_pos", 1.0))
@@ -85,7 +101,23 @@ class SkillRuntime:
         )
         t0 = time.monotonic()
         try:
-            result = fn(**args)
+            import contextlib
+
+            hold = (
+                self.watcher.paused()
+                if (self.watcher is not None and name in _MOTION_SKILLS)
+                else contextlib.nullcontext()
+            )
+            with hold:
+                try:
+                    result = fn(**args)
+                finally:
+                    # Sync the held-object ignore BEFORE fusion resumes, or
+                    # one tick could register the object dangling mid-air.
+                    if self.watcher is not None:
+                        self.watcher.ignore_label(
+                            self._held_det_label if self.held_object else None
+                        )
             if "ok" not in result:
                 result["ok"] = True
         except (SkillError, SafetyViolation) as e:
@@ -107,12 +139,11 @@ class SkillRuntime:
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_after"
         )
         self.trace.record(name, args, result, dur, before, after)
-        self._show_status(
-            f"{name} -> " + ("ok" if result["ok"] else str(result.get("error", ""))[:60])
-        )
+        err = str(result.get("error", "failed"))
+        self._show_status(f"{name} -> " + ("ok" if result["ok"] else err[:60]))
         self.memory.add(
             "action" if result["ok"] else "outcome",
-            f"{name}({_short(args)}) -> " + ("ok" if result["ok"] else result["error"][:120]),
+            f"{name}({_short(args)}) -> " + ("ok" if result["ok"] else err[:120]),
         )
         return result
 
@@ -176,6 +207,79 @@ class SkillRuntime:
         closed_frac = (state.gripper_pos - self._grip_open) / span  # 1 at closed
         return float(np.clip(1.0 - closed_frac, 0.0, 1.0))
 
+    # ── language -> world resolution ─────────────────────────────────────
+
+    def _resolve_query(self, query: str) -> dict:
+        """Turn a user phrase ("pink object", "red mug", "bottle") into
+        detector inputs, using the live belief store when it already knows
+        the answer (the WorldWatcher keeps it warm)."""
+        color, noun = parse_color_query(query)
+        belief = self.beliefs.find(query)
+        near = belief.position.copy() if belief is not None else None
+        prompts = vocab = prefer = None
+        if noun:
+            q = query.strip().lower()
+            prompts = [noun] if noun == q else [q, noun]
+        elif belief is not None and (color is None or belief.color == color):
+            # Warm path: the world model already knows the answer. When the
+            # class is in the default vocabulary, detect with the WHOLE
+            # vocabulary (no set_classes churn -- YOLOE re-embeds text on
+            # every class change) and prefer that label among candidates.
+            if belief.label in self._default_classes:
+                vocab, prefer = self._default_classes, belief.label
+            else:
+                prompts = [belief.label]
+        else:
+            # No belief, or an UNTAGGED belief matched a color query only by
+            # fallback -- don't trust it blindly: scan the vocabulary and let
+            # the color filter decide (near still helps ranking).
+            vocab = self._default_classes
+        return {
+            "prompts": prompts, "vocab": vocab, "color": color,
+            "near_xyz": near, "belief": belief, "prefer_label": prefer,
+        }
+
+    def _plan_grasps(self, fix) -> list:
+        """Grasp candidates: learned 6-DoF (GraspGen-X server) when
+        configured, ALWAYS backstopped by the analytic OBB planner --
+        a dead grasp server must degrade, never fail the grasp."""
+        gcfg = self.cfg.grasp
+        obb = plan_grasps_from_fix(
+            fix,
+            table_z=float(self.cfg.safety.get("table_z", 0.0)),
+            max_width_m=self._max_width,
+            depth_fraction=float(gcfg.get("depth_fraction", 0.5)),
+        )
+        if str(gcfg.get("backend", "obb")) != "graspgenx":
+            return obb
+        try:
+            if self._graspgenx is None:
+                from ..grasping.graspgenx_backend import GraspGenXPlanner
+
+                self._graspgenx = GraspGenXPlanner(gcfg)
+            learned = self._graspgenx.plan(fix, max_width_m=self._max_width)
+            self.memory.add(
+                "note",
+                f"graspgenx: {len(learned)} grasps in {self._graspgenx.last_latency_s}s "
+                f"(top {learned[0].quality:.2f})",
+            )
+            return learned + obb  # learned first; OBB stays as IK fallback
+        except Exception as e:
+            self.memory.add("note", f"graspgenx unavailable ({str(e)[:90]}); OBB fallback")
+            return obb
+
+    def _localize(self, query: str, spatial_hint: str | None = None):
+        """Fresh frame + color/proximity-aware 3D fix for a user phrase."""
+        r = self._resolve_query(query)
+        frame = self.observe()
+        fix = localize_object(
+            frame, query, self.detector, self.extrinsics,
+            prompts=r["prompts"], spatial_hint=spatial_hint,
+            color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
+            prefer_label=r["prefer_label"],
+        )
+        return frame, fix
+
     # ── skills ───────────────────────────────────────────────────────────
 
     def skill_get_observation(self) -> dict:
@@ -183,23 +287,30 @@ class SkillRuntime:
         dets = self.detector.detect(frame, classes=self._default_classes)
         self._show_detections(dets)
         objects = self._update_beliefs_from_frame(frame, dets)
-        state = self.arm.get_state()
-        tcp = self.kin.fk(state.q)[:3, 3]
         self.memory.add(
             "observation",
             f"saw {[o['label'] for o in objects]} (depth: {frame.depth_source})",
             rgb=frame.rgb,
         )
-        wf = self._gripper_width_frac()
-        return {
-            "objects_visible": objects,
-            "objects_remembered": self.beliefs.summary(),
-            "robot": {
+        # A pure LOOK must not power the motors: a LazyArm that has not
+        # materialized yet reports standby instead of being poked awake.
+        if getattr(self.arm.raw, "connected", True):
+            state = self.arm.get_state()
+            tcp = self.kin.fk(state.q)[:3, 3]
+            wf = self._gripper_width_frac()
+            robot = {
                 "q_deg": [round(float(np.degrees(x)), 1) for x in state.q],
                 "tcp_xyz": [round(float(x), 3) for x in tcp],
                 "gripper_open_frac": round(wf, 2) if wf is not None else "unknown",
                 "holding": self.held_object,
-            },
+            }
+        else:
+            robot = {"status": "standby (motors unpowered until the first motion)",
+                     "holding": self.held_object}
+        return {
+            "objects_visible": objects,
+            "objects_remembered": self.beliefs.summary(),
+            "robot": robot,
             "depth_source": frame.depth_source,
         }
 
@@ -211,16 +322,19 @@ class SkillRuntime:
         }
 
     def skill_localize_object(self, label: str, spatial_hint: str | None = None) -> dict:
-        frame = self.observe()
-        fix = localize_object(
-            frame, label, self.detector, self.extrinsics, spatial_hint=spatial_hint
-        )
+        frame, fix = self._localize(label, spatial_hint=spatial_hint)
+        color = detection_color(frame.rgb, fix.detection)
+        # Beliefs live under DETECTOR labels (what the watcher re-fuses);
+        # recording the user's query words would create ghost duplicates.
         self.beliefs.update(
-            fix.label, fix.position, fix.detection.conf, extent=fix.extent,
-            top_z=float(fix.points[:, 2].max()), t=frame.t,
+            fix.detection.label or fix.label, fix.position, fix.detection.conf,
+            extent=fix.extent, top_z=float(fix.points[:, 2].max()), t=frame.t,
+            color=color,
         )
         return {
             "label": label,
+            "detected_as": fix.detection.label,
+            "color": color,
             "position": [round(float(x), 3) for x in fix.position],
             "extent_m": [round(float(x), 3) for x in fix.extent],
             "n_points": int(fix.points.shape[0]),
@@ -235,17 +349,9 @@ class SkillRuntime:
         if self.held_object:
             raise SkillError(f"already holding {self.held_object!r}; place it first")
         gcfg = self.cfg.grasp
-        frame = self.observe()
-        fix = localize_object(
-            frame, label, self.detector, self.extrinsics, spatial_hint=spatial_hint
-        )
-        profile = select_profile(label, material)
-        grasps = plan_grasps_from_fix(
-            fix,
-            table_z=float(self.cfg.safety.get("table_z", 0.0)),
-            max_width_m=self._max_width,
-            depth_fraction=float(gcfg.get("depth_fraction", 0.5)),
-        )
+        frame, fix = self._localize(label, spatial_hint=spatial_hint)
+        profile = select_profile(fix.detection.label or label, material)
+        grasps = self._plan_grasps(fix)
         state = self.arm.get_state()
         grasp, q_pre, q_grasp = select_grasp(
             grasps,
@@ -301,7 +407,9 @@ class SkillRuntime:
                     "suggestion": "re-localize the object or try the alternate yaw",
                 }
         self.held_object = label
-        self.beliefs.mark_removed(label, near=fix.position)
+        self._held_det_label = fix.detection.label
+        self._held_color = detection_color(frame.rgb, fix.detection)
+        self.beliefs.mark_removed(self._held_det_label or label, near=fix.position)
         self.memory.add(
             "action",
             f"grasped {label!r} (profile {profile.name}, "
@@ -375,8 +483,14 @@ class SkillRuntime:
             self.arm.harness.clear_grasp_exemption()
 
         placed = self.held_object
+        # Re-register under the DETECTOR label so the watcher's next fusion
+        # merges with this belief instead of creating a query-string ghost.
+        self.beliefs.update(
+            self._held_det_label or placed, target, 0.8, color=self._held_color
+        )
         self.held_object = None
-        self.beliefs.update(placed, target, 0.8)
+        self._held_det_label = None
+        self._held_color = None
         self.memory.add("action", f"placed {placed!r} at {target.round(3).tolist()}")
         return {"placed": placed, "at": [round(float(v), 3) for v in target]}
 
@@ -385,11 +499,11 @@ class SkillRuntime:
             raise SkillError("not holding anything")
         belief = self.beliefs.find(label)
         if belief is None:
-            frame = self.observe()
-            fix = localize_object(frame, label, self.detector, self.extrinsics)
+            frame, fix = self._localize(label)
             self.beliefs.update(
-                label, fix.position, fix.detection.conf, extent=fix.extent,
-                top_z=float(fix.points[:, 2].max()),
+                fix.detection.label or label, fix.position, fix.detection.conf,
+                extent=fix.extent, top_z=float(fix.points[:, 2].max()),
+                color=detection_color(frame.rgb, fix.detection),
             )
             belief = self.beliefs.find(label)
         # Use the actually observed highest point of the target, never OBB
@@ -409,8 +523,7 @@ class SkillRuntime:
         if direction not in dirs:
             raise SkillError(f"direction must be one of {sorted(dirs)}")
         d2 = dirs[direction]
-        frame = self.observe()
-        fix = localize_object(frame, label, self.detector, self.extrinsics)
+        frame, fix = self._localize(label)
         gcfg = self.cfg.grasp
         table_z = float(self.cfg.safety.get("table_z", 0.0))
         # Contact LOW on the object (a third of its height, min 1.5 cm above
@@ -450,11 +563,278 @@ class SkillRuntime:
         self.memory.add("action", f"pushed {label!r} {direction} by {distance_m:.2f} m")
         return {"pushed": label, "direction": direction, "new_position_estimate": end.round(3).tolist()}
 
+    def skill_pick_and_place(
+        self,
+        object: str,
+        destination: str | None = None,
+        material: str | None = None,
+    ) -> dict:
+        """One-call pick-and-place: resolve (color queries work) -> grasp
+        with one deterministic retry -> place on the destination object or
+        the configured drop zone -> home. No LLM in the loop; this is the
+        reflex the Hermes chat calls for "pick and place pink object"."""
+        if self.held_object:
+            raise SkillError(
+                f"already holding {self.held_object!r}; place it first"
+            )
+        t0 = time.monotonic()
+        timings: dict[str, float] = {}
+
+        grasp = None
+        last_err = "unknown"
+        for attempt in (1, 2):
+            tg = time.monotonic()
+            try:
+                res = self.skill_grasp_object(object, material=material)
+            except (SkillError, SafetyViolation) as e:
+                res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+            timings[f"grasp_attempt{attempt}_s"] = round(time.monotonic() - tg, 2)
+            if res.get("ok", True) and res.get("held"):
+                grasp = res
+                break
+            last_err = str(res.get("error", "grasp failed"))
+            self.memory.add("outcome", f"pick attempt {attempt} failed: {last_err[:100]}")
+            # no sleep before the retry: CameraStream.get_frame already
+            # waits for a frame captured after the call
+        if grasp is None:
+            return {
+                "ok": False, "stage": "grasp",
+                "error": f"grasp failed after 2 attempts: {last_err}",
+                "suggestion": "check world_state / camera_snapshot; the object may be unreachable or mis-detected",
+            }
+
+        tp = time.monotonic()
+        try:
+            if destination:
+                placed = self.skill_place_on_object(destination)
+            else:
+                dz = self.cfg.grasp.get("drop_zone", [0.30, -0.20])
+                placed = self.skill_place_at(float(dz[0]), float(dz[1]))
+            if not placed.get("ok", True):
+                raise SkillError(str(placed.get("error", "place failed")))
+        except (SkillError, SafetyViolation) as e:
+            return {
+                "ok": False, "stage": "place",
+                "error": f"{type(e).__name__}: {e}",
+                "note": f"still holding {object!r}; try place_at with explicit coordinates",
+                "grip_verified": grasp.get("grip_verified"),
+            }
+        timings["place_s"] = round(time.monotonic() - tp, 2)
+
+        if bool(self.cfg.grasp.get("home_after_place", True)):
+            try:  # clear the camera view for the next command; best effort
+                self.skill_move_home()
+            except (SkillError, SafetyViolation):
+                pass
+        total = round(time.monotonic() - t0, 2)
+        self.memory.add(
+            "action",
+            f"pick_and_place {object!r} -> {destination or 'drop zone'} in {total}s",
+        )
+        return {
+            "picked": object,
+            "placed_at": placed.get("at"),
+            "destination": destination or "drop zone",
+            "grip_profile": grasp.get("grip_profile"),
+            "grip_verified": grasp.get("grip_verified"),
+            "duration_s": total,
+            "timings": timings,
+        }
+
+    # ── social / audience skills (deterministic, harness-gated) ─────────
+
+    def skill_describe_scene(self) -> dict:
+        """INSTANT text description from the live world model (no detector
+        pass, no motion): what is where, colors, what the gripper holds."""
+        objs = self.beliefs.summary()
+        parts = []
+        for o in objs:
+            color = f"{o['color']} " if o.get("color") else ""
+            parts.append(
+                f"a {color}{o['label']} at [{o['position'][0]}, {o['position'][1]}]"
+                + (" (remembered)" if o["state"] == "remembered" else "")
+            )
+        text = (
+            "I see " + "; ".join(parts) + "." if parts
+            else "I don't know of any objects yet -- let me look around."
+        )
+        if self.held_object:
+            text += f" I am holding the {self.held_object}."
+        return {"description": text, "objects": objs, "holding": self.held_object}
+
+    def skill_count_objects(self, query: str | None = None) -> dict:
+        beliefs = self.beliefs.all()
+        if query:
+            color, noun = parse_color_query(query)
+            if color:
+                beliefs = [b for b in beliefs if b.color == color]
+            if noun:
+                beliefs = [
+                    b for b in beliefs
+                    if noun in b.label.lower() or b.label.lower() in noun
+                ]
+        return {
+            "count": len(beliefs),
+            "query": query or "all",
+            "labels": [f"{b.color or '?'} {b.label}" for b in beliefs],
+        }
+
+    def skill_point_at(self, label: str) -> dict:
+        """Deictic gesture: hover the closed gripper above the object for a
+        moment ("this one!"), then return. Answers 'which one is X?'."""
+        _, fix = self._localize(label)
+        gcfg = self.cfg.grasp
+        hover = fix.position.copy()
+        # Strict top-down poses only solve below ~0.15 m on the B601-RS
+        # (wrist limits); clamp the hover or tall objects become unpointable.
+        z_max = float(gcfg.get("topdown_z_max", 0.15)) - 0.01
+        hover[2] = min(
+            float(fix.points[:, 2].max()) + float(gcfg.get("pregrasp_offset_m", 0.08)),
+            z_max,
+        )
+        from ..grasping.obb_grasp import _yaw_rotation
+
+        q_now = self.arm.get_state().q
+        ik = None
+        for z in (hover[2], z_max - 0.02):
+            for yaw in (float(np.arctan2(hover[1], hover[0])), 0.0, np.pi / 4, -np.pi / 4):
+                cand = self.kin.ik(
+                    make_transform(_yaw_rotation(yaw), [hover[0], hover[1], z]), q_now
+                )
+                if cand.success:
+                    ik = cand
+                    break
+            if ik is not None:
+                break
+        if ik is None:
+            raise SkillError(f"cannot reach a pointing pose above {label!r}")
+        if not self.held_object:
+            self.arm.set_gripper(self._grip_closed, effort=0.6)
+        if not self.arm.move_joints(ik.q, duration_s=2.0):
+            raise SkillError("did not settle at the pointing pose")
+        time.sleep(float(self.cfg.get("gesture", {}).get("point_hold_s", 1.2)))
+        self.memory.add("action", f"pointed at {label!r}")
+        return {"pointed_at": label, "position": [round(float(x), 3) for x in fix.position]}
+
+    def skill_wave(self, cycles: int = 2) -> dict:
+        """Greeting gesture: wag the base + wrist around home. Every
+        waypoint still goes through the safety harness."""
+        home = np.asarray(
+            self.cfg.arm.get("home_q", [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]), dtype=float
+        )
+        if not self.arm.move_joints(home, duration_s=2.0):
+            raise SkillError("could not reach home to wave")
+        cycles = int(np.clip(cycles, 1, 4))
+        for side in [+1, -1] * cycles:
+            q = home.copy()
+            q[0] += 0.25 * side
+            q[4] += 0.30 * side
+            self.arm.move_joints(q, duration_s=0.7)
+        self.arm.move_joints(home, duration_s=0.8)
+        self.memory.add("action", "waved at the audience")
+        return {"waved": True, "cycles": cycles}
+
+    def skill_handover(self, label: str | None = None) -> dict:
+        """Hand the object to the human: grasp it if needed, present it at
+        the handover pose, and KEEP HOLDING -- the human says 'open gripper'
+        (or the agent calls open_gripper) once they have grabbed it."""
+        if not self.held_object:
+            if not label:
+                raise SkillError("not holding anything; say which object to hand over")
+            res = self.skill_grasp_object(label)
+            if not res.get("ok", True) or not res.get("held"):
+                return {
+                    "ok": False,
+                    "error": f"could not grasp {label!r} for handover: {res.get('error')}",
+                }
+        hand_q = np.asarray(
+            self.cfg.arm.get("handover_q", [0.5, 1.2, 1.2, 0.0, 0.75, 0.0]), dtype=float
+        )
+        if not self.arm.move_joints(hand_q, duration_s=2.0):
+            raise SkillError("did not settle at the handover pose")
+        self.memory.add("action", f"offering {self.held_object!r} to the human")
+        return {
+            "offering": self.held_object,
+            "note": "holding steady; call open_gripper once the human has it",
+        }
+
+    def skill_sort_by_color(self, max_objects: int = 6) -> dict:
+        """Crowd-pleaser: group everything on the table into per-color zones
+        along the front edge. Pure composition of pick_and_place."""
+        # +-0.24 is outside the top-down IK envelope at x=0.30 on this arm
+        # (verified against the RS URDF); stay within +-0.20.
+        zones_y = (-0.20, -0.10, 0.0, 0.10, 0.20)
+        zone_x = float(self.cfg.grasp.get("drop_zone", [0.30, -0.20])[0])
+        colors: dict[str, tuple[float, float]] = {}
+        moved, failed = [], []
+        for b in list(self.beliefs.all())[: int(max_objects)]:
+            color = b.color or "unknown"
+            if color not in colors:
+                if len(colors) >= len(zones_y):
+                    failed.append({"label": b.label, "error": "no free color zone"})
+                    continue
+                colors[color] = (zone_x, zones_y[len(colors)])
+            zx, zy = colors[color]
+            if np.linalg.norm(b.position[:2] - np.array([zx, zy])) < 0.07:
+                continue  # already sorted
+            query = f"{b.color} {b.label}" if b.color else b.label
+            try:
+                res = self.skill_grasp_object(query)
+            except (SkillError, SafetyViolation) as e:
+                failed.append({"label": query, "error": str(e)})
+                continue
+            if not res.get("ok", True) or not res.get("held"):
+                failed.append({"label": query, "error": str(res.get("error", "?"))})
+                continue
+            try:
+                self.skill_place_at(zx, zy)
+            except (SkillError, SafetyViolation) as e:
+                # still holding: stop sorting rather than cascade failures
+                failed.append({"label": query, "error": f"place: {e}"})
+                break
+            moved.append({"label": query, "color": color, "zone": [zx, zy]})
+        ok = not failed or bool(moved)
+        out = {
+            "ok": ok,
+            "moved": moved,
+            "failed": failed,
+            "zones": {c: list(z) for c, z in colors.items()},
+        }
+        if not ok:
+            out["error"] = "; ".join(
+                f"{f['label']}: {f['error'][:60]}" for f in failed[:3]
+            ) or "nothing to sort"
+        return out
+
+    def skill_move_relative(self, direction: str, distance_m: float = 0.05) -> dict:
+        """Nudge the TCP: fine chat-driven control ("a bit to the left")."""
+        dirs = {
+            "forward": [1, 0, 0], "back": [-1, 0, 0],
+            "left": [0, 1, 0], "right": [0, -1, 0],
+            "up": [0, 0, 1], "down": [0, 0, -1],
+        }
+        if direction not in dirs:
+            raise SkillError(f"direction must be one of {sorted(dirs)}")
+        distance_m = float(np.clip(distance_m, 0.01, 0.15))
+        q_now = self.arm.get_state().q
+        T = self.kin.fk(q_now)
+        target = T.copy()
+        target[:3, 3] += np.asarray(dirs[direction], dtype=float) * distance_m
+        ik = self.kin.ik(target, q_now)
+        if not ik.success:
+            raise SkillError(f"cannot move {distance_m:.2f} m {direction} from here")
+        if not self.arm.move_joints(ik.q, duration_s=1.0):
+            raise SkillError("did not settle after the nudge")
+        tcp = self.kin.fk(self.arm.get_state().q)[:3, 3]
+        return {"moved": direction, "distance_m": distance_m,
+                "tcp_xyz": [round(float(x), 3) for x in tcp]}
+
     def skill_open_gripper(self) -> dict:
         self.arm.set_gripper(self._grip_open, effort=0.8)
         if self.held_object:
             self.memory.add("action", f"released {self.held_object!r}")
             self.held_object = None
+            self._held_det_label = None
         return {"gripper": "open"}
 
     def skill_close_gripper(self) -> dict:
@@ -533,6 +913,30 @@ TOOL_SPECS: list[dict] = [
         },
     },
     {
+        "name": "pick_and_place",
+        "description": (
+            "FAST PATH: complete pick-and-place in ONE call. Resolves the "
+            "object against the live world model (color queries like 'pink "
+            "object' work), grasps with an automatic retry, places on the "
+            "named destination object (or the default drop zone if omitted), "
+            "returns home, and reports stage timings. Prefer this over "
+            "manual localize/grasp/place for any 'pick X [put it in Y]' "
+            "request -- it is deterministic and much faster."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "object": {"type": "string", "description": "what to pick, e.g. 'pink object', 'red mug'"},
+                "destination": {"type": "string", "description": "named object to place on/in; omit for the drop zone"},
+                "material": {
+                    "type": "string",
+                    "enum": ["rigid", "fragile", "soft", "deformable", "slippery", "heavy"],
+                },
+            },
+            "required": ["object"],
+        },
+    },
+    {
         "name": "place_at",
         "description": "Place the held object at base-frame coordinates (meters). Omit z to release just above the table.",
         "parameters": {
@@ -568,8 +972,70 @@ TOOL_SPECS: list[dict] = [
         },
     },
     {
+        "name": "describe_scene",
+        "description": "INSTANT text description of everything the robot knows (objects, colors, positions, what it holds) from the live world model -- no motion, no camera wait. Prefer this for 'what do you see?' questions.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "count_objects",
+        "description": "Count known objects, optionally filtered by a query like 'red' or 'cube' or 'pink object'. Instant, from the live world model.",
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": [],
+        },
+    },
+    {
+        "name": "point_at",
+        "description": "Point at a named object (hover the gripper above it for a moment). Great for answering 'which one is the pink object?'.",
+        "parameters": {
+            "type": "object",
+            "properties": {"label": {"type": "string"}},
+            "required": ["label"],
+        },
+    },
+    {
+        "name": "wave",
+        "description": "Wave at the audience (a friendly greeting gesture around the home pose).",
+        "parameters": {
+            "type": "object",
+            "properties": {"cycles": {"type": "integer", "minimum": 1, "maximum": 4}},
+            "required": [],
+        },
+    },
+    {
+        "name": "handover",
+        "description": "Hand an object to the human: grasp it (if not already held), present it at the handover pose, and keep holding until open_gripper is called. Use for 'hand me / give me the X'.",
+        "parameters": {
+            "type": "object",
+            "properties": {"label": {"type": "string"}},
+            "required": [],
+        },
+    },
+    {
+        "name": "sort_by_color",
+        "description": "Sort every known object into per-color zones along the table edge (repeated pick-and-place; takes a while). A crowd favorite.",
+        "parameters": {
+            "type": "object",
+            "properties": {"max_objects": {"type": "integer", "minimum": 1, "maximum": 8}},
+            "required": [],
+        },
+    },
+    {
+        "name": "move_relative",
+        "description": "Nudge the gripper a few centimeters (fine adjustment): forward/back/left/right/up/down, default 0.05 m, max 0.15 m.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "direction": {"type": "string", "enum": ["forward", "back", "left", "right", "up", "down"]},
+                "distance_m": {"type": "number"},
+            },
+            "required": ["direction"],
+        },
+    },
+    {
         "name": "open_gripper",
-        "description": "Open the gripper (drops the held object where it is).",
+        "description": "Open the gripper (drops the held object where it is; also how a handover finishes).",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {

@@ -53,8 +53,89 @@ def draw_detections(img: np.ndarray, dets) -> None:
             cv2.addWeighted(overlay, 0.25, img, 0.75, 0, dst=img)
 
 
+class RigViewer:
+    """cv2 window over a CameraRig: all streams side by side, annotated.
+
+    Render-only -- frame pumping lives in each CameraStream. Degrades to a
+    silent no-op when no display is available, exactly like FrameHub."""
+
+    def __init__(self, rig, title: str = "wrc-demo :: live", scale: float = 0.7,
+                 rate_hz: float = 20.0, tile_h: int = 480):
+        self._rig = rig
+        self._title = title
+        self._scale = scale
+        self._period = 1.0 / rate_hz
+        self._tile_h = tile_h
+        self._stop = False
+        self._thread: threading.Thread | None = None
+        self._gui_ok = True
+
+    def start(self) -> None:
+        import os
+
+        if not os.environ.get("DISPLAY") or os.environ.get("WRC_VIEW") == "0":
+            self._gui_ok = False
+            return
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="rig-viewer")
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop = True
+        if self._thread is not None:
+            self._thread.join(timeout=5)
+            self._thread = None
+
+    def _render_tile(self, stream) -> np.ndarray | None:
+        frame = stream.latest()
+        if frame is None:
+            return None
+        dets, status = stream.overlay()
+        img = frame.rgb.copy()
+        draw_detections(img, dets)
+        h, w = img.shape[:2]
+        draw_hud(img, [
+            f"{stream.name}  {w}x{h}  {stream.fps:4.1f} fps  depth: {frame.depth_source}",
+            f"agent: {status}",
+        ])
+        if h != self._tile_h:
+            img = cv2.resize(img, (int(w * self._tile_h / h), self._tile_h))
+        return img
+
+    def _loop(self) -> None:
+        window_up = False
+        while not self._stop:
+            t0 = time.monotonic()
+            tiles = [t for s in self._rig if (t := self._render_tile(s)) is not None]
+            if tiles and self._gui_ok:
+                try:
+                    panel = np.hstack(tiles) if len(tiles) > 1 else tiles[0]
+                    if self._scale != 1.0:
+                        panel = cv2.resize(panel, None, fx=self._scale, fy=self._scale)
+                    if not window_up:
+                        cv2.namedWindow(self._title, cv2.WINDOW_NORMAL)
+                        window_up = True
+                    cv2.imshow(self._title, panel)
+                    cv2.waitKey(1)
+                except Exception as e:
+                    self._gui_ok = False
+                    print(f"[rig-viewer] viewer disabled: {e}", file=sys.stderr)
+                    return
+            elapsed = time.monotonic() - t0
+            if elapsed < self._period:
+                time.sleep(self._period - elapsed)
+        if window_up:
+            try:
+                cv2.destroyWindow(self._title)
+                cv2.waitKey(1)
+            except Exception:
+                pass
+
+
 class FrameHub:
-    """Camera wrapper: background pump + optional live window."""
+    """Camera wrapper: background pump + optional live window.
+
+    Superseded by perception.stream.CameraStream + RigViewer for the rig
+    path; kept for single-camera embedding and back-compat."""
 
     def __init__(self, camera, title: str = "wrc-demo", show: bool = True,
                  scale: float = 0.7, rate_hz: float = 30.0):

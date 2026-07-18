@@ -9,8 +9,9 @@
       ],
       "env": {
         "PYTHONPATH": "/home/spark/Projects/demo/wrc_demo/src",
-        "WRC_CAMERA": "l515",
-        "WRC_ARM": "mock",
+        "WRC_CAMERAS": "isaac,isaac_side",
+        "WRC_ARM": "isaac",
+        "WRC_DETECT_CLASSES": "banana,soup can,cracker box,cube,bottle,box",
         "DISPLAY": ":1"
       }
     }

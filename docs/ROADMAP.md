@@ -2,6 +2,17 @@
 
 ## Near term (before the demo)
 
+- **GraspGen-X backend (integrated 2026-07-18, first-light verified).**
+  `grasp.backend: graspgenx` sends the fix's base-frame object cloud to the
+  GraspGen-X ZMQ server (`scripts/serve_graspgenx.sh`, own venv
+  `~/Projects/demo/.graspgenx`, checkpoints in `GraspGenX/ext/`) and gets
+  ranked 6-DoF grasps back (~1.2 s for 100 samples on the GB10); OBB stays
+  as automatic fallback and additional IK candidates. TODO: (1) calibrate
+  `tip_offset_m` in Isaac Sim (gripper-base -> reBot jaw center), (2) author
+  reBot sweep-volume params (12 numbers, see GraspGenX "Integrating a New
+  Gripper") instead of borrowing franka_panda, (3) use `infer_scene_pc` for
+  collision-aware grasps in clutter.
+
 - **Onsite bring-up checklist**
   1. `sudo ip link set can0 up type can bitrate 1000000`; kill any
      motorbridge-gateway/Studio.
@@ -38,10 +49,20 @@
 
 ## Long term: sim2real with NuRec / Isaac
 
+- **Isaac Sim bridge (scaffolded 2026-07-18, live validation PENDING).**
+  `scripts/isaac_bridge.py` (runs inside Isaac Sim's Python) serves RGB-D
+  frames + articulation control over newline-JSON TCP; `--cameras isaac
+  --arm isaac` runs the identical demo against the sim. Protocol + client
+  backends are fully covered by fake-server tests; the sim side is written
+  against the Isaac Sim 5.x core API and must be validated on first launch:
+  (1) reBot USD path + articulation joint ORDER vs the RS URDF, (2) gripper
+  DOF index and units (config assumes RS export open=-6.8), (3) camera
+  intrinsics/orientation vs the cam0 extrinsics in configs/cameras/isaac.yaml,
+  (4) position-target gains (use the tuned values from the gain-tuner work).
+  The Downloads/isaac-companion-v1-franka pack's `isaac-sim-remote` skill
+  (TCP Python-exec extension) is a good live-debugging companion for this.
 - `reBot-Isaacsim` + `sim2real-rebot-devarm` already provide USD assets, a
-  real→sim UDP mirror, and an HTTP control daemon for this arm. Wire the
-  MockArm interface to Isaac Sim (same URDF) for full-physics rehearsal of
-  agent episodes before touching hardware.
+  real→sim UDP mirror, and an HTTP control daemon for this arm.
 - **NuRec (neural reconstruction)**: reconstruct the actual demo tabletop
   into a photoreal digital twin; rehearse perception + grasping against the
   twin (domain gap ≈ 0 for the camera), then replay on the real rig. The

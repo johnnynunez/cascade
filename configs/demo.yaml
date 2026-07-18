@@ -15,6 +15,19 @@ safety:
   keep_out: []            # e.g. [{min: [x,y,z], max: [x,y,z]}] for the tripod
 
 grasp:
+  # Grasp planner: "obb" (analytic, always available) or "graspgenx"
+  # (learned 6-DoF via the ZMQ server -- scripts/serve_graspgenx.sh; falls
+  # back to OBB automatically if the server is down).
+  backend: obb
+  graspgenx:
+    host: 127.0.0.1
+    port: 5556
+    gripper: franka_panda   # closest shipped gripper; author reBot sweep params later
+    tip_offset_m: 0.10      # gripper-base -> jaw-center along approach; calibrate in sim
+    num_grasps: 100
+    topk: 32
+    min_score: 0.0
+    timeout_ms: 8000
   # NOTE: strict top-down tool poses are only IK-reachable below z~0.15 on
   # the B601-RS (wrist limits); keep grasp_z + offset under that.
   pregrasp_offset_m: 0.08   # hover height above the grasp along -approach
@@ -26,9 +39,28 @@ grasp:
   release_clearance_m: 0.06 # place_on_object: drop height above target top
   air_grasp_frac: 0.04      # jaw open-fraction below this after close = missed
   close_settle_s: 0.4       # generic two-stage close dwell (real arm ignores)
+  drop_zone: [0.30, -0.20]  # pick_and_place default target (no destination);
+                            # inside the top-down IK envelope (x<=0.34)
+  home_after_place: true    # clear the camera view after each pick_and_place
+  topdown_z_max: 0.15       # strict top-down poses are IK-unreachable above
+                            # this on the B601-RS (wrist limits)
 
 memory:
   horizon_s: 15.0           # episodic window the agent can consult
+
+# Always-on perception: every rig camera feeds the belief store continuously
+# so commands resolve against an already-warm world model.
+perception_loop:
+  enabled: true
+  rate_hz: 3.0              # detector passes per second across the rig
+
+# MJPEG livestream dashboard (stdlib HTTP; browsers/Hermes users watch here).
+stream:
+  enabled: true
+  host: 0.0.0.0
+  port: 8090
+  fps: 15
+  quality: 80
 
 detector:
   # Open-vocabulary YOLO (YOLOE / YOLO-World). Weights from the baseline repo.

@@ -1,6 +1,10 @@
-"""The agent loop: decompose -> act (tool calls) -> verify -> recover.
+"""The agent loop: reflex first, then decompose -> act -> verify -> recover.
 
-Inference-time composition of the two papers' ideas:
+Inference-time composition of the two papers' ideas plus the Anthropic
+robotics study's latency lesson:
+- reflex/habit tier (agent.reflex): routine commands compile straight to
+  skill calls (µs) or replay a proven plan from experience memory -- the LLM
+  never blocks the hot path;
 - ASPIRE: curated skill API + per-call multimodal traces + honest failure
   reporting back into context;
 - Agentic-VLA: LLM task decomposition into checkable milestones, and a VLM
@@ -11,12 +15,18 @@ Inference-time composition of the two papers' ideas:
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 
 from ..skills.runtime import TOOL_SPECS, SkillRuntime
 from .advisor import Advisor
 from .llm import LLMClient, LLMResponse
 from .prompts import DECOMPOSE_PROMPT, SYSTEM_PROMPT
+from .reflex import FastPlanner
+
+
+def _short_args(args: dict) -> str:
+    return ", ".join(f"{k}={v}" for k, v in args.items())
 
 
 def _as_bool(value) -> bool:
@@ -34,6 +44,8 @@ class TaskReport:
     steps: int
     milestones: list[str] = field(default_factory=list)
     tool_log: list[dict] = field(default_factory=list)
+    path: str = "llm"  # "reflex" | "experience" | "llm"
+    duration_s: float = 0.0
 
 
 class AgentOrchestrator:
@@ -45,6 +57,7 @@ class AgentOrchestrator:
         max_steps: int = 30,
         decompose: bool = True,
         attach_images: bool = True,
+        fast_planner: FastPlanner | None = None,
     ):
         self.llm = llm
         self.runtime = runtime
@@ -52,8 +65,16 @@ class AgentOrchestrator:
         self.max_steps = max_steps
         self.decompose = decompose
         self.attach_images = attach_images and llm.supports_vision
+        self.fast_planner = fast_planner
 
     def run_task(self, task: str) -> TaskReport:
+        t_start = time.monotonic()
+        fast_note = None
+        if self.fast_planner is not None:
+            report, fast_note = self._try_fast_path(task, t_start)
+            if report is not None:
+                return report
+
         milestones = self._decompose(task) if self.decompose else []
         messages: list[dict] = []
         tool_log: list[dict] = []
@@ -61,6 +82,8 @@ class AgentOrchestrator:
         intro = f"Task: {task}\n"
         if milestones:
             intro += "Milestones:\n" + "\n".join(f"{i+1}. {m}" for i, m in enumerate(milestones)) + "\n"
+        if fast_note:
+            intro += f"\n{fast_note}\n"
         intro += (
             "\nMemory (last 15 s):\n" + self.runtime.memory.digest()
             + "\n\nBegin. Observe first, then act. Call one tool now."
@@ -101,7 +124,10 @@ class AgentOrchestrator:
                 self.runtime.trace.finish(
                     f"task: {task}\nsuccess: {success}\nsteps: {step}\n{summary}"
                 )
-                return TaskReport(task, success, summary, step, milestones, tool_log)
+                return TaskReport(
+                    task, success, summary, step, milestones, tool_log,
+                    duration_s=round(time.monotonic() - t_start, 2),
+                )
 
             ok = bool(result.get("ok"))
             consecutive_failures = 0 if ok else consecutive_failures + 1
@@ -156,7 +182,48 @@ class AgentOrchestrator:
                 )
 
         self.runtime.trace.finish(f"task: {task}\nsuccess: false\nran out of steps ({self.max_steps})")
-        return TaskReport(task, False, "step budget exhausted", self.max_steps, milestones, tool_log)
+        return TaskReport(
+            task, False, "step budget exhausted", self.max_steps, milestones, tool_log,
+            duration_s=round(time.monotonic() - t_start, 2),
+        )
+
+    def _try_fast_path(self, task: str, t_start: float) -> tuple[TaskReport | None, str | None]:
+        """Reflex/experience execution; (report, None) on success, or
+        (None, note-for-the-LLM) when the fast attempt failed or no fast
+        plan exists."""
+        plan = self.fast_planner.plan(task)
+        if plan is None:
+            return None, None
+        tool_log: list[dict] = []
+        for i, (name, args) in enumerate(plan.calls, start=1):
+            result = self.runtime.execute(name, args)
+            tool_log.append({"step": i, "tool": name, "args": args, "result": result})
+            if not result.get("ok", False):
+                self.fast_planner.note_outcome(
+                    task, plan.calls, False, time.monotonic() - t_start
+                )
+                note = (
+                    f"(A fast {plan.source} plan was tried first and FAILED at "
+                    f"{name}({json.dumps(args)}): {str(result.get('error', ''))[:200]}. "
+                    "Diagnose before retrying the same thing.)"
+                )
+                return None, note
+        duration = round(time.monotonic() - t_start, 2)
+        self.fast_planner.note_outcome(task, plan.calls, True, duration)
+        summary = (
+            f"done via {plan.source} path in {duration}s: "
+            + "; ".join(f"{n}({_short_args(a)})" for n, a in plan.calls)
+        )
+        self.runtime.trace.finish(
+            f"task: {task}\nsuccess: true\npath: {plan.source}\nduration_s: {duration}\n{summary}"
+        )
+        return (
+            TaskReport(
+                task, True, summary, len(plan.calls), [], tool_log,
+                path=plan.source, duration_s=duration,
+            ),
+            None,
+        )
 
     @staticmethod
     def _prune_images(messages: list[dict]) -> list[dict]:

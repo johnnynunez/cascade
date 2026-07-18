@@ -136,48 +136,81 @@ def localize_object(
     prompts: list[str] | None = None,
     min_points: int = 10,
     spatial_hint: str | None = None,
+    color: str | None = None,
+    near_xyz: np.ndarray | None = None,
+    vocab: list[str] | None = None,
+    prefer_label: str | None = None,
 ) -> ObjectFix:
     """Find `label` in the frame and return its base-frame 3D fix.
 
-    Tries an ordered prompt fallback list; disambiguates duplicate instances
-    with a spatial hint word if given ("left", "front", ...). Raises
-    SkillError with an agent-readable reason on failure.
+    Tries an ordered prompt fallback list -- or, with `vocab`, ONE detector
+    pass over a whole vocabulary where every detection is a candidate (how
+    color queries like "pink object" work on closed-set detectors).
+    Candidates are then narrowed by mask color (`color`), a spatial hint word
+    ("left", "front", ...), and/or proximity to a remembered position
+    (`near_xyz`). Raises SkillError with an agent-readable reason on failure.
     """
-    prompt_list = prompts or [label]
-    T_cam2base = extrinsics.cam_to_base()
+    from .colors import color_matches, detection_color
 
-    last_reason = f"no detections for any of {prompt_list}"
-    for prompt in prompt_list:
-        dets = detector.detect(frame, classes=[prompt])
-        dets = [d for d in dets if d.conf > 0]
+    T_cam2base = extrinsics.cam_to_base()
+    if vocab:
+        rounds = [(vocab, "vocabulary")]
+    else:
+        rounds = [([p], p) for p in (prompts or [label])]
+
+    last_reason = f"no detections for {vocab or prompts or [label]}"
+    for classes, what in rounds:
+        dets = [d for d in detector.detect(frame, classes=classes) if d.conf > 0]
         if not dets:
             continue
-        candidates: list[ObjectFix] = []
+        exact: list[ObjectFix] = []   # color matches the palette band
+        loose: list[ObjectFix] = []   # neighbor band / unknown color
         for det in sorted(dets, key=lambda d: -d.conf):
+            det_color = None
+            if color is not None:
+                # detection_color uses the mask when present, else the bbox
+                # CENTER (whole-box medians let the background veto objects).
+                # STRICT here: grabbing the red box when asked for the pink
+                # one is a visible error; neighbor tolerance is for verbal
+                # recall (beliefs.find), not for choosing a grasp target.
+                det_color = detection_color(frame.rgb, det)
+                if not color_matches(color, det_color, strict=True):
+                    last_reason = f"saw {det.label!r} but it is {det_color}, not {color}"
+                    continue
             mask = det.mask if det.mask is not None else _bbox_mask(frame, det)
             pts_cam = mask_to_points_cam(frame, mask)
             if pts_cam.shape[0] < min_points:
                 last_reason = (
-                    f"detected {prompt!r} but only {pts_cam.shape[0]} valid depth "
+                    f"detected {what!r} but only {pts_cam.shape[0]} valid depth "
                     f"points (<{min_points}); object may be out of depth range"
                 )
                 continue
             pts_base = transform_points(T_cam2base, pts_cam)
             center, extents, axes = oriented_bbox(pts_base)
-            candidates.append(
-                ObjectFix(
-                    label=label,
-                    position=center,
-                    points=pts_base,
-                    detection=det,
-                    extent=extents,
-                    axes=axes,
-                )
+            fix = ObjectFix(
+                label=label,
+                position=center,
+                points=pts_base,
+                detection=det,
+                extent=extents,
+                axes=axes,
             )
+            if color is None or det_color == color:
+                exact.append(fix)
+            else:
+                loose.append(fix)
+        candidates = exact or loose
         if not candidates:
             continue
         if spatial_hint and spatial_hint in _SPATIAL_AXES and len(candidates) > 1:
             axis, descending = _SPATIAL_AXES[spatial_hint]
             candidates.sort(key=lambda f: f.position[axis], reverse=descending)
+        elif near_xyz is not None and len(candidates) > 1:
+            ref = np.asarray(near_xyz, dtype=float).reshape(3)
+            candidates.sort(key=lambda f: float(np.linalg.norm(f.position - ref)))
+        if prefer_label and len(candidates) > 1:
+            # Stable partition: same-class detections first, prior ordering
+            # (hint/proximity/confidence) preserved within each group.
+            candidates.sort(key=lambda f: f.detection.label != prefer_label)
         return candidates[0]
     raise SkillError(f"localize {label!r} failed: {last_reason}")

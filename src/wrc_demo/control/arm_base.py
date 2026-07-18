@@ -109,4 +109,8 @@ def make_arm(cfg: Cfg, kinematics=None) -> ArmBase:
         from .rebot_rs_arm import RebotRSArm
 
         return RebotRSArm(cfg)
-    raise ValueError(f"unknown arm type {kind!r} (mock|rebot_rs)")
+    if kind == "isaac":
+        from .isaac_arm import IsaacArm
+
+        return IsaacArm(cfg, kinematics)
+    raise ValueError(f"unknown arm type {kind!r} (mock|rebot_rs|isaac)")

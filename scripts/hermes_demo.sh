@@ -54,7 +54,7 @@ echo "[+] registering MCP server (camera=$CAMERA arm=$ARM)"
 hermes mcp remove wrc-demo >/dev/null 2>&1 || true
 hermes mcp add wrc-demo \
     --command "$PY" \
-    --env "PYTHONPATH=$REPO/src" "WRC_CAMERA=$CAMERA" "WRC_ARM=$ARM" \
+    --env "PYTHONPATH=$REPO/src" "WRC_CAMERAS=$CAMERA" "WRC_ARM=$ARM" \
           "WRC_DETECTOR_MODEL=$DETECTOR" "DISPLAY=${DISPLAY:-:1}" \
     --args -m wrc_demo.apps.mcp_server
 

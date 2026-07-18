@@ -18,12 +18,14 @@ pytestmark = pytest.mark.skipif(not has_pinocchio(), reason="pinocchio not avail
 
 
 class McpClient:
-    def __init__(self, tmp_run_dir: str):
+    def __init__(self, tmp_run_dir: str, extra_env: dict | None = None):
         env = dict(os.environ)
         env["PYTHONPATH"] = str(REPO / "src")
         env["WRC_CAMERA"] = "mock"
         env["WRC_ARM"] = "mock"
         env["WRC_RUN_DIR"] = tmp_run_dir
+        env["WRC_STREAM"] = "0"  # no HTTP port binding inside tests
+        env.update(extra_env or {})
         self.proc = subprocess.Popen(
             [sys.executable, "-m", "wrc_demo.apps.mcp_server"],
             stdin=subprocess.PIPE,
@@ -178,7 +180,7 @@ def test_hermes_config_upsert():
     # fresh file
     merged = upsert(None, block)
     assert merged.startswith("mcp_servers:")
-    assert 'WRC_CAMERA: "l515"' in merged
+    assert 'WRC_CAMERAS: "l515"' in merged
     # existing config with another server is preserved
     existing = (
         "model: hermes-4\n"
@@ -195,4 +197,46 @@ def test_hermes_config_upsert():
     block2 = yaml_block("mock", "mock", "/usr/bin/python3")
     merged2 = upsert(merged, block2)
     assert merged2.count("wrc-demo:") == 1
-    assert 'WRC_CAMERA: "mock"' in merged2 and 'WRC_CAMERA: "l515"' not in merged2
+    assert 'WRC_CAMERAS: "mock"' in merged2 and 'WRC_CAMERAS: "l515"' not in merged2
+
+
+def test_new_livestream_tools_over_jsonrpc(client):
+    """world_state / live_view_url / pick_and_place / camera_snapshot(camera=)
+    were untested at the protocol level (2026-07-18 review finding)."""
+    client.request("initialize", {"protocolVersion": "2025-06-18"})
+    client.notify("notifications/initialized")
+
+    tools = {t["name"] for t in client.request("tools/list")["result"]["tools"]}
+    for expected in ("pick_and_place", "world_state", "live_view_url",
+                     "describe_scene", "handover", "wave", "point_at"):
+        assert expected in tools, f"missing tool {expected}"
+
+    # world_state: instant text, includes objects + cameras, arm stays lazy
+    payload, is_err = _tool_payload(
+        client.request("tools/call", {"name": "world_state", "arguments": {}})
+    )
+    assert not is_err and payload["ok"]
+    assert "objects" in payload and "cameras" in payload
+    assert payload["arm_connected"] is False  # LazyArm untouched by a look
+
+    # live_view_url with WRC_STREAM=0: honest error, not a bogus URL
+    payload, is_err = _tool_payload(
+        client.request("tools/call", {"name": "live_view_url", "arguments": {}})
+    )
+    assert is_err and "livestream not running" in payload["error"]
+
+    # named-camera snapshot
+    resp = client.request("tools/call", {"name": "camera_snapshot",
+                                         "arguments": {"camera": "mock"}})
+    blocks = resp["result"]["content"]
+    assert any(b["type"] == "image" for b in blocks)
+
+    # pick_and_place end-to-end over JSON-RPC (mock jaws close on air ->
+    # honest structured failure, never a protocol error)
+    payload, is_err = _tool_payload(
+        client.request("tools/call",
+                       {"name": "pick_and_place", "arguments": {"object": "red object"}},
+                       timeout=120)
+    )
+    assert is_err and payload["stage"] == "grasp"
+    assert "grasp failed" in payload["error"]

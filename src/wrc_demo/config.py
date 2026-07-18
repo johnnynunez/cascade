@@ -88,10 +88,20 @@ def load_demo_config(
     arm: str = "mock",
     llm: str = "mock",
     config_dir: Path | None = None,
+    cameras: list[str] | None = None,
 ) -> Cfg:
+    """`cameras` (ordered, first = manipulation camera) supersedes `camera`;
+    both populate cfg.camera (primary) and cfg.cameras (all)."""
     cdir = Path(config_dir) if config_dir else CONFIG_DIR
     main = _resolve_paths(_load_yaml(cdir / "demo.yaml"), cdir)
-    main["camera"] = load_profile("cameras", camera, cdir).as_dict()
+    names = [n.strip() for n in (cameras or [camera]) if n and n.strip()]
+    cams = []
+    for i, name in enumerate(names):
+        prof = load_profile("cameras", name, cdir).as_dict()
+        prof.setdefault("name", name if names.count(name) == 1 else f"{name}{i}")
+        cams.append(prof)
+    main["camera"] = cams[0]
+    main["cameras"] = cams
     main["arm"] = load_profile("arms", arm, cdir).as_dict()
     main["llm"] = load_profile("llm", llm, cdir).as_dict()
     return Cfg(main)

@@ -1,0 +1,10 @@
+# Isaac Sim side/audience camera (bridge camera "side"): livestream video
+# only -- no extrinsics, so it never fuses 3D beliefs.
+type: isaac
+bridge_host: 127.0.0.1
+bridge_port: 8611
+sim_camera: side
+depth: false
+fps: 15
+warmup_frames: 2
+fuse_beliefs: false

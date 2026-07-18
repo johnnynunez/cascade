@@ -38,7 +38,7 @@ SERVER = "wrc-demo"
 def server_env(camera: str, arm: str, display: str) -> dict[str, str]:
     return {
         "PYTHONPATH": str(REPO / "src"),
-        "WRC_CAMERA": camera,
+        "WRC_CAMERAS": camera,
         "WRC_ARM": arm,
         "DISPLAY": display,
     }
@@ -128,7 +128,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--host", choices=["all", "hermes", "codex", "claude", "openclaw"],
                    default="all")
-    p.add_argument("--camera", default="l515")
+    p.add_argument("--camera", default="l515", help="camera profile, or comma-separated list (first = manipulation camera)")
     p.add_argument("--arm", default="mock")
     p.add_argument("--display", default=":1")
     p.add_argument("--python", default=DEFAULT_PY)

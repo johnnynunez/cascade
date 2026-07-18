@@ -84,4 +84,8 @@ def make_camera(cfg: Cfg) -> CameraBase:
         from .mock_camera import MockCamera
 
         return MockCamera(cfg)
-    raise ValueError(f"unknown camera type {kind!r} (realsense|uvc|mock)")
+    if kind == "isaac":
+        from .isaac_camera import IsaacCamera
+
+        return IsaacCamera(cfg)
+    raise ValueError(f"unknown camera type {kind!r} (realsense|uvc|mock|isaac)")

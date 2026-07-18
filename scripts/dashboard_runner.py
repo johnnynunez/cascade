@@ -5,6 +5,17 @@ import sys
 import time
 import urllib.request
 
+# YOLOE re-embeds text prompts on class-list changes; without offline mode
+# ultralytics phones GitHub on those paths (rate-limited at the booth ->
+# seconds-long stalls that starve the 3 Hz watcher).
+os.environ.setdefault("YOLO_OFFLINE", "True")
+os.environ.setdefault("ULTRALYTICS_OFFLINE", "True")
+# YOLOE's text encoder (mobileclip2_b.ts) is resolved relative to the CWD:
+# a runner launched from the wrong directory silently loses ALL detections
+# ("mobileclip2_b.ts does not exist" per watcher tick). Pin the cwd to the
+# repo, where the checkpoint lives.
+os.chdir("/home/spark/Projects/demo/wrc_demo")
+
 sys.path.insert(0, "/home/spark/Projects/demo/wrc_demo/src")
 from pathlib import Path
 
@@ -17,18 +28,24 @@ from wrc_demo.config import load_demo_config
 # Real deliberation tier when available: Anthropic API key > local Qwen
 # server > honest mock. The reflex/experience tiers work the same either way.
 llm_profile = "mock"
+qwen_up = False
+try:
+    urllib.request.urlopen("http://127.0.0.1:8080/health", timeout=2)
+    qwen_up = True
+except Exception:
+    pass
 if os.environ.get("ANTHROPIC_API_KEY"):
     llm_profile = "anthropic"
-else:
-    try:
-        urllib.request.urlopen("http://127.0.0.1:8080/health", timeout=2)
-        llm_profile = "local_qwen"
-    except Exception:
-        pass
+elif qwen_up:
+    llm_profile = "local_qwen"
 print(f"LLM TIER: {llm_profile}", flush=True)
 
 cfg = load_demo_config(cameras=["isaac", "isaac_side", "isaac_wrist"],
                        arm="isaac", llm=llm_profile)
+if qwen_up:
+    # VLM grounding: 2nd perception filter when YOLOE misses (slow path only)
+    cfg._data["grounder"] = {"base_url": "http://127.0.0.1:8080/v1",
+                             "model": "qwen3.6-27b"}
 cfg._data["detector"]["conf"] = 0.12  # pastel cubes on RTX renders sit ~0.15
 # name the booth objects explicitly: beliefs are stored under DETECTOR
 # labels, and "banana" cannot resolve a belief labeled "fruit"

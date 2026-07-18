@@ -56,6 +56,13 @@ grasp:
   home_after_place: true    # clear the camera view after each pick_and_place
   topdown_z_max: 0.15       # strict top-down poses are IK-unreachable above
                             # this on the B601-RS (wrist limits)
+  # Persistence: pick_and_place keeps retrying (re-home, re-scan, fresh
+  # grasp plan) until it succeeds or one of these budgets runs out.
+  persist_seconds: 120
+  max_pick_attempts: 8
+  min_grasp_z_m: 0.008      # learned grasp z a few mm below this above the
+                            # table is clamped up (tip-offset overshoot),
+                            # not aborted
 
 memory:
   horizon_s: 15.0           # episodic window the agent can consult
@@ -65,6 +72,10 @@ memory:
 perception_loop:
   enabled: true
   rate_hz: 3.0              # detector passes per second across the rig
+  belief_fallback_age_s: 3.0  # grasp-from-memory allowed if the object was
+                              # seen this recently BEFORE the motion started
+  localize_frames: 3        # detector passes per localize before falling
+                            # back to the belief store (single frames flicker)
 
 # MJPEG livestream dashboard (stdlib HTTP; browsers/Hermes users watch here).
 stream:

@@ -186,8 +186,8 @@ from pxr import UsdShade  # noqa: E402
 
 _pmat = UsdShade.Material.Define(stage, "/World_Props/physics_material")
 _pmat_api = UsdPhysics.MaterialAPI.Apply(_pmat.GetPrim())
-_pmat_api.CreateStaticFrictionAttr(0.9)
-_pmat_api.CreateDynamicFrictionAttr(0.8)
+_pmat_api.CreateStaticFrictionAttr(1.1)
+_pmat_api.CreateDynamicFrictionAttr(1.0)
 _pmat_api.CreateRestitutionAttr(0.0)
 
 
@@ -561,6 +561,30 @@ try:
     print("[bridge] isaacsim.code_editor.python_server enabled", flush=True)
 except Exception as _e:
     print(f"[bridge] python_server not enabled: {_e}", flush=True)
+
+# ── gripper friction pads ─────────────────────────────────────────────────
+# The arm USD authors no physics material on the finger colliders, so they
+# get the PhysX default (0.5 friction, "average" combine): smooth SDF props
+# (the YCB banana) slip out of the jaws on lift. Rubber-pad material with
+# combine=max makes the pair use OUR friction against any prop.
+from pxr import PhysxSchema  # noqa: E402
+
+_gmat = UsdShade.Material.Define(stage, "/World_Props/gripper_material")
+_gmat_api = UsdPhysics.MaterialAPI.Apply(_gmat.GetPrim())
+_gmat_api.CreateStaticFrictionAttr(1.5)
+_gmat_api.CreateDynamicFrictionAttr(1.3)
+_gmat_api.CreateRestitutionAttr(0.0)
+PhysxSchema.PhysxMaterialAPI.Apply(_gmat.GetPrim()).CreateFrictionCombineModeAttr("max")
+for _prim in stage.Traverse():
+    _p = str(_prim.GetPath())
+    if _prim.HasAPI(UsdPhysics.CollisionAPI) and (
+        "gripper_left" in _p or "gripper_right" in _p
+    ):
+        UsdShade.MaterialBindingAPI.Apply(_prim)
+        UsdShade.MaterialBindingAPI(_prim).Bind(
+            _gmat, UsdShade.Tokens.strongerThanDescendants, "physics"
+        )
+        print(f"[bridge] gripper pad material -> {_p}", flush=True)
 
 # ── articulation (create AFTER play, gain-tuner gotcha) ──────────────────
 from isaacsim.core.experimental.prims import Articulation  # noqa: E402

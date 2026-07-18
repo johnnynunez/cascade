@@ -46,7 +46,7 @@ DEFAULT_PRIM = "/tn__00armrs_asmv3_hJ6D/Geometry/base_link"
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("--usd", default=DEFAULT_USD, help="reBot RS scene USD (gain-tuned asset)")
 p.add_argument("--prim", default=DEFAULT_PRIM, help="articulation root prim path")
-p.add_argument("--engine", default="physx", choices=["newton", "physx"])
+p.add_argument("--engine", default="newton", choices=["newton", "physx"])
 p.add_argument("--port", type=int, default=8611)
 p.add_argument("--gui", action="store_true", help="run with the editor window (default: headless)")
 p.add_argument("--width", type=int, default=1280)
@@ -54,6 +54,13 @@ p.add_argument("--height", type=int, default=720)
 p.add_argument("--dt", type=float, default=1.0 / 60.0)
 p.add_argument("--cam-every", type=int, default=2, help="refresh camera cache every N sim steps")
 args = p.parse_args()
+
+# Demo spawn/ready pose (LOCAL joint convention). NOTE: the straight-up
+# pose is blocked on this asset -- drive-travel from q=0 sweeps the
+# props and jams, while joint-state authoring or tensor teleports NaN
+# the solver (custom fixed-joint stack). The upstream asset gets the
+# straight spawn properly via Seeed-Projects/reBot-Isaacsim#9.
+HOME_Q = [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
 
 # SimulationApp must exist before ANY isaacsim/omni import.
 #
@@ -100,6 +107,15 @@ stage = omni.usd.get_context().get_stage()
 # geometry (~4.7k here) and errors out EVERY step on the mismatch, killing
 # contacts. Clamp the persisted cap IMMEDIATELY after load, before any
 # update tick lets the physics parser read it.
+# PhysX articulation self-collision must be OFF for this asset (it ships
+# newton:selfCollisionEnabled=0 but no PhysX equivalent): the straight-up
+# pose puts adjacent elbow colliders in deep penetration -> NaN explosion.
+_root = stage.GetPrimAtPath(args.prim)
+if _root:
+    _root.CreateAttribute("physxArticulation:enabledSelfCollisions",
+                          Sdf.ValueTypeNames.Bool).Set(False)
+    print("[bridge] articulation self-collision disabled (PhysX)", flush=True)
+
 for prim in stage.Traverse():
     attr = prim.GetAttribute("newton:solver:nconmax")
     if attr and attr.IsValid() and attr.HasValue():
@@ -138,7 +154,16 @@ BASE_Z = float(_robot_range.GetMin()[2]) * MPU  # meters
 print(f"[bridge] robot base plane at world z={BASE_Z:.3f} m; "
       f"authoring the tabletop there", flush=True)
 
-SimulationManager.setup_simulation(dt=args.dt, device="cpu")
+# GPU physics: device="cpu" (inherited from the gain-tuner precision
+# scripts) runs MuJoCo-Warp on the CPU and stutters badly with the full
+# booth scene while RTX renders on the GPU.
+try:
+    SimulationManager.setup_simulation(dt=args.dt, device="cuda:0")
+except Exception:
+    SimulationManager.setup_simulation(dt=args.dt, device="cpu")
+    print("[bridge] WARNING: GPU physics unavailable, using CPU", flush=True)
+else:
+    print("[bridge] physics device: cuda:0 (GPU)", flush=True)
 
 # ── lights ───────────────────────────────────────────────────────────────
 # Moderate intensities: overexposure washes saturated albedos to pastel,
@@ -148,6 +173,24 @@ dome.CreateIntensityAttr(350.0)
 sun = UsdLux.DistantLight.Define(stage, "/World_Lights/Sun")
 sun.CreateIntensityAttr(1200.0)
 UsdGeom.XformCommonAPI(sun.GetPrim()).SetRotate(Gf.Vec3f(-45, 30, 0))
+
+
+# One shared physics material: without friction/restitution authored,
+# Newton props jitter and creep across the table indefinitely.
+from pxr import UsdShade  # noqa: E402
+
+_pmat = UsdShade.Material.Define(stage, "/World_Props/physics_material")
+_pmat_api = UsdPhysics.MaterialAPI.Apply(_pmat.GetPrim())
+_pmat_api.CreateStaticFrictionAttr(0.9)
+_pmat_api.CreateDynamicFrictionAttr(0.8)
+_pmat_api.CreateRestitutionAttr(0.0)
+
+
+def _bind_pmat(prim):
+    UsdShade.MaterialBindingAPI.Apply(prim)
+    UsdShade.MaterialBindingAPI(prim).Bind(
+        _pmat, UsdShade.Tokens.weakerThanDescendants, "physics"
+    )
 
 
 # ── tabletop + props (base frame: robot base at origin ON the table) ─────
@@ -184,6 +227,7 @@ def _cube(path, pos, size, color, dynamic, mass=0.05):
     xformable.AddTransformOp().Set(m)
     mesh.CreateDisplayColorAttr([Gf.Vec3f(*color)])
     UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
+    _bind_pmat(mesh.GetPrim())
     if dynamic:
         # Dynamic bodies cannot use raw triangle-mesh collision (PhysX
         # error banner + convexHull fallback); boundingCube is EXACT for
@@ -228,10 +272,12 @@ try:
 
     _assets = get_assets_root_path()
     if _assets:
+        # Spawn AT rest height: dropping groceries onto the table reads
+        # as "flying cereal" -- born settled = realistic from frame one.
         YCB = [
-            ("banana", "011_banana.usd", (0.24, 0.14, 0.03)),
-            ("cracker_box", "003_cracker_box.usd", (0.36, -0.02, 0.11)),
-            ("soup_can", "005_tomato_soup_can.usd", (0.20, -0.12, 0.06)),
+            ("banana", "011_banana.usd", (0.24, 0.14, 0.018)),
+            ("cracker_box", "003_cracker_box.usd", (0.36, -0.02, 0.107)),
+            ("soup_can", "005_tomato_soup_can.usd", (0.20, -0.12, 0.052)),
         ]
         for name, usd_file, pos in YCB:
             prim_path = f"/World_Props/{name}"
@@ -263,8 +309,13 @@ try:
             for desc in Usd.PrimRange(prim):
                 if desc.IsA(UsdGeom.Mesh):
                     UsdPhysics.CollisionAPI.Apply(desc)
+                    _bind_pmat(desc)
                     mcol = UsdPhysics.MeshCollisionAPI.Apply(desc)
-                    mcol.CreateApproximationAttr("sdf")
+                    if name == "cracker_box":
+                        mcol.CreateApproximationAttr("boundingCube")
+                    else:
+                        mcol.CreateApproximationAttr(
+                            "sdf" if args.engine == "physx" else "convexHull")
                     try:
                         from pxr import PhysxSchema
 
@@ -375,6 +426,39 @@ _annotators: dict[str, tuple] = {
     name: (sensor, K) for name, (sensor, K) in CAM_DEFS.items()
 }
 
+if args.gui:
+    try:
+        _persp = stage.GetPrimAtPath("/OmniverseKit_Persp")
+        _eye = np.array([1.5, 1.1, BASE_Z + 0.85]) * U
+        _tgt = np.array([0.30, 0.0, BASE_Z + 0.10]) * U
+        _fwd = _tgt - _eye; _fwd /= np.linalg.norm(_fwd)
+        _rgt = np.cross(_fwd, [0.0, 0.0, 1.0]); _rgt /= np.linalg.norm(_rgt)
+        _up = np.cross(_rgt, _fwd)
+        _m = Gf.Matrix4d(
+            _rgt[0], _rgt[1], _rgt[2], 0.0,
+            _up[0], _up[1], _up[2], 0.0,
+            -_fwd[0], -_fwd[1], -_fwd[2], 0.0,
+            _eye[0], _eye[1], _eye[2], 1.0,
+        )
+        _xf = UsdGeom.Xformable(_persp)
+        _xf.ClearXformOpOrder()
+        _xf.AddTransformOp().Set(_m)
+        print("[bridge] viewport camera framed on the booth", flush=True)
+    except Exception as _e:
+        print(f"[bridge] viewport framing skipped: {_e}", flush=True)
+
+# Companion-pack python server: standard live-inspection endpoint (Johnny's
+# tooling), alongside the bridge's own exec op.
+try:
+    import omni.kit.app as _kit_app
+
+    _mgr = _kit_app.get_app().get_extension_manager()
+    _mgr.add_path("/home/spark/Downloads/isaac-companion-v1-franka/isaacsim_local_exts")
+    _mgr.set_extension_enabled_immediate("isaacsim.code_editor.python_server", True)
+    print("[bridge] isaacsim.code_editor.python_server enabled", flush=True)
+except Exception as _e:
+    print(f"[bridge] python_server not enabled: {_e}", flush=True)
+
 # ── articulation (create AFTER play, gain-tuner gotcha) ──────────────────
 from isaacsim.core.experimental.prims import Articulation  # noqa: E402
 
@@ -396,11 +480,21 @@ print(f"[bridge] arm idx {ARM_IDX} grip idx {GRIP_IDX} "
       f"grip range {[(round(lower[i], 4), round(upper[i], 4)) for i in GRIP_IDX]}",
       flush=True)
 
+
+# World-spawn poses for every dynamic prop: re-applied when the user
+# presses Stop/Play in the editor (physics re-parse scatters them).
+_PROP_SPAWNS = {
+    "pink_cube": (0.28, 0.08, 0.026), "green_cube": (0.32, -0.10, 0.026),
+    "blue_cube": (0.22, -0.02, 0.021), "banana": (0.24, 0.14, 0.018),
+    "cracker_box": (0.36, -0.02, 0.107), "soup_can": (0.20, -0.12, 0.052),
+}
+
 _state_lock = threading.Lock()
-# Spawn at the demo home pose: q=0 lies flat OVER the table (occludes the
-# whole workspace from the overhead camera) and sits exactly ON the j2/j3
-# lower limits, which the safety harness treats as a boundary condition.
-HOME_Q = [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
+# Spawn STRAIGHT UP (presentation pose): q=0 lies flat OVER the table and
+# sits exactly ON the j2/j3 lower limits. Straight vertical = j2 at +90 deg
+# (local convention), j3 kept 1 deg inside its 0 lower limit. The TCP is
+# outside the demo workspace AABB here (x~0) -- the harness's workspace
+# escape rule lets the first commanded motion come home.
 # WRC_BRIDGE_NO_TARGETS=1: asset-inspection mode -- apply NO runtime targets
 # so the asset's own authored joint state/drive targets are what you see
 # (used to validate the initial-pose PR; also note HOME_Q is in the LOCAL
@@ -503,6 +597,7 @@ class Handler(socketserver.StreamRequestHandler):
         return {"ok": False, "error": f"unknown op {op!r}"}
 
 
+socketserver.ThreadingTCPServer.allow_reuse_address = True  # survive TIME_WAIT
 server = socketserver.ThreadingTCPServer((os.environ.get("WRC_BRIDGE_BIND", "127.0.0.1"), args.port), Handler)
 server.daemon_threads = True
 threading.Thread(target=server.serve_forever, daemon=True, name="bridge-tcp").start()
@@ -586,22 +681,72 @@ for cam_name, (sensor, _) in _annotators.items():
             print(f"[bridge] {cam_name} RAW depth: min={float(finite.min()):.4f} "
                   f"max={float(finite.max()):.4f} center={center:.4f}", flush=True)
 
+import omni.timeline  # noqa: E402
+
+_tl = omni.timeline.get_timeline_interface()
+_was_playing = True
+
+
+def _resume_scene():
+    """After an editor Stop->Play: handles are invalid and physics
+    re-parsed. Rebuild the articulation view, restore the ready pose and
+    put every prop back on its spot (gain-tuner gotcha: recreate the
+    Articulation after every Stop)."""
+    global art
+    art = Articulation(args.prim)
+    with _state_lock:
+        _targets["q"] = list(HOME_Q)
+        _targets["grip_frac"] = 1.0
+        _targets["stopped"] = False
+    try:
+        from isaacsim.core.experimental.prims import RigidPrim
+
+        for _n, _pos in _PROP_SPAWNS.items():
+            _p = stage.GetPrimAtPath(f"/World_Props/{_n}")
+            if _p:
+                _rp = RigidPrim(f"/World_Props/{_n}", reset_xform_op_properties=True)
+                _rp.set_world_poses(
+                    np.array([[_pos[0], _pos[1], _pos[2] + BASE_Z]]),
+                    np.array([[1.0, 0.0, 0.0, 0.0]]),
+                )
+    except Exception as _e:
+        print(f"[bridge] prop reset skipped: {_e}", flush=True)
+    print("[bridge] editor Play detected: articulation + scene restored", flush=True)
+
+
 step = 0
 try:
     while app.is_running():
+        playing = _tl.is_playing()
+        if not playing:
+            _was_playing = False
+            app.update()
+            _run_exec_jobs()
+            continue
+        if not _was_playing:
+            _was_playing = True
+            for _ in range(5):
+                app.update()  # let physics finish re-attaching
+            try:
+                _resume_scene()
+            except Exception as _e:
+                print(f"[bridge] resume failed: {_e}", flush=True)
         with _state_lock:
             q6 = _targets["q"]
             gf = _targets["grip_frac"]
             stopped = _targets["stopped"]
-        tgt = art.get_dof_position_targets().numpy()[0].astype(np.float32).copy()
         if not stopped:
-            if q6 is not None:
-                for k, i in enumerate(ARM_IDX):
-                    tgt[i] = q6[k]
-            if gf is not None:
-                for i in GRIP_IDX:
-                    tgt[i] = lower[i] + gf * (upper[i] - lower[i])
-            art.set_dof_position_targets(tgt.reshape(1, -1))
+            try:
+                tgt = art.get_dof_position_targets().numpy()[0].astype(np.float32).copy()
+                if q6 is not None:
+                    for k, i in enumerate(ARM_IDX):
+                        tgt[i] = q6[k]
+                if gf is not None:
+                    for i in GRIP_IDX:
+                        tgt[i] = lower[i] + gf * (upper[i] - lower[i])
+                art.set_dof_position_targets(tgt.reshape(1, -1))
+            except Exception:
+                pass  # stale view during a Stop/Play transition
         app.update()
         _run_exec_jobs()
         step += 1

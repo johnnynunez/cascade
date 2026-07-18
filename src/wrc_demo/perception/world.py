@@ -164,7 +164,10 @@ class WorldWatcher:
             self._harness.heartbeat()
         if not frame.has_depth or not cam.fuse or self.is_paused:
             return
-        T = cam.extrinsics.cam_to_base()
+        # Eye-in-hand cameras carry their extrinsics IN the frame (the
+        # camera rides the arm); static cameras use the profile matrix.
+        T = (frame.T_base_cam if frame.T_base_cam is not None
+             else cam.extrinsics.cam_to_base())
         fused = 0
         for d in dets:
             if d.label in self._ignore:
@@ -186,6 +189,7 @@ class WorldWatcher:
                 d.label, center, d.conf, extent=extents,
                 top_z=float(pts_base[:, 2].max()), t=frame.t,
                 color=detection_color(frame.rgb, d),
+                points=pts_base if d.mask is not None else None,
             )
             fused += 1
         if fused:

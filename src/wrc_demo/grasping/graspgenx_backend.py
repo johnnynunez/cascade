@@ -147,12 +147,28 @@ class GraspGenXPlanner:
                 "grasp_threshold": float(self.min_score),
                 "topk_num_grasps": self.topk,
             }
-        resp = self._client.request(payload)
+        # Diffusion sampling is stochastic: a borderline cloud (e.g. a slab
+        # near the jaw limit) can land EVERY sample under the server's
+        # internal score threshold on one run and return 200+ on the next.
+        # One retry is cheap; a repeat empty means the cloud itself is the
+        # problem, so dump it for offline replay.
+        poses = scores = None
+        for _attempt in range(2):
+            resp = self._client.request(payload)
+            poses = np.asarray(resp["grasps"], dtype=np.float32).reshape(-1, 4, 4)
+            scores = np.asarray(resp["confidences"], dtype=np.float32).reshape(-1)
+            if poses.shape[0]:
+                break
         self.last_latency_s = round(time.monotonic() - t0, 3)
-        poses = np.asarray(resp["grasps"], dtype=np.float32).reshape(-1, 4, 4)
-        scores = np.asarray(resp["confidences"], dtype=np.float32).reshape(-1)
         if poses.shape[0] == 0:
-            raise GraspGenXError("graspgenx returned no grasps above threshold")
+            dump = f"/tmp/wrc_ggx_empty_{int(time.time())}.npz"
+            try:
+                np.savez_compressed(dump, points=pts, label=str(fix.label))
+            except OSError:
+                dump = "unsaved"
+            raise GraspGenXError(
+                f"graspgenx returned no grasps twice (cloud dumped: {dump})"
+            )
 
         # Jaw-opening width from the object's span along each grasp's jaw
         # axis (the wire protocol does not carry per-grasp widths; the

@@ -156,8 +156,8 @@ over "tn__00armrs_asmv3_hJ6D"
         {
             float drive:angular:physics:damping = 96
             float drive:angular:physics:stiffness = 1500
-            float drive:angular:physics:targetPosition = -68.75
-            float state:angular:physics:position = -68.75
+            float drive:angular:physics:targetPosition = -90
+            float state:angular:physics:position = -90
             uniform token drive:angular:physics:type = "force"
             float newton:velocityLimit = 2864.789
             uniform token physics:axis = "Z"
@@ -180,8 +180,8 @@ over "tn__00armrs_asmv3_hJ6D"
         {
             float drive:angular:physics:damping = 76
             float drive:angular:physics:stiffness = 1000
-            float drive:angular:physics:targetPosition = -68.75
-            float state:angular:physics:position = -68.75
+            float drive:angular:physics:targetPosition = -1
+            float state:angular:physics:position = -1
             uniform token drive:angular:physics:type = "force"
             float newton:velocityLimit = 2864.789
             uniform token physics:axis = "Z"
@@ -228,8 +228,8 @@ over "tn__00armrs_asmv3_hJ6D"
         {
             float drive:angular:physics:damping = 10
             float drive:angular:physics:stiffness = 80
-            float drive:angular:physics:targetPosition = -42.97
-            float state:angular:physics:position = -42.97
+            float drive:angular:physics:targetPosition = 0
+            float state:angular:physics:position = 0
             uniform token drive:angular:physics:type = "force"
             float newton:velocityLimit = 2291.8313
             uniform token physics:axis = "Z"

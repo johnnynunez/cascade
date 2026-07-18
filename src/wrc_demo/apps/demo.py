@@ -55,7 +55,7 @@ def build_runtime(
     serve: bool = False,
 ) -> tuple[SkillRuntime, object]:
     kin = Kinematics(
-        urdf_path=cfg.arm.urdf,
+        model_path=cfg.arm.model,
         ee_frame=cfg.arm.get("ee_frame", "gripper_end"),
         n_controlled=int(cfg.arm.get("n_joints", 6)),
     )

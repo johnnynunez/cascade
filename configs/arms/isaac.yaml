@@ -6,7 +6,9 @@ bridge_host: 127.0.0.1
 bridge_port: 8611
 n_joints: 6
 settle_tol: 0.045
-model: ${assets}/usd/RS-rebot-dev-arm/00-arm-rs_asm-v3.usda
+model: ${assets}/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf
+# Assets are mirrored vs. the SDK/hardware convention (q_local = -q_asset).
+joint_signs: [-1, -1, -1, -1, -1, -1]
 ee_frame: gripper_end
 home_q: [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
 handover_q: [0.5, 1.2, 1.2, 0.0, 0.75, 0.0]

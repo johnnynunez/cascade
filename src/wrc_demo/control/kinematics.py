@@ -3,11 +3,16 @@
 Self-contained on purpose: reBotArm_control_py's kinematics module reads its
 own global config/rebotarm.yaml (ignoring the hw_yaml passed to RebotArm), so
 using it with the RS arm silently loads the DM model. Here the model path
-comes from the arm profile explicitly, and points at the USD asset that ships
-in this repo (assets/usd/RS-rebot-dev-arm) -- the same asset Isaac Sim loads,
-so sim and host FK/IK can never drift apart. Pinocchio has no USD reader, so
-usd_model translates the USD physics layer to URDF in memory; plain .urdf
-paths still load directly.
+comes from the arm profile explicitly. Both .urdf and .usd/.usda paths load:
+USD goes through usd_model's in-memory USD-physics -> URDF translation
+(Pinocchio has no USD reader), so the exact asset Newton/Isaac Sim simulates
+can be checked against the host model (see tests/test_usd_model.py).
+
+Both shipped RS assets are authored in the MIRRORED joint convention
+(q_asset = -q_local); the SDK, the real arm and every q constant in this
+repo use the local one. Arm profiles carry `joint_signs: [-1, ...]` and the
+flip is baked into the model at load time, so everything downstream (FK, IK,
+limits, safety) speaks local convention.
 
 The RS model has nq=8 (6 revolute + 2 passive prismatic finger joints); we
 command the first 6 and zero-pad the rest, same convention as the SDK.
@@ -30,7 +35,13 @@ class IKResult:
 
 
 class Kinematics:
-    def __init__(self, model_path: str, ee_frame: str, n_controlled: int = 6):
+    def __init__(
+        self,
+        model_path: str,
+        ee_frame: str,
+        n_controlled: int = 6,
+        joint_signs: list[int] | None = None,
+    ):
         import pinocchio as pin  # heavy import, keep local
 
         self._pin = pin
@@ -40,9 +51,14 @@ class Kinematics:
         if path.suffix in (".usd", ".usda"):
             from .usd_model import urdf_xml_from_usd
 
-            self.model = pin.buildModelFromXML(urdf_xml_from_usd(path))
+            xml = urdf_xml_from_usd(path)
         else:
-            self.model = pin.buildModelFromUrdf(str(path))
+            xml = path.read_text()
+        if joint_signs and any(int(s) == -1 for s in joint_signs):
+            from .usd_model import apply_joint_signs
+
+            xml = apply_joint_signs(xml, joint_signs)
+        self.model = pin.buildModelFromXML(xml)
         self.data = self.model.createData()
         self.ee_frame = ee_frame
         self.fid = self.model.getFrameId(ee_frame)

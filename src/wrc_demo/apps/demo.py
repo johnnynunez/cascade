@@ -58,6 +58,7 @@ def build_runtime(
         model_path=cfg.arm.model,
         ee_frame=cfg.arm.get("ee_frame", "gripper_end"),
         n_controlled=int(cfg.arm.get("n_joints", 6)),
+        joint_signs=cfg.arm.get("joint_signs"),
     )
     if lazy_arm:
         # Perception pre-warms at startup; motors stay untouched until the

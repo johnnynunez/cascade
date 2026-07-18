@@ -149,6 +149,35 @@ def _parse_mass_props(text: str) -> dict[str, dict]:
     return props
 
 
+def apply_joint_signs(urdf_xml: str, joint_signs) -> str:
+    """Re-sign movable joints in a URDF XML string: q_new = sign * q_old.
+
+    Both shipped RS assets (the SolidWorks URDF package and the USD
+    generated from it) are authored in the MIRRORED joint convention;
+    the RobStride SDK, the real arm and every q constant in this repo
+    (home_q, tuned skill poses, safety margins) use the local convention
+    q_local = -q_asset. A -1 entry negates that joint's axis and mirrors
+    its limits, which is an exact reparameterization of the same physical
+    joint. Signs apply to movable (non-fixed) joints in document order.
+    """
+    root = ET.fromstring(urdf_xml)
+    movable = [j for j in root.iter("joint")
+               if j.get("type") in ("revolute", "prismatic", "continuous")]
+    for sign, joint in zip(joint_signs, movable):
+        if int(sign) != -1:
+            continue
+        axis = joint.find("axis")
+        if axis is not None:
+            axis.set("xyz", " ".join(f"{-float(v):.9g}"
+                                     for v in axis.get("xyz").split()))
+        limit = joint.find("limit")
+        if limit is not None:
+            lo, hi = float(limit.get("lower", 0)), float(limit.get("upper", 0))
+            limit.set("lower", f"{-hi:.9g}")
+            limit.set("upper", f"{-lo:.9g}")
+    return ET.tostring(root, encoding="unicode")
+
+
 def urdf_xml_from_usd(usd_path: str | Path) -> str:
     """USD asset (root or physics layer) -> URDF XML string.
 

@@ -107,3 +107,18 @@ def test_belief_bbox_fallback_never_stores_points():
     assert b.points is not None
     store.update("cube", np.array([0.2, 0.0, 0.02]), 0.9)  # no points
     assert b.points is not None and b.points.shape[0] == 200
+
+
+def test_mark_removed_when_not_first_element():
+    """list.remove() falls back to dataclass __eq__ over numpy fields and
+    raises 'truth value of an array is ambiguous' unless the victim happens
+    to be the FIRST belief -- removal must be by identity (crashed a live
+    grasp: held state stuck at 'already holding')."""
+    import numpy as np
+
+    store = BeliefStore()
+    store.update("cup", np.array([0.3, 0.1, 0.02]), 0.9)
+    store.update("banana", np.array([0.2, 0.0, 0.02]), 0.9)
+    assert store.mark_removed("banana", near=np.array([0.2, 0.0, 0.02]))
+    assert store.find("banana") is None
+    assert store.find("cup") is not None

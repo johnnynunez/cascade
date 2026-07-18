@@ -216,10 +216,74 @@ class SafetyHarness:
             if p[2] < self.limits.table_z + 0.01 and not self._in_grasp_cylinder(p):
                 self._reject(f"link/joint {i} at z={p[2]:.3f} would hit the table")
 
+    def vet_pose(
+        self,
+        q: np.ndarray,
+        exempt_xy: np.ndarray | None = None,
+        exempt_radius_m: float = 0.07,
+        exempt_z_min: float | None = None,
+    ) -> str | None:
+        """Statically vet a candidate joint pose BEFORE any motion exists.
+
+        Runs the same geometric gates approve() applies per waypoint (joint
+        limits, workspace AABB, table clearance, keep-outs) under the grasp
+        exemption cylinder that WILL be opened during the descent, and
+        returns the rejection reason instead of raising. Grasp selection
+        uses this to discard doomed candidates up front -- the harness
+        stays the runtime backstop, but a candidate that would abort
+        mid-descent should never win the ranking in the first place.
+        Escape rules do not apply here: this vets a chosen target, not a
+        recovery move.
+        """
+        if self.kin is None:
+            return None
+        q = np.asarray(q, dtype=float)
+        exempt = None
+        if exempt_xy is not None:
+            z_min = self.limits.table_z if exempt_z_min is None else float(exempt_z_min)
+            exempt = (np.asarray(exempt_xy, dtype=float)[:2], float(exempt_radius_m), z_min)
+
+        lo, hi = self.kin.joint_limits
+        m = self.limits.joint_margin
+        low_bad = q < lo + m - 1e-9
+        high_bad = q > hi - m + 1e-9
+        if np.any(low_bad) or np.any(high_bad):
+            bad = int(np.argmax(low_bad | high_bad))
+            return (
+                f"joint {bad + 1} target {q[bad]:.3f} rad outside "
+                f"[{lo[bad] + m:.3f}, {hi[bad] - m:.3f}]"
+            )
+
+        tcp = self.kin.fk(q)[:3, 3]
+        lo_w, hi_w = self.limits.workspace_min, self.limits.workspace_max
+        if np.any(tcp < lo_w) or np.any(tcp > hi_w):
+            return (
+                f"TCP {np.round(tcp, 3).tolist()} outside workspace "
+                f"[{lo_w.tolist()} .. {hi_w.tolist()}]"
+            )
+
+        floor = self.limits.table_z + self.limits.table_clearance
+        if tcp[2] < floor and not self._in_cylinder(tcp, exempt):
+            return f"TCP z={tcp[2]:.3f} below table clearance {floor:.3f}"
+
+        for kmin, kmax in self.limits.keep_out:
+            if np.all(tcp >= kmin) and np.all(tcp <= kmax):
+                return f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}"
+
+        links = self.kin.link_positions(q)
+        for i, p in enumerate(links[1:], start=2):
+            if p[2] < self.limits.table_z + 0.01 and not self._in_cylinder(p, exempt):
+                return f"link/joint {i} at z={p[2]:.3f} would hit the table"
+        return None
+
     def _in_grasp_cylinder(self, p: np.ndarray) -> bool:
-        if self._grasp_exempt is None:
+        return self._in_cylinder(p, self._grasp_exempt)
+
+    @staticmethod
+    def _in_cylinder(p: np.ndarray, exempt: tuple | None) -> bool:
+        if exempt is None:
             return False
-        center_xy, radius, z_min = self._grasp_exempt
+        center_xy, radius, z_min = exempt
         return (
             np.linalg.norm(np.asarray(p[:2]) - center_xy) <= radius
             and p[2] >= z_min - 1e-6

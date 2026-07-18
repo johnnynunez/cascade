@@ -126,7 +126,11 @@ class BeliefStore:
                 cands.sort(key=lambda b: float(np.linalg.norm(b.position - near)))
             if not cands:
                 return False
-            self._beliefs.remove(cands[0])
+            # Remove by IDENTITY: list.remove falls back to dataclass __eq__,
+            # which compares numpy fields elementwise and raises "truth value
+            # of an array is ambiguous" unless the match is the first element.
+            victim = cands[0]
+            self._beliefs = [b for b in self._beliefs if b is not victim]
             return True
 
     def all(self, now: float | None = None) -> list[ObjectBelief]:

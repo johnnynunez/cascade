@@ -19,8 +19,15 @@ def select_grasp(
     q_current: np.ndarray,
     max_width_m: float = 0.09,
     pregrasp_offset_m: float = 0.12,
+    validate=None,
 ) -> tuple[Grasp, np.ndarray, np.ndarray]:
-    """-> (grasp, q_pregrasp, q_grasp) for the best executable candidate."""
+    """-> (grasp, q_pregrasp, q_grasp) for the best executable candidate.
+
+    validate(grasp, q_pre, q_grasp) -> reason-string|None lets the caller
+    veto candidates on grounds IK cannot see (safety-harness geometry): a
+    candidate that would abort mid-descent must lose the ranking here, not
+    kill the attempt later.
+    """
     reasons: list[str] = []
     for g in sorted(grasps, key=lambda g: -g.quality):
         if g.width_m > max_width_m:
@@ -39,5 +46,10 @@ def select_grasp(
         if not grasp.success:
             reasons.append(f"grasp IK failed (err {grasp.error:.4f})")
             continue
+        if validate is not None:
+            reason = validate(g, pre.q, grasp.q)
+            if reason:
+                reasons.append(f"{g.label}: {reason}")
+                continue
         return g, pre.q, grasp.q
     raise SkillError("no executable grasp: " + "; ".join(reasons[:4]))

@@ -24,7 +24,7 @@ from ..perception.grounding import (
     mask_to_points_cam,
     oriented_bbox,
 )
-from ..types import Frame, SafetyViolation, SkillError, make_transform, transform_points
+from ..types import Detection, Frame, SafetyViolation, SkillError, make_transform, transform_points
 
 #: skills that move the arm: the WorldWatcher is held while they run so the
 #: held/handled object is not re-fused at a bogus mid-air position.
@@ -269,16 +269,78 @@ class SkillRuntime:
             return obb
 
     def _localize(self, query: str, spatial_hint: str | None = None):
-        """Fresh frame + color/proximity-aware 3D fix for a user phrase."""
+        """Fresh frame + color/proximity-aware 3D fix for a user phrase.
+
+        Falls back to a FRESH belief when the instantaneous re-detection
+        misses: the WorldWatcher fuses at ~3 Hz with temporal stability,
+        while a single detector pass at low confidence flickers frame to
+        frame -- an object the world model has seen in the last couple of
+        seconds is still perfectly actionable (that is the whole point of
+        keeping the model warm)."""
         r = self._resolve_query(query)
         frame = self.observe()
-        fix = localize_object(
-            frame, query, self.detector, self.extrinsics,
-            prompts=r["prompts"], spatial_hint=spatial_hint,
-            color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
-            prefer_label=r["prefer_label"],
+        try:
+            fix = localize_object(
+                frame, query, self.detector, self.extrinsics,
+                prompts=r["prompts"], spatial_hint=spatial_hint,
+                color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
+                prefer_label=r["prefer_label"],
+            )
+            return frame, fix
+        except SkillError:
+            belief = r["belief"] or self.beliefs.find(query)
+            max_age = float(self.cfg.get("perception_loop", {}).get(
+                "belief_fallback_age_s", 3.0))
+            if belief is None or (time.monotonic() - belief.last_seen_t) > max_age:
+                raise
+            # Grasping from memory demands an EXACT color match: the belief
+            # store's neighbor tolerance (pink~red) is for conversation, not
+            # for choosing what the jaws close on.
+            if r["color"] is not None and belief.color != r["color"]:
+                raise
+            self.memory.add(
+                "note",
+                f"localize {query!r}: instant detection missed; using the "
+                f"world-model fix ({belief.label}, "
+                f"{time.monotonic() - belief.last_seen_t:.1f}s old)",
+            )
+            return frame, self._fix_from_belief(query, belief)
+
+    @staticmethod
+    def _fix_from_belief(query: str, belief) -> "ObjectFix":
+        """Synthesize an ObjectFix from a belief: an axis-aligned box point
+        cloud at the remembered pose (dense enough for both the OBB planner
+        and the GraspGen-X backend)."""
+        from ..types import ObjectFix
+
+        center = np.asarray(belief.position, dtype=float).reshape(3)
+        ext = (np.sort(np.abs(np.asarray(belief.extent, dtype=float)))[::-1]
+               if belief.extent is not None else np.array([0.05, 0.05, 0.05]))
+        half = np.clip(ext[:3] / 2.0, 0.01, 0.2)
+        top_z = float(belief.top_z) if belief.top_z is not None else float(center[2] + half[2])
+        bottom_z = top_z - 2 * half[2]
+        rng = np.random.default_rng(0)
+        pts = []
+        for ax in range(3):  # sample the 6 box faces
+            for sign in (-1.0, 1.0):
+                p = (rng.random((60, 3)) - 0.5) * 2 * half
+                p[:, ax] = sign * half[ax]
+                pts.append(p)
+        pts = np.concatenate(pts)
+        pts[:, 2] = np.clip(pts[:, 2] + (top_z + bottom_z) / 2, bottom_z, top_z)
+        pts[:, :2] += center[:2]
+        det = Detection(
+            label=belief.label, conf=float(belief.conf),
+            bbox=np.zeros(4, dtype=np.float32),
         )
-        return frame, fix
+        return ObjectFix(
+            label=query,
+            position=np.array([center[0], center[1], (top_z + bottom_z) / 2]),
+            points=pts,
+            detection=det,
+            extent=np.array([2 * half[0], 2 * half[1], 2 * half[2]]),
+            axes=np.eye(3),
+        )
 
     # ── skills ───────────────────────────────────────────────────────────
 

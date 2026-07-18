@@ -37,7 +37,7 @@ _POLITENESS = re.compile(
 )
 
 _PICK = r"(?:pick|grab|take|fetch|coge|agarra|toma|recoge)"
-_PLACE = r"(?:place|put|drop|set|pon|coloca|deja)"
+_PLACE = r"(?:place|put|drop|set|save|store|pon|coloca|deja|guarda|mete)"
 _PREP = r"(?:in|into|inside|on|onto|to|at|en|dentro de|sobre|a)"
 _ART = r"(?:the\s+|a\s+|an\s+|el\s+|la\s+|un\s+|una\s+)?"
 

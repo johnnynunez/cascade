@@ -167,6 +167,10 @@ def _cube(path, pos, size, color, dynamic, mass=0.05):
     mesh.CreatePointsAttr(pts)
     mesh.CreateFaceVertexCountsAttr([4] * 6)
     mesh.CreateFaceVertexIndicesAttr([i for f in _FACES for i in f])
+    # Explicit: the default catmullClark subdivision renders these boxes as
+    # inflated blobs -- the depth cloud then overstates the object and the
+    # planned grasp closes on air above the real (collider-sized) cube.
+    mesh.CreateSubdivisionSchemeAttr("none")
     ext = Gf.Vec3f(hx, hy, hz)
     mesh.CreateExtentAttr([-ext, ext])
     xformable = UsdGeom.Xformable(mesh.GetPrim())
@@ -181,11 +185,29 @@ def _cube(path, pos, size, color, dynamic, mass=0.05):
     mesh.CreateDisplayColorAttr([Gf.Vec3f(*color)])
     UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
     if dynamic:
+        # Dynamic bodies cannot use raw triangle-mesh collision (PhysX
+        # error banner + convexHull fallback); boundingCube is EXACT for
+        # these axis-aligned boxes.
+        mcol = UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim())
+        mcol.CreateApproximationAttr("boundingCube")
         UsdPhysics.RigidBodyAPI.Apply(mesh.GetPrim())
         mapi = UsdPhysics.MassAPI.Apply(mesh.GetPrim())
         mapi.CreateMassAttr(mass)
     return mesh
 
+
+# Open-top bin centered on the demo DROP ZONE (grasp.drop_zone in
+# configs/demo.yaml): destination-less pick_and_place drops INTO it, and
+# "put it in the box" resolves it as a named destination. Walls only --
+# the table is the floor; static colliders so visitors can't topple it.
+_BIN = (0.30, -0.20)
+for _i, (_wpos, _wsize) in enumerate([
+    ((_BIN[0] + 0.07, _BIN[1], 0.03), (0.01, 0.15, 0.06)),
+    ((_BIN[0] - 0.07, _BIN[1], 0.03), (0.01, 0.15, 0.06)),
+    ((_BIN[0], _BIN[1] + 0.07, 0.03), (0.15, 0.01, 0.06)),
+    ((_BIN[0], _BIN[1] - 0.07, 0.03), (0.15, 0.01, 0.06)),
+]):
+    _cube(f"/World_Props/bin_wall{_i}", _wpos, _wsize, (0.72, 0.52, 0.22), dynamic=False)
 
 # Table top surface at z=0 (the real base sits on the table -> table_z=0
 # in configs/demo.yaml). Slab top edge exactly at z=0.
@@ -234,14 +256,24 @@ try:
             mass.CreateMassAttr(0.1)
             # The Axis_Aligned YCB variants are VISUAL-ONLY: without
             # colliders the groceries fall straight through the table.
+            # SDF collision (not convexHull): a hull fills the banana's
+            # curve and the can's rim, so fingers touch phantom volume --
+            # SDF keeps the true surface for fine grasping.
             n_col = 0
             for desc in Usd.PrimRange(prim):
                 if desc.IsA(UsdGeom.Mesh):
                     UsdPhysics.CollisionAPI.Apply(desc)
                     mcol = UsdPhysics.MeshCollisionAPI.Apply(desc)
-                    mcol.CreateApproximationAttr("convexHull")
+                    mcol.CreateApproximationAttr("sdf")
+                    try:
+                        from pxr import PhysxSchema
+
+                        sdf = PhysxSchema.PhysxSDFMeshCollisionAPI.Apply(desc)
+                        sdf.CreateSdfResolutionAttr(256)
+                    except Exception:
+                        pass  # engine falls back to its default SDF params
                     n_col += 1
-            print(f"[bridge] YCB {name}: {n_col} convexHull colliders", flush=True)
+            print(f"[bridge] YCB {name}: {n_col} SDF colliders", flush=True)
             print(f"[bridge] YCB prop {name} at {pos}", flush=True)
     else:
         print("[bridge] YCB props skipped: asset root unreachable", flush=True)
@@ -369,7 +401,16 @@ _state_lock = threading.Lock()
 # whole workspace from the overhead camera) and sits exactly ON the j2/j3
 # lower limits, which the safety harness treats as a boundary condition.
 HOME_Q = [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
-_targets: dict = {"q": list(HOME_Q), "grip_frac": 1.0, "stopped": False}
+# WRC_BRIDGE_NO_TARGETS=1: asset-inspection mode -- apply NO runtime targets
+# so the asset's own authored joint state/drive targets are what you see
+# (used to validate the initial-pose PR; also note HOME_Q is in the LOCAL
+# joint convention and would fight a mirror-convention asset).
+_NO_TARGETS = os.environ.get("WRC_BRIDGE_NO_TARGETS", "0") == "1"
+_targets: dict = {
+    "q": None if _NO_TARGETS else list(HOME_Q),
+    "grip_frac": None if _NO_TARGETS else 1.0,
+    "stopped": False,
+}
 _frames: dict[str, dict] = {}  # camera cache refreshed by the main loop
 _exec_lock = threading.Lock()
 _exec_jobs: list = []  # (code, result_holder, done_event) -> main loop

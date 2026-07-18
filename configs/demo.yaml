@@ -22,12 +22,24 @@ grasp:
   graspgenx:
     host: 127.0.0.1
     port: 5556
-    gripper: franka_panda   # closest shipped gripper; author reBot sweep params later
-    tip_offset_m: 0.10      # gripper-base -> jaw-center along approach; calibrate in sim
+    gripper: franka_panda   # fallback when `sweep` is removed
     num_grasps: 100
     topk: 32
     min_score: 0.0
     timeout_ms: 8000
+    tip_offset_m: 0.098     # empirical: model keeps its base-frame convention ~10 cm behind the jaw center even with centered sweep boxes
+    # reBot RS parallel-jaw gripper as a swept volume (cross-embodiment
+    # conditioning; frame: origin at jaw center, +Z approach, +X closing).
+    # Derived from the RS URDF finger geometry (max open 0.09 m, pad
+    # ~0.02 x 0.045 m); refine with the sim measurement if regrasping
+    # quality warrants it.
+    sweep:
+      extents_open: [0.090, 0.020, 0.045]
+      offset_open: [0.0, 0.0, 0.0]
+      extents_mid: [0.045, 0.020, 0.045]
+      offset_mid: [0.0, 0.0, 0.0]
+      gripper_type: 0
+      fingertip_depth: 0.0225
   # NOTE: strict top-down tool poses are only IK-reachable below z~0.15 on
   # the B601-RS (wrist limits); keep grasp_z + offset under that.
   pregrasp_offset_m: 0.08   # hover height above the grasp along -approach

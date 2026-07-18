@@ -5,14 +5,23 @@ seen, so the agent can act on things that scrolled out of view or got
 occluded ("the mug is where it was 8 seconds ago"). Beliefs decay to
 `remembered` state after not being re-observed; they are only dropped after
 `forget_after_s` (default: never during a demo run).
+
+Beliefs also carry a named color (median mask HSV, see perception.colors) so
+color-word queries like "pink object" resolve against the live world model
+even when the detector vocabulary has no such class. All methods are
+thread-safe: the WorldWatcher fuses observations from N camera streams while
+the skill runtime reads.
 """
 
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass, field
 
 import numpy as np
+
+from ..perception.colors import parse_color_query
 
 
 @dataclass
@@ -23,6 +32,7 @@ class ObjectBelief:
     top_z: float | None = None  # highest observed point (base frame) - use this
     # for stacking/placing, never extent[2] (extents are eigenvalue-ordered).
     conf: float = 0.5
+    color: str | None = None  # named color (perception.colors palette)
     last_seen_t: float = field(default_factory=time.monotonic)
     first_seen_t: float = field(default_factory=time.monotonic)
     observations: int = 1
@@ -44,6 +54,7 @@ class BeliefStore:
         self._pos_alpha = pos_alpha
         self._conf_alpha = conf_alpha
         self._forget_after = forget_after_s
+        self._lock = threading.RLock()
 
     def update(
         self,
@@ -53,65 +64,98 @@ class BeliefStore:
         extent: np.ndarray | None = None,
         top_z: float | None = None,
         t: float | None = None,
+        color: str | None = None,
     ) -> ObjectBelief:
         """Fuse one 3D observation; matches same-label beliefs by proximity."""
         now = time.monotonic() if t is None else t
         position = np.asarray(position, dtype=float).reshape(3)
-        best, best_d = None, self._match_radius
-        for b in self._beliefs:
-            if b.label != label:
-                continue
-            d = float(np.linalg.norm(b.position - position))
-            if d < best_d:
-                best, best_d = b, d
-        if best is None:
-            best = ObjectBelief(
-                label=label, position=position, extent=extent, top_z=top_z,
-                conf=conf, last_seen_t=now, first_seen_t=now,
-            )
-            self._beliefs.append(best)
+        with self._lock:
+            best, best_d = None, self._match_radius
+            for b in self._beliefs:
+                if b.label != label:
+                    continue
+                d = float(np.linalg.norm(b.position - position))
+                if d < best_d:
+                    best, best_d = b, d
+            if best is None:
+                best = ObjectBelief(
+                    label=label, position=position, extent=extent, top_z=top_z,
+                    conf=conf, color=color, last_seen_t=now, first_seen_t=now,
+                )
+                self._beliefs.append(best)
+                return best
+            a = self._pos_alpha
+            best.position = (1 - a) * best.position + a * position
+            best.conf = (1 - self._conf_alpha) * best.conf + self._conf_alpha * conf
+            if extent is not None:
+                best.extent = extent
+            if top_z is not None:
+                best.top_z = top_z
+            if color is not None:
+                best.color = color
+            best.last_seen_t = now
+            best.observations += 1
             return best
-        a = self._pos_alpha
-        best.position = (1 - a) * best.position + a * position
-        best.conf = (1 - self._conf_alpha) * best.conf + self._conf_alpha * conf
-        if extent is not None:
-            best.extent = extent
-        if top_z is not None:
-            best.top_z = top_z
-        best.last_seen_t = now
-        best.observations += 1
-        return best
 
     def mark_removed(self, label: str, near: np.ndarray | None = None) -> bool:
         """Drop a belief after the robot itself moved the object away."""
-        cands = [b for b in self._beliefs if b.label == label]
-        if near is not None and cands:
-            near = np.asarray(near, dtype=float).reshape(3)
-            cands.sort(key=lambda b: float(np.linalg.norm(b.position - near)))
-        if not cands:
-            return False
-        self._beliefs.remove(cands[0])
-        return True
+        with self._lock:
+            cands = [b for b in self._beliefs if b.label == label]
+            if not cands:  # the label may be a query ("pink object")
+                q = self.find(label)
+                cands = [q] if q is not None else []
+            if near is not None and cands:
+                near = np.asarray(near, dtype=float).reshape(3)
+                cands.sort(key=lambda b: float(np.linalg.norm(b.position - near)))
+            if not cands:
+                return False
+            self._beliefs.remove(cands[0])
+            return True
 
     def all(self, now: float | None = None) -> list[ObjectBelief]:
         now = time.monotonic() if now is None else now
-        if self._forget_after is not None:
-            self._beliefs = [
-                b for b in self._beliefs if now - b.last_seen_t <= self._forget_after
-            ]
-        return list(self._beliefs)
+        with self._lock:
+            if self._forget_after is not None:
+                self._beliefs = [
+                    b for b in self._beliefs if now - b.last_seen_t <= self._forget_after
+                ]
+            return list(self._beliefs)
 
-    def find(self, label: str) -> ObjectBelief | None:
-        matches = [b for b in self._beliefs if b.label == label]
-        if not matches:
-            # loose contains-match ("mug" vs "red mug")
-            matches = [
-                b for b in self._beliefs
-                if label.lower() in b.label.lower() or b.label.lower() in label.lower()
-            ]
-        if not matches:
-            return None
-        return max(matches, key=lambda b: b.last_seen_t)
+    def find(self, query: str) -> ObjectBelief | None:
+        """Resolve a label OR a color query ("pink object", "red mug")."""
+        with self._lock:
+            matches = [b for b in self._beliefs if b.label == query]
+            if not matches:
+                color, noun = parse_color_query(query)
+                cands = list(self._beliefs)
+                if noun:
+                    exact = [b for b in cands if b.label.lower() == noun]
+                    loose = exact or [
+                        b for b in cands
+                        if noun in b.label.lower() or b.label.lower() in noun
+                    ]
+                    cands = loose
+                if color:
+                    # Prefer the exact palette band, then perceptual
+                    # neighbors (red<->pink boundary objects), and only then
+                    # untagged beliefs -- never a wrong-colored object.
+                    from ..perception.colors import color_matches
+
+                    exact = [b for b in cands if b.color == color]
+                    near = [
+                        b for b in cands
+                        if b.color is not None and b.color != color
+                        and color_matches(color, b.color)
+                    ]
+                    cands = exact or near or [b for b in cands if b.color is None]
+                # A bare color word needs the color to actually constrain;
+                # a bare noun already did. No constraint at all -> no match.
+                if color is None and noun is None:
+                    cands = []
+                matches = cands
+            if not matches:
+                return None
+            return max(matches, key=lambda b: (b.last_seen_t, b.conf))
 
     def summary(self, now: float | None = None) -> list[dict]:
         now = time.monotonic() if now is None else now
@@ -120,6 +164,7 @@ class BeliefStore:
             out.append(
                 {
                     "label": b.label,
+                    "color": b.color,
                     "position": [round(float(x), 3) for x in b.position],
                     "state": b.state(now),
                     "age_s": round(now - b.last_seen_t, 1),

@@ -25,3 +25,8 @@ extrinsics:
     - [-1.0,  0.0,  0.0, 0.00]
     - [ 0.0,  0.0, -1.0, 0.60]
     - [ 0.0,  0.0,  0.0, 1.00]
+
+# PLACEHOLDER extrinsics + assumed table plane: as a SECONDARY rig camera
+# this must not fuse 3D beliefs until calibrated (video/overlays still
+# stream). Flip to true after measuring the mount.
+fuse_beliefs: false

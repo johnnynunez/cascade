@@ -26,7 +26,7 @@ def test_codex_toml_block_shape():
     assert 'command = "/usr/bin/python3"' in block
     assert 'args = ["-m", "wrc_demo.apps.mcp_server"]' in block
     assert "[mcp_servers.wrc-demo.env]" in block
-    assert 'WRC_CAMERA = "l515"' in block
+    assert 'WRC_CAMERAS = "l515"' in block
     # tomllib must parse it
     import tomllib
 
@@ -49,7 +49,7 @@ def test_codex_upsert_preserves_and_replaces():
     env2 = server_env("mock", "mock", ":1")
     merged2 = codex_upsert(merged, codex_toml_block(PY, env2))
     assert merged2.count("[mcp_servers.wrc-demo]") == 1
-    assert 'WRC_CAMERA = "mock"' in merged2 and 'WRC_CAMERA = "l515"' not in merged2
+    assert 'WRC_CAMERAS = "mock"' in merged2 and 'WRC_CAMERAS = "l515"' not in merged2
     assert "[mcp_servers.other]" in merged2
     import tomllib
 
@@ -64,13 +64,13 @@ def test_claude_mcp_json_merges():
     entry = out["mcpServers"]["wrc-demo"]
     assert entry["type"] == "stdio"
     assert entry["args"] == ["-m", "wrc_demo.apps.mcp_server"]
-    assert entry["env"]["WRC_CAMERA"] == "l515"
+    assert entry["env"]["WRC_CAMERAS"] == "l515"
 
 
 def test_claude_add_command_shape():
     cmd = claude_add_command(PY, ENV)
     assert cmd.startswith("claude mcp add --scope user ")
-    assert "--env WRC_CAMERA=l515" in cmd
+    assert "--env WRC_CAMERAS=l515" in cmd
     assert cmd.endswith("wrc-demo -- /usr/bin/python3 -m wrc_demo.apps.mcp_server")
 
 

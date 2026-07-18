@@ -60,21 +60,28 @@ actionable after occlusion. `src/wrc_demo/memory/`.
 ## Quick start
 
 ```bash
-# offline wiring check: mock camera + mock arm + scripted LLM, no hardware
-PYTHONPATH=src python -m wrc_demo.apps.demo --task "look at the table"
+# offline wiring check: mock camera + mock arm + scripted LLM, no hardware.
+# Routine commands run on the REFLEX fast path (no LLM); a livestream
+# dashboard with N camera streams + robot narration prints its URL.
+PYTHONPATH=src python -m wrc_demo.apps.demo --task "pick and place pink object"
 
-# tests (48 unit/integration; live-hardware tests deselected by default)
+# tests (111 unit/integration; live-hardware tests deselected by default)
 python -m pytest tests/ -q
 python -m pytest tests/ -m hardware -q     # needs L515 + can0 up (read-only)
 
-# real rig, cloud LLM
+# real rig, N cameras (first = manipulation camera), cloud LLM fallback
 sudo ip link set can0 up type can bitrate 1000000
-python -m wrc_demo.apps.demo --task "put the red cube in the bowl" \
-    --camera l515 --arm rebot_rs --llm anthropic
+python -m wrc_demo.apps.demo --interactive \
+    --cameras l515,uvc4k --arm rebot_rs --llm anthropic
+
+# Isaac Sim instead of hardware (same demo, simulated reBot):
+#   1. inside Isaac Sim's python:  python.sh scripts/isaac_bridge.py --usd <rebot.usd>
+#   2. then:
+python -m wrc_demo.apps.demo --cameras isaac --arm isaac --interactive
 
 # real rig, local Qwen3.6 on the Spark (start the server first)
 scripts/serve_qwen_llamacpp.sh          # or serve_qwen_vllm.sh (MTP spec decoding)
-python -m wrc_demo.apps.demo --task "..." --camera l515 --arm rebot_rs --llm local_qwen
+python -m wrc_demo.apps.demo --task "..." --cameras l515 --arm rebot_rs --llm local_qwen
 ```
 
 Setup on this rig: `scripts/setup_env.sh` (installs into the shared `.demo`
@@ -119,10 +126,13 @@ python scripts/setup_agents.py --camera l515 --arm rebot_rs --write
 | **Codex CLI** | `~/.codex/config.toml` `[mcp_servers.wrc-demo]` | `setup_agents.py --host codex --write`, verify with `codex mcp list` |
 | **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `setup_agents.py --host openclaw` prints the `openclaw mcp set` one-liner + JSON block |
 
-The server attaches hardware lazily: `initialize`/`tools/list` work with the
-robot powered off, so agents can inspect the toolbox anytime. Env knobs:
-`WRC_CAMERA`, `WRC_ARM`, `WRC_DETECTOR_MODEL`, `WRC_DETECT_CLASSES`,
-`WRC_VIEW`, `DISPLAY`.
+The server pre-warms perception at startup (cameras + detector + world
+model) while the ARM stays unpowered until the first motion command
+(LazyArm) -- so "pick and place pink object" from the chat is a single
+`pick_and_place` tool call that starts moving immediately. Env knobs:
+`WRC_CAMERAS` (comma list, first = manipulation camera), `WRC_ARM`,
+`WRC_DETECTOR_MODEL`, `WRC_DETECT_CLASSES`, `WRC_VIEW`, `WRC_PREWARM`,
+`WRC_STREAM`, `WRC_STREAM_PORT`, `DISPLAY`.
 
 ## Safety notes for the live rig
 

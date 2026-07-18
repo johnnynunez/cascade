@@ -12,6 +12,8 @@ stderr.
 
 Configuration via environment (set in the MCP server entry):
     WRC_CAMERA          camera profile (default: mock)
+    WRC_CAMERAS         comma-separated camera profiles; first one is the
+                        manipulation camera (overrides WRC_CAMERA)
     WRC_ARM             arm profile    (default: mock)
     WRC_RUN_DIR         trace directory (default: <repo>/runs/mcp_<pid>)
     WRC_DETECTOR_MODEL  override detector weights (e.g. a yolo11n.pt path
@@ -20,10 +22,19 @@ Configuration via environment (set in the MCP server entry):
     WRC_VIEW            "0" disables the live camera window (default: open it
                         whenever DISPLAY is set, so the audience always sees
                         what the camera sees)
+    WRC_PREWARM         "0" disables perception pre-warm at startup
+                        (default: cameras + detector + world model come up
+                        immediately so the first command is fast)
+    WRC_STREAM          "0" disables the MJPEG livestream dashboard
+    WRC_STREAM_PORT     dashboard port (default: from configs/demo.yaml)
 
-Hardware is attached lazily on the first tools/call, so initialize and
-tools/list always work -- an agent can inspect the toolbox with the robot
-powered off (pattern borrowed from AgenticROS's MCP server).
+Latency contract (why this server is fast): perception pre-warms in the
+background the moment the gateway starts -- N camera streams, the detector,
+and the WorldWatcher that keeps the belief store hot. The ARM stays
+unpowered until the first motion tool call (LazyArm). A routine command like
+"pick and place pink object" is ONE pick_and_place tool call that resolves
+against the warm world model and runs deterministically: no LLM round-trips
+inside the loop, total time ~ arm motion time.
 """
 
 from __future__ import annotations
@@ -33,6 +44,7 @@ import contextlib
 import json
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -47,7 +59,33 @@ _EXTRA_TOOLS = [
         "name": "camera_snapshot",
         "description": (
             "Capture a camera frame and return it as an image, with the "
-            "depth source noted. Use this to SEE the workspace."
+            "depth source noted. Use this to SEE the workspace. Optional "
+            "`camera` selects one of the rig cameras (see world_state)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"camera": {"type": "string"}},
+            "required": [],
+        },
+    },
+    {
+        "name": "world_state",
+        "description": (
+            "INSTANT text snapshot of the live world model: every object "
+            "with color + 3D position + freshness, what the gripper holds, "
+            "camera FPS, and the livestream URL. Perception runs "
+            "continuously, so prefer this over camera_snapshot when you "
+            "only need to know WHAT is where -- it costs no image tokens "
+            "and returns immediately."
+        ),
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "live_view_url",
+        "description": (
+            "URL of the live dashboard (N camera MJPEG streams + robot "
+            "narration feed). Share it with the human so they can watch "
+            "the robot work."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
@@ -72,52 +110,92 @@ class McpSkillServer:
         self._runtime = None
         self._arm = None
         self._init_error: str | None = None
+        self._init_lock = threading.Lock()
 
     # ── runtime lifecycle ────────────────────────────────────────────────
 
     def _ensure_runtime(self):
-        if self._runtime is not None:
-            return self._runtime
-        if self._init_error is not None:
-            raise RuntimeError(f"hardware init failed earlier: {self._init_error}")
-        from ..apps.demo import build_runtime
-        from ..config import PACKAGE_ROOT, load_demo_config
+        with self._init_lock:
+            if self._runtime is not None:
+                return self._runtime
+            if self._init_error is not None:
+                raise RuntimeError(f"hardware init failed earlier: {self._init_error}")
+            from ..apps.demo import build_runtime
+            from ..config import PACKAGE_ROOT, load_demo_config
 
-        camera = os.environ.get("WRC_CAMERA", "mock")
-        arm = os.environ.get("WRC_ARM", "mock")
-        run_dir = Path(
-            os.environ.get("WRC_RUN_DIR", PACKAGE_ROOT / "runs" / f"mcp_{os.getpid()}")
-        )
-        try:
-            # Anything the stack prints must not corrupt the protocol stream.
-            with contextlib.redirect_stdout(sys.stderr):
-                cfg = load_demo_config(camera=camera, arm=arm, llm="mock")
-                det_model = os.environ.get("WRC_DETECTOR_MODEL")
-                if det_model:
-                    cfg._data["detector"]["model"] = det_model
-                classes = os.environ.get("WRC_DETECT_CLASSES")
-                if classes:
-                    cfg._data["detect_classes"] = [
-                        c.strip() for c in classes.split(",") if c.strip()
-                    ]
-                view = os.environ.get("WRC_VIEW", "1") != "0" and bool(
-                    os.environ.get("DISPLAY")
+            cameras = [
+                c.strip()
+                for c in os.environ.get(
+                    "WRC_CAMERAS", os.environ.get("WRC_CAMERA", "mock")
+                ).split(",")
+                if c.strip()
+            ]
+            arm = os.environ.get("WRC_ARM", "mock")
+            run_dir = Path(
+                os.environ.get("WRC_RUN_DIR", PACKAGE_ROOT / "runs" / f"mcp_{os.getpid()}")
+            )
+            try:
+                # Anything the stack prints must not corrupt the protocol stream.
+                with contextlib.redirect_stdout(sys.stderr):
+                    cfg = load_demo_config(cameras=cameras, arm=arm, llm="mock")
+                    det_model = os.environ.get("WRC_DETECTOR_MODEL")
+                    if det_model:
+                        cfg._data["detector"]["model"] = det_model
+                    classes = os.environ.get("WRC_DETECT_CLASSES")
+                    if classes:
+                        cfg._data["detect_classes"] = [
+                            c.strip() for c in classes.split(",") if c.strip()
+                        ]
+                    port = os.environ.get("WRC_STREAM_PORT")
+                    if port:
+                        cfg._data.setdefault("stream", {})["port"] = int(port)
+                    view = os.environ.get("WRC_VIEW", "1") != "0" and bool(
+                        os.environ.get("DISPLAY")
+                    )
+                    serve = os.environ.get("WRC_STREAM", "1") != "0"
+                    # lazy_arm: perception comes up now; motors stay untouched
+                    # until the first motion command.
+                    self._runtime, self._arm = build_runtime(
+                        cfg, run_dir, view=view, lazy_arm=True, serve=serve
+                    )
+                url = (
+                    self._runtime.stream_server.url
+                    if self._runtime.stream_server is not None else "disabled"
                 )
-                self._runtime, self._arm = build_runtime(cfg, run_dir, view=view)
-            print(f"[wrc-mcp] runtime up: camera={camera} arm={arm}", file=sys.stderr)
-        except Exception as e:
-            self._init_error = f"{type(e).__name__}: {e}"
-            raise
-        return self._runtime
+                print(
+                    f"[wrc-mcp] runtime up: cameras={cameras} arm={arm} (lazy) "
+                    f"livestream={url}",
+                    file=sys.stderr,
+                )
+            except Exception as e:
+                self._init_error = f"{type(e).__name__}: {e}"
+                raise
+            return self._runtime
+
+    def prewarm_async(self) -> None:
+        """Bring perception up in the background so the first command is
+        instant. A prewarm failure must NOT permanently poison the server:
+        transient conditions (camera enumerating, port busy) often clear by
+        the time a human sends the first command, so the poison flag is
+        reset and the first tools/call rebuilds from scratch."""
+
+        def _warm():
+            try:
+                self._ensure_runtime()
+            except Exception as e:
+                print(f"[wrc-mcp] prewarm failed (will retry on first call): {e}",
+                      file=sys.stderr)
+                with self._init_lock:
+                    self._init_error = None
+
+        threading.Thread(target=_warm, daemon=True, name="wrc-prewarm").start()
 
     def shutdown(self):
         with contextlib.redirect_stdout(sys.stderr):
             if self._runtime is not None:
-                with contextlib.suppress(Exception):
-                    self._runtime.camera.close()
-            if self._arm is not None:
-                with contextlib.suppress(Exception):
-                    self._arm.disconnect()
+                from ..apps.demo import shutdown_runtime
+
+                shutdown_runtime(self._runtime, self._arm)
 
     # ── tool surface ─────────────────────────────────────────────────────
 
@@ -139,7 +217,23 @@ class McpSkillServer:
         runtime = self._ensure_runtime()
         with contextlib.redirect_stdout(sys.stderr):
             if name == "camera_snapshot":
-                return self._camera_snapshot(runtime)
+                return self._camera_snapshot(runtime, (arguments or {}).get("camera"))
+            if name == "world_state":
+                return _text_result(self._world_state(runtime))
+            if name == "live_view_url":
+                url = (
+                    runtime.stream_server.url
+                    if runtime.stream_server is not None else None
+                )
+                if url:
+                    return _text_result({"ok": True, "url": url})
+                return _text_result(
+                    {"ok": False,
+                     "error": "livestream not running: disabled via WRC_STREAM=0 "
+                              "or the port was taken at startup (see gateway "
+                              "stderr; set WRC_STREAM_PORT to change it)"},
+                    is_error=True,
+                )
             if name == "emergency_stop":
                 runtime.arm.stop()
                 return _text_result({"ok": True, "stopped": True,
@@ -152,12 +246,57 @@ class McpSkillServer:
                 elif hasattr(raw, "_stopped"):
                     raw._stopped = False
                 return _text_result({"ok": True, "stopped": False})
-            result = runtime.execute(name, arguments or {})
+            if name == "pick_and_place":  # narrate on the dashboard
+                obj = (arguments or {}).get("object", "?")
+                dest = (arguments or {}).get("destination")
+                runtime.current_task = f"pick and place {obj}" + (f" -> {dest}" if dest else "")
+                try:
+                    result = runtime.execute(name, arguments or {})
+                finally:
+                    runtime.current_task = None
+            else:
+                result = runtime.execute(name, arguments or {})
         return _text_result(result, is_error=not result.get("ok", False))
 
-    def _camera_snapshot(self, runtime) -> dict:
-        frame = runtime.observe()
-        jpeg = runtime.frame_jpeg()
+    def _world_state(self, runtime) -> dict:
+        from ..apps.demo import _runtime_state
+
+        state = _runtime_state(runtime)
+        state["cameras"] = runtime.rig.stats() if getattr(runtime, "rig", None) else {}
+        if runtime.stream_server is not None:
+            state["live_view_url"] = runtime.stream_server.url
+        state["ok"] = True
+        return state
+
+    def _camera_snapshot(self, runtime, camera: str | None = None) -> dict:
+        rig = getattr(runtime, "rig", None)
+        age_s = 0.0
+        if camera and rig is not None:
+            try:
+                stream = rig.get(camera)
+            except KeyError as e:
+                return _text_result({"ok": False, "error": str(e)}, is_error=True)
+            frame = stream.latest()
+            if frame is None:
+                return _text_result({"ok": False, "error": "no frame yet"}, is_error=True)
+            # latest() never blocks -- do not silently serve a pre-glitch
+            # frame as if it were live.
+            age_s = round(time.monotonic() - frame.t, 1)
+            if stream.last_error and age_s > 2.0:
+                return _text_result(
+                    {"ok": False,
+                     "error": f"camera {camera!r} is not delivering frames "
+                              f"(last error: {stream.last_error}; newest frame "
+                              f"is {age_s}s old)"},
+                    is_error=True,
+                )
+            import cv2
+
+            ok, buf = cv2.imencode(".jpg", frame.rgb, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            jpeg = buf.tobytes() if ok else None
+        else:
+            frame = runtime.observe()
+            jpeg = runtime.frame_jpeg()
         if not jpeg:
             return _text_result({"ok": False, "error": "no frame available"}, is_error=True)
         return {
@@ -170,7 +309,13 @@ class McpSkillServer:
                 {
                     "type": "text",
                     "text": json.dumps(
-                        {"depth_source": frame.depth_source, "t": time.time()}
+                        {
+                            "camera": camera or (runtime.rig.primary.name
+                                                 if getattr(runtime, "rig", None) else "primary"),
+                            "depth_source": frame.depth_source,
+                            "frame_age_s": age_s,
+                            "t": time.time(),
+                        }
                     ),
                 },
             ],
@@ -245,7 +390,14 @@ def handle_message(server: McpSkillServer, msg: dict) -> dict | None:
 
 def main() -> int:
     server = McpSkillServer()
+    # The prewarm thread wraps its build in redirect_stdout(sys.stderr),
+    # which swaps the PROCESS-GLOBAL sys.stdout. Protocol frames must go
+    # through a reference captured before that thread starts, or the
+    # initialize/tools/list responses land on stderr and the client hangs.
+    protocol_out = sys.stdout
     print("[wrc-mcp] wrc-demo MCP server on stdio", file=sys.stderr)
+    if os.environ.get("WRC_PREWARM", "1") != "0":
+        server.prewarm_async()
     try:
         for line in sys.stdin:
             line = line.strip()
@@ -258,8 +410,8 @@ def main() -> int:
                 continue
             resp = handle_message(server, msg)
             if resp is not None:
-                sys.stdout.write(json.dumps(resp) + "\n")
-                sys.stdout.flush()
+                protocol_out.write(json.dumps(resp) + "\n")
+                protocol_out.flush()
     finally:
         server.shutdown()
     return 0

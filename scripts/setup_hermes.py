@@ -23,14 +23,14 @@ SERVER_KEY = "wrc-demo:"
 MCP_KEY = "mcp_servers:"
 
 
-def yaml_block(camera: str, arm: str, python: str) -> str:
+def yaml_block(cameras: str, arm: str, python: str) -> str:
     return f"""{MCP_KEY}
   {SERVER_KEY}
     command: "{python}"
     args: ["-m", "wrc_demo.apps.mcp_server"]
     env:
       PYTHONPATH: "{REPO / 'src'}"
-      WRC_CAMERA: "{camera}"
+      WRC_CAMERAS: "{cameras}"
       WRC_ARM: "{arm}"
     connect_timeout: 60
     timeout: 300
@@ -71,13 +71,16 @@ def upsert(existing: str | None, block: str) -> str:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--camera", default="mock")
+    p.add_argument("--cameras", default=None,
+                   help="comma-separated camera profiles (first = manipulation "
+                        "camera); overrides --camera")
     p.add_argument("--arm", default="mock")
     p.add_argument("--python", default=PYTHON, help="interpreter with wrc_demo deps")
     p.add_argument("--write", action="store_true", help="merge into ~/.hermes/config.yaml")
     p.add_argument("--config", default=str(Path.home() / ".hermes" / "config.yaml"))
     args = p.parse_args()
 
-    block = yaml_block(args.camera, args.arm, args.python)
+    block = yaml_block(args.cameras or args.camera, args.arm, args.python)
     if not args.write:
         print("# Add to ~/.hermes/config.yaml (or re-run with --write):\n")
         print(block)
@@ -90,8 +93,9 @@ def main() -> int:
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(merged)
     print(f"[+] wrote mcp_servers.wrc-demo -> {cfg_path}")
-    print(f"    camera={args.camera} arm={args.arm}")
+    print(f"    cameras={args.cameras or args.camera} arm={args.arm}")
     print("    restart Hermes to pick it up")
+    print("    livestream dashboard will print its URL on the gateway's stderr")
     return 0
 
 

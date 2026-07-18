@@ -132,12 +132,29 @@ class SafetyHarness:
         if self.kin is not None:
             lo, hi = self.kin.joint_limits
             m = self.limits.joint_margin
-            if np.any(q_next < lo + m - 1e-9) or np.any(q_next > hi - m + 1e-9):
-                bad = int(np.argmax((q_next < lo + m) | (q_next > hi - m)))
-                self._reject(
-                    f"joint {bad + 1} target {q_next[bad]:.3f} rad outside "
-                    f"[{lo[bad] + m:.3f}, {hi[bad] - m:.3f}]"
-                )
+            low_bad = q_next < lo + m - 1e-9
+            high_bad = q_next > hi - m + 1e-9
+            if np.any(low_bad) or np.any(high_bad):
+                # Escape rule (mirrors the below-table rule): a joint already
+                # at/outside the margin may move STRICTLY back toward the
+                # valid band -- otherwise an arm parked exactly on a limit
+                # (sim spawn at q=0, drift on the real rig) can never move
+                # again. Holds at a violation stay rejected: re-commanding
+                # the violated pose drives the motor INTO the limit.
+                escaping = True
+                for j in np.nonzero(low_bad | high_bad)[0]:
+                    if low_bad[j] and q_next[j] > q_prev[j] + 1e-12:
+                        continue
+                    if high_bad[j] and q_next[j] < q_prev[j] - 1e-12:
+                        continue
+                    escaping = False
+                    break
+                if not escaping:
+                    bad = int(np.argmax(low_bad | high_bad))
+                    self._reject(
+                        f"joint {bad + 1} target {q_next[bad]:.3f} rad outside "
+                        f"[{lo[bad] + m:.3f}, {hi[bad] - m:.3f}]"
+                    )
 
         if dt > 0:
             vel = np.abs(q_next - q_prev) / dt

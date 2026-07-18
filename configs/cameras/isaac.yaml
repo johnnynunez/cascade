@@ -1,0 +1,20 @@
+# Isaac Sim overhead camera served by scripts/isaac_bridge.py (run it inside
+# Isaac Sim's Python first). Perfect metric depth, no min-range, no noise.
+type: isaac
+bridge_host: 127.0.0.1
+bridge_port: 8611
+sim_camera: cam0
+depth: true
+fps: 15            # request rate; the sim renders at its own cadence
+warmup_frames: 3
+
+extrinsics:
+  mode: eye_to_hand
+  # cam0 in isaac_bridge.py: tripod mount at (0.78, -0.35, 0.60) tilted at
+  # the workspace (an overhead camera gets blocked by the arm's own home
+  # posture). EXACT values printed by the bridge at boot -- keep in sync.
+  T:
+    - [0.573462, 0.57432, -0.584206, 0.78]
+    - [0.819232, -0.402024, 0.408944, -0.35]
+    - [-0.0, -0.713115, -0.701047, 0.6]
+    - [0.0, 0.0, 0.0, 1.0]

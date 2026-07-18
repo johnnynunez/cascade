@@ -107,6 +107,22 @@ class GraspGenXPlanner:
         self.topk = int(get("topk", 32))
         self.min_score = float(get("min_score", 0.0))
         self.last_latency_s: float | None = None
+        # Cross-embodiment mode: a `sweep` block describes OUR gripper by
+        # its swept volume (12 numbers) -- no name lookup, no borrowed
+        # Franka. Convention: origin at the JAW CENTER (tip_offset then 0),
+        # +Z = approach, +X = closing direction.
+        sweep = get("sweep", None)
+        self.sweep_params = None
+        if sweep is not None:
+            self.sweep_params = {
+                "extents_open": [float(v) for v in sweep.get("extents_open")],
+                "offset_open": [float(v) for v in sweep.get("offset_open", [0, 0, 0])],
+                "extents_mid": [float(v) for v in sweep.get("extents_mid")],
+                "offset_mid": [float(v) for v in sweep.get("offset_mid", [0, 0, 0])],
+                "gripper_type": int(sweep.get("gripper_type", 0)),
+                "fingertip_depth": float(sweep.get("fingertip_depth", 0.0)),
+            }
+            self.tip_offset_m = float(get("tip_offset_m", 0.0))
 
     def plan(self, fix: ObjectFix, max_width_m: float = 0.09) -> list[Grasp]:
         """Segmented base-frame object points -> ranked wrc Grasps."""
@@ -114,8 +130,16 @@ class GraspGenXPlanner:
         if pts.shape[0] < 50:
             raise GraspGenXError(f"only {pts.shape[0]} object points (<50)")
         t0 = time.monotonic()
-        resp = self._client.request(
-            {
+        if self.sweep_params is not None:
+            payload = {
+                "action": "infer_object",
+                "point_cloud": pts,
+                "sweep_volume_params": self.sweep_params,
+                "num_grasps": self.num_grasps,
+                "planner": "graspmoe",
+            }
+        else:
+            payload = {
                 "action": "infer",
                 "point_cloud": pts,
                 "gripper_name": self.gripper,
@@ -123,7 +147,7 @@ class GraspGenXPlanner:
                 "grasp_threshold": float(self.min_score),
                 "topk_num_grasps": self.topk,
             }
-        )
+        resp = self._client.request(payload)
         self.last_latency_s = round(time.monotonic() - t0, 3)
         poses = np.asarray(resp["grasps"], dtype=np.float32).reshape(-1, 4, 4)
         scores = np.asarray(resp["confidences"], dtype=np.float32).reshape(-1)

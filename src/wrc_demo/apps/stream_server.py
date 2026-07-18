@@ -69,6 +69,9 @@ _INDEX_HTML = """<!doctype html>
              color:#d7dde3;padding:7px 10px;font:13px system-ui">
     <button style="background:#76b900;border:0;border-radius:6px;color:#0d1117;
                    font-weight:700;padding:0 14px;cursor:pointer">send</button>
+    <button type="button" id="stopbtn"
+      style="background:#d9534f;border:0;border-radius:6px;color:#fff;
+             font-weight:700;padding:0 14px;cursor:pointer">stop</button>
    </form><div id="chatmsg" style="font:11px ui-monospace,monospace;color:#9fb0c0;
                                    margin-top:6px"></div></div>
   <div class="panel"><h3>robot narration</h3><div id="feed">waiting...</div></div>
@@ -82,6 +85,13 @@ _INDEX_HTML = """<!doctype html>
  const SWATCH = {{red:'#e5484d', orange:'#f76b15', yellow:'#ffe629', green:'#46a758',
    cyan:'#00a2c7', blue:'#0090ff', purple:'#8e4ec6', pink:'#f76190',
    brown:'#ad7f58', white:'#eee', gray:'#888', black:'#111'}};
+ document.getElementById('stopbtn').addEventListener('click', async () => {{
+   const msg = document.getElementById('chatmsg');
+   try {{
+     const r = await (await fetch('/cancel', {{method: 'POST'}})).json();
+     msg.textContent = r.cancelled ? 'cancelled - the arm is stopping' : (r.error || 'cancel failed');
+   }} catch (e) {{ msg.textContent = 'error: ' + e; }}
+ }});
  document.getElementById('chat').addEventListener('submit', async (ev) => {{
    ev.preventDefault();
    const box = document.getElementById('cmd');
@@ -164,11 +174,16 @@ class StreamServer:
         # Optional chat: POST /task hands a natural-language command to this
         # callback (the app wires it to its orchestrator). One at a time.
         self._task_fn = None
+        self._cancel_fn = None
         self._task_busy = threading.Lock()
 
     def set_task_fn(self, fn) -> None:
         """fn(task_text) runs a command; called from a worker thread."""
         self._task_fn = fn
+
+    def set_cancel_fn(self, fn) -> None:
+        """fn() aborts the running command (POST /cancel, the STOP button)."""
+        self._cancel_fn = fn
 
     # ── lifecycle ────────────────────────────────────────────────────────
 
@@ -267,6 +282,14 @@ def _make_handler(server: StreamServer):
                 self.send_error(404, str(e))
 
         def do_POST(self):  # noqa: N802 (BaseHTTPRequestHandler API)
+            if self.path.rstrip("/") == "/cancel":
+                if server._cancel_fn is None:
+                    return self.send_error(501, "no cancel handler wired")
+                try:
+                    server._cancel_fn()
+                    return self._json({"cancelled": True})
+                except Exception as e:
+                    return self._json({"cancelled": False, "error": str(e)[:120]})
             if self.path.rstrip("/") != "/task":
                 return self.send_error(404, "unknown path")
             if server._task_fn is None:

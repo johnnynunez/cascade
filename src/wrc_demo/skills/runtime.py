@@ -93,9 +93,16 @@ class SkillRuntime:
     # ── plumbing ─────────────────────────────────────────────────────────
 
     def _show_status(self, text: str) -> None:
-        """Push agent state to the live view window, if one is attached."""
-        if hasattr(self.camera, "set_overlay"):
-            self.camera.set_overlay(status=text)
+        """Push agent state to EVERY live view (all rig cameras show the
+        same agent, not just the primary). self.camera goes first: it may
+        be a FrameHub WRAPPING the primary stream."""
+        streams = [self.camera]
+        rig = getattr(self, "rig", None)
+        if rig is not None:
+            streams += [s for s in getattr(rig, "streams", []) if s is not self.camera]
+        for s in streams:
+            if hasattr(s, "set_overlay"):
+                s.set_overlay(status=text)
 
     def _show_detections(self, dets) -> None:
         if hasattr(self.camera, "set_overlay"):
@@ -771,7 +778,27 @@ class SkillRuntime:
             self.arm.set_gripper(self._grip_open + span * frac, effort=eff)
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
 
+    def _adopt_unknown_held(self) -> None:
+        """'save it in the box' must work even when the held object was
+        never registered (a crashed task, or a human placed something in
+        the jaws): a mid-open gripper stall means SOMETHING is in there --
+        adopt it as 'object' so place skills can act on it. (Wrist-camera
+        visual confirmation is the ROADMAP upgrade.)"""
+        if self.held_object:
+            return
+        wf = self._gripper_width_frac()
+        air = float(self.cfg.grasp.get("air_grasp_frac", 0.04))
+        if wf is not None and air < wf < 0.9:
+            self.held_object = "object"
+            self._held_det_label = None
+            self.memory.add(
+                "note",
+                "the jaws are holding something unregistered; "
+                "treating it as 'object'",
+            )
+
     def skill_place_at(self, x: float, y: float, z: float | None = None) -> dict:
+        self._adopt_unknown_held()
         if not self.held_object:
             raise SkillError("not holding anything")
         gcfg = self.cfg.grasp
@@ -845,6 +872,7 @@ class SkillRuntime:
         return {"placed": placed, "at": [round(float(v), 3) for v in target]}
 
     def skill_place_on_object(self, label: str) -> dict:
+        self._adopt_unknown_held()
         if not self.held_object:
             raise SkillError("not holding anything")
         belief = self.beliefs.find(label)

@@ -2,6 +2,23 @@
 
 ## Near term (before the demo)
 
+- **Newton upstream issue (2026-07-19).** Manipulation contacts are broken
+  at the PARSER level on the 6.0 develop build: identical failure under
+  mjcwarp default, `use_mujoco_contacts=true` and XPBD (constant +3.7 cm
+  float even box-vs-box, fingers pass through objects, boot NaN, "Triangle
+  pair buffer overflowed"). Repro = `scripts/physics_probe.py --engine
+  newton`. File against isaac-sim/IsaacSim with the probe reports in
+  /tmp/probe_newton_*.json. Demo manipulation stays on PhysX (full battery
+  green) until fixed.
+- **Wrist cam follow-ups.** Validate the eye-in-hand extrinsics during a
+  real grasp (reproject wrist depth of the target object against the
+  physics-truth pose mid-descent); consider serving the wrist stream a
+  narration highlight ("what the gripper sees") on the dashboard; on the
+  real rig map `isaac_wrist.yaml` to the physical D435i + hand-eye calib.
+- **Sim perception flakiness** (separate campaign): YOLOE misses the YCB
+  banana on some boots and label-flickers the soup can (bottle/toy);
+  belief 3D positions themselves verified ±3 mm against physics truth.
+
 - **Persistent spatial memory (Johnny's idea, 2026-07-18).** BeliefStore
   already gives in-session object permanence (visible→remembered, EMA
   fusion, grasp-from-memory fallback); add save/load (JSON with wall-clock

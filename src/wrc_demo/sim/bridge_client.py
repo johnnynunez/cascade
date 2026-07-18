@@ -104,6 +104,13 @@ class BridgeClient:
             raw = zlib.decompress(base64.b64decode(r["depth_z_b64"]))
             depth = np.frombuffer(raw, dtype=np.float32).reshape(r["height"], r["width"]).copy()
         K = np.asarray(r["K"], dtype=np.float64).reshape(3, 3)
+        # Eye-in-hand cameras serve per-frame extrinsics (the camera moves
+        # with the arm); stashed rather than returned to keep the 3-tuple
+        # signature every existing caller expects.
+        self.last_T_base_cam = (
+            np.asarray(r["T_base_cam"], dtype=np.float64).reshape(4, 4)
+            if r.get("T_base_cam") is not None else None
+        )
         return bgr, depth, K
 
     def state(self) -> dict:

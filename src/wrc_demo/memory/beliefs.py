@@ -33,6 +33,9 @@ class ObjectBelief:
     # for stacking/placing, never extent[2] (extents are eigenvalue-ordered).
     conf: float = 0.5
     color: str | None = None  # named color (perception.colors palette)
+    points: np.ndarray | None = None  # (<=384,3) last REAL-mask cloud, base
+    # frame -- lets grasp-from-memory use the object's true shape instead of
+    # a box approximation (a bbox-inflated box slab reads as ungraspable).
     last_seen_t: float = field(default_factory=time.monotonic)
     first_seen_t: float = field(default_factory=time.monotonic)
     observations: int = 1
@@ -65,10 +68,21 @@ class BeliefStore:
         top_z: float | None = None,
         t: float | None = None,
         color: str | None = None,
+        points: np.ndarray | None = None,
     ) -> ObjectBelief:
-        """Fuse one 3D observation; matches same-label beliefs by proximity."""
+        """Fuse one 3D observation; matches same-label beliefs by proximity.
+
+        `points` should only be passed for REAL segmentation masks (never
+        bbox-rectangle fallbacks -- those sweep in table/neighbor pixels and
+        poison remembered geometry)."""
         now = time.monotonic() if t is None else t
         position = np.asarray(position, dtype=float).reshape(3)
+        if points is not None:
+            pts = np.asarray(points, dtype=np.float32).reshape(-1, 3)
+            if pts.shape[0] > 384:
+                idx = np.random.default_rng(0).choice(pts.shape[0], 384, replace=False)
+                pts = pts[idx]
+            points = pts.copy()
         with self._lock:
             best, best_d = None, self._match_radius
             for b in self._beliefs:
@@ -80,7 +94,8 @@ class BeliefStore:
             if best is None:
                 best = ObjectBelief(
                     label=label, position=position, extent=extent, top_z=top_z,
-                    conf=conf, color=color, last_seen_t=now, first_seen_t=now,
+                    conf=conf, color=color, points=points,
+                    last_seen_t=now, first_seen_t=now,
                 )
                 self._beliefs.append(best)
                 return best
@@ -93,6 +108,8 @@ class BeliefStore:
                 best.top_z = top_z
             if color is not None:
                 best.color = color
+            if points is not None:
+                best.points = points
             best.last_seen_t = now
             best.observations += 1
             return best

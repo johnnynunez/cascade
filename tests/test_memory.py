@@ -67,3 +67,43 @@ def test_belief_removal():
     assert store.mark_removed("cube", near=[0.3, 0.0, 0.0])
     assert store.find("cube") is None
     assert not store.mark_removed("cube")
+
+
+def test_belief_remembers_real_cloud_and_fix_uses_it():
+    """Grasp-from-memory must use the object's TRUE shape when a real mask
+    cloud was stored: a banana's box-slab approximation (78mm) reads as
+    ungraspable, while its real cloud reads ~35mm (GGX-empty root cause)."""
+    import numpy as np
+
+    from wrc_demo.skills.runtime import SkillRuntime
+
+    store = BeliefStore()
+    rng = np.random.default_rng(1)
+    # thin curved-ish object: 16cm long, 3.5cm wide, 3cm tall
+    pts = (rng.random((1500, 3)) - 0.5) * np.array([0.16, 0.035, 0.03])
+    pts += np.array([0.24, 0.14, 0.02])
+    b = store.update("banana", pts.mean(axis=0), 0.8, points=pts)
+    assert b.points is not None and b.points.shape == (384, 3)  # subsampled
+
+    fix = SkillRuntime._fix_from_belief("banana", b)
+    assert fix.points.shape[0] == 384  # real cloud, not the 360-pt box synth
+    ext = np.sort(fix.extent)[::-1]
+    assert ext[1] < 0.05  # true jaw span, not a bbox slab
+    # fused position moved (EMA) -> cloud must follow the fused center
+    b.position = b.position + np.array([0.03, 0.0, 0.0])
+    fix2 = SkillRuntime._fix_from_belief("banana", b)
+    assert abs(fix2.points[:, 0].mean() - fix.points[:, 0].mean() - 0.03) < 5e-3
+
+
+def test_belief_bbox_fallback_never_stores_points():
+    """bbox-rectangle masks sweep in table pixels; update() is only called
+    with points= for real masks -- and a points=None update must not clear
+    a previously remembered cloud."""
+    import numpy as np
+
+    store = BeliefStore()
+    pts = np.random.default_rng(2).random((200, 3)).astype(np.float32)
+    b = store.update("cube", np.array([0.2, 0.0, 0.02]), 0.8, points=pts)
+    assert b.points is not None
+    store.update("cube", np.array([0.2, 0.0, 0.02]), 0.9)  # no points
+    assert b.points is not None and b.points.shape[0] == 200

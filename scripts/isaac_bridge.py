@@ -46,7 +46,11 @@ DEFAULT_PRIM = "/tn__00armrs_asmv3_hJ6D/Geometry/base_link"
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("--usd", default=DEFAULT_USD, help="reBot RS scene USD (gain-tuned asset)")
 p.add_argument("--prim", default=DEFAULT_PRIM, help="articulation root prim path")
-p.add_argument("--engine", default="newton", choices=["newton", "physx"])
+p.add_argument("--engine", default="physx", choices=["newton", "physx"])
+# NOTE: Newton on this develop build NaNs at GRASP CONTACT (fingers closing
+# on an object): decomposition fingers explode on close, hull fingers spawn
+# interpenetrated. Perception/motion/props are fine under Newton -- flip
+# --engine newton for everything except manipulation until upstream fixes it.
 p.add_argument("--port", type=int, default=8611)
 p.add_argument("--gui", action="store_true", help="run with the editor window (default: headless)")
 p.add_argument("--width", type=int, default=1280)
@@ -120,10 +124,11 @@ for prim in stage.Traverse():
     attr = prim.GetAttribute("newton:solver:nconmax")
     if attr and attr.IsValid() and attr.HasValue():
         old = attr.Get()
-        if old and old > 4000:
-            attr.Set(4000)
-            print(f"[bridge] clamped {prim.GetPath()} newton:solver:nconmax {old} -> 4000",
+        if old and old > 4600:
+            attr.Set(4600)  # just under the geometry estimate (~4745)
+            print(f"[bridge] clamped {prim.GetPath()} newton:solver:nconmax {old} -> 4600",
                   flush=True)
+
 
 for _ in range(30):
     app.update()
@@ -228,12 +233,14 @@ def _cube(path, pos, size, color, dynamic, mass=0.05):
     mesh.CreateDisplayColorAttr([Gf.Vec3f(*color)])
     UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
     _bind_pmat(mesh.GetPrim())
+    # boundingCube for STATICS TOO (not just the dynamic-body requirement):
+    # it is EXACT for these axis-aligned boxes on both engines, and under
+    # Newton a raw-trimesh table paired against dense YCB meshes overflows
+    # the triangle-pair buffer (6.7M > 1M) -> contacts get dropped at random
+    # (boot NaN, floating props, fingers passing through objects).
+    mcol = UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim())
+    mcol.CreateApproximationAttr("boundingCube")
     if dynamic:
-        # Dynamic bodies cannot use raw triangle-mesh collision (PhysX
-        # error banner + convexHull fallback); boundingCube is EXACT for
-        # these axis-aligned boxes.
-        mcol = UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim())
-        mcol.CreateApproximationAttr("boundingCube")
         UsdPhysics.RigidBodyAPI.Apply(mesh.GetPrim())
         mapi = UsdPhysics.MassAPI.Apply(mesh.GetPrim())
         mapi.CreateMassAttr(mass)
@@ -311,11 +318,15 @@ try:
                     UsdPhysics.CollisionAPI.Apply(desc)
                     _bind_pmat(desc)
                     mcol = UsdPhysics.MeshCollisionAPI.Apply(desc)
-                    if name == "cracker_box":
-                        mcol.CreateApproximationAttr("boundingCube")
-                    else:
-                        mcol.CreateApproximationAttr(
-                            "sdf" if args.engine == "physx" else "convexHull")
+                    # SDF for EVERY dynamic YCB mesh, on BOTH engines: the
+                    # same USD carries the PhysX SDF stack (approximation
+                    # token + PhysxSDFMeshCollisionAPI) AND Newton's own
+                    # NewtonSDFCollisionAPI (Newton ignores the PhysX token
+                    # -- it keeps the raw trimesh otherwise -- and PhysX
+                    # ignores newton:*). (Authored flat cubes keep
+                    # boundingCube: for an axis-aligned box mesh that IS the
+                    # exact shape, better than any SDF discretization.)
+                    mcol.CreateApproximationAttr("sdf")
                     try:
                         from pxr import PhysxSchema
 
@@ -323,6 +334,10 @@ try:
                         sdf.CreateSdfResolutionAttr(256)
                     except Exception:
                         pass  # engine falls back to its default SDF params
+                    p = desc.GetPrim()
+                    p.AddAppliedSchema("NewtonSDFCollisionAPI")
+                    p.CreateAttribute("newton:sdfMaxResolution",
+                                      Sdf.ValueTypeNames.Float).Set(128.0)
                     n_col += 1
             print(f"[bridge] YCB {name}: {n_col} SDF colliders", flush=True)
             print(f"[bridge] YCB prop {name} at {pos}", flush=True)
@@ -421,7 +436,95 @@ def _camera(path, eye, target, up, focal_mm=18.0, haperture_mm=20.955):
 CAM_DEFS = {
     "cam0": _camera("/World_Cams/cam0", (0.78, -0.35, 0.60), (0.28, 0.0, 0.0), (0.0, 0.0, 1.0)),
     "side": _camera("/World_Cams/side", (0.95, 0.75, 0.45), (0.28, 0.0, 0.10), (0.0, 0.0, 1.0)),
+    # Eye-in-hand D435i on the wrist: 69.4 deg HFOV (D435i RGB) -> focal
+    # 15.13 mm at the default 20.955 aperture. Spawn pose is a placeholder;
+    # the main loop re-poses it every camera tick from the gripper_end
+    # link's PHYSICS pose (see _update_wrist_cam) and serves a per-frame
+    # cam->base extrinsics matrix with the image.
+    "wrist": _camera("/World_Cams/wrist", (0.50, 0.0, 0.50), (0.30, 0.0, 0.0),
+                     (0.0, 0.0, 1.0), focal_mm=15.13),
 }
+
+# Mount (ee frame): the EE convention is x = approach, y = jaw-opening,
+# z = x cross y (z points UP at home). Bracket 6 cm above the wrist, view
+# axis = approach tilted 30 deg toward -z_ee: during a top-down descent the
+# camera looks at the object between the fingers, and even at HOME (approach
+# horizontal) the down-tilt catches the table instead of the black void
+# beyond it (validated by live offset sweep: most wrist poses at home see
+# NOTHING within the 20 m clip -- black rgb + invalid depth is geometry,
+# not a sensor bug).
+_WRIST_TILT = np.deg2rad(30.0)
+_wrist_fwd = np.array([np.cos(_WRIST_TILT), 0.0, -np.sin(_WRIST_TILT)])
+_wrist_right = np.array([0.0, -1.0, 0.0])
+_WRIST_MOUNT = np.eye(4)
+_WRIST_MOUNT[:3, :3] = np.column_stack(
+    [_wrist_right, np.cross(_wrist_right, _wrist_fwd), -_wrist_fwd])
+_WRIST_MOUNT[:3, 3] = [-0.02, 0.0, 0.06]
+_wrist_rp = None  # RigidPrim on the gripper_end link (physics-truth pose)
+_wrist_xp = None  # XformPrim on the camera: the ONLY pose channel the RTX
+# render product follows live (raw USD xformOp edits during play are
+# ignored -- validated by moving cam0 both ways)
+_wrist_T: list | None = None  # latest cam->base (OpenCV) 4x4, row lists
+
+
+def _quat_wxyz_to_mat(q: np.ndarray) -> np.ndarray:
+    w, x, y, z = [float(v) for v in q]
+    return np.array([
+        [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+        [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+        [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+    ])
+
+
+def _init_wrist_cam():
+    """(Re)bind the wrist camera to the gripper_end link. Call after every
+    play (the physics view dies on Stop, gain-tuner gotcha)."""
+    global _wrist_rp, _wrist_xp
+    from isaacsim.core.experimental.prims import RigidPrim, XformPrim
+
+    lp = getattr(art, "link_paths", None) or []
+    paths = list(lp[0]) if (len(lp) and isinstance(lp[0], (list, tuple))) else list(lp)
+    link = next((p for p in paths if str(p).endswith("gripper_end")), None)
+    if link is None:
+        print("[bridge] wrist cam: gripper_end link not found", flush=True)
+        return
+    _wrist_rp = RigidPrim(str(link))
+    _wrist_xp = XformPrim("/World_Cams/wrist")
+    print(f"[bridge] wrist cam bound to {link}", flush=True)
+
+
+def _update_wrist_cam():
+    """Follow the gripper: author the camera prim at T_world_ee @ MOUNT and
+    refresh the cam->base OpenCV extrinsics served with wrist frames."""
+    global _wrist_T
+    if _wrist_rp is None or _wrist_xp is None:
+        return
+    try:
+        pos, quat = _wrist_rp.get_world_poses()
+    except Exception:
+        return  # stale view during a Stop/Play transition
+    pos = (pos.numpy() if hasattr(pos, "numpy") else pos).reshape(3)
+    quat = (quat.numpy() if hasattr(quat, "numpy") else quat).reshape(4)
+    if not (np.all(np.isfinite(pos)) and np.all(np.isfinite(quat))):
+        return
+    T_we = np.eye(4)
+    T_we[:3, :3] = _quat_wxyz_to_mat(quat)
+    T_we[:3, 3] = pos
+    T_wc = T_we @ _WRIST_MOUNT
+    try:
+        _wrist_xp.set_world_poses(
+            T_wc[:3, 3].reshape(1, 3),
+            _mat_to_quat_wxyz(T_wc[:3, :3]).reshape(1, 4),
+        )
+    except Exception:
+        return
+    # OpenCV frame: x=+X(right), y=-Y(image y down), z=-Z(forward)
+    R_cv = T_wc[:3, :3] @ np.diag([1.0, -1.0, -1.0])
+    t_cv = T_wc[:3, 3] / U - np.array([0.0, 0.0, BASE_Z])
+    T = np.eye(4)
+    T[:3, :3] = R_cv
+    T[:3, 3] = t_cv
+    _wrist_T = [[round(float(v), 6) for v in row] for row in T]
 _annotators: dict[str, tuple] = {
     name: (sensor, K) for name, (sensor, K) in CAM_DEFS.items()
 }
@@ -473,6 +576,7 @@ assert art.num_dofs > 0, "0 DOFs: articulation created before play?"
 names = list(art.dof_names)
 print(f"[bridge] {art.num_dofs} DOFs: {names}", flush=True)
 
+_init_wrist_cam()
 ARM_IDX = [names.index(f"joint{i}") for i in range(1, 7)]
 GRIP_IDX = [names.index(n) for n in ("joint_left", "joint_right") if n in names]
 lower, upper = [x.numpy()[0].astype(float) for x in art.get_dof_limits()]
@@ -629,11 +733,16 @@ def _refresh_frames():
                 d[~np.isfinite(d)] = 0.0  # RTX far-clip returns inf
                 depth_b64 = base64.b64encode(zlib.compress(d.tobytes(), 3)).decode()
         h, w = bgr.shape[:2]
-        _frames[cam_name] = {
+        entry = {
             "ok": True, "width": w, "height": h, "K": K,
             "rgb_jpeg_b64": base64.b64encode(jpg.tobytes()).decode(),
             "depth_z_b64": depth_b64, "t": t,
         }
+        if cam_name == "wrist" and _wrist_T is not None:
+            # eye-in-hand: extrinsics move with the arm; serve the matrix
+            # that was current when this frame rendered
+            entry["T_base_cam"] = _wrist_T
+        _frames[cam_name] = entry
 
 
 # ── main loop: physics + rendering stay on the main thread (Kit rule) ────
@@ -694,23 +803,29 @@ def _resume_scene():
     Articulation after every Stop)."""
     global art
     art = Articulation(args.prim)
+    _init_wrist_cam()
     with _state_lock:
         _targets["q"] = list(HOME_Q)
         _targets["grip_frac"] = 1.0
         _targets["stopped"] = False
-    try:
-        from isaacsim.core.experimental.prims import RigidPrim
+    # Props: the USD re-parse already rebirths them at their authored
+    # spawn poses -- and RigidPrim teleports under NEWTON leave latent
+    # NaNs that detonate the whole sim on the next contact (reproduced:
+    # arm + every prop NaN 2 s into the next grasp). PhysX-only.
+    if args.engine == "physx":
+        try:
+            from isaacsim.core.experimental.prims import RigidPrim
 
-        for _n, _pos in _PROP_SPAWNS.items():
-            _p = stage.GetPrimAtPath(f"/World_Props/{_n}")
-            if _p:
-                _rp = RigidPrim(f"/World_Props/{_n}", reset_xform_op_properties=True)
-                _rp.set_world_poses(
-                    np.array([[_pos[0], _pos[1], _pos[2] + BASE_Z]]),
-                    np.array([[1.0, 0.0, 0.0, 0.0]]),
-                )
-    except Exception as _e:
-        print(f"[bridge] prop reset skipped: {_e}", flush=True)
+            for _n, _pos in _PROP_SPAWNS.items():
+                _p = stage.GetPrimAtPath(f"/World_Props/{_n}")
+                if _p:
+                    _rp = RigidPrim(f"/World_Props/{_n}", reset_xform_op_properties=True)
+                    _rp.set_world_poses(
+                        np.array([[_pos[0], _pos[1], _pos[2] + BASE_Z]]),
+                        np.array([[1.0, 0.0, 0.0, 0.0]]),
+                    )
+        except Exception as _e:
+            print(f"[bridge] prop reset skipped: {_e}", flush=True)
     print("[bridge] editor Play detected: articulation + scene restored", flush=True)
 
 
@@ -751,6 +866,7 @@ try:
         _run_exec_jobs()
         step += 1
         if step % args.cam_every == 0:
+            _update_wrist_cam()
             _refresh_frames()
 finally:
     server.shutdown()

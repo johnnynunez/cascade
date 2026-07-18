@@ -1,0 +1,22 @@
+# Eye-in-hand D435i on the wrist, served by scripts/isaac_bridge.py: the
+# gripper sees RGB-D of whatever it approaches. Extrinsics are DYNAMIC --
+# the bridge sends a fresh cam->base matrix with every frame (computed from
+# the gripper_end link's physics pose x the mount offset), so the static
+# matrix below is a placeholder that is never used while the bridge serves
+# T_base_cam. On the real rig this profile maps to the physical D435i +
+# hand-eye calibration (onsite checklist).
+type: isaac
+bridge_host: 127.0.0.1
+bridge_port: 8611
+sim_camera: wrist
+depth: true
+fps: 15
+warmup_frames: 3
+
+extrinsics:
+  mode: eye_in_hand
+  T:
+    - [1.0, 0.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0, 0.0]
+    - [0.0, 0.0, 1.0, 0.0]
+    - [0.0, 0.0, 0.0, 1.0]

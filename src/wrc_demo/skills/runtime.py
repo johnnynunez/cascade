@@ -182,6 +182,7 @@ class SkillRuntime:
             self.beliefs.update(
                 d.label, center, d.conf, extent=extents,
                 top_z=float(pts_base[:, 2].max()), t=frame.t,
+                points=pts_base if d.mask is not None else None,
             )
             summaries.append(
                 {
@@ -308,12 +309,29 @@ class SkillRuntime:
 
     @staticmethod
     def _fix_from_belief(query: str, belief) -> "ObjectFix":
-        """Synthesize an ObjectFix from a belief: an axis-aligned box point
-        cloud at the remembered pose (dense enough for both the OBB planner
-        and the GraspGen-X backend)."""
+        """Synthesize an ObjectFix from a belief.
+
+        Preferred: the belief's remembered REAL point cloud (true shape ->
+        true jaw width; a banana reads 35mm, not the 78mm of its bbox slab),
+        re-centered on the fused position. Fallback: an axis-aligned box at
+        the remembered extent (dense enough for both the OBB planner and the
+        GraspGen-X backend)."""
         from ..types import ObjectFix
 
         center = np.asarray(belief.position, dtype=float).reshape(3)
+        pts_mem = getattr(belief, "points", None)
+        if pts_mem is not None and len(pts_mem) >= 50:
+            pts = np.asarray(pts_mem, dtype=float)
+            obb_center, extents, axes = oriented_bbox(pts)
+            pts = pts + (center - obb_center)
+            det = Detection(
+                label=belief.label, conf=float(belief.conf),
+                bbox=np.zeros(4, dtype=np.float32),
+            )
+            return ObjectFix(
+                label=query, position=center.copy(), points=pts,
+                detection=det, extent=extents, axes=axes,
+            )
         ext = (np.sort(np.abs(np.asarray(belief.extent, dtype=float)))[::-1]
                if belief.extent is not None else np.array([0.05, 0.05, 0.05]))
         half = np.clip(ext[:3] / 2.0, 0.01, 0.2)

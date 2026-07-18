@@ -47,4 +47,5 @@ class IsaacCamera(CameraBase):
             depth_m=depth if self._has_depth else None,
             K=K,
             depth_source="sensor" if (depth is not None and self._has_depth) else "none",
+            T_base_cam=getattr(self._client, "last_T_base_cam", None),
         )

@@ -27,6 +27,9 @@ class Frame:
     t: float = field(default_factory=time.monotonic)
     frame_id: int = 0
     depth_source: str = "none"  # "sensor" | "plane" | "mono" | "none"
+    T_base_cam: np.ndarray | None = None  # (4,4) per-frame cam->base for
+    # eye-in-hand cameras (extrinsics move with the arm); None = use the
+    # camera profile's static extrinsics
 
     @property
     def has_depth(self) -> bool:

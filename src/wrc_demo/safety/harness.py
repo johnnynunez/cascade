@@ -210,9 +210,15 @@ class SafetyHarness:
                 self._reject(f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}")
 
         # Coarse link check: joint origins must stay above the table too
-        # (elbow scooping the table is the classic failure).
+        # (elbow scooping the table is the classic failure). The LAST link is
+        # the gripper_end/TCP itself -- it legitimately descends to the
+        # object during a grasp and is already governed by the TCP clearance
+        # + grasp-exemption check above, so excluding it here avoids a false
+        # "link would hit the table" abort when the jaws close on a low
+        # object inside the exemption cylinder.
         links = self.kin.link_positions(q_next)
-        for i, p in enumerate(links[1:], start=2):
+        elbow_links = links[1:-1] if len(links) > 2 else links[1:]
+        for i, p in enumerate(elbow_links, start=2):
             if p[2] < self.limits.table_z + 0.01 and not self._in_grasp_cylinder(p):
                 self._reject(f"link/joint {i} at z={p[2]:.3f} would hit the table")
 

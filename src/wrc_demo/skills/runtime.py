@@ -32,6 +32,7 @@ _MOTION_SKILLS = {
     "grasp_object", "place_at", "place_on_object", "push_object",
     "open_gripper", "close_gripper", "move_home", "pick_and_place",
     "point_at", "wave", "handover", "sort_by_color", "move_relative",
+    "throw",
 }
 
 
@@ -678,7 +679,15 @@ class SkillRuntime:
             reason = harness.vet_pose(q_pre)
             if reason:
                 return f"pregrasp unsafe: {reason}"
-            z_min = float(g.position[2] - 0.02)
+            # Exemption floor a bit BELOW the table: the reBot RS gripper's
+            # finger/wrist links extend ~5 cm below the TCP, so a top-down
+            # grasp of a low object legitimately dips a link to z ~ -0.018
+            # (below the table plane) while the fingers straddle the object.
+            # Flooring the exemption at table_z left that link 18 mm outside
+            # the cylinder -> false "link would hit the table" abort. The
+            # narrow XY radius still confines this to directly over the
+            # target, so allowing a small sub-table dip there is safe.
+            z_min = float(harness.limits.table_z) - 0.06
             for s in (0.25, 0.5, 0.75, 1.0):
                 q = q_pre + s * (np.asarray(q_grasp) - np.asarray(q_pre))
                 reason = harness.vet_pose(
@@ -708,7 +717,7 @@ class SkillRuntime:
         self.arm.harness.allow_grasp_descent(
             grasp.position[:2],
             radius_m=float(gcfg.get("exempt_radius_m", 0.07)),
-            z_min=float(grasp.position[2] - 0.02),
+            z_min=float(self.arm.harness.limits.table_z) - 0.06,
         )
         try:
             if not self.arm.move_joints(q_grasp, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
@@ -1256,6 +1265,78 @@ class SkillRuntime:
             "note": "holding steady; call open_gripper once the human has it",
         }
 
+    def skill_throw(self, label: str | None = None, direction: str = "forward") -> dict:
+        """Booth crowd-pleaser: grasp the object (if not already held), wind
+        the arm up, swing it toward `direction`, and RELEASE at the top of
+        the swing so the object is launched. The safety harness still vets
+        every waypoint (velocity cap, workspace AABB, table clearance), so
+        this is a *gestural* throw -- arm swing speed + release timing give
+        the toss, never an unsafe joint velocity. Great for "grab the banana
+        and throw it".
+        """
+        dirs = {
+            "forward": 0.0, "left": np.pi / 2, "right": -np.pi / 2,
+            "back": np.pi,
+        }
+        if direction not in dirs:
+            raise SkillError(f"direction must be one of {sorted(dirs)}")
+        # 1) make sure we're holding something.
+        if not self.held_object:
+            if not label:
+                raise SkillError("not holding anything; say which object to throw")
+            res = self.skill_grasp_object(label)
+            if not res.get("ok", True) or not res.get("held"):
+                return {
+                    "ok": False,
+                    "error": f"could not grasp {label!r} to throw: {res.get('error')}",
+                }
+        thrown = self.held_object
+        yaw = dirs[direction]
+
+        # 2) wind-up pose: arm drawn back and low, jaws still closed.
+        #    Joint-space keyframes keep this reachable on the B601-RS wrist
+        #    envelope (top-down IK is limited above z~0.15). base yaw (j1)
+        #    aims the throw; j2/j3 load the swing.
+        base = np.asarray(
+            self.cfg.arm.get("home_q", [0.0, -0.5, -0.9, 0.0, 0.6, 0.0]), dtype=float
+        )
+        windup = base.copy()
+        windup[0] = yaw                     # aim
+        windup[1] = base[1] - 0.5           # shoulder back/down (loaded)
+        windup[2] = base[2] + 0.4           # elbow tucked
+        release = base.copy()
+        release[0] = yaw                    # same aim
+        release[1] = base[1] + 0.6          # shoulder swings up/forward
+        release[2] = base[2] - 0.3          # elbow extends
+
+        # 3) execute: settle at wind-up, then swing FAST (short duration --
+        #    the harness auto-stretches it only if it would breach the cap,
+        #    so we get the quickest *safe* swing) and pop the jaws open at
+        #    the peak. Releasing while the wrist is still moving imparts the
+        #    launch impulse.
+        if not self.arm.move_joints(windup, duration_s=1.5):
+            raise SkillError("did not settle at the wind-up pose")
+        self.memory.add("action", f"winding up to throw {thrown!r} {direction}")
+        # kick off the swing in a background stream and release mid-arc.
+        self.arm.move_joints(release, duration_s=0.6)
+        self.arm.set_gripper(self._grip_open, effort=1.0)  # let it fly
+        released_obj = self.held_object
+        self.held_object = None
+        self._held_det_label = None
+        self._held_color = None
+        # follow-through, then home so the camera view clears.
+        try:
+            self.skill_move_home()
+        except (SkillError, SafetyViolation):
+            pass
+        self.memory.add("action", f"threw {released_obj!r} {direction}")
+        return {
+            "ok": True,
+            "thrown": released_obj,
+            "direction": direction,
+            "note": "gestural throw: harness-vetted swing + timed release",
+        }
+
     def skill_sort_by_color(self, max_objects: int = 6) -> dict:
         """Crowd-pleaser: group everything on the table into per-color zones
         along the front edge. Pure composition of pick_and_place."""
@@ -1517,6 +1598,21 @@ TOOL_SPECS: list[dict] = [
         "parameters": {
             "type": "object",
             "properties": {"max_objects": {"type": "integer", "minimum": 1, "maximum": 8}},
+            "required": [],
+        },
+    },
+    {
+        "name": "throw",
+        "description": "Grab an object (if not already held) and throw it by winding up and releasing at the top of a harness-vetted swing. direction is forward/left/right/back (default forward). Use for 'grab the banana and throw it' / 'launch the X'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string"},
+                "direction": {
+                    "type": "string",
+                    "enum": ["forward", "left", "right", "back"],
+                },
+            },
             "required": [],
         },
     },

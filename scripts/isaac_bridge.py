@@ -5,7 +5,7 @@ Run with Isaac Sim's Python:
 
     export ISAACSIM_PATH=~/Projects/isaac/IsaacSim/_build/linux-$(uname -m)/release
     $ISAACSIM_PATH/python.sh scripts/isaac_bridge.py \
-        --usd /home/spark/Projects/isaac/00-arm-rs_asm-v3-plus/00-arm-rs_asm-v3-plus.usda
+        --usd assets/usd/RS-rebot-dev-arm/00-arm-rs_asm-v3.usda
 
 Opens the gain-tuned reBot RS asset, adds a tabletop + colored props (incl.
 a PINK cube) + two RTX cameras, and serves the newline-JSON protocol from
@@ -40,7 +40,15 @@ import threading
 import time
 import zlib
 
-DEFAULT_USD = "/home/spark/Projects/isaac/00-arm-rs_asm-v3-plus/00-arm-rs_asm-v3-plus.usda"
+# Default to the gain-tuned RS asset that ships in this repo (drives, robot
+# schema, self-collision off, solver caps already baked by
+# assets/usd/RS-rebot-dev-arm/scripts/prep_asset.py). Overridable with --usd
+# or $WRC_USD so a machine-specific `-plus` variant still slots in.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_USD = os.environ.get(
+    "WRC_USD",
+    os.path.join(_REPO_ROOT, "assets", "usd", "RS-rebot-dev-arm", "00-arm-rs_asm-v3.usda"),
+)
 DEFAULT_PRIM = "/tn__00armrs_asmv3_hJ6D/Geometry/base_link"
 
 p = argparse.ArgumentParser(description=__doc__)
@@ -80,7 +88,7 @@ from isaacsim import SimulationApp  # noqa: E402
 
 _release = os.environ.get(
     "ISAACSIM_PATH",
-    os.path.expanduser("~/Projects/isaac/IsaacSim/_build/linux-aarch64/release"),
+    os.path.expanduser(f"~/Projects/isaac/IsaacSim/_build/linux-{os.uname().machine}/release"),
 )
 _kwargs = {}
 if args.engine == "newton":
@@ -116,9 +124,23 @@ stage = omni.usd.get_context().get_stage()
 # pose puts adjacent elbow colliders in deep penetration -> NaN explosion.
 _root = stage.GetPrimAtPath(args.prim)
 if _root:
-    _root.CreateAttribute("physxArticulation:enabledSelfCollisions",
-                          Sdf.ValueTypeNames.Bool).Set(False)
-    print("[bridge] articulation self-collision disabled (PhysX)", flush=True)
+    # This repo's base asset applies PhysicsArticulationRootAPI +
+    # NewtonArticulationRootAPI but NOT PhysxArticulationAPI, so a bare
+    # `physxArticulation:enabledSelfCollisions` attribute is orphaned --
+    # PhysX never reads it and falls back to its default (self-collision
+    # ENABLED). The home pose interpenetrates adjacent elbow colliders
+    # (~6900 self-contacts), so with PhysX self-collision on the whole
+    # articulation NaNs on the first physics tick (q -> nan, links fly to
+    # 1e12). Apply the PhysX articulation schema FIRST, then the flag, so
+    # PhysX actually honours it. (The -plus asset variant instead ships 19
+    # physics:filteredPairs; self-collision OFF is the gain-tuner-validated
+    # 8/8 configuration and is what the shared base asset needs here.)
+    from pxr import PhysxSchema  # noqa: E402
+
+    _px_art = PhysxSchema.PhysxArticulationAPI.Apply(_root)
+    _px_art.CreateEnabledSelfCollisionsAttr(False)
+    print("[bridge] PhysxArticulationAPI applied; self-collision disabled (PhysX)",
+          flush=True)
 
 for prim in stage.Traverse():
     attr = prim.GetAttribute("newton:solver:nconmax")
@@ -141,13 +163,51 @@ UP_AXIS = UsdGeom.GetStageUpAxis(stage)
 print(f"[bridge] metersPerUnit={MPU} upAxis={UP_AXIS}", flush=True)
 print(f"[bridge] root prims: {[p.GetName() for p in stage.GetPseudoRoot().GetChildren()]}",
       flush=True)
-scene_prim = stage.GetPrimAtPath("/PhysicsScene")
-if scene_prim:
-    g_dir = scene_prim.GetAttribute("physxScene:gravityDirection")
-    g_dir2 = scene_prim.GetAttribute("physics:gravityDirection")
-    print(f"[bridge] PhysicsScene gravityDirection: "
-          f"{(g_dir.Get() if g_dir else None) or (g_dir2.Get() if g_dir2 else None)}",
-          flush=True)
+def _fix_gravity() -> None:
+    """Repair a degenerate gravity on the physics scene(s).
+
+    This converter-exported asset ships physics:gravityDirection = (0,0,0)
+    and physics:gravityMagnitude = -inf. Isaac turns that into a non-finite
+    gravity vector, so every dynamic prop gets infinite downward
+    acceleration and tunnels straight through the table on the first tick
+    (props end up at z ~ -2000..-5000). Author sane Earth gravity along -Z
+    (Z-up stage) on BOTH the generic UsdPhysics and PhysX-scene attrs.
+    Idempotent; scans for ANY UsdPhysics.Scene so it works whether the scene
+    resolves from a payload or lives at /PhysicsScene. Must run BEFORE
+    setup_simulation so the engine initialises with finite gravity.
+    """
+    fixed = False
+    for _p in stage.Traverse():
+        if _p.GetTypeName() == "PhysicsScene" or _p.IsA(UsdPhysics.Scene):
+            _gd = _p.GetAttribute("physics:gravityDirection")
+            _gm = _p.GetAttribute("physics:gravityMagnitude")
+            _cd = _gd.Get() if (_gd and _gd.IsValid()) else None
+            _cm = _gm.Get() if (_gm and _gm.IsValid()) else None
+            _bad = (_cd is None or tuple(_cd) == (0.0, 0.0, 0.0)
+                    or _cm is None or not math.isfinite(float(_cm)))
+            if not _bad:
+                continue
+            _down = Gf.Vec3f(0.0, 0.0, -1.0)
+            for _tok in ("physics:gravityDirection", "physxScene:gravityDirection"):
+                _a = _p.GetAttribute(_tok)
+                if _a and _a.IsValid():
+                    _a.Set(_down)
+                else:
+                    _p.CreateAttribute(_tok, Sdf.ValueTypeNames.Vector3f).Set(_down)
+            for _tok in ("physics:gravityMagnitude", "physxScene:gravityMagnitude"):
+                _a = _p.GetAttribute(_tok)
+                if _a and _a.IsValid():
+                    _a.Set(9.81)
+                else:
+                    _p.CreateAttribute(_tok, Sdf.ValueTypeNames.Float).Set(9.81)
+            print(f"[bridge] FIXED degenerate gravity on {_p.GetPath()} "
+                  f"(was dir={_cd} mag={_cm}) -> (0,0,-1)*9.81", flush=True)
+            fixed = True
+    if not fixed:
+        print("[bridge] gravity already finite on all physics scenes", flush=True)
+
+
+_fix_gravity()
 
 # This asset ships with the arm hoisted in the air (contact-free gravity
 # validation). Find where the base actually sits and author the tabletop
@@ -161,14 +221,19 @@ print(f"[bridge] robot base plane at world z={BASE_Z:.3f} m; "
 
 # GPU physics: device="cpu" (inherited from the gain-tuner precision
 # scripts) runs MuJoCo-Warp on the CPU and stutters badly with the full
-# booth scene while RTX renders on the GPU.
+# booth scene while RTX renders on the GPU. But GPU PhysX (cuda:0) NaNs the
+# whole scene at boot on some builds/GPUs (Blackwell RTX PRO 6000 here:
+# arm + props explode to ~1e12 on the first tick). $WRC_PHYSICS_DEVICE
+# overrides; default cuda:0 with a cpu fallback if GPU pipelines are
+# unavailable.
+_phys_dev = os.environ.get("WRC_PHYSICS_DEVICE", "cuda:0")
 try:
-    SimulationManager.setup_simulation(dt=args.dt, device="cuda:0")
+    SimulationManager.setup_simulation(dt=args.dt, device=_phys_dev)
 except Exception:
     SimulationManager.setup_simulation(dt=args.dt, device="cpu")
     print("[bridge] WARNING: GPU physics unavailable, using CPU", flush=True)
 else:
-    print("[bridge] physics device: cuda:0 (GPU)", flush=True)
+    print(f"[bridge] physics device: {_phys_dev}", flush=True)
 
 # ── lights ───────────────────────────────────────────────────────────────
 # Moderate intensities: overexposure washes saturated albedos to pastel,
@@ -244,14 +309,23 @@ def _cube(path, pos, size, color, dynamic, mass=0.05):
         UsdPhysics.RigidBodyAPI.Apply(mesh.GetPrim())
         mapi = UsdPhysics.MassAPI.Apply(mesh.GetPrim())
         mapi.CreateMassAttr(mass)
+    else:
+        # Static furniture: collected so it can be collision-filtered against
+        # the (also-static) arm base_link -- see the collision-group block
+        # before the articulation is created.
+        _STATIC_PROPS.append(path)
     return mesh
+
+
+#: paths of every STATIC prop (table + bin walls), filled by _cube(dynamic=False)
+_STATIC_PROPS: list[str] = []
 
 
 # Open-top bin centered on the demo DROP ZONE (grasp.drop_zone in
 # configs/demo.yaml): destination-less pick_and_place drops INTO it, and
 # "put it in the box" resolves it as a named destination. Walls only --
 # the table is the floor; static colliders so visitors can't topple it.
-_BIN = (0.30, -0.20)
+_BIN = (0.16, -0.24)
 for _i, (_wpos, _wsize) in enumerate([
     ((_BIN[0] + 0.07, _BIN[1], 0.03), (0.01, 0.15, 0.06)),
     ((_BIN[0] - 0.07, _BIN[1], 0.03), (0.01, 0.15, 0.06)),
@@ -263,13 +337,27 @@ for _i, (_wpos, _wsize) in enumerate([
 # Table top surface at z=0 (the real base sits on the table -> table_z=0
 # in configs/demo.yaml). Slab top edge exactly at z=0.
 _cube("/World_Props/table", (0.30, 0.0, -0.015), (0.9, 0.9, 0.03), (0.55, 0.45, 0.35), dynamic=False)
+# Props sit in the arm's TOP-DOWN IK envelope (x~0.18) AND clear of the
+# robot base_link footprint (base spans y in [-0.10, 0.10]) -- a dynamic
+# prop born inside the base collider gets ejected on the first tick (the
+# arm<->prop contact is NOT filtered, only arm<->furniture). So keep props
+# at |y| >= 0.13 where they are both reachable top-down and outside the base.
 PROPS = [
-    ("pink_cube", (0.28, 0.08, 0.026), (0.97, 0.38, 0.56), 0.05),
-    ("green_cube", (0.32, -0.10, 0.026), (0.20, 0.65, 0.30), 0.05),
-    ("blue_cube", (0.22, -0.02, 0.021), (0.10, 0.35, 0.90), 0.04),
+    # Pink that reads as PINK (not orange) to the HSV color tagger: needs a
+    # high blue channel so hue lands in the magenta band, not the red/orange
+    # band. (0.97,0.38,0.56) tagged as "orange" under the sim lighting.
+    # 8 cm-tall blocks: the sweet spot for the B601-RS top-down envelope,
+    # which is IK-valid AND keeps every link above the table only in the
+    # narrow TCP-z window [0.06, 0.12] at x~0.16. An 8 cm block grasped at
+    # depth_fraction 0.15 -> grasp_z~0.068 (safe) with a 0.04 hover -> ~0.108
+    # (still under the 0.12 ceiling). Shorter blocks dip the elbow below the
+    # table; taller blocks push the hover past the ceiling. 5 cm square in
+    # x/y so the 9 cm parallel jaw still closes on them.
+    ("pink_cube", (0.16, 0.15, 0.04), (0.95, 0.30, 0.70), 0.05, 0.08),
+    ("green_cube", (0.16, -0.15, 0.04), (0.10, 0.75, 0.20), 0.05, 0.08),
 ]
-for name, pos, rgb, size in PROPS:
-    _cube(f"/World_Props/{name}", pos, (size,) * 3, rgb, dynamic=True)
+for name, pos, rgb, width, height in PROPS:
+    _cube(f"/World_Props/{name}", pos, (width, width, height), rgb, dynamic=True)
 
 # YCB props from the Isaac asset library: textured REAL objects the
 # open-vocab detector actually recognizes (flat-shaded cubes register as
@@ -281,10 +369,16 @@ try:
     if _assets:
         # Spawn AT rest height: dropping groceries onto the table reads
         # as "flying cereal" -- born settled = realistic from frame one.
+        # NOTE: the tomato_soup_can YCB is excluded -- its mesh ships a baked
+        # cm->m scale (extent ±3.38 vs true ±0.034 m) that PhysX boundingCube
+        # reads unscaled, producing a ~100x collider that detonates the
+        # contact solver every boot. cracker_box is excluded too: at ~20 cm
+        # it exceeds the 90 mm jaw (ungraspable) and its size dominates the
+        # frame, hiding the graspable cubes. The banana (~4 cm across) is
+        # kept -- a real textured object the open-vocab detector recognises
+        # AND the parallel jaw can actually pick up.
         YCB = [
-            ("banana", "011_banana.usd", (0.24, 0.14, 0.018)),
-            ("cracker_box", "003_cracker_box.usd", (0.36, -0.02, 0.107)),
-            ("soup_can", "005_tomato_soup_can.usd", (0.20, -0.12, 0.052)),
+            ("banana", "011_banana.usd", (0.26, 0.14, 0.018)),
         ]
         for name, usd_file, pos in YCB:
             prim_path = f"/World_Props/{name}"
@@ -308,38 +402,25 @@ try:
             mass = UsdPhysics.MassAPI.Apply(prim)
             mass.CreateMassAttr(0.1)
             # The Axis_Aligned YCB variants are VISUAL-ONLY: without
-            # colliders the groceries fall straight through the table.
-            # SDF collision (not convexHull): a hull fills the banana's
-            # curve and the can's rim, so fingers touch phantom volume --
-            # SDF keeps the true surface for fine grasping.
+            # colliders the groceries fall straight through the table. Their
+            # shipped meshes are non-watertight/non-manifold, so SDF fails,
+            # convexDecomposition makes degenerate hulls, and even a convex
+            # hull of the raw (mis-scaled/rotated) mesh can explode the
+            # contact solver (soup can gains 260 m/s on the first tick).
+            # For a robust object-agnostic booth demo the collider MUST be
+            # stable, so we wrap each YCB in a boundingCube (its own AABB) --
+            # an exact-enough parallel-jaw grasp target that never leaks
+            # contacts. The textured visual mesh is untouched, so the
+            # open-vocab detector still sees a real banana / box / can.
             n_col = 0
             for desc in Usd.PrimRange(prim):
                 if desc.IsA(UsdGeom.Mesh):
                     UsdPhysics.CollisionAPI.Apply(desc)
                     _bind_pmat(desc)
                     mcol = UsdPhysics.MeshCollisionAPI.Apply(desc)
-                    # SDF for EVERY dynamic YCB mesh, on BOTH engines: the
-                    # same USD carries the PhysX SDF stack (approximation
-                    # token + PhysxSDFMeshCollisionAPI) AND Newton's own
-                    # NewtonSDFCollisionAPI (Newton ignores the PhysX token
-                    # -- it keeps the raw trimesh otherwise -- and PhysX
-                    # ignores newton:*). (Authored flat cubes keep
-                    # boundingCube: for an axis-aligned box mesh that IS the
-                    # exact shape, better than any SDF discretization.)
-                    mcol.CreateApproximationAttr("sdf")
-                    try:
-                        from pxr import PhysxSchema
-
-                        sdf = PhysxSchema.PhysxSDFMeshCollisionAPI.Apply(desc)
-                        sdf.CreateSdfResolutionAttr(256)
-                    except Exception:
-                        pass  # engine falls back to its default SDF params
-                    p = desc.GetPrim()
-                    p.AddAppliedSchema("NewtonSDFCollisionAPI")
-                    p.CreateAttribute("newton:sdfMaxResolution",
-                                      Sdf.ValueTypeNames.Float).Set(128.0)
+                    mcol.CreateApproximationAttr("boundingCube")
                     n_col += 1
-            print(f"[bridge] YCB {name}: {n_col} SDF colliders", flush=True)
+            print(f"[bridge] YCB {name}: {n_col} boundingCube colliders", flush=True)
             print(f"[bridge] YCB prop {name} at {pos}", flush=True)
     else:
         print("[bridge] YCB props skipped: asset root unreachable", flush=True)
@@ -551,14 +632,21 @@ if args.gui:
         print(f"[bridge] viewport framing skipped: {_e}", flush=True)
 
 # Companion-pack python server: standard live-inspection endpoint (Johnny's
-# tooling), alongside the bridge's own exec op.
+# tooling), alongside the bridge's own exec op. Path is machine-specific;
+# skip cleanly when the extension folder is absent (set $WRC_COMPANION_EXTS
+# to enable on a machine that has it).
 try:
     import omni.kit.app as _kit_app
 
-    _mgr = _kit_app.get_app().get_extension_manager()
-    _mgr.add_path("/home/spark/Downloads/isaac-companion-v1-franka/isaacsim_local_exts")
-    _mgr.set_extension_enabled_immediate("isaacsim.code_editor.python_server", True)
-    print("[bridge] isaacsim.code_editor.python_server enabled", flush=True)
+    _companion = os.environ.get("WRC_COMPANION_EXTS", "")
+    if _companion and os.path.isdir(_companion):
+        _mgr = _kit_app.get_app().get_extension_manager()
+        _mgr.add_path(_companion)
+        _mgr.set_extension_enabled_immediate("isaacsim.code_editor.python_server", True)
+        print("[bridge] isaacsim.code_editor.python_server enabled", flush=True)
+    else:
+        print("[bridge] companion python_server not configured (WRC_COMPANION_EXTS unset)",
+              flush=True)
 except Exception as _e:
     print(f"[bridge] python_server not enabled: {_e}", flush=True)
 
@@ -586,12 +674,39 @@ for _prim in stage.Traverse():
         )
         print(f"[bridge] gripper pad material -> {_p}", flush=True)
 
+# ── static-furniture collision filtering (THE boot-NaN fix) ──────────────
+# The arm's base_link collider rests at z=0 and the table top is authored at
+# z=0 too, so the two STATIC bodies deeply interpenetrate at spawn. PhysX
+# generates huge static-vs-static contact forces there and the whole scene
+# NaNs within ~60 steps (arm q -> nan, every prop flung to ~1e12). Two
+# static bodies never need mutual contacts, so put the arm in one collision
+# group and all static furniture (table + bin walls) in another, and filter
+# the pair. Dynamic props are in NEITHER group, so they still collide with
+# both the arm and the table normally. (Isolated repro + fix verified in
+# scripts/diag_physics.py --add-table {--filter-arm-table}.)
+_arm_grp = UsdPhysics.CollisionGroup.Define(stage, "/World_Props/arm_group")
+_furn_grp = UsdPhysics.CollisionGroup.Define(stage, "/World_Props/furniture_group")
+_arm_grp.CreateFilteredGroupsRel().AddTarget(_furn_grp.GetPath())
+_arm_grp.GetCollidersCollectionAPI().GetIncludesRel().AddTarget(args.prim)
+_furn_inc = _furn_grp.GetCollidersCollectionAPI().GetIncludesRel()
+for _static_path in _STATIC_PROPS:
+    _furn_inc.AddTarget(_static_path)
+print(f"[bridge] arm<->furniture collision filtered "
+      f"({len(_STATIC_PROPS)} static bodies)", flush=True)
+
+# ── gravity sanity (re-assert after payloads + before the articulation) ──
+# Idempotent: if the physics parser reset gravity from a late-composed
+# payload, put it back before we create the articulation and play.
+_fix_gravity()
+
 # ── articulation (create AFTER play, gain-tuner gotcha) ──────────────────
 from isaacsim.core.experimental.prims import Articulation  # noqa: E402
 
 app_utils.play(commit=True)
 for _ in range(10):
     app.update()
+# Gravity can be reset by the physics parser on play; re-assert once more.
+_fix_gravity()
 engine = str(SimulationManager.get_active_physics_engine()).lower()
 print(f"[bridge] physics engine: {engine}", flush=True)
 
@@ -612,9 +727,8 @@ print(f"[bridge] arm idx {ARM_IDX} grip idx {GRIP_IDX} "
 # World-spawn poses for every dynamic prop: re-applied when the user
 # presses Stop/Play in the editor (physics re-parse scatters them).
 _PROP_SPAWNS = {
-    "pink_cube": (0.28, 0.08, 0.026), "green_cube": (0.32, -0.10, 0.026),
-    "blue_cube": (0.22, -0.02, 0.021), "banana": (0.24, 0.14, 0.018),
-    "cracker_box": (0.36, -0.02, 0.107), "soup_can": (0.20, -0.12, 0.052),
+    "pink_cube": (0.16, 0.15, 0.04), "green_cube": (0.16, -0.15, 0.04),
+    "banana": (0.26, 0.14, 0.018),
 }
 
 _state_lock = threading.Lock()
@@ -773,6 +887,75 @@ def _refresh_frames():
 # RTX warmup before the first served frame
 for _ in range(60):
     app.update()
+
+
+def _settle_props() -> None:
+    """Deterministically settle every dynamic prop onto the table.
+
+    Props authored with their bottom face exactly on the table plane are
+    born in contact, and PhysX occasionally resolves that first-tick contact
+    badly and flings a random prop to z ~ -2000 (the "contacts dropped at
+    random" failure -- non-deterministic across boots). Iterate: re-place
+    each prop a few mm above its spot with ZERO velocity, settle, and repeat
+    for any that escaped, then hard-clamp stragglers. Zeroing velocity each
+    pass is what breaks the runaway -- a prop that picked up 200 m/s keeps it
+    across a plain teleport otherwise.
+    """
+    from isaacsim.core.experimental.prims import RigidPrim  # noqa: E402
+
+    def _place(_n, _pos, dz):
+        _rp = RigidPrim(f"/World_Props/{_n}", reset_xform_op_properties=True)
+        _rp.set_world_poses(
+            np.array([[_pos[0], _pos[1], _pos[2] + BASE_Z + dz]]),
+            np.array([[1.0, 0.0, 0.0, 0.0]]),
+        )
+        try:  # zero both linear + angular velocity (shape (1,6))
+            _rp.set_velocities(np.zeros((1, 6), dtype=np.float32))
+        except Exception:
+            pass
+        return _rp
+
+    def _escaped(_rp, _pos):
+        _p = _rp.get_world_poses()[0].numpy().reshape(-1)[:3]
+        return (abs(_p[0]) > 1 or abs(_p[1]) > 1
+                or abs(_p[2] - (_pos[2] + BASE_Z)) > 0.1)
+
+    names = [n for n in _PROP_SPAWNS if stage.GetPrimAtPath(f"/World_Props/{n}")]
+    for _attempt in range(4):
+        for _n in names:
+            _place(_n, _PROP_SPAWNS[_n], 0.03)
+        for _ in range(120):
+            app.update()
+        # re-zero velocity mid-settle to kill any contact runaway early
+        for _n in names:
+            try:
+                RigidPrim(f"/World_Props/{_n}").set_velocities(
+                    np.zeros((1, 6), dtype=np.float32))
+            except Exception:
+                pass
+        for _ in range(60):
+            app.update()
+        stragglers = [n for n in names
+                      if _escaped(RigidPrim(f"/World_Props/{n}"), _PROP_SPAWNS[n])]
+        if not stragglers:
+            print(f"[bridge] props settled cleanly (attempt {_attempt + 1})",
+                  flush=True)
+            return
+        print(f"[bridge] settle attempt {_attempt + 1}: retrying {stragglers}",
+              flush=True)
+    # final hard clamp: park stragglers exactly on their spot, zero velocity
+    for _n in names:
+        _rp = RigidPrim(f"/World_Props/{_n}")
+        if _escaped(_rp, _PROP_SPAWNS[_n]):
+            _place(_n, _PROP_SPAWNS[_n], 0.0)
+            print(f"[bridge] settle: {_n} hard-clamped onto table", flush=True)
+    for _ in range(30):
+        app.update()
+
+
+_settle_props()
+print("[bridge] props settled onto the table", flush=True)
+
 _refresh_frames()
 print(f"[bridge] cameras ready: {list(_frames)}", flush=True)
 
@@ -798,7 +981,7 @@ try:
           f"(fell through table if z << {BASE_Z:.2f})", flush=True)
 except Exception as e:
     print(f"[bridge] RigidPrim probe failed: {e}", flush=True)
-for prop_name, _, _, _ in PROPS:
+for prop_name, *_ in PROPS:
     prim = stage.GetPrimAtPath(f"/World_Props/{prop_name}")
     if prim:
         rng = bbox_cache.ComputeWorldBound(prim).ComputeAlignedRange()

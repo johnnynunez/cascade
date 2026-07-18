@@ -1,5 +1,7 @@
 # wrc_demo — agentic grasping for the reBot DevArm
 
+[![CI](https://github.com/johnnynunez/wrc_demo/actions/workflows/ci.yml/badge.svg)](https://github.com/johnnynunez/wrc_demo/actions/workflows/ci.yml)
+
 Camera-agnostic, LLM-orchestrated tabletop manipulation on the Seeed reBot
 DevArm B601 (RobStride build), driven from an NVIDIA DGX Spark. This is the
 agentic evolution of the
@@ -65,7 +67,7 @@ actionable after occlusion. `src/wrc_demo/memory/`.
 # dashboard with N camera streams + robot narration prints its URL.
 PYTHONPATH=src python -m wrc_demo.apps.demo --task "pick and place pink object"
 
-# tests (111 unit/integration; live-hardware tests deselected by default)
+# tests (125 unit/integration; live-hardware tests deselected by default)
 python -m pytest tests/ -q
 python -m pytest tests/ -m hardware -q     # needs L515 + can0 up (read-only)
 
@@ -90,6 +92,14 @@ uv venv). pyrealsense2 comes from the local
 Open-vocabulary text prompts (YOLOE/YOLO-World) additionally need
 `uv pip install git+https://github.com/ultralytics/CLIP.git`; the closed-set
 `yolo11n.pt` works without it.
+
+YOLOE also needs the MobileCLIP2 text encoder `mobileclip2_b.ts` (242 MB —
+too big for GitHub, so it is gitignored). Ultralytics auto-downloads it into
+the working directory on first use, or pre-fetch it:
+
+```bash
+wget https://github.com/ultralytics/assets/releases/download/v8.3.0/mobileclip2_b.ts
+```
 
 ## LLM backends
 

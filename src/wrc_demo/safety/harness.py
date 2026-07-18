@@ -172,10 +172,22 @@ class SafetyHarness:
         tcp = T[:3, 3]
         lo_w, hi_w = self.limits.workspace_min, self.limits.workspace_max
         if np.any(tcp < lo_w) or np.any(tcp > hi_w):
-            self._reject(
-                f"TCP {np.round(tcp, 3).tolist()} outside workspace "
-                f"[{lo_w.tolist()} .. {hi_w.tolist()}]"
-            )
+            # Escape rule (mirrors the joint-limit and below-table rules):
+            # a TCP already OUTSIDE the workspace box may move strictly
+            # toward it -- an arm that spawns/drifts outside (e.g. the
+            # straight-up presentation pose has x~0) must always be able to
+            # come home, but never wander further out.
+            def _dist_to_box(p):
+                d = np.maximum(np.maximum(lo_w - p, 0.0), p - hi_w)
+                return float(np.linalg.norm(d))
+
+            tcp_prev = self.kin.fk(np.asarray(q_prev, dtype=float))[:3, 3]
+            prev_out = np.any(tcp_prev < lo_w) or np.any(tcp_prev > hi_w)
+            if not (prev_out and _dist_to_box(tcp) <= _dist_to_box(tcp_prev) + 1e-3):
+                self._reject(
+                    f"TCP {np.round(tcp, 3).tolist()} outside workspace "
+                    f"[{lo_w.tolist()} .. {hi_w.tolist()}]"
+                )
 
         floor = self.limits.table_z + self.limits.table_clearance
         if tcp[2] < floor and not self._in_grasp_cylinder(tcp):

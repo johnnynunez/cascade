@@ -659,6 +659,12 @@ class SkillRuntime:
             # no sleep before the retry: CameraStream.get_frame already
             # waits for a frame captured after the call
         if grasp is None:
+            # Never leave the arm hanging mid-pose over the table after a
+            # failed attempt -- park it (best effort, nothing is held).
+            try:
+                self.skill_move_home()
+            except (SkillError, SafetyViolation):
+                pass
             return {
                 "ok": False, "stage": "grasp",
                 "error": f"grasp failed after 2 attempts: {last_err}",

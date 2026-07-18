@@ -2,6 +2,18 @@
 
 ## Near term (before the demo)
 
+- **Persistent spatial memory (Johnny's idea, 2026-07-18).** BeliefStore
+  already gives in-session object permanence (visible→remembered, EMA
+  fusion, grasp-from-memory fallback); add save/load (JSON with wall-clock
+  timestamps, loaded as "remembered") so the world model survives restarts,
+  plus action↔object consolidation on top of ExperienceMemory. "Even if I
+  don't see it, I roughly know where it is — like a human."
+- **Straight-up spawn on the local tuned Isaac asset.** Blocked: drive
+  travel from q=0 sweeps the props; joint-state authoring and tensor
+  teleports NaN the solver on this asset (custom fixed-joint stack).
+  Upstream asset gets it properly via Seeed-Projects/reBot-Isaacsim#9.
+  Investigate the -plus asset's root joint / articulation root config.
+
 - **GraspGen-X backend (integrated 2026-07-18, first-light verified).**
   `grasp.backend: graspgenx` sends the fix's base-frame object cloud to the
   GraspGen-X ZMQ server (`scripts/serve_graspgenx.sh`, own venv

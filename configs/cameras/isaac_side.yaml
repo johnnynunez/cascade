@@ -1,10 +1,20 @@
-# Isaac Sim side/audience camera (bridge camera "side"): livestream video
-# only -- no extrinsics, so it never fuses 3D beliefs.
+# Isaac Sim side/audience camera (bridge camera "side"). Full perception
+# citizen since 2026-07-18: RGB-D + calibrated extrinsics (printed by the
+# bridge at boot), so the WorldWatcher fuses its detections into 3D beliefs.
+# This matters: cam0 sees some objects too small for YOLOE (the YCB banana
+# at ~40 px), while this closer view detects them fine.
 type: isaac
 bridge_host: 127.0.0.1
 bridge_port: 8611
 sim_camera: side
-depth: false
+depth: true
 fps: 15
 warmup_frames: 2
-fuse_beliefs: false
+fuse_beliefs: true
+
+extrinsics:
+  T:
+    - [-0.745761, 0.218975, -0.629198, 0.95]
+    - [0.666213, 0.245121, -0.704326, 0.75]
+    - [0.0, -0.944439, -0.328686, 0.45]
+    - [0.0, 0.0, 0.0, 1.0]

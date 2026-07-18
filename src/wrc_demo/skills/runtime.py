@@ -83,6 +83,7 @@ class SkillRuntime:
         #: retries even after every re-scan failed to see the object.
         self._last_reobserve_t: float | None = None
         self._graspgenx = None  # lazy GraspGenXPlanner (grasp.backend)
+        self._grounder = None  # lazy VLMGrounder (cfg "grounder", 2nd filter)
         g = cfg.arm.gripper
         self._grip_open = float(g.get("open_pos", 0.0))
         self._grip_closed = float(g.get("closed_pos", 1.0))
@@ -175,14 +176,16 @@ class SkillRuntime:
             return None
         return _jpeg(self.last_frame.rgb)
 
-    def _update_beliefs_from_frame(self, frame: Frame, dets) -> list[dict]:
+    def _update_beliefs_from_frame(self, frame: Frame, dets, T=None) -> list[dict]:
         summaries = []
         if not frame.has_depth:
             return [
                 {"label": d.label, "conf": round(d.conf, 2), "position": None}
                 for d in dets
             ]
-        T = self.extrinsics.cam_to_base()
+        if T is None:
+            T = (frame.T_base_cam if frame.T_base_cam is not None
+                 else self.extrinsics.cam_to_base())
         for d in dets:
             mask = d.mask
             if mask is None:
@@ -333,6 +336,33 @@ class SkillRuntime:
                 return frame, fix
             except SkillError as e:
                 last_err = e
+        # Second filter: THE OTHER CAMERAS. An object 40 px small (or
+        # occluded) in the primary view may be plainly visible from the side
+        # or wrist camera; each pass costs one detector call.
+        from ..perception.grounding import Extrinsics as _Ext
+
+        for cam in self._other_cams():
+            try:
+                cframe = cam.depth.ensure_depth(cam.stream.get_frame())
+                if not cframe.has_depth:
+                    continue
+                ext = (_Ext(T=cframe.T_base_cam)
+                       if cframe.T_base_cam is not None else cam.extrinsics)
+                fix = localize_object(
+                    cframe, query, self.detector, ext,
+                    prompts=r["prompts"], spatial_hint=spatial_hint,
+                    color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
+                    prefer_label=r["prefer_label"],
+                )
+                self.memory.add(
+                    "note",
+                    f"localize {query!r}: primary camera missed it; found "
+                    f"through {getattr(cam.stream, 'name', 'another camera')}",
+                )
+                return cframe, fix
+            except Exception:
+                continue  # a miss or camera hiccup: try the next view
+
         belief = r["belief"] or self.beliefs.find(query)
         max_age = float(self.cfg.get("perception_loop", {}).get(
             "belief_fallback_age_s", 3.0))
@@ -346,26 +376,116 @@ class SkillRuntime:
             ref_t = self._motion_t0
         else:
             ref_t = time.monotonic()
-        if belief is None or (ref_t - belief.last_seen_t) > max_age:
-            raise last_err
-        # Grasping from memory demands an EXACT color match: the belief
-        # store's neighbor tolerance (pink~red) is for conversation, not
-        # for choosing what the jaws close on.
-        if r["color"] is not None and belief.color != r["color"]:
-            raise last_err
-        self.memory.add(
-            "note",
-            f"localize {query!r}: instant detection missed; using the "
-            f"world-model fix ({belief.label}, "
-            f"{time.monotonic() - belief.last_seen_t:.1f}s old)",
+        mem_ok = (
+            belief is not None
+            and (ref_t - belief.last_seen_t) <= max_age
+            # Grasping from memory demands an EXACT color match: the belief
+            # store's neighbor tolerance (pink~red) is for conversation, not
+            # for choosing what the jaws close on.
+            and (r["color"] is None or belief.color == r["color"])
         )
-        return frame, self._fix_from_belief(query, belief)
+        if mem_ok:
+            self.memory.add(
+                "note",
+                f"localize {query!r}: instant detection missed; using the "
+                f"world-model fix ({belief.label}, "
+                f"{time.monotonic() - belief.last_seen_t:.1f}s old)",
+            )
+            return frame, self._fix_from_belief(query, belief)
+        # Last filter: VLM grounding. YOLOE's text embeddings miss what a
+        # full VLM reads easily; one slow call only ever runs on this
+        # failure path.
+        fix = self._vlm_ground_fix(frame, query)
+        if fix is not None:
+            return frame, fix
+        raise last_err
+
+    def _vlm_ground_fix(self, frame, query: str):
+        """Ask the VLM (2nd perception filter) for the object's bbox and
+        lift it to a 3D fix -- trying EVERY camera's view (the primary may
+        see the object at 40 px while the side camera fills the frame with
+        it). Fail-soft: any error returns None so the caller reports the
+        original detector failure."""
+        gcfg = self.cfg.get("grounder", None)
+        if not gcfg:
+            return None
+        try:
+            if self._grounder is None:
+                from ..perception.vlm_ground import VLMGrounder
+
+                self._grounder = VLMGrounder(
+                    base_url=str(gcfg["base_url"]),
+                    model=str(gcfg.get("model", "")),
+                    timeout_s=float(gcfg.get("timeout_s", 45.0)),
+                )
+            # Views to try: (frame, cam->base T). Primary first, then the
+            # other fusing cameras with their own extrinsics.
+            views = []
+            if frame is not None and frame.has_depth:
+                views.append((frame, frame.T_base_cam if frame.T_base_cam
+                              is not None else self.extrinsics.cam_to_base()))
+            for cam in self._other_cams():
+                try:
+                    cframe = cam.depth.ensure_depth(cam.stream.get_frame())
+                except Exception:
+                    continue
+                if not cframe.has_depth:
+                    continue
+                views.append((cframe, cframe.T_base_cam if cframe.T_base_cam
+                              is not None else cam.extrinsics.cam_to_base()))
+            det = gframe = T = None
+            for cframe, cT in views:
+                det = self._grounder.ground(cframe, query)
+                if det is not None:
+                    gframe, T = cframe, cT
+                    break
+            if det is None:
+                return None
+            h, w = gframe.rgb.shape[:2]
+            mask = np.zeros((h, w), dtype=bool)
+            x0, y0, x1, y1 = det.bbox.astype(int)
+            mask[max(y0, 0):min(y1, h), max(x0, 0):min(x1, w)] = True
+            pts_cam = mask_to_points_cam(gframe, mask)
+            if pts_cam.shape[0] < 30:
+                return None
+            pts = transform_points(T, pts_cam)
+            # A bbox rectangle sweeps in table pixels; shave the table plane
+            # or the OBB extent balloons (the GGX bbox-slab lesson).
+            table_z = float(self.cfg.safety.get("table_z", 0.0))
+            above = pts[pts[:, 2] > table_z + 0.005]
+            if above.shape[0] >= 30:
+                pts = above
+            center, extents, axes = oriented_bbox(pts)
+            from ..types import ObjectFix
+
+            self.memory.add(
+                "note",
+                f"YOLOE missed {query!r}; the VLM (2nd filter) found it at "
+                f"{[round(float(v), 2) for v in center]}",
+            )
+            return ObjectFix(
+                label=query, position=center, points=pts,
+                detection=det, extent=extents, axes=axes,
+            )
+        except Exception as e:
+            self.memory.add("note", f"VLM grounding unavailable: {str(e)[:80]}")
+            return None
+
+    def _other_cams(self) -> list:
+        """Non-primary fusing cameras from the watcher wiring: each entry
+        has .stream, .depth and .extrinsics (an object may be visible from
+        the side camera while the primary sees it at 5 px)."""
+        cams = getattr(self.watcher, "_cams", None) if self.watcher else None
+        if not cams:
+            return []
+        return [c for c in cams[1:] if getattr(c, "fuse", True)]
 
     def _reobserve(self, frames: int = 2) -> None:
-        """Refresh beliefs with fresh detector passes while the WorldWatcher
-        is paused (motion skills hold it): fusion by hand, exactly what the
-        3 Hz loop would do. The held object (if any) is excluded -- fusing
-        it dangling mid-air would corrupt its belief."""
+        """Refresh beliefs with fresh detector passes over EVERY fusing
+        camera while the WorldWatcher is paused (motion skills hold it):
+        fusion by hand, exactly what the 3 Hz loop would do. The held
+        object (if any) is excluded -- fusing it dangling mid-air would
+        corrupt its belief."""
         held = self._held_det_label if self.held_object else None
         for _ in range(max(int(frames), 1)):
             try:
@@ -378,6 +498,19 @@ class SkillRuntime:
                 self._last_reobserve_t = time.monotonic()
             except Exception:
                 return  # best effort: a camera hiccup must not kill the retry
+        for cam in self._other_cams():
+            try:
+                frame = cam.depth.ensure_depth(cam.stream.get_frame())
+                if not frame.has_depth:
+                    continue
+                dets = self.detector.detect(frame, classes=self._default_classes)
+                if held is not None:
+                    dets = [d for d in dets if d.label != held]
+                T = (frame.T_base_cam if frame.T_base_cam is not None
+                     else cam.extrinsics.cam_to_base())
+                self._update_beliefs_from_frame(frame, dets, T=T)
+            except Exception:
+                continue
 
     @staticmethod
     def _fix_from_belief(query: str, belief) -> "ObjectFix":

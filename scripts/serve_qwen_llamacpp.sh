@@ -47,10 +47,25 @@ echo "[+] model: $GGUF_PATH"
 #    NOTE: flags evolve quickly; on older builds drop unknown ones. Check
 #    `llama-server --help | grep -i -E "spec|draft|mtp"` for your build's
 #    speculative-decoding switches.
+# Vision: Qwen3.6 is a unified VLM; the mmproj projector GGUF enables image
+# input (the wrc_demo VLM-grounding second filter depends on it).
+MMPROJ_PATH=$(find "$MODEL_DIR" -name "mmproj-BF16.gguf" | head -1)
+if [ -z "$MMPROJ_PATH" ]; then
+    "$HF_BIN" download "$HF_REPO" --include "mmproj-BF16.gguf" --local-dir "$MODEL_DIR" || true
+    MMPROJ_PATH=$(find "$MODEL_DIR" -name "mmproj-BF16.gguf" | head -1)
+fi
+MMPROJ_ARGS=()
+[ -n "$MMPROJ_PATH" ] && MMPROJ_ARGS=(--mmproj "$MMPROJ_PATH")
+
 exec "$LLAMA_DIR/build/bin/llama-server" \
     --model "$GGUF_PATH" \
+    "${MMPROJ_ARGS[@]}" \
     --host 0.0.0.0 --port "$PORT" \
     --ctx-size "$CTX" \
     --n-gpu-layers 999 \
     --flash-attn on \
+    --parallel 2 \
     --jinja
+# --parallel 2: the agent LLM tier and the VLM-grounding second filter share
+# this server; with one slot a grounding call starves behind a long chat
+# completion and times out.

@@ -1,7 +1,9 @@
 """Persistent wrc_demo runtime against Isaac Sim: dashboard on :8090 +
 one scripted pink-cube pick, then stays alive serving the livestream."""
+import os
 import sys
 import time
+import urllib.request
 
 sys.path.insert(0, "/home/spark/Projects/demo/wrc_demo/src")
 from pathlib import Path
@@ -12,8 +14,21 @@ from wrc_demo.agent.reflex import ExperienceMemory, FastPlanner
 from wrc_demo.apps.demo import build_runtime, shutdown_runtime
 from wrc_demo.config import load_demo_config
 
+# Real deliberation tier when available: Anthropic API key > local Qwen
+# server > honest mock. The reflex/experience tiers work the same either way.
+llm_profile = "mock"
+if os.environ.get("ANTHROPIC_API_KEY"):
+    llm_profile = "anthropic"
+else:
+    try:
+        urllib.request.urlopen("http://127.0.0.1:8080/health", timeout=2)
+        llm_profile = "local_qwen"
+    except Exception:
+        pass
+print(f"LLM TIER: {llm_profile}", flush=True)
+
 cfg = load_demo_config(cameras=["isaac", "isaac_side", "isaac_wrist"],
-                       arm="isaac", llm="mock")
+                       arm="isaac", llm=llm_profile)
 cfg._data["detector"]["conf"] = 0.12  # pastel cubes on RTX renders sit ~0.15
 # name the booth objects explicitly: beliefs are stored under DETECTOR
 # labels, and "banana" cannot resolve a belief labeled "fruit"
@@ -34,7 +49,7 @@ def run_task(task: str):
     runtime.current_task = task
     try:
         r = agent.run_task(task)
-        if r.path == "llm":
+        if r.path == "llm" and llm_profile == "mock":
             # The web runner's deliberation tier is a MOCK: be honest in
             # the narration instead of silently "succeeding".
             runtime.memory.add(

@@ -63,6 +63,22 @@ _RULES: list[tuple[re.Pattern, str]] = [
         ),
         "pick_and_place",
     ),
+    # "grab the banana and throw it" / "coge la banana y lánzala" /
+    # "throw the cube (to the left)" / "lanza el cubo (a la izquierda)"
+    # MUST precede the generic "pick" rule, whose lazy object group would
+    # otherwise swallow "banana and throw it" as the thing to grasp.
+    (
+        re.compile(
+            rf"^(?:{_PICK}(?:\s+up)?\s+{_ART}(?P<obj>.+?)\s+(?:and|y)\s+)?"
+            r"(?:throw|toss|launch|l[aá]nza|tira|arroja)"
+            r"(?:la|lo|las|los)?"      # enclitic pronoun: lánzala / tíralo
+            r"(?:\s+(?:it|lo|la))?"
+            rf"(?:\s+{_ART}(?P<obj2>.+?))?"
+            r"(?:\s+(?:to\s+the\s+|a\s+la\s+|hacia\s+)?"
+            r"(?P<dir>left|right|forward|back|izquierda|derecha|delante|detras|detrás))?$"
+        ),
+        "throw",
+    ),
     # "pick (up) (and place/put) X (in/on Y)" / "coge y coloca el objeto rosa"
     (
         re.compile(
@@ -200,6 +216,18 @@ def parse_command(text: str) -> ReflexPlan | None:
                 [("push_object", {"label": obj, "direction": g["dir"]})],
                 obj,
             )
+        if intent == "throw":
+            tobj = obj or (g.get("obj2") or "").strip() or None
+            _dirmap = {
+                "izquierda": "left", "derecha": "right",
+                "delante": "forward", "detras": "back", "detrás": "back",
+            }
+            raw_dir = (g.get("dir") or "").strip()
+            tdir = _dirmap.get(raw_dir, raw_dir) or "forward"
+            args = {"direction": tdir}
+            if tobj:
+                args["label"] = tobj
+            return ReflexPlan(intent, [("throw", args)], tobj)
         if intent == "handover":
             obj = obj or (g.get("obj2") or "").strip() or None
             if not obj:

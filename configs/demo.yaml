@@ -42,17 +42,30 @@ grasp:
       fingertip_depth: 0.0225
   # NOTE: strict top-down tool poses are only IK-reachable below z~0.15 on
   # the B601-RS (wrist limits); keep grasp_z + offset under that.
-  pregrasp_offset_m: 0.08   # hover height above the grasp along -approach
-  depth_fraction: 0.5       # grasp this far down the object's height
-  exempt_radius_m: 0.07     # grasp-descent safety cylinder radius
+  pregrasp_offset_m: 0.04   # hover height above the grasp along -approach.
+                            # Kept small: tall (12 cm) blocks are grasped near
+                            # z~0.10, and a larger hover pushes the pregrasp
+                            # pose above z~0.15 where top-down IK fails on the
+                            # B601-RS.
+  depth_fraction: 0.15      # grasp this far down from the object's TOP. Low
+                            # value = grasp near the top face, which keeps the
+                            # gripper fingers (they extend ~5cm below the TCP)
+                            # above the table on tall blocks.
+  exempt_radius_m: 0.15     # grasp-descent safety cylinder radius. Must
+                            # cover the gripper_end link's horizontal offset
+                            # from the object center during a top-down
+                            # descent, not just the jaw tips -- at 0.07 the
+                            # reBot RS wrist link tripped "link 7 would hit
+                            # the table" (z=0.009) just OUTSIDE the cylinder.
+                            # Only opens during the descent over the target.
   move_duration_s: 2.5
   descend_duration_s: 2.0
   release_height_m: 0.05    # place_at default: this far above the table
   release_clearance_m: 0.06 # place_on_object: drop height above target top
   air_grasp_frac: 0.04      # jaw open-fraction below this after close = missed
   close_settle_s: 0.4       # generic two-stage close dwell (real arm ignores)
-  drop_zone: [0.30, -0.20]  # pick_and_place default target (no destination);
-                            # inside the top-down IK envelope (x<=0.34)
+  drop_zone: [0.16, -0.24]  # pick_and_place default target (no destination);
+                            # inside the B601-RS top-down IK envelope (x~0.18)
   home_after_place: true    # clear the camera view after each pick_and_place
   topdown_z_max: 0.15       # strict top-down poses are IK-unreachable above
                             # this on the B601-RS (wrist limits)
@@ -86,9 +99,12 @@ stream:
   quality: 80
 
 detector:
-  # Open-vocabulary YOLO (YOLOE / YOLO-World). Weights from the baseline repo.
+  # Open-vocabulary YOLO (YOLOE / YOLO-World). Ultralytics auto-downloads
+  # the weights into ${repo}/models on first use if absent, so the demo is
+  # object-agnostic out of the box (any visitor object localizes by name).
+  # Override with $WRC_DETECTOR_MODEL for a hand-tuned checkpoint.
   type: yoloe
-  model: /home/spark/Projects/demo/reBot-DevArm-Grasp/models/yoloe-26s-seg.pt
+  model: ${repo}/models/yoloe-11s-seg.pt
   device: cuda:0
   conf: 0.25
 

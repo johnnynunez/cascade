@@ -89,10 +89,20 @@ def run_task(task: str):
         return r
     finally:
         runtime.current_task = None
+        if runtime.arm.harness.estopped:
+            # a chat cancel latches the e-stop only for the task it killed
+            runtime.arm.harness.reset_estop()
+            runtime.memory.add("note", "stop cleared; ready for the next command")
+
+
+def cancel_task():
+    runtime.memory.add("outcome", "USER pressed STOP -- aborting the current action")
+    runtime.arm.harness.estop("chat cancel")
 
 
 if runtime.stream_server is not None:
     runtime.stream_server.set_task_fn(run_task)  # the web chat box
+    runtime.stream_server.set_cancel_fn(cancel_task)  # the STOP button
 
 deadline = time.monotonic() + 60
 while time.monotonic() < deadline and runtime.beliefs.find("pink object") is None:

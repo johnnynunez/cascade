@@ -166,6 +166,16 @@ def parse_command(text: str) -> ReflexPlan | None:
         g = m.groupdict()
         obj = (g.get("obj") or "").strip() or None
         dest = (g.get("dest") or "").strip() or None
+        if obj:
+            # "pick and place the banana and save it in the box": the lazy
+            # object group of the pick..and..place rule swallows a leading
+            # place-verb clause -- strip it, or the robot spends two minutes
+            # trying to localize 'and place the banana'.
+            obj = re.sub(
+                rf"^(?:and|y)\s+{_PLACE}(?:\s+(?:it|lo|la))?\s+{_ART}", "", obj
+            ).strip() or None
+            if obj is None:
+                continue
         if intent == "pick":
             # "pick X" alone is a grasp; a place-verb or destination makes it
             # a full pick-and-place.

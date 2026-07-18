@@ -2,6 +2,29 @@
 
 ## Near term (before the demo)
 
+- **Persistence-loop review leftovers (2026-07-18, adversarial review run;
+  fixed same-day: e-stop break, fail-fast on never-seen objects, place
+  release/ascent desync, frozen belief epoch, descent-path vetting,
+  place-stage re-home).** Still open, in priority order:
+  1. MCP server is single-threaded: a 150 s pick_and_place blocks
+     emergency_stop and every other tool -- needs a stop channel that
+     bypasses the request loop (the web runner has the same gap; SIGINT
+     estop works and the skill loops now honor it).
+  2. Exception between gripper close and held_object assignment leaves a
+     physically held object logically unheld (reconcile only clears the
+     opposite desync); consider a provisional held marker before close.
+  3. Budget can multiply across tiers: fast-path burns persist_seconds,
+     then a real-LLM tier can call pick_and_place again. Cap per task.
+  4. handover / sort_by_color still single-attempt (inconsistent with
+     pick_and_place persistence).
+  5. _reconcile_held mistakes a legitimately-held VERY thin object
+     (<4% jaw span ~ 3.6 mm) for a slip; booth objects are chunky.
+  6. Fail fast when every grasp candidate exceeds jaw width (currently
+     retries perception on an object-property error).
+  7. Test-coverage gaps flagged: place-stage loop, deadline expiry,
+     epoch fallback, z-clamp, exemption z_min through _in_cylinder,
+     McpClient timeout is dead code.
+
 - **Newton upstream issue (2026-07-19).** Manipulation contacts are broken
   at the PARSER level on the 6.0 develop build: identical failure under
   mjcwarp default, `use_mujoco_contacts=true` and XPBD (constant +3.7 cm

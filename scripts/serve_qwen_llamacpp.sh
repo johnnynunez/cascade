@@ -34,8 +34,12 @@ mkdir -p "$MODEL_DIR"
 GGUF_PATH=$(ls "$MODEL_DIR"/Qwen3.6-27B*"$QUANT"*.gguf 2>/dev/null | head -1 || true)
 if [ -z "$GGUF_PATH" ]; then
     echo "[+] downloading $HF_REPO ($QUANT) to $MODEL_DIR"
-    hf download "$HF_REPO" --include "*${QUANT}*.gguf" --local-dir "$MODEL_DIR"
-    GGUF_PATH=$(ls "$MODEL_DIR"/**/*"$QUANT"*.gguf "$MODEL_DIR"/*"$QUANT"*.gguf 2>/dev/null | head -1)
+    # `hf` may not be on PATH; the demo venv ships it
+    HF_BIN=$(command -v hf || echo "$HOME/Projects/demo/.demo/bin/hf")
+    "$HF_BIN" download "$HF_REPO" --include "*${QUANT}*.gguf" --local-dir "$MODEL_DIR"
+    # NOTE: under `set -euo pipefail` a bare ls-glob pipeline kills the
+    # script when one glob has no match; find is match-count agnostic.
+    GGUF_PATH=$(find "$MODEL_DIR" -name "*${QUANT}*.gguf" | head -1)
 fi
 echo "[+] model: $GGUF_PATH"
 

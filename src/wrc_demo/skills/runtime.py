@@ -77,6 +77,11 @@ class SkillRuntime:
         #: from "now" are artificially inflated -- staleness checks measure
         #: from this epoch instead.
         self._motion_t0: float | None = None
+        #: last time _reobserve completed a fresh scan DURING the current
+        #: motion skill: belief-fallback staleness must advance with it, or
+        #: a belief that was fresh at task start stays "fresh" through 8
+        #: retries even after every re-scan failed to see the object.
+        self._last_reobserve_t: float | None = None
         self._graspgenx = None  # lazy GraspGenXPlanner (grasp.backend)
         g = cfg.arm.gripper
         self._grip_open = float(g.get("open_pos", 0.0))
@@ -122,6 +127,7 @@ class SkillRuntime:
                 finally:
                     if owns_epoch:
                         self._motion_t0 = None
+                        self._last_reobserve_t = None
                     # Sync the held-object ignore BEFORE fusion resumes, or
                     # one tick could register the object dangling mid-air.
                     if self.watcher is not None:
@@ -330,7 +336,16 @@ class SkillRuntime:
         belief = r["belief"] or self.beliefs.find(query)
         max_age = float(self.cfg.get("perception_loop", {}).get(
             "belief_fallback_age_s", 3.0))
-        ref_t = self._motion_t0 if self._motion_t0 is not None else time.monotonic()
+        # Staleness reference: the last fresh re-scan during this motion (a
+        # re-scan that FAILED to see the object must age the belief), else
+        # the motion start (the watcher is paused while the arm moves), else
+        # now.
+        if self._last_reobserve_t is not None:
+            ref_t = self._last_reobserve_t
+        elif self._motion_t0 is not None:
+            ref_t = self._motion_t0
+        else:
+            ref_t = time.monotonic()
         if belief is None or (ref_t - belief.last_seen_t) > max_age:
             raise last_err
         # Grasping from memory demands an EXACT color match: the belief
@@ -360,6 +375,7 @@ class SkillRuntime:
                     dets = [d for d in dets if d.label != held]
                 self._show_detections(dets)
                 self._update_beliefs_from_frame(frame, dets)
+                self._last_reobserve_t = time.monotonic()
             except Exception:
                 return  # best effort: a camera hiccup must not kill the retry
 
@@ -511,14 +527,26 @@ class SkillRuntime:
         exempt_r = float(gcfg.get("exempt_radius_m", 0.07))
 
         def _vet(g, q_pre, q_grasp):
+            # The approach leg executes BEFORE allow_grasp_descent opens the
+            # cylinder: vet the pregrasp with NO exemption, or a candidate
+            # that needed one is guaranteed to abort at the end of the
+            # approach. The descent leg holds the exemption, and min-jerk is
+            # a straight segment in joint space, so sampling the q_pre ->
+            # q_grasp segment vets the actual executed path, not just its
+            # endpoints (near-horizontal approaches can dip below the floor
+            # OUTSIDE the cylinder mid-descent).
+            reason = harness.vet_pose(q_pre)
+            if reason:
+                return f"pregrasp unsafe: {reason}"
             z_min = float(g.position[2] - 0.02)
-            for tag, q in (("pregrasp", q_pre), ("grasp", q_grasp)):
+            for s in (0.25, 0.5, 0.75, 1.0):
+                q = q_pre + s * (np.asarray(q_grasp) - np.asarray(q_pre))
                 reason = harness.vet_pose(
                     q, exempt_xy=g.position[:2],
                     exempt_radius_m=exempt_r, exempt_z_min=z_min,
                 )
                 if reason:
-                    return f"{tag} unsafe: {reason}"
+                    return f"descent unsafe: {reason}"
             return None
 
         state = self.arm.get_state()
@@ -616,11 +644,23 @@ class SkillRuntime:
         gcfg = self.cfg.grasp
         table_z = float(self.cfg.safety.get("table_z", 0.0))
         release_z = float(z) if z is not None else table_z + float(gcfg.get("release_height_m", 0.05))
+        # Strict top-down poses only solve below ~0.15 m on this wrist: a
+        # tall destination (the bin walls) must become "release from the
+        # ceiling and let it drop", not an unreachable-pose failure.
+        z_cap = float(gcfg.get("topdown_z_max", 0.15)) - 0.005
+        if release_z > z_cap:
+            self.memory.add(
+                "note",
+                f"place height {release_z:.2f} m is above the wrist's "
+                f"top-down ceiling; releasing from {z_cap:.2f} m instead",
+            )
+            release_z = z_cap
         target = np.array([x, y, release_z])
         from ..grasping.obb_grasp import _yaw_rotation
 
         q_now = self.arm.get_state().q
         hover = target + np.array([0.0, 0.0, float(gcfg.get("pregrasp_offset_m", 0.12))])
+        hover[2] = min(hover[2], z_cap)  # same wrist ceiling as the release
         # Placement yaw is arbitrary: walk candidate yaws (radial first --
         # kindest to the wrist) until both hover and release poses solve.
         radial = float(np.arctan2(y, x))
@@ -648,20 +688,27 @@ class SkillRuntime:
                 raise SkillError("did not settle at place pose")
             self.arm.set_gripper(self._grip_open, effort=0.6)
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
-            self.arm.move_joints(pre.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)))
+            # From here the object IS placed: reconcile the held state BEFORE
+            # the ascent, or an ascent abort leaves held_object latched and a
+            # retry descends onto the object we just released.
+            placed = self.held_object
+            self.beliefs.update(
+                # Re-register under the DETECTOR label so the watcher's next
+                # fusion merges here instead of creating a query-string ghost.
+                self._held_det_label or placed, target, 0.8, color=self._held_color
+            )
+            self.held_object = None
+            self._held_det_label = None
+            self._held_color = None
+            self.memory.add("action", f"placed {placed!r} at {target.round(3).tolist()}")
+            try:
+                self.arm.move_joints(pre.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)))
+            except (SkillError, SafetyViolation) as e:
+                # The place already happened; report success and let the
+                # caller's move_home park the arm.
+                self.memory.add("note", f"placed, but the ascent aborted: {e}")
         finally:
             self.arm.harness.clear_grasp_exemption()
-
-        placed = self.held_object
-        # Re-register under the DETECTOR label so the watcher's next fusion
-        # merges with this belief instead of creating a query-string ghost.
-        self.beliefs.update(
-            self._held_det_label or placed, target, 0.8, color=self._held_color
-        )
-        self.held_object = None
-        self._held_det_label = None
-        self._held_color = None
-        self.memory.add("action", f"placed {placed!r} at {target.round(3).tolist()}")
         return {"placed": placed, "at": [round(float(v), 3) for v in target]}
 
     def skill_place_on_object(self, label: str) -> dict:
@@ -748,17 +795,33 @@ class SkillRuntime:
         runs out. No LLM in the loop; this is the reflex the web chat calls
         for "pick and place pink object"."""
         self._reconcile_held()
+        already_held = None
         if self.held_object:
-            raise SkillError(
-                f"already holding {self.held_object!r}; place it first"
-            )
+            hq, oq = self.held_object.lower(), str(object).lower()
+            if hq in oq or oq in hq:
+                # The jaws already hold what was asked for (a previous task
+                # grasped it and died before placing): skip straight to the
+                # place stage instead of refusing.
+                already_held = self.held_object
+                self.memory.add(
+                    "note",
+                    f"already holding {already_held!r} -- going straight to the place stage",
+                )
+            else:
+                raise SkillError(
+                    f"already holding {self.held_object!r}; place it first"
+                )
         t0 = time.monotonic()
         timings: dict[str, float] = {}
         gcfg = self.cfg.grasp
         max_attempts = max(int(gcfg.get("max_pick_attempts", 8)), 1)
         deadline = t0 + float(gcfg.get("persist_seconds", 120.0))
 
-        grasp = None
+        grasp = (
+            {"held": already_held, "grip_verified": None, "grip_profile": None}
+            if already_held
+            else None
+        )
         placed = None
         last_err = "unknown"
         place_err = "unknown"
@@ -771,6 +834,12 @@ class SkillRuntime:
             # the guard keeps the loop honest) ─────────────────────────────
             while grasp is None and attempt < max_attempts:
                 attempt += 1
+                if attempt == 1:
+                    self.memory.add(
+                        "note",
+                        f"picking up {object!r} (attempt 1/{max_attempts}; "
+                        "I will keep trying until it works or the budget runs out)",
+                    )
                 if attempt > 1:
                     if time.monotonic() > deadline:
                         attempt -= 1  # this attempt never ran
@@ -796,6 +865,20 @@ class SkillRuntime:
                     break
                 last_err = str(res.get("error", "grasp failed"))
                 self.memory.add("outcome", f"pick attempt {attempt} failed: {last_err[:100]}")
+                if self.arm.harness.estopped:
+                    last_err += " (e-stop latched; not retrying)"
+                    break
+                # Fail fast on errors persistence cannot cure: an object the
+                # world model has NEVER seen after full re-scans is a typo or
+                # simply not on the table -- burning 2 minutes on it reads as
+                # a hang at a live booth.
+                if (
+                    attempt >= 2
+                    and "no detections" in last_err
+                    and self.beliefs.find(object) is None
+                ):
+                    last_err += " (never seen after re-scans; giving up early)"
+                    break
             if grasp is None:
                 # Never leave the arm hanging mid-pose over the table after a
                 # failed attempt -- park it (best effort, nothing is held).
@@ -823,6 +906,10 @@ class SkillRuntime:
                         f"still holding {object!r}: place attempt "
                         f"{p_attempt}/{max_attempts} -- re-locating the target",
                     )
+                    try:  # carry it home first: clears the view of the arm
+                        self.skill_move_home()  # + held object for the re-scan
+                    except (SkillError, SafetyViolation):
+                        pass
                     self._reobserve()
                 try:
                     if destination:
@@ -839,11 +926,15 @@ class SkillRuntime:
                     self.memory.add(
                         "outcome", f"place attempt {p_attempt} failed: {place_err[:100]}"
                     )
+                    if self.arm.harness.estopped:
+                        place_err += " (e-stop latched; not retrying)"
+                        break
                     if not self.held_object:
                         break  # slipped mid-carry: placing again is pointless
             if placed is None:
                 can_regrasp = (
                     not self.held_object
+                    and not self.arm.harness.estopped
                     and time.monotonic() < deadline
                     and attempt < max_attempts
                 )

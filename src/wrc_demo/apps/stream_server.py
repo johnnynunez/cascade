@@ -282,25 +282,31 @@ def _make_handler(server: StreamServer):
                 self.send_error(404, str(e))
 
         def do_POST(self):  # noqa: N802 (BaseHTTPRequestHandler API)
+            # API endpoints always answer JSON (even on error) so the
+            # dashboard's fetch().json() never chokes on an HTML error page.
             if self.path.rstrip("/") == "/cancel":
                 if server._cancel_fn is None:
-                    return self.send_error(501, "no cancel handler wired")
+                    return self._json({"cancelled": False,
+                                       "error": "no cancel handler wired"}, code=501)
                 try:
                     server._cancel_fn()
                     return self._json({"cancelled": True})
                 except Exception as e:
                     return self._json({"cancelled": False, "error": str(e)[:120]})
             if self.path.rstrip("/") != "/task":
-                return self.send_error(404, "unknown path")
+                return self._json({"error": "unknown path"}, code=404)
             if server._task_fn is None:
-                return self.send_error(501, "no task handler wired")
+                return self._json({"accepted": False,
+                                   "error": "no task handler wired (REPL mode drives tasks)"},
+                                  code=501)
             try:
                 n = int(self.headers.get("Content-Length", 0))
                 task = str(json.loads(self.rfile.read(n)).get("task", "")).strip()
             except (ValueError, json.JSONDecodeError):
-                return self.send_error(400, "body must be JSON {\"task\": ...}")
+                return self._json({"accepted": False,
+                                   "error": 'body must be JSON {"task": ...}'}, code=400)
             if not task:
-                return self.send_error(400, "empty task")
+                return self._json({"accepted": False, "error": "empty task"}, code=400)
             if not server._task_busy.acquire(blocking=False):
                 return self._json({"accepted": False, "error": "busy with another command"})
 
@@ -328,9 +334,9 @@ def _make_handler(server: StreamServer):
             self.end_headers()
             self.wfile.write(body)
 
-        def _json(self, payload: dict):
+        def _json(self, payload: dict, code: int = 200):
             body = json.dumps(payload, default=_np_safe).encode()
-            self.send_response(200)
+            self.send_response(code)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")

@@ -281,6 +281,13 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             runtime.current_task = None
 
+    # Wire the dashboard "send"/"stop" buttons to the live agent so you can
+    # drive the robot from the browser (http://<ip>:8090) as well as the REPL.
+    _srv = getattr(runtime, "stream_server", None)
+    if _srv is not None:
+        _srv.set_task_fn(lambda t: _print_report(_run(t)))
+        _srv.set_cancel_fn(runtime.arm.stop)
+
     try:
         if args.interactive:
             print("Type a task (empty line to quit).")

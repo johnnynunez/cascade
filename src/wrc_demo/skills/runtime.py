@@ -688,7 +688,12 @@ class SkillRuntime:
             # narrow XY radius still confines this to directly over the
             # target, so allowing a small sub-table dip there is safe.
             z_min = float(harness.limits.table_z) - 0.06
-            for s in (0.25, 0.5, 0.75, 1.0):
+            # Sample the q_pre -> q_grasp segment densely: min-jerk streaming
+            # generates many intermediate waypoints, and a coarse 4-sample vet
+            # can miss a mid-segment configuration where the elbow dips below
+            # the table (IK multi-solution: the interpolated path can bow down
+            # even when both endpoints are safe).
+            for s in (0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.0):
                 q = q_pre + s * (np.asarray(q_grasp) - np.asarray(q_pre))
                 reason = harness.vet_pose(
                     q, exempt_xy=g.position[:2],
@@ -699,17 +704,34 @@ class SkillRuntime:
             return None
 
         state = self.arm.get_state()
+        # Seed grasp IK from HOME (elbow-up), not the live pose: seeding from
+        # an arbitrary current configuration can converge to an elbow-down IK
+        # branch whose approach path dips a link under the table.
+        _home = self.cfg.arm.get("home_q")
+        _seed = np.asarray(_home, dtype=float) if _home is not None else state.q
         grasp, q_pre, q_grasp = select_grasp(
             grasps,
             self.kin,
-            state.q,
+            _seed,
             max_width_m=self._max_width,
             pregrasp_offset_m=float(gcfg.get("pregrasp_offset_m", 0.12)),
             validate=_vet,
         )
 
-        # 1. open, go to pregrasp (normal speed)
+        # 1. open, go to pregrasp (normal speed). Re-home first so the
+        # pregrasp IK seeds from a known elbow-up posture: seeding from an
+        # arbitrary current pose can converge to an elbow/wrist-down IK
+        # solution whose approach path dips a link below the table near the
+        # base (observed: link7 at xy~(0.05,0.04) z=-0.023, far from the
+        # target so no grasp-exemption cylinder can cover it).
         self.arm.set_gripper(self._grip_open, effort=0.8)
+        _home = self.cfg.arm.get("home_q")
+        if _home is not None:
+            try:
+                self.arm.move_joints(np.asarray(_home, dtype=float),
+                                     duration_s=1.5)
+            except Exception:
+                pass  # best-effort re-home; pregrasp move is the real gate
         if not self.arm.move_joints(q_pre, duration_s=float(gcfg.get("move_duration_s", 2.5))):
             raise SkillError("did not settle at pregrasp pose")
 

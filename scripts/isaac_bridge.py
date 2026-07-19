@@ -72,7 +72,13 @@ args = p.parse_args()
 # props and jams, while joint-state authoring or tensor teleports NaN
 # the solver (custom fixed-joint stack). The upstream asset gets the
 # straight spawn properly via Seeed-Projects/reBot-Isaacsim#9.
-HOME_Q = [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
+HOME_Q = [0.0, -1.2, -1.2, 0.0, -0.75, 0.0]  # gripper elbow-up, high
+# THIS asset's j2/j3 limits are [-3.14, 0] (mirror convention). The old
+# [0, +1.2, +1.2, ...] was for the spark `-plus` asset (j2/j3 in [0,+pi]) and
+# is ILLEGAL here: PhysX clamps +1.2 to 0, the arm collapses, and the gripper
+# hangs BELOW the table (link7 at z=-0.023) so every motion trips the harness
+# "link would hit the table". These legal negative values put the gripper
+# high and elbow-up, matching the URDF joint limits.
 
 # SimulationApp must exist before ANY isaacsim/omni import.
 #
@@ -325,7 +331,7 @@ _STATIC_PROPS: list[str] = []
 # configs/demo.yaml): destination-less pick_and_place drops INTO it, and
 # "put it in the box" resolves it as a named destination. Walls only --
 # the table is the floor; static colliders so visitors can't topple it.
-_BIN = (0.16, -0.24)
+_BIN = (0.18, -0.17)
 for _i, (_wpos, _wsize) in enumerate([
     ((_BIN[0] + 0.07, _BIN[1], 0.03), (0.01, 0.15, 0.06)),
     ((_BIN[0] - 0.07, _BIN[1], 0.03), (0.01, 0.15, 0.06)),
@@ -346,15 +352,12 @@ PROPS = [
     # Pink that reads as PINK (not orange) to the HSV color tagger: needs a
     # high blue channel so hue lands in the magenta band, not the red/orange
     # band. (0.97,0.38,0.56) tagged as "orange" under the sim lighting.
-    # 8 cm-tall blocks: the sweet spot for the B601-RS top-down envelope,
-    # which is IK-valid AND keeps every link above the table only in the
-    # narrow TCP-z window [0.06, 0.12] at x~0.16. An 8 cm block grasped at
-    # depth_fraction 0.15 -> grasp_z~0.068 (safe) with a 0.04 hover -> ~0.108
-    # (still under the 0.12 ceiling). Shorter blocks dip the elbow below the
-    # table; taller blocks push the hover past the ceiling. 5 cm square in
-    # x/y so the 9 cm parallel jaw still closes on them.
-    ("pink_cube", (0.16, 0.15, 0.04), (0.95, 0.30, 0.70), 0.05, 0.08),
-    ("green_cube", (0.16, -0.15, 0.04), (0.10, 0.75, 0.20), 0.05, 0.08),
+    # pink_cube is the graspable target: x~0.17, y=+0.15, well inside the
+    # top-down envelope with margin for perception error, clear of both the
+    # arm-base footprint (|y|>=0.13) and the bin (which sits at y=-0.17).
+    # green_cube sits farther out purely as a second perception target.
+    ("pink_cube", (0.17, 0.15, 0.04), (0.95, 0.30, 0.70), 0.05, 0.08),
+    ("green_cube", (0.30, 0.16, 0.04), (0.10, 0.75, 0.20), 0.05, 0.08),
 ]
 for name, pos, rgb, width, height in PROPS:
     _cube(f"/World_Props/{name}", pos, (width, width, height), rgb, dynamic=True)
@@ -377,8 +380,9 @@ try:
         # frame, hiding the graspable cubes. The banana (~4 cm across) is
         # kept -- a real textured object the open-vocab detector recognises
         # AND the parallel jaw can actually pick up.
-        YCB = [
-            ("banana", "011_banana.usd", (0.26, 0.14, 0.018)),
+        # NOTE: banana temporarily disabled -- being debugged separately for a
+        # spawn instability. Cubes are the reliable graspable/perception props.
+        YCB: list = [
         ]
         for name, usd_file, pos in YCB:
             prim_path = f"/World_Props/{name}"
@@ -674,6 +678,13 @@ for _prim in stage.Traverse():
         )
         print(f"[bridge] gripper pad material -> {_p}", flush=True)
 
+# ── arm visual materials ─────────────────────────────────────────────────
+# The reBot palette now lives in the asset itself (payloads/materials.usda +
+# per-piece bindings in instances.usda: pla*_green -> green, cnc/link ->
+# aluminium, motor_* -> dark, gripper/black -> black). Nothing to paint at
+# runtime; kept as a no-op marker so the fix is discoverable here.
+print("[bridge] arm visual materials come from the asset (materials.usda)", flush=True)
+
 # ── static-furniture collision filtering (THE boot-NaN fix) ──────────────
 # The arm's base_link collider rests at z=0 and the table top is authored at
 # z=0 too, so the two STATIC bodies deeply interpenetrate at spawn. PhysX
@@ -727,8 +738,7 @@ print(f"[bridge] arm idx {ARM_IDX} grip idx {GRIP_IDX} "
 # World-spawn poses for every dynamic prop: re-applied when the user
 # presses Stop/Play in the editor (physics re-parse scatters them).
 _PROP_SPAWNS = {
-    "pink_cube": (0.16, 0.15, 0.04), "green_cube": (0.16, -0.15, 0.04),
-    "banana": (0.26, 0.14, 0.018),
+    "pink_cube": (0.17, 0.15, 0.04), "green_cube": (0.30, 0.16, 0.04),
 }
 
 _state_lock = threading.Lock()
@@ -823,6 +833,17 @@ class Handler(socketserver.StreamRequestHandler):
                 _targets["stopped"] = True
                 _targets["q"] = None
             return {"ok": True}
+        if op == "reset_props":
+            # Re-settle every prop back onto its spawn (main thread, between
+            # sim steps) so a repeated demo starts fresh after a pick moved a
+            # cube into the bin. Reuses the exec-job queue for main-thread
+            # execution.
+            holder: dict = {}
+            done = threading.Event()
+            with _exec_lock:
+                _exec_jobs.append(("_settle_props()", holder, done))
+            done.wait(timeout=30)
+            return holder.get("resp", {"ok": False, "error": "reset timed out"})
         if op == "exec":
             # Live-introspection escape hatch (same idea as the companion
             # pack's isaacsim.code_editor.python_server). The bridge binds

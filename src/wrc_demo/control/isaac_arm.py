@@ -20,6 +20,15 @@ class IsaacArm(ArmBase):
         self._cfg = cfg
         self.n_joints = int(cfg.get("n_joints", 6))
         self.settle_tol = float(cfg.get("settle_tol", 0.02))
+        # joint_signs map the bridge's ASSET joint convention to the client's
+        # LOCAL convention that the kinematics/harness use. The bridge reports
+        # and accepts raw DOF (asset) values; the planner/IK work in local.
+        # Without this conversion, state.q feeds the harness a sign-flipped
+        # pose whose FK puts links below the table (phantom "link would hit
+        # the table" rejections) even though the real arm is safely elbow-up.
+        _signs = cfg.get("joint_signs")
+        self._signs = (np.asarray(_signs, dtype=float)[: self.n_joints]
+                       if _signs else np.ones(self.n_joints))
         self._client = BridgeClient(
             host=str(cfg.get("bridge_host", "127.0.0.1")),
             port=int(cfg.get("bridge_port", 8611)),
@@ -36,11 +45,12 @@ class IsaacArm(ArmBase):
 
     def get_state(self) -> RobotState:
         s = self._client.state()
-        q = np.asarray(s["q"], dtype=float)[: self.n_joints]
+        # asset -> local convention
+        q = np.asarray(s["q"], dtype=float)[: self.n_joints] * self._signs
         dq = np.asarray(s.get("dq", []), dtype=float)
         return RobotState(
             q=q,
-            dq=dq[: self.n_joints] if dq.size else None,
+            dq=(dq[: self.n_joints] * self._signs) if dq.size else None,
             gripper_pos=float(s.get("gripper_pos", 0.0)),
             gripper_valid="gripper_pos" in s,
         )
@@ -48,7 +58,9 @@ class IsaacArm(ArmBase):
     def send_joint_target(self, q: np.ndarray) -> None:
         if self._stopped:
             raise BridgeError("soft-stopped; call resume()")
-        self._client.set_joints(np.asarray(q, dtype=float)[: self.n_joints])
+        # local -> asset convention for the bridge's raw DOF targets
+        q_asset = np.asarray(q, dtype=float)[: self.n_joints] * self._signs
+        self._client.set_joints(q_asset)
 
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
         if self._stopped:

@@ -4,20 +4,22 @@ import os
 import sys
 import time
 import urllib.request
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
 
 # YOLOE re-embeds text prompts on class-list changes; without offline mode
 # ultralytics phones GitHub on those paths (rate-limited at the booth ->
 # seconds-long stalls that starve the 3 Hz watcher).
 os.environ.setdefault("YOLO_OFFLINE", "True")
 os.environ.setdefault("ULTRALYTICS_OFFLINE", "True")
-# YOLOE's text encoder (mobileclip2_b.ts) is resolved relative to the CWD:
+# YOLOE's text encoder (mobileclip*.ts) is resolved relative to the CWD:
 # a runner launched from the wrong directory silently loses ALL detections
-# ("mobileclip2_b.ts does not exist" per watcher tick). Pin the cwd to the
-# repo, where the checkpoint lives.
-os.chdir("/home/spark/Projects/demo/wrc_demo")
+# ("...does not exist" per watcher tick). The encoder ships in <repo>/models
+# on this rig -- pin the CWD there instead of hardcoding one machine's home.
+os.chdir(REPO / "models")
 
-sys.path.insert(0, "/home/spark/Projects/demo/wrc_demo/src")
-from pathlib import Path
+sys.path.insert(0, str(REPO / "src"))
 
 from wrc_demo.agent.llm import make_llm
 from wrc_demo.agent.orchestrator import AgentOrchestrator
@@ -45,7 +47,7 @@ cfg = load_demo_config(cameras=["isaac", "isaac_side", "isaac_wrist"],
 if qwen_up:
     # VLM grounding: 2nd perception filter when YOLOE misses (slow path only)
     cfg._data["grounder"] = {"base_url": "http://127.0.0.1:8080/v1",
-                             "model": "qwen3.6-27b"}
+                             "model": "Qwen/Qwen3.6-27B"}
 cfg._data["detector"]["conf"] = 0.12  # pastel cubes on RTX renders sit ~0.15
 # name the booth objects explicitly: beliefs are stored under DETECTOR
 # labels, and "banana" cannot resolve a belief labeled "fruit"

@@ -229,6 +229,80 @@ def test_stream_server_serves_state_snapshot_and_index():
         rig.close()
 
 
+def test_stream_server_keyframes_routes(tmp_path):
+    """Booth roadmap item 4: the run dir's before/after keyframes are served
+    at /keyframes (newest first) with basename-only file access."""
+    from wrc_demo.apps.stream_server import StreamServer
+
+    kd = tmp_path / "keyframes"
+    kd.mkdir()
+    (kd / "0001_grasp_before.jpg").write_bytes(b"\xff\xd8fake1")
+    (kd / "0002_grasp_after.jpg").write_bytes(b"\xff\xd8fake2")
+    rig = CameraRig([_mock_stream("over")])
+    rig.open()
+    server = StreamServer(rig, port=0, keyframes_dir=kd)
+    server.start()
+    try:
+        base = f"http://127.0.0.1:{server.port}"
+        html = urllib.request.urlopen(f"{base}/keyframes", timeout=5).read().decode()
+        assert "0001_grasp_before.jpg" in html and "0002_grasp_after.jpg" in html
+        assert html.index("0002_grasp_after.jpg") < html.index("0001_grasp_before.jpg")
+
+        data = urllib.request.urlopen(
+            f"{base}/keyframe/0001_grasp_before.jpg", timeout=5).read()
+        assert data == b"\xff\xd8fake1"
+
+        # traversal rejected: raw request bypasses client-side normalization
+        import http.client
+
+        conn = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
+        conn.request("GET", "/keyframe/../secret.jpg")
+        assert conn.getresponse().status == 404
+        conn.close()
+
+        # the dashboard links the gallery and carries the new panels
+        index = urllib.request.urlopen(f"{base}/", timeout=5).read().decode()
+        assert "/keyframes" in index and "grasp memory" in index and "via:" in index
+    finally:
+        server.stop()
+        rig.close()
+
+
+def test_stream_server_keyframes_disabled_without_dir():
+    from wrc_demo.apps.stream_server import StreamServer
+
+    rig = CameraRig([_mock_stream("over")])
+    rig.open()
+    server = StreamServer(rig, port=0)  # no keyframes_dir
+    server.start()
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(
+                f"http://127.0.0.1:{server.port}/keyframes", timeout=5)
+        assert exc.value.code == 404
+    finally:
+        server.stop()
+        rig.close()
+
+
+@needs_pin
+def test_runtime_state_exposes_tier_and_grasp_memory(tmp_path):
+    """Booth roadmap items 3+5: /state carries the dispatch tier and the
+    learned grasp priors for the dashboard panels."""
+    from wrc_demo.apps.demo import _runtime_state, build_runtime, shutdown_runtime
+
+    cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
+    runtime, arm = build_runtime(cfg, tmp_path / "run")
+    try:
+        state = _runtime_state(runtime)
+        assert state["last_path"] is None  # nothing has run yet
+        assert isinstance(state["grasp_memory"], list) and state["grasp_memory"]
+        runtime.last_path = "reflex"
+        assert _runtime_state(runtime)["last_path"] == "reflex"
+    finally:
+        shutdown_runtime(runtime, arm)
+
+
 # ── end-to-end reflex on the mock stack ───────────────────────────────────
 
 

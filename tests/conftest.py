@@ -31,6 +31,16 @@ needs_pin = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_booth(monkeypatch):
+    """A booth-day shell (WRC_BOOTH=1 exported) must not silently rerun the
+    whole suite under booth tuning — a green run has to certify DEV
+    behavior. Booth behavior is opted into per-test via monkeypatch.setenv
+    (which overrides this scrub); subprocess tests inherit the scrubbed
+    os.environ too."""
+    monkeypatch.delenv("WRC_BOOTH", raising=False)
+
+
 @pytest.fixture
 def demo_cfg():
     return load_demo_config(camera="mock", arm="mock", llm="mock")

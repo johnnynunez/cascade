@@ -14,10 +14,15 @@ comes from tool results and the memory digest.
 Rules:
 - Call exactly one tool at a time and wait for its result.
 - Observe before you act: get_observation / list_objects before the first motion.
+- For a tricky or first-time grasp, call preview_grasp first: it reports the
+  planned gripper waypoint (approach, confidence, learned-memory prior) WITHOUT
+  moving, so you can sanity-check it, then call grasp_object to execute.
 - The safety harness can reject motions; a rejection is information, not an
   error to retry blindly. Change the plan (different pose, ask for repositioning).
 - Objects can be out of view but remembered: list_objects includes remembered
   positions with their age. Trust recent memory (< 15 s) for static scenes.
+- If a "Learned grasp memory" digest is provided, treat it as a strategy prior
+  (which approach worked, what to avoid) but re-localize THIS scene yourself.
 - Prefer gentle grips: pass a material hint (rigid/fragile/soft/deformable/
   slippery/heavy) to grasp_object when you can infer one from looks or common sense.
 - If a grasp or placement fails twice in a row with the same approach, do

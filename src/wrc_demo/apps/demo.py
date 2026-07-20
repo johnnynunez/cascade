@@ -146,6 +146,7 @@ def build_runtime(
             port=int(scfg.get("port", 8090)),
             fps=float(scfg.get("fps", 15.0)),
             quality=int(scfg.get("quality", 80)),
+            keyframes_dir=trace.run_dir / "keyframes",
         )
         try:
             server.start()
@@ -170,11 +171,15 @@ def _runtime_state(runtime) -> dict:
         "agent_status": status,
         "task": runtime.current_task,
         "holding": runtime.held_object,
+        # dispatch tier of the last command (reflex/experience/llm/mcp-host)
+        "last_path": getattr(runtime, "last_path", None),
         "objects": runtime.beliefs.summary(),
         "arm_connected": getattr(runtime.arm.raw, "connected", True),
         # human-readable narration: newest events last (observations, skill
         # calls, outcomes) -- the dashboard renders this as the activity feed
         "events": runtime.memory.digest(max_lines=14).splitlines(),
+        # learned grasp priors, one line per object profile (booth panel)
+        "grasp_memory": runtime.grasp_memory.summary().splitlines(),
     }
     if runtime.watcher is not None:
         out["perception"] = runtime.watcher.stats()

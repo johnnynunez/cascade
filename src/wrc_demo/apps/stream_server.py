@@ -9,6 +9,8 @@ Routes:
     /stream/<name>       multipart/x-mixed-replace MJPEG (annotated)
     /snapshot/<name>.jpg one annotated frame
     /state               JSON: beliefs (with colors), cameras, agent status
+    /keyframes           before/after keyframe filmstrip from the run dir
+    /keyframe/<file>     one keyframe JPEG (basename-only, no traversal)
 
 The handler threads only ever *read* the latest frame slot of each stream,
 so any number of viewers can attach without slowing perception or control.
@@ -22,6 +24,7 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -58,7 +61,9 @@ _INDEX_HTML = """<!doctype html>
  .remembered {{ opacity:.55; }}
 </style></head><body>
 <header><h1>wrc-demo &middot; live</h1>
- <span id="task">no task</span><span id="status">connecting...</span></header>
+ <span id="task">no task</span>
+ <a href="/keyframes" style="color:#9fb0c0;font-size:12px">keyframes</a>
+ <span id="status">connecting...</span></header>
 <main>
  <div id="cams">{tiles}</div>
  <aside>
@@ -78,6 +83,9 @@ _INDEX_HTML = """<!doctype html>
   <div class="panel"><h3>objects in the world model</h3>
    <table><thead><tr><th>object</th><th>color</th><th>position (m)</th><th>state</th></tr></thead>
    <tbody id="objs"></tbody></table></div>
+  <div class="panel"><h3>grasp memory (learned priors)</h3>
+   <div id="gmem" style="font:12px/1.55 ui-monospace,monospace;
+        white-space:pre-wrap">empty</div></div>
  </aside>
 </main>
 <script>
@@ -113,7 +121,10 @@ _INDEX_HTML = """<!doctype html>
      document.getElementById('task').textContent = s.task ? `task: ${{s.task}}` : 'idle - waiting for a command';
      document.getElementById('status').textContent =
        `${{Object.keys(s.cameras).length}} cams | holding: ${{s.holding || '-'}} | ` +
-       `arm: ${{s.arm_connected ? 'up' : 'standby'}} | ${{s.agent_status}}`;
+       `arm: ${{s.arm_connected ? 'up' : 'standby'}} | via: ${{s.last_path || '-'}} | ` +
+       `${{s.agent_status}}`;
+     document.getElementById('gmem').textContent =
+       (s.grasp_memory || []).join('\\n') || 'empty';
      const feed = document.getElementById('feed');
      const stick = feed.scrollTop + feed.clientHeight >= feed.scrollHeight - 8;
      feed.innerHTML = (s.events || []).map(l => {{
@@ -156,9 +167,13 @@ class StreamServer:
         port: int = 8090,
         fps: float = 15.0,
         quality: int = 80,
+        keyframes_dir=None,
     ):
         self._rig = rig
         self._state_fn = state_fn or (lambda: {})
+        # per-skill before/after evidence JPEGs (the run dir's keyframes/);
+        # None disables the /keyframes routes
+        self._keyframes_dir = Path(keyframes_dir) if keyframes_dir else None
         self._host = host
         self.port = port
         self._fps = fps
@@ -275,6 +290,10 @@ def _make_handler(server: StreamServer):
                     return self._snapshot(name)
                 if path.startswith("/stream/"):
                     return self._mjpeg(path.split("/", 2)[2])
+                if path == "/keyframes":
+                    return self._keyframes_index()
+                if path.startswith("/keyframe/"):
+                    return self._keyframe(path.split("/", 2)[2])
                 self.send_error(404, "unknown path")
             except (BrokenPipeError, ConnectionResetError):
                 pass  # viewer closed the tab mid-frame
@@ -342,6 +361,59 @@ def _make_handler(server: StreamServer):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(body)
+
+        def _keyframes_index(self):
+            kd = server._keyframes_dir
+            if kd is None or not kd.is_dir():
+                return self.send_error(404, "keyframes not available")
+            try:
+                files = sorted(kd.glob("*.jpg"), key=lambda p: p.name,
+                               reverse=True)
+            except OSError:  # dir vanished mid-request (run dir rotated)
+                return self.send_error(404, "keyframes not available")
+            cells = "".join(
+                f'<figure style="margin:0"><img src="/keyframe/{p.name}" '
+                f'style="max-width:340px;border-radius:4px;display:block">'
+                f'<figcaption style="font:11px ui-monospace,monospace;'
+                f'color:#9fb0c0">{p.name}</figcaption></figure>'
+                for p in files[:24]
+            ) or "<p>no keyframes yet</p>"
+            body = (
+                '<!doctype html><html><head><meta charset="utf-8">'
+                '<meta http-equiv="refresh" content="3">'
+                "<title>wrc-demo :: keyframes</title></head>"
+                '<body style="background:#0d1117;color:#d7dde3;'
+                'font:14px system-ui;padding:14px">'
+                '<h1 style="font-size:16px;color:#76b900">'
+                'per-skill before/after keyframes (newest first) &middot; '
+                '<a href="/" style="color:#9fb0c0">dashboard</a></h1>'
+                f'<div style="display:flex;flex-wrap:wrap;gap:12px">{cells}'
+                "</div></body></html>"
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _keyframe(self, name: str):
+            kd = server._keyframes_dir
+            # basename-only, .jpg-only: no path traversal out of the run dir
+            if (kd is None or not name.endswith(".jpg")
+                    or name != Path(name).name):
+                return self.send_error(404, "no such keyframe")
+            p = kd / name
+            try:
+                data = p.read_bytes()
+            except OSError:  # missing, or vanished between checks
+                return self.send_error(404, "no such keyframe")
+            self.send_response(200)
+            self.send_header("Content-Type", "image/jpeg")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
 
         def _snapshot(self, name: str):
             jpeg = server.annotated_jpeg(name)

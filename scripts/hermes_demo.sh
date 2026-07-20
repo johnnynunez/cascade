@@ -24,15 +24,21 @@ CAMERA="l515"
 ARM="mock"
 MODEL=""
 PROVIDER=""
-PY="/home/spark/Projects/demo/.demo/bin/python"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-DETECTOR="${WRC_DETECTOR_MODEL:-/home/spark/Projects/demo/reBot-DevArm-Grasp/models/yolo11n.pt}"
+# shared uv venv sits next to the checkout (…/Projects/demo/.demo) on every
+# rig; override with PY=... for a non-standard layout
+PY="${PY:-$(cd "$REPO/.." && pwd)/.demo/bin/python}"
+# closed-set fallback; ultralytics auto-downloads it into models/ on first
+# (online) use if absent. DETECTOR_SET tracks an explicit user choice so the
+# CLIP branch below never overrides --detector / WRC_DETECTOR_MODEL.
+DETECTOR="${WRC_DETECTOR_MODEL:-$REPO/models/yolo11n.pt}"
+DETECTOR_SET="${WRC_DETECTOR_MODEL:+1}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --camera) CAMERA="$2"; shift 2 ;;
         --arm) ARM="$2"; shift 2 ;;
-        --detector) DETECTOR="$2"; shift 2 ;;
+        --detector) DETECTOR="$2"; DETECTOR_SET=1; shift 2 ;;
         --model) MODEL="$2"; shift 2 ;;
         --provider) PROVIDER="$2"; shift 2 ;;
         *) echo "unknown flag $1"; exit 1 ;;
@@ -42,7 +48,7 @@ done
 # If the ultralytics CLIP fork is installed, prefer the open-vocabulary
 # YOLOE model (free-text vocabulary); otherwise stay on closed-set yolo11n.
 if "$PY" -c "import clip" 2>/dev/null; then
-    DETECTOR="${WRC_DETECTOR_MODEL:-/home/spark/Projects/demo/reBot-DevArm-Grasp/models/yoloe-26s-seg.pt}"
+    [[ -z "${DETECTOR_SET:-}" ]] && DETECTOR="$REPO/models/yoloe-11s-seg.pt"
     echo "[+] CLIP available: using open-vocabulary detector $DETECTOR"
 else
     echo "[i] CLIP fork not installed: using closed-set COCO detector."
@@ -56,6 +62,7 @@ hermes mcp add wrc-demo \
     --command "$PY" \
     --env "PYTHONPATH=$REPO/src" "WRC_CAMERAS=$CAMERA" "WRC_ARM=$ARM" \
           "WRC_DETECTOR_MODEL=$DETECTOR" "DISPLAY=${DISPLAY:-:1}" \
+          "YOLO_OFFLINE=True" "ULTRALYTICS_OFFLINE=True" \
     --args -m wrc_demo.apps.mcp_server
 
 echo "[+] testing the connection"

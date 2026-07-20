@@ -73,6 +73,9 @@ class SkillRuntime:
         self.watcher = None
         #: natural-language task currently executing (dashboard narration)
         self.current_task: str | None = None
+        #: dispatch tier that served the last command ("reflex" |
+        #: "experience" | "llm" | "mcp-host"), for the dashboard "via:" chip
+        self.last_path: str | None = None
         #: monotonic time the current top-level MOTION skill started; while
         #: the arm moves the WorldWatcher is paused, so belief ages measured
         #: from "now" are artificially inflated -- staleness checks measure
@@ -673,6 +676,55 @@ class SkillRuntime:
             "extent_m": [round(float(x), 3) for x in fix.extent],
             "n_points": int(fix.points.shape[0]),
         }
+
+    def skill_preview_grasp(
+        self,
+        label: str,
+        spatial_hint: str | None = None,
+    ) -> dict:
+        """VIA-style waypoint preview (arXiv 2607.11119): plan the grasp and
+        REPORT it without moving. Lets the agent observe the proposed gripper
+        waypoint (position, approach, confidence, learned-memory prior) and
+        decide before committing -- the observe-then-act loop, not blind
+        execution. Follow with grasp_object to actually execute it."""
+        gcfg = self.cfg.grasp
+        frame, fix = self._localize(label, spatial_hint=spatial_hint)
+        grasps = self._plan_grasps(fix, label=label)
+        if not grasps:
+            return {"ok": False, "error": f"no grasp candidates for {label!r}"}
+        g = grasps[0]  # already reranked by the fake-RL memory prior
+        appr = np.asarray(g.approach, dtype=float)
+        vert = float(-appr[2] / (np.linalg.norm(appr) + 1e-9))
+        prior = None
+        try:
+            prior = self.grasp_memory.prior(label, fix)
+        except Exception:
+            pass
+        out = {
+            "ok": True,
+            "object": label,
+            "object_xyz": [round(float(x), 3) for x in fix.position],
+            "planned_grasp": {
+                "tcp_xyz": [round(float(x), 3) for x in g.position],
+                "approach": ("top-down" if vert > 0.7
+                             else "angled" if vert > 0.3 else "side"),
+                "approach_vert": round(vert, 2),
+                "jaw_width_m": round(float(g.width_m), 3),
+                "confidence": round(float(getattr(g, "quality", 0.0)), 2),
+                "candidates": len(grasps),
+            },
+            "hint": "call grasp_object to execute, or reposition/re-localize "
+                    "if this waypoint looks wrong.",
+        }
+        if prior:
+            out["memory_prior"] = {
+                "seen": prior["wins"] + prior["losses"],
+                "success_rate": prior["success_rate"],
+                "avoid": prior.get("top_fail"),
+            }
+        self.memory.add("note", f"grasp preview {label!r}: {out['planned_grasp']['approach']} "
+                        f"conf {out['planned_grasp']['confidence']}")
+        return out
 
     def skill_grasp_object(
         self,
@@ -1553,6 +1605,18 @@ TOOL_SPECS: list[dict] = [
     {
         "name": "localize_object",
         "description": "Precisely localize one object by name; returns base-frame position and size. Use a spatial_hint word (left/right/front/back) to disambiguate duplicates.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string"},
+                "spatial_hint": {"type": "string", "enum": ["left", "right", "front", "back", "near", "far"]},
+            },
+            "required": ["label"],
+        },
+    },
+    {
+        "name": "preview_grasp",
+        "description": "Plan a grasp on a named object and REPORT the proposed gripper waypoint (position, approach direction, confidence, learned-memory prior) WITHOUT moving. Use it to check a grasp looks right before committing, then call grasp_object. Cheap observe-before-act step.",
         "parameters": {
             "type": "object",
             "properties": {

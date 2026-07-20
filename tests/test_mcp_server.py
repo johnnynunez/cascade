@@ -6,8 +6,11 @@ Claude Code exercise except physical hardware.
 
 import json
 import os
+import queue
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -36,22 +39,48 @@ class McpClient:
             bufsize=1,
         )
         self._id = 0
+        # stdout is pumped through a queue so recv() can time out instead of
+        # hanging the whole suite when a response frame is (wrongly) dropped
+        self._out_q: queue.Queue = queue.Queue()
+
+        def _pump():
+            for line in self.proc.stdout:
+                self._out_q.put(line)
+            self._out_q.put(None)  # EOF sentinel
+
+        threading.Thread(target=_pump, daemon=True).start()
 
     def request(self, method: str, params: dict | None = None, timeout=60):
+        self.send(method, params)
+        resp = self.recv(timeout=timeout)
+        assert resp["id"] == self._id
+        return resp
+
+    def send(self, method: str, params: dict | None = None) -> int:
+        """Write a request frame WITHOUT waiting for the response -- for
+        interleaved traffic (out-of-band emergency_stop)."""
         self._id += 1
         frame = {"jsonrpc": "2.0", "id": self._id, "method": method}
         if params is not None:
             frame["params"] = params
         self.proc.stdin.write(json.dumps(frame) + "\n")
         self.proc.stdin.flush()
-        line = self.proc.stdout.readline()
-        assert line, f"server died: {self.proc.stderr.read()[-2000:]}"
-        resp = json.loads(line)
-        assert resp["id"] == self._id
-        return resp
+        return self._id
 
-    def notify(self, method: str):
-        self.proc.stdin.write(json.dumps({"jsonrpc": "2.0", "method": method}) + "\n")
+    def recv(self, timeout=60) -> dict:
+        try:
+            line = self._out_q.get(timeout=timeout)
+        except queue.Empty:
+            pytest.fail(f"no response within {timeout}s from a live server "
+                        f"(pid {self.proc.pid}); dropped/suppressed frame?")
+        assert line is not None, f"server died: {self.proc.stderr.read()[-2000:]}"
+        return json.loads(line)
+
+    def notify(self, method: str, params: dict | None = None):
+        frame: dict = {"jsonrpc": "2.0", "method": method}
+        if params is not None:
+            frame["params"] = params
+        self.proc.stdin.write(json.dumps(frame) + "\n")
         self.proc.stdin.flush()
 
     def close(self):
@@ -240,3 +269,137 @@ def test_new_livestream_tools_over_jsonrpc(client):
     )
     assert is_err and payload["stage"] == "grasp"
     assert "grasp failed" in payload["error"]
+
+
+def test_emergency_stop_preempts_running_motion(client):
+    """emergency_stop must NOT queue behind a long motion call: the stdin
+    reader latches the e-stop the moment the frame arrives, so its response
+    lands FIRST and the running motion aborts mid-stream (booth prep
+    2026-07-20; was roadmap near-term item 1)."""
+    client.request("initialize", {"protocolVersion": "2025-06-18"})
+    client.notify("notifications/initialized")
+    # force the runtime up so the stop path has a live harness to latch
+    client.request("tools/call", {"name": "get_observation", "arguments": {}})
+
+    pick_id = client.send("tools/call", {"name": "pick_and_place",
+                                         "arguments": {"object": "red object"}})
+    time.sleep(0.5)  # let the worker enter the motion call
+    stop_id = client.send("tools/call", {"name": "emergency_stop", "arguments": {}})
+
+    first = client.recv()
+    assert first["id"] == stop_id, "emergency_stop answered after the motion finished"
+    payload, _ = _tool_payload(first)
+    assert payload["stopped"]
+
+    second = client.recv()
+    assert second["id"] == pick_id
+    payload, is_err = _tool_payload(second)
+    assert is_err
+    # the latch must break the persistence loop after the aborted attempt,
+    # not burn the remaining retry budget -- "(e-stop latched; not
+    # retrying)" is the loop's fail-fast signature (skills/runtime.py)
+    assert "not retrying" in payload["error"], payload["error"]
+
+    # the latch holds until reset_stop
+    payload, is_err = _tool_payload(
+        client.request("tools/call", {"name": "move_home", "arguments": {}})
+    )
+    assert is_err and "e-stop" in payload["error"]
+
+
+def test_client_cancellation_of_motion_freezes_arm(client):
+    """notifications/cancelled for an in-flight MOTION call (Esc in the MCP
+    host mid-pick) must freeze the arm, not orphan the motion server-side."""
+    client.request("initialize", {"protocolVersion": "2025-06-18"})
+    client.request("tools/call", {"name": "get_observation", "arguments": {}})
+
+    pick_id = client.send("tools/call", {"name": "pick_and_place",
+                                         "arguments": {"object": "red object"}})
+    time.sleep(0.5)
+    client.notify("notifications/cancelled", {"requestId": pick_id, "reason": "user"})
+
+    resp = client.recv()  # the aborted call still answers; the host discards it
+    assert resp["id"] == pick_id
+    _, is_err = _tool_payload(resp)
+    assert is_err
+
+    payload, is_err = _tool_payload(
+        client.request("tools/call", {"name": "move_home", "arguments": {}})
+    )
+    assert is_err and "e-stop" in payload["error"]
+
+
+def test_mcp_mode_dashboard_chat_is_reflex_only(tmp_path, monkeypatch):
+    """Booth roadmap item 6: in MCP mode the dashboard chat runs the tier-1
+    reflex grammar with zero LLM (the host-outage fallback), and refuses
+    free-form text with an honest narration note."""
+    import urllib.request
+
+    monkeypatch.setenv("WRC_CAMERA", "mock")
+    monkeypatch.setenv("WRC_ARM", "mock")
+    monkeypatch.setenv("WRC_RUN_DIR", str(tmp_path / "run"))
+    monkeypatch.setenv("WRC_STREAM", "1")
+    monkeypatch.setenv("WRC_STREAM_PORT", "0")  # ephemeral port
+    monkeypatch.setenv("WRC_VIEW", "0")
+    from wrc_demo.apps.mcp_server import McpSkillServer
+
+    server = McpSkillServer()
+    try:
+        runtime = server._ensure_runtime()
+        assert runtime.stream_server is not None
+        base = f"http://127.0.0.1:{runtime.stream_server.port}"
+
+        def post_task(text: str) -> dict:
+            req = urllib.request.Request(
+                f"{base}/task", data=json.dumps({"task": text}).encode(),
+                headers={"Content-Type": "application/json"})
+            return json.loads(urllib.request.urlopen(req, timeout=5).read())
+
+        assert post_task("wave")["accepted"]
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline and runtime.last_path != "reflex":
+            time.sleep(0.1)
+        assert runtime.last_path == "reflex"
+
+        # free-form text: accepted by HTTP, refused by the handler with a
+        # narration note (retry while the wave task drains the busy lock)
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if post_task("compose a haiku about the arm")["accepted"]:
+                break
+            time.sleep(0.2)
+        deadline = time.monotonic() + 10
+        note_seen = False
+        while time.monotonic() < deadline and not note_seen:
+            note_seen = any("not a routine command" in ev.text
+                            for ev in runtime.memory.events())
+            time.sleep(0.1)
+        assert note_seen, "free-form chat text must produce the honest note"
+    finally:
+        server.shutdown()
+
+
+def test_hidden_tools_are_delisted_and_rejected(tmp_path):
+    """WRC_HIDE_TOOLS removes tools from the surface AND the call path
+    (booth sessions hide reset_stop so a model cannot clear a staff e-stop);
+    emergency_stop is never hideable -- even when an operator typo lists it."""
+    c = McpClient(str(tmp_path / "run"),
+                  extra_env={"WRC_HIDE_TOOLS": "reset_stop,throw,emergency_stop"})
+    try:
+        c.request("initialize", {"protocolVersion": "2025-06-18"})
+        tools = {t["name"] for t in c.request("tools/list")["result"]["tools"]}
+        assert "reset_stop" not in tools and "throw" not in tools
+        assert "emergency_stop" in tools  # survives the hide list
+
+        payload, is_err = _tool_payload(
+            c.request("tools/call", {"name": "reset_stop", "arguments": {}})
+        )
+        assert is_err and "disabled by the operator" in payload["error"]
+
+        # and it is not just listed -- it answers, despite the hide list
+        payload, is_err = _tool_payload(
+            c.request("tools/call", {"name": "emergency_stop", "arguments": {}})
+        )
+        assert not is_err and payload["stopped"]
+    finally:
+        c.close()

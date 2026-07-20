@@ -23,7 +23,9 @@ SERVER_KEY = "wrc-demo:"
 MCP_KEY = "mcp_servers:"
 
 
-def yaml_block(cameras: str, arm: str, python: str) -> str:
+def yaml_block(cameras: str, arm: str, python: str,
+               extra_env: dict | None = None) -> str:
+    extra = "".join(f'      {k}: "{v}"\n' for k, v in (extra_env or {}).items())
     return f"""{MCP_KEY}
   {SERVER_KEY}
     command: "{python}"
@@ -32,7 +34,7 @@ def yaml_block(cameras: str, arm: str, python: str) -> str:
       PYTHONPATH: "{REPO / 'src'}"
       WRC_CAMERAS: "{cameras}"
       WRC_ARM: "{arm}"
-    connect_timeout: 60
+{extra}    connect_timeout: 60
     timeout: 300
 """
 

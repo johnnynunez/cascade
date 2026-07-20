@@ -83,6 +83,25 @@ def load_profile(kind: str, name: str, config_dir: Path | None = None) -> Cfg:
     return Cfg(_resolve_paths(_load_yaml(path), cdir))
 
 
+def _deep_merge(base: dict, overlay: dict) -> None:
+    """Merge overlay into base in place: dicts recurse, scalars replace."""
+    for k, v in overlay.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+
+
+def booth_mode_enabled() -> bool:
+    """WRC_BOOTH=1 selects the booth tuning overlay (configs/booth.yaml).
+    Whitespace-stripped; the usual negatives all disable it."""
+    import os
+
+    return os.environ.get("WRC_BOOTH", "").strip().lower() not in (
+        "", "0", "false", "no", "off",
+    )
+
+
 def load_demo_config(
     camera: str = "mock",
     arm: str = "mock",
@@ -91,9 +110,24 @@ def load_demo_config(
     cameras: list[str] | None = None,
 ) -> Cfg:
     """`cameras` (ordered, first = manipulation camera) supersedes `camera`;
-    both populate cfg.camera (primary) and cfg.cameras (all)."""
+    both populate cfg.camera (primary) and cfg.cameras (all).
+
+    When WRC_BOOTH is set, configs/booth.yaml is deep-merged on top of
+    demo.yaml (bounded worst cases for timed attendee sessions -- see
+    docs/BOOTH_RUNBOOK.md §1); every entry point (demo CLI, MCP server,
+    dashboard runner) goes through here, so the switch is one env var."""
     cdir = Path(config_dir) if config_dir else CONFIG_DIR
     main = _resolve_paths(_load_yaml(cdir / "demo.yaml"), cdir)
+    if booth_mode_enabled():
+        booth_path = cdir / "booth.yaml"
+        if not booth_path.exists():
+            # an explicitly requested overlay must never no-op silently:
+            # booth.yaml ships with the repo, so absence = broken checkout
+            raise FileNotFoundError(
+                f"WRC_BOOTH is set but {booth_path} is missing"
+            )
+        _deep_merge(main, _resolve_paths(_load_yaml(booth_path), cdir))
+        main["booth_mode"] = True
     names = [n.strip() for n in (cameras or [camera]) if n and n.strip()]
     cams = []
     for i, name in enumerate(names):

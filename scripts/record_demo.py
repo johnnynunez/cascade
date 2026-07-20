@@ -18,7 +18,7 @@ import numpy as np
 sys.path.insert(0, "src")
 from wrc_demo.sim.bridge_client import BridgeClient  # noqa: E402
 
-FPS = 10
+FPS = 6
 DUR = 100  # seconds -- full pick cycle: approach, grasp, transport, drop
 OUT_DIR = "/tmp/wrc_frames"
 subprocess.run(["rm", "-rf", OUT_DIR], check=False)
@@ -28,7 +28,7 @@ c = BridgeClient(port=8611)
 c.connect()
 
 # Grab a caption to overlay describing the pipeline state
-caption = {"text": "wrc_demo | Isaac Sim PhysX | reBot RS + Qwen3-VL + GraspGenX 6-DOF"}
+caption = {"text": "wrc_demo | Isaac Sim PhysX | reBot RS + Qwen3.6-27B + GraspGenX 6-DOF"}
 
 
 def _label(img, lines):

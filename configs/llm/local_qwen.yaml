@@ -1,9 +1,11 @@
-# Local backend on the DGX Spark: Qwen3-VL behind an OpenAI-compatible server
-# (llama.cpp llama-server or vLLM). Multimodal (vision) + tool-calling.
-# Start it with scripts/serve_qwen_llamacpp.sh or scripts/serve_qwen_vllm.sh.
+# Local backend on the DGX Spark: Qwen3.6-27B (unified VLM) behind an
+# OpenAI-compatible server. Start it with scripts/serve_qwen_llamacpp.sh
+# (vision via the mmproj projector) or scripts/serve_qwen_vllm.sh (native).
+# KEEP IN SYNC: llama.cpp ignores the request's model name, but vLLM rejects
+# a mismatch — `model:` below must match the serve script's MODEL/HF_REPO.
 type: openai_compat
 base_url: http://127.0.0.1:8080/v1
-model: Qwen3VL-30B-A3B-Instruct-Q4_K_M
+model: Qwen/Qwen3.6-27B
 api_key: EMPTY
-supports_vision: true     # Qwen3-VL is a unified VLM
+supports_vision: true     # Qwen3.6 is a unified VLM
 temperature: 0.2

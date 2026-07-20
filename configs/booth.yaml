@@ -1,0 +1,20 @@
+# Booth-mode overrides, applied on top of demo.yaml when WRC_BOOTH is set
+# (any value but 0/false/no/off, case-insensitive). Dev keeps dev values;
+# booth day is one env var. Rationale: docs/BOOTH_RUNBOOK.md §1.
+#
+# Only override scalars that exist in demo.yaml -- this file is deep-merged
+# (dicts merge, scalars replace), so a typo here silently ADDS a dead key
+# instead of failing. tests/test_config_booth.py pins the merge result.
+
+grasp:
+  persist_seconds: 45     # one unlucky pick can't eat 2 of 15 minutes
+  max_pick_attempts: 3    # 3 visible attempts tell the recovery story
+  graspgenx:
+    timeout_ms: 2000      # a dead grasp server costs 2 s per pick, not 8
+
+memory:
+  horizon_s: 60.0         # narration must survive a talk-track pause
+
+perception_loop:
+  belief_fallback_age_s: 20.0  # "point at where it was" after the cup has
+                               # covered the object for more than 3 s

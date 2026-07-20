@@ -2,14 +2,40 @@
 
 ## Near term (before the demo)
 
+- **Booth experience (WRC).** The attendee-facing session is scripted in
+  `docs/BOOTH_RUNBOOK.md` (hard 15-min format, typed-chat interaction — no
+  voice on an expo floor, first visible result <3 min, scripted
+  fail→learn→succeed arc, fallback ladders); `scripts/booth_up.sh` /
+  `booth_reset.sh` are the ops entry points. Landed 2026-07-20: out-of-band
+  MCP e-stop (incl. stop-during-startup latch) + cancellation→freeze +
+  `WRC_HIDE_TOOLS` (reset_stop becomes staff-only; SIGUSR1 is the staff
+  reset channel), dashboard STOP wired in MCP mode, `setup_agents.py
+  --detect-classes/--hide-tools/--env` + offline env by default, stale-path
+  fixes in `dashboard_runner.py`/`hermes_demo.sh`; adversarially reviewed
+  same day, defects pinned in `tests/test_review_regressions_v4.py`.
+  Second pass (also 2026-07-20) closed the remaining six: (1) booth tuning
+  is a `WRC_BOOTH=1` overlay (`configs/booth.yaml`, deep-merged in
+  `load_demo_config` — dev keeps dev values); (2) `scripts/booth_rehearsal.py`
+  dry-runs the session prompts through the real orchestrator — first run on
+  local Qwen3.6-27B: 6/6 prompts clean tool calls, 4/6 tasks succeeded (the
+  2 failures are the mock air-grasp, handled with retries + honest report);
+  (3) dispatch tier on the dashboard (`/state.last_path` + "via:" chip);
+  (4) `/keyframes` before/after filmstrip route; (5) grasp-memory panel on
+  the dashboard; (6) MCP-mode dashboard chat runs the reflex grammar
+  LLM-free. Remaining (on-site): re-run the rehearsal with the final
+  cheat-card nouns, and validate the point-at-under-cup beat on the real
+  rig with `WRC_BOOTH=1`.
+
 - **Persistence-loop review leftovers (2026-07-18, adversarial review run;
   fixed same-day: e-stop break, fail-fast on never-seen objects, place
   release/ascent desync, frozen belief epoch, descent-path vetting,
   place-stage re-home).** Still open, in priority order:
-  1. MCP server is single-threaded: a 150 s pick_and_place blocks
-     emergency_stop and every other tool -- needs a stop channel that
-     bypasses the request loop (the web runner has the same gap; SIGINT
-     estop works and the skill loops now honor it).
+  1. ~~MCP server is single-threaded: a 150 s pick_and_place blocks
+     emergency_stop~~ **fixed 2026-07-20 (booth prep):** the stdin reader
+     now latches the e-stop out-of-band the moment the frame arrives,
+     `notifications/cancelled` on an in-flight motion tool freezes the arm,
+     SIGINT latches instead of free-falling, and the dashboard STOP button
+     is wired in MCP mode (tests in `tests/test_mcp_server.py`).
   2. Exception between gripper close and held_object assignment leaves a
      physically held object logically unheld (reconcile only clears the
      opposite desync); consider a provisional held marker before close.
@@ -79,14 +105,12 @@
      `--arm rebot_rs` at low `max_joint_vel`.
 - **Local LLM**: run `scripts/serve_qwen_llamacpp.sh` (Qwen3.6-27B GGUF, MTP
   speculative decoding) and rehearse with `--llm local_qwen` so the demo has
-  a no-internet fallback. vLLM variant in `serve_qwen_vllm.sh`. **Reconcile
-  first:** `configs/llm/local_qwen.yaml` pins `model:
-  Qwen3VL-30B-A3B-Instruct-Q4_K_M` + `supports_vision: true` while both
-  serve scripts fetch Qwen3.6-27B — llama.cpp ignores the requested model
-  name (and its script wires vision via the mmproj projector, so
-  `supports_vision: true` holds there) but vLLM rejects the mismatched name
-  and has no vision wiring; `supports_vision` gates the advisor and image
-  context.
+  a no-internet fallback. vLLM variant in `serve_qwen_vllm.sh`. The profile
+  (`configs/llm/local_qwen.yaml`) pins `model: Qwen/Qwen3.6-27B` to match
+  both scripts (reconciled 2026-07-20); if you change the script's
+  `MODEL`/`HF_REPO`, update the profile — llama.cpp ignores the requested
+  name but vLLM rejects a mismatch, and `supports_vision` gates the advisor
+  and image context.
 - **Visual embedder for memory**: plug a CLIP/SigLIP image encoder into
   `EpisodicMemory(embed_dim=...)` + crops per detection, enabling
   "the thing that looked like X" recall through the TurboQuant index.

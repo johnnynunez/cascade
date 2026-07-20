@@ -31,17 +31,41 @@ sys.path.insert(0, str(REPO / "scripts"))
 from setup_hermes import upsert as hermes_upsert  # noqa: E402
 from setup_hermes import yaml_block as hermes_yaml_block  # noqa: E402
 
-DEFAULT_PY = "/home/spark/Projects/demo/.demo/bin/python"
+# The shared .demo uv venv sits next to the repo checkout on every rig
+# (…/Projects/demo/.demo), so derive it from the repo location instead of
+# hardcoding one machine's home.
+DEFAULT_PY = str(REPO.parent / ".demo" / "bin" / "python")
 SERVER = "wrc-demo"
 
 
-def server_env(camera: str, arm: str, display: str) -> dict[str, str]:
-    return {
+def server_env(
+    camera: str,
+    arm: str,
+    display: str,
+    detect_classes: str | None = None,
+    offline: bool = True,
+    hide_tools: str | None = None,
+    extra: list[str] | None = None,
+) -> dict[str, str]:
+    env = {
         "PYTHONPATH": str(REPO / "src"),
         "WRC_CAMERAS": camera,
         "WRC_ARM": arm,
         "DISPLAY": display,
     }
+    if offline:
+        # without these, ultralytics phones GitHub on class re-embeds and
+        # stalls the perception watcher for seconds -- never at a venue
+        env["YOLO_OFFLINE"] = "True"
+        env["ULTRALYTICS_OFFLINE"] = "True"
+    if detect_classes:
+        env["WRC_DETECT_CLASSES"] = detect_classes
+    if hide_tools:
+        env["WRC_HIDE_TOOLS"] = hide_tools
+    for kv in extra or []:
+        k, _, v = kv.partition("=")
+        env[k.strip()] = v
+    return env
 
 
 # ── Codex CLI (TOML) ─────────────────────────────────────────────────────
@@ -96,7 +120,9 @@ def claude_mcp_json(existing: str | None, python: str, env: dict[str, str]) -> s
 
 
 def claude_add_command(python: str, env: dict[str, str]) -> str:
-    envs = " ".join(f"--env {k}={v}" for k, v in env.items())
+    import shlex
+
+    envs = " ".join(f"--env {shlex.quote(f'{k}={v}')}" for k, v in env.items())
     return (
         f"claude mcp add --scope user {envs} {SERVER} -- {python} -m wrc_demo.apps.mcp_server"
     )
@@ -106,7 +132,9 @@ def claude_add_command(python: str, env: dict[str, str]) -> str:
 
 
 def openclaw_command(python: str, env: dict[str, str]) -> str:
-    envs = " ".join(f"--env {k}={v}" for k, v in env.items())
+    import shlex
+
+    envs = " ".join(f"--env {shlex.quote(f'{k}={v}')}" for k, v in env.items())
     return f"openclaw mcp set {SERVER} --command {python} --args -m wrc_demo.apps.mcp_server {envs}"
 
 
@@ -132,17 +160,43 @@ def main() -> int:
     p.add_argument("--arm", default="mock")
     p.add_argument("--display", default=":1")
     p.add_argument("--python", default=DEFAULT_PY)
+    p.add_argument("--detect-classes", default=None,
+                   help="comma-separated WRC_DETECT_CLASSES vocabulary; beliefs "
+                        "are keyed by these labels, so they must name what users "
+                        "will ask for (previously env-only: regenerating wiped it)")
+    p.add_argument("--no-offline", dest="offline", action="store_false",
+                   help="omit YOLO_OFFLINE/ULTRALYTICS_OFFLINE (emitted by "
+                        "default: online ultralytics stalls the watcher)")
+    p.add_argument("--hide-tools", default=None,
+                   help="comma-separated WRC_HIDE_TOOLS (e.g. reset_stop for "
+                        "attendee-facing booth sessions; emergency_stop is "
+                        "never hideable)")
+    p.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
+                   help="extra env var for the server entry (repeatable)")
     p.add_argument("--write", action="store_true",
                    help="apply file edits (hermes yaml, codex toml, project .mcp.json)")
     args = p.parse_args()
 
-    env = server_env(args.camera, args.arm, args.display)
+    for kv in args.env:
+        if "=" not in kv or not kv.split("=", 1)[0].strip():
+            p.error(f"--env expects KEY=VALUE, got {kv!r}")
+
+    env = server_env(args.camera, args.arm, args.display,
+                     detect_classes=args.detect_classes, offline=args.offline,
+                     hide_tools=args.hide_tools, extra=args.env)
     hosts = [args.host] if args.host != "all" else ["hermes", "codex", "claude", "openclaw"]
 
     for host in hosts:
         print(f"\n=== {host} " + "=" * (60 - len(host)))
         if host == "hermes":
-            block = hermes_yaml_block(args.camera, args.arm, args.python)
+            # the hermes block renders PYTHONPATH/WRC_CAMERAS/WRC_ARM itself
+            # and never carried DISPLAY -- but keep DISPLAY when the user
+            # forced it via --env (value differs from the --display default)
+            extras = {k: v for k, v in env.items()
+                      if k not in ("PYTHONPATH", "WRC_CAMERAS", "WRC_ARM")
+                      and not (k == "DISPLAY" and v == args.display)}
+            block = hermes_yaml_block(args.camera, args.arm, args.python,
+                                      extra_env=extras)
             path = Path.home() / ".hermes" / "config.yaml"
             if args.write:
                 merged = hermes_upsert(path.read_text() if path.exists() else None, block)

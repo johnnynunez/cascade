@@ -132,8 +132,8 @@ src/wrc_demo/
 │   ├── trace.py        ASPIRE trace logger
 │   └── orchestrator.py reflex-first agent loop + TaskReport
 ├── skills/
-│   ├── runtime.py      the curated tool surface + JSON schemas (21 specs:
-│   │                   20 skills incl. pick_and_place + social skills,
+│   ├── runtime.py      the curated tool surface + JSON schemas (22 specs:
+│   │                   21 skills incl. pick_and_place + social skills,
 │   │                   plus the loop-terminator task_done)
 │   └── library.py      learned-skill markdown store (loading loop: ROADMAP)
 ├── sim/bridge_client.py  newline-JSON TCP client for scripts/isaac_bridge.py
@@ -223,7 +223,7 @@ warnings).
 
 ## Verification status (2026-07-20, this rig)
 
-- 139 unit/integration tests collected, 137 selected by default (`pytest
+- 161 unit/integration tests collected, 159 selected by default (`pytest
   -q`; 2 hardware-marked), including a full mock-stack grasp-and-place e2e
   that exercises config → perception → beliefs → grasp planning → IK →
   safety-gated streaming → gripper verification → memory → trace files.
@@ -236,10 +236,19 @@ warnings).
   recovery deadlock, OpenAI/Anthropic tool-protocol violations, unbounded
   image-context growth (air-grasp detection is pinned in
   `tests/test_orchestrator_e2e.py`); v2 findings in
-  `tests/test_review_regressions_v2.py`. Other confirmed v1 fixes
-  (IK-vs-harness margin mismatch, stale-CAN-feedback masking, free-fall on
-  soft stop) are real-arm behaviors enforced in code but not
-  regression-pinned.
+  `tests/test_review_regressions_v2.py`; the remaining v1 fixes
+  (IK-vs-harness margin invariant, stale-CAN-feedback masking bounds,
+  soft-stop torque hold) were pinned late in
+  `tests/test_review_regressions_v3.py` (2026-07-20) against fakes — no
+  hardware needed. A third pass (2026-07-20, booth prep: 40-agent workflow,
+  34 confirmed findings) reviewed the MCP stop channel and booth tooling;
+  its stop-channel defects (stop lost during runtime build, cancellation
+  TOCTOU, reader-thread crash on non-object frames, no staff reset path)
+  are pinned in `tests/test_review_regressions_v4.py`. A fourth pass (same
+  day, 18 agents, 13 confirmed) reviewed the booth-roadmap batch (WRC_BOOTH
+  overlay, dashboard routes, MCP-mode reflex chat); its critical —
+  dashboard-chat motion could run concurrently with an MCP tool call — is
+  fixed by `_exec_lock` and pinned in the same v4 file.
 - Live L515 streaming through the full camera stack (hardware-marked test).
 - Live RobStride mechPos param reads for all 7 motors over can0 (read-only).
 - Live YOLO inference (CUDA, GB10) on L515 frames with metric depth lookup.
@@ -249,8 +258,9 @@ warnings).
 - GraspGen-X backend integrated with first-light verification in sim;
   tip-offset / sweep-volume calibration still open (see ROADMAP).
 - NOT yet exercised: real-arm motion (needs onsite gripper re-verification
-  and hand-eye calibration), local Qwen serving (scripts provided; note the
-  `local_qwen.yaml` model-name mismatch flagged in the README and ROADMAP).
+  and hand-eye calibration), local Qwen serving (scripts provided; the
+  `local_qwen.yaml` profile was reconciled with the serve scripts on
+  2026-07-20 — keep `model:` in sync per the README note).
 
 ## Known limitations (accepted for the baseline)
 

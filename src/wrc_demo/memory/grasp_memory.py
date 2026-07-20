@@ -252,6 +252,49 @@ class GraspOutcomeMemory:
         except OSError:
             pass
 
+    def agent_digest(self, max_profiles: int = 6) -> str:
+        """A compact, action-guiding digest for the agent prompt (VIA-style
+        text demonstration + RPent 'READ MEMORY FIRST'): tell the agent what
+        grasp strategy has worked per object so it doesn't rediscover it.
+
+        Returns '' when there's nothing learned yet (cold start = no noise).
+        """
+        with self._lock:
+            if not self._profiles:
+                return ""
+            # rank by evidence (most attempts first), skip single unseen rows
+            rows = sorted(self._profiles.items(),
+                          key=lambda kv: -(kv[1].wins + kv[1].losses))
+            lines = []
+            for k, st in rows[:max_profiles]:
+                total = st.wins + st.losses
+                if total == 0:
+                    continue
+                sr = st.wins / total
+                wf = st.win_features
+                tips = []
+                if wf.get("approach_vert", 0) > 0.6:
+                    tips.append("grasp top-down")
+                if st.nudges.get("grasp_z_delta", 0) > 0.003:
+                    tips.append("aim slightly higher on the object")
+                elif st.nudges.get("grasp_z_delta", 0) < -0.003:
+                    tips.append("grip a bit deeper")
+                top_fail = (max(st.fail_reasons, key=st.fail_reasons.get)
+                            if st.fail_reasons else None)
+                if top_fail == "air_grasp":
+                    tips.append("verify the jaws actually close on it")
+                elif top_fail == "link_hits_table":
+                    tips.append("keep the wrist high, it clips the surface")
+                label = k.split("|")[0].replace("_", " ")
+                tip_s = ("; ".join(tips)) if tips else "no special handling"
+                lines.append(
+                    f"- {label} (seen {total}x, {sr:.0%} success): {tip_s}")
+            if not lines:
+                return ""
+            return ("Learned grasp memory (past attempts on similar objects — "
+                    "use as a strategy prior, re-localize this scene yourself):\n"
+                    + "\n".join(lines))
+
     def summary(self) -> str:
         """Human-readable digest for the dashboard / MEMORY.md export."""
         with self._lock:

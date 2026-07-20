@@ -17,7 +17,7 @@ advisor + experience memory).
 task ────────▶│ reflex ▸ habit ▸ LLM — decompose → tool call → verify → recover │
               │ routine commands never wait on the model; VLM advisor on failure│
               └──────────────────────────┬──────────────────────────────────────┘
-                 curated skill API — 20 traced skills (ASPIRE-style)
+                 curated skill API — 21 traced skills (ASPIRE-style)
    ┌────────────┬────────────┬───────────┴────────┬──────────────┬─────────────┐
    ▼            ▼            ▼                    ▼              ▼             ▼
 get_observation localize   grasp_object        place_at/on    push_object  recall_memory
@@ -122,23 +122,21 @@ silently vanishes.
 | `mock` | scripted | tests / wiring checks |
 
 > **Keep the profile in sync with the server:** `configs/llm/local_qwen.yaml`
-> currently pins `model: Qwen3VL-30B-A3B-Instruct-Q4_K_M` while both serve
-> scripts fetch **Qwen3.6-27B**. llama.cpp ignores the request's model name
-> (and its script wires vision via the mmproj projector, so
-> `supports_vision: true` still holds there); vLLM rejects a mismatched
-> model name and has no vision wiring. Set the profile's `model:` (and
-> `supports_vision:` if your server lacks a vision projector) to whatever
-> the server actually loads.
+> pins `model: Qwen/Qwen3.6-27B`, matching what both serve scripts load.
+> llama.cpp ignores the request's model name (vision comes via the mmproj
+> projector its script downloads); vLLM rejects a mismatch — if you change
+> the script's `MODEL`/`HF_REPO`, update the profile's `model:` (and
+> `supports_vision:` if the server lacks a vision path) to match.
 
 ## Run it under any MCP agent platform
 
 The whole skill runtime is also exposed as an **MCP stdio server**
 (`wrc_demo/apps/mcp_server.py`) — so instead of the built-in loop, any
-MCP-capable agent platform can drive the arm. The agent gets the same 20
+MCP-capable agent platform can drive the arm. The agent gets the same 21
 safety-gated skills (only the loop-internal `task_done` is excluded) plus
 five gateway extras — `camera_snapshot` (returns a live JPEG the agent can
 *see*), `world_state`, `live_view_url`, and `emergency_stop`/`reset_stop` —
-25 tools total. Safety harness, tracing,
+26 tools total. Safety harness, tracing,
 memory and the always-on camera window are identical — only the brain swaps.
 
 One registrar for every host — prints what each platform needs, `--write`
@@ -153,7 +151,7 @@ python scripts/setup_agents.py --camera l515 --arm rebot_rs --write
 | platform | mechanism | setup |
 |---|---|---|
 | **Hermes** | `~/.hermes/config.yaml` `mcp_servers` | `./scripts/hermes_demo.sh` (interactive: register + test + chat) |
-| **Claude Code** | project `.mcp.json` (ships in this repo, pinned to the demo rig's venv paths and the Isaac profiles) | regenerate for your machine first: `setup_agents.py --host claude --python <venv python> --write`; user-scope: `--host claude` prints the `claude mcp add` one-liner |
+| **Claude Code** | project `.mcp.json` (ships in this repo; interpreter path is machine-specific, and it pins the Isaac camera/arm profiles) | if your checkout lives elsewhere, regenerate with the profiles you want: `setup_agents.py --host claude --camera isaac,isaac_side --arm isaac --write` (add `--python <interpreter>` if your venv is not at `<checkout-parent>/.demo`); user-scope: `--host claude` prints the `claude mcp add` one-liner |
 | **Claude Desktop** | `claude_desktop_config.json` | paste the JSON block from `setup_agents.py --host claude` |
 | **Codex CLI** | `~/.codex/config.toml` `[mcp_servers.wrc-demo]` | `setup_agents.py --host codex --write`, verify with `codex mcp list` |
 | **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `setup_agents.py --host openclaw` prints the `openclaw mcp set` one-liner + JSON block |
@@ -161,11 +159,17 @@ python scripts/setup_agents.py --camera l515 --arm rebot_rs --write
 The server pre-warms perception at startup (cameras + detector + world
 model) while the ARM stays unpowered until the first motion command
 (LazyArm) -- so "pick and place pink object" from the chat is a single
-`pick_and_place` tool call that starts moving immediately. Env knobs:
+`pick_and_place` tool call that starts moving immediately. Stopping is
+never queued behind a running motion: `emergency_stop` frames are handled
+out-of-band by the stdin reader, Esc/cancellation in the host mid-motion
+freezes the arm, first Ctrl+C on the server latches the e-stop (no
+free-fall), and the dashboard STOP button works from any browser on the
+LAN. For attendee-facing sessions, `WRC_HIDE_TOOLS=reset_stop` makes
+clearing a stop staff-only. Env knobs:
 `WRC_CAMERAS` (comma list, first = manipulation camera), `WRC_CAMERA`
 (single-camera fallback), `WRC_ARM`, `WRC_DETECTOR_MODEL`,
-`WRC_DETECT_CLASSES`, `WRC_VIEW`, `WRC_PREWARM`, `WRC_STREAM`,
-`WRC_STREAM_PORT`, `WRC_RUN_DIR` (trace dir), `DISPLAY`. The Isaac bridge
+`WRC_DETECT_CLASSES`, `WRC_HIDE_TOOLS`, `WRC_VIEW`, `WRC_PREWARM`,
+`WRC_STREAM`, `WRC_STREAM_PORT`, `WRC_RUN_DIR` (trace dir), `DISPLAY`. The Isaac bridge
 side has its own knobs (`WRC_USD`, `WRC_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `WRC_BRIDGE_BIND`,
 `WRC_BRIDGE_NO_TARGETS`, `WRC_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
@@ -189,6 +193,9 @@ escape hatch for GPU-PhysX boot NaNs —, `WRC_BRIDGE_BIND`,
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — module-by-module design and
   the decisions behind it
+- [docs/BOOTH_RUNBOOK.md](docs/BOOTH_RUNBOOK.md) — the 15-minute hands-on
+  booth session: script, safety rules, fallback ladders, reset procedure
+  (`scripts/booth_up.sh` / `scripts/booth_reset.sh`)
 - [docs/ROADMAP.md](docs/ROADMAP.md) — VLA policy backend, GraspGen-X
   follow-ups, NuRec sim2real, skill-library growth
 - [CLAUDE.md](CLAUDE.md) — working guide for AI coding agents (commands,

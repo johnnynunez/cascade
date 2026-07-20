@@ -68,6 +68,13 @@ class AgentOrchestrator:
         self.fast_planner = fast_planner
 
     def run_task(self, task: str) -> TaskReport:
+        report = self._run_task(task)
+        # which tier actually served the command -- rendered as the
+        # dashboard's "via:" chip, so habit/reflex hits are visibly LLM-free
+        self.runtime.last_path = report.path
+        return report
+
+    def _run_task(self, task: str) -> TaskReport:
         t_start = time.monotonic()
         fast_note = None
         if self.fast_planner is not None:
@@ -86,8 +93,17 @@ class AgentOrchestrator:
             intro += f"\n{fast_note}\n"
         intro += (
             "\nMemory (last 15 s):\n" + self.runtime.memory.digest()
-            + "\n\nBegin. Observe first, then act. Call one tool now."
         )
+        # VIA-style text demonstration (arXiv 2607.11119) + RPent "READ MEMORY
+        # FIRST": surface learned grasp priors so the agent starts from proven
+        # strategy instead of rediscovering it. Empty on a cold start.
+        try:
+            gm_digest = self.runtime.grasp_memory.agent_digest()
+            if gm_digest:
+                intro += "\n\n" + gm_digest
+        except Exception:
+            pass
+        intro += "\n\nBegin. Observe first, then act. Call one tool now."
         messages.append({"role": "user", "content": intro})
 
         consecutive_failures = 0

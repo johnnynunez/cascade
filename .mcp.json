@@ -2,13 +2,13 @@
   "mcpServers": {
     "wrc-demo": {
       "type": "stdio",
-      "command": "/home/spark/Projects/demo/.demo/bin/python",
+      "command": "/home/johnny/Projects/demo/.demo/bin/python",
       "args": [
         "-m",
         "wrc_demo.apps.mcp_server"
       ],
       "env": {
-        "PYTHONPATH": "/home/spark/Projects/demo/wrc_demo/src",
+        "PYTHONPATH": "/home/johnny/Projects/demo/wrc_demo/src",
         "WRC_CAMERAS": "isaac,isaac_side",
         "WRC_ARM": "isaac",
         "WRC_DETECT_CLASSES": "banana,soup can,cracker box,cube,bottle,box",

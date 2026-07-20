@@ -85,6 +85,14 @@ class SkillRuntime:
         self._last_reobserve_t: float | None = None
         self._graspgenx = None  # lazy GraspGenXPlanner (grasp.backend)
         self._grounder = None  # lazy VLMGrounder (cfg "grounder", 2nd filter)
+        # Fake-RL grasp memory (RPent/Harness-VLA pattern): learns which grasp
+        # geometry works per object profile from past attempts (wins AND
+        # failures), persisted so accuracy improves across sessions.
+        from ..memory.grasp_memory import GraspOutcomeMemory
+        from pathlib import Path as _Path
+        _gm_path = cfg.grasp.get("memory_path", "~/.wrc_demo/grasp_memory.json")
+        self.grasp_memory = GraspOutcomeMemory(
+            path=_Path(str(_gm_path)).expanduser())
         g = cfg.arm.gripper
         self._grip_open = float(g.get("open_pos", 0.0))
         self._grip_closed = float(g.get("closed_pos", 1.0))
@@ -287,10 +295,15 @@ class SkillRuntime:
             "near_xyz": near, "belief": belief, "prefer_label": prefer,
         }
 
-    def _plan_grasps(self, fix) -> list:
+    def _plan_grasps(self, fix, label: str | None = None) -> list:
         """Grasp candidates: learned 6-DoF (GraspGen-X server) when
         configured, ALWAYS backstopped by the analytic OBB planner --
-        a dead grasp server must degrade, never fail the grasp."""
+        a dead grasp server must degrade, never fail the grasp.
+
+        Fake-RL layer: past-attempt memory re-ranks the candidates so grasp
+        geometry that historically WORKED for this object profile goes first
+        (RPent strategy-prior pattern), and applies a learned grasp-z nudge.
+        """
         gcfg = self.cfg.grasp
         obb = plan_grasps_from_fix(
             fix,
@@ -299,22 +312,50 @@ class SkillRuntime:
             depth_fraction=float(gcfg.get("depth_fraction", 0.5)),
         )
         if str(gcfg.get("backend", "obb")) != "graspgenx":
-            return obb
-        try:
-            if self._graspgenx is None:
-                from ..grasping.graspgenx_backend import GraspGenXPlanner
+            grasps = obb
+        else:
+            try:
+                if self._graspgenx is None:
+                    from ..grasping.graspgenx_backend import GraspGenXPlanner
 
-                self._graspgenx = GraspGenXPlanner(gcfg)
-            learned = self._graspgenx.plan(fix, max_width_m=self._max_width)
-            self.memory.add(
-                "note",
-                f"graspgenx: {len(learned)} grasps in {self._graspgenx.last_latency_s}s "
-                f"(top {learned[0].quality:.2f})",
-            )
-            return learned + obb  # learned first; OBB stays as IK fallback
+                    self._graspgenx = GraspGenXPlanner(gcfg)
+                learned = self._graspgenx.plan(fix, max_width_m=self._max_width)
+                self.memory.add(
+                    "note",
+                    f"graspgenx: {len(learned)} grasps in {self._graspgenx.last_latency_s}s "
+                    f"(top {learned[0].quality:.2f})",
+                )
+                grasps = learned + obb  # learned first; OBB stays as IK fallback
+            except Exception as e:
+                self.memory.add("note", f"graspgenx unavailable ({str(e)[:90]}); OBB fallback")
+                grasps = obb
+
+        # ---- fake-RL memory prior: re-rank + z-nudge -----------------------
+        lbl = label or getattr(fix, "label", None) or "object"
+        try:
+            prior = self.grasp_memory.prior(lbl, fix)
+            if prior:
+                grasps = self.grasp_memory.rerank(grasps, lbl, fix)
+                dz = float(prior["nudges"].get("grasp_z_delta", 0.0))
+                if abs(dz) > 1e-4:
+                    for g in grasps:
+                        p = np.asarray(g.position, dtype=float).copy()
+                        p[2] = p[2] + dz
+                        g.position = p
+                self._last_grasp_z_nudge = dz
+                self.memory.add(
+                    "note",
+                    f"grasp-memory prior for {prior['profile']}: "
+                    f"{prior['wins']}W/{prior['losses']}L sr={prior['success_rate']:.0%}"
+                    + (f", z_nudge={dz:+.3f}" if abs(dz) > 1e-4 else "")
+                    + (f", avoid={prior['top_fail']}" if prior.get("top_fail") else ""),
+                )
+            else:
+                self._last_grasp_z_nudge = 0.0
         except Exception as e:
-            self.memory.add("note", f"graspgenx unavailable ({str(e)[:90]}); OBB fallback")
-            return obb
+            self._last_grasp_z_nudge = 0.0
+            self.memory.add("note", f"grasp-memory prior skipped ({str(e)[:60]})")
+        return grasps
 
     def _localize(self, query: str, spatial_hint: str | None = None):
         """Fresh frame + color/proximity-aware 3D fix for a user phrase.
@@ -645,7 +686,7 @@ class SkillRuntime:
         gcfg = self.cfg.grasp
         frame, fix = self._localize(label, spatial_hint=spatial_hint)
         profile = select_profile(fix.detection.label or label, material)
-        grasps = self._plan_grasps(fix)
+        grasps = self._plan_grasps(fix, label=label)
 
         # Learned grasp z can overshoot below the table by a few mm (the
         # tip-offset conversion is empirical): a millimeter under the
@@ -709,14 +750,27 @@ class SkillRuntime:
         # branch whose approach path dips a link under the table.
         _home = self.cfg.arm.get("home_q")
         _seed = np.asarray(_home, dtype=float) if _home is not None else state.q
-        grasp, q_pre, q_grasp = select_grasp(
-            grasps,
-            self.kin,
-            _seed,
-            max_width_m=self._max_width,
-            pregrasp_offset_m=float(gcfg.get("pregrasp_offset_m", 0.12)),
-            validate=_vet,
-        )
+        try:
+            grasp, q_pre, q_grasp = select_grasp(
+                grasps,
+                self.kin,
+                _seed,
+                max_width_m=self._max_width,
+                pregrasp_offset_m=float(gcfg.get("pregrasp_offset_m", 0.12)),
+                validate=_vet,
+            )
+        except (SkillError, SafetyViolation) as e:
+            # No candidate survived IK + harness vetting. Log it against the
+            # object profile so the fake-RL memory learns to bias future
+            # candidates (raise z, prefer top-down) for this object.
+            try:
+                self.grasp_memory.record(
+                    label, fix, grasps[0] if grasps else None,
+                    success=False, reason=str(e),
+                    z_nudge_applied=getattr(self, "_last_grasp_z_nudge", 0.0))
+            except Exception:
+                pass
+            raise
 
         # 1. open, go to pregrasp (normal speed). Re-home first so the
         # pregrasp IK seeds from a known elbow-up posture: seeding from an
@@ -770,6 +824,12 @@ class SkillRuntime:
             )
             if air_grasp:
                 self.memory.add("outcome", f"grasp {label!r} FAILED: jaws closed on air")
+                try:
+                    self.grasp_memory.record(
+                        label, fix, grasp, success=False, reason="air grasp",
+                        z_nudge_applied=getattr(self, "_last_grasp_z_nudge", 0.0))
+                except Exception:
+                    pass
                 return {
                     "ok": False,
                     "error": "air grasp: gripper closed fully, object not held",
@@ -779,6 +839,12 @@ class SkillRuntime:
         self._held_det_label = fix.detection.label
         self._held_color = detection_color(frame.rgb, fix.detection)
         self.beliefs.mark_removed(self._held_det_label or label, near=fix.position)
+        try:
+            self.grasp_memory.record(
+                label, fix, grasp, success=True,
+                z_nudge_applied=getattr(self, "_last_grasp_z_nudge", 0.0))
+        except Exception:
+            pass
         self.memory.add(
             "action",
             f"grasped {label!r} (profile {profile.name}, "

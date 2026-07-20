@@ -79,10 +79,9 @@ python -m wrc_demo.apps.demo --interactive --no-view --no-serve   # REPL, no GUI
 - Isaac: `isaac_bridge.py` must run under Isaac Sim's `python.sh`, `SimulationApp` before any omni import, engine stays `physx` (Newton NaNs at grasp contact); `WRC_PHYSICS_DEVICE=cpu` is the escape hatch for GPU-PhysX boot NaNs. The bridge binds 127.0.0.1 because its `exec` op is arbitrary code execution.
 - Base deps pin `opencv-python-headless` — `cv2.imshow` viewers only work because the rig venv has full opencv; in a fresh install they silently degrade.
 
-## Doc drift (verified 2026-07-20 — don't trust these claims in the docs)
+## Doc status (README/ARCHITECTURE/ROADMAP synced to code on 2026-07-20)
 
-- Both docs describe grasping as the analytic OBB planner; the actual default is `grasp.backend: graspgenx` with silent OBB fallback (neither doc mentions GraspGen-X).
-- README's "12 safety-gated skills" is wrong: `TOOL_SPECS` has 21 entries; MCP exposes 20 (minus `task_done`) plus 5 extras = 25 tools.
-- Test counts are stale everywhere (README 125, ARCHITECTURE 57; actually ~139 and growing).
-- `skills/library.py` (markdown skill library) and episodic-memory embeddings (`embed_dim`) are written and tested but **not wired** into the shipped demo; the only live TurboQuant user is tier-2 ExperienceMemory.
-- README's MCP env-knob list omits `WRC_CAMERA` (singular fallback), `WRC_RUN_DIR`, and the bridge-side vars (`WRC_USD`, `WRC_PHYSICS_DEVICE`, `WRC_BRIDGE_BIND`, `WRC_BRIDGE_NO_TARGETS`, `WRC_COMPANION_EXTS`).
+- Counts go stale fast — before citing them, re-derive: test count via `pytest tests/ -q --collect-only`, skill count via `TOOL_SPECS` in `skills/runtime.py` (21 specs = 20 skills + `task_done`; MCP = 20 + 5 extras = 25 tools).
+- Still true and easy to be misled by: `skills/library.py` (markdown skill library) and episodic-memory embeddings (`embed_dim`) are written and tested but **not wired** into the shipped demo; the only live TurboQuant user is tier-2 ExperienceMemory. Both docstrings/docs now say so — keep them updated if you wire them.
+- Known unresolved config/code mismatch (documented in README + ROADMAP, deliberately not "fixed" one-sidedly): `configs/llm/local_qwen.yaml` pins `model: Qwen3VL-30B-A3B-Instruct-Q4_K_M` while both `scripts/serve_qwen_*.sh` fetch Qwen3.6-27B. llama.cpp ignores the name and wires vision via mmproj; vLLM rejects the mismatched name and has no vision wiring. Reconcile the profile with whatever is actually served before relying on `--llm local_qwen`.
+- The shipped `.mcp.json` stays pinned to the demo rig (`/home/spark/...` venv, Isaac profiles) on purpose — regenerate locally with `setup_agents.py --host claude --python <interpreter> --write` instead of editing the docs or the file to match this machine.

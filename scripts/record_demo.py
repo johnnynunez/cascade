@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Record the wrc_demo agentic loop to an MP4.
 
-Streams the isaac cam0 + side cameras while a background agent task runs,
-writing annotated frames, then muxes them to /tmp/wrc_demo.mp4 with ffmpeg.
+Streams the isaac cam0 + side + wrist cameras while a background agent task
+runs,
+writing annotated frames to /tmp/wrc_frames, then muxes them to
+/tmp/wrc_graspgenx_demo.mp4 with ffmpeg.
 Run from the models/ dir (mobileclip CWD dependency) with PYTHONPATH=../src.
 """
 import subprocess

@@ -60,10 +60,10 @@
   `~/Projects/demo/.graspgenx`, checkpoints in `GraspGenX/ext/`) and gets
   ranked 6-DoF grasps back (~1.2 s for 100 samples on the GB10); OBB stays
   as automatic fallback and additional IK candidates. TODO: (1) calibrate
-  `tip_offset_m` in Isaac Sim (gripper-base -> reBot jaw center), (2) author
-  reBot sweep-volume params (12 numbers, see GraspGenX "Integrating a New
-  Gripper") instead of borrowing franka_panda, (3) use `infer_scene_pc` for
-  collision-aware grasps in clutter.
+  `tip_offset_m` in Isaac Sim (gripper-base -> reBot jaw center), (2) refine
+  the URDF-derived reBot sweep-volume params in `configs/demo.yaml` with an
+  Isaac Sim measurement (franka_panda remains only the no-sweep fallback),
+  (3) use `infer_scene_pc` for collision-aware grasps in clutter.
 
 - **Onsite bring-up checklist**
   1. `sudo ip link set can0 up type can bitrate 1000000`; kill any
@@ -79,7 +79,14 @@
      `--arm rebot_rs` at low `max_joint_vel`.
 - **Local LLM**: run `scripts/serve_qwen_llamacpp.sh` (Qwen3.6-27B GGUF, MTP
   speculative decoding) and rehearse with `--llm local_qwen` so the demo has
-  a no-internet fallback. vLLM variant in `serve_qwen_vllm.sh`.
+  a no-internet fallback. vLLM variant in `serve_qwen_vllm.sh`. **Reconcile
+  first:** `configs/llm/local_qwen.yaml` pins `model:
+  Qwen3VL-30B-A3B-Instruct-Q4_K_M` + `supports_vision: true` while both
+  serve scripts fetch Qwen3.6-27B — llama.cpp ignores the requested model
+  name (and its script wires vision via the mmproj projector, so
+  `supports_vision: true` holds there) but vLLM rejects the mismatched name
+  and has no vision wiring; `supports_vision` gates the advisor and image
+  context.
 - **Visual embedder for memory**: plug a CLIP/SigLIP image encoder into
   `EpisodicMemory(embed_dim=...)` + crops per detection, enabling
   "the thing that looked like X" recall through the TurboQuant index.
@@ -92,25 +99,29 @@
   OBB pipeline or by a language-conditioned policy; the agent layer stays
   unchanged. Spark caveats: flash-attn must build for aarch64+Blackwell or
   the two hardcoded attention impls patched to SDPA.
-- **GraspNet-class 6-DoF grasps**: the baseline's graspnet path needs the
-  vendored sdk + checkpoint-rs.tar and THC-era CUDA patches for torch 2.x.
-  Alternative: a modern 6-DoF grasp head served as a `plan_grasp` skill.
+- **GraspNet-class 6-DoF grasps** — ✅ superseded by the GraspGen-X backend
+  (integrated 2026-07-18, see near term). The baseline's graspnet path
+  (vendored sdk + checkpoint-rs.tar + THC-era CUDA patches) is no longer
+  worth pursuing; remaining learned-grasp work (tip-offset calibration,
+  reBot sweep params, collision-aware `infer_scene_pc`) is tracked in the
+  near-term GraspGen-X item.
 - **Skill-library growth loop** (ASPIRE): after each failed→repaired run,
   distill the fix into `skills_library/*.md` (schema already implemented);
   load `relevant(task)` entries into the agent context.
 
 ## Long term: sim2real with NuRec / Isaac
 
-- **Isaac Sim bridge (scaffolded 2026-07-18, live validation PENDING).**
-  `scripts/isaac_bridge.py` (runs inside Isaac Sim's Python) serves RGB-D
-  frames + articulation control over newline-JSON TCP; `--cameras isaac
-  --arm isaac` runs the identical demo against the sim. Protocol + client
-  backends are fully covered by fake-server tests; the sim side is written
-  against the Isaac Sim 5.x core API and must be validated on first launch:
-  (1) reBot USD path + articulation joint ORDER vs the RS URDF, (2) gripper
-  DOF index and units (config assumes RS export open=-6.8), (3) camera
-  intrinsics/orientation vs the cam0 extrinsics in configs/cameras/isaac.yaml,
-  (4) position-target gains (use the tuned values from the gain-tuner work).
+- **Isaac Sim bridge (scaffolded 2026-07-18; live on PhysX since
+  2026-07-19).** `scripts/isaac_bridge.py` (runs inside Isaac Sim's Python)
+  serves RGB-D frames + articulation control over newline-JSON TCP;
+  `--cameras isaac --arm isaac` runs the identical demo against the sim.
+  Protocol + client backends are covered by fake-server tests, and the live
+  path has run scripted picks (`dashboard_runner.py`, `night_runner.sh`)
+  with the `physics_probe.py` battery green on PhysX — joint order/signs,
+  gripper fraction mapping and camera extrinsics are wired in
+  `configs/{arms,cameras}/isaac*.yaml`. Still open: wrist-cam extrinsics
+  validation during a real grasp (near term), Newton engine (blocked
+  upstream, near term), and the straight-up-spawn asset issue.
   The Downloads/isaac-companion-v1-franka pack's `isaac-sim-remote` skill
   (TCP Python-exec extension) is a good live-debugging companion for this.
 - `reBot-Isaacsim` + `sim2real-rebot-devarm` already provide USD assets, a

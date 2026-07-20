@@ -3,8 +3,10 @@ markdown so future runs (and future agents) start smarter.
 
 Entry schema mirrors the paper: failure signature, when-to-apply guard,
 strategy, optional parameters (e.g. per-object grasp yaw/z-offset), origin
-task. Files live in <repo>/skills_library/<slug>.md and are loaded verbatim
-into the agent's context when their guard keywords match the task.
+task. Files live in <repo>/skills_library/<slug>.md; ``relevant(task)``
+returns the entries whose guard keywords match, ready to inject into the
+agent's context. NOTE: the orchestrator does not call this yet — the
+load-into-context loop is a ROADMAP item ("skill-library growth loop").
 """
 
 from __future__ import annotations

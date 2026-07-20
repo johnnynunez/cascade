@@ -1,9 +1,10 @@
-"""VLM grasp advisor with an escalation policy.
+"""VLM grasp advisor, consulted after failures.
 
-Only consulted after failures (Agentic-VLA's suggestion-frequency idea turned
-inference-time: probability of asking rises with consecutive failures, and a
-success resets it). The one-sentence suggestion is appended to the agent's
-context, mirroring the paper's prompt-augmentation trick.
+Agentic-VLA's suggestion-frequency idea turned inference-time as a plain
+threshold: consult once consecutive failures reach ``min_failures`` (default
+1, i.e. every failure while the LLM supports vision); a success resets the
+counter. The one-sentence suggestion is appended to the agent's context,
+mirroring the paper's prompt-augmentation trick.
 """
 
 from __future__ import annotations

@@ -1,0 +1,88 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+LLM-orchestrated tabletop manipulation on the Seeed reBot DevArm B601 (RobStride), driven from an NVIDIA DGX Spark. Read `README.md` (user-facing overview, quick start, safety notes for the live rig) and `docs/ARCHITECTURE.md` (module map, design decisions) first — this file covers what they don't, and flags where they are stale (see "Doc drift" at the bottom).
+
+## Environment & commands
+
+There is no bare `python` on this rig and `python3` has no pytest. Everything runs through the shared uv venv:
+
+```bash
+source /home/johnny/Projects/demo/.demo/bin/activate   # or use .demo/bin/python directly
+
+python -m pytest tests/ -q                             # full suite (~139 tests; 2 hardware tests auto-deselected)
+python -m pytest tests/test_safety.py::test_velocity_cap -q    # single test
+python -m pytest tests/ -m hardware -q                 # live-rig tests (L515 + can0, read-only)
+
+# offline wiring check: mock camera + mock arm + scripted LLM, no hardware
+PYTHONPATH=src python -m wrc_demo.apps.demo --task "pick and place pink object"
+PYTHONPATH=src python -m wrc_demo.apps.demo --interactive --no-view --no-serve   # REPL, no GUI/dashboard
+```
+
+- Tests need no `PYTHONPATH` (`tests/conftest.py` inserts `src/`); running apps does (`PYTHONPATH=src`) unless the package is installed.
+- `addopts = "-m 'not hardware'"` in pyproject applies even to explicitly named files: `pytest tests/test_hardware_smoke.py` runs **zero tests silently** — you must add `-m hardware`.
+- Pinocchio-dependent tests skip via `needs_pin` from conftest when `pin` or the RS URDF under `assets/` is missing.
+- CI is exactly `uv sync --extra dev --extra kinematics && uv run pytest tests/ -q` (Python 3.12). There is no lint step.
+- `scripts/setup_env.sh` defaults its interpreter to a stale `/home/spark/...` path — run it as `PY=/home/johnny/Projects/demo/.demo/bin/python scripts/setup_env.sh`. The venv has no `pip` module; use `uv pip`.
+
+## Architecture
+
+`docs/ARCHITECTURE.md` has the module map and data-flow diagram. The load-bearing facts beyond it:
+
+**Composition root.** `apps/demo.py:build_runtime()` is the single place everything is wired: kinematics → LazyArm → SafetyHarness/SafeArm → CameraRig of CameraStreams → LockedDetector → WorldWatcher → BeliefStore/EpisodicMemory → TraceLogger → SkillRuntime → optional StreamServer/RigViewer. The demo CLI, `apps/mcp_server.py`, and `scripts/dashboard_runner.py` all call it; tear down with `shutdown_runtime()`. Detector selection: a camera profile's `detector:` block overrides the global one in `configs/demo.yaml` (the mock camera pins `type: mock` so offline runs never import ultralytics). The first camera in any `--cameras`/`WRC_CAMERAS` list is the manipulation camera; the rest only stream/fuse. A camera fuses 3D beliefs only if its profile has an `extrinsics:` block (or `fuse_beliefs: true`).
+
+**Skill system (the main extension point).** No registry: `SkillRuntime.execute()` in `src/wrc_demo/skills/runtime.py` dispatches to `skill_<name>` methods by name, and `TOOL_SPECS` at the bottom of the same file is a hand-maintained list of JSON schemas. To add a skill: (1) write `skill_<name>()` returning a dict — raise `SkillError`/`SafetyViolation` for failures, never let other exceptions escape by design (`execute()` converts everything to `{"ok": false, ...}`); (2) add a `TOOL_SPECS` entry — `tests/test_llm_and_library.py` gates the spec↔method match; (3) **if it moves the arm, add it to `_MOTION_SKILLS` (runtime.py:31)** — this is the only thing that pauses WorldWatcher belief fusion during motion; forgetting it re-registers the held object at bogus mid-air positions; (4) tracing (trace.jsonl + keyframes + narration) and MCP exposure are automatic — `execute()` is the single choke point, and `mcp_server.py` serves `TOOL_SPECS` minus `_EXCLUDED_TOOLS` plus `_EXTRA_TOOLS`; (5) optionally add a regex to `_RULES` in `agent/reflex.py` so the command runs LLM-free (rules are order-sensitive, first match wins, and they drive the real arm with zero LLM involvement — test against `tests/test_streaming_fastpath.py`). One schema source feeds all three consumers (OpenAI-compat, Anthropic, MCP) — a new skill needs zero per-backend work.
+
+**Three-tier dispatch.** `AgentOrchestrator.run_task()` tries tier-1 reflex (regex grammar) then tier-2 experience (hashed-BoW cosine ≥ 0.9 AND wins > losses, persisted in `runs/experience.json`) before ever calling the LLM. The LLM loop ends only via a `task_done` tool call or `max_steps` (default 30); only the FIRST tool call per turn executes (extras get error results back — the OpenAI protocol requires a result per call id). Import the orchestrator as `from wrc_demo.agent.orchestrator import AgentOrchestrator` — `agent/__init__.py` deliberately doesn't re-export it (circular import with `skills.runtime`).
+
+**Motion safety path.** Skills only ever hold a `SafeArm`; raw arm objects never leak upward. `SafeArm.move_joints()` auto-stretches duration to keep min-jerk peak velocity under the cap, checks perception freshness once at `begin_motion()` (deliberately not per-waypoint), then `ArmBase.stream_to()` calls `harness.approve()` on every 50 Hz waypoint — `SafetyViolation` aborts mid-stream. `approve()` has "escape rules" (an arm already outside a limit may move strictly back toward validity); `vet_pose()` is the static pre-motion twin without them. Gripper commands bypass geometric gating (e-stop check only); `SafeArm.raw` is the sanctioned escape hatch for backend-specific ops.
+
+**Grasp pipeline.** `configs/demo.yaml` defaults `grasp.backend: graspgenx` — learned 6-DoF grasps from a ZMQ server (`scripts/serve_graspgenx.sh`, :5556) with **silent fallback to the analytic OBB planner when the server is down** ("booth rule"). Candidates are re-ranked/z-nudged by `GraspOutcomeMemory` (persisted at `~/.wrc_demo/grasp_memory.json`), then `select_grasp()` filters by jaw width, solves IK (pregrasp then grasp), and pre-vets harness geometry including 7 samples along the descent segment. Grasp IK is seeded from `home_q`, not the live pose, and re-homes before the pregrasp on purpose (elbow-down IK branches dip links below the table) — don't "optimize" either away.
+
+**Config system.** `load_demo_config()` loads `configs/demo.yaml` and inserts whole profile dicts under `camera`/`cameras`/`arm`/`llm` — no deep merge, no env interpolation; the only substitution is `${repo}`/`${assets}` in strings. Adding a profile = dropping a YAML file in `configs/{cameras,arms,llm}/`; the `type:` key selects the backend class in the `make_camera`/`make_arm`/LLM factories. `Cfg` is an attr/dict hybrid: attribute access for required keys (raises), `.get()` for optional; the sanctioned runtime-override idiom is writing into `cfg._data` (see `mcp_server.py`). Paths derive from `config.py`'s location, so the package only works from a source checkout.
+
+**Adding a camera/arm backend.** Subclass `CameraBase` (implement `open/close/has_depth/_grab`; `_grab` raises `CameraError` for retryable faults and must NOT set `frame_id` — the watcher dedupes on it) or `ArmBase` (six abstract methods), add a lazy-import branch in `make_camera()`/`make_arm()`, add a profile YAML. Arm profiles pointing at the shipped assets MUST carry `joint_signs: [-1]*6` (see contracts below). Heavy imports (pyrealsense2, ultralytics, pinocchio, zmq, the arm SDK) always stay lazy inside the branch/method that needs them so the mock stack imports nothing heavy.
+
+**MCP server.** `apps/mcp_server.py` is hand-rolled newline-JSON-RPC over stdio (no SDK — deliberate, as is stdlib-only `stream_server.py`; don't add framework deps here). It hardcodes `llm='mock'`: the MCP host is the brain and the built-in tiers are bypassed. Stdout discipline: protocol frames only — every runtime call is wrapped in `redirect_stdout(sys.stderr)`; new code on this path must never print to stdout.
+
+## Contracts & invariants
+
+- **Units/frames:** positions in meters in the ROBOT BASE frame; joints in radians (degrees only in `get_observation` output). Base frame: +x away from robot, +y left; "left" = larger y. OBB convention everywhere: extents sorted descending, axes as matrix columns — never use `extent[2]` as height, use `top_z`.
+- **`Frame.rgb` is BGR** (OpenCV) despite the name; `depth_m` is float32 metric meters aligned to color, 0 = invalid. `Frame.size` is (w, h) — opposite of numpy shape.
+- **All timestamps are `time.monotonic()`**, never wall clock — belief freshness math depends on it.
+- **Joint mirror:** both shipped RS assets (URDF and USD) are authored mirrored (`q_asset = -q_local`); `joint_signs` bakes the flip in at model load, so every constant in the repo (home_q, limits, tuned poses) is LOCAL. `tests/test_usd_model.py` pins URDF↔USD kinematic identity — it fires if you touch `assets/`.
+- **Error taxonomy** (`types.py`): `SkillError` = failure the agent should reason about; `SafetyViolation` = harness rejection; plain `RuntimeError` = crash/hardware fault. The orchestrator's recovery logic depends on this split.
+- **Invariant:** `Kinematics.ik` `limit_margin` (0.025 rad) must stay strictly greater than the harness `joint_margin` (0.02) so IK never returns a pose the harness rejects — a past review defect; never tune one side alone.
+- **Booleans from LLMs arrive as strings** ("false" is truthy) — coerce with the `_as_bool` pattern in any new skill taking a bool.
+- Gripper `open_pos`/`closed_pos` polarity differs per arm profile (RS: open=-6.8 rad; mock: 0→1; Isaac: fraction, open=1.0) — compute travel as `closed_pos - open_pos`, sign-aware.
+- Comments in control/safety/grasping encode rig-verified failure observations that tests rely on — preserve and extend them.
+
+## Testing conventions
+
+- Shared surface in `tests/conftest.py`: `REPO`, `URDF`, `USD`, `JOINT_SIGNS`, `has_pinocchio()`, `needs_pin`, and the `demo_cfg` / `rng` fixtures. Import via `from conftest import ...`.
+- E2E tests build the real pipeline with `build_runtime(cfg, tmp_path / "run")` on the mock stack; control grasp outcomes with `arm.object_stop_frac` (0.5 = object held, None = air-grasp). Always poll `runtime.beliefs.find("red object")` in a deadline loop before executing skills (the watcher thread needs a detector pass), and tear down with try/finally `shutdown_runtime(runtime, arm)` — these are real threads.
+- Config overrides in tests mutate `cfg._data[...]` directly; there is no override API. Servers bind port 0; `MockLLM(responses)` plays a script and records `.requests` for assertions.
+- `tests/test_review_regressions*.py` is a convention: each adversarial review pass gets its own file, one test per confirmed defect with the root cause in the docstring. New review findings follow this pattern (v3 file), not silent folding into feature tests.
+- `scripts/` modules are tested via `sys.path.insert(0, str(REPO / "scripts"))`, not packaging.
+
+## Gotchas
+
+- **Stale `/home/spark/...` absolute paths** (this checkout lives under `/home/johnny`): `.mcp.json` (its interpreter/PYTHONPATH don't exist here — regenerate with `python scripts/setup_agents.py --host claude --python <interpreter> --write`), `configs/arms/rebot_rs.yaml` `sdk_path`, `setup_env.sh`, `hermes_demo.sh`, `dashboard_runner.py`. New runner scripts should take the interpreter from an env var/flag like `setup_agents.py` does.
+- **Persistent learned state outside the run dir** changes behavior between otherwise-identical sessions: `~/.wrc_demo/grasp_memory.json` and `runs/experience.json` (tier-2 habits replay stored call lists verbatim at cosine ≥ 0.9). Delete both for deterministic/fresh demo behavior.
+- YOLOE's text encoder (`mobileclip*.ts`) resolves relative to the CWD — wrong launch directory makes all detections silently vanish. Run from the repo root (weights in `models/`) and set `YOLO_OFFLINE=True` or ultralytics phones GitHub and stalls the watcher.
+- Never use `==`/`list.remove()` on `ObjectBelief`/`MemoryEvent` — numpy fields make dataclass `__eq__` raise; remove by identity as `BeliefStore.mark_removed` does.
+- Any public attribute access on a LazyArm-backed `SafeArm.raw` (including `hasattr`) materializes the arm and **powers the motors** — never probe arm capabilities outside a motion context.
+- Beliefs are keyed by DETECTOR labels, not user-query words — `WRC_DETECT_CLASSES` must name what users will ask for ("banana" can't resolve a belief labeled "fruit").
+- `DepthProvider.ensure_depth` mutates the shared `Frame` in place; plane-cast depth is only valid for pixels on the table (tall-object heights are wrong on RGB-only cameras).
+- Ctrl+C in the demo CLI is a soft stop (freeze + e-stop latch, no free-fall); the second Ctrl+C exits. Park the arm (`move_home`) before disconnecting the RS arm — `disconnect()` disables torque and a loaded arm falls.
+- Isaac: `isaac_bridge.py` must run under Isaac Sim's `python.sh`, `SimulationApp` before any omni import, engine stays `physx` (Newton NaNs at grasp contact); `WRC_PHYSICS_DEVICE=cpu` is the escape hatch for GPU-PhysX boot NaNs. The bridge binds 127.0.0.1 because its `exec` op is arbitrary code execution.
+- Base deps pin `opencv-python-headless` — `cv2.imshow` viewers only work because the rig venv has full opencv; in a fresh install they silently degrade.
+
+## Doc drift (verified 2026-07-20 — don't trust these claims in the docs)
+
+- Both docs describe grasping as the analytic OBB planner; the actual default is `grasp.backend: graspgenx` with silent OBB fallback (neither doc mentions GraspGen-X).
+- README's "12 safety-gated skills" is wrong: `TOOL_SPECS` has 21 entries; MCP exposes 20 (minus `task_done`) plus 5 extras = 25 tools.
+- Test counts are stale everywhere (README 125, ARCHITECTURE 57; actually ~139 and growing).
+- `skills/library.py` (markdown skill library) and episodic-memory embeddings (`embed_dim`) are written and tested but **not wired** into the shipped demo; the only live TurboQuant user is tier-2 ExperienceMemory.
+- README's MCP env-knob list omits `WRC_CAMERA` (singular fallback), `WRC_RUN_DIR`, and the bridge-side vars (`WRC_USD`, `WRC_PHYSICS_DEVICE`, `WRC_BRIDGE_BIND`, `WRC_BRIDGE_NO_TARGETS`, `WRC_COMPANION_EXTS`).

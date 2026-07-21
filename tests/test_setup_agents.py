@@ -76,6 +76,16 @@ def test_claude_add_command_shape():
 
 def test_openclaw_outputs():
     cmd = openclaw_command(PY, ENV)
-    assert cmd.startswith("openclaw mcp set wrc-demo ")
+    # verified against OpenClaw 2026.7.1-2: the subcommand is `mcp add`
+    # (probe-before-save), args are repeatable --arg flags, and --cwd keeps
+    # YOLOE's CWD-relative text-encoder resolution working.
+    assert cmd.startswith("openclaw mcp add wrc-demo ")
+    assert "--arg -m --arg wrc_demo.apps.mcp_server" in cmd
+    assert "--cwd" in cmd
+    # OpenClaw blocks PYTHONPATH for stdio servers (startup safety) — emitting
+    # it would only produce a scary warning; the venv needs the editable
+    # install instead.
+    assert "PYTHONPATH" not in cmd
+    assert "--env WRC_CAMERAS=l515" in cmd
     data = json.loads(openclaw_json_block(PY, ENV))
     assert data["mcpServers"]["wrc-demo"]["command"] == PY

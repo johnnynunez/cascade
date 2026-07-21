@@ -134,8 +134,17 @@ def claude_add_command(python: str, env: dict[str, str]) -> str:
 def openclaw_command(python: str, env: dict[str, str]) -> str:
     import shlex
 
-    envs = " ".join(f"--env {shlex.quote(f'{k}={v}')}" for k, v in env.items())
-    return f"openclaw mcp set {SERVER} --command {python} --args -m wrc_demo.apps.mcp_server {envs}"
+    # OpenClaw blocks PYTHONPATH for stdio servers ("startup safety") — the
+    # package must be editable-installed in the venv instead. `--cwd` keeps
+    # YOLOE's CWD-relative text-encoder resolution working.
+    envs = " ".join(
+        f"--env {shlex.quote(f'{k}={v}')}" for k, v in env.items() if k != "PYTHONPATH"
+    )
+    return (
+        f"openclaw mcp add {SERVER} --command {python} "
+        f"--arg -m --arg wrc_demo.apps.mcp_server --cwd {REPO} "
+        f"--connect-timeout 120 {envs}"
+    )
 
 
 def openclaw_json_block(python: str, env: dict[str, str]) -> str:

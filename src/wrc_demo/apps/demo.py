@@ -47,6 +47,24 @@ def _camera_cfgs(cfg) -> list[Cfg]:
     return [cfg.camera]
 
 
+def _truth_pose_fn(safe_arm):
+    """Ground-truth prop poses when running against Isaac Sim, else None.
+
+    Pigey's postcondition checker prefers a channel the actuator does not
+    own. In sim that is the physics state; on real hardware there is none, so
+    this returns None and the checker falls back to perception -- identical
+    code path in both worlds.
+    """
+    try:
+        from ..sim.truth import make_truth_pose_fn
+
+        # skills only ever hold a SafeArm; the backend is behind .raw
+        raw = getattr(safe_arm, "raw", safe_arm)
+        return make_truth_pose_fn(raw)
+    except Exception:
+        return None
+
+
 def build_runtime(
     cfg,
     run_dir: Path,
@@ -122,6 +140,13 @@ def build_runtime(
         kin, safe_arm, memory, beliefs, trace, cfg,
     )
     runtime.rig = rig
+
+    # Pigey (arXiv:2607.21725) closed loop: verify each primitive's physical
+    # effect against a channel the actuator does not own. In sim the bridge
+    # can report ground-truth prim poses, which beats perception; on the real
+    # rig the checker falls back to the belief store automatically.
+    if bool(cfg.get("verify_effects", True)):
+        runtime.attach_verifier(object_pose=_truth_pose_fn(safe_arm))
 
     pcfg = cfg.get("perception_loop", _empty_cfg())
     if bool(pcfg.get("enabled", True)):
@@ -274,9 +299,16 @@ def main(argv: list[str] | None = None) -> int:
     is_mock = isinstance(llm, MockLLM)
     advisor = Advisor(llm) if (llm.supports_vision and not is_mock) else None
     experience = ExperienceMemory(PACKAGE_ROOT / "runs" / "experience.json")
+    # ASPIRE: validated repairs distilled from earlier runs, retrieved into
+    # context at task start. This is the loop the ROADMAP listed as open --
+    # `scripts/learn_from_runs.py` writes the entries, the agent reads them.
+    from ..skills.library import SkillLibrary
+
+    library = SkillLibrary(PACKAGE_ROOT / "skills_library")
     agent = AgentOrchestrator(
         llm, runtime, advisor=advisor, max_steps=args.max_steps,
         decompose=not is_mock, fast_planner=FastPlanner(experience),
+        skill_library=library, verify_milestones=not is_mock,
     )
 
     def _run(task: str):

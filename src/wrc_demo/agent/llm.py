@@ -303,4 +303,10 @@ def make_llm(cfg: Cfg) -> LLMClient:
             supports_vision=bool(cfg.get("supports_vision", True)),
             temperature=float(cfg.get("temperature", 0.2)),
         )
-    raise ValueError(f"unknown llm type {kind!r} (mock|anthropic|openai_compat)")
+    if kind == "cosmos3":
+        # NVIDIA Cosmos3-Edge speaks OpenAI-compatible HTTP but emits XML
+        # tool calls, so it needs its own response parser (see agent/cosmos3).
+        from .cosmos3 import make_cosmos3_client
+
+        return make_cosmos3_client(cfg)
+    raise ValueError(f"unknown llm type {kind!r} (mock|anthropic|openai_compat|cosmos3)")

@@ -138,6 +138,30 @@ _EXTRA_TOOLS = [
         "description": "Clear a previous emergency_stop so motion tools work again.",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "robot_knowledge",
+        "description": (
+            "What this robot has LEARNED from past runs: the proven operating "
+            "range of each primitive (where grasps/places actually succeed on "
+            "this arm), how each one usually fails, and the grasp strategy "
+            "priors per object profile. Read this before planning a tricky "
+            "manipulation -- it is the difference between guessing the arm's "
+            "envelope and knowing it. Costs no image tokens."
+        ),
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "verify_last_action",
+        "description": (
+            "Report whether the robot's recent actions had their claimed "
+            "physical effect, checked against an INDEPENDENT observation "
+            "(sim physics truth or the perception belief store) rather than "
+            "the actuator's own self-report. Use it when a skill returned ok "
+            "but you want proof before building on it, or to explain to the "
+            "human what actually happened."
+        ),
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
@@ -445,6 +469,10 @@ class McpSkillServer:
                 return self.stop_now()
             if name == "reset_stop":
                 return self.reset_now()
+            if name == "robot_knowledge":
+                return _text_result(self._robot_knowledge(runtime))
+            if name == "verify_last_action":
+                return _text_result(self._verify_last(runtime))
             with self._exec_lock:  # never overlap with a reflex-chat motion
                 if name == "pick_and_place":  # narrate on the dashboard
                     obj = (arguments or {}).get("object", "?")
@@ -460,6 +488,43 @@ class McpSkillServer:
                 # tier that LAST SERVED a command, never one still running
                 runtime.last_path = "mcp-host"
         return _text_result(result, is_error=not result.get("ok", False))
+
+    def _robot_knowledge(self, runtime) -> dict:
+        """Everything the robot has learned from past runs, as text.
+
+        Deliberately cheap and image-free: this is the tool a Hermes/Claude
+        host should read BEFORE planning, so it starts from the arm's proven
+        envelope instead of rediscovering it one SafetyViolation at a time.
+        """
+        out: dict = {"ok": True}
+        try:
+            out["primitive_envelopes"] = runtime.envelope.envelope_digest() or "(nothing learned yet)"
+            out["failure_models"] = runtime.envelope.failure_digest() or "(no failures recorded)"
+            out["stats"] = runtime.envelope.stats()
+        except Exception as e:
+            out["primitive_envelopes"] = f"unavailable: {e}"
+        try:
+            out["grasp_priors"] = runtime.grasp_memory.agent_digest() or "(no grasp history)"
+        except Exception:
+            pass
+        return out
+
+    def _verify_last(self, runtime) -> dict:
+        """Independent verification of recent effects (Pigey postconditions)."""
+        checker = getattr(runtime, "effects", None)
+        if checker is None:
+            return {
+                "ok": True,
+                "verification": "disabled",
+                "note": "effect verification is off (config verify_effects: false)",
+            }
+        history = checker.history[-5:]
+        return {
+            "ok": True,
+            "digest": checker.digest() or "(no verifiable actions yet)",
+            "recent": [pc.as_dict() for pc in history],
+            "contradictions": [pc.as_dict() for pc in checker.contradictions()[-3:]],
+        }
 
     def _world_state(self, runtime) -> dict:
         from ..apps.demo import _runtime_state

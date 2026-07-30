@@ -64,20 +64,6 @@ sub = omni.kit.app.get_app().get_update_event_stream().create_subscription_to_po
 # stop with: sub.unsubscribe()
 ```
 
-## C. Record the gripper cycle headless (real RTX frames -> MP4)
-
-`scripts/record_gripper.py` in this package. Run:
-
-```bash
-export ISAACSIM_PATH=/path/to/isaac-sim/_build/linux-x86_64/release
-$ISAACSIM_PATH/python.sh scripts/record_gripper.py
-ffmpeg -y -framerate 30 -i /tmp/armtrack/gripper_frames/f_%05d.png \
-       -c:v libx264 -pix_fmt yuv420p -crf 20 gripper_newton.mp4
-```
-
-(Edit the USD constant at the top to point at this package's .usda; engine is Newton
-via the newton kit experience.)
-
 ## Gotchas (hard-won)
 
 - Create `Articulation` AFTER `timeline.play()` or you get a 0-DOF view and
@@ -101,13 +87,14 @@ via the newton kit experience.)
   "Disable Self-Collisions" checkbox under Newton — it writes the PhysX attr
   (`physxArticulation:enabledSelfCollisions`) which Newton ignores. This collision
   decomposition interpenetrates at rest (6915 self-contacts at home), so enabling
-  self-collision without filtering blocks joint2/joint4 at their limits. For real
-  self-collision use the `00-arm-rs_asm-v3-plus` variant (19 `physics:filteredPairs`,
-  home contacts 6915 -> 34; needs the body-level expansion patch in newton_stage.py).
+  self-collision without filtering blocks joint2/joint4 at their limits. A
+  filtered-pair variant (`00-arm-rs_asm-v3-plus`, 19 `physics:filteredPairs`,
+  home contacts 6915 -> 34, needs a body-level expansion patch in
+  newton_stage.py) was validated but is NOT shipped in this repo.
 - Gain Tuner Snap-to-Limits validated 8/8 joints pass on this asset
   (self-collision off, manufacturer limits, unchanged gains; errors ~1e-5 rad).
 
-## D. Verify solver buffers and self-contacts (Script Editor, Play active)
+## C. Verify solver buffers and self-contacts (Script Editor, Play active)
 
 ```python
 import isaacsim.physics.newton as newton_ext

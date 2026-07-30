@@ -8,13 +8,20 @@ information about distribution changes). Gravity compensation g(q) is
 unaffected (depends on m and CoM only); this fixes M(q)/dynamics and the
 Gain Tuner's accumulated-inertia computation.
 
-Run: python3 fix_inertia.py   (rewrites urdf in place, prints the scaling)
+Historical one-shot: the correction is already applied to the committed
+URDF (f12e13c); re-running on it would scale the tensors a second time.
+The URDF path must therefore be passed explicitly.
+
+Run: python3 fix_inertia.py PATH/TO/urdf   (rewrites it in place, prints the scaling)
 """
 
 import re
+import sys
 from pathlib import Path
 
-URDF = Path("/home/spark/Projects/demo/reBot-Isaacsim/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf")
+if len(sys.argv) != 2:
+    raise SystemExit(__doc__)
+URDF = Path(sys.argv[1])
 
 # m_old (c2eba19) -> m_new (b094da6)
 SCALE = {

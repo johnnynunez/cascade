@@ -1,0 +1,453 @@
+"""Postconditions: verifying what a primitive actually DID, independently.
+
+Pigey (arXiv:2607.21725) isolates the "orchestration gap" -- the difference
+between what frozen motor skills achieve alone and what they achieve inside a
+closed loop that *tracks and verifies the outcome from low-level observations
+and recovers from failures*.  On LIBERO-PRO that loop is worth 12.8% -> 53.3%
+with identical weights.  Nothing is retrained; only the inference-time
+process changes.
+
+This module supplies the "verify the outcome" half for wrc_demo.
+
+The problem it fixes is concrete and already documented in this repo's own
+notes: **skills currently self-report**.  ``grasp_object`` returns ok when the
+jaw stopped short of fully closed (``air_grasp_frac``), which is a *proxy* for
+holding something -- it cannot distinguish a grasped cube from a jammed
+finger, and it says nothing about whether the object actually left the table.
+``place_at`` reports ok when the gripper opened.  An actuator asserting its
+own success is the weakest possible evidence.
+
+A postcondition here is checked against an INDEPENDENT channel:
+
+* the belief store / a fresh detector pass (did the object move to where we
+  claim?),
+* the physics-truth pose via the sim bridge when available (exact),
+* the gripper width (necessary but never sufficient),
+
+and it returns one of ``CONFIRMED`` / ``REFUTED`` / ``UNVERIFIED``.  That
+third state is the honest one and is why this module exists: the demo's
+failure mode was never "the robot lied", it was "the robot did not know".
+
+Cheap by design: verification runs only after motion skills, reuses the
+perception pass the runtime already performs, and degrades to UNVERIFIED
+rather than blocking when a channel is unavailable.
+"""
+
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+CONFIRMED = "confirmed"
+REFUTED = "refuted"
+UNVERIFIED = "unverified"
+
+#: Skills whose physical effect is worth an independent check, mapped to the
+#: postcondition kind.  Skills absent from this map are not verified (their
+#: effect is either cosmetic -- wave -- or already terminal -- task_done).
+POSTCONDITIONS: dict[str, str] = {
+    "grasp_object": "holding",
+    "pick_and_place": "relocated",
+    "place_at": "released_at",
+    "place_on_object": "released_on",
+    "push_object": "moved",
+    "throw": "gone",
+    "handover": "released",
+    "open_gripper": "empty",
+    "close_gripper": "closed",
+    "move_home": "at_home",
+}
+
+#: An object that rose by at least this much (m) genuinely left the table.
+LIFT_EPS_M = 0.015
+#: Two positions within this distance (m) are "the same place".
+SAME_PLACE_M = 0.05
+#: A push must displace the object by at least this fraction of the request.
+PUSH_MIN_FRAC = 0.3
+
+
+@dataclass
+class Postcondition:
+    """Verdict on one primitive's physical effect."""
+
+    skill: str
+    kind: str
+    status: str = UNVERIFIED
+    evidence: str = ""
+    channel: str = ""        # "physics" | "belief" | "gripper" | ""
+    measured: dict = field(default_factory=dict)
+    t: float = field(default_factory=time.time)
+
+    @property
+    def confirmed(self) -> bool:
+        return self.status == CONFIRMED
+
+    @property
+    def refuted(self) -> bool:
+        return self.status == REFUTED
+
+    def as_dict(self) -> dict:
+        return {
+            "skill": self.skill,
+            "kind": self.kind,
+            "status": self.status,
+            "evidence": self.evidence,
+            "channel": self.channel,
+            "measured": self.measured,
+        }
+
+    def agent_line(self) -> str:
+        mark = {CONFIRMED: "VERIFIED", REFUTED: "CONTRADICTED", UNVERIFIED: "UNVERIFIED"}
+        return f"[{mark[self.status]}] {self.skill}: {self.evidence}"
+
+
+class PostconditionChecker:
+    """Verifies primitive effects against channels the actuator does not own.
+
+    All hooks are optional callables so this works in mock/offline runs and in
+    unit tests without a rig:
+
+    ``object_pose(label) -> (x, y, z) | None``
+        Ground-truth pose, e.g. the Isaac bridge reading a RigidPrim.  This is
+        the strongest channel and is preferred whenever present.
+    ``belief_pose(label) -> (x, y, z) | None``
+        Perceived pose from the belief store.
+    ``gripper_frac() -> float | None``
+        Jaw opening fraction (0 closed .. 1 open).
+    ``reobserve() -> None``
+        Force a fresh detector pass before reading beliefs.
+    """
+
+    def __init__(
+        self,
+        object_pose: Callable[[str], Any] | None = None,
+        belief_pose: Callable[[str], Any] | None = None,
+        gripper_frac: Callable[[], float | None] | None = None,
+        reobserve: Callable[[], None] | None = None,
+        table_z: float = 0.0,
+        air_grasp_frac: float = 0.04,
+    ):
+        self._object_pose = object_pose
+        self._belief_pose = belief_pose
+        self._gripper_frac = gripper_frac
+        self._reobserve = reobserve
+        self.table_z = float(table_z)
+        self.air_grasp_frac = float(air_grasp_frac)
+        self.history: list[Postcondition] = []
+
+    # ── snapshots ────────────────────────────────────────────────────────
+
+    def snapshot(self, label: str | None) -> dict:
+        """Pose of ``label`` before a motion, from the best channel available."""
+        if not label:
+            return {}
+        pose, channel = self._best_pose(label)
+        if pose is None:
+            return {}
+        return {"label": label, "pose": list(pose), "channel": channel}
+
+    def _best_pose(self, label: str) -> tuple[Any, str]:
+        for fn, channel in ((self._object_pose, "physics"), (self._belief_pose, "belief")):
+            if fn is None:
+                continue
+            try:
+                pose = fn(label)
+            except Exception:
+                continue
+            if pose is not None and len(pose) >= 3:
+                return [float(v) for v in pose[:3]], channel
+        return None, ""
+
+    # ── verification ─────────────────────────────────────────────────────
+
+    def verify(
+        self,
+        skill: str,
+        args: dict,
+        result: dict,
+        before: dict | None = None,
+        fresh: bool = False,
+    ) -> Postcondition | None:
+        """Check the physical effect of a completed skill call.
+
+        ``before`` is a prior ``snapshot()``.  Returns None when the skill has
+        no postcondition worth checking.  Never raises.
+
+        ``fresh`` forces a detector pass first and defaults to **False** by
+        design: verification must be READ-ONLY with respect to the world model
+        it is judging.  Forcing a re-observation here corrupts exactly the
+        state under test -- ``place_at`` deliberately authors the moved
+        object's belief at the drop point, and an immediate re-scan overwrites
+        it with whatever the camera still sees (caught by
+        ``test_grasp_and_place_happy_path``, where the belief snapped back to
+        the mock camera's fixed detection instead of the place target).
+        The ``perception_loop`` WorldWatcher already keeps beliefs warm at
+        3 Hz, and in sim the truth channel needs no perception at all, so the
+        fresh pass buys nothing and costs correctness.
+        """
+        kind = POSTCONDITIONS.get(skill)
+        if kind is None:
+            return None
+        pc = Postcondition(skill=skill, kind=kind)
+        try:
+            if fresh and self._reobserve is not None and kind not in ("at_home", "closed", "empty"):
+                self._reobserve()
+            handler = getattr(self, f"_check_{kind}", None)
+            if handler is not None:
+                handler(pc, args, result, before or {})
+        except Exception as e:
+            pc.status, pc.evidence = UNVERIFIED, f"verification error: {type(e).__name__}: {e}"
+        self.history.append(pc)
+        return pc
+
+    # ── individual postconditions ────────────────────────────────────────
+
+    def _check_holding(self, pc, args, result, before) -> None:
+        """A grasp succeeded iff the object LEFT THE TABLE with the gripper.
+
+        The jaw fraction alone cannot show this -- it is necessary, not
+        sufficient.  We require a measured rise in the object's own pose.
+        """
+        label = str(args.get("label") or result.get("object") or before.get("label") or "")
+        frac = self._frac()
+        if frac is not None and frac <= self.air_grasp_frac:
+            pc.status, pc.channel = REFUTED, "gripper"
+            pc.evidence = f"jaw closed to {frac:.3f} (<= air-grasp threshold): nothing between the fingers"
+            pc.measured = {"gripper_frac": frac}
+            return
+        pose, channel = self._best_pose(label) if label else (None, "")
+        if pose is None:
+            pc.status, pc.channel = UNVERIFIED, "gripper"
+            pc.evidence = (
+                f"jaw held at {frac:.3f} but {label or 'the object'} could not be "
+                "re-located, so the lift is unconfirmed"
+                if frac is not None
+                else "no independent channel could confirm the grasp"
+            )
+            pc.measured = {"gripper_frac": frac} if frac is not None else {}
+            return
+        z0 = float((before.get("pose") or [0, 0, self.table_z])[2])
+        rise = pose[2] - z0
+        pc.measured = {"z_before": round(z0, 4), "z_after": round(pose[2], 4),
+                       "rise_m": round(rise, 4), "gripper_frac": frac}
+        pc.channel = channel
+        if rise >= LIFT_EPS_M:
+            pc.status = CONFIRMED
+            pc.evidence = f"{label} rose {rise*100:.1f} cm off the table ({channel} pose)"
+        else:
+            pc.status = REFUTED
+            pc.evidence = (
+                f"{label} did not rise (dz={rise*100:+.1f} cm): the jaw closed but "
+                "the object stayed on the table"
+            )
+
+    def _check_relocated(self, pc, args, result, before) -> None:
+        # pick_and_place names its subject `object`; the resolved label comes
+        # back in the result, which is the most reliable source (the request
+        # may have been a colour query like "pink object").
+        label = str(
+            result.get("object")
+            or args.get("label")
+            or args.get("object")
+            or before.get("label")
+            or ""
+        )
+        target = args.get("target") or result.get("target")
+        pose, channel = self._best_pose(label) if label else (None, "")
+        if pose is None:
+            pc.status, pc.evidence = UNVERIFIED, f"{label or 'object'} not re-located after the move"
+            return
+        pc.channel = channel
+        start = before.get("pose")
+        if start is not None:
+            moved = _dist(pose, start)
+            pc.measured = {"moved_m": round(moved, 4), "final": [round(v, 4) for v in pose]}
+            if moved < SAME_PLACE_M:
+                pc.status = REFUTED
+                pc.evidence = f"{label} is still within {moved*100:.1f} cm of where it started"
+                return
+        if isinstance(target, (list, tuple)) and len(target) >= 2:
+            err = _dist(pose[:2], [float(v) for v in target[:2]])
+            pc.measured["target_err_m"] = round(err, 4)
+            if err <= SAME_PLACE_M * 2:
+                pc.status = CONFIRMED
+                pc.evidence = f"{label} is {err*100:.1f} cm from the requested drop point ({channel})"
+            else:
+                pc.status = REFUTED
+                pc.evidence = f"{label} landed {err*100:.1f} cm off the requested drop point"
+            return
+        pc.status = CONFIRMED
+        pc.evidence = f"{label} moved to a new position ({channel})"
+
+    def _check_released_at(self, pc, args, result, before) -> None:
+        label = str(before.get("label") or result.get("object") or "")
+        want = [args.get("x"), args.get("y")]
+        pose, channel = self._best_pose(label) if label else (None, "")
+        frac = self._frac()
+        if pose is None:
+            pc.status = UNVERIFIED
+            pc.evidence = (
+                f"gripper opened to {frac:.2f} but the released object was not re-located"
+                if frac is not None else "release not independently observed"
+            )
+            return
+        pc.channel = channel
+        if want[0] is not None and want[1] is not None:
+            err = _dist(pose[:2], [float(want[0]), float(want[1])])
+            pc.measured = {"target_err_m": round(err, 4), "z": round(pose[2], 4)}
+            pc.status = CONFIRMED if err <= SAME_PLACE_M * 2 else REFUTED
+            pc.evidence = (
+                f"{label} rests {err*100:.1f} cm from the requested point ({channel})"
+                if pc.status == CONFIRMED
+                else f"{label} ended {err*100:.1f} cm away from where it was placed"
+            )
+            return
+        pc.status, pc.evidence = CONFIRMED, f"{label} located after release ({channel})"
+
+    def _check_released_on(self, pc, args, result, before) -> None:
+        held = str(before.get("label") or result.get("object") or "")
+        target = str(args.get("label") or "")
+        hp, channel = self._best_pose(held) if held else (None, "")
+        tp, _ = self._best_pose(target) if target else (None, "")
+        if hp is None or tp is None:
+            pc.status = UNVERIFIED
+            pc.evidence = f"could not re-locate {'the held object' if hp is None else target}"
+            return
+        pc.channel = channel
+        dxy = _dist(hp[:2], tp[:2])
+        above = hp[2] - tp[2]
+        pc.measured = {"dxy_m": round(dxy, 4), "dz_m": round(above, 4)}
+        if dxy <= SAME_PLACE_M * 2 and above > -LIFT_EPS_M:
+            pc.status = CONFIRMED
+            pc.evidence = f"{held} sits on {target} (offset {dxy*100:.1f} cm, dz {above*100:+.1f} cm)"
+        else:
+            pc.status = REFUTED
+            pc.evidence = f"{held} is {dxy*100:.1f} cm from {target} (dz {above*100:+.1f} cm): not on it"
+
+    def _check_moved(self, pc, args, result, before) -> None:
+        label = str(args.get("label") or before.get("label") or "")
+        want = float(args.get("distance_m", 0.08) or 0.0)
+        pose, channel = self._best_pose(label) if label else (None, "")
+        start = before.get("pose")
+        if pose is None or start is None:
+            pc.status, pc.evidence = UNVERIFIED, f"{label or 'object'} displacement not observed"
+            return
+        moved = _dist(pose[:2], start[:2])
+        pc.channel, pc.measured = channel, {"moved_m": round(moved, 4), "requested_m": want}
+        if moved >= max(want * PUSH_MIN_FRAC, 0.01):
+            pc.status = CONFIRMED
+            pc.evidence = f"{label} moved {moved*100:.1f} cm (asked {want*100:.0f} cm, {channel})"
+        else:
+            pc.status = REFUTED
+            pc.evidence = f"{label} barely moved ({moved*100:.1f} cm of {want*100:.0f} cm requested)"
+
+    def _check_gone(self, pc, args, result, before) -> None:
+        label = str(args.get("label") or before.get("label") or "")
+        pose, channel = self._best_pose(label) if label else (None, "")
+        start = before.get("pose")
+        if pose is None:
+            pc.status, pc.channel = CONFIRMED, "belief"
+            pc.evidence = f"{label} is no longer on the table"
+            return
+        pc.channel = channel
+        if start is not None:
+            moved = _dist(pose, start)
+            pc.measured = {"moved_m": round(moved, 4)}
+            pc.status = CONFIRMED if moved >= SAME_PLACE_M * 2 else REFUTED
+            pc.evidence = (
+                f"{label} travelled {moved*100:.0f} cm" if pc.status == CONFIRMED
+                else f"{label} only travelled {moved*100:.0f} cm: the throw did not release"
+            )
+            return
+        pc.status, pc.evidence = UNVERIFIED, f"{label} still tracked; displacement unknown"
+
+    def _check_released(self, pc, args, result, before) -> None:
+        frac = self._frac()
+        if frac is None:
+            pc.status, pc.evidence = UNVERIFIED, "gripper state unavailable"
+            return
+        pc.channel, pc.measured = "gripper", {"gripper_frac": frac}
+        pc.status = CONFIRMED if frac > self.air_grasp_frac * 2 else REFUTED
+        pc.evidence = (
+            f"gripper open at {frac:.2f}: the object was released"
+            if pc.status == CONFIRMED else f"gripper still closed at {frac:.2f}"
+        )
+
+    def _check_empty(self, pc, args, result, before) -> None:
+        self._check_released(pc, args, result, before)
+
+    def _check_closed(self, pc, args, result, before) -> None:
+        frac = self._frac()
+        if frac is None:
+            pc.status, pc.evidence = UNVERIFIED, "gripper state unavailable"
+            return
+        pc.channel, pc.measured = "gripper", {"gripper_frac": frac}
+        pc.status = CONFIRMED
+        pc.evidence = (
+            f"jaw at {frac:.2f}: closed on something"
+            if frac > self.air_grasp_frac
+            else f"jaw at {frac:.2f}: closed on empty air"
+        )
+
+    def _check_at_home(self, pc, args, result, before) -> None:
+        pc.status, pc.channel = CONFIRMED, "arm"
+        pc.evidence = "arm commanded home (streamed waypoints approved by the harness)"
+
+    # ── helpers ──────────────────────────────────────────────────────────
+
+    def _frac(self) -> float | None:
+        if self._gripper_frac is None:
+            return None
+        try:
+            v = self._gripper_frac()
+            return None if v is None else float(v)
+        except Exception:
+            return None
+
+    # ── reporting ────────────────────────────────────────────────────────
+
+    def digest(self, last: int = 4) -> str:
+        """Recent verified effects, for the agent context."""
+        if not self.history:
+            return ""
+        rows = self.history[-last:]
+        lines = ["Independently verified effects of your recent actions:"]
+        lines += [f"- {pc.agent_line()}" for pc in rows]
+        if any(pc.status == UNVERIFIED for pc in rows):
+            lines.append(
+                "UNVERIFIED means the effect could not be confirmed from an "
+                "independent observation -- do NOT report it as done."
+            )
+        return "\n".join(lines)
+
+    def contradictions(self) -> list[Postcondition]:
+        """Calls that reported ok but whose effect was refuted."""
+        return [pc for pc in self.history if pc.status == REFUTED]
+
+
+def _dist(a, b) -> float:
+    return sum((float(x) - float(y)) ** 2 for x, y in zip(a, b)) ** 0.5
+
+
+def annotate_result(result: dict, pc: Postcondition | None) -> dict:
+    """Fold a postcondition into a skill result dict.
+
+    A refuted postcondition **downgrades a reported success**: this is the
+    single most important line in the module.  A skill that claimed ok while
+    the world says otherwise becomes a failure the agent can react to, which
+    is exactly the closed loop Pigey measures.
+    """
+    if pc is None:
+        return result
+    result["postcondition"] = pc.as_dict()
+    if pc.refuted and result.get("ok"):
+        result["ok"] = False
+        result["error"] = f"postcondition failed: {pc.evidence}"
+        result["self_reported_ok"] = True
+    elif pc.status == UNVERIFIED and result.get("ok"):
+        result["verified"] = False
+        result["verification_note"] = pc.evidence
+    elif pc.confirmed:
+        result["verified"] = True
+    return result

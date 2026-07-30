@@ -11,6 +11,19 @@ robotics study's latency lesson:
   advisor consulted only after failures whose one-sentence spatial suggestion
   is appended to the context for the retry.
 """
+#
+# 2026-07-31 -- the loop closes. Three ideas that were previously *described*
+# here but not implemented now actually run:
+#
+# * Pigey (arXiv:2607.21725) "orchestration gap": the orchestrator TRACKS AND
+#   VERIFIES outcomes from observation. Milestones are re-checked after every
+#   motion, and a skill whose self-reported success is contradicted by the
+#   world model is escalated instead of believed.
+# * Agentic-VLA: decomposition becomes a dense PROGRESS signal, not decoration
+#   -- the milestone board is fed back each turn and stalls trigger strategy
+#   changes rather than blind retries.
+# * ASPIRE: validated repairs from earlier runs are retrieved into context at
+#   task start (the "load-into-context loop" the ROADMAP listed as open).
 
 from __future__ import annotations
 
@@ -20,8 +33,10 @@ from dataclasses import dataclass, field
 
 from ..skills.runtime import TOOL_SPECS, SkillRuntime
 from .advisor import Advisor
+from .aspire import retrieve as retrieve_skills
 from .llm import LLMClient, LLMResponse
-from .prompts import DECOMPOSE_PROMPT, SYSTEM_PROMPT
+from .milestones import MilestoneTracker, make_vlm_verifier
+from .prompts import DECOMPOSE_PROMPT, SYSTEM_PROMPT, VERIFY_USER
 from .reflex import FastPlanner
 
 
@@ -46,6 +61,11 @@ class TaskReport:
     tool_log: list[dict] = field(default_factory=list)
     path: str = "llm"  # "reflex" | "experience" | "llm"
     duration_s: float = 0.0
+    #: per-milestone verification state (Agentic-VLA progress signal)
+    milestone_status: list[dict] = field(default_factory=list)
+    #: milestones that could not be verified -- surfaced so a "success"
+    #: claim can never quietly outrun the evidence
+    unverified: list[str] = field(default_factory=list)
 
 
 class AgentOrchestrator:
@@ -58,6 +78,8 @@ class AgentOrchestrator:
         decompose: bool = True,
         attach_images: bool = True,
         fast_planner: FastPlanner | None = None,
+        skill_library=None,
+        verify_milestones: bool = True,
     ):
         self.llm = llm
         self.runtime = runtime
@@ -66,6 +88,21 @@ class AgentOrchestrator:
         self.decompose = decompose
         self.attach_images = attach_images and llm.supports_vision
         self.fast_planner = fast_planner
+        self.skill_library = skill_library
+        #: Pigey/Agentic-VLA milestone verification. The symbolic tier reads
+        #: the belief store directly (free); the visual tier costs one VLM
+        #: turn and is rate-limited inside the tracker.
+        self.tracker = (
+            MilestoneTracker(
+                beliefs=getattr(runtime, "beliefs", None),
+                held_getter=lambda: getattr(runtime, "held_object", None),
+                vlm_verify=(
+                    make_vlm_verifier(llm, VERIFY_USER) if llm.supports_vision else None
+                ),
+            )
+            if verify_milestones
+            else None
+        )
 
     def run_task(self, task: str) -> TaskReport:
         report = self._run_task(task)
@@ -83,6 +120,8 @@ class AgentOrchestrator:
                 return report
 
         milestones = self._decompose(task) if self.decompose else []
+        if self.tracker is not None:
+            self.tracker.reset(milestones)
         messages: list[dict] = []
         tool_log: list[dict] = []
 
@@ -103,10 +142,28 @@ class AgentOrchestrator:
                 intro += "\n\n" + gm_digest
         except Exception:
             pass
+        # Harness-VLA (arXiv:2607.08448): the learned OPERATING RANGE of the
+        # fixed primitives, plus how they usually fail on this rig.
+        try:
+            env = self.runtime.envelope.agent_digest()
+            if env:
+                intro += "\n\n" + env
+        except Exception:
+            pass
+        # ASPIRE: validated repairs distilled from earlier runs, guard-matched
+        # to this task. This is the sim->real / run->run transfer channel.
+        if self.skill_library is not None:
+            try:
+                lib = retrieve_skills(self.skill_library, task)
+                if lib:
+                    intro += "\n\n" + lib
+            except Exception:
+                pass
         intro += "\n\nBegin. Observe first, then act. Call one tool now."
         messages.append({"role": "user", "content": intro})
 
         consecutive_failures = 0
+        stalled_turns = 0
         for step in range(1, self.max_steps + 1):
             resp = self.llm.chat(
                 system=SYSTEM_PROMPT,
@@ -137,12 +194,22 @@ class AgentOrchestrator:
             if call.name == "task_done" and result.get("task_complete"):
                 summary = str(call.arguments.get("summary", ""))
                 success = _as_bool(call.arguments.get("success", False))
+                # Pigey: a success claim is checked against the world model
+                # before it is accepted. Unverified milestones downgrade the
+                # claim rather than riding along with it.
+                status, unverified = self._final_check(success)
+                if success and unverified:
+                    summary += (
+                        "\n[verification] could not confirm: "
+                        + "; ".join(unverified)
+                    )
                 self.runtime.trace.finish(
                     f"task: {task}\nsuccess: {success}\nsteps: {step}\n{summary}"
                 )
                 return TaskReport(
                     task, success, summary, step, milestones, tool_log,
                     duration_s=round(time.monotonic() - t_start, 2),
+                    milestone_status=status, unverified=unverified,
                 )
 
             ok = bool(result.get("ok"))
@@ -162,6 +229,53 @@ class AgentOrchestrator:
                         "name": extra.name,
                         "content": json.dumps(
                             {"ok": False, "error": "skipped: one tool call per turn; re-issue if still needed"}
+                        ),
+                    }
+                )
+
+            # ── Pigey closed loop: re-verify progress after every motion ──
+            progress = self._check_progress(call.name)
+            if progress is not None:
+                stalled_turns = stalled_turns + 1 if progress.stalled else 0
+                board = self.tracker.digest()
+                if progress.newly_done:
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "Progress: "
+                                + "; ".join(progress.newly_done)
+                                + f"  ({progress.done}/{progress.total} milestones verified)\n"
+                                + board
+                            ),
+                        }
+                    )
+                elif stalled_turns >= 3 and board:
+                    # No milestone has advanced in three motions: the plan is
+                    # not working even if individual calls returned ok.
+                    stalled_turns = 0
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "No milestone has advanced in the last 3 actions "
+                                "even though calls reported ok. Re-observe and "
+                                "change approach.\n" + board
+                            ),
+                        }
+                    )
+
+            # A skill that reported ok but whose physical effect was refuted
+            # is the most dangerous state in the system: escalate it loudly.
+            pc = (result.get("postcondition") or {}) if isinstance(result, dict) else {}
+            if pc.get("status") == "refuted" and result.get("self_reported_ok"):
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            f"WARNING: {call.name} reported success but independent "
+                            f"observation contradicts it -- {pc.get('evidence', '')}. "
+                            "Do not build on this step; re-observe and redo it."
                         ),
                     }
                 )
@@ -198,10 +312,49 @@ class AgentOrchestrator:
                 )
 
         self.runtime.trace.finish(f"task: {task}\nsuccess: false\nran out of steps ({self.max_steps})")
+        status, unverified = self._final_check(False)
         return TaskReport(
             task, False, "step budget exhausted", self.max_steps, milestones, tool_log,
             duration_s=round(time.monotonic() - t_start, 2),
+            milestone_status=status, unverified=unverified,
         )
+
+    # ── Pigey: outcome tracking ──────────────────────────────────────────
+
+    def _check_progress(self, skill_name: str):
+        """Re-verify milestones after a world-changing call.
+
+        Only runs after motions: verification costs a belief lookup (and, at
+        most ``max_visual_checks`` times, one VLM turn), and nothing can have
+        changed after a pure observation.
+        """
+        if self.tracker is None or not self.tracker.active:
+            return None
+        from ..skills.runtime import _MOTION_SKILLS
+
+        if skill_name not in _MOTION_SKILLS:
+            return None
+        jpeg = self.runtime.frame_jpeg() if self.attach_images else None
+        try:
+            return self.tracker.update(jpeg)
+        except Exception:
+            return None
+
+    def _final_check(self, claimed_success: bool) -> tuple[list[dict], list[str]]:
+        """Last verification pass before the report is written.
+
+        Returns (milestone status, milestones that are NOT verified done).
+        Only a claimed success is worth spending a visual check on -- a
+        self-declared failure needs no contradicting.
+        """
+        if self.tracker is None or not self.tracker.active:
+            return [], []
+        try:
+            jpeg = self.runtime.frame_jpeg() if (claimed_success and self.attach_images) else None
+            self.tracker.update(jpeg, allow_visual=claimed_success)
+            return self.tracker.as_list(), (self.tracker.unverified() if claimed_success else [])
+        except Exception:
+            return [], []
 
     def _try_fast_path(self, task: str, t_start: float) -> tuple[TaskReport | None, str | None]:
         """Reflex/experience execution; (report, None) on success, or

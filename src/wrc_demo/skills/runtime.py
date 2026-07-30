@@ -96,11 +96,57 @@ class SkillRuntime:
         _gm_path = cfg.grasp.get("memory_path", "~/.wrc_demo/grasp_memory.json")
         self.grasp_memory = GraspOutcomeMemory(
             path=_Path(str(_gm_path)).expanduser())
+        # Harness-VLA (arXiv:2607.08448) generalised to EVERY primitive: the
+        # learned operating envelope + failure model, fed from the same
+        # outcomes and injected into the agent's context by the orchestrator.
+        from ..memory.envelope import OperatingEnvelope
+        _env_path = cfg.get("memory", {}).get(
+            "envelope_path", "~/.wrc_demo/envelope.json") if hasattr(cfg, "get") else None
+        self.envelope = OperatingEnvelope(
+            path=_Path(str(_env_path or "~/.wrc_demo/envelope.json")).expanduser())
+        # Pigey (arXiv:2607.21725): verify each primitive's physical effect
+        # against a channel the actuator does not own. Wired lazily by the
+        # app (needs the sim bridge / belief store) via attach_verifier().
+        self.effects = None
         g = cfg.arm.gripper
         self._grip_open = float(g.get("open_pos", 0.0))
         self._grip_closed = float(g.get("closed_pos", 1.0))
         self._max_width = float(g.get("max_width_m", 0.09))
         self._default_classes = list(cfg.get("detect_classes", ["cup", "bottle", "box", "fruit", "toy"]))
+
+    def attach_verifier(self, object_pose=None) -> None:
+        """Enable postcondition checking (Pigey closed loop).
+
+        ``object_pose`` is an optional ground-truth pose lookup -- in sim the
+        Isaac bridge can read a RigidPrim directly, which beats perception.
+        Without it the checker falls back to the belief store.
+        """
+        from ..agent.effects import PostconditionChecker
+
+        self.effects = PostconditionChecker(
+            object_pose=object_pose,
+            belief_pose=self._belief_pose,
+            gripper_frac=self._gripper_width_frac,
+            reobserve=lambda: self._reobserve(frames=1),
+            table_z=float(self.cfg.safety.get("table_z", 0.0)),
+            air_grasp_frac=float(self.cfg.grasp.get("air_grasp_frac", 0.04)),
+        )
+
+    def _belief_pose(self, label: str):
+        """Best-known 3D position of ``label`` from the belief store."""
+        if not label:
+            return None
+        try:
+            best, score = None, 0
+            want = set(str(label).lower().split())
+            for b in self.beliefs.all():
+                have = set(str(getattr(b, "label", "")).lower().split())
+                overlap = len(want & have)
+                if overlap > score:
+                    best, score = b, overlap
+            return list(best.position[:3]) if best is not None else None
+        except Exception:
+            return None
 
     # ── plumbing ─────────────────────────────────────────────────────────
 
@@ -129,6 +175,23 @@ class SkillRuntime:
         before = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_before"
         )
+        # Pigey: snapshot the target's pose BEFORE the motion so the
+        # postcondition can measure a displacement rather than guess one.
+        # NOTE the arg name varies across the skill API and getting this wrong
+        # silently degrades every check to "unverified": pick_and_place takes
+        # `object`, grasp/push/place_on_object take `label`, and place_at takes
+        # no object at all (the held one is the subject). Verified against
+        # TOOL_SPECS -- keep this list in sync when adding a motion skill.
+        pre_state = {}
+        if self.effects is not None and name in _MOTION_SKILLS:
+            target_label = (
+                args.get("label")
+                or args.get("object")
+                or args.get("query")
+                or self.held_object
+                or None
+            )
+            pre_state = self.effects.snapshot(target_label)
         t0 = time.monotonic()
         try:
             import contextlib
@@ -171,6 +234,24 @@ class SkillRuntime:
             }
             traceback.print_exc()
         dur = (time.monotonic() - t0) * 1000
+        # Pigey closed loop: was the claimed effect real? A refuted
+        # postcondition DOWNGRADES a self-reported success (annotate_result).
+        if self.effects is not None and result.get("ok") is not None:
+            try:
+                from ..agent.effects import annotate_result
+
+                pc = self.effects.verify(name, args, result, before=pre_state)
+                result = annotate_result(result, pc)
+            except Exception:
+                pass
+        # Harness-VLA: fold the outcome into the learned operating envelope.
+        try:
+            self.envelope.record(
+                name, args, ok=bool(result.get("ok")),
+                error=str(result.get("error", "")), duration_ms=dur,
+            )
+        except Exception:
+            pass
         after = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_after"
         )
@@ -1581,6 +1662,34 @@ class SkillRuntime:
                 }
         return out
 
+    def skill_annotated_view(self) -> dict:
+        """VIA-style annotated interface (arXiv:2607.11119).
+
+        Returns the numbered-object key plus a saved annotated frame. The
+        image itself goes to the live view / trace rather than into the tool
+        result: the orchestrator already attaches the newest frame to context,
+        and returning a second base64 image per call would double token cost
+        for no gain.
+        """
+        from ..perception.visual_interface import VisualInterface, annotate_frame
+
+        self.observe()
+        img, marks = annotate_frame(self)
+        if img is None:
+            raise SkillError("no frame available to annotate")
+        path = self.trace.save_keyframe(img, "annotated_view")
+        if hasattr(self.camera, "set_overlay"):
+            self.camera.set_overlay(status="annotated view")
+        return {
+            "key": VisualInterface.describe(marks),
+            "objects": [m.as_dict() for m in marks],
+            "image": path,
+            "note": (
+                "Objects carry numbered badges; the green band is the region "
+                "where strict top-down IK actually solves on this arm."
+            ),
+        }
+
     def skill_task_done(self, success: bool, summary: str) -> dict:
         if isinstance(success, str):  # schema-lax backends send "false"
             success = success.strip().lower() in ("true", "yes", "1")
@@ -1600,6 +1709,18 @@ TOOL_SPECS: list[dict] = [
     {
         "name": "list_objects",
         "description": "List every object the robot knows about, including remembered (currently not visible) ones with last-known positions and age.",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "annotated_view",
+        "description": (
+            "Render the annotated camera view: every tracked object gets a NUMBERED badge, "
+            "the table is overlaid with a 5 cm base-frame grid, and the region where "
+            "top-down grasps are actually kinematically reachable is shaded green. "
+            "Returns a text key mapping each number to its label and 3D position. Use it "
+            "when a scene is cluttered, when labels are ambiguous, or before choosing "
+            "where to place something -- it shows what is reachable instead of guessing."
+        ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {

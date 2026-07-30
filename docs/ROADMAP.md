@@ -1,5 +1,40 @@
 # Roadmap
 
+## Landed 2026-07-31: the orchestration-gap upgrades
+
+Six-paper synthesis (Pigey, Agentic-VLA, Harness-VLA/RPent, ASPIRE, VIA,
+Waddle) + a Cosmos3-Edge backend. Full write-up in
+`docs/AGENTIC_UPGRADES.md`; summary:
+
+- **Effect verification (Pigey).** Motion primitives no longer self-report:
+  each has a postcondition checked against a channel the actuator does not own
+  (sim physics truth via `sim/truth.py`, else the belief store). A refuted
+  postcondition *downgrades* a claimed success; `unverified` is a first-class
+  outcome. Live-verified: cube displacement 30.8 cm, `channel: physics`.
+- **Milestone progress (Agentic-VLA).** Decomposition is now a checked signal
+  (symbolic tier from beliefs, rate-limited visual tier via `VERIFY_USER`),
+  with stall detection and honest "could not confirm" reporting.
+- **Operating envelopes (Harness-VLA).** `memory/envelope.py` learns where each
+  primitive actually works + a normalised failure taxonomy, injected at task
+  start. Advisory only — the harness stays the sole authority on motion.
+- **Annotated interface (VIA).** `annotated_view` skill: numbered object
+  badges, 5 cm metric grid, TCP, and the top-down IK band drawn on the frame.
+- **Cosmos3-Edge.** `configs/llm/cosmos3_edge.yaml` + `agent/cosmos3.py`
+  (parses its XML tool-call format — the plain `openai_compat` client silently
+  never calls tools) + `scripts/serve_cosmos3_edge.sh`.
+
+Open follow-ups from this work:
+1. Run a full booth rehearsal against Cosmos3-Edge and compare tool-call
+   reliability + latency with Qwen3-VL (needs the vLLM-Omni container pulled).
+2. Feed `max_frames > 1` (short clip at ~4 fps) to the Cosmos3 reasoner and
+   measure whether motion context improves failure diagnosis.
+3. Phantom beliefs: `annotated_view` surfaced a stale 4th "cube" mark — the
+   belief store keeps unconfirmed detections alive longer than the annotated
+   view implies. Tighten belief decay or mark low-confidence beliefs visually.
+4. Envelope features are currently raw skill args; add derived features
+   (TCP z at grasp, object height) so the learned ranges capture the real
+   B601-RS constraint rather than a proxy.
+
 ## Near term (before the demo)
 
 - **Booth experience (WRC).** The attendee-facing session is scripted in
@@ -129,9 +164,13 @@
   worth pursuing; remaining learned-grasp work (tip-offset calibration,
   reBot sweep params, collision-aware `infer_scene_pc`) is tracked in the
   near-term GraspGen-X item.
-- **Skill-library growth loop** (ASPIRE): after each failed→repaired run,
-  distill the fix into `skills_library/*.md` (schema already implemented);
-  load `relevant(task)` entries into the agent context.
+- **Skill-library growth loop** (ASPIRE) — ✅ **landed 2026-07-31.** After each
+  run, `agent/aspire.py` diagnoses the trace, localizes the salient failure,
+  and distils *validated repairs* (a failure followed by the same primitive
+  succeeding) into `skills_library/*.md`, deduped by (skill, signature);
+  `retrieve()` loads guard-matched entries into the agent context at task
+  start. Batch entry point: `scripts/learn_from_runs.py` (runs between
+  sessions, never mid-demo). See `docs/AGENTIC_UPGRADES.md`.
 
 ## Long term: sim2real with NuRec / Isaac
 

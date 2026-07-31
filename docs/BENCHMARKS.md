@@ -198,27 +198,42 @@ OpenVLA lands inside our Wilson interval on **4/4** suites, so the harness
 reproduces a published baseline — that check is what exposed a
 gripper-convention bug scoring a working policy at 0%.
 
-> **These primitive columns are not trustworthy, and the OpenVLA column is.**
-> The success flag comes from LIBERO's own `done`, and `set_init_state` leaves
-> the termination flag already set for some tasks, so an episode can be scored
-> a success without the robot doing anything. Reproduced live while checking
-> whether the perception fix affected this table:
+> **The primitive columns were inflated by a harness bug. Now fixed; the table
+> below is stale and is being re-run.**
+>
+> Success was read from `arm._last_term`, a cached copy of the last step's
+> terminated flag. Two independent defects made that unsound:
+>
+> 1. `_last_term` was **never reset between episodes** — the harness cleared
+>    `_terminated` but not it, so a termination carried into the next episode.
+> 2. Once `_terminated` is set, `LiberoArm._step` **short-circuits and returns
+>    `True` without stepping the sim** (`backend.py:79-80`), so the 20-step
+>    confirmation loop confirmed nothing.
+>
+> Reproduced end to end. Before the fix, on episodes where the grasp failed in
+> 1.3 s with zero detections:
 >
 > ```
-> skill said: ok=False, grasp failed after 8 attempts (1.3s),
->             "no detections for ['akita_black_bowl_2_main']"
-> episode:    done=True  -> counted as SUCCESS
-> table:      verified 1/1 = 100.0%
+> skill said: ok=False, grasp failed after 8 attempts (1.3s), no detections
+> verified 4/4 = 100.0%          <- the robot never touched the bowl
 > ```
 >
-> The grasp never happened — 1.3 s, eight attempts, zero detections — and the
-> episode still scored. That inflates every primitive column by an unknown
-> amount. The OpenVLA column survives because it is validated against published
-> numbers on all four suites, which is exactly the check a broken success
-> signal would fail.
+> After reading success from LIBERO's own `_check_success()` — which
+> interrogates object state and cannot go stale — the same four episodes score:
 >
-> The comparisons below are therefore reported but **should not be cited** until
-> the termination flag is read from object state rather than from `done`.
+> ```
+> verified 0/4 = 0.0%
+> ```
+>
+> Isolated separately in `benchmark/diagnostics/last_term_leak.py`, and the raw
+> env predicate was confirmed clean at t=0 on 12/12 episodes, which is what
+> ruled out `set_init_state` as the cause.
+>
+> **The OpenVLA column is unaffected** and that is not luck:
+> `libero/run_baseline.py` drives `env.step()` directly and never touches
+> `LiberoArm`, so it never saw the latch. Its agreement with published numbers
+> on 4/4 suites is exactly the check a broken success signal fails — which is
+> why that column held while the primitive ones did not.
 
 The aggregate verification gap (+6.5 pts) is **not** significant; the intervals
 overlap. The effect is local to `libero_spatial`. What *did* replicate on all

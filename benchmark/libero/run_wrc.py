@@ -221,6 +221,35 @@ def resolve_task_objects(inner, language: str) -> tuple[str | None, str | None]:
     return obj, dest
 
 
+def _task_success(env) -> bool:
+    """LIBERO's own success predicate, read from live object state.
+
+    The harness used to decide success from `arm._last_term`, a cached copy of
+    the last step's terminated flag. That is a latch, and latches go stale:
+    it was never reset between episodes, so an episode whose skill failed fast
+    (mock detector finds nothing, ~1.3 s, zero detections) inherited the
+    previous episode's True and scored a success without the robot moving.
+    Verified in isolation -- benchmark/diagnostics/last_term_leak.py.
+
+    `_check_success()` asks the task about object state right now, so it cannot
+    carry over. Unwrap the env layers to reach it; return False if a build does
+    not expose it, in which case the step-return path still applies.
+    """
+    e = env
+    for _ in range(6):
+        fn = getattr(e, "_check_success", None)
+        if callable(fn):
+            try:
+                return bool(fn())
+            except Exception:
+                return False
+        nxt = getattr(e, "env", None)
+        if nxt is None:
+            return False
+        e = nxt
+    return False
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--suite", default="libero_spatial")
@@ -308,6 +337,13 @@ def main() -> int:
                     obs = obs[0]
                 arm.last_obs = obs
                 arm._terminated = False      # fresh episode, clear the latch
+                # `_last_term` is what decides success below, and it is NOT
+                # implied by `_terminated`. Leaving it set carries the PREVIOUS
+                # episode's termination into this one: a skill that fails fast
+                # (mock detector finds nothing, ~1.3 s) never clears it, and
+                # the episode is scored a success before the robot moves.
+                # Verified in isolation -- benchmark/diagnostics/last_term_leak.py.
+                arm._last_term = False
                 # Seed the camera from the ENV thread before any skill runs:
                 # the stream's worker thread will otherwise grab before the
                 # first env.step and raise "no frame published yet".
@@ -342,12 +378,21 @@ def main() -> int:
                     # indistinguishable from a broken harness.
                     print(f"        skill said: {str(r)[:220]}", flush=True)
 
-                # LIBERO's OWN success flag decides
-                done = getattr(arm, "_last_term", False)
+                # LIBERO's OWN success flag decides -- read ONLY from the task
+                # predicate, which interrogates object state right now.
+                #
+                # Neither `_last_term` nor the `term` returned by `_step` is
+                # trustworthy here. `_last_term` is a latch that was never
+                # reset between episodes, and once `_terminated` is set
+                # `_step` short-circuits and returns True WITHOUT stepping the
+                # sim (backend.py:79-80), so both can report success for an
+                # episode in which the robot never moved. Reproduced:
+                # benchmark/diagnostics/last_term_leak.py.
+                done = _task_success(env)
                 if not done:
                     for _ in range(20):
-                        obs, term = arm._step(np.zeros(8))
-                        if term:
+                        arm._step(np.zeros(8))
+                        if _task_success(env):
                             done = True
                             break
                 ok += int(done)

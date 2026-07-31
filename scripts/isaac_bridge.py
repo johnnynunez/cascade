@@ -1089,6 +1089,81 @@ def _zero_prop_velocity(_rp) -> bool:
         return False
 
 
+def _newton_teleport(name, pos) -> bool:
+    """Teleport a prop under Newton by writing `state.joint_q`.
+
+    Newton's MuJoCo solver is REDUCED-COORDINATE. From its own source
+    (newton/_src/solvers/mujoco/solver_mujoco.py, reset_state docstring):
+
+        "Because MuJoCo is a reduced-coordinate solver, state.body_q /
+         state.body_qd are DERIVED from the joint coordinates by forward
+         kinematics on the next step; the corresponding BODY_Q / BODY_QD
+         flags are not actionable here and are ignored."
+
+    and `step()` calls `_update_mjc_data(..., state_in)` every step, pushing
+    the joint coordinates into `mjw_data.qpos`. Every other write target is
+    downstream of that and gets overwritten within one step. Measured:
+
+        RigidPrim.set_world_poses  -> reverted after 1 step
+        state.body_q (one buffer)  -> reverted after 1 step
+        state.body_q (both)        -> body ejected at 72 m/s
+        mjw_data.qpos              -> reverted after 1 step
+        state.joint_q              -> STICKS, |vel| 0.000, stable at 40 steps
+
+    A free body occupies 7 coordinates (3 pos + 4 quat) in joint_q but 6 dofs
+    in joint_qd -- the layouts differ, so the dof slice must be derived from
+    the joint ordering rather than reused from the coordinate index. Zeroing
+    the wrong dofs leaves the body's velocity intact and it flies off (that
+    failure looked like [12.5, -22.7] after 40 steps).
+
+    `model.joint_q_start` is unreliable on this build (its entries repeat), so
+    the slice is located by matching the prop's current position instead.
+    """
+    import isaacsim.physics.newton.impl.extension as _ne
+
+    _ns = getattr(_ne, "_newton_stage", None)
+    if _ns is None or getattr(_ns, "state_0", None) is None:
+        return False
+
+    def _arr(x):
+        return x.numpy() if hasattr(x, "numpy") else np.asarray(x)
+
+    from isaacsim.core.experimental.prims import RigidPrim as _XRP
+
+    _cur = _arr(_XRP(f"/World_Props/{name}").get_world_poses()[0]).reshape(-1)[:3]
+    if not np.all(np.isfinite(_cur)):
+        return False
+
+    _jq = _arr(_ns.state_0.joint_q)
+    _qd = _arr(_ns.state_0.joint_qd)
+
+    _idx = None
+    for _i in range(len(_jq) - 6):
+        if np.allclose(_jq[_i:_i + 3], _cur, atol=3e-3):
+            _idx = _i
+            break
+    if _idx is None:
+        return False
+
+    _n_after = (len(_jq) - _idx) // 7
+    _dof = len(_qd) - 6 * _n_after
+    _target = [pos[0], pos[1], pos[2] + BASE_Z]
+
+    for _nm in ("state_0", "state_1"):
+        _st = getattr(_ns, _nm, None)
+        if _st is None or getattr(_st, "joint_q", None) is None:
+            continue
+        _q = _arr(_st.joint_q).copy()
+        _q[_idx:_idx + 3] = _target
+        _q[_idx + 3:_idx + 7] = [1.0, 0.0, 0.0, 0.0]
+        _st.joint_q.assign(_q)
+        if getattr(_st, "joint_qd", None) is not None:
+            _v = _arr(_st.joint_qd).copy()
+            _v[_dof:_dof + 6] = 0.0
+            _st.joint_qd.assign(_v)
+    return True
+
+
 def _settle_props() -> None:
     """Deterministically settle every dynamic prop onto the table.
 
@@ -1113,6 +1188,16 @@ def _settle_props() -> None:
             np.array([[1.0, 0.0, 0.0, 0.0]]),
         )
         _zero_vel(_rp)
+        # Under Newton the RigidPrim write above is a no-op for a RESTING body
+        # (MuJoCo is reduced-coordinate; body_q is derived from joint_q by FK
+        # and is overwritten within one step). Write the authoritative
+        # coordinate too -- see _newton_teleport for the measurements.
+        if args.engine == "newton":
+            try:
+                _newton_teleport(_n, (_pos[0], _pos[1], _pos[2] + dz))
+            except Exception as _e:
+                print(f"[bridge] newton teleport failed for {_n}: {_e}",
+                      flush=True)
         return _rp
 
     def _escaped(_rp, _pos):

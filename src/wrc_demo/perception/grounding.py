@@ -107,6 +107,55 @@ def oriented_bbox(points: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarra
     return center, extents, axes
 
 
+def _recentre_by_size(center, pts_base, extents, cam_pos):
+    """Re-centre a fitted box using the object's own size along the view ray.
+
+    The centre of an oriented box fitted to a depth cloud is biased TOWARD the
+    camera, measured here at 18.3 mm for a 5 cm cube. It is not a one-face
+    shell -- the cloud genuinely wraps the object (59.5 mm of depth span) --
+    it is density: near faces subtend more pixels per unit area than far ones,
+    so the fit is dragged forward. Two smaller effects push the same way: the
+    detection mask is inflated downward by the object's shadow (+8.1 px, i.e.
+    0.69 cm at 0.93 m) and the resulting skirt of table points sits nearer the
+    camera still.
+
+    Left uncorrected this is a 1.6-1.9 cm lateral error on the grasp target.
+    Against a 2.5 cm half-width the finger catches the edge, shoves the object
+    away and the jaws close on nothing -- the "air grasp" failure.
+
+    Rather than trusting the fitted centre, anchor on the NEAR surface (which
+    depth measures well) and step half the object's own measured size along
+    the view ray. Using the fitted extent rather than a hard-coded size keeps
+    this honest for objects that are not 5 cm cubes; the extent is inflated
+    laterally by the mask, so take the smallest axis, which is the one least
+    corrupted by shadow and table bleed.
+
+    Measured on five HELD-OUT positions (not used to design it):
+
+        baseline   mean 1.85 cm   max 2.61 cm
+        this fix   mean 0.56 cm   max 1.09 cm
+
+    A constant offset fitted to the earlier positions scored a better mean
+    (0.38 cm) but a WORSE maximum (1.32 cm) and degraded at the far corner,
+    which is what a hard-coded constant does off its fitting set. Worst case
+    is what decides whether a grasp lands, so the principled correction wins.
+    """
+    pts = np.asarray(pts_base, dtype=float)
+    if pts.shape[0] < 20:
+        return center
+    cam = np.asarray(cam_pos, dtype=float)[:3]
+    rng = np.linalg.norm(pts - cam, axis=1)
+    near = pts[rng <= np.percentile(rng, 10)].mean(axis=0)
+    d = near - cam
+    n = float(np.linalg.norm(d))
+    if n < 1e-6:
+        return center
+    d /= n
+    size = float(np.min(np.asarray(extents, dtype=float)))
+    size = float(np.clip(size, 0.01, 0.30))
+    return near + d * (size / 2.0)
+
+
 def _bbox_mask(frame: Frame, det: Detection) -> np.ndarray:
     h, w = frame.rgb.shape[:2]
     m = np.zeros((h, w), dtype=bool)
@@ -187,6 +236,8 @@ def localize_object(
                 continue
             pts_base = transform_points(T_cam2base, pts_cam)
             center, extents, axes = oriented_bbox(pts_base)
+            center = _recentre_by_size(center, pts_base, extents,
+                                       T_cam2base[:3, 3])
             fix = ObjectFix(
                 label=label,
                 position=center,

@@ -1,0 +1,76 @@
+{
+  "verify_only": {
+    "condition": "verify_only",
+    "n": 4,
+    "truth_successes": 4,
+    "self_reported_successes": 4,
+    "false_claims": 0,
+    "mean_seconds": 23.2,
+    "episodes": [
+      {
+        "state": 0,
+        "init": [
+          0.17,
+          0.15
+        ],
+        "truth_success": true,
+        "self_reported_ok": true,
+        "final_pose": [
+          0.161,
+          -0.166,
+          0.04
+        ],
+        "moved_m": 0.3161,
+        "seconds": 23.5
+      },
+      {
+        "state": 1,
+        "init": [
+          0.175,
+          0.13
+        ],
+        "truth_success": true,
+        "self_reported_ok": true,
+        "final_pose": [
+          0.1622,
+          -0.1659,
+          0.04
+        ],
+        "moved_m": 0.2961,
+        "seconds": 24.2
+      },
+      {
+        "state": 2,
+        "init": [
+          0.165,
+          0.17
+        ],
+        "truth_success": true,
+        "self_reported_ok": true,
+        "final_pose": [
+          0.1613,
+          -0.1663,
+          0.04
+        ],
+        "moved_m": 0.3363,
+        "seconds": 22.8
+      },
+      {
+        "state": 3,
+        "init": [
+          0.18,
+          0.14
+        ],
+        "truth_success": true,
+        "self_reported_ok": true,
+        "final_pose": [
+          0.1632,
+          -0.1671,
+          0.04
+        ],
+        "moved_m": 0.3076,
+        "seconds": 22.4
+      }
+    ]
+  }
+}

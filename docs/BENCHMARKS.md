@@ -112,19 +112,34 @@ python benchmark/report/make_pdf.py           # PDF
 
 ### wrc_demo layer ablation (10 initial states, physics-judged)
 
+Measured on a **freshly restarted bridge** — see the note below.
+
 | | condition | success | 95% CI | self-claimed | **false claims** |
 |---|---|---|---|---|---|
-| A | skill only | 5/10 | [24%, 76%] | 9/10 | **4** |
+| A | skill only | 4/10 | [17%, 69%] | 8/10 | **4** |
 | B | + verification | 5/10 | [24%, 76%] | 5/10 | **0** |
-| C | + retry | 6/10 | [31%, 83%] | 9/10 | **3** |
+| C | + retry | 6/10 | [31%, 83%] | 6/10 | **0** |
 
-Task success is flat — the differences sit well inside the intervals. The
-**false claims** column is the finding: independent verification takes
-self-reported success from 4/10 wrong to 0/10 wrong without changing what the
-robot does.
+Task success climbs 4 → 5 → 6, but the intervals overlap heavily at n=10, so
+that ordering is not evidence. Read the success column as flat.
 
-Condition C's three false claims led to `docs/BRIDGE_DEGRADATION.md` and two
-fixed bugs in the verification channel.
+The self-report column needs no statistics. **The bare skill claimed success 8
+times and achieved it 4** — wrong about its own outcome in 40% of episodes.
+Independent verification takes that to **zero** in both verified conditions
+without changing what the robot physically does.
+
+That is the point of the layer: a robot that fails and says so can be retried
+or escalated; a robot that fails and reports success corrupts the belief
+store, the skill library that learns from traces, and any operator reading the
+log.
+
+**Instrument warning.** An earlier run of this same ablation showed 3 false
+claims in condition C. They were not the robot — the bridge had been up for
+hours and its truth channel was returning stale poses. On a fresh bridge those
+3 became 0. Chasing them found two real bugs, both fixed and now covered by
+`tests/test_truth_channel.py`; see `docs/BRIDGE_DEGRADATION.md`. This run alone
+still produced **four impossible poses** (up to 3171 m of "displacement"),
+which the new sanity guard rejects.
 
 ### LIBERO (n=50 per cell)
 

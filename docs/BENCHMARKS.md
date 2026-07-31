@@ -120,6 +120,49 @@ Measured on a **freshly restarted bridge** — see the note below.
 | B | + verification | 5/10 | [24%, 76%] | 5/10 | **0** |
 | C | + retry | 6/10 | [31%, 83%] | 6/10 | **0** |
 
+**Superseded — see below.** The numbers above were measured while the grasp
+target carried a 1.6 cm perception bias (`docs/NEWTON_ENGINE.md` §7). After
+fixing it (`_recentre_by_size`, commit `c129161`), re-run on a fresh bridge:
+
+| | condition | success | self-claimed | **false claims** | mean s |
+|---|---|---|---|---|---|
+| A | skill only | 10/10 | 10/10 | **0** | 23.5 |
+| B | + verification | 9/10 | 9/10 | **0** | 26.6 |
+| C | + retry | 9/10 | 9/10 | **0** | 28.2 |
+
+#### The new result argues against this benchmark's own thesis
+
+The original claim was that **verification buys honesty**: the bare skill was
+wrong about its own outcome in 40 % of episodes and the verification layer took
+that to zero without changing what the robot physically does.
+
+With perception fixed, **the bare skill also reports 0 false claims.** The lies
+were never a property of running unverified — they were a downstream symptom of
+a grasp that failed in ways the skill misread. Remove the root cause and the
+unverified skill stops being wrong about itself.
+
+Reading both tables together, honestly:
+
+- The verification layer was **treating a symptom**. Converting "fails while
+  claiming success" into "fails and says so" is genuinely valuable, but the
+  underlying failure was a fixable 1.6 cm sensor-model error.
+- Success went 4/10 → 10/10 from **one perception change**, versus 4 → 5 → 6
+  (overlapping intervals) from the entire verification-and-retry stack. The
+  layers were never the bottleneck; the sensor model was.
+- Verification is now **slightly negative** on both success (10 → 9) and time
+  (23.5 → 28.2 s): one episode fails a postcondition the bare skill counts as a
+  pass, and the checks cost 3–5 s per episode.
+
+What survives is narrower and worth keeping: verification is insurance with a
+visible premium whose payout depends entirely on how broken the rest of the
+stack is. When perception is sound it costs time and buys little. **It is not a
+substitute for fixing the root cause — and this document previously read as
+though it were.**
+
+At n=10, 9/10 vs 10/10 is one episode and is not significant. The claim rests
+on the *false-claims* column reaching zero in every condition, which needs no
+statistics.
+
 Task success climbs 4 → 5 → 6, but the intervals overlap heavily at n=10, so
 that ordering is not evidence. Read the success column as flat.
 

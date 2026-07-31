@@ -229,6 +229,49 @@ all six land exactly:
 worst placement error: 0.00 cm
 ```
 
+### 7. The remaining grasp failure is PERCEPTION, not physics (both engines)
+
+With the instrumentation bugs closed, the sweep failed 6/6 honestly — so the
+next question was why. It is not Newton, and it is not the gripper.
+
+Isolation chain, each step measured rather than argued:
+
+1. The cube is **knocked away during the approach**: `air grasp: gripper closed
+   fully, object not held`, with the cube displaced 7.9 cm before the jaws
+   close.
+2. At first contact the gripper is **1.8 cm off-centre** on a cube whose
+   half-width is 2.5 cm — a finger catches the edge and shoves it.
+3. Who is wrong, perception or kinematics?
+
+   | | position |
+   |---|---|
+   | physics truth | (+0.1686, +0.1510) |
+   | perception | (+0.1810, +0.1410) → **1.60 cm error** |
+   | gripper landed | (+0.1806, +0.1406) → **0.01 cm from the belief** |
+
+   The arm aims *precisely* at a wrong target.
+4. The bias is **constant**: dx=+1.25 cm, dy=−1.00 cm, std ≤ 0.05 cm across
+   four table positions.
+5. It is **identical under PhysX** (1.61 cm) and Newton (1.60 cm) — so it is
+   engine-independent and predates the Newton switch entirely.
+6. The extrinsics in `configs/cameras/isaac.yaml` match the bridge's printed
+   values byte for byte, so it is not a stale calibration.
+7. **Root cause:** the depth sensor sees the cube's **front face**; the truth
+   pose is its **centre**. Measured range 0.8950 m against a true 0.9336 m —
+   a 38.6 mm gap, about half a diagonal of the 5 cm cube. Deprojecting that
+   short range along the ray places the point closer to the camera *and*
+   laterally offset in base frame.
+8. **Proof:** pushing the deprojected point +2.5 cm along the ray cuts the
+   error from **3.17 cm to 1.15 cm** (2.8×), consistently at four positions.
+
+This also explains two long-standing numbers: the detector "ghost"
+(precision 76.6 %) and why ablation success sat at 4–6/10. With a 1.6 cm bias
+against a 2.5 cm half-width, a grasp is close to a coin flip depending on where
+the cube happens to sit.
+
+The fix belongs in the perception layer (surface→centre compensation), not in
+the asset and not in the solver.
+
 ## Debugging notes
 
 - **`scripts/night_runner.sh` may be running.** It drives the arm through picks

@@ -84,15 +84,23 @@ def place_cube(client: BridgeClient, x: float, y: float, z: float = 0.045):
     episode in the sweep (they all report an identical 0.0 cm because they are
     running against a dead scene, not because the skill behaved identically).
 
-    The velocity API differs by class AND engine:
-      * `isaacsim.core.prims.RigidPrim` (used here) takes ONE (N,6) tensor,
-        and its second positional arg is `indices`, not angular velocity --
-        passing a second array raises "'numpy.ndarray' object has no
-        attribute 'to'".
-      * the experimental `isaacsim.core.experimental.prims.RigidPrim` takes
-        (linear, angular) as two (N,3) arrays under Newton.
-    Use torch tensors (this backend is torch) and try the shapes in order.
+    Under Newton a plain teleport of a RESTING body does not stick either: the
+    write reaches both of the solver's state buffers (verified by reading them
+    back) and one step later the body is at its old pose again. Only a
+    timeline Stop -> Play makes the solver honour the authored spawn, which is
+    what the bridge's `reset_props` op now does.
+
+    So: reset through the bridge first (returns every prop to its spawn), then
+    nudge to the requested offset. If we skipped the reset, a sweep would
+    silently reuse the previous episode's end state -- the cube stays in the
+    bin, `truth=True` becomes a tautology, and the sweep reports a perfect
+    score with the cube having "moved" 1.5 cm. That is not a hypothetical: it
+    is exactly what a 6/6 run here turned out to be.
     """
+    # generous timeout: reset can take a while on the sim's main thread
+    client.request({"op": "reset_props"}, timeout_s=90.0)
+    time.sleep(1.0)
+
     code = (
         "from isaacsim.core.prims import RigidPrim\n"
         "import torch\n"
@@ -134,6 +142,23 @@ def run_condition(rt, truth, client, condition: str, n_states: int) -> dict:
     for i, (x, y) in enumerate(INIT_STATES[:n_states]):
         place_cube(client, x, y)
         start = truth.pose(CUBE)
+
+        # --- refuse to measure an episode that did not start where we asked -
+        # Under Newton a teleport of a resting body does not reliably stick,
+        # so the cube can still be wherever the LAST episode left it -- often
+        # already in the bin. Then `truth=True` is a tautology and the sweep
+        # reports a perfect score with the cube having "moved" 1.5 cm. That is
+        # not a hypothetical; it is what a 6/6 run here turned out to be.
+        if start is None:
+            raise SystemExit(f"ABORT at episode {i}: no readable cube pose.")
+        _off = float(np.linalg.norm(np.asarray(start[:2]) - np.asarray([x, y])))
+        if _off > 0.03:
+            raise SystemExit(
+                f"ABORT at episode {i}: asked for ({x:.3f}, {y:.3f}) but the "
+                f"cube is at ({start[0]:.3f}, {start[1]:.3f}), {_off*100:.1f} cm "
+                f"away. The reset did not take, so this episode would be "
+                f"measuring the previous one's end state. Restart the bridge."
+            )
 
         # --- refuse to measure a dead scene --------------------------------
         # Once the articulation is NaN the whole scene is unrecoverable, and

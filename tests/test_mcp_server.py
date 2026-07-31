@@ -248,11 +248,15 @@ def test_new_livestream_tools_over_jsonrpc(client):
     assert "objects" in payload and "cameras" in payload
     assert payload["arm_connected"] is False  # LazyArm untouched by a look
 
-    # live_view_url with WRC_STREAM=0: honest error, not a bogus URL
+    # live_view_url with WRC_STREAM=0: honest error, not a bogus URL.
+    # The dashboard is lazy now (chat is the UI), so this tool OPENS the view
+    # on demand -- but WRC_STREAM=0 is a hard kill switch that must still
+    # refuse rather than bind a port behind the operator's back.
     payload, is_err = _tool_payload(
         client.request("tools/call", {"name": "live_view_url", "arguments": {}})
     )
-    assert is_err and "livestream not running" in payload["error"]
+    assert is_err and payload["open"] is False
+    assert "disabled" in payload["error"] and "WRC_STREAM" in payload["error"]
 
     # named-camera snapshot
     resp = client.request("tools/call", {"name": "camera_snapshot",

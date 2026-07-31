@@ -16,6 +16,7 @@ path without an LLM call; only novel tasks reach the model.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -159,12 +160,24 @@ def build_runtime(
         watcher.start()
         runtime.watcher = watcher
 
+    # ── live view: headless by default, opened on demand ─────────────────
+    # Chat (Hermes / OpenClaw / any MCP host) is the interface; the browser
+    # dashboard is a diagnostic surface you attach. `serve=False` from the CLI
+    # still forces "off", but the default is now LAZY: nothing binds a port
+    # until someone asks to look. Perception keeps running either way, so the
+    # agent can answer "what do you see?" with no dashboard at all.
     runtime.stream_server = None
     scfg = cfg.get("stream", _empty_cfg())
-    if serve and bool(scfg.get("enabled", True)):
+    from .live_control import LiveViewController, resolve_mode
+
+    mode, idle_timeout = resolve_mode(scfg, os.environ.get)
+    if not serve:
+        mode = "off"
+
+    def _make_stream_server():
         from .stream_server import StreamServer
 
-        server = StreamServer(
+        return StreamServer(
             rig,
             state_fn=lambda: _runtime_state(runtime),
             host=str(scfg.get("host", "0.0.0.0")),
@@ -172,13 +185,22 @@ def build_runtime(
             fps=float(scfg.get("fps", 15.0)),
             quality=int(scfg.get("quality", 80)),
             keyframes_dir=trace.run_dir / "keyframes",
+            runtime_fn=lambda: runtime,
+            depth_max_m=float(scfg.get("depth_max_m", 2.0)),
+            on_poll=lambda: runtime.live_view.note_poll(),
         )
-        try:
-            server.start()
-            runtime.stream_server = server
-        except OSError as e:  # port taken: the demo must keep running
-            print(f"[wrc-demo] livestream disabled ({e}); "
-                  "set stream.port or WRC_STREAM_PORT", file=sys.stderr)
+
+    runtime.live_view = LiveViewController(
+        _make_stream_server, mode=mode, idle_timeout_s=idle_timeout
+    )
+    if mode == "eager":
+        opened = runtime.live_view.open(reason="stream.mode: eager")
+        if not opened.get("ok"):
+            print(f"[wrc-demo] livestream disabled ({opened.get('error')})",
+                  file=sys.stderr)
+    # Back-compat: existing code (and tests) read runtime.stream_server.
+    # It tracks the controller, so it is None while the view is closed.
+    runtime.stream_server = runtime.live_view.server
 
     if view:
         from .live_view import RigViewer

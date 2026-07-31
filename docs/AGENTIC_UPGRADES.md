@@ -152,11 +152,60 @@ src/wrc_demo/agent/cosmos3.py             Cosmos3-Edge client (XML tool calls)
 src/wrc_demo/memory/envelope.py           Harness-VLA operating envelopes
 src/wrc_demo/perception/visual_interface.py  VIA annotated view
 src/wrc_demo/sim/truth.py                 physics-truth verification channel
+src/wrc_demo/apps/live_control.py         on-demand live-view lifecycle
 scripts/learn_from_runs.py                the outer loop
 scripts/serve_cosmos3_edge.sh             vLLM-Omni serving
 configs/llm/cosmos3_edge.yaml             Cosmos3-Edge profile
 tests/test_agentic_upgrades.py            29 tests
+tests/test_live_view.py                   20 tests
 ```
+
+## The UI: headless-first, cameras on demand
+
+The chat client (Hermes / OpenClaw / any MCP host) is the interface. The
+browser dashboard is a **diagnostic surface you attach**, not the product —
+so nothing binds a port at startup.
+
+Why this is not just tidiness: every open MJPEG stream re-encodes JPEGs at the
+stream rate whether or not a human is looking, and a bound port on a booth LAN
+is an attack surface nobody asked for. Perception is unaffected — the
+CameraRig keeps pumping and the WorldWatcher keeps beliefs warm — so the agent
+answers "what do you see?" instantly with no dashboard at all.
+
+**Modes** (`stream.mode`, overridden by `WRC_STREAM`):
+
+| mode | behaviour |
+|---|---|
+| `lazy` *(default)* | binds on first `open_live_view`; auto-closes after `idle_timeout_s` (900 s) with nobody watching |
+| `eager` | binds at startup — pinned in `configs/booth.yaml`, because the big screen must be live before doors open |
+| `off` | never binds. `WRC_STREAM=0` maps here and stays a hard kill switch |
+
+**Skills** (all in `TOOL_SPECS`, so chat and MCP both see them):
+
+- `analyze_scene` — the headless answer to "what do you see?": per-camera
+  detections + confidence, depth **quality** (source, min/median/max, valid
+  fraction), scene description, numbered object key. No image tokens.
+- `open_live_view` / `close_live_view` / `live_view_status` — attach and
+  detach the browser UI; `live_view_url` opens it implicitly.
+
+**The dashboard**, when open, has all cameras together with per-tile view
+switches, plus the chat that drives the same robot:
+
+- **rgb** — detections + HUD (what the *detector* sees)
+- **depth** — colormap + range stats (what the *geometry* sees)
+- **agent** — VIA marks, metric grid, reachable IK band (what the *agent*
+  reasons on)
+
+The depth view earns its place because `depth_source` degrades silently
+(`sensor -> mono -> plane -> none`) and a wrong grasp z is usually a depth
+problem the RGB view physically cannot show. Verified live: `depth: sensor,
+min 0.599, median 0.792, max 1.282 m (83% valid)`.
+
+Switching a tile swaps the `<img>` src, which tears down the previous MJPEG
+socket — only one stream per tile ever encodes, so 3 cameras x 3 views stays
+affordable. An open MJPEG socket also refreshes the idle timer, so a viewer
+who is watching but not clicking never gets reaped.
+
 
 ## Pitfalls discovered while building this (all cost a real failure)
 

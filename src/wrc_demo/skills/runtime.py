@@ -71,6 +71,11 @@ class SkillRuntime:
         self._held_color: str | None = None
         #: optional WorldWatcher (set by the app wiring); paused during motion
         self.watcher = None
+        #: LiveViewController (set by the app wiring): the on-demand browser
+        #: dashboard. None in bare/unit-test runtimes.
+        self.live_view = None
+        #: the live StreamServer while the view is open, else None
+        self.stream_server = None
         #: natural-language task currently executing (dashboard narration)
         self.current_task: str | None = None
         #: dispatch tier that served the last command ("reflex" |
@@ -1690,6 +1695,117 @@ class SkillRuntime:
             ),
         }
 
+    def skill_open_live_view(self, reason: str = "") -> dict:
+        """Open the browser dashboard on demand (it is closed by default).
+
+        The chat client is the primary UI; this binds the HTTP port only when
+        a human actually wants to look, and it auto-closes when idle.
+        """
+        if self.live_view is None:
+            raise SkillError(
+                "no live view configured in this runtime (headless/unit-test build)"
+            )
+        out = self.live_view.open(reason=reason)
+        self.stream_server = self.live_view.server
+        if not out.get("ok"):
+            raise SkillError(str(out.get("error", "could not open the live view")))
+        out["views"] = {
+            "rgb": "detections + HUD (what the detector sees)",
+            "depth": "depth colormap + range stats (what the geometry sees)",
+            "agent": "numbered marks + metric grid + reachable IK band",
+        }
+        out["hint"] = (
+            "Share the URL with the human. Each camera tile has rgb/depth/agent "
+            "buttons, an analyze panel, and a chat box that drives this same robot."
+        )
+        return out
+
+    def skill_close_live_view(self) -> dict:
+        """Close the dashboard and release the port."""
+        if self.live_view is None:
+            return {"ok": True, "open": False, "note": "no live view configured"}
+        out = self.live_view.close(reason="closed on request")
+        self.stream_server = self.live_view.server
+        return out
+
+    def skill_live_view_status(self) -> dict:
+        """Is the dashboard open, on what URL, and how idle is it?"""
+        if self.live_view is None:
+            return {"ok": True, "open": False, "mode": "unavailable"}
+        out = dict(self.live_view.status())
+        out["ok"] = True
+        return out
+
+    def skill_analyze_scene(self, camera: str | None = None) -> dict:
+        """Full perception report: detections, depth quality, description.
+
+        Answers "what do you see?" WITHOUT needing the dashboard open -- this
+        is the headless counterpart of the dashboard's analyze button, and it
+        is why cameras can stay closed by default.
+        """
+        rig = getattr(self, "rig", None)
+        if rig is None:
+            raise SkillError("no camera rig in this runtime")
+        out: dict = {"ok": True, "cameras": {}}
+        names = [camera] if camera else list(rig.names)
+        for name in names:
+            try:
+                stream = rig.get(name)
+            except KeyError:
+                out["cameras"][name] = {"error": f"unknown camera {name!r}"}
+                continue
+            frame = stream.latest()
+            if frame is None:
+                out["cameras"][name] = {"error": "no frame yet"}
+                continue
+            dets, status = stream.overlay()
+            entry: dict = {
+                "fps": round(float(stream.fps), 1),
+                "resolution": [int(frame.rgb.shape[1]), int(frame.rgb.shape[0])],
+                "depth_source": frame.depth_source,
+                "agent_status": status,
+                "detections": [
+                    {"label": getattr(d, "label", "?"),
+                     "conf": round(float(getattr(d, "conf", 0.0)), 3)}
+                    for d in dets
+                ],
+            }
+            if frame.has_depth and frame.depth_m is not None:
+                depth = np.asarray(frame.depth_m, dtype=np.float32)
+                valid = depth[np.isfinite(depth) & (depth > 0)]
+                entry["depth"] = {
+                    "valid_fraction": round(float(valid.size) / float(depth.size), 3),
+                    "min_m": round(float(valid.min()), 3) if valid.size else None,
+                    "median_m": round(float(np.median(valid)), 3) if valid.size else None,
+                    "max_m": round(float(valid.max()), 3) if valid.size else None,
+                }
+            else:
+                entry["depth"] = None
+                entry["depth_warning"] = (
+                    "no depth: 3D grounding will refuse to localize from this camera"
+                )
+            out["cameras"][name] = entry
+        try:
+            out["scene"] = self.skill_describe_scene()
+        except Exception as e:
+            out["scene"] = {"error": str(e)[:200]}
+        try:
+            from ..perception.visual_interface import VisualInterface, annotate_frame
+
+            _, marks = annotate_frame(self)
+            out["objects"] = [m.as_dict() for m in marks]
+            out["key"] = VisualInterface.describe(marks)
+        except Exception:
+            pass
+        if self.live_view is not None:
+            st = self.live_view.status()
+            out["live_view"] = {"open": st["open"], "url": st["url"]}
+            if not st["open"]:
+                out["live_view"]["hint"] = (
+                    "call open_live_view to watch this in a browser"
+                )
+        return out
+
     def skill_task_done(self, success: bool, summary: str) -> dict:
         if isinstance(success, str):  # schema-lax backends send "false"
             success = success.strip().lower() in ("true", "yes", "1")
@@ -1720,6 +1836,60 @@ TOOL_SPECS: list[dict] = [
             "Returns a text key mapping each number to its label and 3D position. Use it "
             "when a scene is cluttered, when labels are ambiguous, or before choosing "
             "where to place something -- it shows what is reachable instead of guessing."
+        ),
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "analyze_scene",
+        "description": (
+            "Full perception report WITHOUT opening any window: per-camera detections "
+            "with confidence, depth quality (source + min/median/max range + valid "
+            "fraction), a natural-language scene description, and the numbered object "
+            "key. This is how you answer 'what do you see?' while the cameras/UI stay "
+            "closed. Prefer it over camera_snapshot when you need facts rather than "
+            "pixels -- it costs no image tokens."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "camera": {"type": "string",
+                           "description": "one camera name; omit for all"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "open_live_view",
+        "description": (
+            "Open the browser dashboard for the human (it is CLOSED by default -- chat "
+            "is the interface). Returns a URL to share. The page shows all cameras "
+            "together with per-tile rgb / depth / agent view switches, an analyze panel "
+            "(detections + depth stats + description), the world model, robot narration, "
+            "and a chat box that drives this same robot. Auto-closes when nobody is "
+            "watching. Call this when the human asks to see/watch the cameras."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reason": {"type": "string",
+                           "description": "why it is being opened (shown in logs)"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "close_live_view",
+        "description": (
+            "Close the browser dashboard and release its port. Perception keeps "
+            "running; only the HTTP view stops. Call it when the human is done looking."
+        ),
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "live_view_status",
+        "description": (
+            "Whether the browser dashboard is currently open, its URL, and how long it "
+            "has been idle. Check before offering a link so you never hand out a dead URL."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },

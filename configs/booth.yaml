@@ -18,3 +18,9 @@ memory:
 perception_loop:
   belief_fallback_age_s: 20.0  # "point at where it was" after the cup has
                                # covered the object for more than 3 s
+
+stream:
+  # Booth day: the big screen must be live BEFORE doors open, and it must not
+  # vanish while the presenter talks between visitors. Dev stays lazy
+  # (headless-first, chat is the UI); booth pins eager.
+  mode: eager

@@ -449,19 +449,29 @@ class McpSkillServer:
             if name == "world_state":
                 return _text_result(self._world_state(runtime))
             if name == "live_view_url":
-                url = (
-                    runtime.stream_server.url
-                    if runtime.stream_server is not None else None
-                )
-                if url:
-                    return _text_result({"ok": True, "url": url})
-                return _text_result(
-                    {"ok": False,
-                     "error": "livestream not running: disabled via WRC_STREAM=0 "
-                              "or the port was taken at startup (see gateway "
-                              "stderr; set WRC_STREAM_PORT to change it)"},
-                    is_error=True,
-                )
+                # The dashboard is lazy now: asking for the URL is itself a
+                # request to look, so open it rather than reporting "not
+                # running". Idempotent when already open.
+                lv = getattr(runtime, "live_view", None)
+                if lv is None:
+                    url = (
+                        runtime.stream_server.url
+                        if runtime.stream_server is not None else None
+                    )
+                    if url:
+                        return _text_result({"ok": True, "url": url})
+                    return _text_result(
+                        {"ok": False,
+                         "error": "livestream not running: disabled via WRC_STREAM=0 "
+                                  "or the port was taken at startup (see gateway "
+                                  "stderr; set WRC_STREAM_PORT to change it)"},
+                        is_error=True,
+                    )
+                out = lv.open(reason="live_view_url requested")
+                runtime.stream_server = lv.server
+                if not out.get("ok"):
+                    return _text_result(out, is_error=True)
+                return _text_result(out)
             if name == "emergency_stop":
                 # normally intercepted out-of-band by the stdin reader; this
                 # branch serves direct/in-process callers with identical

@@ -15,6 +15,20 @@ Routes:
 The handler threads only ever *read* the latest frame slot of each stream,
 so any number of viewers can attach without slowing perception or control.
 """
+#
+# 2026-07-31: the dashboard is now a *diagnostic surface you attach*, not the
+# interface. Chat (Hermes / OpenClaw / any MCP host) is the UI; this server is
+# opened on demand by LiveViewController and auto-closes when idle. Three view
+# modes per camera let a human see what the perception stack actually has:
+#
+#     /stream/<name>       detections + HUD          (what the detector sees)
+#     /depth/<name>        depth colormap + source   (what the geometry sees)
+#     /annotated/<name>    VIA marks + grid + IK band (what the agent reasons on)
+#     /analyze             one-shot JSON: detections, depth stats, description
+#
+# The depth view matters because `depth_source` silently degrades through
+# sensor -> mono -> plane -> none, and a wrong grasp z is usually a depth
+# problem the RGB view cannot show you.
 
 from __future__ import annotations
 
@@ -44,8 +58,15 @@ _INDEX_HTML = """<!doctype html>
  main {{ display:grid; grid-template-columns: 1fr 380px; gap:12px; padding:12px; }}
  #cams {{ display:flex; flex-wrap:wrap; gap:12px; align-content:start; }}
  .cam {{ background:#161c22; border-radius:8px; padding:8px; }}
- .cam h2 {{ font-size:13px; margin:0 0 6px 2px; color:#9fb0c0; font-weight:500; }}
+ .cam h2 {{ font-size:13px; margin:0 0 6px 2px; color:#9fb0c0; font-weight:500;
+            display:flex; align-items:center; gap:8px; }}
  .cam img {{ max-width:min(44vw,760px); border-radius:4px; display:block; }}
+ .views {{ margin-left:auto; display:flex; gap:4px; }}
+ .views button {{ background:#0d1117; border:1px solid #30363d; color:#9fb0c0;
+                  border-radius:5px; font:11px ui-monospace,monospace;
+                  padding:3px 8px; cursor:pointer; }}
+ .views button.on {{ background:#76b900; border-color:#76b900; color:#0d1117;
+                     font-weight:700; }}
  aside {{ display:flex; flex-direction:column; gap:12px; min-width:300px; }}
  .panel {{ background:#161c22; border-radius:8px; padding:10px 12px; }}
  .panel h3 {{ margin:0 0 8px; font-size:12px; color:#9fb0c0; text-transform:uppercase;
@@ -78,8 +99,14 @@ _INDEX_HTML = """<!doctype html>
       style="background:#d9534f;border:0;border-radius:6px;color:#fff;
              font-weight:700;padding:0 14px;cursor:pointer">stop</button>
    </form><div id="chatmsg" style="font:11px ui-monospace,monospace;color:#9fb0c0;
-                                   margin-top:6px"></div></div>
+                                   margin-top:6px;max-height:14vh;overflow-y:auto"></div></div>
   <div class="panel"><h3>robot narration</h3><div id="feed">waiting...</div></div>
+  <div class="panel"><h3>perception analysis
+   <button id="anbtn" style="float:right;background:#0d1117;border:1px solid #30363d;
+     color:#9fb0c0;border-radius:5px;font:11px ui-monospace,monospace;
+     padding:2px 8px;cursor:pointer">analyze</button></h3>
+   <div id="analysis" style="font:12px/1.5 ui-monospace,monospace;
+        white-space:pre-wrap;max-height:34vh;overflow-y:auto">click analyze for detections, depth stats and a scene description</div></div>
   <div class="panel"><h3>objects in the world model</h3>
    <table><thead><tr><th>object</th><th>color</th><th>position (m)</th><th>state</th></tr></thead>
    <tbody id="objs"></tbody></table></div>
@@ -93,27 +120,66 @@ _INDEX_HTML = """<!doctype html>
  const SWATCH = {{red:'#e5484d', orange:'#f76b15', yellow:'#ffe629', green:'#46a758',
    cyan:'#00a2c7', blue:'#0090ff', purple:'#8e4ec6', pink:'#f76190',
    brown:'#ad7f58', white:'#eee', gray:'#888', black:'#111'}};
+ // Per-camera view switch: rgb (detections) | depth (colormap + stats) |
+ // agent (VIA marks + metric grid + reachable IK band). Swapping the <img>
+ // src tears down the old MJPEG socket, so only one stream per tile is ever
+ // encoding -- that is what keeps 3 cameras x 3 views affordable.
+ function setView(cam, mode, btn) {{
+   const img = document.getElementById('img-' + cam);
+   const route = mode === 'depth' ? '/depth/' : (mode === 'agent' ? '/annotated/' : '/stream/');
+   img.src = route + encodeURIComponent(cam) + '?t=' + Date.now();
+   btn.parentNode.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+   btn.classList.add('on');
+ }}
+ document.getElementById('anbtn').addEventListener('click', async () => {{
+   const out = document.getElementById('analysis');
+   out.textContent = 'analyzing...';
+   try {{
+     const a = await (await fetch('/analyze')).json();
+     const lines = [];
+     for (const [name, c] of Object.entries(a.cameras || {{}})) {{
+       if (c.error) {{ lines.push(`${{name}}: ${{c.error}}`); continue; }}
+       lines.push(`${{name}}  ${{c.resolution.join('x')}} @ ${{c.fps}}fps  depth=${{c.depth_source}}`);
+       if (c.depth) lines.push(`  depth  min ${{c.depth.min_m}}m  med ${{c.depth.median_m}}m  max ${{c.depth.max_m}}m  (${{Math.round(c.depth.valid_fraction*100)}}% valid)`);
+       if (c.depth_warning) lines.push(`  WARNING ${{c.depth_warning}}`);
+       lines.push('  detections: ' + ((c.detections || []).map(d => `${{d.label}} ${{d.conf}}`).join(', ') || 'none'));
+     }}
+     if (a.world && a.world.description) lines.push('', 'scene: ' + a.world.description);
+     if (a.annotated_key) lines.push('', a.annotated_key);
+     out.textContent = lines.join('\\n');
+   }} catch (e) {{ out.textContent = 'analyze failed: ' + e; }}
+ }});
+ function log(text, color) {{
+   const box = document.getElementById('chatmsg');
+   const line = document.createElement('div');
+   line.textContent = text;
+   if (color) line.style.color = color;
+   box.appendChild(line);
+   while (box.childNodes.length > 8) box.removeChild(box.firstChild);
+   box.scrollTop = box.scrollHeight;
+ }}
  document.getElementById('stopbtn').addEventListener('click', async () => {{
-   const msg = document.getElementById('chatmsg');
    try {{
      const r = await (await fetch('/cancel', {{method: 'POST'}})).json();
-     msg.textContent = r.cancelled ? 'cancelled - the arm is stopping' : (r.error || 'cancel failed');
-   }} catch (e) {{ msg.textContent = 'error: ' + e; }}
+     log(r.cancelled ? 'cancelled - the arm is stopping' : (r.error || 'cancel failed'),
+         r.cancelled ? '#f0b429' : '#ff7b72');
+   }} catch (e) {{ log('error: ' + e, '#ff7b72'); }}
  }});
  document.getElementById('chat').addEventListener('submit', async (ev) => {{
    ev.preventDefault();
    const box = document.getElementById('cmd');
-   const msg = document.getElementById('chatmsg');
    const task = box.value.trim();
    if (!task) return;
-   msg.textContent = 'sending...';
-   try {{
+   log('> ' + task, '#d7dde3');
+   box.value = '';                       // clear immediately: the chat stays
+   try {{                                 // usable while the arm works
      const r = await (await fetch('/task', {{method: 'POST',
        headers: {{'Content-Type': 'application/json'}},
        body: JSON.stringify({{task}})}})).json();
-     msg.textContent = r.accepted ? `running: ${{r.task}}` : (r.error || 'rejected');
-     if (r.accepted) box.value = '';
-   }} catch (e) {{ msg.textContent = 'error: ' + e; }}
+     log(r.accepted ? `running: ${{r.task}}` : (r.error || 'rejected'),
+         r.accepted ? '#7ee787' : '#ff7b72');
+     if (!r.accepted) box.value = task;   // give a rejected command back
+   }} catch (e) {{ log('error: ' + e, '#ff7b72'); box.value = task; }}
  }});
  async function tick() {{
    try {{
@@ -168,9 +234,20 @@ class StreamServer:
         fps: float = 15.0,
         quality: int = 80,
         keyframes_dir=None,
+        runtime_fn=None,
+        depth_max_m: float = 2.0,
+        on_poll=None,
     ):
         self._rig = rig
         self._state_fn = state_fn or (lambda: {})
+        # Lazily resolved SkillRuntime, used by the depth/annotated/analyze
+        # views. A callable (not the object) because the MCP server builds its
+        # runtime AFTER the server may already exist.
+        self._runtime_fn = runtime_fn
+        self._depth_max_m = float(depth_max_m)
+        # Called on every browser request so LiveViewController can auto-close
+        # an idle dashboard instead of re-encoding JPEGs into the void.
+        self._on_poll = on_poll
         # per-skill before/after evidence JPEGs (the run dir's keyframes/);
         # None disables the /keyframes routes
         self._keyframes_dir = Path(keyframes_dir) if keyframes_dir else None
@@ -268,6 +345,143 @@ class StreamServer:
         base.setdefault("agent_status", "idle")
         return base
 
+    # ── depth + annotated views (the diagnostic surfaces) ────────────────
+
+    def depth_jpeg(self, name: str) -> bytes | None:
+        """Depth as a colormap, labelled with its provenance.
+
+        `depth_source` degrades silently (sensor -> mono -> plane -> none) and
+        a bad grasp z is usually a depth problem you cannot see in RGB. The
+        label is drawn ON the image so a screenshot is self-describing.
+        """
+        from .live_view import depth_colormap
+
+        stream = self._rig.get(name)
+        frame = stream.latest()
+        if frame is None:
+            return None
+        if not frame.has_depth or frame.depth_m is None:
+            img = np.zeros((360, 640, 3), dtype=np.uint8)
+            draw_hud(img, [f"{name}: NO DEPTH",
+                           "grounding cannot localize from this camera"])
+        else:
+            depth = np.asarray(frame.depth_m, dtype=np.float32)
+            img = depth_colormap(depth, max_m=float(self._depth_max_m))
+            valid = depth[np.isfinite(depth) & (depth > 0)]
+            if valid.size:
+                draw_hud(img, [
+                    f"{name}  depth: {frame.depth_source}  range {self._depth_max_m:.1f} m",
+                    f"min {valid.min():.3f}  median {np.median(valid):.3f}  "
+                    f"max {valid.max():.3f} m  ({100.0 * valid.size / depth.size:.0f}% valid)",
+                ])
+            else:
+                draw_hud(img, [f"{name}  depth: {frame.depth_source}",
+                               "no valid depth samples in this frame"])
+        ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, self._quality])
+        return buf.tobytes() if ok else None
+
+    def annotated_view_jpeg(self, name: str) -> bytes | None:
+        """VIA-style agent view: numbered marks, metric grid, IK band.
+
+        Requires the runtime (for beliefs/extrinsics/config); without it we
+        fall back to the plain detection view rather than erroring, so the
+        route always renders something.
+        """
+        runtime = self._runtime_fn() if self._runtime_fn else None
+        if runtime is None:
+            return self.annotated_jpeg(name)
+        try:
+            from ..perception.visual_interface import VisualInterface
+
+            stream = self._rig.get(name)
+            frame = stream.latest()
+            if frame is None:
+                return None
+            cfg = runtime.cfg
+            ws_raw = cfg.safety.get("workspace", {}) or {}
+            grasp_cfg = cfg.grasp if hasattr(cfg, "grasp") else {}
+            vi = VisualInterface(
+                extrinsics=runtime.extrinsics,
+                workspace=dict(getattr(ws_raw, "_data", ws_raw)),
+                table_z=float(cfg.safety.get("table_z", 0.0)),
+                reach_x=(float(grasp_cfg.get("reach_x_min", 0.155)),
+                         float(grasp_cfg.get("reach_x_max", 0.185))),
+            )
+            try:
+                tcp = runtime._tcp()
+            except Exception:
+                tcp = None
+            img, _ = vi.render(frame, beliefs=list(runtime.beliefs.all()), tcp=tcp)
+            ok, buf = cv2.imencode(".jpg", img,
+                                   [cv2.IMWRITE_JPEG_QUALITY, self._quality])
+            return buf.tobytes() if ok else None
+        except Exception:
+            # a perception hiccup must never break the live view
+            return self.annotated_jpeg(name)
+
+    def analyze(self, camera: str | None = None) -> dict:
+        """One-shot perception report: detections + depth + description.
+
+        This is what the "analyze" button and the `analyze_scene` MCP tool
+        both call. It reads only the latest cached frames, so it costs no
+        extra capture and cannot disturb a motion in flight.
+        """
+        runtime = self._runtime_fn() if self._runtime_fn else None
+        out: dict = {"ok": True, "t": time.time(), "cameras": {}}
+        names = [camera] if camera else list(self._rig.names)
+        for name in names:
+            try:
+                stream = self._rig.get(name)
+            except KeyError:
+                out["cameras"][name] = {"error": "unknown camera"}
+                continue
+            frame = stream.latest()
+            if frame is None:
+                out["cameras"][name] = {"error": "no frame yet"}
+                continue
+            dets, status = stream.overlay()
+            entry: dict = {
+                "fps": round(float(stream.fps), 1),
+                "resolution": [int(frame.rgb.shape[1]), int(frame.rgb.shape[0])],
+                "agent_status": status,
+                "depth_source": frame.depth_source,
+                "detections": [
+                    {"label": getattr(d, "label", "?"),
+                     "conf": round(float(getattr(d, "conf", 0.0)), 3)}
+                    for d in dets
+                ],
+            }
+            if frame.has_depth and frame.depth_m is not None:
+                depth = np.asarray(frame.depth_m, dtype=np.float32)
+                valid = depth[np.isfinite(depth) & (depth > 0)]
+                entry["depth"] = {
+                    "valid_fraction": round(float(valid.size) / float(depth.size), 3),
+                    "min_m": round(float(valid.min()), 3) if valid.size else None,
+                    "median_m": round(float(np.median(valid)), 3) if valid.size else None,
+                    "max_m": round(float(valid.max()), 3) if valid.size else None,
+                }
+            else:
+                entry["depth"] = None
+                entry["depth_warning"] = (
+                    "no depth on this camera: 3D grounding will refuse to localize"
+                )
+            out["cameras"][name] = entry
+
+        if runtime is not None:
+            try:
+                out["world"] = runtime.execute("describe_scene", {})
+            except Exception as e:
+                out["world"] = {"ok": False, "error": str(e)[:200]}
+            try:
+                from ..perception.visual_interface import VisualInterface, annotate_frame
+
+                _, marks = annotate_frame(runtime)
+                out["annotated_key"] = VisualInterface.describe(marks)
+                out["objects"] = [m.as_dict() for m in marks]
+            except Exception:
+                pass
+        return out
+
 
 def _make_handler(server: StreamServer):
     class Handler(BaseHTTPRequestHandler):
@@ -280,16 +494,32 @@ def _make_handler(server: StreamServer):
 
         def do_GET(self):  # noqa: N802 (BaseHTTPRequestHandler API)
             path = self.path.split("?", 1)[0].rstrip("/") or "/"
+            if server._on_poll is not None:
+                try:
+                    server._on_poll()  # keeps a lazily-opened view alive
+                except Exception:
+                    pass
             try:
                 if path == "/":
                     return self._index()
                 if path == "/state":
                     return self._json(server.state())
+                if path == "/analyze":
+                    cam = None
+                    if "?" in self.path:
+                        from urllib.parse import parse_qs, urlparse
+
+                        cam = (parse_qs(urlparse(self.path).query).get("camera") or [None])[0]
+                    return self._json(server.analyze(cam))
                 if path.startswith("/snapshot/"):
                     name = path.split("/", 2)[2].removesuffix(".jpg")
                     return self._snapshot(name)
                 if path.startswith("/stream/"):
-                    return self._mjpeg(path.split("/", 2)[2])
+                    return self._mjpeg(path.split("/", 2)[2], server.annotated_jpeg)
+                if path.startswith("/depth/"):
+                    return self._mjpeg(path.split("/", 2)[2], server.depth_jpeg)
+                if path.startswith("/annotated/"):
+                    return self._mjpeg(path.split("/", 2)[2], server.annotated_view_jpeg)
                 if path == "/keyframes":
                     return self._keyframes_index()
                 if path.startswith("/keyframe/"):
@@ -342,8 +572,13 @@ def _make_handler(server: StreamServer):
 
         def _index(self):
             tiles = "".join(
-                f'<div class="cam"><h2>{n}</h2>'
-                f'<img src="/stream/{n}" alt="{n}"></div>'
+                f'<div class="cam"><h2>{n}'
+                f'<span class="views">'
+                f"<button class=\"on\" onclick=\"setView('{n}','rgb',this)\">rgb</button>"
+                f"<button onclick=\"setView('{n}','depth',this)\">depth</button>"
+                f"<button onclick=\"setView('{n}','agent',this)\">agent</button>"
+                f'</span></h2>'
+                f'<img id="img-{n}" src="/stream/{n}" alt="{n}"></div>'
                 for n in server._rig.names
             )
             body = _INDEX_HTML.format(tiles=tiles).encode()
@@ -426,8 +661,9 @@ def _make_handler(server: StreamServer):
             self.end_headers()
             self.wfile.write(jpeg)
 
-        def _mjpeg(self, name: str):
+        def _mjpeg(self, name: str, render=None):
             server._rig.get(name)  # 404 (KeyError) before headers go out
+            render = render or server.annotated_jpeg
             self.send_response(200)
             self.send_header(
                 "Content-Type", f"multipart/x-mixed-replace; boundary={_BOUNDARY}"
@@ -437,7 +673,7 @@ def _make_handler(server: StreamServer):
             period = 1.0 / max(server._fps, 1.0)
             while not server._stopping:
                 t0 = time.monotonic()
-                jpeg = server.annotated_jpeg(name)
+                jpeg = render(name)
                 if jpeg is not None:
                     self.wfile.write(
                         b"--" + _BOUNDARY.encode() + b"\r\n"
@@ -447,6 +683,14 @@ def _make_handler(server: StreamServer):
                     self.wfile.write(jpeg)
                     self.wfile.write(b"\r\n")
                     self.wfile.flush()
+                # An open MJPEG socket is itself proof someone is watching:
+                # refresh the idle timer or the reaper closes the view under a
+                # viewer who never issues another GET.
+                if server._on_poll is not None:
+                    try:
+                        server._on_poll()
+                    except Exception:
+                        pass
                 dt = time.monotonic() - t0
                 if dt < period:
                     time.sleep(period - dt)

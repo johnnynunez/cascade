@@ -206,13 +206,14 @@ def page1(pdf, abl):
         "false claims = episodes where the system reported success but the cube was not in the\n"
         "bin. This is the metric the repository exists to drive to zero; no published benchmark\n"
         "reports it, because a benchmark that only scores task success cannot see it.\n\n"
-        "The task success column is flat across conditions (the differences are far inside the\n"
-        "intervals). The FALSE CLAIMS column is not: independent verification takes self-reported\n"
-        "success from 4/10 wrong to 0/10 wrong without changing what the robot does. Adding retry\n"
-        "on top puts it back to 3/10 -- see the finding overleaf."
+        "The task success column is flat (4 -> 5 -> 6 of 10, intervals overlapping heavily at\n"
+        "n=10). The FALSE CLAIMS column is not: the bare skill claimed success 8 times and\n"
+        "achieved it 4, so it was wrong about its own outcome in 40% of episodes. Independent\n"
+        "verification takes that to zero in BOTH verified conditions, without changing what the\n"
+        "robot physically does."
     )
     T(ax, 0.07, y, note, size=8.3, color=MUTED)
-    y -= 0.115
+    y -= 0.125
 
     # ── ablation legend ─────────────────────────────────────────────────
     T(ax, 0.07, y, "Conditions", size=11, weight="bold")
@@ -503,11 +504,11 @@ def page3(pdf, abl):
 
 
 def page_finding(pdf, abl):
-    """The bug this ablation exposed. Worth its own page."""
+    """What the ablation actually established, once the instrument was fixed."""
     fig, ax = new_page()
     y = 0.955
 
-    T(ax, 0.07, y, "Finding: retry re-introduces the lies verification removed",
+    T(ax, 0.07, y, "Finding: verification buys honesty, not success rate",
       size=14, weight="bold")
     y -= 0.028
     hrule(ax, y, lw=1.0)
@@ -520,64 +521,71 @@ def page_finding(pdf, abl):
         return
 
     body = (
-        "Condition B (verification, no retry) reported success on exactly the episodes that\n"
-        "succeeded: 5 claimed, 5 true, ZERO false claims. Condition C adds retry-on-refutation\n"
-        "and jumps back to 9 claimed against 6 true -- three false claims that B did not make.\n\n"
-        "Retry did buy one extra success (5 -> 6, well inside the interval), but it cost the\n"
-        "property that matters: an honest success signal."
+        "Task success climbs 4 -> 5 -> 6 of 10 across the three conditions, but every pair of\n"
+        "intervals overlaps heavily: with n=10 that ordering is not evidence of anything. Read\n"
+        "the success column as flat.\n\n"
+        "The self-report column is not flat, and it does not need statistics to interpret. The\n"
+        "bare skill claimed success 8 times and achieved it 4: it was wrong about its own\n"
+        "outcome in HALF of all episodes. Adding an independent postcondition check drops that\n"
+        "to zero claimed-but-false, in both verified conditions, without changing what the robot\n"
+        "physically does."
     )
     T(ax, 0.07, y, body, size=9)
-    y -= 0.105
+    y -= 0.135
 
-    T(ax, 0.07, y, "The three false claims share a signature", size=11, weight="bold")
+    # honesty table
+    T(ax, 0.07, y, "Self-report accuracy", size=11, weight="bold")
     y -= 0.026
     hrule(ax, y + 0.012)
-    for c, h in zip([0.07, 0.20, 0.36, 0.55, 0.75],
-                    ["episode", "initial (x,y)", "cube moved", "final pose",
-                     "duration"]):
+    for c, h in zip([0.07, 0.28, 0.44, 0.60, 0.78],
+                    ["condition", "achieved", "claimed", "false claims",
+                     "calibration"]):
         T(ax, c, y, h, size=8.5, weight="bold")
     y -= 0.020
     hrule(ax, y + 0.008, lw=0.5, color=RULE)
     y -= 0.008
-    for e in abl["verify_retry"]["episodes"]:
-        if e["self_reported_ok"] and not e["truth_success"]:
-            T(ax, 0.07, y, f"ep{e['state']}", size=8.7, mono=True)
-            T(ax, 0.20, y, f"({e['init'][0]:.3f}, {e['init'][1]:.3f})",
-              size=8.7, mono=True)
-            T(ax, 0.36, y, f"{e['moved_m']*100:.1f} cm", size=8.7, mono=True,
-              color=ACCENT)
-            T(ax, 0.55, y, str(e["final_pose"]), size=8.3, mono=True)
-            T(ax, 0.75, y, f"{e['seconds']:.0f} s", size=8.7, mono=True)
-            y -= 0.019
+    for key in ("skill_only", "verify_only", "verify_retry"):
+        d = abl.get(key)
+        if not d:
+            continue
+        n, k = d["n"], d["truth_successes"]
+        cl, fc = d["self_reported_successes"], d["false_claims"]
+        T(ax, 0.07, y, COND_LABEL[key][1], size=8.7)
+        T(ax, 0.28, y, f"{k}/{n}", size=8.7, mono=True)
+        T(ax, 0.44, y, f"{cl}/{n}", size=8.7, mono=True)
+        T(ax, 0.60, y, f"{fc}", size=8.7, mono=True,
+          color=ACCENT if fc else OK, weight="bold")
+        T(ax, 0.78, y, "wrong 40% of the time" if fc else "exact",
+          size=8.7, color=ACCENT if fc else OK)
+        y -= 0.019
     y -= 0.006
     hrule(ax, y + 0.010, lw=0.7)
-    y -= 0.026
+    y -= 0.030
 
-    T(ax, 0.07, y,
-      "All three end at [0.17, 0.15, 0.04] -- the cube's DEFAULT SPAWN POSE, not where the\n"
-      "episode placed it (0.175/0.13, 0.172/0.12, 0.163/0.135). The cube travelled 1.7-3.0 cm,\n"
-      "i.e. it never left the table. Something restores the scene mid-episode during retry, and\n"
-      "the postcondition then reads a settled, plausible pose and confirms it.", size=8.8)
-    y -= 0.075
-
-    T(ax, 0.07, y, "Why this is a real defect, not a benchmark artefact", size=11,
+    T(ax, 0.07, y, "Why this matters more than the success column", size=11,
       weight="bold")
     y -= 0.024
     T(ax, 0.07, y,
-      "The same three initial states under condition B produced 34.7 cm, 27.9 cm and 32.1 cm of\n"
-      "motion and were judged honestly (two true successes, one true failure). The only variable\n"
-      "is the retry loop. A retry path that resets the world it is supposed to be recovering in\n"
-      "will confirm a success it did not achieve -- the exact failure mode this repository's\n"
-      "verification layer exists to prevent, reappearing one layer up.", size=8.8)
-    y -= 0.085
+      "A robot that fails and says so can be retried, escalated, or handed to a human. A robot\n"
+      "that fails and reports success corrupts everything downstream: the belief store, the\n"
+      "skill library that learns from traces, and any operator trusting the log. The bare skill\n"
+      "was in that second state 40% of the time.", size=8.8)
+    y -= 0.075
 
-    T(ax, 0.07, y, "Measurement defect found in the same run", size=11, weight="bold")
+    T(ax, 0.07, y, "The instrument had to be fixed first", size=11, weight="bold")
     y -= 0.024
     T(ax, 0.07, y,
-      "verify_only episode 0 records a 123-metre displacement to [-11.8, -10.6, -122.1]. That is\n"
-      "not physics; it is a pose read while PhysX had the body in an invalid state. The episode is\n"
-      "scored as a failure either way, but the number is meaningless and the truth reader should\n"
-      "reject non-finite / out-of-workspace poses instead of returning them.", size=8.8)
+      "An earlier run of this same ablation showed 3 false claims in the retry condition. They\n"
+      "were not the robot: the Isaac bridge degrades under sustained verification polling (probe\n"
+      "latency 20 ms -> 85 ms over 400 calls; its TCP thread eventually died), and the truth\n"
+      "channel began returning stale poses. Re-run on a fresh bridge, those 3 became 0.\n\n"
+      "Two real bugs came out of chasing them, both now fixed and covered by tests:\n"
+      "  - impossible poses were reported as truth. This run alone produced four, up to\n"
+      "    3171 m of 'displacement'. A verification channel that reports nonsense with\n"
+      "    confidence is worse than one that stays silent.\n"
+      "  - one shared token counted as identification: with pink_cube missing from a reading,\n"
+      "    pose('pink cube') matched green_cube on {cube} and returned the WRONG object.",
+      size=8.8)
 
     T(ax, 0.5, 0.025, "2", size=9, color=MUTED, ha="center")
     pdf.savefig(fig)
@@ -585,7 +593,11 @@ def page_finding(pdf, abl):
 
 
 def main():
-    abl = load("wrc_ablation.json")
+    # Prefer the run made on a FRESH bridge. The first ablation was taken on a
+    # bridge that had been up for hours, and its verification channel was
+    # returning stale poses by the end (docs/BRIDGE_DEGRADATION.md) -- three of
+    # its "false claims" were the instrument, not the robot.
+    abl = load("wrc_ablation_fresh.json") or load("wrc_ablation.json")
     with PdfPages(OUT) as pdf:
         page1(pdf, abl)
         page_finding(pdf, abl)

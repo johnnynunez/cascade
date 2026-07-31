@@ -46,6 +46,7 @@ import argparse
 import json
 import os
 import re
+import threading
 import sys
 import time
 from pathlib import Path
@@ -142,6 +143,19 @@ def build_wrc_runtime(env, task_language: str):
     cfg.safety._data["joint_limits"] = [[float(x), float(y)]
                                         for x, y in zip(lo, hi)]
     cfg.safety._data["table_z"] = 0.80          # LIBERO table top, world frame
+
+    # The workspace AABB must move with the table. The shipped one is the RS
+    # arm's, verified against its URDF reachability probe: x 0.10..0.50,
+    # y +-0.30, z -0.01..0.55 in ITS base frame. LIBERO's table top is at
+    # z = 0.80 world, so every reachable pregrasp here sits ABOVE that ceiling
+    # and the safety layer rejected it with
+    #     "pregrasp unsafe: TCP [0.138, -0.085, 1.009] outside workspace"
+    # -- a harness misconfiguration reported as a skill failure. Size the box
+    # around the Panda's actual reach in the world frame it is driven in.
+    cfg.safety._data["workspace"] = {
+        "min": [-0.60, -0.60, 0.75],
+        "max": [0.60, 0.60, 1.35],
+    }
 
     # Kinematics is constructed inside build_runtime from a URDF; swap in the
     # MuJoCo one (validated: FK 0.0 mm, IK 0.1 mm against this exact model).
@@ -315,6 +329,16 @@ def main() -> int:
             This is a PERCEPTION substitute, not a verification shortcut: the
             postcondition channel reads physics again AFTER the motion, so a
             skill still cannot confirm itself.
+
+            Must be re-published DURING the episode, not only at the start.
+            `_localize` accepts a belief as a detector fallback only while it
+            is younger than `perception_loop.belief_fallback_age_s` (3 s), and
+            the mock detector never refreshes it. Seeding once meant grasp
+            retries 1-3 saw a valid fix and retries 4-8 got
+            "no detections" purely because the clock ran out -- the sweep was
+            measuring belief expiry, not orchestration. A real external
+            perception service (Gemini Robotics ER in Pigey/ASPIRE) publishes
+            continuously, so a background re-publish is the faithful analogue.
             """
             m = inner.sim.model
             for name in (obj_body, dest_body):
@@ -327,6 +351,23 @@ def main() -> int:
                                   conf=0.99,
                                   extent=np.array([0.06, 0.06, 0.06]))
             del m
+
+        # Background re-publisher: keeps the external perception feed alive for
+        # the duration of a skill, the way a real perception service would.
+        # Without it the belief expires 3 s in and later grasp retries fail on
+        # staleness rather than on anything the orchestration layer did.
+        _pub_stop = threading.Event()
+
+        def _publish_loop():
+            while not _pub_stop.is_set():
+                try:
+                    seed_beliefs()
+                except Exception:
+                    pass          # a torn-down env at episode end is expected
+                _pub_stop.wait(1.0)
+
+        _pub_thread = threading.Thread(target=_publish_loop, daemon=True)
+        _pub_thread.start()
 
         for cond in conds:
             ok = claimed = false = 0
@@ -409,6 +450,10 @@ def main() -> int:
                 {"task_id": tid, "language": task.language, "successes": ok})
             print(f"  [{tid}] {cond:10} {ok}/{a.episodes}  "
                   f"(claimed {claimed}, false {false})", flush=True)
+        # stop the perception feed before tearing the env down, so the thread
+        # cannot touch a closed sim
+        _pub_stop.set()
+        _pub_thread.join(timeout=3.0)
         env.close()
 
     print("\n" + "=" * 62)

@@ -184,18 +184,24 @@ class SkillRuntime:
         # postcondition can measure a displacement rather than guess one.
         # NOTE the arg name varies across the skill API and getting this wrong
         # silently degrades every check to "unverified": pick_and_place takes
-        # `object`, grasp/push/place_on_object take `label`, and place_at takes
-        # no object at all (the held one is the subject). Verified against
-        # TOOL_SPECS -- keep this list in sync when adding a motion skill.
+        # `object`, grasp/push take `label`, and place_at takes no object at
+        # all (the held one is the subject). Verified against TOOL_SPECS --
+        # keep this in sync when adding a motion skill.
+        # place_on_object is the exception: its `label` is the DESTINATION,
+        # so snapshotting it would make the checker compare the target with
+        # itself ("box sits on box"). The subject there is the held object.
         pre_state = {}
         if self.effects is not None and name in _MOTION_SKILLS:
-            target_label = (
-                args.get("label")
-                or args.get("object")
-                or args.get("query")
-                or self.held_object
-                or None
-            )
+            if name == "place_on_object":
+                target_label = self.held_object
+            else:
+                target_label = (
+                    args.get("label")
+                    or args.get("object")
+                    or args.get("query")
+                    or self.held_object
+                    or None
+                )
             pre_state = self.effects.snapshot(target_label)
         t0 = time.monotonic()
         try:

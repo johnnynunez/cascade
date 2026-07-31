@@ -40,7 +40,7 @@ matching tool parser plugin, and the XML block out of the text content when it
 does not.  Values are coerced against the JSON schema in ``TOOL_SPECS`` so
 ``distance_m`` arrives as a float, not the string ``"0.08"``.
 
-Serving (see ``scripts/serve_cosmos3_edge.sh``)::
+Serving (see ``scripts/serve_cosmos_vllm.sh``)::
 
     docker pull vllm/vllm-omni:cosmos3
     vllm serve nvidia/Cosmos3-Edge --omni --host 0.0.0.0 --port 8000 \
@@ -179,7 +179,7 @@ class Cosmos3EdgeClient(OpenAICompatClient):
 
 
 def make_cosmos3_client(cfg) -> Cosmos3EdgeClient:
-    """Build the client from a ``configs/llm/cosmos3_edge.yaml`` profile."""
+    """Build the client from a ``configs/llm/local_cosmos.yaml`` profile."""
     return Cosmos3EdgeClient(
         model=cfg.get("model", "nvidia/Cosmos3-Edge"),
         base_url=cfg.get("base_url", "http://127.0.0.1:8000/v1"),

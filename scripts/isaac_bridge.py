@@ -5,7 +5,7 @@ Run with Isaac Sim's Python:
 
     export ISAACSIM_PATH=~/Projects/isaac/IsaacSim/_build/linux-$(uname -m)/release
     $ISAACSIM_PATH/python.sh scripts/isaac_bridge.py \
-        --usd assets/usd/RS-rebot-dev-arm/00-arm-rs_asm-v3.usda
+        --usd assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda
 
 Opens the gain-tuned reBot RS asset, adds a tabletop + colored props (incl.
 a PINK cube) + two RTX cameras, and serves the newline-JSON protocol from
@@ -47,7 +47,7 @@ import zlib
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_USD = os.environ.get(
     "WRC_USD",
-    os.path.join(_REPO_ROOT, "assets", "usd", "RS-rebot-dev-arm", "00-arm-rs_asm-v3.usda"),
+    os.path.join(_REPO_ROOT, "assets", "usd", "RS-rebot-dev-arm", "RS-rebot-dev-arm.usda"),
 )
 DEFAULT_PRIM = "/tn__00armrs_asmv3_hJ6D/Geometry/base_link"
 

@@ -10,7 +10,10 @@ sys.path.insert(0, str(REPO / "src"))
 from wrc_demo.config import load_demo_config  # noqa: E402
 
 URDF = REPO / "assets" / "urdf" / "00-arm-rs_asm-v3" / "urdf" / "00-arm-rs_asm-v3.urdf"
-USD = REPO / "assets" / "usd" / "RS-rebot-dev-arm" / "00-arm-rs_asm-v3.usda"
+# Renamed 2026-07-31 with the asset refresh: the stage is now named after the
+# robot (00-arm-rs_asm-v3.usda -> RS-rebot-dev-arm.usda), and its payloads
+# follow the same convention (payloads/RS-rebot-dev-arm_{base,meshes,physics}).
+USD = REPO / "assets" / "usd" / "RS-rebot-dev-arm" / "RS-rebot-dev-arm.usda"
 # Assets are authored in the mirrored joint convention; the SDK and every q
 # constant in this repo are local (q_local = -q_asset). See usd_model.
 JOINT_SIGNS = [-1, -1, -1, -1, -1, -1]

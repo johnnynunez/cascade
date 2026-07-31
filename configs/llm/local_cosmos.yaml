@@ -5,9 +5,24 @@
 # Thinking mode is on by default (slower turns than Qwen; small model —
 # expect weaker tool reasoning, e.g. it once misread LazyArm's pre-motion
 # arm_connected=false as a hardware fault).
-type: openai_compat
+#
+# type MUST be `cosmos3`, not `openai_compat`: Cosmos3-Edge's chat template
+# emits XML tool calls
+#     <tool_call><function=grasp_object><parameter=label>pink cube</parameter>
+# rather than OpenAI JSON `tool_calls`. Under the plain openai_compat client
+# `choices[0].message.tool_calls` stays empty, so every turn parses as prose
+# and the agent silently NEVER calls a skill — it looks like the model is
+# chatting instead of acting. `agent/cosmos3.py` parses both shapes and
+# coerces each parameter against the JSON schema in TOOL_SPECS (so
+# distance_m arrives as a float, not "0.08"). It also strips <think> blocks
+# from user-visible narration.
+type: cosmos3
 base_url: http://127.0.0.1:8082/v1
 model: cosmos3-edge
 api_key: EMPTY
 supports_vision: true     # vision encoder is served; image input untested on the rig
 temperature: 0.2
+enable_thinking: true     # matches the template default the serve script notes;
+                          # set false to trade reasoning depth for booth pacing
+max_frames: 1             # >1 attaches a short clip (the reasoner takes ~4 fps
+                          # video) so the model can see motion, not one still

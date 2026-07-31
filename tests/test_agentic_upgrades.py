@@ -246,6 +246,43 @@ def test_unverifiable_grasp_marks_result_unverified_not_failed():
     assert result["ok"] is True and result["verified"] is False
 
 
+def test_place_on_object_uses_the_held_object_not_the_target():
+    """Regression: the subject is what was RELEASED, `label` is the destination.
+
+    Reading the subject from the pre-motion snapshot compared the target with
+    itself and reported "box sits on box (offset 0.0 cm)" -- a vacuous
+    confirmation that masked a real miss on the live rig (the cube landed at
+    (0.272, 0.084), outside the bin, while this said confirmed).
+    """
+    poses = {"pink cube": [0.27, 0.08, 0.03], "box": [0.18, -0.17, 0.03]}
+    checker = PostconditionChecker(object_pose=lambda l: poses.get(l))
+    pc = checker.verify(
+        "place_on_object",
+        {"label": "box"},
+        {"ok": True, "placed": "pink cube"},
+        before={"label": "box", "pose": poses["box"]},   # the old, wrong snapshot
+    )
+    assert pc.status == REFUTED
+    assert "pink cube" in pc.evidence and "not on it" in pc.evidence
+
+
+def test_place_on_object_confirms_a_real_placement():
+    poses = {"pink cube": [0.18, -0.17, 0.09], "box": [0.18, -0.17, 0.03]}
+    checker = PostconditionChecker(object_pose=lambda l: poses.get(l))
+    pc = checker.verify("place_on_object", {"label": "box"},
+                        {"ok": True, "placed": "pink cube"}, before={})
+    assert pc.status == CONFIRMED and "sits on box" in pc.evidence
+
+
+def test_place_on_object_abstains_when_the_subject_is_unknown():
+    """Better unverified than a self-comparison that always confirms."""
+    checker = PostconditionChecker(object_pose=lambda l: [0.18, -0.17, 0.03])
+    pc = checker.verify("place_on_object", {"label": "box"}, {"ok": True},
+                        before={"label": "box"})
+    assert pc.status == UNVERIFIED
+    assert "which object was released" in pc.evidence
+
+
 def test_push_postcondition_measures_displacement():
     poses = {"box": [0.30, 0.0, 0.03]}
     checker = PostconditionChecker(object_pose=lambda l: poses.get(l))

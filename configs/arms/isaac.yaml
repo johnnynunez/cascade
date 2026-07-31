@@ -6,6 +6,10 @@ bridge_host: 127.0.0.1
 bridge_port: 8611
 n_joints: 6
 settle_tol: 0.045
+# Newton needs longer than PhysX to settle the last of the tracking error
+# (measured: 3.6 s for a 0.17 rad step, vs the old hard-coded 2.0 s timeout
+# that made every pregrasp report "did not settle at pregrasp pose").
+settle_timeout_s: 6.0
 model: ${assets}/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf
 # Assets are mirrored vs. the SDK/hardware convention (q_local = -q_asset).
 joint_signs: [-1, -1, -1, -1, -1, -1]

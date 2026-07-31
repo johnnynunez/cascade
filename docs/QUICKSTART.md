@@ -16,8 +16,9 @@ PY=~/Projects/demo/.demo/bin/python          # el venv compartido
 **Isaac Sim (el rig simulado)** — proceso largo, déjalo en su terminal:
 ```bash
 export ISAACSIM_PATH=~/Projects/isaac/IsaacSim/_build/linux-x86_64/release
-$ISAACSIM_PATH/python.sh scripts/isaac_bridge.py --engine physx
-# sirve en :8611
+$ISAACSIM_PATH/python.sh scripts/isaac_bridge.py
+# sirve en :8611 con Newton (por defecto). Usa --engine physx para el motor
+# anterior; ver docs/NEWTON_ENGINE.md.
 ```
 
 **Cerebro local** — uno de los dos:

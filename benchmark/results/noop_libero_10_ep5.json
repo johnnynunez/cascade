@@ -1,0 +1,96 @@
+{
+  "suite": "libero_10",
+  "policy": "noop",
+  "policy_desc": "zero action (floor)",
+  "episodes_per_task": 5,
+  "resolution": 256,
+  "max_steps": 520,
+  "settle_steps": 10,
+  "unnorm_key": null,
+  "tasks": [
+    {
+      "task_id": 0,
+      "language": "put both the alphabet soup and the tomato sauce in the basket",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 520.0
+    },
+    {
+      "task_id": 1,
+      "language": "put both the cream cheese box and the butter in the basket",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 520.0
+    },
+    {
+      "task_id": 2,
+      "language": "turn on the stove and put the moka pot on it",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 520.0
+    },
+    {
+      "task_id": 3,
+      "language": "put the black bowl in the bottom drawer of the cabinet and close it",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 520.0
+    },
+    {
+      "task_id": 4,
+      "language": "put the white mug on the left plate and put the yellow and white mug on the right plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 520.0
+    },
+    {
+      "task_id": 5,
+      "language": "pick up the book and place it in the back compartment of the caddy",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 520.0
+    },
+    {
+      "task_id": 6,
+      "language": "put the white mug on the plate and put the chocolate pudding to the right of the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 520.0
+    },
+    {
+      "task_id": 7,
+      "language": "put both the alphabet soup and the cream cheese box in the basket",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 520.0
+    },
+    {
+      "task_id": 8,
+      "language": "put both moka pots on the stove",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 520.0
+    },
+    {
+      "task_id": 9,
+      "language": "put the yellow and white mug in the microwave and close it",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 520.0
+    }
+  ],
+  "episodes_total": 50,
+  "successes_total": 0,
+  "success_rate": 0.0,
+  "wall_time_s": 208.8
+}

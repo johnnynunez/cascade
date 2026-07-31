@@ -1,0 +1,96 @@
+{
+  "suite": "libero_goal",
+  "policy": "noop",
+  "policy_desc": "zero action (floor)",
+  "episodes_per_task": 5,
+  "resolution": 256,
+  "max_steps": 300,
+  "settle_steps": 10,
+  "unnorm_key": null,
+  "tasks": [
+    {
+      "task_id": 0,
+      "language": "open the middle drawer of the cabinet",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 300.0
+    },
+    {
+      "task_id": 1,
+      "language": "put the bowl on the stove",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 300.0
+    },
+    {
+      "task_id": 2,
+      "language": "put the wine bottle on top of the cabinet",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 300.0
+    },
+    {
+      "task_id": 3,
+      "language": "open the top drawer and put the bowl inside",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 300.0
+    },
+    {
+      "task_id": 4,
+      "language": "put the bowl on top of the cabinet",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 300.0
+    },
+    {
+      "task_id": 5,
+      "language": "push the plate to the front of the stove",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 300.0
+    },
+    {
+      "task_id": 6,
+      "language": "put the cream cheese in the bowl",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 300.0
+    },
+    {
+      "task_id": 7,
+      "language": "turn on the stove",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 300.0
+    },
+    {
+      "task_id": 8,
+      "language": "put the bowl on the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 300.0
+    },
+    {
+      "task_id": 9,
+      "language": "put the wine bottle on the rack",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 300.0
+    }
+  ],
+  "episodes_total": 50,
+  "successes_total": 0,
+  "success_rate": 0.0,
+  "wall_time_s": 149.7
+}

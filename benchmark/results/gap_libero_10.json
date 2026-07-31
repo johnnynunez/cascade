@@ -1,0 +1,205 @@
+{
+  "suite": "libero_10",
+  "episodes": 5,
+  "max_steps": 520,
+  "results": {
+    "bare": {
+      "succ": 0,
+      "n": 50,
+      "tasks": [
+        {
+          "task_id": 0,
+          "language": "put both the alphabet soup and the tomato sauce in the basket",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 1,
+          "language": "put both the cream cheese box and the butter in the basket",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 2,
+          "language": "turn on the stove and put the moka pot on it",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 3,
+          "language": "put the black bowl in the bottom drawer of the cabinet and close it",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 4,
+          "language": "put the white mug on the left plate and put the yellow and white mug on the right plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 5,
+          "language": "pick up the book and place it in the back compartment of the caddy",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 6,
+          "language": "put the white mug on the plate and put the chocolate pudding to the right of the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 7,
+          "language": "put both the alphabet soup and the cream cheese box in the basket",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 8,
+          "language": "put both moka pots on the stove",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 9,
+          "language": "put the yellow and white mug in the microwave and close it",
+          "successes": 0,
+          "episodes": 5
+        }
+      ]
+    },
+    "loop": {
+      "succ": 0,
+      "n": 50,
+      "tasks": [
+        {
+          "task_id": 0,
+          "language": "put both the alphabet soup and the tomato sauce in the basket",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 1,
+          "language": "put both the cream cheese box and the butter in the basket",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 2,
+          "language": "turn on the stove and put the moka pot on it",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 3,
+          "language": "put the black bowl in the bottom drawer of the cabinet and close it",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 4,
+          "language": "put the white mug on the left plate and put the yellow and white mug on the right plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 5,
+          "language": "pick up the book and place it in the back compartment of the caddy",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 6,
+          "language": "put the white mug on the plate and put the chocolate pudding to the right of the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 7,
+          "language": "put both the alphabet soup and the cream cheese box in the basket",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 8,
+          "language": "put both moka pots on the stove",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 9,
+          "language": "put the yellow and white mug in the microwave and close it",
+          "successes": 0,
+          "episodes": 5
+        }
+      ]
+    },
+    "verified": {
+      "succ": 0,
+      "n": 50,
+      "tasks": [
+        {
+          "task_id": 0,
+          "language": "put both the alphabet soup and the tomato sauce in the basket",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 1,
+          "language": "put both the cream cheese box and the butter in the basket",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 2,
+          "language": "turn on the stove and put the moka pot on it",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 3,
+          "language": "put the black bowl in the bottom drawer of the cabinet and close it",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 4,
+          "language": "put the white mug on the left plate and put the yellow and white mug on the right plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 5,
+          "language": "pick up the book and place it in the back compartment of the caddy",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 6,
+          "language": "put the white mug on the plate and put the chocolate pudding to the right of the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 7,
+          "language": "put both the alphabet soup and the cream cheese box in the basket",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 8,
+          "language": "put both moka pots on the stove",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 9,
+          "language": "put the yellow and white mug in the microwave and close it",
+          "successes": 0,
+          "episodes": 5
+        }
+      ]
+    }
+  }
+}

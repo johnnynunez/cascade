@@ -1,0 +1,205 @@
+{
+  "suite": "libero_goal",
+  "episodes": 5,
+  "max_steps": 300,
+  "results": {
+    "bare": {
+      "succ": 9,
+      "n": 50,
+      "tasks": [
+        {
+          "task_id": 0,
+          "language": "open the middle drawer of the cabinet",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 1,
+          "language": "put the bowl on the stove",
+          "successes": 4,
+          "episodes": 5
+        },
+        {
+          "task_id": 2,
+          "language": "put the wine bottle on top of the cabinet",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 3,
+          "language": "open the top drawer and put the bowl inside",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 4,
+          "language": "put the bowl on top of the cabinet",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 5,
+          "language": "push the plate to the front of the stove",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 6,
+          "language": "put the cream cheese in the bowl",
+          "successes": 5,
+          "episodes": 5
+        },
+        {
+          "task_id": 7,
+          "language": "turn on the stove",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 8,
+          "language": "put the bowl on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 9,
+          "language": "put the wine bottle on the rack",
+          "successes": 0,
+          "episodes": 5
+        }
+      ]
+    },
+    "loop": {
+      "succ": 4,
+      "n": 50,
+      "tasks": [
+        {
+          "task_id": 0,
+          "language": "open the middle drawer of the cabinet",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 1,
+          "language": "put the bowl on the stove",
+          "successes": 4,
+          "episodes": 5
+        },
+        {
+          "task_id": 2,
+          "language": "put the wine bottle on top of the cabinet",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 3,
+          "language": "open the top drawer and put the bowl inside",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 4,
+          "language": "put the bowl on top of the cabinet",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 5,
+          "language": "push the plate to the front of the stove",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 6,
+          "language": "put the cream cheese in the bowl",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 7,
+          "language": "turn on the stove",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 8,
+          "language": "put the bowl on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 9,
+          "language": "put the wine bottle on the rack",
+          "successes": 0,
+          "episodes": 5
+        }
+      ]
+    },
+    "verified": {
+      "succ": 10,
+      "n": 50,
+      "tasks": [
+        {
+          "task_id": 0,
+          "language": "open the middle drawer of the cabinet",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 1,
+          "language": "put the bowl on the stove",
+          "successes": 5,
+          "episodes": 5
+        },
+        {
+          "task_id": 2,
+          "language": "put the wine bottle on top of the cabinet",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 3,
+          "language": "open the top drawer and put the bowl inside",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 4,
+          "language": "put the bowl on top of the cabinet",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 5,
+          "language": "push the plate to the front of the stove",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 6,
+          "language": "put the cream cheese in the bowl",
+          "successes": 5,
+          "episodes": 5
+        },
+        {
+          "task_id": 7,
+          "language": "turn on the stove",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 8,
+          "language": "put the bowl on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 9,
+          "language": "put the wine bottle on the rack",
+          "successes": 0,
+          "episodes": 5
+        }
+      ]
+    }
+  }
+}

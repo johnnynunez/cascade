@@ -28,6 +28,7 @@ restart.
 from __future__ import annotations
 
 import json
+import math
 import re
 import time
 
@@ -85,11 +86,24 @@ for _prim in _stage.Traverse():
 if _dynamic:
     try:
         from isaacsim.core.prims import RigidPrim as _RigidPrim
+        # Cache the views on the bridge's globals. Building a fresh RigidPrim
+        # per prop on EVERY probe leaks views against the same prims -- over an
+        # hour of verification polling that is thousands of them, and it
+        # degrades the bridge: probe latency grew 20 ms -> 85 ms over 400 calls
+        # and the TCP thread eventually died while the process stayed alive
+        # (docs/BRIDGE_DEGRADATION.md). The views are stable for a given prim
+        # path, so they are safe to reuse.
+        _cache = globals().setdefault("_WRC_RIGIDPRIM_VIEWS", {})
         for _name, _path in _dynamic:
             try:
-                _pos, _ = _RigidPrim(_path).get_world_poses()
+                _view = _cache.get(_path)
+                if _view is None:
+                    _view = _RigidPrim(_path)
+                    _cache[_path] = _view
+                _pos, _ = _view.get_world_poses()
                 _out[_name] = [round(float(v), 5) for v in _pos[0]]
             except Exception:
+                _cache.pop(_path, None)   # drop a stale view, retry next probe
                 continue
     except Exception:
         pass
@@ -100,6 +114,25 @@ print("WRC_TRUTH_POSES " + _json.dumps(_out))
 
 def _normalize(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", str(name).strip().lower()).strip("_")
+
+
+#: Poses outside this half-extent (metres, base frame) are not physics, they
+#: are a body read mid-explosion. Observed live: a prop reported
+#: [-11.8, -10.6, -122.1] -- a 123 m "displacement" -- during an ablation run.
+#: A verification channel that hands such a value to the checker turns a
+#: numerical fault into a confident verdict, which is worse than no channel.
+_SANE_RADIUS_M = 5.0
+
+
+def _is_sane(xyz) -> bool:
+    """Reject non-finite or physically impossible positions."""
+    try:
+        vals = [float(v) for v in xyz]
+    except (TypeError, ValueError):
+        return False
+    if len(vals) != 3:
+        return False
+    return all(math.isfinite(v) and abs(v) <= _SANE_RADIUS_M for v in vals)
 
 
 class TruthPoseReader:
@@ -116,6 +149,9 @@ class TruthPoseReader:
         self._roots = tuple(roots)
         self._cache: dict[str, list[float]] = {}
         self._cache_t = 0.0
+        #: count of poses rejected as physically impossible (diagnostic: a
+        #: non-zero value means PhysX handed us a body mid-explosion)
+        self.rejected = 0
 
     # ── public API (matches PostconditionChecker's object_pose hook) ─────
 
@@ -146,7 +182,15 @@ class TruthPoseReader:
             score = len(want_tokens & set(key.split("_")))
             if score > best_score:
                 best, best_score = xyz, score
-        return best if best_score > 0 else None
+        # A single shared token is not identification: "pink cube" overlaps
+        # "green_cube" on {cube}, so when the pink one is missing (dropped as
+        # an impossible pose, or absent from the scene) this used to hand back
+        # the GREEN cube's position and the checker would confirm against the
+        # wrong object entirely. Demand either an exact key match (handled
+        # above) or more than one shared token.
+        if best_score < 2:
+            return None
+        return best
 
     def all_poses(self) -> dict:
         return dict(self._poses())
@@ -160,7 +204,18 @@ class TruthPoseReader:
         raw = self._probe()
         if raw is None:
             return self._cache  # keep the last good reading rather than lying
-        self._cache = {_normalize(k): v for k, v in raw.items()}
+        # Drop insane poses INSTEAD of caching them: a body caught mid-solver
+        # reports things like [-11.8, -10.6, -122.1], and passing that to the
+        # checker converts a numerical fault into a confident verdict about a
+        # 123 m "displacement". Silence is the correct answer here -- the
+        # checker already degrades to the next channel when a pose is missing.
+        clean = {}
+        for k, v in raw.items():
+            if _is_sane(v):
+                clean[_normalize(k)] = v
+            else:
+                self.rejected += 1
+        self._cache = clean
         self._cache_t = now
         return self._cache
 

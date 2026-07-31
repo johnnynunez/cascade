@@ -155,50 +155,47 @@ other half of the pair the asset's evidence package documents).
 Result: cube survives, `pick_and_place` succeeds in 23.2 s, postcondition
 `confirmed via physics`, arm finite.
 
-### 5. reset_props does not reliably reset under Newton (OPEN)
+### 5. Teleporting a resting prop needs `state.joint_q` (FIXED)
 
-A teleport of a **resting** body does not stick on Newton. Measured directly:
+A teleport of a **resting** body silently did nothing under Newton. The write
+appeared to succeed and one step later the body was back at its old pose.
+
+The reason is in Newton's own source
+(`newton/_src/solvers/mujoco/solver_mujoco.py`, `reset_state` docstring):
+
+> Because MuJoCo is a reduced-coordinate solver, `state.body_q` /
+> `state.body_qd` are **derived from the joint coordinates by forward
+> kinematics** on the next `step()`; the corresponding `BODY_Q` / `BODY_QD`
+> flags **are not actionable here and are ignored**.
+
+and `step()` calls `_update_mjc_data(..., state_in)` every step, which pushes
+the joint coordinates into `mjw_data.qpos`. Everything else is downstream:
+
+| write target | result |
+|---|---|
+| `RigidPrim.set_world_poses` | reverted after 1 step |
+| `state.body_q` (one buffer) | reverted after 1 step |
+| `state.body_q` (both buffers) | body **ejected at 72 m/s** |
+| `mjw_data.qpos` | reverted after 1 step |
+| **`state.joint_q`** | **sticks, \|vel\| 0.000, stable** |
+
+Two traps in the fix:
+
+1. A free body has **7 coordinates** in `joint_q` (3 pos + 4 quat) but **6
+   dofs** in `joint_qd`. Reusing the coordinate index for the velocity slice
+   zeroes the wrong entries, leaves the body's real velocity intact, and it
+   flies off — that failure read `[12.5, -22.7]` after 40 steps.
+2. `model.joint_q_start` is unreliable on this build (its entries repeat), so
+   `_newton_teleport` locates the slice by **matching the prop's current
+   position** instead of trusting the offsets table.
+
+Verified end to end:
 
 ```
-newton state before write : [ 0.1981 -0.2024  0.025 ]
-newton state after  write : [ 0.17    0.15    0.045 ]   <- write lands
-newton state after 1 step : [ 0.1981 -0.2024  0.025 ]   <- reverted
+1. fresh scene      : [0.170, 0.150, 0.040]
+2. after pick       : [0.194, 0.119, 0.025]
+3. after reset_props: [0.170, 0.150, 0.040]   <- 0.2 mm from spawn
 ```
-
-The write reaches **both** solver state buffers (`state_0` and `state_1`,
-verified by reading them straight back) and one step later the body is at its
-old pose. Writing both buffers at once does move it, but then it is ejected at
-72 m/s — the solver treats the teleport as a violation.
-
-A timeline Stop → Play *does* make the solver re-parse the stage, but on this
-build it throws during re-attach and leaves the scene unusable, so the bridge
-does **not** do it.
-
-**Consequence for benchmarks, and it is severe.** After an episode that puts a
-cube in the bin, `reset_props` may leave it there. The next episode then starts
-*at the goal*, `truth=True` is a tautology, and the sweep reports a perfect
-score. That is not hypothetical — a "6/6, 0 false claims" run here turned out
-to be exactly this, and the tell was the movement column:
-
-```
-6/6 truth, moved = 1.5, 3.6, 2.0, 1.7, 3.0, 1.6 cm
-```
-
-The bin is 31–33 cm from every start state. You cannot reach it by moving
-1.5 cm. The number that made the result look good was the number that proved
-it false.
-
-`benchmark/rig/ablation.py` now verifies the post-reset pose and **aborts**
-rather than measuring:
-
-```
-[0] OK truth=True self=True moved=30.6cm 45.1s
-ABORT at episode 1: asked for (0.175, 0.130) but the cube is at
-(0.182, -0.156), 28.6 cm away. The reset did not take.
-```
-
-One real measurement beats six fabricated ones. Until the reset is fixed,
-multi-episode sweeps on Newton need a bridge restart between episodes.
 
 ## Debugging notes
 

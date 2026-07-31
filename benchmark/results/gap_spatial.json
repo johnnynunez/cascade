@@ -1,0 +1,205 @@
+{
+  "suite": "libero_spatial",
+  "episodes": 5,
+  "max_steps": 220,
+  "results": {
+    "bare": {
+      "succ": 6,
+      "n": 50,
+      "tasks": [
+        {
+          "task_id": 0,
+          "language": "pick up the black bowl between the plate and the ramekin and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 1,
+          "language": "pick up the black bowl next to the ramekin and place it on the plate",
+          "successes": 3,
+          "episodes": 5
+        },
+        {
+          "task_id": 2,
+          "language": "pick up the black bowl from table center and place it on the plate",
+          "successes": 1,
+          "episodes": 5
+        },
+        {
+          "task_id": 3,
+          "language": "pick up the black bowl on the cookie box and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 4,
+          "language": "pick up the black bowl in the top drawer of the wooden cabinet and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 5,
+          "language": "pick up the black bowl on the ramekin and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 6,
+          "language": "pick up the black bowl next to the cookie box and place it on the plate",
+          "successes": 1,
+          "episodes": 5
+        },
+        {
+          "task_id": 7,
+          "language": "pick up the black bowl on the stove and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 8,
+          "language": "pick up the black bowl next to the plate and place it on the plate",
+          "successes": 1,
+          "episodes": 5
+        },
+        {
+          "task_id": 9,
+          "language": "pick up the black bowl on the wooden cabinet and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        }
+      ]
+    },
+    "loop": {
+      "succ": 5,
+      "n": 50,
+      "tasks": [
+        {
+          "task_id": 0,
+          "language": "pick up the black bowl between the plate and the ramekin and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 1,
+          "language": "pick up the black bowl next to the ramekin and place it on the plate",
+          "successes": 3,
+          "episodes": 5
+        },
+        {
+          "task_id": 2,
+          "language": "pick up the black bowl from table center and place it on the plate",
+          "successes": 1,
+          "episodes": 5
+        },
+        {
+          "task_id": 3,
+          "language": "pick up the black bowl on the cookie box and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 4,
+          "language": "pick up the black bowl in the top drawer of the wooden cabinet and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 5,
+          "language": "pick up the black bowl on the ramekin and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 6,
+          "language": "pick up the black bowl next to the cookie box and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 7,
+          "language": "pick up the black bowl on the stove and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 8,
+          "language": "pick up the black bowl next to the plate and place it on the plate",
+          "successes": 1,
+          "episodes": 5
+        },
+        {
+          "task_id": 9,
+          "language": "pick up the black bowl on the wooden cabinet and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        }
+      ]
+    },
+    "verified": {
+      "succ": 18,
+      "n": 50,
+      "tasks": [
+        {
+          "task_id": 0,
+          "language": "pick up the black bowl between the plate and the ramekin and place it on the plate",
+          "successes": 1,
+          "episodes": 5
+        },
+        {
+          "task_id": 1,
+          "language": "pick up the black bowl next to the ramekin and place it on the plate",
+          "successes": 3,
+          "episodes": 5
+        },
+        {
+          "task_id": 2,
+          "language": "pick up the black bowl from table center and place it on the plate",
+          "successes": 1,
+          "episodes": 5
+        },
+        {
+          "task_id": 3,
+          "language": "pick up the black bowl on the cookie box and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 4,
+          "language": "pick up the black bowl in the top drawer of the wooden cabinet and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        },
+        {
+          "task_id": 5,
+          "language": "pick up the black bowl on the ramekin and place it on the plate",
+          "successes": 5,
+          "episodes": 5
+        },
+        {
+          "task_id": 6,
+          "language": "pick up the black bowl next to the cookie box and place it on the plate",
+          "successes": 1,
+          "episodes": 5
+        },
+        {
+          "task_id": 7,
+          "language": "pick up the black bowl on the stove and place it on the plate",
+          "successes": 5,
+          "episodes": 5
+        },
+        {
+          "task_id": 8,
+          "language": "pick up the black bowl next to the plate and place it on the plate",
+          "successes": 2,
+          "episodes": 5
+        },
+        {
+          "task_id": 9,
+          "language": "pick up the black bowl on the wooden cabinet and place it on the plate",
+          "successes": 0,
+          "episodes": 5
+        }
+      ]
+    }
+  }
+}

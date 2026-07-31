@@ -1,0 +1,96 @@
+{
+  "suite": "libero_spatial",
+  "policy": "noop",
+  "policy_desc": "zero action (floor)",
+  "episodes_per_task": 5,
+  "resolution": 256,
+  "max_steps": 220,
+  "settle_steps": 10,
+  "unnorm_key": null,
+  "tasks": [
+    {
+      "task_id": 0,
+      "language": "pick up the black bowl between the plate and the ramekin and place it on the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 220.0
+    },
+    {
+      "task_id": 1,
+      "language": "pick up the black bowl next to the ramekin and place it on the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 220.0
+    },
+    {
+      "task_id": 2,
+      "language": "pick up the black bowl from table center and place it on the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 220.0
+    },
+    {
+      "task_id": 3,
+      "language": "pick up the black bowl on the cookie box and place it on the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 220.0
+    },
+    {
+      "task_id": 4,
+      "language": "pick up the black bowl in the top drawer of the wooden cabinet and place it on the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 220.0
+    },
+    {
+      "task_id": 5,
+      "language": "pick up the black bowl on the ramekin and place it on the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 220.0
+    },
+    {
+      "task_id": 6,
+      "language": "pick up the black bowl next to the cookie box and place it on the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 220.0
+    },
+    {
+      "task_id": 7,
+      "language": "pick up the black bowl on the stove and place it on the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 220.0
+    },
+    {
+      "task_id": 8,
+      "language": "pick up the black bowl next to the plate and place it on the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 220.0
+    },
+    {
+      "task_id": 9,
+      "language": "pick up the black bowl on the wooden cabinet and place it on the plate",
+      "episodes": 5,
+      "successes": 0,
+      "success_rate": 0.0,
+      "mean_steps": 220.0
+    }
+  ],
+  "episodes_total": 50,
+  "successes_total": 0,
+  "success_rate": 0.0,
+  "wall_time_s": 155.4
+}

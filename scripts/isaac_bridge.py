@@ -169,7 +169,7 @@ for prim in stage.Traverse():
                   flush=True)
 
 
-def _raise_newton_contact_cap(min_contacts: int = 8192) -> None:
+def _raise_newton_contact_cap(min_contacts: int = 4600) -> None:
     """Give MJWarp room for this scene's real contact count.
 
     Authoring `newton:solver:nconmax` on the prim is NOT enough: the MJWarp
@@ -180,9 +180,23 @@ def _raise_newton_contact_cap(min_contacts: int = 8192) -> None:
 
     once per step. Dropped contacts is exactly the observed symptom -- props
     resting on the table for a while and then sinking through it, fingers
-    closing on an object without holding it. This scene generates 200-1000+
-    contacts (the arm's convexDecomposition gripper alone contributes
-    hundreds), so raise the cap on the live solver config after boot.
+    closing on an object without holding it.
+
+    But the cap must also stay BELOW the allocated contact buffer. Newton
+    sizes `contacts.rigid_contact_max` from the geometry (~6915 here, which
+    matches the self-contact count in the asset's own evidence package), and
+    asking for more than that fails EVERY step with
+
+        MuJoCo naconmax (8192) exceeds contacts.rigid_contact_max (6915)
+
+    which drives the articulation to NaN. 4600 is the value the asset itself
+    persists in `newton:solver:nconmax`, comfortably under the allocation and
+    ~3x the measured peak during a grasp (1695).
+
+    `njmax` (constraint rows) is raised alongside it: the stock 1200 is the
+    other half of the pair the asset's evidence package calls out as
+    "overflow instantly with this asset" (analysis_2026-07-07 finding 6,
+    which pairs 8192 nconmax with 32768 njmax).
     """
     try:
         import isaacsim.physics.newton.impl.extension as _ne
@@ -204,6 +218,42 @@ def _raise_newton_contact_cap(min_contacts: int = 8192) -> None:
                 setattr(_solver, _name, min_contacts)
                 print(f"[bridge] newton solver {_name}: {_old} -> {min_contacts}",
                       flush=True)
+    # constraint rows: the other half of the documented pair
+    if hasattr(_solver, "njmax"):
+        _oldj = getattr(_solver, "njmax")
+        if _oldj is None or _oldj < 32768:
+            _solver.njmax = 32768
+            print(f"[bridge] newton solver njmax: {_oldj} -> 32768", flush=True)
+
+    # ── anti-tunnelling, the Newton way ──────────────────────────────────
+    # Measured: during a grasp the cube reached 7.5 m/s and ended at
+    # z=-0.188 -- THROUGH a 3 cm table slab -- while the arm was almost still
+    # (max |dq| 0.075 rad/s) and with zero contact penetration. That is a
+    # MISSED contact: at num_substeps=1 and 1/60 s, a body only needs
+    # ~1.8 m/s to clear the whole slab between two collision checks.
+    #
+    # The PhysX knobs for this (maxLinearVelocity, enableCCD,
+    # enableSpeculativeCCD) are authored on the props but Newton IGNORES
+    # them: its model exposes only `particle_max_velocity`, nothing for rigid
+    # bodies. The lever Newton does respect is substepping -- each substep is
+    # a fresh collision check, so N substeps raise the tunnelling threshold
+    # by N.
+    #
+    # 4 substeps puts the threshold at ~7.2 m/s, just above the measured
+    # ejection speed; combined with a wider contact margin (which lets the
+    # solver see an approaching body before it overlaps) this closes the gap
+    # without a big step-cost increase.
+    if _cfg is not None and getattr(_cfg, "num_substeps", 1) < 4:
+        _old_ss = _cfg.num_substeps
+        _cfg.num_substeps = 4
+        print(f"[bridge] newton num_substeps: {_old_ss} -> 4 "
+              f"(tunnelling threshold ~1.8 -> ~7.2 m/s)", flush=True)
+    if (_cfg is not None and hasattr(_cfg, "contact_margin")
+            and _cfg.contact_margin < 0.02):
+        _old_cm = _cfg.contact_margin
+        _cfg.contact_margin = 0.02
+        print(f"[bridge] newton contact_margin: {_old_cm} -> 0.02",
+              flush=True)
 
 
 if args.engine == "newton":
@@ -305,7 +355,7 @@ UsdGeom.XformCommonAPI(sun.GetPrim()).SetRotate(Gf.Vec3f(-45, 30, 0))
 
 # One shared physics material: without friction/restitution authored,
 # Newton props jitter and creep across the table indefinitely.
-from pxr import UsdShade  # noqa: E402
+from pxr import PhysxSchema, UsdShade  # noqa: E402
 
 _pmat = UsdShade.Material.Define(stage, "/World_Props/physics_material")
 _pmat_api = UsdPhysics.MaterialAPI.Apply(_pmat.GetPrim())
@@ -367,6 +417,24 @@ def _cube(path, pos, size, color, dynamic, mass=0.05):
         UsdPhysics.RigidBodyAPI.Apply(mesh.GetPrim())
         mapi = UsdPhysics.MassAPI.Apply(mesh.GetPrim())
         mapi.CreateMassAttr(mass)
+        # ── anti-tunnelling ──────────────────────────────────────────────
+        # Measured failure: during a grasp the cube reached 7.5 m/s and ended
+        # at z=-0.188 -- THROUGH a 3 cm table slab -- while the arm was almost
+        # still (max |dq| 0.075 rad/s). That is a missed contact, not a
+        # mis-resolved one: the scene runs at num_substeps=1, so at 1/60 s a
+        # body only needs ~1.8 m/s to skip the whole slab in one step, and
+        # `physxRigidBody:maxLinearVelocity` ships as inf with CCD off
+        # (enableCCD=False, enableSpeculativeCCD=False).
+        #
+        # Cap the speed below the tunnelling threshold and turn CCD on. The
+        # cap is deliberately well under 1.8 m/s: nothing in this demo should
+        # ever legitimately move a prop that fast, so clamping it turns an
+        # unrecoverable escape into a visible, verifiable failure.
+        _rb = PhysxSchema.PhysxRigidBodyAPI.Apply(mesh.GetPrim())
+        _rb.CreateMaxLinearVelocityAttr(1.5)
+        _rb.CreateMaxAngularVelocityAttr(20.0)
+        _rb.CreateEnableCCDAttr(True)
+        _rb.CreateEnableSpeculativeCCDAttr(True)
     else:
         # Static furniture: collected so it can be collision-filtered against
         # the (also-static) arm base_link -- see the collision-group block

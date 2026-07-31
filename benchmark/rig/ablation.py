@@ -45,17 +45,6 @@ the metric this repo exists for.
 
 from __future__ import annotations
 
-
-import sys as _sys
-from pathlib import Path as _Path
-
-_BENCH = _Path(__file__).resolve().parent.parent
-if str(_BENCH) not in _sys.path:
-    _sys.path.insert(0, str(_BENCH))
-import paths  # noqa: E402  (benchmark/paths.py)
-
-paths.add_paths()
-
 import argparse
 import json
 import time
@@ -86,16 +75,48 @@ CUBE, BIN = "pink_cube", "bin"
 
 
 def place_cube(client: BridgeClient, x: float, y: float, z: float = 0.045):
-    """Put the cube at an exact spot, on the sim's main thread."""
+    """Put the cube at an exact spot, on the sim's main thread.
+
+    Zero the velocity in the SAME call as the teleport. A bare
+    `set_world_poses` leaves whatever velocity the body had, and under Newton
+    that momentum survives the teleport: the cube keeps moving from its new
+    pose, tunnels, and the solver goes NaN -- which then poisons every later
+    episode in the sweep (they all report an identical 0.0 cm because they are
+    running against a dead scene, not because the skill behaved identically).
+
+    The velocity API differs by class AND engine:
+      * `isaacsim.core.prims.RigidPrim` (used here) takes ONE (N,6) tensor,
+        and its second positional arg is `indices`, not angular velocity --
+        passing a second array raises "'numpy.ndarray' object has no
+        attribute 'to'".
+      * the experimental `isaacsim.core.experimental.prims.RigidPrim` takes
+        (linear, angular) as two (N,3) arrays under Newton.
+    Use torch tensors (this backend is torch) and try the shapes in order.
+    """
     code = (
         "from isaacsim.core.prims import RigidPrim\n"
         "import torch\n"
         "p = RigidPrim('/World_Props/pink_cube')\n"
         f"p.set_world_poses(positions=torch.tensor([[{x},{y},{z}]], dtype=torch.float32))\n"
-        "print('placed')\n"
+        "_ok = False\n"
+        "for _v in (torch.zeros((1, 6), dtype=torch.float32),):\n"
+        "    try:\n"
+        "        p.set_velocities(_v)\n"
+        "        _ok = True\n"
+        "        break\n"
+        "    except Exception as _e:\n"
+        "        _err = _e\n"
+        "if not _ok:\n"
+        "    try:\n"
+        "        _z = torch.zeros((1, 3), dtype=torch.float32)\n"
+        "        p.set_velocities(_z, _z)\n"
+        "        _ok = True\n"
+        "    except Exception as _e:\n"
+        "        print('velocity NOT zeroed:', _e)\n"
+        "print('placed' if _ok else 'placed WITHOUT zeroing velocity')\n"
     )
     client.request({"op": "exec", "code": code})
-    time.sleep(1.2)          # let PhysX settle before anyone observes
+    time.sleep(1.2)          # let the solver settle before anyone observes
 
 
 def in_bin(pose) -> bool:
@@ -113,6 +134,19 @@ def run_condition(rt, truth, client, condition: str, n_states: int) -> dict:
     for i, (x, y) in enumerate(INIT_STATES[:n_states]):
         place_cube(client, x, y)
         start = truth.pose(CUBE)
+
+        # --- refuse to measure a dead scene --------------------------------
+        # Once the articulation is NaN the whole scene is unrecoverable, and
+        # every remaining episode returns an identical 0.0 cm. That looks like
+        # a clean run of honest failures; it is actually one broken sim
+        # reported six times. Abort loudly instead of emitting fake data.
+        _q = np.asarray(client.request({"op": "state"})["q"], dtype=float)
+        if np.isnan(_q).any():
+            raise SystemExit(
+                f"ABORT at episode {i}: the articulation is NaN, so every "
+                f"later episode would be measuring a dead scene. Restart the "
+                f"bridge and re-run."
+            )
 
         # --- configure the layer under test -------------------------------
         # Postconditions live on the runtime; toggling `effects` is exactly
@@ -196,7 +230,7 @@ def main() -> int:
     ap.add_argument("--conditions", default="skill_only,verify_only,verify_retry")
     ap.add_argument("--states", type=int, default=10)
     ap.add_argument("--llm", default="mock")
-    ap.add_argument("--json", default=str(paths.results_path("wrc_ablation.json")))
+    ap.add_argument("--json", default="/home/johnny/bench/results/wrc_ablation.json")
     a = ap.parse_args()
 
     cfg = load_demo_config(cameras=["isaac"], arm="isaac", llm=a.llm)

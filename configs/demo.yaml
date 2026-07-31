@@ -90,13 +90,28 @@ perception_loop:
   localize_frames: 3        # detector passes per localize before falling
                             # back to the belief store (single frames flicker)
 
-# MJPEG livestream dashboard (stdlib HTTP; browsers/Hermes users watch here).
+# Browser dashboard (stdlib HTTP). HEADLESS BY DEFAULT: the chat client
+# (Hermes / OpenClaw / any MCP host) is the interface, and this view is a
+# diagnostic surface you attach when a human wants to look.
+#
+#   mode: lazy   nothing binds until open_live_view / live_view_url is called;
+#                auto-closes after idle_timeout_s with nobody watching
+#   mode: eager  bind at startup (booth: the big screen must be live)
+#   mode: off    never bind
+#
+# WRC_STREAM overrides this (0/off = hard kill switch, honoured by tests).
 stream:
-  enabled: true
+  mode: lazy
+  idle_timeout_s: 900       # 15 min of no browser activity -> auto-close
   host: 0.0.0.0
   port: 8090
   fps: 15
   quality: 80
+  depth_max_m: 2.0          # depth-view colormap range (tabletop scale)
+
+# Verify each motion primitive's physical effect against a channel the
+# actuator does not own (sim physics truth, else the belief store).
+verify_effects: true
 
 detector:
   # Open-vocabulary YOLO (YOLOE / YOLO-World). Ultralytics auto-downloads

@@ -101,30 +101,16 @@ def place_cube(client: BridgeClient, x: float, y: float, z: float = 0.045):
     client.request({"op": "reset_props"}, timeout_s=90.0)
     time.sleep(1.0)
 
-    code = (
-        "from isaacsim.core.prims import RigidPrim\n"
-        "import torch\n"
-        "p = RigidPrim('/World_Props/pink_cube')\n"
-        f"p.set_world_poses(positions=torch.tensor([[{x},{y},{z}]], dtype=torch.float32))\n"
-        "_ok = False\n"
-        "for _v in (torch.zeros((1, 6), dtype=torch.float32),):\n"
-        "    try:\n"
-        "        p.set_velocities(_v)\n"
-        "        _ok = True\n"
-        "        break\n"
-        "    except Exception as _e:\n"
-        "        _err = _e\n"
-        "if not _ok:\n"
-        "    try:\n"
-        "        _z = torch.zeros((1, 3), dtype=torch.float32)\n"
-        "        p.set_velocities(_z, _z)\n"
-        "        _ok = True\n"
-        "    except Exception as _e:\n"
-        "        print('velocity NOT zeroed:', _e)\n"
-        "print('placed' if _ok else 'placed WITHOUT zeroing velocity')\n"
-    )
-    client.request({"op": "exec", "code": code})
-    time.sleep(1.2)          # let the solver settle before anyone observes
+    # Then place at the requested state through the bridge op. Do NOT poke
+    # RigidPrim from here: under Newton that is a silent no-op for a resting
+    # body, and this sweep previously ran all six "different" start states at
+    # the spawn position -- one state measured six times, reported as six
+    # independent episodes. Measured proof of that bug:
+    #     asked (0.175,0.130) -> actual (0.170,0.150)   2.06 cm off
+    #     asked (0.172,0.120) -> actual (0.170,0.150)   3.01 cm off
+    client.request({"op": "place_prop", "name": "pink_cube",
+                    "pos": [x, y, z]}, timeout_s=60.0)
+    time.sleep(0.5)
 
 
 def in_bin(pose) -> bool:
@@ -152,7 +138,11 @@ def run_condition(rt, truth, client, condition: str, n_states: int) -> dict:
         if start is None:
             raise SystemExit(f"ABORT at episode {i}: no readable cube pose.")
         _off = float(np.linalg.norm(np.asarray(start[:2]) - np.asarray([x, y])))
-        if _off > 0.03:
+        # 5 mm, NOT 3 cm. The INIT_STATES are only 2-3 cm apart, so a 3 cm
+        # tolerance is wider than the sweep's own resolution: it passed happily
+        # while every episode actually ran at the spawn position. A guard that
+        # cannot distinguish state i from state j is not guarding anything.
+        if _off > 0.005:
             raise SystemExit(
                 f"ABORT at episode {i}: asked for ({x:.3f}, {y:.3f}) but the "
                 f"cube is at ({start[0]:.3f}, {start[1]:.3f}), {_off*100:.1f} cm "

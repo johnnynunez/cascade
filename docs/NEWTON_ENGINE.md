@@ -197,6 +197,38 @@ Verified end to end:
 3. after reset_props: [0.170, 0.150, 0.040]   <- 0.2 mm from spawn
 ```
 
+### 6. A sweep over initial states that wasn't (FIXED)
+
+Same root cause, worse consequence. `place_cube` in the ablation harness did
+`reset_props` (correct) and then a `RigidPrim.set_world_poses` to the episode's
+requested position — a **silent no-op** under Newton. Measured:
+
+```
+asked ->  actual                 error
+(0.170,0.150) -> (0.170,0.150)    0.05 cm
+(0.175,0.130) -> (0.170,0.150)    2.06 cm  <-- did not land
+(0.165,0.170) -> (0.170,0.150)    2.06 cm  <-- did not land
+(0.180,0.140) -> (0.170,0.150)    1.41 cm  <-- did not land
+(0.160,0.160) -> (0.170,0.150)    1.41 cm  <-- did not land
+(0.172,0.120) -> (0.170,0.150)    3.01 cm  <-- did not land
+```
+
+Every episode ran at the **spawn**. The sweep reported six independent initial
+states while measuring one state six times; the between-episode variance was
+noise, not coverage.
+
+The start-pose guard did not catch it because its tolerance (3 cm) was **wider
+than the spacing between the states themselves** (2–3 cm). A guard that cannot
+distinguish state *i* from state *j* is not guarding anything — it is now
+5 mm.
+
+Fix: a `place_prop` bridge op that routes through `_newton_teleport`. After it,
+all six land exactly:
+
+```
+worst placement error: 0.00 cm
+```
+
 ## Debugging notes
 
 - **`scripts/night_runner.sh` may be running.** It drives the arm through picks

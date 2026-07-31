@@ -104,6 +104,57 @@ pregrasp pose"* on a pose the arm was reaching correctly.
 Fix: `ArmBase.settle_timeout_s` is now configurable; `configs/arms/isaac.yaml`
 sets 6.0.
 
+### 4. Newton ignores the PhysX anti-tunnelling knobs
+
+The headline bug for manipulation, and the one that took longest to find.
+
+Symptom: `pick_and_place` would lift the cube, then the cube would vanish and
+every later episode in a sweep would report an identical `0.0 cm`.
+
+Instrumenting a real grasp caught the moment:
+
+```
+t+29.97  cube z= 0.025  speed 0.000   fingers on target
+t+30.14  cube z= 0.029  speed 0.296   finger error +12.8 mm  <- jaws pop open
+t+31.42  cube z=-0.188  speed 7.481                          <- through the table
+```
+
+The diagnosis hinges on what was ruled out:
+
+| candidate | measurement | verdict |
+|---|---|---|
+| contact cap | peak 1695 vs cap 4600, buffer 6985 | not it |
+| depenetration impulse | deepest penetration 0.000 mm | not it |
+| transport inertia | max abs(dq) 0.075 rad/s at ejection | not it |
+| grasp close | 120 steps on a parked cube, 0.000 m/s | not it |
+
+A body passing *through* a static collider while everything moves slowly is a
+**missed** contact, not a mis-resolved one. The scene runs `num_substeps=1` at
+1/60 s, so a body only needs **~1.8 m/s to clear the 3 cm table slab between
+two collision checks** — and the props ship with
+
+```
+physxRigidBody:maxLinearVelocity     = inf
+physxRigidBody:enableCCD             = False
+physxRigidBody:enableSpeculativeCCD  = False
+```
+
+Authoring those three attributes does nothing: **Newton does not read them.**
+Its model exposes `particle_max_velocity` and no rigid-body speed limit at
+all. (Verified by dumping the model's attributes — the USD values are present
+and correct on the prim, and the cube still tunnels.)
+
+The lever Newton *does* respect is substepping: each substep is a fresh
+collision check, so N substeps multiply the tunnelling threshold by N.
+
+Fix: `num_substeps 1 -> 4` (threshold ~1.8 -> ~7.2 m/s, just above the
+measured 7.5 m/s ejection) plus `contact_margin 0.01 -> 0.02` so the solver
+sees an approaching body before it overlaps, and `njmax 1200 -> 32768` (the
+other half of the pair the asset's evidence package documents).
+
+Result: cube survives, `pick_and_place` succeeds in 23.2 s, postcondition
+`confirmed via physics`, arm finite.
+
 ## Debugging notes
 
 - **`scripts/night_runner.sh` may be running.** It drives the arm through picks

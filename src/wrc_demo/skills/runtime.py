@@ -71,6 +71,9 @@ class SkillRuntime:
         self._held_color: str | None = None
         #: optional WorldWatcher (set by the app wiring); paused during motion
         self.watcher = None
+        #: RGB frame captured immediately before the current motion skill, for
+        #: CaP-X visual differencing. Set by execute(); None between motions.
+        self._pre_motion_frame = None
         #: LiveViewController (set by the app wiring): the on-demand browser
         #: dashboard. None in bare/unit-test runtimes.
         self.live_view = None
@@ -124,7 +127,8 @@ class SkillRuntime:
 
         ``object_pose`` is an optional ground-truth pose lookup -- in sim the
         Isaac bridge can read a RigidPrim directly, which beats perception.
-        Without it the checker falls back to the belief store.
+        Without it the checker falls back to the belief store, and to CaP-X
+        visual differencing when the belief would only be confirming itself.
         """
         from ..agent.effects import PostconditionChecker
 
@@ -133,8 +137,45 @@ class SkillRuntime:
             belief_pose=self._belief_pose,
             gripper_frac=self._gripper_width_frac,
             reobserve=lambda: self._reobserve(frames=1),
+            visual_diff=self._visual_diff,
             table_z=float(self.cfg.safety.get("table_z", 0.0)),
             air_grasp_frac=float(self.cfg.grasp.get("air_grasp_frac", 0.04)),
+        )
+
+    def _visual_diff(self, source_xyz=None, target_xyz=None):
+        """CaP-X: compare the pre-motion frame with a fresh one.
+
+        `_pre_motion_frame` is captured by execute() before any motion skill,
+        so this is a genuine before/after pair. Returns None (abstain) when
+        there is no pair, rather than pretending to know.
+        """
+        before = getattr(self, "_pre_motion_frame", None)
+        if before is None:
+            return None
+        frame = self.last_frame or self.observe()
+        if frame is None:
+            return None
+
+        from ..perception.visual_diff import VisualDiffChannel
+
+        def _project(xyz):
+            try:
+                import numpy as _np
+
+                T = frame.T_base_cam
+                if T is None:
+                    T = self.extrinsics.cam_to_base()
+                p_cam = (_np.linalg.inv(_np.asarray(T, float))
+                         @ _np.append(_np.asarray(xyz, float)[:3], 1.0))[:3]
+                if p_cam[2] <= 1e-6:
+                    return None
+                uv = _np.asarray(frame.K, float) @ (p_cam / p_cam[2])
+                return (float(uv[0]), float(uv[1]))
+            except Exception:
+                return None
+
+        return VisualDiffChannel(_project).compare(
+            before, frame.rgb, source_xyz, target_xyz
         )
 
     def _belief_pose(self, label: str):
@@ -192,6 +233,12 @@ class SkillRuntime:
         # itself ("box sits on box"). The subject there is the held object.
         pre_state = {}
         if self.effects is not None and name in _MOTION_SKILLS:
+            # CaP-X: keep the pre-motion pixels so the postcondition can ask a
+            # channel the actuator does not own. Copied because CameraStream
+            # reuses its buffer -- holding the reference would silently give
+            # us the AFTER frame twice and confirm everything.
+            f = self.last_frame
+            self._pre_motion_frame = f.rgb.copy() if f is not None else None
             if name == "place_on_object":
                 target_label = self.held_object
             else:

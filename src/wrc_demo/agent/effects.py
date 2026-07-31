@@ -125,6 +125,7 @@ class PostconditionChecker:
         belief_pose: Callable[[str], Any] | None = None,
         gripper_frac: Callable[[], float | None] | None = None,
         reobserve: Callable[[], None] | None = None,
+        visual_diff: Callable[..., Any] | None = None,
         table_z: float = 0.0,
         air_grasp_frac: float = 0.04,
     ):
@@ -132,6 +133,9 @@ class PostconditionChecker:
         self._belief_pose = belief_pose
         self._gripper_frac = gripper_frac
         self._reobserve = reobserve
+        #: CaP-X visual differencing (source_xyz, target_xyz) -> DiffVerdict.
+        #: The only actuator-independent channel available on real hardware.
+        self._visual_diff = visual_diff
         self.table_z = float(table_z)
         self.air_grasp_frac = float(air_grasp_frac)
         self.history: list[Postcondition] = []
@@ -158,6 +162,25 @@ class PostconditionChecker:
             if pose is not None and len(pose) >= 3:
                 return [float(v) for v in pose[:3]], channel
         return None, ""
+
+    def _visual_evidence(self, source_xyz=None, target_xyz=None):
+        """CaP-X visual differencing: pixels as an actuator-independent channel.
+
+        On real hardware `belief` is the only pose channel and it is written
+        by the same perception pass the skill just ran, so agreeing with it is
+        a tautology. The camera is not the actuator, so a before/after pixel
+        comparison is genuinely independent evidence -- coarse, but real.
+        Returns None when no diff was captured or the scene was unreadable.
+        """
+        if self._visual_diff is None:
+            return None
+        try:
+            v = self._visual_diff(source_xyz, target_xyz)
+        except Exception:
+            return None
+        if v is None or getattr(v, "status", "unknown") == "unknown":
+            return None
+        return v
 
     #: A drop point the SKILL reported is not independent evidence -- the same
     #: code path that chose it also wrote the belief we would compare against.
@@ -311,6 +334,27 @@ class PostconditionChecker:
             # belief were both written by the same code path, so "0.0 cm from
             # the requested drop point (belief)" is a tautology, not evidence.
             if channel != "physics" and not target_is_independent:
+                # CaP-X: before falling back to "unverified", ask the pixels.
+                # The camera is not the actuator, so this IS independent.
+                vis = self._visual_evidence(before.get("pose"), target)
+                if vis is not None and vis.status == "changed":
+                    pc.status = CONFIRMED
+                    pc.channel = "visual_diff"
+                    pc.evidence = (
+                        f"{label} is {err*100:.1f} cm from the requested drop point, "
+                        f"corroborated by pixels ({vis.detail})"
+                    )
+                    pc.measured.update(vis.measured or {})
+                    return
+                if vis is not None and vis.status == "unchanged":
+                    pc.status = REFUTED
+                    pc.channel = "visual_diff"
+                    pc.evidence = (
+                        f"the world model says {label} moved, but the camera sees "
+                        f"no change ({vis.detail})"
+                    )
+                    pc.measured.update(vis.measured or {})
+                    return
                 pc.status = UNVERIFIED
                 pc.evidence = (
                     f"{label} matches the drop point the skill itself reported, but only "

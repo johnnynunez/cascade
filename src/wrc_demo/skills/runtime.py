@@ -1806,6 +1806,41 @@ class SkillRuntime:
                 )
         return out
 
+    def skill_probe_point(
+        self, u: float, v: float, camera: str | None = None,
+        normalized: bool = False,
+    ) -> dict:
+        """Queryable cursor: what is at this pixel, in metres.
+
+        Anthropic's Claude-Plays-Robotics ablation found that static depth and
+        segmentation OVERLAYS were roughly neutral, while a cursor the model
+        can move and query lifted manipulation success from 6% to 32% -- the
+        signal has to be a number you asked for, not a texture you must read.
+        """
+        from ..perception.probe import PointProbe
+
+        try:
+            return PointProbe(self).probe(u, v, camera=camera, normalized=normalized)
+        except KeyError:
+            raise SkillError(f"unknown camera {camera!r}")
+        except ValueError as e:
+            raise SkillError(str(e))
+
+    def skill_locate_pixel(self, label: str, camera: str | None = None) -> dict:
+        """Where is a known object in the image? (inverse of probe_point)
+
+        Lets you move the cursor to something you already track, and reason in
+        the same pixel space you are looking at.
+        """
+        from ..perception.probe import PointProbe
+
+        try:
+            return PointProbe(self).locate_pixel(label, camera=camera)
+        except KeyError:
+            raise SkillError(f"unknown camera {camera!r}")
+        except ValueError as e:
+            raise SkillError(str(e))
+
     def skill_task_done(self, success: bool, summary: str) -> dict:
         if isinstance(success, str):  # schema-lax backends send "false"
             success = success.strip().lower() in ("true", "yes", "1")
@@ -1838,6 +1873,45 @@ TOOL_SPECS: list[dict] = [
             "where to place something -- it shows what is reachable instead of guessing."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "probe_point",
+        "description": (
+            "CURSOR: point at a pixel in the camera image and get hard numbers back -- "
+            "distance in metres, the 3D position in the robot's base frame, which tracked "
+            "object is at that point, whether the arm can actually reach it (workspace + "
+            "top-down IK band), and the offset from the current gripper position. "
+            "Use it whenever you need spatial precision: before a grasp on a cluttered "
+            "or ambiguous scene, to check a placement spot is reachable, or to measure "
+            "how far off the gripper is. Coordinates may be pixels or 0..1 normalized."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "u": {"type": "number", "description": "x pixel (or 0..1 if normalized)"},
+                "v": {"type": "number", "description": "y pixel (or 0..1 if normalized)"},
+                "camera": {"type": "string", "description": "camera name; omit for the manipulation camera"},
+                "normalized": {"type": "boolean", "description": "treat u,v as 0..1 fractions"},
+            },
+            "required": ["u", "v"],
+        },
+    },
+    {
+        "name": "locate_pixel",
+        "description": (
+            "Inverse of probe_point: given an object the robot already tracks, return "
+            "WHERE IT IS IN THE IMAGE (pixel + normalized coords) plus its distance and "
+            "whether it is currently in view. Use it to aim the cursor at a known object, "
+            "or to check an object is visible in a given camera before acting on it."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string"},
+                "camera": {"type": "string"},
+            },
+            "required": ["label"],
+        },
     },
     {
         "name": "analyze_scene",

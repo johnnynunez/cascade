@@ -21,7 +21,8 @@ what was deliberately **not** built.
 | **Harness-VLA / RPent** (2607.08448) | Learn the *operating range* + failure model of a fixed primitive library instead of growing it | `memory/envelope.py` — per-primitive envelopes, failure taxonomy |
 | **ASPIRE** (NVIDIA GEAR) | Diagnose traces → repair → distil validated fixes into a retrievable skill library | `agent/aspire.py` + `scripts/learn_from_runs.py` |
 | **VIA** (2607.11119) | Give the agent an *interface it can read*, not raw pixels | `perception/visual_interface.py` — numbered marks, metric grid, reachability overlay |
-| **Waddle Labs** | Agents that write/test/improve behaviour on real hardware | The outer loop: `learn_from_runs.py` as a between-session job |
+| **Waddle Labs** | Agents that write/test/improve behaviour on real hardware; code-as-policy + a shared skill library | The outer loop: `learn_from_runs.py` as a between-session job |
+| **Claude Plays Robotics** (Anthropic, via Waddle ref [16]) | Overlays are neutral; a **queryable cursor** is worth 6% → 32% | `perception/probe.py` — `probe_point` / `locate_pixel` |
 
 ## The four mechanisms
 
@@ -142,6 +143,54 @@ both shapes and coerces parameters against the JSON schema in `TOOL_SPECS`, so
 - **Hard-blocking on learned envelopes.** Advisory only. A learned prior must
   never veto the safety harness or stall a live demo.
 
+## The cursor: overlays are neutral, queries are not
+
+Anthropic's *Claude Plays Robotics* (Jul 2026, cited by Waddle) ran the
+ablation that matters most for this repo, on a Panda arm:
+
+| visual aid given to the model | effect on manipulation |
+|---|---|
+| depth map overlay | **roughly neutral** |
+| labeled segmentation overlay | **roughly neutral** |
+| **cursor** (movable red X, queryable for object + distance) | **large uplift for every model**; strongest model **6% → 32%** on a 10-task subset |
+
+Their reading: *"models mainly need better orientation, not a different view
+of the scene."* The overlays carry the right information but the signal is too
+diffuse to act on. The cursor works because it answers a specific question
+with a specific number, on demand.
+
+This is a **correction to the VIA-only reading of the problem**. Rendering a
+richer picture for the model is not where the win is; giving it something to
+*ask* is. `perception/probe.py` implements that:
+
+```
+probe_point(u, v)  -> distance_m, base-frame position, which tracked object is
+                      there, reachable{in_workspace, in_topdown_ik_band},
+                      from_gripper{distance_m, delta_xyz_m}
+locate_pixel(label)-> where a known object is IN THE IMAGE (pixel + normalized)
+```
+
+Every field is a scalar the agent can compare, not a texture it must
+interpret. `reachable` is the "orientation" signal in this rig's terms: the
+B601-RS only solves strict top-down IK at x ≈ 0.155–0.185, so the probe says
+so *with the numbers* instead of shading a region and hoping.
+
+**Verified on the live rig** against Isaac physics truth:
+
+- round-trip 3D → pixel → 3D closes to **1.6 mm** (geometry is sound);
+- probing a cube whose centre is at z=0.040 returns z=0.062 — **+22 mm**,
+  exactly its top face. A ray hits the *first surface*, not the centroid.
+
+That second number is a semantic, not a bug, and it is reported in the payload
+(`measures: "visible surface at this pixel, not the object centre"`) so an
+agent cannot quietly feed a probe into a grasp centre and grasp high. Grasp
+planning keeps using segmented point clouds; the cursor is for *relative*
+judgements — is this reachable, what is here, how far is the gripper.
+
+Note the dashboard's depth and annotated views survive this result unscathed:
+they are rendered for a **human** in a browser, not injected into the model's
+context. The ablation is about overlays given to the model.
+
 ## Files
 
 ```
@@ -153,11 +202,13 @@ src/wrc_demo/memory/envelope.py           Harness-VLA operating envelopes
 src/wrc_demo/perception/visual_interface.py  VIA annotated view
 src/wrc_demo/sim/truth.py                 physics-truth verification channel
 src/wrc_demo/apps/live_control.py         on-demand live-view lifecycle
+src/wrc_demo/perception/probe.py          the queryable cursor (6% -> 32%)
 scripts/learn_from_runs.py                the outer loop
 scripts/serve_cosmos3_edge.sh             vLLM-Omni serving
 configs/llm/cosmos3_edge.yaml             Cosmos3-Edge profile
 tests/test_agentic_upgrades.py            29 tests
 tests/test_live_view.py                   20 tests
+tests/test_probe.py                       21 tests
 ```
 
 ## The UI: headless-first, cameras on demand

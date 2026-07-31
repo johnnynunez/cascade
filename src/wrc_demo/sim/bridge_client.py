@@ -68,16 +68,33 @@ class BridgeClient:
                     pass
                 self._sock = None
 
-    def request(self, payload: dict) -> dict:
+    def request(self, payload: dict, timeout_s: float | None = None) -> dict:
+        """Send one request. `timeout_s` overrides the socket timeout for
+        this call only.
+
+        Some ops legitimately take much longer than a normal round trip:
+        `reset_props` under Newton does a timeline Stop -> Play (the only way
+        a resting body's pose actually sticks on that engine) and needs tens
+        of seconds. Timing out client-side while the bridge is mid-reset
+        leaves the caller reading a half-reset scene, which is how a sweep
+        ends up measuring the previous episode's end state.
+        """
         with self._lock:
             if self._file is None:
                 raise BridgeError("bridge not connected")
+            _prev = None
+            if timeout_s is not None and self._sock is not None:
+                _prev = self._sock.gettimeout()
+                self._sock.settimeout(timeout_s)
             try:
                 self._file.write(json.dumps(payload).encode() + b"\n")
                 self._file.flush()
                 line = self._file.readline()
             except OSError as e:
                 raise BridgeError(f"bridge I/O failed: {e}") from e
+            finally:
+                if _prev is not None and self._sock is not None:
+                    self._sock.settimeout(_prev)
         if not line:
             raise BridgeError("bridge closed the connection")
         resp = json.loads(line)

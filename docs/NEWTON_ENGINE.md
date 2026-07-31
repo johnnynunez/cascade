@@ -155,6 +155,51 @@ other half of the pair the asset's evidence package documents).
 Result: cube survives, `pick_and_place` succeeds in 23.2 s, postcondition
 `confirmed via physics`, arm finite.
 
+### 5. reset_props does not reliably reset under Newton (OPEN)
+
+A teleport of a **resting** body does not stick on Newton. Measured directly:
+
+```
+newton state before write : [ 0.1981 -0.2024  0.025 ]
+newton state after  write : [ 0.17    0.15    0.045 ]   <- write lands
+newton state after 1 step : [ 0.1981 -0.2024  0.025 ]   <- reverted
+```
+
+The write reaches **both** solver state buffers (`state_0` and `state_1`,
+verified by reading them straight back) and one step later the body is at its
+old pose. Writing both buffers at once does move it, but then it is ejected at
+72 m/s — the solver treats the teleport as a violation.
+
+A timeline Stop → Play *does* make the solver re-parse the stage, but on this
+build it throws during re-attach and leaves the scene unusable, so the bridge
+does **not** do it.
+
+**Consequence for benchmarks, and it is severe.** After an episode that puts a
+cube in the bin, `reset_props` may leave it there. The next episode then starts
+*at the goal*, `truth=True` is a tautology, and the sweep reports a perfect
+score. That is not hypothetical — a "6/6, 0 false claims" run here turned out
+to be exactly this, and the tell was the movement column:
+
+```
+6/6 truth, moved = 1.5, 3.6, 2.0, 1.7, 3.0, 1.6 cm
+```
+
+The bin is 31–33 cm from every start state. You cannot reach it by moving
+1.5 cm. The number that made the result look good was the number that proved
+it false.
+
+`benchmark/rig/ablation.py` now verifies the post-reset pose and **aborts**
+rather than measuring:
+
+```
+[0] OK truth=True self=True moved=30.6cm 45.1s
+ABORT at episode 1: asked for (0.175, 0.130) but the cube is at
+(0.182, -0.156), 28.6 cm away. The reset did not take.
+```
+
+One real measurement beats six fabricated ones. Until the reset is fixed,
+multi-episode sweeps on Newton need a bridge restart between episodes.
+
 ## Debugging notes
 
 - **`scripts/night_runner.sh` may be running.** It drives the arm through picks

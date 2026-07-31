@@ -974,11 +974,28 @@ class Handler(socketserver.StreamRequestHandler):
             # sim steps) so a repeated demo starts fresh after a pick moved a
             # cube into the bin. Reuses the exec-job queue for main-thread
             # execution.
+            #
+            # KNOWN LIMITATION (Newton): a teleport of a RESTING body does not
+            # reliably stick. The write reaches both solver state buffers
+            # (verified by reading them straight back) and one step later the
+            # body can be at its old pose again. A timeline Stop -> Play does
+            # make the solver re-parse the stage, but it throws during
+            # re-attach on this build and leaves the scene unusable, so it is
+            # NOT done here.
+            #
+            # Consequence for benchmarks: after an episode that put a cube in
+            # the bin, reset_props may leave it there. A sweep MUST verify the
+            # post-reset pose and skip/restart rather than trust it -- see
+            # benchmark/rig/ablation.py, which checks the start pose and
+            # aborts. Without that check a sweep silently measures the
+            # previous episode's end state, `truth=True` becomes a tautology,
+            # and it reports a perfect score with the cube having "moved"
+            # 1.5 cm.
             holder: dict = {}
             done = threading.Event()
             with _exec_lock:
                 _exec_jobs.append(("_settle_props()", holder, done))
-            done.wait(timeout=30)
+            done.wait(timeout=60)
             return holder.get("resp", {"ok": False, "error": "reset timed out"})
         if op == "exec":
             # Live-introspection escape hatch (same idea as the companion
@@ -1099,9 +1116,25 @@ def _settle_props() -> None:
         return _rp
 
     def _escaped(_rp, _pos):
+        """Is this prop somewhere other than the spawn we asked for?
+
+        This gates the settle retry loop AND, through `reset_props`, whether a
+        benchmark episode starts from the state it thinks it does.
+
+        It used to test only |x|>1, |y|>1, or z off by >0.1 -- i.e. it caught
+        props that had been launched into orbit, but not a prop sitting calmly
+        30 cm away. A cube resting INSIDE THE BIN after a successful pick
+        passes all three tests, so `_settle_props` reported "settled cleanly"
+        without having moved it, and every later sweep episode started with
+        the cube already at the goal. That turns `truth=True` into a tautology
+        and produced a 6/6 result where the cube had "moved" 1.5 cm.
+
+        Check the actual distance from the requested spawn instead.
+        """
         _p = _rp.get_world_poses()[0].numpy().reshape(-1)[:3]
-        return (abs(_p[0]) > 1 or abs(_p[1]) > 1
-                or abs(_p[2] - (_pos[2] + BASE_Z)) > 0.1)
+        _want = (_pos[0], _pos[1], _pos[2] + BASE_Z)
+        _d = float(np.linalg.norm(np.asarray(_p) - np.asarray(_want)))
+        return _d > 0.02
 
     names = [n for n in _PROP_SPAWNS if stage.GetPrimAtPath(f"/World_Props/{n}")]
     for _attempt in range(4):

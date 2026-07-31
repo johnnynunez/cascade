@@ -198,11 +198,39 @@ OpenVLA lands inside our Wilson interval on **4/4** suites, so the harness
 reproduces a published baseline — that check is what exposed a
 gripper-convention bug scoring a working policy at 0%.
 
+> **These primitive columns are not trustworthy, and the OpenVLA column is.**
+> The success flag comes from LIBERO's own `done`, and `set_init_state` leaves
+> the termination flag already set for some tasks, so an episode can be scored
+> a success without the robot doing anything. Reproduced live while checking
+> whether the perception fix affected this table:
+>
+> ```
+> skill said: ok=False, grasp failed after 8 attempts (1.3s),
+>             "no detections for ['akita_black_bowl_2_main']"
+> episode:    done=True  -> counted as SUCCESS
+> table:      verified 1/1 = 100.0%
+> ```
+>
+> The grasp never happened — 1.3 s, eight attempts, zero detections — and the
+> episode still scored. That inflates every primitive column by an unknown
+> amount. The OpenVLA column survives because it is validated against published
+> numbers on all four suites, which is exactly the check a broken success
+> signal would fail.
+>
+> The comparisons below are therefore reported but **should not be cited** until
+> the termination flag is read from object state rather than from `done`.
+
 The aggregate verification gap (+6.5 pts) is **not** significant; the intervals
 overlap. The effect is local to `libero_spatial`. What *did* replicate on all
 four suites: **retrying on self-report scores below not retrying at all**
 (18% → 10%). The `reached` flag is computed by the same code that executed the
 motion, so retries fire on the wrong episodes.
+
+**Unaffected by the perception fix.** `_recentre_by_size` (commit `c129161`)
+changed the grasp target on the Isaac rig. LIBERO does not go through it —
+verified by instrumenting the function and running an episode: **0 calls**, as
+the LIBERO path pins a mock detector and takes object poses from MuJoCo. The
+numbers above are stale for the reason in the box, not because of that fix.
 
 ## Diagnostics
 

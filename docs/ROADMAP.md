@@ -19,9 +19,9 @@ Waddle) + a Cosmos3-Edge backend. Full write-up in
   start. Advisory only — the harness stays the sole authority on motion.
 - **Annotated interface (VIA).** `annotated_view` skill: numbered object
   badges, 5 cm metric grid, TCP, and the top-down IK band drawn on the frame.
-- **Cosmos3-Edge.** `configs/llm/cosmos3_edge.yaml` + `agent/cosmos3.py`
+- **Cosmos3-Edge.** `configs/llm/local_cosmos.yaml` + `agent/cosmos3.py`
   (parses its XML tool-call format — the plain `openai_compat` client silently
-  never calls tools) + `scripts/serve_cosmos3_edge.sh`.
+  never calls tools) + `scripts/serve_cosmos_vllm.sh`.
 
 Open follow-ups from this work:
 1. Run a full booth rehearsal against Cosmos3-Edge and compare tool-call

@@ -18,7 +18,7 @@ p.add_argument("--engine", default="physx", choices=["newton", "physx"])
 p.add_argument("--device", default="cpu")
 p.add_argument("--usd", default=os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "assets", "usd", "RS-rebot-dev-arm", "00-arm-rs_asm-v3.usda"))
+    "assets", "usd", "RS-rebot-dev-arm", "RS-rebot-dev-arm.usda"))
 p.add_argument("--prim", default="/tn__00armrs_asmv3_hJ6D/Geometry/base_link")
 p.add_argument("--steps", type=int, default=120)
 p.add_argument("--self-collision", action="store_true",

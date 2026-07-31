@@ -247,13 +247,24 @@ class PostconditionChecker:
         # back in the result, which is the most reliable source (the request
         # may have been a colour query like "pink object").
         label = str(
-            result.get("object")
+            result.get("picked")
+            or result.get("object")
             or args.get("label")
             or args.get("object")
             or before.get("label")
             or ""
         )
-        target = args.get("target") or result.get("target")
+        # Where the skill BELIEVES it put the object. pick_and_place reports
+        # `placed_at`; only reading `target` made this fall through to the weak
+        # "it moved, good enough" branch and confirm a real miss on the live
+        # rig (2026-07-31: cube ended at (0.132, 0.090), 7 cm from where it
+        # started and nowhere near the bin, reported as confirmed).
+        target = (
+            args.get("target")
+            or result.get("target")
+            or result.get("placed_at")
+            or result.get("at")
+        )
         pose, channel = self._best_pose(label) if label else (None, "")
         if pose is None:
             pc.status, pc.evidence = UNVERIFIED, f"{label or 'object'} not re-located after the move"
@@ -275,10 +286,19 @@ class PostconditionChecker:
                 pc.evidence = f"{label} is {err*100:.1f} cm from the requested drop point ({channel})"
             else:
                 pc.status = REFUTED
-                pc.evidence = f"{label} landed {err*100:.1f} cm off the requested drop point"
+                pc.evidence = (
+                    f"{label} ended {err*100:.1f} cm from where it was meant to go "
+                    f"(at {[round(v, 3) for v in pose[:2]]}, wanted "
+                    f"{[round(float(v), 3) for v in target[:2]]})"
+                )
             return
-        pc.status = CONFIRMED
-        pc.evidence = f"{label} moved to a new position ({channel})"
+        # No drop point to compare against: "it moved" is NOT evidence that it
+        # went where it was asked to go. Say so instead of confirming.
+        pc.status = UNVERIFIED
+        pc.evidence = (
+            f"{label} moved, but no drop point was reported, so 'placed correctly' "
+            "could not be verified"
+        )
 
     def _check_released_at(self, pc, args, result, before) -> None:
         label = str(before.get("label") or result.get("object") or "")
@@ -306,9 +326,27 @@ class PostconditionChecker:
         pc.status, pc.evidence = CONFIRMED, f"{label} located after release ({channel})"
 
     def _check_released_on(self, pc, args, result, before) -> None:
-        held = str(before.get("label") or result.get("object") or "")
+        # The HELD object is the subject; `label` is the DESTINATION. Reading
+        # the subject from before["label"] compares the target with itself and
+        # cheerfully reports "box sits on box (offset 0.0 cm)" -- a vacuous
+        # confirmation that masked a real miss on the live rig (2026-07-31:
+        # the cube landed at (0.272, 0.084), well outside the bin, while this
+        # check said confirmed). `result["placed"]` is what the skill actually
+        # released; fall back to the snapshot only when it is absent.
         target = str(args.get("label") or "")
-        hp, channel = self._best_pose(held) if held else (None, "")
+        held = str(
+            result.get("placed")
+            or result.get("object")
+            or (before.get("label") if before.get("label") != target else "")
+            or ""
+        )
+        if not held or held == target:
+            pc.status = UNVERIFIED
+            pc.evidence = (
+                "cannot tell which object was released, so 'on target' is unverifiable"
+            )
+            return
+        hp, channel = self._best_pose(held)
         tp, _ = self._best_pose(target) if target else (None, "")
         if hp is None or tp is None:
             pc.status = UNVERIFIED

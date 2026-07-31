@@ -109,7 +109,7 @@ better than last night's, with no retrained weights.
 
 ## Cosmos3-Edge
 
-`configs/llm/cosmos3_edge.yaml` + `agent/cosmos3.py` + `scripts/serve_cosmos3_edge.sh`.
+`configs/llm/local_cosmos.yaml` + `agent/cosmos3.py` + `scripts/serve_cosmos_vllm.sh`.
 
 Why it fits: trained for Physical AI reasoning, natively multimodal (no mmproj),
 accepts video at ~4 fps, 256K context, and BF16 ≈ 8.6 GB — it coexists with
@@ -204,8 +204,8 @@ src/wrc_demo/sim/truth.py                 physics-truth verification channel
 src/wrc_demo/apps/live_control.py         on-demand live-view lifecycle
 src/wrc_demo/perception/probe.py          the queryable cursor (6% -> 32%)
 scripts/learn_from_runs.py                the outer loop
-scripts/serve_cosmos3_edge.sh             vLLM-Omni serving
-configs/llm/cosmos3_edge.yaml             Cosmos3-Edge profile
+scripts/serve_cosmos_vllm.sh             vLLM-Omni serving
+configs/llm/local_cosmos.yaml             Cosmos3-Edge profile
 tests/test_agentic_upgrades.py            29 tests
 tests/test_live_view.py                   20 tests
 tests/test_probe.py                       21 tests

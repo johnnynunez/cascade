@@ -27,7 +27,14 @@ import numpy as np
 
 _JOINT_DEF = re.compile(r'def\s+Physics(\w+)Joint\s+"([^"]+)"')
 _SCOPE_DEF = re.compile(r'(?:def|over)\s+[\w:]*\s*"([^"]+)"')
-_REF_PATH = re.compile(r"@([^@]+\.usda)@")
+# Follow BOTH .usda and .usd references. The 2026-07-31 asset refresh renamed
+# the payloads to `RS-rebot-dev-arm_{base,meshes,physics}.usd` -- still ASCII
+# USD despite the extension, but a `.usda`-only pattern stopped following them
+# and the crawler reported "no PhysicsJoint prims reachable" even though the
+# joints were right there. Binary (PXR-USDC) payloads are read as text with
+# errors="ignore" and simply fail to match, which is the correct outcome:
+# geometry payloads carry no joints.
+_REF_PATH = re.compile(r"@([^@]+\.usda?)@")
 _VEC = re.compile(r"[-+0-9.eE]+")
 
 _AXES = {"X": np.array([1.0, 0, 0]), "Y": np.array([0, 1.0, 0]), "Z": np.array([0, 0, 1.0])}

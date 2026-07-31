@@ -256,21 +256,44 @@ Isolation chain, each step measured rather than argued:
    engine-independent and predates the Newton switch entirely.
 6. The extrinsics in `configs/cameras/isaac.yaml` match the bridge's printed
    values byte for byte, so it is not a stale calibration.
-7. **Root cause:** the depth sensor sees the cube's **front face**; the truth
-   pose is its **centre**. Measured range 0.8950 m against a true 0.9336 m —
-   a 38.6 mm gap, about half a diagonal of the 5 cm cube. Deprojecting that
-   short range along the ray places the point closer to the camera *and*
-   laterally offset in base frame.
-8. **Proof:** pushing the deprojected point +2.5 cm along the ray cuts the
-   error from **3.17 cm to 1.15 cm** (2.8×), consistently at four positions.
+7. **Mechanism — two independent contributions, both measured.**
 
-This also explains two long-standing numbers: the detector "ghost"
-(precision 76.6 %) and why ablation success sat at 4–6/10. With a 1.6 cm bias
-against a 2.5 cm half-width, a grasp is close to a coin flip depending on where
-the cube happens to sit.
+   `_localize` does not deproject one pixel: it builds a point cloud from the
+   detection mask and takes the centre of an oriented box over it. Two things
+   go wrong, in different directions.
 
-The fix belongs in the perception layer (surface→centre compensation), not in
-the asset and not in the solver.
+   **(a) The mask sits low, because of the cube's shadow.** In pixels:
+
+   | | u | v |
+   |---|---|---|
+   | true cube projection | 663…748 | 156…253 |
+   | detector bbox | 663…748 | **143…264** |
+
+   Horizontally it is exact (mask centroid off by **+0.4 px**); vertically the
+   box runs 13 px high and 11 px low, and the mask centroid sits **+8.1 px**
+   below the true one. At 0.93 m that is **0.69 cm** — 42 % of the error.
+
+   **(b) The fitted box centre is pulled toward the camera by 18.3 mm.** The
+   cloud *does* wrap the cube (59.5 mm of depth span for a 5 cm object), so
+   this is not a one-face shell. It is density: near faces get many more
+   pixels per unit area than far ones, so the box centre is dragged forward.
+   The fitted extent, **7.2 × 7.3 × 4.3 cm**, is inflated laterally by the
+   shadow/table pixels and compressed in z.
+
+   Height-filtering the table points alone is **not** a fix: it moves the error
+   only 1.63 → 1.57 cm (kept fraction 0.96), because the table skirt is a
+   symptom of the same bad mask rather than the main term.
+
+> **Retraction.** An earlier version of this section blamed *surface-vs-centre*
+> depth alone: measured range 0.8950 m vs a true 0.9336 m (38.6 mm ≈ half a
+> diagonal), with a +2.5 cm push along the ray cutting the error 3.17 → 1.15 cm.
+> That test was real but it measured the **wrong pipeline** — a single-pixel
+> deprojection I wrote, not `_localize`. The tell was that the real pipeline is
+> *more* accurate (1.6 cm) than my naive round-trip (3.2 cm). The shipped
+> pipeline's cloud genuinely wraps the object; the depth-direction bias is
+> density-weighting, not a missing far face, and it comes with a separate
+> shadow-driven mask shift. A blind "+2.5 cm along the ray" would have
+> overshot.
 
 ## Debugging notes
 

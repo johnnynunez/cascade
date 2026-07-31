@@ -34,6 +34,18 @@ import time
 #: Prop container prims in the demo scene, most specific first.
 _PROP_ROOTS = ("/World_Props", "/World/props", "/World")
 
+#: Minimal ES->EN token map so the physics channel survives a Spanish command.
+#: Only colours and prop nouns -- this is label matching, not translation.
+_ES_EN = {
+    "cubo": "cube", "caja": "box", "cuenco": "bowl", "bol": "bowl",
+    "taza": "cup", "vaso": "cup", "plato": "plate", "botella": "bottle",
+    "platano": "banana", "juguete": "toy", "bloque": "block", "papelera": "bin",
+    "rosa": "pink", "verde": "green", "amarillo": "yellow", "amarilla": "yellow",
+    "rojo": "red", "roja": "red", "azul": "blue", "naranja": "orange",
+    "morado": "purple", "morada": "purple", "blanco": "white", "blanca": "white",
+    "negro": "black", "negra": "black",
+}
+
 #: Probe executed on the sim main thread between steps.  Kept to pure reads:
 #: authoring from here would race hydra (the bridge's own warning).
 #:
@@ -122,6 +134,13 @@ class TruthPoseReader:
             return poses[want]
         # token overlap: "pink cube" -> pink_cube, "the cube" -> pink_cube
         want_tokens = set(want.split("_"))
+        # The user talks to this robot in whatever language they like, and the
+        # sim prims are English. Without this, a Spanish command silently loses
+        # the ONLY independent verification channel: "cubo rosa" matched no
+        # prim, physics returned None, and the check fell back to the belief
+        # the skill had just written -- confirming a cube that was 30 cm from
+        # the bin (live rig, 2026-07-31).
+        want_tokens |= {_ES_EN.get(t, t) for t in want_tokens}
         best, best_score = None, 0
         for key, xyz in poses.items():
             score = len(want_tokens & set(key.split("_")))

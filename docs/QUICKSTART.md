@@ -64,20 +64,56 @@ Prueba a decirle (entiende español e inglés):
 - `abre las cámaras` → te devuelve una URL
 - `lanza la banana`
 
-## 3. OpenClaw / Hermes (la interfaz real)
+## 3. OpenClaw / Hermes — **la interfaz principal**
 
 ```bash
-scripts/openclaw_demo.sh                    # sim + cerebro cosmos
-scripts/openclaw_demo.sh --brain qwen       # sim + Qwen
+scripts/openclaw_demo.sh --brain qwen       # sim + Qwen3-VL
+scripts/openclaw_demo.sh                    # sim + Cosmos3-Edge
 scripts/openclaw_demo.sh --arm rebot_rs --cameras l515   # brazo REAL (¡ojo!)
 ```
 
-Abre `http://127.0.0.1:18789/` y habla. Registra el servidor MCP, apunta el
-agente al cerebro local y levanta el gateway.
+El script registra el MCP, levanta el gateway, apunta el agente al cerebro
+local, lo reinicia para que cargue las 35 herramientas del robot, y **prueba
+que responden** antes de decirte que funciona.
 
-Probar un turno sin navegador:
+Luego abre `http://127.0.0.1:18789/` y habla. O sin navegador:
+
 ```bash
-openclaw agent --agent main -m "describe the scene"
+openclaw agent --agent main -m "¿qué ves?"
+openclaw agent --agent main --session-key "agent:main:demo-$(date +%s)" \
+    -m "Coge el cubo rosa y ponlo en la caja."
+```
+
+### Cuatro trampas que cuestan una demo (todas encontradas en vivo)
+
+1. **El gateway debe arrancar ANTES de `onboard`** — si no, aborta con
+   `Gateway did not become reachable`.
+2. **Y reiniciarse DESPUÉS de `mcp add`** — si no sirve una lista de
+   herramientas obsoleta y el agente responde en prosa sin llamar a nada.
+3. **`--cwd` debe ser `models/`, NO la raíz del repo.** YOLOE resuelve
+   `mobileclip_blt.ts` relativo al CWD. Desde la raíz no ve el fichero de
+   600 MB, intenta descargarlo (aun con `YOLO_OFFLINE=True`), escribe un
+   fichero truncado de 9 MB en la raíz, y toda observación muere con
+   `PytorchStreamReader failed reading zip archive`. El agente lo reporta como
+   *"a runtime error loading a checkpoint"* y deja de percibir en silencio.
+   Si te pasa: `rm mobileclip_blt.ts` de la raíz del repo.
+4. **`contextWindow` debe coincidir con el `n_ctx` real del servidor.**
+   `onboard` escribe 128000 pase lo que pase; el script ahora lo pregunta a
+   `/props`. Si no, los turnos largos revientan con *context overflow*.
+
+Una sesión larga acumula contexto: usa `--session-key` nueva para empezar
+limpio.
+
+## 4. Terminal directo (sin OpenClaw)
+
+```bash
+# una orden y ya   (ojo: cd models, YOLOE busca sus pesos en el CWD)
+cd models && PYTHONPATH=../src $PY -m wrc_demo.apps.demo \
+    --cameras isaac,isaac_side --arm isaac --llm local_qwen \
+    --task "pick and place the pink cube in the box" --no-view
+
+# chat interactivo
+... --interactive
 ```
 
 ---

@@ -283,6 +283,48 @@ def test_place_on_object_abstains_when_the_subject_is_unknown():
     assert "which object was released" in pc.evidence
 
 
+def test_self_reported_drop_point_needs_an_independent_channel():
+    """A belief the skill wrote is not evidence the skill worked.
+
+    Live rig 2026-07-31: a Spanish command ("cubo rosa") matched no sim prim,
+    so the physics channel returned None and the check fell back to the belief
+    `place` had just written -- reporting "0.0 cm from the requested drop
+    point" while the cube sat at (0.361, 0.010), nowhere near the bin.
+    """
+    checker = PostconditionChecker(belief_pose=lambda l: [0.159, -0.179, 0.12])
+    pc = checker.verify(
+        "pick_and_place",
+        {"object": "cubo rosa", "destination": "caja"},
+        {"picked": "cubo rosa", "placed_at": [0.159, -0.179, 0.12], "ok": True},
+        before={"label": "cubo rosa", "pose": [0.15, 0.12, 0.03]},
+    )
+    assert pc.status == UNVERIFIED
+    assert "no independent confirmation" in pc.evidence
+
+
+def test_caller_supplied_target_is_independent_evidence():
+    """args["target"] came from the CALLER, so agreement does count."""
+    checker = PostconditionChecker(belief_pose=lambda l: [0.16, -0.18, 0.12])
+    pc = checker.verify(
+        "place_at",
+        {"target": [0.16, -0.18, 0.12]},
+        {"object": "pink cube", "ok": True},
+        before={"label": "pink cube", "pose": [0.15, 0.12, 0.03]},
+    )
+    assert pc.status == CONFIRMED
+
+
+def test_physics_channel_confirms_without_the_independence_caveat():
+    checker = PostconditionChecker(object_pose=lambda l: [0.16, -0.18, 0.04])
+    pc = checker.verify(
+        "pick_and_place",
+        {"object": "pink cube", "destination": "box"},
+        {"picked": "pink cube", "placed_at": [0.159, -0.179, 0.12], "ok": True},
+        before={"label": "pink cube", "pose": [0.17, 0.15, 0.04]},
+    )
+    assert pc.status == CONFIRMED and pc.channel == "physics"
+
+
 def test_push_postcondition_measures_displacement():
     poses = {"box": [0.30, 0.0, 0.03]}
     checker = PostconditionChecker(object_pose=lambda l: poses.get(l))

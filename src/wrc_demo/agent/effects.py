@@ -159,6 +159,16 @@ class PostconditionChecker:
                 return [float(v) for v in pose[:3]], channel
         return None, ""
 
+    #: A drop point the SKILL reported is not independent evidence -- the same
+    #: code path that chose it also wrote the belief we would compare against.
+    #: Confirming a placement from the belief channel therefore just replays
+    #: the robot's own intention back at it: on the live rig a Spanish command
+    #: ("cubo rosa") failed to match the sim prim `pink_cube`, the physics
+    #: channel returned None, and the belief channel cheerfully reported
+    #: "0.0 cm from the requested drop point" while the cube sat at
+    #: (0.361, 0.010) -- nowhere near the bin.
+    _SELF_REPORTED_TARGET_NEEDS_INDEPENDENT_CHANNEL = True
+
     # ── verification ─────────────────────────────────────────────────────
 
     def verify(
@@ -259,12 +269,19 @@ class PostconditionChecker:
         # "it moved, good enough" branch and confirm a real miss on the live
         # rig (2026-07-31: cube ended at (0.132, 0.090), 7 cm from where it
         # started and nowhere near the bin, reported as confirmed).
+        #
+        # Provenance matters for what the agreement is worth: a `target` in the
+        # ARGS was chosen by the caller, so matching it is real evidence. A
+        # `placed_at` in the RESULT was chosen by the same code path that wrote
+        # the belief, so matching it in the belief channel proves nothing.
+        requested = args.get("target")
         target = (
-            args.get("target")
+            requested
             or result.get("target")
             or result.get("placed_at")
             or result.get("at")
         )
+        target_is_independent = requested is not None
         pose, channel = self._best_pose(label) if label else (None, "")
         if pose is None:
             pc.status, pc.evidence = UNVERIFIED, f"{label or 'object'} not re-located after the move"
@@ -281,16 +298,27 @@ class PostconditionChecker:
         if isinstance(target, (list, tuple)) and len(target) >= 2:
             err = _dist(pose[:2], [float(v) for v in target[:2]])
             pc.measured["target_err_m"] = round(err, 4)
-            if err <= SAME_PLACE_M * 2:
-                pc.status = CONFIRMED
-                pc.evidence = f"{label} is {err*100:.1f} cm from the requested drop point ({channel})"
-            else:
+            if err > SAME_PLACE_M * 2:
                 pc.status = REFUTED
                 pc.evidence = (
                     f"{label} ended {err*100:.1f} cm from where it was meant to go "
                     f"(at {[round(v, 3) for v in pose[:2]]}, wanted "
                     f"{[round(float(v), 3) for v in target[:2]]})"
                 )
+                return
+            # Agreement with a SELF-REPORTED drop point only counts when it
+            # comes from a channel the skill does not own. `placed_at` and the
+            # belief were both written by the same code path, so "0.0 cm from
+            # the requested drop point (belief)" is a tautology, not evidence.
+            if channel != "physics" and not target_is_independent:
+                pc.status = UNVERIFIED
+                pc.evidence = (
+                    f"{label} matches the drop point the skill itself reported, but only "
+                    f"in the {channel} channel it also wrote -- no independent confirmation"
+                )
+                return
+            pc.status = CONFIRMED
+            pc.evidence = f"{label} is {err*100:.1f} cm from the requested drop point ({channel})"
             return
         # No drop point to compare against: "it moved" is NOT evidence that it
         # went where it was asked to go. Say so instead of confirming.

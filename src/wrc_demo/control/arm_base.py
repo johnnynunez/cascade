@@ -28,6 +28,14 @@ class ArmBase(abc.ABC):
     #: feedforward), so steady-state droop under payload needs headroom;
     #: backends override from config.
     settle_tol = 0.03
+    #: how long wait_settled() waits after the streamed profile ends (s).
+    #: Measured on the Isaac rig: PhysX converges inside ~1 s, but Newton's
+    #: solver takes noticeably longer to bleed off the last of the error --
+    #: a 0.17 rad step needed 3.6 s to come inside settle_tol, so the old
+    #: hard-coded 2.0 s made every pregrasp report "did not settle" even
+    #: though the arm was on its way to the right pose. Backends override
+    #: from config (`arm.settle_timeout_s`).
+    settle_timeout_s = 2.0
 
     @abc.abstractmethod
     def connect(self) -> None: ...
@@ -59,7 +67,7 @@ class ArmBase(abc.ABC):
         rate_hz: float = 50.0,
         approve=None,
         settle_tol: float | None = None,
-        settle_timeout_s: float = 2.0,
+        settle_timeout_s: float | None = None,
     ) -> bool:
         """Min-jerk interpolate current->target, vetting each waypoint.
 
@@ -68,6 +76,8 @@ class ArmBase(abc.ABC):
         """
         if settle_tol is None:
             settle_tol = self.settle_tol
+        if settle_timeout_s is None:
+            settle_timeout_s = self.settle_timeout_s
         q_start = self.get_state().q.copy()
         q_target = np.asarray(q_target, dtype=float).reshape(-1)
         steps = max(2, int(duration_s * rate_hz))

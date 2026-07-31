@@ -54,11 +54,20 @@ DEFAULT_PRIM = "/tn__00armrs_asmv3_hJ6D/Geometry/base_link"
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("--usd", default=DEFAULT_USD, help="reBot RS scene USD (gain-tuned asset)")
 p.add_argument("--prim", default=DEFAULT_PRIM, help="articulation root prim path")
-p.add_argument("--engine", default="physx", choices=["newton", "physx"])
-# NOTE: Newton on this develop build NaNs at GRASP CONTACT (fingers closing
-# on an object): decomposition fingers explode on close, hull fingers spawn
-# interpenetrated. Perception/motion/props are fine under Newton -- flip
-# --engine newton for everything except manipulation until upstream fixes it.
+p.add_argument("--engine", default="newton", choices=["newton", "physx"])
+# Newton is the default engine. Both historical blockers were re-tested on
+# 2026-07-31 against the current build and neither survived:
+#  - "offscreen render products return garbage under the newton kit
+#    experience": FALSE now. All three cameras return real RGB-D (cam0
+#    19k distinct colours, depth 85% valid; side 47%; wrist 93%), verified
+#    by eye on a captured frame.
+#  - "props free-fall through the table": that was OUR bug, not Newton's,
+#    and it is fixed below in two places -- the arm/furniture collision
+#    groups (PhysX deny-list semantics vs Newton's "different group == no
+#    contact") and the set_velocities signature, which differs between the
+#    engines and was being swallowed by a bare except so the velocity was
+#    never actually zeroed.
+# Pass --engine physx to fall back to the old path.
 p.add_argument("--port", type=int, default=8611)
 p.add_argument("--gui", action="store_true", help="run with the editor window (default: headless)")
 p.add_argument("--width", type=int, default=1280)
@@ -82,14 +91,16 @@ HOME_Q = [0.0, -1.2, -1.2, 0.0, -0.75, 0.0]  # gripper elbow-up, high
 
 # SimulationApp must exist before ANY isaacsim/omni import.
 #
-# Engine <-> experience coupling (validated on this rig 2026-07-18):
+# Engine <-> experience coupling:
 # - newton REQUIRES the newton kit experience (enabling the ext post-boot
-#   does not create the tensor backend -- gain-tuner gotcha), BUT offscreen
-#   render products (CameraSensor/replicator) return garbage under it; only
-#   viewport capture works. Fine for physics work, useless for RGB-D.
-# - physx runs under the DEFAULT experience where the RTX sensor stack is
-#   the tested path. The asset's colliders are engine-agreement validated
-#   (gain tuner 8/8), so the perception demo uses physx by default.
+#   does not create the tensor backend -- gain-tuner gotcha).
+# - physx runs under the DEFAULT experience.
+# The 2026-07-18 note that offscreen render products return garbage under the
+# newton experience NO LONGER HOLDS on this build: cam0/side/wrist all return
+# real RGB + depth through the same code path (measured 2026-07-31; cam0 19k
+# distinct colours, 85% valid depth, and the frame renders the arm, bin and
+# both cubes correctly). The asset's colliders are engine-agreement validated
+# (gain tuner 8/8).
 from isaacsim import SimulationApp  # noqa: E402
 
 _release = os.environ.get(
@@ -156,6 +167,47 @@ for prim in stage.Traverse():
             attr.Set(4600)  # just under the geometry estimate (~4745)
             print(f"[bridge] clamped {prim.GetPath()} newton:solver:nconmax {old} -> 4600",
                   flush=True)
+
+
+def _raise_newton_contact_cap(min_contacts: int = 8192) -> None:
+    """Give MJWarp room for this scene's real contact count.
+
+    Authoring `newton:solver:nconmax` on the prim is NOT enough: the MJWarp
+    solver instantiates with its own default (200 on this build) and then
+    DISCARDS every contact beyond it, printing
+
+        Number of Newton contacts (1015) exceeded MJWarp limit (200).
+
+    once per step. Dropped contacts is exactly the observed symptom -- props
+    resting on the table for a while and then sinking through it, fingers
+    closing on an object without holding it. This scene generates 200-1000+
+    contacts (the arm's convexDecomposition gripper alone contributes
+    hundreds), so raise the cap on the live solver config after boot.
+    """
+    try:
+        import isaacsim.physics.newton.impl.extension as _ne
+    except Exception as _e:                       # physx run: nothing to do
+        return
+    _ns = getattr(_ne, "_newton_stage", None)
+    if _ns is None:
+        return
+    _cfg = getattr(_ns, "cfg", None)
+    _solver = getattr(_cfg, "solver_cfg", None) if _cfg is not None else None
+    if _solver is None:
+        print("[bridge] newton solver_cfg unavailable; contact cap left at default",
+              flush=True)
+        return
+    for _name in ("nconmax", "ncon_max", "rigid_contact_max"):
+        if hasattr(_solver, _name):
+            _old = getattr(_solver, _name)
+            if _old is None or _old < min_contacts:
+                setattr(_solver, _name, min_contacts)
+                print(f"[bridge] newton solver {_name}: {_old} -> {min_contacts}",
+                      flush=True)
+
+
+if args.engine == "newton":
+    _raise_newton_contact_cap()
 
 
 for _ in range(30):
@@ -692,18 +744,34 @@ print("[bridge] arm visual materials come from the asset (materials.usda)", flus
 # NaNs within ~60 steps (arm q -> nan, every prop flung to ~1e12). Two
 # static bodies never need mutual contacts, so put the arm in one collision
 # group and all static furniture (table + bin walls) in another, and filter
-# the pair. Dynamic props are in NEITHER group, so they still collide with
-# both the arm and the table normally. (Isolated repro + fix verified in
+# the pair. (Isolated repro + fix verified in
 # scripts/diag_physics.py --add-table {--filter-arm-table}.)
-_arm_grp = UsdPhysics.CollisionGroup.Define(stage, "/World_Props/arm_group")
-_furn_grp = UsdPhysics.CollisionGroup.Define(stage, "/World_Props/furniture_group")
-_arm_grp.CreateFilteredGroupsRel().AddTarget(_furn_grp.GetPath())
-_arm_grp.GetCollidersCollectionAPI().GetIncludesRel().AddTarget(args.prim)
-_furn_inc = _furn_grp.GetCollidersCollectionAPI().GetIncludesRel()
-for _static_path in _STATIC_PROPS:
-    _furn_inc.AddTarget(_static_path)
-print(f"[bridge] arm<->furniture collision filtered "
-      f"({len(_STATIC_PROPS)} static bodies)", flush=True)
+#
+# ENGINE SEMANTICS DIFFER -- this is why the groups are PhysX-only:
+#   PhysX  : `filteredGroups` is an explicit deny-list. A collider in NO group
+#            still collides with everything, so dynamic props fall onto the
+#            table normally.
+#   Newton : every shape ends up assigned to a group, and shapes in DIFFERENT
+#            groups do not generate contact pairs at all. Measured on this rig:
+#            405 registered contact pairs, ZERO of them cross-group; the 5
+#            furniture shapes were isolated from the 227 others, so both cubes
+#            free-fell through the table to z = -227849 m at 6244 m/s with x/y
+#            untouched -- pure free fall, no contact, straight from boot.
+# Newton does not need this workaround: it resolves the static arm/table
+# overlap without the boot NaN. So author the groups ONLY under PhysX.
+if args.engine == "physx":
+    _arm_grp = UsdPhysics.CollisionGroup.Define(stage, "/World_Props/arm_group")
+    _furn_grp = UsdPhysics.CollisionGroup.Define(stage, "/World_Props/furniture_group")
+    _arm_grp.CreateFilteredGroupsRel().AddTarget(_furn_grp.GetPath())
+    _arm_grp.GetCollidersCollectionAPI().GetIncludesRel().AddTarget(args.prim)
+    _furn_inc = _furn_grp.GetCollidersCollectionAPI().GetIncludesRel()
+    for _static_path in _STATIC_PROPS:
+        _furn_inc.AddTarget(_static_path)
+    print(f"[bridge] arm<->furniture collision filtered "
+          f"({len(_STATIC_PROPS)} static bodies)", flush=True)
+else:
+    print("[bridge] collision groups skipped (newton: different group == no "
+          "contact, which would isolate the furniture)", flush=True)
 
 # ── gravity sanity (re-assert after payloads + before the articulation) ──
 # Idempotent: if the physics parser reset gravity from a late-composed
@@ -910,6 +978,32 @@ for _ in range(60):
     app.update()
 
 
+def _zero_prop_velocity(_rp) -> bool:
+    """Zero a rigid body's linear + angular velocity on EITHER engine.
+
+    The two backends disagree on the signature, and the mismatch used to be
+    swallowed by a bare `except`, so under Newton the velocity was NEVER
+    actually cleared: a prop that picked up speed kept it, tunnelled through
+    the table on the next step, and left latent NaNs that detonated the solver
+    at the next contact.
+      PhysX  : set_velocities(v)                 with v shaped (N, 6)
+      Newton : set_velocities(linear, angular)   each shaped (N, 3)
+    Returns True only if the velocity was really cleared, so a silent no-op
+    cannot masquerade as success.
+    """
+    try:                                        # newton: two (N,3) args
+        _rp.set_velocities(np.zeros((1, 3), dtype=np.float32),
+                           np.zeros((1, 3), dtype=np.float32))
+        return True
+    except (TypeError, ValueError):
+        pass
+    try:                                        # physx: one (N,6) arg
+        _rp.set_velocities(np.zeros((1, 6), dtype=np.float32))
+        return True
+    except Exception:
+        return False
+
+
 def _settle_props() -> None:
     """Deterministically settle every dynamic prop onto the table.
 
@@ -924,16 +1018,16 @@ def _settle_props() -> None:
     """
     from isaacsim.core.experimental.prims import RigidPrim  # noqa: E402
 
+    def _zero_vel(_rp) -> bool:
+        return _zero_prop_velocity(_rp)
+
     def _place(_n, _pos, dz):
         _rp = RigidPrim(f"/World_Props/{_n}", reset_xform_op_properties=True)
         _rp.set_world_poses(
             np.array([[_pos[0], _pos[1], _pos[2] + BASE_Z + dz]]),
             np.array([[1.0, 0.0, 0.0, 0.0]]),
         )
-        try:  # zero both linear + angular velocity (shape (1,6))
-            _rp.set_velocities(np.zeros((1, 6), dtype=np.float32))
-        except Exception:
-            pass
+        _zero_vel(_rp)
         return _rp
 
     def _escaped(_rp, _pos):
@@ -949,11 +1043,7 @@ def _settle_props() -> None:
             app.update()
         # re-zero velocity mid-settle to kill any contact runaway early
         for _n in names:
-            try:
-                RigidPrim(f"/World_Props/{_n}").set_velocities(
-                    np.zeros((1, 6), dtype=np.float32))
-            except Exception:
-                pass
+            _zero_vel(RigidPrim(f"/World_Props/{_n}"))
         for _ in range(60):
             app.update()
         stragglers = [n for n in names
@@ -973,6 +1063,13 @@ def _settle_props() -> None:
     for _ in range(30):
         app.update()
 
+
+# The MJWarp solver only exists once physics has been created and stepped, so
+# the early call above is a no-op on most boots. Raise the cap again here,
+# before the props are settled -- settling is the first thing that depends on
+# contacts actually being resolved rather than discarded.
+if args.engine == "newton":
+    _raise_newton_contact_cap()
 
 _settle_props()
 print("[bridge] props settled onto the table", flush=True)
@@ -1036,24 +1133,28 @@ def _resume_scene():
         _targets["q"] = list(HOME_Q)
         _targets["grip_frac"] = 1.0
         _targets["stopped"] = False
-    # Props: the USD re-parse already rebirths them at their authored
-    # spawn poses -- and RigidPrim teleports under NEWTON leave latent
-    # NaNs that detonate the whole sim on the next contact (reproduced:
-    # arm + every prop NaN 2 s into the next grasp). PhysX-only.
-    if args.engine == "physx":
-        try:
-            from isaacsim.core.experimental.prims import RigidPrim
+    # Props: the USD re-parse already rebirths them at their authored spawn
+    # poses. The old code skipped this under Newton because "RigidPrim
+    # teleports leave latent NaNs that detonate the sim on the next contact"
+    # -- that was the same velocity bug fixed in _settle_props: the teleport
+    # left the body's velocity untouched (the (N,6) call Newton rejects was
+    # swallowed by a bare except), so a prop carrying speed tunnelled and took
+    # the solver with it. Zero the velocity through the engine-aware helper
+    # and the teleport is safe on both engines.
+    try:
+        from isaacsim.core.experimental.prims import RigidPrim
 
-            for _n, _pos in _PROP_SPAWNS.items():
-                _p = stage.GetPrimAtPath(f"/World_Props/{_n}")
-                if _p:
-                    _rp = RigidPrim(f"/World_Props/{_n}", reset_xform_op_properties=True)
-                    _rp.set_world_poses(
-                        np.array([[_pos[0], _pos[1], _pos[2] + BASE_Z]]),
-                        np.array([[1.0, 0.0, 0.0, 0.0]]),
-                    )
-        except Exception as _e:
-            print(f"[bridge] prop reset skipped: {_e}", flush=True)
+        for _n, _pos in _PROP_SPAWNS.items():
+            _p = stage.GetPrimAtPath(f"/World_Props/{_n}")
+            if _p:
+                _rp = RigidPrim(f"/World_Props/{_n}", reset_xform_op_properties=True)
+                _rp.set_world_poses(
+                    np.array([[_pos[0], _pos[1], _pos[2] + BASE_Z]]),
+                    np.array([[1.0, 0.0, 0.0, 0.0]]),
+                )
+                _zero_prop_velocity(_rp)
+    except Exception as _e:
+        print(f"[bridge] prop reset skipped: {_e}", flush=True)
     print("[bridge] editor Play detected: articulation + scene restored", flush=True)
 
 

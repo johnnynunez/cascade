@@ -20,6 +20,11 @@ class IsaacArm(ArmBase):
         self._cfg = cfg
         self.n_joints = int(cfg.get("n_joints", 6))
         self.settle_tol = float(cfg.get("settle_tol", 0.02))
+        # Newton's solver bleeds off the last of the tracking error more
+        # slowly than PhysX: a 0.17 rad step measured 3.6 s to come inside
+        # settle_tol on this rig, so the 2.0 s base default reported "did not
+        # settle" on poses the arm was reaching correctly.
+        self.settle_timeout_s = float(cfg.get("settle_timeout_s", 5.0))
         # joint_signs map the bridge's ASSET joint convention to the client's
         # LOCAL convention that the kinematics/harness use. The bridge reports
         # and accepts raw DOF (asset) values; the planner/IK work in local.

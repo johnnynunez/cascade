@@ -508,7 +508,7 @@ def page_finding(pdf, abl):
     fig, ax = new_page()
     y = 0.955
 
-    T(ax, 0.07, y, "Finding: verification buys honesty, not success rate",
+    T(ax, 0.07, y, "Finding: the layers were never the bottleneck",
       size=14, weight="bold")
     y -= 0.028
     hrule(ax, y, lw=1.0)
@@ -521,17 +521,25 @@ def page_finding(pdf, abl):
         return
 
     body = (
-        "Task success climbs 4 -> 5 -> 6 of 10 across the three conditions, but every pair of\n"
-        "intervals overlaps heavily: with n=10 that ordering is not evidence of anything. Read\n"
-        "the success column as flat.\n\n"
-        "The self-report column is not flat, and it does not need statistics to interpret. The\n"
-        "bare skill claimed success 8 times and achieved it 4: it was wrong about its own\n"
-        "outcome in HALF of all episodes. Adding an independent postcondition check drops that\n"
-        "to zero claimed-but-false, in both verified conditions, without changing what the robot\n"
-        "physically does."
+        "This report previously headlined a different finding: the bare skill claimed success 8\n"
+        "times and achieved it 4, and adding an independent postcondition check drove\n"
+        "claimed-but-false to zero. That was true of the system as it stood.\n\n"
+        "It was also a symptom. The grasp target carried a 1.6 cm perception bias -- the fitted\n"
+        "box centre was pulled toward the camera by point density, against a cube half-width of\n"
+        "2.5 cm. The finger caught the edge, shoved the cube away, and the jaws closed on air in\n"
+        "a way the skill misread as success.\n\n"
+        "With that fixed, the BARE skill also reports zero false claims. The dishonesty was not a\n"
+        "property of running unverified; it was downstream of a broken sensor model. One\n"
+        "perception change moved success 4/10 -> 10/10, where the entire verification-and-retry\n"
+        "stack had moved it 4 -> 5 -> 6 with overlapping intervals.\n\n"
+        "Verification now costs 3-5 s per episode and one episode of success (10 -> 9), because a\n"
+        "postcondition rejects an outcome the bare skill counts as a pass. The honest claim is\n"
+        "narrower than the one this report used to make: verification is insurance with a visible\n"
+        "premium, and its payout depends entirely on how broken the rest of the stack is. It is\n"
+        "not a substitute for finding the root cause."
     )
     T(ax, 0.07, y, body, size=9)
-    y -= 0.135
+    y -= 0.255
 
     # honesty table
     T(ax, 0.07, y, "Self-report accuracy", size=11, weight="bold")
@@ -569,8 +577,10 @@ def page_finding(pdf, abl):
       "A robot that fails and says so can be retried, escalated, or handed to a human. A robot\n"
       "that fails and reports success corrupts everything downstream: the belief store, the\n"
       "skill library that learns from traces, and any operator trusting the log. The bare skill\n"
-      "was in that second state 40% of the time.", size=8.8)
-    y -= 0.075
+      "was in that second state 40% of the time -- until the perception bias behind those\n"
+      "failures was found and fixed, after which it is in that state 0% of the time. Verification\n"
+      "made the failure VISIBLE; it did not make the system work.", size=8.8)
+    y -= 0.105
 
     T(ax, 0.07, y, "The instrument had to be fixed first", size=11, weight="bold")
     y -= 0.024
@@ -597,7 +607,13 @@ def main():
     # bridge that had been up for hours, and its verification channel was
     # returning stale poses by the end (docs/BRIDGE_DEGRADATION.md) -- three of
     # its "false claims" were the instrument, not the robot.
-    abl = load("wrc_ablation_fresh.json") or load("wrc_ablation.json")
+    # ablation_v2 = measured AFTER the perception fix (_recentre_by_size,
+    # c129161). The older files were measured while the grasp target carried a
+    # 1.6 cm bias, which is what produced the false claims the report used to
+    # headline. Prefer the corrected run; fall back for reproducibility.
+    abl = (load("ablation_v2.json")
+           or load("wrc_ablation_fresh.json")
+           or load("wrc_ablation.json"))
     with PdfPages(OUT) as pdf:
         page1(pdf, abl)
         page_finding(pdf, abl)

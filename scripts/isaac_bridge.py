@@ -997,6 +997,37 @@ class Handler(socketserver.StreamRequestHandler):
                 _exec_jobs.append(("_settle_props()", holder, done))
             done.wait(timeout=60)
             return holder.get("resp", {"ok": False, "error": "reset timed out"})
+        if op == "place_prop":
+            # Put ONE prop at an arbitrary pose. Benchmarks need this: a sweep
+            # over initial states is only a sweep if the states differ.
+            #
+            # This exists because a bare `RigidPrim.set_world_poses` is a
+            # silent NO-OP for a resting body under Newton (MuJoCo is
+            # reduced-coordinate -- see _newton_teleport). A harness that used
+            # RigidPrim directly ran its six "different" start states at the
+            # SAME position and reported them as six independent episodes.
+            _name = str(req.get("name", "pink_cube"))
+            _pos = [float(v) for v in req["pos"][:3]]
+            holder: dict = {}
+            done = threading.Event()
+            _code = (
+                f"_ok = _newton_teleport({_name!r}, {tuple(_pos)!r})\n"
+                if args.engine == "newton" else
+                "from isaacsim.core.experimental.prims import RigidPrim as _R\n"
+                f"_rp = _R('/World_Props/{_name}', reset_xform_op_properties=True)\n"
+                f"_rp.set_world_poses(np.array([[{_pos[0]}, {_pos[1]}, "
+                f"{_pos[2]} + BASE_Z]]), np.array([[1.0, 0.0, 0.0, 0.0]]))\n"
+                "_zero_prop_velocity(_rp)\n"
+                "_ok = True\n"
+            ) + (
+                "for _ in range(30):\n"
+                "    app.update()\n"
+                "print('placed' if _ok else 'place FAILED')\n"
+            )
+            with _exec_lock:
+                _exec_jobs.append((_code, holder, done))
+            done.wait(timeout=45)
+            return holder.get("resp", {"ok": False, "error": "place timed out"})
         if op == "exec":
             # Live-introspection escape hatch (same idea as the companion
             # pack's isaacsim.code_editor.python_server). The bridge binds

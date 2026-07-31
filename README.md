@@ -118,6 +118,7 @@ silently vanishes.
 |---|---|---|
 | `anthropic` | Claude (cloud) | `ANTHROPIC_API_KEY`; vision + tools |
 | `local_qwen` | local Qwen via llama.cpp / vLLM on the Spark | OpenAI-compatible; MTP speculative decoding (~1.4–2.2× decode) |
+| `local_cosmos` | NVIDIA Cosmos3-Edge Reasoner via vLLM on the Spark | `scripts/serve_cosmos_vllm.sh` (:8082); 2.44B MoT, thinking on by default — see the script header for the day-one serving pitfalls it works around |
 | `openai` | any OpenAI-compatible cloud endpoint | `OPENAI_API_KEY` |
 | `mock` | scripted | tests / wiring checks |
 
@@ -154,7 +155,7 @@ python scripts/setup_agents.py --camera l515 --arm rebot_rs --write
 | **Claude Code** | project `.mcp.json` (ships in this repo; interpreter path is machine-specific, and it pins the Isaac camera/arm profiles) | if your checkout lives elsewhere, regenerate with the profiles you want: `setup_agents.py --host claude --camera isaac,isaac_side --arm isaac --write` (add `--python <interpreter>` if your venv is not at `<checkout-parent>/.demo`); user-scope: `--host claude` prints the `claude mcp add` one-liner |
 | **Claude Desktop** | `claude_desktop_config.json` | paste the JSON block from `setup_agents.py --host claude` |
 | **Codex CLI** | `~/.codex/config.toml` `[mcp_servers.wrc-demo]` | `setup_agents.py --host codex --write`, verify with `codex mcp list` |
-| **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `setup_agents.py --host openclaw` prints the `openclaw mcp set` one-liner + JSON block |
+| **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `./scripts/openclaw_demo.sh` (register + local-brain provider + gateway + web-chat URL); `setup_agents.py --host openclaw` prints the `openclaw mcp add` one-liner + JSON block. OpenClaw blocks the `PYTHONPATH` env — the package must be editable-installed in the venv (the script handles it) |
 
 The server pre-warms perception at startup (cameras + detector + world
 model) while the ARM stays unpowered until the first motion command

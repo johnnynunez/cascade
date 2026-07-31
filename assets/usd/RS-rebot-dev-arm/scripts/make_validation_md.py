@@ -2,15 +2,21 @@
 (Newton + PhysX, gain tuner 3.6.1) vs the July-2026 baselines of the uploaded
 RS-rebot-dev-arm asset, plus the gravity-comp impact of the PR#3 mass update.
 
+All inputs live in the repo: current evidence in evidence/, July baselines in
+evidence/baselines/ (see the README there), so the committed VALIDATION.md
+regenerates identically on any machine. Missing inputs produce n/a cells and
+a warning instead of stale local-path lookups.
+
 Run: python3 make_validation_md.py   (stdlib only)
 """
 
 import json
+import sys
 from pathlib import Path
 
 PKG = Path(__file__).resolve().parent.parent
 EV = PKG / "evidence"
-OLD_EV = Path("/home/spark/Projects/isaac/00-arm-rs_asm-v3-plus/evidence")
+BASELINE_EV = EV / "baselines"
 
 JOINTS = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint_left", "joint_right"]
 GAINS = {
@@ -21,7 +27,11 @@ GAINS = {
 
 
 def load(p):
-    return json.load(open(p)) if Path(p).exists() else None
+    p = Path(p)
+    if not p.exists():
+        print(f"WARNING: {p} is missing - emitting n/a cells for it", file=sys.stderr)
+        return None
+    return json.load(open(p))
 
 
 def err(m):
@@ -30,10 +40,10 @@ def err(m):
 
 new_n = load(EV / "gt_pj_new_newton.json")
 new_p = load(EV / "gt_pj_new_physx.json")
-old_n = load(OLD_EV / "gt_pj_newasset_newton.json")
-old_p = load(OLD_EV / "gt_pj_newasset_physx.json")
-grip_n = load(OLD_EV / "gt_grip_decomp_newton.json")
-grip_p = load(OLD_EV / "gt_grip_decomp_physx.json")
+old_n = load(BASELINE_EV / "gt_pj_newasset_newton.json")
+old_p = load(BASELINE_EV / "gt_pj_newasset_physx.json")
+grip_n = load(BASELINE_EV / "gt_grip_decomp_newton.json")
+grip_p = load(BASELINE_EV / "gt_grip_decomp_physx.json")
 grav = load(EV / "gravity_droop.json")
 
 lines = []
@@ -42,9 +52,11 @@ A("# RS-rebot-dev-arm re-export validation — 2026-07-17")
 A("")
 A("Asset: `urdf-usd-converter 0.3.0 @554f3dc` on Seeed main `b094da6` (PR#3 mass update).")
 A("Runtime: Isaac Sim 6.0.1 aarch64 (GB10), dt=0.002, device=cpu, headless.")
-A(f"Gain tuner extension: `{new_n['gain_tuner_ext']}` (develop 2026-07-17, loaded via isolated --ext-folder override).")
+gain_tuner_ext = new_n["gain_tuner_ext"] if new_n else "n/a"
+A(f"Gain tuner extension: `{gain_tuner_ext}` (develop 2026-07-17, loaded via isolated --ext-folder override).")
 A("Methodology: per-joint `SnapToLimitsTest` (hold 1.0 s, tolerance 0.01), self-collision OFF,")
 A("hybrid colliders (convexHull arm / convexDecomposition gripper), validated July gains unchanged.")
+A("July-07 baseline columns read the committed snapshots in `evidence/baselines/` (provenance in its README).")
 A("")
 A("## Per-joint snap-to-limits (max of lower/upper hold error)")
 A("")
@@ -54,7 +66,7 @@ A("|---|---|---|---|---|---|")
 
 def cell(d, j):
     if d is None or j not in d.get("joint_metrics", {}):
-        return "—"
+        return "n/a"
     m = d["joint_metrics"][j]
     return f"**{m['status']}** {err(m):.1e}"
 
@@ -73,9 +85,9 @@ for j in JOINTS:
     A(f"| {j} | {k}/{d} | {cell(new_n, j)} | {cell(new_p, j)} | {baseline_cell(old_n, grip_n, j)} | {baseline_cell(old_p, grip_p, j)} |")
 
 A("")
-A("July baseline notes: full-matrix runs (`gt_pj_newasset_*.json`) predate the hybrid-collider fix")
+A("July baseline notes: full-matrix runs (`baselines/gt_pj_newasset_*.json`) predate the hybrid-collider fix")
 A("(joint2/joint4/grippers blocked by convexHull inflation with collision on); the shipped asset's")
-A("gripper baseline is `gt_grip_decomp_*.json` and the final GUI matrix (self-collision OFF) was 8/8 pass.")
+A("gripper baseline is `baselines/gt_grip_decomp_*.json` and the final GUI matrix (self-collision OFF) was 8/8 pass.")
 A("")
 A("## Gravity-compensation impact of PR#3 masses (current gains, worst in-limit pose)")
 A("")
@@ -90,25 +102,50 @@ if grav:
             f"| {j} | {o['worst_tau_Nm']:.3f} | {n['worst_tau_Nm']:.3f} | {o['droop_deg']:.2e} | {n['droop_deg']:.2e} "
             f"| {o['f_n_hz']:.1f}/{n['f_n_hz']:.1f} | {o['zeta']:.2f}/{n['zeta']:.2f} |"
         )
+else:
+    for j in ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]:
+        A(f"| {j} | n/a | n/a | n/a | n/a | n/a | n/a |")
 A("")
 A("Conclusion: the mass redistribution changes worst-case gravity torque by <2% and static droop stays")
 A("≤0.013 deg on every joint — the validated gains remain correct for simulation. Real-arm gravity-feel")
 A("issues are a firmware feedforward (mass/CoM) concern, not a USD drive-gain concern.")
 A("")
+A("## Hardware spec deviations")
+A("")
+A("The asset follows the vendor URDF verbatim (faithful-to-vendor policy: deviations from the")
+A("published hardware spec are documented here, never silently corrected in the model):")
+A("")
+A("| item | modeled (URDF/USD/MJCF) | hardware spec | note |")
+A("|---|---|---|---|")
+A("| J1 range | ±160.4° (±2.8 rad) | ±150° | model exceeds the spec sheet |")
+A("| J2/J3 range | 180° span ([-180°, 0]) | 220° span | model narrower than spec |")
+A("| J4 range | [-102.6°, +96.8°] | ±90° (vendor URDF and spec agree) | repo URDF is the outlier — recommend reading the firmware limit registers to settle it |")
+A("| wrist velocity (J4–J6) | 40 rad/s | RS-00 no-load 33 rad/s | limit above achievable no-load speed |")
+A("| gripper | 2 independent 500 N prismatic fingers, strokes 0.05 / 0.0715 m | 1 RS-00 driving both fingers via a rack | downstream consumers command both fingers; asymmetric strokes come from CAD |")
+A("| total mass | 6.009 kg | 6.5–6.7 kg | modeled mass ≈8% light |")
+A("")
 A("## Known deltas vs the uploaded `usd/RS-rebot-dev-arm`")
 A("")
 A("- Masses: PR#3 values baked (link2 1.552, link3 1.252, link4 0.46, link5 0.2012, link6 0.1 kg; total 6.01 kg).")
-A("  Inertia tensors are unchanged from the URDF (PR#3 did not update them to match the new masses).")
+A("  Inertia tensors were rescaled with the mass update and preserve the current URDF within float32 USD precision;")
+A("  `newton:inertia` and the MJCF full tensors preserve all six URDF components exactly.")
 A("- Joint limits follow the repo URDF: j2/j3 ∈ [-180°, 0], j4 ∈ [-102.6°, +96.8°] — the uploaded asset")
 A("  (converted from a different local URDF) uses j2/j3 ∈ [0, +180°], j4 ±90°. Mirror convention: check")
 A("  sim2real sign mapping and home poses before swapping assets.")
-A("- newton:velocityLimit (deg/s) authored by converter 0.3.0 replaces the old custom `urdf:limit:velocity`.")
+A("- `newton:velocityLimit` and `physxJoint:maxJointVelocity` preserve URDF velocity limits on both backends.")
+A("- Drive `maxForce` preserves URDF effort limits (36 N·m RS-06, 14 N·m RS-00, 500 N gripper).")
 A("- No MDL materials in 0.3.0 output (UsdPreviewSurface only); no legacy `payloads/` transformer package.")
-A("- Post-export edits re-applied by `scripts/prep_asset.py`: drives (July gains), gripper convexDecomposition,")
-A("  `newton:selfCollisionEnabled=0`, solver caps nconmax=8192/njmax=32768, Isaac robot schema.")
+A("- Post-export edits re-applied by `scripts/prep_asset.py`: drives/limits (July gains, targets from the")
+A("  authored joint-state home pose), Newton joint-limit gains (`newton:*:limitStiffness/limitDamping` — Newton")
+A("  enforces UsdPhysics limits as penalty springs and its defaults are too weak against gravity), explicit")
+A("  physics scene, gripper convexDecomposition, `newton:selfCollisionEnabled=0`, solver caps")
+A("  nconmax=8192/njmax=32768, and Isaac robot schema.")
 A("")
 A("Evidence: `evidence/gt_pj_new_newton.json`, `evidence/gt_pj_new_physx.json`, `evidence/gravity_droop.json`,")
-A("logs alongside. Harness: `scripts/gaintuner_perjoint_361.py` (+ `scripts/run_full_matrix.sh`).")
+A("`evidence/physics_fidelity_validation.json`, `evidence/physics_fidelity_dynamic_newton.json`,")
+A("`evidence/physics_fidelity_dynamic_physx.json`, and logs alongside. Harnesses:")
+A("`scripts/gaintuner_perjoint_361.py`, `scripts/run_full_matrix.sh`,")
+A("`scripts/validate_physics_fidelity.py`, and `scripts/validate_dynamic_physics.py`.")
 
 out = PKG / "VALIDATION.md"
 out.write_text("\n".join(lines) + "\n")

@@ -1,0 +1,108 @@
+{
+  "verify_only": {
+    "condition": "verify_only",
+    "n": 6,
+    "truth_successes": 6,
+    "self_reported_successes": 6,
+    "false_claims": 0,
+    "mean_seconds": 23.6,
+    "episodes": [
+      {
+        "state": 0,
+        "init": [
+          0.17,
+          0.15
+        ],
+        "truth_success": true,
+        "self_reported_ok": true,
+        "final_pose": [
+          0.1588,
+          -0.166,
+          0.04
+        ],
+        "moved_m": 0.3162,
+        "seconds": 23.8
+      },
+      {
+        "state": 1,
+        "init": [
+          0.175,
+          0.13
+        ],
+        "truth_success": true,
+        "self_reported_ok": true,
+        "final_pose": [
+          0.1604,
+          -0.1661,
+          0.04
+        ],
+        "moved_m": 0.2964,
+        "seconds": 23.5
+      },
+      {
+        "state": 2,
+        "init": [
+          0.165,
+          0.17
+        ],
+        "truth_success": true,
+        "self_reported_ok": true,
+        "final_pose": [
+          0.1605,
+          -0.1687,
+          0.04
+        ],
+        "moved_m": 0.3388,
+        "seconds": 23.1
+      },
+      {
+        "state": 3,
+        "init": [
+          0.18,
+          0.14
+        ],
+        "truth_success": true,
+        "self_reported_ok": true,
+        "final_pose": [
+          0.1593,
+          -0.1681,
+          0.04
+        ],
+        "moved_m": 0.3088,
+        "seconds": 23.8
+      },
+      {
+        "state": 4,
+        "init": [
+          0.16,
+          0.16
+        ],
+        "truth_success": true,
+        "self_reported_ok": true,
+        "final_pose": [
+          0.1619,
+          -0.1667,
+          0.04
+        ],
+        "moved_m": 0.3267,
+        "seconds": 24.0
+      },
+      {
+        "state": 5,
+        "init": [
+          0.172,
+          0.12
+        ],
+        "truth_success": true,
+        "self_reported_ok": true,
+        "final_pose": [
+          0.1617,
+          -0.1646,
+          0.04
+        ],
+        "moved_m": 0.2848,
+        "seconds": 23.1
+      }
+    ]
+  }
+}

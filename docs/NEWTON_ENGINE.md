@@ -297,6 +297,61 @@ Isolation chain, each step measured rather than argued:
 
 ## Debugging notes
 
+### The gripper is NOT broken — that result was measurement contamination
+
+A "the fingers push each other" investigation produced this, which looked like
+a real asset bug and is **wrong**:
+
+```
+per finger 2.35 mm off target, sum of the two errors 0.01 mm
+right finger tops out at 54.0 mm against a commanded 71.5 mm
+```
+
+With `scripts/night_runner.sh` killed and the `wrc-demo-watchdog` cron paused,
+the same measurement on the same USD:
+
+| engine | error per finger | reaches full 71.5 mm travel |
+|---|---|---|
+| MuJoCo (MJCF direct) | 0.002 mm | yes |
+| Isaac + **Newton** | **0.002 mm** | yes |
+| Isaac + PhysX | 0.088 mm | yes (71.4 mm) |
+
+Three independent engines agree — the repo's own "engine agreement is the gold
+metric" criterion. The drives, the limits and the collision meshes are fine.
+
+The tell was in the settle trace, and it should have stopped the investigation
+much earlier:
+
+```
+ 3.0 s   err  -0.016 / +0.030 mm     <- converging normally
+ 5.2 s   err +19.61  / +27.16 mm     <- something GRABS the gripper
+32.1 s   err  -5.37  / -16.85 mm     <- oscillating
+```
+
+A constant mechanical offset does not jump from 0.03 mm to 27 mm. That is
+another process issuing commands: `night_runner.sh`, respawned by the watchdog
+cron I had re-enabled myself a few hours earlier.
+
+Claims retracted along the way, each refuted by its own data:
+
+- *"finite-stiffness PD response under inertial load"* — deviation does **not**
+  scale with speed; the FAST sweep was the *smallest* (1.29 mm vs 3.49 mm slow).
+- *"`frictionloss=0.2` static friction"* — friction must reverse sign with
+  sweep direction. It does not.
+- *"CoACD decomposition inflates the collision hulls"* — **CoACD is not used
+  anywhere in this pipeline.** It appears in one line of one evidence README.
+  Each finger has a single convex STL (216 triangles), not a decomposition.
+- *"the asymmetric travel (50.0 vs 71.5 mm) is a bug"* — it comes from the
+  **manufacturer URDF** and the asset's own evidence validates both fingers
+  against those limits to ~1e-08 m.
+
+**Guard added.** `benchmark/rig/ablation.py` now takes `/tmp/wrc_measuring.lock`
+for the duration of a run and `~/.hermes/scripts/wrc_watchdog.sh` stands down
+while it exists (ignoring locks older than 6 h). Pausing the cron by hand was
+not enough — it gets re-enabled and forgotten, and this is the *second*
+investigation it has corrupted.
+
+
 - **`scripts/night_runner.sh` may be running.** It drives the arm through picks
   in the background and corrupted several measurements here. Check
   `ps aux | grep [n]ight_runner` before trusting any scene reading.

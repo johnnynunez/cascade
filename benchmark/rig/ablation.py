@@ -46,6 +46,7 @@ the metric this repo exists for.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import time
 from pathlib import Path
@@ -240,6 +241,34 @@ def run_condition(rt, truth, client, condition: str, n_states: int) -> dict:
     }
 
 
+MEASURE_LOCK = Path("/tmp/wrc_measuring.lock")
+
+
+@contextlib.contextmanager
+def claim_rig():
+    """Hold the measurement lock so the watchdog cannot respawn night_runner.
+
+    `scripts/night_runner.sh` drives the arm. When the wrc-demo-watchdog cron
+    revives it mid-run, joint readings become garbage that looks like a
+    plausible asset bug rather than an obvious failure -- it has already
+    produced one retracted "the gripper tops out at 54 mm instead of 71.5 mm"
+    result (real error with the rig quiet: 0.002 mm on Newton, 0.088 mm on
+    PhysX, full travel reached).
+
+    Pausing the cron by hand is not enough; it gets re-enabled and forgotten.
+    The watchdog stands down while this file exists (and ignores it after 6 h
+    so a crashed benchmark cannot disable it forever).
+    """
+    pre_existing = MEASURE_LOCK.exists()
+    if not pre_existing:
+        MEASURE_LOCK.touch()
+    try:
+        yield
+    finally:
+        if not pre_existing:
+            MEASURE_LOCK.unlink(missing_ok=True)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--conditions", default="skill_only,verify_only,verify_retry")
@@ -248,6 +277,11 @@ def main() -> int:
     ap.add_argument("--json", default="/home/johnny/bench/results/wrc_ablation.json")
     a = ap.parse_args()
 
+    with claim_rig():
+        return _run(a)
+
+
+def _run(a) -> int:
     cfg = load_demo_config(cameras=["isaac"], arm="isaac", llm=a.llm)
     cfg._data.setdefault("stream", {})["mode"] = "off"
     rt, arm = build_runtime(cfg, Path("/tmp/wrc_ablation"), view=False, serve=False)

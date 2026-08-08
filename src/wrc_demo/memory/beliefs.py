@@ -55,9 +55,11 @@ class BeliefStore:
         conf_alpha: float = 0.3,
         forget_after_s: float | None = None,
         label_agnostic: bool = True,
+        extent_frac: float = 0.5,
     ):
         self._beliefs: list[ObjectBelief] = []
         self._match_radius = match_radius_m
+        self._extent_frac = extent_frac
         self._pos_alpha = pos_alpha
         self._conf_alpha = conf_alpha
         self._forget_after = forget_after_s
@@ -103,12 +105,22 @@ class BeliefStore:
                 pts = pts[idx]
             points = pts.copy()
         with self._lock:
-            best, best_d = None, self._match_radius
+            best, best_d = None, None
             for b in self._beliefs:
                 if not self._label_agnostic and b.label != label:
                     continue
+                # A big object's centre estimate wanders further between
+                # frames than a small one's: two views of a 30 cm bin can
+                # disagree by 8 cm while two 5 cm cubes that far apart are
+                # genuinely different objects. Scaling the gate by the
+                # object's own measured size keeps this honest instead of
+                # tuning one radius to whatever is on the table today.
+                radius = self._match_radius
+                for e in (b.extent, extent):
+                    if e is not None:
+                        radius = max(radius, self._extent_frac * float(np.max(e)))
                 d = float(np.linalg.norm(b.position - position))
-                if d < best_d:
+                if d < radius and (best_d is None or d < best_d):
                     best, best_d = b, d
             if best is None:
                 best = ObjectBelief(

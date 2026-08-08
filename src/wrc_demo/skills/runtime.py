@@ -127,6 +127,20 @@ class SkillRuntime:
         # SET and hides everything else -- benchmarks only, never the booth.
         self._default_classes = list(cfg.get("detect_classes") or []) or None
         self._workspace = WorkspaceFilter.from_config(cfg.get("workspace_filter"))
+        # Learned point segmenter for pixel addressing. Off by default: it
+        # costs a 74 MB checkpoint and only the pixel path uses it, so a booth
+        # that never clicks pays nothing. When absent, `fix_at_pixel` falls
+        # back to depth connectivity, which cannot separate touching objects.
+        scfg = cfg.get("segmenter") or {}
+        if scfg.get("enabled"):
+            from ..perception.segmenter import PointSegmenter
+
+            self._segmenter = PointSegmenter(
+                model_path=str(scfg.get("model", "sam2.1_t.pt")),
+                device=str(scfg.get("device", "cuda:0")),
+            )
+        else:
+            self._segmenter = None
 
     def attach_verifier(self, object_pose=None) -> None:
         """Enable postcondition checking (Pigey closed loop).
@@ -773,6 +787,23 @@ class SkillRuntime:
 
     # ── skills ───────────────────────────────────────────────────────────
 
+    def skill_halt_motion(self, reason: str = "superseded") -> dict:
+        """Stop the motion currently in flight, without latching an e-stop.
+
+        VoLo's `monitor - halt - redirect`: a physical agent has to be able to
+        abandon an action that has stopped being the right one, because the
+        world keeps moving while it thinks. Takes effect within one 50 Hz
+        waypoint since `SafetyHarness.approve()` is what enforces it.
+
+        The halt clears itself when the next motion starts, so the normal
+        recovery is simply to issue the corrected command. Use `stop` (e-stop)
+        instead when the rig is actually unsafe.
+        """
+        self.arm.harness.halt(reason)
+        self.memory.add("note", f"halted motion: {reason}")
+        return {"ok": True, "halted": reason,
+                "note": "clears automatically when the next motion begins"}
+
     def skill_get_observation(self) -> dict:
         frame = self.observe()
         dets = self.detector.detect(frame, classes=self._default_classes)
@@ -885,12 +916,26 @@ class SkillRuntime:
         label: str,
         material: str | None = None,
         spatial_hint: str | None = None,
+        _fix=None,
+        _frame=None,
     ) -> dict:
+        """Grasp a named object.
+
+        `_fix`/`_frame` are an internal entry point for callers that already
+        localized the target by other means (see `skill_grasp_at_pixel`). They
+        skip the detector lookup and reuse this method's grasp planning,
+        harness checks and postcondition verification verbatim, rather than
+        duplicating that logic in a second code path where the two would
+        inevitably drift apart.
+        """
         self._reconcile_held()
         if self.held_object:
             raise SkillError(f"already holding {self.held_object!r}; place it first")
         gcfg = self.cfg.grasp
-        frame, fix = self._localize(label, spatial_hint=spatial_hint)
+        if _fix is not None and _frame is not None:
+            frame, fix = _frame, _fix
+        else:
+            frame, fix = self._localize(label, spatial_hint=spatial_hint)
         profile = select_profile(fix.detection.label or label, material)
         grasps = self._plan_grasps(fix, label=label)
 
@@ -1874,6 +1919,68 @@ class SkillRuntime:
                 )
         return out
 
+    def skill_grasp_at_pixel(
+        self, u: float, v: float, camera: str | None = None,
+        normalized: bool = False, material: str | None = None,
+    ) -> dict:
+        """Grasp whatever is at this pixel, without needing its class name.
+
+        VIA (arXiv:2607.11119) withholds perception APIs entirely and has the
+        agent click in an RGB-D point cloud, on the reasoning that a frontier
+        model can already SEE the object; what it lacks is a metric way to
+        address it. Every other grasp skill here routes through
+        `_localize(label)`, so the agent can only act on things the detector
+        names, which is a measured ceiling: on LIBERO frames the detector
+        emits 38-44 detections and never says `bowl`, while the bowl is
+        plainly visible.
+
+        The pixel is segmented (learned segmenter when configured, depth
+        connectivity otherwise) and the OBB centre of that region becomes the
+        grasp target. Using the probed surface point directly would grasp
+        high: a ray hits the first surface, so the middle of a cube probes its
+        top face (+22 mm on a 4.5 cm cube).
+
+        Measured on a LIBERO frame against MuJoCo body poses, the segmenter is
+        what makes this usable on a tabletop: depth connectivity alone fills
+        the table (34 cm error), SAM2.1 with the same point prompt lands the
+        bowl at 3.0 cm and the plate at 0.9 cm.
+
+        Safety is unchanged: the same harness, workspace filter and
+        postcondition checks apply, because this produces the same ObjectFix
+        the detector path produces.
+        """
+        from ..perception.segmenter import fix_at_pixel
+
+        self._reconcile_held()
+        if self.held_object:
+            raise SkillError(f"already holding {self.held_object!r}; place it first")
+
+        frame = self.observe()
+        h, w = frame.rgb.shape[:2]
+        uu, vv = float(u), float(v)
+        if normalized or (0.0 <= uu <= 1.0 and 0.0 <= vv <= 1.0 and max(w, h) > 4):
+            uu, vv = uu * (w - 1), vv * (h - 1)
+
+        # Eye-in-hand cameras carry per-frame extrinsics; fall back to the
+        # camera profile's static ones. Same rule as the detector path.
+        T = (frame.T_base_cam if frame.T_base_cam is not None
+             else self.extrinsics.cam_to_base())
+        fix = fix_at_pixel(frame, T, int(round(uu)), int(round(vv)),
+                           segmenter=self._segmenter)
+
+        mask = fix.detection.mask
+        why = self._workspace.reject(
+            fix.position, fix.extent,
+            mask_frac=(float(mask.sum()) / float(w * h)) if mask is not None else 0.0,
+        )
+        if why:
+            raise SkillError(
+                f"the object at pixel ({int(uu)}, {int(vv)}) is not graspable: {why}"
+            )
+        return self.skill_grasp_object(
+            fix.label, material=material, _fix=fix, _frame=frame,
+        )
+
     def skill_probe_point(
         self, u: float, v: float, camera: str | None = None,
         normalized: bool = False,
@@ -1920,6 +2027,55 @@ def _short(args: dict) -> str:
 
 
 TOOL_SPECS: list[dict] = [
+    {
+        "name": "grasp_at_pixel",
+        "description": (
+            "Grasp whatever is at this pixel, WITHOUT needing to name it. Use "
+            "this when you can see the object in the image but grasp_object "
+            "fails with 'no detections': the detector's vocabulary does not "
+            "have to contain the object for this to work. The pixel is "
+            "segmented by depth and the object's centre is computed from that "
+            "region, so point anywhere on the object body (avoid edges and "
+            "shadows). Same safety checks as grasp_object."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "u": {"type": "number", "description": "Column in pixels, or 0..1 if normalized."},
+                "v": {"type": "number", "description": "Row in pixels, or 0..1 if normalized."},
+                "normalized": {
+                    "type": "boolean",
+                    "description": "True if u,v are fractions of image size.",
+                },
+                "material": {
+                    "type": "string",
+                    "description": "Optional material hint for grasp force.",
+                },
+            },
+            "required": ["u", "v"],
+        },
+    },
+    {
+        "name": "halt_motion",
+        "description": (
+            "Stop the motion currently in flight because it is no longer the "
+            "right action (wrong object, subgoal already satisfied, the scene "
+            "changed). Takes effect within ~20 ms. This is NOT an emergency "
+            "stop: it does not latch, it clears when the next motion starts, "
+            "and the arm stays powered, so recovery is just issuing the "
+            "corrected command. Use 'stop' if the rig is actually unsafe."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "description": "Why this motion is being abandoned.",
+                },
+            },
+            "required": [],
+        },
+    },
     {
         "name": "get_observation",
         "description": "Capture a fresh camera frame; returns visible objects with 3D positions (base frame, meters), remembered objects, and robot state.",

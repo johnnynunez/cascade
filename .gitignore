@@ -224,6 +224,11 @@ skills_library/
 mobileclip2_b.ts
 models/mobileclip_blt.ts
 mobileclip_blt.ts
+# SAM checkpoints: ultralytics auto-downloads these on first use (74 MB in
+# ~4 s), so committing them would add permanent history weight without adding
+# reproducibility. The YOLOE weights above predate this rule and are already
+# tracked; do not follow that precedent for new checkpoints.
+models/sam*.pt
 
 # benchmark artefacts
 benchmark/**/__pycache__/

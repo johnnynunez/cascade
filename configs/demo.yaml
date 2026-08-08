@@ -136,6 +136,20 @@ detector:
 # controlled benchmark where the object set is known and fixed.
 detect_classes: []
 
+# Learned point segmenter for `grasp_at_pixel`. It is what makes pixel
+# addressing work on a tabletop: depth connectivity cannot separate an object
+# from the surface it rests on, and measured on a LIBERO frame against MuJoCo
+# body poses it errs by 34 cm, while SAM2.1 with the same point prompt lands
+# the bowl at 3.0 cm and the plate at 0.9 cm.
+#
+# `facebook/sam3` is gated (manual approval, 403 without it); SAM2.1 ships via
+# ultralytics under Apache-2.0, auto-downloads on first use, and takes the same
+# point-prompt interface, so switching to SAM3 later is a model path change.
+segmenter:
+  enabled: true
+  model: sam2.1_t.pt   # tiny, 74 MB: smallest that separates tabletop objects
+  device: cuda:0
+
 # Geometric gate on detections, applied AFTER lifting a mask to 3D. It is
 # what makes an open vocabulary usable: a ~4.5k-concept detector correctly
 # names the arm ("transformer", "amplifier") and the scene ("studio shot"),

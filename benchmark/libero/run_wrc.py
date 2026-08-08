@@ -57,7 +57,7 @@ SUITE_MAX_STEPS = {"libero_spatial": 220, "libero_object": 280,
                    "libero_goal": 300, "libero_10": 520}
 
 
-def build_wrc_runtime(env, task_language: str):
+def build_wrc_runtime(env, task_language: str, perception: str = "oracle"):
     """Wire wrc_demo's REAL runtime onto a LIBERO env.
 
     Rather than re-implementing the composition root (apps/demo.py's
@@ -130,12 +130,21 @@ def build_wrc_runtime(env, task_language: str):
     # single profile, including the nested detector block the mock pins.
     cfg._data.pop("cameras", None)
     cfg.camera._data["type"] = "libero"
-    # Keep the MOCK detector: this experiment isolates orchestration, and the
-    # LIBERO venv has no ultralytics (removing the profile's detector block
-    # falls through to the global YOLOE and ImportErrors). Object poses come
-    # from MuJoCo, exactly as the sim-truth channel works on the real rig.
-    cfg.camera._data["detector"] = {"type": "mock"}
-    cfg._data["detector"] = {"type": "mock"}
+    # Detector choice follows the perception mode. Oracle mode keeps the mock
+    # detector (poses arrive via seed_beliefs, and the LIBERO venv has no
+    # ultralytics). Camera mode runs the real open-vocabulary detector on the
+    # rendered frames, which is what makes a number comparable to systems that
+    # perceive their own scene.
+    det = {"type": "mock"} if perception == "oracle" else {
+        "type": "yoloe",
+        "model": str(_Path(__file__).resolve().parents[2] / "models"
+                     / "yoloe-11s-seg.pt"),
+        "device": "cuda:0",
+        "conf": 0.25,
+        "prompt_free": True,
+    }
+    cfg.camera._data["detector"] = det
+    cfg._data["detector"] = det
 
     # The Panda is 7-DoF in a different workspace than the RS arm: the safety
     # harness must be given the limits of the robot we are actually driving.
@@ -182,6 +191,29 @@ def build_wrc_runtime(env, task_language: str):
     # needs `_step`/`last_obs`/`camera`, which live on the backend. `rt` still
     # holds the SafeArm, so every skill goes through the harness as usual.
     return rt, (lib_arm if lib_arm is not None else arm), kin
+
+
+def _human_label(body_name: str) -> str:
+    """MuJoCo body name -> the words a person would say.
+
+    `akita_black_bowl_2_main` -> `black bowl`. Instance indices, the `_main`
+    suffix and vendor prefixes are scene structure, not something a camera can
+    recover, so they are stripped rather than handed to the detector.
+
+    Kept deliberately dumb: it is a naming convention adapter, not a parser of
+    the instruction. The instruction itself is what the agent reasons over.
+    """
+    if not body_name:
+        return ""
+    s = re.sub(r"_main$", "", body_name)
+    s = re.sub(r"_\d+$", "", s)
+    parts = [p for p in s.split("_") if p and not p.isdigit()]
+    # Vendor/collection prefixes that never appear in speech. Only dropped when
+    # something remains, so an unknown asset still yields a usable label.
+    for junk in ("akita", "libero", "ycb", "obj", "target", "region"):
+        if len(parts) > 1 and parts[0] == junk:
+            parts = parts[1:]
+    return " ".join(parts)
 
 
 def resolve_task_objects(inner, language: str) -> tuple[str | None, str | None]:
@@ -271,7 +303,30 @@ def main() -> int:
     ap.add_argument("--episodes", type=int, default=3)
     ap.add_argument("--conditions", default="skill_only,verified")
     ap.add_argument("--json", default=None)
+    ap.add_argument(
+        "--perception", default="oracle", choices=["oracle", "camera"],
+        help=(
+            "oracle: seed beliefs from sim.data.body_xpos (measures the "
+            "orchestration loop given perfect perception). camera: run the "
+            "real detector on the rendered frames. ASPIRE (arXiv:2607.00272) "
+            "FORBIDS ground-truth object positions and says using them "
+            "'invalidates benchmark results'; any number published against "
+            "ASPIRE, Pigey or Harness-VLA must therefore use --perception "
+            "camera, or state the oracle prominently."
+        ),
+    )
     a = ap.parse_args()
+
+    if a.perception == "oracle":
+        print(
+            "\n*** ORACLE PERCEPTION ***\n"
+            "Object poses come from sim.data.body_xpos, not from the camera.\n"
+            "These numbers measure ORCHESTRATION GIVEN PERFECT PERCEPTION and\n"
+            "are NOT comparable to ASPIRE / Pigey / Harness-VLA / VIA, which\n"
+            "perceive their own scenes (ASPIRE explicitly forbids this API).\n"
+            "Use --perception camera for a comparable number.\n",
+            file=sys.stderr, flush=True,
+        )
 
     from libero.libero import benchmark, get_libero_path
     from libero.libero.envs import OffScreenRenderEnv
@@ -295,7 +350,7 @@ def main() -> int:
                                  camera_depths=True)
         env.seed(0)
         env.reset()
-        rt, arm, kin = build_wrc_runtime(env, task.language)
+        rt, arm, kin = build_wrc_runtime(env, task.language, a.perception)
         inner = env.env
         obj_body, dest_body = resolve_task_objects(inner, task.language)
         print(f"  [{tid}] {task.language}\n"
@@ -319,27 +374,37 @@ def main() -> int:
         def seed_beliefs():
             """Publish scene object poses into wrc_demo's belief store.
 
-            LIBERO's objects are kitchen items a YOLOE prompt list does not
-            cover, and the whole point of this experiment is to measure the
-            ORCHESTRATION layer, not perception. Pigey and ASPIRE do the same
-            thing -- they supply perception externally (Gemini Robotics ER)
-            and study the loop around it. Feeding exact poses here keeps the
-            comparison about the loop.
+            ORACLE PERCEPTION. This reads `sim.data.body_xpos`, the simulator's
+            own object positions, and hands them to the agent. It measures the
+            orchestration loop with perception held perfect, which is a
+            legitimate ablation but is NOT what the comparable systems do.
 
-            This is a PERCEPTION substitute, not a verification shortcut: the
-            postcondition channel reads physics again AFTER the motion, so a
-            skill still cannot confirm itself.
+            ASPIRE (arXiv:2607.00272) forbids this API by name in its agent
+            instructions: "[FORBIDDEN] sim.data.body_xpos - no ground-truth
+            object positions ... Using them invalidates benchmark results, as
+            they don't transfer to real robots." ASPIRE uses SAM3 on the RGB
+            frame instead. VIA states it takes "no access to privileged state
+            information". Pigey holds "robot, cameras, scenes ... fixed".
+
+            An earlier version of this docstring claimed Pigey and ASPIRE
+            supply perception externally via Gemini Robotics ER. That claim
+            could not be substantiated from either source and is contradicted
+            by ASPIRE's own text; it has been removed rather than left to
+            justify the shortcut.
+
+            Verification is still independent: the postcondition channel reads
+            physics again AFTER the motion, so a skill cannot confirm itself.
 
             Must be re-published DURING the episode, not only at the start.
             `_localize` accepts a belief as a detector fallback only while it
             is younger than `perception_loop.belief_fallback_age_s` (3 s), and
             the mock detector never refreshes it. Seeding once meant grasp
-            retries 1-3 saw a valid fix and retries 4-8 got
-            "no detections" purely because the clock ran out -- the sweep was
-            measuring belief expiry, not orchestration. A real external
-            perception service (Gemini Robotics ER in Pigey/ASPIRE) publishes
-            continuously, so a background re-publish is the faithful analogue.
+            retries 1-3 saw a valid fix and retries 4-8 got "no detections"
+            purely because the clock ran out -- the sweep was measuring belief
+            expiry, not orchestration.
             """
+            if a.perception != "oracle":
+                return
             m = inner.sim.model
             for name in (obj_body, dest_body):
                 if not name:
@@ -403,11 +468,20 @@ def main() -> int:
                 t0 = time.monotonic()
                 self_ok = False
                 attempts = 3 if cond == "verified" else 1
+                # In camera mode the agent must refer to objects the way a
+                # person would, not by MuJoCo body name: 'akita_black_bowl_2
+                # _main' is privileged scene structure and no detector will
+                # ever emit it. ASPIRE forbids reading sim assets for exactly
+                # this reason. Oracle mode keeps the body name because that is
+                # the key the seeded belief was stored under.
+                obj_arg = obj_body if a.perception == "oracle" else _human_label(obj_body)
+                dest_arg = (dest_body or "table") if a.perception == "oracle" \
+                    else _human_label(dest_body or "table")
                 try:
                     for _try in range(attempts):
                         r = rt.execute("pick_and_place",
-                                       {"object": obj_body,
-                                        "destination": dest_body or "table"})
+                                       {"object": obj_arg,
+                                        "destination": dest_arg})
                         self_ok = bool(r.get("ok"))
                         pc = r.get("postcondition") or {}
                         if pc.get("status") != "refuted":
@@ -461,9 +535,28 @@ def main() -> int:
         d = out[c]
         print(f"  {c:12} {d['succ']:3}/{d['n']:<3} = {d['succ']/max(1,d['n']):.1%}"
               f"   claimed {d['claimed']}   FALSE CLAIMS {d['false']}")
+    if a.perception == "oracle":
+        print("  [!] ORACLE PERCEPTION: not comparable to camera-based systems")
     if a.json:
         Path(a.json).parent.mkdir(parents=True, exist_ok=True)
-        Path(a.json).write_text(json.dumps(out, indent=2))
+        # Provenance travels WITH the numbers. A results file that does not say
+        # how it perceived can be quoted years later as if it were comparable.
+        payload = {
+            "suite": a.suite,
+            "episodes_per_task": a.episodes,
+            "max_steps": max_steps,
+            "perception": a.perception,
+            "perception_note": (
+                "oracle: object poses read from sim.data.body_xpos; measures "
+                "orchestration given perfect perception; NOT comparable to "
+                "ASPIRE/Pigey/Harness-VLA/VIA, and ASPIRE forbids this API "
+                "(arXiv:2607.00272)"
+                if a.perception == "oracle"
+                else "camera: detector run on rendered frames"
+            ),
+            "results": out,
+        }
+        Path(a.json).write_text(json.dumps(payload, indent=2))
         print(f"[+] wrote {a.json}")
     return 0
 

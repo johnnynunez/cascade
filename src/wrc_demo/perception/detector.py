@@ -63,36 +63,60 @@ class OpenVocabDetector(Detector):
     ):
         from ultralytics import YOLO  # lazy heavy import
 
-        self._model = YOLO(model_path)
+        self._model_path = str(model_path)
         self._device = device
         self._conf = conf
         self._classes: list[str] = []
         self._filter_only = False  # closed-set model: filter by label instead
         self._prompt_free = False
-        if classes:
+        # Load the prompt-free checkpoint straight away when no vocabulary is
+        # pinned, rather than loading the promptable one and replacing it.
+        pf = self._pf_path() if (prompt_free and not classes) else None
+        self._model = YOLO(pf or model_path)
+        if pf is not None:
+            self._prompt_free = True
+        elif classes:
             self.set_classes(classes)
-        elif prompt_free:
-            self.set_prompt_free()
 
     def set_prompt_free(self) -> None:
-        """Detect anything in YOLOE's built-in vocabulary, with no prompts.
+        """Switch to the prompt-free checkpoint: detect anything, no prompts.
 
-        Falls back to leaving the model as-is on any older ultralytics that
-        lacks `get_vocab`/`set_vocab`; the caller then gets whatever default
-        vocabulary the checkpoint ships with rather than a hard failure, since
-        a booth demo must never fail to start over a detector nicety.
+        YOLOE ships a separate `-pf` checkpoint whose ~4.5k-concept vocabulary
+        is already fused into the classification head. That is the only real
+        prompt-free path: `get_vocab([])` on a normal checkpoint raises inside
+        the text encoder, because an empty prompt list has nothing to embed.
+
+        A booth demo must never fail to start over a detector nicety, so a
+        missing `-pf` checkpoint logs and leaves the model as it was.
         """
         if self._prompt_free:
             return
-        try:
-            self._model.set_vocab(self._model.get_vocab([]), names=[])
-        except (AttributeError, TypeError, ValueError) as e:  # pragma: no cover
-            logger.warning("prompt-free vocabulary unavailable (%s); "
-                           "detector keeps its current vocabulary", e)
+        pf_path = self._pf_path()
+        if pf_path is None:
+            logger.warning(
+                "no prompt-free checkpoint alongside %s; perception stays "
+                "restricted to the configured vocabulary", self._model_path,
+            )
             return
+        from ultralytics import YOLO  # lazy heavy import
+
+        self._model = YOLO(pf_path)
         self._prompt_free = True
         self._filter_only = False
         self._classes = []
+
+    def _pf_path(self) -> str | None:
+        """`yoloe-11s-seg.pt` -> `yoloe-11s-seg-pf.pt`, if that name is usable.
+
+        Ultralytics resolves a bare checkpoint name against its asset release,
+        downloading on first use, so a local file is not required.
+        """
+        base = str(self._model_path)
+        if base.endswith("-pf.pt"):
+            return base
+        if not base.endswith(".pt"):
+            return None
+        return base[: -len(".pt")] + "-pf.pt"
 
     def set_classes(self, classes: list[str] | None) -> None:
         # None/[] means "stop restricting": go back to open-world detection
@@ -100,9 +124,15 @@ class OpenVocabDetector(Detector):
         if not classes:
             self.set_prompt_free()
             return
-        if list(classes) == self._classes:
+        if list(classes) == self._classes and not self._prompt_free:
             return
-        self._prompt_free = False
+        if self._prompt_free:
+            # The -pf head is fused to its own vocabulary and cannot take
+            # text prompts; reload the promptable checkpoint to narrow it.
+            from ultralytics import YOLO  # lazy heavy import
+
+            self._model = YOLO(self._model_path)
+            self._prompt_free = False
         # YOLOE needs text embeddings passed explicitly; YOLO-World does not.
         # Closed-set models (yolo11n, ...) have no set_classes at all: fall
         # back to post-filtering detections by label (self._filter_only).

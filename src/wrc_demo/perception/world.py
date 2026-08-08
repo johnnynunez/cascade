@@ -31,6 +31,7 @@ import numpy as np
 from ..types import Frame
 from .colors import detection_color
 from .grounding import Extrinsics, mask_to_points_cam, oriented_bbox
+from .workspace import WorkspaceFilter
 from ..types import transform_points
 
 
@@ -79,11 +80,13 @@ class WorldWatcher:
         classes: list[str] | None = None,
         rate_hz: float = 3.0,
         harness=None,
+        workspace: "WorkspaceFilter | None" = None,
     ):
         self._cams = cameras
         self._detector = detector
         self._beliefs = beliefs
         self._classes = list(classes) if classes else None
+        self._workspace = workspace or WorkspaceFilter()
         self._period = 1.0 / max(rate_hz, 0.1)
         self._harness = harness
         self._stop = False
@@ -191,8 +194,12 @@ class WorldWatcher:
                 continue
             pts_base = transform_points(T, pts_cam)
             center, extents, _ = oriented_bbox(pts_base)
-            if float(extents[0]) > 0.35:
-                continue  # tables/walls detected as "box": not a manipuland
+            why = self._workspace.reject(
+                center, extents,
+                mask_frac=float(mask.sum()) / float(mask.size) if mask.size else None,
+            )
+            if why is not None:
+                continue  # scenery, the robot itself, or out of reach
             self._beliefs.update(
                 d.label, center, d.conf, extent=extents,
                 top_z=float(pts_base[:, 2].max()), t=frame.t,

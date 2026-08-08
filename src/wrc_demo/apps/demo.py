@@ -36,6 +36,7 @@ from ..perception.depth_provider import DepthProvider
 from ..perception.grounding import Extrinsics
 from ..perception.stream import CameraRig, CameraStream
 from ..perception.world import LockedDetector, WatchedCamera, WorldWatcher
+from ..perception.workspace import WorkspaceFilter
 from ..safety.harness import SafeArm, SafetyHarness, SafetyLimits
 from ..skills.runtime import SkillRuntime
 
@@ -152,10 +153,14 @@ def build_runtime(
     pcfg = cfg.get("perception_loop", _empty_cfg())
     if bool(pcfg.get("enabled", True)):
         watcher = WorldWatcher(
-            watched, detector, beliefs,
-            classes=list(cfg.get("detect_classes", [])) or ["cup", "bottle", "box"],
+            watched, beliefs=beliefs, detector=detector,
+            # Empty config means open-world: the watcher reports whatever the
+            # detector sees. Never substitute a hard-coded vocabulary here --
+            # that silently turns the always-on world model into a closed set.
+            classes=list(cfg.get("detect_classes") or []) or None,
             rate_hz=float(pcfg.get("rate_hz", 3.0)),
             harness=harness,
+            workspace=WorkspaceFilter.from_config(cfg.get("workspace_filter")),
         )
         watcher.start()
         runtime.watcher = watcher

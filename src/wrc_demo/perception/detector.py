@@ -10,28 +10,56 @@ same interface later (see docs/ROADMAP.md).
 from __future__ import annotations
 
 import abc
+import logging
 
 import numpy as np
 
 from ..types import Detection, Frame
 
+logger = logging.getLogger(__name__)
+
 
 class Detector(abc.ABC):
     @abc.abstractmethod
     def detect(self, frame: Frame, classes: list[str] | None = None) -> list[Detection]:
-        """Run detection; `classes` overrides the prompt vocabulary."""
+        """Run detection; `classes` overrides the prompt vocabulary.
+
+        `classes=None` means open-world: detect whatever is there. Passing an
+        explicit list narrows the vocabulary for that call only.
+        """
 
     @abc.abstractmethod
-    def set_classes(self, classes: list[str]) -> None: ...
+    def set_classes(self, classes: list[str] | None) -> None:
+        """Restrict the vocabulary; `None`/`[]` restores open-world detection."""
 
 
 class OpenVocabDetector(Detector):
+    """Open-vocabulary detector with a genuinely object-agnostic default.
+
+    Two modes, and the distinction matters for a public booth:
+
+    ``prompt_free=True`` (the default) runs YOLOE's built-in vocabulary of
+    ~4500 concepts, so ANY object a visitor puts on the table is detected and
+    named without anyone having listed it in advance.  This is what
+    "object-agnostic" has to mean when you cannot know the objects beforehand.
+
+    ``prompt_free=False`` restricts the model to an explicit class list.  That
+    is strictly a closed set: an object outside the list is invisible, no
+    matter how clearly the camera sees it.  Only use it when the task really
+    is "find these specific things".
+
+    `set_classes()` still narrows the vocabulary on demand (the agent asking
+    for one named object), and `set_classes(None)` restores the prompt-free
+    vocabulary.
+    """
+
     def __init__(
         self,
         model_path: str,
         classes: list[str] | None = None,
         device: str = "cuda:0",
         conf: float = 0.25,
+        prompt_free: bool = True,
     ):
         from ultralytics import YOLO  # lazy heavy import
 
@@ -40,12 +68,41 @@ class OpenVocabDetector(Detector):
         self._conf = conf
         self._classes: list[str] = []
         self._filter_only = False  # closed-set model: filter by label instead
+        self._prompt_free = False
         if classes:
             self.set_classes(classes)
+        elif prompt_free:
+            self.set_prompt_free()
 
-    def set_classes(self, classes: list[str]) -> None:
+    def set_prompt_free(self) -> None:
+        """Detect anything in YOLOE's built-in vocabulary, with no prompts.
+
+        Falls back to leaving the model as-is on any older ultralytics that
+        lacks `get_vocab`/`set_vocab`; the caller then gets whatever default
+        vocabulary the checkpoint ships with rather than a hard failure, since
+        a booth demo must never fail to start over a detector nicety.
+        """
+        if self._prompt_free:
+            return
+        try:
+            self._model.set_vocab(self._model.get_vocab([]), names=[])
+        except (AttributeError, TypeError, ValueError) as e:  # pragma: no cover
+            logger.warning("prompt-free vocabulary unavailable (%s); "
+                           "detector keeps its current vocabulary", e)
+            return
+        self._prompt_free = True
+        self._filter_only = False
+        self._classes = []
+
+    def set_classes(self, classes: list[str] | None) -> None:
+        # None/[] means "stop restricting": go back to open-world detection
+        # rather than silently keeping the last narrow vocabulary.
+        if not classes:
+            self.set_prompt_free()
+            return
         if list(classes) == self._classes:
             return
+        self._prompt_free = False
         # YOLOE needs text embeddings passed explicitly; YOLO-World does not.
         # Closed-set models (yolo11n, ...) have no set_classes at all: fall
         # back to post-filtering detections by label (self._filter_only).
@@ -124,8 +181,8 @@ class MockDetector(Detector):
         self._label = label
         self._classes: list[str] = []
 
-    def set_classes(self, classes: list[str]) -> None:
-        self._classes = list(classes)
+    def set_classes(self, classes: list[str] | None) -> None:
+        self._classes = list(classes) if classes else []
 
     def detect(self, frame: Frame, classes: list[str] | None = None) -> list[Detection]:
         if classes:

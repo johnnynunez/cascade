@@ -120,7 +120,11 @@ class SkillRuntime:
         self._grip_open = float(g.get("open_pos", 0.0))
         self._grip_closed = float(g.get("closed_pos", 1.0))
         self._max_width = float(g.get("max_width_m", 0.09))
-        self._default_classes = list(cfg.get("detect_classes", ["cup", "bottle", "box", "fruit", "toy"]))
+        # Optional vocabulary restriction. Empty (the default) means
+        # open-world: the detector reports whatever it sees, so an object
+        # nobody listed still reaches the agent. A non-empty list is a CLOSED
+        # SET and hides everything else -- benchmarks only, never the booth.
+        self._default_classes = list(cfg.get("detect_classes") or []) or None
 
     def attach_verifier(self, object_pose=None) -> None:
         """Enable postcondition checking (Pigey closed loop).
@@ -420,10 +424,11 @@ class SkillRuntime:
             prompts = [noun] if noun == q else [q, noun]
         elif belief is not None and (color is None or belief.color == color):
             # Warm path: the world model already knows the answer. When the
-            # class is in the default vocabulary, detect with the WHOLE
+            # class is in a restricted vocabulary, detect with the WHOLE
             # vocabulary (no set_classes churn -- YOLOE re-embeds text on
             # every class change) and prefer that label among candidates.
-            if belief.label in self._default_classes:
+            # Open-world (no restriction) needs neither: just ask by name.
+            if self._default_classes and belief.label in self._default_classes:
                 vocab, prefer = self._default_classes, belief.label
             else:
                 prompts = [belief.label]

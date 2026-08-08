@@ -151,3 +151,4 @@ workspace_filter:
   max_z_m: 0.60          # above this is backdrop, not tabletop
   reach_m: 1.00          # beyond this the arm cannot act anyway
   max_frame_frac: 0.45   # a mask this large IS the scene
+  min_height_m: 0.010    # flatter than this is a shadow, not an object

@@ -18,6 +18,7 @@ from ..agent.trace import TraceLogger
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..memory import BeliefStore, EpisodicMemory
 from ..perception.colors import detection_color, parse_color_query
+from ..perception.workspace import WorkspaceFilter
 from ..perception.grounding import (
     Extrinsics,
     localize_object,
@@ -125,6 +126,7 @@ class SkillRuntime:
         # nobody listed still reaches the agent. A non-empty list is a CLOSED
         # SET and hides everything else -- benchmarks only, never the booth.
         self._default_classes = list(cfg.get("detect_classes") or []) or None
+        self._workspace = WorkspaceFilter.from_config(cfg.get("workspace_filter"))
 
     def attach_verifier(self, object_pose=None) -> None:
         """Enable postcondition checking (Pigey closed loop).
@@ -360,6 +362,14 @@ class SkillRuntime:
                 continue
             pts_base = transform_points(T, pts_cam)
             center, extents, _ = oriented_bbox(pts_base)
+            # Same geometric gate the watcher applies. Without it this path
+            # registers the arm and the backdrop as objects, because an
+            # open vocabulary has names for them.
+            if self._workspace.reject(
+                center, extents,
+                mask_frac=float(mask.sum()) / float(mask.size) if mask.size else None,
+            ) is not None:
+                continue
             self.beliefs.update(
                 d.label, center, d.conf, extent=extents,
                 top_z=float(pts_base[:, 2].max()), t=frame.t,

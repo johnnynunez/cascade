@@ -36,6 +36,9 @@ class ObjectBelief:
     points: np.ndarray | None = None  # (<=384,3) last REAL-mask cloud, base
     # frame -- lets grasp-from-memory use the object's true shape instead of
     # a box approximation (a bbox-inflated box slab reads as ungraspable).
+    aliases: set[str] = field(default_factory=set)  # other names the detector
+    # has used for this same object; open-vocabulary detectors rename things
+    # between frames, and a query for any alias must still resolve.
     last_seen_t: float = field(default_factory=time.monotonic)
     first_seen_t: float = field(default_factory=time.monotonic)
     observations: int = 1
@@ -51,12 +54,14 @@ class BeliefStore:
         pos_alpha: float = 0.4,
         conf_alpha: float = 0.3,
         forget_after_s: float | None = None,
+        label_agnostic: bool = True,
     ):
         self._beliefs: list[ObjectBelief] = []
         self._match_radius = match_radius_m
         self._pos_alpha = pos_alpha
         self._conf_alpha = conf_alpha
         self._forget_after = forget_after_s
+        self._label_agnostic = label_agnostic
         self._lock = threading.RLock()
 
     def update(
@@ -70,11 +75,25 @@ class BeliefStore:
         color: str | None = None,
         points: np.ndarray | None = None,
     ) -> ObjectBelief:
-        """Fuse one 3D observation; matches same-label beliefs by proximity.
+        """Fuse one 3D observation into the world model.
+
+        Matching is by PROXIMITY, and by default ignores the label entirely.
+        That matters for open-vocabulary perception: a ~4.5k-concept detector
+        names the same physical object differently between frames (a bin came
+        back as both "storage box" and "building block", a cube as "cube" and
+        "hassock"). Matching on label alone would register each alias as a
+        separate object sitting at the same place, so a table with 3 things on
+        it reports 10.
+
+        Two objects genuinely within `match_radius_m` of each other cannot be
+        told apart this way, but at 8 cm on a tabletop they are touching, and
+        merging them is a better failure than inventing duplicates. Pass
+        `label_agnostic=False` for the old same-label-only behaviour.
 
         `points` should only be passed for REAL segmentation masks (never
         bbox-rectangle fallbacks -- those sweep in table/neighbor pixels and
-        poison remembered geometry)."""
+        poison remembered geometry).
+        """
         now = time.monotonic() if t is None else t
         position = np.asarray(position, dtype=float).reshape(3)
         if points is not None:
@@ -86,7 +105,7 @@ class BeliefStore:
         with self._lock:
             best, best_d = None, self._match_radius
             for b in self._beliefs:
-                if b.label != label:
+                if not self._label_agnostic and b.label != label:
                     continue
                 d = float(np.linalg.norm(b.position - position))
                 if d < best_d:
@@ -101,6 +120,15 @@ class BeliefStore:
                 return best
             a = self._pos_alpha
             best.position = (1 - a) * best.position + a * position
+            # Decide the name BEFORE conf is smoothed, so the comparison is
+            # this observation against the belief as it stood.
+            if label != best.label:
+                if conf > best.conf:
+                    best.aliases.add(best.label)
+                    best.label = label
+                else:
+                    best.aliases.add(label)
+                best.aliases.discard(best.label)
             best.conf = (1 - self._conf_alpha) * best.conf + self._conf_alpha * conf
             if extent is not None:
                 best.extent = extent
@@ -143,17 +171,30 @@ class BeliefStore:
             return list(self._beliefs)
 
     def find(self, query: str) -> ObjectBelief | None:
-        """Resolve a label OR a color query ("pink object", "red mug")."""
+        """Resolve a label OR a color query ("pink object", "red mug").
+
+        Aliases count as names: an open-vocabulary detector may have called
+        this object "storage box" on the frame the user was looking at and
+        "building block" on the one that won the confidence vote.
+        """
         with self._lock:
-            matches = [b for b in self._beliefs if b.label == query]
+            matches = [
+                b for b in self._beliefs
+                if b.label == query or query in b.aliases
+            ]
             if not matches:
                 color, noun = parse_color_query(query)
                 cands = list(self._beliefs)
                 if noun:
-                    exact = [b for b in cands if b.label.lower() == noun]
+                    exact = [
+                        b for b in cands
+                        if b.label.lower() == noun
+                        or any(a.lower() == noun for a in b.aliases)
+                    ]
                     loose = exact or [
                         b for b in cands
                         if noun in b.label.lower() or b.label.lower() in noun
+                        or any(noun in a.lower() or a.lower() in noun for a in b.aliases)
                     ]
                     cands = loose
                 if color:

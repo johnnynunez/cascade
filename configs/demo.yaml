@@ -135,3 +135,19 @@ detector:
 # whole system, however clearly the camera sees it. Populate it only for a
 # controlled benchmark where the object set is known and fixed.
 detect_classes: []
+
+# Geometric gate on detections, applied AFTER lifting a mask to 3D. It is
+# what makes an open vocabulary usable: a ~4.5k-concept detector correctly
+# names the arm ("transformer", "amplifier") and the scene ("studio shot"),
+# and those must not enter the world model as graspable objects.
+# Every value describes the RIG, never the objects, so it stays valid for
+# objects nobody has seen before.
+workspace_filter:
+  base_radius_m: 0.12    # cylinder around the arm's own base, excluded
+  base_height_m: 0.50    # how far up that cylinder reaches
+  max_extent_m: 0.35     # bigger than this is furniture, not a manipuland
+  min_extent_m: 0.015    # smaller than this is a depth speck
+  table_z_m: -0.05       # below this is under the table
+  max_z_m: 0.60          # above this is backdrop, not tabletop
+  reach_m: 1.00          # beyond this the arm cannot act anyway
+  max_frame_frac: 0.45   # a mask this large IS the scene

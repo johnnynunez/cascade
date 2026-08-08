@@ -268,6 +268,7 @@ def _make_detector(cfg):
         model_path=dcfg.model,
         device=dcfg.get("device", "cuda:0"),
         conf=float(dcfg.get("conf", 0.25)),
+        prompt_free=bool(dcfg.get("prompt_free", True)),
     )
 
 

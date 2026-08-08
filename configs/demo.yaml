@@ -122,7 +122,16 @@ detector:
   model: ${repo}/models/yoloe-11s-seg.pt
   device: cuda:0
   conf: 0.25
+  # Prompt-free: run YOLOE's built-in vocabulary instead of a fixed class
+  # list. This is what makes the booth genuinely object-agnostic -- a visitor
+  # can put ANYTHING on the table and it enters the world model without
+  # having been named in advance. Set false only for a task that really is
+  # "find these specific things"; it turns perception into a closed set.
+  prompt_free: true
 
-# Default vocabulary scanned during get_observation (the agent can localize
-# anything by name on top of this).
-detect_classes: ["cup", "mug", "bottle", "bowl", "box", "cube", "fruit", "toy"]
+# Optional vocabulary restriction for the always-on watcher and
+# get_observation. LEAVE EMPTY for a public demo: a non-empty list makes
+# perception a CLOSED SET and any object not named here is invisible to the
+# whole system, however clearly the camera sees it. Populate it only for a
+# controlled benchmark where the object set is known and fixed.
+detect_classes: []

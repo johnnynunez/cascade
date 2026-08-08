@@ -63,19 +63,27 @@ class WatchedCamera:
 
 
 class WorldWatcher:
+    """Always-on perception: keeps the BeliefStore warm.
+
+    `classes=None` (the default) scans open-world, which is what a public
+    booth needs: a visitor's object must land in the world model without
+    anyone having named it in advance. Passing an explicit list makes this a
+    CLOSED set -- anything not on it is invisible to the whole system.
+    """
+
     def __init__(
         self,
         cameras: list[WatchedCamera],
         detector,
         beliefs,
-        classes: list[str],
+        classes: list[str] | None = None,
         rate_hz: float = 3.0,
         harness=None,
     ):
         self._cams = cameras
         self._detector = detector
         self._beliefs = beliefs
-        self._classes = list(classes)
+        self._classes = list(classes) if classes else None
         self._period = 1.0 / max(rate_hz, 0.1)
         self._harness = harness
         self._stop = False

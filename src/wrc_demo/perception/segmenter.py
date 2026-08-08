@@ -21,10 +21,31 @@ inspection when its service is absent; the same principle applies here, so a
 missing or broken segmenter falls back to depth connectivity rather than
 failing the grasp.
 
-On SAM3 specifically: `facebook/sam3` is gated (manual approval) and returned
-403 for this machine's token, so SAM2.1 via ultralytics is used instead. It is
-Apache-2.0, auto-downloads, and takes the same point-prompt interface, so
-swapping in SAM3 later is a model-path change, not a code change.
+On model choice, measured rather than assumed. Once access to `facebook/sam3`
+was granted, both were run through this same interface on the same LIBERO
+frame, same pixels, same scoring:
+
+    model              object                    error     extent    latency
+    SAM2.1-t (74 MB)   akita_black_bowl_2_main   3.0 cm    11.2 cm     60 ms
+    SAM2.1-t (74 MB)   plate_1_main              0.9 cm    13.4 cm     60 ms
+    SAM3 (3.29 GB)     akita_black_bowl_2_main   3.0 cm    11.0 cm    982 ms
+    SAM3 (3.29 GB)     plate_1_main              1.1 cm    13.1 cm    982 ms
+
+SAM3 is not more accurate here (3.0 vs 3.0 cm on the bowl, 1.1 vs 0.9 cm on
+the plate, both far inside the 6 cm grasp tolerance) and it is 16x slower and
+45x larger. On a booth where a visitor waits for the arm to move, a second of
+segmentation per grasp is the whole interaction budget.
+
+That is a result about THIS task, not about the models: point-prompted
+segmentation of a well-separated tabletop object is easy, and SAM3's advantage
+is concept prompting and video tracking, which nothing here exercises yet. If
+text-prompted segmentation replaces the detector vocabulary later, SAM3 earns
+its size; for point prompts it does not. Both are selectable via
+`segmenter.model`.
+
+SAM3 is licensed under Meta's SAM License, which is redistributable and has no
+commercial restriction, but section 1.b.ii requires acknowledging SAM in any
+published research that uses it. Any paper using this path must cite it.
 """
 
 from __future__ import annotations

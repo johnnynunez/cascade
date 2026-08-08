@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..types import SafetyViolation
+from ..types import MotionHalted, SafetyViolation
 
 
 @dataclass
@@ -69,6 +69,7 @@ class SafetyHarness:
         self.limits = limits
         self.kin = kinematics
         self._estopped = False
+        self._halt: str | None = None
         self._grasp_exempt: tuple[np.ndarray, float, float] | None = None
         self._last_heartbeat = time.monotonic()
         self._motion_active = False
@@ -86,6 +87,37 @@ class SafetyHarness:
 
     def reset_estop(self) -> None:
         self._estopped = False
+
+    # ── halt / redirect (VoLo's monitor-halt-redirect) ───────────────────
+
+    def halt(self, reason: str) -> None:
+        """Ask the in-flight motion to stop at the next waypoint.
+
+        VoLo (chicychen.github.io/VoLo) names the core requirement of a
+        physical agent `monitor - halt - redirect`: the world does not pause
+        while the agent thinks, so it must be able to stop an action that has
+        become wrong and reissue a different one. HumanCLAW puts the same idea
+        in a verifier that rejects a decision before the body executes it.
+
+        This is NOT an e-stop. An e-stop latches and means "the rig is unsafe,
+        stop everything until a human clears it". A halt means "this particular
+        motion is no longer the right thing to do", clears itself when the next
+        motion begins, and leaves the arm powered and controllable. Conflating
+        the two would either make halting dangerous to recover from or make the
+        e-stop too easy to clear.
+
+        Checked inside `approve()`, so it takes effect within one 50 Hz
+        waypoint (20 ms) rather than at the end of the trajectory.
+        """
+        self._halt = reason
+        self.violations.append(f"HALT: {reason}")
+
+    def clear_halt(self) -> None:
+        self._halt = None
+
+    @property
+    def halted(self) -> str | None:
+        return self._halt
 
     @property
     def estopped(self) -> bool:
@@ -107,6 +139,11 @@ class SafetyHarness:
         without a new observation)."""
         if self._estopped:
             raise SafetyViolation("e-stop latched")
+        # A halt applies to the motion that was in flight when it was raised,
+        # not to every future one. Clearing here (rather than making the caller
+        # remember) is what keeps halt recoverable and distinct from e-stop:
+        # forget this and the first halt of the session bricks the arm.
+        self._halt = None
         age = time.monotonic() - self._last_heartbeat
         if age > self.limits.watchdog_s:
             self._reject(f"perception watchdog: last observation {age:.1f}s old")
@@ -121,6 +158,11 @@ class SafetyHarness:
         """Raise SafetyViolation if the waypoint must not be executed."""
         if self._estopped:
             raise SafetyViolation("e-stop latched")
+        if self._halt is not None:
+            # MotionHalted subclasses SafetyViolation, so every existing
+            # abort path still stops the stream; callers that want to tell
+            # "unsafe" from "changed my mind" can catch the subclass.
+            raise MotionHalted(f"halted: {self._halt}")
         if not self._motion_active:
             age = time.monotonic() - self._last_heartbeat
             if age > self.limits.watchdog_s:

@@ -1,4 +1,6 @@
 {
+  "perception": "oracle",
+  "perception_note": "oracle: object poses read from sim.data.body_xpos; measures orchestration given perfect perception; NOT comparable to ASPIRE/Pigey/Harness-VLA/VIA, and ASPIRE forbids this API (arXiv:2607.00272)",
   "suite": "libero_goal",
   "episodes": 5,
   "max_steps": 300,

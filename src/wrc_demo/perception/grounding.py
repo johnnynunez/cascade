@@ -18,6 +18,7 @@ from typing import Callable
 import numpy as np
 
 from ..types import Detection, Frame, ObjectFix, SkillError, transform_points
+from .reference import Reference, apply_reference, parse_reference
 
 
 class Extrinsics:
@@ -253,12 +254,21 @@ def localize_object(
         candidates = exact or loose
         if not candidates:
             continue
-        if spatial_hint and spatial_hint in _SPATIAL_AXES and len(candidates) > 1:
-            axis, descending = _SPATIAL_AXES[spatial_hint]
-            candidates.sort(key=lambda f: f.position[axis], reverse=descending)
+        # Referring expressions ("the second cup from the left", "the biggest
+        # block", "not the red one"). VoLo makes complex references one of its
+        # four capability suites and ASPIRE ships the same ordering rule as a
+        # learned skill. An explicit `spatial_hint` from the caller overrides
+        # any axis word in the phrase, because the caller knows more.
+        ref = parse_reference(label)
+        if spatial_hint:
+            ref = Reference(noun=ref.noun, spatial=spatial_hint,
+                            ordinal=ref.ordinal, size=ref.size,
+                            exclude=ref.exclude)
+        if not ref.is_plain and len(candidates) > 1:
+            candidates = apply_reference(candidates, ref, _SPATIAL_AXES)
         elif near_xyz is not None and len(candidates) > 1:
-            ref = np.asarray(near_xyz, dtype=float).reshape(3)
-            candidates.sort(key=lambda f: float(np.linalg.norm(f.position - ref)))
+            anchor = np.asarray(near_xyz, dtype=float).reshape(3)
+            candidates.sort(key=lambda f: float(np.linalg.norm(f.position - anchor)))
         if prefer_label and len(candidates) > 1:
             # Stable partition: same-class detections first, prior ordering
             # (hint/proximity/confidence) preserved within each group.

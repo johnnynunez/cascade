@@ -1,0 +1,47 @@
+{
+  "frames": 12,
+  "ground_truth": {
+    "pink_cube": [
+      0.17,
+      0.15,
+      0.04
+    ],
+    "green_cube": [
+      0.3,
+      0.16,
+      0.04
+    ],
+    "bin": [
+      0.18,
+      -0.17,
+      0.03
+    ]
+  },
+  "objects_expected": 3,
+  "counts_per_frame": [
+    5,
+    5,
+    5,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6,
+    6
+  ],
+  "count_stable": false,
+  "count_mode_correct": false,
+  "detections": 69,
+  "hits": 29,
+  "phantoms": 40,
+  "precision": 0.4203,
+  "recall": 0.8056,
+  "phantom_rate": 0.5797,
+  "localization_err_m": {
+    "mean": 0.036,
+    "max": 0.0599
+  }
+}

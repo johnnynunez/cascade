@@ -105,6 +105,17 @@ class SafetyViolation(RuntimeError):
     """A motion command was rejected by the safety harness."""
 
 
+class MotionHalted(SafetyViolation):
+    """An in-flight motion was cancelled deliberately, not for safety.
+
+    VoLo's `monitor - halt - redirect`: the agent noticed the action is no
+    longer the right one (wrong object, subgoal already satisfied, scene
+    changed under the arm) and stopped it. Subclasses SafetyViolation so every
+    existing abort path keeps working unchanged, while an orchestrator that
+    wants to replan can distinguish "unsafe" from "superseded".
+    """
+
+
 def make_transform(rotation: np.ndarray, translation: np.ndarray) -> np.ndarray:
     T = np.eye(4)
     T[:3, :3] = rotation

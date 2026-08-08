@@ -153,6 +153,23 @@ def build_wrc_runtime(env, task_language: str, perception: str = "oracle"):
                                         for x, y in zip(lo, hi)]
     cfg.safety._data["table_z"] = 0.80          # LIBERO table top, world frame
 
+    # `topdown_z_max` is the same class of bug as the workspace AABB below,
+    # and it was left unfixed. It caps how high a top-down release pose may
+    # be, because the RS arm's wrist cannot solve strict top-down IK above
+    # ~0.15 m IN ITS OWN BASE FRAME, where the table is z = 0.
+    #
+    # LIBERO's table is at z = 0.80 world, so the shipped 0.15 silently
+    # clamped every place target onto a plane 65 cm BELOW the table:
+    #     "place pose unreachable at [0.057, 0.198, 0.145] (all yaws tried)"
+    # An IK sweep confirmed nothing solves at that height: the entire tabletop
+    # grid at z = 0.145 fails, while the plate itself sits at z = 0.9025.
+    #
+    # Shift it by the table height so it means the same thing it always meant:
+    # "about 15 cm above the work surface".
+    cfg.grasp._data["topdown_z_max"] = 0.80 + float(
+        cfg.grasp.get("topdown_z_max", 0.15)
+    )
+
     # The workspace AABB must move with the table. The shipped one is the RS
     # arm's, verified against its URDF reachability probe: x 0.10..0.50,
     # y +-0.30, z -0.01..0.55 in ITS base frame. LIBERO's table top is at
@@ -414,7 +431,15 @@ def main() -> int:
                     continue
                 rt.beliefs.update(label=name, position=np.asarray(p, float),
                                   conf=0.99,
-                                  extent=np.array([0.06, 0.06, 0.06]))
+                                  extent=np.array([0.06, 0.06, 0.06]),
+                                  # Without top_z, place_on_object falls back
+                                  # to the destination's CENTRE and releases
+                                  # inside it rather than above it. The
+                                  # detector path sets this from the observed
+                                  # point cloud; the oracle path must supply
+                                  # the equivalent or it is handing the agent
+                                  # a worse belief than perception would.
+                                  top_z=float(p[2]) + 0.03)
             del m
 
         # Background re-publisher: keeps the external perception feed alive for

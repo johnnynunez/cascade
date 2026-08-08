@@ -138,13 +138,32 @@ class LiberoArm(ArmBase):
     # -- stepped-sim streaming ------------------------------------------
 
     def stream_to(self, q_target, duration_s: float, rate_hz: float = 50.0,
-                  approve=None, settle_tol=None, settle_timeout_s: float = 2.0):
+                  approve=None, settle_tol=None, settle_timeout_s: float = 12.0):
         """Min-jerk interpolation paced by SIM steps, not wall-clock sleep.
 
         ArmBase's version sleeps between waypoints so a real 50 Hz bus is not
         flooded. In LIBERO time only advances inside env.step(), so sleeping
         would burn wall time while the robot stands still, and the settle
         loop would then time out on a perfectly good motion.
+
+        `settle_timeout_s` was 2.0, which gave 40 settle steps. MEASURED: this
+        backend's JOINT_POSITION controller needs far longer than that to
+        close the last of a 0.765 rad move, which is the size grasp_object's
+        pregrasp asks for:
+
+            extra steps    0     10     20     40     80    160    320
+            residual     0.298  0.253  0.215  0.154  0.080  0.023  0.004
+
+        It crossed the 0.05 rad tolerance somewhere between 80 and 160 steps,
+        so every pregrasp move returned False at 40 and grasp_object reported
+        "did not settle at pregrasp pose" after 8 retries. That is a harness
+        bug, not a robot failure: it made libero_spatial score 0/100 in
+        conditions that previously scored 18/50, and it predates this session
+        (reproduced on 7c525cf).
+
+        12.0 s gives 240 steps, comfortably past the measured 160 with margin
+        for larger moves, and the loop still returns as soon as it converges
+        so a fast joint costs nothing.
         """
         if settle_tol is None:
             settle_tol = self.settle_tol

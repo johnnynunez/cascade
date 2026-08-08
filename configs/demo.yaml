@@ -142,9 +142,19 @@ detect_classes: []
 # body poses it errs by 34 cm, while SAM2.1 with the same point prompt lands
 # the bowl at 3.0 cm and the plate at 0.9 cm.
 #
-# `facebook/sam3` is gated (manual approval, 403 without it); SAM2.1 ships via
-# ultralytics under Apache-2.0, auto-downloads on first use, and takes the same
-# point-prompt interface, so switching to SAM3 later is a model path change.
+# SAM2.1-t is the default on measured grounds, not availability. With access
+# to facebook/sam3 granted, both were scored on the same frame and pixels:
+#
+#   model              bowl      plate     latency   size
+#   sam2.1_t.pt        3.0 cm    0.9 cm     60 ms     74 MB
+#   sam3.pt            3.0 cm    1.1 cm    982 ms    3.29 GB
+#
+# SAM3 is no more accurate for POINT prompts here and costs 16x the latency;
+# a second per grasp is the whole interaction budget when a visitor is waiting.
+# Set `model: sam3.pt` to switch (it needs `timm` and a gated HF download).
+# SAM3's real advantage is concept/text prompting and video tracking, so it
+# becomes worth its size only when this path stops being point-only.
+# SAM3 use in a publication must acknowledge SAM (SAM License 1.b.ii).
 segmenter:
   enabled: true
   model: sam2.1_t.pt   # tiny, 74 MB: smallest that separates tabletop objects

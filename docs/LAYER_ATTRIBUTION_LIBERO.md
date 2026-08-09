@@ -129,6 +129,55 @@ That makes place precision the concrete next target, with two separable fixes
 (re-observe the held object's pose before releasing; tighten place-stage
 settling) rather than a vague "improve manipulation".
 
+## Fixing the slip: measured, including the part that did not work
+
+`place_at` now aims the OBJECT at the target instead of the TCP, by asking
+where the held object currently sits relative to the gripper
+(`SkillRuntime._held_object_offset`) and shifting the IK goal by that vector.
+
+The first attempt re-observed with the camera, and it barely moved the number:
+median aim error 6.1 -> 4.9 cm. Instrumenting the helper showed why:
+
+```
+returned         [-0.0045, 0.0021, -0.0497]   <- grasp-time value, 0.5 cm
+TRUE offset now  [ 0.0172, 0.0444, -0.0285]   <- reality, 4.8 cm
+```
+
+Every call fell through to the stale fallback, because the LIBERO benchmark
+runs `MockDetector` in oracle mode: there was nothing to re-observe with. The
+1.2 cm gain was compensating the grasp-time offset alone. The silent fallback
+is deliberate (a dead camera must not fail a place) but it hid which branch
+ran, so the limitation is now written into the docstring.
+
+Feeding the same physics pose channel the verifier already uses, so the helper
+can actually see the held object:
+
+| task | before | after |
+|---|---|---|
+| 0 | 6.1 cm | **2.3 cm** |
+| 3 | 6.4 cm | **0.5 cm** |
+| 7 | 5.5 cm | **0.5 cm** |
+| 2 | 15.6 cm | 15.6 cm |
+| 1 | 29.8 cm | 29.8 cm |
+
+Median aim error **6.4 -> 1.8 cm**, and episodes inside LIBERO's 3 cm
+tolerance went **0/8 -> 2/8**.
+
+Two things that matter more than the headline:
+
+- every episode in the well-behaved cluster is now **under 3 cm**, i.e. the
+  slip really was the dominant term for those, exactly as predicted from the
+  1.1 cm / 5.1 cm grasp-versus-release measurement.
+- the two gross failures (15.6, 29.8 cm) did not move at all. They are a
+  different defect, and averaging them into a single "place error" number
+  would have hidden that.
+
+Provenance caveat, stated because it changes what the number means: the pose
+channel is the simulator's, so this measures the CEILING of the approach, not
+what a camera-only booth would achieve. It is the same class of substitute as
+the seeded beliefs and carries the same warning. The camera path exists and is
+tried first; it simply has nothing to work with under `--perception oracle`.
+
 ## Honest limits
 
 - One suite (`libero_spatial`), 100 episodes per condition. ASPIRE's protocol

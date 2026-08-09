@@ -51,7 +51,6 @@ def episode(tid):
     rt, arm, kin = run_wrc.build_wrc_runtime(env, task.language, "oracle")
     if getattr(arm, "camera", None) is not None:
         arm.camera.publish(obs)
-    rt.effects = None          # bare path: we want the motion, not the veto
 
     obj_body, dest_body = run_wrc.resolve_task_objects(inner, task.language)
     if not obj_body or not dest_body:
@@ -60,6 +59,12 @@ def episode(tid):
 
     def xyz(name):
         return np.array(inner.sim.data.body_xpos[inner.sim.model.body_name2id(name)])
+
+    # Attach the physics pose channel, then drop the verifier itself: we want
+    # the motion to run to completion (not be vetoed) while _held_object_offset
+    # can still see the held object, which the mock detector cannot.
+    rt.attach_verifier(object_pose=lambda n: xyz(n) if n else None)
+    rt.effects = None          # bare path: we want the motion, not the veto
 
     def seed():
         for n in (obj_body, dest_body):

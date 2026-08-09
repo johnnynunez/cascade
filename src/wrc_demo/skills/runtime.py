@@ -33,7 +33,7 @@ _MOTION_SKILLS = {
     "grasp_object", "place_at", "place_on_object", "push_object",
     "open_gripper", "close_gripper", "move_home", "pick_and_place",
     "point_at", "wave", "handover", "sort_by_color", "move_relative",
-    "throw",
+    "throw", "grasp_at_pixel",
 }
 
 

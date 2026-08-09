@@ -459,6 +459,17 @@ def main() -> int:
     ap.add_argument("--conditions", default="skill_only,verified")
     ap.add_argument("--json", default=None)
     ap.add_argument(
+        "--controller", default="OSC_POSE",
+        choices=["OSC_POSE", "JOINT_POSITION"],
+        help=(
+            "robosuite controller. OSC_POSE is the default because it is what "
+            "every published system on this benchmark drives, and because "
+            "JOINT_POSITION with in-house IK was MEASURED to plateau at 6.0 mm "
+            "lateral TCP error (1400 settle steps identical to 960) against "
+            "the 4.6 mm a rim pinch needs, making the suite's central task "
+            "unreachable. JOINT_POSITION is kept for reproducing that result."
+        ))
+    ap.add_argument(
         "--perception", default="oracle", choices=["oracle", "camera"],
         help=(
             "oracle: seed beliefs from sim.data.body_xpos (measures the "
@@ -500,7 +511,7 @@ def main() -> int:
         bddl = os.path.join(get_libero_path("bddl_files"),
                             task.problem_folder, task.bddl_file)
         inits = bm.get_task_init_states(tid)
-        env = OffScreenRenderEnv(bddl_file_name=bddl, controller="JOINT_POSITION",
+        env = OffScreenRenderEnv(bddl_file_name=bddl, controller=a.controller,
                                  camera_heights=256, camera_widths=256,
                                  camera_depths=True)
         env.seed(0)
@@ -601,7 +612,7 @@ def main() -> int:
                 if getattr(arm, "camera", None) is not None:
                     arm.camera.publish(obs)
                 for _ in range(10):                # settle
-                    obs, _ = arm._step(np.zeros(8))
+                    obs, _ = arm._step(arm.idle_action())
                 arm.last_obs = obs
                 seed_beliefs()      # external perception, Pigey-style
 
@@ -651,7 +662,7 @@ def main() -> int:
                 done = _task_success(env)
                 if not done:
                     for _ in range(20):
-                        arm._step(np.zeros(8))
+                        arm._step(arm.idle_action())
                         if _task_success(env):
                             done = True
                             break

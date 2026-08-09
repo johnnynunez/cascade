@@ -141,7 +141,9 @@ class MujocoKinematics:
         """
         from wrc_demo.control.kinematics import IKResult
 
-        target_p = np.asarray(T_target, float)[:3, 3]
+        T_target = np.asarray(T_target, float)
+        target_p = T_target[:3, 3]
+        target_R = T_target[:3, :3]
         rng = np.random.default_rng(seed)
         lo, hi = self.joint_limits
         best = None
@@ -156,22 +158,56 @@ class MujocoKinematics:
                     self._set_q(q)
                     T = self._site_pose()
                     dp = target_p - T[:3, 3]
+
+                    # Orientation error as a rotation vector.
+                    #
+                    # MEASURED BUG this fixes: this solver used to request only
+                    # the positional Jacobian (`mj_jacSite(..., jacp, None,
+                    # ...)`) and minimise `dp` alone, so `T_target[:3, :3]` was
+                    # silently discarded. Asking for a rim grasp with the jaws
+                    # across the wall and asking for it rotated 90 degrees
+                    # produced the SAME solution, measured: both yaw=0 and
+                    # yaw=pi/2 put the opening axis at [-0.014, 0.999, 0.038].
+                    # Both fingers then landed outside the bowl wall (r 59.6
+                    # and 63.3 mm against a wall spanning 44.1 to 53.6 mm) and
+                    # closed on each other.
+                    #
+                    # Any grasp whose success depends on jaw orientation was at
+                    # the mercy of whichever branch the solver drifted into.
+                    R_err = target_R @ T[:3, :3].T
+                    angle = float(np.arccos(
+                        np.clip((np.trace(R_err) - 1.0) / 2.0, -1.0, 1.0)))
+                    if angle < 1e-9:
+                        dr = np.zeros(3)
+                    else:
+                        dr = np.array([R_err[2, 1] - R_err[1, 2],
+                                       R_err[0, 2] - R_err[2, 0],
+                                       R_err[1, 0] - R_err[0, 1]])
+                        dr = dr * (angle / (2.0 * np.sin(angle)))
+
+                    # Position in metres, orientation in radians: weight the
+                    # angular part down so a small pose error does not get
+                    # dominated by orientation, and report success on the
+                    # positional error the callers already reason about.
                     err = float(np.linalg.norm(dp))
-                    if err < tol:
+                    if err < tol and angle < 0.05:
                         break
+
                     jacp = np.zeros((3, self.model.nv))
+                    jacr = np.zeros((3, self.model.nv))
                     if self._use_body:
-                        self._mj.mj_jacBody(self.model, self.data, jacp, None,
+                        self._mj.mj_jacBody(self.model, self.data, jacp, jacr,
                                             self.site_id)
                     else:
-                        self._mj.mj_jacSite(self.model, self.data, jacp, None,
+                        self._mj.mj_jacSite(self.model, self.data, jacp, jacr,
                                             self.site_id)
                     # columns for our controlled joints only
                     cols = [self.model.jnt_dofadr[j] for j in self.joint_ids]
-                    J = jacp[:, cols]
+                    J = np.vstack([jacp[:, cols], 0.35 * jacr[:, cols]])
+                    e = np.concatenate([dp, 0.35 * dr])
                     JT = J.T
                     dq = JT @ np.linalg.solve(
-                        J @ JT + damping * np.eye(3), dp)
+                        J @ JT + damping * np.eye(6), e)
                     q = self.clamp(q + step * dq, limit_margin)
                 if best is None or err < best.error:
                     best = IKResult(q=q.copy(), success=err < tol,

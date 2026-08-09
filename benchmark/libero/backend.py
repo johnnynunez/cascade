@@ -32,6 +32,14 @@ class LiberoArm(ArmBase):
     #: wrc_demo hardcodes 6 outside the RS profile.
     n_joints = 7
     settle_tol = 0.05
+    #: Which robosuite controller this backend is driving. Set from the env at
+    #: construction so the two action spaces cannot drift apart: the env is
+    #: built with one controller and the action vector must match its shape.
+    controller = "JOINT_POSITION"
+    #: OSC_POSE action scaling, matching robosuite's default `output_max`.
+    #: A unit action means this much motion, so deltas are divided by it.
+    osc_pos_scale = 0.05      # m
+    osc_rot_scale = 0.5       # rad
     #: Systematic vertical undershoot of a commanded descend (m).
     #:
     #: MEASURED across four independent grasps today, target vs reached z:
@@ -72,6 +80,34 @@ class LiberoArm(ArmBase):
     def __init__(self, env, kin, grip_open: float = -1.0, grip_closed: float = 1.0):
         self.env = env
         self.kin = kin
+        # Read the controller off the live env rather than trusting a default.
+        # The action vector's shape depends on it (7 joint deltas vs 6
+        # Cartesian deltas plus a gripper), and robosuite asserts on the
+        # length, so a mismatch is a hard failure rather than silent drift.
+        #
+        # Read `controller_config["type"]`, which is the literal string the env
+        # was built with ("OSC_POSE"). An earlier cut sniffed the class name
+        # for "OSC" and silently failed: the class is
+        # `OperationalSpaceController`, which does not contain that substring,
+        # so the backend kept sending 8-vectors into a 7-dim action space.
+        try:
+            inner = getattr(env, "env", env)
+            robot = inner.robots[0]
+            cfg = getattr(robot, "controller_config", None) or {}
+            ctype = str(cfg.get("type", "")).upper()
+            if not ctype:
+                ctype = ("OSC_POSE"
+                         if "OPERATIONALSPACE" in type(robot.controller).__name__.upper()
+                         else "JOINT_POSITION")
+            self.controller = "OSC_POSE" if ctype.startswith("OSC") else "JOINT_POSITION"
+            omax = cfg.get("output_max", getattr(robot.controller, "output_max", None))
+            if self.controller == "OSC_POSE" and omax is not None:
+                omax = np.asarray(omax, float).reshape(-1)
+                if omax.size >= 6:
+                    self.osc_pos_scale = float(np.max(np.abs(omax[:3])))
+                    self.osc_rot_scale = float(np.max(np.abs(omax[3:6])))
+        except Exception:
+            pass
         self._grip_open = grip_open
         self._grip_closed = grip_closed
         self._grip_cmd = grip_open
@@ -152,24 +188,85 @@ class LiberoArm(ArmBase):
     # -- actuation -------------------------------------------------------
 
     def send_joint_target(self, q: np.ndarray) -> None:
-        """One joint-space setpoint = one env.step in a stepped simulator."""
+        """One setpoint = one env.step in a stepped simulator.
+
+        The signature stays joint-space because that is ArmBase's contract and
+        every skill is written against it. Under OSC_POSE the joint target is
+        converted to its Cartesian equivalent here, inside the backend, so the
+        controller choice never leaks upward.
+        """
         if self._stopped:
             return
         q = np.asarray(q, float).reshape(-1)[: self.n_joints]
+        if self.controller == "OSC_POSE":
+            self._send_osc(q)
+            return
         cur = self._joint_pos()
         # JOINT_POSITION control in robosuite takes a DELTA scaled to [-1, 1];
         # the controller's own output_max maps it back to radians.
         delta = np.clip((q - cur) / 0.5, -1.0, 1.0)
         self._step(np.concatenate([delta, [self._grip_cmd]]))
 
+    def _send_osc(self, q: np.ndarray) -> None:
+        """Drive the OSC_POSE controller toward the pose that `q` represents.
+
+        MEASURED REASON this exists. Under JOINT_POSITION with in-house IK the
+        lateral TCP error plateaus at 6.0 mm (1400 settle steps is identical to
+        960), while pinching LIBERO's 9.2 mm bowl rim needs the fingertips
+        within about 4.6 mm of the wall plane. The gripper lands outside the
+        wall every time, so the suite's central task is unreachable no matter
+        what the orchestrator does.
+
+        OSC_POSE closes its servo loop in Cartesian space, which is what every
+        published system on this benchmark uses, so the joint-to-Cartesian
+        conversion error never accumulates at the endpoint.
+
+        The target is expressed as a DELTA from the current TCP pose, scaled by
+        the controller's `output_max` (0.05 m, 0.5 rad by default), which is
+        what robosuite expects on this action space.
+        """
+        if self.kin is None:
+            raise RuntimeError("OSC_POSE needs kinematics to convert targets")
+        T_goal = self.kin.fk(q)
+        T_now = self.kin.fk(self._joint_pos())
+
+        dp = np.asarray(T_goal, float)[:3, 3] - np.asarray(T_now, float)[:3, 3]
+        # Orientation error as an axis-angle vector, the form OSC_POSE takes.
+        R_err = np.asarray(T_goal, float)[:3, :3] @ np.asarray(T_now, float)[:3, :3].T
+        angle = float(np.arccos(np.clip((np.trace(R_err) - 1.0) / 2.0, -1.0, 1.0)))
+        if angle < 1e-6:
+            dr = np.zeros(3)
+        else:
+            axis = np.array([R_err[2, 1] - R_err[1, 2],
+                             R_err[0, 2] - R_err[2, 0],
+                             R_err[1, 0] - R_err[0, 1]]) / (2.0 * np.sin(angle))
+            dr = axis * angle
+
+        act = np.concatenate([
+            np.clip(dp / self.osc_pos_scale, -1.0, 1.0),
+            np.clip(dr / self.osc_rot_scale, -1.0, 1.0),
+            [self._grip_cmd],
+        ])
+        self._step(act)
+
+    def idle_action(self) -> np.ndarray:
+        """A no-op action of the right shape for the active controller.
+
+        The action vector is 7 joint deltas + gripper under JOINT_POSITION and
+        6 Cartesian deltas + gripper under OSC_POSE, and robosuite asserts on
+        the length. Callers that want to advance physics without commanding
+        motion must not hardcode either width: `np.zeros(8)` was scattered
+        through the harness and broke the moment the controller changed.
+        """
+        n = 6 if self.controller == "OSC_POSE" else self.n_joints
+        return np.zeros(n + 1)
+
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
         """Map wrc_demo's 0..1 gripper position onto LIBERO's -1/+1."""
         self._grip_cmd = self._grip_closed if pos > 0.5 else self._grip_open
-        cur = self._joint_pos()
+        zeros = np.zeros(6 if self.controller == "OSC_POSE" else self.n_joints)
         for _ in range(12):                       # let the jaws actually move
-            self._step(np.concatenate([np.zeros(self.n_joints),
-                                       [self._grip_cmd]]))
-        del cur
+            self._step(np.concatenate([zeros, [self._grip_cmd]]))
 
     # -- stepped-sim streaming ------------------------------------------
 

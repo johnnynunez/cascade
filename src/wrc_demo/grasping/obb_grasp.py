@@ -23,48 +23,83 @@ import numpy as np
 from ..types import Grasp, ObjectFix
 
 
-def _yaw_rotation(yaw: float, tool_down: np.ndarray | None = None) -> np.ndarray:
+def _yaw_rotation(yaw: float, tool_down: np.ndarray | None = None,
+                  axis_order: str = "down_open") -> np.ndarray:
     """TCP rotation for a top-down grasp with jaw-opening yaw.
 
-    Convention: tool forward (+x of gripper_end on the RS arm) points down
-    (-z base); the jaw opening axis lies in the table plane.
+    `axis_order` names the tool-frame convention, because it is NOT universal:
+
+      "down_open"  columns [approach, open, third]  (reBot / RS arm: tool
+                   forward is +x of gripper_end and points down)
+      "open_down"  columns [open, third, approach]  (Franka Panda in LIBERO)
+
+    MEASURED on LIBERO's Panda at rest, the site frame reads:
+
+        col 0 [0, 1, 0]           <- jaw opening axis (confirmed against the
+                                     vector between the two finger pads)
+        col 2 [-0.06, 0, -1.0]    <- approach, pointing down
+
+    Assuming the reBot order there asked for a frame 92.6 degrees away from
+    anything the arm holds naturally. Position-only IK hid that by silently
+    discarding the requested rotation; once orientation was actually solved
+    for, the same request made the solver diverge to 1466 mm.
+
+    The convention belongs to the arm, so callers pass it from the arm profile
+    rather than this function guessing per robot.
     """
     down = np.array([0.0, 0.0, -1.0]) if tool_down is None else tool_down
     open_axis = np.array([np.cos(yaw), np.sin(yaw), 0.0])
     open_axis -= open_axis @ down * down
     open_axis /= np.linalg.norm(open_axis)
     third = np.cross(down, open_axis)
-    # Columns: x=approach(down), y=open axis, z=completes right-handed frame.
+    if axis_order == "open_down":
+        # Right-handed with approach last: [open, third x open ... ] worked out
+        # so that col0 = opening, col2 = approach, matching the measurement.
+        return np.column_stack([open_axis, np.cross(down, open_axis), down])
     return np.column_stack([down, open_axis, third])
 
 
 def _rim_grasp_width(points: np.ndarray, obj_top_z: float,
-                     band_m: float = 0.006) -> tuple[float, float] | None:
-    """Wall thickness and grasp height for an open container, or None.
+                     band_m: float = 0.006, up: np.ndarray | None = None):
+    """Rim geometry for an open container, or None.
+
+    Returns `(wall_thickness_m, grasp_z, r_out, r_in, centre_xy)`, all measured
+    AT THE GRASP DEPTH rather than at the lip.
+
+    `up` is the container's own axis. It defaults to world vertical, which is
+    right for an upright object and wrong for a tilted one: the band would then
+    cut the wall diagonally and smear the annulus.
+
+    MEASURED across libero_spatial, annulus ratio by frame:
+
+        task 5, tilted 15.9 deg   world frame: n/a      object frame: 0.840
+        the other nine, upright   world frame: 0.840    object frame: 0.840
+
+    So the object frame reproduces the upright answer exactly and additionally
+    recovers the tilted case, which the world frame could not see at all.
 
     MEASURED CASE this exists for: LIBERO's akita bowl is 112.4 mm across
     against an 80 mm jaw opening, so closing on its footprint is impossible
     and the planner correctly refused every grasp. A bowl is not picked
     across its diameter though: it is pinched by the wall, one finger inside
-    and one outside. Measured from the mesh, that wall is 5.2 mm thick:
+    and one outside.
 
-        z band (frac of height)   r_min   r_max   wall
-        0.98                      51.2    56.2     5.0 mm
-        0.85                      47.4    54.7     7.3 mm
-        0.50                      40.0    46.8     6.8 mm
-        0.25                      25.2    38.6    13.4 mm
+    A solid object has material all the way to the axis, so its inner radius
+    in the top band is near zero; a container leaves an annulus. That gap is
+    the signal, and it is visible in a point cloud, which is why this works
+    from perception rather than needing the mesh.
 
-    A solid object has material all the way to the axis, so its `r_min` in
-    the top band is near zero; a container leaves an annulus. That gap is the
-    signal, and it is visible in a top-down point cloud, which is why this
-    works from perception rather than needing the mesh.
-
-    Returns `(wall_thickness_m, grasp_z)` where grasp_z sits just below the
-    rim so the fingers straddle it.
+    The returned geometry is measured AT THE GRASP DEPTH, not at the lip,
+    because containers taper (see below), and grasp_z sits below the lip so
+    the pads straddle the wall instead of resting on its top edge.
     """
     if points is None or len(points) < 60:
         return None
-    band = points[np.abs(points[:, 2] - obj_top_z) < band_m]
+    axis = (np.array([0.0, 0.0, 1.0]) if up is None
+            else np.asarray(up, float) / (np.linalg.norm(up) or 1.0))
+    origin = points.mean(axis=0)
+    h = (points - origin) @ axis
+    band = points[np.abs(h - float(h.max())) < band_m]
     # MEASURED: the belief store caps clouds at 384 points spread over the
     # whole surface, which left 53 in the rim band of a real bowl. An earlier
     # cut of this check demanded 100 and therefore never fired on the object
@@ -87,7 +122,29 @@ def _rim_grasp_width(points: np.ndarray, obj_top_z: float,
     wall = r_out - r_in
     if wall <= 1e-4:
         return None
-    return wall, float(obj_top_z - 0.5 * band_m)
+    # Drop the pads below the lip, then re-measure the wall AT THAT DEPTH.
+    #
+    # MEASURED on the akita bowl: the wall tapers inward with depth, so a
+    # radius taken at the lip is wrong where the fingers actually close.
+    #
+    #     depth below rim    r_in   r_out   wall centre
+    #                0 mm    48.5    59.9    54.2 mm
+    #               12 mm    42.0    55.7    48.9 mm
+    #
+    # Aiming at the lip's 54.2 mm put the TCP 3.8 mm outboard of the wall at
+    # the grasp depth, and the jaws closed past it in mid-air while the skill
+    # reported a verified 9 mm grasp. Containers taper; a single-height rim
+    # model does not survive that.
+    grasp_z = float(obj_top_z - 0.012)
+    deep = points[np.abs(points[:, 2] - grasp_z) < 0.0025]
+    if len(deep) >= 24:
+        rd = np.linalg.norm(deep[:, :2] - centre, axis=1)
+        d_out = float(np.percentile(rd, 99))
+        d_in = float(np.percentile(rd, 1))
+        if d_out > d_in > 0.0:
+            r_out, r_in = d_out, d_in
+            wall = r_out - r_in
+    return wall, grasp_z, r_out, r_in, centre
 
 
 def plan_grasps_from_fix(
@@ -97,6 +154,7 @@ def plan_grasps_from_fix(
     depth_fraction: float = 0.5,
     min_grasp_z_above_table: float = 0.005,
     width_pad_m: float = 0.015,
+    axis_order: str = "down_open",
 ) -> list[Grasp]:
     """-> ranked candidate grasps (primary yaw first, then alternates)."""
     # Horizontal footprint: project OBB axes into the table plane.
@@ -140,7 +198,7 @@ def plan_grasps_from_fix(
         grasps.append(
             Grasp(
                 position=pos,
-                rotation=_yaw_rotation(yaw),
+                rotation=_yaw_rotation(yaw, axis_order=axis_order),
                 width_m=required,
                 approach=np.array([0.0, 0.0, -1.0]),
                 quality=(1.0 if feasible else 0.2) * (1.0 - 0.1 * rank) * fix.detection.conf,
@@ -152,28 +210,37 @@ def plan_grasps_from_fix(
     # instead. Only attempted when the footprint genuinely does not fit, so
     # solid objects keep today's behaviour exactly.
     if grasps and all(g.width_m > max_width_m for g in grasps):
-        rim = _rim_grasp_width(fix.points, obj_top_z)
+        # The container's own axis: whichever OBB axis is closest to vertical.
+        # Using world up here loses tilted objects entirely (measured: a bowl
+        # at 15.9 deg read as solid, ratio 0.108 against 0.840 upright).
+        up = None
+        axes = getattr(fix, "axes", None)
+        if axes is not None:
+            A = np.asarray(axes, float)
+            if A.shape == (3, 3):
+                up = A[int(np.argmax(np.abs(A @ np.array([0.0, 0.0, 1.0]))))]
+                if up @ np.array([0.0, 0.0, 1.0]) < 0:
+                    up = -up
+        rim = _rim_grasp_width(fix.points, obj_top_z, up=up)
         if rim is not None:
-            wall, rim_z = rim
+            wall, rim_z, r_out, r_in, centre_xy = rim
             rim_required = wall + width_pad_m
             if rim_required <= max_width_m:
-                # Offset the grasp point onto the rim itself: the centre is
-                # empty air for a container.
-                band = fix.points[np.abs(fix.points[:, 2] - obj_top_z) < 0.006]
-                centre_xy = (band[:, :2].mean(axis=0) if len(band)
-                             else fix.position[:2])
-                r_out = (float(np.percentile(
-                    np.linalg.norm(band[:, :2] - centre_xy, axis=1), 99))
-                    if len(band) else 0.0)
+                # Put the TCP on the MIDDLE of the wall, using the radii
+                # measured at the grasp depth (the wall tapers; see
+                # `_rim_grasp_width`). The container's centre is empty air and
+                # `fix.position` is the whole object's centroid, so neither is
+                # a valid reference here.
+                r_mid = 0.5 * (r_out + r_in)
                 for rank, yaw in enumerate((0.0, np.pi / 2)):
                     d = np.array([np.cos(yaw), np.sin(yaw)])
-                    pos = np.array([centre_xy[0] + d[0] * (r_out - 0.5 * wall),
-                                    centre_xy[1] + d[1] * (r_out - 0.5 * wall),
+                    pos = np.array([centre_xy[0] + d[0] * r_mid,
+                                    centre_xy[1] + d[1] * r_mid,
                                     rim_z])
                     grasps.insert(rank, Grasp(
                         position=pos,
                         # Jaws close ACROSS the wall, i.e. radially.
-                        rotation=_yaw_rotation(yaw),
+                        rotation=_yaw_rotation(yaw, axis_order=axis_order),
                         # NO approach padding here. `width_pad_m` exists so
                         # the jaws clear a solid object on the way down, and
                         # for a footprint grasp it is harmless: the closing

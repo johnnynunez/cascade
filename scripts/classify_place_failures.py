@@ -38,7 +38,8 @@ def episode(tid):
     task = bm.get_task(tid)
     bddl = os.path.join(get_libero_path("bddl_files"), task.problem_folder,
                         task.bddl_file)
-    env = OffScreenRenderEnv(bddl_file_name=bddl, controller="JOINT_POSITION",
+    env = OffScreenRenderEnv(bddl_file_name=bddl,
+                             controller=os.environ.get("WRC_CTRL", "OSC_POSE"),
                              camera_heights=256, camera_widths=256,
                              camera_depths=True)
     env.seed(0)
@@ -101,7 +102,7 @@ def episode(tid):
     stop.set()
 
     for _ in range(40):
-        arm._step(np.zeros(8))
+        arm._step(arm.idle_action())
 
     obj1, dest1 = xyz(obj_body), xyz(dest_body)
     aim = r.get("placed_at") or r.get("at")

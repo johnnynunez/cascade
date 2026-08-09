@@ -24,6 +24,19 @@ type: mock            # the LIBERO backend drives the sim, not a real bus
 n_joints: 7           # Panda is 7-DoF; the RS arm is 6
 ee_frame: gripper0_grip_site
 
+# Tool-frame convention for top-down grasps, MEASURED from the live site
+# rotation at rest rather than assumed:
+#
+#     col 0  [0, 1, 0]         jaw opening axis (matches the vector between
+#                              the two finger pads)
+#     col 2  [-0.06, 0, -1.0]  approach, pointing down
+#
+# The reBot's RS arm puts approach in col 0 instead ("down_open"). Using its
+# order here requested a frame 92.6 degrees away from anything this arm holds.
+# Position-only IK hid that by discarding the requested rotation entirely; once
+# orientation was solved for, the same request diverged the solver to 1466 mm.
+tool_axis_order: open_down
+
 # The pose LIBERO's own reset actually settles at, read off the live sim, NOT
 # robosuite's nominal Panda reset. They differ by up to 0.163 rad (mostly j4
 # and j6), and grasp IK is seeded from home_q, so the nominal value costs real

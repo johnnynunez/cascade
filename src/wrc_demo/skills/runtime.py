@@ -171,6 +171,19 @@ class SkillRuntime:
             air_grasp_frac=float(self.cfg.grasp.get("air_grasp_frac", 0.04)),
         )
 
+    @property
+    def _tool_axis_order(self) -> str:
+        """Tool-frame convention of the arm currently wired in.
+
+        MEASURED BUG this centralises: the grasp planner was taught the Panda's
+        convention while `place_on_object`, `place_at` and the hover search
+        kept calling `_yaw_rotation` with the reBot default. Grasping then
+        worked (7/10 lifting ~20 cm and carrying up to 47 cm) while every place
+        died with "place pose unreachable", because the two paths were asking
+        for frames 92.6 degrees apart on the same robot.
+        """
+        return str(self.cfg.arm.get("tool_axis_order", "down_open"))
+
     def _visual_diff(self, source_xyz=None, target_xyz=None):
         """CaP-X: compare the pre-motion frame with a fresh one.
 
@@ -490,6 +503,7 @@ class SkillRuntime:
             table_z=float(self.cfg.safety.get("table_z", 0.0)),
             max_width_m=self._max_width,
             depth_fraction=float(gcfg.get("depth_fraction", 0.5)),
+            axis_order=self._tool_axis_order,
         )
         if str(gcfg.get("backend", "obb")) != "graspgenx":
             grasps = obb
@@ -1292,7 +1306,7 @@ class SkillRuntime:
         radial = float(np.arctan2(y, x))
         pre = low = None
         for yaw in (radial, 0.0, np.pi / 4, -np.pi / 4, np.pi / 2, -np.pi / 2):
-            R = _yaw_rotation(yaw)
+            R = _yaw_rotation(yaw, axis_order=self._tool_axis_order)
             cand_pre = self.kin.ik(make_transform(R, hover), q_now)
             if not cand_pre.success:
                 continue
@@ -1446,7 +1460,8 @@ class SkillRuntime:
         start[2] = end[2] = push_z
         from ..grasping.obb_grasp import _yaw_rotation
 
-        R = _yaw_rotation(float(np.arctan2(d2[1], d2[0])))
+        R = _yaw_rotation(float(np.arctan2(d2[1], d2[0])),
+                          axis_order=self._tool_axis_order)
         q_now = self.arm.get_state().q
         hover = start + np.array([0.0, 0.0, 0.10])
         ik_hover = self.kin.ik(make_transform(R, hover), q_now)
@@ -1725,7 +1740,8 @@ class SkillRuntime:
         for z in (hover[2], z_max - 0.02):
             for yaw in (float(np.arctan2(hover[1], hover[0])), 0.0, np.pi / 4, -np.pi / 4):
                 cand = self.kin.ik(
-                    make_transform(_yaw_rotation(yaw), [hover[0], hover[1], z]), q_now
+                    make_transform(_yaw_rotation(yaw, axis_order=self._tool_axis_order),
+                                   [hover[0], hover[1], z]), q_now
                 )
                 if cand.success:
                     ik = cand

@@ -114,7 +114,12 @@ under perturbation" but "know when you failed".
 | LIBERO-PRO | no | no |
 | **wrc_demo** | **yes, 0/50** | **yes** |
 
-False success claims per 100 episodes, oracle perception:
+False success claims per 100 episodes, oracle perception. These runs move
+`akita_black_bowl_2` because of the object-identity bug described in 3.4, so
+the SUCCESS column is meaningless for them, but the bare-vs-verified contrast
+is not: both arms of each row ran the identical harness with the identical
+bug, executing the full task, and the only difference is whether the
+postcondition ran.
 
 | suite | bare | verified | reduction |
 |---|---|---|---|
@@ -126,6 +131,11 @@ The 90% replicates exactly on a different benchmark under instruction
 redirection, which makes it an effect rather than a single-suite number. Under
 the bare path perturbation makes things slightly worse (48 -> 50 -> 51) while
 the verified path holds or improves.
+
+These remain the headline numbers for the verification claim. The re-run in
+3.5, with the identity bug fixed, is NOT a stronger version of them: there the
+robot fails before it can act, so it has fewer chances to lie, and a lower
+false-claim count measures less execution rather than better verification.
 
 ### 3.3 The swap suite found a real hole, and closing it is the result
 
@@ -169,6 +179,99 @@ slightly wrong, then reports success.
 None of the surveyed papers reports this number, so none of them would have
 detected either defect.
 
+### 3.4 Everything above measured the wrong object
+
+`resolve_task_objects` matched instruction words against scene body names, and
+libero_spatial contains `akita_black_bowl_1` AND `akita_black_bowl_2`. Both tie
+on every word of "pick up the black bowl ...", so the tie-break picked `_2`
+while every goal in the suite reads `(On akita_black_bowl_1 plate_1)`.
+
+On 10/10 tasks the robot transported an object the success predicate does not
+mention, so the suite could not score above zero regardless of performance.
+Proved by teleporting a bowl onto the plate and evaluating LIBERO's own
+predicate:
+
+```
+dz offset   bowl _2   bowl _1
+  +0.100     False     True
+   0.000     False     True
+  -0.010     False     False   (bowl intersects the plate, no contact)
+```
+
+Identical physics, identical resting pose; the only difference is which bowl
+moves. Two hypotheses died on the way to that and both are worth recording,
+because each looked convincing: "place precision is the bottleneck" was
+refuted by a perfect teleport still scoring False, and "On() is unreachable
+for a bowl on a plate" was refuted by OpenVLA's published 84.7% on this suite,
+which is the fact that forced the search to continue.
+
+Fixed by reading the goal predicate from the BDDL. That is task specification,
+not privileged state: perception still has to find the object.
+
+### 3.5 Re-measured with the right object, and the ceiling underneath
+
+Four conditions, 100 episodes each, every fix in place:
+
+| condition | suite | perception | success | bare | verified |
+|---|---|---|---|---|---|
+| 1 | libero_spatial | oracle | 0/100 | 6 | 0 |
+| 2 | LIBERO-Pro Spat-T | oracle | 0/100 | 4 | 0 |
+| 3 | LIBERO-Pro Spat-S | oracle | 0/100 | 8 | 0 |
+| 4 | libero_spatial | camera | 0/100 | 0 | 0 |
+
+Success is still 0, and the reason is now a measured control limit rather than
+a harness artefact. The bowl is 112.4 mm across against an 80 mm gripper, so
+it can only be picked by pinching its 9.2 mm rim. Lateral TCP error against
+settle steps, with the descend bias already compensated:
+
+```
+steps       0     160     240     640     960    1400
+lateral  47.2mm  8.9mm   7.7mm   6.3mm   6.0mm   6.0mm
+dz      +81.6mm +6.3mm  +2.1mm  -0.3mm  -0.4mm  -0.4mm
+```
+
+Vertical error converges to -0.4 mm. Lateral error plateaus at 6.0 mm, and
+1400 steps is identical to 960, so no timeout or tolerance change moves it. A
+rim pinch needs the fingers within about 4.6 mm of the wall plane, so at
+6.0 mm the gripper lands outside the wall.
+
+That is the ceiling of JOINT_POSITION plus in-house IK on this backend, and it
+turns the action-space row in section 4 from a caveat into the mechanical
+explanation of the result: the published systems drive OSC_POSE, Cartesian
+control with no joint-to-Cartesian conversion error, so they never pay this
+cost.
+
+Condition 4 (camera) reports zero claims of either kind because episodes die
+in `localize` before the arm moves. It measures the perception domain gap, not
+orchestration.
+
+### 3.6 A learned bias that survived the bugs it learned from
+
+`~/.wrc_demo/grasp_memory.json` held, for the correct bowl:
+
+```
+akita_black_bowl_1_main|fp12cm|h6cm   W42  L745  z_delta=+0.05
+```
+
+Those 745 losses accumulated while the harness seeded a 6 cm cube for a 112 mm
+bowl and moved the wrong object. The system learned to raise every grasp by
+50 mm to compensate, and that nudge persisted across runs: no code fix cleared
+it.
+
+It corrupted the measure-fix-measure loop rather than just the robot. Removing
+the z re-centering in `_fix_from_belief` LOOKED like a regression, +47.0 mm,
+purely because the nudge added 50 mm on top: 0.9477 (correct rim) + 0.050 =
+0.9977, exactly what was observed. A correct fix was reverted on poisoned
+evidence and only recovered after the file was found.
+
+Any published number from this repo has to state whether that file was clean,
+because two identical runs can disagree otherwise. The poisoned file is kept
+as `grasp_memory.json.poisoned-backup-*`.
+
+This is the same failure the surveyed papers are chasing in VLA policies, an
+agent learning the wrong lesson from mis-attributed failure, sitting in the
+evaluation harness itself.
+
 ## 4. What is NOT comparable, and why
 
 Four axes. Only one currently lines up.
@@ -178,12 +281,19 @@ Four axes. Only one currently lines up.
 | robot | Franka Panda, 7-DoF | Franka Panda, 7-DoF (`configs/arms/libero_panda.yaml`) | **yes** |
 | benchmark | LIBERO-Pro | LIBERO-Pro (Spat-T, Spat-S) + standard | **yes, for those two cells** |
 | protocol | 10 tasks x 10 seeds = 100 trials | 10 tasks x 10 seeds = 100 trials | **yes** |
-| action space | OSC_POSE (7-D deltas) | JOINT_POSITION + own IK | **no** |
+| action space | OSC_POSE (7-D deltas) | JOINT_POSITION + own IK | **no, and it is the binding constraint** |
 | perception | RGB-D + SAM/GraspNet, ground truth forbidden | oracle poses, or camera that fails to localize | **no** |
 
 On the robot axis the harness now loads a Panda profile rather than patching
 the reBot's `mock` profile at runtime, so DoF, joint limits, gripper width and
 home pose all describe the machine actually being driven.
+
+The action-space row is no longer a formality. Section 3.5 measures the cost:
+lateral TCP error plateaus at 6.0 mm under JOINT_POSITION with in-house IK,
+against the 4.6 mm a rim pinch needs. That single number is why success is 0
+on suites where OSC_POSE systems score 84-100%, so quoting any success rate
+from this repo without the controller alongside it would misattribute a
+control limit to orchestration.
 
 On perception: ASPIRE forbids `sim.data.body_xpos` by name, Harness-VLA states
 "No ground-truth poses or simulator internals", VIA states "no access to
@@ -192,23 +302,32 @@ three forbid, and is stamped `perception: oracle` in its JSON for that reason.
 
 ## 5. What would make this a real comparison
 
-In dependency order:
+In dependency order. Items 1 and 4 are done; what is left is now specific.
 
-1. **Run LIBERO-Pro.** Same suites, same 10x10 protocol, with the
-   perturbations. Without this there is no shared x-axis with Table 3.
-2. **Switch to OSC_POSE**, or state the difference every time a number is
-   quoted. Placement error is a property of the controller, and this repo
-   currently uses a different one from every paper cited here.
+1. ~~**Run LIBERO-Pro.**~~ Done: Spat-T and Spat-S, 10x10, section 3.5.
+   LIBERO-Pro is installed at `~/bench/LIBERO-PRO` and the harness selects it
+   with `WRC_BENCH_LIBERO`.
+2. **Switch to OSC_POSE.** No longer optional or cosmetic. Section 3.5 shows
+   JOINT_POSITION with in-house IK plateaus at 6.0 mm lateral error, and a rim
+   pinch needs 4.6 mm, so this controller cannot execute the suite's central
+   task no matter what the orchestrator does. Every paper cited here drives
+   OSC_POSE.
 3. **Close the camera path.** The camera rows are 0 CLAIMS, not 0 successes:
    episodes die at `localize failed: no detections`. Either pixel addressing
    driven by a real agent (built, unused because the harness calls skills
    directly with `llm=mock`) or a text-promptable segmenter.
-4. **Fix the gross place failures.** Median aim error is already 1.8 cm; the
-   15-30 cm tail is what keeps success at zero.
+4. ~~**Fix the gross place failures.**~~ Done, and they were not place
+   failures: the 15-30 cm tail was the object-identity bug in 3.4 plus the
+   oracle's fake geometry. With both fixed the blocker moved to the grasp.
+5. **Clear `~/.wrc_demo/grasp_memory.json` before any measured run**, or
+   record its state alongside the result. Section 3.6 shows a stale nudge
+   silently shifting every grasp by 50 mm across runs.
 
-Until at least 1 and 3 land, the honest one-line summary is:
+Until 2 and 3 land, the honest one-line summary is:
 
-> wrc_demo is not yet comparable to published agentic-manipulation results on
-> success rate. What it has that they do not is a measured no-op floor and a
-> measured separation of perception error from orchestration error, including
-> a 90% reduction in false success claims from its verification layer.
+> wrc_demo scores 0% on LIBERO and LIBERO-Pro, and the cause is measured: its
+> controller cannot place the gripper accurately enough to grasp the suite's
+> central object. What it has that the published systems do not is a measured
+> no-op floor, a measured separation of perception error from orchestration
+> error, and a 90-96% reduction in false success claims from its verification
+> layer, replicated across three suites.

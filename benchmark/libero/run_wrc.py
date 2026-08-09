@@ -117,13 +117,15 @@ def build_wrc_runtime(env, task_language: str, perception: str = "oracle"):
     demo_mod.make_camera = make_camera
     assert demo_mod.make_camera is make_camera, "camera factory not patched"
 
-    cfg = load_demo_config(cameras=["mock"], arm="mock", llm="mock")
+    # Load the PANDA profile, not the RS arm's mock profile. The robot being
+    # driven here is a 7-DoF Franka with an 8 cm gripper; describing it in
+    # configs/arms/ is what keeps this harness from having to patch each
+    # RS-specific constant at runtime and silently inheriting the ones it
+    # forgets. Two benchmark runs were lost to exactly that (topdown_z_max,
+    # settle timeout).
+    cfg = load_demo_config(cameras=["mock"], arm="libero_panda", llm="mock")
     cfg._data.setdefault("stream", {})["mode"] = "off"
     cfg.arm._data["type"] = "libero"
-    # The mock profile ships a 6-element home_q for the RS arm; the Panda has
-    # 7 joints, and every array op downstream (move_joints, harness approval)
-    # broadcasts against it. Use LIBERO's own reset pose.
-    cfg.arm._data["home_q"] = [0.0, -0.177, -0.037, -2.457, 0.006, 2.235, 0.799]
     # `_camera_cfgs` prefers cfg.cameras over cfg.camera, so a `cameras` list
     # left pointing at the mock profile silently wins and every frame grab
     # fails with "[stream:mock] grab failed". Drop the list and pin the
@@ -153,21 +155,21 @@ def build_wrc_runtime(env, task_language: str, perception: str = "oracle"):
                                         for x, y in zip(lo, hi)]
     cfg.safety._data["table_z"] = 0.80          # LIBERO table top, world frame
 
-    # `topdown_z_max` is the same class of bug as the workspace AABB below,
-    # and it was left unfixed. It caps how high a top-down release pose may
-    # be, because the RS arm's wrist cannot solve strict top-down IK above
-    # ~0.15 m IN ITS OWN BASE FRAME, where the table is z = 0.
+    # `topdown_z_max` caps top-down release height. It is a property of the
+    # WRIST, expressed relative to the work surface, so it belongs to the arm
+    # profile; the value shipped in demo.yaml is the RS arm's and assumes a
+    # table at z = 0. Applied to LIBERO it clamped every place target to a
+    # plane 65 cm BELOW the table:
+    #     place pose unreachable at [0.057, 0.198, 0.145] (all yaws tried)
+    # An IK sweep confirmed the whole tabletop fails at that height while the
+    # plate sits at z = 0.9025.
     #
-    # LIBERO's table is at z = 0.80 world, so the shipped 0.15 silently
-    # clamped every place target onto a plane 65 cm BELOW the table:
-    #     "place pose unreachable at [0.057, 0.198, 0.145] (all yaws tried)"
-    # An IK sweep confirmed nothing solves at that height: the entire tabletop
-    # grid at z = 0.145 fails, while the plate itself sits at z = 0.9025.
-    #
-    # Shift it by the table height so it means the same thing it always meant:
-    # "about 15 cm above the work surface".
-    cfg.grasp._data["topdown_z_max"] = 0.80 + float(
-        cfg.grasp.get("topdown_z_max", 0.15)
+    # The profile now carries the absolute value; fall back to shifting the
+    # global one so an arm profile without the key still behaves.
+    _topdown = cfg.arm.get("topdown_z_max")
+    cfg.grasp._data["topdown_z_max"] = float(
+        _topdown if _topdown is not None
+        else 0.80 + float(cfg.grasp.get("topdown_z_max", 0.15))
     )
 
     # The workspace AABB must move with the table. The shipped one is the RS

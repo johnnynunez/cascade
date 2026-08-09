@@ -1,0 +1,60 @@
+# Franka Emika Panda as driven inside LIBERO / robosuite.
+#
+# This profile exists because the LIBERO benchmark harness was reusing the
+# `mock` profile, which describes the reBot RS arm: 6 joints, a 9 cm jaw, and
+# an RS-specific home pose. The harness then patched kinematics, joint limits,
+# table height, workspace and topdown_z_max at runtime to undo the mismatch,
+# and every value it FORGOT to patch stayed silently wrong. Two of those cost
+# a full benchmark run each (see docs/LAYER_ATTRIBUTION_LIBERO.md).
+#
+# A robot the code supports should be described by a profile, not by a list of
+# runtime monkey-patches in a benchmark script.
+#
+# Kinematics come from the live MuJoCo model, not from this URDF: robosuite
+# composes arm + mount + gripper at load time and that composed chain is the
+# truth, so `benchmark/libero/run_wrc.py` injects MujocoKinematics over the
+# Kinematics class. The key is still required because `build_runtime` reads
+# `cfg.arm.model` to build its argument list before the injected class ignores
+# it. Pointing at the shipped RS URDF keeps that read valid without the value
+# ever being used; anything that actually consumed it would be a bug.
+model: ${assets}/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf
+
+type: mock            # the LIBERO backend drives the sim, not a real bus
+
+n_joints: 7           # Panda is 7-DoF; the RS arm is 6
+ee_frame: gripper0_grip_site
+
+# The pose LIBERO's own reset actually settles at, read off the live sim, NOT
+# robosuite's nominal Panda reset. They differ by up to 0.163 rad (mostly j4
+# and j6), and grasp IK is seeded from home_q, so the nominal value costs real
+# grasps: substituting it dropped completed places from 4/8 to 1/8 on
+# libero_spatial. Measured beats canonical.
+home_q: [0.0, -0.177, -0.037, -2.457, 0.006, 2.235, 0.799]
+
+# No mirroring: robosuite joint signs already match the model.
+joint_signs: [1, 1, 1, 1, 1, 1, 1]
+
+gripper:
+  # MEASURED from robosuite's panda_gripper.xml: each finger travels 0..0.04 m,
+  # so the jaws open 0.08 m total. The RS profile's 0.09 m was being applied to
+  # this gripper, which both admits grasp candidates the fingers cannot close
+  # on and skews the air-grasp check (it compares width_m / max_width_m against
+  # the commanded opening).
+  #
+  # Not currently load-bearing on libero_spatial: all 8 planned grasps came out
+  # at 7.5 cm, so 0/8 exceeded 0.08 m. Fixed because it is wrong, not because
+  # it moved a number.
+  max_width_m: 0.08
+  open_pos: 0.0
+  closed_pos: 1.0
+
+# Franka's own documented limits, used by the safety harness when the harness
+# does not override them from the live model.
+table_z: 0.80         # LIBERO tabletop, world frame
+
+# Highest z at which this wrist still solves a STRICT top-down pose, absolute
+# in the world frame the arm is driven in (i.e. table_z + ~0.15). The RS arm
+# ships 0.15 relative to a table at z = 0; applying that number here clamped
+# every place target 65 cm below the LIBERO tabletop and made place
+# unreachable for the entire benchmark.
+topdown_z_max: 0.95

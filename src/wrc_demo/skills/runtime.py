@@ -1334,26 +1334,74 @@ class SkillRuntime:
                        round(float(release_z), 3)],
                 "tcp_at": [round(float(v), 3) for v in target]}
 
-    def skill_place_on_object(self, label: str) -> dict:
-        self._adopt_unknown_held()
-        if not self.held_object:
-            raise SkillError("not holding anything")
-        belief = self.beliefs.find(label)
-        if belief is None:
+    def _destination_fix(self, label: str):
+        """Where is the destination RIGHT NOW, not when the task started?
+
+        MEASURED FAILURE this guards against (LIBERO-Pro `libero_spatial_swap`,
+        task 3): the destination moved after its belief was seeded, the skill
+        aimed 3.4 cm off, the object landed 0.8 cm from that stale aim, and the
+        postcondition CONFIRMED the place because it asks "did the object reach
+        where I aimed", not "did it reach the destination". LIBERO scored it
+        false. Verified false claims went 5 -> 13 on that suite while the
+        instruction-perturbation suite stayed at 5, so this is specifically a
+        targeting failure, not an actuation one.
+
+        A stale belief is worse than no belief here, so a fresh observation
+        wins over the stored one whenever it is available. Returns
+        `(position, top_z)` or None when nothing can be observed, in which case
+        the caller keeps today's behaviour.
+        """
+        # The external pose channel, when attached, sees the destination even
+        # when the camera cannot (benchmark oracle mode). Same provenance
+        # caveat as everywhere else it is used.
+        if self._object_pose is not None:
+            try:
+                p = self._object_pose(label)
+                if p is not None:
+                    p = np.asarray(p, float)[:3]
+                    return p, float(p[2])
+            except Exception:
+                pass
+        try:
             frame, fix = self._localize(label)
             self.beliefs.update(
                 fix.detection.label or label, fix.position, fix.detection.conf,
                 extent=fix.extent, top_z=float(fix.points[:, 2].max()),
                 color=detection_color(frame.rgb, fix.detection),
             )
+            return np.asarray(fix.position, float), float(fix.points[:, 2].max())
+        except Exception:
+            return None
+
+    def skill_place_on_object(self, label: str) -> dict:
+        self._adopt_unknown_held()
+        if not self.held_object:
+            raise SkillError("not holding anything")
+        # Re-check the destination immediately before committing to a drop
+        # point. The belief may be stale: it was seeded when the task started
+        # and the world does not hold still, which is the whole premise of the
+        # perturbed benchmarks.
+        fresh = self._destination_fix(label)
+        if fresh is not None:
+            pos, top = fresh
+        else:
             belief = self.beliefs.find(label)
-        # Use the actually observed highest point of the target, never OBB
-        # extents (those are eigenvalue-ordered, not axis-aligned).
-        top = belief.top_z if belief.top_z is not None else float(belief.position[2])
+            if belief is None:
+                frame, fix = self._localize(label)
+                self.beliefs.update(
+                    fix.detection.label or label, fix.position,
+                    fix.detection.conf, extent=fix.extent,
+                    top_z=float(fix.points[:, 2].max()),
+                    color=detection_color(frame.rgb, fix.detection),
+                )
+                belief = self.beliefs.find(label)
+            # Use the actually observed highest point of the target, never OBB
+            # extents (those are eigenvalue-ordered, not axis-aligned).
+            pos = belief.position
+            top = (belief.top_z if belief.top_z is not None
+                   else float(belief.position[2]))
         drop = top + float(self.cfg.grasp.get("release_clearance_m", 0.06))
-        return self.skill_place_at(
-            float(belief.position[0]), float(belief.position[1]), drop
-        )
+        return self.skill_place_at(float(pos[0]), float(pos[1]), drop)
 
     def skill_push_object(self, label: str, direction: str, distance_m: float = 0.08) -> dict:
         """ASPIRE push primitive: pre-contact approach then straight-line push."""

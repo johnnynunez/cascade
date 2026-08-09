@@ -61,8 +61,22 @@ POSTCONDITIONS: dict[str, str] = {
 
 #: An object that rose by at least this much (m) genuinely left the table.
 LIFT_EPS_M = 0.015
-#: Two positions within this distance (m) are "the same place".
+#: Two positions within this distance (m) are "the same place". Used to decide
+#: whether the object moved AT ALL, where being generous is correct.
 SAME_PLACE_M = 0.05
+#: How close the object must end up to a NAMED destination to count as placed
+#: on it. Deliberately separate from SAME_PLACE_M, and deliberately tight.
+#:
+#: MEASURED: with the old shared threshold (SAME_PLACE_M * 2 = 10 cm) the
+#: checker confirmed a place that ended 4.25 cm from the plate, while LIBERO's
+#: On() predicate requires 3 cm. A verifier looser than the task's own success
+#: criterion cannot catch a near miss, which is precisely the failure mode
+#: worth catching: the arm did something plausible and slightly wrong.
+#:
+#: 0.03 matches LIBERO's predicate. It is a placement tolerance, not a
+#: perception tolerance; if the pose channel is noisier than this the right
+#: fix is a better channel, not a looser check.
+DEST_TOLERANCE_M = 0.03
 #: A push must displace the object by at least this fraction of the request.
 PUSH_MIN_FRAC = 0.3
 
@@ -305,6 +319,24 @@ class PostconditionChecker:
             or result.get("at")
         )
         target_is_independent = requested is not None
+        # A NAMED destination ("place it on the plate") is independent
+        # evidence in a way a coordinate from the result never is: the
+        # destination's pose is read from the same channel that scores the
+        # object, so a stale aim cannot launder itself into a confirmation.
+        #
+        # MEASURED (LIBERO-Pro libero_spatial_swap, task 3): the destination
+        # moved after its belief was seeded, the skill aimed 3.4 cm off, the
+        # object landed 0.8 cm from that stale aim, and this checker CONFIRMED
+        # it while LIBERO scored it false. Verified false claims were 13/100 on
+        # that suite against 5/100 where nothing moves. Scoring against the
+        # destination's CURRENT pose is what closes that hole.
+        dest_label = (
+            args.get("destination")
+            or (args.get("label") if str(pc.skill) == "place_on_object" else None)
+        )
+        dest_pose = None
+        if dest_label and str(dest_label) != str(label):
+            dest_pose, _ = self._best_pose(str(dest_label))
         pose, channel = self._best_pose(label) if label else (None, "")
         if pose is None:
             pc.status, pc.evidence = UNVERIFIED, f"{label or 'object'} not re-located after the move"
@@ -317,6 +349,17 @@ class PostconditionChecker:
             if moved < SAME_PLACE_M:
                 pc.status = REFUTED
                 pc.evidence = f"{label} is still within {moved*100:.1f} cm of where it started"
+                return
+        if dest_pose is not None:
+            err = _dist(pose[:2], dest_pose[:2])
+            pc.measured["dest_err_m"] = round(err, 4)
+            if err > DEST_TOLERANCE_M:
+                pc.status = REFUTED
+                pc.evidence = (
+                    f"{label} ended {err*100:.1f} cm from {dest_label} "
+                    f"(at {[round(v, 3) for v in pose[:2]]}, {dest_label} is at "
+                    f"{[round(float(v), 3) for v in dest_pose[:2]]})"
+                )
                 return
         if isinstance(target, (list, tuple)) and len(target) >= 2:
             err = _dist(pose[:2], [float(v) for v in target[:2]])

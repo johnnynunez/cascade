@@ -120,19 +120,19 @@ False success claims per 100 episodes, oracle perception:
 |---|---|---|---|
 | LIBERO standard, spatial | 48 | 5 | **90%** |
 | LIBERO-Pro Spat-T (lan) | 50 | 5 | **90%** |
-| LIBERO-Pro Spat-S (swap) | 48 | 13 | **73%** |
+| LIBERO-Pro Spat-S (swap) | 51 | 2 | **96%** |
 
-The 90% replicates exactly under instruction redirection, on a different
-benchmark, which makes it an effect rather than a single-suite number. Under
-the bare path perturbation makes things slightly worse (48 -> 50) while the
-verified path holds at 5.
+The 90% replicates exactly on a different benchmark under instruction
+redirection, which makes it an effect rather than a single-suite number. Under
+the bare path perturbation makes things slightly worse (48 -> 50 -> 51) while
+the verified path holds or improves.
 
-### 3.3 Where verification stops protecting, and why
+### 3.3 The swap suite found a real hole, and closing it is the result
 
-Position swap is the exception: verified false claims nearly triple, 5 -> 13.
-Same tasks, same robot, so the difference is what the perturbation does to the
-VERIFIER, not to the robot. Traced to a specific episode
-(`libero_spatial_swap`, task 3):
+The swap numbers above are POST-FIX. The first measurement was 13/100 verified
+false claims against 5/100 everywhere else, and that regression is worth more
+than the headline because of what it exposed. Traced to
+`libero_spatial_swap` task 3:
 
 ```
 skill aimed at        [ 0.016, -0.267]
@@ -142,18 +142,32 @@ postcondition         "0.8 cm from the requested drop point (physics)" -> CONFIR
 LIBERO predicate      needs < 3 cm         -> FAILED
 ```
 
-The postcondition answers *"did the object reach where I aimed?"*, not *"did
-it reach the destination?"*. Placement was excellent, 0.8 cm from the aim
-point. The aim itself was 3.4 cm off, because the swap moved the destination
-after the belief was seeded, and nothing re-checked the target's identity
-before releasing.
+Two independent defects, both invisible on unperturbed suites:
 
-So the verification layer catches actuation failures and misses TARGETING
-failures. That is a precise, falsifiable statement of its limit, and it points
-at a concrete fix: re-localize the destination immediately before release, the
-same way `_held_object_offset` re-observes the held object.
+1. **The check scored against the skill's own aim point.** It answered "did
+   the object reach where I aimed?", not "did it reach the destination?". A
+   stale aim confirmed itself. Placement was excellent (0.8 cm); the aim was
+   3.4 cm off because the swap moved the destination after the belief was
+   seeded and nothing re-checked the target before release.
 
-Publishing the 73% with its cause is worth more than publishing the 90% alone.
+2. **The threshold was looser than the benchmark's own predicate.** After
+   fixing (1) it still confirmed: the check used `SAME_PLACE_M * 2` = 10 cm
+   while LIBERO's `On()` requires 3 cm. One constant was answering two
+   different questions, "did it move at all" (where being generous is right)
+   and "did it arrive" (where it is not).
+
+Fixes: `place_on_object` re-localizes the destination immediately before
+committing to a drop point, `_check_relocated` scores against a named
+destination's CURRENT pose, and `DEST_TOLERANCE_M = 0.03` is now separate from
+`SAME_PLACE_M` and matched to the predicate.
+
+Result: **13 -> 2** verified false claims, now the best of the three suites.
+A verifier looser than the task's success criterion cannot catch a near miss,
+which is the failure mode that matters: the arm does something plausible and
+slightly wrong, then reports success.
+
+None of the surveyed papers reports this number, so none of them would have
+detected either defect.
 
 ## 4. What is NOT comparable, and why
 

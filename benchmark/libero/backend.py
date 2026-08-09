@@ -32,6 +32,23 @@ class LiberoArm(ArmBase):
     #: wrc_demo hardcodes 6 outside the RS profile.
     n_joints = 7
     settle_tol = 0.05
+    #: Systematic vertical undershoot of a commanded descend (m).
+    #:
+    #: MEASURED across four independent grasps today, target vs reached z:
+    #:
+    #:     0.9711 -> 0.9783   +7.2 mm
+    #:     0.9976 -> 1.0045   +6.9 mm
+    #:     0.9211 -> 0.9297   +8.6 mm
+    #:     0.9476 -> 0.9575   +9.8 mm
+    #:
+    #: Always positive, mean +8.1 mm. This is a bias, not noise: the arm is
+    #: fighting gravity and its own mass on the way down, and the position
+    #: controller settles above target every time. Averaging it away would
+    #: hide it; compensating for it is what a calibrated system does.
+    #:
+    #: It matters because pinching a 9.2 mm bowl rim needs the fingertips
+    #: within a few mm, and an 8 mm bias alone puts them above the rim.
+    descend_bias_m = 0.008
     #: TCP settling tolerance (m). What a grasp cares about is where the
     #: gripper ends up, and a joint-space threshold does not map to a constant
     #: Cartesian error: MEASURED on one grasp, residuals of 0.0236, 0.0498 and
@@ -157,7 +174,8 @@ class LiberoArm(ArmBase):
     # -- stepped-sim streaming ------------------------------------------
 
     def stream_to(self, q_target, duration_s: float, rate_hz: float = 50.0,
-                  approve=None, settle_tol=None, settle_timeout_s: float = 12.0):
+                  approve=None, settle_tol=None, settle_timeout_s: float = 12.0,
+                  bias_compensate: bool = False):
         """Min-jerk interpolation paced by SIM steps, not wall-clock sleep.
 
         ArmBase's version sleeps between waypoints so a real 50 Hz bus is not
@@ -225,6 +243,32 @@ class LiberoArm(ArmBase):
             except Exception:
                 tcp_target = None
 
+        # Compensate the measured undershoot while holding position, but only
+        # when the caller asks for it.
+        #
+        # The bias is regime-dependent, not universal. MEASURED on the same
+        # grasp: a free pregrasp descent (2.5 s, long travel) lands +2.4 mm
+        # above target, while the final grasp descent (2.0 s, short, inside
+        # the exemption cylinder with the gripper already posed) lands +7 to
+        # +10 mm above. Applying one number to both overshot the pregrasp by
+        # 7.6 mm and broke a move that previously worked.
+        #
+        # So the caller, which knows which descent it is issuing, opts in via
+        # `bias_compensate`. Guessing from the geometry inside stream_to was
+        # exactly the mistake: "is this going down" does not identify the
+        # regime.
+        hold_q = q_target
+        bias = float(getattr(self, "descend_bias_m", 0.0))
+        if bias_compensate and bias > 0.0 and kin is not None and tcp_target is not None:
+            try:
+                T = kin.fk(q_target).copy()
+                T[2, 3] -= bias
+                sol = kin.ik(T, q_target)
+                if getattr(sol, "success", False):
+                    hold_q = np.asarray(sol.q, float)
+            except Exception:
+                hold_q = q_target
+
         for _ in range(int(settle_timeout_s * 20)):
             q_now = self.get_state().q
             if tcp_target is not None:
@@ -235,7 +279,7 @@ class LiberoArm(ArmBase):
                     tcp_target = None      # fall back to joint space
             if tcp_target is None and float(np.abs(q_now - q_target).max()) < settle_tol:
                 return True
-            self.send_joint_target(q_target)
+            self.send_joint_target(hold_q)
         return False
 
 

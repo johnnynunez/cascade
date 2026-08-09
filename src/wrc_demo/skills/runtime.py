@@ -757,7 +757,22 @@ class SkillRuntime:
         if pts_mem is not None and len(pts_mem) >= 50:
             pts = np.asarray(pts_mem, dtype=float)
             obb_center, extents, axes = oriented_bbox(pts)
-            pts = pts + (center - obb_center)
+            # Re-center on the fused position in XY ONLY.
+            #
+            # The fused position tracks a detection centroid and, for a body
+            # whose origin is not its geometric centre, differs from the
+            # cloud's bbox centre in z for reasons that have nothing to do
+            # with where the object is. MEASURED on LIBERO's akita bowl: the
+            # body origin sits 52 mm below the mesh top and 26 mm below the
+            # cloud's bbox centre, so shifting z dragged the cloud down until
+            # its top read 0.9242 against a true rim at 0.9507. The rim grasp
+            # was then planned 29.5 mm BELOW the rim, on the outer wall.
+            #
+            # Heights come from the cloud, which is measured surface; xy comes
+            # from the fused estimate, which is what tracking is good at.
+            shift = center - obb_center
+            shift[2] = 0.0
+            pts = pts + shift
             det = Detection(
                 label=belief.label, conf=float(belief.conf),
                 bbox=np.zeros(4, dtype=np.float32),
@@ -1056,7 +1071,9 @@ class SkillRuntime:
             z_min=float(self.arm.harness.limits.table_z) - 0.06,
         )
         try:
-            if not self.arm.move_joints(q_grasp, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
+            if not self.arm.move_joints(q_grasp,
+                                        duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                                        bias_compensate=True):
                 raise SkillError("did not settle at grasp pose")
 
             # 3. close with the material profile (two-stage, stall-aware)

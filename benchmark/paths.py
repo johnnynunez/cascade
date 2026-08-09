@@ -47,8 +47,49 @@ LIBERO_PYTHON = os.environ.get(
     "WRC_BENCH_VENV", str(Path.home() / ".venvs" / "libero" / "bin" / "python"))
 
 
+def _sync_libero_config() -> None:
+    """Point LIBERO's asset config at the checkout we are actually running.
+
+    MEASURED BUG this prevents: `libero.libero` resolves bddl_files,
+    init_files and assets from `~/.libero/config.yaml`, which is written once
+    at install time and names ONE checkout. Setting `WRC_BENCH_LIBERO` put
+    LIBERO-PRO on sys.path but left that config pointing at plain LIBERO, so
+    a LIBERO-Pro run loaded Pro's task list and then tried to read Pro's
+    init_files from the standard checkout:
+
+        FileNotFoundError: .../bench/LIBERO/libero/libero/init_files/
+                           libero_spatial_lan/....pruned_init
+
+    It also makes the two benchmarks mutually exclusive: whichever one the
+    global config names is the only one that can run, and running both in
+    parallel silently mixes assets.
+
+    LIBERO honours `LIBERO_CONFIG_PATH`, so give each checkout its own config
+    directory under the checkout itself. Nothing global is modified, and two
+    suites can run side by side.
+    """
+    cfg_dir = LIBERO_DIR / ".libero_config"
+    root = LIBERO_DIR / "libero" / "libero"
+    if not root.is_dir():
+        return
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg = cfg_dir / "config.yaml"
+    want = {
+        "benchmark_root": str(root),
+        "bddl_files": str(root / "bddl_files"),
+        "init_states": str(root / "init_files"),
+        "datasets": str(LIBERO_DIR / "datasets"),
+        "assets": str(root / "assets"),
+    }
+    body = "".join(f"{k}: {v}\n" for k, v in sorted(want.items()))
+    if not cfg.exists() or cfg.read_text() != body:
+        cfg.write_text(body)
+    os.environ["LIBERO_CONFIG_PATH"] = str(cfg_dir)
+
+
 def add_paths() -> None:
     """Put LIBERO, wrc_demo and this package on sys.path."""
+    _sync_libero_config()
     for p in (str(LIBERO_DIR), str(SRC), str(ROOT)):
         if p not in sys.path:
             sys.path.insert(0, p)

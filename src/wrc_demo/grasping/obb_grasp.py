@@ -174,7 +174,21 @@ def plan_grasps_from_fix(
                         position=pos,
                         # Jaws close ACROSS the wall, i.e. radially.
                         rotation=_yaw_rotation(yaw),
-                        width_m=rim_required,
+                        # NO approach padding here. `width_pad_m` exists so
+                        # the jaws clear a solid object on the way down, and
+                        # for a footprint grasp it is harmless: the closing
+                        # stage still drives the fingers onto the surface.
+                        #
+                        # MEASURED: padding a 9.2 mm rim to 24.2 mm left the
+                        # jaws 15 mm wider than the material, so they closed
+                        # on air. The skill reported ok=True with
+                        # grip_verified=True, the object never moved
+                        # (lift 0.0 cm, moved 0.0 cm on 8/10 tasks), and the
+                        # air-grasp check missed it because 24 mm of gap looks
+                        # exactly like holding a 24 mm object.
+                        #
+                        # The wall thickness IS the closing width for a rim.
+                        width_m=wall,
                         approach=np.array([0.0, 0.0, -1.0]),
                         quality=0.9 * (1.0 - 0.1 * rank) * fix.detection.conf,
                         label=fix.label,

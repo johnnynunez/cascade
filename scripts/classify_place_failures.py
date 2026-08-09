@@ -60,11 +60,10 @@ def episode(tid):
         return np.array(inner.sim.data.body_xpos[inner.sim.model.body_name2id(n)])
 
     def seed():
-        for n in (obj_body, dest_body):
-            p = xyz(n)
-            rt.beliefs.update(label=n, position=p, conf=0.99,
-                              extent=np.array([0.06, 0.06, 0.06]),
-                              top_z=float(p[2]) + 0.03)
+        # Use the harness's own seeding so this script cannot drift from what
+        # the benchmark does. A local copy here already went stale once and
+        # reported 10/10 grasp failures that the benchmark did not have.
+        run_wrc.seed_oracle_beliefs(rt, inner, (obj_body, dest_body), xyz)
 
     rt.attach_verifier(object_pose=lambda n: xyz(n) if n else None)
     rt.effects = None

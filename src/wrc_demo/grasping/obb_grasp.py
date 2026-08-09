@@ -38,6 +38,58 @@ def _yaw_rotation(yaw: float, tool_down: np.ndarray | None = None) -> np.ndarray
     return np.column_stack([down, open_axis, third])
 
 
+def _rim_grasp_width(points: np.ndarray, obj_top_z: float,
+                     band_m: float = 0.006) -> tuple[float, float] | None:
+    """Wall thickness and grasp height for an open container, or None.
+
+    MEASURED CASE this exists for: LIBERO's akita bowl is 112.4 mm across
+    against an 80 mm jaw opening, so closing on its footprint is impossible
+    and the planner correctly refused every grasp. A bowl is not picked
+    across its diameter though: it is pinched by the wall, one finger inside
+    and one outside. Measured from the mesh, that wall is 5.2 mm thick:
+
+        z band (frac of height)   r_min   r_max   wall
+        0.98                      51.2    56.2     5.0 mm
+        0.85                      47.4    54.7     7.3 mm
+        0.50                      40.0    46.8     6.8 mm
+        0.25                      25.2    38.6    13.4 mm
+
+    A solid object has material all the way to the axis, so its `r_min` in
+    the top band is near zero; a container leaves an annulus. That gap is the
+    signal, and it is visible in a top-down point cloud, which is why this
+    works from perception rather than needing the mesh.
+
+    Returns `(wall_thickness_m, grasp_z)` where grasp_z sits just below the
+    rim so the fingers straddle it.
+    """
+    if points is None or len(points) < 60:
+        return None
+    band = points[np.abs(points[:, 2] - obj_top_z) < band_m]
+    # MEASURED: the belief store caps clouds at 384 points spread over the
+    # whole surface, which left 53 in the rim band of a real bowl. An earlier
+    # cut of this check demanded 100 and therefore never fired on the object
+    # it was written for. The ratio test below is what discriminates hollow
+    # from solid; this count only needs to be enough for percentiles to mean
+    # something.
+    if len(band) < 24:
+        return None
+    centre = band[:, :2].mean(axis=0)
+    r = np.linalg.norm(band[:, :2] - centre, axis=1)
+    r_out = float(np.percentile(r, 99))
+    r_in = float(np.percentile(r, 1))
+    if r_out < 1e-6:
+        return None
+    # A hollow rim: material sits in an annulus, so the inner radius is a
+    # large fraction of the outer one. Solids fail this and fall through to
+    # the normal footprint grasp.
+    if r_in / r_out < 0.5:
+        return None
+    wall = r_out - r_in
+    if wall <= 1e-4:
+        return None
+    return wall, float(obj_top_z - 0.5 * band_m)
+
+
 def plan_grasps_from_fix(
     fix: ObjectFix,
     table_z: float,
@@ -95,4 +147,36 @@ def plan_grasps_from_fix(
                 label=fix.label,
             )
         )
+
+    # Open containers cannot be grasped across their footprint: pinch the rim
+    # instead. Only attempted when the footprint genuinely does not fit, so
+    # solid objects keep today's behaviour exactly.
+    if grasps and all(g.width_m > max_width_m for g in grasps):
+        rim = _rim_grasp_width(fix.points, obj_top_z)
+        if rim is not None:
+            wall, rim_z = rim
+            rim_required = wall + width_pad_m
+            if rim_required <= max_width_m:
+                # Offset the grasp point onto the rim itself: the centre is
+                # empty air for a container.
+                band = fix.points[np.abs(fix.points[:, 2] - obj_top_z) < 0.006]
+                centre_xy = (band[:, :2].mean(axis=0) if len(band)
+                             else fix.position[:2])
+                r_out = (float(np.percentile(
+                    np.linalg.norm(band[:, :2] - centre_xy, axis=1), 99))
+                    if len(band) else 0.0)
+                for rank, yaw in enumerate((0.0, np.pi / 2)):
+                    d = np.array([np.cos(yaw), np.sin(yaw)])
+                    pos = np.array([centre_xy[0] + d[0] * (r_out - 0.5 * wall),
+                                    centre_xy[1] + d[1] * (r_out - 0.5 * wall),
+                                    rim_z])
+                    grasps.insert(rank, Grasp(
+                        position=pos,
+                        # Jaws close ACROSS the wall, i.e. radially.
+                        rotation=_yaw_rotation(yaw),
+                        width_m=rim_required,
+                        approach=np.array([0.0, 0.0, -1.0]),
+                        quality=0.9 * (1.0 - 0.1 * rank) * fix.detection.conf,
+                        label=fix.label,
+                    ))
     return grasps

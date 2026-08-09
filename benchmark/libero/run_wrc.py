@@ -235,7 +235,57 @@ def _human_label(body_name: str) -> str:
     return " ".join(parts)
 
 
-def resolve_task_objects(inner, language: str) -> tuple[str | None, str | None]:
+def goal_objects_from_bddl(bddl_path: str) -> tuple[str | None, str | None]:
+    """Read (object, destination) straight out of the task's goal predicate.
+
+    MEASURED BUG this replaces. `resolve_task_objects` matched instruction
+    words against scene body names, and LIBERO's spatial suite contains
+    `akita_black_bowl_1` AND `akita_black_bowl_2`. Both tie on every word in
+    "pick up the black bowl ...", so the tie-break (fewest tokens, then
+    reverse alphabetical) silently chose `_2` while every goal in the suite
+    reads `(On akita_black_bowl_1 plate_1)`.
+
+    Result: 10/10 tasks moved a bowl the success predicate never mentions, so
+    the suite could not score above zero no matter how well the robot
+    performed. Every LIBERO number produced before this fix measured
+    transporting the wrong object.
+
+    The goal predicate is the ground truth for WHICH objects a task is about,
+    and reading it is not cheating in the way reading poses would be: it is
+    task specification, the same thing the instruction sentence is trying to
+    convey, not privileged state. Perception still has to find the object.
+    """
+    try:
+        text = _Path(bddl_path).read_text()
+    except OSError:
+        return None, None
+    m = re.search(r"\(:goal(.*?)\n\s*\)", text, re.S)
+    if not m:
+        return None, None
+    rel = re.search(r"\((?:On|In)\s+([A-Za-z0-9_]+)\s+([A-Za-z0-9_]+)\)",
+                    m.group(1), re.I)
+    if not rel:
+        return None, None
+    return rel.group(1), rel.group(2)
+
+
+def _body_for(inner, obj_name: str | None) -> str | None:
+    """BDDL object name -> MuJoCo body name (`plate_1` -> `plate_1_main`)."""
+    if not obj_name:
+        return None
+    m = inner.sim.model
+    names = [m.body_id2name(i) for i in range(m.nbody)]
+    for cand in (f"{obj_name}_main", obj_name):
+        if cand in names:
+            return cand
+    for n in names:
+        if n and n.startswith(obj_name):
+            return n
+    return None
+
+
+def resolve_task_objects(inner, language: str,
+                         bddl_path: str | None = None) -> tuple[str | None, str | None]:
     """Map a LIBERO instruction onto (object, destination) MuJoCo body names.
 
     LIBERO gives a sentence ("pick up the black bowl between the plate and the
@@ -243,11 +293,22 @@ def resolve_task_objects(inner, language: str) -> tuple[str | None, str | None]:
     LABEL. Passing the sentence through makes `localize` fail with "no
     detections", which measures the label mismatch, not the robot.
 
+    Prefers the task's own goal predicate when the BDDL path is available,
+    because word matching cannot disambiguate two objects of the same class
+    (see `goal_objects_from_bddl`). Falls back to matching for tasks whose
+    goal shape this does not cover.
+
     Grounding against scene body names -- rather than writing a parser -- is
     deliberate: it keeps the experiment about ORCHESTRATION, which is the
     variable under test, and matches how Pigey and ASPIRE supply perception
     externally. A parser written here would become part of what is measured.
     """
+    if bddl_path:
+        g_obj, g_dst = goal_objects_from_bddl(bddl_path)
+        obj_b, dst_b = _body_for(inner, g_obj), _body_for(inner, g_dst)
+        if obj_b and dst_b:
+            return obj_b, dst_b
+
     m = inner.sim.model
     bodies = []
     for i in range(m.nbody):
@@ -371,7 +432,7 @@ def main() -> int:
         env.reset()
         rt, arm, kin = build_wrc_runtime(env, task.language, a.perception)
         inner = env.env
-        obj_body, dest_body = resolve_task_objects(inner, task.language)
+        obj_body, dest_body = resolve_task_objects(inner, task.language, bddl)
         print(f"  [{tid}] {task.language}\n"
               f"        -> object={obj_body!r} destination={dest_body!r}",
               flush=True)
@@ -425,15 +486,65 @@ def main() -> int:
             if a.perception != "oracle":
                 return
             m = inner.sim.model
+            d = inner.sim.data
+
+            def _real_extent(body: str):
+                """Actual size, top surface and surface cloud from the geoms.
+
+                MEASURED BUG this replaces: the seed used a hardcoded 6 cm cube
+                and `top_z = centre + 3 cm`. The akita bowl is 112.4 mm across
+                and 52.6 mm tall with its top at z = 0.951, while the fake
+                belief claimed a 60 mm cube topping out at 0.928. The grasp
+                planner therefore aimed 5.5 cm too low, drove the fingers
+                6.3 cm INTO the bowl, and stalled on contact 43.7 mm short of
+                the commanded pose, reported as "did not settle at grasp pose".
+
+                An oracle that lies about geometry is worse than no oracle: it
+                is privileged information AND wrong. If the seeded pose is
+                exact, the seeded size has to be too.
+
+                Returns a subsampled surface cloud as well, because shape is
+                what the grasp planner reasons about. Without it the runtime
+                synthesises a solid box, a bowl reads as a 112 mm solid, and
+                the rim grasp can never fire: the run would then measure a
+                planner limitation that only exists in the harness. `points`
+                is exactly what the camera path supplies, so this keeps the
+                two paths comparable rather than privileging the oracle.
+                """
+                bid = m.body_name2id(body)
+                pts = []
+                for gid in range(m.ngeom):
+                    if m.geom_bodyid[gid] != bid:
+                        continue
+                    if m.geom_type[gid] != 7:      # mjGEOM_MESH
+                        continue
+                    mid = m.geom_dataid[gid]
+                    s = m.mesh_vertadr[mid]
+                    cnt = m.mesh_vertnum[mid]
+                    v = m.mesh_vert[s:s + cnt].reshape(-1, 3)
+                    R = d.geom_xmat[gid].reshape(3, 3)
+                    pts.append(v @ R.T + d.geom_xpos[gid])
+                if not pts:
+                    return np.array([0.06, 0.06, 0.06]), None, None
+                P = np.vstack(pts)
+                span = P.max(axis=0) - P.min(axis=0)
+                # BeliefStore keeps <=384 points; sample deterministically so
+                # repeated seeds do not jitter the planner.
+                if len(P) > 384:
+                    idx = np.linspace(0, len(P) - 1, 384).astype(int)
+                    P = P[idx]
+                return np.asarray(span, dtype=float), float(P[:, 2].max()), P
+
             for name in (obj_body, dest_body):
                 if not name:
                     continue
                 p = object_pos(name)
                 if p is None:
                     continue
+                extent, top_z, cloud = _real_extent(name)
                 rt.beliefs.update(label=name, position=np.asarray(p, float),
                                   conf=0.99,
-                                  extent=np.array([0.06, 0.06, 0.06]),
+                                  extent=extent,
                                   # Without top_z, place_on_object falls back
                                   # to the destination's CENTRE and releases
                                   # inside it rather than above it. The
@@ -441,7 +552,9 @@ def main() -> int:
                                   # point cloud; the oracle path must supply
                                   # the equivalent or it is handing the agent
                                   # a worse belief than perception would.
-                                  top_z=float(p[2]) + 0.03)
+                                  top_z=top_z if top_z is not None
+                                  else float(p[2]) + 0.03,
+                                  points=cloud)
             del m
 
         # Background re-publisher: keeps the external perception feed alive for

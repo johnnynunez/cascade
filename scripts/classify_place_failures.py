@@ -51,7 +51,7 @@ def episode(tid):
     if getattr(arm, "camera", None) is not None:
         arm.camera.publish(obs)
 
-    obj_body, dest_body = run_wrc.resolve_task_objects(inner, task.language)
+    obj_body, dest_body = run_wrc.resolve_task_objects(inner, task.language, bddl)
     if not obj_body or not dest_body:
         env.close()
         return None

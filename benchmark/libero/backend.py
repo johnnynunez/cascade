@@ -32,6 +32,25 @@ class LiberoArm(ArmBase):
     #: wrc_demo hardcodes 6 outside the RS profile.
     n_joints = 7
     settle_tol = 0.05
+    #: TCP settling tolerance (m). What a grasp cares about is where the
+    #: gripper ends up, and a joint-space threshold does not map to a constant
+    #: Cartesian error: MEASURED on one grasp, residuals of 0.0236, 0.0498 and
+    #: 0.0681 rad gave TCP errors of 9.9, 16.6 and 50.7 mm. A single 0.05 rad
+    #: threshold therefore waved through a 16.6 mm miss, which is enough to
+    #: turn a centred grasp into an edge grasp on an 11 cm bowl.
+    #:
+    #: The value comes from the controller's measured convergence, not from
+    #: what a grasp would like. Holding a pregrasp target and tracking TCP
+    #: error against settle steps:
+    #:
+    #:     steps    0     20     40     80    120    160    240    480    960
+    #:     error  82.4   59.8   43.5   23.7   13.9    9.3    6.5    5.8   5.0
+    #:
+    #: The floor is 5.0 mm and takes 960 steps to reach, so the first attempt
+    #: at 5 mm rejected every move (grasp failures went 3/6 -> 6/6) no matter
+    #: the timeout. 10 mm is reached around step 150, inside the 240-step
+    #: budget, and is still tighter than the 16.6 mm the joint check allowed.
+    settle_tcp_tol_m = 0.010
 
     def __init__(self, env, kin, grip_open: float = -1.0, grip_closed: float = 1.0):
         self.env = env
@@ -164,6 +183,21 @@ class LiberoArm(ArmBase):
         12.0 s gives 240 steps, comfortably past the measured 160 with margin
         for larger moves, and the loop still returns as soon as it converges
         so a fast joint costs nothing.
+
+        Settling is judged in TCP space, not joint space, because the joint
+        tolerance does not mean the same thing in every posture. MEASURED on
+        one grasp, converting residual through the Jacobian:
+
+            move       joint residual    TCP error
+            re-home        0.0236          9.9 mm
+            pregrasp       0.0498         16.6 mm   <- passed the joint check
+            descend        0.0681         50.7 mm   <- failed it
+
+        A single 0.05 rad threshold accepted a 16.6 mm miss and rejected a
+        50.7 mm one, and 16.6 mm is enough to turn a centred grasp into an
+        edge grasp on an 11 cm bowl. What the grasp actually cares about is
+        where the gripper ends up, so that is what gets checked; the joint
+        tolerance stays as a fallback when no kinematics are available.
         """
         if settle_tol is None:
             settle_tol = self.settle_tol
@@ -182,8 +216,24 @@ class LiberoArm(ArmBase):
             self.send_joint_target(q_i)
             q_prev = q_i
         # settle by stepping, not sleeping
+        kin = getattr(self, "kin", None)
+        tcp_tol = float(getattr(self, "settle_tcp_tol_m", 0.005))
+        tcp_target = None
+        if kin is not None:
+            try:
+                tcp_target = kin.fk(q_target)[:3, 3]
+            except Exception:
+                tcp_target = None
+
         for _ in range(int(settle_timeout_s * 20)):
-            if float(np.abs(self.get_state().q - q_target).max()) < settle_tol:
+            q_now = self.get_state().q
+            if tcp_target is not None:
+                try:
+                    if float(np.linalg.norm(kin.fk(q_now)[:3, 3] - tcp_target)) < tcp_tol:
+                        return True
+                except Exception:
+                    tcp_target = None      # fall back to joint space
+            if tcp_target is None and float(np.abs(q_now - q_target).max()) < settle_tol:
                 return True
             self.send_joint_target(q_target)
         return False

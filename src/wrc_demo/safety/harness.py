@@ -360,7 +360,8 @@ class SafeArm:
     def get_state(self):
         return self._arm.get_state()
 
-    def move_joints(self, q_target: np.ndarray, duration_s: float = 2.0) -> bool:
+    def move_joints(self, q_target: np.ndarray, duration_s: float = 2.0,
+                    **backend_kw) -> bool:
         # Min-jerk peak velocity is 1.875 * dq / T; stretch the duration so
         # the planned profile stays safely under the cap (harness remains the
         # backstop for anything else).
@@ -369,7 +370,19 @@ class SafeArm:
         duration_s = max(duration_s, needed)
         self.harness.begin_motion()  # perception-freshness check happens here
         try:
-            return self._arm.stream_to(q_target, duration_s, approve=self.harness.approve)
+            # `backend_kw` forwards backend-specific hints (e.g. a measured
+            # descend-bias compensation) without this layer knowing what they
+            # mean. Silently dropped by backends that do not accept them, so a
+            # hint never becomes a hard dependency.
+            try:
+                return self._arm.stream_to(q_target, duration_s,
+                                           approve=self.harness.approve,
+                                           **backend_kw)
+            except TypeError:
+                if not backend_kw:
+                    raise
+                return self._arm.stream_to(q_target, duration_s,
+                                           approve=self.harness.approve)
         finally:
             self.harness.end_motion()
 

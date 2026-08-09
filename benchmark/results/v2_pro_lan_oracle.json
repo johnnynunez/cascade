@@ -1,0 +1,125 @@
+{
+  "suite": "libero_spatial_lan",
+  "episodes_per_task": 10,
+  "max_steps": 300,
+  "perception": "oracle",
+  "perception_note": "oracle: object poses read from sim.data.body_xpos; measures orchestration given perfect perception; NOT comparable to ASPIRE/Pigey/Harness-VLA/VIA, and ASPIRE forbids this API (arXiv:2607.00272)",
+  "results": {
+    "skill_only": {
+      "succ": 0,
+      "n": 100,
+      "claimed": 4,
+      "false": 4,
+      "tasks": [
+        {
+          "task_id": 0,
+          "language": "pick up the black bowl between the plate and the ramekin and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 1,
+          "language": "pick up the black bowl next to the ramekin and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 2,
+          "language": "pick up the black bowl from table center and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 3,
+          "language": "pick up the black bowl on the cookie box and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 4,
+          "language": "pick up the black bowl in the top drawer of the wooden cabinet and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 5,
+          "language": "pick up the black bowl on the ramekin and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 6,
+          "language": "pick up the black bowl next to the cookie box and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 7,
+          "language": "pick up the black bowl on the stove and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 8,
+          "language": "pick up the black bowl next to the plate and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 9,
+          "language": "pick up the black bowl on the wooden cabinet and place it on the plate",
+          "successes": 0
+        }
+      ]
+    },
+    "verified": {
+      "succ": 0,
+      "n": 100,
+      "claimed": 0,
+      "false": 0,
+      "tasks": [
+        {
+          "task_id": 0,
+          "language": "pick up the black bowl between the plate and the ramekin and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 1,
+          "language": "pick up the black bowl next to the ramekin and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 2,
+          "language": "pick up the black bowl from table center and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 3,
+          "language": "pick up the black bowl on the cookie box and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 4,
+          "language": "pick up the black bowl in the top drawer of the wooden cabinet and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 5,
+          "language": "pick up the black bowl on the ramekin and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 6,
+          "language": "pick up the black bowl next to the cookie box and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 7,
+          "language": "pick up the black bowl on the stove and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 8,
+          "language": "pick up the black bowl next to the plate and place it on the plate",
+          "successes": 0
+        },
+        {
+          "task_id": 9,
+          "language": "pick up the black bowl on the wooden cabinet and place it on the plate",
+          "successes": 0
+        }
+      ]
+    }
+  }
+}

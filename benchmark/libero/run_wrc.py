@@ -347,6 +347,81 @@ def resolve_task_objects(inner, language: str,
     return obj, dest
 
 
+def mesh_geometry(inner, body: str):
+    """(extent, top_z, surface cloud) for a body, from its mesh geoms.
+
+    MEASURED BUG this replaces: the oracle seed used a hardcoded 6 cm cube
+    and `top_z = centre + 3 cm`. The akita bowl is 112.4 x 111.3 x 52.6 mm
+    with its top at z = 0.951, while the fake belief claimed a 60 mm cube
+    topping out at 0.928. The grasp planner therefore aimed 5.5 cm too low,
+    drove the fingers 6.3 cm INTO the bowl, and stalled on contact 43.7 mm
+    short of the commanded pose, reported as "did not settle at grasp pose".
+
+    An oracle that lies about geometry is worse than no oracle: it is
+    privileged information AND wrong. If the seeded pose is exact, the seeded
+    size has to be too.
+
+    The cloud matters as much as the size: without it the runtime synthesises
+    a solid box, a bowl reads as a 112 mm solid, and the rim-grasp path can
+    never fire, so a run would measure a planner limitation that only exists
+    in the harness. `points` is exactly what the camera path supplies, which
+    keeps the two paths comparable rather than privileging the oracle.
+
+    Module-level and public on purpose: diagnostic scripts must seed beliefs
+    the SAME way the harness does. A local copy in a script silently goes
+    stale, which already happened once here (the classifier kept the 6 cm cube
+    after this was fixed and reported 10/10 grasp failures the benchmark did
+    not have).
+    """
+    m, d = inner.sim.model, inner.sim.data
+    bid = m.body_name2id(body)
+    pts = []
+    for gid in range(m.ngeom):
+        if m.geom_bodyid[gid] != bid:
+            continue
+        if m.geom_type[gid] != 7:      # mjGEOM_MESH
+            continue
+        mid = m.geom_dataid[gid]
+        s = m.mesh_vertadr[mid]
+        cnt = m.mesh_vertnum[mid]
+        v = m.mesh_vert[s:s + cnt].reshape(-1, 3)
+        R = d.geom_xmat[gid].reshape(3, 3)
+        pts.append(v @ R.T + d.geom_xpos[gid])
+    if not pts:
+        return np.array([0.06, 0.06, 0.06]), None, None
+    P = np.vstack(pts)
+    span = P.max(axis=0) - P.min(axis=0)
+    # BeliefStore keeps <=384 points; sample deterministically so repeated
+    # seeds do not jitter the planner.
+    if len(P) > 384:
+        idx = np.linspace(0, len(P) - 1, 384).astype(int)
+        P = P[idx]
+    return np.asarray(span, dtype=float), float(P[:, 2].max()), P
+
+
+def seed_oracle_beliefs(rt, inner, names, object_pos) -> None:
+    """Seed one belief per body with its true pose AND true geometry."""
+    for name in names:
+        if not name:
+            continue
+        p = object_pos(name)
+        if p is None:
+            continue
+        extent, top_z, cloud = mesh_geometry(inner, name)
+        rt.beliefs.update(label=name, position=np.asarray(p, float),
+                          conf=0.99,
+                          extent=extent,
+                          # Without top_z, place_on_object falls back to the
+                          # destination's CENTRE and releases inside it rather
+                          # than above it. The detector path sets this from the
+                          # observed point cloud; the oracle path must supply
+                          # the equivalent or it hands the agent a worse belief
+                          # than perception would.
+                          top_z=top_z if top_z is not None
+                          else float(p[2]) + 0.03,
+                          points=cloud)
+
+
 def _task_success(env) -> bool:
     """LIBERO's own success predicate, read from live object state.
 
@@ -485,77 +560,7 @@ def main() -> int:
             """
             if a.perception != "oracle":
                 return
-            m = inner.sim.model
-            d = inner.sim.data
-
-            def _real_extent(body: str):
-                """Actual size, top surface and surface cloud from the geoms.
-
-                MEASURED BUG this replaces: the seed used a hardcoded 6 cm cube
-                and `top_z = centre + 3 cm`. The akita bowl is 112.4 mm across
-                and 52.6 mm tall with its top at z = 0.951, while the fake
-                belief claimed a 60 mm cube topping out at 0.928. The grasp
-                planner therefore aimed 5.5 cm too low, drove the fingers
-                6.3 cm INTO the bowl, and stalled on contact 43.7 mm short of
-                the commanded pose, reported as "did not settle at grasp pose".
-
-                An oracle that lies about geometry is worse than no oracle: it
-                is privileged information AND wrong. If the seeded pose is
-                exact, the seeded size has to be too.
-
-                Returns a subsampled surface cloud as well, because shape is
-                what the grasp planner reasons about. Without it the runtime
-                synthesises a solid box, a bowl reads as a 112 mm solid, and
-                the rim grasp can never fire: the run would then measure a
-                planner limitation that only exists in the harness. `points`
-                is exactly what the camera path supplies, so this keeps the
-                two paths comparable rather than privileging the oracle.
-                """
-                bid = m.body_name2id(body)
-                pts = []
-                for gid in range(m.ngeom):
-                    if m.geom_bodyid[gid] != bid:
-                        continue
-                    if m.geom_type[gid] != 7:      # mjGEOM_MESH
-                        continue
-                    mid = m.geom_dataid[gid]
-                    s = m.mesh_vertadr[mid]
-                    cnt = m.mesh_vertnum[mid]
-                    v = m.mesh_vert[s:s + cnt].reshape(-1, 3)
-                    R = d.geom_xmat[gid].reshape(3, 3)
-                    pts.append(v @ R.T + d.geom_xpos[gid])
-                if not pts:
-                    return np.array([0.06, 0.06, 0.06]), None, None
-                P = np.vstack(pts)
-                span = P.max(axis=0) - P.min(axis=0)
-                # BeliefStore keeps <=384 points; sample deterministically so
-                # repeated seeds do not jitter the planner.
-                if len(P) > 384:
-                    idx = np.linspace(0, len(P) - 1, 384).astype(int)
-                    P = P[idx]
-                return np.asarray(span, dtype=float), float(P[:, 2].max()), P
-
-            for name in (obj_body, dest_body):
-                if not name:
-                    continue
-                p = object_pos(name)
-                if p is None:
-                    continue
-                extent, top_z, cloud = _real_extent(name)
-                rt.beliefs.update(label=name, position=np.asarray(p, float),
-                                  conf=0.99,
-                                  extent=extent,
-                                  # Without top_z, place_on_object falls back
-                                  # to the destination's CENTRE and releases
-                                  # inside it rather than above it. The
-                                  # detector path sets this from the observed
-                                  # point cloud; the oracle path must supply
-                                  # the equivalent or it is handing the agent
-                                  # a worse belief than perception would.
-                                  top_z=top_z if top_z is not None
-                                  else float(p[2]) + 0.03,
-                                  points=cloud)
-            del m
+            seed_oracle_beliefs(rt, inner, (obj_body, dest_body), object_pos)
 
         # Background re-publisher: keeps the external perception feed alive for
         # the duration of a skill, the way a real perception service would.

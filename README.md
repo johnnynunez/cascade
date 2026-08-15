@@ -87,6 +87,12 @@ sudo ip link set can0 up type can bitrate 1000000
 python -m wrc_demo.apps.demo --interactive \
     --cameras l515,uvc4k --arm rebot_rs --llm anthropic
 
+# two D455F (serials pinned in the profiles: with identical hardware an
+# unpinned profile binds to whichever unit enumerates first). The live
+# window shows one row per camera, RGB beside its depth colormap.
+python -m wrc_demo.apps.demo --interactive \
+    --cameras d455f_wrist,d455f_scene --arm rebot_rs --llm anthropic
+
 # Isaac Sim instead of hardware (same demo, simulated reBot):
 #   1. inside Isaac Sim's python:  python.sh scripts/isaac_bridge.py --usd <rebot.usd>
 #   2. then:

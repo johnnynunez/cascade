@@ -334,3 +334,94 @@ def test_depth_jpeg_handles_a_frame_without_depth():
     server = StreamServer(_Rig(), port=0)
     jpeg = server.depth_jpeg("flat")
     assert jpeg is not None and jpeg[:2] == b"\xff\xd8"  # a NO DEPTH card, not a crash
+
+
+# ── RigViewer tiles: every sensor a camera has must be visible ───────────
+
+
+def _viewer_stream(has_depth=True, w=80, h=60, name="cam"):
+    """A minimal CameraStream stand-in for render-only tests."""
+    from types import SimpleNamespace
+
+    depth = None
+    if has_depth:
+        depth = np.full((h, w), 1.5, dtype=np.float32)
+        depth[: h // 4] = 0.0  # some invalid pixels, like a real sensor
+
+    class _S:
+        def __init__(self):
+            self.name = name
+            self.fps = 12.0
+
+        def latest(self):
+            return SimpleNamespace(
+                rgb=np.zeros((h, w, 3), dtype=np.uint8),
+                depth_m=depth,
+                has_depth=has_depth,
+                depth_source="sensor" if has_depth else "none",
+                frame_id=3,
+            )
+
+        def overlay(self):
+            return [], "idle"
+
+    return _S()
+
+
+def test_rig_tile_shows_depth_beside_rgb():
+    """A depth camera rendered as RGB-only is the multistream regression:
+    the rig viewer must pane depth next to RGB like FrameHub always did."""
+    from wrc_demo.apps.live_view import RigViewer
+
+    stream = _viewer_stream(has_depth=True, w=80, h=60)
+    viewer = RigViewer([stream], tile_h=60)
+    tile = viewer._render_tile(stream)
+    assert tile is not None
+    # RGB (80) + depth (80) side by side, not a bare 80 px RGB pane.
+    assert tile.shape[1] == 160, f"expected an RGB+depth tile, got {tile.shape}"
+    assert tile[:, 80:].any(), "depth pane is blank"
+
+
+def test_rig_tile_is_rgb_only_for_a_camera_without_depth():
+    """A mixed rig must not pad an RGB-only camera with a fake depth pane."""
+    from wrc_demo.apps.live_view import RigViewer
+
+    stream = _viewer_stream(has_depth=False, w=80, h=60)
+    tile = RigViewer([stream], tile_h=60)._render_tile(stream)
+    assert tile.shape[1] == 80
+
+
+def test_rig_tile_depth_can_be_disabled():
+    from wrc_demo.apps.live_view import RigViewer
+
+    stream = _viewer_stream(has_depth=True, w=80, h=60)
+    tile = RigViewer([stream], tile_h=60, show_depth=False)._render_tile(stream)
+    assert tile.shape[1] == 80
+
+
+def test_tiles_stack_vertically_one_row_per_camera():
+    """Hstacking RGB+depth tiles makes a panel too wide to read; rows win."""
+    from wrc_demo.apps.live_view import _stack_tiles
+
+    a = np.zeros((60, 160, 3), dtype=np.uint8)
+    b = np.zeros((60, 160, 3), dtype=np.uint8)
+    panel = _stack_tiles([a, b])
+    assert panel.shape == (120, 160, 3)
+
+
+def test_stack_tiles_pads_a_narrower_row():
+    """Mixed rig: an RGB-only tile is narrower than an RGB+depth one."""
+    from wrc_demo.apps.live_view import _stack_tiles
+
+    wide = np.full((60, 160, 3), 255, dtype=np.uint8)
+    narrow = np.full((60, 80, 3), 255, dtype=np.uint8)
+    panel = _stack_tiles([wide, narrow])
+    assert panel.shape == (120, 160, 3)
+    assert not panel[60:, 80:].any(), "pad region must be black, not garbage"
+
+
+def test_single_tile_is_returned_untouched():
+    from wrc_demo.apps.live_view import _stack_tiles
+
+    only = np.zeros((60, 160, 3), dtype=np.uint8)
+    assert _stack_tiles([only]) is only

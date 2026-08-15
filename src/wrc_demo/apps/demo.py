@@ -210,7 +210,13 @@ def build_runtime(
     if view:
         from .live_view import RigViewer
 
-        runtime.viewer = RigViewer(rig)
+        vcfg = cfg.get("viewer", {}) or {}
+        runtime.viewer = RigViewer(
+            rig,
+            show_depth=bool(vcfg.get("show_depth", True)),
+            # Default to the dashboard's depth range so both views agree.
+            depth_max_m=float(vcfg.get("depth_max_m", scfg.get("depth_max_m", 2.0))),
+        )
         runtime.viewer.start()
 
     return runtime, arm

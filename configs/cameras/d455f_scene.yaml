@@ -1,0 +1,27 @@
+# Intel RealSense D455F, eye-to-hand (static scene/overhead) unit.
+#
+# Identical hardware to d455f_wrist.yaml, so the serial below is what makes
+# the selection deterministic: with two D455F attached, a profile without a
+# serial binds to whichever unit librealsense enumerates first, which is
+# arbitrary and can flip between boots.
+#
+# Firmware 5.17.0.10 (updated 2026-08-15). Min depth ~0.52 m at 1280x720 --
+# keep the tripod far enough back; below it depth returns 0 (invalid).
+type: realsense
+serial: "261422303968"
+width: 1280
+height: 720
+fps: 30
+min_depth_m: 0.4
+max_depth_m: 4.0
+warmup_frames: 15
+
+extrinsics:
+  mode: eye_to_hand
+  # PLACEHOLDER T_cam2base copied from d455f.yaml. Run hand-eye calibration
+  # on the rig and replace before trusting any 3D belief from this camera.
+  T:
+    - [ 0.0, -1.0,  0.0, 0.28]
+    - [-1.0,  0.0,  0.0, 0.00]
+    - [ 0.0,  0.0, -1.0, 0.60]
+    - [ 0.0,  0.0,  0.0, 1.00]

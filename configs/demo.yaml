@@ -109,6 +109,13 @@ stream:
   quality: 80
   depth_max_m: 2.0          # depth-view colormap range (tabletop scale)
 
+# Local cv2 window (RigViewer). One row per camera, RGB beside its depth
+# colormap so a depth sensor is never silently shown as RGB-only.
+# --no-view / WRC_VIEW=0 still disables the window entirely.
+viewer:
+  show_depth: true
+  # depth_max_m defaults to stream.depth_max_m so both views agree.
+
 # Verify each motion primitive's physical effect against a channel the
 # actuator does not own (sim physics truth, else the belief store).
 verify_effects: true

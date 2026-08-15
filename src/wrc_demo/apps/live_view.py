@@ -53,19 +53,49 @@ def draw_detections(img: np.ndarray, dets) -> None:
             cv2.addWeighted(overlay, 0.25, img, 0.75, 0, dst=img)
 
 
+def _stack_tiles(tiles: list[np.ndarray]) -> np.ndarray:
+    """Compose per-camera tiles into one panel.
+
+    Tiles are stacked VERTICALLY (one row per camera) because an RGB+depth
+    tile is already ~2x as wide as the sensor: hstacking three of those
+    yields a ~7700 px panel that no screen can show without shrinking each
+    camera into illegibility. Rows are padded to the widest tile so a mixed
+    rig (RGB+depth next to RGB-only) still stacks.
+    """
+    if len(tiles) == 1:
+        return tiles[0]
+    width = max(t.shape[1] for t in tiles)
+    padded = []
+    for t in tiles:
+        if t.shape[1] < width:
+            pad = np.zeros((t.shape[0], width - t.shape[1], 3), dtype=t.dtype)
+            t = np.hstack([t, pad])
+        padded.append(t)
+    return np.vstack(padded)
+
+
 class RigViewer:
     """cv2 window over a CameraRig: all streams side by side, annotated.
+
+    Each tile is RGB (with detections) beside its depth colormap, matching
+    what FrameHub shows for a single camera -- a depth-capable sensor whose
+    depth is invisible in the live window is the one failure mode nobody
+    notices until the grasp is already wrong. RGB-only cameras render as a
+    single pane, so a mixed rig (D455F + a plain UVC) still tiles cleanly.
 
     Render-only -- frame pumping lives in each CameraStream. Degrades to a
     silent no-op when no display is available, exactly like FrameHub."""
 
     def __init__(self, rig, title: str = "wrc-demo :: live", scale: float = 0.7,
-                 rate_hz: float = 20.0, tile_h: int = 480):
+                 rate_hz: float = 20.0, tile_h: int = 480,
+                 show_depth: bool = True, depth_max_m: float = 2.0):
         self._rig = rig
         self._title = title
         self._scale = scale
         self._period = 1.0 / rate_hz
         self._tile_h = tile_h
+        self._show_depth = show_depth
+        self._depth_max_m = float(depth_max_m)
         self._stop = False
         self._thread: threading.Thread | None = None
         self._gui_ok = True
@@ -93,10 +123,23 @@ class RigViewer:
         img = frame.rgb.copy()
         draw_detections(img, dets)
         h, w = img.shape[:2]
+        depth_txt = f"depth: {frame.depth_source}"
+        if frame.has_depth:
+            valid = frame.depth_m > 0
+            frac = float(valid.mean())
+            med = float(np.median(frame.depth_m[valid])) if frac > 0 else 0.0
+            depth_txt = (f"depth: {frame.depth_source}  {frac * 100:4.1f}% valid"
+                         f"  med {med:.2f} m")
         draw_hud(img, [
-            f"{stream.name}  {w}x{h}  {stream.fps:4.1f} fps  depth: {frame.depth_source}",
+            f"{stream.name}  {w}x{h}  {stream.fps:4.1f} fps",
+            depth_txt,
             f"agent: {status}",
         ])
+        if self._show_depth and frame.has_depth:
+            dimg = depth_colormap(frame.depth_m, max_m=self._depth_max_m)
+            draw_hud(dimg, [f"{stream.name} depth  0-{self._depth_max_m:.1f} m"])
+            img = np.hstack([img, dimg])
+            h, w = img.shape[:2]
         if h != self._tile_h:
             img = cv2.resize(img, (int(w * self._tile_h / h), self._tile_h))
         return img
@@ -108,7 +151,7 @@ class RigViewer:
             tiles = [t for s in self._rig if (t := self._render_tile(s)) is not None]
             if tiles and self._gui_ok:
                 try:
-                    panel = np.hstack(tiles) if len(tiles) > 1 else tiles[0]
+                    panel = _stack_tiles(tiles)
                     if self._scale != 1.0:
                         panel = cv2.resize(panel, None, fx=self._scale, fy=self._scale)
                     if not window_up:

@@ -139,7 +139,8 @@ src/wrc_demo/
 ├── sim/bridge_client.py  newline-JSON TCP client for scripts/isaac_bridge.py
 └── apps/               demo.py CLI (build_runtime = the composition root),
                         record.py capture, viewer.py (wrc-view live RGB+D),
-                        live_view.py (RigViewer window + draw helpers),
+                        live_view.py (RigViewer window: one row per camera,
+                        RGB beside its depth colormap, + draw helpers),
                         stream_server.py (MJPEG dashboard + narration +
                         POST /task), mcp_server.py (Hermes/Claude Code
                         front-end: skill runtime over MCP stdio,

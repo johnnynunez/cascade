@@ -16,7 +16,7 @@
 #   scripts/openclaw_demo.sh       MCP registration + OpenClaw gateway +
 #                                  brain wiring ("Verified on OpenClaw
 #                                  2026.7.1-2"); this is also what exposes
-#                                  cascade's 21+ skills to OpenClaw -- there
+#                                  cascade's 30 skills to OpenClaw -- there
 #                                  is no separate "install skills" step, the
 #                                  `openclaw mcp add` + tool probe in step 3
 #                                  below IS that step.

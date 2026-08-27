@@ -81,6 +81,7 @@ class WorldWatcher:
         rate_hz: float = 3.0,
         harness=None,
         workspace: "WorkspaceFilter | None" = None,
+        occupancy=None,
     ):
         self._cams = cameras
         self._detector = detector
@@ -89,6 +90,9 @@ class WorldWatcher:
         self._workspace = workspace or WorkspaceFilter()
         self._period = 1.0 / max(rate_hz, 0.1)
         self._harness = harness
+        # OccupancyMap | None -- refreshed here (perception rate_hz), never
+        # from the 50 Hz motion stream; see perception/occupancy.py.
+        self._occupancy = occupancy
         self._stop = False
         self._pause_count = 0
         self._pause_lock = threading.Lock()
@@ -173,12 +177,21 @@ class WorldWatcher:
         # watchdog window and rely on this).
         if self._harness is not None:
             self._harness.heartbeat()
-        if not frame.has_depth or not cam.fuse or self.is_paused:
+        if not frame.has_depth or not cam.fuse:
             return
         # Eye-in-hand cameras carry their extrinsics IN the frame (the
         # camera rides the arm); static cameras use the profile matrix.
         T = (frame.T_base_cam if frame.T_base_cam is not None
              else cam.extrinsics.cam_to_base())
+        if self._occupancy is not None:
+            # Scene geometry, not object identity: refresh even while
+            # belief fusion is paused for motion -- the held object shows
+            # up as depth near the gripper either way, and skipping the
+            # refresh here would let the obstacle map go stale for exactly
+            # the duration motion needs it most.
+            self._occupancy.refresh(frame, T)
+        if self.is_paused:
+            return
         fused = 0
         for d in dets:
             if d.label in self._ignore:

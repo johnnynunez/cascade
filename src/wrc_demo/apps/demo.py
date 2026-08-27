@@ -87,7 +87,16 @@ def build_runtime(
     else:
         arm = make_arm(cfg.arm, kinematics=kin)
         arm.connect()
-    harness = SafetyHarness(SafetyLimits.from_config(cfg.safety), kinematics=kin)
+    from ..perception.occupancy import OccupancyMap
+
+    occupancy = OccupancyMap.from_config(
+        cfg.get("occupancy"),
+        workspace_min=cfg.safety.workspace.min,
+        workspace_max=cfg.safety.workspace.max,
+    )
+    harness = SafetyHarness(
+        SafetyLimits.from_config(cfg.safety), kinematics=kin, occupancy=occupancy
+    )
     safe_arm = SafeArm(arm, harness)
 
     # ── the camera rig: N continuous streams, first = manipulation ──────
@@ -161,6 +170,7 @@ def build_runtime(
             rate_hz=float(pcfg.get("rate_hz", 3.0)),
             harness=harness,
             workspace=WorkspaceFilter.from_config(cfg.get("workspace_filter")),
+            occupancy=occupancy,
         )
         watcher.start()
         runtime.watcher = watcher

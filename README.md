@@ -1,16 +1,23 @@
-# wrc_demo — agentic grasping for the reBot DevArm
+# wrc_demo 🦾 — an agentic hand on a real arm
 
-[![CI](https://github.com/johnnynunez/wrc_demo/actions/workflows/ci.yml/badge.svg)](https://github.com/johnnynunez/wrc_demo/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/johnnynunez/wrc_demo/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/wrc_demo/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python 3.10+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT"></a>
+  <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/docs-architecture-informational?style=flat-square" alt="Architecture docs"></a>
+</p>
 
-Camera-agnostic, LLM-orchestrated tabletop manipulation on the Seeed reBot
-DevArm B601 (RobStride build), driven from an NVIDIA DGX Spark. This is the
-agentic evolution of the
+wrc_demo is camera-agnostic, LLM-orchestrated tabletop manipulation on the
+Seeed reBot DevArm B601 (RobStride build), driven from an NVIDIA DGX Spark.
+It is the agentic evolution of the
 [reBot-DevArm-Grasp](https://github.com/Seeed-Projects/reBot-DevArm-Grasp)
 baseline, designed after NVIDIA GEAR's
 [ASPIRE](https://research.nvidia.com/labs/gear/aspire/) (curated skill API +
 multimodal traces + skill library) and
 [Agentic-VLA](https://arxiv.org/abs/2605.22896) (task decomposition + VLM
 advisor + experience memory).
+
+[Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Booth runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](CLAUDE.md)
 
 ```
               ┌───────────────────────────── agent ─────────────────────────────┐
@@ -31,40 +38,37 @@ get_observation localize   grasp_object        place_at/on    push_object  recal
 └──────────────────┘   └────────────┘      └──────────────┘ └──────────┘ └──────────────┘
 ```
 
-## The four challenges, addressed
+## Install
 
-1. **Depth** — every camera backend yields `Frame` objects with float32
-   *metric* depth aligned to color (kills the L515 0.25 mm vs D4xx 1 mm scale
-   bug class). Cameras without depth fall through a strategy chain:
-   sensor → optional mono-depth plugin → table-plane ray-casting (known
-   plane ⇒ whole-image depth; the YOLO detection mask is applied later at
-   grounding to lift object pixels to 3D), so an RGB-only webcam still
-   grasps tabletop objects. `src/wrc_demo/perception/depth_provider.py`.
-2. **Harness** — a fail-closed `SafetyHarness` vets *every streamed waypoint*
-   (joint limits, velocity caps, workspace AABB, table-plane clearance with a
-   grasp-exemption cylinder, keep-out zones, perception watchdog, e-stop
-   latch), and every skill call writes an ASPIRE-style multimodal trace
-   (`trace.jsonl` + before/after keyframes). `src/wrc_demo/safety/harness.py`.
-3. **Grasping / force** — learned 6-DoF grasps from a GraspGen-X ZMQ server
-   (`grasp.backend: graspgenx`, the default — `scripts/serve_graspgenx.sh`)
-   with automatic fallback to analytic 3D OBB grasps planned in the base
-   frame (short-axis jaw opening, height-fraction grasp depth) whenever the
-   server is down. Candidates are re-ranked by a persisted per-object
-   grasp-outcome memory, then vetted against IK *and* the safety-harness
-   geometry before execution. Material-aware grip profiles
-   (rigid/fragile/soft/deformable/slippery/heavy) map to two-stage
-   stall-aware closes; the LLM passes the material hint it infers.
-   `src/wrc_demo/grasping/`.
-4. **Kinematics** — self-contained Pinocchio FK/IK on the RS URDF (ships in
-   `assets/`), damped-least-squares with random restarts, min-jerk joint
-   streaming with feedback-based settling. Live joint positions on the RS
-   arm come from RobStride `mechPos` (0x7019) param reads — the only reliable
-   feedback path on this hardware. `src/wrc_demo/control/`.
+Everything runs through the shared uv venv — there is no bare `python` on
+the rig and `python3` alone has no pytest.
 
-Plus **memory**: a 10–15 s episodic window (events + JPEG thumbnails +
-optional TurboQuant-compressed embeddings, arXiv:2504.19874) and an
-object-permanence belief store, so "the mug you saw 10 seconds ago" is still
-actionable after occlusion. `src/wrc_demo/memory/`.
+```bash
+# macOS / Linux / DGX Spark
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/wrc_demo/main/scripts/install_occupancy_backend.sh | bash
+```
+
+That installs the optional occupancy/collision-map backend (pyzmq,
+msgpack-numpy, Open3D — same code path on CPU and on an NVIDIA GPU, CUDA:0
+auto-detected at runtime). It is one piece of a larger environment; the full
+one-shot rig bring-up — OpenClaw CLI, the Cosmos3-Edge (vLLM) brain, and
+registering this repo's skills over MCP — is:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/wrc_demo/main/scripts/bootstrap.sh | bash
+```
+
+`scripts/bootstrap.sh` needs an NVIDIA GPU for the default brain (fails
+fast with a clear message if `nvidia-smi` isn't found — use `--brain qwen`
+or `--brain skip` on a CPU-only box). For a from-source checkout instead:
+
+```bash
+git clone https://github.com/johnnynunez/wrc_demo.git && cd wrc_demo
+PY=/home/johnny/Projects/demo/.demo/bin/python scripts/setup_env.sh
+```
+
+See the [installation notes](#setup-notes) below for pyrealsense2, YOLOE's
+text encoder, and other rig-specific gotchas.
 
 ## Quick start
 
@@ -101,22 +105,41 @@ python -m wrc_demo.apps.demo --cameras isaac --arm isaac --interactive
 # real rig, local Qwen3.6 on the Spark (start the server first)
 scripts/serve_qwen_llamacpp.sh          # or serve_qwen_vllm.sh (MTP spec decoding)
 python -m wrc_demo.apps.demo --task "..." --cameras l515 --arm rebot_rs --llm local_qwen
+
+# talk to it through OpenClaw's web chat instead of the CLI loop
+./scripts/openclaw_demo.sh              # registers skills, wires the Cosmos3-Edge brain, opens chat
 ```
 
-Setup on this rig: `scripts/setup_env.sh` (installs into the shared `.demo`
-uv venv). pyrealsense2 comes from the local
-[librealsense L515 fork](https://github.com/johnnynunez/librealsense) build.
-Open-vocabulary text prompts (YOLOE/YOLO-World) additionally need
-`uv pip install git+https://github.com/ultralytics/CLIP.git`; the closed-set
-`yolo11n.pt` works without it.
+## How it fits together
 
-YOLOE also needs a MobileCLIP text encoder — for the shipped
-`yoloe-11s-seg.pt` that is `mobileclip_blt.ts` (~572 MB, too big for
-GitHub, so it is gitignored; this checkout carries it at
-`models/mobileclip_blt.ts`). Ultralytics resolves it **relative to the
-working directory** and auto-downloads it there on first use — launch from
-`models/` (or copy the `.ts` next to your CWD), otherwise every detection
-silently vanishes.
+- **[Perception](src/wrc_demo/perception/)** is camera-agnostic: every
+  backend yields `Frame` objects with float32 *metric* depth aligned to
+  color. Cameras without depth fall through a strategy chain (sensor →
+  optional mono-depth plugin → table-plane ray-casting), so an RGB-only
+  webcam still grasps tabletop objects.
+- **[Safety](src/wrc_demo/safety/)** is a fail-closed `SafetyHarness` that
+  vets every streamed waypoint (joint limits, velocity caps, workspace AABB,
+  table-plane clearance, keep-out zones, perception watchdog, e-stop latch,
+  and an optional [nvblox-style occupancy map](src/wrc_demo/perception/occupancy.py)),
+  plus an ASPIRE-style multimodal trace (`trace.jsonl` + before/after
+  keyframes) on every skill call.
+- **[Grasping](src/wrc_demo/grasping/)** uses learned 6-DoF grasps from a
+  GraspGen-X ZMQ server, falling back to analytic 3D OBB grasps whenever the
+  server is down. Candidates are re-ranked by a persisted grasp-outcome
+  memory, then vetted against IK *and* the safety-harness geometry.
+- **[Control](src/wrc_demo/control/)** is self-contained Pinocchio FK/IK on
+  the RS URDF, damped-least-squares with random restarts, min-jerk joint
+  streaming with feedback-based settling over RobStride CAN.
+- **[Memory](src/wrc_demo/memory/)** is a 10–15 s episodic window plus an
+  object-permanence belief store, so "the mug you saw 10 seconds ago" is
+  still actionable after occlusion.
+- The **[agent](src/wrc_demo/agent/)** dispatches through three tiers —
+  reflex (regex, no LLM) → experience (learned habits) → LLM — so routine
+  commands never wait on the model, with a VLM advisor kicking in on failure.
+
+wrc_demo works with hosted and local [LLM backends](#llm-backends) and is
+exposed as an [MCP server](#run-it-under-any-mcp-agent-platform) any
+MCP-capable host can drive.
 
 ## LLM backends
 
@@ -162,7 +185,7 @@ python scripts/setup_agents.py --camera l515 --arm rebot_rs --write
 | **Claude Code** | project `.mcp.json` (ships in this repo; interpreter path is machine-specific, and it pins the Isaac camera/arm profiles) | if your checkout lives elsewhere, regenerate with the profiles you want: `setup_agents.py --host claude --camera isaac,isaac_side --arm isaac --write` (add `--python <interpreter>` if your venv is not at `<checkout-parent>/.demo`); user-scope: `--host claude` prints the `claude mcp add` one-liner |
 | **Claude Desktop** | `claude_desktop_config.json` | paste the JSON block from `setup_agents.py --host claude` |
 | **Codex CLI** | `~/.codex/config.toml` `[mcp_servers.wrc-demo]` | `setup_agents.py --host codex --write`, verify with `codex mcp list` |
-| **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `./scripts/openclaw_demo.sh` (register + local-brain provider + gateway + web-chat URL); `setup_agents.py --host openclaw` prints the `openclaw mcp add` one-liner + JSON block. OpenClaw blocks the `PYTHONPATH` env — the package must be editable-installed in the venv (the script handles it) |
+| **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `./scripts/bootstrap.sh` (installs the OpenClaw CLI + Cosmos3-Edge brain + registers skills, one shot) or `./scripts/openclaw_demo.sh` if OpenClaw and the brain are already running (register + local-brain provider + gateway + web-chat URL); `setup_agents.py --host openclaw` prints the `openclaw mcp add` one-liner + JSON block. OpenClaw blocks the `PYTHONPATH` env — the package must be editable-installed in the venv (the script handles it) |
 
 The server pre-warms perception at startup (cameras + detector + world
 model) while the ARM stays unpowered until the first motion command
@@ -196,6 +219,23 @@ escape hatch for GPU-PhysX boot NaNs —, `WRC_BRIDGE_BIND`,
 - Strict top-down tool poses are only IK-reachable below z ≈ 0.15 m on the
   B601-RS (wrist limits); grasp heights + hover offsets are configured
   accordingly.
+
+## Setup notes
+
+Setup on this rig: `scripts/setup_env.sh` (installs into the shared `.demo`
+uv venv). pyrealsense2 comes from the local
+[librealsense L515 fork](https://github.com/johnnynunez/librealsense) build.
+Open-vocabulary text prompts (YOLOE/YOLO-World) additionally need
+`uv pip install git+https://github.com/ultralytics/CLIP.git`; the closed-set
+`yolo11n.pt` works without it.
+
+YOLOE also needs a MobileCLIP text encoder — for the shipped
+`yoloe-11s-seg.pt` that is `mobileclip_blt.ts` (~572 MB, too big for
+GitHub, so it is gitignored; this checkout carries it at
+`models/mobileclip_blt.ts`). Ultralytics resolves it **relative to the
+working directory** and auto-downloads it there on first use — launch from
+`models/` (or copy the `.ts` next to your CWD), otherwise every detection
+silently vanishes.
 
 ## Docs
 

@@ -45,6 +45,7 @@ class SafetyLimits:
     joint_margin: float = 0.02  # rad inside URDF limits
     watchdog_s: float = 5.0  # halt if perception heartbeat older than this
     keep_out: list = field(default_factory=list)  # list of (min(3,), max(3,))
+    min_clearance_m: float = 0.03  # TCP/link distance to occupancy obstacles
 
     @classmethod
     def from_config(cls, cfg) -> "SafetyLimits":
@@ -61,13 +62,18 @@ class SafetyLimits:
                 (np.asarray(k["min"], dtype=float), np.asarray(k["max"], dtype=float))
                 for k in cfg.get("keep_out", [])
             ],
+            min_clearance_m=float(cfg.get("min_clearance_m", 0.03)),
         )
 
 
 class SafetyHarness:
-    def __init__(self, limits: SafetyLimits, kinematics=None):
+    def __init__(self, limits: SafetyLimits, kinematics=None, occupancy=None):
         self.limits = limits
         self.kin = kinematics
+        # OccupancyMap | None (see perception/occupancy.py). Optional and
+        # None by default: no nvblox bridge runs unless configured, and an
+        # unconfigured/stale map must never gate motion (booth rule).
+        self.occupancy = occupancy
         self._estopped = False
         self._halt: str | None = None
         self._grasp_exempt: tuple[np.ndarray, float, float] | None = None
@@ -264,6 +270,13 @@ class SafetyHarness:
             if p[2] < self.limits.table_z + 0.01 and not self._in_grasp_cylinder(p):
                 self._reject(f"link/joint {i} at z={p[2]:.3f} would hit the table")
 
+        if self.occupancy is not None:
+            reason = self._occupancy_violation(
+                np.vstack([tcp[None, :], links[1:]]), self._grasp_exempt
+            )
+            if reason is not None:
+                self._reject(reason)
+
     def vet_pose(
         self,
         q: np.ndarray,
@@ -322,6 +335,30 @@ class SafetyHarness:
         for i, p in enumerate(links[1:], start=2):
             if p[2] < self.limits.table_z + 0.01 and not self._in_cylinder(p, exempt):
                 return f"link/joint {i} at z={p[2]:.3f} would hit the table"
+
+        if self.occupancy is not None:
+            reason = self._occupancy_violation(np.vstack([tcp[None, :], links[1:]]), exempt)
+            if reason is not None:
+                return reason
+        return None
+
+    def _occupancy_violation(self, points: np.ndarray, exempt: tuple | None) -> str | None:
+        """nvblox-backed check: any query point closer than min_clearance_m
+        to a cached obstacle, outside the active grasp exemption.
+
+        `points.clearance()` returns None when the map has no fresh data
+        (never refreshed, stale, or the bridge is down) -- that is
+        indistinguishable from "not configured" on purpose: a stalled
+        nvblox bridge must degrade the same way a missing one does, never
+        freeze the arm.
+        """
+        dist = self.occupancy.clearance(points)
+        if dist is None:
+            return None
+        min_c = self.limits.min_clearance_m
+        for i, (p, d) in enumerate(zip(points, dist)):
+            if d < min_c and not self._in_cylinder(p, exempt):
+                return f"point {i} clearance {d:.3f} m below {min_c:.3f} m (nvblox occupancy)"
         return None
 
     def _in_grasp_cylinder(self, p: np.ndarray) -> bool:

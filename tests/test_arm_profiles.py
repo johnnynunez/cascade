@@ -130,6 +130,34 @@ def test_wire_signs_length_matches_declared_dof():
     assert not bad, bad
 
 
+def test_rs_motorbridge_base_yaw_sign_stays_as_measured():
+    """Pins the one wire sign that was confirmed against the physical arm.
+
+    Jogged on the rig 2026-08-27: a commanded +0.100 rad moved mechPos +0.0947
+    rad, and a +0.5 rad jog rotated the base CLOCKWISE viewed from above. FK on
+    this profile puts +q1 toward -y (y is left in the base frame), so clockwise
+    is what the model predicts and +1 is correct.
+
+    This is pinned separately from the length check because the length check
+    would happily pass on an inverted sign, and an inverted base yaw sends every
+    reach to the mirror image of its target -- a failure that looks like bad
+    calibration rather than a sign error.
+
+    Joints 2..6 are deliberately NOT pinned: their signs are inferred from
+    matching scale and zero, not observed, so a test asserting them would
+    manufacture confidence that nobody earned.
+    """
+    for p in _motorbridge_profiles():
+        signs = _load(p).get("wire_signs")
+        assert signs is not None, f"{p.name}: wire_signs missing"
+        assert signs[0] == 1, (
+            f"{p.name}: base yaw wire sign was measured as +1 on the rig "
+            f"(clockwise from above for +q1, matching FK); got {signs[0]}. "
+            "If the arm was rebuilt or a motor re-zeroed, re-jog it and update "
+            "this pin together with the profile comment."
+        )
+
+
 def test_rs_motorbridge_gripper_opens_in_the_positive_direction():
     """Pins a MEASUREMENT, not a preference.
 

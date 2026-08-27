@@ -13,6 +13,24 @@ safety:
   joint_margin: 0.02      # rad inside URDF limits
   watchdog_s: 5.0         # halt motion if perception is staler than this
   keep_out: []            # e.g. [{min: [x,y,z], max: [x,y,z]}] for the tripod
+  min_clearance_m: 0.03   # TCP/link distance to nvblox occupancy obstacles
+
+# Optional nvblox-backed collision map (perception/occupancy.py). Disabled by
+# default: nothing binds the port unless you run scripts/serve_nvblox.sh,
+# which auto-selects an Open3D CUDA:0 backend on an NVIDIA GPU box (the DGX
+# Spark rig) or CPU:0 anywhere else (a booth laptop) -- same behavior, no
+# config change needed either way. Booth rule applies regardless of which
+# device it picked: a down/slow bridge degrades to "no occupancy check",
+# never to blocking motion.
+occupancy:
+  enabled: false
+  host: 127.0.0.1
+  port: 5557
+  timeout_ms: 500          # per ZMQ round trip; refreshed at perception_loop.rate_hz, not per waypoint
+  max_age_s: 10.0          # cached obstacle cloud older than this is treated as absent
+  stride: 8                # depth-pixel subsampling before shipping to the bridge
+  # region_min/region_max: AABB to query for occupied points; defaults to
+  # safety.workspace min/max if omitted.
 
 grasp:
   # Grasp planner: "obb" (analytic, always available) or "graspgenx"

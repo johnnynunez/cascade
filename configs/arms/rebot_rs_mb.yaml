@@ -38,13 +38,30 @@ home_q: [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
 # URDF's 3.480; joint 1 centred on zero at +-2.6), so only per-joint SIGN could
 # still differ. Flip an entry to -1 if scripts/jog_rebot_mb.py shows a joint
 # moving opposite to the URDF's positive axis.
+#
+# Joint 1 CONFIRMED on the rig 2026-08-27: a commanded +0.100 rad moved mechPos
+# +0.0947 rad (feedback agrees with the command), and a +0.5 rad jog rotated the
+# base clockwise seen from above -- which is what FK predicts here, since +q1
+# carries the end effector toward -y (y is left in the base frame). So +1 is
+# right for j1, on BOTH counts that can disagree: wire feedback and physical
+# direction.
+#
+# Joints 2..6 are still INFERRED, not confirmed: their scale and zero match the
+# URDF, but nobody has watched them turn. Jog each one before trusting a pose
+# that depends on it.
 wire_signs: [1, 1, 1, 1, 1, 1]
 
 # MIT gains, sent with every frame. REQUIRED here: dropping the SDK also drops
 # its rebotarm_rs.yaml, so there is no vendor default to inherit.
 #
-# PROVISIONAL -- the MIT gain scale is not yet characterized on this build.
-# Validate before trusting them with a payload:
+# Partially validated 2026-08-27. jog_rebot_mb.py held the arm near its
+# calibrated zero with a UNIFORM kp=8/kd=0.5 -- below every value below -- and
+# sagged only 0.9-1.9 mrad against the script's 50 mrad abort threshold, with
+# 95% tracking on a commanded step. These gains are therefore no worse than
+# what already held the unloaded arm.
+#
+# STILL UNVALIDATED: an outstretched pose (the zero is nearly gravity-neutral,
+# so it barely tests joints 2 and 3) and any payload. Re-check with:
 #   python scripts/jog_rebot_mb.py --joint 1 --hold-only
 # That holds the live pose and aborts if the arm sags past 50 mrad, which is
 # the signal these are too low. Raise the proximal joints (2, 3) first: they

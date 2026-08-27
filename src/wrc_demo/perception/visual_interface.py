@@ -31,6 +31,7 @@ kinematics), so this costs one image encode and no extra perception.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 import cv2
@@ -54,6 +55,7 @@ class Mark:
     uv: tuple[int, int]
     position: list[float]
     reachable: bool = True
+    confirmed: bool = True
     extra: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
@@ -63,6 +65,7 @@ class Mark:
             "position": [round(float(v), 3) for v in self.position],
             "pixel": [int(self.uv[0]), int(self.uv[1])],
             "reachable": self.reachable,
+            "confirmed": self.confirmed,
             **self.extra,
         }
 
@@ -104,12 +107,24 @@ class VisualInterface:
         reach_x: tuple[float, float] = (0.16, 0.18),
         table_z: float = 0.0,
         grid_step_m: float = 0.05,
+        min_observations: int = 2,
+        visible_horizon_s: float = 1.5,
     ):
         self.extrinsics = extrinsics
         self.workspace = workspace or {}
         self.reach_x = reach_x
         self.table_z = float(table_z)
         self.grid_step = float(grid_step_m)
+        #: A belief re-observed fewer than this many times AND not currently
+        #: visible is one sighting the world never confirmed again -- drawn
+        #: as "unconfirmed" instead of a full numbered target (see
+        #: _draw_marks). ROADMAP: "annotated_view surfaced a stale 4th
+        #: 'cube' mark" -- a single misdetection the belief store correctly
+        #: never forgets (object permanence is deliberate), but the
+        #: annotated view was handing it to the agent with the same
+        #: confidence as a repeatedly-confirmed object.
+        self.min_observations = int(min_observations)
+        self.visible_horizon_s = float(visible_horizon_s)
 
     # ── the annotated frame ──────────────────────────────────────────────
 
@@ -121,6 +136,7 @@ class VisualInterface:
         target: np.ndarray | None = None,
         grid: bool = True,
         envelope: bool = True,
+        now: float | None = None,
     ) -> tuple[np.ndarray, list[Mark]]:
         """-> (annotated BGR image, marks).  Never mutates ``frame``."""
         img = np.ascontiguousarray(frame.rgb.copy())
@@ -136,7 +152,7 @@ class VisualInterface:
         if envelope:
             self._draw_envelope(img, T, K)
 
-        marks = self._draw_marks(img, beliefs or [], T, K)
+        marks = self._draw_marks(img, beliefs or [], T, K, now)
 
         if tcp is not None:
             self._draw_tcp(img, np.asarray(tcp, float), T, K)
@@ -212,7 +228,8 @@ class VisualInterface:
         anchor = uv[np.argmin(uv[:, 1])]
         _put_label(img, "top-down IK band", (int(anchor[0]), int(anchor[1]) - 8), (0, 220, 0), 0.45)
 
-    def _draw_marks(self, img, beliefs, T, K) -> list[Mark]:
+    def _draw_marks(self, img, beliefs, T, K, now: float | None = None) -> list[Mark]:
+        now = time.monotonic() if now is None else now
         marks: list[Mark] = []
         for i, b in enumerate(beliefs, start=1):
             try:
@@ -229,21 +246,33 @@ class VisualInterface:
             color = _COLORS[(i - 1) % len(_COLORS)]
             reachable = self._reachable(pos)
             label = str(getattr(b, "label", "?"))
+            last_seen_t = getattr(b, "last_seen_t", now)
+            age_s = max(0.0, float(now - last_seen_t))
+            observations = int(getattr(b, "observations", 1))
+            # Currently visible, or re-observed at least once since first
+            # spotted: a real object. A single stale sighting is drawn but
+            # NOT handed to the agent as an equal-confidence numbered target.
+            confirmed = age_s <= self.visible_horizon_s or observations >= self.min_observations
 
-            cv2.circle(img, (u, v), 13, color, 2, cv2.LINE_AA)
-            cv2.circle(img, (u, v), 3, color, -1, cv2.LINE_AA)
+            if confirmed:
+                cv2.circle(img, (u, v), 13, color, 2, cv2.LINE_AA)
+                cv2.circle(img, (u, v), 3, color, -1, cv2.LINE_AA)
+            else:
+                cv2.circle(img, (u, v), 13, color, 1, cv2.LINE_AA)
             # the index badge is what the agent refers to
             cv2.rectangle(img, (u - 24, v - 26), (u - 6, v - 8), color, -1)
             _put_label(img, str(i), (u - 21, v - 12), _BLACK, 0.5, 2)
             tag = f"{label}  ({pos[0]:.2f}, {pos[1]:.2f})"
             if not reachable:
                 tag += " OUT-OF-REACH"
+            if not confirmed:
+                tag += f"  UNCONFIRMED {age_s:.0f}s"
             _put_label(img, tag, (u + 18, v + 4), color, 0.44)
 
             marks.append(
                 Mark(index=i, label=label, uv=(u, v), position=pos.tolist(),
-                     reachable=reachable,
-                     extra={"age_s": round(float(getattr(b, "age", 0.0) or 0.0), 1)})
+                     reachable=reachable, confirmed=confirmed,
+                     extra={"age_s": round(age_s, 1)})
             )
         return marks
 
@@ -290,6 +319,8 @@ class VisualInterface:
         ]
         for m in marks:
             flag = "" if m.reachable else "  [outside the workspace AABB]"
+            if not m.confirmed:
+                flag += "  [UNCONFIRMED: one stale sighting, may not be real]"
             lines.append(
                 f"  {m.index}. {m.label} at ({m.position[0]:.3f}, "
                 f"{m.position[1]:.3f}, {m.position[2]:.3f}){flag}"

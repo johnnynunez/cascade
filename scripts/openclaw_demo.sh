@@ -10,8 +10,9 @@
 #   ./scripts/openclaw_demo.sh --brain skip             # keep current model
 #
 # Brains are the local servers from this repo (start them first):
-#   cosmos  scripts/serve_cosmos_vllm.sh   -> http://127.0.0.1:8082/v1  (cosmos3-edge)
-#   qwen    scripts/serve_qwen_llamacpp.sh -> http://127.0.0.1:8080/v1
+#   cosmos         scripts/serve_cosmos_vllm.sh   -> http://127.0.0.1:8082/v1  (cosmos3-edge, vLLM)
+#   cosmos-sglang  scripts/serve_cosmos_sglang.sh -> http://127.0.0.1:8083/v1  (cosmos3-edge, SGLang; UNVERIFIED, see script header)
+#   qwen           scripts/serve_qwen_llamacpp.sh -> http://127.0.0.1:8080/v1
 #           NOTE: OpenClaw's agent system prompt overflows llama.cpp's default
 #           16k/slot — serve Qwen with CTX=65536 for OpenClaw.
 #
@@ -46,7 +47,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --cameras) CAMERAS="$2"; shift 2 ;;
         --arm) ARM="$2"; shift 2 ;;
-        --brain) BRAIN="$2"; shift 2 ;;   # cosmos | qwen | skip
+        --brain) BRAIN="$2"; shift 2 ;;   # cosmos | cosmos-sglang | qwen | skip
         *) echo "unknown flag $1"; exit 1 ;;
     esac
 done
@@ -90,13 +91,14 @@ ss -ltn 2>/dev/null | grep -q ':18789' \
 
 # 3. Point the agent at a local brain (custom OpenAI-compatible provider).
 case "$BRAIN" in
-    cosmos) BASE_URL="http://127.0.0.1:8082/v1"; MODEL_ID="cosmos3-edge"; CTX=32768 ;;
+    cosmos)        BASE_URL="http://127.0.0.1:8082/v1"; MODEL_ID="cosmos3-edge"; CTX=32768 ;;
+    cosmos-sglang) BASE_URL="http://127.0.0.1:8083/v1"; MODEL_ID="cosmos3-edge"; CTX=32768 ;;
     qwen)   BASE_URL="http://127.0.0.1:8080/v1"
             MODEL_ID="$(curl -sf -m 5 http://127.0.0.1:8080/v1/models \
                         | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["models"][0]["model"])')"
             CTX=65536 ;;
     skip)   BASE_URL="" ;;
-    *) echo "unknown --brain $BRAIN (cosmos|qwen|skip)"; exit 1 ;;
+    *) echo "unknown --brain $BRAIN (cosmos|cosmos-sglang|qwen|skip)"; exit 1 ;;
 esac
 if [[ -n "$BASE_URL" ]]; then
     if ! curl -sf -m 5 "$BASE_URL/models" >/dev/null; then

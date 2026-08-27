@@ -1,0 +1,29 @@
+# Local backend on the DGX Spark: NVIDIA Cosmos3-Edge Reasoner (2.44B MoT)
+# behind SGLang's OpenAI-compatible server instead of vLLM
+# (configs/llm/local_cosmos.yaml). Start it with
+# scripts/serve_cosmos_sglang.sh. KEEP IN SYNC: SGLang rejects a model-name
+# mismatch the same way vLLM does -- `model:` below must match the serve
+# script's SERVED_NAME. Port is deliberately different from the vLLM profile
+# (:8083 vs :8082) so both engines can be A/B'd side by side per the
+# ROADMAP's "compare tool-call reliability + latency" follow-up without
+# tearing one down first.
+#
+# type is STILL `cosmos3`, exactly like the vLLM profile: the chat template
+# (and therefore the XML tool-call shape agent/cosmos3.py parses) is a
+# property of the MODEL, not the serving engine. Swapping vLLM for SGLang
+# only changes base_url/port; nothing about response parsing changes.
+#
+# SGLang serving here is UNVERIFIED on this rig (unlike local_cosmos.yaml,
+# which carries a "verified on GB10" serve script) -- treat the first booth
+# run against this profile as the verification pass, and update this note
+# once it has one.
+type: cosmos3
+base_url: http://127.0.0.1:8083/v1
+model: cosmos3-edge
+api_key: EMPTY
+supports_vision: true     # vision encoder is served; image input untested on the rig
+temperature: 0.2
+enable_thinking: true     # matches the template default the serve script notes;
+                          # set false to trade reasoning depth for booth pacing
+max_frames: 1             # >1 attaches a short clip (the reasoner takes ~4 fps
+                          # video) so the model can see motion, not one still

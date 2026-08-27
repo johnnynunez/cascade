@@ -125,6 +125,7 @@ silently vanishes.
 | `anthropic` | Claude (cloud) | `ANTHROPIC_API_KEY`; vision + tools |
 | `local_qwen` | local Qwen via llama.cpp / vLLM on the Spark | OpenAI-compatible; MTP speculative decoding (~1.4–2.2× decode) |
 | `local_cosmos` | NVIDIA Cosmos3-Edge Reasoner via vLLM on the Spark | `scripts/serve_cosmos_vllm.sh` (:8082); 2.44B MoT, thinking on by default — see the script header for the day-one serving pitfalls it works around |
+| `local_cosmos_sglang` | same Cosmos3-Edge Reasoner via SGLang instead of vLLM | `scripts/serve_cosmos_sglang.sh` (:8083); same `type: cosmos3` client (chat template is a property of the checkpoint, not the engine) — **UNVERIFIED**, first booth run against it is the verification pass |
 | `openai` | any OpenAI-compatible cloud endpoint | `OPENAI_API_KEY` |
 | `mock` | scripted | tests / wiring checks |
 

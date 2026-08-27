@@ -13,6 +13,16 @@ hand-tuned YAML constants and in a human's head.  Here it becomes *data*: a
 per-skill, per-feature record of where calls succeeded and where they failed,
 learned from the same traces ASPIRE feeds to its debugger.
 
+2026-08-27: confidence is now graduated, not a single MIN_SUPPORT cliff, after
+checking the actual ``RLinf/RPent`` repo (the code behind the Harness-VLA
+paper, not just its abstract) -- its memory layer tags entries
+``single-shot -> probable -> verified`` by evidence breadth, and separately
+tracks when a "proven" entry gets falsified by a later contrary observation
+(``contradicted_by``). This module had no analogue of either: a span was
+either trusted or unknown, and nothing recorded a failure landing INSIDE a
+range this same skill had "proven" safe. See ``_Span.confidence()`` and the
+``contradictions`` counter below.
+
 Three products, all cheap to compute:
 
 1. ``check(skill, args, **extra)`` -- a PRE-FLIGHT verdict.  A motion costs
@@ -116,6 +126,10 @@ class _Span:
     hi: float
     n: int = 1
     mean: float = 0.0
+    #: RPent-style regression signal: a later call whose feature value fell
+    #: INSIDE this "proven" range still failed. The range stays (advisory,
+    #: never rewritten from a single loss), but confidence downgrades.
+    contradictions: int = 0
 
     def add(self, v: float) -> None:
         self.lo = min(self.lo, v)
@@ -127,13 +141,27 @@ class _Span:
         pad = max((self.hi - self.lo) * SLACK_FRAC, 1e-4)
         return self.lo - pad, self.hi + pad
 
+    def confidence(self, min_support: int) -> str:
+        """RPent's evidence-breadth tiers, ported to this module's only
+        breadth signal (sample count -- there is no per-task grouping here,
+        spans are deliberately scene-independent, see module docstring)."""
+        if self.n < min_support:
+            return "single-shot"
+        if self.n < 2 * min_support:
+            return "probable"
+        return "verified"
+
     def to_json(self) -> dict:
-        return {"lo": self.lo, "hi": self.hi, "n": self.n, "mean": self.mean}
+        return {
+            "lo": self.lo, "hi": self.hi, "n": self.n, "mean": self.mean,
+            "contradictions": self.contradictions,
+        }
 
     @classmethod
     def from_json(cls, d: dict) -> "_Span":
         return cls(lo=float(d["lo"]), hi=float(d["hi"]),
-                   n=int(d.get("n", 1)), mean=float(d.get("mean", d["lo"])))
+                   n=int(d.get("n", 1)), mean=float(d.get("mean", d["lo"])),
+                   contradictions=int(d.get("contradictions", 0)))
 
 
 @dataclass
@@ -184,9 +212,16 @@ class Verdict:
     reason: str = ""
     #: features that fell outside the learned success span
     outliers: list[dict] = field(default_factory=list)
+    #: non-blocking cautions: e.g. the requested value sits inside a
+    #: "proven" range that has since been contradicted by a real failure.
+    #: Never flips ok to False -- booth rule: advisory only.
+    notes: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
-        return {"ok": self.ok, "reason": self.reason, "outliers": self.outliers}
+        return {
+            "ok": self.ok, "reason": self.reason,
+            "outliers": self.outliers, "notes": self.notes,
+        }
 
 
 class OperatingEnvelope:
@@ -230,6 +265,15 @@ class OperatingEnvelope:
                 sig = normalize_failure(error)
                 st.failures[sig] = st.failures.get(sig, 0) + 1
                 st.last_error = error or ""
+                # RPent contradiction signal: this failing call's feature
+                # value landed INSIDE a range this skill had "proven" safe.
+                # The range itself is untouched (one loss shouldn't erase
+                # many wins), but its confidence must reflect that it just
+                # failed here.
+                for key, val in feats.items():
+                    span = st.spans.get(key)
+                    if span is not None and span.lo <= val <= span.hi:
+                        span.contradictions += 1
             if duration_ms > 0:
                 n = max(st.attempts, 1)
                 st.duration_ms_mean += (duration_ms - st.duration_ms_mean) / n
@@ -253,6 +297,7 @@ class OperatingEnvelope:
 
         feats = _numeric_features(args, extra)
         outliers = []
+        notes = []
         for key, val in feats.items():
             entry = spans.get(key)
             if entry is None:
@@ -267,8 +312,15 @@ class OperatingEnvelope:
                         "n": span.n,
                     }
                 )
+            elif span.contradictions:
+                notes.append(
+                    f"{key}={round(val, 4)} is inside the proven range "
+                    f"[{round(span.lo, 4)}, {round(span.hi, 4)}] but that range "
+                    f"has {span.contradictions} recorded failure(s) since -- "
+                    "treat cautiously"
+                )
         if not outliers:
-            return Verdict(ok=True)
+            return Verdict(ok=True, notes=notes)
         parts = [
             f"{o['feature']}={o['value']} outside proven range "
             f"[{o['known_good'][0]}, {o['known_good'][1]}] (n={o['n']})"
@@ -278,6 +330,7 @@ class OperatingEnvelope:
             ok=False,
             reason=f"{skill}: " + "; ".join(parts),
             outliers=outliers,
+            notes=notes,
         )
 
     # ── reporting ────────────────────────────────────────────────────────
@@ -306,6 +359,12 @@ class OperatingEnvelope:
         rows.sort(key=lambda r: -r[0])
         return "\n".join(f"- {line}" for _, line in rows[:top])
 
+    def _span_label(self, v: "_Span") -> str:
+        label = f"{v.lo:.3f}, {v.hi:.3f}] ({v.confidence(self.min_support)}"
+        if v.contradictions:
+            label += f", {v.contradictions} contradiction{'s' if v.contradictions != 1 else ''}"
+        return label + ")"
+
     def envelope_digest(self, top: int = 4) -> str:
         """Where each primitive is known to work (base-frame scalars)."""
         with self._lock:
@@ -314,7 +373,7 @@ class OperatingEnvelope:
                 if st.wins < self.min_support:
                     continue
                 good = [
-                    f"{k} in [{v.lo:.3f}, {v.hi:.3f}]"
+                    f"{k} in [{self._span_label(v)}"
                     for k, v in sorted(st.spans.items())
                     if v.n >= self.min_support
                 ][:top]
@@ -422,9 +481,15 @@ class OperatingEnvelope:
                     f"({st.success_rate*100:.0f}% success, ~{st.duration_ms_mean/1000:.1f}s)"
                 )
                 for key, span in sorted(st.spans.items()):
+                    conf = span.confidence(self.min_support)
+                    contra = (
+                        f", {span.contradictions} contradiction"
+                        f"{'s' if span.contradictions != 1 else ''}"
+                        if span.contradictions else ""
+                    )
                     lines.append(
                         f"- `{key}` succeeded in [{span.lo:.4f}, {span.hi:.4f}] "
-                        f"(mean {span.mean:.4f}, n={span.n})"
+                        f"(mean {span.mean:.4f}, n={span.n}, {conf}{contra})"
                     )
                 for sig, n in sorted(st.failures.items(), key=lambda kv: -kv[1]):
                     lines.append(f"- FAILURE `{sig}` x{n}")

@@ -233,3 +233,12 @@ models/sam*.pt
 # benchmark artefacts
 benchmark/**/__pycache__/
 benchmark/*.pdf
+
+# Camera SDK logs. The SDK rotates as OrbbecSDK.log.N.txt, which the *.log rule
+# above never matches because the name ends in .txt; each rotation caps at
+# 100 MiB, so four of them reached 352 MB in history before being purged.
+Log/
+*.log.*
+
+# macOS
+.DS_Store

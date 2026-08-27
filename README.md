@@ -7,13 +7,19 @@
   <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/docs-architecture-informational?style=flat-square" alt="Architecture docs"></a>
 </p>
 
-CASCADE (package name `cascade`, unchanged — see [naming note](#naming-note))
-is camera-agnostic, LLM-orchestrated tabletop manipulation on the Seeed reBot
-DevArm B601 (RobStride build), driven from an NVIDIA DGX Spark. Its defining
-idea is the cascade itself: routine commands resolve on a regex reflex or a
-learned habit tier and never touch the LLM, which only gets called when
-both fail — the same skill API, safety harness, and traces apply regardless
-of which tier acted. It is the agentic evolution of the
+CASCADE is a **hardware-agnostic** framework for agentic manipulation:
+cameras, arms, and LLM backends are all pluggable behind one curated skill
+API, so the same 30 skills, safety harness, and traces work whether the
+backend is a RealSense D455F/D435i or a generic UVC webcam, a real 6-DoF
+arm over CAN or a simulated one in Isaac Sim, and a cloud LLM or a local
+one. Its defining idea is the cascade itself: routine commands resolve on a
+regex reflex or a learned habit tier and never touch the LLM, which only
+gets called when both fail — behavior, safety, and tracing stay identical
+regardless of which tier (or which hardware) acted.
+
+The reference deployment drives a Seeed reBot DevArm B601 (RobStride build)
+from an NVIDIA DGX Spark — that is *a* configuration this framework runs on,
+not what it is. It is the agentic evolution of the
 [reBot-DevArm-Grasp](https://github.com/Seeed-Projects/reBot-DevArm-Grasp)
 baseline, designed after NVIDIA GEAR's
 [ASPIRE](https://research.nvidia.com/labs/gear/aspire/) (curated skill API +
@@ -319,12 +325,12 @@ silently vanishes.
 
 ## Naming note
 
-The GitHub repo and project name are **CASCADE**
-(github.com/johnnynunez/cascade); the Python package, import path, and CLI
-entry points (`cascade`, `cascade`, `cascade-mcp`, ...) are still `cascade` /
-`wrc-*` throughout the codebase and were deliberately left unchanged — a
-package/import rename touches every module, test, and config in the repo
-and is a separate, much larger change from renaming the project. If that
-rename happens later, `pyproject.toml`'s `name`/`[project.scripts]`, every
-`from cascade...` import, and `configs/*.yaml`/`CLAUDE.md`/`.mcp.json` all
-need to move together.
+The GitHub repo, Python package/import path, CLI entry points
+(`cascade`, `cascade-record`, `cascade-mcp`, `cascade-view`), and env var
+prefix (`CASCADE_*`) are all **cascade** (github.com/johnnynunez/cascade) —
+renamed together from the original `wrc_demo`/`WRC_*` naming so the codebase
+has one consistent identifier throughout. If you have an older checkout or
+external tool config (Hermes/OpenClaw/Claude/Codex MCP registration,
+`~/.wrc_demo/` persisted grasp/experience memory) still pointing at the old
+name, re-run `scripts/setup_agents.py` for the former and copy
+`~/.wrc_demo/*` to `~/.cascade/` for the latter.

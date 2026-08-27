@@ -1,11 +1,11 @@
 [project]
 name = "cascade"
 version = "0.1.0"
-description = "CASCADE: cascaded reflex/habit/LLM dispatch for agentic tabletop manipulation on the reBot DevArm (RobStride), driven from an NVIDIA DGX Spark"
+description = "CASCADE: a hardware-agnostic framework for cascaded reflex/habit/LLM agentic manipulation -- pluggable arms, cameras, and LLM backends behind one curated skill API"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-authors = [{ name = "Johnny Nunez", email = "johnnync13@gmail.com" }]
+authors = [{ name = "Johnny Nunez" }]
 dependencies = [
     "numpy>=1.26",
     "opencv-python-headless>=4.8",

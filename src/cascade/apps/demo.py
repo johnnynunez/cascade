@@ -1,6 +1,6 @@
 """Main demo entry point.
 
-    wrc-demo --task "pick and place pink object" \
+    cascade --task "pick and place pink object" \
              --cameras l515,uvc --arm rebot_rs --llm anthropic
 
 Defaults are the fully-offline stack (mock camera/arm/llm) so the wiring can
@@ -211,7 +211,7 @@ def build_runtime(
     if mode == "eager":
         opened = runtime.live_view.open(reason="stream.mode: eager")
         if not opened.get("ok"):
-            print(f"[wrc-demo] livestream disabled ({opened.get('error')})",
+            print(f"[cascade] livestream disabled ({opened.get('error')})",
                   file=sys.stderr)
     # Back-compat: existing code (and tests) read runtime.stream_server.
     # It tracks the controller, so it is None while the view is closed.
@@ -294,7 +294,7 @@ def _make_detector(cfg):
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="WRC agentic grasping demo")
+    p = argparse.ArgumentParser(description="CASCADE agentic grasping demo")
     p.add_argument("--task", default=None, help="natural-language task")
     p.add_argument("--camera", default="mock", help="camera profile (mock|l515|d435i|uvc)")
     p.add_argument("--cameras", default=None,
@@ -319,20 +319,20 @@ def main(argv: list[str] | None = None) -> int:
     import os
 
     view = not args.no_view and bool(os.environ.get("DISPLAY"))
-    print(f"[wrc-demo] cameras={cameras or [args.camera]} arm={args.arm} "
+    print(f"[cascade] cameras={cameras or [args.camera]} arm={args.arm} "
           f"llm={args.llm} view={view}")
-    print(f"[wrc-demo] traces -> {run_dir}")
+    print(f"[cascade] traces -> {run_dir}")
 
     runtime, arm = build_runtime(cfg, run_dir, view=view, serve=not args.no_serve)
     if runtime.stream_server is not None:
-        print(f"[wrc-demo] LIVESTREAM dashboard: {runtime.stream_server.url}")
+        print(f"[cascade] LIVESTREAM dashboard: {runtime.stream_server.url}")
 
     # Ctrl+C = soft stop (freeze + latch e-stop, no free-fall); a second
     # Ctrl+C raises KeyboardInterrupt and tears the process down.
     import signal
 
     def _sigint(_sig, _frm):
-        print("\n[wrc-demo] SIGINT: soft-stopping the arm (Ctrl+C again to exit)")
+        print("\n[cascade] SIGINT: soft-stopping the arm (Ctrl+C again to exit)")
         runtime.arm.stop()
         signal.signal(signal.SIGINT, signal.default_int_handler)
 

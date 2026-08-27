@@ -2546,7 +2546,7 @@ wheels = [
 ]
 
 [[package]]
-name = "wrc-demo"
+name = "cascade"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

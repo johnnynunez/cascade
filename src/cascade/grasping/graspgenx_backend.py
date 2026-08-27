@@ -2,17 +2,17 @@
 
 Talks to a GraspGen-X ZMQ server (NVlabs/GraspGenX client-server mode) with a
 self-contained msgpack wire client -- the heavy model stack lives in its own
-venv/process (~/Projects/demo/.graspgenx), wrc_demo only needs pyzmq +
+venv/process (~/Projects/demo/.graspgenx), cascade only needs pyzmq +
 msgpack-numpy. Launch the server with scripts/serve_graspgenx.sh.
 
 Flow: the segmented object points from an ObjectFix (already in the BASE
 frame) go up; ranked (K,4,4) grasp poses come back in the SAME frame
 ("grasps are returned in the input point cloud's frame"). Poses convert to
-wrc_demo's Grasp convention:
+cascade's Grasp convention:
 
     GraspGen-X gripper frame: +Z = approach axis, +X = jaw closing axis,
         origin at the GRIPPER BASE.
-    wrc_demo Grasp: rotation columns [x=approach, y=jaw-opening, z=x*y],
+    cascade Grasp: rotation columns [x=approach, y=jaw-opening, z=x*y],
         position = the point BETWEEN the jaws (the arm's gripper_end frame).
 
 so R_wrc = [R[:,2], R[:,0], R[:,1]] (even permutation) and the position

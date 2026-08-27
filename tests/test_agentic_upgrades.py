@@ -15,18 +15,18 @@ from types import SimpleNamespace
 
 import pytest
 
-from wrc_demo.agent.aspire import diagnose, distil, harvest, retrieve
-from wrc_demo.agent.cosmos3 import parse_xml_tool_calls, strip_reasoning
-from wrc_demo.agent.effects import (
+from cascade.agent.aspire import diagnose, distil, harvest, retrieve
+from cascade.agent.cosmos3 import parse_xml_tool_calls, strip_reasoning
+from cascade.agent.effects import (
     CONFIRMED,
     REFUTED,
     UNVERIFIED,
     PostconditionChecker,
     annotate_result,
 )
-from wrc_demo.agent.milestones import DONE, PENDING, UNKNOWN, MilestoneTracker
-from wrc_demo.memory.envelope import OperatingEnvelope, normalize_failure
-from wrc_demo.skills.library import SkillLibrary
+from cascade.agent.milestones import DONE, PENDING, UNKNOWN, MilestoneTracker
+from cascade.memory.envelope import OperatingEnvelope, normalize_failure
+from cascade.skills.library import SkillLibrary
 
 
 # ── Harness-VLA: operating envelopes ─────────────────────────────────────

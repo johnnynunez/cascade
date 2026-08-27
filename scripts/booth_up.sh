@@ -14,16 +14,16 @@ set -uo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PY="${PY:-$(cd "$REPO/.." && pwd)/.demo/bin/python}"
 ARM="${ARM:-rebot_rs}"
-PORT="${WRC_STREAM_PORT:-8090}"
+PORT="${CASCADE_STREAM_PORT:-8090}"
 FAIL=0
 
 ok()   { echo "[+] $*"; }
 warn() { echo "[!] $*"; FAIL=1; }
 
-echo "=== wrc_demo booth pre-flight ($(date '+%H:%M')) ==="
+echo "=== cascade booth pre-flight ($(date '+%H:%M')) ==="
 
 # 1. interpreter + package
-if [[ -x "$PY" ]] && "$PY" -c "import wrc_demo" 2>/dev/null; then
+if [[ -x "$PY" ]] && "$PY" -c "import cascade" 2>/dev/null; then
     ok "venv python: $PY"
 else
     warn "no working interpreter at $PY (set PY=... to your .demo venv)"
@@ -56,27 +56,27 @@ else
 fi
 
 # 3b. booth tuning overlay: bounded worst cases for 15-min sessions
-#     (configs/booth.yaml via WRC_BOOTH; see BOOTH_RUNBOOK.md §1)
+#     (configs/booth.yaml via CASCADE_BOOTH; see BOOTH_RUNBOOK.md §1)
 if [[ ! -f "$REPO/configs/booth.yaml" ]]; then
     warn "configs/booth.yaml MISSING (broken checkout) -- the MCP server" \
-         "will refuse to start with WRC_BOOTH set"
+         "will refuse to start with CASCADE_BOOTH set"
 fi
-BOOTH_VAL="$(grep -oE '"WRC_BOOTH": *"[^"]*"' "$REPO/.mcp.json" 2>/dev/null \
-             | sed -E 's/.*"WRC_BOOTH": *"([^"]*)".*/\1/' | tr -d ' ' \
+BOOTH_VAL="$(grep -oE '"CASCADE_BOOTH": *"[^"]*"' "$REPO/.mcp.json" 2>/dev/null \
+             | sed -E 's/.*"CASCADE_BOOTH": *"([^"]*)".*/\1/' | tr -d ' ' \
              | tr '[:upper:]' '[:lower:]')"
 case "$BOOTH_VAL" in
     ""|0|false|no|off)
         warn "booth tuning NOT active -- dev timing budgets (120 s picks)." \
-             "Regenerate .mcp.json with: --env WRC_BOOTH=1" ;;
-    *)  ok "booth tuning active (WRC_BOOTH=$BOOTH_VAL in .mcp.json)" ;;
+             "Regenerate .mcp.json with: --env CASCADE_BOOTH=1" ;;
+    *)  ok "booth tuning active (CASCADE_BOOTH=$BOOTH_VAL in .mcp.json)" ;;
 esac
 
 # 4. .mcp.json must pin the rig you mean to drive (it has pinned the Isaac
 #    sim stack before -- confusing, though harmless).
-if grep -q '"WRC_ARM": "'"$ARM"'"' "$REPO/.mcp.json" 2>/dev/null; then
+if grep -q '"CASCADE_ARM": "'"$ARM"'"' "$REPO/.mcp.json" 2>/dev/null; then
     ok ".mcp.json arm profile: $ARM"
 else
-    warn ".mcp.json WRC_ARM is not '$ARM' -- attendees would drive the wrong arm"
+    warn ".mcp.json CASCADE_ARM is not '$ARM' -- attendees would drive the wrong arm"
 fi
 
 # 5. GraspGen-X server: grasping SILENTLY falls back to the analytic OBB
@@ -111,7 +111,7 @@ fi
 # 8. learned state: the day-long learning arc is part of the demo -- keep
 #    it, but snapshot the morning baseline so a bad rehearsal can be undone
 #    (scripts/booth_reset.sh --restore-brain).
-GM="$HOME/.wrc_demo/grasp_memory.json"
+GM="$HOME/.cascade/grasp_memory.json"
 if [[ -f "$GM" && ! -f "$GM.morning" ]]; then
     cp "$GM" "$GM.morning"
     ok "grasp memory baseline snapshotted -> $GM.morning"
@@ -135,6 +135,6 @@ else
     echo "=== FIX THE [!] LINES ABOVE, then launch: ==="
 fi
 echo "    cd $REPO && claude       # or your MCP host of choice"
-echo "    (the wrc-demo MCP server starts automatically from .mcp.json;"
+echo "    (the cascade MCP server starts automatically from .mcp.json;"
 echo "     perception pre-warms, motors stay off until the first motion)"
 exit "$FAIL"

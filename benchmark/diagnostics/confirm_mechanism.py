@@ -14,7 +14,7 @@ import time
 
 import numpy as np
 
-from wrc_demo.sim.bridge_client import BridgeClient
+from cascade.sim.bridge_client import BridgeClient
 
 c = BridgeClient(port=8611)
 c.connect()

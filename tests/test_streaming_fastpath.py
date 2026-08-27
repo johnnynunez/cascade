@@ -11,12 +11,12 @@ import pytest
 
 from conftest import needs_pin
 
-from wrc_demo.agent.reflex import ExperienceMemory, FastPlanner, parse_command
-from wrc_demo.config import Cfg, load_demo_config
-from wrc_demo.memory.beliefs import BeliefStore
-from wrc_demo.perception.colors import classify_hsv, mask_color, parse_color_query
-from wrc_demo.perception.mock_camera import MockCamera, synthetic_tabletop
-from wrc_demo.perception.stream import CameraRig, CameraStream
+from cascade.agent.reflex import ExperienceMemory, FastPlanner, parse_command
+from cascade.config import Cfg, load_demo_config
+from cascade.memory.beliefs import BeliefStore
+from cascade.perception.colors import classify_hsv, mask_color, parse_color_query
+from cascade.perception.mock_camera import MockCamera, synthetic_tabletop
+from cascade.perception.stream import CameraRig, CameraStream
 
 
 # ── colors ────────────────────────────────────────────────────────────────
@@ -169,10 +169,10 @@ def test_camera_rig_streams_n_cameras():
 
 
 def test_world_watcher_populates_beliefs_with_color(demo_cfg):
-    from wrc_demo.perception.detector import MockDetector
-    from wrc_demo.perception.depth_provider import DepthProvider
-    from wrc_demo.perception.grounding import Extrinsics
-    from wrc_demo.perception.world import LockedDetector, WatchedCamera, WorldWatcher
+    from cascade.perception.detector import MockDetector
+    from cascade.perception.depth_provider import DepthProvider
+    from cascade.perception.grounding import Extrinsics
+    from cascade.perception.world import LockedDetector, WatchedCamera, WorldWatcher
 
     stream = _mock_stream()
     stream.open()
@@ -209,7 +209,7 @@ def test_world_watcher_populates_beliefs_with_color(demo_cfg):
 
 
 def test_stream_server_serves_state_snapshot_and_index():
-    from wrc_demo.apps.stream_server import StreamServer
+    from cascade.apps.stream_server import StreamServer
 
     rig = CameraRig([_mock_stream("over")])
     rig.open()
@@ -232,7 +232,7 @@ def test_stream_server_serves_state_snapshot_and_index():
 def test_stream_server_keyframes_routes(tmp_path):
     """Booth roadmap item 4: the run dir's before/after keyframes are served
     at /keyframes (newest first) with basename-only file access."""
-    from wrc_demo.apps.stream_server import StreamServer
+    from cascade.apps.stream_server import StreamServer
 
     kd = tmp_path / "keyframes"
     kd.mkdir()
@@ -269,7 +269,7 @@ def test_stream_server_keyframes_routes(tmp_path):
 
 
 def test_stream_server_keyframes_disabled_without_dir():
-    from wrc_demo.apps.stream_server import StreamServer
+    from cascade.apps.stream_server import StreamServer
 
     rig = CameraRig([_mock_stream("over")])
     rig.open()
@@ -289,7 +289,7 @@ def test_stream_server_keyframes_disabled_without_dir():
 def test_runtime_state_exposes_tier_and_grasp_memory(tmp_path):
     """Booth roadmap items 3+5: /state carries the dispatch tier and the
     learned grasp priors for the dashboard panels."""
-    from wrc_demo.apps.demo import _runtime_state, build_runtime, shutdown_runtime
+    from cascade.apps.demo import _runtime_state, build_runtime, shutdown_runtime
 
     cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
     runtime, arm = build_runtime(cfg, tmp_path / "run")
@@ -310,7 +310,7 @@ def test_runtime_state_exposes_tier_and_grasp_memory(tmp_path):
 def test_pick_and_place_red_object_end_to_end(tmp_path):
     """The demo's money path: a color query resolved against the live world
     model, grasped, placed at the drop zone -- no LLM anywhere."""
-    from wrc_demo.apps.demo import build_runtime, shutdown_runtime
+    from cascade.apps.demo import build_runtime, shutdown_runtime
 
     cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
     runtime, arm = build_runtime(cfg, tmp_path / "run")
@@ -336,7 +336,7 @@ def test_pick_and_place_red_object_end_to_end(tmp_path):
 def test_social_skills_on_mock_stack(tmp_path):
     """describe/count answer instantly from beliefs; wave/point/handover
     move through the safety harness without violations."""
-    from wrc_demo.apps.demo import build_runtime, shutdown_runtime
+    from cascade.apps.demo import build_runtime, shutdown_runtime
 
     cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
     runtime, arm = build_runtime(cfg, tmp_path / "run")
@@ -366,8 +366,8 @@ def test_social_skills_on_mock_stack(tmp_path):
 
 @needs_pin
 def test_orchestrator_reflex_path_never_calls_llm(tmp_path):
-    from wrc_demo.agent.orchestrator import AgentOrchestrator
-    from wrc_demo.apps.demo import build_runtime, shutdown_runtime
+    from cascade.agent.orchestrator import AgentOrchestrator
+    from cascade.apps.demo import build_runtime, shutdown_runtime
 
     class ExplodingLLM:
         supports_vision = False

@@ -12,8 +12,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from wrc_demo.memory import BeliefStore
-from wrc_demo.perception.workspace import WorkspaceFilter
+from cascade.memory import BeliefStore
+from cascade.perception.workspace import WorkspaceFilter
 
 
 # ── the geometric gate is class-agnostic ─────────────────────────────────
@@ -151,7 +151,7 @@ def test_shipped_config_has_no_closed_vocabulary():
     object not named there is invisible to the whole system however clearly
     the camera sees it. That is a booth-breaking regression, so it is pinned.
     """
-    from wrc_demo.config import load_demo_config
+    from cascade.config import load_demo_config
 
     cfg = load_demo_config(cameras=["mock"], arm="mock", llm="mock")
     assert not (cfg.get("detect_classes") or []), (

@@ -18,12 +18,12 @@ import sys
 import time
 import traceback
 
-REPO = "/home/johnny/Projects/demo/wrc_demo"
+REPO = "/home/johnny/Projects/demo/cascade"
 sys.path.insert(0, REPO + "/src")
 sys.path.insert(0, os.path.expanduser("~/bench/LIBERO"))
 os.environ.setdefault("MUJOCO_GL", "egl")
 
-from wrc_demo.skills import runtime as RT
+from cascade.skills import runtime as RT
 
 EVENTS = []
 

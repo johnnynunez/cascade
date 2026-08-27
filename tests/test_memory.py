@@ -1,7 +1,7 @@
 import numpy as np
 
-from wrc_demo.memory.beliefs import BeliefStore
-from wrc_demo.memory.episodic import EpisodicMemory
+from cascade.memory.beliefs import BeliefStore
+from cascade.memory.episodic import EpisodicMemory
 
 
 def test_horizon_pruning():
@@ -75,7 +75,7 @@ def test_belief_remembers_real_cloud_and_fix_uses_it():
     ungraspable, while its real cloud reads ~35mm (GGX-empty root cause)."""
     import numpy as np
 
-    from wrc_demo.skills.runtime import SkillRuntime
+    from cascade.skills.runtime import SkillRuntime
 
     store = BeliefStore()
     rng = np.random.default_rng(1)

@@ -31,12 +31,12 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from wrc_demo.config import load_demo_config  # noqa: E402
-from wrc_demo.control.arm_base import make_arm  # noqa: E402
-from wrc_demo.control.kinematics import Kinematics  # noqa: E402
-from wrc_demo.grasping.obb_grasp import _yaw_rotation  # noqa: E402
-from wrc_demo.sim.bridge_client import BridgeClient  # noqa: E402
-from wrc_demo.types import make_transform  # noqa: E402
+from cascade.config import load_demo_config  # noqa: E402
+from cascade.control.arm_base import make_arm  # noqa: E402
+from cascade.control.kinematics import Kinematics  # noqa: E402
+from cascade.grasping.obb_grasp import _yaw_rotation  # noqa: E402
+from cascade.sim.bridge_client import BridgeClient  # noqa: E402
+from cascade.types import make_transform  # noqa: E402
 
 HOME_Q = np.array([0.0, 1.2, 1.2, 0.0, 0.75, 0.0])
 

@@ -8,7 +8,7 @@ SocketCAN can0 @ 1 Mbps), but with the rig-verified fixes this SDK lacks:
   get_state() never decodes; robstride_set_active_report(True) yields a
   single type-2 frame and then freezes. Param reads return the exact f32.
 - The hardware YAML is forced to the RS profile; kinematics come from
-  wrc_demo.control.Kinematics on the RS URDF (this repo's assets), never
+  cascade.control.Kinematics on the RS URDF (this repo's assets), never
   from the SDK's global config (which silently loads the DM URDF).
 - Gripper close is a two-stage, effort-scaled MIT command with stall
   detection via mechVel (0x701A) instead of the SDK's broken open/close.

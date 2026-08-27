@@ -22,21 +22,21 @@ confirmed and the fix is well-defined.
 import sys
 import time
 
-sys.path.insert(0, "/home/johnny/Projects/demo/wrc_demo/src")
+sys.path.insert(0, "/home/johnny/Projects/demo/cascade/src")
 
 import numpy as np
 import yaml
 
-from wrc_demo.perception.probe import deproject
-from wrc_demo.sim.bridge_client import BridgeClient
-from wrc_demo.sim.truth import TruthPoseReader
+from cascade.perception.probe import deproject
+from cascade.sim.bridge_client import BridgeClient
+from cascade.sim.truth import TruthPoseReader
 
 c = BridgeClient(port=8611)
 c.connect()
 truth = TruthPoseReader(c, ttl_s=0)
 
 T = np.array(yaml.safe_load(
-    open("/home/johnny/Projects/demo/wrc_demo/configs/cameras/isaac.yaml")
+    open("/home/johnny/Projects/demo/cascade/configs/cameras/isaac.yaml")
 )["extrinsics"]["T"], dtype=float)
 T_inv = np.linalg.inv(T)
 

@@ -12,7 +12,7 @@ from .llm import (
 # skills.runtime, which imports agent.trace -- re-exporting it from the
 # package __init__ creates a circular import for anyone who reaches
 # skills.runtime first (e.g. the MCP server). Import it explicitly:
-#     from wrc_demo.agent.orchestrator import AgentOrchestrator
+#     from cascade.agent.orchestrator import AgentOrchestrator
 
 __all__ = [
     "LLMClient",

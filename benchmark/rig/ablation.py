@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Benchmark wrc_demo ITSELF -- ablation over the layers you actually built.
+"""Benchmark cascade ITSELF -- ablation over the layers you actually built.
 
 WHY THIS FILE REPLACES THE LIBERO WORK
 --------------------------------------
 The LIBERO experiments measured a scripted pick-place primitive that this
 harness author wrote inside LIBERO. That is a fine way to test *the Pigey
-hypothesis*, but it is NOT a test of wrc_demo: none of your code ran. The only
+hypothesis*, but it is NOT a test of cascade: none of your code ran. The only
 honest way to benchmark what you built is to run YOUR runtime, YOUR skills,
 YOUR safety harness and YOUR verification on YOUR robot, and ablate YOUR
 layers one at a time.
@@ -20,7 +20,7 @@ Everything is held fixed across conditions except ONE layer:
   * same task string
   * same success criterion, judged by PhysX -- never by the skill's own report
 
-The independent variable is which wrc_demo layer is enabled. That makes the
+The independent variable is which cascade layer is enabled. That makes the
 deltas attributable to a layer instead of to luck or to a different benchmark.
 
 CONDITIONS (each adds one layer to the one above)
@@ -53,10 +53,10 @@ from pathlib import Path
 
 import numpy as np
 
-from wrc_demo.apps.demo import build_runtime, shutdown_runtime
-from wrc_demo.config import load_demo_config
-from wrc_demo.sim.bridge_client import BridgeClient
-from wrc_demo.sim.truth import TruthPoseReader
+from cascade.apps.demo import build_runtime, shutdown_runtime
+from cascade.config import load_demo_config
+from cascade.sim.bridge_client import BridgeClient
+from cascade.sim.truth import TruthPoseReader
 
 #: Bin footprint in base frame (x_min, x_max, y_min, y_max) -- from the USD
 #: scene, not guessed. A cube whose centre lands inside counts as placed.
@@ -123,7 +123,7 @@ def in_bin(pose) -> bool:
 
 def run_condition(rt, truth, client, condition: str, n_states: int) -> dict:
     """Run every initial state once under one condition."""
-    from wrc_demo.agent.orchestrator import AgentOrchestrator
+    from cascade.agent.orchestrator import AgentOrchestrator
 
     results = []
     for i, (x, y) in enumerate(INIT_STATES[:n_states]):
@@ -248,7 +248,7 @@ MEASURE_LOCK = Path("/tmp/wrc_measuring.lock")
 def claim_rig():
     """Hold the measurement lock so the watchdog cannot respawn night_runner.
 
-    `scripts/night_runner.sh` drives the arm. When the wrc-demo-watchdog cron
+    `scripts/night_runner.sh` drives the arm. When the cascade-watchdog cron
     revives it mid-run, joint readings become garbage that looks like a
     plausible asset bug rather than an obvious failure -- it has already
     produced one retracted "the gripper tops out at 54 mm instead of 71.5 mm"

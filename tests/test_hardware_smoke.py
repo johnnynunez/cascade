@@ -11,8 +11,8 @@ pytestmark = pytest.mark.hardware
 
 
 def test_l515_streams_metric_depth():
-    from wrc_demo.config import load_profile
-    from wrc_demo.perception.camera_base import make_camera
+    from cascade.config import load_profile
+    from cascade.perception.camera_base import make_camera
 
     cam = make_camera(load_profile("cameras", "l515"))
     cam.open()

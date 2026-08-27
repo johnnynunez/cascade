@@ -2,7 +2,7 @@
 
 VoLo names `monitor - halt - redirect` the core requirement of a physical
 agent, because the world does not pause while the agent thinks. HumanCLAW puts
-a verifier in front of the body for the same reason. wrc_demo could only run a
+a verifier in front of the body for the same reason. cascade could only run a
 skill to completion or latch an e-stop; there was no way to say "this motion is
 wrong, stop it, I will reissue".
 
@@ -16,8 +16,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from wrc_demo.safety.harness import SafetyHarness, SafetyLimits
-from wrc_demo.types import MotionHalted, SafetyViolation
+from cascade.safety.harness import SafetyHarness, SafetyLimits
+from cascade.types import MotionHalted, SafetyViolation
 
 
 def _harness() -> SafetyHarness:
@@ -100,7 +100,7 @@ def test_halt_skill_is_exposed_to_the_llm():
 
     CLAUDE.md documents this trap explicitly, so it is pinned here.
     """
-    from wrc_demo.skills.runtime import TOOL_SPECS
+    from cascade.skills.runtime import TOOL_SPECS
 
     names = {t["name"] for t in TOOL_SPECS}
     assert "halt_motion" in names

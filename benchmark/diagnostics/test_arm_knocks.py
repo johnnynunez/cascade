@@ -22,9 +22,9 @@ from pathlib import Path
 
 import numpy as np
 
-from wrc_demo.apps.demo import build_runtime, shutdown_runtime
-from wrc_demo.config import load_demo_config
-from wrc_demo.sim.bridge_client import BridgeClient
+from cascade.apps.demo import build_runtime, shutdown_runtime
+from cascade.config import load_demo_config
+from cascade.sim.bridge_client import BridgeClient
 
 SPAWN = np.array([0.17, 0.15])
 

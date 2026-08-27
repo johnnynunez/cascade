@@ -1,15 +1,15 @@
 import numpy as np
 
-from wrc_demo.perception.depth_provider import DepthProvider
-from wrc_demo.perception.detector import MockDetector
-from wrc_demo.perception.grounding import (
+from cascade.perception.depth_provider import DepthProvider
+from cascade.perception.detector import MockDetector
+from cascade.perception.grounding import (
     Extrinsics,
     localize_object,
     mask_to_points_cam,
     oriented_bbox,
 )
-from wrc_demo.perception.mock_camera import MockCamera, synthetic_tabletop
-from wrc_demo.config import Cfg
+from cascade.perception.mock_camera import MockCamera, synthetic_tabletop
+from cascade.config import Cfg
 
 
 T_CAM2BASE = np.array(

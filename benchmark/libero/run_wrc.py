@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run LIBERO with wrc_demo's own runtime, skills, harness and verification.
+"""Run LIBERO with cascade's own runtime, skills, harness and verification.
 
 This answers the question the earlier LIBERO scripts could not: how does the
 system you built score on the benchmark the papers use? Not a primitive
@@ -19,7 +19,7 @@ WHAT IS ADAPTED (backend only, see wrc_libero/backend.py)
     CameraBase   -> LiberoCamera      (agentview RGB-D + real intrinsics)
 
 CONDITIONS
-    skill_only    wrc_demo skill, postconditions OFF
+    skill_only    cascade skill, postconditions OFF
     verified      postconditions ON, refuted effect drives up to 3 attempts
 
 Success is LIBERO's own `done` flag -- the benchmark's criterion, not ours.
@@ -58,19 +58,19 @@ SUITE_MAX_STEPS = {"libero_spatial": 220, "libero_object": 280,
 
 
 def build_wrc_runtime(env, task_language: str, perception: str = "oracle"):
-    """Wire wrc_demo's REAL runtime onto a LIBERO env.
+    """Wire cascade's REAL runtime onto a LIBERO env.
 
     Rather than re-implementing the composition root (apps/demo.py's
     build_runtime wires ~12 components in a specific order and owns several
     non-obvious details -- LazyArm, detector locking, watcher pausing), we
-    register our backends in wrc_demo's own factories and let build_runtime
+    register our backends in cascade's own factories and let build_runtime
     do its job. That keeps this file honest: if build_runtime changes, this
     benchmark changes with it, instead of silently testing a stale copy.
     """
-    import wrc_demo.control.arm_base as arm_base
-    import wrc_demo.perception.camera_base as camera_base
-    from wrc_demo.apps.demo import build_runtime
-    from wrc_demo.config import load_demo_config
+    import cascade.control.arm_base as arm_base
+    import cascade.perception.camera_base as camera_base
+    from cascade.apps.demo import build_runtime
+    from cascade.config import load_demo_config
     from backend import LiberoArm, LiberoCamera
     from kinematics_mj import MujocoKinematics
 
@@ -85,7 +85,7 @@ def build_wrc_runtime(env, task_language: str, perception: str = "oracle"):
         env.reset()
     kin = MujocoKinematics(inner.sim.model._model, inner.sim.data._data)
 
-    # -- inject the LIBERO backends into wrc_demo's factories -------------
+    # -- inject the LIBERO backends into cascade's factories -------------
     real_make_arm = arm_base.make_arm
     real_make_cam = camera_base.make_camera
     #: capture the instances so the runner can wire arm -> camera publishing
@@ -112,7 +112,7 @@ def build_wrc_runtime(env, task_language: str, perception: str = "oracle"):
     # build_runtime imported these by value at module load, so patching the
     # defining module is NOT enough -- the name in apps.demo must be replaced
     # too or the original factory runs and quietly returns a MockCamera.
-    import wrc_demo.apps.demo as demo_mod
+    import cascade.apps.demo as demo_mod
     demo_mod.make_arm = make_arm
     demo_mod.make_camera = make_camera
     assert demo_mod.make_camera is make_camera, "camera factory not patched"
@@ -289,7 +289,7 @@ def resolve_task_objects(inner, language: str,
     """Map a LIBERO instruction onto (object, destination) MuJoCo body names.
 
     LIBERO gives a sentence ("pick up the black bowl between the plate and the
-    ramekin and place it on the plate"); wrc_demo's skills take an object
+    ramekin and place it on the plate"); cascade's skills take an object
     LABEL. Passing the sentence through makes `localize` fail with "no
     detections", which measures the label mismatch, not the robot.
 
@@ -503,7 +503,7 @@ def main() -> int:
     out = {c: {"succ": 0, "n": 0, "claimed": 0, "false": 0, "tasks": []}
            for c in conds}
 
-    print(f"=== wrc_demo ON LIBERO | {a.suite} | {a.tasks} tasks x "
+    print(f"=== cascade ON LIBERO | {a.suite} | {a.tasks} tasks x "
           f"{a.episodes} eps ===", flush=True)
 
     for tid in range(min(a.tasks, bm.n_tasks)):
@@ -538,7 +538,7 @@ def main() -> int:
             return None
 
         def seed_beliefs():
-            """Publish scene object poses into wrc_demo's belief store.
+            """Publish scene object poses into cascade's belief store.
 
             ORACLE PERCEPTION. This reads `sim.data.body_xpos`, the simulator's
             own object positions, and hands them to the agent. It measures the

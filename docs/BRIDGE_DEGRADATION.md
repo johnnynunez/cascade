@@ -1,6 +1,6 @@
 # Bridge degradation under sustained verification polling
 
-Found while chasing three false success claims in the wrc_demo ablation
+Found while chasing three false success claims in the cascade ablation
 (2026-07-31). Two independent defects came out of it; one is fixed in code,
 the other is an operational hazard that needs a guard.
 

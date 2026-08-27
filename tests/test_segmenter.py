@@ -18,9 +18,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from wrc_demo.perception.pixel_target import fix_from_mask
-from wrc_demo.perception.segmenter import fix_at_pixel
-from wrc_demo.types import Frame, SkillError
+from cascade.perception.pixel_target import fix_from_mask
+from cascade.perception.segmenter import fix_at_pixel
+from cascade.types import Frame, SkillError
 
 K = np.array([[200.0, 0.0, 64.0],
               [0.0, 200.0, 64.0],
@@ -57,7 +57,7 @@ class _FakeSegmenter:
 
 def test_fix_from_mask_matches_the_depth_path_geometry():
     """Both paths must compute 3D identically, or comparing them is meaningless."""
-    from wrc_demo.perception.pixel_target import fix_from_pixel
+    from cascade.perception.pixel_target import fix_from_pixel
 
     frame = _frame()
     mask = np.zeros((128, 128), dtype=bool)

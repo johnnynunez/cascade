@@ -1,7 +1,7 @@
 # Benchmarks
 
 Everything needed to measure this repo against the manipulation benchmarks the
-literature uses, plus the ablation that measures wrc_demo's own layers.
+literature uses, plus the ablation that measures cascade's own layers.
 
 ```
 benchmark/
@@ -9,12 +9,12 @@ benchmark/
   libero/             LIBERO experiments
     backend.py          LiberoArm + LiberoCamera (ArmBase / CameraBase impls)
     kinematics_mj.py    MujocoKinematics (FK/IK off the Panda MJCF)
-    run_wrc.py          *** wrc_demo's own runtime driving LIBERO ***
+    run_wrc.py          *** cascade's own runtime driving LIBERO ***
     run_baseline.py     OpenVLA-7B reference numbers
     orchestration_gap.py  frozen primitive, with and without verification
     sweep.sh            all four suites
   rig/
-    ablation.py         wrc_demo layer ablation on the Isaac B601-RS rig
+    ablation.py         cascade layer ablation on the Isaac B601-RS rig
   report/
     comparison_table.py console tables + Wilson intervals
     make_pdf.py         paper-style PDF
@@ -34,9 +34,9 @@ uv venv --python 3.10 ~/.venvs/libero
 uv pip install --python ~/.venvs/libero/bin/python \
     -r ~/bench/LIBERO/requirements.txt robosuite==1.4.1 mujoco==3.2.3
 
-export WRC_BENCH_LIBERO=~/bench/LIBERO
-export WRC_BENCH_MODELS=~/models          # openvla-7b-libero-* checkpoints
-export WRC_BENCH_VENV=~/.venvs/libero/bin/python
+export CASCADE_BENCH_LIBERO=~/bench/LIBERO
+export CASCADE_BENCH_MODELS=~/models          # openvla-7b-libero-* checkpoints
+export CASCADE_BENCH_VENV=~/.venvs/libero/bin/python
 export MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
 ```
 
@@ -54,20 +54,20 @@ Four known setup traps, all of which cost time:
 
 ## Running
 
-### wrc_demo on LIBERO
+### cascade on LIBERO
 
 ```bash
-$WRC_BENCH_VENV benchmark/libero/run_wrc.py \
+$CASCADE_BENCH_VENV benchmark/libero/run_wrc.py \
     --suite libero_spatial --tasks 10 --episodes 5 \
     --conditions skill_only,verified
 ```
 
-This runs **wrc_demo's real runtime**: `SkillRuntime.execute` and every
+This runs **cascade's real runtime**: `SkillRuntime.execute` and every
 `skill_*` method, `SafeArm` + `SafetyHarness` per-waypoint approval, the grasp
 pipeline, `PostconditionChecker`, `BeliefStore`, `TraceLogger`. Only three
 backends are adapted:
 
-| wrc_demo contract | LIBERO implementation | validated |
+| cascade contract | LIBERO implementation | validated |
 |---|---|---|
 | `ArmBase` | `LiberoArm` (7-DoF Franka, stepped sim) | drives the arm |
 | `Kinematics` | `MujocoKinematics` | **FK 0.0 mm, IK 0.1 mm** |
@@ -77,18 +77,18 @@ The Panda is 7-DoF where the B601-RS is 6. That is a property of the robot, not
 a rewrite: `ArmBase.n_joints` is a class attribute precisely so backends can
 differ.
 
-**Honest framing:** this measures wrc_demo's orchestration and verification on
-a Franka in LIBERO, *not* wrc_demo on its own arm. Skills, harness and
+**Honest framing:** this measures cascade's orchestration and verification on
+a Franka in LIBERO, *not* cascade on its own arm. Skills, harness and
 verification are identical; the embodiment is not.
 
 ### OpenVLA reference
 
 ```bash
 bash benchmark/libero/sweep.sh              # all four suites
-$WRC_BENCH_VENV benchmark/report/report.py  # table vs published
+$CASCADE_BENCH_VENV benchmark/report/report.py  # table vs published
 ```
 
-### wrc_demo layer ablation (Isaac rig)
+### cascade layer ablation (Isaac rig)
 
 Needs the Isaac bridge on `:8611`.
 
@@ -110,7 +110,7 @@ python benchmark/report/make_pdf.py           # PDF
 
 ## Results so far
 
-### wrc_demo layer ablation (10 initial states, physics-judged)
+### cascade layer ablation (10 initial states, physics-judged)
 
 Measured on a **freshly restarted bridge** — see the note below.
 

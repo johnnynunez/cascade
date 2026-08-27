@@ -2,7 +2,7 @@
 
 This turns the demo into a tool surface for agent platforms -- Hermes
 (~/.hermes/config.yaml), Claude Code (.mcp.json), Claude Desktop, Codex CLI.
-The platform's agent replaces wrc_demo's built-in orchestrator as the brain;
+The platform's agent replaces cascade's built-in orchestrator as the brain;
 the safety harness, tracing, episodic memory and skills are identical.
 
 Protocol: MCP over stdio, newline-delimited JSON-RPC 2.0. Implemented by
@@ -11,23 +11,23 @@ dependency. stdout carries ONLY protocol frames; everything else goes to
 stderr.
 
 Configuration via environment (set in the MCP server entry):
-    WRC_CAMERA          camera profile (default: mock)
-    WRC_CAMERAS         comma-separated camera profiles; first one is the
-                        manipulation camera (overrides WRC_CAMERA)
-    WRC_ARM             arm profile    (default: mock)
-    WRC_RUN_DIR         trace directory (default: <repo>/runs/mcp_<pid>)
-    WRC_DETECTOR_MODEL  override detector weights (e.g. a yolo11n.pt path
+    CASCADE_CAMERA          camera profile (default: mock)
+    CASCADE_CAMERAS         comma-separated camera profiles; first one is the
+                        manipulation camera (overrides CASCADE_CAMERA)
+    CASCADE_ARM             arm profile    (default: mock)
+    CASCADE_RUN_DIR         trace directory (default: <repo>/runs/mcp_<pid>)
+    CASCADE_DETECTOR_MODEL  override detector weights (e.g. a yolo11n.pt path
                         for closed-set COCO until the CLIP fork is installed)
-    WRC_DETECT_CLASSES  comma-separated default vocabulary for observations
-    WRC_VIEW            "0" disables the live camera window (default: open it
+    CASCADE_DETECT_CLASSES  comma-separated default vocabulary for observations
+    CASCADE_VIEW            "0" disables the live camera window (default: open it
                         whenever DISPLAY is set, so the audience always sees
                         what the camera sees)
-    WRC_PREWARM         "0" disables perception pre-warm at startup
+    CASCADE_PREWARM         "0" disables perception pre-warm at startup
                         (default: cameras + detector + world model come up
                         immediately so the first command is fast)
-    WRC_STREAM          "0" disables the MJPEG livestream dashboard
-    WRC_STREAM_PORT     dashboard port (default: from configs/demo.yaml)
-    WRC_HIDE_TOOLS      comma-separated tool names to remove from the agent's
+    CASCADE_STREAM          "0" disables the MJPEG livestream dashboard
+    CASCADE_STREAM_PORT     dashboard port (default: from configs/demo.yaml)
+    CASCADE_HIDE_TOOLS      comma-separated tool names to remove from the agent's
                         surface (delisted AND rejected if called anyway).
                         Booth/attendee sessions hide reset_stop so a latched
                         e-stop can only be cleared by staff, not by a model
@@ -56,7 +56,7 @@ host keepalives don't starve behind a motion. SIGINT latches the e-stop too
 (freeze, no free-fall); a second SIGINT exits -- which disables torque on
 the RS arm, so park it first. SIGUSR1 clears the e-stop: that is the STAFF
 reset channel when reset_stop is hidden from attendees
-(`pkill -USR1 -f wrc_demo.apps.mcp_server` requires shell access to the
+(`pkill -USR1 -f cascade.apps.mcp_server` requires shell access to the
 rig, which is exactly the staff/attendee boundary).
 """
 
@@ -72,19 +72,19 @@ import time
 from pathlib import Path
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
-SERVER_INFO = {"name": "wrc-demo", "version": "0.1.0"}
+SERVER_INFO = {"name": "cascade", "version": "0.1.0"}
 
 # task_done belongs to the built-in loop; MCP agents manage their own tasks.
 _EXCLUDED_TOOLS = {"task_done"}
 
 
 def _hidden_tools() -> set[str]:
-    """Operator-hidden tools (WRC_HIDE_TOOLS), read per call so tests can
+    """Operator-hidden tools (CASCADE_HIDE_TOOLS), read per call so tests can
     vary it per subprocess. emergency_stop is never hideable: an operator
     typo must not be able to remove the stop path."""
     hidden = {
         t.strip()
-        for t in os.environ.get("WRC_HIDE_TOOLS", "").split(",")
+        for t in os.environ.get("CASCADE_HIDE_TOOLS", "").split(",")
         if t.strip()
     }
     hidden.discard("emergency_stop")
@@ -210,33 +210,33 @@ class McpSkillServer:
             cameras = [
                 c.strip()
                 for c in os.environ.get(
-                    "WRC_CAMERAS", os.environ.get("WRC_CAMERA", "mock")
+                    "CASCADE_CAMERAS", os.environ.get("CASCADE_CAMERA", "mock")
                 ).split(",")
                 if c.strip()
             ]
-            arm = os.environ.get("WRC_ARM", "mock")
+            arm = os.environ.get("CASCADE_ARM", "mock")
             run_dir = Path(
-                os.environ.get("WRC_RUN_DIR", PACKAGE_ROOT / "runs" / f"mcp_{os.getpid()}")
+                os.environ.get("CASCADE_RUN_DIR", PACKAGE_ROOT / "runs" / f"mcp_{os.getpid()}")
             )
             try:
                 # Anything the stack prints must not corrupt the protocol stream.
                 with contextlib.redirect_stdout(sys.stderr):
                     cfg = load_demo_config(cameras=cameras, arm=arm, llm="mock")
-                    det_model = os.environ.get("WRC_DETECTOR_MODEL")
+                    det_model = os.environ.get("CASCADE_DETECTOR_MODEL")
                     if det_model:
                         cfg._data["detector"]["model"] = det_model
-                    classes = os.environ.get("WRC_DETECT_CLASSES")
+                    classes = os.environ.get("CASCADE_DETECT_CLASSES")
                     if classes:
                         cfg._data["detect_classes"] = [
                             c.strip() for c in classes.split(",") if c.strip()
                         ]
-                    port = os.environ.get("WRC_STREAM_PORT")
+                    port = os.environ.get("CASCADE_STREAM_PORT")
                     if port:
                         cfg._data.setdefault("stream", {})["port"] = int(port)
-                    view = os.environ.get("WRC_VIEW", "1") != "0" and bool(
+                    view = os.environ.get("CASCADE_VIEW", "1") != "0" and bool(
                         os.environ.get("DISPLAY")
                     )
-                    serve = os.environ.get("WRC_STREAM", "1") != "0"
+                    serve = os.environ.get("CASCADE_STREAM", "1") != "0"
                     # lazy_arm: perception comes up now; motors stay untouched
                     # until the first motion command.
                     self._runtime, self._arm = build_runtime(
@@ -265,7 +265,7 @@ class McpSkillServer:
                     if self._runtime.stream_server is not None else "disabled"
                 )
                 print(
-                    f"[wrc-mcp] runtime up: cameras={cameras} arm={arm} (lazy) "
+                    f"[cascade-mcp] runtime up: cameras={cameras} arm={arm} (lazy) "
                     f"livestream={url}",
                     file=sys.stderr,
                 )
@@ -288,7 +288,7 @@ class McpSkillServer:
             try:
                 self._ensure_runtime(_poison=False)
             except Exception as e:
-                print(f"[wrc-mcp] prewarm failed (will retry on first call): {e}",
+                print(f"[cascade-mcp] prewarm failed (will retry on first call): {e}",
                       file=sys.stderr)
 
         threading.Thread(target=_warm, daemon=True, name="wrc-prewarm").start()
@@ -313,7 +313,7 @@ class McpSkillServer:
         self._stop_pending = True
         rt = self._runtime
         if rt is None:
-            print("[wrc-mcp] EMERGENCY STOP latched (runtime still starting)",
+            print("[cascade-mcp] EMERGENCY STOP latched (runtime still starting)",
                   file=sys.stderr)
             return _text_result(
                 {"ok": True, "stopped": True,
@@ -323,7 +323,7 @@ class McpSkillServer:
             )
         with contextlib.redirect_stdout(sys.stderr):
             rt.arm.stop()
-        print("[wrc-mcp] EMERGENCY STOP latched (out-of-band)", file=sys.stderr)
+        print("[cascade-mcp] EMERGENCY STOP latched (out-of-band)", file=sys.stderr)
         return _text_result(
             {"ok": True, "stopped": True,
              "note": "arm frozen; call reset_stop to resume"}
@@ -410,7 +410,7 @@ class McpSkillServer:
 
             if name in _MOTION_SKILLS:
                 print(
-                    f"[wrc-mcp] client cancelled {name!r} mid-motion -> e-stop",
+                    f"[cascade-mcp] client cancelled {name!r} mid-motion -> e-stop",
                     file=sys.stderr,
                 )
                 self.stop_now()
@@ -439,7 +439,7 @@ class McpSkillServer:
             return _text_result(
                 {"ok": False,
                  "error": f"tool {name!r} is disabled by the operator "
-                          "(WRC_HIDE_TOOLS); ask the booth staff"},
+                          "(CASCADE_HIDE_TOOLS); ask the booth staff"},
                 is_error=True,
             )
         runtime = self._ensure_runtime()
@@ -462,9 +462,9 @@ class McpSkillServer:
                         return _text_result({"ok": True, "url": url})
                     return _text_result(
                         {"ok": False,
-                         "error": "livestream not running: disabled via WRC_STREAM=0 "
+                         "error": "livestream not running: disabled via CASCADE_STREAM=0 "
                                   "or the port was taken at startup (see gateway "
-                                  "stderr; set WRC_STREAM_PORT to change it)"},
+                                  "stderr; set CASCADE_STREAM_PORT to change it)"},
                         is_error=True,
                     )
                 out = lv.open(reason="live_view_url requested")
@@ -683,8 +683,8 @@ def main() -> int:
             protocol_out.write(json.dumps(resp) + "\n")
             protocol_out.flush()
 
-    print("[wrc-mcp] wrc-demo MCP server on stdio", file=sys.stderr)
-    if os.environ.get("WRC_PREWARM", "1") != "0":
+    print("[cascade-mcp] cascade MCP server on stdio", file=sys.stderr)
+    if os.environ.get("CASCADE_PREWARM", "1") != "0":
         server.prewarm_async()
 
     # First SIGINT freezes (latch e-stop), second exits. Exit disables
@@ -696,7 +696,7 @@ def main() -> int:
         server.stop_now()
         signal.signal(signal.SIGINT, signal.default_int_handler)
         with contextlib.suppress(Exception):
-            print("\n[wrc-mcp] SIGINT: e-stop latched (Ctrl+C again to exit; "
+            print("\n[cascade-mcp] SIGINT: e-stop latched (Ctrl+C again to exit; "
                   "exit disables torque -- park the arm first)", file=sys.stderr)
 
     signal.signal(signal.SIGINT, _sigint)
@@ -706,7 +706,7 @@ def main() -> int:
     def _sigusr1(_sig, _frm):
         server.reset_now()
         with contextlib.suppress(Exception):
-            print("[wrc-mcp] SIGUSR1: e-stop cleared by staff", file=sys.stderr)
+            print("[cascade-mcp] SIGUSR1: e-stop cleared by staff", file=sys.stderr)
 
     signal.signal(signal.SIGUSR1, _sigusr1)
 
@@ -726,13 +726,13 @@ def main() -> int:
                     try:
                         msg = json.loads(line)
                     except json.JSONDecodeError:
-                        print(f"[wrc-mcp] bad JSON frame: {line[:120]}",
+                        print(f"[cascade-mcp] bad JSON frame: {line[:120]}",
                               file=sys.stderr)
                         continue
                     # some clients batch JSON-RPC frames; unwrap them
                     for m in (msg if isinstance(msg, list) else [msg]):
                         if not isinstance(m, dict):
-                            print(f"[wrc-mcp] non-object frame skipped: "
+                            print(f"[cascade-mcp] non-object frame skipped: "
                                   f"{str(m)[:120]}", file=sys.stderr)
                             continue
                         method = m.get("method")
@@ -752,7 +752,7 @@ def main() -> int:
                             continue
                         inbox.put(m)
                 except Exception as e:
-                    print(f"[wrc-mcp] reader error (frame skipped): {e}",
+                    print(f"[cascade-mcp] reader error (frame skipped): {e}",
                           file=sys.stderr)
         finally:
             inbox.put(_EOF)

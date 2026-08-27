@@ -103,7 +103,7 @@ def _profile_gains(motor_id: int) -> tuple[float, float] | None:
     the eye. Validate with the gains production will use, or certify nothing.
     """
     try:
-        from wrc_demo.config import load_demo_config
+        from cascade.config import load_demo_config
 
         arm = load_demo_config(cameras=["mock"], arm="rebot_rs_mb", llm="mock").arm
         if motor_id == GRIPPER_ID:
@@ -124,8 +124,8 @@ def _urdf_local_limits():
     missing. Same accessor diag_rebot_mb.py uses; the jog treats absence as
     "cannot verify" and refuses to move rather than guessing."""
     try:
-        from wrc_demo.config import load_demo_config
-        from wrc_demo.control.kinematics import Kinematics
+        from cascade.config import load_demo_config
+        from cascade.control.kinematics import Kinematics
 
         cfg = load_demo_config(cameras=["mock"], arm="rebot_rs_mb", llm="mock")
         arm = cfg.arm

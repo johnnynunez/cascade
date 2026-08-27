@@ -6,7 +6,7 @@
 #   ./scripts/booth_reset.sh --restore-brain  # undo a contaminated session
 #                                             # (restores the booth_up.sh baseline)
 #
-# MEMORY POLICY (deliberate, not an accident): ~/.wrc_demo/grasp_memory.json
+# MEMORY POLICY (deliberate, not an accident): ~/.cascade/grasp_memory.json
 # and runs/experience.json persist across groups because the robot getting
 # measurably better over the day IS the long-running-agent story. Wipe only
 # for a cold-start narrative; restore if picks degrade after a bad streak.
@@ -14,8 +14,8 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PY="${PY:-$(cd "$REPO/.." && pwd)/.demo/bin/python}"
-PORT="${WRC_STREAM_PORT:-8090}"
-GM="$HOME/.wrc_demo/grasp_memory.json"
+PORT="${CASCADE_STREAM_PORT:-8090}"
+GM="$HOME/.cascade/grasp_memory.json"
 
 case "${1:-}" in
     --wipe-brain)
@@ -45,9 +45,9 @@ esac
 if [[ -f "$GM" ]]; then
     "$PY" - <<'EOF' || echo "[!] diary refresh failed (non-fatal)"
 from pathlib import Path
-from wrc_demo.memory.grasp_memory import GraspOutcomeMemory
+from cascade.memory.grasp_memory import GraspOutcomeMemory
 
-d = Path.home() / ".wrc_demo"
+d = Path.home() / ".cascade"
 GraspOutcomeMemory(d / "grasp_memory.json").export_markdown(d / "GRASP_MEMORY.md")
 print(f"[+] robot diary refreshed: {d / 'GRASP_MEMORY.md'}")
 EOF

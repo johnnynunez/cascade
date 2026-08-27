@@ -12,13 +12,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from wrc_demo.agent.effects import (
+from cascade.agent.effects import (
     CONFIRMED,
     REFUTED,
     UNVERIFIED,
     PostconditionChecker,
 )
-from wrc_demo.perception.visual_diff import (
+from cascade.perception.visual_diff import (
     CHANGED,
     UNCHANGED,
     UNKNOWN,

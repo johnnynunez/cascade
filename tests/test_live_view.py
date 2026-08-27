@@ -2,7 +2,7 @@
 
 The contract being pinned here:
 - nothing binds a port until someone asks to look (chat is the interface);
-- WRC_STREAM=0 stays a hard kill switch that open() must refuse;
+- CASCADE_STREAM=0 stays a hard kill switch that open() must refuse;
 - a re-open after a close works (a ThreadingHTTPServer cannot be restarted,
   so the controller must build a FRESH server each time);
 - chat wiring survives close/open cycles;
@@ -19,7 +19,7 @@ import urllib.request
 import numpy as np
 import pytest
 
-from wrc_demo.apps.live_control import (
+from cascade.apps.live_control import (
     MODE_EAGER,
     MODE_LAZY,
     MODE_OFF,
@@ -43,14 +43,14 @@ def test_default_is_lazy_headless():
 
 def test_wrc_stream_zero_is_a_hard_kill_switch():
     for value in ("0", "off", "false", "no"):
-        mode, _ = resolve_mode({"mode": "eager"}, _env(WRC_STREAM=value))
-        assert mode == MODE_OFF, f"WRC_STREAM={value} must win over config"
+        mode, _ = resolve_mode({"mode": "eager"}, _env(CASCADE_STREAM=value))
+        assert mode == MODE_OFF, f"CASCADE_STREAM={value} must win over config"
 
 
 def test_env_overrides_config_mode():
-    mode, _ = resolve_mode({"mode": "lazy"}, _env(WRC_STREAM="eager"))
+    mode, _ = resolve_mode({"mode": "lazy"}, _env(CASCADE_STREAM="eager"))
     assert mode == MODE_EAGER
-    mode, _ = resolve_mode({"mode": "eager"}, _env(WRC_STREAM="lazy"))
+    mode, _ = resolve_mode({"mode": "eager"}, _env(CASCADE_STREAM="lazy"))
     assert mode == MODE_LAZY
 
 
@@ -218,8 +218,8 @@ def test_status_shape_when_closed_and_open():
 
 
 def _rig_with_depth():
-    from wrc_demo.perception.mock_camera import MockCamera
-    from wrc_demo.perception.stream import CameraRig, CameraStream
+    from cascade.perception.mock_camera import MockCamera
+    from cascade.perception.stream import CameraRig, CameraStream
 
     cam = MockCamera(_cfg({"type": "mock", "width": 160, "height": 120}))
     stream = CameraStream(cam, name="over")
@@ -227,14 +227,14 @@ def _rig_with_depth():
 
 
 def _cfg(d):
-    from wrc_demo.config import Cfg
+    from cascade.config import Cfg
 
     return Cfg(d)
 
 
 def test_depth_and_analyze_routes_work_without_a_runtime():
     """The live view must render even before/without a SkillRuntime."""
-    from wrc_demo.apps.stream_server import StreamServer
+    from cascade.apps.stream_server import StreamServer
 
     rig, stream = _rig_with_depth()
     rig.open()
@@ -272,7 +272,7 @@ def test_depth_and_analyze_routes_work_without_a_runtime():
 
 
 def test_analyze_reports_unknown_camera_without_raising():
-    from wrc_demo.apps.stream_server import StreamServer
+    from cascade.apps.stream_server import StreamServer
 
     rig, stream = _rig_with_depth()
     rig.open()
@@ -286,7 +286,7 @@ def test_analyze_reports_unknown_camera_without_raising():
 
 def test_on_poll_is_called_by_http_requests():
     """This is what lets the controller reap an idle dashboard."""
-    from wrc_demo.apps.stream_server import StreamServer
+    from cascade.apps.stream_server import StreamServer
 
     rig, stream = _rig_with_depth()
     rig.open()
@@ -306,7 +306,7 @@ def test_on_poll_is_called_by_http_requests():
 def test_depth_jpeg_handles_a_frame_without_depth():
     from types import SimpleNamespace
 
-    from wrc_demo.apps.stream_server import StreamServer
+    from cascade.apps.stream_server import StreamServer
 
     class _Stream:
         name = "flat"
@@ -371,7 +371,7 @@ def _viewer_stream(has_depth=True, w=80, h=60, name="cam"):
 def test_rig_tile_shows_depth_beside_rgb():
     """A depth camera rendered as RGB-only is the multistream regression:
     the rig viewer must pane depth next to RGB like FrameHub always did."""
-    from wrc_demo.apps.live_view import RigViewer
+    from cascade.apps.live_view import RigViewer
 
     stream = _viewer_stream(has_depth=True, w=80, h=60)
     viewer = RigViewer([stream], tile_h=60)
@@ -384,7 +384,7 @@ def test_rig_tile_shows_depth_beside_rgb():
 
 def test_rig_tile_is_rgb_only_for_a_camera_without_depth():
     """A mixed rig must not pad an RGB-only camera with a fake depth pane."""
-    from wrc_demo.apps.live_view import RigViewer
+    from cascade.apps.live_view import RigViewer
 
     stream = _viewer_stream(has_depth=False, w=80, h=60)
     tile = RigViewer([stream], tile_h=60)._render_tile(stream)
@@ -392,7 +392,7 @@ def test_rig_tile_is_rgb_only_for_a_camera_without_depth():
 
 
 def test_rig_tile_depth_can_be_disabled():
-    from wrc_demo.apps.live_view import RigViewer
+    from cascade.apps.live_view import RigViewer
 
     stream = _viewer_stream(has_depth=True, w=80, h=60)
     tile = RigViewer([stream], tile_h=60, show_depth=False)._render_tile(stream)
@@ -401,7 +401,7 @@ def test_rig_tile_depth_can_be_disabled():
 
 def test_tiles_stack_vertically_one_row_per_camera():
     """Hstacking RGB+depth tiles makes a panel too wide to read; rows win."""
-    from wrc_demo.apps.live_view import _stack_tiles
+    from cascade.apps.live_view import _stack_tiles
 
     a = np.zeros((60, 160, 3), dtype=np.uint8)
     b = np.zeros((60, 160, 3), dtype=np.uint8)
@@ -411,7 +411,7 @@ def test_tiles_stack_vertically_one_row_per_camera():
 
 def test_stack_tiles_pads_a_narrower_row():
     """Mixed rig: an RGB-only tile is narrower than an RGB+depth one."""
-    from wrc_demo.apps.live_view import _stack_tiles
+    from cascade.apps.live_view import _stack_tiles
 
     wide = np.full((60, 160, 3), 255, dtype=np.uint8)
     narrow = np.full((60, 80, 3), 255, dtype=np.uint8)
@@ -421,7 +421,7 @@ def test_stack_tiles_pads_a_narrower_row():
 
 
 def test_single_tile_is_returned_untouched():
-    from wrc_demo.apps.live_view import _stack_tiles
+    from cascade.apps.live_view import _stack_tiles
 
     only = np.zeros((60, 160, 3), dtype=np.uint8)
     assert _stack_tiles([only]) is only

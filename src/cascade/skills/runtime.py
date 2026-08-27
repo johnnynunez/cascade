@@ -107,7 +107,7 @@ class SkillRuntime:
         # failures), persisted so accuracy improves across sessions.
         from ..memory.grasp_memory import GraspOutcomeMemory
         from pathlib import Path as _Path
-        _gm_path = cfg.grasp.get("memory_path", "~/.wrc_demo/grasp_memory.json")
+        _gm_path = cfg.grasp.get("memory_path", "~/.cascade/grasp_memory.json")
         self.grasp_memory = GraspOutcomeMemory(
             path=_Path(str(_gm_path)).expanduser())
         # Harness-VLA (arXiv:2607.08448) generalised to EVERY primitive: the
@@ -115,9 +115,9 @@ class SkillRuntime:
         # outcomes and injected into the agent's context by the orchestrator.
         from ..memory.envelope import OperatingEnvelope
         _env_path = cfg.get("memory", {}).get(
-            "envelope_path", "~/.wrc_demo/envelope.json") if hasattr(cfg, "get") else None
+            "envelope_path", "~/.cascade/envelope.json") if hasattr(cfg, "get") else None
         self.envelope = OperatingEnvelope(
-            path=_Path(str(_env_path or "~/.wrc_demo/envelope.json")).expanduser())
+            path=_Path(str(_env_path or "~/.cascade/envelope.json")).expanduser())
         # Pigey (arXiv:2607.21725): verify each primitive's physical effect
         # against a channel the actuator does not own. Wired lazily by the
         # app (needs the sim bridge / belief store) via attach_verifier().

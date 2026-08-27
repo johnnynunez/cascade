@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from wrc_demo.perception.occupancy import OccupancyError, OccupancyMap
-from wrc_demo.safety.harness import SafetyHarness, SafetyLimits
-from wrc_demo.types import Frame, SafetyViolation
+from cascade.perception.occupancy import OccupancyError, OccupancyMap
+from cascade.safety.harness import SafetyHarness, SafetyLimits
+from cascade.types import Frame, SafetyViolation
 
 
 class FakeClient:

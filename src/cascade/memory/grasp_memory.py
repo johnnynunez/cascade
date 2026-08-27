@@ -320,7 +320,7 @@ class GraspOutcomeMemory:
         p = _P(str(path)).expanduser()
         with self._lock:
             lines = [
-                "# wrc_demo Grasp Memory (fake-RL over grasp attempts)",
+                "# cascade Grasp Memory (fake-RL over grasp attempts)",
                 "",
                 "Learned per-object grasp priors from past attempts (wins AND",
                 "failures). Read this BEFORE grasping: it tells you which grasp",

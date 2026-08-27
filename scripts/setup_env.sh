@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Install wrc_demo into the shared .demo venv on this rig (uv-managed; the
+# Install cascade into the shared .demo venv on this rig (uv-managed; the
 # venv has no pip module, so everything goes through `uv pip`).
 set -euo pipefail
 
 PY="${PY:-/home/spark/Projects/demo/.demo/bin/python}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "[+] installing wrc_demo (editable) + extras into $PY"
+echo "[+] installing cascade (editable) + extras into $PY"
 uv pip install --python "$PY" -e "$REPO" ultralytics openai anthropic motorbridge pytest
 
 # YOLOE / YOLO-World open-vocabulary text prompts need ultralytics' CLIP fork

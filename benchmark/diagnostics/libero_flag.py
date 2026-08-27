@@ -14,7 +14,7 @@ settle, then read the env's success predicate BEFORE running any skill.
 import os
 import sys
 
-REPO = "/home/johnny/Projects/demo/wrc_demo"
+REPO = "/home/johnny/Projects/demo/cascade"
 sys.path.insert(0, REPO + "/src")
 # LIBERO lives as a source checkout, not an installed package. Point at it
 # directly. Do NOT add REPO/benchmark: it has a `libero/` dir that shadows it.

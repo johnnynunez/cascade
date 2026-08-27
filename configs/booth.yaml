@@ -1,4 +1,4 @@
-# Booth-mode overrides, applied on top of demo.yaml when WRC_BOOTH is set
+# Booth-mode overrides, applied on top of demo.yaml when CASCADE_BOOTH is set
 # (any value but 0/false/no/off, case-insensitive). Dev keeps dev values;
 # booth day is one env var. Rationale: docs/BOOTH_RUNBOOK.md §1.
 #

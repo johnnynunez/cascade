@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from wrc_demo.safety.harness import SafetyHarness, SafetyLimits
-from wrc_demo.types import SafetyViolation
+from cascade.safety.harness import SafetyHarness, SafetyLimits
+from cascade.types import SafetyViolation
 
 
 def limits(**kw):

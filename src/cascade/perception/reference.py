@@ -7,7 +7,7 @@ a learned skill, quoted from its skill library:
     Detect all instances, sort by the axis implied by the qualifier (X for
     front/back, Y for left/right in robot frame), then select by keyword index.
 
-wrc_demo already had the axis map (`grounding._SPATIAL_AXES`) and honoured a
+cascade already had the axis map (`grounding._SPATIAL_AXES`) and honoured a
 `spatial_hint`, but nothing extracted that hint from what the user actually
 typed: the LLM had to pass it as a separate argument, and a booth visitor
 saying "grab the second cup from the left" got no disambiguation at all.

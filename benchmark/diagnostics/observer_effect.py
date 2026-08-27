@@ -19,8 +19,8 @@ import time
 
 import numpy as np
 
-from wrc_demo.sim.bridge_client import BridgeClient
-from wrc_demo.sim.truth import TruthPoseReader
+from cascade.sim.bridge_client import BridgeClient
+from cascade.sim.truth import TruthPoseReader
 
 c = BridgeClient(port=8611)
 c.connect()

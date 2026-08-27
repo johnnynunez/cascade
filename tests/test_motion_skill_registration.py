@@ -20,8 +20,8 @@ from __future__ import annotations
 import inspect
 import re
 
-from wrc_demo.skills import runtime as rt_mod
-from wrc_demo.skills.runtime import _MOTION_SKILLS, SkillRuntime
+from cascade.skills import runtime as rt_mod
+from cascade.skills.runtime import _MOTION_SKILLS, SkillRuntime
 
 #: Calls that command the arm. Reading state (get_state, harness queries) does
 #: not move anything and must not force a skill into the motion set.

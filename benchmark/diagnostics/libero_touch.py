@@ -7,13 +7,13 @@ import os
 import runpy
 import sys
 
-REPO = "/home/johnny/Projects/demo/wrc_demo"
+REPO = "/home/johnny/Projects/demo/cascade"
 sys.path.insert(0, REPO + "/src")
 sys.path.insert(0, REPO + "/benchmark")
 os.environ.setdefault("MUJOCO_GL", "egl")
 os.environ.setdefault("MUJOCO_EGL_DEVICE_ID", "0")
 
-import wrc_demo.perception.grounding as G
+import cascade.perception.grounding as G
 
 CALLS = {"n": 0}
 _orig = G._recentre_by_size

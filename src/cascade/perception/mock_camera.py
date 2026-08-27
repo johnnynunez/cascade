@@ -1,7 +1,7 @@
 """Mock camera: replays recorded frames or serves a synthetic tabletop scene.
 
 Two modes:
-- `dataset`: replay .npz frame files recorded with `wrc-record` (loops).
+- `dataset`: replay .npz frame files recorded with `cascade-record` (loops).
 - `synthetic` (default): render a flat table at a configurable depth with a
   colored box on it -- enough for the full pipeline (detection via
   MockDetector, depth sampling, grasp planning) to run end-to-end in tests.

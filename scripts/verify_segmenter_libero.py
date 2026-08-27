@@ -15,17 +15,17 @@ Run from the LIBERO venv:
 import os
 import sys
 
-sys.path.insert(0, os.path.expanduser("~/Projects/demo/wrc_demo/src"))
+sys.path.insert(0, os.path.expanduser("~/Projects/demo/cascade/src"))
 sys.path.insert(0, os.path.expanduser("~/bench/LIBERO"))
 
 import numpy as np
 from libero.libero import benchmark, get_libero_path
 from libero.libero.envs import OffScreenRenderEnv
 
-from wrc_demo.perception.segmenter import PointSegmenter, fix_at_pixel
-from wrc_demo.types import Frame
+from cascade.perception.segmenter import PointSegmenter, fix_at_pixel
+from cascade.types import Frame
 
-MODEL = os.path.expanduser("~/Projects/demo/wrc_demo/models/sam2.1_t.pt")
+MODEL = os.path.expanduser("~/Projects/demo/cascade/models/sam2.1_t.pt")
 SUITE = "libero_spatial"
 TARGETS = ("akita_black_bowl_2_main", "plate_1_main")
 

@@ -1,9 +1,9 @@
 import numpy as np
 
-from wrc_demo.agent.llm import LLMResponse, MockLLM, ToolCall
-from wrc_demo.agent.orchestrator import AgentOrchestrator
-from wrc_demo.skills.library import SkillLibrary
-from wrc_demo.skills.runtime import TOOL_SPECS
+from cascade.agent.llm import LLMResponse, MockLLM, ToolCall
+from cascade.agent.orchestrator import AgentOrchestrator
+from cascade.skills.library import SkillLibrary
+from cascade.skills.runtime import TOOL_SPECS
 
 
 def test_tool_specs_are_valid_schemas():
@@ -17,7 +17,7 @@ def test_tool_specs_are_valid_schemas():
         for req in params.get("required", []):
             assert req in params["properties"]
     # Every spec maps to a runtime method.
-    from wrc_demo.skills.runtime import SkillRuntime
+    from cascade.skills.runtime import SkillRuntime
 
     for spec in TOOL_SPECS:
         assert hasattr(SkillRuntime, f"skill_{spec['name']}")
@@ -38,7 +38,7 @@ class _StubRuntime:
     """Minimal runtime for orchestrator-only behavior tests."""
 
     def __init__(self):
-        from wrc_demo.memory import EpisodicMemory
+        from cascade.memory import EpisodicMemory
 
         self.memory = EpisodicMemory()
         self.last_frame = None

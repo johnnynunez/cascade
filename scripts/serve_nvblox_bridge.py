@@ -1,5 +1,5 @@
-"""Reference ZMQ/msgpack bridge for wrc_demo's occupancy client
-(src/wrc_demo/perception/occupancy.py).
+"""Reference ZMQ/msgpack bridge for cascade's occupancy client
+(src/cascade/perception/occupancy.py).
 
 Two interchangeable backends behind the SAME wire protocol
 (integrate/query, see occupancy.py's docstring) and the SAME `integrate()`/

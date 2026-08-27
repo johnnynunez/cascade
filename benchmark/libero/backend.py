@@ -1,9 +1,9 @@
-"""LIBERO as a wrc_demo arm + camera backend.
+"""LIBERO as a cascade arm + camera backend.
 
 `LiberoArm` implements ArmBase so that SafeArm, SafetyHarness and every
 skill_* method drive the Franka in LIBERO exactly as they drive the B601-RS
 in Isaac. `LiberoCamera` implements CameraBase so the detector, the belief
-store and the grasp pipeline see a normal wrc_demo Frame.
+store and the grasp pipeline see a normal cascade Frame.
 
 The one structural difference from the real rig: LIBERO's env.step() advances
 physics, so motion is DISCRETE. ArmBase.stream_to() paces waypoints with
@@ -19,17 +19,17 @@ import time
 
 import numpy as np
 
-from wrc_demo.control.arm_base import ArmBase, min_jerk
-from wrc_demo.perception.camera_base import CameraBase
-from wrc_demo.types import Frame, RobotState
+from cascade.control.arm_base import ArmBase, min_jerk
+from cascade.perception.camera_base import CameraBase
+from cascade.types import Frame, RobotState
 
 
 class LiberoArm(ArmBase):
-    """A 7-DoF Franka in LIBERO behind wrc_demo's ArmBase contract."""
+    """A 7-DoF Franka in LIBERO behind cascade's ArmBase contract."""
 
     #: The Panda has 7 arm joints; the B601-RS has 6. ArmBase.n_joints is a
     #: class attribute precisely so backends can differ -- nothing in
-    #: wrc_demo hardcodes 6 outside the RS profile.
+    #: cascade hardcodes 6 outside the RS profile.
     n_joints = 7
     settle_tol = 0.05
     #: Which robosuite controller this backend is driving. Set from the env at
@@ -140,7 +140,7 @@ class LiberoArm(ArmBase):
 
         robosuite's raw env returns 4 values (obs, reward, done, info); the
         LIBERO wrapper returns the gymnasium 5-tuple. We hold the INNER env
-        because the wrc_demo backends need `.sim`, so unpack defensively
+        because the cascade backends need `.sim`, so unpack defensively
         instead of assuming a shape -- guessing here fails at the very first
         motion with an opaque unpack error.
 
@@ -262,7 +262,7 @@ class LiberoArm(ArmBase):
         return np.zeros(n + 1)
 
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
-        """Map wrc_demo's 0..1 gripper position onto LIBERO's -1/+1."""
+        """Map cascade's 0..1 gripper position onto LIBERO's -1/+1."""
         self._grip_cmd = self._grip_closed if pos > 0.5 else self._grip_open
         zeros = np.zeros(6 if self.controller == "OSC_POSE" else self.n_joints)
         for _ in range(12):                       # let the jaws actually move
@@ -381,7 +381,7 @@ class LiberoArm(ArmBase):
 
 
 class LiberoCamera(CameraBase):
-    """LIBERO's agentview as a wrc_demo RGB-D camera."""
+    """LIBERO's agentview as a cascade RGB-D camera."""
 
     def __init__(self, env, cam_name: str = "agentview", res: int = 256):
         super().__init__()
@@ -430,7 +430,7 @@ class LiberoCamera(CameraBase):
         """Return the most recent rendered frame.
 
         CRITICAL: MuJoCo's offscreen render context is NOT thread-safe and is
-        owned by the thread that created it. wrc_demo's CameraStream grabs on
+        owned by the thread that created it. cascade's CameraStream grabs on
         a worker thread, so calling sim.render() here corrupts the context --
         observed as a cascade of 'MjRenderContextOffscreen has no attribute
         con' / '_render_context_offscreen' errors and, eventually, a dead sim.
@@ -461,7 +461,7 @@ class LiberoCamera(CameraBase):
                 print(f"[LiberoCamera] no '{self.cam}_image' in obs; keys="
                       f"{sorted(k for k in obs if 'image' in k)}", flush=True)
             return
-        # LIBERO renders upside down; wrc_demo (and every detector) expects the
+        # LIBERO renders upside down; cascade (and every detector) expects the
         # scene the right way up. Same 180-degree flip the OpenVLA eval applies.
         rgb = np.ascontiguousarray(np.asarray(rgb)[::-1, ::-1, ::-1])  # +RGB->BGR
         d = None

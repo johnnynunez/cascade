@@ -64,8 +64,8 @@ def _urdf_local_limits() -> tuple[np.ndarray, np.ndarray] | None:
     """LOCAL-convention joint limits from the RS URDF, or None if the model
     or Pinocchio is unavailable (the probe is still useful without them)."""
     try:
-        from wrc_demo.config import load_demo_config
-        from wrc_demo.control.kinematics import Kinematics
+        from cascade.config import load_demo_config
+        from cascade.control.kinematics import Kinematics
 
         cfg = load_demo_config(cameras=["mock"], arm="rebot_rs", llm="mock")
         arm = cfg.arm

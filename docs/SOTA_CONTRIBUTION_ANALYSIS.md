@@ -1,4 +1,4 @@
-# Where wrc_demo can actually advance the state of the art
+# Where cascade can actually advance the state of the art
 
 Status: 2026-08-08. Written after downloading and text-extracting the six
 papers (`~/research/sota/papers/*.pdf`) and cloning the available code
@@ -39,7 +39,7 @@ benchmark results, as they don't transfer to real robots.
 > perception-assisting APIs such as segmentation functions, so visual
 > understanding is solely the job of the agent and its underlying model.
 
-wrc_demo's LIBERO harness was doing exactly the forbidden thing until this
+cascade's LIBERO harness was doing exactly the forbidden thing until this
 session (see `SOTA_PERCEPTION_AND_EVALUATION.md`). That is now behind
 `--perception oracle|camera`, and every historical result file is stamped.
 
@@ -135,7 +135,7 @@ perception APIs to prove the interface is doing the work. Its interface is a
 navigable RGB-D point cloud plus click-to-teleport, rotate-by-gizmo, and
 `execute_waypoint`.
 
-wrc_demo has `visual_interface.py` (VIA-style annotated frame) and `probe.py`
+cascade has `visual_interface.py` (VIA-style annotated frame) and `probe.py`
 (the Anthropic cursor ablation), but its agent still acts through
 `grasp_object(label)`. The genuinely VIA-shaped missing piece is
 **click-to-act**: let the agent name a pixel and have the system resolve it to
@@ -153,7 +153,7 @@ ASPIRE's skill library contains:
 > Detect all instances, sort by the axis implied by the qualifier (X for
 > front/back, Y for left/right in robot frame), then select by keyword index.
 
-wrc_demo had the axis map (`_SPATIAL_AXES`) but nothing parsed the user's
+cascade had the axis map (`_SPATIAL_AXES`) but nothing parsed the user's
 phrase into it. `perception/reference.py` (added this session) closes that,
 covering VoLo's four reference types: spatial, ordinal, size, negation.
 

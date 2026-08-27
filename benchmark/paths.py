@@ -4,10 +4,10 @@ Every path here is overridable by an environment variable so the suite runs on
 a machine that is not the one it was written on. Defaults match the layout in
 docs/BENCHMARKS.md.
 
-    WRC_BENCH_LIBERO   checkout of Lifelong-Robot-Learning/LIBERO
-    WRC_BENCH_MODELS   directory holding openvla-7b-libero-* checkpoints
-    WRC_BENCH_RESULTS  where result JSON is written (default: ./results)
-    WRC_BENCH_VENV     python interpreter that has LIBERO installed
+    CASCADE_BENCH_LIBERO   checkout of Lifelong-Robot-Learning/LIBERO
+    CASCADE_BENCH_MODELS   directory holding openvla-7b-libero-* checkpoints
+    CASCADE_BENCH_RESULTS  where result JSON is written (default: ./results)
+    CASCADE_BENCH_VENV     python interpreter that has LIBERO installed
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parent
 #: repo root (benchmark/ lives directly under it)
 REPO = ROOT.parent
 
-#: wrc_demo source tree, so `import wrc_demo` works without installation
+#: cascade source tree, so `import cascade` works without installation
 SRC = REPO / "src"
 
 
@@ -33,18 +33,18 @@ def _env_path(var: str, default: Path) -> Path:
 
 #: LIBERO checkout. Clone with:
 #:   git clone https://github.com/Lifelong-Robot-Learning/LIBERO
-LIBERO_DIR = _env_path("WRC_BENCH_LIBERO", Path.home() / "bench" / "LIBERO")
+LIBERO_DIR = _env_path("CASCADE_BENCH_LIBERO", Path.home() / "bench" / "LIBERO")
 
 #: OpenVLA checkpoints, one per suite (openvla-7b-libero-spatial, -object, ...)
-MODELS_DIR = _env_path("WRC_BENCH_MODELS", Path.home() / "models")
+MODELS_DIR = _env_path("CASCADE_BENCH_MODELS", Path.home() / "models")
 
 #: result JSON
-RESULTS_DIR = _env_path("WRC_BENCH_RESULTS", ROOT / "results")
+RESULTS_DIR = _env_path("CASCADE_BENCH_RESULTS", ROOT / "results")
 
 #: interpreter with LIBERO + robosuite installed (numpy<2, so it is NOT the
-#: wrc_demo venv -- see docs/BENCHMARKS.md)
+#: cascade venv -- see docs/BENCHMARKS.md)
 LIBERO_PYTHON = os.environ.get(
-    "WRC_BENCH_VENV", str(Path.home() / ".venvs" / "libero" / "bin" / "python"))
+    "CASCADE_BENCH_VENV", str(Path.home() / ".venvs" / "libero" / "bin" / "python"))
 
 
 def _sync_libero_config() -> None:
@@ -52,7 +52,7 @@ def _sync_libero_config() -> None:
 
     MEASURED BUG this prevents: `libero.libero` resolves bddl_files,
     init_files and assets from `~/.libero/config.yaml`, which is written once
-    at install time and names ONE checkout. Setting `WRC_BENCH_LIBERO` put
+    at install time and names ONE checkout. Setting `CASCADE_BENCH_LIBERO` put
     LIBERO-PRO on sys.path but left that config pointing at plain LIBERO, so
     a LIBERO-Pro run loaded Pro's task list and then tried to read Pro's
     init_files from the standard checkout:
@@ -88,7 +88,7 @@ def _sync_libero_config() -> None:
 
 
 def add_paths() -> None:
-    """Put LIBERO, wrc_demo and this package on sys.path."""
+    """Put LIBERO, cascade and this package on sys.path."""
     _sync_libero_config()
     for p in (str(LIBERO_DIR), str(SRC), str(ROOT)):
         if p not in sys.path:
@@ -101,7 +101,7 @@ def require_libero() -> None:
         raise SystemExit(
             f"LIBERO not found at {LIBERO_DIR}.\n"
             "  git clone https://github.com/Lifelong-Robot-Learning/LIBERO\n"
-            "  export WRC_BENCH_LIBERO=/path/to/LIBERO")
+            "  export CASCADE_BENCH_LIBERO=/path/to/LIBERO")
 
 
 def results_path(name: str) -> Path:

@@ -22,13 +22,13 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, "/home/johnny/Projects/demo/wrc_demo/src")
+sys.path.insert(0, "/home/johnny/Projects/demo/cascade/src")
 
 import numpy as np
 import yaml
 
-from wrc_demo.sim.bridge_client import BridgeClient
-from wrc_demo.sim.truth import TruthPoseReader
+from cascade.sim.bridge_client import BridgeClient
+from cascade.sim.truth import TruthPoseReader
 
 c = BridgeClient(port=8611)
 c.connect()
@@ -43,7 +43,7 @@ time.sleep(1.5)
 t = np.asarray(truth.pose("pink cube"), dtype=float)
 print(f"true cube centre (base): {np.round(t, 4)}")
 
-cfgp = Path("/home/johnny/Projects/demo/wrc_demo/configs/cameras/isaac.yaml")
+cfgp = Path("/home/johnny/Projects/demo/cascade/configs/cameras/isaac.yaml")
 y = yaml.safe_load(cfgp.read_text())
 T = np.array(y["extrinsics"]["T"], dtype=float)      # cam -> base
 print(f"\nT (cam->base):\n{np.round(T, 4)}")
@@ -73,7 +73,7 @@ if depth is not None:
               f"diff {(z_meas - zc)*1000:+.1f} mm")
 
         # 4. round-trip: true pixel + measured depth -> base
-        from wrc_demo.perception.probe import deproject
+        from cascade.perception.probe import deproject
         p = deproject(u_true, v_true, z_meas, K)
         back = T @ np.array([p[0], p[1], p[2], 1.0])
         print(f"\nround-trip back to base: {np.round(back[:3], 4)}")

@@ -19,10 +19,10 @@ import os
 import sys
 import threading
 
-sys.path.insert(0, os.path.expanduser("~/Projects/demo/wrc_demo/src"))
+sys.path.insert(0, os.path.expanduser("~/Projects/demo/cascade/src"))
 sys.path.insert(0, os.path.expanduser("~/bench/LIBERO"))
-sys.path.insert(0, os.path.expanduser("~/Projects/demo/wrc_demo/benchmark"))
-sys.path.insert(0, os.path.expanduser("~/Projects/demo/wrc_demo/benchmark/libero"))
+sys.path.insert(0, os.path.expanduser("~/Projects/demo/cascade/benchmark"))
+sys.path.insert(0, os.path.expanduser("~/Projects/demo/cascade/benchmark/libero"))
 
 import numpy as np
 from libero.libero import benchmark, get_libero_path

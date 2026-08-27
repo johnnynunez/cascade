@@ -7,7 +7,7 @@ and recovers from failures*.  On LIBERO-PRO that loop is worth 12.8% -> 53.3%
 with identical weights.  Nothing is retrained; only the inference-time
 process changes.
 
-This module supplies the "verify the outcome" half for wrc_demo.
+This module supplies the "verify the outcome" half for cascade.
 
 The problem it fixes is concrete and already documented in this repo's own
 notes: **skills currently self-report**.  ``grasp_object`` returns ok when the

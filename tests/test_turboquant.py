@@ -1,7 +1,7 @@
 import numpy as np
 
-from wrc_demo.memory.turboquant import TurboQuantizer
-from wrc_demo.memory.vector_index import QuantizedIndex
+from cascade.memory.turboquant import TurboQuantizer
+from cascade.memory.vector_index import QuantizedIndex
 
 
 def test_roundtrip_reconstruction(rng):

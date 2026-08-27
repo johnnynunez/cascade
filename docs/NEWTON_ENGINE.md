@@ -307,7 +307,7 @@ per finger 2.35 mm off target, sum of the two errors 0.01 mm
 right finger tops out at 54.0 mm against a commanded 71.5 mm
 ```
 
-With `scripts/night_runner.sh` killed and the `wrc-demo-watchdog` cron paused,
+With `scripts/night_runner.sh` killed and the `cascade-watchdog` cron paused,
 the same measurement on the same USD:
 
 | engine | error per finger | reaches full 71.5 mm travel |

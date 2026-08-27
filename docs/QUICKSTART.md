@@ -9,7 +9,7 @@ se abre cuando la pides.
 ## 0. Requisitos que arrancan una vez
 
 ```bash
-cd ~/Projects/demo/wrc_demo
+cd ~/Projects/demo/cascade
 PY=~/Projects/demo/.demo/bin/python          # el venv compartido
 ```
 
@@ -42,7 +42,7 @@ ss -ltnp | grep -E '8611|8080|8082|5556'
 ## 1. Una orden y ya (lo más rápido)
 
 ```bash
-cd models && PYTHONPATH=../src $PY -m wrc_demo.apps.demo \
+cd models && PYTHONPATH=../src $PY -m cascade.apps.demo \
     --cameras isaac,isaac_side --arm isaac --llm local_qwen \
     --task "pick and place the pink cube in the box" --no-view
 ```
@@ -55,7 +55,7 @@ Perfiles de cerebro: `--llm local_qwen` | `--llm local_cosmos` | `--llm mock`
 ## 2. Chat interactivo en la terminal
 
 ```bash
-cd models && PYTHONPATH=../src $PY -m wrc_demo.apps.demo \
+cd models && PYTHONPATH=../src $PY -m cascade.apps.demo \
     --cameras isaac,isaac_side --arm isaac --llm local_qwen --interactive
 ```
 
@@ -109,7 +109,7 @@ limpio.
 
 ```bash
 # una orden y ya   (ojo: cd models, YOLOE busca sus pesos en el CWD)
-cd models && PYTHONPATH=../src $PY -m wrc_demo.apps.demo \
+cd models && PYTHONPATH=../src $PY -m cascade.apps.demo \
     --cameras isaac,isaac_side --arm isaac --llm local_qwen \
     --task "pick and place the pink cube in the box" --no-view
 
@@ -150,18 +150,18 @@ que maneja el mismo brazo.
 
 ### Modos del dashboard
 
-`stream.mode` en `configs/demo.yaml`, y `WRC_STREAM` manda por encima:
+`stream.mode` en `configs/demo.yaml`, y `CASCADE_STREAM` manda por encima:
 
 | modo | comportamiento |
 |---|---|
 | `lazy` *(por defecto)* | no bindea hasta que lo pides; auto-cierra al inactivar |
 | `eager` | bindea al arrancar — fijado en `booth.yaml` para día de feria |
-| `off` | nunca bindea (`WRC_STREAM=0` = kill switch duro) |
+| `off` | nunca bindea (`CASCADE_STREAM=0` = kill switch duro) |
 
 ```bash
-WRC_STREAM=eager ...    # dashboard desde el segundo cero
-WRC_STREAM=0 ...        # nunca, ni aunque lo pidan
-WRC_BOOTH=1 ...         # modo feria completo (incluye eager)
+CASCADE_STREAM=eager ...    # dashboard desde el segundo cero
+CASCADE_STREAM=0 ...        # nunca, ni aunque lo pidan
+CASCADE_BOOTH=1 ...         # modo feria completo (incluye eager)
 ```
 
 ---
@@ -181,7 +181,7 @@ $PY -m pytest tests/ -q                    # 224 tests, ~43 s
 $PY scripts/learn_from_runs.py --report    # qué falló últimamente y por qué
 ```
 
-- **Puerto 8090 ocupado** → un run antiguo sigue vivo. `WRC_STREAM_PORT=8097`.
+- **Puerto 8090 ocupado** → un run antiguo sigue vivo. `CASCADE_STREAM_PORT=8097`.
 - **`no frame yet`** → el rig aún calienta; espera 2-3 s.
 - **YOLOE no encuentra pesos** → no arrancaste desde `models/`.
 - **El agente no llama a ninguna herramienta con Cosmos** → el perfil debe ser

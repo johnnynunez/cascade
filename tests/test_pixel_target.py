@@ -18,11 +18,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from wrc_demo.perception.pixel_target import (
+from cascade.perception.pixel_target import (
     fix_from_pixel,
     segment_at_pixel,
 )
-from wrc_demo.types import Frame, SkillError
+from cascade.types import Frame, SkillError
 
 K = np.array([[200.0, 0.0, 64.0],
               [0.0, 200.0, 64.0],
@@ -155,6 +155,6 @@ def test_escaped_fill_fails_instead_of_returning_a_wrong_pose():
 
 def test_grasp_at_pixel_is_exposed_to_the_llm():
     """A skill missing from TOOL_SPECS is invisible; CLAUDE.md flags this trap."""
-    from wrc_demo.skills.runtime import TOOL_SPECS
+    from cascade.skills.runtime import TOOL_SPECS
 
     assert "grasp_at_pixel" in {t["name"] for t in TOOL_SPECS}

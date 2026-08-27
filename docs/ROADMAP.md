@@ -28,12 +28,121 @@ Open follow-ups from this work:
    reliability + latency with Qwen3-VL (needs the vLLM-Omni container pulled).
 2. Feed `max_frames > 1` (short clip at ~4 fps) to the Cosmos3 reasoner and
    measure whether motion context improves failure diagnosis.
-3. Phantom beliefs: `annotated_view` surfaced a stale 4th "cube" mark — the
-   belief store keeps unconfirmed detections alive longer than the annotated
-   view implies. Tighten belief decay or mark low-confidence beliefs visually.
+3. ~~Phantom beliefs~~ **fixed 2026-08-27.** `annotated_view` surfaced a stale
+   4th "cube" mark — root cause was two bugs in `perception/visual_interface.py`,
+   not the belief store (which correctly never forgets during a demo run —
+   object permanence is deliberate, see `memory/beliefs.py`): (a) every mark
+   was drawn with equal confidence regardless of how many times it had been
+   re-observed, and (b) the `age_s` reported alongside each mark read
+   `getattr(b, "age", 0.0)`, a field `ObjectBelief` never sets, so it was
+   silently always `0.0` and hid staleness from anyone reading the tool
+   result. A belief now renders/describes as `confirmed: false` /
+   `UNCONFIRMED` unless it is currently visible or was re-observed at least
+   once (`VisualInterface.min_observations`, default 2) — pinned in
+   `tests/test_visual_interface.py`.
 4. Envelope features are currently raw skill args; add derived features
    (TCP z at grasp, object height) so the learned ranges capture the real
    B601-RS constraint rather than a proxy.
+5. **SGLang Omni as a second serving engine for Cosmos3-Edge**, landed
+   2026-08-27: `scripts/serve_cosmos_sglang.sh` + `configs/llm/local_cosmos_sglang.yaml`
+   (`local_cosmos_sglang`, :8083) alongside the existing vLLM path (`local_cosmos`,
+   :8082). `agent/cosmos3.py` needed zero changes — the XML tool-call format
+   is a property of the checkpoint's chat template, not the serving engine, so
+   both profiles use `type: cosmos3` and differ only in `base_url`. Unlike the
+   vLLM script (verified on GB10 2026-07-21), the SGLang script is
+   **unverified** — it mirrors the vLLM script's known day-one pitfalls
+   (transformers git-main, diffusers→HF re-export, the `get_rope_index`
+   no-video guard) plus SGLang's own `--disable-cuda-graph` warmup flag, but
+   has not had a rehearsal run on real hardware. `scripts/openclaw_demo.sh
+   --brain cosmos-sglang` wires it into the OpenClaw front-end the same way
+   `--brain cosmos` does. This also answers follow-up #1's engine half — the
+   comparison there can now run vLLM vs. SGLang, not just Cosmos vs. Qwen.
+
+## Landed 2026-08-27: four more sources, one landed mechanism
+
+The user pointed at four more references beyond the 2026-07-31 synthesis:
+Human-CLAW (2607.27180), LaMem-VLA (2607.07608), grasping.io (resolves to
+HUG — Human Universal Grasping, NYU/Tsinghua/UMich), and a re-read of the
+Waddle Labs blog post this repo had only cited secondhand before. Only one
+of the four shipped code today (`memory/envelope.py`'s graduated
+confidence) — the rest are scoped, concrete next steps, not vague
+inspiration lifted from an abstract.
+
+- **Graduated envelope confidence (RLinf/RPent, the real repo).** Checking
+  the actual repo behind the already-cited Harness-VLA paper (not just its
+  abstract) turned up two things `memory/envelope.py`'s port was missing: a
+  three-tier confidence label (`single-shot` / `probable` / `verified`, by
+  sample count — this module has no per-task grouping to match RPent's
+  "distinct tasks" breadth signal; spans are deliberately scene-independent,
+  see the module docstring) and a `contradicted_by`-style regression signal.
+  Landed: `_Span.confidence()` + a `contradictions` counter, incremented
+  when a later call's feature value falls INSIDE a "proven" range and still
+  fails. Surfaces as a non-blocking `Verdict.notes` caution (booth rule
+  preserved — advisory only, never a veto) and in `envelope_digest()` /
+  `export_markdown()`. Pinned in `tests/test_envelope_confidence.py`.
+- **Human-CLAW** (2607.27180) — a humanoid-control paper; wrong embodiment
+  for a 6-DoF tabletop arm (its diffusion-motion / ControlNet / half-physics
+  -sim machinery does not transfer). One idea does: a **pre-execution skill
+  verifier** that interrogates a proposed call with skill-specific questions
+  before it runs — distinct from this repo's existing *post-hoc* effect
+  verification (`agent/effects.py`) and *static* operating envelopes
+  (`memory/envelope.py`). Not landed yet — see open follow-up #6 below.
+- **LaMem-VLA** (2607.07608) — dual latent-memory architecture (Curator →
+  Seeker → Condenser → Weaver) that splices condensed memory tokens directly
+  into a VLA policy's embedding space. Requires a trainable VLA backbone
+  this repo does not have — added to "Deliberately not built" in
+  `docs/AGENTIC_UPGRADES.md`, next to Agentic-VLA's GRPO note for the same
+  reason. wrc_demo's belief store + envelope + skill library already cover
+  the same short-term/long-term split symbolically (text woven into the
+  LLM's system prompt, not latents woven into a policy).
+- **grasping.io → HUG** (Human Universal Grasping, NYU/Tsinghua/UMich) — an
+  open-source flow-matching grasp model trained on 1M egocentric human-grasp
+  frames, cross-embodiment by design (no hand-specific retraining). No
+  hosted API; would need self-hosting the same way `graspgenx` already is
+  (ZMQ server, `scripts/serve_graspgenx.sh`). A real candidate for a second
+  `grasp.backend` option, untested against the B601-RS's specific IK
+  envelope. See open follow-up #7.
+- **Waddle Labs, re-read in full.** The existing citation ("code-as-policy +
+  a shared skill library") was accurate but incomplete: the actual post
+  describes a three-tier hierarchy — `primitives` (fixed low-level platform
+  functions) → `skills` (agent-authored, reusable, composed from
+  primitives) → `programs` (full task-specific policies composed from
+  skills, written fresh per instruction). wrc_demo has the first two
+  (`TOOL_SPECS` = primitives, `skills_library/*.md` = skills) but no
+  `programs` tier — see open follow-up #8. Also notable, as a *contrast*
+  and not a pattern to adopt: Waddle's described safety layer is a single
+  `verify(...)` check with no rate-limiting or rollback protocol — thinner
+  than this repo's harness-as-sole-authority design, worth stating
+  explicitly rather than citing Waddle as a safety precedent.
+
+Open follow-ups from this work:
+6. **Pre-motion plausibility check (Human-CLAW).** Extend
+   `agent/milestones.py`'s existing rate-limited `VERIFY_USER` critic
+   pattern to run *before* dispatch for `_MOTION_SKILLS`
+   (`skills/runtime.py:31`), not just post-hoc for milestone progress: ask
+   "is this specific call, with these specific args, plausible given
+   current beliefs/reachability?" and let it veto/substitute, the way
+   Human-CLAW's verifier does. Reuses existing rate-limiting so it does not
+   blow booth-clock budget. Deliberately not landed today: this touches the
+   safety-critical motion-dispatch choke point in `SkillRuntime.execute()`,
+   and per CLAUDE.md the harness must remain the sole authority that
+   refuses motion — a verifier here has to be advisory-only (same booth
+   rule as envelopes), and that needs a live-rig or at minimum a
+   MockLLM-scripted test pass before landing, not a speculative edit to the
+   motion path from a machine that cannot run the rig.
+7. **HUG as a second grasp backend.** Add `grasp.backend: hug` alongside
+   `graspgenx`, self-hosted the same way (a serve script + client mirroring
+   `grasping/graspgenx_backend.py`), re-ranked by the same
+   `GraspOutcomeMemory`. Whether HUG's cross-embodiment grasps clear this
+   arm's IK envelope is untested — the point of landing it is to find out,
+   not to assume it is better.
+8. **A `programs` tier (Waddle).** wrc_demo has primitives (`TOOL_SPECS`)
+   and skills (`skills_library/*.md`, ASPIRE-distilled) but nothing above
+   skills: an agent-composed, reusable, task-level script distinct from a
+   one-off orchestrator run. Scoping question before landing: does a
+   "program" get authored the same way ASPIRE distills a skill (diagnose a
+   successful multi-skill run, persist it), or does the agent write one
+   proactively? Needs a design pass, not a first draft in this file.
 
 ## Near term (before the demo)
 

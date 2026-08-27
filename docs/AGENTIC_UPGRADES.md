@@ -12,6 +12,13 @@ range* of primitives it never retrains.
 This document maps each idea onto what shipped here, and — as importantly —
 what was deliberately **not** built.
 
+> Four more sources were checked 2026-08-27 (Human-CLAW, LaMem-VLA,
+> grasping.io/HUG, a full re-read of the Waddle Labs post) — full verdicts
+> in `docs/ROADMAP.md`'s "Landed 2026-08-27" section. Only one shipped code
+> here (the envelope confidence addendum in §3 below); the rest are scoped
+> open follow-ups (#6-8 in that section), not landed mechanisms, except
+> LaMem-VLA which joined "Deliberately not built" below.
+
 ## What each source contributed
 
 | Source | Idea taken | Landed as |
@@ -83,6 +90,20 @@ head into data the agent reads at task start. Cold start is silent by design
 (`MIN_SUPPORT`), and the check is advisory — the harness remains the only
 authority that refuses motion ("booth rule").
 
+**2026-08-27 addendum: graduated confidence + contradictions.** Checking the
+actual `RLinf/RPent` repo behind this paper (not just its abstract) turned up
+two things the port above was missing: RPent's memory entries carry a
+three-tier confidence (`single-shot` → `probable` → `verified`) by evidence
+breadth, and a `contradicted_by` field for when a "proven" entry is later
+falsified. `_Span.confidence()` ports the tier (by sample count — this module
+has no per-task grouping to match RPent's "distinct tasks" breadth signal,
+spans are deliberately scene-independent); a `contradictions` counter now
+increments when a later call's feature value lands INSIDE a "proven" range
+and still fails. Both surface in `envelope_digest()` / `export_markdown()`,
+and a contradicted range on a call that's otherwise `ok` gets a non-blocking
+`Verdict.notes` caution — never a veto, same booth rule. See
+`tests/test_envelope_confidence.py`.
+
 ### 4. Readable interface (VIA)
 
 `annotated_view` renders what the agent actually needs: numbered badges per
@@ -142,6 +163,15 @@ both shapes and coerces parameters against the JSON schema in `TOOL_SPECS`, so
   executor.
 - **Hard-blocking on learned envelopes.** Advisory only. A learned prior must
   never veto the safety harness or stall a live demo.
+- **LaMem-VLA's latent memory** (2607.07608, added to the synthesis
+  2026-08-27). A dual latent-memory architecture (Curator → Seeker →
+  Condenser → Weaver) that splices condensed memory tokens directly into a
+  VLA policy's own embedding space — architecturally requires a trainable
+  VLA backbone this repo does not have (same prerequisite as the GRPO note
+  above). The belief store + envelope + skill-library trio already cover
+  the same short-term/long-term split *symbolically* — text woven into the
+  LLM's system prompt rather than latents woven into a policy. Revisit once
+  there is a VLA executor with an embedding space to weave into.
 
 ## The cursor: overlays are neutral, queries are not
 
@@ -205,10 +235,14 @@ src/wrc_demo/apps/live_control.py         on-demand live-view lifecycle
 src/wrc_demo/perception/probe.py          the queryable cursor (6% -> 32%)
 scripts/learn_from_runs.py                the outer loop
 scripts/serve_cosmos_vllm.sh             vLLM-Omni serving
-configs/llm/local_cosmos.yaml             Cosmos3-Edge profile
+scripts/serve_cosmos_sglang.sh           SGLang serving (2026-08-27, unverified on the rig)
+configs/llm/local_cosmos.yaml             Cosmos3-Edge profile (vLLM)
+configs/llm/local_cosmos_sglang.yaml      Cosmos3-Edge profile (SGLang, 2026-08-27)
 tests/test_agentic_upgrades.py            29 tests
 tests/test_live_view.py                   20 tests
 tests/test_probe.py                       21 tests
+tests/test_visual_interface.py            5 tests  (2026-08-27, phantom-belief fix)
+tests/test_envelope_confidence.py         8 tests  (2026-08-27, RPent confidence port)
 ```
 
 ## The UI: headless-first, cameras on demand

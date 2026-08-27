@@ -30,6 +30,10 @@ and scripts/jog_rebot_mb.py, the bring-up tools that established these):
   therefore captures the live pose and preloads it as the MIT setpoint
   BEFORE `enable_all()`, or the arm snaps from wherever it rests to whatever
   setpoint the motors happened to hold.
+- Reconnecting to an arm a previous session left ENABLED (the bring-up scripts
+  leave torque on by design) fails on the run-mode write -- 0x7005 never
+  answers -- while position reads keep working. `connect()` recovers by
+  dropping torque once, which is why it can only be called on a parked arm.
 - The gripper's travel was measured at ~0..+6.39 rad, closed at 0. That is
   the OPPOSITE polarity to the DM-derived numbers in `configs/arms/rebot_rs.yaml`
   (open -6.8), which is why this profile ships its own gripper block. Commanding
@@ -129,8 +133,25 @@ class RebotRSMotorBridgeArm(ArmBase):
                 motors[mid] = ctrl.add_robstride_motor(
                     motor_id=mid, feedback_id=self._host_id, model=self._model
                 )
-            for m in motors.values():
-                m.ensure_mode(Mode.MIT)
+            try:
+                for m in motors.values():
+                    m.ensure_mode(Mode.MIT)
+            except Exception as e:
+                # A motor left ENABLED by a previous session rejects run-mode
+                # writes, so 0x7005 never comes back and a reconnect dies here
+                # while position reads still work fine. Torque must drop for the
+                # mode to take. The capture-then-enable below then hands the arm
+                # back whatever pose it has settled into.
+                print(
+                    f"[warn] ensure_mode failed ({e}).\n"
+                    "[warn] The motors look enabled from an earlier session. "
+                    "Dropping torque for a moment to set MIT mode -- SUPPORT "
+                    "THE ARM if it is holding a load or is outstretched."
+                )
+                ctrl.disable_all()
+                time.sleep(0.2)
+                for m in motors.values():
+                    m.ensure_mode(Mode.MIT)
 
             self._ctrl, self._motors = ctrl, motors
             # Capture where the arm actually rests. Motors are limp after a

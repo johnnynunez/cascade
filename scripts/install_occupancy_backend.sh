@@ -5,7 +5,7 @@
 # never touches repo files, config, or running processes).
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/johnnynunez/wrc_demo/main/scripts/install_occupancy_backend.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/install_occupancy_backend.sh | bash
 #
 # Or locally:
 #   ./scripts/install_occupancy_backend.sh [--python /path/to/python]

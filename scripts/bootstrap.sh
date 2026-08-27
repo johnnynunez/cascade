@@ -4,7 +4,7 @@
 # repo's skills with OpenClaw over MCP, and opens the web chat -- the
 # curl|bash entry point for a fresh DGX Spark / GB10 box.
 #
-#   curl -fsSL https://raw.githubusercontent.com/johnnynunez/wrc_demo/main/scripts/bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bootstrap.sh | bash
 #
 # Or locally:
 #   ./scripts/bootstrap.sh [--brain cosmos|cosmos-sglang|qwen|skip] [--arm ...] [--cameras ...] [--no-occupancy]

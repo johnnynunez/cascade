@@ -7,7 +7,7 @@ number measured in this repo or to a claim traced back to its source.
 Scope of the two questions this answers:
 
 1. What do the current agentic-robotics systems actually use for perception?
-2. What would a credible, paper-grade evaluation of wrc_demo look like?
+2. What would a credible, paper-grade evaluation of cascade look like?
 
 ---
 
@@ -38,7 +38,7 @@ into a skill library. Its disambiguation skill is worth copying directly:
 > front/back, Y for left/right in robot frame), then select by keyword index.
 
 plus a per-object SAM3 prompt registry and confidence filtering that rejects
-low-score centroids. wrc_demo has the equivalent axis map already
+low-score centroids. cascade has the equivalent axis map already
 (`_SPATIAL_AXES` in `grounding.py`), which is convergent evidence the approach
 is right.
 
@@ -72,12 +72,12 @@ return {
 That is a system where **segmentation is a convenience, not the perception
 substrate**. The substrate is depth back-projection at VLM-chosen pixels.
 
-### What this means for wrc_demo
+### What this means for cascade
 
-wrc_demo already has both halves of that pattern and did not get credit for it
+cascade already has both halves of that pattern and did not get credit for it
 in its own docs:
 
-| RPent / VoLo concept | wrc_demo equivalent | status |
+| RPent / VoLo concept | cascade equivalent | status |
 |---|---|---|
 | `back_project` | `probe.py` `PointProbe` + `deproject()` | present |
 | `segment` on demand | `vlm_ground.py` on the failure path | present |
@@ -85,7 +85,7 @@ in its own docs:
 | trace-exposing engine | `TraceLogger` + `agent/aspire.py` | present |
 | verifier before acting | `PostconditionChecker`, `SafetyHarness` | present |
 
-The genuine architectural difference is that wrc_demo *also* runs a 3 Hz
+The genuine architectural difference is that cascade *also* runs a 3 Hz
 always-on detector feeding a `BeliefStore`. None of the surveyed systems do
 that. It is worth keeping deliberately rather than by accident:
 
@@ -93,7 +93,7 @@ that. It is worth keeping deliberately rather than by accident:
   ("the pink one") that resolve without a model call, and a warm world model
   that makes command resolution a lookup. VoLo's own text calls memory and
   state tracking one of its four capability suites, and its agent needs a
-  scene history to do it. wrc_demo gets that continuously and for free.
+  scene history to do it. cascade gets that continuously and for free.
 - **against**: it is the component that produced every phantom measured here,
   and it costs a detector forward pass per frame regardless of whether anyone
   asked a question.
@@ -197,7 +197,7 @@ The systems in this survey have already moved:
 | VoLo | RoboVoLo, its own 126-task benchmark |
 | TurboVLA | LIBERO (97.7%) plus RoboTwin 2.0 |
 
-**So the credible target for wrc_demo is LIBERO-Pro, not LIBERO.**
+**So the credible target for cascade is LIBERO-Pro, not LIBERO.**
 
 ### The harness is already honest, and that is the asset
 
@@ -240,13 +240,13 @@ same thing, and the gap between them is not a like-for-like deficit.
 
 These are sober and well below the reference policy. Publishing them as-is,
 with the no-op floor and the oracle label beside them, is more credible than a
-headline number without controls. **The honest framing is that wrc_demo
+headline number without controls. **The honest framing is that cascade
 currently measures orchestration on a Franka in LIBERO, with perception held
 perfect.**
 
 ### What a paper-grade claim needs here
 
-1. **State what is being compared.** wrc_demo is an orchestrator, so its
+1. **State what is being compared.** cascade is an orchestrator, so its
    comparison class is Pigey / VoLo / ASPIRE / Harness-VLA (orchestration over
    frozen skills), not OpenVLA or TurboVLA (policies).
 2. **Report the no-op floor next to every table.** Already available.
@@ -370,7 +370,7 @@ returns nothing either.
 
 So the honest statement is:
 
-> With its own perception, wrc_demo scores 0 on LIBERO because the open-
+> With its own perception, cascade scores 0 on LIBERO because the open-
 > vocabulary detector does not recognise LIBERO's rendered objects. This is a
 > perception domain gap, measured, not an orchestration result.
 
@@ -394,7 +394,7 @@ Verified from the v0.26.0 release notes (2026-08-03):
   CPU-offload paths, NPU recipes, ModelOpt FP8 loading" (#5313, #5596, #5076)
 - rebased onto vLLM 0.26.0 (#5443)
 
-wrc_demo currently serves Cosmos3-Edge through `scripts/serve_cosmos_vllm.sh`
+cascade currently serves Cosmos3-Edge through `scripts/serve_cosmos_vllm.sh`
 on `vllm==0.25.*`, and that script encodes **six** workarounds: transformers
 git main for the `cosmos3_edge` arch, a manual re-export out of the diffusers
 layout, `--enforce-eager` to dodge a compile-warmup assert, a patched
@@ -437,7 +437,7 @@ that makes any comparison to Pigey, ASPIRE or Harness-VLA legitimate.
 **Phase 3. Close the orchestration gap where the papers agree it is.**
 The convergent finding across Pigey (12.8 -> 53.3 frozen), VIA (96.7 with no
 fine-tuning), ASPIRE (14 -> 62 from trace exposure) is that the win is in
-monitor / halt / redirect, not in the module. wrc_demo has the pieces; what it
+monitor / halt / redirect, not in the module. cascade has the pieces; what it
 lacks is VoLo's **interruptible** tool contract: skills currently run to
 completion. Target: a skill can be halted mid-execution on a monitor signal,
 measured as reduced time-to-recovery on a deliberately perturbed episode.

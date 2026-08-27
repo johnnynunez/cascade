@@ -14,7 +14,7 @@ import json
 
 import pytest
 
-from wrc_demo.sim.truth import TruthPoseReader, _is_sane
+from cascade.sim.truth import TruthPoseReader, _is_sane
 
 
 class FakeClient:
@@ -27,7 +27,7 @@ class FakeClient:
     def request(self, req):
         self.calls += 1
         return {"ok": True,
-                "stdout": "WRC_TRUTH_POSES " + json.dumps(self.poses)}
+                "stdout": "CASCADE_TRUTH_POSES " + json.dumps(self.poses)}
 
 
 # ── the sanity predicate ────────────────────────────────────────────────

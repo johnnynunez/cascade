@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from wrc_demo.perception.visual_interface import VisualInterface
+from cascade.perception.visual_interface import VisualInterface
 
 # ── synthetic pinhole camera looking straight down (mirrors test_probe.py) ─
 

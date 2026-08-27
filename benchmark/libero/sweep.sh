@@ -9,8 +9,8 @@
 # and the papers report the four below.
 set -uo pipefail
 
-VENV=${WRC_BENCH_VENV:-python}
-OUT=${WRC_BENCH_RESULTS:-./results}
+VENV=${CASCADE_BENCH_VENV:-python}
+OUT=${CASCADE_BENCH_RESULTS:-./results}
 mkdir -p "$OUT"
 EPS="${EPS:-5}"
 
@@ -29,14 +29,14 @@ for suite in libero_spatial libero_object libero_goal libero_10; do
         # carries the `libero_spatial` unnorm key, so reusing it elsewhere
         # would either crash or (worse) mis-scale every action.
         if [ "$policy" = openvla ]; then
-            ckpt="${WRC_BENCH_MODELS:-$HOME/models}/openvla-7b-libero-${suite#libero_}"
+            ckpt="${CASCADE_BENCH_MODELS:-$HOME/models}/openvla-7b-libero-${suite#libero_}"
             if [ ! -f "$ckpt/config.json" ]; then
                 echo "[!] missing checkpoint $ckpt -- skipping"
                 continue
             fi
             args+=(--model-path "$ckpt")
         fi
-        stdbuf -oL "$VENV" -u ${WRC_BENCH_ROOT:-.}/run_libero.py "${args[@]}" 2>&1 \
+        stdbuf -oL "$VENV" -u ${CASCADE_BENCH_ROOT:-.}/run_libero.py "${args[@]}" 2>&1 \
             | stdbuf -oL grep -E "^  \[|^SUCCESS|unnorm_key"
     done
 done

@@ -22,14 +22,14 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, "/home/johnny/Projects/demo/wrc_demo/src")
+sys.path.insert(0, "/home/johnny/Projects/demo/cascade/src")
 
 import numpy as np
 
-from wrc_demo.apps.demo import build_runtime
-from wrc_demo.config import load_demo_config
-from wrc_demo.sim.bridge_client import BridgeClient
-from wrc_demo.sim.truth import TruthPoseReader
+from cascade.apps.demo import build_runtime
+from cascade.config import load_demo_config
+from cascade.sim.bridge_client import BridgeClient
+from cascade.sim.truth import TruthPoseReader
 
 c = BridgeClient(port=8611)
 c.connect()

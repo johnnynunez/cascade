@@ -93,7 +93,7 @@ if _dynamic:
         # and the TCP thread eventually died while the process stayed alive
         # (docs/BRIDGE_DEGRADATION.md). The views are stable for a given prim
         # path, so they are safe to reuse.
-        _cache = globals().setdefault("_WRC_RIGIDPRIM_VIEWS", {})
+        _cache = globals().setdefault("_CASCADE_RIGIDPRIM_VIEWS", {})
         for _name, _path in _dynamic:
             try:
                 _view = _cache.get(_path)
@@ -108,7 +108,7 @@ if _dynamic:
     except Exception:
         pass
 
-print("WRC_TRUTH_POSES " + _json.dumps(_out))
+print("CASCADE_TRUTH_POSES " + _json.dumps(_out))
 """
 
 
@@ -226,7 +226,7 @@ class TruthPoseReader:
         except Exception:
             return None
         stdout = str(resp.get("stdout") or "")
-        marker = "WRC_TRUTH_POSES "
+        marker = "CASCADE_TRUTH_POSES "
         idx = stdout.rfind(marker)
         if idx < 0:
             return None

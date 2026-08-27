@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot bring-up for the wrc_demo agentic booth: installs the OpenClaw
+# One-shot bring-up for the cascade agentic booth: installs the OpenClaw
 # CLI if missing, starts the Cosmos3-Edge (vLLM) brain, registers this
 # repo's skills with OpenClaw over MCP, and opens the web chat -- the
 # curl|bash entry point for a fresh DGX Spark / GB10 box.
@@ -16,7 +16,7 @@
 #   scripts/openclaw_demo.sh       MCP registration + OpenClaw gateway +
 #                                  brain wiring ("Verified on OpenClaw
 #                                  2026.7.1-2"); this is also what exposes
-#                                  wrc_demo's 21+ skills to OpenClaw -- there
+#                                  cascade's 21+ skills to OpenClaw -- there
 #                                  is no separate "install skills" step, the
 #                                  `openclaw mcp add` + tool probe in step 3
 #                                  below IS that step.

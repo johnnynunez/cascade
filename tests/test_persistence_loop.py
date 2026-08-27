@@ -8,10 +8,10 @@ import time
 import numpy as np
 import pytest
 
-from wrc_demo.config import load_demo_config
-from wrc_demo.grasping import select_grasp
-from wrc_demo.safety.harness import SafetyHarness, SafetyLimits
-from wrc_demo.types import Grasp, SkillError
+from cascade.config import load_demo_config
+from cascade.grasping import select_grasp
+from cascade.safety.harness import SafetyHarness, SafetyLimits
+from cascade.types import Grasp, SkillError
 
 
 def limits(**kw):
@@ -122,7 +122,7 @@ def test_pick_and_place_retries_until_grasp_succeeds(tmp_path):
     """Attempt 1 closes on air; the object 'appears' in the jaws afterwards
     (as if the first try nudged it into a graspable spot). The loop must
     re-observe and land attempt 2 instead of giving up."""
-    from wrc_demo.apps.demo import build_runtime, shutdown_runtime
+    from cascade.apps.demo import build_runtime, shutdown_runtime
 
     cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
     runtime, arm = build_runtime(cfg, tmp_path / "run")
@@ -153,7 +153,7 @@ def test_pick_and_place_retries_until_grasp_succeeds(tmp_path):
 
 
 def test_pick_and_place_attempt_budget_is_honored(tmp_path):
-    from wrc_demo.apps.demo import build_runtime, shutdown_runtime
+    from cascade.apps.demo import build_runtime, shutdown_runtime
 
     cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
     cfg._data["grasp"]["max_pick_attempts"] = 2

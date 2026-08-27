@@ -15,7 +15,7 @@ This controller makes the dashboard behave like a debugger you attach:
                  encoder running forever.
     mode "eager"          -- classic behaviour: bind at startup (booth mode,
                  where the big screen must be live before doors open).
-    mode "off"            -- never bind. `WRC_STREAM=0` maps here, and
+    mode "off"            -- never bind. `CASCADE_STREAM=0` maps here, and
                  open() reports honestly instead of silently ignoring it.
 
 Perception itself is unaffected: the CameraRig keeps pumping frames and the
@@ -141,7 +141,7 @@ class LiveViewController:
                     "open": False,
                     "error": (
                         "live view is disabled for this session (stream.mode: off "
-                        "or WRC_STREAM=0). Restart with WRC_STREAM=1 to allow it."
+                        "or CASCADE_STREAM=0). Restart with CASCADE_STREAM=1 to allow it."
                     ),
                 }
             if self._server is not None:
@@ -160,7 +160,7 @@ class LiveViewController:
                     "ok": False,
                     "open": False,
                     "error": f"could not bind the live-view port: {e} "
-                             "(set stream.port or WRC_STREAM_PORT)",
+                             "(set stream.port or CASCADE_STREAM_PORT)",
                 }
             self._server = server
             self._opened_at = time.monotonic()
@@ -220,13 +220,13 @@ def resolve_mode(cfg_stream, env_get) -> tuple[str, float]:
     """Decide (mode, idle_timeout) from config + environment.
 
     Precedence, most explicit first:
-      WRC_STREAM=0            -> off   (hard kill switch; tests rely on it)
-      WRC_STREAM=eager|lazy|off -> that mode
+      CASCADE_STREAM=0            -> off   (hard kill switch; tests rely on it)
+      CASCADE_STREAM=eager|lazy|off -> that mode
       stream.mode in config   -> that mode
       legacy stream.enabled=false -> off
       default                 -> lazy  (headless-first: chat is the UI)
     """
-    raw_env = (env_get("WRC_STREAM") or "").strip().lower()
+    raw_env = (env_get("CASCADE_STREAM") or "").strip().lower()
     idle = float((cfg_stream.get("idle_timeout_s", DEFAULT_IDLE_TIMEOUT_S)
                   if cfg_stream else DEFAULT_IDLE_TIMEOUT_S) or 0.0)
     if raw_env in ("0", "off", "false", "no"):

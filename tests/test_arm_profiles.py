@@ -24,7 +24,7 @@ import pytest
 import yaml
 
 _ARMS = Path(__file__).resolve().parents[1] / "configs" / "arms"
-_SRC = Path(__file__).resolve().parents[1] / "src" / "wrc_demo"
+_SRC = Path(__file__).resolve().parents[1] / "src" / "cascade"
 
 
 def _profiles():

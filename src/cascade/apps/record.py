@@ -1,6 +1,6 @@
 """Record frames from a live camera into a mock-camera dataset.
 
-    wrc-record --camera l515 --out datasets/table_scene --frames 30 --hz 2
+    cascade-record --camera l515 --out datasets/table_scene --frames 30 --hz 2
 
 The .npz files replay through MockCamera (`dataset:` key in a mock camera
 profile), so perception changes can be tested against real captured scenes

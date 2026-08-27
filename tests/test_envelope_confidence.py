@@ -11,7 +11,7 @@ failure landing inside a range this same skill had proven safe.
 
 from __future__ import annotations
 
-from wrc_demo.memory.envelope import OperatingEnvelope, _Span
+from cascade.memory.envelope import OperatingEnvelope, _Span
 
 
 def test_span_confidence_is_single_shot_below_min_support():

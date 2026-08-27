@@ -140,10 +140,10 @@ def main() -> int:
     ap.add_argument("--json", type=Path, help="also write the report here")
     args = ap.parse_args()
 
-    from wrc_demo.apps.demo import build_runtime, shutdown_runtime
-    from wrc_demo.config import load_demo_config
-    from wrc_demo.sim.bridge_client import BridgeClient
-    from wrc_demo.sim.truth import TruthPoseReader
+    from cascade.apps.demo import build_runtime, shutdown_runtime
+    from cascade.config import load_demo_config
+    from cascade.sim.bridge_client import BridgeClient
+    from cascade.sim.truth import TruthPoseReader
 
     cfg = load_demo_config(
         cameras=args.cameras.split(","), arm=args.arm, llm="mock"

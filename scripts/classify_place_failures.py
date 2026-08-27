@@ -10,7 +10,7 @@ and what the skill said, so the tail resolves into named modes instead of one
 number.
 
 Run:
-    WRC_BENCH_LIBERO=~/bench/LIBERO-PRO \
+    CASCADE_BENCH_LIBERO=~/bench/LIBERO-PRO \
       PYTHONPATH=~/bench/LIBERO-PRO:$PWD/src \
       ~/.venvs/libero/bin/python scripts/classify_place_failures.py [suite] [n]
 """
@@ -19,9 +19,9 @@ import os
 import sys
 import threading
 
-sys.path.insert(0, os.path.expanduser("~/Projects/demo/wrc_demo/src"))
-sys.path.insert(0, os.path.expanduser("~/Projects/demo/wrc_demo/benchmark"))
-sys.path.insert(0, os.path.expanduser("~/Projects/demo/wrc_demo/benchmark/libero"))
+sys.path.insert(0, os.path.expanduser("~/Projects/demo/cascade/src"))
+sys.path.insert(0, os.path.expanduser("~/Projects/demo/cascade/benchmark"))
+sys.path.insert(0, os.path.expanduser("~/Projects/demo/cascade/benchmark/libero"))
 
 import numpy as np
 from libero.libero import benchmark, get_libero_path
@@ -39,7 +39,7 @@ def episode(tid):
     bddl = os.path.join(get_libero_path("bddl_files"), task.problem_folder,
                         task.bddl_file)
     env = OffScreenRenderEnv(bddl_file_name=bddl,
-                             controller=os.environ.get("WRC_CTRL", "OSC_POSE"),
+                             controller=os.environ.get("CASCADE_CTRL", "OSC_POSE"),
                              camera_heights=256, camera_widths=256,
                              camera_depths=True)
     env.seed(0)

@@ -11,10 +11,10 @@ import cv2
 import numpy as np
 import pytest
 
-from wrc_demo.config import Cfg
-from wrc_demo.control.isaac_arm import IsaacArm
-from wrc_demo.perception.isaac_camera import IsaacCamera
-from wrc_demo.sim.bridge_client import BridgeClient, BridgeError
+from cascade.config import Cfg
+from cascade.control.isaac_arm import IsaacArm
+from cascade.perception.isaac_camera import IsaacCamera
+from cascade.sim.bridge_client import BridgeClient, BridgeError
 
 
 class FakeBridge(socketserver.StreamRequestHandler):
@@ -100,7 +100,7 @@ def test_isaac_camera_serves_frames(bridge_port):
         assert f.has_depth and f.depth_source == "sensor"
         assert f.rgb.shape == (48, 64, 3)
         # pink block survives the JPEG round trip
-        from wrc_demo.perception.colors import mask_color
+        from cascade.perception.colors import mask_color
 
         mask = np.zeros((48, 64), dtype=bool)
         mask[12:28, 22:38] = True

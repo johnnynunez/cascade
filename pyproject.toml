@@ -1,7 +1,7 @@
 [project]
-name = "wrc-demo"
+name = "cascade"
 version = "0.1.0"
-description = "Camera-agnostic agentic grasping demo for the reBot DevArm (RobStride) on DGX Spark"
+description = "CASCADE: cascaded reflex/habit/LLM dispatch for agentic tabletop manipulation on the reBot DevArm (RobStride), driven from an NVIDIA DGX Spark"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
@@ -24,10 +24,10 @@ arm = ["motorbridge>=0.4.9"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]
-wrc-demo = "wrc_demo.apps.demo:main"
-wrc-record = "wrc_demo.apps.record:main"
-wrc-mcp = "wrc_demo.apps.mcp_server:main"
-wrc-view = "wrc_demo.apps.viewer:main"
+cascade = "cascade.apps.demo:main"
+cascade-record = "cascade.apps.record:main"
+cascade-mcp = "cascade.apps.mcp_server:main"
+cascade-view = "cascade.apps.viewer:main"
 
 [build-system]
 requires = ["setuptools>=68"]

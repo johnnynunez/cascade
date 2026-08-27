@@ -1,15 +1,15 @@
-"""Drive LIBERO with wrc_demo's OWN runtime, skills and verification.
+"""Drive LIBERO with cascade's OWN runtime, skills and verification.
 
 WHY THIS EXISTS
 ---------------
 Every earlier LIBERO number in this directory measured a pick-place primitive
 written *inside* LIBERO. That tested the Pigey hypothesis, but not one line of
-wrc_demo ran, so it could not answer "how good is the thing I built". This
-module closes that hole: it makes LIBERO look like a wrc_demo backend, so
+cascade ran, so it could not answer "how good is the thing I built". This
+module closes that hole: it makes LIBERO look like a cascade backend, so
 `SkillRuntime` -- the real one, with the real safety harness, the real grasp
 pipeline and the real postconditions -- executes the benchmark.
 
-WHAT IS AND IS NOT wrc_demo AFTERWARDS
+WHAT IS AND IS NOT cascade AFTERWARDS
 
   runs unchanged   SkillRuntime.execute and every skill_* method, SafeArm +
                    SafetyHarness gating, GraspPlanner/GraspGenX selection,
@@ -21,12 +21,12 @@ WHAT IS AND IS NOT wrc_demo AFTERWARDS
                    CameraBase -> LiberoCamera (agentview RGB-D + intrinsics)
   necessarily new  the Panda is 7-DoF where the B601-RS is 6-DoF, so joint
                    vectors are 7 long. That is a property of the ROBOT, not a
-                   rewrite of wrc_demo -- ArmBase.n_joints is a class attr
+                   rewrite of cascade -- ArmBase.n_joints is a class attr
                    precisely so backends can differ.
 
-The honest framing for any table built on this: it measures **wrc_demo's
+The honest framing for any table built on this: it measures **cascade's
 orchestration and verification stack on a Franka Panda in LIBERO**, not
-wrc_demo on its own arm. The skills, the harness and the verification are
+cascade on its own arm. The skills, the harness and the verification are
 identical; the embodiment is not.
 """
 
@@ -38,9 +38,9 @@ import numpy as np
 
 
 class MujocoKinematics:
-    """Duck-typed replacement for wrc_demo.control.kinematics.Kinematics.
+    """Duck-typed replacement for cascade.control.kinematics.Kinematics.
 
-    wrc_demo needs exactly five things from a kinematics object: fk, ik,
+    cascade needs exactly five things from a kinematics object: fk, ik,
     clamp, joint_limits and link_positions (the safety harness uses the last
     one as collision proxy spheres). Everything else in the repo goes through
     those, so a MuJoCo-backed implementation drops straight in.
@@ -105,7 +105,7 @@ class MujocoKinematics:
         T[:3, 3] = pos
         return T
 
-    # -- the wrc_demo Kinematics interface -------------------------------
+    # -- the cascade Kinematics interface -------------------------------
 
     def fk(self, q) -> np.ndarray:
         """(n,) joints -> 4x4 T_tcp2base."""
@@ -136,10 +136,10 @@ class MujocoKinematics:
            seed: int = 0, limit_margin: float = 0.025):
         """Damped least-squares IK on the site Jacobian.
 
-        Signature mirrors wrc_demo's Kinematics.ik so callers (grasp planning,
+        Signature mirrors cascade's Kinematics.ik so callers (grasp planning,
         place_at, the reflex path) need no changes.
         """
-        from wrc_demo.control.kinematics import IKResult
+        from cascade.control.kinematics import IKResult
 
         T_target = np.asarray(T_target, float)
         target_p = T_target[:3, 3]

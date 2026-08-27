@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record the wrc_demo agentic loop to an MP4.
+"""Record the cascade agentic loop to an MP4.
 
 Streams the isaac cam0 + side + wrist cameras while a background agent task
 runs,
@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, "src")
-from wrc_demo.sim.bridge_client import BridgeClient  # noqa: E402
+from cascade.sim.bridge_client import BridgeClient  # noqa: E402
 
 FPS = 6
 DUR = 100  # seconds -- full pick cycle: approach, grasp, transport, drop
@@ -28,7 +28,7 @@ c = BridgeClient(port=8611)
 c.connect()
 
 # Grab a caption to overlay describing the pipeline state
-caption = {"text": "wrc_demo | Isaac Sim PhysX | reBot RS + Qwen3.6-27B + GraspGenX 6-DOF"}
+caption = {"text": "cascade | Isaac Sim PhysX | reBot RS + Qwen3.6-27B + GraspGenX 6-DOF"}
 
 
 def _label(img, lines):

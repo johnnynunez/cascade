@@ -4,7 +4,7 @@ The ablation showed three verify_retry episodes ending at the cube's DEFAULT
 SPAWN pose [0.17, 0.15, 0.04] after moving only 1.7-3.0 cm, and being
 CONFIRMED as successes. This script asks one question directly:
 
-    does anything in the wrc_demo path move a prop back to its spawn
+    does anything in the cascade path move a prop back to its spawn
     WITHOUT the caller asking for it?
 
 Method: place the cube somewhere non-default, poll the physics pose while
@@ -16,8 +16,8 @@ import time
 
 import numpy as np
 
-from wrc_demo.sim.bridge_client import BridgeClient
-from wrc_demo.sim.truth import TruthPoseReader
+from cascade.sim.bridge_client import BridgeClient
+from cascade.sim.truth import TruthPoseReader
 
 SPAWN = np.array([0.17, 0.15, 0.04])
 PLACED = (0.175, 0.130)
@@ -69,7 +69,7 @@ r = c.request({"op": "exec", "code": (
     "import inspect, sys\n"
     "hits = []\n"
     "for name, mod in list(sys.modules.items()):\n"
-    "    if not name.startswith('wrc_demo'):\n"
+    "    if not name.startswith('cascade'):\n"
     "        continue\n"
     "    try:\n"
     "        src = inspect.getsource(mod)\n"

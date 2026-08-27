@@ -11,10 +11,10 @@ from pathlib import Path
 
 sys.path.insert(0, "../src")
 
-from wrc_demo.apps import demo as demo_app
-from wrc_demo.config import load_demo_config
-from wrc_demo.sim.bridge_client import BridgeClient
-from wrc_demo.sim.truth import TruthPoseReader
+from cascade.apps import demo as demo_app
+from cascade.config import load_demo_config
+from cascade.sim.bridge_client import BridgeClient
+from cascade.sim.truth import TruthPoseReader
 
 cfg = load_demo_config(cameras=["isaac", "isaac_side"], arm="isaac", llm="mock")
 cfg._data.setdefault("stream", {})["mode"] = "off"

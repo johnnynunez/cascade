@@ -1,17 +1,17 @@
 {
   "mcpServers": {
-    "wrc-demo": {
+    "cascade": {
       "type": "stdio",
       "command": "/home/johnny/Projects/demo/.demo/bin/python",
       "args": [
         "-m",
-        "wrc_demo.apps.mcp_server"
+        "cascade.apps.mcp_server"
       ],
       "env": {
-        "PYTHONPATH": "/home/johnny/Projects/demo/wrc_demo/src",
-        "WRC_CAMERAS": "isaac,isaac_side",
-        "WRC_ARM": "isaac",
-        "WRC_DETECT_CLASSES": "banana,soup can,cracker box,cube,bottle,box",
+        "PYTHONPATH": "/home/johnny/Projects/demo/cascade/src",
+        "CASCADE_CAMERAS": "isaac,isaac_side",
+        "CASCADE_ARM": "isaac",
+        "CASCADE_DETECT_CLASSES": "banana,soup can,cracker box,cube,bottle,box",
         "DISPLAY": ":1"
       }
     }

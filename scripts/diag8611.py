@@ -1,10 +1,10 @@
-"""Clean grasp diagnosis for the ORIGINAL wrc_demo scene (port 8611)."""
+"""Clean grasp diagnosis for the ORIGINAL cascade scene (port 8611)."""
 import sys
 from pathlib import Path
-sys.path.insert(0, "/home/johnny/Projects/demo/wrc_demo/src")
-from wrc_demo.config import load_demo_config
-from wrc_demo.apps.demo import build_runtime
-from wrc_demo.sim.bridge_client import BridgeClient
+sys.path.insert(0, "/home/johnny/Projects/demo/cascade/src")
+from cascade.config import load_demo_config
+from cascade.apps.demo import build_runtime
+from cascade.sim.bridge_client import BridgeClient
 
 cfg = load_demo_config(cameras=["isaac"], arm="isaac", llm="mock")
 rt, _ = build_runtime(cfg, Path("/tmp/diag8611"), view=False)

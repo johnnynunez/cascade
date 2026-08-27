@@ -2,7 +2,7 @@
 #
 # Use this profile on macOS/Windows, or on Linux when you want to skip the
 # reBotArm_control_py SDK; use `rebot_rs` for the SDK path. Backend:
-# src/wrc_demo/control/rebot_rs_mb_arm.py.
+# src/cascade/control/rebot_rs_mb_arm.py.
 #
 # Before first use the bus must be FREE -- host id 0xFD has a single owner, so
 # stop motorbridge-gateway / MotorBridge Studio and any LeRobot process.

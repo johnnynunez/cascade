@@ -8,7 +8,7 @@ It reaches 96.7% on three LIBERO-Goal tasks with Claude Code / Codex, and its
 central claim is that *the interface is the missing piece*: frontier agents
 already possess the skills, given something they can actually read.
 
-The lesson transfers without adopting their browser stack.  wrc_demo hands
+The lesson transfers without adopting their browser stack.  cascade hands
 the VLM a raw camera JPEG and expects metric reasoning from it -- but a model
 cannot say "grasp 3 cm to the left" reliably from bare pixels; it has no
 scale, no origin, no way to name what it sees unambiguously.

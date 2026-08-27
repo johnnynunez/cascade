@@ -26,11 +26,11 @@ against the achieved one.
 import sys
 import time
 
-sys.path.insert(0, "/home/johnny/Projects/demo/wrc_demo/src")
+sys.path.insert(0, "/home/johnny/Projects/demo/cascade/src")
 
 import numpy as np
 
-from wrc_demo.sim.bridge_client import BridgeClient
+from cascade.sim.bridge_client import BridgeClient
 
 c = BridgeClient(port=8611)
 c.connect()

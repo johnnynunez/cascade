@@ -6,7 +6,7 @@ Runs each prompt through the real AgentOrchestrator on the MOCK stack (no
 hardware, no fast-path tiers -- every prompt must exercise the model) and
 reports per prompt: success, steps, which tools were called, duration.
 Grasp/experience memory are isolated to the run dir so a rehearsal never
-contaminates the booth's learned state. The WRC_BOOTH tuning overlay is on
+contaminates the booth's learned state. The CASCADE_BOOTH tuning overlay is on
 by default (realistic timing budgets).
 
     .demo/bin/python scripts/booth_rehearsal.py --llm local_qwen
@@ -51,17 +51,17 @@ def main() -> int:
                    help="file with one prompt per line (default: runbook beats)")
     p.add_argument("--max-steps", type=int, default=30)
     p.add_argument("--no-booth", action="store_true",
-                   help="skip the WRC_BOOTH tuning overlay")
+                   help="skip the CASCADE_BOOTH tuning overlay")
     args = p.parse_args()
 
-    # explicit either way: an ambient WRC_BOOTH from the shell must not
+    # explicit either way: an ambient CASCADE_BOOTH from the shell must not
     # silently invert what the flags promise
-    os.environ["WRC_BOOTH"] = "0" if args.no_booth else "1"
+    os.environ["CASCADE_BOOTH"] = "0" if args.no_booth else "1"
 
-    from wrc_demo.agent.llm import MockLLM, make_llm
-    from wrc_demo.agent.orchestrator import AgentOrchestrator
-    from wrc_demo.apps.demo import build_runtime, shutdown_runtime
-    from wrc_demo.config import PACKAGE_ROOT, load_demo_config
+    from cascade.agent.llm import MockLLM, make_llm
+    from cascade.agent.orchestrator import AgentOrchestrator
+    from cascade.apps.demo import build_runtime, shutdown_runtime
+    from cascade.config import PACKAGE_ROOT, load_demo_config
 
     run_dir = PACKAGE_ROOT / "runs" / time.strftime("rehearsal_%Y%m%d_%H%M%S")
     cfg = load_demo_config(camera="mock", arm="mock", llm=args.llm)

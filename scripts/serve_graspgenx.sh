@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GraspGen-X ZMQ grasp server for wrc_demo (set grasp.backend: graspgenx).
+# GraspGen-X ZMQ grasp server for cascade (set grasp.backend: graspgenx).
 #
 #   ./scripts/serve_graspgenx.sh [gripper] [port]
 #

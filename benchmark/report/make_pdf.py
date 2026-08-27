@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Render the wrc_demo evaluation as a paper-style PDF.
+"""Render the cascade evaluation as a paper-style PDF.
 
 DESIGN RULE, enforced structurally rather than by good intentions:
 measurements of DIFFERENT SYSTEMS ON DIFFERENT BENCHMARKS never share a table.
 
-  Table 1  wrc_demo ablation      <- the actual subject. Same robot, same
+  Table 1  cascade ablation      <- the actual subject. Same robot, same
                                      scene, same 10 initial states, same
                                      success criterion. Only ONE layer of
-                                     wrc_demo changes per row. Apples to
+                                     cascade changes per row. Apples to
                                      apples.
   Table 2  LIBERO cross-check     <- a DIFFERENT system (a scripted primitive
                                      written inside LIBERO) on a DIFFERENT
@@ -18,7 +18,7 @@ measurements of DIFFERENT SYSTEMS ON DIFFERENT BENCHMARKS never share a table.
                                      different perception, different policies.
                                      Context only; explicitly not a ranking.
 
-Anything that would put a wrc_demo number and an OpenVLA number in the same
+Anything that would put a cascade number and an OpenVLA number in the same
 column as if they competed is a bug in this script, not a finding.
 """
 
@@ -53,8 +53,8 @@ plt.rcParams.update({
 })
 
 RES = Path(str(paths.RESULTS_DIR) + "/")
-OUT = Path(os.environ.get("WRC_BENCH_PDF",
-                          str(paths.ROOT / "wrc_demo_evaluation.pdf")))
+OUT = Path(os.environ.get("CASCADE_BENCH_PDF",
+                          str(paths.ROOT / "cascade_evaluation.pdf")))
 
 INK = "#1a1a1a"
 ACCENT = "#8b1a1a"
@@ -116,7 +116,7 @@ def page1(pdf, abl):
 
     T(ax, 0.07, y, "Verification as an Orchestration Layer:", size=17, weight="bold")
     y -= 0.030
-    T(ax, 0.07, y, "An Ablation of wrc_demo on a Simulated B601-RS Arm", size=17,
+    T(ax, 0.07, y, "An Ablation of cascade on a Simulated B601-RS Arm", size=17,
       weight="bold")
     y -= 0.032
     T(ax, 0.07, y, "Internal evaluation report  ·  2026-07-31  ·  Isaac Sim / PhysX",
@@ -128,7 +128,7 @@ def page1(pdf, abl):
     T(ax, 0.07, y, "Question", size=11, weight="bold")
     y -= 0.022
     body = (
-        "What does each layer of wrc_demo actually contribute? The system stacks a frozen\n"
+        "What does each layer of cascade actually contribute? The system stacks a frozen\n"
         "pick-and-place skill, independent postcondition checking, retry-on-refutation, a\n"
         "reflex agent and an LLM orchestrator. Only an ablation on one robot, one scene and\n"
         "one fixed set of initial states can attribute an effect to a layer rather than to luck."
@@ -144,7 +144,7 @@ def page1(pdf, abl):
         "through the simulator bridge and confirmed by physics before each episode. Positions\n"
         "span the arm's top-down IK band (x = 0.155-0.185 m); a pose outside that envelope is\n"
         "unreachable for every condition and would only add noise.\n\n"
-        "The independent variable is which wrc_demo layer is enabled. Success is judged ONLY by\n"
+        "The independent variable is which cascade layer is enabled. Success is judged ONLY by\n"
         "TruthPoseReader reading the PhysX RigidPrim: the cube centre must lie inside the bin\n"
         "footprint (x 0.11-0.25, y -0.24 to -0.10). The skill's own success flag is recorded\n"
         "separately and never used as the verdict."
@@ -154,7 +154,7 @@ def page1(pdf, abl):
 
     # ── Table 1 ──────────────────────────────────────────────────────────
     T(ax, 0.07, y, "Table 1.", size=9.5, weight="bold")
-    T(ax, 0.145, y, "wrc_demo layer ablation. Same robot, same 10 initial states, "
+    T(ax, 0.145, y, "cascade layer ablation. Same robot, same 10 initial states, "
       "physics-judged.", size=9.5)
     y -= 0.030
 
@@ -260,7 +260,7 @@ def page2(pdf, abl):
     warn = (
         "The tables below measure DIFFERENT SYSTEMS on DIFFERENT BENCHMARKS. They are reported\n"
         "because they test the same hypothesis, not because they rank against Table 1. Reading\n"
-        "a wrc_demo number against an OpenVLA number as a ranking would be meaningless: the\n"
+        "a cascade number against an OpenVLA number as a ranking would be meaningless: the\n"
         "control interface, the perception stack, the robot and the task set all differ."
     )
     T(ax, 0.07, y, warn, size=9, style="italic", color=ACCENT)
@@ -421,7 +421,7 @@ def page3(pdf, abl):
     fig, ax = new_page()
     y = 0.955
 
-    T(ax, 0.07, y, "Supporting measurements on the wrc_demo rig", size=14,
+    T(ax, 0.07, y, "Supporting measurements on the cascade rig", size=14,
       weight="bold")
     y -= 0.028
     hrule(ax, y, lw=1.0)
@@ -620,8 +620,8 @@ def main():
         page2(pdf, abl)
         page3(pdf, abl)
         d = pdf.infodict()
-        d["Title"] = "Verification as an Orchestration Layer: wrc_demo ablation"
-        d["Author"] = "wrc_demo evaluation"
+        d["Title"] = "Verification as an Orchestration Layer: cascade ablation"
+        d["Author"] = "cascade evaluation"
     print(f"[+] wrote {OUT}")
     if not abl:
         print("[!] Table 1 is empty — the ablation had not finished when this ran")

@@ -3,14 +3,14 @@
 import numpy as np
 import pytest
 
-from wrc_demo.agent.llm import LLMResponse, MockLLM, ToolCall
-from wrc_demo.agent.orchestrator import AgentOrchestrator, _as_bool
-from wrc_demo.memory.beliefs import BeliefStore
-from wrc_demo.perception.detector import MockDetector
-from wrc_demo.perception.grounding import Extrinsics, localize_object
-from wrc_demo.perception.mock_camera import synthetic_tabletop
-from wrc_demo.safety.harness import SafetyHarness, SafetyLimits
-from wrc_demo.types import Detection, SafetyViolation
+from cascade.agent.llm import LLMResponse, MockLLM, ToolCall
+from cascade.agent.orchestrator import AgentOrchestrator, _as_bool
+from cascade.memory.beliefs import BeliefStore
+from cascade.perception.detector import MockDetector
+from cascade.perception.grounding import Extrinsics, localize_object
+from cascade.perception.mock_camera import synthetic_tabletop
+from cascade.safety.harness import SafetyHarness, SafetyLimits
+from cascade.types import Detection, SafetyViolation
 
 
 T_CAM2BASE = np.array(
@@ -59,7 +59,7 @@ def test_spatial_hint_left_picks_left_object():
 
 def test_hand_eye_npz_baseline_format(tmp_path):
     """The baseline saves mode as a 1-element string array; must load."""
-    from wrc_demo.config import Cfg
+    from cascade.config import Cfg
 
     npz = tmp_path / "hand_eye.npz"
     T = np.eye(4)
@@ -150,7 +150,7 @@ def test_as_bool_string_false():
 
 class _StubRuntime:
     def __init__(self):
-        from wrc_demo.memory import EpisodicMemory
+        from cascade.memory import EpisodicMemory
 
         self.memory = EpisodicMemory()
         self.last_frame = None

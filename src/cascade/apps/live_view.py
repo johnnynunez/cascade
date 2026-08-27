@@ -86,7 +86,7 @@ class RigViewer:
     Render-only -- frame pumping lives in each CameraStream. Degrades to a
     silent no-op when no display is available, exactly like FrameHub."""
 
-    def __init__(self, rig, title: str = "wrc-demo :: live", scale: float = 0.7,
+    def __init__(self, rig, title: str = "cascade :: live", scale: float = 0.7,
                  rate_hz: float = 20.0, tile_h: int = 480,
                  show_depth: bool = True, depth_max_m: float = 2.0):
         self._rig = rig
@@ -103,7 +103,7 @@ class RigViewer:
     def start(self) -> None:
         import os
 
-        if not os.environ.get("DISPLAY") or os.environ.get("WRC_VIEW") == "0":
+        if not os.environ.get("DISPLAY") or os.environ.get("CASCADE_VIEW") == "0":
             self._gui_ok = False
             return
         self._thread = threading.Thread(target=self._loop, daemon=True, name="rig-viewer")
@@ -180,7 +180,7 @@ class FrameHub:
     Superseded by perception.stream.CameraStream + RigViewer for the rig
     path; kept for single-camera embedding and back-compat."""
 
-    def __init__(self, camera, title: str = "wrc-demo", show: bool = True,
+    def __init__(self, camera, title: str = "cascade", show: bool = True,
                  scale: float = 0.7, rate_hz: float = 30.0):
         self._camera = camera
         self._title = title

@@ -1,7 +1,7 @@
 """Live perception viewer: what the demo's camera stack actually sees.
 
-    wrc-view --camera l515                       # RGB + depth colormap
-    wrc-view --camera l515 --detect yolo11n.pt   # + detection overlays
+    cascade-view --camera l515                       # RGB + depth colormap
+    cascade-view --camera l515 --detect yolo11n.pt   # + detection overlays
 
 Left pane: RGB with detection boxes/labels (and center-pixel depth readout).
 Right pane: depth colormap (JET, near=red) with invalid pixels black.
@@ -43,12 +43,12 @@ def main(argv: list[str] | None = None) -> int:
     cam = make_camera(load_profile("cameras", args.camera))
     cam.open()
     cam.warm_up(5)
-    win = f"wrc-demo :: {args.camera}"
+    win = f"cascade :: {args.camera}"
     cv2.namedWindow(win, cv2.WINDOW_NORMAL)
 
     detect_on = detector is not None
     fps, t_prev = 0.0, time.monotonic()
-    print(f"[wrc-view] streaming {args.camera}; q/ESC to quit", file=sys.stderr)
+    print(f"[cascade-view] streaming {args.camera}; q/ESC to quit", file=sys.stderr)
     try:
         while True:
             frame = cam.get_frame()
@@ -63,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
                     dets = detector.detect(frame)
                 except Exception as e:
                     detect_on = False
-                    print(f"[wrc-view] detection disabled: {e}", file=sys.stderr)
+                    print(f"[cascade-view] detection disabled: {e}", file=sys.stderr)
             draw_detections(rgb, dets)
 
             h, w = rgb.shape[:2]
@@ -93,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
             if key == ord("s"):
                 name = time.strftime("wrc_view_%H%M%S.png")
                 cv2.imwrite(name, panel)
-                print(f"[wrc-view] saved {name}", file=sys.stderr)
+                print(f"[cascade-view] saved {name}", file=sys.stderr)
             if key == ord("d"):
                 detect_on = not detect_on and detector is not None
     finally:

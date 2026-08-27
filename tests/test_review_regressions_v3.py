@@ -9,10 +9,10 @@ import inspect
 import numpy as np
 import pytest
 
-from wrc_demo.config import Cfg, load_demo_config
-from wrc_demo.control.kinematics import Kinematics
-from wrc_demo.control.rebot_rs_arm import RebotRSArm
-from wrc_demo.safety.harness import SafetyLimits
+from cascade.config import Cfg, load_demo_config
+from cascade.control.kinematics import Kinematics
+from cascade.control.rebot_rs_arm import RebotRSArm
+from cascade.safety.harness import SafetyLimits
 
 
 # ── IK-vs-harness margin invariant ─────────────────────────────────────────

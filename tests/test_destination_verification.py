@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from wrc_demo.agent.effects import (
+from cascade.agent.effects import (
     DEST_TOLERANCE_M,
     REFUTED,
     SAME_PLACE_M,

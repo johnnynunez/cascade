@@ -25,7 +25,7 @@ way run_wrc does, and read what line 346 would read.
 import os
 import sys
 
-REPO = "/home/johnny/Projects/demo/wrc_demo"
+REPO = "/home/johnny/Projects/demo/cascade"
 sys.path.insert(0, REPO + "/src")
 sys.path.insert(0, os.path.expanduser("~/bench/LIBERO"))
 os.environ.setdefault("MUJOCO_GL", "egl")

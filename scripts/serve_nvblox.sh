@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# nvblox occupancy bridge for wrc_demo (set occupancy.enabled: true).
+# nvblox occupancy bridge for cascade (set occupancy.enabled: true).
 #
 #   ./scripts/serve_nvblox.sh [port] [voxel_size_m] [backend]
 #

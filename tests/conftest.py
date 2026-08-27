@@ -7,7 +7,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
-from wrc_demo.config import load_demo_config  # noqa: E402
+from cascade.config import load_demo_config  # noqa: E402
 
 URDF = REPO / "assets" / "urdf" / "00-arm-rs_asm-v3" / "urdf" / "00-arm-rs_asm-v3.urdf"
 # Renamed 2026-07-31 with the asset refresh: the stage is now named after the
@@ -36,12 +36,12 @@ needs_pin = pytest.mark.skipif(
 
 @pytest.fixture(autouse=True)
 def _no_ambient_booth(monkeypatch):
-    """A booth-day shell (WRC_BOOTH=1 exported) must not silently rerun the
+    """A booth-day shell (CASCADE_BOOTH=1 exported) must not silently rerun the
     whole suite under booth tuning — a green run has to certify DEV
     behavior. Booth behavior is opted into per-test via monkeypatch.setenv
     (which overrides this scrub); subprocess tests inherit the scrubbed
     os.environ too."""
-    monkeypatch.delenv("WRC_BOOTH", raising=False)
+    monkeypatch.delenv("CASCADE_BOOTH", raising=False)
 
 
 @pytest.fixture

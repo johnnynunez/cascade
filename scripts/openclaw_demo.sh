@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot OpenClaw demo: register the wrc-demo MCP server, point OpenClaw's
+# One-shot OpenClaw demo: register the cascade MCP server, point OpenClaw's
 # agent at a LOCAL brain, bring up the gateway, and print the web-chat URL.
 # The user then talks to the arm from OpenClaw's web chat (not this repo's
 # MJPEG dashboard — that stays the camera/narration big screen).
@@ -18,7 +18,7 @@
 #
 # Verified on OpenClaw 2026.7.1-2 (2026-07-21). Platform gotchas encoded here:
 #   - OpenClaw BLOCKS the PYTHONPATH env for stdio servers ("startup safety"),
-#     so wrc_demo must be editable-installed in the venv (done below).
+#     so cascade must be editable-installed in the venv (done below).
 #   - `--cwd <repo>/models` matters, and it must be models/ NOT the repo root:
 #     YOLOE resolves its `mobileclip_blt.ts` text encoder RELATIVE TO CWD. From
 #     the repo root ultralytics cannot see the 600 MB file in models/, tries to
@@ -40,8 +40,8 @@ ARM="isaac"
 BRAIN="cosmos"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PY="${PY:-$(cd "$REPO/.." && pwd)/.demo/bin/python}"
-DETECTOR="${WRC_DETECTOR_MODEL:-$REPO/models/yoloe-11s-seg.pt}"
-CLASSES="${WRC_DETECT_CLASSES:-cube,banana,bottle,cup,bowl,box,plate,toy}"
+DETECTOR="${CASCADE_DETECTOR_MODEL:-$REPO/models/yoloe-11s-seg.pt}"
+CLASSES="${CASCADE_DETECT_CLASSES:-cube,banana,bottle,cup,bowl,box,plate,toy}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -53,8 +53,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # 0. OpenClaw ignores PYTHONPATH -> the package itself must be importable.
-if ! "$PY" -c "import wrc_demo" 2>/dev/null; then
-    echo "[+] installing wrc_demo editable into $PY (OpenClaw blocks PYTHONPATH)"
+if ! "$PY" -c "import cascade" 2>/dev/null; then
+    echo "[+] installing cascade editable into $PY (OpenClaw blocks PYTHONPATH)"
     uv pip install --python "$PY" --no-deps -e "$REPO"
 fi
 
@@ -62,13 +62,13 @@ fi
 # cwd is models/ because YOLOE's text encoder resolves relative to it (see the
 # header note); DETECTOR is passed absolute so it works from anywhere.
 echo "[+] registering MCP server (cameras=$CAMERAS arm=$ARM)"
-openclaw mcp add wrc-demo \
+openclaw mcp add cascade \
     --command "$PY" \
-    --arg -m --arg wrc_demo.apps.mcp_server \
+    --arg -m --arg cascade.apps.mcp_server \
     --cwd "$REPO/models" \
     --connect-timeout 120 \
-    --env "WRC_CAMERAS=$CAMERAS" --env "WRC_ARM=$ARM" \
-    --env "WRC_DETECTOR_MODEL=$DETECTOR" --env "WRC_DETECT_CLASSES=$CLASSES" \
+    --env "CASCADE_CAMERAS=$CAMERAS" --env "CASCADE_ARM=$ARM" \
+    --env "CASCADE_DETECTOR_MODEL=$DETECTOR" --env "CASCADE_DETECT_CLASSES=$CLASSES" \
     --env "YOLO_OFFLINE=True" --env "ULTRALYTICS_OFFLINE=True" \
     --env "DISPLAY=${DISPLAY:-:1}"
 
@@ -133,7 +133,7 @@ PY
 fi
 
 # 4. Restart so the gateway picks up the MCP server registered in step 1.
-echo "[+] restarting gateway to load the wrc-demo tools"
+echo "[+] restarting gateway to load the cascade tools"
 openclaw gateway restart >/dev/null 2>&1 || true
 for _ in $(seq 1 30); do
     ss -ltn 2>/dev/null | grep -q ':18789' && break
@@ -143,7 +143,7 @@ openclaw config validate
 
 # 5. Prove the tools are actually reachable before telling the user it works.
 echo "[+] probing MCP tools (Isaac + YOLOE load takes ~40 s on first call)"
-openclaw mcp probe wrc-demo 2>&1 | tail -3
+openclaw mcp probe cascade 2>&1 | tail -3
 
 cat <<EOF
 [+] done. Open the web chat:

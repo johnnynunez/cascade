@@ -11,7 +11,7 @@ import numpy as np
 
 from conftest import JOINT_SIGNS, URDF, USD, needs_pin
 
-from wrc_demo.control.usd_model import apply_joint_signs, urdf_xml_from_usd
+from cascade.control.usd_model import apply_joint_signs, urdf_xml_from_usd
 
 ARM_JOINTS = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"]
 
@@ -63,7 +63,7 @@ def test_apply_joint_signs_mirrors_axis_and_limits():
 @needs_pin
 def test_usd_matches_urdf_kinematics():
     """Sim asset (USD) and host asset (URDF) must be the same robot."""
-    from wrc_demo.control.kinematics import Kinematics
+    from cascade.control.kinematics import Kinematics
 
     ku = Kinematics(str(URDF), "gripper_end")
     ks = Kinematics(str(USD), "gripper_end")
@@ -84,7 +84,7 @@ def test_usd_matches_urdf_kinematics():
 def test_usd_local_convention_round_trip():
     """joint_signs is an exact mirror: FK_local(q) == FK_asset(-q), and the
     repo's home_q is inside the local-convention limits."""
-    from wrc_demo.control.kinematics import Kinematics
+    from cascade.control.kinematics import Kinematics
 
     raw = Kinematics(str(USD), "gripper_end")
     loc = Kinematics(str(USD), "gripper_end", joint_signs=JOINT_SIGNS)

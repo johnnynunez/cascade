@@ -1,16 +1,16 @@
 """Systematic grasp diagnosis for the trophy, via build_runtime()."""
 import sys
 from pathlib import Path
-sys.path.insert(0, "/home/johnny/Projects/demo/wrc_demo_moon/src")
+sys.path.insert(0, "/home/johnny/Projects/demo/cascade_moon/src")
 import numpy as np
-from wrc_demo.config import load_demo_config
-from wrc_demo.apps.demo import build_runtime
+from cascade.config import load_demo_config
+from cascade.apps.demo import build_runtime
 
 cfg = load_demo_config(cameras=["isaac"], arm="isaac", llm="mock")
 rt, _ = build_runtime(cfg, Path("/tmp/diag_run"), view=False)
 
 
-from wrc_demo.sim.bridge_client import BridgeClient
+from cascade.sim.bridge_client import BridgeClient
 _probe_bc = BridgeClient(port=8611); _probe_bc.connect()
 
 

@@ -1,8 +1,8 @@
-# wrc_demo against the published agentic-manipulation results
+# cascade against the published agentic-manipulation results
 
 Status: 2026-08-09. Every number attributed to another system is copied from
 the paper PDF in `~/research/sota/papers/`, with the line it came from. Every
-number attributed to wrc_demo was produced on this machine by
+number attributed to cascade was produced on this machine by
 `benchmark/libero/run_wrc.py` and is stored in `benchmark/results/`.
 
 Read the "What is NOT comparable" section before quoting anything here. Three
@@ -13,7 +13,7 @@ failure this repo has been trying to avoid.
 
 ## 1. The benchmark most of them report is LIBERO-Pro, not LIBERO
 
-This is the single most important fact for positioning wrc_demo, and it took
+This is the single most important fact for positioning cascade, and it took
 reading the PDFs to find it.
 
 - **Harness-VLA** (`2607.08448`, Table 3) reports LIBERO-**Pro**: 10 tasks x
@@ -24,14 +24,14 @@ reading the PDFs to find it.
 - **LIBERO-PRO** (`2510.03827`) is the paper that introduced it, precisely
   because standard LIBERO scores are saturated and misleading.
 
-wrc_demo currently runs **standard LIBERO**. `~/bench/LIBERO-PRO` is being
+cascade currently runs **standard LIBERO**. `~/bench/LIBERO-PRO` is being
 cloned; until it runs, no cell in this document is a like-for-like comparison
 against the LIBERO-Pro columns.
 
 ## 2. What the gap looks like on standard LIBERO
 
 Harness-VLA Table 2, success rate (%), 100 trials per suite (10 tasks x 10
-seeds) -- the same protocol size as the wrc_demo runs:
+seeds) -- the same protocol size as the cascade runs:
 
 | method | Spatial | Object | Goal | LIBERO-10 |
 |---|---|---|---|---|
@@ -41,23 +41,23 @@ seeds) -- the same protocol size as the wrc_demo runs:
 | piRLinf | 99.0 | 96.0 | 97.0 | 89.0 |
 | AtomVLA | 96.4 | 99.6 | 97.6 | 94.4 |
 | Harness VLA (CC) | 97.0 | **100.0** | 94.0 | 93.0 |
-| **wrc_demo (oracle, verified)** | **0.0** | not run | not run | not run |
-| **wrc_demo (camera, verified)** | **0.0** | not run | not run | not run |
+| **cascade (oracle, verified)** | **0.0** | not run | not run | not run |
+| **cascade (camera, verified)** | **0.0** | not run | not run | not run |
 | no-op floor | 0.0 | 0.0 | 0.0 | 0.0 |
 
-wrc_demo scores zero. The decomposition in `LAYER_ATTRIBUTION_LIBERO.md` says
+cascade scores zero. The decomposition in `LAYER_ATTRIBUTION_LIBERO.md` says
 why, and it is not a mystery: LIBERO's `On()` predicate needs the object
 within **3 cm** of the destination, and median placement error is **1.8 cm
 against its own aim point** but **12.4 cm to the actual destination**, because
 gross failures (15-30 cm) and destination-shoving dominate the tail.
 
-Stating it plainly: as a manipulation system on this benchmark, wrc_demo is
+Stating it plainly: as a manipulation system on this benchmark, cascade is
 not competitive with a fine-tuned VLA, and nothing here should be read as
 claiming otherwise.
 
 ## 3. Where the numbers do favour this repo
 
-### 3.1 wrc_demo on LIBERO-Pro, measured
+### 3.1 cascade on LIBERO-Pro, measured
 
 Run on this machine with LIBERO-Pro's own suites, 100 episodes per cell
 (10 tasks x 10 seeds), the same protocol Harness-VLA Table 3 uses.
@@ -75,13 +75,13 @@ Run on this machine with LIBERO-Pro's own suites, 100 episodes per cell
 | Cap-X | 14.0 | 12.0 |
 | RATS | 31.0 | 29.0 |
 | Harness VLA (CC) | **94.0** | **80.0** |
-| **wrc_demo (verified, oracle)** | **0.0** | **0.0** |
+| **cascade (verified, oracle)** | **0.0** | **0.0** |
 
-On success rate wrc_demo sits with OpenVLA, pi-0, NORA and MolmoAct, which
+On success rate cascade sits with OpenVLA, pi-0, NORA and MolmoAct, which
 also score 0.0 on these cells. The cause is known and is not robustness: place
 precision misses LIBERO's 3 cm predicate (see `LAYER_ATTRIBUTION_LIBERO.md`).
 
-Note the oracle caveat still applies: wrc_demo's row uses seeded poses, which
+Note the oracle caveat still applies: cascade's row uses seeded poses, which
 the papers forbid. It is not a like-for-like perception setup, and a camera
 row would be worse, not better.
 
@@ -102,7 +102,7 @@ Models scoring 85-100% on standard LIBERO collapse to 0.0% under
 perturbation. That collapse is the entire argument of the LIBERO-PRO paper,
 and it is why the agentic systems exist.
 
-wrc_demo attacks that collapse from a different angle: not "score higher
+cascade attacks that collapse from a different angle: not "score higher
 under perturbation" but "know when you failed".
 
 | system | reports no-op floor | separates perception vs orchestration error |
@@ -112,7 +112,7 @@ under perturbation" but "know when you failed".
 | VIA | no | no |
 | Agentic-VLA | no | no |
 | LIBERO-PRO | no | no |
-| **wrc_demo** | **yes, 0/50** | **yes** |
+| **cascade** | **yes, 0/50** | **yes** |
 
 False success claims per 100 episodes, oracle perception. These runs move
 `akita_black_bowl_2` because of the object-identity bug described in 3.4, so
@@ -247,7 +247,7 @@ orchestration.
 
 ### 3.6 A learned bias that survived the bugs it learned from
 
-`~/.wrc_demo/grasp_memory.json` held, for the correct bowl:
+`~/.cascade/grasp_memory.json` held, for the correct bowl:
 
 ```
 akita_black_bowl_1_main|fp12cm|h6cm   W42  L745  z_delta=+0.05
@@ -276,7 +276,7 @@ evaluation harness itself.
 
 Four axes. Only one currently lines up.
 
-| axis | published work | wrc_demo | comparable? |
+| axis | published work | cascade | comparable? |
 |---|---|---|---|
 | robot | Franka Panda, 7-DoF | Franka Panda, 7-DoF (`configs/arms/libero_panda.yaml`) | **yes** |
 | benchmark | LIBERO-Pro | LIBERO-Pro (Spat-T, Spat-S) + standard | **yes, for those two cells** |
@@ -306,7 +306,7 @@ In dependency order. Items 1 and 4 are done; what is left is now specific.
 
 1. ~~**Run LIBERO-Pro.**~~ Done: Spat-T and Spat-S, 10x10, section 3.5.
    LIBERO-Pro is installed at `~/bench/LIBERO-PRO` and the harness selects it
-   with `WRC_BENCH_LIBERO`.
+   with `CASCADE_BENCH_LIBERO`.
 2. **Switch to OSC_POSE.** No longer optional or cosmetic. Section 3.5 shows
    JOINT_POSITION with in-house IK plateaus at 6.0 mm lateral error, and a rim
    pinch needs 4.6 mm, so this controller cannot execute the suite's central
@@ -319,13 +319,13 @@ In dependency order. Items 1 and 4 are done; what is left is now specific.
 4. ~~**Fix the gross place failures.**~~ Done, and they were not place
    failures: the 15-30 cm tail was the object-identity bug in 3.4 plus the
    oracle's fake geometry. With both fixed the blocker moved to the grasp.
-5. **Clear `~/.wrc_demo/grasp_memory.json` before any measured run**, or
+5. **Clear `~/.cascade/grasp_memory.json` before any measured run**, or
    record its state alongside the result. Section 3.6 shows a stale nudge
    silently shifting every grasp by 50 mm across runs.
 
 Until 2 and 3 land, the honest one-line summary is:
 
-> wrc_demo scores 0% on LIBERO and LIBERO-Pro, and the cause is measured: its
+> cascade scores 0% on LIBERO and LIBERO-Pro, and the cause is measured: its
 > controller cannot place the gripper accurately enough to grasp the suite's
 > central object. What it has that the published systems do not is a measured
 > no-op floor, a measured separation of perception error from orchestration

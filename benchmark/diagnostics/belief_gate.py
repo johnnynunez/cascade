@@ -32,14 +32,14 @@ import os
 import sys
 import time
 
-REPO = "/home/johnny/Projects/demo/wrc_demo"
+REPO = "/home/johnny/Projects/demo/cascade"
 sys.path.insert(0, REPO + "/src")
 sys.path.insert(0, os.path.expanduser("~/bench/LIBERO"))
 os.environ.setdefault("MUJOCO_GL", "egl")
 
 import numpy as np
 
-from wrc_demo.memory import BeliefStore
+from cascade.memory import BeliefStore
 
 LOG = []
 
@@ -56,7 +56,7 @@ def find_traced(self, query, *a, **k):
 BeliefStore.find = find_traced
 
 # --- instrument the staleness inputs on the runtime
-from wrc_demo.skills import runtime as RT  # noqa: E402
+from cascade.skills import runtime as RT  # noqa: E402
 
 _orig_loc = RT.SkillRuntime._localize
 

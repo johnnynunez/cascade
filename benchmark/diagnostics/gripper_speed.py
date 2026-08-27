@@ -27,11 +27,11 @@ Run against ONE engine; the caller restarts the bridge to switch.
 import sys
 import time
 
-sys.path.insert(0, "/home/johnny/Projects/demo/wrc_demo/src")
+sys.path.insert(0, "/home/johnny/Projects/demo/cascade/src")
 
 import numpy as np
 
-from wrc_demo.sim.bridge_client import BridgeClient
+from cascade.sim.bridge_client import BridgeClient
 
 GRIP_FRAC = 0.6
 ARC = (-1.2, -0.4)          # joint2 arc, radians (same as the slow test)

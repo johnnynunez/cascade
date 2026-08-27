@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isaac Sim side of the wrc_demo bridge -- Isaac Sim 6.0 (develop, Newton).
+"""Isaac Sim side of the cascade bridge -- Isaac Sim 6.0 (develop, Newton).
 
 Run with Isaac Sim's Python:
 
@@ -9,11 +9,11 @@ Run with Isaac Sim's Python:
 
 Opens the gain-tuned reBot RS asset, adds a tabletop + colored props (incl.
 a PINK cube) + two RTX cameras, and serves the newline-JSON protocol from
-wrc_demo.sim.bridge_client so the FULL agentic demo (reflex tier, livestream
+cascade.sim.bridge_client so the FULL agentic demo (reflex tier, livestream
 dashboard, Hermes MCP) runs against the sim:
 
-    wrc-demo --cameras isaac,isaac_side --arm isaac --interactive
-    # or MCP:  WRC_CAMERAS=isaac,isaac_side WRC_ARM=isaac wrc-mcp
+    cascade --cameras isaac,isaac_side --arm isaac --interactive
+    # or MCP:  CASCADE_CAMERAS=isaac,isaac_side CASCADE_ARM=isaac cascade-mcp
 
 Written against the isaacsim.core.experimental API (the classic
 isaacsim.core.api/prims/sensors modules do NOT exist in the 6.0 develop
@@ -43,10 +43,10 @@ import zlib
 # Default to the gain-tuned RS asset that ships in this repo (drives, robot
 # schema, self-collision off, solver caps already baked by
 # assets/usd/RS-rebot-dev-arm/scripts/prep_asset.py). Overridable with --usd
-# or $WRC_USD so a machine-specific `-plus` variant still slots in.
+# or $CASCADE_USD so a machine-specific `-plus` variant still slots in.
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_USD = os.environ.get(
-    "WRC_USD",
+    "CASCADE_USD",
     os.path.join(_REPO_ROOT, "assets", "usd", "RS-rebot-dev-arm", "RS-rebot-dev-arm.usda"),
 )
 DEFAULT_PRIM = "/tn__00armrs_asmv3_hJ6D/Geometry/base_link"
@@ -319,7 +319,7 @@ _fix_gravity()
 
 # This asset ships with the arm hoisted in the air (contact-free gravity
 # validation). Find where the base actually sits and author the tabletop
-# world at THAT height -- wrc_demo only ever sees base-relative geometry,
+# world at THAT height -- cascade only ever sees base-relative geometry,
 # so the world offset is invisible to it.
 _bb = UsdGeom.BBoxCache(Usd.TimeCode.Default(), ["default"])
 _robot_range = _bb.ComputeWorldBound(stage.GetPrimAtPath(args.prim)).ComputeAlignedRange()
@@ -331,10 +331,10 @@ print(f"[bridge] robot base plane at world z={BASE_Z:.3f} m; "
 # scripts) runs MuJoCo-Warp on the CPU and stutters badly with the full
 # booth scene while RTX renders on the GPU. But GPU PhysX (cuda:0) NaNs the
 # whole scene at boot on some builds/GPUs (Blackwell RTX PRO 6000 here:
-# arm + props explode to ~1e12 on the first tick). $WRC_PHYSICS_DEVICE
+# arm + props explode to ~1e12 on the first tick). $CASCADE_PHYSICS_DEVICE
 # overrides; default cuda:0 with a cpu fallback if GPU pipelines are
 # unavailable.
-_phys_dev = os.environ.get("WRC_PHYSICS_DEVICE", "cuda:0")
+_phys_dev = os.environ.get("CASCADE_PHYSICS_DEVICE", "cuda:0")
 try:
     SimulationManager.setup_simulation(dt=args.dt, device=_phys_dev)
 except Exception:
@@ -616,7 +616,7 @@ def _camera(path, eye, target, up, focal_mm=18.0, haperture_mm=20.955):
     fy = focal_mm / (haperture_mm * args.height / args.width) * args.height
     K = [[fx, 0.0, args.width / 2], [0.0, fy, args.height / 2], [0.0, 0.0, 1.0]]
 
-    # Print the wrc_demo extrinsics (OpenCV camera -> BASE frame) for the
+    # Print the cascade extrinsics (OpenCV camera -> BASE frame) for the
     # camera profile YAML: x_cv = right, y_cv = -up (image y is down),
     # z_cv = forward; translation relative to the robot base plane.
     R_cv = np.column_stack([right, -true_up, fwd])
@@ -757,19 +757,19 @@ if args.gui:
 
 # Companion-pack python server: standard live-inspection endpoint (Johnny's
 # tooling), alongside the bridge's own exec op. Path is machine-specific;
-# skip cleanly when the extension folder is absent (set $WRC_COMPANION_EXTS
+# skip cleanly when the extension folder is absent (set $CASCADE_COMPANION_EXTS
 # to enable on a machine that has it).
 try:
     import omni.kit.app as _kit_app
 
-    _companion = os.environ.get("WRC_COMPANION_EXTS", "")
+    _companion = os.environ.get("CASCADE_COMPANION_EXTS", "")
     if _companion and os.path.isdir(_companion):
         _mgr = _kit_app.get_app().get_extension_manager()
         _mgr.add_path(_companion)
         _mgr.set_extension_enabled_immediate("isaacsim.code_editor.python_server", True)
         print("[bridge] isaacsim.code_editor.python_server enabled", flush=True)
     else:
-        print("[bridge] companion python_server not configured (WRC_COMPANION_EXTS unset)",
+        print("[bridge] companion python_server not configured (CASCADE_COMPANION_EXTS unset)",
               flush=True)
 except Exception as _e:
     print(f"[bridge] python_server not enabled: {_e}", flush=True)
@@ -883,11 +883,11 @@ _state_lock = threading.Lock()
 # (local convention), j3 kept 1 deg inside its 0 lower limit. The TCP is
 # outside the demo workspace AABB here (x~0) -- the harness's workspace
 # escape rule lets the first commanded motion come home.
-# WRC_BRIDGE_NO_TARGETS=1: asset-inspection mode -- apply NO runtime targets
+# CASCADE_BRIDGE_NO_TARGETS=1: asset-inspection mode -- apply NO runtime targets
 # so the asset's own authored joint state/drive targets are what you see
 # (used to validate the initial-pose PR; also note HOME_Q is in the LOCAL
 # joint convention and would fight a mirror-convention asset).
-_NO_TARGETS = os.environ.get("WRC_BRIDGE_NO_TARGETS", "0") == "1"
+_NO_TARGETS = os.environ.get("CASCADE_BRIDGE_NO_TARGETS", "0") == "1"
 _targets: dict = {
     "q": None if _NO_TARGETS else list(HOME_Q),
     "grip_frac": None if _NO_TARGETS else 1.0,
@@ -1045,10 +1045,10 @@ class Handler(socketserver.StreamRequestHandler):
 
 
 socketserver.ThreadingTCPServer.allow_reuse_address = True  # survive TIME_WAIT
-server = socketserver.ThreadingTCPServer((os.environ.get("WRC_BRIDGE_BIND", "127.0.0.1"), args.port), Handler)
+server = socketserver.ThreadingTCPServer((os.environ.get("CASCADE_BRIDGE_BIND", "127.0.0.1"), args.port), Handler)
 server.daemon_threads = True
 threading.Thread(target=server.serve_forever, daemon=True, name="bridge-tcp").start()
-print(f"[bridge] serving wrc_demo bridge on :{args.port}", flush=True)
+print(f"[bridge] serving cascade bridge on :{args.port}", flush=True)
 
 import cv2  # noqa: E402  (ships with the isaacsim python)
 

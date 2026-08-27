@@ -24,13 +24,13 @@ class McpClient:
     def __init__(self, tmp_run_dir: str, extra_env: dict | None = None):
         env = dict(os.environ)
         env["PYTHONPATH"] = str(REPO / "src")
-        env["WRC_CAMERA"] = "mock"
-        env["WRC_ARM"] = "mock"
-        env["WRC_RUN_DIR"] = tmp_run_dir
-        env["WRC_STREAM"] = "0"  # no HTTP port binding inside tests
+        env["CASCADE_CAMERA"] = "mock"
+        env["CASCADE_ARM"] = "mock"
+        env["CASCADE_RUN_DIR"] = tmp_run_dir
+        env["CASCADE_STREAM"] = "0"  # no HTTP port binding inside tests
         env.update(extra_env or {})
         self.proc = subprocess.Popen(
-            [sys.executable, "-m", "wrc_demo.apps.mcp_server"],
+            [sys.executable, "-m", "cascade.apps.mcp_server"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -110,7 +110,7 @@ def test_initialize_and_tools_list_without_hardware(client):
     })
     result = resp["result"]
     assert result["protocolVersion"] == "2025-06-18"
-    assert result["serverInfo"]["name"] == "wrc-demo"
+    assert result["serverInfo"]["name"] == "cascade"
     assert "tools" in result["capabilities"]
     client.notify("notifications/initialized")
 
@@ -209,7 +209,7 @@ def test_hermes_config_upsert():
     # fresh file
     merged = upsert(None, block)
     assert merged.startswith("mcp_servers:")
-    assert 'WRC_CAMERAS: "l515"' in merged
+    assert 'CASCADE_CAMERAS: "l515"' in merged
     # existing config with another server is preserved
     existing = (
         "model: hermes-4\n"
@@ -221,12 +221,12 @@ def test_hermes_config_upsert():
     merged = upsert(existing, block)
     assert "model: hermes-4" in merged
     assert "agenticros:" in merged
-    assert "wrc-demo:" in merged
+    assert "cascade:" in merged
     # idempotent replace: camera changes, no duplicate entries
     block2 = yaml_block("mock", "mock", "/usr/bin/python3")
     merged2 = upsert(merged, block2)
-    assert merged2.count("wrc-demo:") == 1
-    assert 'WRC_CAMERAS: "mock"' in merged2 and 'WRC_CAMERAS: "l515"' not in merged2
+    assert merged2.count("cascade:") == 1
+    assert 'CASCADE_CAMERAS: "mock"' in merged2 and 'CASCADE_CAMERAS: "l515"' not in merged2
 
 
 def test_new_livestream_tools_over_jsonrpc(client):
@@ -248,15 +248,15 @@ def test_new_livestream_tools_over_jsonrpc(client):
     assert "objects" in payload and "cameras" in payload
     assert payload["arm_connected"] is False  # LazyArm untouched by a look
 
-    # live_view_url with WRC_STREAM=0: honest error, not a bogus URL.
+    # live_view_url with CASCADE_STREAM=0: honest error, not a bogus URL.
     # The dashboard is lazy now (chat is the UI), so this tool OPENS the view
-    # on demand -- but WRC_STREAM=0 is a hard kill switch that must still
+    # on demand -- but CASCADE_STREAM=0 is a hard kill switch that must still
     # refuse rather than bind a port behind the operator's back.
     payload, is_err = _tool_payload(
         client.request("tools/call", {"name": "live_view_url", "arguments": {}})
     )
     assert is_err and payload["open"] is False
-    assert "disabled" in payload["error"] and "WRC_STREAM" in payload["error"]
+    assert "disabled" in payload["error"] and "CASCADE_STREAM" in payload["error"]
 
     # named-camera snapshot
     resp = client.request("tools/call", {"name": "camera_snapshot",
@@ -339,13 +339,13 @@ def test_mcp_mode_dashboard_chat_is_reflex_only(tmp_path, monkeypatch):
     free-form text with an honest narration note."""
     import urllib.request
 
-    monkeypatch.setenv("WRC_CAMERA", "mock")
-    monkeypatch.setenv("WRC_ARM", "mock")
-    monkeypatch.setenv("WRC_RUN_DIR", str(tmp_path / "run"))
-    monkeypatch.setenv("WRC_STREAM", "1")
-    monkeypatch.setenv("WRC_STREAM_PORT", "0")  # ephemeral port
-    monkeypatch.setenv("WRC_VIEW", "0")
-    from wrc_demo.apps.mcp_server import McpSkillServer
+    monkeypatch.setenv("CASCADE_CAMERA", "mock")
+    monkeypatch.setenv("CASCADE_ARM", "mock")
+    monkeypatch.setenv("CASCADE_RUN_DIR", str(tmp_path / "run"))
+    monkeypatch.setenv("CASCADE_STREAM", "1")
+    monkeypatch.setenv("CASCADE_STREAM_PORT", "0")  # ephemeral port
+    monkeypatch.setenv("CASCADE_VIEW", "0")
+    from cascade.apps.mcp_server import McpSkillServer
 
     server = McpSkillServer()
     try:
@@ -384,11 +384,11 @@ def test_mcp_mode_dashboard_chat_is_reflex_only(tmp_path, monkeypatch):
 
 
 def test_hidden_tools_are_delisted_and_rejected(tmp_path):
-    """WRC_HIDE_TOOLS removes tools from the surface AND the call path
+    """CASCADE_HIDE_TOOLS removes tools from the surface AND the call path
     (booth sessions hide reset_stop so a model cannot clear a staff e-stop);
     emergency_stop is never hideable -- even when an operator typo lists it."""
     c = McpClient(str(tmp_path / "run"),
-                  extra_env={"WRC_HIDE_TOOLS": "reset_stop,throw,emergency_stop"})
+                  extra_env={"CASCADE_HIDE_TOOLS": "reset_stop,throw,emergency_stop"})
     try:
         c.request("initialize", {"protocolVersion": "2025-06-18"})
         tools = {t["name"] for t in c.request("tools/list")["result"]["tools"]}

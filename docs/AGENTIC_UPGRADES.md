@@ -224,15 +224,15 @@ context. The ablation is about overlays given to the model.
 ## Files
 
 ```
-src/wrc_demo/agent/effects.py             Pigey postconditions
-src/wrc_demo/agent/milestones.py          Agentic-VLA milestone verification
-src/wrc_demo/agent/aspire.py              ASPIRE diagnose / distil / retrieve
-src/wrc_demo/agent/cosmos3.py             Cosmos3-Edge client (XML tool calls)
-src/wrc_demo/memory/envelope.py           Harness-VLA operating envelopes
-src/wrc_demo/perception/visual_interface.py  VIA annotated view
-src/wrc_demo/sim/truth.py                 physics-truth verification channel
-src/wrc_demo/apps/live_control.py         on-demand live-view lifecycle
-src/wrc_demo/perception/probe.py          the queryable cursor (6% -> 32%)
+src/cascade/agent/effects.py             Pigey postconditions
+src/cascade/agent/milestones.py          Agentic-VLA milestone verification
+src/cascade/agent/aspire.py              ASPIRE diagnose / distil / retrieve
+src/cascade/agent/cosmos3.py             Cosmos3-Edge client (XML tool calls)
+src/cascade/memory/envelope.py           Harness-VLA operating envelopes
+src/cascade/perception/visual_interface.py  VIA annotated view
+src/cascade/sim/truth.py                 physics-truth verification channel
+src/cascade/apps/live_control.py         on-demand live-view lifecycle
+src/cascade/perception/probe.py          the queryable cursor (6% -> 32%)
 scripts/learn_from_runs.py                the outer loop
 scripts/serve_cosmos_vllm.sh             vLLM-Omni serving
 scripts/serve_cosmos_sglang.sh           SGLang serving (2026-08-27, unverified on the rig)
@@ -257,13 +257,13 @@ is an attack surface nobody asked for. Perception is unaffected — the
 CameraRig keeps pumping and the WorldWatcher keeps beliefs warm — so the agent
 answers "what do you see?" instantly with no dashboard at all.
 
-**Modes** (`stream.mode`, overridden by `WRC_STREAM`):
+**Modes** (`stream.mode`, overridden by `CASCADE_STREAM`):
 
 | mode | behaviour |
 |---|---|
 | `lazy` *(default)* | binds on first `open_live_view`; auto-closes after `idle_timeout_s` (900 s) with nobody watching |
 | `eager` | binds at startup — pinned in `configs/booth.yaml`, because the big screen must be live before doors open |
-| `off` | never binds. `WRC_STREAM=0` maps here and stays a hard kill switch |
+| `off` | never binds. `CASCADE_STREAM=0` maps here and stays a hard kill switch |
 
 **Skills** (all in `TOOL_SPECS`, so chat and MCP both see them):
 

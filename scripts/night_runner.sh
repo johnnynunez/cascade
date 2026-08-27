@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Nightly persistent runner for the wrc_demo agentic dashboard.
+# Nightly persistent runner for the cascade agentic dashboard.
 # Keeps the demo REPL (with the :8090 MJPEG dashboard) alive all night and
 # feeds it a rotating list of agent tasks so there's always motion to watch.
 # The dashboard stays up on http://<LAN-IP>:8090/ the entire time.
 set -u
-cd /home/johnny/Projects/demo/wrc_demo/models
-export PYTHONPATH=/home/johnny/Projects/demo/wrc_demo/src
+cd /home/johnny/Projects/demo/cascade/models
+export PYTHONPATH=/home/johnny/Projects/demo/cascade/src
 PY=/home/johnny/Projects/demo/.demo/bin/python
 
 # Guard 1: refuse to start a second dashboard. A stale instance still holding
@@ -47,9 +47,9 @@ TASKS=(
     i=$((i+1))
     sleep 100
     # best-effort prop reset via the bridge (ignore errors if busy)
-    "$PY" -c "from wrc_demo.sim.bridge_client import BridgeClient; c=BridgeClient(port=8611); c.connect(); c.request({'op':'reset_props'}); c.close()" 2>/dev/null || true
+    "$PY" -c "from cascade.sim.bridge_client import BridgeClient; c=BridgeClient(port=8611); c.connect(); c.request({'op':'reset_props'}); c.close()" 2>/dev/null || true
     sleep 5
   done
-) | stdbuf -oL -eL "$PY" -m wrc_demo.apps.demo \
+) | stdbuf -oL -eL "$PY" -m cascade.apps.demo \
       --cameras isaac,isaac_side,isaac_wrist --arm isaac --llm local_qwen \
       --interactive --run-dir /tmp/wrc_night 2>&1

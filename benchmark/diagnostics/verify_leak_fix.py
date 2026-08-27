@@ -13,8 +13,8 @@ import statistics
 import sys
 import time
 
-from wrc_demo.sim.bridge_client import BridgeClient
-from wrc_demo.sim.truth import _PROBE, _PROP_ROOTS
+from cascade.sim.bridge_client import BridgeClient
+from cascade.sim.truth import _PROBE, _PROP_ROOTS
 
 c = BridgeClient(port=8611)
 c.connect()
@@ -22,7 +22,7 @@ probe = _PROBE % {"roots": repr(_PROP_ROOTS)}
 
 # clear any cache from a previous run so the numbers are comparable
 c.request({"op": "exec", "code": (
-    "globals().pop('_WRC_RIGIDPRIM_VIEWS', None)\nprint('cache cleared')\n")})
+    "globals().pop('_CASCADE_RIGIDPRIM_VIEWS', None)\nprint('cache cleared')\n")})
 
 lat = []
 N = 400
@@ -44,6 +44,6 @@ else:
     print("FAIL  latency still climbing; the cache did not address it")
 
 r = c.request({"op": "exec", "code": (
-    "v = globals().get('_WRC_RIGIDPRIM_VIEWS', {})\n"
+    "v = globals().get('_CASCADE_RIGIDPRIM_VIEWS', {})\n"
     "print('cached views:', len(v), sorted(v)[:4])\n")})
 print(r.get("stdout", "").strip())

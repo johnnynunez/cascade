@@ -14,21 +14,21 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.expanduser("~/Projects/demo/wrc_demo/src"))
+sys.path.insert(0, os.path.expanduser("~/Projects/demo/cascade/src"))
 sys.path.insert(0, os.path.expanduser("~/bench/LIBERO"))
 
 import numpy as np
 from libero.libero import benchmark, get_libero_path
 from libero.libero.envs import OffScreenRenderEnv
 
-from wrc_demo.perception.segmenter import PointSegmenter, fix_at_pixel
-from wrc_demo.types import Frame
+from cascade.perception.segmenter import PointSegmenter, fix_at_pixel
+from cascade.types import Frame
 
 MODELS = {
     "SAM2.1-t (74 MB)": os.path.expanduser(
-        "~/Projects/demo/wrc_demo/models/sam2.1_t.pt"),
+        "~/Projects/demo/cascade/models/sam2.1_t.pt"),
     "SAM3 (3.29 GB)": os.path.expanduser(
-        "~/Projects/demo/wrc_demo/models/sam3.pt"),
+        "~/Projects/demo/cascade/models/sam3.pt"),
 }
 TARGETS = ("akita_black_bowl_2_main", "plate_1_main")
 

@@ -7,7 +7,7 @@ Pigey (arXiv:2607.21725) names the thing this repo has been chasing all along:
      inside the agentic loop"  -- the ORCHESTRATION GAP.
 
 Its own words: Pigey "can control existing VLA policies AS WELL AS
-PARAMETRIZED SKILLS". That is exactly wrc_demo's architecture, which is why
+PARAMETRIZED SKILLS". That is exactly cascade's architecture, which is why
 this comparison is legitimate and why an earlier "the interfaces differ, it
 would be invalid" objection was wrong. The paper does not compare an
 orchestrator against a 7-DoF policy on equal footing -- it compares the SAME
@@ -22,7 +22,7 @@ Three conditions on identical LIBERO tasks and identical initial states:
               One shot: perceive once, grasp, place. This is the floor.
   loop        the same primitive re-invoked with retries on failure, but
               believing its own success reports (self-verification only).
-  verified    the same, with wrc_demo postconditions: every effect checked
+  verified    the same, with cascade postconditions: every effect checked
               against a channel the actuator does not own (physics truth
               here), and a refuted effect forces a retry.
 
@@ -70,9 +70,9 @@ import numpy as np
 
 #: Pigey's own spatial_tools.py provides the verified cartesian P-controller
 #: (arXiv:2607.21725, github.com/lianegalanti/Pigey). Clone it next to LIBERO
-#: and point WRC_BENCH_PIGEY at it to reproduce this experiment.
+#: and point CASCADE_BENCH_PIGEY at it to reproduce this experiment.
 _pigey = os.environ.get(
-    "WRC_BENCH_PIGEY", str(Path(paths.LIBERO_DIR).parent / "Pigey" / "sim"))
+    "CASCADE_BENCH_PIGEY", str(Path(paths.LIBERO_DIR).parent / "Pigey" / "sim"))
 sys.path.insert(0, _pigey)
 
 #: Per-suite episode caps, same convention as the OpenVLA eval.

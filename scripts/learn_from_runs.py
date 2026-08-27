@@ -35,9 +35,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
-from wrc_demo.agent.aspire import harvest, report  # noqa: E402
-from wrc_demo.memory.envelope import OperatingEnvelope  # noqa: E402
-from wrc_demo.skills.library import SkillLibrary  # noqa: E402
+from cascade.agent.aspire import harvest, report  # noqa: E402
+from cascade.memory.envelope import OperatingEnvelope  # noqa: E402
+from cascade.skills.library import SkillLibrary  # noqa: E402
 
 
 def main() -> int:
@@ -46,7 +46,7 @@ def main() -> int:
                     help="directory holding <run>/trace.jsonl (default: repo runs/)")
     ap.add_argument("--library", default=str(REPO / "skills_library"),
                     help="ASPIRE skill library directory")
-    ap.add_argument("--envelope", default="~/.wrc_demo/envelope.json",
+    ap.add_argument("--envelope", default="~/.cascade/envelope.json",
                     help="persisted operating-envelope model")
     ap.add_argument("--limit", type=int, default=200, help="most recent N runs")
     ap.add_argument("--report", action="store_true", help="print the diagnosis board")

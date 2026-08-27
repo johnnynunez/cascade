@@ -2,7 +2,7 @@
 
 VoLo's RoboVoLo makes complex references one of four capability suites
 (spatial, ordinal, size, negation). ASPIRE ships the ordering rule as a learned
-skill. wrc_demo had the axis map but nothing parsed the phrase, so a booth
+skill. cascade had the axis map but nothing parsed the phrase, so a booth
 visitor's wording reached the detector unused.
 
 These tests pin the semantics, especially the ones that are easy to get
@@ -16,8 +16,8 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 
-from wrc_demo.perception.grounding import _SPATIAL_AXES
-from wrc_demo.perception.reference import (
+from cascade.perception.grounding import _SPATIAL_AXES
+from cascade.perception.reference import (
     apply_reference,
     parse_reference,
 )

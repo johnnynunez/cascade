@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installs the Python deps for scripts/serve_nvblox_bridge.py (the wrc_demo
-# occupancy bridge -- see src/wrc_demo/perception/occupancy.py) into the
+# Installs the Python deps for scripts/serve_nvblox_bridge.py (the cascade
+# occupancy bridge -- see src/cascade/perception/occupancy.py) into the
 # target interpreter. Safe to re-run (idempotent: only installs packages,
 # never touches repo files, config, or running processes).
 #

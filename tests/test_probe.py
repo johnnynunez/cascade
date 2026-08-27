@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from wrc_demo.perception.probe import PointProbe, _median_depth, deproject
+from cascade.perception.probe import PointProbe, _median_depth, deproject
 
 
 # ── fixtures: a synthetic pinhole camera looking straight down ───────────
@@ -56,7 +56,7 @@ class _Beliefs:
 
 
 def _runtime(frame=None, beliefs=(), tcp=(0.3, 0.0, 0.3), workspace=None):
-    from wrc_demo.config import Cfg
+    from cascade.config import Cfg
 
     cfg = Cfg({
         "safety": {"workspace": workspace or {"min": [0.10, -0.30, -0.01],
@@ -262,7 +262,7 @@ def test_locate_pixel_returns_both_pixel_and_normalized():
 
 
 def test_draw_cursor_marks_without_mutating_a_readonly_image():
-    from wrc_demo.perception.probe import draw_cursor
+    from cascade.perception.probe import draw_cursor
 
     img = np.zeros((H, W, 3), dtype=np.uint8)
     img.flags.writeable = False

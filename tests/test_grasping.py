@@ -1,9 +1,9 @@
 import numpy as np
 
-from wrc_demo.grasping.force import select_profile
-from wrc_demo.grasping.obb_grasp import _yaw_rotation, plan_grasps_from_fix
-from wrc_demo.perception.grounding import oriented_bbox
-from wrc_demo.types import Detection, ObjectFix
+from cascade.grasping.force import select_profile
+from cascade.grasping.obb_grasp import _yaw_rotation, plan_grasps_from_fix
+from cascade.perception.grounding import oriented_bbox
+from cascade.types import Detection, ObjectFix
 
 
 def make_fix(center=(0.3, 0.0), size=(0.10, 0.04, 0.06), yaw=0.0, n=400):

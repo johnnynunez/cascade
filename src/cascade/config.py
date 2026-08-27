@@ -19,7 +19,7 @@ from typing import Any
 
 import yaml
 
-PACKAGE_ROOT = Path(__file__).resolve().parents[2]  # the wrc_demo repo root
+PACKAGE_ROOT = Path(__file__).resolve().parents[2]  # the cascade repo root
 CONFIG_DIR = PACKAGE_ROOT / "configs"
 ASSET_DIR = PACKAGE_ROOT / "assets"
 
@@ -93,11 +93,11 @@ def _deep_merge(base: dict, overlay: dict) -> None:
 
 
 def booth_mode_enabled() -> bool:
-    """WRC_BOOTH=1 selects the booth tuning overlay (configs/booth.yaml).
+    """CASCADE_BOOTH=1 selects the booth tuning overlay (configs/booth.yaml).
     Whitespace-stripped; the usual negatives all disable it."""
     import os
 
-    return os.environ.get("WRC_BOOTH", "").strip().lower() not in (
+    return os.environ.get("CASCADE_BOOTH", "").strip().lower() not in (
         "", "0", "false", "no", "off",
     )
 
@@ -112,7 +112,7 @@ def load_demo_config(
     """`cameras` (ordered, first = manipulation camera) supersedes `camera`;
     both populate cfg.camera (primary) and cfg.cameras (all).
 
-    When WRC_BOOTH is set, configs/booth.yaml is deep-merged on top of
+    When CASCADE_BOOTH is set, configs/booth.yaml is deep-merged on top of
     demo.yaml (bounded worst cases for timed attendee sessions -- see
     docs/BOOTH_RUNBOOK.md §1); every entry point (demo CLI, MCP server,
     dashboard runner) goes through here, so the switch is one env var."""
@@ -124,7 +124,7 @@ def load_demo_config(
             # an explicitly requested overlay must never no-op silently:
             # booth.yaml ships with the repo, so absence = broken checkout
             raise FileNotFoundError(
-                f"WRC_BOOTH is set but {booth_path} is missing"
+                f"CASCADE_BOOTH is set but {booth_path} is missing"
             )
         _deep_merge(main, _resolve_paths(_load_yaml(booth_path), cdir))
         main["booth_mode"] = True

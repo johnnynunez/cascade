@@ -7,7 +7,7 @@
   <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/docs-architecture-informational?style=flat-square" alt="Architecture docs"></a>
 </p>
 
-CASCADE (package name `wrc_demo`, unchanged — see [naming note](#naming-note))
+CASCADE (package name `cascade`, unchanged — see [naming note](#naming-note))
 is camera-agnostic, LLM-orchestrated tabletop manipulation on the Seeed reBot
 DevArm B601 (RobStride build), driven from an NVIDIA DGX Spark. Its defining
 idea is the cascade itself: routine commands resolve on a regex reflex or a
@@ -81,7 +81,7 @@ text encoder, and other rig-specific gotchas.
 # offline wiring check: mock camera + mock arm + scripted LLM, no hardware.
 # Routine commands run on the REFLEX fast path (no LLM); a livestream
 # dashboard with N camera streams + robot narration prints its URL.
-PYTHONPATH=src python -m wrc_demo.apps.demo --task "pick and place pink object"
+PYTHONPATH=src python -m cascade.apps.demo --task "pick and place pink object"
 
 # tests (unit/integration; live-hardware tests deselected by default)
 python -m pytest tests/ -q
@@ -93,23 +93,23 @@ scripts/serve_graspgenx.sh
 
 # real rig, N cameras (first = manipulation camera), cloud LLM fallback
 sudo ip link set can0 up type can bitrate 1000000
-python -m wrc_demo.apps.demo --interactive \
+python -m cascade.apps.demo --interactive \
     --cameras d455f,uvc4k --arm rebot_rs --llm anthropic
 
 # two D455F (serials pinned in the profiles: with identical hardware an
 # unpinned profile binds to whichever unit enumerates first). The live
 # window shows one row per camera, RGB beside its depth colormap.
-python -m wrc_demo.apps.demo --interactive \
+python -m cascade.apps.demo --interactive \
     --cameras d455f_wrist,d455f_scene --arm rebot_rs --llm anthropic
 
 # Isaac Sim instead of hardware (same demo, simulated reBot):
 #   1. inside Isaac Sim's python:  python.sh scripts/isaac_bridge.py --usd <rebot.usd>
 #   2. then:
-python -m wrc_demo.apps.demo --cameras isaac --arm isaac --interactive
+python -m cascade.apps.demo --cameras isaac --arm isaac --interactive
 
 # real rig, local Qwen3.6 on the Spark (start the server first)
 scripts/serve_qwen_llamacpp.sh          # or serve_qwen_vllm.sh (MTP spec decoding)
-python -m wrc_demo.apps.demo --task "..." --cameras d455f --arm rebot_rs --llm local_qwen
+python -m cascade.apps.demo --task "..." --cameras d455f --arm rebot_rs --llm local_qwen
 
 # talk to it through OpenClaw's web chat instead of the CLI loop
 ./scripts/openclaw_demo.sh              # registers skills, wires the Cosmos3-Edge brain, opens chat
@@ -117,32 +117,32 @@ python -m wrc_demo.apps.demo --task "..." --cameras d455f --arm rebot_rs --llm l
 
 ## How it fits together
 
-- **[Perception](src/wrc_demo/perception/)** is camera-agnostic: every
+- **[Perception](src/cascade/perception/)** is camera-agnostic: every
   backend yields `Frame` objects with float32 *metric* depth aligned to
   color. Cameras without depth fall through a strategy chain (sensor →
   optional mono-depth plugin → table-plane ray-casting), so an RGB-only
   webcam still grasps tabletop objects.
-- **[Safety](src/wrc_demo/safety/)** is a fail-closed `SafetyHarness` that
+- **[Safety](src/cascade/safety/)** is a fail-closed `SafetyHarness` that
   vets every streamed waypoint (joint limits, velocity caps, workspace AABB,
   table-plane clearance, keep-out zones, perception watchdog, e-stop latch,
-  and an optional [nvblox-style occupancy map](src/wrc_demo/perception/occupancy.py)),
+  and an optional [nvblox-style occupancy map](src/cascade/perception/occupancy.py)),
   plus an ASPIRE-style multimodal trace (`trace.jsonl` + before/after
   keyframes) on every skill call.
-- **[Grasping](src/wrc_demo/grasping/)** uses learned 6-DoF grasps from a
+- **[Grasping](src/cascade/grasping/)** uses learned 6-DoF grasps from a
   GraspGen-X ZMQ server, falling back to analytic 3D OBB grasps whenever the
   server is down. Candidates are re-ranked by a persisted grasp-outcome
   memory, then vetted against IK *and* the safety-harness geometry.
-- **[Control](src/wrc_demo/control/)** is self-contained Pinocchio FK/IK on
+- **[Control](src/cascade/control/)** is self-contained Pinocchio FK/IK on
   the RS URDF, damped-least-squares with random restarts, min-jerk joint
   streaming with feedback-based settling over RobStride CAN.
-- **[Memory](src/wrc_demo/memory/)** is a 10–15 s episodic window plus an
+- **[Memory](src/cascade/memory/)** is a 10–15 s episodic window plus an
   object-permanence belief store, so "the mug you saw 10 seconds ago" is
   still actionable after occlusion.
-- The **[agent](src/wrc_demo/agent/)** dispatches through three tiers —
+- The **[agent](src/cascade/agent/)** dispatches through three tiers —
   reflex (regex, no LLM) → experience (learned habits) → LLM — so routine
   commands never wait on the model, with a VLM advisor kicking in on failure.
 
-wrc_demo works with hosted and local [LLM backends](#llm-backends) and is
+cascade works with hosted and local [LLM backends](#llm-backends) and is
 exposed as an [MCP server](#run-it-under-any-mcp-agent-platform) any
 MCP-capable host can drive.
 
@@ -167,7 +167,7 @@ MCP-capable host can drive.
 ## Run it under any MCP agent platform
 
 The whole skill runtime is also exposed as an **MCP stdio server**
-(`wrc_demo/apps/mcp_server.py`) — so instead of the built-in loop, any
+(`cascade/apps/mcp_server.py`) — so instead of the built-in loop, any
 MCP-capable agent platform can drive the arm. The agent gets the same 30
 safety-gated skills (only the loop-internal `task_done` is excluded) plus
 seven gateway extras — `camera_snapshot` (returns a live JPEG the agent can
@@ -191,7 +191,7 @@ python scripts/setup_agents.py --camera d455f --arm rebot_rs --write
 | **Hermes** | `~/.hermes/config.yaml` `mcp_servers` | `./scripts/hermes_demo.sh` (interactive: register + test + chat) |
 | **Claude Code** | project `.mcp.json` (ships in this repo; interpreter path is machine-specific, and it pins the Isaac camera/arm profiles) | if your checkout lives elsewhere, regenerate with the profiles you want: `setup_agents.py --host claude --camera isaac,isaac_side --arm isaac --write` (add `--python <interpreter>` if your venv is not at `<checkout-parent>/.demo`); user-scope: `--host claude` prints the `claude mcp add` one-liner |
 | **Claude Desktop** | `claude_desktop_config.json` | paste the JSON block from `setup_agents.py --host claude` |
-| **Codex CLI** | `~/.codex/config.toml` `[mcp_servers.wrc-demo]` | `setup_agents.py --host codex --write`, verify with `codex mcp list` |
+| **Codex CLI** | `~/.codex/config.toml` `[mcp_servers.cascade]` | `setup_agents.py --host codex --write`, verify with `codex mcp list` |
 | **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `./scripts/bootstrap.sh` (installs the OpenClaw CLI + Cosmos3-Edge brain + registers skills, one shot) or `./scripts/openclaw_demo.sh` if OpenClaw and the brain are already running (register + local-brain provider + gateway + web-chat URL); `setup_agents.py --host openclaw` prints the `openclaw mcp add` one-liner + JSON block. OpenClaw blocks the `PYTHONPATH` env — the package must be editable-installed in the venv (the script handles it) |
 
 The server pre-warms perception at startup (cameras + detector + world
@@ -202,19 +202,19 @@ never queued behind a running motion: `emergency_stop` frames are handled
 out-of-band by the stdin reader, Esc/cancellation in the host mid-motion
 freezes the arm, first Ctrl+C on the server latches the e-stop (no
 free-fall), and the dashboard STOP button works from any browser on the
-LAN. For attendee-facing sessions, `WRC_HIDE_TOOLS=reset_stop` makes
+LAN. For attendee-facing sessions, `CASCADE_HIDE_TOOLS=reset_stop` makes
 clearing a stop staff-only. Env knobs:
-`WRC_CAMERAS` (comma list, first = manipulation camera), `WRC_CAMERA`
-(single-camera fallback), `WRC_ARM`, `WRC_DETECTOR_MODEL`,
-`WRC_DETECT_CLASSES`, `WRC_HIDE_TOOLS`, `WRC_VIEW`, `WRC_PREWARM`,
-`WRC_STREAM`, `WRC_STREAM_PORT`, `WRC_RUN_DIR` (trace dir), `DISPLAY`. The Isaac bridge
-side has its own knobs (`WRC_USD`, `WRC_PHYSICS_DEVICE` — `cpu` is the
-escape hatch for GPU-PhysX boot NaNs —, `WRC_BRIDGE_BIND`,
-`WRC_BRIDGE_NO_TARGETS`, `WRC_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
+`CASCADE_CAMERAS` (comma list, first = manipulation camera), `CASCADE_CAMERA`
+(single-camera fallback), `CASCADE_ARM`, `CASCADE_DETECTOR_MODEL`,
+`CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_VIEW`, `CASCADE_PREWARM`,
+`CASCADE_STREAM`, `CASCADE_STREAM_PORT`, `CASCADE_RUN_DIR` (trace dir), `DISPLAY`. The Isaac bridge
+side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
+escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
+`CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
 
 ## The 30 skills
 
-One schema source (`TOOL_SPECS` in `src/wrc_demo/skills/runtime.py`) feeds
+One schema source (`TOOL_SPECS` in `src/cascade/skills/runtime.py`) feeds
 every consumer — the built-in `AgentOrchestrator`, the OpenAI/Anthropic
 LLM backends, and the MCP server — so this list is exactly what any brain,
 built-in or external, can call. "moves arm" marks the 15 skills in
@@ -321,10 +321,10 @@ silently vanishes.
 
 The GitHub repo and project name are **CASCADE**
 (github.com/johnnynunez/cascade); the Python package, import path, and CLI
-entry points (`wrc_demo`, `wrc-demo`, `wrc-mcp`, ...) are still `wrc_demo` /
+entry points (`cascade`, `cascade`, `cascade-mcp`, ...) are still `cascade` /
 `wrc-*` throughout the codebase and were deliberately left unchanged — a
 package/import rename touches every module, test, and config in the repo
 and is a separate, much larger change from renaming the project. If that
 rename happens later, `pyproject.toml`'s `name`/`[project.scripts]`, every
-`from wrc_demo...` import, and `configs/*.yaml`/`CLAUDE.md`/`.mcp.json` all
+`from cascade...` import, and `configs/*.yaml`/`CLAUDE.md`/`.mcp.json` all
 need to move together.

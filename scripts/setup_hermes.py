@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Register the wrc-demo MCP server with Hermes (and print other hosts' blocks).
+"""Register the cascade MCP server with Hermes (and print other hosts' blocks).
 
 Hermes reads MCP servers from ~/.hermes/config.yaml under `mcp_servers.<name>`
 (stdio transport, absolute paths required). By default this prints the block;
@@ -19,7 +19,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 PYTHON = sys.executable
-SERVER_KEY = "wrc-demo:"
+SERVER_KEY = "cascade:"
 MCP_KEY = "mcp_servers:"
 
 
@@ -29,18 +29,18 @@ def yaml_block(cameras: str, arm: str, python: str,
     return f"""{MCP_KEY}
   {SERVER_KEY}
     command: "{python}"
-    args: ["-m", "wrc_demo.apps.mcp_server"]
+    args: ["-m", "cascade.apps.mcp_server"]
     env:
       PYTHONPATH: "{REPO / 'src'}"
-      WRC_CAMERAS: "{cameras}"
-      WRC_ARM: "{arm}"
+      CASCADE_CAMERAS: "{cameras}"
+      CASCADE_ARM: "{arm}"
 {extra}    connect_timeout: 60
     timeout: 300
 """
 
 
 def upsert(existing: str | None, block: str) -> str:
-    """Insert/replace the wrc-demo entry, preserving other YAML content
+    """Insert/replace the cascade entry, preserving other YAML content
     (same line-surgery approach AgenticROS uses for this file)."""
     trimmed = block.rstrip() + "\n"
     if not existing or not existing.strip():
@@ -77,7 +77,7 @@ def main() -> int:
                    help="comma-separated camera profiles (first = manipulation "
                         "camera); overrides --camera")
     p.add_argument("--arm", default="mock")
-    p.add_argument("--python", default=PYTHON, help="interpreter with wrc_demo deps")
+    p.add_argument("--python", default=PYTHON, help="interpreter with cascade deps")
     p.add_argument("--write", action="store_true", help="merge into ~/.hermes/config.yaml")
     p.add_argument("--config", default=str(Path.home() / ".hermes" / "config.yaml"))
     args = p.parse_args()
@@ -94,7 +94,7 @@ def main() -> int:
     merged = upsert(existing, block)
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(merged)
-    print(f"[+] wrote mcp_servers.wrc-demo -> {cfg_path}")
+    print(f"[+] wrote mcp_servers.cascade -> {cfg_path}")
     print(f"    cameras={args.cameras or args.camera} arm={args.arm}")
     print("    restart Hermes to pick it up")
     print("    livestream dashboard will print its URL on the gateway's stderr")

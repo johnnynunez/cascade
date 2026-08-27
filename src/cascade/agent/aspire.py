@@ -7,7 +7,7 @@ growing skill library with the largest transfer gain -- skills learned in sim
 carry into real-robot runs *as in-context guidance*, reaching first success
 with fewer tokens.
 
-wrc_demo already ships two thirds of this:
+cascade already ships two thirds of this:
 
 * the rich multimodal trace (``agent/trace.py`` -- trace.jsonl + keyframes),
 * the library schema and retrieval (``skills/library.py``).

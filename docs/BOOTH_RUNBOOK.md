@@ -27,13 +27,13 @@ copy-pasteable on the rig.
 
 ## 1. Pre-conference checklist (do at home, not at the booth)
 
-1. **Booth tuning is one env var:** `WRC_BOOTH=1` deep-merges
+1. **Booth tuning is one env var:** `CASCADE_BOOTH=1` deep-merges
    `configs/booth.yaml` over `configs/demo.yaml` at load time, in every
    entry point (demo CLI, MCP server, dashboard runner). Dev runs without
    the env keep dev values; the regen command below bakes it into
    `.mcp.json`. The overrides and why:
 
-   | key | dev default | `WRC_BOOTH=1` | why |
+   | key | dev default | `CASCADE_BOOTH=1` | why |
    |---|---|---|---|
    | `grasp.persist_seconds` | 120 | **45** | caps the retry loop: one unlucky pick can't eat 2 of 15 minutes |
    | `grasp.max_pick_attempts` | 8 | **3** | 3 visible attempts tell the recovery story; 8 tell a sad one |
@@ -50,7 +50,7 @@ copy-pasteable on the rig.
    python scripts/setup_agents.py --host claude --write \
        --camera l515 --arm rebot_rs \
        --detect-classes "pink cube,green cube,banana,disc,box,bowl,cup" \
-       --hide-tools reset_stop --env WRC_BOOTH=1
+       --hide-tools reset_stop --env CASCADE_BOOTH=1
    ```
 
    - `--detect-classes` must name **exactly what attendees will ask for**:
@@ -131,7 +131,7 @@ Q&A tail so the slot boundary is clean.
 
 ## 4. Props & cheat card
 
-- 5–7 chunky, matte props that match `WRC_DETECT_CLASSES` exactly; 3 vetted
+- 5–7 chunky, matte props that match `CASCADE_DETECT_CLASSES` exactly; 3 vetted
   spares in the catch bin. Taped outline zones keep attendee staging inside
   the reachable workspace (x 0.15–0.45 m, |y| ≤ 0.25 m).
 - One opaque cup (host's pocket — the object-permanence beat), one flat
@@ -162,7 +162,7 @@ exit line for the lose case (§8). One `pick_and_place` per group, ever.
 | 7:45–9:15 | **Object permanence.** Host covers the green cube with the cup, theatrically. Attendee 4: *"Where is the green cube?"* — the answer comes from memory, with position and age, while the object's row dims on the big screen. *"Point at where it was."* — the arm points at the cup; host lifts it at the fingertip; the row re-brightens. (Requires the `belief_fallback_age_s` booth tuning, §1.) |
 | 9:15–10:45 | **The throw.** The group picks who types: *"Grab the banana and throw it into the bin!"* Jaws pop open mid-arc. Host: "Every waypoint of that throw was still vetted by the safety harness at 50 hertz." **G4:** only if ≥60 s ahead — *"Hand me the pink cube"*: handover presents and holds until *"open the gripper"*. "Two-message protocol — it never lets go until you say so." |
 | 10:45–11:30 | **Close** (never cut). *"Wave goodbye, then go home."* `move_home` parks the arm safely — mandatory posture between groups. Group photo on the wave. |
-| 11:30–15:00 | **Q&A + reset in parallel** (§7). Talking points: the robot's "diary" (the dashboard's grasp-memory panel, plus `~/.wrc_demo/GRASP_MEMORY.md` refreshed by the reset script — "your disc failure is in here now; the next group inherits it"), and the **keyframes** link on the big screen — this session's before/after evidence trail ("the black-box recorder of the last ten minutes", no file browser needed). Walk the group out at 14:30. |
+| 11:30–15:00 | **Q&A + reset in parallel** (§7). Talking points: the robot's "diary" (the dashboard's grasp-memory panel, plus `~/.cascade/GRASP_MEMORY.md` refreshed by the reset script — "your disc failure is in here now; the next group inherits it"), and the **keyframes** link on the big screen — this session's before/after evidence trail ("the black-box recorder of the last ten minutes", no file browser needed). Walk the group out at 14:30. |
 
 ## 6. Safety rules (host-only, non-negotiable)
 
@@ -179,9 +179,9 @@ exit line for the lose case (§8). One `pick_and_place` per group, ever.
   free-fall). A stop that lands while the runtime is still starting is
   remembered and applied the moment startup finishes.
 - **Clearing a stop is staff-only** (`reset_stop` is hidden from the
-  attendee session via `WRC_HIDE_TOOLS`, and the model then cannot call
+  attendee session via `CASCADE_HIDE_TOOLS`, and the model then cannot call
   it): staff assesses, restages, then clears from a rig terminal with
-  `pkill -USR1 -f wrc_demo.apps.mcp_server` (SIGUSR1 is the staff reset
+  `pkill -USR1 -f cascade.apps.mcp_server` (SIGUSR1 is the staff reset
   channel; restarting the server also works but costs the warm state).
 - **Never kill or disconnect with the arm loaded or raised** — exit
   disables torque and the arm falls. Park first (*"go home"*), always.

@@ -48,7 +48,7 @@ from .live_view import draw_detections, draw_hud
 _BOUNDARY = "wrcframe"
 
 _INDEX_HTML = """<!doctype html>
-<html><head><meta charset="utf-8"><title>wrc-demo :: live</title><style>
+<html><head><meta charset="utf-8"><title>cascade :: live</title><style>
  body {{ background:#0d1117; color:#d7dde3; font:14px/1.4 system-ui,sans-serif; margin:0; }}
  header {{ padding:10px 16px; background:#161c22; display:flex; gap:14px;
            align-items:baseline; border-bottom:1px solid #21262d; }}
@@ -81,7 +81,7 @@ _INDEX_HTML = """<!doctype html>
           margin-right:6px; vertical-align:baseline; border:1px solid #444; }}
  .remembered {{ opacity:.55; }}
 </style></head><body>
-<header><h1>wrc-demo &middot; live</h1>
+<header><h1>cascade &middot; live</h1>
  <span id="task">no task</span>
  <a href="/keyframes" style="color:#9fb0c0;font-size:12px">keyframes</a>
  <span id="status">connecting...</span></header>
@@ -616,7 +616,7 @@ def _make_handler(server: StreamServer):
             body = (
                 '<!doctype html><html><head><meta charset="utf-8">'
                 '<meta http-equiv="refresh" content="3">'
-                "<title>wrc-demo :: keyframes</title></head>"
+                "<title>cascade :: keyframes</title></head>"
                 '<body style="background:#0d1117;color:#d7dde3;'
                 'font:14px system-ui;padding:14px">'
                 '<h1 style="font-size:16px;color:#76b900">'

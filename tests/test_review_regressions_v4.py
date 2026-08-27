@@ -21,12 +21,12 @@ def test_stop_during_startup_latches_after_build(tmp_path, monkeypatch):
     the stop was acknowledged. _stop_pending must be set before reading
     _runtime and applied by _ensure_runtime after assigning it, so every
     interleaving is caught by one side."""
-    monkeypatch.setenv("WRC_CAMERA", "mock")
-    monkeypatch.setenv("WRC_ARM", "mock")
-    monkeypatch.setenv("WRC_RUN_DIR", str(tmp_path / "run"))
-    monkeypatch.setenv("WRC_STREAM", "0")
-    monkeypatch.setenv("WRC_VIEW", "0")
-    from wrc_demo.apps.mcp_server import McpSkillServer
+    monkeypatch.setenv("CASCADE_CAMERA", "mock")
+    monkeypatch.setenv("CASCADE_ARM", "mock")
+    monkeypatch.setenv("CASCADE_RUN_DIR", str(tmp_path / "run"))
+    monkeypatch.setenv("CASCADE_STREAM", "0")
+    monkeypatch.setenv("CASCADE_VIEW", "0")
+    from cascade.apps.mcp_server import McpSkillServer
 
     server = McpSkillServer()
     try:
@@ -106,12 +106,12 @@ def test_exec_lock_serializes_chat_against_worker(tmp_path, monkeypatch):
     reflex chat and the worker's skill execution share _exec_lock -- two
     threads must never stream the arm concurrently (it would defeat the
     per-waypoint velocity gate). The chat refuses while a command runs."""
-    monkeypatch.setenv("WRC_CAMERA", "mock")
-    monkeypatch.setenv("WRC_ARM", "mock")
-    monkeypatch.setenv("WRC_RUN_DIR", str(tmp_path / "run"))
-    monkeypatch.setenv("WRC_STREAM", "0")
-    monkeypatch.setenv("WRC_VIEW", "0")
-    from wrc_demo.apps.mcp_server import McpSkillServer
+    monkeypatch.setenv("CASCADE_CAMERA", "mock")
+    monkeypatch.setenv("CASCADE_ARM", "mock")
+    monkeypatch.setenv("CASCADE_RUN_DIR", str(tmp_path / "run"))
+    monkeypatch.setenv("CASCADE_STREAM", "0")
+    monkeypatch.setenv("CASCADE_VIEW", "0")
+    from cascade.apps.mcp_server import McpSkillServer
 
     server = McpSkillServer()
     try:
@@ -129,11 +129,11 @@ def test_exec_lock_serializes_chat_against_worker(tmp_path, monkeypatch):
 
 
 def test_sigusr1_is_the_staff_reset_channel(tmp_path):
-    """With reset_stop hidden from attendees (WRC_HIDE_TOOLS), staff had NO
+    """With reset_stop hidden from attendees (CASCADE_HIDE_TOOLS), staff had NO
     way to clear a latched e-stop short of restarting the server. SIGUSR1
     now clears it (shell access to the rig == staff)."""
     c = McpClient(str(tmp_path / "run"),
-                  extra_env={"WRC_HIDE_TOOLS": "reset_stop"})
+                  extra_env={"CASCADE_HIDE_TOOLS": "reset_stop"})
     try:
         c.request("initialize", {"protocolVersion": "2025-06-18"})
         c.request("tools/call", {"name": "get_observation", "arguments": {}})

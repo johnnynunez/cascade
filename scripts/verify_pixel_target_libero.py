@@ -13,15 +13,15 @@ perception path, which is exactly the eval_detector.py pattern.
 import os
 import sys
 
-sys.path.insert(0, os.path.expanduser("~/Projects/demo/wrc_demo/src"))
+sys.path.insert(0, os.path.expanduser("~/Projects/demo/cascade/src"))
 sys.path.insert(0, os.path.expanduser("~/bench/LIBERO"))
 
 import numpy as np
 from libero.libero import benchmark, get_libero_path
 from libero.libero.envs import OffScreenRenderEnv
 
-from wrc_demo.perception.pixel_target import fix_from_pixel
-from wrc_demo.types import Frame
+from cascade.perception.pixel_target import fix_from_pixel
+from cascade.types import Frame
 
 bm = benchmark.get_benchmark_dict()["libero_spatial"]()
 task = bm.get_task(0)

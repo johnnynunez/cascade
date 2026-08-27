@@ -12,13 +12,13 @@ import pytest
 
 from conftest import needs_pin
 
-from wrc_demo.agent.llm import LLMResponse, MockLLM, ToolCall
-from wrc_demo.agent.orchestrator import AgentOrchestrator
+from cascade.agent.llm import LLMResponse, MockLLM, ToolCall
+from cascade.agent.orchestrator import AgentOrchestrator
 
 
 @pytest.fixture
 def runtime_and_arm(demo_cfg, tmp_path):
-    from wrc_demo.apps.demo import build_runtime
+    from cascade.apps.demo import build_runtime
 
     runtime, arm = build_runtime(demo_cfg, tmp_path / "run")
     yield runtime, arm
@@ -100,7 +100,7 @@ def test_air_grasp_detected_and_reported(runtime_and_arm):
 @needs_pin
 def test_advisor_consulted_after_failure(runtime_and_arm):
     runtime, arm = runtime_and_arm
-    from wrc_demo.agent.advisor import Advisor
+    from cascade.agent.advisor import Advisor
 
     # Agent LLM: observe -> impossible grasp -> finish.
     agent_llm = MockLLM(

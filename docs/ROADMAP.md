@@ -92,7 +92,7 @@ inspiration lifted from an abstract.
   into a VLA policy's embedding space. Requires a trainable VLA backbone
   this repo does not have — added to "Deliberately not built" in
   `docs/AGENTIC_UPGRADES.md`, next to Agentic-VLA's GRPO note for the same
-  reason. wrc_demo's belief store + envelope + skill library already cover
+  reason. cascade's belief store + envelope + skill library already cover
   the same short-term/long-term split symbolically (text woven into the
   LLM's system prompt, not latents woven into a policy).
 - **grasping.io → HUG** (Human Universal Grasping, NYU/Tsinghua/UMich) — an
@@ -107,7 +107,7 @@ inspiration lifted from an abstract.
   describes a three-tier hierarchy — `primitives` (fixed low-level platform
   functions) → `skills` (agent-authored, reusable, composed from
   primitives) → `programs` (full task-specific policies composed from
-  skills, written fresh per instruction). wrc_demo has the first two
+  skills, written fresh per instruction). cascade has the first two
   (`TOOL_SPECS` = primitives, `skills_library/*.md` = skills) but no
   `programs` tier — see open follow-up #8. Also notable, as a *contrast*
   and not a pattern to adopt: Waddle's described safety layer is a single
@@ -136,7 +136,7 @@ Open follow-ups from this work:
    `GraspOutcomeMemory`. Whether HUG's cross-embodiment grasps clear this
    arm's IK envelope is untested — the point of landing it is to find out,
    not to assume it is better.
-8. **A `programs` tier (Waddle).** wrc_demo has primitives (`TOOL_SPECS`)
+8. **A `programs` tier (Waddle).** cascade has primitives (`TOOL_SPECS`)
    and skills (`skills_library/*.md`, ASPIRE-distilled) but nothing above
    skills: an agent-composed, reusable, task-level script distinct from a
    one-off orchestrator run. Scoping question before landing: does a
@@ -152,13 +152,13 @@ Open follow-ups from this work:
   fail→learn→succeed arc, fallback ladders); `scripts/booth_up.sh` /
   `booth_reset.sh` are the ops entry points. Landed 2026-07-20: out-of-band
   MCP e-stop (incl. stop-during-startup latch) + cancellation→freeze +
-  `WRC_HIDE_TOOLS` (reset_stop becomes staff-only; SIGUSR1 is the staff
+  `CASCADE_HIDE_TOOLS` (reset_stop becomes staff-only; SIGUSR1 is the staff
   reset channel), dashboard STOP wired in MCP mode, `setup_agents.py
   --detect-classes/--hide-tools/--env` + offline env by default, stale-path
   fixes in `dashboard_runner.py`/`hermes_demo.sh`; adversarially reviewed
   same day, defects pinned in `tests/test_review_regressions_v4.py`.
   Second pass (also 2026-07-20) closed the remaining six: (1) booth tuning
-  is a `WRC_BOOTH=1` overlay (`configs/booth.yaml`, deep-merged in
+  is a `CASCADE_BOOTH=1` overlay (`configs/booth.yaml`, deep-merged in
   `load_demo_config` — dev keeps dev values); (2) `scripts/booth_rehearsal.py`
   dry-runs the session prompts through the real orchestrator — first run on
   local Qwen3.6-27B: 6/6 prompts clean tool calls, 4/6 tasks succeeded (the
@@ -168,7 +168,7 @@ Open follow-ups from this work:
   the dashboard; (6) MCP-mode dashboard chat runs the reflex grammar
   LLM-free. Remaining (on-site): re-run the rehearsal with the final
   cheat-card nouns, and validate the point-at-under-cup beat on the real
-  rig with `WRC_BOOTH=1`.
+  rig with `CASCADE_BOOTH=1`.
 
 - **Persistence-loop review leftovers (2026-07-18, adversarial review run;
   fixed same-day: e-stop break, fail-fast on never-seen objects, place

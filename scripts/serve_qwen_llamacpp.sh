@@ -48,7 +48,7 @@ echo "[+] model: $GGUF_PATH"
 #    `llama-server --help | grep -i -E "spec|draft|mtp"` for your build's
 #    speculative-decoding switches.
 # Vision: Qwen3.6 is a unified VLM; the mmproj projector GGUF enables image
-# input (the wrc_demo VLM-grounding second filter depends on it).
+# input (the cascade VLM-grounding second filter depends on it).
 MMPROJ_PATH=$(find "$MODEL_DIR" -name "mmproj-BF16.gguf" | head -1)
 if [ -z "$MMPROJ_PATH" ]; then
     "$HF_BIN" download "$HF_REPO" --include "mmproj-BF16.gguf" --local-dir "$MODEL_DIR" || true

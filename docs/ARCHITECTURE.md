@@ -84,14 +84,14 @@ alternative *executor* behind the same skill API (see ROADMAP).
 ## Module map
 
 ```
-src/wrc_demo/
+src/cascade/
 ├── types.py            Frame / Detection / ObjectFix / Grasp / RobotState
 ├── config.py           YAML profiles (cameras/, arms/, llm/) merged into one Cfg
 ├── perception/
 │   ├── camera_base.py  CameraBase ABC + factory; Frames carry METRIC depth
 │   ├── realsense_camera.py   D4xx + L515 (local fork's pyrealsense2)
 │   ├── opencv_camera.py      RGB-only UVC
-│   ├── mock_camera.py        synthetic tabletop + npz replay (wrc-record)
+│   ├── mock_camera.py        synthetic tabletop + npz replay (cascade-record)
 │   ├── isaac_camera.py       Isaac Sim bridge frames (RGB-D + per-frame T_base_cam)
 │   ├── depth_provider.py     sensor → mono plugin → table-plane ray-cast
 │   ├── detector.py           open-vocab YOLOE/YOLO-World + MockDetector
@@ -132,13 +132,14 @@ src/wrc_demo/
 │   ├── trace.py        ASPIRE trace logger
 │   └── orchestrator.py reflex-first agent loop + TaskReport
 ├── skills/
-│   ├── runtime.py      the curated tool surface + JSON schemas (22 specs:
-│   │                   21 skills incl. pick_and_place + social skills,
-│   │                   plus the loop-terminator task_done)
+│   ├── runtime.py      the curated tool surface + JSON schemas (31 specs:
+│   │                   30 skills incl. pick_and_place + social skills,
+│   │                   plus the loop-terminator task_done -- re-derive via
+│   │                   `TOOL_SPECS` in this file, counts drift fast)
 │   └── library.py      learned-skill markdown store (loading loop: ROADMAP)
 ├── sim/bridge_client.py  newline-JSON TCP client for scripts/isaac_bridge.py
 └── apps/               demo.py CLI (build_runtime = the composition root),
-                        record.py capture, viewer.py (wrc-view live RGB+D),
+                        record.py capture, viewer.py (cascade-view live RGB+D),
                         live_view.py (RigViewer window: one row per camera,
                         RGB beside its depth colormap, + draw helpers),
                         stream_server.py (MJPEG dashboard + narration +
@@ -175,7 +176,7 @@ localize ─▶ ObjectFix (base-frame OBB)
    ├─▶ GraspGen-X candidates (ZMQ, learned 6-DoF) ──┐ prepended; any server
    └─▶ OBB candidates (analytic, always computed) ──┤ error → OBB only
                                                     ▼
-   grasp-outcome memory re-rank + z-nudge (~/.wrc_demo/grasp_memory.json)
+   grasp-outcome memory re-rank + z-nudge (~/.cascade/grasp_memory.json)
                                                     ▼
    select_grasp: jaw-width filter ▸ IK (pregrasp, then grasp seeded from
    it) ▸ harness pre-vet (pregrasp WITHOUT the exemption cylinder, then 7
@@ -246,7 +247,7 @@ warnings).
   its stop-channel defects (stop lost during runtime build, cancellation
   TOCTOU, reader-thread crash on non-object frames, no staff reset path)
   are pinned in `tests/test_review_regressions_v4.py`. A fourth pass (same
-  day, 18 agents, 13 confirmed) reviewed the booth-roadmap batch (WRC_BOOTH
+  day, 18 agents, 13 confirmed) reviewed the booth-roadmap batch (CASCADE_BOOTH
   overlay, dashboard routes, MCP-mode reflex chat); its critical —
   dashboard-chat motion could run concurrently with an MCP tool call — is
   fixed by `_exec_lock` and pinned in the same v4 file.

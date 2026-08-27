@@ -22,7 +22,7 @@ from __future__ import annotations
 import numpy as np
 
 
-from wrc_demo.skills.runtime import SkillRuntime
+from cascade.skills.runtime import SkillRuntime
 
 
 class _Kin:

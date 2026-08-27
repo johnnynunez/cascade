@@ -9,7 +9,7 @@ perfectly well; what it lacks is a way to *address* it metrically. Line 169:
     perception-assisting APIs such as segmentation functions, so visual
     understanding is solely the job of the agent and its underlying model.
 
-wrc_demo's skills all route through `_localize(label)`, so the agent can only
+cascade's skills all route through `_localize(label)`, so the agent can only
 act on things the detector names. That is a hard ceiling, measured: on LIBERO
 frames the open-vocabulary detector emits 38-44 detections and never once says
 `bowl`, so a label-addressed interface cannot express the task at all, while

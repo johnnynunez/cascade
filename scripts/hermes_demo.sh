@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot Hermes demo: register the wrc-demo MCP server, verify the
+# One-shot Hermes demo: register the cascade MCP server, verify the
 # connection, and drop into a Hermes chat where you can talk to the arm.
 #
 #   ./scripts/hermes_demo.sh                              # default model
@@ -20,7 +20,7 @@
 #   "grasp the red cube and place it on the plate"
 set -euo pipefail
 
-CAMERA="l515"
+CAMERA="d455f"
 ARM="mock"
 MODEL=""
 PROVIDER=""
@@ -30,9 +30,9 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PY="${PY:-$(cd "$REPO/.." && pwd)/.demo/bin/python}"
 # closed-set fallback; ultralytics auto-downloads it into models/ on first
 # (online) use if absent. DETECTOR_SET tracks an explicit user choice so the
-# CLIP branch below never overrides --detector / WRC_DETECTOR_MODEL.
-DETECTOR="${WRC_DETECTOR_MODEL:-$REPO/models/yolo11n.pt}"
-DETECTOR_SET="${WRC_DETECTOR_MODEL:+1}"
+# CLIP branch below never overrides --detector / CASCADE_DETECTOR_MODEL.
+DETECTOR="${CASCADE_DETECTOR_MODEL:-$REPO/models/yolo11n.pt}"
+DETECTOR_SET="${CASCADE_DETECTOR_MODEL:+1}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -57,16 +57,16 @@ else
 fi
 
 echo "[+] registering MCP server (camera=$CAMERA arm=$ARM)"
-hermes mcp remove wrc-demo >/dev/null 2>&1 || true
-hermes mcp add wrc-demo \
+hermes mcp remove cascade >/dev/null 2>&1 || true
+hermes mcp add cascade \
     --command "$PY" \
-    --env "PYTHONPATH=$REPO/src" "WRC_CAMERAS=$CAMERA" "WRC_ARM=$ARM" \
-          "WRC_DETECTOR_MODEL=$DETECTOR" "DISPLAY=${DISPLAY:-:1}" \
+    --env "PYTHONPATH=$REPO/src" "CASCADE_CAMERAS=$CAMERA" "CASCADE_ARM=$ARM" \
+          "CASCADE_DETECTOR_MODEL=$DETECTOR" "DISPLAY=${DISPLAY:-:1}" \
           "YOLO_OFFLINE=True" "ULTRALYTICS_OFFLINE=True" \
-    --args -m wrc_demo.apps.mcp_server
+    --args -m cascade.apps.mcp_server
 
 echo "[+] testing the connection"
-hermes mcp test wrc-demo
+hermes mcp test cascade
 
 CHAT_ARGS=()
 [[ -n "$MODEL" ]] && CHAT_ARGS+=(-m "$MODEL")

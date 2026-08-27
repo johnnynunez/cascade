@@ -9,15 +9,15 @@ import pytest
 
 from conftest import needs_pin
 
-from wrc_demo.config import Cfg, load_demo_config
-from wrc_demo.memory.beliefs import BeliefStore
-from wrc_demo.memory.episodic import EpisodicMemory
-from wrc_demo.perception.colors import center_bbox_mask, classify_hsv, color_matches
-from wrc_demo.perception.detector import MockDetector
-from wrc_demo.perception.grounding import Extrinsics, localize_object
-from wrc_demo.perception.mock_camera import MockCamera, synthetic_tabletop
-from wrc_demo.perception.stream import CameraStream
-from wrc_demo.types import Detection
+from cascade.config import Cfg, load_demo_config
+from cascade.memory.beliefs import BeliefStore
+from cascade.memory.episodic import EpisodicMemory
+from cascade.perception.colors import center_bbox_mask, classify_hsv, color_matches
+from cascade.perception.detector import MockDetector
+from cascade.perception.grounding import Extrinsics, localize_object
+from cascade.perception.mock_camera import MockCamera, synthetic_tabletop
+from cascade.perception.stream import CameraStream
+from cascade.types import Detection
 
 
 # ── watchdog heartbeat cluster (critical) ─────────────────────────────────
@@ -34,8 +34,8 @@ class _FakeHarness:
 
 
 def _watcher(harness, label="nothing matches", classes=("cube",)):
-    from wrc_demo.perception.depth_provider import DepthProvider
-    from wrc_demo.perception.world import LockedDetector, WatchedCamera, WorldWatcher
+    from cascade.perception.depth_provider import DepthProvider
+    from cascade.perception.world import LockedDetector, WatchedCamera, WorldWatcher
 
     cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
     stream = CameraStream(MockCamera(), name="cam", rate_hz=60.0)
@@ -91,8 +91,8 @@ def test_watcher_keeps_heartbeating_while_paused():
 
 
 def test_paused_watcher_does_not_fuse_beliefs():
-    from wrc_demo.perception.depth_provider import DepthProvider
-    from wrc_demo.perception.world import LockedDetector, WatchedCamera, WorldWatcher
+    from cascade.perception.depth_provider import DepthProvider
+    from cascade.perception.world import LockedDetector, WatchedCamera, WorldWatcher
 
     cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
     stream = CameraStream(MockCamera(), name="cam", rate_hz=60.0)
@@ -121,7 +121,7 @@ def test_paused_watcher_does_not_fuse_beliefs():
 
 @needs_pin
 def test_execute_survives_ok_false_without_error_key(tmp_path):
-    from wrc_demo.apps.demo import build_runtime, shutdown_runtime
+    from cascade.apps.demo import build_runtime, shutdown_runtime
 
     cfg = load_demo_config(camera="mock", arm="mock", llm="mock")
     runtime, arm = build_runtime(cfg, tmp_path / "run")
@@ -252,7 +252,7 @@ def test_episodic_memory_concurrent_add_and_digest():
 
 
 def test_reflex_rejects_compound_commands():
-    from wrc_demo.agent.reflex import parse_command
+    from cascade.agent.reflex import parse_command
 
     assert parse_command("wave and then pick up the knife") is None
     assert parse_command("grab the cup then drop it in the bin") is None

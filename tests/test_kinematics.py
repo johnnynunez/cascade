@@ -5,7 +5,7 @@ from conftest import JOINT_SIGNS, URDF, needs_pin
 
 @needs_pin
 def test_fk_ik_roundtrip():
-    from wrc_demo.control.kinematics import Kinematics
+    from cascade.control.kinematics import Kinematics
 
     kin = Kinematics(str(URDF), "gripper_end", joint_signs=JOINT_SIGNS)
     q_ref = np.array([0.3, 1.1, 1.3, 0.2, 0.5, -0.4])
@@ -19,7 +19,7 @@ def test_fk_ik_roundtrip():
 
 @needs_pin
 def test_ik_respects_joint_limits():
-    from wrc_demo.control.kinematics import Kinematics
+    from cascade.control.kinematics import Kinematics
 
     kin = Kinematics(str(URDF), "gripper_end", joint_signs=JOINT_SIGNS)
     lo, hi = kin.joint_limits
@@ -30,9 +30,9 @@ def test_ik_respects_joint_limits():
 
 @needs_pin
 def test_top_down_grasp_pose_reachable():
-    from wrc_demo.control.kinematics import Kinematics
-    from wrc_demo.grasping.obb_grasp import _yaw_rotation
-    from wrc_demo.types import make_transform
+    from cascade.control.kinematics import Kinematics
+    from cascade.grasping.obb_grasp import _yaw_rotation
+    from cascade.types import make_transform
 
     kin = Kinematics(str(URDF), "gripper_end", joint_signs=JOINT_SIGNS)
     R = _yaw_rotation(0.3)
@@ -48,7 +48,7 @@ def test_top_down_grasp_pose_reachable():
 
 @needs_pin
 def test_link_positions_shape():
-    from wrc_demo.control.kinematics import Kinematics
+    from cascade.control.kinematics import Kinematics
 
     kin = Kinematics(str(URDF), "gripper_end", joint_signs=JOINT_SIGNS)
     links = kin.link_positions(np.array([0.0, 1.2, 1.2, 0.0, 0.75, 0.0]))

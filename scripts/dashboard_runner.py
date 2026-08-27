@@ -1,4 +1,4 @@
-"""Persistent wrc_demo runtime against Isaac Sim: dashboard on :8090 +
+"""Persistent cascade runtime against Isaac Sim: dashboard on :8090 +
 one scripted pink-cube pick, then stays alive serving the livestream."""
 import os
 import sys
@@ -21,11 +21,11 @@ os.chdir(REPO / "models")
 
 sys.path.insert(0, str(REPO / "src"))
 
-from wrc_demo.agent.llm import make_llm
-from wrc_demo.agent.orchestrator import AgentOrchestrator
-from wrc_demo.agent.reflex import ExperienceMemory, FastPlanner
-from wrc_demo.apps.demo import build_runtime, shutdown_runtime
-from wrc_demo.config import load_demo_config
+from cascade.agent.llm import make_llm
+from cascade.agent.orchestrator import AgentOrchestrator
+from cascade.agent.reflex import ExperienceMemory, FastPlanner
+from cascade.apps.demo import build_runtime, shutdown_runtime
+from cascade.config import load_demo_config
 
 # Real deliberation tier when available: Anthropic API key > local Qwen
 # server > honest mock. The reflex/experience tiers work the same either way.
@@ -75,7 +75,7 @@ def run_task(task: str):
                 "note",
                 f"I could not act on {task!r} with my reflexes. For "
                 "free-form language, talk to me through Claude CLI "
-                "(cd wrc_demo && claude), or start the web runner with a "
+                "(cd cascade && claude), or start the web runner with a "
                 "real LLM (ANTHROPIC_API_KEY + llm='anthropic').",
             )
         print(f"TASK {task!r}: success={r.success} path={r.path} {r.duration_s}s",

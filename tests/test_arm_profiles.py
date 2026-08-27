@@ -94,6 +94,68 @@ def test_libero_panda_profile_matches_robosuite_hardware():
     )
 
 
+def _motorbridge_profiles():
+    return [p for p in _profiles() if _load(p).get("type") == "rebot_rs_mb"]
+
+
+def test_motorbridge_profiles_declare_their_mit_gains():
+    """The motorbridge path drops reBotArm_control_py and with it the SDK's
+    rebotarm_rs.yaml, so there is no vendor default to inherit per-joint gains
+    from. `rebot_rs.yaml` can leave `mit_kp: null` precisely because the SDK
+    fills it in; here that would send kp=None to a 48 V motor, so the backend
+    refuses to construct without them.
+    """
+    bad = []
+    for p in _motorbridge_profiles():
+        cfg = _load(p)
+        n = int(cfg["n_joints"])
+        for key in ("mit_kp", "mit_kd"):
+            gains = cfg.get(key)
+            if gains is None:
+                bad.append(f"{p.name}: {key} missing (SDK defaults do not exist here)")
+            elif len(gains) != n:
+                bad.append(f"{p.name}: {key} has {len(gains)}, n_joints={n}")
+    assert not bad, bad
+
+
+def test_wire_signs_length_matches_declared_dof():
+    """wire_signs maps mechPos to LOCAL joint angles. A short list would
+    broadcast against the joint vector and silently mirror the wrong joints."""
+    bad = []
+    for p in _profiles():
+        cfg = _load(p)
+        signs, n = cfg.get("wire_signs"), cfg.get("n_joints")
+        if signs is not None and n is not None and len(signs) != int(n):
+            bad.append(f"{p.name}: wire_signs has {len(signs)}, n_joints={n}")
+    assert not bad, bad
+
+
+def test_rs_motorbridge_gripper_opens_in_the_positive_direction():
+    """Pins a MEASUREMENT, not a preference.
+
+    Hand-sweeping the RS jaws end to end on 2026-08-27 gave travel 0.0 ->
+    +6.39 rad with closed at 0. The DM-derived `rebot_rs.yaml` says open is
+    -6.8, and that profile's own comment flags it as unverified for RS.
+    Copying the DM polarity into the motorbridge profile does not merely open
+    the wrong amount: `open_gripper()` then drives the jaws into their CLOSED
+    hard stop and holds there under effort.
+
+    If this test fails because someone re-measured, update the number here and
+    in the profile together -- do not delete the pin.
+    """
+    for p in _motorbridge_profiles():
+        g = _load(p).get("gripper") or {}
+        assert g["open_pos"] > g["closed_pos"], (
+            f"{p.name}: RS jaws open toward POSITIVE mechPos "
+            f"(measured 0 -> +6.39 rad); got open={g['open_pos']} "
+            f"closed={g['closed_pos']}, which is the DM build's polarity"
+        )
+        assert 0 < g["open_pos"] <= 6.39, (
+            f"{p.name}: open_pos {g['open_pos']} is outside the measured "
+            "travel; it must keep margin off the +6.39 rad hard stop"
+        )
+
+
 def test_no_robot_specific_imports_outside_the_control_layer():
     """Skills, perception, agent and safety must not depend on a robot backend.
 

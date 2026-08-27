@@ -1,0 +1,65 @@
+# reBot DevArm B601 (RobStride) over the motorbridge SDK, no SocketCAN.
+#
+# Use this profile on macOS/Windows, or on Linux when you want to skip the
+# reBotArm_control_py SDK; use `rebot_rs` for the SDK path. Backend:
+# src/wrc_demo/control/rebot_rs_mb_arm.py.
+#
+# Before first use the bus must be FREE -- host id 0xFD has a single owner, so
+# stop motorbridge-gateway / MotorBridge Studio and any LeRobot process.
+#
+#   macOS    can0 -> PCAN_USBBUS1 via MacCAN PCBUSB. Needs libPCBUSB.dylib AND
+#            a bare-name `PCBUSB` symlink beside it, with
+#            DYLD_FALLBACK_LIBRARY_PATH pointing at that directory (motorbridge
+#            dlopens the bare name; a libPCBUSB.dylib-only check passes while
+#            the arm still fails with "load PCBUSB failed").
+#   Linux    can0 -> SocketCAN: sudo ip link set can0 up type can bitrate 1000000
+#
+# Park the arm INSIDE the URDF limits before connecting. Hand-moving reaches
+# poses outside them (measured: joint 3 to 4.22 rad against a 3.14 limit, and
+# joint 6 is continuous-rotation), and the harness rejects such a pose.
+type: rebot_rs_mb
+
+channel: can0
+motor_model: rs-00
+host_id: 0xFD
+joint_ids: [1, 2, 3, 4, 5, 6]
+gripper_id: 7
+read_timeout_ms: 200
+
+model: ${assets}/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf
+# Assets are mirrored vs. the SDK/hardware convention (q_local = -q_asset).
+joint_signs: [-1, -1, -1, -1, -1, -1]
+ee_frame: gripper_end
+n_joints: 6
+home_q: [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
+
+# Wire convention of mechPos (0x7019) relative to LOCAL joint angles. Verified
+# 1:1 in SCALE and ZERO on this rig (joint 4 hand-swept span 3.491 rad vs the
+# URDF's 3.480; joint 1 centred on zero at +-2.6), so only per-joint SIGN could
+# still differ. Flip an entry to -1 if scripts/jog_rebot_mb.py shows a joint
+# moving opposite to the URDF's positive axis.
+wire_signs: [1, 1, 1, 1, 1, 1]
+
+# MIT gains, sent with every frame. REQUIRED here: dropping the SDK also drops
+# its rebotarm_rs.yaml, so there is no vendor default to inherit.
+#
+# PROVISIONAL -- the MIT gain scale is not yet characterized on this build.
+# Validate before trusting them with a payload:
+#   python scripts/jog_rebot_mb.py --joint 1 --hold-only
+# That holds the live pose and aborts if the arm sags past 50 mrad, which is
+# the signal these are too low. Raise the proximal joints (2, 3) first: they
+# carry the most gravity load.
+mit_kp: [20.0, 30.0, 30.0, 12.0, 10.0, 8.0]
+mit_kd: [1.0, 1.5, 1.5, 0.8, 0.6, 0.5]
+
+gripper:
+  # MEASURED on the RS build 2026-08-27 by hand-sweeping jaw to jaw
+  # (scripts/diag_rebot_mb.py): travel ran 0.0 -> +6.39 rad, closed at 0.
+  # This is the OPPOSITE polarity to the DM-derived values in rebot_rs.yaml
+  # (open -6.8); commanding those here drives the jaws into the closed hard
+  # stop at full effort. open_pos keeps margin off the +6.39 physical end.
+  open_pos: 6.2
+  closed_pos: 0.0
+  max_width_m: 0.09
+  kp: 6.0
+  kd: 0.4

@@ -212,7 +212,7 @@ Open follow-ups from this work:
   banana on some boots and label-flickers the soup can (bottle/toy);
   belief 3D positions themselves verified ±3 mm against physics truth.
 
-- **Persistent spatial memory (Johnny's idea, 2026-07-18).** BeliefStore
+- **Persistent spatial memory (proposed 2026-07-18).** BeliefStore
   already gives in-session object permanence (visible→remembered, EMA
   fusion, grasp-from-memory fallback); add save/load (JSON with wall-clock
   timestamps, loaded as "remembered") so the world model survives restarts,

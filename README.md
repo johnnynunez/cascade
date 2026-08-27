@@ -38,7 +38,7 @@ advisor + experience memory).
    MCP stdio: host's own LLM picks tools    AgentOrchestrator: reflex -> habit -> LLM
                      ▼                                          ▼
                      └────────────────────┬────────────────────┘
-              21 traced skills, one surface for MCP + CLI (ASPIRE-style)
+              30 traced skills, one surface for MCP + CLI (ASPIRE-style)
         ▼                ▼                ▼                ▼                ▼
  get_observation   grasp_object       move_home     emergency_stop    recall_memory
 ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐

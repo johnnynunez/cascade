@@ -1,15 +1,19 @@
-# wrc_demo 🦾 — an agentic hand on a real arm
+# CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
 <p align="center">
-  <a href="https://github.com/johnnynunez/wrc_demo/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/wrc_demo/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
+  <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT"></a>
   <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/docs-architecture-informational?style=flat-square" alt="Architecture docs"></a>
 </p>
 
-wrc_demo is camera-agnostic, LLM-orchestrated tabletop manipulation on the
-Seeed reBot DevArm B601 (RobStride build), driven from an NVIDIA DGX Spark.
-It is the agentic evolution of the
+CASCADE (package name `wrc_demo`, unchanged — see [naming note](#naming-note))
+is camera-agnostic, LLM-orchestrated tabletop manipulation on the Seeed reBot
+DevArm B601 (RobStride build), driven from an NVIDIA DGX Spark. Its defining
+idea is the cascade itself: routine commands resolve on a regex reflex or a
+learned habit tier and never touch the LLM, which only gets called when
+both fail — the same skill API, safety harness, and traces apply regardless
+of which tier acted. It is the agentic evolution of the
 [reBot-DevArm-Grasp](https://github.com/Seeed-Projects/reBot-DevArm-Grasp)
 baseline, designed after NVIDIA GEAR's
 [ASPIRE](https://research.nvidia.com/labs/gear/aspire/) (curated skill API +
@@ -20,22 +24,23 @@ advisor + experience memory).
 [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Booth runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](CLAUDE.md)
 
 ```
-              ┌───────────────────────────── agent ─────────────────────────────┐
-task ────────▶│ reflex ▸ habit ▸ LLM — decompose → tool call → verify → recover │
-              │ routine commands never wait on the model; VLM advisor on failure│
-              └──────────────────────────┬──────────────────────────────────────┘
-                 curated skill API — 21 traced skills (ASPIRE-style)
-   ┌────────────┬────────────┬───────────┴────────┬──────────────┬─────────────┐
-   ▼            ▼            ▼                    ▼              ▼             ▼
-get_observation localize   grasp_object        place_at/on    push_object  recall_memory
-   │            │            │                    │              │             │
-┌──┴────────────┴──┐   ┌─────┴──────┐      ┌──────┴───────┐ ┌────┴─────┐ ┌─────┴────────┐
-│ perception       │   │ grasping   │      │ control      │ │ safety   │ │ memory       │
-│ camera-agnostic  │   │ GraspGen-X │      │ FK/IK (pin)  │ │ harness  │ │ 15 s episodic│
-│ Frame(+depth_m)  │   │ ▸OBB fallbk│      │ min-jerk     │ │ gates    │ │ + beliefs +  │
-│ depth chain      │   │ material → │      │ streaming    │ │ every    │ │ habit/grasp  │
-│ open-vocab YOLO  │   │ force prof │      │ RobStride CAN│ │ waypoint │ │ memory       │
-└──────────────────┘   └────────────┘      └──────────────┘ └──────────┘ └──────────────┘
+┌────────────────────────────────────────┐ ┌────────────────────────────────────────┐
+│       chat: Hermes / OpenClaw /        │ │    CLI: --task / --interactive REPL    │
+│       Claude Code / Codex / ...        │ │    (offline, scripted, or mock LLM)    │
+└────────────────────────────────────────┘ └────────────────────────────────────────┘
+                     │                                          │
+   MCP stdio: host's own LLM picks tools    AgentOrchestrator: reflex -> habit -> LLM
+                     ▼                                          ▼
+                     └────────────────────┬────────────────────┘
+              21 traced skills, one surface for MCP + CLI (ASPIRE-style)
+        ▼                ▼                ▼                ▼                ▼
+ get_observation   grasp_object       move_home     emergency_stop    recall_memory
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│  perception  │ │   grasping   │ │   control    │ │    safety    │ │    memory    │
+│──────────────│ │──────────────│ │──────────────│ │──────────────│ │──────────────│
+│ RS/UVC/Isaac │ │ GraspGen-X   │ │ FK/IK (pin)  │ │ harness gate │ │ episodic +   │
+│ cams, YOLO   │ │ + OBB fallbk │ │ min-jerk CAN │ │ +occupancy   │ │ belief/habit │
+└──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
 ```
 
 ## Install
@@ -45,7 +50,7 @@ the rig and `python3` alone has no pytest.
 
 ```bash
 # macOS / Linux / DGX Spark
-curl -fsSL https://raw.githubusercontent.com/johnnynunez/wrc_demo/main/scripts/install_occupancy_backend.sh | bash
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/install_occupancy_backend.sh | bash
 ```
 
 That installs the optional occupancy/collision-map backend (pyzmq,
@@ -55,7 +60,7 @@ one-shot rig bring-up — OpenClaw CLI, the Cosmos3-Edge (vLLM) brain, and
 registering this repo's skills over MCP — is:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johnnynunez/wrc_demo/main/scripts/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bootstrap.sh | bash
 ```
 
 `scripts/bootstrap.sh` needs an NVIDIA GPU for the default brain (fails
@@ -63,7 +68,7 @@ fast with a clear message if `nvidia-smi` isn't found — use `--brain qwen`
 or `--brain skip` on a CPU-only box). For a from-source checkout instead:
 
 ```bash
-git clone https://github.com/johnnynunez/wrc_demo.git && cd wrc_demo
+git clone https://github.com/johnnynunez/cascade.git && cd cascade
 PY=/home/johnny/Projects/demo/.demo/bin/python scripts/setup_env.sh
 ```
 
@@ -80,7 +85,7 @@ PYTHONPATH=src python -m wrc_demo.apps.demo --task "pick and place pink object"
 
 # tests (unit/integration; live-hardware tests deselected by default)
 python -m pytest tests/ -q
-python -m pytest tests/ -m hardware -q     # needs L515 + can0 up (read-only)
+python -m pytest tests/ -m hardware -q     # needs a RealSense camera (profile: l515) + can0 up (read-only)
 
 # learned grasps (the default backend) need the GraspGen-X server running;
 # without it grasping silently falls back to the analytic OBB planner
@@ -89,7 +94,7 @@ scripts/serve_graspgenx.sh
 # real rig, N cameras (first = manipulation camera), cloud LLM fallback
 sudo ip link set can0 up type can bitrate 1000000
 python -m wrc_demo.apps.demo --interactive \
-    --cameras l515,uvc4k --arm rebot_rs --llm anthropic
+    --cameras d455f,uvc4k --arm rebot_rs --llm anthropic
 
 # two D455F (serials pinned in the profiles: with identical hardware an
 # unpinned profile binds to whichever unit enumerates first). The live
@@ -104,7 +109,7 @@ python -m wrc_demo.apps.demo --cameras isaac --arm isaac --interactive
 
 # real rig, local Qwen3.6 on the Spark (start the server first)
 scripts/serve_qwen_llamacpp.sh          # or serve_qwen_vllm.sh (MTP spec decoding)
-python -m wrc_demo.apps.demo --task "..." --cameras l515 --arm rebot_rs --llm local_qwen
+python -m wrc_demo.apps.demo --task "..." --cameras d455f --arm rebot_rs --llm local_qwen
 
 # talk to it through OpenClaw's web chat instead of the CLI loop
 ./scripts/openclaw_demo.sh              # registers skills, wires the Cosmos3-Edge brain, opens chat
@@ -163,12 +168,14 @@ MCP-capable host can drive.
 
 The whole skill runtime is also exposed as an **MCP stdio server**
 (`wrc_demo/apps/mcp_server.py`) — so instead of the built-in loop, any
-MCP-capable agent platform can drive the arm. The agent gets the same 21
+MCP-capable agent platform can drive the arm. The agent gets the same 30
 safety-gated skills (only the loop-internal `task_done` is excluded) plus
-five gateway extras — `camera_snapshot` (returns a live JPEG the agent can
-*see*), `world_state`, `live_view_url`, and `emergency_stop`/`reset_stop` —
-26 tools total. Safety harness, tracing,
-memory and the always-on camera window are identical — only the brain swaps.
+seven gateway extras — `camera_snapshot` (returns a live JPEG the agent can
+*see*), `world_state`, `live_view_url`, `robot_knowledge`,
+`verify_last_action`, and `emergency_stop`/`reset_stop` — 37 tools total
+(see [The 30 skills](#the-30-skills) below for what each one does). Safety
+harness, tracing, memory and the always-on camera window are identical —
+only the brain swaps.
 
 One registrar for every host — prints what each platform needs, `--write`
 applies the file edits (preserving unrelated entries):
@@ -176,7 +183,7 @@ applies the file edits (preserving unrelated entries):
 ```bash
 python scripts/setup_agents.py                     # show all hosts
 python scripts/setup_agents.py --host codex --write
-python scripts/setup_agents.py --camera l515 --arm rebot_rs --write
+python scripts/setup_agents.py --camera d455f --arm rebot_rs --write
 ```
 
 | platform | mechanism | setup |
@@ -205,6 +212,66 @@ side has its own knobs (`WRC_USD`, `WRC_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `WRC_BRIDGE_BIND`,
 `WRC_BRIDGE_NO_TARGETS`, `WRC_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
 
+## The 30 skills
+
+One schema source (`TOOL_SPECS` in `src/wrc_demo/skills/runtime.py`) feeds
+every consumer — the built-in `AgentOrchestrator`, the OpenAI/Anthropic
+LLM backends, and the MCP server — so this list is exactly what any brain,
+built-in or external, can call. "moves arm" marks the 15 skills in
+`_MOTION_SKILLS`, the only ones that pause `WorldWatcher` belief fusion
+while they run.
+
+**Perception (no motion)**
+
+| skill | what it does |
+|---|---|
+| `get_observation` | Fresh camera frame: visible objects with 3D positions, remembered objects, robot state |
+| `list_objects` | Every object the robot knows about, including out-of-view ones with last-known position + age |
+| `describe_scene` | Instant text description from the live world model — no motion, no camera wait |
+| `analyze_scene` | Full perception report: per-camera detections, depth quality, scene description, numbered object key |
+| `annotated_view` | Rendered camera view with numbered object badges, a 5 cm base-frame grid, and the reachable region shaded |
+| `count_objects` | Count known objects, optionally filtered ("red", "cube", "pink object") |
+| `localize_object` | Precisely localize one named object: base-frame position + size |
+| `probe_point` | Cursor: click a pixel, get distance, 3D position, which object it is, reachability, offset from the gripper |
+| `locate_pixel` | Inverse of `probe_point`: given a tracked object, where is it in the image right now |
+| `preview_grasp` | Plan a grasp and report the proposed waypoint (position, approach, confidence) **without** moving |
+| `open_live_view` / `close_live_view` / `live_view_status` | Open/close/check the browser dashboard (closed by default — chat is the interface) |
+
+**Manipulation (moves arm)**
+
+| skill | what it does |
+|---|---|
+| `grasp_object` | Full pipeline on a named object: localize → plan top-down grasp → approach → material-aware close → lift → verify |
+| `grasp_at_pixel` | Grasp whatever is at a pixel, without needing to name it |
+| `pick_and_place` | Fast path: complete pick-and-place in one call |
+| `place_at` | Place the held object at base-frame coordinates |
+| `place_on_object` | Place the held object on/in another named object |
+| `push_object` | Push a named object along the table (too wide to grasp, or to reposition it) |
+| `move_relative` | Nudge the gripper a few centimeters (forward/back/left/right/up/down) |
+| `open_gripper` / `close_gripper` | Open (drops what's held) / close with the default grip profile |
+| `move_home` | Return to the home configuration; also clears the camera view |
+| `halt_motion` | Stop the in-flight motion because it's no longer the right action (wrong object, scene changed, subgoal already met) |
+
+**Social / gesture (moves arm)**
+
+| skill | what it does |
+|---|---|
+| `point_at` | Point at a named object (hover the gripper above it) |
+| `wave` | Wave at the audience, around the home pose |
+| `handover` | Grasp (if needed), present at the handover pose, hold until `open_gripper` |
+| `sort_by_color` | Sort every known object into per-color zones along the table edge |
+| `throw` | Grab (if needed) and throw via a harness-vetted wind-up-and-release swing |
+
+**Memory**
+
+| skill | what it does |
+|---|---|
+| `recall_memory` | Recent events (~15 s) and, optionally, where a named object was last seen |
+
+`task_done` (declare success/failure with a summary) is the 31st spec but
+is loop-internal — excluded from the MCP tool list, since an external host
+ends its own turns its own way.
+
 ## Safety notes for the live rig
 
 - The safety harness fails closed; motions abort mid-stream on violation.
@@ -224,7 +291,8 @@ escape hatch for GPU-PhysX boot NaNs —, `WRC_BRIDGE_BIND`,
 
 Setup on this rig: `scripts/setup_env.sh` (installs into the shared `.demo`
 uv venv). pyrealsense2 comes from the local
-[librealsense L515 fork](https://github.com/johnnynunez/librealsense) build.
+[librealsense fork](https://github.com/johnnynunez/librealsense) build --
+shared by every RealSense profile (D455F, D435i, ...), not just one model.
 Open-vocabulary text prompts (YOLOE/YOLO-World) additionally need
 `uv pip install git+https://github.com/ultralytics/CLIP.git`; the closed-set
 `yolo11n.pt` works without it.
@@ -248,3 +316,15 @@ silently vanishes.
   follow-ups, NuRec sim2real, skill-library growth
 - [CLAUDE.md](CLAUDE.md) — working guide for AI coding agents (commands,
   invariants, gotchas)
+
+## Naming note
+
+The GitHub repo and project name are **CASCADE**
+(github.com/johnnynunez/cascade); the Python package, import path, and CLI
+entry points (`wrc_demo`, `wrc-demo`, `wrc-mcp`, ...) are still `wrc_demo` /
+`wrc-*` throughout the codebase and were deliberately left unchanged — a
+package/import rename touches every module, test, and config in the repo
+and is a separate, much larger change from renaming the project. If that
+rename happens later, `pyproject.toml`'s `name`/`[project.scripts]`, every
+`from wrc_demo...` import, and `configs/*.yaml`/`CLAUDE.md`/`.mcp.json` all
+need to move together.

@@ -7,15 +7,24 @@
   <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/docs-architecture-informational?style=flat-square" alt="Architecture docs"></a>
 </p>
 
-CASCADE is a **hardware-agnostic** framework for agentic manipulation:
-cameras, arms, and LLM backends are all pluggable behind one curated skill
-API, so the same 30 skills, safety harness, and traces work whether the
-backend is a RealSense D455F/D435i or a generic UVC webcam, a real 6-DoF
-arm over CAN or a simulated one in Isaac Sim, and a cloud LLM or a local
-one. Its defining idea is the cascade itself: routine commands resolve on a
-regex reflex or a learned habit tier and never touch the LLM, which only
-gets called when both fail — behavior, safety, and tracing stay identical
+CASCADE is a **robot- and device-agnostic** framework for agentic
+manipulation: arms, cameras, compute and LLM backends are all pluggable
+behind one curated skill API, so the same 30 skills, safety harness and
+traces work on a 5-DoF hobby arm over USB serial or a 6-DoF industrial arm
+over CAN, on a RealSense or a generic UVC webcam, in MuJoCo or Isaac Sim, on
+a datacenter GPU or a laptop CPU, with a cloud LLM or a local one. Its
+defining idea is the cascade itself: routine commands resolve on a regex
+reflex or a learned habit tier and never touch the LLM, which only gets
+called when both fail — behavior, safety and tracing stay identical
 regardless of which tier (or which hardware) acted.
+
+**Nothing above the driver layer knows which robot is attached.** An arm
+contributes six methods and a [profile](configs/arms/); its joint count,
+home poses, tool-frame convention, reach and gripper travel come from that
+profile, and the skills, safety harness and grasp planner read them. The
+same is true of compute: no module names an accelerator, and every model
+routes through [`resolve_device()`](src/cascade/device.py), which probes the
+host and degrades instead of failing.
 
 The reference deployment drives a Seeed reBot DevArm B601 (RobStride build)
 from an NVIDIA DGX Spark — that is *a* configuration this framework runs on,
@@ -25,7 +34,8 @@ baseline, designed after NVIDIA GEAR's
 [ASPIRE](https://research.nvidia.com/labs/gear/aspire/) (curated skill API +
 multimodal traces + skill library) and
 [Agentic-VLA](https://arxiv.org/abs/2605.22896) (task decomposition + VLM
-advisor + experience memory).
+advisor + experience memory), in the same
+service-oriented/composable spirit as [RPent](https://github.com/RLinf/RPent).
 
 [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Booth runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](CLAUDE.md)
 
@@ -45,37 +55,113 @@ advisor + experience memory).
 │  perception  │ │   grasping   │ │   control    │ │    safety    │ │    memory    │
 │──────────────│ │──────────────│ │──────────────│ │──────────────│ │──────────────│
 │ RS/UVC/Isaac │ │ GraspGen-X   │ │ FK/IK (pin)  │ │ harness gate │ │ episodic +   │
-│ cams, YOLO   │ │ + OBB fallbk │ │ min-jerk CAN │ │ +occupancy   │ │ belief/habit │
+│ cams, YOLO   │ │ + OBB fallbk │ │ min-jerk any │ │ +occupancy   │ │ belief/habit │
+│ device: auto │ │              │ │ N-DoF arm    │ │              │ │              │
 └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
 ```
 
+## What it runs on
+
+**Robots.** Add one by subclassing `ArmBase` (six methods) and dropping a
+YAML profile in `configs/arms/` — see
+[the arm interface](src/cascade/control/arm_base.py). No other file changes.
+
+| profile | robot | DoF | transport | needs |
+|---|---|---|---|---|
+| `so101` | [The Robot Studio SO-101](https://github.com/TheRobotStudio/SO-ARM100) | 5 | Feetech STS3215 over USB serial | `pip install -e '.[arm-feetech]'` — **driver untested on hardware**, see [safety notes](#safety-notes-for-a-live-rig) |
+| `so101_mujoco` | same, in MuJoCo physics | 5 | — | `.[sim]` + `scripts/fetch_robot_assets.py so101` |
+| `so101_mock` | same, kinematic only | 5 | — | nothing |
+| `so101_left` / `so101_right` | two SO-101s sharing a table | 5 each | — | nothing; see [multi-arm](#multi-arm) |
+| `rebot_rs` | Seeed reBot DevArm B601 (RobStride) | 6 | RobStride over SocketCAN | `.[arm]`, `can0` up |
+| `rebot_rs_mb` | same, via MotorBridge | 6 | MotorBridge | `.[arm]` |
+| `isaac` | reBot in Isaac Sim | 6 | ZMQ bridge | Isaac Sim + NVIDIA GPU |
+| `libero_panda` | Franka Panda in LIBERO | 7 | benchmark harness | LIBERO |
+| `mock` | kinematic stand-in | 6 | — | nothing |
+
+<a id="multi-arm"></a>
+**Multi-arm.** `--arms a,b` builds an `ArmRig` (first = manipulation arm, the
+same shape as the camera rig); every motion skill then takes an optional
+`arm="<name>"` and `list_arms` reports the names. Each arm gets its **own**
+`SafetyHarness`, because every limit in `SafetyLimits` belongs to a particular
+robot on a particular table — merging the profiles would let whichever loaded
+last define the envelope for both.
+
+> Inter-arm collision is **not** solved. A harness knows its own workspace box
+> and keep-out list and nothing about the other robot, and since positions are
+> in each robot's *base* frame with no transform between bases, the shipped
+> `so101_left`/`so101_right` partition is a static wall under an unverified
+> mounting assumption. Read the header of `configs/arms/so101_left.yaml` before
+> widening either box or mounting arms face to face.
+
+**Compute.** Configs say `device: auto`; the host is probed at startup
+(CUDA/ROCm → Apple MPS → CPU) and an explicit device the machine does not
+have degrades with a warning rather than killing the run. Override
+everything at once with `CASCADE_DEVICE=cpu`.
+
+| host | perception | sim | notes |
+|---|---|---|---|
+| NVIDIA DGX Spark / DGX Station | CUDA | Isaac Sim or MuJoCo | the reference rig |
+| Jetson Orin / Thor (aarch64) | CUDA | MuJoCo | CI covers linux-aarch64 |
+| RTX workstation / generic CUDA server | CUDA | Isaac Sim or MuJoCo | |
+| AMD ROCm | `torch.cuda` API, reported as `cuda:0` | MuJoCo | |
+| Apple Silicon laptop | MPS | MuJoCo | CI covers macOS arm64 |
+| CPU-only box | CPU | MuJoCo | slow but complete; nothing is GPU-gated |
+
+The mock and MuJoCo stacks import no accelerator library at all, so
+`--arm so101_mock` works on any of the above with base deps + `.[kinematics]`
+(CI's `minimal-install` job enforces that).
+
 ## Install
 
-Everything runs through the shared uv venv — there is no bare `python` on
-the rig and `python3` alone has no pytest.
-
-```bash
-# macOS / Linux / DGX Spark
-curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/install_occupancy_backend.sh | bash
-```
-
-That installs the optional occupancy/collision-map backend (pyzmq,
-msgpack-numpy, Open3D — same code path on CPU and on an NVIDIA GPU, CUDA:0
-auto-detected at runtime). It is one piece of a larger environment; the full
-one-shot rig bring-up — OpenClaw CLI, the Cosmos3-Edge (vLLM) brain, and
-registering this repo's skills over MCP — is:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bootstrap.sh | bash
-```
-
-`scripts/bootstrap.sh` needs an NVIDIA GPU for the default brain (fails
-fast with a clear message if `nvidia-smi` isn't found — use `--brain qwen`
-or `--brain skip` on a CPU-only box). For a from-source checkout instead:
+The package works from a source checkout (config and asset paths derive from
+the package location), on Linux (x86-64 or aarch64) and macOS:
 
 ```bash
 git clone https://github.com/johnnynunez/cascade.git && cd cascade
-PY=/home/johnny/Projects/demo/.demo/bin/python scripts/setup_env.sh
+uv venv && uv pip install -e '.[dev,kinematics]'    # enough to run everything below
+```
+
+`kinematics` (Pinocchio) is not optional in practice — FK/IK back the safety
+layer, so every run needs it. Everything else is opt-in, one extra per
+capability, because none of them are wanted on all hosts:
+
+| extra | brings | when |
+|---|---|---|
+| `kinematics` | `pin` (Pinocchio) | always |
+| `perception` | `ultralytics` | real cameras / open-vocabulary detection |
+| `llm` | `openai`, `anthropic` | any real brain (also covers Nous Portal and local servers) |
+| `sim` | `mujoco` | hardware-free physics on any host |
+| `arm-feetech` | `pyserial` | SO-101 and other Feetech-servo arms |
+| `arm` | `motorbridge` | RobStride over SocketCAN |
+
+**torch is deliberately not a dependency.** The right build is per-platform
+(CUDA, ROCm, Jetson wheels, MPS, CPU) and pinning one here would fight the
+host; install it however your platform prefers, then
+[`cascade/device.py`](src/cascade/device.py) finds it.
+
+Robot assets: URDF *text* is vendored (that is all kinematics and the safety
+layer read), while meshes and MuJoCo MJCFs are fetched on demand from a
+pinned upstream commit:
+
+```bash
+python scripts/fetch_robot_assets.py --list
+python scripts/fetch_robot_assets.py so101      # ~17 MB, MJCF + meshes
+```
+
+Optional one-shot helpers, none of them required:
+
+```bash
+# Hermes agent host (this project's default) + register the robot with it
+./scripts/install_hermes.sh --portal
+
+# occupancy/collision-map backend (pyzmq, msgpack-numpy, Open3D; same code
+# path on CPU and GPU, CUDA:0 auto-detected at runtime)
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/install_occupancy_backend.sh | bash
+
+# full rig bring-up: OpenClaw CLI + Cosmos3-Edge (vLLM) brain + MCP skills.
+# Needs an NVIDIA GPU for the default brain and says so if nvidia-smi is
+# missing -- use --brain qwen or --brain skip on a CPU-only box.
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bootstrap.sh | bash
 ```
 
 See the [installation notes](#setup-notes) below for pyrealsense2, YOLOE's
@@ -84,10 +170,23 @@ text encoder, and other rig-specific gotchas.
 ## Quick start
 
 ```bash
-# offline wiring check: mock camera + mock arm + scripted LLM, no hardware.
-# Routine commands run on the REFLEX fast path (no LLM); a livestream
+# offline wiring check: mock camera + mock arm + scripted LLM, no hardware,
+# no GPU. Routine commands run on the REFLEX fast path (no LLM); a livestream
 # dashboard with N camera streams + robot narration prints its URL.
-PYTHONPATH=src python -m cascade.apps.demo --task "pick and place pink object"
+python -m cascade.apps.demo --task "pick and place pink object"
+
+# the same cascade on a 5-DoF SO-101 instead of the 6-DoF reference arm.
+# `mock_small` is the matching synthetic scene -- the default one holds a 7 cm
+# box, which this arm's 55 mm jaw correctly refuses.
+python -m cascade.apps.demo --arm so101_mock --camera mock_small \
+    --task "pick and place the red object"
+
+# ...and in real physics, still no robot and no GPU (pip install -e '.[sim]')
+python scripts/fetch_robot_assets.py so101
+python -m cascade.apps.demo --arm so101_mujoco --camera mock_small --interactive
+
+# two arms on one table: skills take arm="left"/"right", list_arms names them
+python -m cascade.apps.demo --arms so101_left,so101_right --camera mock_small --interactive
 
 # tests (unit/integration; live-hardware tests deselected by default)
 python -m pytest tests/ -q
@@ -96,6 +195,12 @@ python -m pytest tests/ -m hardware -q     # needs a RealSense camera (profile: 
 # learned grasps (the default backend) need the GraspGen-X server running;
 # without it grasping silently falls back to the analytic OBB planner
 scripts/serve_graspgenx.sh
+
+# real SO-101 over USB serial. CHECK THE JOINT SIGNS FIRST -- read-only scan,
+# then a single-joint jog that tells you which wire_signs entry to flip:
+python scripts/diag_so101.py --port /dev/ttyACM0
+python scripts/diag_so101.py --port /dev/ttyACM0 --jog 1
+python -m cascade.apps.demo --arm so101 --cameras d455f --interactive
 
 # real rig, N cameras (first = manipulation camera), cloud LLM fallback
 sudo ip link set can0 up type can bitrate 1000000
@@ -113,13 +218,25 @@ python -m cascade.apps.demo --interactive \
 #   2. then:
 python -m cascade.apps.demo --cameras isaac --arm isaac --interactive
 
-# real rig, local Qwen3.6 on the Spark (start the server first)
+# Hermes / Nous Portal as the brain (the default when NOUS_API_KEY is set)
+export NOUS_API_KEY=...                 # or: hermes setup --portal
+python -m cascade.apps.demo --arm so101_mock --camera mock_small \
+    --task "tidy the table"             # --llm auto picks hermes
+
+# real rig, a locally served Qwen3.6 (start the server first)
 scripts/serve_qwen_llamacpp.sh          # or serve_qwen_vllm.sh (MTP spec decoding)
 python -m cascade.apps.demo --task "..." --cameras d455f --arm rebot_rs --llm local_qwen
 
-# talk to it through OpenClaw's web chat instead of the CLI loop
-./scripts/openclaw_demo.sh              # registers skills, wires the Cosmos3-Edge brain, opens chat
+# talk to it through a chat host instead of the CLI loop
+./scripts/hermes_demo.sh                # Hermes: register + test + chat
+./scripts/openclaw_demo.sh              # OpenClaw: skills + Cosmos3-Edge brain + web chat
 ```
+
+`--llm` defaults to `auto`: Hermes/Nous Portal, then Anthropic, then OpenAI,
+whichever has its key exported, else the offline mock. So a fresh clone runs
+with no credentials and a configured machine gets a real brain from the same
+command. Name a profile explicitly (`--llm mock`) to pin it, or set
+`CASCADE_LLM` to override every invocation.
 
 ## How it fits together
 
@@ -139,8 +256,11 @@ python -m cascade.apps.demo --task "..." --cameras d455f --arm rebot_rs --llm lo
   server is down. Candidates are re-ranked by a persisted grasp-outcome
   memory, then vetted against IK *and* the safety-harness geometry.
 - **[Control](src/cascade/control/)** is self-contained Pinocchio FK/IK on
-  the RS URDF, damped-least-squares with random restarts, min-jerk joint
-  streaming with feedback-based settling over RobStride CAN.
+  whichever URDF the arm profile names, damped-least-squares with random
+  restarts, and min-jerk joint streaming with feedback-based settling —
+  never `sleep(duration)` — over RobStride CAN, a Feetech serial bus,
+  MuJoCo or Isaac. Joint count, limits and tool convention are the profile's,
+  not the code's, so a 5-, 6- or 7-DoF arm needs no new control logic.
 - **[Memory](src/cascade/memory/)** is a 10–15 s episodic window plus an
   object-permanence belief store, so "the mug you saw 10 seconds ago" is
   still actionable after occlusion.
@@ -156,9 +276,10 @@ MCP-capable host can drive.
 
 | profile | backend | notes |
 |---|---|---|
+| `hermes` | [Hermes / Nous Portal](https://hermes-agent.nousresearch.com/) (cloud gateway, 300+ models) | `NOUS_API_KEY`; OpenAI-compatible. **Default** via `--llm auto`. Text-only |
 | `anthropic` | Claude (cloud) | `ANTHROPIC_API_KEY`; vision + tools |
-| `local_qwen` | local Qwen via llama.cpp / vLLM on the Spark | OpenAI-compatible; MTP speculative decoding (~1.4–2.2× decode) |
-| `local_cosmos` | NVIDIA Cosmos3-Edge Reasoner via vLLM on the Spark | `scripts/serve_cosmos_vllm.sh` (:8082); 2.44B MoT, thinking on by default — see the script header for the day-one serving pitfalls it works around |
+| `local_qwen` | local Qwen via llama.cpp / vLLM | OpenAI-compatible; MTP speculative decoding (~1.4–2.2× decode) measured on a DGX Spark |
+| `local_cosmos` | NVIDIA Cosmos3-Edge Reasoner via vLLM | `scripts/serve_cosmos_vllm.sh` (:8082); 2.44B MoT, thinking on by default — see the script header for the day-one serving pitfalls it works around |
 | `local_cosmos_sglang` | same Cosmos3-Edge Reasoner via SGLang instead of vLLM | `scripts/serve_cosmos_sglang.sh` (:8083); same `type: cosmos3` client (chat template is a property of the checkpoint, not the engine) — **UNVERIFIED**, first booth run against it is the verification pass |
 | `openai` | any OpenAI-compatible cloud endpoint | `OPENAI_API_KEY` |
 | `mock` | scripted | tests / wiring checks |
@@ -192,9 +313,18 @@ python scripts/setup_agents.py --host codex --write
 python scripts/setup_agents.py --camera d455f --arm rebot_rs --write
 ```
 
+> **Host and brain are different roles**, and Hermes can be either. As a
+> **host** (this section) Hermes runs the agent loop and cascade is a tool
+> server: Hermes owns the conversation and cascade's reflex/experience tiers
+> are bypassed — `mcp_server.py` pins `llm='mock'` so there is never a second
+> brain arguing with the first. As a **brain** (`--llm hermes`) cascade runs
+> its own loop and calls Portal only for reasoning, keeping the LLM-free tiers
+> and the full `trace.jsonl`. Use the host when the robot should be one tool
+> among many in a wider session; use the brain for a reproducible run.
+
 | platform | mechanism | setup |
 |---|---|---|
-| **Hermes** | `~/.hermes/config.yaml` `mcp_servers` | `./scripts/hermes_demo.sh` (interactive: register + test + chat) |
+| **Hermes** *(default)* | `~/.hermes/config.yaml` `mcp_servers` | `./scripts/install_hermes.sh --portal` (installs the CLI, logs into Portal, registers this robot), then `./scripts/hermes_demo.sh` (register + test + chat) |
 | **Claude Code** | project `.mcp.json` (ships in this repo; interpreter path is machine-specific, and it pins the Isaac camera/arm profiles) | if your checkout lives elsewhere, regenerate with the profiles you want: `setup_agents.py --host claude --camera isaac,isaac_side --arm isaac --write` (add `--python <interpreter>` if your venv is not at `<checkout-parent>/.demo`); user-scope: `--host claude` prints the `claude mcp add` one-liner |
 | **Claude Desktop** | `claude_desktop_config.json` | paste the JSON block from `setup_agents.py --host claude` |
 | **Codex CLI** | `~/.codex/config.toml` `[mcp_servers.cascade]` | `setup_agents.py --host codex --write`, verify with `codex mcp list` |
@@ -278,28 +408,54 @@ while they run.
 is loop-internal — excluded from the MCP tool list, since an external host
 ends its own turns its own way.
 
-## Safety notes for the live rig
+## Safety notes for a live rig
 
 - The safety harness fails closed; motions abort mid-stream on violation.
+- Hand-eye extrinsics in the camera profiles are placeholders — calibrate
+  on-site (the baseline repo's `collect_handeye_eih.py` output loads
+  directly via `hand_eye_npz`).
+- Each arm has a limited **top-down envelope**, much smaller than its total
+  reach, and grasp heights + hover offsets are configured per profile
+  accordingly: below z ≈ 0.15 m on the B601-RS, and on the SO-101 an annulus
+  of r ≈ 0.12–0.28 m under a *hard* z ≈ 0.09 m ceiling (measured; see the
+  tables in `configs/arms/so101.yaml`). A reBot-sized 0.12 m pregrasp offset
+  on the SO-101 would put every approach out of reach.
+
+**SO-101 (`--arm so101`) — the serial driver has never been run on
+hardware.** The protocol framing is unit-tested against a fake port, but the
+register map, the count↔radian mapping and every `wire_signs` entry are
+derived from documentation and the vendored URDF, not measured. Before the
+first motion:
+
+1. `python scripts/diag_so101.py --port <port>` — read-only: scans ids,
+   prints angles/voltage/temperature, flags any joint already outside the
+   URDF limits.
+2. `python scripts/diag_so101.py --port <port> --jog 1` — moves *one* joint a
+   few degrees and tells you which `wire_signs` entry to flip. A wrong sign
+   drives a joint the wrong way on the first command, and printed PLA links
+   reach a hard stop well before an STS3215 gives up pushing.
+3. Re-measure the gripper travel and set `gripper.*` from the arm.
+4. Park it (`move_home`) before disconnecting: `disconnect()` cuts torque and
+   a loaded arm drops. Same applies to the reBot.
+
+**reBot B601 (`--arm rebot_rs`)**
+
 - Gripper open/close angles in `configs/arms/rebot_rs.yaml` were
   characterized on the DM build — **re-verify travel and stall torque on the
   RS gripper before the first grasp**.
 - Do not run `motorbridge-gateway` / MotorBridge Studio while the demo runs
   (host-id 0xFD conflict on the CAN bus).
-- Hand-eye extrinsics in the camera profiles are placeholders — calibrate
-  on-site (the baseline repo's `collect_handeye_eih.py` output loads
-  directly via `hand_eye_npz`).
-- Strict top-down tool poses are only IK-reachable below z ≈ 0.15 m on the
-  B601-RS (wrist limits); grasp heights + hover offsets are configured
-  accordingly.
 
 ## Setup notes
 
-Setup on this rig: `scripts/setup_env.sh` (installs into the shared `.demo`
-uv venv). pyrealsense2 comes from the local
-[librealsense fork](https://github.com/johnnynunez/librealsense) build --
-shared by every RealSense profile (D455F, D435i, ...), not just one model.
-Open-vocabulary text prompts (YOLOE/YOLO-World) additionally need
+These apply only when you attach a real camera; none of them are needed for
+the mock or MuJoCo stacks.
+
+`scripts/setup_env.sh` installs into a shared uv venv (pass
+`PY=/path/to/python` — its default is a rig-specific path). pyrealsense2 comes
+from the local [librealsense fork](https://github.com/johnnynunez/librealsense)
+build -- shared by every RealSense profile (D455F, D435i, ...), not just one
+model. Open-vocabulary text prompts (YOLOE/YOLO-World) additionally need
 `uv pip install git+https://github.com/ultralytics/CLIP.git`; the closed-set
 `yolo11n.pt` works without it.
 

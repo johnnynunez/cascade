@@ -7,30 +7,59 @@
 # named is the manipulation arm (what `runtime.arm` binds to, and what every
 # skill uses when given no `arm` argument).
 #
-# READ THIS BEFORE TRUSTING THE PARTITION.
+# READ THIS BEFORE TRUSTING THE SETUP.
 #
 # Each arm gets its own SafetyHarness with its own workspace box, velocity cap
-# and joint limits (see control/arm_rig.py). There is NO inter-arm collision
-# check anywhere in the stack: a harness vets one arm's links against the
-# table, its own workspace box and its own keep-out list, and knows nothing
-# about the other robot.
+# and joint limits (see control/arm_rig.py). On top of that, `base_pose` below
+# declares where this arm is bolted relative to a SHARED TABLE FRAME, which is
+# what makes a real inter-arm check possible: every other position in this
+# codebase is in the ROBOT BASE frame, and two arms' link positions are not
+# comparable until both are lifted into one common frame. With base_pose set
+# on both arms, each harness gates every 50 Hz waypoint on the measured
+# distance to the neighbour's links (`safety.neighbor_clearance_m`).
 #
-# Worse, positions are in the ROBOT BASE frame -- and the framework holds no
-# transform between the two bases. The boxes below are expressed in THIS arm's
-# base frame, and so101_right's are in ITS OWN. They therefore only describe
-# disjoint physical volumes if the two arms are mounted so that those
-# half-spaces do not intersect (bases side by side, +y axes aligned, far
-# enough apart that each 0.28 m reach annulus stays on its own side).
+# THE CHECK IS SEGMENT-TO-SEGMENT, NOT MESH COLLISION. Each link is treated as
+# the straight segment between two joint origins and the true shortest distance
+# between link pairs is measured (safety/geometry.py), so the blind spot of the
+# earlier point-sampling version is gone -- it missed poses whose links were
+# 3.3 cm apart while reporting 6.6 cm. What remains unmodelled is link SHAPE:
+# a real link is not a zero-radius line, which is what `neighbor_clearance_m`
+# accounts for. A bulky end effector or a mounted camera needs a larger value.
 #
-# That makes this a STATIC PARTITION under an unverified mounting assumption,
-# not collision avoidance. Widening these boxes, or mounting the arms facing
-# each other, silently invalidates it.
+# AND IT DEGRADES TO "SKIP", NOT TO "BLOCK". If a neighbour's pose cannot be
+# read the check is silently omitted for that neighbour. The only case that
+# happens in this stack is a STANDBY (never-materialized) LazyArm, because
+# reading its joints would power the motors from inside a 50 Hz safety check.
+# With the shared workspace below there is no static partition underneath, so
+# in that window the arms are unprotected. Before running two real arms:
+# connect BOTH (`--arm`/`--arms` without lazy bring-up, which is the CLI
+# default) so neither is ever a standby ghost.
+#
+# base_pose IS A MEASUREMENT. The values here describe two arms 0.44 m apart
+# facing the same way. That number is not arbitrary: MEASURED on this model,
+# two SO-101s at 0.44 m sit 0.426 m apart at home, but reach to within 0.059 m
+# of each other when both swing inward (base pan +-1.5 rad) -- i.e. they SHARE
+# a band of table, which is the entire point of a dual-arm rig and the reason
+# the inter-arm check is load-bearing here rather than decorative. At 0.60 m
+# the same arms never get closer than 0.218 m and no check is needed at all.
+# Measure your own table before running two real arms; a wrong base_pose makes
+# the inter-arm distance confidently wrong, which is worse than not having it.
+#
+# NOTE the workspace box below is deliberately NOT partitioned (it inherits
+# so101.yaml's full width). Two arms that cannot reach the same place cannot
+# do handover or bimanual work, so the shared band is intended -- and that
+# makes the inter-arm check the ONLY thing standing between them. Read the
+# standby caveat above before running this on hardware.
 extends: so101
 
 # Mock transport: this is the offline/CI dual-arm profile. For real servos use
-# `type: so101` and point `port:` at this arm's own USB adapter -- and
-# re-measure the partition against the physical table first.
+# `type: so101` and point `port:` at this arm's own USB adapter.
 type: mock
+
+# Where this arm's base sits in the shared table frame: [x, y, z, roll, pitch,
+# yaw], metres and RADIANS, same convention as a URDF <origin rpy=...>.
+# This arm is the LEFT one: +0.22 m along the table's +y axis.
+base_pose: [0.0, 0.22, 0.0, 0.0, 0.0, 0.0]
 
 gripper:
   # Same jaw as so101_mock: the mock maps open..closed linearly onto whatever
@@ -41,21 +70,18 @@ gripper:
 
 overrides:
   safety:
-    # This arm owns y >= 0 in its own base frame. Inherited from so101.yaml
-    # except the y floor, which is raised from -0.36 to -0.02.
-    workspace:
-      min: [-0.15, -0.02, -0.02]
-      max: [0.40, 0.36, 0.40]
+    # Workspace inherited from so101.yaml ON PURPOSE (see the header): the two
+    # arms share the middle of the table, so there is no static partition to
+    # fall back on and the inter-arm gate below does the work.
     table_z: 0.0
     max_joint_vel: 0.8
-    # The other arm's half as a wall. A TCP entering it is rejected mid-stream
-    # (harness.approve runs on every 50 Hz waypoint), so a bad IK solution or
-    # a mis-specified place target aborts instead of crossing the centre line.
-    # The 0.02 m overlap with the workspace floor above is deliberate: the two
-    # gates must not leave a gap between them.
-    keep_out:
-      - min: [-0.60, -0.60, -0.10]
-        max: [0.60, -0.02, 0.60]
+    # Minimum distance between this arm's links and the other's, in the shared
+    # table frame. The check is true segment-to-segment (safety/geometry.py),
+    # so this describes link half-thickness plus margin rather than padding a
+    # sampling error. MEASURED over 6000 random pose pairs: 0.05 rejects 0.8%
+    # of joint space, 0.10 rejects 3.4% -- same coverage, a quarter of the
+    # lost workspace.
+    neighbor_clearance_m: 0.05
   grasp:
     # Unchanged from so101.yaml: same robot, same 0.09 m top-down band.
     topdown_z_max: 0.05

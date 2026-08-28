@@ -4,13 +4,19 @@
 #       --task "pick and place the pink object"
 #
 # Pairs with so101_left.yaml -- read that file's header first: it carries the
-# full statement of what this partition does and does not guarantee (no
-# inter-arm collision check; no transform between the two base frames; the
-# boxes only describe disjoint volumes under an unverified mounting
-# assumption).
+# full statement of what the inter-arm check does and does not guarantee
+# (segment-to-segment on link centrelines, so link SHAPE is what
+# `neighbor_clearance_m` stands in for; SKIPPED for a standby arm with no
+# static partition underneath; base_pose is a MEASUREMENT you must take on
+# your own table).
 extends: so101
 
 type: mock
+
+# This arm is the RIGHT one: -0.22 m along the table's +y axis, so the two
+# bases sit 0.44 m apart facing the same direction -- close enough to share a
+# band of table (see so101_left.yaml's header for the measured numbers).
+base_pose: [0.0, -0.22, 0.0, 0.0, 0.0, 0.0]
 
 gripper:
   open_pos: 0.60
@@ -19,16 +25,11 @@ gripper:
 
 overrides:
   safety:
-    # This arm owns y <= 0 in its own base frame: the mirror of so101_left.
-    workspace:
-      min: [-0.15, -0.36, -0.02]
-      max: [0.40, 0.02, 0.40]
+    # Workspace inherited from so101.yaml: the arms share the table centre on
+    # purpose, and the inter-arm gate is what keeps them apart.
     table_z: 0.0
     max_joint_vel: 0.8
-    # The left arm's half as a wall (mirror of so101_left's keep_out).
-    keep_out:
-      - min: [-0.60, 0.02, -0.10]
-        max: [0.60, 0.60, 0.60]
+    neighbor_clearance_m: 0.05
   grasp:
     topdown_z_max: 0.05
     pregrasp_offset_m: 0.03

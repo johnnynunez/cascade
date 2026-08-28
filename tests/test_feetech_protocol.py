@@ -19,7 +19,6 @@ from cascade.control.feetech import (
     INSTR_PING,
     INSTR_READ,
     INSTR_SYNC_WRITE,
-    INSTR_WRITE,
     SCS,
     STS,
     FeetechError,

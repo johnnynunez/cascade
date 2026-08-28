@@ -9,6 +9,7 @@ instead of crashing the loop.
 
 from __future__ import annotations
 
+import threading
 import time
 
 import cv2
@@ -61,7 +62,14 @@ class SkillRuntime:
         self.detector = detector
         self.extrinsics = extrinsics
         self.kin = kin
-        self.arm = safe_arm
+        self._arm = safe_arm
+        #: optional ArmRig (set by the app wiring). None = single arm.
+        self.arm_rig = None
+        #: per-call arm override, set by execute() for the duration of one
+        #: skill call. Thread-local because the MCP server answers stop
+        #: frames on a reader thread while a skill runs on a worker: a plain
+        #: attribute would let one thread's arm selection leak into another's.
+        self._arm_override = threading.local()
         self.memory = memory
         self.beliefs = beliefs
         self.trace = trace
@@ -146,6 +154,59 @@ class SkillRuntime:
             )
         else:
             self._segmenter = None
+
+    # ── which arm a skill drives ─────────────────────────────────────────
+
+    #: Class-level defaults so the property below survives a runtime built
+    #: with `SkillRuntime.__new__` -- several tests construct partial
+    #: runtimes that way and only set the handful of fields they exercise.
+    _arm = None
+    _arm_override = None
+    arm_rig = None
+
+    @property
+    def arm(self):
+        """The SafeArm the running skill drives.
+
+        Normally the primary. `execute()` rebinds this for the duration of a
+        single call when the caller passes `arm="<name>"`, which is why the
+        30-odd skills can keep saying `self.arm` and none of them had to grow
+        an `arm` parameter (56 call sites, and every one is inside a motion
+        sequence where a half-converted skill would drive two robots).
+
+        The override is thread-local: the MCP server answers stop frames on a
+        reader thread while a skill runs on a worker, so a plain attribute
+        would let one thread's arm selection leak into another's.
+        """
+        override = getattr(self, "_arm_override", None)
+        if override is not None:
+            selected = getattr(override, "arm", None)
+            if selected is not None:
+                return selected
+        return self._arm
+
+    @arm.setter
+    def arm(self, value) -> None:
+        """Rebind the PRIMARY arm (tests and harnesses do this directly)."""
+        self._arm = value
+
+    def _select_arm(self, name):
+        """Resolve an arm name to a SafeArm, or raise SkillError.
+
+        Unknown names must fail loudly: silently falling back to the primary
+        would run a motion on the wrong robot, which on a two-arm table is a
+        collision rather than a wrong answer.
+        """
+        if name is None:
+            return None
+        if self.arm_rig is None:
+            raise SkillError(
+                f"no arm named {name!r}: this runtime drives a single arm"
+            )
+        try:
+            return self.arm_rig.get(str(name))
+        except KeyError as e:
+            raise SkillError(str(e)) from e
 
     def attach_verifier(self, object_pose=None) -> None:
         """Enable postcondition checking (Pigey closed loop).
@@ -306,6 +367,17 @@ class SkillRuntime:
         fn = getattr(self, f"skill_{name}", None)
         if fn is None:
             return {"ok": False, "error": f"unknown skill {name!r}"}
+        # `arm` is handled HERE, not in the skills: it names which robot runs
+        # this call and is stripped from the kwargs, so no skill signature had
+        # to change. Resolved before anything else -- an unknown name must
+        # fail before a keyframe, a pre-state snapshot or a watcher pause
+        # implies the motion is under way.
+        args = dict(args)
+        arm_name = args.pop("arm", None)
+        try:
+            selected = self._select_arm(arm_name)
+        except SkillError as e:
+            return {"ok": False, "error": f"SkillError: {e}"}
         self._show_status(f"{name}({_short(args)})")
         before = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_before"
@@ -351,10 +423,16 @@ class SkillRuntime:
             owns_epoch = name in _MOTION_SKILLS and self._motion_t0 is None
             if owns_epoch:
                 self._motion_t0 = time.monotonic()
+            # Bind the selected arm for exactly this call. Restored in the
+            # `finally` even if the skill raises, so a failed motion on the
+            # second arm can never leave every later skill pointed at it.
+            prev_arm = getattr(self._arm_override, "arm", None)
+            self._arm_override.arm = selected
             with hold:
                 try:
                     result = fn(**args)
                 finally:
+                    self._arm_override.arm = prev_arm
                     if owns_epoch:
                         self._motion_t0 = None
                         self._last_reobserve_t = None
@@ -2004,6 +2082,30 @@ class SkillRuntime:
             raise SkillError("did not settle at home")
         return {"at": "home"}
 
+    def skill_list_arms(self) -> dict:
+        """Which arms this rig has, and which one commands default to.
+
+        Cheap and read-only: reports each arm's DOF and e-stop state without
+        touching the motors. Deliberately reads `connected` (LazyArm's own
+        surface) rather than joint state, so asking "what arms are there"
+        never powers up a standby arm as a side effect.
+        """
+        if self.arm_rig is None or len(self.arm_rig) <= 1:
+            return {
+                "arms": ["default"],
+                "default": "default",
+                "note": "single-arm rig; the `arm` parameter is not needed",
+            }
+        return {
+            "arms": self.arm_rig.names,
+            "default": self.arm_rig.names[0],
+            "detail": self.arm_rig.stats(),
+            "note": (
+                "pass arm=<name> to any motion skill; omitting it uses "
+                f"{self.arm_rig.names[0]!r}"
+            ),
+        }
+
     def skill_recall_memory(self, query: str = "") -> dict:
         out: dict = {"recent_events": self.memory.digest(max_lines=15)}
         if query:
@@ -2632,6 +2734,17 @@ TOOL_SPECS: list[dict] = [
         },
     },
     {
+        "name": "list_arms",
+        "description": (
+            "List the robot arms available and which one motion commands use "
+            "by default. Read-only and safe to call at any time. Call this "
+            "before using the `arm` parameter, so you use a real name: on a "
+            "single-arm rig it reports one arm and `arm` can be omitted "
+            "entirely."
+        ),
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
         "name": "task_done",
         "description": "Declare the task finished (success or honest failure) with a one-paragraph summary.",
         "parameters": {
@@ -2644,3 +2757,25 @@ TOOL_SPECS: list[dict] = [
         },
     },
 ]
+
+
+#: Every motion skill takes an optional `arm` naming which robot runs it.
+#: Injected here rather than written into 15 hand-maintained schemas: the
+#: dispatch side already derives the arm from _MOTION_SKILLS (execute()
+#: pops `arm` before calling the skill), so a hand-copied list would be a
+#: second source of truth that drifts the moment a motion skill is added.
+#:
+#: Single-arm runs are unaffected: the parameter is optional, omitting it
+#: means the primary arm, and `_select_arm` rejects a name when no rig is
+#: wired rather than silently driving the only arm there is.
+for _spec in TOOL_SPECS:
+    if _spec["name"] in _MOTION_SKILLS:
+        _spec["parameters"]["properties"]["arm"] = {
+            "type": "string",
+            "description": (
+                "Which arm runs this. Omit for the manipulation arm (the "
+                "default, and the only one on a single-arm rig). Use "
+                "list_arms to see the names."
+            ),
+        }
+del _spec

@@ -199,14 +199,24 @@ def load_demo_config(
 
     main["arm"] = arm_profiles[0]
     main["llm"] = load_profile("llm", llm, cdir).as_dict()
+
+    # Snapshot the config BEFORE any arm's overrides land. Every arm's view is
+    # built from THIS, so no arm ever inherits another's retuning.
+    #
+    # Taking the snapshot after the primary merge (the obvious order) is a
+    # real defect, caught by tests/test_arm_rig.py: a second arm with no
+    # `overrides:` of its own would silently receive the PRIMARY's workspace
+    # box and grasp ceiling -- e.g. a Panda running with an SO-101's 0.05 m
+    # top-down ceiling. That is the exact class of bug that cost two LIBERO
+    # benchmark runs, reintroduced one layer down.
+    pre_override = copy.deepcopy(main)
+
     # Primary arm's overrides define the top-level (single-arm behaviour).
     if arm_overrides[0]:
         _deep_merge(main, arm_overrides[0])
 
-    # Per-arm resolved view: the global config as THIS arm sees it. Built
-    # after the primary merge so arm 0's `resolved` is identical to the top
-    # level, and each secondary arm gets its own overrides applied to a fresh
-    # copy of the pre-override base instead of stacking onto its neighbour's.
+    # Per-arm resolved view: the global config as THIS arm sees it -- the
+    # pre-override base plus only its own overrides.
     #
     # `resolved` is stripped from the snapshot before it is stored: without
     # that, arm 1's view would contain a full copy of arm 0's view nested
@@ -214,8 +224,7 @@ def load_demo_config(
     # .arm` mean the WRONG robot. Each arm's own profile is planted instead,
     # so `resolved.arm` always describes the arm that owns the view.
     for prof, ov in zip(arm_profiles, arm_overrides):
-        base = copy.deepcopy(main)
-        base.pop("arms", None)
+        base = copy.deepcopy(pre_override)
         if ov:
             _deep_merge(base, ov)
         base["arm"] = {k: v for k, v in prof.items() if k != "resolved"}

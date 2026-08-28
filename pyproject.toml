@@ -13,14 +13,22 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Perception extras (open-vocabulary detection). torch comes from the host env.
+# Perception extras (open-vocabulary detection). torch comes from the host env
+# on purpose: the right build is per-platform (CUDA, ROCm, Jetson wheels, MPS,
+# CPU) and pinning one here would fight the host. See cascade/device.py.
 perception = ["ultralytics>=8.3"]
-# LLM backends. The OpenAI client also covers llama.cpp / vLLM local servers.
+# LLM backends. The OpenAI client also covers llama.cpp / vLLM local servers
+# and any OpenAI-compatible gateway (Nous Portal -- see configs/llm/hermes.yaml).
 llm = ["openai>=1.50", "anthropic>=0.40"]
 # Kinematics (FK/IK on the arm URDF).
 kinematics = ["pin>=3.0"]
-# Real arm transport (RobStride over SocketCAN).
-arm = ["motorbridge>=0.4.9"]
+# Real arm transports, one extra per bus. Separate because they share nothing:
+# a Feetech-servo arm has no use for SocketCAN and vice versa.
+arm = ["motorbridge>=0.4.9"]              # RobStride over SocketCAN (reBot B601)
+arm-feetech = ["pyserial>=3.5"]           # Feetech STS/SCS servo bus (SO-101)
+# Hardware-free physics for any MJCF robot (cascade/control/mujoco_arm.py).
+# Runs on CPU anywhere, so it is the portable alternative to Isaac Sim.
+sim = ["mujoco>=3.1.3"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]

@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 
 from ..agent.advisor import Advisor
-from ..agent.llm import make_llm
+from ..agent.llm import make_llm, resolve_llm_profile
 from ..agent.orchestrator import AgentOrchestrator
 from ..agent.reflex import ExperienceMemory, FastPlanner
 from ..agent.trace import TraceLogger
@@ -117,9 +117,68 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
         arm = make_arm(acfg, kinematics=kin)
         arm.connect()
     harness = SafetyHarness(
-        SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy
+        SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy,
+        base_pose=_base_transform(acfg),
     )
     return arm, SafeArm(arm, harness), kin
+
+
+def _base_transform(acfg):
+    """4x4 base->table transform from a profile's `base_pose`, or None.
+
+    None means the base frame IS the table frame -- correct for a single-arm
+    rig, and the reason nothing changes for one arm.
+    """
+    pose = acfg.get("base_pose")
+    if pose is None:
+        return None
+    from ..types import pose_to_transform
+
+    return pose_to_transform(pose)
+
+
+def _wire_neighbors(arm_rig, raw_arms) -> None:
+    """Let every arm's harness see the others' links in the table frame.
+
+    Each arm is given a callable per neighbour rather than the arm object, so
+    the harness never holds a robot -- and so this can refuse to read a
+    standby LazyArm. Reading joint state off an unmaterialized LazyArm powers
+    the motors, and a 50 Hz safety check is the last place that should happen;
+    an unreadable neighbour returns None, which the harness treats as unknown
+    (skip), falling back to the static workspace partition.
+
+    Only wired when a profile declares `base_pose`: without it, two arms'
+    coordinates are not comparable and a distance between them would be a
+    meaningless number that silently gates real motion.
+    """
+    if len(arm_rig) < 2:
+        return
+    names = arm_rig.names
+    posed = {
+        n for n, safe in zip(names, arm_rig)
+        if getattr(safe.harness, "base_pose", None) is not None
+    }
+    if len(posed) < 2:
+        return
+
+    def reader(other_safe, other_raw):
+        def _read():
+            # LazyArm's own surface: never materialize the arm from here.
+            if not getattr(other_raw, "connected", True):
+                return None
+            h = other_safe.harness
+            if h.base_pose is None:
+                return None
+            return h.link_points_table_frame(other_safe.get_state().q)
+        return _read
+
+    for name, safe in zip(names, arm_rig):
+        if name not in posed:
+            continue
+        for other_name, other_safe, other_raw in zip(names, arm_rig, raw_arms):
+            if other_name == name or other_name not in posed:
+                continue
+            safe.harness.add_neighbor(other_name, reader(other_safe, other_raw))
 
 
 def build_runtime(
@@ -158,6 +217,9 @@ def build_runtime(
         if i == 0:
             kin = k
     arm_rig = ArmRig(safe_arms, arm_names)
+    # Inter-arm proximity gating (no-op for a single arm, or when profiles
+    # declare no base_pose -- see _wire_neighbors).
+    _wire_neighbors(arm_rig, raw_arms)
     # The primary arm stays bound to the same names the single-arm code used,
     # so every existing call site (56 `self.arm` uses in the skill runtime,
     # shutdown_runtime, the truth-pose hook) is untouched by the rig.
@@ -219,8 +281,8 @@ def build_runtime(
     runtime.rig = rig
     # The arm rig hangs off the runtime the same way the camera rig does.
     # `runtime.arm` stays the primary SafeArm, so nothing that predates the
-    # rig has to learn about it; skills that accept an `arm` name resolve
-    # through `runtime.arm_rig.get(name)`.
+    # rig has to learn about it; a skill called with `arm="<name>"` is
+    # rebound for that one call by SkillRuntime.execute().
     runtime.arm_rig = arm_rig
 
     # Pigey (arXiv:2607.21725) closed loop: verify each primitive's physical
@@ -389,7 +451,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--arms", default=None,
                    help="comma-separated arm profiles; first = manipulation "
                         "arm (e.g. so101_mock,so101_mock). Overrides --arm.")
-    p.add_argument("--llm", default="mock", help="llm profile (mock|anthropic|local_qwen|openai)")
+    p.add_argument("--llm", default="auto",
+                   help="llm profile, or `auto` (default): Hermes/Nous Portal, "
+                        "then Anthropic, then OpenAI, whichever has its key in "
+                        "the environment, else mock. Name one explicitly to "
+                        "pin it (mock|hermes|anthropic|openai|local_qwen|"
+                        "local_cosmos)")
     p.add_argument("--max-steps", type=int, default=30)
     p.add_argument("--run-dir", default=None, help="trace output dir")
     p.add_argument("--interactive", action="store_true", help="multi-task REPL")
@@ -401,8 +468,9 @@ def main(argv: list[str] | None = None) -> int:
 
     cameras = [c.strip() for c in args.cameras.split(",")] if args.cameras else None
     arms = [a.strip() for a in args.arms.split(",")] if args.arms else None
+    llm = resolve_llm_profile(args.llm)
     cfg = load_demo_config(camera=args.camera, cameras=cameras, arm=args.arm,
-                           arms=arms, llm=args.llm)
+                           arms=arms, llm=llm)
     run_dir = Path(args.run_dir) if args.run_dir else (
         PACKAGE_ROOT / "runs" / time.strftime("%Y%m%d_%H%M%S")
     )
@@ -411,7 +479,7 @@ def main(argv: list[str] | None = None) -> int:
     view = not args.no_view and bool(os.environ.get("DISPLAY"))
     print(f"[cascade] cameras={cameras or [args.camera]} "
           f"arms={arms or [args.arm]} "
-          f"llm={args.llm} view={view}")
+          f"llm={llm}{' (auto)' if llm != args.llm else ''} view={view}")
     print(f"[cascade] traces -> {run_dir}")
 
     runtime, arm = build_runtime(cfg, run_dir, view=view, serve=not args.no_serve)

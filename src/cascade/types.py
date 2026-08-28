@@ -127,3 +127,27 @@ def transform_points(T: np.ndarray, points: np.ndarray) -> np.ndarray:
     """Apply a 4x4 transform to (N, 3) points."""
     pts = np.asarray(points, dtype=float)
     return pts @ T[:3, :3].T + T[:3, 3]
+
+
+def pose_to_transform(pose) -> np.ndarray:
+    """[x, y, z, roll, pitch, yaw] -> 4x4 transform. Angles in RADIANS.
+
+    Rotation order is Z(yaw) @ Y(pitch) @ X(roll) -- extrinsic xyz, the same
+    convention ROS/URDF `<origin rpy=...>` uses, so a mounting pose can be
+    copied straight out of a URDF or a tape measure without re-deriving it.
+
+    Used for arm `base_pose` (where a robot is bolted, relative to the shared
+    table frame). A 6-vector is accepted; a 3-vector means position only.
+    """
+    p = np.asarray(pose, dtype=float).reshape(-1)
+    if p.size == 3:
+        p = np.concatenate([p, np.zeros(3)])
+    if p.size != 6:
+        raise ValueError(f"pose must be [x,y,z] or [x,y,z,r,p,y], got {p.size} values")
+    cr, sr = np.cos(p[3]), np.sin(p[3])
+    cp, sp = np.cos(p[4]), np.sin(p[4])
+    cy, sy = np.cos(p[5]), np.sin(p[5])
+    Rz = np.array([[cy, -sy, 0.0], [sy, cy, 0.0], [0.0, 0.0, 1.0]])
+    Ry = np.array([[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]])
+    Rx = np.array([[1.0, 0.0, 0.0], [0.0, cr, -sr], [0.0, sr, cr]])
+    return make_transform(Rz @ Ry @ Rx, p[:3])

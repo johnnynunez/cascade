@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import REPO, has_pinocchio
+from conftest import REPO, has_pinocchio, loopback_host
 
 pytestmark = pytest.mark.skipif(not has_pinocchio(), reason="pinocchio not available")
 
@@ -351,7 +351,7 @@ def test_mcp_mode_dashboard_chat_is_reflex_only(tmp_path, monkeypatch):
     try:
         runtime = server._ensure_runtime()
         assert runtime.stream_server is not None
-        base = f"http://127.0.0.1:{runtime.stream_server.port}"
+        base = f"http://{loopback_host()}:{runtime.stream_server.port}"
 
         def post_task(text: str) -> dict:
             req = urllib.request.Request(

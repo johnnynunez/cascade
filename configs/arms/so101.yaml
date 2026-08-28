@@ -12,6 +12,12 @@
 #   2. python scripts/diag_so101.py --port <port> --jog 1
 #      to confirm each joint's SIGN against the URDF's positive axis
 #   3. re-measure the gripper travel and set gripper.* accordingly
+#   4. python scripts/calibrate_camera.py --arm so101 --camera <profile>
+#      to fit the scene camera's extrinsic against this arm (the camera
+#      profile's `extrinsics:` block is what enables 3D belief fusion at all;
+#      without it the camera streams but never grounds anything in the base
+#      frame). Run --self-test first: it exercises the fit offline and moves
+#      nothing.
 # The same caution applies to the reBot profiles in this directory; it is not
 # a statement that this arm is less supported.
 

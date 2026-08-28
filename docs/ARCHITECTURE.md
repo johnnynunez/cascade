@@ -107,13 +107,20 @@ src/cascade/
 │   ├── beliefs.py      object permanence (visible/remembered states)
 │   └── grasp_memory.py persisted per-object grasp-outcome prior
 │                       (re-ranks candidates + nudges grasp z)
+├── device.py           compute-device resolution: auto CUDA/ROCm → MPS → CPU,
+│                       explicit-but-absent degrades with a warning
 ├── control/
-│   ├── kinematics.py   Pinocchio FK/IK, explicit URDF/USD (assets/), DLS+restarts
+│   ├── kinematics.py   Pinocchio FK/IK, explicit URDF/USD (assets/), DLS+restarts,
+│   │                   N controlled joints, optional task weighting
 │   ├── usd_model.py    USD-physics → URDF translation (no aarch64 usd-core)
 │   ├── arm_base.py     min-jerk streaming, feedback-based settling + make_arm
-│   ├── mock_arm.py     kinematic sim + gripper object-stop emulation
+│   ├── mock_arm.py     kinematic sim + gripper object-stop emulation (any DoF)
 │   ├── lazy_arm.py     defer motor bring-up until the first motion command
 │   ├── isaac_arm.py    Isaac Sim articulation over the TCP bridge
+│   ├── mujoco_arm.py   any MJCF in MuJoCo physics, joints addressed BY NAME
+│   ├── feetech.py      Feetech SCS/STS servo-bus protocol (pure framing)
+│   ├── feetech_arm.py  SO-101 & co: Feetech servos over USB serial, SYNC_WRITE
+│   │                   streaming (UNVERIFIED on hardware)
 │   └── rebot_rs_arm.py real RS arm: motorbridge CAN, mechPos param reads,
 │                       stall-aware two-stage gripper close
 ├── safety/harness.py   fail-closed gate for every waypoint + SafeArm wrapper
@@ -188,15 +195,42 @@ localize ─▶ ObjectFix (base-frame OBB)
 
 **Own kinematics wrapper.** reBotArm_control_py's kinematics silently loads
 the URDF named in its *global* config file, ignoring the hardware YAML you
-pass (DM URDF loaded for the RS arm = wrong tool frame). We load the RS URDF
-shipped in `assets/` explicitly. IK: damped least squares in the LOCAL frame
-with joint-limit clamping and random restarts (matches the SDK's math, minus
-the config hazard).
+pass (DM URDF loaded for the RS arm = wrong tool frame). We load whichever
+URDF the arm profile names explicitly. IK: damped least squares in the LOCAL
+frame with joint-limit clamping and random restarts (matches the SDK's math,
+minus the config hazard).
+
+**The arm's shape is data, not code.** `n_joints`, joint limits, `home_q`,
+`handover_q`, the tool-frame column order (`tool_axis_order`), gripper travel
+and the reachable envelope all come from the profile; `SkillRuntime` fetches
+joint-space keyframes through `_profile_q`, which *requires* them rather than
+falling back to a default — a 6-element reBot home pose broadcast onto a
+5-DoF arm is exactly the kind of silent error that ends in a bent link. The
+shipped arms span 5, 6 and 7 DoF with no branching in the skill layer.
+
+Under-actuated chains get `ik_task_weights` (a per-task-DOF weight vector, in
+world axes) if they need it, but *no shipped profile does* — including the
+5-DoF SO-101, whose wrist-roll axis is collinear with the tool approach, so
+for a vertical approach it behaves like a full-pose arm and plain 6-DoF IK
+solves its workspace at a 0.94 rate. The DOF it lacks only shows up for a
+tilted approach; leaving IK unweighted keeps failure as the honest gate
+rather than accepting poses the wrist cannot hold.
 
 **Feedback, not sleep.** The baseline's motions were `sleep(duration + 0.6)`.
-On the RS motors, motorbridge's `get_state()` never decodes the type-0x18
-report frames, so live positions come from `mechPos` (0x7019) param reads —
-verified on this rig. Settling is `max|q - q_target| < tol` with a timeout.
+Every backend reports real positions instead: RS motors via `mechPos` (0x7019)
+param reads (motorbridge's `get_state()` never decodes the type-0x18 report
+frames — verified on this rig), Feetech servos via `Present_Position`, MuJoCo
+via `qpos`. Settling is `max|q - q_target| < tol` with a timeout, and the
+tolerance is per profile because a finite-gain position actuator (MuJoCo,
+Isaac) genuinely arrives late where the kinematic mock arrives exactly.
+
+**Device agnosticism is a resolution step, not a policy.** `device.py` is the
+single place that answers "where does this model run": `auto` probes the host
+(CUDA/ROCm → Apple MPS → CPU), and an explicit device the machine lacks
+degrades to the best available with a warning. That last rule matters because
+configs travel — a rig config opened on a laptop should cost a slow run, not a
+dead session, which is the same booth rule the grasp and occupancy backends
+follow. torch is not a dependency: its correct build is per-platform.
 
 **Fail-closed safety.** The SDK enforces nothing outside its IK. Our harness
 gates every waypoint of every streamed motion; grasp descents happen inside

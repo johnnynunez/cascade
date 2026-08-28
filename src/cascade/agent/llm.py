@@ -59,6 +59,7 @@ class OpenAICompatClient(LLMClient):
         model: str,
         base_url: str | None = None,
         api_key: str | None = None,
+        api_key_env: str | None = None,
         supports_vision: bool = True,
         temperature: float = 0.2,
     ):
@@ -66,6 +67,17 @@ class OpenAICompatClient(LLMClient):
 
         from openai import OpenAI
 
+        # A profile may name its own key variable (`api_key_env`), because
+        # OpenAI-compatible does not mean OpenAI-keyed: Nous Portal reads
+        # NOUS_API_KEY, and hardcoding OPENAI_API_KEY here would silently send
+        # an empty credential to every non-OpenAI provider.
+        if api_key is None and api_key_env:
+            api_key = os.environ.get(api_key_env) or None
+            if api_key is None:
+                raise RuntimeError(
+                    f"{api_key_env} is not set. This profile authenticates with "
+                    f"it; export the key or pick another --llm profile."
+                )
         # Local servers (llama.cpp/vLLM) need a dummy key; hosted endpoints
         # fall through to the OPENAI_API_KEY environment variable.
         if api_key is None and base_url is not None and "OPENAI_API_KEY" not in os.environ:
@@ -270,6 +282,51 @@ class MockLLM(LLMClient):
         return self._script.pop(0)
 
 
+#: Brain profiles `--llm auto` will pick, in order, when their key is present.
+#: Hermes/Nous Portal is first: it is the project's default host (see
+#: configs/llm/hermes.yaml and scripts/setup_agents.py) and one Portal
+#: subscription covers the whole model range, so it is the fewest-steps path
+#: from a fresh clone to a real brain.
+AUTO_LLM_PROFILES: tuple[tuple[str, str], ...] = (
+    ("hermes", "NOUS_API_KEY"),
+    ("anthropic", "ANTHROPIC_API_KEY"),
+    ("openai", "OPENAI_API_KEY"),
+)
+
+LLM_ENV = "CASCADE_LLM"
+
+
+def resolve_llm_profile(name: str | None = "auto") -> str:
+    """`--llm` value -> a profile name that can actually be constructed here.
+
+    `auto` exists so a fresh clone runs offline AND a configured machine gets a
+    real brain from the same command. Flipping the default outright to `hermes`
+    would make the documented offline wiring check (`python -m cascade.apps.demo
+    --task ...`) fail on any machine without credentials, which is a bad trade
+    for a framework whose mock stack is the thing you try first.
+
+    Same degrade-the-capability-never-the-session rule the grasp, occupancy and
+    device layers follow.
+    """
+    import logging
+    import os
+
+    log = logging.getLogger(__name__)
+    env = os.environ.get(LLM_ENV, "").strip()
+    requested = (env or name or "auto").strip()
+    if requested.lower() != "auto":
+        return requested
+    for profile, key in AUTO_LLM_PROFILES:
+        if os.environ.get(key, "").strip():
+            log.info("llm: auto -> %s (%s is set)", profile, key)
+            return profile
+    log.info(
+        "llm: auto -> mock (no brain credentials found; set one of %s)",
+        ", ".join(k for _, k in AUTO_LLM_PROFILES),
+    )
+    return "mock"
+
+
 def make_llm(cfg: Cfg) -> LLMClient:
     kind = cfg.type
     if kind == "mock":
@@ -300,6 +357,7 @@ def make_llm(cfg: Cfg) -> LLMClient:
             model=cfg.model,
             base_url=cfg.get("base_url"),
             api_key=cfg.get("api_key"),
+            api_key_env=cfg.get("api_key_env"),
             supports_vision=bool(cfg.get("supports_vision", True)),
             temperature=float(cfg.get("temperature", 0.2)),
         )

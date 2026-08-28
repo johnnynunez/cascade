@@ -61,3 +61,61 @@ def demo_cfg():
 @pytest.fixture
 def rng():
     return np.random.default_rng(42)
+
+
+def loopback_host() -> str:
+    """A loopback hostname that stdlib HTTP clients can actually reach here.
+
+    Tests bind their servers to 0.0.0.0 and connect back over loopback. On a
+    machine with certain VPN clients active (observed with a utun interface
+    holding 198.18.0.0/24, the benchmark range some VPNs use for split
+    tunnelling) a connection to the LITERAL 127.0.0.1 is intercepted and
+    closed -- `http.client.RemoteDisconnected` -- while `localhost` resolves
+    and connects normally.
+
+    That is an environment fault, not a product bug: the server is listening
+    correctly and a browser reaches it. But hard-coding 127.0.0.1 makes the
+    suite red on a developer laptop for a reason that has nothing to do with
+    the code, so the address is probed once and cached instead.
+    """
+    global _LOOPBACK_HOST
+    if _LOOPBACK_HOST is not None:
+        return _LOOPBACK_HOST
+
+    import http.server
+    import threading
+    import urllib.request
+
+    class _Ping(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802 - stdlib callback name
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("0.0.0.0", 0), _Ping)
+    port = srv.server_address[1]
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        for host in ("127.0.0.1", "localhost"):
+            try:
+                urllib.request.urlopen(f"http://{host}:{port}/", timeout=3).read()
+                _LOOPBACK_HOST = host
+                return host
+            except Exception:
+                continue
+    finally:
+        srv.shutdown()
+    _LOOPBACK_HOST = "127.0.0.1"   # nothing worked; fail with the usual name
+    return _LOOPBACK_HOST
+
+
+_LOOPBACK_HOST: str | None = None
+
+
+@pytest.fixture
+def loopback():
+    """The loopback host name to build test URLs from (see loopback_host)."""
+    return loopback_host()

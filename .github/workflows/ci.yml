@@ -7,10 +7,17 @@ on:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    # The framework claims to run on whatever box is available -- x86 servers,
+    # Jetson-class aarch64, Apple Silicon laptops -- so CI proves it on all
+    # three architectures rather than asserting it in the README. `pin`,
+    # `mujoco` and `pyserial` all publish wheels for these three, so the whole
+    # matrix runs the same extras.
+    name: ${{ matrix.os }} / py${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
         python-version: ["3.12"]
     steps:
       - uses: actions/checkout@v4
@@ -19,7 +26,37 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python-version }}
-      # kinematics (pin) unskips the FK/IK, orchestrator-e2e, mcp-server and
-      # streaming tests; the heavy extras (perception/arm) stay hardware-only.
-      - run: uv sync --extra dev --extra kinematics
+      # kinematics (pin) unskips the FK/IK, SO-101, orchestrator-e2e,
+      # mcp-server and streaming tests. arm-feetech and sim are tiny and make
+      # the serial + MuJoCo backends importable. The heavy extras
+      # (perception/arm) stay hardware-only.
+      - run: uv sync --extra dev --extra kinematics --extra arm-feetech --extra sim
       - run: uv run pytest tests/ -q
+
+  # Guards the offline story: a run needs base deps + kinematics and NOTHING
+  # else -- no torch, no ultralytics, no simulator, no serial port, no
+  # accelerator. If one of those imports creeps into a default code path, every
+  # "try it without the robot" instruction in the docs quietly stops working on
+  # a fresh clone. (pinocchio IS required: FK/IK back the safety layer, so the
+  # kinematics extra is part of a minimal install, not an optional add-on.)
+  minimal-install:
+    name: minimal install, no accelerator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --extra dev --extra kinematics
+      - name: optional stacks must be absent
+        run: |
+          for mod in torch ultralytics mujoco serial openai; do
+            if uv run python -c "import $mod" 2>/dev/null; then
+              echo "$mod is installed; this job no longer proves anything"; exit 1
+            fi
+            echo "ok: no $mod"
+          done
+      - name: a 5-DoF arm runs end to end on the mock stack
+        run: |
+          uv run python -m cascade.apps.demo --arm so101_mock --camera mock_small \
+            --task "pick and place the red object" --no-view --no-serve

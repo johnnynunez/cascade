@@ -4,13 +4,32 @@ Tres formas de hablar con el brazo, de menos a más montaje. **Las cámaras y el
 dashboard están cerrados por defecto** en todas: el chat es la interfaz, la UI
 se abre cuando la pides.
 
+Este documento describe el **rig de referencia** (reBot/Isaac + cerebro local).
+Si sólo quieres ver el framework funcionando, no necesitas nada de esto: mira
+la sección 0-bis.
+
+---
+
+## 0-bis. Sin hardware, sin GPU, sin servidores
+
+```bash
+uv venv && uv pip install -e '.[dev,kinematics]' && source .venv/bin/activate
+python -m cascade.apps.demo --arm so101_mock --camera mock_small \
+    --task "pick and place the red object"
+```
+
+Eso ejecuta la cascada completa sobre un brazo SO-101 de 5 ejes simulado
+cinemáticamente. Con `pip install -e '.[sim]'` y
+`python scripts/fetch_robot_assets.py so101` puedes cambiar a física real en
+MuJoCo (`--arm so101_mujoco`), que funciona igual en CPU.
+
 ---
 
 ## 0. Requisitos que arrancan una vez
 
 ```bash
-cd ~/Projects/demo/cascade
-PY=~/Projects/demo/.demo/bin/python          # el venv compartido
+cd <tu-checkout>/cascade
+PY=.venv/bin/python                          # o el intérprete que uses
 ```
 
 **Isaac Sim (el rig simulado)** — proceso largo, déjalo en su terminal:
@@ -49,8 +68,11 @@ cd models && PYTHONPATH=../src $PY -m cascade.apps.demo \
 
 > `cd models` no es opcional: YOLOE busca `mobileclip_blt.ts` en el CWD.
 
-Perfiles de cerebro: `--llm local_qwen` | `--llm local_cosmos` | `--llm mock`
-(mock = comprobación de cableado, sin LLM).
+Perfiles de cerebro: `--llm hermes` (Nous Portal, necesita `NOUS_API_KEY`) |
+`--llm local_qwen` | `--llm local_cosmos` | `--llm anthropic` | `--llm mock`
+(mock = comprobación de cableado, sin LLM). Por defecto `--llm auto`: usa
+Hermes, Anthropic u OpenAI según qué clave esté exportada, y si no hay ninguna
+cae en `mock`.
 
 ## 2. Chat interactivo en la terminal
 

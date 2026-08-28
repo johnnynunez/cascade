@@ -26,6 +26,7 @@ from cascade.apps.live_control import (
     LiveViewController,
     resolve_mode,
 )
+from conftest import loopback_host
 
 
 # ── mode resolution ──────────────────────────────────────────────────────
@@ -245,7 +246,7 @@ def test_depth_and_analyze_routes_work_without_a_runtime():
         server = StreamServer(rig, port=0)
         server.start()
         try:
-            base = f"http://127.0.0.1:{server.port}"
+            base = f"http://{loopback_host()}:{server.port}"
             # analyze reports per-camera depth provenance as JSON
             payload = json.loads(urllib.request.urlopen(f"{base}/analyze", timeout=5).read())
             assert payload["ok"] and "over" in payload["cameras"]
@@ -295,7 +296,7 @@ def test_on_poll_is_called_by_http_requests():
         server = StreamServer(rig, port=0, on_poll=lambda: polls.append(1))
         server.start()
         try:
-            urllib.request.urlopen(f"http://127.0.0.1:{server.port}/state", timeout=5).read()
+            urllib.request.urlopen(f"http://{loopback_host()}:{server.port}/state", timeout=5).read()
         finally:
             server.stop()
     finally:

@@ -1,0 +1,41 @@
+# Hermes / Nous Portal as the BRAIN: cascade runs its own agent loop and calls
+# Portal for the reasoning. Default profile (see `--llm auto`).
+#
+#   export NOUS_API_KEY=...        # portal.nousresearch.com, or `hermes setup --portal`
+#   python -m cascade.apps.demo --llm hermes --task "tidy the table"
+#
+# There are TWO ways to drive this robot with Hermes, and they are not the same
+# thing. This file is the first:
+#
+#   1. BRAIN (this profile). cascade's own AgentOrchestrator runs the loop --
+#      so the reflex and experience tiers still short-circuit before any token
+#      is spent, and `runs/<stamp>/trace.jsonl` records the whole episode.
+#      Portal is just the model behind tier 3.
+#
+#   2. HOST (`scripts/setup_agents.py --host hermes --write`). The Hermes agent
+#      runs the loop and cascade is an MCP tool server. Then Hermes owns the
+#      conversation, its skills/gateway are available alongside the robot tools,
+#      and cascade's built-in tiers are BYPASSED (apps/mcp_server.py pins
+#      llm='mock' precisely so there is no second brain arguing with the first).
+#
+# Use the brain for a reproducible benchmark run; use the host when you want the
+# robot to be one tool among many in a wider agent session.
+type: openai_compat
+
+# Portal is an OpenAI-compatible gateway in front of 300+ models, so `model` is
+# a Portal model id, not an OpenAI one. Change it freely -- unlike the local
+# llama.cpp/vLLM profiles, this endpoint validates the name and will tell you.
+model: NousResearch/Hermes-4.5-405B
+base_url: https://inference-api.nousresearch.com/v1
+
+# Portal accepts a static key on the same `Authorization: Bearer` header as its
+# OAuth tokens. Named explicitly because OpenAI-compatible does not mean
+# OpenAI-keyed; without this the client would look for OPENAI_API_KEY and send
+# an empty credential.
+api_key_env: NOUS_API_KEY
+
+# Hermes 4.5 is text-only. Left false deliberately: the orchestrator skips
+# attaching camera JPEGs when a backend says it cannot see, and claiming vision
+# a model lacks costs a round trip per step to be told so.
+supports_vision: false
+temperature: 0.2

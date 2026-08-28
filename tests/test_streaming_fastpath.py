@@ -9,7 +9,7 @@ import urllib.request
 import numpy as np
 import pytest
 
-from conftest import needs_pin
+from conftest import needs_pin, loopback_host
 
 from cascade.agent.reflex import ExperienceMemory, FastPlanner, parse_command
 from cascade.config import Cfg, load_demo_config
@@ -217,7 +217,7 @@ def test_stream_server_serves_state_snapshot_and_index():
     server.start()
     try:
         rig.warm_up(2)
-        base = f"http://127.0.0.1:{server.port}"
+        base = f"http://{loopback_host()}:{server.port}"
         state = json.loads(urllib.request.urlopen(f"{base}/state", timeout=5).read())
         assert state["agent_status"] == "testing" and "over" in state["cameras"]
         jpeg = urllib.request.urlopen(f"{base}/snapshot/over.jpg", timeout=5).read()
@@ -243,7 +243,7 @@ def test_stream_server_keyframes_routes(tmp_path):
     server = StreamServer(rig, port=0, keyframes_dir=kd)
     server.start()
     try:
-        base = f"http://127.0.0.1:{server.port}"
+        base = f"http://{loopback_host()}:{server.port}"
         html = urllib.request.urlopen(f"{base}/keyframes", timeout=5).read().decode()
         assert "0001_grasp_before.jpg" in html and "0002_grasp_after.jpg" in html
         assert html.index("0002_grasp_after.jpg") < html.index("0001_grasp_before.jpg")
@@ -255,7 +255,7 @@ def test_stream_server_keyframes_routes(tmp_path):
         # traversal rejected: raw request bypasses client-side normalization
         import http.client
 
-        conn = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
+        conn = http.client.HTTPConnection(loopback_host(), server.port, timeout=5)
         conn.request("GET", "/keyframe/../secret.jpg")
         assert conn.getresponse().status == 404
         conn.close()
@@ -278,7 +278,7 @@ def test_stream_server_keyframes_disabled_without_dir():
     try:
         with pytest.raises(urllib.error.HTTPError) as exc:
             urllib.request.urlopen(
-                f"http://127.0.0.1:{server.port}/keyframes", timeout=5)
+                f"http://{loopback_host()}:{server.port}/keyframes", timeout=5)
         assert exc.value.code == 404
     finally:
         server.stop()

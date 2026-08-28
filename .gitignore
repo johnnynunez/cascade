@@ -230,6 +230,13 @@ mobileclip_blt.ts
 # tracked; do not follow that precedent for new checkpoints.
 models/sam*.pt
 
+# Fetched robot assets: MJCFs and mesh sets, pulled by
+# `python scripts/fetch_robot_assets.py <robot>` from a pinned upstream commit
+# (17 MB for the SO-101 alone). Only URDF TEXT is vendored, under
+# assets/urdf/<robot>/ with a PROVENANCE.md -- that is all FK/IK, the safety
+# layer and CI need. Meshes matter only for rendering and contact simulation.
+assets/mjcf/
+
 # benchmark artefacts
 benchmark/**/__pycache__/
 benchmark/*.pdf

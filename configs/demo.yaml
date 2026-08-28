@@ -145,7 +145,12 @@ detector:
   # Override with $CASCADE_DETECTOR_MODEL for a hand-tuned checkpoint.
   type: yoloe
   model: ${repo}/models/yoloe-11s-seg.pt
-  device: cuda:0
+  # `auto` probes the host at startup: CUDA/ROCm, else Apple MPS, else CPU.
+  # Pin an explicit device (cuda:1, cpu, mps) only to override that choice --
+  # an explicit device that this host does not have degrades to the best
+  # available one with a warning rather than failing the run. CASCADE_DEVICE
+  # overrides every profile at once (see cascade/device.py).
+  device: auto
   conf: 0.25
   # Prompt-free: run YOLOE's built-in vocabulary instead of a fixed class
   # list. This is what makes the booth genuinely object-agnostic -- a visitor
@@ -183,7 +188,7 @@ detect_classes: []
 segmenter:
   enabled: true
   model: sam2.1_t.pt   # tiny, 74 MB: smallest that separates tabletop objects
-  device: cuda:0
+  device: auto         # see detector.device above
 
 # Geometric gate on detections, applied AFTER lifting a mask to 3D. It is
 # what makes an open vocabulary usable: a ~4.5k-concept detector correctly

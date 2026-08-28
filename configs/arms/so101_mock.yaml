@@ -1,0 +1,33 @@
+# SO-101 with the kinematic mock backend: no hardware, no MuJoCo, no serial
+# port. This is the profile tests and offline wiring checks use, and the one to
+# reach for when you want to see the whole cascade run on a 5-DoF arm without
+# owning one.
+#
+#   python -m cascade.apps.demo --arm so101_mock --camera mock_small \
+#       --task "pick and place the red object"
+#
+# Use `--camera mock_small`, not `mock`: the default synthetic scene puts a 7 cm
+# box at r = 0.29, which this arm's 55 mm jaw correctly refuses and which sits at
+# the edge of its top-down envelope, so a `mock` run only ever exercises the
+# rejection paths. See configs/cameras/mock_small.yaml.
+#
+# Everything kinematic (model, joint signs, tool convention, poses, gripper
+# travel, workspace overrides) is inherited from so101.yaml, so the mock
+# exercises the SAME geometry the real arm will -- which is the only reason a
+# mock run tells you anything.
+extends: so101
+
+type: mock
+
+# The serial transport keys are inherited but unused; `type: mock` never opens a
+# port. Left in place rather than nulled out so `diff so101.yaml
+# so101_mock.yaml` shows exactly one meaningful line.
+
+gripper:
+  # The mock maps open..closed linearly onto whatever numbers it is given, so
+  # it keeps the real arm's RADIAN travel. Tests that need the 0..1 convention
+  # should use the `mock` profile instead of overriding this: a mock whose
+  # gripper units differ from the arm it stands in for stops being a rehearsal.
+  open_pos: 0.60
+  closed_pos: -0.15
+  max_width_m: 0.055

@@ -1,0 +1,47 @@
+# SO-101 in MuJoCo: real rigid-body physics, no robot and no GPU.
+#
+#   python scripts/fetch_robot_assets.py so101      # one-off: MJCF + meshes
+#   pip install mujoco
+#   python -m cascade.apps.demo --arm so101_mujoco --task "pick up the cube"
+#
+# Why this exists alongside the Isaac backend: Isaac Sim is a multi-GB install
+# that needs an NVIDIA GPU, so on a laptop, a Jetson or a CPU-only booth box it
+# is not an option. MuJoCo runs anywhere Python does, which makes "can I try
+# this framework without the robot" answerable on any machine.
+#
+# Contact-rich grasping in MuJoCo is not free of tuning -- the Menagerie model
+# ships gripper solver parameters chosen for manipulation, which is why the
+# MJCF comes from there rather than from the SO-ARM100 repo's own XML.
+extends: so101
+
+type: mujoco
+
+# Fetched by scripts/fetch_robot_assets.py; NOT vendored (it needs the ~20 MB
+# mesh set to load). `scene.xml` wraps so101.xml with a floor and a light.
+mjcf: ${assets}/mjcf/so101/scene.xml
+
+# MuJoCo joint names, in the order this profile's q vector uses. Named rather
+# than indexed because the scene wrapper can add joints (a free-floating prop)
+# and any index would then silently shift.
+mj_joints: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
+mj_gripper_joint: gripper
+
+# Position actuators, matching the <actuator> block in the Menagerie MJCF.
+mj_actuators: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
+mj_gripper_actuator: gripper
+
+# Physics steps advanced per streamed waypoint. The waypoint stream runs at
+# 50 Hz (20 ms) and this MJCF sets timestep="0.005", so 4 steps is one
+# real-time tick. Raise it to let contacts settle further per command, at the
+# cost of the sim running slower than wall clock.
+substeps: 4
+
+# MuJoCo tracks a position setpoint with a finite-gain actuator, so unlike the
+# kinematic mock it does NOT arrive exactly. Same reason the Isaac profile
+# loosens these.
+settle_tol: 0.03
+settle_timeout_s: 4.0
+
+# Set to open a MuJoCo viewer window alongside the run. Off by default: it
+# needs a display, and the framework's own dashboard already shows the cameras.
+view: false

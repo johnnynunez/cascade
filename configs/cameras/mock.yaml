@@ -5,6 +5,11 @@ width: 640
 height: 480
 table_depth_m: 0.6
 
+# Every grab re-renders the same image, so this camera cannot witness the arm
+# moving anything. Declared so the visual postcondition channel abstains rather
+# than reading its own static output as "the scene looks untouched".
+static_scene: true
+
 detector:
   type: mock
   label: "red cube"

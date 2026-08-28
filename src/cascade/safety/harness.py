@@ -394,6 +394,23 @@ class SafeArm:
     def n_joints(self) -> int:
         return self._arm.n_joints
 
+    def connect(self) -> None:
+        """Bring the backend up.
+
+        Lifecycle is part of the arm surface, not a backend extra: the arm rig
+        holds SafeArms and must be able to connect/disconnect every member
+        without reaching through `.raw`. Both calls are on LazyArm's own
+        surface (connect is a deliberate no-op there, disconnect only acts on
+        an already-materialized arm), so neither powers motors as a side
+        effect of lifecycle management.
+        """
+        self._arm.connect()
+
+    def disconnect(self) -> None:
+        """Release the backend. On a real arm this disables torque, so the
+        caller must have parked the arm first (see move_home)."""
+        self._arm.disconnect()
+
     def get_state(self):
         return self._arm.get_state()
 

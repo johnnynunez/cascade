@@ -25,6 +25,14 @@ class MockArm(ArmBase):
         if cfg is not None:
             home = cfg.get("home_q")
         self._q = np.asarray(home if home is not None else [0.0, -0.5, -0.9, 0.0, 0.6, 0.0], dtype=float)
+        # DOF follows the profile, not the class default: this mock stands in
+        # for every arm the framework supports (5-DoF SO-101, 6-DoF reBot,
+        # 7-DoF Panda), and a wrong n_joints silently truncates or broadcasts
+        # every commanded pose.
+        if cfg is not None and cfg.get("n_joints") is not None:
+            self.n_joints = int(cfg.get("n_joints"))
+        else:
+            self.n_joints = int(self._q.size)
         self._gripper = 0.0
         self._gripper_effort = 1.0
         self._connected = False

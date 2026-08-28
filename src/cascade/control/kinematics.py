@@ -14,8 +14,40 @@ repo use the local one. Arm profiles carry `joint_signs: [-1, ...]` and the
 flip is baked into the model at load time, so everything downstream (FK, IK,
 limits, safety) speaks local convention.
 
-The RS model has nq=8 (6 revolute + 2 passive prismatic finger joints); we
-command the first 6 and zero-pad the rest, same convention as the SDK.
+Models carry more joints than we command (the RS URDF has nq=8: 6 revolute plus
+2 passive prismatic finger joints; the SO-101 URDF has nq=6, 5 arm joints plus
+the gripper). We command the first `n_controlled` and zero-pad the rest, same
+convention as the SDK. Both shipped URDFs happen to order the arm chain before
+the gripper, which is what makes that slice correct -- a new model must be
+checked, not assumed (`tests/test_kinematics_so101.py` pins it for SO-101).
+
+UNDER-ACTUATED ARMS (`ik_task_weights`)
+---------------------------------------
+A 6-DoF pose request has no solution on a chain with fewer than 6 useful DOF,
+and plain damped least-squares answers that by stalling at a non-zero residual
+and reporting `success=False` for every single target -- i.e. "this arm cannot
+reach anything", which is not the useful truth. The useful truth is which task
+DOF the chain gives up.
+
+An arm profile may therefore declare a 6-vector `ik_task_weights` naming how
+much each task DOF matters, ordered [x, y, z, rx, ry, rz] about the WORLD axes
+of the base frame (not the tool's -- a mask that rotates with the wrist is not
+a mask anyone can reason about). Zero drops that DOF from the problem entirely.
+
+NO SHIPPED PROFILE SETS THIS, including the 5-DoF SO-101, and the SO-101 is
+worth spelling out because the intuition is wrong: its wrist-roll axis is
+exactly collinear with the tool approach (MEASURED: rolling it turns the
+approach by 0.00 deg), so for a VERTICAL approach the roll spends itself
+entirely on the jaw yaw and the chain behaves like a full-pose arm -- pan sets
+the azimuth, lift/elbow/flex set radius, height and pitch, roll sets the yaw.
+Unweighted 6-DoF IK solves those targets at a 0.94 rate over its workspace. The
+DOF it truly lacks shows up only for a TILTED approach, whose azimuth is then
+pinned to the arm's working plane; nothing in the tabletop pipeline asks for
+that, so the honest gate is IK failure rather than a weight that would quietly
+accept a pose the arm cannot hold.
+
+When `ik_task_weights` is absent (i.e. always, today), the solver is exactly
+the unweighted LOCAL-frame one it always was, bit for bit.
 """
 
 from __future__ import annotations
@@ -41,6 +73,7 @@ class Kinematics:
         ee_frame: str,
         n_controlled: int = 6,
         joint_signs: list[int] | None = None,
+        ik_task_weights: list[float] | None = None,
     ):
         import pinocchio as pin  # heavy import, keep local
 
@@ -69,6 +102,12 @@ class Kinematics:
         lo = np.asarray(self.model.lowerPositionLimit[: self.n])
         hi = np.asarray(self.model.upperPositionLimit[: self.n])
         self.joint_limits = (lo, hi)
+        self.task_weights = (
+            None if ik_task_weights is None
+            else np.asarray(ik_task_weights, dtype=float).reshape(6)
+        )
+        if self.task_weights is not None and np.any(self.task_weights < 0):
+            raise ValueError(f"ik_task_weights must be >= 0, got {ik_task_weights!r}")
 
     def _pad(self, q: np.ndarray) -> np.ndarray:
         qf = np.zeros(self.nq)
@@ -124,6 +163,7 @@ class Kinematics:
     def _ik_once(self, target, q0, max_iter, tol, damping, step, margin=0.0) -> IKResult:
         pin = self._pin
         q = self.clamp(q0.copy(), margin)
+        w = self.task_weights
         err_norm = np.inf
         for it in range(max_iter):
             qf = self._pad(q)
@@ -131,12 +171,23 @@ class Kinematics:
             pin.updateFramePlacements(self.model, self.data)
             oMf = self.data.oMf[self.fid]
             err = pin.log6(oMf.actInv(target)).vector
+            if w is None:
+                frame = pin.ReferenceFrame.LOCAL
+            else:
+                # Weights name WORLD axes (see `task_weights` docs), so the
+                # error and the Jacobian both move to the world-aligned frame.
+                # J_lwa = diag(R, R) @ J_local, so rotating the local error the
+                # same way keeps the pair consistent.
+                R = np.asarray(oMf.rotation)
+                err = np.concatenate([R @ err[:3], R @ err[3:]])
+                err = w * err
+                frame = pin.ReferenceFrame.LOCAL_WORLD_ALIGNED
             err_norm = float(np.linalg.norm(err))
             if err_norm < tol:
                 return IKResult(q=q.copy(), success=True, error=err_norm, iterations=it)
-            J = pin.computeFrameJacobian(
-                self.model, self.data, qf, self.fid, pin.ReferenceFrame.LOCAL
-            )[:, : self.n]
+            J = pin.computeFrameJacobian(self.model, self.data, qf, self.fid, frame)[:, : self.n]
+            if w is not None:
+                J = w[:, None] * J
             lam = damping * max(1.0, err_norm * 10.0)
             JJt = J @ J.T + lam * np.eye(6)
             dq = J.T @ np.linalg.solve(JJt, err)

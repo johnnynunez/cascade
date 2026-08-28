@@ -44,6 +44,13 @@ tool_axis_order: open_down
 # libero_spatial. Measured beats canonical.
 home_q: [0.0, -0.177, -0.037, -2.457, 0.006, 2.235, 0.799]
 
+# Handover is not part of the LIBERO benchmark (nobody is standing there), so
+# this is home with the base yawed toward the operator's side -- DERIVED, not
+# measured, unlike home_q above. It exists so `handover` fails at the harness
+# if someone drives this profile interactively, rather than inheriting a
+# 6-element reBot pose that would broadcast wrong onto 7 joints.
+handover_q: [0.5, -0.177, -0.037, -2.457, 0.006, 2.235, 0.799]
+
 # No mirroring: robosuite joint signs already match the model.
 joint_signs: [1, 1, 1, 1, 1, 1, 1]
 

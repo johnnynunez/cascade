@@ -21,7 +21,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import yaml
 
 _ARMS = Path(__file__).resolve().parents[1] / "configs" / "arms"
 _SRC = Path(__file__).resolve().parents[1] / "src" / "cascade"
@@ -32,7 +31,17 @@ def _profiles():
 
 
 def _load(p: Path) -> dict:
-    return yaml.safe_load(p.read_text()) or {}
+    """Profile as the framework sees it, with any `extends:` parent resolved.
+
+    Reading the raw YAML would fail every transport variant of a robot
+    (so101_mock, so101_mujoco), which deliberately inherit the kinematics and
+    the gripper measurements of the SAME arm from so101.yaml. What these tests
+    forbid is inheriting them from a DIFFERENT robot, and `extends:` cannot
+    express that: the resolved dict is the honest thing to assert on.
+    """
+    from cascade.config import _load_profile_raw
+
+    return _load_profile_raw("arms", p.stem, _ARMS.parent)
 
 
 def test_every_arm_profile_declares_its_own_gripper_width():

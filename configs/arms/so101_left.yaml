@@ -1,0 +1,70 @@
+# SO-101, LEFT arm of a two-arm setup (mock backend, no hardware).
+#
+#   python -m cascade.apps.demo --arms so101_left,so101_right \
+#       --task "pick and place the pink object"
+#
+# Pairs with so101_right.yaml. The rig's arms are POSITIONAL: the first one
+# named is the manipulation arm (what `runtime.arm` binds to, and what every
+# skill uses when given no `arm` argument).
+#
+# READ THIS BEFORE TRUSTING THE PARTITION.
+#
+# Each arm gets its own SafetyHarness with its own workspace box, velocity cap
+# and joint limits (see control/arm_rig.py). There is NO inter-arm collision
+# check anywhere in the stack: a harness vets one arm's links against the
+# table, its own workspace box and its own keep-out list, and knows nothing
+# about the other robot.
+#
+# Worse, positions are in the ROBOT BASE frame -- and the framework holds no
+# transform between the two bases. The boxes below are expressed in THIS arm's
+# base frame, and so101_right's are in ITS OWN. They therefore only describe
+# disjoint physical volumes if the two arms are mounted so that those
+# half-spaces do not intersect (bases side by side, +y axes aligned, far
+# enough apart that each 0.28 m reach annulus stays on its own side).
+#
+# That makes this a STATIC PARTITION under an unverified mounting assumption,
+# not collision avoidance. Widening these boxes, or mounting the arms facing
+# each other, silently invalidates it.
+extends: so101
+
+# Mock transport: this is the offline/CI dual-arm profile. For real servos use
+# `type: so101` and point `port:` at this arm's own USB adapter -- and
+# re-measure the partition against the physical table first.
+type: mock
+
+gripper:
+  # Same jaw as so101_mock: the mock maps open..closed linearly onto whatever
+  # numbers it is given, and this is the same robot.
+  open_pos: 0.60
+  closed_pos: -0.15
+  max_width_m: 0.055
+
+overrides:
+  safety:
+    # This arm owns y >= 0 in its own base frame. Inherited from so101.yaml
+    # except the y floor, which is raised from -0.36 to -0.02.
+    workspace:
+      min: [-0.15, -0.02, -0.02]
+      max: [0.40, 0.36, 0.40]
+    table_z: 0.0
+    max_joint_vel: 0.8
+    # The other arm's half as a wall. A TCP entering it is rejected mid-stream
+    # (harness.approve runs on every 50 Hz waypoint), so a bad IK solution or
+    # a mis-specified place target aborts instead of crossing the centre line.
+    # The 0.02 m overlap with the workspace floor above is deliberate: the two
+    # gates must not leave a gap between them.
+    keep_out:
+      - min: [-0.60, -0.60, -0.10]
+        max: [0.60, -0.02, 0.60]
+  grasp:
+    # Unchanged from so101.yaml: same robot, same 0.09 m top-down band.
+    topdown_z_max: 0.05
+    pregrasp_offset_m: 0.03
+    exempt_radius_m: 0.07
+    # Mirrored into this arm's half (so101.yaml drops at y = -0.12).
+    # r = 0.233, inside the verified 0.12..0.28 annulus.
+    drop_zone: [0.20, 0.12]
+  workspace_filter:
+    base_radius_m: 0.08
+    max_extent_m: 0.20
+    reach_m: 0.48

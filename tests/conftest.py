@@ -33,6 +33,15 @@ needs_pin = pytest.mark.skipif(
     reason="pinocchio or RS model not available",
 )
 
+#: The SO-101 URDF is vendored (text only, no meshes needed for kinematics), so
+#: unlike the RS model it is always present in a checkout.
+SO101_URDF = REPO / "assets" / "urdf" / "so101" / "so101.urdf"
+
+needs_pin_so101 = pytest.mark.skipif(
+    not has_pinocchio() or not SO101_URDF.exists(),
+    reason="pinocchio or SO-101 model not available",
+)
+
 
 @pytest.fixture(autouse=True)
 def _no_ambient_booth(monkeypatch):

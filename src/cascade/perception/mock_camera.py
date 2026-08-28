@@ -82,4 +82,14 @@ class MockCamera(CameraBase):
                 "height": int(self._cfg.get("height", 480)),
                 "table_depth_m": float(self._cfg.get("table_depth_m", 0.6)),
             }
+            # Prop size is part of the scene, and the scene has to suit the
+            # robot: the default box is ~73 mm across, which a 55 mm jaw
+            # (SO-101) correctly refuses, so a rehearsal on that arm would only
+            # ever exercise the width-rejection path. See configs/cameras/
+            # mock_small.yaml.
+            box = self._cfg.get("box_px")
+            if box is not None:
+                kw["box_px"] = tuple(int(v) for v in box)
+            if self._cfg.get("box_height_m") is not None:
+                kw["box_height_m"] = float(self._cfg.get("box_height_m"))
         return synthetic_tabletop(**kw)

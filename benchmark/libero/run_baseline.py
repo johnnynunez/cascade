@@ -118,7 +118,7 @@ def center_crop_resize(img: np.ndarray, crop_scale: float = CROP_SCALE,
     return cv2.resize(crop, (out_px, out_px), interpolation=cv2.INTER_LINEAR)
 
 
-def make_policy(name: str, model_path: str | None, device: str = "cuda:0"):
+def make_policy(name: str, model_path: str | None, device: str = "auto"):
     """Return (fn(obs, task_language) -> 7-vector action, description)."""
     if name == "noop":
         return (lambda obs, lang: np.zeros(7)), "zero action (floor)"
@@ -138,6 +138,9 @@ def make_policy(name: str, model_path: str | None, device: str = "cuda:0"):
         from PIL import Image
         from transformers import AutoModelForVision2Seq, AutoProcessor
 
+        from cascade.device import resolve_device
+
+        device = resolve_device(device, what="openvla baseline")
         path = model_path or "openvla/openvla-7b-finetuned-libero-spatial"
         proc = AutoProcessor.from_pretrained(path, trust_remote_code=True)
         model = AutoModelForVision2Seq.from_pretrained(

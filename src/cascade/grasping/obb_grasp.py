@@ -7,7 +7,9 @@ frame, so the plan is done where it is physically meaningful:
 - approach: straight down (-z base) for tabletop scenes;
 - jaw opening axis: the OBB minor horizontal axis (grip across the object's
   short side), yaw = atan2 of that axis; a 90-degree-rotated alternate is
-  also emitted for the recovery path ("try the other yaw" after a failure);
+  also emitted for the recovery path ("try the other yaw" after a failure),
+  and each yaw is emitted twice, 180 degrees apart, since the jaw axis is a
+  line and the flip is free reach on a roll-limited wrist;
 - grasp height: object top minus a fraction of its height, clamped above the
   table so the jaws wrap the object instead of pinching its rim.
 
@@ -31,7 +33,22 @@ def _yaw_rotation(yaw: float, tool_down: np.ndarray | None = None,
 
       "down_open"  columns [approach, open, third]  (reBot / RS arm: tool
                    forward is +x of gripper_end and points down)
-      "open_down"  columns [open, third, approach]  (Franka Panda in LIBERO)
+      "open_down"  columns [open, third, approach]  (Franka Panda in LIBERO,
+                   and the SO-101 -- see below)
+
+    MEASURED for the SO-101 from the Menagerie collision geometry, by placing
+    the two fingertip sphere sets in the URDF TCP frame (`gripper_frame_link`)
+    across the gripper joint's whole range:
+
+      - the fingers extend along col2 (the fixed jaw's root is at col2 = -76 mm
+        and its tip at +3 mm), so col2 is the APPROACH;
+      - the tip-to-tip separation is along col0, within 3.5 degrees of it over
+        the entire useful aperture (16-55 mm), so col0 is the OPENING axis;
+      - the col1 component of the separation is 0 at every angle, because col1
+        is the jaw HINGE axis (a single-hinge "beak", not parallel fingers).
+
+    That is exactly the Panda's order, so the SO-101 reuses "open_down" rather
+    than needing a convention of its own.
 
     MEASURED on LIBERO's Panda at rest, the site frame reads:
 
@@ -195,16 +212,26 @@ def plan_grasps_from_fix(
         feasible = required <= max_width_m
         pos = fix.position.copy()
         pos[2] = grasp_z
-        grasps.append(
-            Grasp(
-                position=pos,
-                rotation=_yaw_rotation(yaw, axis_order=axis_order),
-                width_m=required,
-                approach=np.array([0.0, 0.0, -1.0]),
-                quality=(1.0 if feasible else 0.2) * (1.0 - 0.1 * rank) * fix.detection.conf,
-                label=fix.label,
+        # Both yaw and yaw+pi describe the SAME physical grasp: the jaw axis is
+        # a line, so flipping it swaps which jaw is on which side and nothing
+        # else. Emitting the flip costs nothing and buys reach on arms whose
+        # wrist roll cannot cover a full turn -- MEASURED on the SO-101 (roll
+        # range 320 deg), the flip lifts the top-down solve rate over its
+        # workspace from 0.672 to 0.801. Ranked just behind its own primary so
+        # a physically better yaw is never displaced by a flipped worse one.
+        for sub, y in enumerate((yaw, yaw + np.pi)):
+            grasps.append(
+                Grasp(
+                    position=pos,
+                    rotation=_yaw_rotation(y, axis_order=axis_order),
+                    width_m=required,
+                    approach=np.array([0.0, 0.0, -1.0]),
+                    quality=(1.0 if feasible else 0.2)
+                    * (1.0 - 0.1 * rank - 0.01 * sub)
+                    * fix.detection.conf,
+                    label=fix.label,
+                )
             )
-        )
 
     # Open containers cannot be grasped across their footprint: pinch the rim
     # instead. Only attempted when the footprint genuinely does not fit, so

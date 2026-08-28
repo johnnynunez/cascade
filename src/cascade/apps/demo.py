@@ -28,6 +28,7 @@ from ..agent.reflex import ExperienceMemory, FastPlanner
 from ..agent.trace import TraceLogger
 from ..config import Cfg, PACKAGE_ROOT, load_demo_config
 from ..control.arm_base import make_arm
+from ..control.arm_rig import ArmRig
 from ..control.kinematics import Kinematics
 from ..control.lazy_arm import LazyArm
 from ..memory import BeliefStore, EpisodicMemory
@@ -67,6 +68,60 @@ def _truth_pose_fn(safe_arm):
         return None
 
 
+def _arm_cfgs(cfg) -> list[Cfg]:
+    """All arm profiles (cfg.arms when present, else [cfg.arm])."""
+    raw = cfg.get("arms")
+    if raw:
+        return [Cfg(a) if isinstance(a, dict) else a for a in raw]
+    return [cfg.arm]
+
+
+def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
+    """One arm: kinematics -> backend (maybe lazy) -> own harness -> SafeArm.
+
+    Each arm resolves its safety envelope from ITS OWN view of the config
+    (`acfg.resolved`, see load_demo_config): workspace box, table height,
+    velocity cap and joint margins are properties of a particular robot on a
+    particular table, and sharing one harness between two arms would apply the
+    looser velocity cap to the weaker one.
+
+    `fallback_cfg` covers arm profiles that carry no `resolved` view -- tests
+    and harnesses that build a Cfg by hand rather than through
+    load_demo_config. Those are single-arm by construction, so the global
+    config IS that arm's view.
+
+    `occupancy` is shared, not per-arm: the obstacle cloud describes the
+    world, not the robot. It is refreshed once per perception tick by the
+    WorldWatcher, so a per-arm copy would leave every non-primary map to age
+    past `max_age_s` and be treated as "no data, skip the check" -- an
+    obstacle gate that silently stops gating. The per-arm half of that check
+    (`min_clearance_m`) already lives in each arm's own SafetyLimits.
+    """
+    view = acfg.get("resolved") or fallback_cfg
+    n_joints = int(acfg.get("n_joints", 6))
+    kin = Kinematics(
+        model_path=acfg.model,
+        ee_frame=acfg.get("ee_frame", "gripper_end"),
+        n_controlled=n_joints,
+        joint_signs=acfg.get("joint_signs"),
+        ik_task_weights=acfg.get("ik_task_weights"),
+    )
+    if lazy_arm:
+        # Perception pre-warms at startup; motors stay untouched until the
+        # first motion command materializes the arm (see LazyArm).
+        # n_joints must come from the profile: until the arm materializes,
+        # LazyArm's hint is the only DOF answer anything can get, and the
+        # class default (6) is wrong for a 5-DoF SO-101 or a 7-DoF Panda.
+        arm = LazyArm(lambda: make_arm(acfg, kinematics=kin), n_joints=n_joints)
+    else:
+        arm = make_arm(acfg, kinematics=kin)
+        arm.connect()
+    harness = SafetyHarness(
+        SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy
+    )
+    return arm, SafeArm(arm, harness), kin
+
+
 def build_runtime(
     cfg,
     run_dir: Path,
@@ -74,30 +129,41 @@ def build_runtime(
     lazy_arm: bool = False,
     serve: bool = False,
 ) -> tuple[SkillRuntime, object]:
-    kin = Kinematics(
-        model_path=cfg.arm.model,
-        ee_frame=cfg.arm.get("ee_frame", "gripper_end"),
-        n_controlled=int(cfg.arm.get("n_joints", 6)),
-        joint_signs=cfg.arm.get("joint_signs"),
-    )
-    if lazy_arm:
-        # Perception pre-warms at startup; motors stay untouched until the
-        # first motion command materializes the arm (see LazyArm).
-        arm = LazyArm(lambda: make_arm(cfg.arm, kinematics=kin))
-    else:
-        arm = make_arm(cfg.arm, kinematics=kin)
-        arm.connect()
     from ..perception.occupancy import OccupancyMap
 
+    # ── the arm rig: N arms, first = manipulation arm ───────────────────
+    arm_cfgs = _arm_cfgs(cfg)
+
+    # One shared obstacle map, spanning every arm's workspace. With a single
+    # arm this is exactly the old expression; with several, the union is the
+    # honest default -- a region covering only the primary would leave the
+    # second arm's half of the table unmapped, and unmapped reads as clear.
+    # An explicit `occupancy.region_min/max` still wins (see from_config).
+    ws_min = [a.get("resolved").safety.workspace.min if a.get("resolved")
+              else cfg.safety.workspace.min for a in arm_cfgs]
+    ws_max = [a.get("resolved").safety.workspace.max if a.get("resolved")
+              else cfg.safety.workspace.max for a in arm_cfgs]
     occupancy = OccupancyMap.from_config(
         cfg.get("occupancy"),
-        workspace_min=cfg.safety.workspace.min,
-        workspace_max=cfg.safety.workspace.max,
+        workspace_min=[min(v[i] for v in ws_min) for i in range(3)],
+        workspace_max=[max(v[i] for v in ws_max) for i in range(3)],
     )
-    harness = SafetyHarness(
-        SafetyLimits.from_config(cfg.safety), kinematics=kin, occupancy=occupancy
-    )
-    safe_arm = SafeArm(arm, harness)
+
+    raw_arms, safe_arms, arm_names = [], [], []
+    for i, acfg in enumerate(arm_cfgs):
+        raw, safe, k = _build_arm(acfg, lazy_arm, occupancy, cfg)
+        raw_arms.append(raw)
+        safe_arms.append(safe)
+        arm_names.append(str(acfg.get("name", f"arm{i}")))
+        if i == 0:
+            kin = k
+    arm_rig = ArmRig(safe_arms, arm_names)
+    # The primary arm stays bound to the same names the single-arm code used,
+    # so every existing call site (56 `self.arm` uses in the skill runtime,
+    # shutdown_runtime, the truth-pose hook) is untouched by the rig.
+    arm = raw_arms[0]
+    safe_arm = arm_rig.primary
+    harness = safe_arm.harness
 
     # ── the camera rig: N continuous streams, first = manipulation ──────
     cam_cfgs = _camera_cfgs(cfg)
@@ -151,6 +217,11 @@ def build_runtime(
         kin, safe_arm, memory, beliefs, trace, cfg,
     )
     runtime.rig = rig
+    # The arm rig hangs off the runtime the same way the camera rig does.
+    # `runtime.arm` stays the primary SafeArm, so nothing that predates the
+    # rig has to learn about it; skills that accept an `arm` name resolve
+    # through `runtime.arm_rig.get(name)`.
+    runtime.arm_rig = arm_rig
 
     # Pigey (arXiv:2607.21725) closed loop: verify each primitive's physical
     # effect against a channel the actuator does not own. In sim the bridge
@@ -255,15 +326,29 @@ def _runtime_state(runtime) -> dict:
 
 
 def shutdown_runtime(runtime, arm) -> None:
-    """Stop threads and hardware in dependency order; never raises."""
+    """Stop threads and hardware in dependency order; never raises.
+
+    `arm` is the primary raw backend, kept as a positional for the many call
+    sites that predate the arm rig. When a rig is present EVERY arm is
+    disconnected through it -- disconnecting only the primary would leave a
+    second arm powered (torque on, unsupervised) after teardown reported
+    success.
+    """
     import contextlib
+
+    def _disconnect_arms():
+        rig = getattr(runtime, "arm_rig", None)
+        if rig is not None and len(rig) > 1:
+            rig.disconnect()   # includes the primary; never raises
+        else:
+            arm.disconnect()
 
     for step in (
         lambda: runtime.watcher.stop() if runtime.watcher is not None else None,
         lambda: runtime.stream_server.stop() if getattr(runtime, "stream_server", None) else None,
         lambda: runtime.viewer.stop() if getattr(runtime, "viewer", None) else None,
         lambda: runtime.rig.close() if getattr(runtime, "rig", None) else runtime.camera.close(),
-        arm.disconnect,
+        _disconnect_arms,
     ):
         with contextlib.suppress(Exception):
             step()
@@ -287,7 +372,7 @@ def _make_detector(cfg):
 
     return OpenVocabDetector(
         model_path=dcfg.model,
-        device=dcfg.get("device", "cuda:0"),
+        device=dcfg.get("device", "auto"),
         conf=float(dcfg.get("conf", 0.25)),
         prompt_free=bool(dcfg.get("prompt_free", True)),
     )
@@ -300,7 +385,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--cameras", default=None,
                    help="comma-separated camera profiles; first = manipulation "
                         "camera (e.g. l515,uvc). Overrides --camera.")
-    p.add_argument("--arm", default="mock", help="arm profile (mock|rebot_rs)")
+    p.add_argument("--arm", default="mock", help="arm profile (mock|rebot_rs|so101)")
+    p.add_argument("--arms", default=None,
+                   help="comma-separated arm profiles; first = manipulation "
+                        "arm (e.g. so101_mock,so101_mock). Overrides --arm.")
     p.add_argument("--llm", default="mock", help="llm profile (mock|anthropic|local_qwen|openai)")
     p.add_argument("--max-steps", type=int, default=30)
     p.add_argument("--run-dir", default=None, help="trace output dir")
@@ -312,14 +400,17 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     cameras = [c.strip() for c in args.cameras.split(",")] if args.cameras else None
-    cfg = load_demo_config(camera=args.camera, cameras=cameras, arm=args.arm, llm=args.llm)
+    arms = [a.strip() for a in args.arms.split(",")] if args.arms else None
+    cfg = load_demo_config(camera=args.camera, cameras=cameras, arm=args.arm,
+                           arms=arms, llm=args.llm)
     run_dir = Path(args.run_dir) if args.run_dir else (
         PACKAGE_ROOT / "runs" / time.strftime("%Y%m%d_%H%M%S")
     )
     import os
 
     view = not args.no_view and bool(os.environ.get("DISPLAY"))
-    print(f"[cascade] cameras={cameras or [args.camera]} arm={args.arm} "
+    print(f"[cascade] cameras={cameras or [args.camera]} "
+          f"arms={arms or [args.arm]} "
           f"llm={args.llm} view={view}")
     print(f"[cascade] traces -> {run_dir}")
 

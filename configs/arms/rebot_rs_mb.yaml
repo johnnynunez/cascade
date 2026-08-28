@@ -32,6 +32,7 @@ joint_signs: [-1, -1, -1, -1, -1, -1]
 ee_frame: gripper_end
 n_joints: 6
 home_q: [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
+handover_q: [0.5, 1.2, 1.2, 0.0, 0.75, 0.0]
 
 # Wire convention of mechPos (0x7019) relative to LOCAL joint angles. Verified
 # 1:1 in SCALE and ZERO on this rig (joint 4 hand-swept span 3.491 rad vs the

@@ -73,14 +73,37 @@ def _resolve_paths(data: Any, base: Path) -> Any:
     return data
 
 
-def load_profile(kind: str, name: str, config_dir: Path | None = None) -> Cfg:
-    """Load one profile, e.g. load_profile('cameras', 'l515')."""
-    cdir = Path(config_dir) if config_dir else CONFIG_DIR
+def _load_profile_raw(kind: str, name: str, cdir: Path,
+                      chain: tuple[str, ...] = ()) -> dict[str, Any]:
+    """Profile dict with any `extends:` parent merged underneath it.
+
+    One robot usually needs several profiles that differ in the TRANSPORT only
+    -- the SO-101 ships as mock/MuJoCo/serial, all describing the same physical
+    arm. Without inheritance every kinematic constant, gripper measurement and
+    workspace override has to be copied into each, and the copies drift: the
+    one that gets fixed is the one you happened to be running.
+    """
     path = cdir / kind / f"{name}.yaml"
     if not path.exists():
         available = sorted(p.stem for p in (cdir / kind).glob("*.yaml"))
         raise FileNotFoundError(f"no {kind} profile {name!r}; available: {available}")
-    return Cfg(_resolve_paths(_load_yaml(path), cdir))
+    if name in chain:
+        raise ValueError(
+            f"{kind} profile `extends:` cycle: {' -> '.join((*chain, name))}"
+        )
+    data = _load_yaml(path)
+    parent = data.pop("extends", None)
+    if parent is None:
+        return data
+    base = _load_profile_raw(kind, str(parent), cdir, (*chain, name))
+    _deep_merge(base, data)
+    return base
+
+
+def load_profile(kind: str, name: str, config_dir: Path | None = None) -> Cfg:
+    """Load one profile, e.g. load_profile('cameras', 'l515')."""
+    cdir = Path(config_dir) if config_dir else CONFIG_DIR
+    return Cfg(_resolve_paths(_load_profile_raw(kind, name, cdir), cdir))
 
 
 def _deep_merge(base: dict, overlay: dict) -> None:
@@ -108,14 +131,36 @@ def load_demo_config(
     llm: str = "mock",
     config_dir: Path | None = None,
     cameras: list[str] | None = None,
+    arms: list[str] | None = None,
 ) -> Cfg:
     """`cameras` (ordered, first = manipulation camera) supersedes `camera`;
-    both populate cfg.camera (primary) and cfg.cameras (all).
+    both populate cfg.camera (primary) and cfg.cameras (all). `arms` does the
+    same for cfg.arm (primary) and cfg.arms (all).
 
     When CASCADE_BOOTH is set, configs/booth.yaml is deep-merged on top of
     demo.yaml (bounded worst cases for timed attendee sessions -- see
     docs/BOOTH_RUNBOOK.md §1); every entry point (demo CLI, MCP server,
-    dashboard runner) goes through here, so the switch is one env var."""
+    dashboard runner) goes through here, so the switch is one env var.
+
+    An arm profile may carry an `overrides:` block that is deep-merged into the
+    main config LAST, so it also beats the booth overlay. This is what makes
+    the framework robot-agnostic in practice: demo.yaml's `safety.workspace`,
+    `safety.table_z`, `grasp.topdown_z_max`, `grasp.drop_zone` and friends are
+    properties of a PARTICULAR arm on a particular table, and a second robot
+    with a 40 cm reach must not silently inherit the first one's 50 cm box.
+
+    The alternative -- each harness patching the constants it remembers at
+    runtime -- was tried in benchmark/libero/run_wrc.py and cost two whole
+    benchmark runs to the ones it forgot (topdown_z_max, settle timeout).
+    Declaring them in the profile means forgetting is impossible.
+
+    WITH SEVERAL ARMS the same reasoning forbids merging every arm's
+    `overrides:` into one global blob: two robots' workspace boxes would
+    overwrite each other and the last one loaded would silently define the
+    safety envelope for BOTH. So only the PRIMARY arm's overrides reach the
+    top level (single-arm behaviour, byte for byte), and every arm keeps its
+    own resolved view under `cfg.arms[i].resolved` -- which is what
+    build_runtime hands to that arm's SafetyHarness."""
     cdir = Path(config_dir) if config_dir else CONFIG_DIR
     main = _resolve_paths(_load_yaml(cdir / "demo.yaml"), cdir)
     if booth_mode_enabled():
@@ -136,6 +181,44 @@ def load_demo_config(
         cams.append(prof)
     main["camera"] = cams[0]
     main["cameras"] = cams
-    main["arm"] = load_profile("arms", arm, cdir).as_dict()
+
+    arm_names = [n.strip() for n in (arms or [arm]) if n and n.strip()]
+    if not arm_names:
+        raise ValueError("no arm profile named")
+    arm_profiles, arm_overrides = [], []
+    for i, name in enumerate(arm_names):
+        prof = load_profile("arms", name, cdir).as_dict()
+        arm_overrides.append(prof.pop("overrides", None))
+        # Names address arms in the rig (skills take an optional `arm` arg).
+        # Two of the SAME profile is a legitimate dual-arm setup, so
+        # de-duplicate positionally exactly as the camera rig does.
+        prof.setdefault(
+            "name", name if arm_names.count(name) == 1 else f"{name}{i}"
+        )
+        arm_profiles.append(prof)
+
+    main["arm"] = arm_profiles[0]
     main["llm"] = load_profile("llm", llm, cdir).as_dict()
+    # Primary arm's overrides define the top-level (single-arm behaviour).
+    if arm_overrides[0]:
+        _deep_merge(main, arm_overrides[0])
+
+    # Per-arm resolved view: the global config as THIS arm sees it. Built
+    # after the primary merge so arm 0's `resolved` is identical to the top
+    # level, and each secondary arm gets its own overrides applied to a fresh
+    # copy of the pre-override base instead of stacking onto its neighbour's.
+    #
+    # `resolved` is stripped from the snapshot before it is stored: without
+    # that, arm 1's view would contain a full copy of arm 0's view nested
+    # under `arm`, which grows quadratically and makes `cfg.arms[1].resolved
+    # .arm` mean the WRONG robot. Each arm's own profile is planted instead,
+    # so `resolved.arm` always describes the arm that owns the view.
+    for prof, ov in zip(arm_profiles, arm_overrides):
+        base = copy.deepcopy(main)
+        base.pop("arms", None)
+        if ov:
+            _deep_merge(base, ov)
+        base["arm"] = {k: v for k, v in prof.items() if k != "resolved"}
+        prof["resolved"] = base
+    main["arms"] = arm_profiles
     return Cfg(main)

@@ -142,7 +142,7 @@ class SkillRuntime:
 
             self._segmenter = PointSegmenter(
                 model_path=str(scfg.get("model", "sam2.1_t.pt")),
-                device=str(scfg.get("device", "cuda:0")),
+                device=str(scfg.get("device", "auto")),
             )
         else:
             self._segmenter = None
@@ -184,6 +184,44 @@ class SkillRuntime:
         """
         return str(self.cfg.arm.get("tool_axis_order", "down_open"))
 
+    def _profile_q(self, key: str, what: str) -> np.ndarray:
+        """A joint-space keyframe (home_q, handover_q, ...) from the arm profile.
+
+        These poses belong to ONE arm on ONE table. A default baked in here is
+        worse than no pose at all: substituting the reBot's 6-element home pose
+        on a 5-DoF SO-101 both mis-sizes the vector and aims a different chain
+        at a table nobody measured, and the harness cannot catch a pose that is
+        geometrically legal yet wrong for this robot. So a missing keyframe is
+        an honest failure -- every shipped profile declares its own, pinned by
+        tests/test_arm_profiles.py.
+        """
+        q = self.cfg.arm.get(key)
+        if q is None:
+            raise SkillError(
+                f"arm profile declares no {key!r}, which is needed to {what}; "
+                f"add it to configs/arms/<profile>.yaml"
+            )
+        q = np.asarray(q, dtype=float).reshape(-1)
+        n = int(self.cfg.arm.get("n_joints", len(q)))
+        if len(q) != n:
+            raise SkillError(
+                f"arm profile {key!r} has {len(q)} joints but n_joints={n}"
+            )
+        return q
+
+    @property
+    def _gesture_joint(self) -> int:
+        """Wrist joint that `wave` wags, as an index into q.
+
+        Declared by the profile because chains differ in length: index 4 is the
+        wrist on both a 6-DoF reBot and a 5-DoF SO-101, but it is the elbow on a
+        3-DoF arm. Defaults to the wrist-most joint that is not the last one on
+        long chains, which reproduces the reBot's tuned choice exactly.
+        """
+        n = int(self.cfg.arm.get("n_joints", 6))
+        idx = self.cfg.arm.get("gesture_joint")
+        return int(idx) if idx is not None else min(4, max(0, n - 1))
+
     def _visual_diff(self, source_xyz=None, target_xyz=None):
         """CaP-X: compare the pre-motion frame with a fresh one.
 
@@ -196,6 +234,15 @@ class SkillRuntime:
             return None
         frame = self.last_frame or self.observe()
         if frame is None:
+            return None
+        # A camera that re-renders the same synthetic image every grab cannot
+        # witness motion, so "the pixels did not change" is not evidence about
+        # the arm -- it is a property of the sensor. Reporting UNCHANGED from it
+        # fails every place whose source and target both land in frame (the
+        # reBot mock only escaped this because its drop zone projects out of
+        # view). Abstaining is the same answer this method already gives when
+        # there is no before/after pair at all.
+        if bool(self.cfg.camera.get("static_scene", False)):
             return None
 
         from ..perception.visual_diff import VisualDiffChannel
@@ -1761,16 +1808,15 @@ class SkillRuntime:
     def skill_wave(self, cycles: int = 2) -> dict:
         """Greeting gesture: wag the base + wrist around home. Every
         waypoint still goes through the safety harness."""
-        home = np.asarray(
-            self.cfg.arm.get("home_q", [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]), dtype=float
-        )
+        home = self._profile_q("home_q", "wave")
         if not self.arm.move_joints(home, duration_s=2.0):
             raise SkillError("could not reach home to wave")
         cycles = int(np.clip(cycles, 1, 4))
+        wrist = self._gesture_joint
         for side in [+1, -1] * cycles:
             q = home.copy()
             q[0] += 0.25 * side
-            q[4] += 0.30 * side
+            q[wrist] += 0.30 * side
             self.arm.move_joints(q, duration_s=0.7)
         self.arm.move_joints(home, duration_s=0.8)
         self.memory.add("action", "waved at the audience")
@@ -1789,9 +1835,7 @@ class SkillRuntime:
                     "ok": False,
                     "error": f"could not grasp {label!r} for handover: {res.get('error')}",
                 }
-        hand_q = np.asarray(
-            self.cfg.arm.get("handover_q", [0.5, 1.2, 1.2, 0.0, 0.75, 0.0]), dtype=float
-        )
+        hand_q = self._profile_q("handover_q", "present the object to a human")
         if not self.arm.move_joints(hand_q, duration_s=2.0):
             raise SkillError("did not settle at the handover pose")
         self.memory.add("action", f"offering {self.held_object!r} to the human")
@@ -1832,9 +1876,7 @@ class SkillRuntime:
         #    Joint-space keyframes keep this reachable on the B601-RS wrist
         #    envelope (top-down IK is limited above z~0.15). base yaw (j1)
         #    aims the throw; j2/j3 load the swing.
-        base = np.asarray(
-            self.cfg.arm.get("home_q", [0.0, -0.5, -0.9, 0.0, 0.6, 0.0]), dtype=float
-        )
+        base = self._profile_q("home_q", "throw")
         windup = base.copy()
         windup[0] = yaw                     # aim
         windup[1] = base[1] - 0.5           # shoulder back/down (loaded)
@@ -1957,7 +1999,7 @@ class SkillRuntime:
         return {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
 
     def skill_move_home(self) -> dict:
-        home = np.asarray(self.cfg.arm.get("home_q", [0.0, -0.5, -0.9, 0.0, 0.6, 0.0]), dtype=float)
+        home = self._profile_q("home_q", "move home")
         if not self.arm.move_joints(home, duration_s=3.0):
             raise SkillError("did not settle at home")
         return {"at": "home"}

@@ -1,0 +1,18 @@
+# Synthetic tabletop with a SMALL, CLOSE prop: a red ~3.5 cm box on the table
+# near base (0.20, 0). Same camera as `mock`, different scene.
+#
+# `mock` places a ~7 cm box at r = 0.29, which suits the reBot B601 (90 mm jaw,
+# top-down out to ~0.45 m) but is doubly wrong for a small arm: the SO-101's
+# 55 mm jaw correctly refuses the width, and r = 0.29 sits at the ragged outer
+# edge of its top-down envelope. A rehearsal on that arm would then only ever
+# exercise the rejection paths, which is not a rehearsal.
+#
+#   python -m cascade.apps.demo --arm so101_mock --camera mock_small \
+#       --task "pick and place the red object"
+extends: mock
+
+# 38 px at fx = 600 and 0.55 m => ~35 mm across, so the planner's 15 mm width
+# pad still lands under a 55 mm jaw. Centre 87 px below the principal point
+# maps (cam y -> base -x) to base x ~ 0.20, mid-annulus for the SO-101.
+box_px: [301, 308, 339, 346]
+box_height_m: 0.05

@@ -8,6 +8,10 @@ joint_signs: [-1, -1, -1, -1, -1, -1]
 ee_frame: gripper_end
 n_joints: 6
 home_q: [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
+# Present-to-human pose: home leaned toward the operator's side. Was a
+# hardcoded default inside skill_handover; moved here because a keyframe for
+# one arm is not a keyframe for another.
+handover_q: [0.5, 1.2, 1.2, 0.0, 0.75, 0.0]
 
 gripper:
   open_pos: 0.0

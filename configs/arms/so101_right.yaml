@@ -1,0 +1,41 @@
+# SO-101, RIGHT arm of a two-arm setup (mock backend, no hardware).
+#
+#   python -m cascade.apps.demo --arms so101_left,so101_right \
+#       --task "pick and place the pink object"
+#
+# Pairs with so101_left.yaml -- read that file's header first: it carries the
+# full statement of what this partition does and does not guarantee (no
+# inter-arm collision check; no transform between the two base frames; the
+# boxes only describe disjoint volumes under an unverified mounting
+# assumption).
+extends: so101
+
+type: mock
+
+gripper:
+  open_pos: 0.60
+  closed_pos: -0.15
+  max_width_m: 0.055
+
+overrides:
+  safety:
+    # This arm owns y <= 0 in its own base frame: the mirror of so101_left.
+    workspace:
+      min: [-0.15, -0.36, -0.02]
+      max: [0.40, 0.02, 0.40]
+    table_z: 0.0
+    max_joint_vel: 0.8
+    # The left arm's half as a wall (mirror of so101_left's keep_out).
+    keep_out:
+      - min: [-0.60, 0.02, -0.10]
+        max: [0.60, 0.60, 0.60]
+  grasp:
+    topdown_z_max: 0.05
+    pregrasp_offset_m: 0.03
+    exempt_radius_m: 0.07
+    # so101.yaml's own drop zone already sits in this half (r = 0.233).
+    drop_zone: [0.20, -0.12]
+  workspace_filter:
+    base_radius_m: 0.08
+    max_extent_m: 0.20
+    reach_m: 0.48

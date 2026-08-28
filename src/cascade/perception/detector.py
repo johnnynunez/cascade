@@ -57,14 +57,16 @@ class OpenVocabDetector(Detector):
         self,
         model_path: str,
         classes: list[str] | None = None,
-        device: str = "cuda:0",
+        device: str = "auto",
         conf: float = 0.25,
         prompt_free: bool = True,
     ):
         from ultralytics import YOLO  # lazy heavy import
 
+        from ..device import resolve_device
+
         self._model_path = str(model_path)
-        self._device = device
+        self._device = resolve_device(device, what="detector")
         self._conf = conf
         self._classes: list[str] = []
         self._filter_only = False  # closed-set model: filter by label instead

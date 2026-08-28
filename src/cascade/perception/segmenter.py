@@ -72,10 +72,22 @@ class PointSegmenter:
     should not pay for the weights.
     """
 
-    def __init__(self, model_path: str = DEFAULT_MODEL, device: str = "cuda:0"):
+    def __init__(self, model_path: str = DEFAULT_MODEL, device: str = "auto"):
         self._model_path = model_path
-        self._device = device
+        self._device_spec = device
+        self._device: str | None = None
         self._model = None
+
+    @property
+    def device(self) -> str:
+        """Resolved device. Deferred like the weights: probing torch costs
+        seconds, and a booth that never uses pixel addressing should not pay
+        for it at startup."""
+        if self._device is None:
+            from ..device import resolve_device
+
+            self._device = resolve_device(self._device_spec, what="segmenter")
+        return self._device
 
     def _load(self):
         if self._model is None:
@@ -88,7 +100,7 @@ class PointSegmenter:
         """Boolean mask of the object at (u, v), full frame resolution."""
         model = self._load()
         res = model(frame.rgb, points=[[int(u), int(v)]], labels=[1],
-                    verbose=False)
+                    device=self.device, verbose=False)
         if not res or res[0].masks is None or len(res[0].masks.data) == 0:
             raise SkillError(f"segmenter returned no mask at ({u}, {v})")
 

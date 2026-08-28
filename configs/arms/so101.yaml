@@ -1,0 +1,168 @@
+# The Robot Studio SO-101 follower arm (Standard Open Arm 101), 5 joints +
+# a single-hinge gripper, Feetech STS3215 servos on a USB serial bus.
+#
+# This is the REAL-HARDWARE profile. For a hardware-free run use:
+#   --arm so101_mock --camera mock_small    kinematic mock, no deps (tests, CI)
+#   --arm so101_mujoco                      MuJoCo physics (needs `mujoco`)
+#
+# !!! UNVERIFIED ON HARDWARE. Every number below is derived from the vendored
+# URDF and the MuJoCo Menagerie collision geometry (see the measurements quoted
+# inline), not from a live arm. Before the first grasp, at minimum:
+#   1. python scripts/diag_so101.py --port <port>     read-only: IDs, angles
+#   2. python scripts/diag_so101.py --port <port> --jog 1
+#      to confirm each joint's SIGN against the URDF's positive axis
+#   3. re-measure the gripper travel and set gripper.* accordingly
+# The same caution applies to the reBot profiles in this directory; it is not
+# a statement that this arm is less supported.
+
+type: so101
+
+# ── transport ────────────────────────────────────────────────────────────
+# Feetech STS3215 servos speak the SCS/STS protocol over a half-duplex TTL
+# bus behind a USB adapter (the Waveshare board in the official BOM).
+#   Linux  /dev/ttyACM0 (or a /dev/serial/by-id/... path, which is stable
+#          across reboots -- prefer it once you know the adapter)
+#   macOS  /dev/tty.usbmodem*
+#   Windows COM3
+port: /dev/ttyACM0
+baudrate: 1000000        # STS3215 factory default
+servo_ids: [1, 2, 3, 4, 5]   # shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll
+gripper_id: 6
+read_timeout_ms: 100
+# Servo resolution: 4096 counts over 360 deg. `counts_per_rev` and `center`
+# together define the count <-> radian map; the STS3215 homes to 2048 mid-scale.
+counts_per_rev: 4096
+center_counts: 2048
+# Per-joint wire sign, LOCAL joint angle -> servo count direction. UNVERIFIED:
+# flip an entry to -1 if scripts/diag_so101.py --jog shows a joint moving
+# opposite to the URDF's positive axis. Getting this wrong drives the arm the
+# wrong way on the FIRST motion, which is why the jog step above is not
+# optional.
+wire_signs: [1, 1, 1, 1, 1]
+# Torque limit as a fraction of the servo maximum, applied to every joint on
+# connect. Deliberately low: an STS3215 at full torque will happily fold a
+# printed PLA link against a hard stop.
+torque_limit: 0.5
+
+# ── model ────────────────────────────────────────────────────────────────
+model: ${assets}/urdf/so101/so101.urdf
+ee_frame: gripper_frame_link
+n_joints: 5
+
+# NOT mirrored: this URDF is authored in the same convention the servos use, so
+# every q constant in this profile is directly commandable (unlike the reBot
+# assets, which need [-1]*6). Keep them all +1 unless you re-vendor the model.
+#
+# TRAP if you ever do need a -1 here: `usd_model.apply_joint_signs` walks the
+# movable joints in DOCUMENT order, and this URDF declares them BACKWARDS
+# (gripper first, shoulder_pan last) relative to the kinematic order Pinocchio
+# builds. A sign list would therefore be applied to the wrong joints. All-ones
+# never invokes that path, which is the only reason it is safe today.
+joint_signs: [1, 1, 1, 1, 1]
+
+# ── 5 DoF, but not where you would expect ───────────────────────────────
+# No `ik_task_weights` here on purpose. The obvious reading -- "5 joints cannot
+# hold a 6-DoF pose, so free the yaw" -- is wrong for this arm. MEASURED on the
+# vendored URDF: wrist_roll's axis is exactly collinear with the tool approach
+# (rolling it turns the approach by 0.00 deg and moves the TCP 2-6 mm), so for a
+# VERTICAL approach the roll is spent entirely on jaw yaw and the chain acts
+# like a full-pose arm: pan -> azimuth, lift/elbow/flex -> radius/height/pitch,
+# roll -> yaw. Plain 6-DoF IK solves top-down targets at 0.94 over the reachable
+# region, so the harness keeps a real orientation gate.
+# The DOF it genuinely lacks only bites for a TILTED approach, whose azimuth is
+# then locked to the arm's own working plane. Nothing here asks for that.
+
+# Same tool-frame convention as the LIBERO Panda: columns [open, third,
+# approach]. MEASURED from the Menagerie fingertip geometry expressed in this
+# URDF's TCP frame -- the fingers run along col2 (approach) and the tip-to-tip
+# separation is within 3.5 deg of col0 across the whole useful aperture, with
+# col1 the hinge axis. See obb_grasp._yaw_rotation.
+tool_axis_order: open_down
+
+# ── poses ────────────────────────────────────────────────────────────────
+# home_q is a genuine top-down pose (approach 0.05 deg off vertical) with the
+# TCP at [0.200, 0.006, 0.060], r = 0.200, and 0.228 rad of margin on the
+# tightest joint. Parking LOW is deliberate on this arm: disconnect() cuts
+# servo torque and the arm drops, so 60 mm of fall beats the reBot-style raised
+# park.
+#
+# It also doubles as the IK seed for every grasp (runtime._plan_grasps re-homes
+# first), and the seed is load-bearing here: seeded from this pose, top-down
+# grasp IK succeeds at 0.944 across r = 0.12..0.28 / z = 0.02..0.04.
+home_q: [0.0, -0.24, 0.38, 1.43, -0.96]
+# Home with the base yawed toward the operator; the approach stays vertical
+# because joint 0 rotates about world z. DERIVED, not tuned on hardware.
+handover_q: [0.5, -0.24, 0.38, 1.43, -0.96]
+
+# ── gripper ──────────────────────────────────────────────────────────────
+gripper:
+  # !!! DERIVED FROM GEOMETRY, NOT MEASURED ON HARDWARE.
+  #
+  # This is a single-hinge "beak" jaw, not parallel fingers, so the opening is
+  # not linear in motor angle and the jaw retracts along the approach as it
+  # opens. Gap between the fingertip geoms vs. gripper angle, computed from the
+  # Menagerie collision spheres:
+  #
+  #   q (rad)   gap across the grasp   retraction along approach
+  #    -0.15            4.8 mm                 -2.3 mm     (hard stop, closed)
+  #     0.00           16.3 mm                 +0.4 mm
+  #     0.30           39.9 mm                 +0.5 mm
+  #     0.60           62.4 mm                 -6.4 mm     <- open_pos
+  #     1.00           87.5 mm                -25.4 mm
+  #     1.745         107.2 mm                -79.3 mm     (hard stop, open)
+  #
+  # open_pos stops at 0.60 because past it the jaw swings up out of the grasp
+  # plane faster than it opens (retraction grows 4x from 0.6 to 1.0), which
+  # costs approach clearance rather than buying width.
+  open_pos: 0.60
+  closed_pos: -0.15
+  # Below the 62 mm geometric gap at open_pos: the framework maps angle to width
+  # LINEARLY (see runtime._gripper_width_frac) and this jaw is not linear, so a
+  # conservative value keeps the air-grasp check from reading a partly-closed
+  # jaw as "holding something". Raise it only after measuring on the arm.
+  max_width_m: 0.055
+
+# ── rig geometry this arm implies ────────────────────────────────────────
+# Deep-merged over demo.yaml by load_demo_config. demo.yaml describes a reBot
+# B601 whose top-down envelope is roughly this arm's TOTAL reach, so inheriting
+# those values would put every grasp target outside what this wrist can orient.
+#
+# The governing fact, MEASURED (solve rate for a vertical-approach TCP pose,
+# seeded from home_q, over azimuth +-90 deg and all jaw yaws):
+#
+#   by radius at z = 0.03      by height at r = 0.12..0.28
+#     r 0.08  0.29              z 0.01  0.97
+#     r 0.10  0.88              z 0.03  0.95
+#     r 0.12  0.98              z 0.04  0.93
+#     r 0.14  1.00              z 0.05  0.89
+#     r 0.20  1.00              z 0.06  0.82
+#     r 0.24  1.00              z 0.07  0.71
+#     r 0.26  0.93              z 0.08  0.50
+#     r 0.28  0.64              z 0.09  0.00   <- hard ceiling
+#     r 0.30  0.31              z 0.10  0.00
+#     r 0.32  0.00
+#
+# So the usable top-down region is an annulus r = 0.12..0.28 m under a 0.09 m
+# ceiling. An AABB cannot express the hole in the middle; IK failure rejects the
+# inner region, which is the honest gate.
+overrides:
+  safety:
+    workspace:
+      min: [-0.15, -0.36, -0.02]
+      max: [0.40, 0.36, 0.40]
+    table_z: 0.0            # base plate sits ON the work surface
+    # Printed PLA links and 7.4 V servos: a third of the reBot's cap.
+    max_joint_vel: 0.8
+  grasp:
+    # The 0.09 m ceiling has to cover the WHOLE descent, so the grasp ceiling
+    # and the pregrasp offset are budgeted together: 0.05 + 0.03 = 0.08 keeps
+    # the pregrasp inside the band (0.50 at the very top, 0.89 at the bottom).
+    # A reBot-sized 0.12 m offset would put every pregrasp at 0% solvable.
+    topdown_z_max: 0.05
+    pregrasp_offset_m: 0.03
+    exempt_radius_m: 0.07   # a 55 mm jaw, against the reBot's 0.15
+    drop_zone: [0.20, -0.12]   # r = 0.233, verified solvable at grasp height
+  workspace_filter:
+    base_radius_m: 0.08     # this base is smaller than the reBot's
+    max_extent_m: 0.20      # a 55 mm jaw is not picking up furniture
+    reach_m: 0.48           # MEASURED max horizontal TCP radius 0.479 m

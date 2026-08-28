@@ -141,7 +141,7 @@ def build_wrc_runtime(env, task_language: str, perception: str = "oracle"):
         "type": "yoloe",
         "model": str(_Path(__file__).resolve().parents[2] / "models"
                      / "yoloe-11s-seg.pt"),
-        "device": "cuda:0",
+        "device": "auto",
         "conf": 0.25,
         "prompt_free": True,
     }

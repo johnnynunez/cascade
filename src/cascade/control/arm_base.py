@@ -1,7 +1,13 @@
 """Arm interface. All motion is streamed as min-jerk joint waypoints so the
 safety harness can vet every intermediate configuration, and completion is
-based on feedback (mock: kinematic state; real: RobStride mechPos param
-reads), never on sleep(duration) like the baseline.
+based on feedback (mock: kinematic state; RobStride: mechPos param reads;
+Feetech: Present_Position reads; MuJoCo: qpos), never on sleep(duration) like
+the baseline.
+
+A backend implements six methods and declares its own DOF. Nothing above this
+layer knows which robot is attached: skills hold a SafeArm, and the arm's joint
+count, home poses, tool-frame convention and reach come from its profile in
+configs/arms/ (see cascade/config.py's note on profile `overrides`).
 """
 
 from __future__ import annotations
@@ -21,8 +27,13 @@ def min_jerk(s: float) -> float:
 
 
 class ArmBase(abc.ABC):
-    """A 6-DOF arm + 1 gripper motor behind a uniform, feedback-based API."""
+    """An N-joint arm + 1 gripper motor behind a uniform, feedback-based API."""
 
+    #: Controlled arm joints, EXCLUDING the gripper. Shipped arms run 5
+    #: (SO-101), 6 (reBot B601) and 7 (Panda in LIBERO); the class default is
+    #: only a fallback and every backend should take it from its profile's
+    #: `n_joints`, because a wrong value silently truncates or broadcasts each
+    #: commanded pose instead of failing.
     n_joints = 6
     #: settle tolerance (rad). Real arms hold with pure PD (no gravity
     #: feedforward), so steady-state droop under payload needs headroom;
@@ -127,4 +138,15 @@ def make_arm(cfg: Cfg, kinematics=None) -> ArmBase:
         from .isaac_arm import IsaacArm
 
         return IsaacArm(cfg, kinematics)
-    raise ValueError(f"unknown arm type {kind!r} (mock|rebot_rs|rebot_rs_mb|isaac)")
+    if kind == "mujoco":
+        from .mujoco_arm import MujocoArm
+
+        return MujocoArm(cfg, kinematics)
+    if kind == "so101":
+        from .feetech_arm import FeetechArm
+
+        return FeetechArm(cfg)
+    raise ValueError(
+        f"unknown arm type {kind!r} "
+        f"(mock|rebot_rs|rebot_rs_mb|isaac|mujoco|so101)"
+    )

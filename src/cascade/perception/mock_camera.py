@@ -24,13 +24,38 @@ def synthetic_tabletop(
     table_depth_m: float = 0.6,
     box_px: tuple[int, int, int, int] = (280, 200, 360, 260),
     box_height_m: float = 0.05,
+    box_sides: bool = True,
 ) -> Frame:
-    """A camera looking straight down at a table with one red box."""
+    """A camera looking straight down at a table with one red box.
+
+    `box_sides` renders a one-pixel depth ramp around the box footprint so the
+    prop reads as a SOLID with height rather than an infinitely thin lid.
+    A perfectly flat lid (the old behaviour) gives the segmenter a cloud whose
+    z-extent is exactly 0, so `grounding` places the object's centre ON the top
+    face: for a 5 cm box that is 2.5 cm high, the planner then aims the jaws at
+    the upper corner and nudges the prop away instead of closing around it
+    (measured in MuJoCo: perceived z = 0.045 vs true centre z = 0.025, and a
+    2.29 cm shove). The ramp costs one pixel of footprint and makes the
+    reported extent match the object.
+    """
     rgb = np.full((height, width, 3), 190, dtype=np.uint8)  # light gray table
     x0, y0, x1, y1 = box_px
     rgb[y0:y1, x0:x1] = (40, 40, 200)  # red box (BGR)
     depth = np.full((height, width), table_depth_m, dtype=np.float32)
     depth[y0:y1, x0:x1] = table_depth_m - box_height_m
+    if box_sides and box_height_m > 0:
+        # One-pixel skirt at mid-height: a straight-down camera cannot see a
+        # vertical face, so without this the depth image carries no evidence
+        # that the prop has any thickness at all.
+        mid = table_depth_m - box_height_m / 2.0
+        depth[max(y0 - 1, 0), x0:x1] = mid
+        depth[min(y1, height - 1), x0:x1] = mid
+        depth[y0:y1, max(x0 - 1, 0)] = mid
+        depth[y0:y1, min(x1, width - 1)] = mid
+        rgb[max(y0 - 1, 0), x0:x1] = (40, 40, 200)
+        rgb[min(y1, height - 1), x0:x1] = (40, 40, 200)
+        rgb[y0:y1, max(x0 - 1, 0)] = (40, 40, 200)
+        rgb[y0:y1, min(x1, width - 1)] = (40, 40, 200)
     fx = 600.0
     K = np.array(
         [[fx, 0, width / 2], [0, fx, height / 2], [0, 0, 1]], dtype=np.float64

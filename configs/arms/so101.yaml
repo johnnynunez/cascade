@@ -167,6 +167,12 @@ overrides:
     topdown_z_max: 0.05
     pregrasp_offset_m: 0.03
     exempt_radius_m: 0.07   # a 55 mm jaw, against the reBot's 0.15
+    # Jaw clearance the OBB planner adds around the object. demo.yaml's 15 mm
+    # default is scaled to the reBot's 90 mm jaw; on this 55 mm jaw it is 27%
+    # of the whole travel, and against a 35 mm prop it commands 52.6 mm of
+    # closure for a 34.8 mm object -- the jaws never reach it. 6 mm keeps a
+    # real approach margin at this scale (measured: closes on the prop).
+    width_pad_m: 0.006
     drop_zone: [0.20, -0.12]   # r = 0.233, verified solvable at grasp height
     # THIS ARM'S GRIPPER, for GraspGen-X cross-embodiment conditioning.
     # demo.yaml's default sweep describes the reBot's 90 mm parallel jaw;

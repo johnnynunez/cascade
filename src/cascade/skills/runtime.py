@@ -632,6 +632,13 @@ class SkillRuntime:
             table_z=float(self.cfg.safety.get("table_z", 0.0)),
             max_width_m=self._max_width,
             depth_fraction=float(gcfg.get("depth_fraction", 0.5)),
+            # Jaw clearance around the object. The 15 mm default is sized for
+            # the reBot's 90 mm jaw (17% of travel); on a 55 mm SO-101 jaw the
+            # same pad is 27%, and on a 35 mm prop it commands 52.6 mm of
+            # closure for a 34.8 mm object -- the jaws stop before touching
+            # and the run reports an air grasp while the prop is nudged aside
+            # (measured in MuJoCo). Per-arm, like every other jaw dimension.
+            width_pad_m=float(gcfg.get("width_pad_m", 0.015)),
             axis_order=self._tool_axis_order,
         )
         if str(gcfg.get("backend", "obb")) != "graspgenx":

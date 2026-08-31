@@ -45,10 +45,22 @@ mj_actuators: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
 mj_gripper_actuator: gripper
 
 # Physics steps advanced per streamed waypoint. The waypoint stream runs at
-# 50 Hz (20 ms) and this MJCF sets timestep="0.005", so 4 steps is one
-# real-time tick. Raise it to let contacts settle further per command, at the
-# cost of the sim running slower than wall clock.
-substeps: 4
+# 50 Hz (20 ms) and this MJCF sets timestep="0.005", so 4 steps is exactly one
+# real-time tick -- and exactly zero margin for a joint that cannot track its
+# setpoint in one tick.
+#
+# MEASURED: at the grasp pose (arm extended to r = 0.20) `elbow_flex` pins its
+# actuator at 2.94 N.m, the whole forcerange the Menagerie model gives it, and
+# lands 0.143 rad short while the other four joints settle to ~0.002. Gravity
+# alone only asks 0.37 N.m there; the rest goes into the position servo's own
+# spring. With 4 substeps the sim gives up before the joint arrives and the
+# skill reports "did not settle at grasp pose".
+#
+# 12 substeps (60 ms simulated per waypoint) lets the saturated joint converge.
+# The run is then slower than wall clock during motion, which is the right
+# trade for a physics rehearsal: the alternative is editing the vendored MJCF's
+# force limits, i.e. simulating a stronger robot than the real SO-101.
+substeps: 12
 
 # MuJoCo tracks a position setpoint with a finite-gain actuator, so unlike the
 # kinematic mock it does NOT arrive exactly. Same reason the Isaac profile

@@ -273,12 +273,37 @@ def build_runtime(
 
     memory = EpisodicMemory(horizon_s=float(cfg.memory.get("horizon_s", 15.0)))
     beliefs = BeliefStore()
+    # Persistent spatial memory (ROADMAP item): the world model survives a
+    # restart, so the robot does not re-discover a table it already mapped and
+    # can answer "where was the mug" on a cold boot. Everything loaded is aged
+    # past the visible horizon, so it reads as `remembered` -- the agent is
+    # never told it can SEE something it has not looked at this session.
+    # Disable with `memory.persist_beliefs: false` (or CASCADE_BELIEFS=0).
+    mcfg = cfg.get("memory", _empty_cfg())
+    beliefs_path = None
+    if _beliefs_persist_enabled(mcfg):
+        beliefs_path = Path(
+            os.environ.get("CASCADE_BELIEFS_PATH")
+            or str(mcfg.get("beliefs_path") or (PACKAGE_ROOT / "runs" / "beliefs.json"))
+        )
+        try:
+            n = beliefs.load(
+                beliefs_path,
+                max_age_s=float(mcfg.get("beliefs_max_age_s",
+                                         BeliefStore.DEFAULT_MAX_AGE_S)),
+            )
+            if n:
+                print(f"[cascade] recalled {n} object(s) from {beliefs_path}")
+        except Exception as e:  # noqa: BLE001 - memory must never block startup
+            print(f"[cascade] belief memory not loaded ({e})", file=sys.stderr)
     trace = TraceLogger(run_dir)
     runtime = SkillRuntime(
         rig.primary, watched[0].depth, detector, watched[0].extrinsics,
         kin, safe_arm, memory, beliefs, trace, cfg,
     )
     runtime.rig = rig
+    # Where to persist the world model on shutdown (None = disabled).
+    runtime.beliefs_path = beliefs_path
     # The arm rig hangs off the runtime the same way the camera rig does.
     # `runtime.arm` stays the primary SafeArm, so nothing that predates the
     # rig has to learn about it; a skill called with `arm="<name>"` is
@@ -398,6 +423,16 @@ def shutdown_runtime(runtime, arm) -> None:
     """
     import contextlib
 
+    def _save_beliefs():
+        # Persist the world model FIRST: it is the only step whose input the
+        # later steps destroy, and a failure here must not skip hardware
+        # teardown (contextlib.suppress below covers that).
+        path = getattr(runtime, "beliefs_path", None)
+        if path is None:
+            return
+        n = runtime.beliefs.save(path)
+        print(f"[cascade] remembered {n} object(s) -> {path}")
+
     def _disconnect_arms():
         rig = getattr(runtime, "arm_rig", None)
         if rig is not None and len(rig) > 1:
@@ -406,6 +441,7 @@ def shutdown_runtime(runtime, arm) -> None:
             arm.disconnect()
 
     for step in (
+        _save_beliefs,
         lambda: runtime.watcher.stop() if runtime.watcher is not None else None,
         lambda: runtime.stream_server.stop() if getattr(runtime, "stream_server", None) else None,
         lambda: runtime.viewer.stop() if getattr(runtime, "viewer", None) else None,
@@ -420,6 +456,19 @@ def _empty_cfg():
     from ..config import Cfg
 
     return Cfg({})
+
+
+def _beliefs_persist_enabled(mcfg) -> bool:
+    """`memory.persist_beliefs`, with CASCADE_BELIEFS as the override.
+
+    Same shape as the other kill switches in this file (CASCADE_STREAM): an
+    env var wins over the config so a booth machine can be pinned from the
+    launcher without editing YAML.
+    """
+    env = os.environ.get("CASCADE_BELIEFS", "").strip().lower()
+    if env:
+        return env not in ("0", "false", "no", "off")
+    return bool(mcfg.get("persist_beliefs", True))
 
 
 def _make_detector(cfg):

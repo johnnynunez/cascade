@@ -249,3 +249,6 @@ Log/
 
 # macOS
 .DS_Store
+
+# MuJoCo renderer scratch log (written into the CWD on some GL paths)
+MUJOCO_LOG.TXT

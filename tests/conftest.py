@@ -44,6 +44,30 @@ needs_pin_so101 = pytest.mark.skipif(
 
 
 @pytest.fixture(autouse=True)
+def _isolate_persistent_beliefs(monkeypatch, tmp_path):
+    """No test may read or write the SHARED persistent world model.
+
+    `build_runtime` now restores beliefs from `runs/beliefs.json` (or
+    `CASCADE_BELIEFS_PATH`) so the world model survives a restart. Without this
+    fixture two things go wrong, and both were observed:
+
+    * a developer's real run leaks into the suite -- a remembered object at a
+      position where the mock scene has nothing makes `pick_and_place` target
+      empty table, fail, and escalate to the LLM, which broke
+      `test_orchestrator_reflex_path_never_calls_llm` with an error that looks
+      nothing like its cause;
+    * tests leak into each other, and into the developer's real memory file.
+
+    Persistence itself is covered directly in
+    tests/test_persistent_memory_curriculum.py against a tmp_path, which is
+    where that behaviour belongs. Everything else runs with a private, empty
+    world -- opt back in per test with monkeypatch if you need it.
+    """
+    monkeypatch.setenv("CASCADE_BELIEFS_PATH", str(tmp_path / "beliefs.json"))
+    monkeypatch.delenv("CASCADE_BELIEFS", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _no_ambient_booth(monkeypatch):
     """A booth-day shell (CASCADE_BOOTH=1 exported) must not silently rerun the
     whole suite under booth tuning — a green run has to certify DEV

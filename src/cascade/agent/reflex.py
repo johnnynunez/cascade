@@ -126,7 +126,19 @@ _RULES: list[tuple[re.Pattern, str]] = [
                    r"(?P<dir>forward|back|left|right|up|down)(?:\s+a\s+(?:bit|little))?$"),
         "move_relative",
     ),
-    (re.compile(r"^(?:go\s+home|move\s+home|home|park(?:\s+the\s+arm)?)$"), "home"),
+    (
+        re.compile(
+            r"^(?:go\s+home|move\s+home|home|park(?:\s+the\s+arm)?|"
+            # Spanish: every other rule in this grammar is bilingual, and the
+            # curriculum tier made the gap visible -- "saluda y luego vuelve a
+            # casa" split correctly into two clauses but the second one had no
+            # rule, sending a pair of reflexes to the LLM.
+            r"(?:vuelve|ve|regresa|vete)\s+a\s+casa|a\s+casa|"
+            r"(?:vuelve|regresa)\s+al?\s+(?:inicio|origen)|"
+            r"aparca(?:\s+el\s+brazo)?)$"
+        ),
+        "home",
+    ),
     (
         re.compile(
             r"^(?:look(?:\s+around)?|observe|scan|"

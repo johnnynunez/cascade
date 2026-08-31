@@ -148,6 +148,7 @@ capability, because none of them are wanted on all hosts:
 | `sim-warp` | `mujoco-warp`, `warp-lang` | the same MJCF on the MuJoCo Warp GPU runtime (`engine: warp`); CPU-capable, so it installs anywhere |
 | `arm-feetech` | `pyserial` | SO-101 and other Feetech-servo arms |
 | `arm` | `motorbridge` | RobStride over SocketCAN |
+| `grasping` | `pyzmq`, `msgpack-numpy` | the GraspGen-X / nvblox **client** wire (`grasp.backend: graspgenx`, the default). Model stacks stay in their own venvs and processes, so cascade never imports torch for them |
 
 **torch is deliberately not a dependency.** The right build is per-platform
 (CUDA, ROCm, Jetson wheels, MPS, CPU) and pinning one here would fight the
@@ -207,9 +208,25 @@ python -m cascade.apps.demo --arms so101_left,so101_right --camera mock_small --
 python -m pytest tests/ -q
 python -m pytest tests/ -m hardware -q     # needs a RealSense camera (profile: l515) + can0 up (read-only)
 
-# learned grasps (the default backend) need the GraspGen-X server running;
-# without it grasping silently falls back to the analytic OBB planner
+# learned grasps (the DEFAULT backend) need two things: the wire deps and a
+# server. Without the deps the client cannot even be built, so every grasp
+# silently falls back to the analytic OBB planner:
+uv pip install -e '.[grasping]'            # pyzmq + msgpack-numpy
+
+# ...then a server. The real one needs an NVIDIA GPU, its own venv and
+# downloaded checkpoints:
 scripts/serve_graspgenx.sh
+
+# ...or, on a machine without CUDA (laptop, booth box, CI), a protocol-
+# compatible stub that plans analytically. Same wire format, so the whole
+# GraspGen-X client path runs anywhere -- but it is NOT the learned model and
+# says nothing about grasp quality:
+python scripts/serve_graspgenx_stub.py
+
+# occupancy/collision map (optional, `occupancy.enabled: true`). Uses the same
+# wire deps as above; the bridge ships in this repo and picks Open3D on
+# CUDA:0 / CPU:0, or a pure-numpy fallback:
+python scripts/serve_nvblox_bridge.py
 
 # real SO-101 over USB serial. CHECK THE JOINT SIGNS FIRST -- read-only scan,
 # then a single-joint jog that tells you which wire_signs entry to flip:
@@ -270,6 +287,12 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
   GraspGen-X ZMQ server, falling back to analytic 3D OBB grasps whenever the
   server is down. Candidates are re-ranked by a persisted grasp-outcome
   memory, then vetted against IK *and* the safety-harness geometry.
+  The model is conditioned on the gripper as a **swept volume**, so an arm
+  whose gripper differs from `demo.yaml`'s reBot default (90 mm jaw) must
+  override `grasp.graspgenx.sweep` in its own profile — see
+  [`configs/arms/so101.yaml`](configs/arms/so101.yaml) (55 mm). Inheriting the
+  wrong sweep returns grasps too wide to close, and it looks like poor model
+  quality rather than a config error.
 - **[Control](src/cascade/control/)** is self-contained Pinocchio FK/IK on
   whichever URDF the arm profile names, damped-least-squares with random
   restarts, and min-jerk joint streaming with feedback-based settling —

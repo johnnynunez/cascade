@@ -168,6 +168,23 @@ overrides:
     pregrasp_offset_m: 0.03
     exempt_radius_m: 0.07   # a 55 mm jaw, against the reBot's 0.15
     drop_zone: [0.20, -0.12]   # r = 0.233, verified solvable at grasp height
+    # THIS ARM'S GRIPPER, for GraspGen-X cross-embodiment conditioning.
+    # demo.yaml's default sweep describes the reBot's 90 mm parallel jaw;
+    # inheriting it here would ask the model to plan grasps for a jaw 63%
+    # wider than the one actually fitted, and every returned grasp would be
+    # too wide to close. Numbers below follow the gripper block above:
+    #   extents_open  = jaw span at open_pos (62.4 mm measured) x pad
+    #   extents_mid   = span at the mid-travel pose
+    # The single-hinge "beak" is not a parallel jaw, so the swept box is an
+    # approximation -- same simplification `max_width_m` already makes.
+    graspgenx:
+      sweep:
+        extents_open: [0.055, 0.016, 0.030]
+        offset_open: [0.0, 0.0, 0.0]
+        extents_mid: [0.028, 0.016, 0.030]
+        offset_mid: [0.0, 0.0, 0.0]
+        gripper_type: 0
+        fingertip_depth: 0.015
   workspace_filter:
     base_radius_m: 0.08     # this base is smaller than the reBot's
     max_extent_m: 0.20      # a 55 mm jaw is not picking up furniture

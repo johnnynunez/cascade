@@ -229,5 +229,14 @@ def load_demo_config(
             _deep_merge(base, ov)
         base["arm"] = {k: v for k, v in prof.items() if k != "resolved"}
         prof["resolved"] = base
+        # A sim arm that asks for a camera-matched prop needs the camera
+        # profile at construction time, but the arm is built before the
+        # camera. Plant THIS arm's view of the camera on the profile so the
+        # scene generator cannot read a different camera than the one the
+        # demo will actually open. Opt-in: absent unless the profile sets
+        # `mj_prop_from_camera: true`. See sim/demo_scene.py.
+        if prof.get("mj_prop_from_camera") is True:
+            cams = base.get("cameras")
+            prof["mj_prop_from_camera"] = (cams[0] if cams else base.get("camera"))
     main["arms"] = arm_profiles
     return Cfg(main)

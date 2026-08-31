@@ -20,6 +20,20 @@ type: mujoco
 # mesh set to load). `scene.xml` wraps so101.xml with a floor and a light.
 mjcf: ${assets}/mjcf/so101/scene.xml
 
+# scene.xml has NO prop -- so pairing it with a synthetic camera (mock,
+# mock_small) makes the demo perceive a cube that does not exist in physics:
+# IK solves, the arm descends, and the jaws close on air, reported as
+# "air grasp: gripper closed fully, object not held" on every attempt.
+#
+# This puts a matching prop in the scene, with its pose DERIVED from whichever
+# camera profile the run opens (box_px + extrinsics), so the physics and the
+# pixels cannot drift apart. Harmless with a real camera on a real rig: point
+# `mjcf:` at that scene and set this to false.
+#
+# NOT the shipped scene_box.xml: its box sits at x = 0.50, well outside this
+# arm's envelope (drop zone r = 0.233, grasp ceiling z = 0.05).
+mj_prop_from_camera: true
+
 # MuJoCo joint names, in the order this profile's q vector uses. Named rather
 # than indexed because the scene wrapper can add joints (a free-floating prop)
 # and any index would then silently shift.

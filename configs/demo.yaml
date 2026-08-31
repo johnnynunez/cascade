@@ -46,11 +46,18 @@ grasp:
     min_score: 0.0
     timeout_ms: 8000
     tip_offset_m: 0.098     # empirical: model keeps its base-frame convention ~10 cm behind the jaw center even with centered sweep boxes
-    # reBot RS parallel-jaw gripper as a swept volume (cross-embodiment
-    # conditioning; frame: origin at jaw center, +Z approach, +X closing).
-    # Derived from the RS URDF finger geometry (max open 0.09 m, pad
-    # ~0.02 x 0.045 m); refine with the sim measurement if regrasping
-    # quality warrants it.
+    # DEFAULT GRIPPER GEOMETRY = the reBot RS parallel jaw, because demo.yaml
+    # describes the reference rig. This is a swept volume for cross-embodiment
+    # conditioning (frame: origin at jaw center, +Z approach, +X closing),
+    # derived from the RS URDF finger geometry (max open 0.09 m, pad
+    # ~0.02 x 0.045 m).
+    #
+    # ANY ARM WITH A DIFFERENT GRIPPER MUST OVERRIDE THIS in its own profile,
+    # exactly like `grasp.topdown_z_max` and `grasp.drop_zone` already do.
+    # Leaving it inherited asks GraspGen-X to plan for a 90 mm jaw on a robot
+    # whose jaw is 55 mm -- it returns grasps too wide to close, and the
+    # failure looks like bad model quality rather than a config error.
+    # See configs/arms/so101.yaml.
     sweep:
       extents_open: [0.090, 0.020, 0.045]
       offset_open: [0.0, 0.0, 0.0]

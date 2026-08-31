@@ -203,6 +203,41 @@ Open follow-ups from this work:
   newton`. File against isaac-sim/IsaacSim with the probe reports in
   /tmp/probe_newton_*.json. Demo manipulation stays on PhysX (full battery
   green) until fixed.
+  - **RE-TESTED 2026-08-31 on Newton 1.5.1 — the contact bug does NOT
+    reproduce.** Correcting the earlier note in this file: the package is
+    `newton` (PyPI, v1.5.1), not `newton-physics` (a stale 1.0.0 squatter),
+    and `pip install "newton[examples]"` works on macOS arm64. `SolverMuJoCo`
+    also runs WITHOUT CUDA — Warp's CPU device is enough — so this was
+    testable on a laptop all along. Measured here (`mujoco` 3.11.0, Warp
+    1.17.0, device `cpu:arm`):
+
+    | symptom (2026-07-19) | Newton 1.5.1 result |
+    |---|---|
+    | constant +3.7 cm float, box-vs-box | **−0.03 mm** — rests exactly at contact |
+    | fingers pass through objects | **0.3–0.8 mm** penetration at 2–10 N, 12 contacts registered |
+    | boot NaN | none; all states finite |
+
+    The finger test drives two prismatic-actuated fingers onto a 6 cm box
+    commanding 0.09 m of travel where contact is at 0.06 m, so a pass-through
+    would show as the full 0.09. It stops at 0.0603 m. Penetration grows to
+    70 mm only when the drive is pushed to 50 N against a 50 g box, i.e. the
+    solver is compliant under absurd force, which is not the reported bug.
+
+    Two API traps that produced FALSE PASSES while writing that probe, worth
+    knowing before anyone re-runs it: (1) `add_body()` already creates a FREE
+    joint, so adding a prismatic joint on top makes a parallel LOOP joint that
+    MuJoCo silently drops ("no supported equality constraint mapping") — the
+    actuator then does nothing and the fingers never move, which reads as
+    "stopped on the box". Articulated links need `add_link()` +
+    `add_articulation(joints)`. (2) A joint with no `parent_xform` is anchored
+    at the world origin, so both fingers start inside the box.
+
+    STILL OPEN: this is a synthetic box-and-fingers scene, NOT the reBot Isaac
+    asset with its custom fixed-joint stack, and not the "Triangle pair buffer
+    overflowed" mesh path. Before flipping the demo default off PhysX, run
+    `scripts/physics_probe.py --engine newton` against the real asset on the
+    DGX. What is settled is that the blanket claim "manipulation contacts are
+    broken at the PARSER level" no longer holds for current Newton.
 - **Wrist cam follow-ups.** Validate the eye-in-hand extrinsics during a
   real grasp (reproject wrist depth of the target object against the
   physics-truth pose mid-descent); consider serving the wrist stream a
@@ -212,12 +247,18 @@ Open follow-ups from this work:
   banana on some boots and label-flickers the soup can (bottle/toy);
   belief 3D positions themselves verified ±3 mm against physics truth.
 
-- **Persistent spatial memory (proposed 2026-07-18).** BeliefStore
-  already gives in-session object permanence (visible→remembered, EMA
-  fusion, grasp-from-memory fallback); add save/load (JSON with wall-clock
-  timestamps, loaded as "remembered") so the world model survives restarts,
-  plus action↔object consolidation on top of ExperienceMemory. "Even if I
-  don't see it, I roughly know where it is — like a human."
+- **Persistent spatial memory — DONE 2026-08-31.** `BeliefStore.save/load`
+  (JSON, wall-clock timestamps, everything reloaded as "remembered"), wired
+  into `build_runtime`/`shutdown_runtime` and gated by
+  `memory.persist_beliefs` / `CASCADE_BELIEFS`. Verified across two real
+  processes: run 2 prints `recalled 1 object(s)` and the observation count
+  accumulates instead of resetting. The monotonic→wall-clock conversion is
+  the load-bearing part (see CLAUDE.md); `LOADED_MIN_AGE_S` guarantees a
+  restored belief never reads as `visible`, and `_localize`'s existing
+  3 s `belief_fallback_age_s` gate means it can never aim the jaws.
+  STILL OPEN from this item: action↔object consolidation on top of
+  ExperienceMemory (sub-goal-level credit now exists via
+  `FastPlanner.note_subgoal_outcome`, but it keys on TEXT, not on objects).
 - **Straight-up spawn on the local tuned Isaac asset.** Blocked: drive
   travel from q=0 sweeps the props; joint-state authoring and tensor
   teleports NaN the solver on this asset (custom fixed-joint stack).

@@ -1,0 +1,30 @@
+# SO-101 in MuJoCo Warp (MJWarp): the SAME physics as so101_mujoco, on the
+# GPU-optimized runtime Google DeepMind + NVIDIA maintain under the Newton
+# project. One extra line over so101_mujoco -- `engine: warp` -- so the whole
+# kinematic/gripper/workspace contract is shared and cannot drift.
+#
+#   python scripts/fetch_robot_assets.py so101      # one-off: MJCF + meshes
+#   pip install mujoco-warp                          # or: uv pip install -e '.[sim-warp]'
+#   python -m cascade.apps.demo --arm so101_mjwarp --task "pick up the cube"
+#
+# WHEN TO REACH FOR THIS vs so101_mujoco:
+#   - so101_mujoco (engine: mjc, the C runtime) is the right default EVERYWHERE
+#     for a single arm: ~200k steps/s on a laptop, no accelerator needed.
+#   - so101_mjwarp (engine: warp) exists to exercise the exact MJWarp code path
+#     the reference DGX/Jetson boxes accelerate on the GPU. It runs on this Mac
+#     too (Warp's CPU fallback) so the path is developable here -- but for ONE
+#     arm on a CUDA-less build it is ~650x slower than the C engine (measured
+#     ~3.2 ms/step vs 4.9 us/step; still ~1.5x real time, fine for a demo).
+#     MJWarp earns its keep with many worlds on a GPU, not one arm on a CPU.
+#
+# First run on a fresh machine JIT-compiles MJWarp's kernels (~15-30 s, then
+# cached under ~/.cache/warp); connect() logs this so it does not read as a hang.
+extends: so101_mujoco
+
+engine: warp
+
+# Warp device. `auto` (default) picks CUDA when Warp reports it, else CPU -- so
+# this one profile runs on the GPU on the DGX and on the CPU on a laptop with no
+# edit. An explicit `cuda:0` the host lacks WARNS and falls back to CPU rather
+# than killing the run (same contract as the perception device selector).
+device: auto

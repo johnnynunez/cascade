@@ -21,7 +21,12 @@ python -m cascade.apps.demo --arm so101_mock --camera mock_small \
 Eso ejecuta la cascada completa sobre un brazo SO-101 de 5 ejes simulado
 cinemáticamente. Con `pip install -e '.[sim]'` y
 `python scripts/fetch_robot_assets.py so101` puedes cambiar a física real en
-MuJoCo (`--arm so101_mujoco`), que funciona igual en CPU.
+MuJoCo (`--arm so101_mujoco`), que funciona igual en CPU. Y con
+`.[sim-warp]` está `--arm so101_mjwarp`: el MISMO MJCF sobre MuJoCo Warp (el
+runtime de GPU del proyecto Newton). En este Mac corre por la vía CPU de Warp
+—vale para desarrollo, pero para un solo brazo es ~650x más lento que el motor
+C, así que para *ver* la demo usa `so101_mujoco`; `so101_mjwarp` es para trabajar
+sobre la propia ruta MJWarp que la DGX acelera en GPU.
 
 ---
 

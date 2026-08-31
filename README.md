@@ -69,7 +69,8 @@ YAML profile in `configs/arms/` — see
 | profile | robot | DoF | transport | needs |
 |---|---|---|---|---|
 | `so101` | [The Robot Studio SO-101](https://github.com/TheRobotStudio/SO-ARM100) | 5 | Feetech STS3215 over USB serial | `pip install -e '.[arm-feetech]'` — **driver untested on hardware**, see [safety notes](#safety-notes-for-a-live-rig) |
-| `so101_mujoco` | same, in MuJoCo physics | 5 | — | `.[sim]` + `scripts/fetch_robot_assets.py so101` |
+| `so101_mujoco` | same, in MuJoCo physics (C engine) | 5 | — | `.[sim]` + `scripts/fetch_robot_assets.py so101` |
+| `so101_mjwarp` | same, in [MuJoCo Warp](https://github.com/google-deepmind/mujoco_warp) (GPU runtime, CPU-capable) | 5 | — | `.[sim-warp]` + `scripts/fetch_robot_assets.py so101` |
 | `so101_mock` | same, kinematic only | 5 | — | nothing |
 | `so101_left` / `so101_right` | two SO-101s sharing a table | 5 each | — | nothing; see [multi-arm](#multi-arm) |
 | `rebot_rs` | Seeed reBot DevArm B601 (RobStride) | 6 | RobStride over SocketCAN | `.[arm]`, `can0` up |
@@ -111,6 +112,19 @@ The mock and MuJoCo stacks import no accelerator library at all, so
 `--arm so101_mock` works on any of the above with base deps + `.[kinematics]`
 (CI's `minimal-install` job enforces that).
 
+**Two MuJoCo runtimes, one MJCF.** `so101_mujoco` runs the MuJoCo **C engine**
+(`engine: mjc`) — the fast default everywhere: ~200k steps/s for one arm on an
+Apple laptop, no accelerator. `so101_mjwarp` runs the same model on **MuJoCo
+Warp** (`engine: warp`), the GPU runtime Google DeepMind + NVIDIA maintain under
+the [Newton](https://github.com/newton-physics/newton) project, so the identical
+control code exercises the path the DGX/Jetson accelerate. MJWarp is a *batched*
+engine — its throughput is in simulating many worlds on a GPU — so for a single
+arm on a machine with no CUDA (e.g. this Mac, where Warp falls back to CPU) it is
+~650× slower than the C engine but still runs, which is what keeps the GPU path
+developable on a laptop. Pick `so101_mujoco` to run a demo; pick `so101_mjwarp`
+to work on the MJWarp path itself. `device: auto` resolves to CUDA when present,
+CPU otherwise — the same profile runs on both.
+
 ## Install
 
 The package works from a source checkout (config and asset paths derive from
@@ -131,6 +145,7 @@ capability, because none of them are wanted on all hosts:
 | `perception` | `ultralytics` | real cameras / open-vocabulary detection |
 | `llm` | `openai`, `anthropic` | any real brain (also covers Nous Portal and local servers) |
 | `sim` | `mujoco` | hardware-free physics on any host |
+| `sim-warp` | `mujoco-warp`, `warp-lang` | the same MJCF on the MuJoCo Warp GPU runtime (`engine: warp`); CPU-capable, so it installs anywhere |
 | `arm-feetech` | `pyserial` | SO-101 and other Feetech-servo arms |
 | `arm` | `motorbridge` | RobStride over SocketCAN |
 

@@ -28,9 +28,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
       # kinematics (pin) unskips the FK/IK, SO-101, orchestrator-e2e,
       # mcp-server and streaming tests. arm-feetech and sim are tiny and make
-      # the serial + MuJoCo backends importable. The heavy extras
-      # (perception/arm) stay hardware-only.
-      - run: uv sync --extra dev --extra kinematics --extra arm-feetech --extra sim
+      # the serial + MuJoCo backends importable. sim-warp adds the MuJoCo Warp
+      # runtime so the `engine=warp` tests actually STEP (on Warp's CPU
+      # fallback here -- there is no GPU on the runners, which is exactly the
+      # portability claim under test). The heavy extras (perception/arm) stay
+      # hardware-only.
+      - run: uv sync --extra dev --extra kinematics --extra arm-feetech --extra sim --extra sim-warp
       - run: uv run pytest tests/ -q
 
   # Guards the offline story: a run needs base deps + kinematics and NOTHING
@@ -50,7 +53,7 @@ jobs:
       - run: uv sync --extra dev --extra kinematics
       - name: optional stacks must be absent
         run: |
-          for mod in torch ultralytics mujoco serial openai; do
+          for mod in torch ultralytics mujoco mujoco_warp warp serial openai; do
             if uv run python -c "import $mod" 2>/dev/null; then
               echo "$mod is installed; this job no longer proves anything"; exit 1
             fi

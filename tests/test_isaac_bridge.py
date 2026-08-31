@@ -11,6 +11,8 @@ import cv2
 import numpy as np
 import pytest
 
+from conftest import loopback_host
+
 from cascade.config import Cfg
 from cascade.control.isaac_arm import IsaacArm
 from cascade.perception.isaac_camera import IsaacCamera
@@ -59,7 +61,7 @@ class FakeBridge(socketserver.StreamRequestHandler):
 
 @pytest.fixture
 def bridge_port():
-    srv = socketserver.ThreadingTCPServer(("127.0.0.1", 0), FakeBridge)
+    srv = socketserver.ThreadingTCPServer((loopback_host(), 0), FakeBridge)
     srv.daemon_threads = True
     srv.state = {"q": [0.0, 1.2, 1.2, 0.0, 0.75, 0.0], "gripper": -6.8, "stopped": False}
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -70,7 +72,7 @@ def bridge_port():
 
 def test_bridge_client_roundtrip(bridge_port):
     port, state = bridge_port
-    c = BridgeClient(port=port)
+    c = BridgeClient(host=loopback_host(), port=port)
     c.connect()
     try:
         assert c.ping()
@@ -94,7 +96,7 @@ def test_bridge_client_connection_refused():
 
 def test_isaac_camera_serves_frames(bridge_port):
     port, _ = bridge_port
-    cam = IsaacCamera(Cfg({"bridge_port": port}))
+    cam = IsaacCamera(Cfg({"bridge_host": loopback_host(), "bridge_port": port}))
     with cam:
         f = cam.get_frame()
         assert f.has_depth and f.depth_source == "sensor"
@@ -109,7 +111,7 @@ def test_isaac_camera_serves_frames(bridge_port):
 
 def test_isaac_arm_state_and_targets(bridge_port):
     port, state = bridge_port
-    arm = IsaacArm(Cfg({"bridge_port": port, "n_joints": 6}))
+    arm = IsaacArm(Cfg({"bridge_host": loopback_host(), "bridge_port": port, "n_joints": 6}))
     arm.connect()
     try:
         s = arm.get_state()

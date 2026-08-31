@@ -117,7 +117,9 @@ src/cascade/
 │   ├── mock_arm.py     kinematic sim + gripper object-stop emulation (any DoF)
 │   ├── lazy_arm.py     defer motor bring-up until the first motion command
 │   ├── isaac_arm.py    Isaac Sim articulation over the TCP bridge
-│   ├── mujoco_arm.py   any MJCF in MuJoCo physics, joints addressed BY NAME
+│   ├── mujoco_arm.py   any MJCF in MuJoCo physics, joints addressed BY NAME;
+│   │                   pluggable runtime -- `engine: mjc` (C, the fast default)
+│   │                   or `engine: warp` (MuJoCo Warp GPU runtime, CPU-capable)
 │   ├── feetech.py      Feetech SCS/STS servo-bus protocol (pure framing)
 │   ├── feetech_arm.py  SO-101 & co: Feetech servos over USB serial, SYNC_WRITE
 │   │                   streaming (UNVERIFIED on hardware)

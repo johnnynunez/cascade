@@ -234,6 +234,20 @@ def test_a_plain_reflex_is_unchanged_by_the_curriculum_tier():
     assert not plan.warm_started
 
 
+def test_spanish_sequences_take_the_fast_path_too():
+    """The grammar is bilingual everywhere else, and the curriculum tier made
+    a gap visible: 'saluda y luego vuelve a casa' split into two clauses
+    correctly but 'vuelve a casa' had no rule, so a pair of reflexes went to
+    the LLM."""
+    planner = FastPlanner()
+    for phrase in ("vuelve a casa", "ve a casa", "regresa al inicio", "aparca"):
+        assert planner.plan(phrase) is not None, f"{phrase!r} has no reflex rule"
+    plan = planner.plan("saluda y luego vuelve a casa")
+    assert plan is not None
+    assert plan.source == "curriculum"
+    assert [c for c, _ in plan.calls] == ["wave", "move_home"]
+
+
 def test_curriculum_can_be_disabled():
     planner = FastPlanner(curriculum=False)
     assert planner.plan("wave and then go home") is None

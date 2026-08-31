@@ -34,6 +34,12 @@ sim = ["mujoco>=3.1.3"]
 # CPU fallback keeps the path developable on a laptop. Additive to `sim`, never
 # a replacement -- the C engine stays the fast default for a single arm.
 sim-warp = ["mujoco>=3.1.3", "mujoco-warp>=3.1", "warp-lang>=1.7"]
+# GraspGen-X / nvblox CLIENT side: the ZMQ + msgpack wire only. The heavy
+# model stacks live in their own venvs and processes (scripts/serve_*.sh), so
+# cascade never imports torch for them. Without this extra
+# `grasp.backend: graspgenx` -- the DEFAULT in configs/demo.yaml -- cannot even
+# build its client and silently degrades to the OBB planner on every grasp.
+grasping = ["pyzmq>=25.0", "msgpack>=1.0", "msgpack-numpy>=0.4.8"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]

@@ -298,6 +298,16 @@ class MujocoArm(ArmBase):
         self.kin = kinematics
         self.n_joints = int(cfg.get("n_joints", 6))
         self._mjcf = str(cfg.mjcf)
+        # Optional: build a scene whose prop matches what the CAMERA renders.
+        # `scene.xml` has no prop, so pairing it with a synthetic camera makes
+        # the arm reach for an object that does not exist in physics and close
+        # on air. See sim/demo_scene.py. Off unless the profile asks, so a rig
+        # profile pointing at a real scene is never silently rewritten.
+        prop_cam = cfg.get("mj_prop_from_camera")
+        if prop_cam:
+            from ..sim.demo_scene import write_demo_scene
+
+            self._mjcf = str(write_demo_scene(self._mjcf, prop_cam))
         self._joint_names = list(cfg.get("mj_joints") or [])
         self._act_names = list(cfg.get("mj_actuators") or self._joint_names)
         self._grip_joint = cfg.get("mj_gripper_joint")

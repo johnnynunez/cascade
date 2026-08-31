@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from conftest import REPO, loopback_host
 
 from cascade.perception.occupancy import OccupancyError, OccupancyMap
 from cascade.safety.harness import SafetyHarness, SafetyLimits
@@ -142,3 +143,207 @@ def test_vet_pose_reports_occupancy_violation():
     q = np.array([0.3, 0.0, 0.21, 0, 0, 0])
     reason = h.vet_pose(q)
     assert reason is not None and "occupancy" in reason
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# REAL WIRE. Everything above uses FakeClient, so it verifies cache rules
+# and harness behaviour but never the ZMQ/msgpack protocol itself: a bridge
+# that changed its response shape would keep every test above green.
+#
+# `occupancy.enabled` is false by default and the bridge ships in this repo,
+# so the failure mode is quieter than GraspGen-X's was -- but it is the same
+# blind spot. These tests run the client against the actual
+# scripts/serve_nvblox_bridge.py process.
+# ─────────────────────────────────────────────────────────────────────────
+
+BRIDGE = REPO / "scripts" / "serve_nvblox_bridge.py"
+BRIDGE_PORT = 5598          # not 5557: never collide with a rig bridge
+
+
+def _has_wire() -> bool:
+    try:
+        import msgpack  # noqa: F401
+        import msgpack_numpy  # noqa: F401
+        import zmq  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+needs_wire = pytest.mark.skipif(
+    not _has_wire(),
+    reason="needs the grasping extra: uv pip install -e '.[grasping]'",
+)
+
+
+@pytest.fixture(scope="module")
+def bridge_server():
+    """The real occupancy bridge, on a private port."""
+    import socket
+    import subprocess
+    import sys
+    import time
+
+    proc = subprocess.Popen(
+        [sys.executable, str(BRIDGE), "--port", str(BRIDGE_PORT),
+         "--voxel-size", "0.02"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    deadline = time.monotonic() + 15.0
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            err = proc.stderr.read().decode()[:400] if proc.stderr else ""
+            pytest.skip(f"bridge exited: {err}")
+        s = socket.socket()
+        s.settimeout(0.2)
+        ok = s.connect_ex((loopback_host(), BRIDGE_PORT)) == 0
+        s.close()
+        if ok:
+            break
+        time.sleep(0.1)
+    else:
+        proc.kill()
+        pytest.skip("bridge did not bind in time")
+    yield BRIDGE_PORT
+    proc.kill()
+    proc.wait(timeout=5)
+
+
+def _live_map(port, **kw):
+    """An OccupancyMap talking to the real bridge over a real socket."""
+    from cascade.perception.occupancy import OccupancyClient
+
+    kw.setdefault("region_min", np.array([-1.0, -1.0, -1.0]))
+    kw.setdefault("region_max", np.array([1.0, 1.0, 1.0]))
+    return OccupancyMap(
+        client=OccupancyClient(host=loopback_host(), port=port, timeout_ms=5000),
+        **kw,
+    )
+
+
+@needs_wire
+def test_the_wire_client_builds_when_the_extra_is_installed():
+    """occupancy.py raises OccupancyError if pyzmq/msgpack-numpy are missing,
+    which disables the whole map. The `grasping` extra carries them (shared
+    with the GraspGen-X client); this fails loudly if that regresses."""
+    from cascade.perception.occupancy import OccupancyClient, OccupancyError
+
+    try:
+        OccupancyClient(port=BRIDGE_PORT)
+    except OccupancyError as e:  # pragma: no cover
+        pytest.fail(f"client could not be constructed: {e}")
+
+
+@needs_wire
+def test_integrate_then_query_round_trips_over_the_real_socket(bridge_server):
+    """The protocol itself: msgpack-numpy must carry a float32 (N,3) array
+    both ways. A dtype or key-name drift breaks here and nowhere else."""
+    from cascade.perception.occupancy import OccupancyClient
+
+    c = OccupancyClient(host=loopback_host(), port=bridge_server, timeout_ms=5000)
+    wall = np.column_stack([
+        np.full(300, 0.30), np.linspace(-0.1, 0.1, 300), np.full(300, 0.15),
+    ]).astype(np.float32)
+    assert c.request({"action": "integrate", "points": wall}) == {}
+    resp = c.request({
+        "action": "query",
+        "region_min": np.array([0.0, -0.3, 0.0], dtype=np.float32),
+        "region_max": np.array([0.6, 0.3, 0.4], dtype=np.float32),
+    })
+    pts = np.asarray(resp["points"])
+    assert pts.ndim == 2 and pts.shape[1] == 3
+    assert pts.shape[0] > 0, "wall integrated but query came back empty"
+    # everything the bridge returns must be the wall we put in, voxel-snapped
+    assert abs(float(pts[:, 0].mean()) - 0.30) < 0.02
+    c.close()
+
+
+@needs_wire
+def test_the_query_region_actually_filters(bridge_server):
+    """region_min/region_max must be honoured by the bridge, not ignored.
+    If they were, the harness would receive obstacles from outside the
+    workspace and refuse to move for no visible reason."""
+    from cascade.perception.occupancy import OccupancyClient
+
+    c = OccupancyClient(host=loopback_host(), port=bridge_server, timeout_ms=5000)
+    far = np.array([[5.0, 5.0, 5.0]] * 10, dtype=np.float32)
+    c.request({"action": "integrate", "points": far})
+    resp = c.request({
+        "action": "query",
+        "region_min": np.array([0.0, -0.3, 0.0], dtype=np.float32),
+        "region_max": np.array([0.6, 0.3, 0.4], dtype=np.float32),
+    })
+    pts = np.asarray(resp["points"]).reshape(-1, 3)
+    assert not len(pts) or float(pts[:, 0].max()) <= 0.6 + 1e-3, (
+        "bridge returned points outside the requested region"
+    )
+    c.close()
+
+
+@needs_wire
+def test_a_real_depth_frame_becomes_clearance(bridge_server):
+    """End to end over the socket: a depth frame -> integrate -> query ->
+    cached cloud -> clearance numbers the harness can gate on."""
+    m = _live_map(bridge_server)
+    # camera 1 m up looking down; the frame's flat 0.5 m depth becomes a
+    # plane of points at z = 0.5
+    T = np.eye(4)
+    T[:3, :3] = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]], dtype=float)
+    T[2, 3] = 1.0
+    m.refresh(_frame(depth_val=0.5), T_base_cam=T)
+    assert m.last_error is None, f"refresh failed over the wire: {m.last_error}"
+    assert m._occupied is not None and len(m._occupied) > 0
+
+    on_plane = np.asarray(m._occupied[0], dtype=float).reshape(1, 3)
+    d_near = m.clearance(on_plane)
+    d_far = m.clearance(on_plane + np.array([0.0, 0.0, 2.0]))
+    assert d_near is not None and d_far is not None
+    assert float(d_near[0]) < 0.03, f"point on the cloud reads {d_near[0]:.3f} m away"
+    assert float(d_far[0]) > 1.0, "a point 2 m away should be far"
+
+
+@needs_wire
+def test_the_harness_gates_on_data_that_came_over_the_wire(bridge_server):
+    """The point of the whole path: an obstacle that reached the map through
+    a real bridge round trip must block a waypoint. The FakeClient tests
+    prove the rule; this proves the plumbing feeding it."""
+    m = _live_map(bridge_server)
+    obstacle = np.array([[0.30, 0.0, 0.20]] * 50, dtype=np.float32)
+    m._client.request({"action": "integrate", "points": obstacle})
+    m.refresh(_frame(depth_val=0.0), T_base_cam=np.eye(4))   # query-only
+    assert m.last_error is None
+
+    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m)
+    far = np.array([0.3, 0.0, 0.9, 0, 0, 0])
+    h.approve(far, far, dt=1e9)                     # clear, must pass
+    near = np.array([0.3, 0.0, 0.21, 0, 0, 0])      # 0.01 m from the obstacle
+    with pytest.raises(SafetyViolation, match="occupancy"):
+        h.approve(far, near, dt=1e9)
+
+
+@needs_wire
+def test_a_dead_bridge_degrades_instead_of_freezing_the_arm(bridge_server):
+    """The booth rule. A bridge that stops answering must leave the arm
+    movable: refresh records last_error, the cache ages out, and clearance
+    then returns None (= skip the check) rather than blocking forever."""
+    m = _live_map(5597, max_age_s=0.0)   # nothing listening on 5597
+    m.refresh(_frame(), T_base_cam=np.eye(4))
+    assert m.last_error is not None, "a dead bridge should record an error"
+    assert m.clearance(np.zeros((1, 3))) is None, "no data must read as None"
+
+    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m)
+    q = np.array([0.3, 0.0, 0.21, 0, 0, 0])
+    h.approve(q, q, dt=1e9)   # must NOT raise
+
+
+@needs_wire
+def test_the_bridge_reports_a_bad_action_as_an_error(bridge_server):
+    """Malformed requests must come back as OccupancyError, not a hang or a
+    silently empty cloud that would read as 'nothing in the way'."""
+    from cascade.perception.occupancy import OccupancyClient, OccupancyError
+
+    c = OccupancyClient(host=loopback_host(), port=bridge_server, timeout_ms=5000)
+    with pytest.raises(OccupancyError, match="unknown action"):
+        c.request({"action": "definitely_not_an_action"})
+    c.close()

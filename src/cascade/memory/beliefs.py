@@ -15,9 +15,12 @@ the skill runtime reads.
 
 from __future__ import annotations
 
+import json
+import os
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
@@ -246,3 +249,137 @@ class BeliefStore:
                 }
             )
         return out
+
+    # ── persistence across restarts ─────────────────────────────────────
+    #
+    # In-session object permanence already works (visible -> remembered, EMA
+    # fusion, grasp-from-memory). What did not survive was the PROCESS: every
+    # restart began with an empty table, so the robot re-discovered a world it
+    # had already mapped, and any question about "the mug from before" was
+    # unanswerable. This is the ROADMAP's "persistent spatial memory" item.
+    #
+    # THE TRAP, and the reason this is not a plain json.dump of the dataclass:
+    # every timestamp in a belief is `time.monotonic()`, which counts from an
+    # arbitrary origin that RESETS on reboot. Writing those numbers and reading
+    # them back yields ages like "-4210 s" or "seen 3 hours in the future", and
+    # `state()` then reports a stale belief as freshly visible -- worse than no
+    # memory at all, because it looks authoritative. So timestamps are
+    # converted to WALL CLOCK on save and back to this process's monotonic
+    # origin on load, and everything loaded is deliberately aged past the
+    # visible horizon: it is `remembered`, never `visible`, because nothing has
+    # actually been observed yet in this session.
+
+    #: Beliefs older than this (wall clock) are dropped on load. A day-old
+    #: tabletop is not evidence; the default keeps a session-to-session demo
+    #: warm without resurrecting last week's objects.
+    DEFAULT_MAX_AGE_S = 6 * 3600.0
+
+    #: Floor on the apparent age of anything loaded from disk. Without it, a
+    #: file saved seconds ago restores with age ~0 and `state()` reports
+    #: `visible` -- the robot claiming to SEE an object it has not looked at
+    #: yet this session. That is the failure mode this whole format exists to
+    #: avoid, so the floor is enforced rather than left to the caller.
+    LOADED_MIN_AGE_S = 2.0
+
+    def save(self, path) -> int:
+        """Persist every belief with wall-clock timestamps. Returns the count.
+
+        Written atomically (temp file + replace) because the WorldWatcher may
+        be fusing observations while this runs, and a half-written JSON is a
+        corrupt world model on the next boot.
+        """
+        path = Path(path)
+        now_mono = time.monotonic()
+        now_wall = time.time()
+        with self._lock:
+            records = []
+            for b in self._beliefs:
+                records.append({
+                    "label": b.label,
+                    "position": [float(x) for x in b.position],
+                    "extent": None if b.extent is None else [float(x) for x in b.extent],
+                    "top_z": None if b.top_z is None else float(b.top_z),
+                    "conf": float(b.conf),
+                    "color": b.color,
+                    # Points are the biggest field by far and are only used by
+                    # grasp-from-memory, which re-observes anyway. Store a
+                    # decimated copy so the file stays small enough to write
+                    # every episode.
+                    "points": (
+                        None if b.points is None
+                        else [[float(v) for v in p] for p in b.points[::4]]
+                    ),
+                    "aliases": sorted(b.aliases),
+                    "observations": int(b.observations),
+                    # monotonic -> wall clock, the whole point of this format
+                    "last_seen_wall": now_wall - (now_mono - b.last_seen_t),
+                    "first_seen_wall": now_wall - (now_mono - b.first_seen_t),
+                })
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
+        tmp.write_text(json.dumps({"version": 1, "saved_wall": now_wall,
+                                   "beliefs": records}, indent=1))
+        os.replace(tmp, path)
+        return len(records)
+
+    def load(self, path, max_age_s: float | None = None) -> int:
+        """Restore beliefs saved by `save()`. Returns how many were loaded.
+
+        Everything loaded is marked as last seen `visible_horizon_s` ago at the
+        newest, so `state()` reports `remembered` -- the agent is told what was
+        there, never that it can see it. A corrupt or unreadable file is
+        ignored: a broken memory must not stop the robot from starting.
+        """
+        path = Path(path)
+        if not path.exists():
+            return 0
+        try:
+            blob = json.loads(path.read_text())
+            records = blob["beliefs"] if isinstance(blob, dict) else blob
+        except Exception:  # noqa: BLE001 - never block startup on a bad file
+            return 0
+        if max_age_s is None:
+            max_age_s = self.DEFAULT_MAX_AGE_S
+        now_mono = time.monotonic()
+        now_wall = time.time()
+        loaded = []
+        for r in records:
+            try:
+                age = now_wall - float(r["last_seen_wall"])
+                # A file written on a machine whose clock later moved backwards
+                # yields a negative age; treat it as "just saved" rather than
+                # trusting it or discarding a good world model.
+                age = max(0.0, age)
+                if age > max_age_s:
+                    continue
+                # Nothing restored from disk may read as `visible` (see
+                # LOADED_MIN_AGE_S). Applied AFTER the max_age test so the
+                # floor cannot smuggle in an expired belief.
+                age = max(age, self.LOADED_MIN_AGE_S)
+                first_age = max(age, now_wall - float(
+                    r.get("first_seen_wall", r["last_seen_wall"])))
+                pts = r.get("points")
+                loaded.append(ObjectBelief(
+                    label=str(r["label"]),
+                    position=np.asarray(r["position"], dtype=float).reshape(3),
+                    extent=(None if r.get("extent") is None
+                            else np.asarray(r["extent"], dtype=float)),
+                    top_z=r.get("top_z"),
+                    conf=float(r.get("conf", 0.5)),
+                    color=r.get("color"),
+                    points=(None if pts is None
+                            else np.asarray(pts, dtype=np.float32).reshape(-1, 3)),
+                    aliases=set(r.get("aliases") or []),
+                    observations=int(r.get("observations", 1)),
+                    # Age is preserved RELATIVE to now, so "seen 40 minutes
+                    # ago" still reads as 40 minutes ago after a restart.
+                    last_seen_t=now_mono - age,
+                    first_seen_t=now_mono - first_age,
+                ))
+            except Exception:  # noqa: BLE001 - skip a bad record, keep the rest
+                continue
+        if not loaded:
+            return 0
+        with self._lock:
+            self._beliefs.extend(loaded)
+        return len(loaded)

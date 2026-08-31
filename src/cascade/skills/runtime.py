@@ -95,6 +95,10 @@ class SkillRuntime:
         self.stream_server = None
         #: natural-language task currently executing (dashboard narration)
         self.current_task: str | None = None
+        #: where the persistent world model is written on shutdown (set by the
+        #: app wiring). None = persistence disabled, which is the default for
+        #: bare/unit-test runtimes.
+        self.beliefs_path = None
         #: dispatch tier that served the last command ("reflex" |
         #: "experience" | "llm" | "mcp-host"), for the dashboard "via:" chip
         self.last_path: str | None = None

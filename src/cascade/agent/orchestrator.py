@@ -379,6 +379,17 @@ class AgentOrchestrator:
                 return None, note
         duration = round(time.monotonic() - t_start, 2)
         self.fast_planner.note_outcome(task, plan.calls, True, duration)
+        # Agentic-VLA curriculum: credit each sub-goal separately as well, so a
+        # clause proven inside this sequence warm-starts any FUTURE task that
+        # contains it -- including a different sequence. Without this the
+        # memory only ever learns whole instructions verbatim, and the
+        # decomposition buys nothing after the first run.
+        if plan.subgoals:
+            per = duration / max(len(plan.subgoals), 1)
+            for clause, clause_calls in plan.subgoal_spans():
+                self.fast_planner.note_subgoal_outcome(
+                    clause, clause_calls, True, per
+                )
         summary = (
             f"done via {plan.source} path in {duration}s: "
             + "; ".join(f"{n}({_short_args(a)})" for n, a in plan.calls)

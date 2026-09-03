@@ -77,6 +77,19 @@ def _no_ambient_booth(monkeypatch):
     monkeypatch.delenv("CASCADE_BOOTH", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_occupancy(monkeypatch):
+    """occupancy is ON by default in configs/demo.yaml (2026-09-03), and this
+    venv has the `grasping` extra, so every build_runtime in the suite would
+    construct a real OccupancyClient and each WorldWatcher tick would then
+    wait out a 500 ms ZMQ timeout against a bridge nobody started. That is
+    dead time multiplied by every E2E test, and the cache staying empty means
+    the runs certify nothing extra. Occupancy behaviour is covered directly
+    by tests/test_occupancy.py (FakeClient + a live bridge subprocess), which
+    opts back in via monkeypatch/en-bloc construction."""
+    monkeypatch.setenv("CASCADE_OCCUPANCY", "0")
+
+
 @pytest.fixture
 def demo_cfg():
     return load_demo_config(camera="mock", arm="mock", llm="mock")

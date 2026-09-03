@@ -479,6 +479,19 @@ def _make_detector(cfg):
         from ..perception.detector import MockDetector
 
         return MockDetector(label=dcfg.get("label", "red cube"))
+    if dcfg.type == "vlm":
+        # Full-VLM perception (cosmos3-edge or any OpenAI-compatible vision
+        # server): no YOLOE, no ultralytics import. ~1-3 s per pass on a
+        # local vLLM -- see perception/vlm_detector.py for the trade.
+        from ..perception.vlm_detector import VLMDetector
+
+        return VLMDetector(
+            base_url=str(dcfg.get("base_url", "http://127.0.0.1:8082/v1")),
+            model=str(dcfg.get("model", "cosmos3-edge")),
+            api_key=str(dcfg.get("api_key", "EMPTY")),
+            timeout_s=float(dcfg.get("timeout_s", 20.0)),
+            conf=float(dcfg.get("conf", 0.25)),
+        )
     from ..perception.detector import OpenVocabDetector
 
     return OpenVocabDetector(

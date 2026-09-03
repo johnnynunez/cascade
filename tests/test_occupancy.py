@@ -43,9 +43,30 @@ def _frame(depth_val=0.5, size=(8, 8)):
     return Frame(rgb=rgb, depth_m=depth, K=K)
 
 
-def test_from_config_disabled_by_default():
+def test_from_config_contract():
+    # No `occupancy:` block at all -> off (nothing to configure a client from).
     assert OccupancyMap.from_config(None) is None
+    # Explicitly disabled -> off.
     assert OccupancyMap.from_config({"enabled": False}) is None
+
+
+def test_from_config_enabled_by_default(monkeypatch):
+    # 2026-09-03: occupancy defaults ON. An empty block builds a map when the
+    # wire deps are importable (this venv has the `grasping` extra); the
+    # conftest scrub must be lifted to see the real default.
+    monkeypatch.delenv("CASCADE_OCCUPANCY", raising=False)
+    m = OccupancyMap.from_config({})
+    assert m is not None
+    # Booth rule at the next layer: no bridge running, so the cache is empty
+    # and clearance() abstains rather than blocking.
+    assert m.clearance(np.zeros((1, 3))) is None
+
+
+def test_from_config_env_kill_switch(monkeypatch):
+    monkeypatch.setenv("CASCADE_OCCUPANCY", "0")
+    assert OccupancyMap.from_config({"enabled": True}) is None
+    monkeypatch.setenv("CASCADE_OCCUPANCY", "1")
+    assert OccupancyMap.from_config({"enabled": False}) is not None
 
 
 def test_clearance_none_before_first_refresh():

@@ -15,15 +15,17 @@ safety:
   keep_out: []            # e.g. [{min: [x,y,z], max: [x,y,z]}] for the tripod
   min_clearance_m: 0.03   # TCP/link distance to nvblox occupancy obstacles
 
-# Optional nvblox-backed collision map (perception/occupancy.py). Disabled by
-# default: nothing binds the port unless you run scripts/serve_nvblox.sh,
-# which auto-selects an Open3D CUDA:0 backend on an NVIDIA GPU box (the DGX
-# Spark rig) or CPU:0 anywhere else (a booth laptop) -- same behavior, no
-# config change needed either way. Booth rule applies regardless of which
-# device it picked: a down/slow bridge degrades to "no occupancy check",
-# never to blocking motion.
+# nvblox-backed collision map (perception/occupancy.py). ON by default: the
+# harness gains a measured-clearance gate whenever the bridge is reachable.
+# Run scripts/serve_nvblox.sh to provide it -- it auto-selects an Open3D
+# CUDA:0 backend on an NVIDIA GPU box (the DGX Spark rig) or CPU:0 anywhere
+# else (a booth laptop) -- same behavior, no config change needed either way.
+# Booth rule applies at every layer: missing client deps (`grasping` extra),
+# a down/slow bridge, or a stale cache all degrade to "no occupancy check",
+# never to blocking motion. CASCADE_OCCUPANCY=0 is the kill switch (the test
+# suite pins it off; mock runs must not wait out ZMQ timeouts).
 occupancy:
-  enabled: false
+  enabled: true
   host: 127.0.0.1
   port: 5557
   timeout_ms: 500          # per ZMQ round trip; refreshed at perception_loop.rate_hz, not per waypoint

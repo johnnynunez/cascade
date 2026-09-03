@@ -127,16 +127,44 @@ class OccupancyMap:
     @classmethod
     def from_config(cls, cfg, workspace_min=None, workspace_max=None) -> "OccupancyMap | None":
         """Build from an `occupancy:` config block. Returns None (not
-        wired into the harness) unless explicitly enabled -- there is no
-        nvblox bridge running by default, and an unconfigured map must not
-        silently gate motion."""
-        if cfg is None or not bool(cfg.get("enabled", False)):
+        wired into the harness) when disabled -- and, booth rule, when the
+        client cannot even be built because the wire deps (pyzmq +
+        msgpack-numpy, the `grasping` extra) are missing from this venv.
+        occupancy is ON by default in configs/demo.yaml, so a minimal
+        install must degrade to "no occupancy check" with a warning, never
+        refuse to start: the map is an extra safety layer, and the harness
+        keeps every geometric gate it always had without it.
+
+        CASCADE_OCCUPANCY overrides the config (same contract as
+        CASCADE_BELIEFS): "0/false/no/off" disables without editing YAML --
+        the test suite pins it off so mock runs never wait out ZMQ timeouts
+        against a bridge that isn't there -- and any other value forces it
+        on."""
+        import os
+
+        env = os.environ.get("CASCADE_OCCUPANCY", "").strip().lower()
+        if env:
+            if env in ("0", "false", "no", "off"):
+                return None
+            enabled = True
+        else:
+            enabled = cfg is not None and bool(cfg.get("enabled", True))
+        if cfg is None or not enabled:
             return None
-        client = OccupancyClient(
-            host=str(cfg.get("host", "127.0.0.1")),
-            port=int(cfg.get("port", 5557)),
-            timeout_ms=int(cfg.get("timeout_ms", 500)),
-        )
+        try:
+            client = OccupancyClient(
+                host=str(cfg.get("host", "127.0.0.1")),
+                port=int(cfg.get("port", 5557)),
+                timeout_ms=int(cfg.get("timeout_ms", 500)),
+            )
+        except OccupancyError as e:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "occupancy map disabled: %s (install the `grasping` extra "
+                "to enable the nvblox clearance gate)", e,
+            )
+            return None
         region_min = cfg.get("region_min", None)
         region_max = cfg.get("region_max", None)
         return cls(

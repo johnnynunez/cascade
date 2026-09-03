@@ -34,7 +34,7 @@ _MOTION_SKILLS = {
     "grasp_object", "place_at", "place_on_object", "push_object",
     "open_gripper", "close_gripper", "move_home", "pick_and_place",
     "point_at", "wave", "handover", "sort_by_color", "move_relative",
-    "throw", "grasp_at_pixel",
+    "throw", "grasp_at_pixel", "turn_screw",
 }
 
 
@@ -2003,6 +2003,167 @@ class SkillRuntime:
             "note": "gestural throw: harness-vetted swing + timed release",
         }
 
+    # ── fastening ─────────────────────────────────────────────────────────
+
+    @property
+    def _screw_joint(self) -> int:
+        """Joint that spins the tool about its approach axis, as an index
+        into q. Profile key `screw_joint` wins; the default is the LAST arm
+        joint, which is the wrist roll on every shipped chain (SO-101 j4,
+        reBot j5, Panda j6) -- and on the SO-101 it is MEASURED collinear
+        with the tool approach (rolling it turns the approach by 0.00 deg),
+        which is exactly the property a screwing motion needs."""
+        n = int(self.cfg.arm.get("n_joints", 6))
+        idx = self.cfg.arm.get("screw_joint")
+        return int(idx) if idx is not None else max(0, n - 1)
+
+    def skill_turn_screw(
+        self,
+        label: str,
+        direction: str = "tighten",
+        turns: float = 1.0,
+    ) -> dict:
+        """Tighten or loosen a screw/bolt/nut by ratcheting the wrist roll.
+
+        A parallel jaw cannot spin continuously, so this works like a human
+        with a stubby screwdriver: engage (close the jaws on the head/nut),
+        turn the wrist roll through its free travel, disengage (open),
+        counter-rotate back, and repeat until the requested turns are done.
+        Every stroke is a normal harness-vetted joint motion; the gripper
+        close reuses the standard two-stage grasp so a fragile plastic
+        thumbscrew is not crushed.
+
+        Geometric/gestural like `throw`: it commands kinematics, not torque
+        -- real cam-out/stall detection needs joint-effort feedback that
+        only some backends report. `tighten` turns clockwise seen from
+        above (right-hand thread); the profile's `screw.tighten_sign` flips
+        it for arms whose roll axis is authored anti-parallel to the
+        approach.
+        """
+        directions = {"tighten": +1.0, "loosen": -1.0}
+        if direction not in directions:
+            raise SkillError(f"direction must be one of {sorted(directions)}")
+        turns = float(np.clip(turns, 0.05, 6.0))
+        scfg = self.cfg.get("screw", {})
+        sign = directions[direction] * float(
+            (scfg.get("tighten_sign") if scfg else None) or 1.0
+        )
+        joint = self._screw_joint
+
+        _, fix = self._localize(label)
+        gcfg = self.cfg.grasp
+        top_z = float(fix.points[:, 2].max())
+        z_max = float(gcfg.get("topdown_z_max", 0.15)) - 0.01
+        engage = fix.position.copy()
+        # Engage AT the head: descend to the object's top, minus a small
+        # bite so the jaws wrap the head instead of pinching its crown.
+        engage[2] = min(max(top_z - float(scfg.get("bite_m", 0.005) if scfg else 0.005),
+                            float(gcfg.get("min_grasp_z_m", 0.008))), z_max)
+        hover = engage.copy()
+        hover[2] = min(engage[2] + float(gcfg.get("pregrasp_offset_m", 0.04)), z_max)
+
+        from ..grasping.obb_grasp import _yaw_rotation
+
+        # The roll joint provides the spin, so the TCP orientation only has
+        # to put the approach vertical; seed from home like every grasp.
+        home = self._profile_q("home_q", "turn a screw")
+        if not self.arm.move_joints(home, duration_s=2.0):
+            raise SkillError("could not reach home to start the screw motion")
+        self.arm.set_gripper(self._grip_open, effort=0.8)
+        yaw0 = float(np.arctan2(engage[1], engage[0]))
+        ik_hover = None
+        for yaw in (yaw0, 0.0, np.pi / 4, -np.pi / 4):
+            cand = self.kin.ik(
+                make_transform(_yaw_rotation(yaw, axis_order=self._tool_axis_order),
+                               hover), home)
+            if cand.success:
+                ik_hover = cand
+                break
+        if ik_hover is None:
+            raise SkillError(f"cannot reach a pose above {label!r} to work the screw")
+        if not self.arm.move_joints(ik_hover.q, duration_s=2.0):
+            raise SkillError("did not settle above the screw")
+
+        # Stroke span: the roll joint's free travel inside its limits, split
+        # around the engage pose, capped per stroke for control.
+        lo, hi = self.kin.joint_limits
+        margin = 0.08
+        q_engage = ik_hover.q.copy()
+        stroke_max = float(scfg.get("stroke_rad", 1.2) if scfg else 1.2)
+        want = turns * 2.0 * np.pi
+        done = 0.0
+        strokes = 0
+        max_strokes = int(scfg.get("max_strokes", 24) if scfg else 24)
+        profile = select_profile(label, None)
+
+        ik_engage = self.kin.ik(
+            make_transform(_yaw_rotation(yaw0, axis_order=self._tool_axis_order),
+                           engage), ik_hover.q)
+        if ik_engage.success:
+            q_engage = ik_engage.q.copy()
+        # else: work at the hover pose -- an engage IK miss must not abort
+        # the whole task when the hover pose already reaches the head on
+        # short screws.
+
+        while done < want and strokes < max_strokes:
+            room_fwd = (hi[joint] - margin - q_engage[joint]) if sign > 0 else (
+                q_engage[joint] - (lo[joint] + margin))
+            start_back = min(stroke_max, want - done)
+            room_back = (q_engage[joint] - (lo[joint] + margin)) if sign > 0 else (
+                hi[joint] - margin - q_engage[joint])
+            wind = min(start_back, room_back + room_fwd)
+            if wind <= 0.02:
+                break
+            # 1) jaws open, wind the roll back to the stroke start
+            q_start = q_engage.copy()
+            q_start[joint] -= sign * min(start_back, room_back)
+            self.arm.set_gripper(self._grip_open, effort=0.8)
+            if not self.arm.move_joints(q_start, duration_s=1.0):
+                raise SkillError("did not settle at the stroke start")
+            # 2) engage the head (two-stage close, force from the material)
+            self._close_two_stage(profile)
+            # 3) the working stroke
+            q_end = q_start.copy()
+            stroke = min(wind, stroke_max,
+                         (hi[joint] - margin - q_start[joint]) if sign > 0
+                         else (q_start[joint] - (lo[joint] + margin)))
+            if stroke <= 0.02:
+                self.arm.set_gripper(self._grip_open, effort=0.8)
+                break
+            q_end[joint] += sign * stroke
+            if not self.arm.move_joints(q_end, duration_s=max(0.8, stroke / 1.5)):
+                self.arm.set_gripper(self._grip_open, effort=0.8)
+                raise SkillError("stroke did not settle; stopping the screw task")
+            # 4) disengage
+            self.arm.set_gripper(self._grip_open, effort=0.8)
+            done += stroke
+            strokes += 1
+
+        # retreat to hover, then home so the camera view clears
+        self.arm.move_joints(ik_hover.q, duration_s=1.0)
+        try:
+            self.skill_move_home()
+        except (SkillError, SafetyViolation):
+            pass
+        applied = done / (2.0 * np.pi)
+        self.memory.add(
+            "action",
+            f"{direction}ed {label!r} by {applied:.2f} turns ({strokes} strokes)",
+        )
+        if applied <= 0.0:
+            raise SkillError(
+                f"no roll travel available to {direction} {label!r} "
+                f"(joint {joint} pinned by its limits at this pose)"
+            )
+        return {
+            "screw": label,
+            "direction": direction,
+            "turns_requested": round(turns, 2),
+            "turns_applied": round(applied, 2),
+            "strokes": strokes,
+            "note": "ratchet regrip: engage-turn-release per stroke, harness-vetted",
+        }
+
     def skill_sort_by_color(self, max_objects: int = 6) -> dict:
         """Crowd-pleaser: group everything on the table into per-color zones
         along the front edge. Pure composition of pick_and_place."""
@@ -2706,6 +2867,32 @@ TOOL_SPECS: list[dict] = [
                 },
             },
             "required": [],
+        },
+    },
+    {
+        "name": "turn_screw",
+        "description": (
+            "Tighten or loosen a screw, bolt, nut or knob by ratcheting the "
+            "wrist roll: the jaws engage the head, turn through the wrist's "
+            "free travel, release, counter-rotate and re-engage until the "
+            "requested number of turns is applied. tighten = clockwise from "
+            "above (right-hand thread). Use for 'aprieta el tornillo' / "
+            "'unscrew the bolt' / 'loosen the knob two turns'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string", "description": "The fastener, e.g. 'screw', 'wing nut', 'bottle cap'."},
+                "direction": {
+                    "type": "string",
+                    "enum": ["tighten", "loosen"],
+                },
+                "turns": {
+                    "type": "number",
+                    "description": "Full revolutions to apply (0.05-6, default 1).",
+                },
+            },
+            "required": ["label"],
         },
     },
     {

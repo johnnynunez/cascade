@@ -56,8 +56,12 @@ def parse_bbox(text: str, w: int, h: int) -> np.ndarray | None:
         return None
     x0, x1 = x0 * w / 1000.0, x1 * w / 1000.0
     y0, y1 = y0 * h / 1000.0, y1 * h / 1000.0
-    x0, x1 = sorted((max(0.0, x0), min(float(w), x1)))
-    y0, y1 = sorted((max(0.0, y0), min(float(h), y1)))
+    # Order FIRST, then clip: a reversed box (x1 < x0, which VLMs do emit)
+    # clipped before ordering keeps an out-of-range coordinate.
+    x0, x1 = sorted((x0, x1))
+    y0, y1 = sorted((y0, y1))
+    x0, x1 = max(0.0, x0), min(float(w), x1)
+    y0, y1 = max(0.0, y0), min(float(h), y1)
     if (x1 - x0) < 4 or (y1 - y0) < 4:
         return None
     return np.array([x0, y0, x1, y1], dtype=np.float32)

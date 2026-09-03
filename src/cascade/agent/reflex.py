@@ -111,6 +111,20 @@ _RULES: list[tuple[re.Pattern, str]] = [
         re.compile(rf"^(?:point\s+(?:at|to)|show\s+me|senala|señala)\s+{_ART}(?P<obj>.+)$"),
         "point_at",
     ),
+    # "tighten/loosen the screw (three turns)" / "aprieta/afloja el tornillo"
+    # / "unscrew the bolt" / "desatornilla la tuerca". MUST precede nothing in
+    # particular (no other rule matches these verbs), but sits before wave for
+    # tidy grouping with the other object-verb rules.
+    (
+        re.compile(
+            r"^(?P<verb>tighten|screw\s+in|screw|aprieta|atornilla|enrosca|"
+            r"loosen|unscrew|untighten|afloja|desatornilla|desenrosca)\s+"
+            rf"{_ART}(?P<obj>.+?)"
+            r"(?:\s+(?:by\s+)?(?P<turns>\d+(?:\.\d+)?|una|dos|tres|one|two|three)\s+"
+            r"(?:turns?|vueltas?|revolutions?))?$"
+        ),
+        "turn_screw",
+    ),
     (re.compile(r"^(?:wave|say\s+hi|say\s+hello|saluda)(?:\s+(?:at|to)\s+\S.*)?$"), "wave"),
     (
         re.compile(r"^(?:sort|organize|group|ordena|organiza)\s+.*(?:color|colour)e?s?.*$"),
@@ -240,6 +254,21 @@ def parse_command(text: str) -> ReflexPlan | None:
             if tobj:
                 args["label"] = tobj
             return ReflexPlan(intent, [("throw", args)], tobj)
+        if intent == "turn_screw":
+            if not obj:
+                return None
+            verb = (g.get("verb") or "").strip()
+            loosen = verb in (
+                "loosen", "unscrew", "untighten",
+                "afloja", "desatornilla", "desenrosca",
+            )
+            args = {"label": obj, "direction": "loosen" if loosen else "tighten"}
+            raw_turns = (g.get("turns") or "").strip()
+            _words = {"una": 1.0, "one": 1.0, "dos": 2.0, "two": 2.0,
+                      "tres": 3.0, "three": 3.0}
+            if raw_turns:
+                args["turns"] = _words.get(raw_turns, None) or float(raw_turns)
+            return ReflexPlan(intent, [("turn_screw", args)], obj)
         if intent == "handover":
             obj = obj or (g.get("obj2") or "").strip() or None
             if not obj:

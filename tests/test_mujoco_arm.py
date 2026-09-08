@@ -132,11 +132,14 @@ def test_mjwarp_profile_is_the_same_arm_on_the_warp_engine(warp_profile):
 
 
 def test_unknown_engine_is_rejected(profile):
+    """A profile typo, so it must fail at CONSTRUCTION -- deferring it to
+    connect() buries it under the missing-MJCF error on any machine without
+    fetched assets (CI, fresh clones), where the typo would surface as a
+    misleading 'run fetch_robot_assets' instead."""
     data = profile.as_dict()
     data["engine"] = "physx"  # not a MuJoCo runtime
-    arm = MujocoArm(profile.__class__(data))
-    with pytest.raises((ValueError, RuntimeError), match="engine"):
-        arm.connect()
+    with pytest.raises(ValueError, match="engine"):
+        MujocoArm(profile.__class__(data))
 
 
 def test_warp_device_selection_degrades_without_cuda():
@@ -204,10 +207,21 @@ def test_missing_mjcf_says_how_to_get_it(profile):
 
 
 def test_substeps_match_the_waypoint_rate(profile):
-    """The stream runs at 50 Hz (20 ms); substeps x MJCF timestep should be
-    about one tick, or sim time drifts from the trajectory the safety layer
-    vetted."""
-    assert profile.get("substeps") * 0.005 == pytest.approx(0.020, abs=0.011)
+    """The stream runs at 50 Hz (20 ms). Simulated time per waypoint must
+    never LAG the trajectory the safety layer vetted (substeps x timestep >=
+    one tick), and may deliberately EXCEED it: this profile runs 12 substeps
+    (60 ms) because at the grasp pose `elbow_flex` pins its 2.94 N.m
+    forcerange and lands 0.143 rad short in one real-time tick -- the sim
+    gives up before the joint arrives and every grasp reports "did not
+    settle" (measured; see the profile's `substeps:` comment). The ceiling
+    guards the other direction: an absurd value would slow every streamed
+    motion to a crawl and mask a typo (120 for 12)."""
+    sim_per_waypoint = profile.get("substeps") * 0.005
+    assert sim_per_waypoint >= 0.020, (
+        "sim time lags the vetted 50 Hz trajectory: the arm physically "
+        "cannot keep up with what the harness approved"
+    )
+    assert sim_per_waypoint <= 0.10, "over 5x real time per waypoint"
 
 
 def test_settle_tolerances_are_loosened_for_finite_gain_actuators(profile):
@@ -242,6 +256,51 @@ def test_a_commanded_move_converges_under_gravity(engine_arm):
     reached = arm.get_state().q
     assert abs(reached[0] - target[0]) < float(profile.get("settle_tol")), \
         f"[{engine}] joint 0 stalled at {reached[0]:.4f}, wanted {target[0]:.4f}"
+
+
+@pytest.mark.skipif(not _ENGINES, reason="needs `mujoco` + fetched so101 assets")
+def test_wait_settled_keeps_stepping_the_frozen_world(engine_arm):
+    """wait_settled must ADVANCE physics: nothing else steps this sim after
+    the stream's last waypoint, so the base-class wall-clock poll re-reads a
+    frozen qpos forever and a joint that needed more sim time reports "did
+    not settle" (observed: shoulder_lift 0.062 rad short of a pregrasp =
+    every so101_mujoco grasp failed at step 1).
+
+    Deliberately UNDER-stepped on purpose: one send_joint_target for a 0.3
+    rad step cannot arrive in `substeps` ticks, so a wait_settled that only
+    polls (the bug) returns False and a wait_settled that steps returns True.
+    Guarded against the trivial pass both ways: the arm must NOT be at the
+    target before the wait, and must BE at it after.
+    """
+    engine, arm = engine_arm
+    profile = load_profile("arms", "so101_mujoco")
+    tol = float(profile.get("settle_tol"))
+    target = np.asarray(profile.get("home_q"), float).copy()
+    target[1] += 0.3
+    arm.send_joint_target(target)  # one tick of substeps: nowhere near yet
+    before = float(np.abs(arm.get_state().q - target).max())
+    assert before > tol, "premise broken: one tick already settled the move"
+    assert arm.wait_settled(target, tol, timeout_s=4.0), \
+        "wait_settled timed out: the settle window is not advancing physics"
+    after = float(np.abs(arm.get_state().q - target).max())
+    assert after < tol
+
+
+@pytest.mark.skipif(not _ENGINES, reason="needs `mujoco` + fetched so101 assets")
+def test_wait_settled_respects_a_latched_stop(engine_arm):
+    """stop() freezes the world; the settle loop must not keep integrating
+    it (an e-stop that silently steps physics is not a stop)."""
+    engine, arm = engine_arm
+    profile = load_profile("arms", "so101_mujoco")
+    target = np.asarray(profile.get("home_q"), float).copy()
+    target[1] += 0.4
+    arm.send_joint_target(target)
+    arm.stop()
+    q_frozen = arm.get_state().q.copy()
+    assert not arm.wait_settled(target, float(profile.get("settle_tol")), 0.5)
+    assert np.allclose(arm.get_state().q, q_frozen, atol=1e-9), \
+        f"[{engine}] a stopped sim moved during wait_settled"
+    arm.resume()
 
 
 @pytest.mark.skipif(not _ENGINES, reason="needs `mujoco` + fetched so101 assets")

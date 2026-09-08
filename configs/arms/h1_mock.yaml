@@ -1,0 +1,3 @@
+# H1, kinematic mock transport: tests/CI, no deps, no hardware.
+extends: h1
+type: mock

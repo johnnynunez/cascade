@@ -35,6 +35,7 @@ the centimetre-scale effects this bench is built to resolve.
 from __future__ import annotations
 
 import numpy as np
+from pathlib import Path
 
 #: Rendered-depth accuracy floor on the macOS GL path (no ARB_clip_control),
 #: measured against known geometry. Method error below this is not meaningful.
@@ -147,7 +148,7 @@ class MujocoRGBD:
         import mujoco
 
         self._mj = mujoco
-        self.model = mujoco.MjModel.from_xml_path(str(mjcf_path))
+        self.model = mujoco.MjModel.from_xml_path(str(Path(mjcf_path).resolve()))
         self.data = mujoco.MjData(self.model)
         self.cam_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA, camera)
         if self.cam_id < 0:

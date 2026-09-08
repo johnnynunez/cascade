@@ -16,9 +16,13 @@
 #           NOTE: OpenClaw's agent system prompt overflows llama.cpp's default
 #           16k/slot — serve Qwen with CTX=65536 for OpenClaw.
 #
-# Verified on OpenClaw 2026.7.1-2 (2026-07-21). Platform gotchas encoded here:
-#   - OpenClaw BLOCKS the PYTHONPATH env for stdio servers ("startup safety"),
-#     so cascade must be editable-installed in the venv (done below).
+# Verified on OpenClaw 2026.7.1-2 (2026-07-21); re-audited against OpenClaw
+# 2.0 (= v2026.8.1/.2, CalVer continues) on 2026-09-03 -- every command and
+# flag below survives 2.0 unrenamed, and the three platform gotchas PERSIST
+# (source-diffed at both tags; see docs/OPENCLAW_2.0_INTEGRATION_BRIEF.md):
+#   - OpenClaw BLOCKS the PYTHONPATH env for stdio servers ("startup safety"
+#     policy, blockedEverywhereKeys), so cascade must be editable-installed
+#     in the venv (done below).
 #   - `--cwd <repo>/models` matters, and it must be models/ NOT the repo root:
 #     YOLOE resolves its `mobileclip_blt.ts` text encoder RELATIVE TO CWD. From
 #     the repo root ultralytics cannot see the 600 MB file in models/, tries to
@@ -27,12 +31,16 @@
 #     "PytorchStreamReader failed reading zip archive". The agent surfaces that
 #     as "a runtime error loading a checkpoint" and quietly stops perceiving.
 #     If you hit it: rm the stray mobileclip_blt.ts from the repo root.
+#     (Moot under `detector: {type: vlm}` -- no ultralytics in the loop.)
 #   - A half-onboarded config (missing gateway.mode) blocks gateway start.
 #   - The gateway must be RUNNING before `openclaw onboard --non-interactive`,
 #     and must be RESTARTED after `openclaw mcp add` or it serves a stale tool
-#     list (the agent then answers from prose with no tools at all).
-#   - Custom-provider contextWindow defaults to 128000; it must match what
-#     the local server actually allocated or turns die with context overflow.
+#     list (2.0's `mcp reload` only refreshes the CURRENT CLI process).
+#   - Custom-provider contextWindow defaults to 128000 in 2.0 too
+#     (SELF_HOSTED_DEFAULT_CONTEXT_WINDOW); it must match what the local
+#     server actually allocated or turns die with context overflow.
+# 2.0 additions used here when available: `openclaw mcp doctor <name> --probe`
+# (static cwd/command checks + live probe) with fallback to `mcp probe`.
 set -euo pipefail
 
 CAMERAS="isaac,isaac_side"
@@ -142,8 +150,12 @@ done
 openclaw config validate
 
 # 5. Prove the tools are actually reachable before telling the user it works.
+#    OpenClaw 2.0's `mcp doctor --probe` adds static checks (cwd exists,
+#    command resolves, literal-secret warnings) on top of the live probe;
+#    fall back to plain `mcp probe` on 2026.7.x.
 echo "[+] probing MCP tools (Isaac + YOLOE load takes ~40 s on first call)"
-openclaw mcp probe cascade 2>&1 | tail -3
+openclaw mcp doctor cascade --probe 2>/dev/null | tail -3 \
+    || openclaw mcp probe cascade 2>&1 | tail -3
 
 cat <<EOF
 [+] done. Open the web chat:

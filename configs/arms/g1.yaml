@@ -1,0 +1,84 @@
+# Unitree G1 RIGHT ARM: 7 DoF (shoulder pitch/roll/yaw, elbow, wrist
+# roll/pitch/yaw), rooted at torso_link. Kinematics from the vendored
+# arm-only URDF (assets/urdf/g1/g1_right_arm.urdf, DERIVED from
+# unitreerobotics/unitree_ros g1_description g1_29dof_rev_1_0.urdf -- see
+# PROVENANCE.md). Same scope as h1_2.yaml: cascade drives the ARM in the
+# TORSO frame; balance, legs and waist stay with Unitree's controller.
+#
+# The vendored model is the HANDLESS 29-DoF variant: the wrist ends at the
+# rubber-hand mount (tcp_link = right_wrist_yaw_link + 0.05 m). With no
+# fitted hand the gripper block declares zero aperture -- pinch grasps are
+# filtered as infeasible. A Dex3 / Inspire hand = child profile overriding
+# `gripper:` (+ the hand's own DDS service); the arm kinematics stay valid.
+#
+# TRANSPORT: Unitree publishes NO ros2_control for its humanoids. The robot
+# speaks the Arm SDK over CycloneDDS (`rt/arm_sdk` LowCmd in, `rt/lowstate`
+# LowState out, unitree_hg message family) -- exactly what unitree_sdk2's
+# g1_arm7_sdk_dds_example.cpp does. `type: unitree_arm` is that transport
+# with rclpy as the DDS client (message types from unitree_ros2's
+# cyclonedds_ws). Motor INDICES below are the G1 JointIndex enum.
+# !!! UNVERIFIED ON HARDWARE.
+type: unitree_arm
+name: g1_right
+
+# ── transport ────────────────────────────────────────────────────────────
+unitree_msg_family: hg                 # G1 / H1-2 / H2: unitree_hg LowCmd(35)
+unitree_cmd_topic: rt/arm_sdk
+unitree_state_topic: rt/lowstate
+# G1 JointIndex: RightShoulderPitch=22 .. RightWristYaw=28; the arm-SDK
+# weight rides in kNotUsedJoint=29 (`q` field, 0..1).
+unitree_joint_index: [22, 23, 24, 25, 26, 27, 28]
+unitree_weight_index: 29
+# Gains from the SDK example (kp 60, kd 1.5 on every arm joint).
+unitree_kp: [60, 60, 60, 60, 60, 60, 60]
+unitree_kd: [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]
+unitree_weight_ramp_s: 2.0
+settle_tol: 0.04
+settle_timeout_s: 4.0
+state_timeout_s: 1.0
+wait_state_s: 5.0
+
+# ── model ────────────────────────────────────────────────────────────────
+model: ${assets}/urdf/g1/g1_right_arm.urdf
+ee_frame: tcp_link
+n_joints: 7
+joint_signs: [1, 1, 1, 1, 1, 1, 1]
+# MEASURED on the vendored URDF (150 top-down targets within 0.40 m of the
+# right shoulder): strict top-down solves down_open 0.81, open_down 0.56,
+# third_open_down 0.44. Same convention as the H1-2 (which measured 0.60).
+tool_axis_order: down_open
+
+# ── poses ────────────────────────────────────────────────────────────────
+# Top-down-capable pose in front of the right hip: TCP [0.13, -0.16, -0.12]
+# (torso frame) with approach [0, 0, -1], min joint margin 0.92 rad.
+# DERIVED on the vendored URDF by sampled search, not tuned on hardware.
+home_q: [-0.066, 0.316, -0.927, 0.557, 0.726, 0.490, -0.692]
+# Arm forward-up toward the human: TCP [0.35, -0.10, 0.15], margin 1.03 rad.
+handover_q: [-0.688, 0.279, -0.343, 0.114, 0.001, 0.585, -0.186]
+
+# ── (absent) gripper: handless mount ─────────────────────────────────────
+gripper:
+  open_pos: 0.0
+  closed_pos: 0.0
+  max_width_m: 0.0
+
+overrides:
+  safety:
+    workspace:
+      # Torso frame; the G1 is a small humanoid (shoulder 0.25 m above the
+      # torso origin, 0.46 m max reach from it). A table it works at is
+      # ~0.35 m below the torso origin when standing.
+      min: [0.05, -0.55, -0.45]
+      max: [0.45, 0.10, 0.45]
+    table_z: -0.35
+    table_clearance: 0.03
+    max_joint_vel: 1.0
+  grasp:
+    topdown_z_max: 0.25
+    pregrasp_offset_m: 0.05
+    drop_zone: [0.25, -0.30]
+  workspace_filter:
+    base_radius_m: 0.10
+    table_z_m: -0.40
+    max_z_m: 0.45
+    reach_m: 0.50

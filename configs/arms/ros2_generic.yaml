@@ -1,0 +1,48 @@
+# Template: ANY robot over ROS2. Copy this file, point `model:` at the
+# robot's URDF, list its joints, and the whole framework (safety harness,
+# IK, grasping, skills, MCP tools) drives it -- the transport itself is
+# robot-agnostic because every robot-specific constant lives here.
+#
+# The two interfaces it needs are what ros2_control already provides:
+#   sensor_msgs/JointState            on <ns>/joint_states
+#   trajectory_msgs/JointTrajectory   on <ns>/<controller>/joint_trajectory
+# (or std_msgs/Float64MultiArray with `ros_command: position` for a
+# forward_position_controller.)
+#
+# REQUIRED before first motion, in this order:
+#   model, ee_frame, n_joints, ros_joints (names, in the q order your URDF
+#   chain uses), home_q, handover_q, gripper.{open_pos,closed_pos,max_width_m},
+#   and an `overrides:` block sized to the robot (workspace AABB, table_z,
+#   max_joint_vel, grasp ceilings). Do NOT inherit another robot's numbers --
+#   that is the exact failure the profile system exists to prevent.
+#
+# `template: true` is what lets this file live in configs/arms/ without
+# numbers: make_arm refuses to build it (copy the file, fill it in, drop the
+# flag) and the profile-completeness tests skip it for the same reason.
+template: true
+type: ros2
+
+# --- transport ---
+ros_namespace: ""              # e.g. "left_piper"; "" = topics at the root
+ros_command: trajectory        # trajectory | position
+ros_state_topic: joint_states
+ros_command_topic: joint_trajectory_controller/joint_trajectory
+ros_joints: []                 # REQUIRED, e.g. [joint1, joint2, ...]
+# ros_gripper_joint: gripper_joint
+# ros_gripper_topic: gripper_controller/joint_trajectory
+settle_tol: 0.03
+settle_timeout_s: 4.0
+state_timeout_s: 1.0
+wait_state_s: 5.0
+
+# --- model (REQUIRED: fill in per robot) ---
+# model: ${assets}/urdf/<robot>/<robot>.urdf
+# ee_frame: <tcp_frame_name>
+# n_joints: 6
+# joint_signs: [1, 1, 1, 1, 1, 1]
+# home_q: []
+# handover_q: []
+# gripper:
+#   open_pos: 0.0
+#   closed_pos: 1.0
+#   max_width_m: 0.08

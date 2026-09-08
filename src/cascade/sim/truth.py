@@ -165,32 +165,7 @@ class TruthPoseReader:
         poses = self._poses()
         if not poses:
             return None
-        want = _normalize(label)
-        if want in poses:
-            return poses[want]
-        # token overlap: "pink cube" -> pink_cube, "the cube" -> pink_cube
-        want_tokens = set(want.split("_"))
-        # The user talks to this robot in whatever language they like, and the
-        # sim prims are English. Without this, a Spanish command silently loses
-        # the ONLY independent verification channel: "cubo rosa" matched no
-        # prim, physics returned None, and the check fell back to the belief
-        # the skill had just written -- confirming a cube that was 30 cm from
-        # the bin (live rig, 2026-07-31).
-        want_tokens |= {_ES_EN.get(t, t) for t in want_tokens}
-        best, best_score = None, 0
-        for key, xyz in poses.items():
-            score = len(want_tokens & set(key.split("_")))
-            if score > best_score:
-                best, best_score = xyz, score
-        # A single shared token is not identification: "pink cube" overlaps
-        # "green_cube" on {cube}, so when the pink one is missing (dropped as
-        # an impossible pose, or absent from the scene) this used to hand back
-        # the GREEN cube's position and the checker would confirm against the
-        # wrong object entirely. Demand either an exact key match (handled
-        # above) or more than one shared token.
-        if best_score < 2:
-            return None
-        return best
+        return _match_label(label, poses)
 
     def all_poses(self) -> dict:
         return dict(self._poses())
@@ -236,10 +211,183 @@ class TruthPoseReader:
             return None
 
 
+class MujocoTruthReader:
+    """Prop poses straight out of a live MuJoCo world (`sim/mujoco_world.py`).
+
+    The MuJoCo twin of ``TruthPoseReader``: same call surface, same label
+    matching (exact normalized name, else >= 2 shared tokens with the ES->EN
+    map), same sanity gate. Reads ``data.xpos`` of every free-jointed body
+    under the world's lock, so a read never sees a half-stepped state.
+
+    Deliberately holds NO reference that keeps the world alive: it looks the
+    world up by path on every read (``mujoco_world.peek``). Verification must
+    never be the thing that owns a physics world -- if the arm disconnects
+    and the world is dropped, this reader reports None and the checker
+    degrades to the next channel, exactly like a closed Isaac bridge.
+    """
+
+    def __init__(self, scene_path: str, ttl_s: float = 0.0):
+        self._scene = str(scene_path)
+        self.ttl_s = float(ttl_s)
+        self.rejected = 0
+        self._cache: dict[str, list[float]] = {}
+        self._cache_t = 0.0
+
+    def __call__(self, label: str):
+        return self.pose(label)
+
+    def pose(self, label: str):
+        if not label:
+            return None
+        poses = self._poses()
+        if not poses:
+            return None
+        return _match_label(label, poses)
+
+    def all_poses(self) -> dict:
+        return dict(self._poses())
+
+    @property
+    def live(self) -> bool:
+        from . import mujoco_world
+
+        return mujoco_world.peek(self._scene) is not None
+
+    def _poses(self) -> dict:
+        from . import mujoco_world
+
+        now = time.monotonic()
+        if self.ttl_s > 0 and self._cache and (now - self._cache_t) < self.ttl_s:
+            return self._cache
+        world = mujoco_world.peek(self._scene)
+        if world is None:
+            return {}
+        clean = {}
+        for name in world.free_body_names():
+            xyz = world.body_pos(name)
+            if xyz is None:
+                continue
+            if _is_sane(xyz):
+                clean[_normalize(name)] = xyz
+            else:
+                self.rejected += 1
+        self._cache, self._cache_t = clean, now
+        return clean
+
+
+#: Query words that name nothing in particular. "the red object" carries one
+#: bit of identity (red); "object"/"thing"/"cube-shaped item" add none.
+_GENERIC = {"object", "objects", "thing", "things", "item", "items", "the", "a",
+            "an", "one", "this", "that", "el", "la", "los", "las", "objeto", "cosa"}
+
+#: Colour tokens, post ES->EN mapping. A colour is a strong identifier on a
+#: table of distinct-colour props (the demo's case), unlike a shape noun.
+_COLOURS = {"red", "green", "blue", "pink", "yellow", "orange", "purple",
+            "white", "black", "brown", "grey", "gray", "cyan", "magenta"}
+
+
+def _match_label(label: str, poses: dict):
+    """Shared label -> pose resolution.
+
+    Rules, in order (see TruthPoseReader for the incidents behind them):
+      1. exact normalized name;
+      2. >= 2 shared content tokens ("pink cube" vs pink_cube); a single
+         shared token is NOT identification ("pink cube" vs green_cube share
+         {cube} -- returning the green cube confirmed against the wrong
+         object entirely);
+      3. a shared COLOUR that is unique among the candidates: "the red
+         object" names exactly one body on a table with one red thing. The
+         query's other words are generic ("object"), so demanding a second
+         shared token here would drop the ONLY independent channel for the
+         demo's own headline command ("pick and place the red object" ->
+         body `red_cube`: measured, channel fell back to belief).
+    """
+    want = _normalize(label)
+    if want in poses:
+        return poses[want]
+    want_tokens = {t for t in want.split("_") if t and t not in _GENERIC}
+    want_tokens |= {_ES_EN.get(t, t) for t in want_tokens}
+    best, best_score = None, 0
+    for key, xyz in poses.items():
+        score = len(want_tokens & set(key.split("_")))
+        if score > best_score:
+            best, best_score = xyz, score
+    if best_score >= 2:
+        return best
+    colours = want_tokens & _COLOURS
+    if len(colours) == 1:
+        colour = next(iter(colours))
+        hits = [xyz for key, xyz in poses.items() if colour in key.split("_")]
+        if len(hits) == 1:
+            return hits[0]
+    return None
+
+
+class LazyTruthPoseFn:
+    """A truth channel that binds to the sim on FIRST USE, not at startup.
+
+    Why: ``build_runtime`` attaches the verifier once, at startup. Under the
+    MCP server the arm is a LazyArm that only materializes on the first
+    motion command, so at attach time there is no bridge client (Isaac) and
+    no loaded world (MuJoCo) to bind to -- ``make_truth_pose_fn`` correctly
+    returns None, and every chat-driven pick then verifies against the
+    belief store only. That is the demo's headline verification silently
+    off in exactly the mode the demo is shown in.
+
+    This object resolves the real reader lazily: each call first checks
+    whether a reader can now be built (cheap: a dict lookup / registry peek,
+    never a motor power-up -- it refuses to touch an unmaterialized LazyArm,
+    same rule as ``make_truth_pose_fn``), caches it once found, and forgets it
+    again if the sim goes away. ``PostconditionChecker`` sees a plain
+    ``object_pose(label)`` callable either way.
+    """
+
+    def __init__(self, arm):
+        self._arm = arm
+        self._reader = None
+
+    def _resolve(self):
+        if self._reader is not None:
+            live = getattr(self._reader, "live", True)
+            if live:
+                return self._reader
+            self._reader = None
+        try:
+            self._reader = make_truth_pose_fn(self._arm)
+        except Exception:
+            self._reader = None
+        return self._reader
+
+    def __call__(self, label: str):
+        reader = self._resolve()
+        return reader(label) if reader is not None else None
+
+    def all_poses(self) -> dict:
+        reader = self._resolve()
+        return reader.all_poses() if reader is not None else {}
+
+    @property
+    def bound(self) -> bool:
+        return self._resolve() is not None
+
+
+def _mujoco_scene_of(arm) -> str | None:
+    """The MJCF path a (materialized) MuJoCo arm simulates, else None."""
+    real = arm
+    if type(arm).__name__ == "LazyArm":
+        real = arm.__dict__.get("_arm")  # never __getattr__: it materializes
+    if real is None or type(real).__name__ != "MujocoArm":
+        return None
+    if getattr(real, "world", None) is None:
+        return None  # not connected, or the Warp engine (device-side state)
+    return str(real.mjcf_path)
+
+
 def make_truth_pose_fn(arm):
     """Build a truth-pose callable from an arm backend, if it is a sim arm.
 
-    Returns None for real hardware (and for mock arms), which makes
+    Isaac (bridge client) and MuJoCo (shared world) both qualify. Returns
+    None for real hardware (and for mock arms), which makes
     ``PostconditionChecker`` fall back to perception -- the same behaviour the
     physical rig will have.
 
@@ -248,11 +396,34 @@ def make_truth_pose_fn(arm):
     ``getattr(arm, "client", None)`` here powers up the CAN bus / motors as a
     side effect of *setting up verification*.  That is precisely what LazyArm
     exists to prevent.  Never probe an unmaterialized LazyArm: if it has not
-    been used yet there is nothing to verify against anyway.
+    been used yet there is nothing to verify against anyway (and
+    ``LazyTruthPoseFn`` re-asks later, once it has).
     """
     if type(arm).__name__ == "LazyArm" and not getattr(arm, "connected", False):
+        # Unmaterialized MuJoCo arm: the ARM has no world yet, but a rendered
+        # camera (`type: mujoco`, opened at prewarm) may already hold the very
+        # world the arm will attach to. Peeking at it costs no motor power-up
+        # and binds the physics channel BEFORE the first motion, so the
+        # pre-motion snapshot is physics too -- otherwise it falls back to a
+        # belief restored from disk and the displacement check compares two
+        # different channels (see PostconditionChecker._comparable_start).
+        # Only when the answer is unambiguous: one live world.
+        if getattr(arm, "profile_type", None) == "mujoco":
+            from . import mujoco_world
+
+            worlds = mujoco_world.live_worlds()
+            if len(worlds) == 1:
+                reader = MujocoTruthReader(worlds[0].path)
+                return reader if reader.live else None
         return None
-    client = arm.__dict__.get("client") or arm.__dict__.get("_client")
+    scene = _mujoco_scene_of(arm)
+    if scene is not None:
+        reader = MujocoTruthReader(scene)
+        return reader if reader.live else None
+    real = arm.__dict__.get("_arm") if type(arm).__name__ == "LazyArm" else arm
+    if real is None:
+        return None
+    client = real.__dict__.get("client") or real.__dict__.get("_client")
     if client is None or not hasattr(client, "request"):
         return None
     try:

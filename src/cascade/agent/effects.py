@@ -165,6 +165,31 @@ class PostconditionChecker:
             return {}
         return {"label": label, "pose": list(pose), "channel": channel}
 
+    @staticmethod
+    def _comparable_start(before: dict, channel_after: str):
+        """The pre-motion pose, but ONLY if it can be compared with the
+        post-motion reading.
+
+        A displacement is a difference of two readings of the SAME channel.
+        Mixing them is not a looser measurement, it is a wrong one -- and it
+        happens by construction under the MCP server: the arm is lazy, so at
+        snapshot time the physics channel is not bound yet and the snapshot
+        falls back to a belief RESTORED FROM DISK (a previous episode's drop
+        point); the pick materializes the arm, the physics channel comes up
+        for the AFTER reading, and "physics_after - belief_before" reads as
+        "still within 1.8 cm of where it started" for a pick that visibly
+        succeeded (reproduced 2026-09-09, chat path, refuted a good pick).
+        Returning None makes the check report the after-pose without a
+        displacement claim instead of a false REFUTED.
+        """
+        start = before.get("pose")
+        if start is None:
+            return None
+        ch_before = before.get("channel") or ""
+        if ch_before and channel_after and ch_before != channel_after:
+            return None
+        return start
+
     def _best_pose(self, label: str) -> tuple[Any, str]:
         for fn, channel in ((self._object_pose, "physics"), (self._belief_pose, "belief")):
             if fn is None:
@@ -274,7 +299,8 @@ class PostconditionChecker:
             )
             pc.measured = {"gripper_frac": frac} if frac is not None else {}
             return
-        z0 = float((before.get("pose") or [0, 0, self.table_z])[2])
+        start = self._comparable_start(before, channel)
+        z0 = float((start or [0, 0, self.table_z])[2])
         rise = pose[2] - z0
         pc.measured = {"z_before": round(z0, 4), "z_after": round(pose[2], 4),
                        "rise_m": round(rise, 4), "gripper_frac": frac}
@@ -342,7 +368,7 @@ class PostconditionChecker:
             pc.status, pc.evidence = UNVERIFIED, f"{label or 'object'} not re-located after the move"
             return
         pc.channel = channel
-        start = before.get("pose")
+        start = self._comparable_start(before, channel)
         if start is not None:
             moved = _dist(pose, start)
             pc.measured = {"moved_m": round(moved, 4), "final": [round(v, 4) for v in pose]}
@@ -350,6 +376,11 @@ class PostconditionChecker:
                 pc.status = REFUTED
                 pc.evidence = f"{label} is still within {moved*100:.1f} cm of where it started"
                 return
+        else:
+            final: dict[str, Any] = {"final": [round(v, 4) for v in pose]}
+            if before.get("pose") is not None:
+                final["start_channel_mismatch"] = f"{before.get('channel')}->{channel}"
+            pc.measured = final
         if dest_pose is not None:
             err = _dist(pose[:2], dest_pose[:2])
             pc.measured["dest_err_m"] = round(err, 4)

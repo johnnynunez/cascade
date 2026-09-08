@@ -72,12 +72,34 @@ YAML profile in `configs/arms/` — see
 | `so101_mujoco` | same, in MuJoCo physics (C engine) | 5 | — | `.[sim]` + `scripts/fetch_robot_assets.py so101` |
 | `so101_mjwarp` | same, in [MuJoCo Warp](https://github.com/google-deepmind/mujoco_warp) (GPU runtime, CPU-capable) | 5 | — | `.[sim-warp]` + `scripts/fetch_robot_assets.py so101` |
 | `so101_mock` | same, kinematic only | 5 | — | nothing |
+| `so101_ros2` | same, over ROS2 (`ros2_control` + JTC bringup) | 5 | ROS2 topics | a sourced ROS2 env (`rclpy`) — **untested on hardware** |
 | `so101_left` / `so101_right` | two SO-101s sharing a table | 5 each | — | nothing; see [multi-arm](#multi-arm) |
+| `piper` | [AgileX PiPER](https://github.com/agilexrobotics/piper_ros) | 6 | ROS2 topics | a sourced ROS2 env — **untested on hardware** |
+| `piper_mujoco` / `piper_mock` | same, MuJoCo physics / kinematic | 6 | — | `.[sim]` + `fetch_robot_assets.py piper` / nothing |
+| `h1` | [Unitree H1](https://github.com/unitreerobotics/unitree_ros) right arm (gen 1: bare forearm, no hand) | 4 | ROS2 topics | a sourced ROS2 env — **untested on hardware** |
+| `h1_2` | [Unitree H1-2](https://github.com/unitreerobotics/unitree_ros) right arm (7-DoF wrist, flange) | 7 | ROS2 topics | a sourced ROS2 env — **untested on hardware** |
+| `h1_mock` / `h1_2_mock` | same, kinematic only | 4 / 7 | — | nothing |
 | `rebot_rs` | Seeed reBot DevArm B601 (RobStride) | 6 | RobStride over SocketCAN | `.[arm]`, `can0` up |
 | `rebot_rs_mb` | same, via MotorBridge | 6 | MotorBridge | `.[arm]` |
 | `isaac` | reBot in Isaac Sim | 6 | ZMQ bridge | Isaac Sim + NVIDIA GPU |
 | `libero_panda` | Franka Panda in LIBERO | 7 | benchmark harness | LIBERO |
 | `mock` | kinematic stand-in | 6 | — | nothing |
+| `ros2_generic` | **template**: ANY robot a `ros2_control` bringup exposes | — | ROS2 topics | copy the file, fill in your robot's numbers, drop the `template: true` flag |
+
+**Any ROS2 robot without writing Python.** `type: ros2`
+([`control/ros2_arm.py`](src/cascade/control/ros2_arm.py)) speaks the two
+interfaces every `ros2_control` deployment already has — `sensor_msgs/JointState`
+in, `trajectory_msgs/JointTrajectory` (or `Float64MultiArray` for a forward
+position controller) out, joints addressed **by name** so driver-defined
+`JointState` order can never shift the mapping. Adding a robot = copying
+[`configs/arms/ros2_generic.yaml`](configs/arms/ros2_generic.yaml) and filling
+in its URDF, joint names, keyframes, gripper travel and workspace: the whole
+stack above (safety harness, IK, grasping, skills, MCP tools) drives it
+unchanged. The humanoid profiles drive the ARM of a standing H1/H1-2 for
+tabletop skills — locomotion stays with Unitree's own controller, and a
+handless arm declares `max_width_m: 0` so grasps are *refused honestly*
+instead of mimed. See [`docs/ROS2_BACKEND_BRIEF.md`](docs/ROS2_BACKEND_BRIEF.md)
+for the design rationale (QoS, streaming trade, stop semantics).
 
 <a id="multi-arm"></a>
 **Multi-arm.** `--arms a,b` builds an `ArmRig` (first = manipulation arm, the
@@ -87,12 +109,16 @@ same shape as the camera rig); every motion skill then takes an optional
 robot on a particular table — merging the profiles would let whichever loaded
 last define the envelope for both.
 
-> Inter-arm collision is **not** solved. A harness knows its own workspace box
-> and keep-out list and nothing about the other robot, and since positions are
-> in each robot's *base* frame with no transform between bases, the shipped
-> `so101_left`/`so101_right` partition is a static wall under an unverified
-> mounting assumption. Read the header of `configs/arms/so101_left.yaml` before
-> widening either box or mounting arms face to face.
+> **Inter-arm collision** is gated geometrically, not with meshes: an arm
+> profile may declare `base_pose` (where the robot is bolted, in a shared
+> TABLE frame — [`so101_left.yaml`](configs/arms/so101_left.yaml) documents the
+> convention), and with it set on both arms each harness gates every 50 Hz
+> waypoint on the measured segment-to-segment distance between link
+> centrelines (`safety.neighbor_clearance_m`, default 0.05 m, standing in for
+> unmodelled link *shape*). Two caveats, both in that profile's header: an
+> unreadable neighbour (a standby LazyArm) degrades to SKIP, not to block, and
+> `base_pose` is a **measurement** — a wrong one makes the distance
+> confidently wrong. Measure your own table before running two real arms.
 
 **Compute.** Configs say `device: auto`; the host is probed at startup
 (CUDA/ROCm → Apple MPS → CPU) and an explicit device the machine does not
@@ -131,6 +157,11 @@ The package works from a source checkout (config and asset paths derive from
 the package location), on Linux (x86-64 or aarch64) and macOS:
 
 ```bash
+# one-liner (clones to ~/cascade, venv + extras, assets, offline verify):
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/install.sh | bash
+# flags survive the pipe: | bash -s -- --dir ~/robots/cascade --profile spark
+
+# or by hand:
 git clone https://github.com/johnnynunez/cascade.git && cd cascade
 uv venv && uv pip install -e '.[dev,kinematics]'    # enough to run everything below
 ```
@@ -162,6 +193,7 @@ pinned upstream commit:
 ```bash
 python scripts/fetch_robot_assets.py --list
 python scripts/fetch_robot_assets.py so101      # ~17 MB, MJCF + meshes
+python scripts/fetch_robot_assets.py piper h1   # PiPER + Unitree H1 (Menagerie, same pin)
 ```
 
 Optional one-shot helpers, none of them required:
@@ -197,12 +229,32 @@ python -m cascade.apps.demo --task "pick and place pink object"
 python -m cascade.apps.demo --arm so101_mock --camera mock_small \
     --task "pick and place the red object"
 
-# ...and in real physics, still no robot and no GPU (pip install -e '.[sim]')
+# ...and in real physics, still no robot and no GPU (pip install -e '.[sim]').
+# `mujoco_scene` is a camera RENDERED from the same MuJoCo world the arm
+# steps (perception sees the physics prop, not a painted one), and the
+# postcondition checker reads the prop's true pose from that world:
+# `postcondition: confirmed (channel: physics)` instead of `unverified`.
 python scripts/fetch_robot_assets.py so101
-python -m cascade.apps.demo --arm so101_mujoco --camera mock_small --interactive
+python -m cascade.apps.demo --arm so101_mujoco --camera mujoco_scene --interactive
+
+# ONE CLICK: simulator (Isaac Sim if installed, else MuJoCo) + OpenClaw 2.0
+# chat with the robot tools registered, probed, and a trivial brain turn
+# proven before it prints the chat URL. Real hardware = OpenClaw only.
+./scripts/launch.sh                                     # --sim auto
+./scripts/launch.sh --sim isaac                         # Isaac bridge + editor window
+./scripts/launch.sh --sim none --arm rebot_rs --cameras l515   # real arm: no sim
+./scripts/launch.sh --dry-run                           # print the plan, touch nothing
+./scripts/launch.sh --down                              # stop what it started
 
 # two arms on one table: skills take arm="left"/"right", list_arms names them
 python -m cascade.apps.demo --arms so101_left,so101_right --camera mock_small --interactive
+
+# a different robot entirely, same cascade: AgileX PiPER, no hardware
+python -m cascade.apps.demo --arm piper_mock --camera mock_small \
+    --task "pick and place the red object"
+
+# any ROS2 robot (needs a sourced ROS2 env + a ros2_control bringup):
+python -m cascade.apps.demo --arm so101_ros2      # or piper / h1 / h1_2
 
 # tests (unit/integration; live-hardware tests deselected by default)
 python -m pytest tests/ -q
@@ -260,8 +312,9 @@ scripts/serve_qwen_llamacpp.sh          # or serve_qwen_vllm.sh (MTP spec decodi
 python -m cascade.apps.demo --task "..." --cameras d455f --arm rebot_rs --llm local_qwen
 
 # talk to it through a chat host instead of the CLI loop
+./scripts/launch.sh                     # OpenClaw 2.0: sim (if any) + skills + probe + web chat
 ./scripts/hermes_demo.sh                # Hermes: register + test + chat
-./scripts/openclaw_demo.sh              # OpenClaw: skills + Cosmos3-Edge brain + web chat
+./scripts/openclaw_demo.sh              # OpenClaw, local-brain variant (Cosmos3-Edge / Qwen servers)
 ```
 
 `--llm` defaults to `auto`: Hermes/Nous Portal, then Anthropic, then OpenAI,
@@ -366,7 +419,7 @@ python scripts/setup_agents.py --camera d455f --arm rebot_rs --write
 | **Claude Code** | project `.mcp.json` (ships in this repo; interpreter path is machine-specific, and it pins the Isaac camera/arm profiles) | if your checkout lives elsewhere, regenerate with the profiles you want: `setup_agents.py --host claude --camera isaac,isaac_side --arm isaac --write` (add `--python <interpreter>` if your venv is not at `<checkout-parent>/.demo`); user-scope: `--host claude` prints the `claude mcp add` one-liner |
 | **Claude Desktop** | `claude_desktop_config.json` | paste the JSON block from `setup_agents.py --host claude` |
 | **Codex CLI** | `~/.codex/config.toml` `[mcp_servers.cascade]` | `setup_agents.py --host codex --write`, verify with `codex mcp list` |
-| **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `./scripts/bootstrap.sh` (installs the OpenClaw CLI + Cosmos3-Edge brain + registers skills, one shot) or `./scripts/openclaw_demo.sh` if OpenClaw and the brain are already running (register + local-brain provider + gateway + web-chat URL); `setup_agents.py --host openclaw` prints the `openclaw mcp add` one-liner + JSON block. OpenClaw blocks the `PYTHONPATH` env — the package must be editable-installed in the venv (the script handles it) |
+| **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `./scripts/launch.sh` (one click, verified on OpenClaw 2.0 = 2026.9.3: brings up the simulator if there is one, registers the server idempotently with `openclaw mcp set`, restarts the gateway, checks the robot tools are listed via `mcp probe --json` and that the brain answers a turn, then opens the web chat; `--brain auto` keeps whatever auth OpenClaw already has unless a local model server is answering) · `./scripts/bootstrap.sh` (fresh GPU box: installs the OpenClaw CLI + Cosmos3-Edge brain + registers skills) · `./scripts/openclaw_demo.sh` (local-brain variant when the servers are already up); `setup_agents.py --host openclaw` prints the `openclaw mcp add` one-liner + JSON block. OpenClaw blocks the `PYTHONPATH` env — the package must be editable-installed in the venv (the scripts handle it). On macOS the server is launched under `mjpython` so the MuJoCo viewer can open (plain python refuses `launch_passive` there) |
 
 The server pre-warms perception at startup (cameras + detector + world
 model) while the ARM stays unpowered until the first motion command

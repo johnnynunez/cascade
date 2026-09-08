@@ -15,9 +15,14 @@ from .arm_base import ArmBase
 
 
 class LazyArm(ArmBase):
-    def __init__(self, factory, n_joints: int = 6):
+    def __init__(self, factory, n_joints: int = 6, profile_type: str | None = None):
         self._factory = factory
         self._n_joints_default = n_joints
+        #: The `type:` of the profile the factory will build (isaac, mujoco,
+        #: rebot_rs, ...). Readable WITHOUT materializing -- it is what lets
+        #: the verifier decide whether a physics-truth channel can ever exist
+        #: for this arm (sim types) without powering a real one to find out.
+        self._profile_type = profile_type
         self._arm: ArmBase | None = None
         self._lock = threading.Lock()
 
@@ -32,6 +37,11 @@ class LazyArm(ArmBase):
     @property
     def connected(self) -> bool:
         return self._arm is not None
+
+    @property
+    def profile_type(self) -> str | None:
+        """Profile `type:` declared at construction; never materializes."""
+        return self._profile_type
 
     @property
     def n_joints(self) -> int:  # type: ignore[override]

@@ -43,19 +43,29 @@ def synthetic_tabletop(
     rgb[y0:y1, x0:x1] = (40, 40, 200)  # red box (BGR)
     depth = np.full((height, width), table_depth_m, dtype=np.float32)
     depth[y0:y1, x0:x1] = table_depth_m - box_height_m
-    if box_sides and box_height_m > 0:
+    if box_sides and box_height_m > 0 and x0 < width and x1 > 0 and y0 < height and y1 > 0:
         # One-pixel skirt at mid-height: a straight-down camera cannot see a
         # vertical face, so without this the depth image carries no evidence
         # that the prop has any thickness at all.
+        #
+        # Clamped to the frame, and skipped when the box lies wholly outside
+        # it: small mocks (the 160x120 stream-test camera) keep the default
+        # 640x480 box_px. The box fill above no-ops on that via empty slices,
+        # but a skirt row/column is an INDEX, and an out-of-range index is an
+        # IndexError on every grab rather than a silent no-op.
         mid = table_depth_m - box_height_m / 2.0
-        depth[max(y0 - 1, 0), x0:x1] = mid
-        depth[min(y1, height - 1), x0:x1] = mid
-        depth[y0:y1, max(x0 - 1, 0)] = mid
-        depth[y0:y1, min(x1, width - 1)] = mid
-        rgb[max(y0 - 1, 0), x0:x1] = (40, 40, 200)
-        rgb[min(y1, height - 1), x0:x1] = (40, 40, 200)
-        rgb[y0:y1, max(x0 - 1, 0)] = (40, 40, 200)
-        rgb[y0:y1, min(x1, width - 1)] = (40, 40, 200)
+        sx0, sx1 = max(x0, 0), min(x1, width)
+        sy0, sy1 = max(y0, 0), min(y1, height)
+        top, bot = max(y0 - 1, 0), min(y1, height - 1)
+        left, right = max(x0 - 1, 0), min(x1, width - 1)
+        depth[top, sx0:sx1] = mid
+        depth[bot, sx0:sx1] = mid
+        depth[sy0:sy1, left] = mid
+        depth[sy0:sy1, right] = mid
+        rgb[top, sx0:sx1] = (40, 40, 200)
+        rgb[bot, sx0:sx1] = (40, 40, 200)
+        rgb[sy0:sy1, left] = (40, 40, 200)
+        rgb[sy0:sy1, right] = (40, 40, 200)
     fx = 600.0
     K = np.array(
         [[fx, 0, width / 2], [0, fx, height / 2], [0, 0, 1]], dtype=np.float64

@@ -119,7 +119,14 @@ class SkillRuntime:
         # failures), persisted so accuracy improves across sessions.
         from ..memory.grasp_memory import GraspOutcomeMemory
         from pathlib import Path as _Path
-        _gm_path = cfg.grasp.get("memory_path", "~/.cascade/grasp_memory.json")
+        import os as _os
+        # CASCADE_GRASP_MEMORY_PATH overrides, same contract as
+        # CASCADE_BELIEFS_PATH: shared-default persistent state leaks between
+        # a developer's real runs and the test suite in both directions
+        # (observed: diagnostic air-grasps recorded to ~/.cascade poisoned the
+        # orchestrator E2E's grasp priors). conftest pins both into tmp_path.
+        _gm_path = (_os.environ.get("CASCADE_GRASP_MEMORY_PATH")
+                    or cfg.grasp.get("memory_path", "~/.cascade/grasp_memory.json"))
         self.grasp_memory = GraspOutcomeMemory(
             path=_Path(str(_gm_path)).expanduser())
         # Harness-VLA (arXiv:2607.08448) generalised to EVERY primitive: the
@@ -128,6 +135,7 @@ class SkillRuntime:
         from ..memory.envelope import OperatingEnvelope
         _env_path = cfg.get("memory", {}).get(
             "envelope_path", "~/.cascade/envelope.json") if hasattr(cfg, "get") else None
+        _env_path = _os.environ.get("CASCADE_ENVELOPE_PATH") or _env_path
         self.envelope = OperatingEnvelope(
             path=_Path(str(_env_path or "~/.cascade/envelope.json")).expanduser())
         # Pigey (arXiv:2607.21725): verify each primitive's physical effect
@@ -1183,6 +1191,13 @@ class SkillRuntime:
                 max_width_m=self._max_width,
                 pregrasp_offset_m=float(gcfg.get("pregrasp_offset_m", 0.12)),
                 validate=_vet,
+                # Single-hinge jaw datum (TOOL frame): the fixed jaw's contact
+                # point and the closing direction toward the moving jaw. Per
+                # arm, like every other jaw dimension: the SO-101 beak closes
+                # against its fixed tip at the frame origin; parallel jaws
+                # omit both. See selector.select_grasp's docstring.
+                jaw_fixed_tip_m=(self.cfg.arm.get("gripper") or {}).get("jaw_fixed_tip_m"),
+                jaw_close_dir=(self.cfg.arm.get("gripper") or {}).get("jaw_close_dir"),
             )
         except (SkillError, SafetyViolation) as e:
             # No candidate survived IK + harness vetting. Log it against the

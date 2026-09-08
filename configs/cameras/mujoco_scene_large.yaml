@@ -1,0 +1,26 @@
+# Rendered camera for the LARGER arms (FR3 0.85 m reach, PiPER): same
+# `type: mujoco` renderer as mujoco_scene, but posed higher and further out
+# so a ~0.5 m radius workspace fits the frame, with the prop at base
+# (0.45, 0.15) -- mid-annulus for the FR3 (strict top-down solves 1.00 for
+# r 0.30..0.75) and clear of the arm's home TCP at (0.45, 0.00).
+#
+#   python -m cascade.apps.demo --arm fr3_mujoco --camera mujoco_scene_large \
+#       --task "pick and place the red object"
+extends: mujoco_scene
+
+# Camera at (0.45, 0, 1.00) looking straight down: cam x -> base -y,
+# cam y -> base -x, cam z -> base -z (same axes as mock/mujoco_scene).
+table_depth_m: 1.0
+extrinsics:
+  mode: eye_to_hand
+  T:
+    - [ 0.0, -1.0,  0.0, 0.45]
+    - [-1.0,  0.0,  0.0, 0.00]
+    - [ 0.0,  0.0, -1.0, 1.00]
+    - [ 0.0,  0.0,  0.0, 1.00]
+
+# The prop: a 5 cm cube whose TOP face is at depth 1.00 - 0.05 = 0.95 m.
+# base (0.45, +0.15) -> cam (x=-0.15, y=0.00) -> pixel u = 320 + 600*(-0.15)
+# /0.95 = 225.3, v = 240. 5 cm at 0.95 m = 31.6 px wide.
+box_px: [209, 224, 241, 256]
+box_height_m: 0.05

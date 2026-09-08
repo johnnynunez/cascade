@@ -68,6 +68,26 @@ def _isolate_persistent_beliefs(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_learned_memories(monkeypatch, tmp_path):
+    """Same isolation for the OTHER shared learned stores.
+
+    ~/.cascade/grasp_memory.json (grasp priors/re-ranking) and
+    ~/.cascade/envelope.json (operating envelope + failure model) change
+    skill behaviour between otherwise-identical sessions. Observed leak:
+    grasp-debugging runs against the real rig config recorded a string of
+    air-grasps into the developer's ~/.cascade, whose learned prior then
+    z-nudged the E2E suite's grasps into failing --
+    test_grasp_and_place_happy_path went red with nothing in the diff.
+    The reverse direction (suite writing into the developer's learned
+    memory) corrupts real-rig behaviour silently.
+    """
+    monkeypatch.setenv("CASCADE_GRASP_MEMORY_PATH",
+                       str(tmp_path / "grasp_memory.json"))
+    monkeypatch.setenv("CASCADE_ENVELOPE_PATH",
+                       str(tmp_path / "envelope.json"))
+
+
+@pytest.fixture(autouse=True)
 def _no_ambient_booth(monkeypatch):
     """A booth-day shell (CASCADE_BOOTH=1 exported) must not silently rerun the
     whole suite under booth tuning — a green run has to certify DEV

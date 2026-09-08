@@ -76,7 +76,14 @@ logger = logging.getLogger(__name__)
 
 
 class _MjcEngine:
-    """The MuJoCo C runtime. `data` is the live simulation state."""
+    """The MuJoCo C runtime. `data` is the live simulation state.
+
+    The model/data pair comes from `sim/mujoco_world.py`'s registry rather
+    than a private load, so a rendered camera (`perception/mujoco_camera.py`)
+    and the physics-truth channel (`sim/truth.py`) opened on the same MJCF
+    see THIS arm's state -- a privately loaded copy would leave them watching
+    a world in which the arm never moves.
+    """
 
     kind = "mjc"
 
@@ -88,9 +95,15 @@ class _MjcEngine:
                 "the mujoco arm backend needs the `mujoco` package "
                 "(pip install mujoco, or the [sim] extra)"
             ) from e
+        from ..sim import mujoco_world
+
         self._mj = mujoco
-        self.model = mujoco.MjModel.from_xml_path(str(mjcf_path))
-        self.data = mujoco.MjData(self.model)
+        self._world = mujoco_world.acquire(str(mjcf_path))
+        self.model = self._world.model
+        self.data = self._world.data
+        #: Shared with every reader of this world (camera stream thread,
+        #: truth channel). MujocoArm takes it around each step/read.
+        self.lock = self._world.lock
         self.device = "cpu"
         self._viewer = None
 
@@ -101,8 +114,10 @@ class _MjcEngine:
         # mj_forward turns the home pose we just wrote into consistent derived
         # state (site/body xpos) before the first command or FK read.
         self._mj.mj_forward(self.model, self.data)
+        self._world.realized = True
         if view:
             self._open_viewer()
+
 
     def pull(self) -> tuple[np.ndarray, np.ndarray]:
         # Live numpy views; the caller copies out the addresses it wants.
@@ -139,6 +154,11 @@ class _MjcEngine:
             except Exception:  # noqa: BLE001
                 pass
             self._viewer = None
+        if self._world is not None:
+            from ..sim import mujoco_world
+
+            mujoco_world.release(self._world)
+            self._world = None
 
 
 def _select_warp_device(wp, requested: str) -> str:
@@ -190,7 +210,7 @@ class _WarpEngine:
         self._mjw = mjw
         self._wp = wp
         wp.init()
-        self.model = mujoco.MjModel.from_xml_path(str(mjcf_path))
+        self.model = mujoco.MjModel.from_xml_path(str(Path(mjcf_path).resolve()))
         # MJWarp's iterative linesearch warns (once per step) below 20 on some
         # contact-rich MJCFs; raise the floor so a real run is not drowned in
         # "increase ls_iterations" lines. Never lowers a model that asked for
@@ -303,11 +323,29 @@ class MujocoArm(ArmBase):
         # the arm reach for an object that does not exist in physics and close
         # on air. See sim/demo_scene.py. Off unless the profile asks, so a rig
         # profile pointing at a real scene is never silently rewritten.
+        #
+        # The profile authors the OPT-IN as `mj_prop_from_camera: true`;
+        # load_demo_config REPLACES that bool with the camera profile dict at
+        # load time (config.py) because only the loader knows which camera the
+        # run opens. A profile loaded directly (load_profile in tests, or a
+        # bare MujocoArm(cfg)) still carries the bool, and a bool names no
+        # camera to derive a prop from -- so only a mapping triggers scene
+        # generation, and the bare flag means "no camera known, keep the
+        # profile's own scene".
         prop_cam = cfg.get("mj_prop_from_camera")
-        if prop_cam:
-            from ..sim.demo_scene import write_demo_scene
+        if prop_cam is not None and not isinstance(prop_cam, (bool,)):
+            from ..sim.demo_scene import resolved_scene_path, write_demo_scene
 
-            self._mjcf = str(write_demo_scene(self._mjcf, prop_cam))
+            # `mj_cameras` (planted by the loader) is the run's whole camera
+            # list: every rendered profile gets a <camera> in the scene.
+            written = write_demo_scene(self._mjcf, prop_cam,
+                                       cameras=cfg.get("mj_cameras"))
+            expected = resolved_scene_path(self._mjcf, prop_cam)
+            # The camera backend and truth channel find this world by the
+            # path `resolved_scene_path` predicts; a mismatch here would
+            # split the rig across two worlds silently.
+            assert Path(written).resolve() == expected.resolve(), (written, expected)
+            self._mjcf = str(written)
         self._joint_names = list(cfg.get("mj_joints") or [])
         self._act_names = list(cfg.get("mj_actuators") or self._joint_names)
         self._grip_joint = cfg.get("mj_gripper_joint")
@@ -319,12 +357,29 @@ class MujocoArm(ArmBase):
         # Which physics runtime backs this arm. `mjc` (C engine) is the default
         # because it is the one that runs fast on any machine; `warp` opts into
         # MuJoCo Warp on the same profile (see the module docstring's tradeoff).
+        # Validated HERE, not at connect(): an unknown engine is a profile
+        # typo, knowable without touching MuJoCo or the assets -- deferring it
+        # to connect() buries it under the missing-MJCF error on any machine
+        # that has not fetched meshes (CI, fresh clones).
         self._engine_kind = str(cfg.get("engine", "mjc")).strip().lower()
+        if self._engine_kind not in _ENGINES:
+            raise ValueError(
+                f"unknown mujoco engine {self._engine_kind!r} (mjc|warp)"
+            )
         self._device_req = str(cfg.get("device", "auto"))
         g = cfg.get("gripper") or {}
         self._grip_open = float(g.get("open_pos", 0.0))
         self._grip_closed = float(g.get("closed_pos", 1.0))
         self._grip_settle_s = float(cfg.get("gripper_settle_s", 0.6))
+        # Gripper CONTROL units vs JOINT units. A position actuator on the jaw
+        # joint takes the joint value itself (SO-101, PiPER: identity). The
+        # Franka Hand in Menagerie is different: one tendon actuator whose
+        # ctrl is 0..255 while each finger joint reads 0..0.04 m. The profile
+        # declares the affine map ctrl = scale * pos + offset; `gripper_pos`
+        # keeps reporting the JOINT value so the skill layer's stall/width
+        # arithmetic (which is in joint units) is unaffected.
+        self._grip_ctrl_scale = float(cfg.get("mj_gripper_ctrl_scale", 1.0))
+        self._grip_ctrl_offset = float(cfg.get("mj_gripper_ctrl_offset", 0.0))
 
         if len(self._joint_names) != self.n_joints:
             raise ValueError(
@@ -370,6 +425,13 @@ class MujocoArm(ArmBase):
         self._engine = engine
         self._model = engine.model
         self._data = engine.data
+        # The C engine's world is SHARED (sim/mujoco_world.py): a rendered
+        # camera and the truth channel read the same MjData from other
+        # threads, so the arm must serialize on the world's lock, not a
+        # private one -- two locks over one struct is no lock at all.
+        shared = getattr(engine, "lock", None)
+        if shared is not None:
+            self._lock = shared
         mj = engine._mj  # the mujoco module, for name->id lookups
 
         self._qadr, self._dadr = [], []
@@ -417,8 +479,21 @@ class MujocoArm(ArmBase):
 
     def disconnect(self) -> None:
         if self._engine is not None:
-            self._engine.close()
+            self._engine.close()  # releases the shared world (last holder drops it)
+            self._engine = None
         self._connected = False
+
+    @property
+    def mjcf_path(self) -> str:
+        """The scene this arm simulates (post scene generation), so a camera
+        or truth channel can attach to the SAME world by path."""
+        return self._mjcf
+
+    @property
+    def world(self):
+        """The shared `MujocoWorld` while connected on the C engine, else
+        None (Warp keeps device-side state; nothing can attach to it)."""
+        return getattr(self._engine, "_world", None) if self._engine is not None else None
 
     # ── state and commands ───────────────────────────────────────────────
 
@@ -444,8 +519,12 @@ class MujocoArm(ArmBase):
         for adr, aid in zip(self._qadr, self._aidx):
             self._ctrl[aid] = qpos[adr]
         if self._grip_aidx is not None and self._grip_qadr is not None:
-            self._ctrl[self._grip_aidx] = qpos[self._grip_qadr]
+            self._ctrl[self._grip_aidx] = self._grip_ctrl(qpos[self._grip_qadr])
         self._engine.push_ctrl(self._ctrl)
+
+    def _grip_ctrl(self, pos: float) -> float:
+        """Jaw JOINT value -> actuator ctrl (see mj_gripper_ctrl_scale)."""
+        return self._grip_ctrl_scale * float(pos) + self._grip_ctrl_offset
 
     def send_joint_target(self, q: np.ndarray) -> None:
         if not self._connected:
@@ -463,7 +542,7 @@ class MujocoArm(ArmBase):
         if self._stopped or self._grip_aidx is None:
             return
         with self._lock:
-            self._ctrl[self._grip_aidx] = float(pos)
+            self._ctrl[self._grip_aidx] = self._grip_ctrl(pos)
             self._engine.push_ctrl(self._ctrl)
             # Unlike a joint move, nothing else is stepping physics while the
             # jaws travel, so the command has to carry its own settle time or
@@ -479,6 +558,36 @@ class MujocoArm(ArmBase):
             with self._lock:
                 self._hold_current()
                 self._engine.step(1)
+
+    def wait_settled(self, q_target: np.ndarray, tol: float,
+                     timeout_s: float) -> bool:
+        """Step the sim while waiting -- the base-class poll watches a FROZEN
+        world here.
+
+        Physics only advances inside this backend's own calls (same trap
+        set_gripper documents): after the stream's last waypoint the world
+        stops, so polling `get_state()` re-reads the same qpos until the
+        wall-clock timeout and any joint that needed more sim time than that
+        final waypoint's substeps reports "did not settle" -- observed as
+        shoulder_lift 0.143->0.062 rad short of a pregrasp with 4 s of wall
+        time and 0 s of sim time. A real arm's servos keep acting during the
+        settle window; stepping here is the sim's equivalent. Honors stop():
+        a latched e-stop must freeze the world, not keep integrating it.
+        """
+        deadline = time.monotonic() + timeout_s
+        q_target = np.asarray(q_target, dtype=float).reshape(-1)
+        while time.monotonic() < deadline:
+            st = self.get_state()  # raises if not connected -> engine exists
+            if np.abs(st.q - q_target[: self.n_joints]).max() < tol:
+                return True
+            if self._stopped:
+                return False
+            engine = self._engine
+            if engine is None:  # disconnected mid-wait
+                return False
+            with self._lock:
+                engine.step(self._substeps)
+        return False
 
     def resume(self) -> None:
         self._stopped = False

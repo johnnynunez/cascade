@@ -1,0 +1,50 @@
+# Rendered camera looking INTO the MuJoCo world -- pairs with a `type: mujoco`
+# arm (so101_mujoco, piper_mujoco). Same viewpoint as `mock_small` (straight
+# down from 0.6 m over the table in front of the arm), but the pixels come
+# from physics: the prop the detector sees is the prop the jaws close on, and
+# after a pick the camera SEES it gone. That is what turns every MuJoCo
+# `pick_and_place` from `postcondition: unverified` into a real verdict, and
+# what makes `camera_snapshot` show a robot instead of a painted square.
+#
+#   python -m cascade.apps.demo --arm so101_mujoco --camera mujoco_scene \
+#       --task "pick and place the red object"
+#
+# How the pieces line up (all derived from THIS file, nothing duplicated):
+#   - `extrinsics.T` poses the MJCF <camera> (sim/demo_scene.cameras_xml)
+#     AND is the cam->base transform perception backprojects with;
+#   - `fx` + `height` give the <camera fovy> AND the frame's K;
+#   - `box_px`/`table_depth_m`/`box_height_m` place the physics prop
+#     (sim/demo_scene.prop_pose_from_camera) exactly as for mock_small.
+# Requires the arm's `mj_prop_from_camera: true` (the generated scene is
+# where the <camera> gets declared) and fetched assets
+# (scripts/fetch_robot_assets.py so101).
+extends: mock_small
+type: mujoco
+mj_camera: scene_cam
+fx: 600.0
+
+# The prop is moved off the arm's centreline. mock_small parks its cube at
+# base (0.20, 0) -- which is exactly under the SO-101's HOME TCP
+# (0.20, 0.006, 0.06): the mock camera paints the cube regardless, so nobody
+# noticed, but a camera that actually looks sees only the gripper (measured:
+# 8 cube pixels visible, 100% arm occlusion over that spot). Same 38 px box,
+# same row, shifted to u = 211 -> base (0.20, +0.10): r = 0.224 (top-down IK
+# solve rate 1.00 there, see so101.yaml), 0% occluded at home, and on the
+# opposite side from the drop zone at (0.20, -0.12) so pick and place are
+# visibly different places.
+box_px: [192, 308, 230, 346]
+
+# The frame changes when the world changes, so the visual-differencing
+# postcondition channel is allowed to look (mock.yaml sets this true because
+# its image never changes).
+static_scene: false
+
+# Rendered frames carry real depth; nothing to fake.
+depth: true
+
+# Same colour-threshold mock detector as `mock`: the SO-101 mesh is yellow
+# (R~G) and the table is light grey, so the red-only threshold picks out the
+# prop and nothing else -- no ultralytics import, CI-safe.
+detector:
+  type: mock
+  label: "red cube"

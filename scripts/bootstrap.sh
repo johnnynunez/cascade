@@ -42,19 +42,40 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-PY="${PY:-/home/johnny/Projects/demo/.demo/bin/python}"
-[[ -x "$PY" ]] || PY="$(command -v python3)"
+PY="${PY:-}"
+if [[ -z "$PY" ]]; then
+    # install_hermes.sh resolution order: repo venv, then ../.demo, then python3
+    for cand in "$REPO/.venv/bin/python" "$(cd "$REPO/.." && pwd)/.demo/bin/python"; do
+        [[ -x "$cand" ]] && { PY="$cand"; break; }
+    done
+fi
+[[ -n "$PY" && -x "$PY" ]] || PY="$(command -v python3)"
 
 echo "=== 1/4: base tooling (uv, OpenClaw CLI) ===" >&2
 command -v uv >/dev/null 2>&1 || { curl -fsSL https://astral.sh/uv/install.sh | sh; export PATH="$HOME/.local/bin:$PATH"; }
 if ! command -v openclaw >/dev/null 2>&1; then
-    echo "[+] installing OpenClaw CLI (https://openclaw.ai/install.sh)" >&2
-    curl -fsSL https://openclaw.ai/install.sh | bash
+    echo "[+] installing OpenClaw (https://openclaw.ai/install.sh, unattended)" >&2
+    curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
     export PATH="$HOME/.local/bin:$HOME/.openclaw/bin:$PATH"
     command -v openclaw >/dev/null 2>&1 || {
         echo "[!] openclaw not on PATH after install -- open a new shell (or source your profile) and re-run" >&2
         exit 1
     }
+else
+    # Upgrading an existing 2026.7.x install to OpenClaw 2.0 (v2026.8.x) is a
+    # one-way state migration (flat files -> SQLite, agents.list ->
+    # agents.entries). Back up first, migrate, then repair + validate --
+    # docs/OPENCLAW_2.0_INTEGRATION_BRIEF.md has the full story.
+    OC_VER="$(openclaw --version 2>/dev/null | head -1 || true)"
+    case "$OC_VER" in
+        *2026.7.*|*2026.6.*)
+            echo "[+] OpenClaw $OC_VER -> 2.0 upgrade (backing up ~/.openclaw first)" >&2
+            cp -a "$HOME/.openclaw" "$HOME/.openclaw.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+            openclaw update || echo "[!] openclaw update failed; continuing with $OC_VER" >&2
+            openclaw doctor --fix >/dev/null 2>&1 || true
+            openclaw config validate || true
+            ;;
+    esac
 fi
 
 if [[ "$WITH_OCCUPANCY" == "1" ]]; then

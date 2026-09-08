@@ -27,7 +27,20 @@ _SRC = Path(__file__).resolve().parents[1] / "src" / "cascade"
 
 
 def _profiles():
-    return sorted(_ARMS.glob("*.yaml"))
+    """Every arm profile that describes a RUNNABLE robot.
+
+    `template: true` marks a profile as documentation-to-copy
+    (ros2_generic.yaml): make_arm refuses to build it, so demanding its DOF
+    or gripper width here would force fake numbers into a file whose whole
+    point is that YOU must supply the robot's own. test_ros2_arm.py pins
+    both halves of that contract (loads + factory refusal).
+    """
+    profs = []
+    for p in sorted(_ARMS.glob("*.yaml")):
+        if _load(p).get("template") is True:
+            continue
+        profs.append(p)
+    return profs
 
 
 def _load(p: Path) -> dict:

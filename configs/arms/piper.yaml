@@ -1,0 +1,92 @@
+# AgileX PiPER: 6-DoF arm + prismatic parallel gripper (joint7/8 mirrored
+# fingers, 0..0.035 m each). Kinematics from the vendored arm-only URDF
+# (assets/urdf/piper/piper_arm.urdf, see PROVENANCE.md).
+#
+# This BASE profile speaks ROS2 (ros2_control joint_trajectory_controller,
+# e.g. a MoveIt/ros2_control bringup of agilexrobotics/piper_ros). The native
+# CAN/piper_sdk transport is not implemented yet. Hardware-free transports:
+#   --arm piper_mock              kinematic mock (tests, CI)
+#   --arm piper_mujoco            MuJoCo physics (fetch assets first:
+#                                 python scripts/fetch_robot_assets.py piper)
+#
+# !!! UNVERIFIED ON HARDWARE. Every number is derived from the vendored URDF
+# and the Menagerie MJCF, not measured on a live arm. Before first motion:
+# verify each joint's sign and the gripper travel against the real bringup.
+
+type: ros2
+
+# ── transport (ros2_arm.py contract) ─────────────────────────────────────
+ros_namespace: piper
+ros_command: trajectory
+ros_state_topic: joint_states
+ros_command_topic: joint_trajectory_controller/joint_trajectory
+ros_joints: [joint1, joint2, joint3, joint4, joint5, joint6]
+ros_gripper_joint: joint7
+ros_gripper_topic: gripper_controller/joint_trajectory
+settle_tol: 0.03
+settle_timeout_s: 4.0
+state_timeout_s: 1.0
+wait_state_s: 5.0
+
+# ── model ────────────────────────────────────────────────────────────────
+# Arm-only URDF: joint1..joint6 occupy the first 6 q indices (the
+# n_controlled slice contract), gripper excluded. `tcp_link` is a fixed
+# frame 0.15 m along the gripper axis: between the finger-pad roots
+# (0.1358 m) and the tips -- DERIVED from the piper_ros URDF finger origins,
+# not measured.
+model: ${assets}/urdf/piper/piper_arm.urdf
+ee_frame: tcp_link
+n_joints: 6
+joint_signs: [1, 1, 1, 1, 1, 1]
+
+# Fingers separate along the TCP frame's Y with approach along Z -- measured
+# on the vendored URDF (link7/link8 at y = -/+0.035 in gripper_base, sliding
+# on axis z with the fingers extending +z). MEASURED top-down IK: open_down
+# solves 0.70 across r 0.10..0.38 at z 0.05; down_open solves 0.00.
+tool_axis_order: open_down
+
+# ── poses ────────────────────────────────────────────────────────────────
+# Derived by sampled search on the vendored URDF: TCP [0.257, -0.022, 0.052],
+# approach 0.956 aligned with -z (top-down), min joint margin 0.53 rad, and
+# it seeds top-down grasp IK at the 0.70 plateau across the annulus.
+home_q: [-0.17, 1.33, -0.64, 0.14, 0.69, 0.85]
+# Base yawed toward the operator, same elbow/wrist posture.
+handover_q: [0.33, 1.33, -0.64, 0.14, 0.69, 0.85]
+
+# ── gripper ──────────────────────────────────────────────────────────────
+# PRISMATIC fingers: "position" is meters of one finger's travel, not an
+# angle. Both fingers mirror (MJCF equality couples joint8 = -joint7), so
+# aperture = 2 x travel: 0.07 m max. max_width_m is set slightly under the
+# geometric max because fingertip pads consume a few mm.
+gripper:
+  open_pos: 0.035
+  closed_pos: 0.0
+  max_width_m: 0.065
+
+# ── rig geometry this arm implies ────────────────────────────────────────
+# MEASURED on the vendored URDF (tcp_link): max horizontal reach r = 0.777 m;
+# top-down solve rate 0.70 for r <= 0.38 at z = 0.05, decaying to 0.46 at
+# z = 0.08 and 0.00 at z = 0.10 -- the wrist runs out of pitch above that.
+overrides:
+  safety:
+    workspace:
+      min: [-0.10, -0.45, -0.02]
+      max: [0.55, 0.45, 0.50]
+    table_z: 0.0
+    max_joint_vel: 1.0
+  grasp:
+    topdown_z_max: 0.08
+    pregrasp_offset_m: 0.03
+    exempt_radius_m: 0.10
+    drop_zone: [0.28, -0.15]
+    graspgenx:
+      sweep:
+        extents_open: [0.065, 0.018, 0.035]
+        offset_open: [0.0, 0.0, 0.0]
+        extents_mid: [0.032, 0.018, 0.035]
+        offset_mid: [0.0, 0.0, 0.0]
+        gripper_type: 0
+        fingertip_depth: 0.02
+  workspace_filter:
+    base_radius_m: 0.10
+    reach_m: 0.78

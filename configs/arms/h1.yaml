@@ -1,0 +1,91 @@
+# Unitree H1 (gen 1) RIGHT ARM as a cascade manipulator: 4 DoF
+# (shoulder pitch/roll/yaw + elbow), rooted at torso_link. Kinematics from
+# the vendored arm-only URDF (assets/urdf/h1/h1_right_arm.urdf, DERIVED from
+# unitreerobotics/unitree_ros -- see PROVENANCE.md).
+#
+# WHAT THIS IS AND IS NOT. cascade drives the ARM of the standing humanoid
+# for tabletop skills (point, reach, push, wave, handover gestures); it does
+# NOT balance, walk, or control the legs -- locomotion stays with Unitree's
+# own controller, and this profile assumes the robot is standing/damped with
+# the torso quasi-static. All positions are in the TORSO frame.
+#
+# NO END-EFFECTOR: the gen-1 H1 arm ends in a bare forearm (no wrist, no
+# hand). tcp_link marks the forearm tip (the Menagerie collision capsule
+# end). gripper.max_width_m = 0 declares the missing hand honestly: every
+# pinch-grasp is filtered as infeasible, so grasp_object reports "no
+# feasible grasp" instead of miming one. Skills that need no jaw (point_at,
+# push_object, wave, move_relative) work.
+#
+# Transport: ROS2 (a ros2_control bridge over unitree_sdk2 / unitree_ros2,
+# e.g. an arm-only JointTrajectory controller). !!! UNVERIFIED ON HARDWARE.
+
+type: ros2
+
+# ── transport ────────────────────────────────────────────────────────────
+ros_namespace: h1
+ros_command: trajectory
+ros_state_topic: joint_states
+ros_command_topic: right_arm_controller/joint_trajectory
+ros_joints: [right_shoulder_pitch_joint, right_shoulder_roll_joint,
+             right_shoulder_yaw_joint, right_elbow_joint]
+settle_tol: 0.04
+settle_timeout_s: 4.0
+state_timeout_s: 1.0
+wait_state_s: 5.0
+
+# ── model ────────────────────────────────────────────────────────────────
+model: ${assets}/urdf/h1/h1_right_arm.urdf
+ee_frame: tcp_link
+n_joints: 4
+joint_signs: [1, 1, 1, 1]
+
+# 4 DoF cannot hold a 6-DoF pose: position-only IK is the honest contract
+# (unlike the SO-101, where zeroing weights would mask a real capability --
+# here the wrist DOES NOT EXIST). MEASURED: position-only solves 0.55 over
+# the front reach box; full-pose solves ~0.
+ik_task_weights: [1, 1, 1, 0, 0, 0]
+
+# The forearm axis is what approaches the target; orientation is whatever
+# the 4-DoF chain yields. down_open keeps the approach column first for the
+# few skills that read it.
+tool_axis_order: down_open
+
+# Wave wags the elbow (index 3); there is no wrist.
+gesture_joint: 3
+
+# ── poses ────────────────────────────────────────────────────────────────
+# Forearm forward-low in front of the torso, TCP [0.44, -0.25, 0.05],
+# min joint margin 0.54 rad. DERIVED on the vendored URDF, not tuned on
+# hardware.
+home_q: [-0.5, -0.2, 0.0, 0.8]
+# Arm raised/extended toward the human: TCP [0.53, -0.21, 0.13].
+handover_q: [-0.8, -0.2, 0.0, 1.0]
+
+# ── (absent) gripper ─────────────────────────────────────────────────────
+gripper:
+  open_pos: 0.0
+  closed_pos: 0.0
+  max_width_m: 0.0
+
+# ── rig geometry (TORSO frame: x forward, y left, z up) ──────────────────
+# A table in front of a standing H1 sits around z = -0.45 in this frame
+# (torso origin is near the chest). Reach measured on the URDF: the tcp
+# sweeps r <= ~0.62 from the shoulder; the box below is the front-right
+# quadrant the arm actually serves.
+overrides:
+  safety:
+    workspace:
+      min: [0.05, -0.60, -0.50]
+      max: [0.62, 0.10, 0.45]
+    table_z: -0.45
+    table_clearance: 0.03
+    max_joint_vel: 1.0
+  grasp:
+    # No hand: keep grasp planning off the table entirely.
+    topdown_z_max: -0.10
+    drop_zone: [0.35, -0.25]
+  workspace_filter:
+    base_radius_m: 0.15
+    table_z_m: -0.50
+    max_z_m: 0.45
+    reach_m: 0.65

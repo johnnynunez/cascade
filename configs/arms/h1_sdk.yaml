@@ -1,0 +1,19 @@
+# Unitree H1 (gen 1) right arm over the OFFICIAL transport: Arm SDK with
+# the gen-1 `unitree_go` message family (LowCmd has 20 motor slots), as in
+# unitree_sdk2's h1_arm_sdk_dds_example.cpp. See h1_2_sdk.yaml for why this
+# exists next to the ros2 parent.
+# !!! UNVERIFIED ON HARDWARE.
+extends: h1
+type: unitree_arm
+name: h1_right
+
+unitree_msg_family: go
+unitree_cmd_topic: rt/arm_sdk
+unitree_state_topic: rt/lowstate
+# H1 JointIndex: RightShoulderPitch=12, Roll=13, Yaw=14, Elbow=15; the
+# weight slot is kNotUsedJoint=9.
+unitree_joint_index: [12, 13, 14, 15]
+unitree_weight_index: 9
+unitree_kp: [60, 60, 60, 60]
+unitree_kd: [1.5, 1.5, 1.5, 1.5]
+unitree_weight_ramp_s: 2.0

@@ -72,3 +72,50 @@ def test_force_profiles():
     assert select_profile("box").name == "rigid"
     assert select_profile("box", material_hint="fragile").name == "fragile"
     assert select_profile("box", material_hint="very fragile item").name == "fragile"
+
+
+def test_select_grasp_offsets_a_single_hinge_jaw():
+    """A hinge jaw closes against its FIXED tip, not about the frame origin.
+
+    With jaw_fixed_tip_m/jaw_close_dir set, the IK target must be displaced
+    by -R @ (fixed_tip + close_dir*w/2): posing the frame origin on the
+    object parks the SO-101's closing point 30 mm away, the finger shoves
+    the prop on descent and the grasp reads "air grasp" -- the measured
+    failure of every so101_mujoco grasp while perception was 1.4 mm accurate.
+    Parallel-jaw callers omit the keys and the target must be untouched.
+    """
+    from cascade.grasping import select_grasp
+
+    fix = make_fix(center=(0.20, 0.0), size=(0.035, 0.035, 0.05))
+    grasps = plan_grasps_from_fix(fix, table_z=0.0, max_width_m=0.055,
+                                  width_pad_m=0.006, axis_order="open_down")
+
+    seen = {}
+
+    class _Kin:
+        def ik(self, T, seed):
+            class R:
+                success, error, q = True, 0.0, np.zeros(5)
+            seen.setdefault("targets", []).append(T[:3, 3].copy())
+            return R()
+
+    kw = dict(max_width_m=0.055, pregrasp_offset_m=0.03)
+    g_plain, _, _ = select_grasp(grasps, _Kin(), np.zeros(5), **kw)
+    plain_target = seen["targets"][1]  # [0]=pregrasp, [1]=grasp
+
+    seen.clear()
+    tip = np.array([0.0, 0.0, 0.0])
+    close = np.array([-1.0, 0.0, 0.0])
+    g_off, _, _ = select_grasp(grasps, _Kin(), np.zeros(5), **kw,
+                               jaw_fixed_tip_m=tip, jaw_close_dir=close)
+    off_target = seen["targets"][1]
+
+    assert g_off.width_m == g_plain.width_m
+    expect = plain_target - g_off.rotation @ (tip + close * g_off.width_m / 2)
+    assert np.allclose(off_target, expect, atol=1e-12), (
+        f"frame target {off_target} != object - R@datum {expect}"
+    )
+    shift = float(np.linalg.norm(off_target - plain_target))
+    assert abs(shift - g_off.width_m / 2) < 1e-9, (
+        "the offset must be half the closing width along the close direction"
+    )

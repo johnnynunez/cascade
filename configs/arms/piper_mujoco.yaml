@@ -1,0 +1,32 @@
+# PiPER in MuJoCo: real rigid-body physics, no robot and no GPU.
+#
+#   python scripts/fetch_robot_assets.py piper     # one-off: MJCF + meshes
+#   python -m cascade.apps.demo --arm piper_mujoco --camera mock \
+#       --task "pick and place the red object"
+extends: piper
+
+type: mujoco
+
+# Fetched by scripts/fetch_robot_assets.py; NOT vendored (needs the mesh
+# set). scene.xml wraps piper.xml with a floor and a light.
+mjcf: ${assets}/mjcf/piper/scene.xml
+
+# Same reason as so101_mujoco: the shipped scene has no prop, so a synthetic
+# camera would perceive a cube that physics does not have.
+mj_prop_from_camera: true
+
+# Menagerie MJCF names. joint7 is the actuated finger (joint8 mirrors it
+# through an equality constraint); the actuator is literally called
+# "gripper" and targets joint7.
+mj_joints: [joint1, joint2, joint3, joint4, joint5, joint6]
+mj_gripper_joint: joint7
+mj_actuators: [joint1, joint2, joint3, joint4, joint5, joint6]
+mj_gripper_actuator: gripper
+
+# The Menagerie piper.xml leaves timestep at MuJoCo's default 0.002 s, so a
+# 20 ms waypoint = 10 steps real time. 12 gives the same convergence margin
+# the SO-101 profile documents (position servos saturate at extension).
+substeps: 12
+settle_tol: 0.03
+settle_timeout_s: 4.0
+view: false

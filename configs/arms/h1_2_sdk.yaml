@@ -1,0 +1,22 @@
+# Unitree H1-2 right arm over the OFFICIAL transport: Arm SDK (`rt/arm_sdk`
+# / `rt/lowstate`, unitree_hg messages) -- what unitree_sdk2's
+# h1_2_arm_sdk_dds_example.cpp speaks. The parent h1_2.yaml assumes a
+# ros2_control bridge that Unitree does not ship; use THIS profile on a
+# stock robot, the parent only if you run your own bridge.
+# !!! UNVERIFIED ON HARDWARE.
+extends: h1_2
+type: unitree_arm
+name: h1_2_right
+
+unitree_msg_family: hg
+unitree_cmd_topic: rt/arm_sdk
+unitree_state_topic: rt/lowstate
+# H1-2 JointIndex: RightShoulderPitch=20 .. RightWristYaw=26; weight slot
+# kNotUsedJoint=27.
+unitree_joint_index: [20, 21, 22, 23, 24, 25, 26]
+unitree_weight_index: 27
+# Gains: the SDK example's per-joint ladder for the arm (shoulder 120/120/80,
+# elbow 50, wrists 50) with kd 2.0/2.0/1.5/1.0/1.0/1.0/1.0.
+unitree_kp: [120, 120, 80, 50, 50, 50, 50]
+unitree_kd: [2.0, 2.0, 1.5, 1.0, 1.0, 1.0, 1.0]
+unitree_weight_ramp_s: 2.0

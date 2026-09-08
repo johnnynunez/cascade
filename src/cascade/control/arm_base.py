@@ -121,6 +121,14 @@ class ArmBase(abc.ABC):
 
 
 def make_arm(cfg: Cfg, kinematics=None) -> ArmBase:
+    if cfg.get("template") is True:
+        # configs/arms/ros2_generic.yaml and friends: documentation you copy,
+        # not a robot you can run. Building one would drive a real transport
+        # with placeholder kinematics (empty ros_joints, no home_q).
+        raise ValueError(
+            "this arm profile is a TEMPLATE (template: true): copy the file, "
+            "fill in the robot's own numbers, and drop the flag"
+        )
     kind = cfg.type
     if kind == "mock":
         from .mock_arm import MockArm
@@ -146,7 +154,15 @@ def make_arm(cfg: Cfg, kinematics=None) -> ArmBase:
         from .feetech_arm import FeetechArm
 
         return FeetechArm(cfg)
+    if kind == "ros2":
+        from .ros2_arm import Ros2Arm
+
+        return Ros2Arm(cfg)
+    if kind == "unitree_arm":
+        from .unitree_arm import UnitreeArm
+
+        return UnitreeArm(cfg)
     raise ValueError(
         f"unknown arm type {kind!r} "
-        f"(mock|rebot_rs|rebot_rs_mb|isaac|mujoco|so101)"
+        f"(mock|rebot_rs|rebot_rs_mb|isaac|mujoco|so101|ros2|unitree_arm)"
     )

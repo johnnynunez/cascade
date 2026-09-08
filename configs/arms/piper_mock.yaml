@@ -1,0 +1,3 @@
+# PiPER, kinematic mock transport: tests/CI, no deps, no hardware.
+extends: piper
+type: mock

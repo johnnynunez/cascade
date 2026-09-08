@@ -35,6 +35,14 @@ def _yaw_rotation(yaw: float, tool_down: np.ndarray | None = None,
                    forward is +x of gripper_end and points down)
       "open_down"  columns [open, third, approach]  (Franka Panda in LIBERO,
                    and the SO-101 -- see below)
+      "third_open_down"  columns [third, open, approach]  (Franka FR3 with the
+                   Franka Hand as described by franka_description: the two
+                   prismatic fingers slide along hand +y, `fr3_hand_tcp` is a
+                   pure +z translation of `fr3_hand`, so the OPENING axis is
+                   col1 and the approach is col2. This is NOT the LIBERO
+                   Panda's frame: robosuite's `gripper0_grip_site` is rotated
+                   so its col0 is the opening axis. Same robot family, two
+                   descriptions, two conventions -- measure, do not assume.)
 
     MEASURED for the SO-101 from the Menagerie collision geometry, by placing
     the two fingertip sphere sets in the URDF TCP frame (`gripper_frame_link`)
@@ -73,6 +81,15 @@ def _yaw_rotation(yaw: float, tool_down: np.ndarray | None = None,
         # Right-handed with approach last: [open, third x open ... ] worked out
         # so that col0 = opening, col2 = approach, matching the measurement.
         return np.column_stack([open_axis, np.cross(down, open_axis), down])
+    if axis_order == "third_open_down":
+        # col1 = opening, col2 = approach; col0 = open x down keeps it
+        # right-handed (det = +1), which IK needs for a valid rotation.
+        return np.column_stack([np.cross(open_axis, down), open_axis, down])
+    if axis_order != "down_open":
+        raise ValueError(
+            f"unknown tool_axis_order {axis_order!r} "
+            "(down_open | open_down | third_open_down)"
+        )
     return np.column_stack([down, open_axis, third])
 
 

@@ -1,0 +1,41 @@
+# FR3 + Franka Hand in MuJoCo: real rigid-body physics, no robot, no GPU.
+#
+#   python scripts/fetch_robot_assets.py fr3          # one-off: MJCF + meshes,
+#                                                      # composes scene_hand.xml
+#   python -m cascade.apps.demo --arm fr3_mujoco --camera mujoco_scene \
+#       --task "pick and place the red object"
+extends: fr3
+
+type: mujoco
+
+# Menagerie ships franka_fr3 WITHOUT a hand. The fetcher attaches the Franka
+# Hand (franka_emika_panda/hand.xml) to link7 at franka_description's mount
+# pose and writes scene_hand.xml; tests/test_kinematics_fr3.py pins that the
+# resulting MJCF and the vendored URDF agree to < 0.1 mm at 50 random q.
+mjcf: ${assets}/mjcf/fr3/scene_hand.xml
+
+# Same reason as so101_mujoco: put a prop where the camera profile says.
+mj_prop_from_camera: true
+
+# Menagerie names. The attached hand's names carry the `fh_` prefix.
+mj_joints: [fr3_joint1, fr3_joint2, fr3_joint3, fr3_joint4,
+            fr3_joint5, fr3_joint6, fr3_joint7]
+mj_actuators: [fr3_joint1, fr3_joint2, fr3_joint3, fr3_joint4,
+               fr3_joint5, fr3_joint6, fr3_joint7]
+mj_gripper_joint: fh_finger_joint1
+mj_gripper_actuator: fh_actuator8
+# hand.xml drives both fingers through ONE tendon actuator with ctrlrange
+# 0..255 ("remap original ctrlrange (0, 0.04) to (0, 255)" in the MJCF), while
+# the finger joint itself reads 0..0.04 m -- the profile's gripper units.
+# ctrl = 6375 * pos: 0.04 m -> 255. MEASURED: ctrl 255 -> both fingers at
+# 0.0400, ctrl 0 -> 0.0000.
+mj_gripper_ctrl_scale: 6375.0
+mj_gripper_ctrl_offset: 0.0
+
+# fr3.xml sets timestep 0.002 s (MuJoCo default); 12 substeps per 20 ms
+# waypoint gives the position servos margin at full extension, same as the
+# SO-101/PiPER profiles document.
+substeps: 12
+settle_tol: 0.03
+settle_timeout_s: 4.0
+view: false

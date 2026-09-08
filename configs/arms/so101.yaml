@@ -127,6 +127,21 @@ gripper:
   # conservative value keeps the air-grasp check from reading a partly-closed
   # jaw as "holding something". Raise it only after measuring on the arm.
   max_width_m: 0.055
+  # Single-hinge jaw datum for grasp centring, TOOL frame (this arm's
+  # open_down ordering: col0 = open, col2 = approach). MEASURED in MuJoCo
+  # from the Menagerie fingertip spheres:
+  #   - the FIXED jaw's contact point sits AT the frame origin (0.2 mm off,
+  #     rigid to 2.3 um across arm poses and all gripper angles);
+  #   - the moving jaw closes toward it along ~-col0 (unit [-0.995, 0, -0.098]
+  #     at open; the 6% col2 lean is the beak's retraction arc).
+  # An object of width w therefore ends pinched at close_dir * w/2 from the
+  # origin -- NOT at the frame origin and NOT at the open-gap centre (30 mm
+  # out). Without this datum every grasp straddled the prop ~30 mm to one
+  # side, shoved it on descent and closed on air, while perception was
+  # dead-on (1.4 mm). select_grasp offsets the frame target by it; parallel
+  # jaws omit both keys. DERIVED from the model, not measured on hardware.
+  jaw_fixed_tip_m: [0.0002, 0.0002, 0.0005]
+  jaw_close_dir: [-0.995, -0.004, -0.098]
 
 # ── rig geometry this arm implies ────────────────────────────────────────
 # Deep-merged over demo.yaml by load_demo_config. demo.yaml describes a reBot

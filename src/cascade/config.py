@@ -236,7 +236,53 @@ def load_demo_config(
         # demo will actually open. Opt-in: absent unless the profile sets
         # `mj_prop_from_camera: true`. See sim/demo_scene.py.
         if prof.get("mj_prop_from_camera") is True:
-            cams = base.get("cameras")
-            prof["mj_prop_from_camera"] = (cams[0] if cams else base.get("camera"))
+            view_cams = base.get("cameras")
+            prof["mj_prop_from_camera"] = (view_cams[0] if view_cams else base.get("camera"))
+            # ...and the FULL camera list, so every rendered (`type: mujoco`)
+            # profile gets a <camera> declared in the generated scene, not
+            # just the manipulation camera.
+            prof["mj_cameras"] = list(view_cams) if view_cams else [base.get("camera")]
     main["arms"] = arm_profiles
+
+    # Rendered sim cameras look INTO a MuJoCo arm's world; tell each which.
+    # Only the primary arm can own the scene (a two-arm MuJoCo rig would need
+    # one MJCF containing both, which nothing here generates yet), so a
+    # rendered camera without a MuJoCo primary is a config error worth
+    # naming: it would otherwise open, fail to find a world and stream
+    # nothing, and the demo would report "no frames" far from the cause.
+    # `cams` here is the LIVE list under main["cameras"] (main["camera"] is
+    # its first element by reference), so planting on it reaches the config.
+    primary = arm_profiles[0]
+    for c in cams:
+        if str(c.get("type", "")) != "mujoco":
+            continue
+        if str(primary.get("type", "")) != "mujoco":
+            raise ValueError(
+                f"camera profile {c.get('name')!r} is type: mujoco (renders a "
+                f"MuJoCo world) but the primary arm {arm_names[0]!r} is "
+                f"type: {primary.get('type')!r} -- pair it with a mujoco arm "
+                "(so101_mujoco, piper_mujoco) or use the mock camera"
+            )
+        c.setdefault("mj_arm", arm_names[0])
+        # The camera attaches to the arm's world BY PATH (sim/mujoco_world.py
+        # registry). The path is decided by the arm's profile (its `mjcf`,
+        # and whether scene generation rewrites it), so resolve it here with
+        # the SAME function the arm uses -- two derivations would drift.
+        from .sim.demo_scene import resolved_scene_path
+
+        prop_cam = primary.get("mj_prop_from_camera")
+        c.setdefault("mj_scene", str(resolved_scene_path(primary.get("mjcf"), prop_cam)))
+        # Under the MCP server the arm is a LazyArm built on the FIRST MOTION,
+        # so the camera (opened at prewarm) is the first to need the generated
+        # scene -- which only the arm's constructor used to write. On a fresh
+        # clone that is "file not found"; after a profile edit it is a STALE
+        # scene. Hand the camera the same generation inputs so it (re)writes
+        # the scene itself; the content is deterministic, so the arm's later
+        # write of the same file is a no-op.
+        if hasattr(prop_cam, "get"):
+            c.setdefault("mj_scene_source", {
+                "mjcf": primary.get("mjcf"),
+                "prop_cam": prop_cam,
+                "cameras": primary.get("mj_cameras"),
+            })
     return Cfg(main)

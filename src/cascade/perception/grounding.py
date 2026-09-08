@@ -145,13 +145,33 @@ def _recentre_by_size(center, pts_base, extents, cam_pos):
     if pts.shape[0] < 20:
         return center
     cam = np.asarray(cam_pos, dtype=float)[:3]
-    rng = np.linalg.norm(pts - cam, axis=1)
-    near = pts[rng <= np.percentile(rng, 10)].mean(axis=0)
-    d = near - cam
+    # Decompose along the view ray (camera -> cloud centroid). The camera
+    # bias this function exists to remove lives ALONG the ray (near surfaces
+    # oversampled -> the fit dragged toward the camera), so only the along-ray
+    # coordinate is re-anchored on the near surface; the LATERAL coordinates
+    # come from the cloud centroid, which a flat face samples uniformly.
+    #
+    # The original version anchored all three axes on the nearest-RANGE
+    # decile. Range varies with lateral offset too, and on a flat top face
+    # seen near-vertically that is all it varies by -- so the anchor picked
+    # the face's near EDGE, not the near face: measured on a 35 mm box 87 px
+    # off the principal point (mock_small + so101_mujoco), the fix landed
+    # 14 mm lateral of the object, the finger caught the edge and shoved it,
+    # and every grasp failed as "air grasp". The reBot/Isaac rigs never saw
+    # this because their objects sat near the image centre, where range and
+    # along-ray agree. tests/test_perception_truth_mujoco.py pins both rigs'
+    # numbers; the off-centre case is pinned by
+    # test_localize_off_center_object_stays_lateral in test_perception.py.
+    d = pts.mean(axis=0) - cam
     n = float(np.linalg.norm(d))
     if n < 1e-6:
         return center
     d /= n
+    rel = pts - cam
+    s = rel @ d
+    s_near = float(s[s <= np.percentile(s, 10)].mean())
+    lateral = rel.mean(axis=0) - float(rel.mean(axis=0) @ d) * d
+    near = cam + lateral + d * s_near
     size = float(np.min(np.asarray(extents, dtype=float)))
     size = float(np.clip(size, 0.01, 0.30))
     return near + d * (size / 2.0)

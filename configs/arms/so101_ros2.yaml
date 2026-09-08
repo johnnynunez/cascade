@@ -1,0 +1,29 @@
+# SO-101 driven through ROS2 (`ros2_control` + joint_trajectory_controller),
+# e.g. the LeRobot/SO-ARM ROS2 stack or any bringup that exposes the standard
+# pair of interfaces. Same physical arm as so101.yaml -- kinematics, gripper
+# geometry, workspace overrides and keyframes all inherit; this file is ONLY
+# the transport. See src/cascade/control/ros2_arm.py for the QoS/naming
+# contract, and configs/arms/ros2_generic.yaml to wire any OTHER robot.
+extends: so101
+
+type: ros2
+
+# Everything below is topic wiring. Relative names get the namespace prefix;
+# absolute (/x) names pass through.
+ros_namespace: so101
+ros_command: trajectory        # joint_trajectory_controller
+ros_state_topic: joint_states
+ros_command_topic: joint_trajectory_controller/joint_trajectory
+# The framework's q order. JointState order is driver-defined, so this list
+# is what maps names -> indices; it must match the URDF chain the profile's
+# kinematics use (same 5 names, same order, as mj_joints in so101_mujoco).
+ros_joints: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
+ros_gripper_joint: gripper
+ros_gripper_topic: gripper_trajectory_controller/joint_trajectory
+
+# A position-tracking controller arrives late, like MuJoCo/Isaac; loosen the
+# settle contract the same way those profiles do.
+settle_tol: 0.03
+settle_timeout_s: 4.0
+state_timeout_s: 1.0     # JointState staler than this = driver down
+wait_state_s: 5.0        # connect() budget for the FIRST JointState

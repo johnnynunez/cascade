@@ -1,0 +1,80 @@
+# Unitree H1-2 RIGHT ARM: 7 DoF (shoulder pitch/roll/yaw, elbow, wrist
+# roll/pitch/yaw), rooted at torso_link. Kinematics from the vendored
+# arm-only URDF (assets/urdf/h1_2/h1_2_right_arm.urdf, DERIVED from
+# unitreerobotics/unitree_ros h1_2_description -- see PROVENANCE.md).
+#
+# NAMING: there is no public "Unitree H2"; the second-generation H1 ships as
+# H1-2 (h1_2_description). This profile is that robot. Same scope note as
+# h1.yaml: cascade drives the ARM in the TORSO frame; balance/locomotion
+# stay with Unitree's controller.
+#
+# The vendored model is the HANDLESS variant: the wrist ends at a mount
+# flange (tcp_link, +0.05 m past wrist_yaw). With no fitted hand the gripper
+# block declares zero aperture -- pinch grasps are filtered as infeasible.
+# Fitting an Inspire/FTP hand = override `gripper:` (+ grasp sweep) in a
+# child profile; the arm kinematics stay valid.
+#
+# Transport: ROS2 (ros2_control bridge over unitree_sdk2/unitree_ros2).
+# !!! UNVERIFIED ON HARDWARE.
+
+type: ros2
+
+# ── transport ────────────────────────────────────────────────────────────
+ros_namespace: h1_2
+ros_command: trajectory
+ros_state_topic: joint_states
+ros_command_topic: right_arm_controller/joint_trajectory
+ros_joints: [right_shoulder_pitch_joint, right_shoulder_roll_joint,
+             right_shoulder_yaw_joint, right_elbow_joint,
+             right_wrist_roll_joint, right_wrist_pitch_joint,
+             right_wrist_yaw_joint]
+settle_tol: 0.04
+settle_timeout_s: 4.0
+state_timeout_s: 1.0
+wait_state_s: 5.0
+
+# ── model ────────────────────────────────────────────────────────────────
+model: ${assets}/urdf/h1_2/h1_2_right_arm.urdf
+ee_frame: tcp_link
+n_joints: 7
+joint_signs: [1, 1, 1, 1, 1, 1, 1]
+
+# MEASURED on the vendored URDF (150 random front-box top-down targets):
+# down_open solves 0.60, open_down 0.31 -- the opposite of the PiPER/SO-101,
+# which is exactly why this is per-arm data and never a house style.
+tool_axis_order: down_open
+
+# ── poses ────────────────────────────────────────────────────────────────
+# Top-down-capable pose over the front-right table region: TCP
+# [0.46, -0.36, 0.29] with approach [0, 0, -1], min margin 0.43 rad.
+# DERIVED on the vendored URDF by sampled search, not tuned on hardware.
+home_q: [-0.81, -0.83, -2.51, 2.57, 1.05, -0.03, -0.56]
+# Arm extended forward-up toward the human: TCP [0.53, -0.28, 0.15].
+handover_q: [-0.9, -0.25, 0.0, 1.2, 0.0, 0.0, 0.0]
+
+# ── (absent) gripper: handless flange ────────────────────────────────────
+gripper:
+  open_pos: 0.0
+  closed_pos: 0.0
+  max_width_m: 0.0
+
+# ── rig geometry (TORSO frame) ───────────────────────────────────────────
+overrides:
+  safety:
+    workspace:
+      min: [0.05, -0.65, -0.60]
+      max: [0.70, 0.10, 0.55]
+    table_z: -0.50
+    table_clearance: 0.03
+    max_joint_vel: 1.0
+  grasp:
+    # A future hand profile must retune these; with the flange the grasp
+    # planner never gets past the width filter anyway.
+    topdown_z_max: 0.35
+    pregrasp_offset_m: 0.05
+    drop_zone: [0.40, -0.30]
+  workspace_filter:
+    base_radius_m: 0.15
+    table_z_m: -0.55
+    max_z_m: 0.55
+    reach_m: 0.85

@@ -51,21 +51,54 @@ def _camera_cfgs(cfg) -> list[Cfg]:
 
 
 def _truth_pose_fn(safe_arm):
-    """Ground-truth prop poses when running against Isaac Sim, else None.
+    """Ground-truth prop poses when running against a simulator, else None.
 
     Pigey's postcondition checker prefers a channel the actuator does not
-    own. In sim that is the physics state; on real hardware there is none, so
-    this returns None and the checker falls back to perception -- identical
-    code path in both worlds.
+    own. In sim that is the physics state -- the Isaac bridge's RigidPrims or
+    the MuJoCo world's free bodies; on real hardware there is none, so this
+    returns None and the checker falls back to perception -- identical code
+    path in both worlds.
+
+    The callable binds LAZILY (`sim/truth.py::LazyTruthPoseFn`): under the
+    MCP server the arm is a LazyArm that materializes on the first motion
+    command, so at this point there is nothing to bind to yet. The old
+    eager binding therefore returned None in exactly the mode the demo is
+    shown in, and every chat-driven pick verified against the belief store
+    only. Mock and real arms still yield None on every call, and a real arm
+    is never materialized by the probe.
     """
     try:
-        from ..sim.truth import make_truth_pose_fn
+        from ..sim.truth import LazyTruthPoseFn
 
         # skills only ever hold a SafeArm; the backend is behind .raw
         raw = getattr(safe_arm, "raw", safe_arm)
-        return make_truth_pose_fn(raw)
+        fn = LazyTruthPoseFn(raw)
+        # A MOCK or REAL arm can never grow a truth channel: hand the checker
+        # None so its reports say "belief", not a lazy stub that stays empty.
+        # Sim arms (Isaac bridge, MuJoCo) may not be bound yet -- keep the
+        # lazy callable for them. Judged on the arm's TYPE, without touching
+        # a LazyArm (its `_factory` is a private attribute, never __getattr__).
+        if not _may_have_truth_channel(raw):
+            return None
+        return fn
     except Exception:
         return None
+
+
+def _may_have_truth_channel(raw) -> bool:
+    """True for arm objects that are, or will materialize into, a sim arm."""
+    name = type(raw).__name__
+    if name in ("IsaacArm", "MujocoArm"):
+        return True
+    if name == "LazyArm":
+        real = raw.__dict__.get("_arm")
+        if real is not None:
+            return type(real).__name__ in ("IsaacArm", "MujocoArm")
+        # Not materialized: the factory closes over the profile; ask it for
+        # the type without calling it (calling it would power the robot).
+        cfg_type = getattr(raw, "_profile_type", None)
+        return cfg_type in ("isaac", "mujoco")
+    return False
 
 
 def _arm_cfgs(cfg) -> list[Cfg]:
@@ -112,7 +145,8 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
         # n_joints must come from the profile: until the arm materializes,
         # LazyArm's hint is the only DOF answer anything can get, and the
         # class default (6) is wrong for a 5-DoF SO-101 or a 7-DoF Panda.
-        arm = LazyArm(lambda: make_arm(acfg, kinematics=kin), n_joints=n_joints)
+        arm = LazyArm(lambda: make_arm(acfg, kinematics=kin), n_joints=n_joints,
+                      profile_type=str(acfg.get("type", "")))
     else:
         arm = make_arm(acfg, kinematics=kin)
         arm.connect()

@@ -57,7 +57,46 @@ def test_localize_object_in_base_frame():
     # Camera above (0.28, 0); the box center is near the image center.
     assert abs(fix.position[0] - 0.29) < 0.03
     assert abs(fix.position[1]) < 0.03
-    assert abs(fix.position[2] - 0.05) < 0.01  # top surface at 5 cm
+    # z: BETWEEN the true centre (0.025) and the top face (0.05), and
+    # derivably so. The mid-height skirt gives the cloud a measured z-span of
+    # h/2 = 0.025 (top face 0.05 down to the skirt at 0.025 -- a straight-down
+    # camera sees no lower), and _recentre_by_size steps half the smallest
+    # measured extent in from the near face: 0.05 - 0.0125 = 0.0375. The old
+    # flat-lid scene had zero z-span, so localize reported the TOP (~0.045)
+    # and the planner aimed the jaws at the upper corner (a measured 2.29 cm
+    # shove in MuJoCo). Pinning ~0.05 here would reintroduce that.
+    assert 0.025 <= fix.position[2] < 0.045
+    assert abs(fix.position[2] - 0.0375) < 0.005
+
+
+def test_localize_off_center_object_stays_lateral():
+    """An object away from the image centre must not be dragged toward it.
+
+    The camera-bias correction anchors on the near surface, but with a
+    RANGE-decile anchor an off-centre flat face contributes its near EDGE
+    (range grows with lateral offset too), shifting the fix ~14 mm toward
+    the principal point -- measured on mock_small + so101_mujoco, where the
+    finger then caught the edge, shoved the 35 mm prop, and every grasp
+    failed as "air grasp". The along-ray/lateral decomposition keeps the
+    lateral coordinate at the face centroid. mock_small's box_px (301..339 x
+    308..346) backprojects to base x ~ 0.200 at the top-face depth; 5 mm of
+    lateral slack covers mask edge effects, far below the 14 mm defect.
+    """
+    box_px = (301, 308, 339, 346)
+    f = synthetic_tabletop(box_px=box_px, table_depth_m=0.55)
+    extr = Extrinsics(mode="eye_to_hand", T=T_CAM2BASE)
+    fix = localize_object(f, "red cube", MockDetector(), extr)
+    # Ground truth from the same backprojection the scene generator uses:
+    # centre pixel (320, 327), fx=600, top face at 0.55-0.05 = 0.50 m.
+    u, v = (box_px[0] + box_px[2]) / 2, (box_px[1] + box_px[3]) / 2
+    z = 0.55 - 0.05
+    x_cam, y_cam = (u - 320) / 600 * z, (v - 240) / 600 * z
+    expect = T_CAM2BASE @ np.array([x_cam, y_cam, z, 1.0])
+    assert abs(fix.position[0] - expect[0]) < 0.005, (
+        f"x pulled {1000 * abs(fix.position[0] - expect[0]):.1f} mm off the "
+        "object: the near-surface anchor is biased toward the image centre"
+    )
+    assert abs(fix.position[1] - expect[1]) < 0.005
 
 
 def test_localize_fails_readably():

@@ -1,0 +1,110 @@
+# Franka Research 3 (FR3) with the Franka Hand, 7 DoF, driven through ROS2
+# (franka_ros2's `fr3_arm_controller`, a joint_trajectory_controller). Base
+# profile: kinematics, poses, gripper, workspace. The transport-only children
+# are fr3_mock.yaml (tests/CI) and fr3_mujoco.yaml (Menagerie franka_fr3).
+#
+# Kinematics: assets/urdf/fr3/fr3_arm.urdf, DERIVED from
+# frankarobotics/franka_description (fr3.urdf.xacro rendered with the Franka
+# Hand, then the arm chain fr3_link0 -> fr3_hand_tcp extracted). See
+# assets/urdf/fr3/PROVENANCE.md for the exact commit and commands. Joint
+# limits are franka_description's `robots/fr3/joint_limits.yaml`, which are
+# tighter than the Menagerie MJCF ranges (e.g. joint1 +-2.9007 vs +-2.7437
+# there -- the MJCF is the more conservative; libfranka enforces its own).
+#
+# !!! UNVERIFIED ON HARDWARE. Every number below was measured on the URDF,
+# not on a robot: check `ros2 topic echo /joint_states` names, then the
+# jog scripts, before the first motion.
+
+type: ros2
+
+# ── transport (ros2_arm.py contract) ─────────────────────────────────────
+# franka_ros2: `ros2 launch franka_bringup franka.launch.py robot_type:=fr3
+# robot_ip:=... namespace:=<ns>` + the fr3_ros_controllers.yaml controller
+# set (`fr3_arm_controller`, JTC over the 7 arm joints). An empty namespace
+# puts everything at the root, which is what franka.launch.py does by default.
+ros_namespace: ""
+ros_command: trajectory
+ros_state_topic: joint_states
+ros_command_topic: fr3_arm_controller/joint_trajectory
+ros_joints: [fr3_joint1, fr3_joint2, fr3_joint3, fr3_joint4,
+             fr3_joint5, fr3_joint6, fr3_joint7]
+# The Franka Hand is NOT a JTC joint: franka_gripper exposes ACTION servers
+# (~/move, ~/grasp, ~/gripper_action) and publishes its own JointState on
+# franka_gripper/joint_states with fr3_finger_joint1/2 (each 0..0.04 m).
+# ros_gripper: action drives it through control_msgs/GripperCommand, where
+# `command.position` is ONE finger's travel (the server doubles it to width).
+ros_gripper: action
+ros_gripper_action: franka_gripper/gripper_action
+ros_gripper_joint: fr3_finger_joint1
+ros_gripper_state_topic: franka_gripper/joint_states
+# A 1 kHz effort-interface JTC tracks tightly; settle accordingly.
+settle_tol: 0.02
+settle_timeout_s: 4.0
+state_timeout_s: 1.0
+wait_state_s: 5.0
+
+# ── model ────────────────────────────────────────────────────────────────
+model: ${assets}/urdf/fr3/fr3_arm.urdf
+ee_frame: fr3_hand_tcp
+n_joints: 7
+joint_signs: [1, 1, 1, 1, 1, 1, 1]
+
+# MEASURED from the URDF: both finger joints slide along hand +y and
+# fr3_hand_tcp is a pure +z translation of fr3_hand, so in the TCP frame the
+# OPENING axis is col1 and the approach is col2 -> `third_open_down`. This
+# is NOT the LIBERO Panda's `open_down` (robosuite rotates its grip site so
+# col0 opens). Strict top-down IK solve rate over r 0.30..0.80, |az| <= 90deg,
+# z 0.02..0.30: 1.00 with this order.
+tool_axis_order: third_open_down
+
+# ── poses ────────────────────────────────────────────────────────────────
+# Strict top-down TCP at base [0.45, 0.00, 0.30], approach [0,0,-1], min
+# joint margin 0.65 rad -- DERIVED by IK on the URDF from libfranka's
+# documented "ready" pose, not tuned on hardware.
+home_q: [0.432, -0.284, -0.417, -2.430, -0.137, 2.164, -0.678]
+# Top-down, high and forward-right toward the operator: TCP [0.55, -0.25,
+# 0.45], min margin 1.26 rad.
+handover_q: [0.434, 0.221, -0.969, -1.580, 0.183, 1.704, -1.333]
+# libfranka's documented ready pose (also franka_ros2's move_to_start):
+# TCP [0.307, 0, 0.487], approach down. Kept for scripts that want it.
+ready_q: [0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785]
+
+# ── gripper: Franka Hand, two prismatic fingers ──────────────────────────
+gripper:
+  # Convention of this framework: open_pos..closed_pos is the motor travel
+  # the skills interpolate. For the Franka Hand the natural coordinate is
+  # ONE finger's travel in metres (fr3_finger_joint1: 0 = closed, 0.04 =
+  # fully open), which is also exactly what GripperCommand.position takes.
+  open_pos: 0.04
+  closed_pos: 0.0
+  # 2 x 0.04 m = 0.08 m aperture (franka_description finger_joint limits).
+  max_width_m: 0.08
+  # Franka Hand continuous grasp force range is 20..70 N; cascade's `effort`
+  # (0..1) scales into this. libfranka refuses > 70 N.
+  max_effort_n: 70.0
+
+# ── rig geometry (BASE frame at fr3_link0: x forward, y left, z up) ──────
+# The base sits ON the table (table_z = 0). Strict top-down reach measured
+# on the URDF: full solve rate for r 0.30..0.75 at z <= 0.30, drops to 0 at
+# r >= 0.85; inner radius ~0.25 at table height. Box below = that annulus.
+overrides:
+  safety:
+    workspace:
+      min: [0.20, -0.60, -0.01]
+      max: [0.80, 0.60, 0.60]
+    table_z: 0.0
+    table_clearance: 0.02
+    # franka joint_limits.yaml velocities are 2.62/5.26 rad/s; cascade streams
+    # far below that. 1.0 keeps a demo calm on a 7-axis arm this size.
+    max_joint_vel: 1.0
+  grasp:
+    # Highest z at which a STRICT top-down pose still solves everywhere in
+    # the annulus (measured 1.00 at z=0.45 out to r=0.70).
+    topdown_z_max: 0.45
+    pregrasp_offset_m: 0.08
+    drop_zone: [0.45, -0.30]
+  workspace_filter:
+    base_radius_m: 0.20
+    table_z_m: -0.02
+    max_z_m: 0.60
+    reach_m: 0.85

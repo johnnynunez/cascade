@@ -37,7 +37,7 @@ _MOTION_SKILLS = {
     "grasp_object", "place_at", "place_on_object", "push_object",
     "open_gripper", "close_gripper", "move_home", "pick_and_place",
     "point_at", "wave", "handover", "sort_by_color", "move_relative",
-    "throw", "grasp_at_pixel", "turn_screw",
+    "throw", "grasp_at_pixel", "turn_screw", "reset_scene",
 }
 
 
@@ -431,6 +431,7 @@ class SkillRuntime:
         # the task is measured against, not the aftermath of step one.
         if (
             name in _MOTION_SKILLS
+            and name != "reset_scene"
             and self.last_frame is not None
             and not self.memory.memory_frames(1)
         ):
@@ -567,7 +568,8 @@ class SkillRuntime:
             data={"verdict": verdict} if verdict else None,
             rgb=(
                 self.last_frame.rgb
-                if (name in _MOTION_SKILLS and self.last_frame is not None)
+                if (name in _MOTION_SKILLS and name != "reset_scene"
+                    and self.last_frame is not None)
                 else None
             ),
         )
@@ -635,9 +637,15 @@ class SkillRuntime:
                 mask_frac=float(mask.sum()) / float(mask.size) if mask.size else None,
             ) is not None:
                 continue
+            # Colour is what keeps two small props apart in the belief store
+            # (beliefs.update refuses to fuse two different measured colours).
+            # The WorldWatcher path tagged it; this one did not, so a fresh
+            # get_observation on the two-cube scene fused red and blue into
+            # one belief 3 cm from either -- both call sites must tag.
             self.beliefs.update(
                 d.label, center, d.conf, extent=extents,
                 top_z=float(pts_base[:, 2].max()), t=frame.t,
+                color=detection_color(frame.rgb, d),
                 points=pts_base if d.mask is not None else None,
             )
             summaries.append(
@@ -2367,6 +2375,84 @@ class SkillRuntime:
         wf = self._gripper_width_frac()
         return {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
 
+    def skill_reset_scene(self) -> dict:
+        """Start the demo over: arm home, every sim prop back on its spawn
+        pose, the world model and the task's visual memory cleared, one fresh
+        observation. This is what runs between two visitors -- the launcher's
+        own proof turn already moved the red cube, so without it the first
+        visitor of the day starts "put both cubes in the drop zone" with one
+        cube already there.
+
+        Sim only for the props: on a real rig the props do not teleport, so
+        the result says `props_reset: []` and the human puts them back; the
+        rest (home, memory, re-observe) still applies. The arm goes home
+        FIRST so a prop respawning under the gripper is not respawned into
+        the jaws."""
+        out: dict = {"props_reset": [], "world": None}
+        home_ok = True
+        try:
+            self.skill_move_home()
+        except (SkillError, SafetyViolation) as e:
+            home_ok = False
+            out["home_error"] = str(e)
+        # release anything the runtime still thinks it holds: a reset while
+        # carrying is the operator's decision that the episode is over
+        if self.held_object:
+            try:
+                self.arm.set_gripper(1.0)
+            except Exception:  # noqa: BLE001
+                pass
+            self.held_object = None
+            self._held_det_label = None
+            self._held_color = None
+            self._held_offset = None
+        world = None
+        raw = getattr(self.arm, "raw", None)
+        # MujocoArm exposes its shared world; a LazyArm that never
+        # materialized has moved nothing, so there is nothing to put back.
+        if raw is not None and getattr(raw, "connected", True):
+            world = getattr(raw, "world", None)
+        if world is None:
+            try:  # MCP mode: the rendered camera may own the only live world
+                from ..sim import mujoco_world
+
+                live = mujoco_world.live_worlds()
+                world = live[0] if len(live) == 1 else None
+            except Exception:  # noqa: BLE001
+                world = None
+        if world is not None and hasattr(world, "reset_props"):
+            out["props_reset"] = list(world.reset_props())
+            out["world"] = "mujoco"
+        elif hasattr(raw, "reset_props"):
+            try:  # Isaac bridge: best effort, verified by the re-observe below
+                raw.reset_props()
+                out["world"] = "isaac"
+            except Exception as e:  # noqa: BLE001
+                out["world_error"] = str(e)
+        dropped = self.beliefs.clear()
+        self.memory.reset_frames()
+        self.memory.add("note", f"scene reset: {len(out['props_reset'])} prop(s) respawned, "
+                                f"{dropped} belief(s) forgotten")
+        try:
+            # The camera pumps on its own thread: a render that was already
+            # in flight when the props teleported completes "after this call"
+            # yet shows the OLD world (measured: the red cube still at the
+            # drop zone, occluded by the home-pose gripper -> the fresh scan
+            # reported one cube of two). Burn one frame so the observation
+            # below is provably rendered after the reset.
+            if out["props_reset"]:
+                try:
+                    self.camera.get_frame()
+                except Exception:  # noqa: BLE001
+                    pass
+            obs = self.skill_get_observation()
+            out["objects_visible"] = obs.get("objects_visible", [])
+        except Exception as e:  # noqa: BLE001
+            out["observe_error"] = str(e)
+        out["beliefs_forgotten"] = dropped
+        out["ok"] = home_ok
+        return out
+
     def skill_move_home(self) -> dict:
         home = self._profile_q("home_q", "move home")
         if not self.arm.move_joints(home, duration_s=3.0):
@@ -3054,6 +3140,18 @@ TOOL_SPECS: list[dict] = [
     {
         "name": "move_home",
         "description": "Return the arm to its home configuration (also clears the camera view).",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "reset_scene",
+        "description": (
+            "Start over between demos: arm home, every simulated prop back on "
+            "its spawn pose, the world model and the task memory cleared, one "
+            "fresh observation. On a real robot the props do not move back "
+            "(props_reset is empty): ask the human to replace them. Not a "
+            "recovery tool for a failed grasp -- use it when a task or a "
+            "visitor is done."
+        ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {

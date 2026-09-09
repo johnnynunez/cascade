@@ -273,6 +273,12 @@ Measured through OpenClaw: 7 tool calls, 0 failures, 98 s, both
 `pick_and_place` calls `postcondition: confirmed` on the physics channel,
 and the brain's answer cites the memory frames' verdicts, not its intent.
 
+Between visitors say **"reset the scene"** (or "start over", "reinicia la
+escena"): arm home, sim props back on their spawn pose, world model and task
+memory cleared. It is a reflex, so it works even with the brain down. The
+launcher runs it itself after its proof turn, so the first visitor starts
+from the spawn layout.
+
 ## Quick start
 
 ```bash

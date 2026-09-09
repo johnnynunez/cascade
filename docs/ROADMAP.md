@@ -469,6 +469,32 @@ suite:
    present. Multi-part results log their LAST text part (the JSON summary)
    plus an image count.
 
+**Between visitors: `reset_scene`.** The launcher's own proof turn moves the
+red cube into the drop zone, so the first visitor of the day would start
+"put both cubes in the drop zone" with one already there. New skill (tool +
+reflex phrases: "reset the scene", "start over", "reinicia la escena",
+"nueva demo" -- works with the LLM down): arm home first, every free body
+back on its MJCF spawn pose at rest (`MujocoWorld.reset_props`, under the
+world lock; Isaac best-effort via the bridge's `reset_props`), held-state
+released, beliefs cleared, task frames cleared, one fresh observation. The
+launcher calls it after the proof turn and the banner lists it. Physics is
+the judge in the test: spawn pose within 2 mm after a confirmed pick moved
+it 20 cm, still there after 50 sim steps, perception sees both cubes again.
+Three bugs it exposed:
+
+6. The mock detector kept the narrow vocabulary a grasp had asked for
+   (`["red cube"]`) across later OPEN scans and hid the blue prop -- the
+   real detector's contract is `classes=None` = open world; the mock now
+   honours it.
+7. `_update_beliefs_from_frame` (the `get_observation` path) did not tag
+   the measured colour; only the WorldWatcher path did. Without the tag the
+   colour rule from bug 2 cannot fire and a fresh scan fused both cubes.
+8. A render already in flight on the camera thread when the props
+   teleported completed "after the call" but showed the OLD world (red cube
+   still at the drop zone, occluded by the home-pose gripper): the fresh
+   scan reported one cube of two, on ~1 in 3 runs. The reset burns one frame
+   before observing, so the observation is provably post-reset.
+
 Not adopted, with reasons: Vesta as the brain (no weights); navigation and
 SFT mixture (training); GR00T actor (VLA as executor was ruled out earlier);
 the async planner–actor loop with max staleness (Appendix B) -- tool calls

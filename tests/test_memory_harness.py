@@ -278,3 +278,21 @@ def test_task_memory_tool_serves_frames_as_image_content(runtime_and_arm):
     # new_task forgets the history
     out = server._task_memory(runtime, {"new_task": True, "k": 2})
     assert [c["type"] for c in out["content"]].count("image") == 1
+
+
+def test_mock_detector_forgets_a_narrow_vocabulary_on_the_next_open_scan():
+    """Contract shared with the real detector: `classes=None` is open world.
+    The mock kept the ["red cube"] a grasp asked for and hid the blue prop
+    from every later open scan (reset_scene saw one cube of two)."""
+    from cascade.perception.detector import MockDetector
+    from cascade.types import Frame
+
+    rgb = np.zeros((60, 80, 3), np.uint8)
+    rgb[10:20, 10:20] = (30, 30, 200)   # red (BGR)
+    rgb[30:40, 50:60] = (200, 40, 30)   # blue
+    frame = Frame(rgb=rgb, depth_m=None, K=np.eye(3), t=0.0)
+    det = MockDetector(label="red cube", extra_labels=["blue cube"])
+    assert sorted(d.label for d in det.detect(frame)) == ["blue cube", "red cube"]
+    assert [d.label for d in det.detect(frame, classes=["red cube"])] == ["red cube"]
+    assert sorted(d.label for d in det.detect(frame)) == ["blue cube", "red cube"], \
+        "an open scan after a narrow one must see everything again"

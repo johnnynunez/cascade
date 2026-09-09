@@ -168,6 +168,13 @@ class BeliefStore:
             best.observations += 1
             return best
 
+    def clear(self) -> int:
+        """Forget every object (scene reset). Returns how many were dropped."""
+        with self._lock:
+            n = len(self._beliefs)
+            self._beliefs = []
+            return n
+
     def mark_removed(self, label: str, near: np.ndarray | None = None) -> bool:
         """Drop a belief after the robot itself moved the object away."""
         with self._lock:

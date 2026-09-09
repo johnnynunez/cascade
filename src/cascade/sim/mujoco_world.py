@@ -69,6 +69,26 @@ class MujocoWorld:
         with self.lock:
             return [float(v) for v in self.data.xpos[bid]]
 
+    def reset_props(self) -> list[str]:
+        """Put every free body back on its MJCF spawn pose, at rest, and
+        return their names. The arm's joints are left where they are (the
+        runtime homes the arm itself; yanking qpos under a streaming
+        controller would fight it). Under the world lock, so a camera grab
+        or a truth read mid-reset sees either the old or the new pose, never
+        a half-written one."""
+        m, mj = self.model, self.mj
+        names = []
+        with self.lock:
+            for j in range(m.njnt):
+                if m.jnt_type[j] != mj.mjtJoint.mjJNT_FREE:
+                    continue
+                qa, va = int(m.jnt_qposadr[j]), int(m.jnt_dofadr[j])
+                self.data.qpos[qa:qa + 7] = m.qpos0[qa:qa + 7]
+                self.data.qvel[va:va + 6] = 0.0
+                names.append(mj.mj_id2name(m, mj.mjtObj.mjOBJ_BODY, int(m.jnt_bodyid[j])))
+            mj.mj_forward(m, self.data)
+        return names
+
     def free_body_names(self) -> list[str]:
         """Bodies hanging off a free joint -- the props, in every scene this
         repo generates (`sim/demo_scene.py`) and in MuJoCo Menagerie scenes.

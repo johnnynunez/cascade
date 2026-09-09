@@ -244,8 +244,12 @@ class MockDetector(Detector):
         self._classes = list(classes) if classes else []
 
     def detect(self, frame: Frame, classes: list[str] | None = None) -> list[Detection]:
-        if classes:
-            self.set_classes(classes)
+        # Same contract as the real detector: `classes=None` means OPEN
+        # WORLD, not "keep the last narrow vocabulary". The mock used to
+        # remember the `["red cube"]` a grasp had asked for and hide the blue
+        # prop from every later open scan -- reset_scene re-observed a table
+        # with two visible cubes and reported one.
+        self.set_classes(classes)
         if self._fixed is not None:
             return list(self._fixed)
         out: list[Detection] = []

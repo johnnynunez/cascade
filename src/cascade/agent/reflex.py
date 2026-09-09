@@ -160,6 +160,17 @@ _RULES: list[tuple[re.Pattern, str]] = [
         ),
         "look",
     ),
+    # Between visitors: props back on spawn, memory cleared. Reflex so it
+    # works with the LLM down (the booth's host-outage interface).
+    (
+        re.compile(
+            r"^(?:reset|restart|reinicia|reinicializa|resetea|reset the scene|reset scene|"
+            r"start over|start again|empieza de nuevo|empezar de nuevo|"
+            r"vuelve a empezar|reinicia la escena|resetea la escena|"
+            r"nueva demo|new demo)(?:\s+the\s+scene|\s+la\s+escena|\s+the\s+demo|\s+la\s+demo)?$"
+        ),
+        "reset_scene",
+    ),
     # scene questions answer instantly from the world model
     (
         re.compile(
@@ -288,6 +299,8 @@ def parse_command(text: str) -> ReflexPlan | None:
             return ReflexPlan(intent, [("move_relative", {"direction": g["dir"]})])
         if intent == "home":
             return ReflexPlan(intent, [("move_home", {})])
+        if intent == "reset_scene":
+            return ReflexPlan(intent, [("reset_scene", {})])
         if intent == "look":
             return ReflexPlan(intent, [("get_observation", {})])
         if intent == "open_gripper":

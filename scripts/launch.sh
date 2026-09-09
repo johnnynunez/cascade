@@ -647,6 +647,22 @@ PYEOF
             *"postcondition=confirmed"*) log "robot turn CONFIRMED by physics." ;;
             *) warn "the robot turn did not end in a physics-confirmed pick -- read the log path above before demoing" ;;
         esac
+        # The proof moved a prop into the drop zone. Put the scene back so the
+        # first visitor starts from the spawn layout, not from the aftermath.
+        log "resetting the scene after the proof turn (props back on spawn, memory cleared)"
+        RESET_JSON="$(openclaw agent exec 'Call the reset_scene tool once and reply with exactly its props_reset list.' --json --timeout 120 2>/dev/null || true)"
+        RESET_OK="$(RESET_JSON="$RESET_JSON" "$PY" - <<'PYEOF' 2>/dev/null || echo ""
+import json, os
+try:
+    d = json.loads(os.environ.get("RESET_JSON") or "")
+    ts = d.get("toolSummary") or {}
+    print("ok" if ts.get("calls") and not ts.get("failures") else "")
+except Exception:
+    print("")
+PYEOF
+)"
+        if [[ "$RESET_OK" == "ok" ]]; then log "scene reset."
+        else warn "scene reset did not go through -- say 'reset the scene' in the chat before the first visitor"; fi
     fi
 fi
 
@@ -656,6 +672,8 @@ cat <<EOF
          chat:      http://127.0.0.1:$GATEWAY_PORT/   (openclaw dashboard)
          headless:  openclaw agent exec "describe the scene"
          try:       "what do you see?"  "pick and place the red object"  "did it actually move?"
+$( [[ "$CAMERAS" == *scene_two* ]] && echo '         memory:    "put both cubes in the drop zone, one at a time; call task_memory before each action; then tell me how many you moved and how you know"' )
+         reset:     "reset the scene"  (between visitors: props back on spawn, memory cleared)
 $( [[ "$SIM" == "mujoco" ]] && echo '         viewer:    the MuJoCo window opens on the FIRST motion command (arm is lazy until then)' )
 $( [[ "$SIM" == "isaac"  ]] && echo "         isaac:     bridge :$BRIDGE_PORT, log $STATE_DIR/isaac_bridge.log" )
 $( [[ "$OCCUPANCY" != "none" ]] && echo "         occupancy: :$OCC_PORT ${OCC_DESC:-(dry run)}" )

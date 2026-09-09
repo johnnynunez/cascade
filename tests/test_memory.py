@@ -122,3 +122,22 @@ def test_mark_removed_when_not_first_element():
     assert store.mark_removed("banana", near=np.array([0.2, 0.0, 0.02]))
     assert store.find("banana") is None
     assert store.find("cup") is not None
+
+
+def test_two_colours_inside_the_match_radius_stay_two_objects():
+    """Proximity fusion is for label ALIASES of one object; two props whose
+    measured mask colours differ are two objects even when they are closer
+    than `match_radius_m`. Measured on the two-cube MuJoCo scene: 3.5 cm
+    cubes 5.8 cm apart fused into one belief, count_objects said 1 and the
+    fused position sat a cube-width off physics truth."""
+    store = BeliefStore(match_radius_m=0.08, pos_alpha=0.5)
+    store.update("red cube", np.array([0.20, 0.10, 0.025]), 0.9, color="red")
+    store.update("blue cube", np.array([0.20, 0.158, 0.025]), 0.9, color="blue")
+    assert len(store.all()) == 2
+    assert {b.color for b in store.all()} == {"red", "blue"}
+    # an alias of the SAME colour still fuses
+    store.update("hassock", np.array([0.20, 0.10, 0.025]), 0.5, color="red")
+    assert len(store.all()) == 2
+    # an observation with no colour measurement keeps the old proximity rule
+    store.update("thing", np.array([0.20, 0.155, 0.025]), 0.5)
+    assert len(store.all()) == 2

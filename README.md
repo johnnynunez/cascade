@@ -258,6 +258,21 @@ reports a failure count.
 Verified on a fresh copy with no venv (macOS, MuJoCo mode): setup + launch
 + physics-confirmed pick in one command, `tools=2 failures=0`.
 
+The memory demo (two props, the planner must remember what it already
+moved):
+
+```bash
+./run.sh mujoco --cameras mujoco_scene_two
+# then, in the chat:
+#   "Put both cubes in the drop zone, one at a time. Before each action call
+#    task_memory to see what you already did, and when both are done tell me
+#    how many cubes you moved and how you know."
+```
+
+Measured through OpenClaw: 7 tool calls, 0 failures, 98 s, both
+`pick_and_place` calls `postcondition: confirmed` on the physics channel,
+and the brain's answer cites the memory frames' verdicts, not its intent.
+
 ## Quick start
 
 ```bash
@@ -405,7 +420,16 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
   not the code's, so a 5-, 6- or 7-DoF arm needs no new control logic.
 - **[Memory](src/cascade/memory/)** is a 10–15 s episodic window plus an
   object-permanence belief store, so "the mug you saw 10 seconds ago" is
-  still actionable after occlusion.
+  still actionable after occlusion -- and a task-scale **visual memory
+  harness** (Vesta, arXiv:2606.20905 §2.4): the planner sees up to K
+  captioned frames of what it already did (initial state, the view after
+  each action, the physics verdict on it) next to the current view, on
+  every LLM turn and, for a chat host, through the `task_memory` tool.
+  Vesta's ablation is the reason it is images *and* text: a text-only
+  history keeps "continuing the current task". Try it on the two-prop scene
+  (`--camera mujoco_scene_two`): "put both cubes in the drop zone, then
+  tell me how many are there" -- after the first pick the current view
+  alone cannot say whether one cube moved or none.
 - The **[agent](src/cascade/agent/)** dispatches through three tiers —
   reflex (regex, no LLM) → experience (learned habits) → LLM — so routine
   commands never wait on the model, with a VLM advisor kicking in on failure.

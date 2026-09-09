@@ -162,6 +162,32 @@ _EXTRA_TOOLS = [
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "task_memory",
+        "description": (
+            "Your visual memory of the current task: up to K captioned frames "
+            "-- the scene BEFORE the first action, then what it looked like "
+            "after each action, each with the independent verdict on that "
+            "action (confirmed / refuted / unverified) -- and the current "
+            "view last. Call it before deciding the next step of any task "
+            "with more than one action (counting, sorting, 'put N objects "
+            "in', 'find without repeating'): judge what is DONE from these "
+            "frames and verdicts, never from what you intended. Pass "
+            "`new_task: true` on the first call of a new task to start a "
+            "fresh memory."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "k": {"type": "integer", "description": "Max past frames (default 4)."},
+                "new_task": {
+                    "type": "boolean",
+                    "description": "Start a new episode: forget the previous task's frames first.",
+                },
+            },
+            "required": [],
+        },
+    },
 ]
 
 
@@ -414,7 +440,11 @@ class McpSkillServer:
 
             if name in _MOTION_SKILLS:
                 print(
-                    f"[cascade-mcp] client cancelled {name!r} mid-motion -> e-stop",
+                    f"[cascade-mcp] client cancelled {name!r} mid-motion -> e-stop. "
+                    "If this arrived at a round number of seconds the HOST's "
+                    "per-call budget expired (OpenClaw requestTimeoutMs, default "
+                    "60 s) -- a persistent pick legitimately runs longer; raise "
+                    "it in the server entry (launch.sh sets 300000).",
                     file=sys.stderr,
                 )
                 self.stop_now()
@@ -487,6 +517,8 @@ class McpSkillServer:
                 return _text_result(self._robot_knowledge(runtime))
             if name == "verify_last_action":
                 return _text_result(self._verify_last(runtime))
+            if name == "task_memory":
+                return self._task_memory(runtime, arguments or {})
             with self._exec_lock:  # never overlap with a reflex-chat motion
                 runtime.current_tier = "mcp-host"  # the chat host's brain chose this call
                 if name == "pick_and_place":  # narrate on the dashboard
@@ -524,6 +556,59 @@ class McpSkillServer:
         except Exception:
             pass
         return out
+
+    def _task_memory(self, runtime, arguments: dict) -> dict:
+        """Vesta memory harness (arXiv:2606.20905 §2.4) for a chat host.
+
+        The orchestrator's LLM tier gets the same frames injected on every
+        turn; a chat host cannot be injected into, so it gets them as a
+        tool: image content items interleaved with one caption each, the
+        current view last. Same sampler, same captions, same verdicts."""
+        mem = runtime.memory
+        if arguments.get("new_task"):
+            mem.reset_frames()
+        try:
+            k = int(arguments.get("k") or 4)
+        except (TypeError, ValueError):
+            k = 4
+        frames = mem.memory_frames(max(0, k))
+        content: list[dict] = []
+        for fr in frames:
+            content.append({"type": "text", "text": mem.frame_caption(fr)})
+            content.append({
+                "type": "image",
+                "data": base64.b64encode(fr["jpeg"]).decode(),
+                "mimeType": "image/jpeg",
+            })
+        try:
+            runtime.observe()
+            current = runtime.frame_jpeg()
+        except Exception:  # noqa: BLE001 -- a camera hiccup must not hide the history
+            current = runtime.frame_jpeg()
+        if current:
+            content.append({"type": "text", "text": "current view (now)"})
+            content.append({
+                "type": "image",
+                "data": base64.b64encode(current).decode(),
+                "mimeType": "image/jpeg",
+            })
+        summary = {
+            "ok": True,
+            "frames": len(frames),
+            "steps_recorded": [
+                {"step": fr["step"], "age_s": fr["age_s"], "action": fr["text"],
+                 "verdict": fr["verdict"] or "none"}
+                for fr in frames
+            ],
+            "note": (
+                "Judge progress from the frames and verdicts above. A step "
+                "marked refuted did not happen."
+                if frames else
+                "No actions recorded yet in this task: only the current view."
+            ),
+        }
+        content.append({"type": "text", "text": json.dumps(summary)})
+        return {"content": content, "isError": False}
 
     def _verify_last(self, runtime) -> dict:
         """Independent verification of recent effects (Pigey postconditions)."""
@@ -696,7 +781,15 @@ def handle_message(server: McpSkillServer, msg: dict) -> dict | None:
             except Exception as e:
                 out = _text_result({"ok": False, "error": f"{type(e).__name__}: {e}"}, is_error=True)
             try:
-                body = (out.get("content") or [{}])[0].get("text", "")
+                # Multi-part results (task_memory: captions + images + a JSON
+                # summary LAST) log their summary, not their first caption --
+                # a log that showed only "memory frame 1 ..." read as "the
+                # memory never grew" while frames 2..k were right there.
+                parts = [c for c in (out.get("content") or []) if c.get("type") == "text"]
+                n_img = sum(1 for c in (out.get("content") or []) if c.get("type") == "image")
+                body = (parts[-1].get("text", "") if parts else "")
+                if n_img:
+                    body = f"[{n_img} image(s)] " + body
                 print(f"[cascade-mcp] tools/call {name}({_short_args(args)}) -> "
                       f"{'ERROR' if out.get('isError') else 'ok'} in {time.monotonic() - t_call:.1f}s: {body[:200]}",
                       file=sys.stderr, flush=True)

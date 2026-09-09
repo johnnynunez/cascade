@@ -200,6 +200,27 @@ class OpenVocabDetector(Detector):
         return dets
 
 
+def _rule_red(bgr: np.ndarray) -> np.ndarray:
+    b, g, r = (bgr[:, :, i].astype(int) for i in range(3))
+    return (r - b > 60) & (r - g > 60)
+
+
+def _rule_blue(bgr: np.ndarray) -> np.ndarray:
+    b, g, r = (bgr[:, :, i].astype(int) for i in range(3))
+    return (b - r > 60) & (b - g > 40)
+
+
+def _rule_green(bgr: np.ndarray) -> np.ndarray:
+    b, g, r = (bgr[:, :, i].astype(int) for i in range(3))
+    return (g - r > 50) & (g - b > 50)
+
+
+#: BGR-threshold rules per colour word, for the mock detector. The SO-101 mesh
+#: is yellow (R ~ G, low B) and the table light grey (R ~ G ~ B), so none of
+#: these fire on the robot or the background in the rendered scene.
+_COLOR_RULES = {"red": _rule_red, "blue": _rule_blue, "green": _rule_green}
+
+
 class MockDetector(Detector):
     """Returns pre-configured detections; understands the synthetic scene.
 
@@ -208,9 +229,15 @@ class MockDetector(Detector):
     so end-to-end tests exercise real mask geometry.
     """
 
-    def __init__(self, detections: list[Detection] | None = None, label: str = "red cube"):
+    def __init__(self, detections: list[Detection] | None = None, label: str = "red cube",
+                 extra_labels: list[str] | None = None):
         self._fixed = detections
         self._label = label
+        #: further colour-keyed props ("blue cube", "green cube"): each is
+        #: found by its own BGR threshold (`_COLOR_RULES`), tuned to the
+        #: rgba the generated MuJoCo scene paints (sim/demo_scene.PROP_RGBA)
+        #: and to the mock camera's synthetic colours.
+        self._extra_labels = list(extra_labels or [])
         self._classes: list[str] = []
 
     def set_classes(self, classes: list[str] | None) -> None:
@@ -221,20 +248,29 @@ class MockDetector(Detector):
             self.set_classes(classes)
         if self._fixed is not None:
             return list(self._fixed)
-        # Behave like an open-vocab detector: only "find" the object when the
-        # requested vocabulary loosely matches its label.
-        if self._classes:
-            words = {w for c in self._classes for w in c.lower().split()}
-            mine = set(self._label.lower().split())
-            if not (words & mine):
-                return []
-        bgr = frame.rgb
-        red = (
-            (bgr[:, :, 2].astype(int) - bgr[:, :, 0].astype(int) > 60)
-            & (bgr[:, :, 2].astype(int) - bgr[:, :, 1].astype(int) > 60)
-        )
-        if not red.any():
-            return []
-        ys, xs = np.nonzero(red)
-        bbox = np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1], dtype=np.float32)
-        return [Detection(label=self._label, conf=0.95, bbox=bbox, mask=red)]
+        out: list[Detection] = []
+        for label in [self._label, *self._extra_labels]:
+            color = next((c for c in _COLOR_RULES if c in label.lower()), "red")
+            # Behave like an open-vocab detector: only "find" an object when
+            # the requested vocabulary loosely matches its label -- and when
+            # the vocabulary names a colour, only THAT colour's prop. With
+            # two props "blue cube" shares the token "cube" with "red cube";
+            # returning both for a blue query handed localize() the red prop
+            # first (equal confidence) and put the blue belief 3.5 cm off --
+            # one cube width, on the wrong cube.
+            if self._classes:
+                words = {w for c in self._classes for w in c.lower().split()}
+                if not (words & set(label.lower().split())):
+                    continue
+                asked = words & set(_COLOR_RULES)
+                if asked and color not in asked:
+                    continue
+            mask = _COLOR_RULES[color](frame.rgb)
+            if not mask.any():
+                continue
+            # one blob per colour: the generated scenes never paint two props
+            # of the same colour, so the union IS the object
+            ys, xs = np.nonzero(mask)
+            bbox = np.array([xs.min(), ys.min(), xs.max() + 1, ys.max() + 1], dtype=np.float32)
+            out.append(Detection(label=label, conf=0.95, bbox=bbox, mask=mask))
+        return out

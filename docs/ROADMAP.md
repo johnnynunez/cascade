@@ -379,6 +379,101 @@ Open follow-ups from this pass:
     track the release and switch `auto` to prefer it there once it exists —
     the backend code already runs it. (blocked upstream)
 
+## Landed 2026-09-10: the planner remembers what it did (Vesta memory harness)
+
+Source: NVIDIA GEAR, *Vesta: A Generalist Embodied Reasoning Model*
+(arXiv:2606.20905, June 2026). No weights or code are released ("when
+releasing assets in the future"), so nothing of the MODEL is usable; the
+paper's transferable result is about the **harness** around any planner:
+
+- **Image+text history beats text-only by 26 points on their planner suite**
+  (Table 5: text-only 49.7, image-only 63.1, image+text uniform 75.9). Their
+  diagnosis of text-only: the planner "learns to be overly reliant on the
+  history text shortcuts, leading to excessive 'continue the current task'
+  predictions". cascade was exactly text-only: `_prune_images` kept one
+  image in context, `EpisodicMemory.digest()` was text, and the thumbnails
+  the memory already stored per event had **zero consumers**.
+- **The harness is minimal**: memory tuple ⟨step, time, frame, action,
+  goal⟩; up to K past frames, the first always kept (initial state), the
+  rest sampled -- uniform and recency-biased "perform on par", so uniform.
+  Four reasoning phases before each action (Observation, Progress,
+  Reasoning, Action); only the action is written to memory.
+- **Their demo tasks are chosen so a memory-less actor structurally fails**
+  (Count Fruits, Find Object without re-opening a drawer, Memorize Candy):
+  +38.3 % success over actor-only on the real robot.
+
+Landed, each with a test proven by mutation:
+
+- `memory/episodic.py`: `memory_frames(k)` sampler + `frame_caption()`;
+  frames live in their own ring with a task-scale horizon (600 s: the 15 s
+  text window would forget the initial state before one ~20 s pick
+  finished) and `reset_frames()` per episode.
+- `skills/runtime.py`: every MOTION skill's memory event carries its AFTER
+  frame and the independent postcondition verdict; the first motion of an
+  episode pins the scene before anything moved when no observation frame
+  anchors it yet. Observation skills add no frame (near-duplicates).
+- `agent/orchestrator.py`: `_with_memory_harness()` appends ONE trailing
+  message per request with K captioned past frames + the current view;
+  images enter the request there and nowhere else (never accumulate);
+  `memory_frames_k=0` reproduces the old text-only path exactly.
+  `prompts.SYSTEM_PROMPT` asks for the four phases and says a REFUTED step
+  did not happen. `memory.frames_k` / `frames_horizon_s` in demo.yaml.
+- `apps/mcp_server.py`: `task_memory` tool -- the same frames for a chat
+  host as image content items with one caption each, `new_task: true` to
+  start an episode. 40 tools now.
+- **A task where memory is visible**: `configs/cameras/mujoco_scene_two.yaml`
+  adds a blue prop (`extra_props:`); `sim/demo_scene.py` writes N props
+  from one profile, the mock detector finds N colours, the physics channel
+  already handled N free bodies. `tests/test_memory_task_mujoco.py` runs two
+  chat-style `pick_and_place` calls on the rendered world: both
+  `postcondition: confirmed / channel: physics`, three memory frames with
+  verdicts ["", confirmed, confirmed], both props within 6 cm of the drop
+  zone in physics truth, `count_objects` = 2.
+
+Two bugs the two-prop scene exposed that one prop never could (the "second
+engine" rule again -- a second OBJECT is also an independent channel):
+
+1. **The mock detector returned every colour for any query** sharing the
+   token "cube", so `localize("blue cube")` got the red prop first (equal
+   confidence) and the blue belief sat one cube-width off truth (3.5 cm).
+   Colour words in the vocabulary now select the colour.
+2. **The belief store fused two props of different colours** because
+   proximity matching (for label aliases of ONE object) ignores colour and
+   3.5 cm cubes 5.8 cm apart are inside the 8 cm gate: `count_objects` said
+   1. Two confirmed, different mask colours are now two objects however
+   close; same-colour aliases still fuse; colour-less observations keep the
+   old rule.
+
+Then the REAL chat turn on the two-prop scene ("put both cubes in the drop
+zone, one at a time, call task_memory before each action, tell me how many
+you moved and how you know") found three more, none reachable by the unit
+suite:
+
+3. **`destination: "drop zone"` was localized as an OBJECT.** The planner
+   echoed the literal string it had read in a previous result; `pick_and_
+   place` tried to detect a thing called "drop zone", failed 8 place
+   attempts holding the cube, and the planner spent four minutes inventing
+   `place_at` coordinates outside the workspace. The drop zone is a
+   configured point: its spellings (`drop zone`, `bin`, `default`, ...) now
+   mean "use it", the tool description says so, test pinned.
+4. **The host's 60 s per-call budget latched the e-stop.** A persistent
+   pick legitimately runs up to `grasp.persist_seconds` (120 s); OpenClaw's
+   default `requestTimeoutMs` is 60 s, its `notifications/cancelled`
+   mid-motion is (correctly) treated as the operator walking away → e-stop,
+   and every later motion failed "e-stop latched". Measured: the pick
+   finished at 60.0 s, physics-confirmed, reported as cancelled.
+   `launch.sh` now registers the server with `requestTimeoutMs: 300000`;
+   the cancel log line names the cause.
+5. **The tool log showed only the first caption of a multi-part result**,
+   so `task_memory` looked stuck on "memory frame 1" while frames 2..k were
+   present. Multi-part results log their LAST text part (the JSON summary)
+   plus an image count.
+
+Not adopted, with reasons: Vesta as the brain (no weights); navigation and
+SFT mixture (training); GR00T actor (VLA as executor was ruled out earlier);
+the async planner–actor loop with max staleness (Appendix B) -- tool calls
+are synchronous by design here, noted for long-horizon work.
+
 ## Near term (before the demo)
 
 - **Booth experience.** The attendee-facing session is scripted in

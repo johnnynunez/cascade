@@ -123,21 +123,71 @@ DEMO_SCENE_TEMPLATE = """<mujoco model="scene_demo">
   <worldbody>
     <light pos="0 0 3.5" dir="0 0 -1" directional="true"/>
     <geom name="demo_floor" size="0 0 0.05" pos="0 0 0" type="plane" material="demo_table"/>
-    <body name="{prop_name}" pos="{px:.6f} {py:.6f} {pz:.6f}">
-      <freejoint/>
-      <geom type="box" name="{prop_name}" size="{hx:.6f} {hy:.6f} {hz:.6f}"
-        condim="3" friction="1 .03 .003" rgba="0.75 0.10 0.10 1"
-        contype="2" conaffinity="1" solref="0.01 1"/>
-    </body>
+    {props}
     {cameras}
   </worldbody>
 </mujoco>
 """
 
 
-def prop_pose_from_camera(cam_cfg) -> tuple[np.ndarray, np.ndarray]:
+#: One free-floating box prop. `rgba` is what the renderer paints; the mock
+#: detector (perception/detector.py) keys its colour thresholds to the same
+#: `color` word, and the physics truth channel matches labels on the body
+#: name -- so a prop declared once in the camera profile is consistent across
+#: pixels, physics and verdicts by construction.
+PROP_XML = """<body name="{name}" pos="{px:.6f} {py:.6f} {pz:.6f}">
+      <freejoint/>
+      <geom type="box" name="{name}" size="{hx:.6f} {hy:.6f} {hz:.6f}"
+        condim="3" friction="1 .03 .003" rgba="{rgba}"
+        contype="2" conaffinity="1" solref="0.01 1"/>
+    </body>"""
+
+#: Colour word -> rgba the renderer uses. The mock detector thresholds
+#: (detector.py `_COLOR_RULES`) are tuned to exactly these values.
+PROP_RGBA = {
+    "red": "0.75 0.10 0.10 1",
+    "blue": "0.10 0.20 0.80 1",
+    "green": "0.10 0.65 0.15 1",
+}
+
+
+def prop_specs(cam_cfg) -> list[dict]:
+    """Every prop the camera profile declares, main prop first.
+
+    The main prop is the profile's own `box_px` (+ `detector.label`, colour
+    defaults to red, body `red_cube`). `extra_props:` adds more, each
+    `{name, box_px, color}` -- a colour word from PROP_RGBA -- sharing the
+    profile's `box_height_m`. Used by the scene writer (physics), the mock
+    detector (pixels) and the camera tests, so a prop exists in all three or
+    in none.
+    """
+    det = cam_cfg.get("detector") if hasattr(cam_cfg, "get") else None
+    main_label = (det.get("label") if det is not None and hasattr(det, "get") else None) or "red cube"
+    main_color = next((c for c in PROP_RGBA if c in str(main_label).lower()), "red")
+    specs = [{
+        "name": str(cam_cfg.get("prop_name") or main_label.replace(" ", "_")),
+        "box_px": tuple(int(v) for v in (cam_cfg.get("box_px") or (280, 200, 360, 260))),
+        "color": main_color,
+        "label": str(main_label),
+    }]
+    for extra in cam_cfg.get("extra_props") or []:
+        color = str(extra.get("color", "blue")).lower()
+        if color not in PROP_RGBA:
+            raise ValueError(f"extra_props colour {color!r} not in {sorted(PROP_RGBA)}")
+        label = str(extra.get("label") or f"{color} cube")
+        specs.append({
+            "name": str(extra.get("name") or label.replace(" ", "_")),
+            "box_px": tuple(int(v) for v in extra["box_px"]),
+            "color": color,
+            "label": label,
+        })
+    return specs
+
+
+def prop_pose_from_camera(cam_cfg, box_px=None) -> tuple[np.ndarray, np.ndarray]:
     """Where the prop must sit in BASE frame for `cam_cfg` to be telling the
-    truth, and its half-extents.
+    truth, and its half-extents. `box_px` overrides the profile's own box
+    (extra props share the camera but not the pixels).
 
     Backprojects the camera profile's `box_px` corners at the box's own
     surface depth, then transforms into base frame with the profile's
@@ -156,7 +206,7 @@ def prop_pose_from_camera(cam_cfg) -> tuple[np.ndarray, np.ndarray]:
             f"(got {cam_cfg!r}); `mj_prop_from_camera: true` is only "
             "resolved to a camera by load_demo_config"
         )
-    box_px = cam_cfg.get("box_px") or (280, 200, 360, 260)
+    box_px = box_px or cam_cfg.get("box_px") or (280, 200, 360, 260)
     x0, y0, x1, y1 = (int(v) for v in box_px)
     width = int(cam_cfg.get("width", 640))
     height = int(cam_cfg.get("height", 480))
@@ -221,14 +271,21 @@ def write_demo_scene(robot_mjcf, cam_cfg, prop_name: str = "red_cube",
     resolves (see this module's docstring).
     """
     robot_mjcf = Path(robot_mjcf)
-    centre, half = prop_pose_from_camera(cam_cfg)
     cams = list(cameras) if cameras is not None else [cam_cfg]
     scene = resolved_scene_path(robot_mjcf, cam_cfg)
+    bodies = []
+    for i, spec in enumerate(prop_specs(cam_cfg)):
+        centre, half = prop_pose_from_camera(cam_cfg, box_px=spec["box_px"])
+        bodies.append(PROP_XML.format(
+            # the main prop keeps the caller's name (tests/truth key on it)
+            name=prop_name if i == 0 else spec["name"],
+            px=float(centre[0]), py=float(centre[1]), pz=float(centre[2]),
+            hx=float(half[0]), hy=float(half[1]), hz=float(half[2]),
+            rgba=PROP_RGBA[spec["color"]],
+        ))
     scene.write_text(DEMO_SCENE_TEMPLATE.format(
         robot_xml=robot_mjcf.name,
-        prop_name=prop_name,
-        px=float(centre[0]), py=float(centre[1]), pz=float(centre[2]),
-        hx=float(half[0]), hy=float(half[1]), hz=float(half[2]),
+        props="\n    ".join(bodies),
         cameras=cameras_xml(cams),
     ))
     return scene

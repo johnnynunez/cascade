@@ -322,7 +322,10 @@ def build_runtime(
         rig.close()  # a partial build must not leak open camera streams
         raise
 
-    memory = EpisodicMemory(horizon_s=float(cfg.memory.get("horizon_s", 15.0)))
+    memory = EpisodicMemory(
+        horizon_s=float(cfg.memory.get("horizon_s", 15.0)),
+        frame_horizon_s=float(cfg.memory.get("frames_horizon_s", 600.0)),
+    )
     beliefs = BeliefStore()
     # Persistent spatial memory (ROADMAP item): the world model survives a
     # restart, so the robot does not re-discover a table it already mapped and
@@ -562,7 +565,14 @@ def _make_detector(cfg):
     if dcfg.type == "mock":
         from ..perception.detector import MockDetector
 
-        return MockDetector(label=dcfg.get("label", "red cube"))
+        # extra_props on the camera profile (multi-prop scenes for the
+        # memory tasks) become extra colour-keyed labels, so the mock
+        # detector finds exactly the props the scene writer painted.
+        extra = [
+            str(e.get("label") or f"{e.get('color', 'blue')} cube")
+            for e in (cfg.camera.get("extra_props") or [])
+        ]
+        return MockDetector(label=dcfg.get("label", "red cube"), extra_labels=extra)
     if dcfg.type == "vlm":
         # Full-VLM perception (cosmos3-edge or any OpenAI-compatible vision
         # server): no YOLOE, no ultralytics import. ~1-3 s per pass on a
@@ -658,6 +668,7 @@ def main(argv: list[str] | None = None) -> int:
         llm, runtime, advisor=advisor, max_steps=args.max_steps,
         decompose=not is_mock, fast_planner=FastPlanner(experience),
         skill_library=library, verify_milestones=not is_mock,
+        memory_frames_k=int(cfg.memory.get("frames_k", 4)),
     )
 
     def _run(task: str):

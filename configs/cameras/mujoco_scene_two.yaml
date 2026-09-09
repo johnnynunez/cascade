@@ -1,0 +1,32 @@
+# `mujoco_scene` plus a SECOND prop -- the scene for the memory tasks.
+#
+# "pick and place the red object" is Markovian: with or without memory the
+# result is identical, so a visitor cannot see the memory harness work. Vesta
+# (arXiv:2606.20905 §4.4) evaluates its planner on tasks the actor-only
+# baseline structurally fails -- count N objects into a container, find an
+# object without re-opening a drawer -- because the planner must remember
+# what it already did. With two props the equivalent here is
+#
+#   "put both cubes in the drop zone, then tell me how many are there"
+#   "move the red cube to the drop zone, then the blue one, and do not
+#    move anything twice"
+#
+# A planner that only sees the current frame after the first pick sees ONE
+# cube left and cannot tell whether it moved one or none; the memory frames
+# (task_memory / the orchestrator harness) show the initial state with two,
+# the frame after each pick, and the physics verdict on each.
+#
+# The blue prop sits at base (0.16, +0.16), r = 0.226 -- measured INSIDE the
+# SO-101's executable-grasp region (pregrasp + grasp IK through the real
+# selector with the jaw datum applied: OK for r <= ~0.24 at this yaw; the
+# first placement tried, (0.20, 0.158) at r = 0.255, failed pregrasp IK on
+# all 8 attempts). 4 cm of x and 6 cm of y separate it from the red cube at
+# (0.20, 0.10): two 3.5 cm cubes with clear table between them, both on the
+# side OPPOSITE the drop zone (0.20, -0.12), so a placed cube can never land
+# on the prop still waiting, and after both picks the two cubes sit next to
+# each other in the drop zone, visibly.
+extends: mujoco_scene
+extra_props:
+  - label: "blue cube"
+    color: blue
+    box_px: [126, 352, 164, 390]

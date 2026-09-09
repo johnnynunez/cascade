@@ -139,8 +139,11 @@ def serve(port: int, gripper: str, verbose: bool = True) -> None:
             break
         action = req.get("action", "infer")
         try:
-            if action == "ping":
-                sock.send(msgpack.packb({"ok": True, "stub": True},
+            if action in ("ping", "health"):
+                # `health` is what the real server answers ({"status": "ok"});
+                # `ping` is this stub's older spelling. `stub: true` lets the
+                # client name us honestly in the run banner.
+                sock.send(msgpack.packb({"status": "ok", "ok": True, "stub": True},
                                         use_bin_type=True))
                 continue
             pts = np.asarray(req["point_cloud"], dtype=np.float64).reshape(-1, 3)

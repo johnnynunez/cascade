@@ -23,7 +23,17 @@ class FakeClient:
             return {}
         if payload["action"] == "query":
             return {"points": self.occupied.astype(np.float32)}
-        raise AssertionError(f"unexpected action {payload['action']!r}")
+        if payload["action"] == "probe":
+            return {"ok": True, "backend": "fake", "device": "cpu", "voxel": 0.02, "esdf": False}
+        # An OLD bridge (cloud protocol only): the real one answers an unknown
+        # action with an error dict, which the client turns into
+        # OccupancyError("... unknown action ...") and downgrades on.
+        raise OccupancyError(f"occupancy bridge error: unknown action {payload['action']!r}")
+
+    def probe(self, timeout_ms=300):
+        if self.fail:
+            raise OccupancyError("bridge down")
+        return self.request({"action": "probe"})
 
 
 def _map(occupied=None, fail=False, **kw):
@@ -171,13 +181,13 @@ def test_vet_pose_reports_occupancy_violation():
 # and harness behaviour but never the ZMQ/msgpack protocol itself: a bridge
 # that changed its response shape would keep every test above green.
 #
-# `occupancy.enabled` is false by default and the bridge ships in this repo,
-# so the failure mode is quieter than GraspGen-X's was -- but it is the same
-# blind spot. These tests run the client against the actual
-# scripts/serve_nvblox_bridge.py process.
+# `occupancy.enabled` is ON by default and the bridge ships in this repo, so
+# the failure mode is a bridge nobody started -- the same blind spot
+# GraspGen-X had. These tests run the client against the actual
+# scripts/serve_occupancy_bridge.py process (warp backend).
 # ─────────────────────────────────────────────────────────────────────────
 
-BRIDGE = REPO / "scripts" / "serve_nvblox_bridge.py"
+BRIDGE = REPO / "scripts" / "serve_occupancy_bridge.py"
 BRIDGE_PORT = 5598          # not 5557: never collide with a rig bridge
 
 
@@ -198,35 +208,54 @@ needs_wire = pytest.mark.skipif(
 )
 
 
-@pytest.fixture(scope="module")
-def bridge_server():
-    """The real occupancy bridge, on a private port."""
+def _spawn_bridge(port: int):
+    """The real occupancy bridge (warp backend), on a private port. Fails the
+    test if it cannot start: a bridge that will not come up is a regression,
+    not an environment to skip around (the deps are in the `grasping` extra
+    plus warp-lang, both in this venv)."""
     import socket
     import subprocess
     import sys
     import time
 
     proc = subprocess.Popen(
-        [sys.executable, str(BRIDGE), "--port", str(BRIDGE_PORT),
-         "--voxel-size", "0.02"],
+        [sys.executable, str(BRIDGE), "--port", str(port),
+         "--voxel-size", "0.02", "--backend", "warp",
+         "--region-min", "-1.0", "-1.0", "-1.0", "--region-max", "1.0", "1.0", "1.0"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
-    deadline = time.monotonic() + 15.0
+    deadline = time.monotonic() + 90.0   # first Warp kernel compile is slow
     while time.monotonic() < deadline:
         if proc.poll() is not None:
-            err = proc.stderr.read().decode()[:400] if proc.stderr else ""
-            pytest.skip(f"bridge exited: {err}")
+            err = proc.stderr.read().decode()[-600:] if proc.stderr else ""
+            pytest.fail(f"occupancy bridge exited at startup: {err}")
         s = socket.socket()
         s.settimeout(0.2)
-        ok = s.connect_ex((loopback_host(), BRIDGE_PORT)) == 0
+        ok = s.connect_ex((loopback_host(), port)) == 0
         s.close()
         if ok:
-            break
+            return proc
         time.sleep(0.1)
-    else:
-        proc.kill()
-        pytest.skip("bridge did not bind in time")
+    proc.kill()
+    pytest.fail("occupancy bridge did not bind in time")
+
+
+@pytest.fixture(scope="module")
+def bridge_server():
+    """Shared bridge for the protocol tests. NOTE: legacy `integrate` stamps
+    points that no ray ever carves, so tests on this fixture see each
+    other's obstacles -- geometry-sensitive tests use `fresh_bridge`."""
+    proc = _spawn_bridge(BRIDGE_PORT)
     yield BRIDGE_PORT
+    proc.kill()
+    proc.wait(timeout=5)
+
+
+@pytest.fixture
+def fresh_bridge():
+    """A private, EMPTY bridge per test for depth-frame geometry."""
+    proc = _spawn_bridge(BRIDGE_PORT + 1)
+    yield BRIDGE_PORT + 1
     proc.kill()
     proc.wait(timeout=5)
 
@@ -277,6 +306,13 @@ def test_integrate_then_query_round_trips_over_the_real_socket(bridge_server):
     assert pts.shape[0] > 0, "wall integrated but query came back empty"
     # everything the bridge returns must be the wall we put in, voxel-snapped
     assert abs(float(pts[:, 0].mean()) - 0.30) < 0.02
+    # and the distance grid: zero on the wall, growing away from it
+    grid = np.asarray(resp["grid"]); origin = np.asarray(resp["origin"]); v = float(resp["voxel"])
+    assert grid.ndim == 3 and v == pytest.approx(0.02)
+    def at(p):
+        return float(grid[tuple(np.round((np.asarray(p) - origin) / v).astype(int))])
+    assert at((0.30, 0.0, 0.15)) == pytest.approx(0.0, abs=1e-6)
+    assert at((0.40, 0.0, 0.15)) == pytest.approx(0.10, abs=0.011)
     c.close()
 
 
@@ -303,10 +339,11 @@ def test_the_query_region_actually_filters(bridge_server):
 
 
 @needs_wire
-def test_a_real_depth_frame_becomes_clearance(bridge_server):
+def test_a_real_depth_frame_becomes_clearance(fresh_bridge):
     """End to end over the socket: a depth frame -> integrate -> query ->
-    cached cloud -> clearance numbers the harness can gate on."""
-    m = _live_map(bridge_server)
+    cached grid -> clearance numbers the harness can gate on. On a FRESH
+    bridge: the shared one carries earlier tests' stamped walls."""
+    m = _live_map(fresh_bridge)
     # camera 1 m up looking down; the frame's flat 0.5 m depth becomes a
     # plane of points at z = 0.5
     T = np.eye(4)
@@ -316,12 +353,21 @@ def test_a_real_depth_frame_becomes_clearance(bridge_server):
     assert m.last_error is None, f"refresh failed over the wire: {m.last_error}"
     assert m._occupied is not None and len(m._occupied) > 0
 
-    on_plane = np.asarray(m._occupied[0], dtype=float).reshape(1, 3)
+    # `points` are occupied voxel centres: the surface AND the truncation
+    # band just behind it. Anchor on the surface (topmost voxel), not on
+    # points[0], which may sit a few voxels below the plane.
+    top = m._occupied[np.argmax(m._occupied[:, 2])]
+    on_plane = np.asarray(top, dtype=float).reshape(1, 3)
     d_near = m.clearance(on_plane)
-    d_far = m.clearance(on_plane + np.array([0.0, 0.0, 2.0]))
-    assert d_near is not None and d_far is not None
+    d_far = m.clearance(on_plane + np.array([0.0, 0.0, 0.4]))       # inside the mapped region
+    d_out = m.clearance(on_plane + np.array([0.0, 0.0, 2.0]))       # OUTSIDE the mapped region
+    assert d_near is not None and d_far is not None and d_out is not None
     assert float(d_near[0]) < 0.03, f"point on the cloud reads {d_near[0]:.3f} m away"
-    assert float(d_far[0]) > 1.0, "a point 2 m away should be far"
+    assert float(d_far[0]) == pytest.approx(0.4, abs=0.03), "0.4 m above the plane should read ~0.4"
+    # a point the map does not cover must read 'nothing known' (inf), NEVER a
+    # clamped border distance: clamping would hand it an obstacle it has no
+    # relation to -- or hide a real one standing right there.
+    assert np.isinf(d_out[0])
 
 
 @needs_wire
@@ -368,3 +414,168 @@ def test_the_bridge_reports_a_bad_action_as_an_error(bridge_server):
     with pytest.raises(OccupancyError, match="unknown action"):
         c.request({"action": "definitely_not_an_action"})
     c.close()
+
+
+@needs_wire
+def test_probe_names_the_backend(bridge_server):
+    """The startup probe is what makes 'occupancy: warp on cpu' a verified
+    statement instead of a config wish."""
+    m = _live_map(bridge_server)
+    st = m.probe()
+    assert st is not None and st["backend"] == "warp" and st["esdf"] is True and st["carving"] is True
+    assert "warp" in m.describe()
+    dead = _live_map(5597)
+    assert dead.probe() is None and dead.probe_error and "timed out" in dead.probe_error
+    assert dead.describe().startswith("none")
+
+
+def _tabletop_frame(cube: bool, W=160, H=120, fx=150.0):
+    """Analytic depth of a table 0.60 m below a straight-down camera, with an
+    optional 5 cm cube. Camera at base (0.28, 0, 0.60)."""
+    us, vs = np.meshgrid(np.arange(W), np.arange(H))
+    d = np.full((H, W), 0.60, dtype=np.float32)
+    if cube:
+        xc = (us - W / 2) / fx * 0.55
+        yc = (vs - H / 2) / fx * 0.55
+        d[(np.abs(xc + 0.10) < 0.025) & (np.abs(yc) < 0.025)] = 0.55
+    K = np.array([[fx, 0, W / 2], [0, fx, H / 2], [0, 0, 1]], dtype=float)
+    return Frame(rgb=np.zeros((H, W, 3), dtype=np.uint8), depth_m=d, K=K)
+
+
+_T_TOPDOWN = np.array([[0, -1, 0, 0.28], [-1, 0, 0, 0.0], [0, 0, -1, 0.60], [0, 0, 0, 1]], dtype=float)
+
+
+@needs_wire
+def test_depth_frames_build_a_distance_field_over_the_wire(fresh_bridge):
+    """integrate_depth + query: the grid must read ~0 on the cube, its height
+    above the table over empty table, and the trilinear clearance() must
+    match the grid to within a voxel."""
+    m = _live_map(fresh_bridge, region_min=np.array([0.0, -0.3, -0.02]),
+                  region_max=np.array([0.6, 0.3, 0.4]), depth_stride=1)
+    for _ in range(3):
+        m.refresh(_tabletop_frame(cube=True), T_base_cam=_T_TOPDOWN)
+    assert m.last_error is None, m.last_error
+    assert m._grid is not None
+    d = m.clearance(np.array([[0.28, 0.10, 0.03],    # inside the cube
+                              [0.28, 0.10, 0.10],    # 5 cm above its top
+                              [0.28, -0.10, 0.10]]))  # over empty table: 10 cm to the table
+    assert d is not None
+    assert d[0] < 0.015
+    assert d[1] == pytest.approx(0.05, abs=0.015)
+    assert d[2] == pytest.approx(0.10, abs=0.015)
+
+
+@needs_wire
+def test_a_removed_object_is_carved_out_of_the_map(fresh_bridge):
+    """The property the old accumulator lacked: frames WITHOUT the cube must
+    free the voxels it occupied, so clearance above that spot grows back."""
+    m = _live_map(fresh_bridge, region_min=np.array([0.0, -0.3, -0.02]),
+                  region_max=np.array([0.6, 0.3, 0.4]), depth_stride=1)
+    for _ in range(3):
+        m.refresh(_tabletop_frame(cube=True), T_base_cam=_T_TOPDOWN)
+    before = m.clearance(np.array([[0.28, 0.10, 0.06]]))[0]
+    assert before < 0.02, "cube not in the map to begin with"
+    for _ in range(12):
+        m.refresh(_tabletop_frame(cube=False), T_base_cam=_T_TOPDOWN)
+    after = m.clearance(np.array([[0.28, 0.10, 0.06]]))[0]
+    assert after == pytest.approx(0.06, abs=0.015), f"cube still in the map: clearance {after:.3f}"
+
+
+@needs_wire
+def test_the_harness_gates_on_a_carved_grid(fresh_bridge):
+    m = _live_map(fresh_bridge, region_min=np.array([0.0, -0.3, -0.02]),
+                  region_max=np.array([0.6, 0.3, 0.4]), depth_stride=1)
+    for _ in range(3):
+        m.refresh(_tabletop_frame(cube=True), T_base_cam=_T_TOPDOWN)
+    h = SafetyHarness(limits(), kinematics=FakeKin(), occupancy=m)
+    far = np.array([0.28, 0.10, 0.30, 0, 0, 0])
+    h.approve(far, far, dt=1e9)
+    near = np.array([0.28, 0.10, 0.07, 0, 0, 0])   # 2 cm above the cube top
+    with pytest.raises(SafetyViolation, match="occupancy"):
+        h.approve(far, near, dt=1e9)
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Backend unit tests (in-process, no socket): the Warp kernels against the
+# scipy reference, and the factory contract.
+# ─────────────────────────────────────────────────────────────────────────
+
+def _has_warp() -> bool:
+    try:
+        import warp  # noqa: F401
+        import scipy  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+needs_warp = pytest.mark.skipif(not _has_warp(), reason="needs warp-lang + scipy")
+
+
+@needs_warp
+def test_warp_edt_matches_scipy_exactly():
+    from cascade.perception.occupancy_backends import edt_3d, make_backend
+
+    b = make_backend("warp", voxel=0.01, region_min=(0.0, -0.3, -0.02), region_max=(0.6, 0.3, 0.4))
+    f = _tabletop_frame(cube=True, W=640, H=480, fx=600.0)
+    for _ in range(3):
+        b.integrate_depth(f.depth_m, f.K, _T_TOPDOWN)
+    out = b.query((0.0, -0.3, -0.02), (0.6, 0.3, 0.4))
+    occ = b.occupied_mask()
+    assert occ.any(), "nothing occupied: the projective integration did not land"
+    ref = edt_3d(occ, 0.01)
+    g = out["grid"]
+    fin = np.isfinite(g) & np.isfinite(ref)
+    assert fin.all()
+    assert np.abs(g - ref).max() < 1e-4
+
+
+@needs_warp
+def test_warp_backend_carves_and_reports_timing():
+    from cascade.perception.occupancy_backends import make_backend
+
+    b = make_backend("warp", voxel=0.01, region_min=(0.0, -0.3, -0.02), region_max=(0.6, 0.3, 0.4))
+    f_cube = _tabletop_frame(cube=True, W=640, H=480, fx=600.0)
+    f_empty = _tabletop_frame(cube=False, W=640, H=480, fx=600.0)
+    b.integrate_depth(f_cube.depth_m, f_cube.K, _T_TOPDOWN)
+    pts = np.argwhere(b.occupied_mask()) * 0.01 + b.spec.origin
+    assert (pts[:, 2] > 0.015).sum() > 20, "cube missing"
+    for _ in range(10):
+        b.integrate_depth(f_empty.depth_m, f_empty.K, _T_TOPDOWN)
+    pts = np.argwhere(b.occupied_mask()) * 0.01 + b.spec.origin
+    assert (pts[:, 2] > 0.015).sum() == 0, "cube not carved"
+    assert b.last_integrate_ms > 0
+
+
+def test_explicit_backend_never_falls_through(monkeypatch):
+    """`nvblox` asked for on a machine without it must raise, not hand back
+    another backend under the same name (the client displays that name)."""
+    from cascade.perception import occupancy_backends as ob
+
+    import sys
+    monkeypatch.setitem(sys.modules, "nvblox_torch", None)   # force ImportError
+    with pytest.raises(Exception):
+        ob.make_backend("nvblox")
+    with pytest.raises(ValueError, match="unknown occupancy backend"):
+        ob.make_backend("open3d")
+    v = ob.make_backend("voxel", voxel=0.02)
+    assert v.name == "voxel" and "no carving" in v.describe()
+
+
+def test_the_occupancy_extra_installs_the_warp_backend_deps():
+    """The one-click launcher installs `cascade[occupancy]`; if that extra
+    ever loses warp/scipy the bridge silently starts on the numpy `voxel`
+    backend (no carving, no distance field) -- exactly what a fresh clone
+    did before the extra existed."""
+    import re
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
+    m = re.search(r"^occupancy = \[(.*?)\]", text, re.M | re.S)
+    assert m, "no `occupancy` extra in pyproject.toml"
+    deps = m.group(1)
+    for need in ("warp-lang", "scipy", "pyzmq", "msgpack-numpy"):
+        assert need in deps, f"occupancy extra lacks {need}"
+    launch = (Path(__file__).resolve().parents[1] / "scripts" / "launch.sh").read_text()
+    assert "occupancy,llm" in launch, "launch.sh does not install the occupancy extra"

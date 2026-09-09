@@ -79,11 +79,11 @@ else
 fi
 
 if [[ "$WITH_OCCUPANCY" == "1" ]]; then
-    echo "=== 2/4: occupancy bridge deps (Open3D, CPU/CUDA-agnostic) ===" >&2
+    echo "=== 2/4: occupancy bridge deps (warp TSDF+EDT, CPU/CUDA-agnostic; --nvblox on NVIDIA) ===" >&2
     "$REPO/scripts/install_occupancy_backend.sh" --python "$PY"
-    if ! pgrep -f serve_nvblox_bridge.py >/dev/null 2>&1; then
-        echo "[+] starting occupancy bridge (background, log: /tmp/wrc-nvblox-bridge.log)" >&2
-        PY="$PY" nohup "$REPO/scripts/serve_nvblox.sh" >/tmp/wrc-nvblox-bridge.log 2>&1 &
+    if ! pgrep -f serve_occupancy_bridge.py >/dev/null 2>&1; then
+        echo "[+] starting occupancy bridge (background, log: /tmp/cascade-occupancy-bridge.log)" >&2
+        PY="$PY" nohup "$REPO/scripts/serve_occupancy.sh" >/tmp/cascade-occupancy-bridge.log 2>&1 &
         disown
     fi
 else

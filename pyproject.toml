@@ -40,6 +40,11 @@ sim-warp = ["mujoco>=3.1.3", "mujoco-warp>=3.1", "warp-lang>=1.7"]
 # `grasp.backend: graspgenx` -- the DEFAULT in configs/demo.yaml -- cannot even
 # build its client and silently degrades to the OBB planner on every grasp.
 grasping = ["pyzmq>=25.0", "msgpack>=1.0", "msgpack-numpy>=0.4.8"]
+# Occupancy bridge, hardware-agnostic backend: Warp kernels (CPU anywhere,
+# CUDA where present) + scipy (reference EDT / fallback). Small enough to
+# live in the default one-click install; nvblox_torch (CUDA x86 only) is
+# added by scripts/install_occupancy_backend.sh --nvblox on NVIDIA boxes.
+occupancy = ["pyzmq>=25.0", "msgpack>=1.0", "msgpack-numpy>=0.4.8", "warp-lang>=1.16", "scipy>=1.10"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]

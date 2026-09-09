@@ -154,6 +154,23 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
         SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy,
         base_pose=_base_transform(acfg),
     )
+    if occupancy is not None:
+        # The depth camera sees THIS arm: register it for body masking so its
+        # own links are not integrated as obstacles. Reads the arm's state
+        # only when it is up -- never materializes a LazyArm.
+        from ..perception.robot_mask import arm_link_points
+
+        base_T = _base_transform(acfg)
+
+        def _body_points(_arm=arm, _kin=kin, _T=base_T):
+            if not getattr(_arm, "connected", True):
+                return None
+            pts = arm_link_points(_kin, _arm.get_state().q)
+            if _T is not None:
+                pts = pts @ _T[:3, :3].T + _T[:3, 3]
+            return pts
+
+        occupancy.add_robot_body(_body_points, radius_m=float(acfg.get("body_mask_radius_m", 0.06)))
     return arm, SafeArm(arm, harness), kin
 
 
@@ -421,7 +438,38 @@ def build_runtime(
         )
         runtime.viewer.start()
 
+    # Verified-backend banner. GraspGen-X is probed HERE (300 ms) rather
+    # than on the first grasp, so the operator sees "grasp_planner=obb
+    # (graspgenx down)" before anything moves instead of an 8 s stall and a
+    # buried memory note. Occupancy was probed when its map was built.
+    _probe_grasp_backend(runtime)
+    runtime.trace.backends_fn = runtime.backends
+    b = runtime.backends()
+    print(f"[cascade] backends: grasp_planner={b['grasp_planner']} | occupancy={b['occupancy']}")
+    if not b["occupancy_live"] and occupancy is not None:
+        print("[cascade] WARNING: occupancy is enabled in config but no bridge answered -- "
+              "the clearance gate is OFF (start scripts/serve_occupancy.sh)", file=sys.stderr)
     return runtime, arm
+
+
+def _probe_grasp_backend(runtime) -> None:
+    """Resolve `grasp.backend: graspgenx` to a live server / stub / down NOW."""
+    gcfg = runtime.cfg.grasp
+    if str(gcfg.get("backend", "obb")) != "graspgenx":
+        runtime.grasp_planner_used = str(gcfg.get("backend", "obb"))
+        return
+    try:
+        from ..grasping.graspgenx_backend import GraspGenXPlanner
+
+        planner = GraspGenXPlanner(gcfg)
+        planner.probe()
+        runtime._graspgenx = planner
+        runtime.grasp_planner_used = planner.describe()
+    except Exception as e:  # noqa: BLE001 -- booth rule, but LOUD
+        runtime._graspgenx_down = True
+        runtime.grasp_planner_used = "obb (graspgenx down)"
+        print(f"[cascade] WARNING: grasp.backend=graspgenx but no server answered "
+              f"({str(e)[:100]}); analytic OBB planner for this run", file=sys.stderr)
 
 
 def _runtime_state(runtime) -> dict:
@@ -440,6 +488,8 @@ def _runtime_state(runtime) -> dict:
         "events": runtime.memory.digest(max_lines=14).splitlines(),
         # learned grasp priors, one line per object profile (booth panel)
         "grasp_memory": runtime.grasp_memory.summary().splitlines(),
+        # verified sidecars (grasp planner / occupancy) -- what is REALLY on
+        "backends": runtime.backends(),
     }
     if runtime.watcher is not None:
         out["perception"] = runtime.watcher.stats()

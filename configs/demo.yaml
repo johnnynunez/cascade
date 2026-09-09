@@ -13,31 +13,41 @@ safety:
   joint_margin: 0.02      # rad inside URDF limits
   watchdog_s: 5.0         # halt motion if perception is staler than this
   keep_out: []            # e.g. [{min: [x,y,z], max: [x,y,z]}] for the tripod
-  min_clearance_m: 0.03   # TCP/link distance to nvblox occupancy obstacles
+  min_clearance_m: 0.03   # TCP/link distance to the occupancy map's obstacles
 
-# nvblox-backed collision map (perception/occupancy.py). ON by default: the
-# harness gains a measured-clearance gate whenever the bridge is reachable.
-# Run scripts/serve_nvblox.sh to provide it -- it auto-selects an Open3D
-# CUDA:0 backend on an NVIDIA GPU box (the DGX Spark rig) or CPU:0 anywhere
-# else (a booth laptop) -- same behavior, no config change needed either way.
-# Booth rule applies at every layer: missing client deps (`grasping` extra),
-# a down/slow bridge, or a stale cache all degrade to "no occupancy check",
-# never to blocking motion. CASCADE_OCCUPANCY=0 is the kill switch (the test
-# suite pins it off; mock runs must not wait out ZMQ timeouts).
+# Occupancy / distance-field map (perception/occupancy.py). ON by default:
+# the harness gains a measured-clearance gate whenever the bridge answers.
+# scripts/serve_occupancy.sh runs the bridge (scripts/launch.sh starts it):
+#   nvblox  P0 on NVIDIA GPUs -- real nvblox (nvblox_torch) TSDF + ESDF
+#   warp    hardware-agnostic default -- TSDF with carving + exact EDT in Warp
+#           kernels, CPU on macOS/Linux/aarch64, CUDA on Jetson/x86
+#   voxel   numpy fallback (no carving, no distance field)
+# `auto` picks nvblox > warp > voxel for THIS machine. The demo probes the
+# bridge at startup and prints the backend that answered ("occupancy=warp on
+# cpu (1.0 cm voxels, ESDF)" or "none (...)"): a bridge nobody started is
+# visible, not silent. Booth rule still applies at every layer -- missing
+# client deps (`grasping` extra), a down/slow bridge or a stale cache degrade
+# to "no occupancy check", never to blocking motion. CASCADE_OCCUPANCY=0 is
+# the kill switch (the test suite pins it off).
 occupancy:
   enabled: true
   host: 127.0.0.1
   port: 5557
   timeout_ms: 500          # per ZMQ round trip; refreshed at perception_loop.rate_hz, not per waypoint
   max_age_s: 10.0          # cached obstacle cloud older than this is treated as absent
-  stride: 8                # depth-pixel subsampling before shipping to the bridge
+  stride: 8                # legacy cloud-protocol subsampling (old bridges)
+  depth_stride: 2          # depth-frame subsampling shipped to the bridge (640x480 -> 320x240)
+  probe_timeout_ms: 300    # startup probe; a bridge that is up answers in < 5 ms
   # region_min/region_max: AABB to query for occupied points; defaults to
   # safety.workspace min/max if omitted.
 
 grasp:
   # Grasp planner: "obb" (analytic, always available) or "graspgenx"
-  # (learned 6-DoF via the ZMQ server -- scripts/serve_graspgenx.sh; falls
-  # back to OBB automatically if the server is down).
+  # (learned 6-DoF via the ZMQ server -- scripts/serve_graspgenx.sh on a CUDA
+  # box, or scripts/serve_graspgenx_stub.py as a protocol double). The server
+  # is PROBED at startup (300 ms): if nothing answers, the run says so in the
+  # banner and the summary ("grasp_planner=obb (graspgenx down)") and uses
+  # OBB -- no per-grasp 8 s timeout, no silent substitution.
   backend: graspgenx
   graspgenx:
     host: 127.0.0.1
@@ -223,3 +233,36 @@ workspace_filter:
   reach_m: 1.00          # beyond this the arm cannot act anyway
   max_frame_frac: 0.45   # a mask this large IS the scene
   min_height_m: 0.010    # flatter than this is a shadow, not an object
+
+# Offline evaluation of recorded runs (src/cascade/eval, scripts/judge_run.py).
+# Robo-Dopamine GRM ("PRM-as-a-Judge", https://robo-dopamine.github.io/):
+# scores each traced skill's BEFORE->AFTER keyframes as a progress hop in
+# [-1, 1] and fuses them into a run progress curve; judge_run.py cross-checks
+# every hop against the physics postcondition channel, so the judge is
+# CALIBRATED on this rig before its number is quoted. Never in the control
+# loop; no silent default -- pick a backend:
+#   grm   the released GRM-2.0 checkpoint behind vLLM's OpenAI server (CUDA):
+#         vllm serve tanhuajie2001/Robo-Dopamine-GRM-2.0-8B-Preview \
+#              --served-model-name grm --limit-mm-per-prompt image=8
+#   vlm   the same prompt against any OpenAI-compatible vision model (local
+#         Cosmos3 server, GPT, the OpenClaw brain) -- upstream's own API
+#         comparison path; the only one that runs on a GPU-less laptop.
+#   fake  deterministic, tests only.
+#   The default below goes THROUGH the OpenClaw gateway's OpenAI-compatible
+#   endpoint (enable once: `openclaw config set
+#   gateway.http.endpoints.chatCompletions.enabled true`), so the judge uses
+#   the same credentials as the demo's brain -- no second API key on the
+#   booth laptop. `backend_model` pins the weights (x-openclaw-model) and
+#   `fresh_session` isolates every BEFORE/AFTER pair from agent history.
+eval:
+  judge:
+    backend: vlm
+    base_url: http://127.0.0.1:18789/v1
+    api_key: $OPENCLAW_GATEWAY_TOKEN   # $VAR = read from the environment (scripts/judge_run.py fills it from ~/.openclaw)
+    model: openclaw/main               # gateway agent target
+    backend_model: openai/gpt-5.6-sol  # the vision model that actually answers
+    fresh_session: true
+    mode: incremental                  # incremental | forward | backward (upstream fusion modes)
+    temperature: 0.1                   # upstream sampling for GRM
+    top_p: 0.9
+    max_tokens: 64

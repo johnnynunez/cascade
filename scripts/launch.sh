@@ -4,7 +4,12 @@
 # that the tools answer -- in ONE command.
 #
 #   ./scripts/launch.sh                     # auto: Isaac Sim if installed, else MuJoCo
+#   ./run.sh                               # ONE CLICK on a fresh clone: --setup --sim auto
 #   ./scripts/launch.sh --sim isaac         # Isaac Sim (bridge + editor window) + OpenClaw
+#   ./scripts/launch.sh --setup --sim isaac # same, but first create the venv, install the
+#                                          # extras this mode needs, fetch assets, install
+#                                          # OpenClaw -- idempotent, safe to re-run
+#   ./scripts/launch.sh --check --sim isaac # preflight only: report what is missing, exit
 #   ./scripts/launch.sh --sim mujoco        # MuJoCo (CPU physics, rendered camera) + OpenClaw
 #   ./scripts/launch.sh --sim none --arm rebot_rs --cameras l515   # REAL ARM: OpenClaw only
 #   ./scripts/launch.sh --down              # stop what this script started
@@ -20,6 +25,12 @@
 #                  mujoco: nothing to start; the MCP server owns the world and
 #                  opens the passive viewer itself (CASCADE_VIEW=1 + DISPLAY)
 #                  none: nothing
+#   3b. sidecars   occupancy bridge on :5557 (scripts/serve_occupancy.sh:
+#                  nvblox on NVIDIA GPUs, warp TSDF+EDT anywhere; --occupancy
+#                  none to skip) and, in SIM modes only, the GraspGen-X
+#                  protocol stub on :5556 (the real server is a CUDA sidecar
+#                  you start yourself; --graspgenx none|stub|external). Each
+#                  is waited on and PROBED; the demo banner names what answered.
 #   4. openclaw    install/upgrade guard (>= 2.0), gateway up, cascade MCP
 #                  server registered IDEMPOTENTLY (`mcp set`, not `mcp add`),
 #                  brain resolved (--brain auto keeps whatever auth OpenClaw
@@ -44,6 +55,13 @@ ARM=""                # default depends on SIM
 CAMERAS=""            # default depends on SIM
 BRAIN="auto"          # auto | keep | cosmos | cosmos-sglang | qwen
 OPEN_CHAT=1
+SETUP=0               # --setup: create venv + install extras + fetch assets + install OpenClaw
+ROBOT_TURN=1          # --no-robot-turn: skip the real pick_and_place proof (sim modes only)
+CHECK=0               # --check: preflight report only
+OCCUPANCY="auto"      # auto | nvblox | warp | voxel | none   (bridge backend, or skip)
+GRASPGENX="auto"      # auto | stub | external | none  (auto = stub in sim, external otherwise)
+OCC_PORT="${CASCADE_OCCUPANCY_PORT:-5557}"
+GGX_PORT="${CASCADE_GRASPGENX_PORT:-5556}"
 DRY=0
 DOWN=0
 ISAAC_GUI=1
@@ -62,6 +80,11 @@ while [[ $# -gt 0 ]]; do
         --cameras) CAMERAS="$2"; shift 2 ;;
         --brain) BRAIN="$2"; shift 2 ;;
         --no-open) OPEN_CHAT=0; shift ;;
+        --setup) SETUP=1; shift ;;
+        --no-robot-turn) ROBOT_TURN=0; shift ;;
+        --check) CHECK=1; shift ;;
+        --occupancy) OCCUPANCY="$2"; shift 2 ;;
+        --graspgenx) GRASPGENX="$2"; shift 2 ;;
         --headless) ISAAC_GUI=0; shift ;;
         --dry-run) DRY=1; shift ;;
         --down) DOWN=1; shift ;;
@@ -81,9 +104,21 @@ pick_python() {
     for cand in "${PY:-}" "$REPO/.venv/bin/python" "$(cd "$REPO/.." 2>/dev/null && pwd)/.demo/bin/python" "$(command -v python3 || true)"; do
         [[ -n "$cand" && -x "$cand" ]] && { echo "$cand"; return; }
     done
-    die "no python found; create the venv first: uv venv $REPO/.venv && uv pip install -e '$REPO[sim]'"
+    return 1
 }
-PY="$(pick_python)"
+ensure_uv() {
+    command -v uv >/dev/null 2>&1 && return 0
+    [[ -x "$HOME/.local/bin/uv" ]] && { export PATH="$HOME/.local/bin:$PATH"; return 0; }
+    log "installing uv (https://astral.sh/uv)"
+    run bash -c 'curl -fsSL https://astral.sh/uv/install.sh | sh' || die "could not install uv"
+    export PATH="$HOME/.local/bin:$PATH"
+}
+if [[ $SETUP == 1 && ! -x "$REPO/.venv/bin/python" && -z "${PY:-}" ]]; then
+    ensure_uv
+    log "creating $REPO/.venv (python 3.12)"
+    run uv venv --python 3.12 "$REPO/.venv" || die "uv venv failed"
+fi
+PY="$(pick_python)" || die "no python found -- run with --setup (creates $REPO/.venv), or: uv venv $REPO/.venv"
 
 port_open() {  # port_open <port> [host]  -- macOS has no `ss`
     "$PY" - "$1" "${2:-127.0.0.1}" <<'PYEOF'
@@ -114,6 +149,13 @@ if [[ $DOWN == 1 ]]; then
         if kill -0 "$pid" 2>/dev/null; then log "stopping Isaac bridge (pid $pid)"; run kill "$pid"; fi
         run rm -f "$STATE_DIR/isaac_bridge.pid"
     fi
+    for svc in occupancy_bridge graspgenx_stub; do
+        if [[ -f "$STATE_DIR/$svc.pid" ]]; then
+            pid=$(cat "$STATE_DIR/$svc.pid")
+            if kill -0 "$pid" 2>/dev/null; then log "stopping $svc (pid $pid)"; run kill "$pid"; fi
+            run rm -f "$STATE_DIR/$svc.pid"
+        fi
+    done
     if [[ -f "$STATE_DIR/gateway.started" ]]; then
         log "stopping OpenClaw gateway (this script started it)"
         run openclaw gateway stop || true
@@ -144,7 +186,10 @@ if [[ "$SIM" == "auto" ]]; then
     fi
     log "--sim auto -> $SIM"
 elif [[ "$SIM" == "isaac" ]]; then
-    ISAAC_PY="$(find_isaac_python)" || die "Isaac Sim not found (set ISAACSIM_PATH to the folder holding python.sh)"
+    ISAAC_PY="$(find_isaac_python)" || {
+        [[ $CHECK == 1 || $DRY == 1 ]] || die "Isaac Sim not found (set ISAACSIM_PATH to the folder holding python.sh); ./run.sh check isaac lists everything missing"
+        ISAAC_PY=""
+    }
 fi
 
 case "$SIM" in
@@ -158,15 +203,58 @@ log "plan: sim=$SIM arm=$ARM cameras=$CAMERAS brain=$BRAIN python=$PY"
 mkdir -p "$STATE_DIR" 2>/dev/null || true
 
 # ── 1. deps ─────────────────────────────────────────────────────────────────
-if ! "$PY" -c "import cascade" >/dev/null 2>&1; then
-    log "cascade not importable from $PY -> editable install (OpenClaw blocks PYTHONPATH)"
-    if command -v uv >/dev/null; then run uv pip install --python "$PY" --no-deps -e "$REPO"
-    else run "$PY" -m pip install --no-deps -e "$REPO"; fi
+pip_install() {  # pip_install <spec...>  -- uv when present (fast, no pip needed in the venv)
+    if command -v uv >/dev/null 2>&1 || [[ -x "$HOME/.local/bin/uv" ]]; then
+        export PATH="$HOME/.local/bin:$PATH"
+        run uv pip install --python "$PY" "$@"
+    else
+        run "$PY" -m pip install "$@"
+    fi
+}
+# Extras each mode needs. `kinematics` = pinocchio FK/IK (every motion skill;
+# measured: a fresh clone's first pick answered "pinocchio module is missing"
+# because only the wire extras were installed); `grasping` = the ZMQ wire for
+# the GraspGen-X / occupancy sidecars; `occupancy` = Warp+scipy backend; `llm`
+# = OpenAI client (brain + Robo-Dopamine judge); `perception` = YOLOE
+# (ultralytics; torch from the host) -- the Isaac cameras use it, the MuJoCo
+# scene uses the colour-threshold mock detector and does not. Isaac needs no
+# `sim` extra: physics lives in Isaac's own python, cascade talks TCP.
+case "$SIM" in
+    isaac)  EXTRAS="kinematics,grasping,occupancy,llm,perception" ;;
+    mujoco) EXTRAS="sim,kinematics,grasping,occupancy,llm" ;;
+    *)      EXTRAS="kinematics,grasping,occupancy,llm,perception" ;;
+esac
+MISSING_MODS="$("$PY" - "$SIM" <<'PYEOF' 2>/dev/null || echo "cascade"
+import importlib.util, sys
+sim = sys.argv[1]
+need = {"cascade": "cascade", "pinocchio": "kinematics", "zmq": "grasping", "msgpack_numpy": "grasping",
+        "openai": "llm", "cv2": "core", "yaml": "core", "warp": "occupancy", "scipy": "occupancy"}
+if sim == "mujoco":
+    need["mujoco"] = "sim"
+else:
+    need["ultralytics"] = "perception"
+print(" ".join(m for m in need if importlib.util.find_spec(m) is None))
+PYEOF
+)"
+if [[ -n "$MISSING_MODS" ]]; then
+    if [[ $SETUP == 1 || $CHECK == 0 ]]; then
+        log "python deps missing ($MISSING_MODS) -> installing cascade[$EXTRAS] into $PY"
+        pip_install -e "$REPO[$EXTRAS]" || die "dependency install failed"
+    else
+        warn "python deps missing: $MISSING_MODS (run with --setup)"
+    fi
 fi
 if [[ "$SIM" == "mujoco" ]] && ! "$PY" -c "import mujoco" >/dev/null 2>&1; then
     log "mujoco missing -> installing the [sim] extra"
-    if command -v uv >/dev/null; then run uv pip install --python "$PY" -e "$REPO[sim]"
-    else run "$PY" -m pip install -e "$REPO[sim]"; fi
+    pip_install -e "$REPO[sim]"
+fi
+if [[ "$EXTRAS" == *perception* ]] && ! "$PY" -c "import torch" >/dev/null 2>&1; then
+    # torch is deliberately NOT pinned in pyproject (per-platform builds); the
+    # PyPI default is right for macOS (MPS) and CPU Linux, and CUDA x86 gets
+    # the CUDA wheel from the default index too. Jetson needs NVIDIA's wheel:
+    # install it first and this step is skipped.
+    log "torch missing (YOLOE detector needs it) -> installing the default build for this platform"
+    pip_install torch torchvision || die "torch install failed -- install the wheel for this platform, then re-run"
 fi
 
 # ── 2. assets ───────────────────────────────────────────────────────────────
@@ -184,30 +272,135 @@ PYEOF
     fi
 fi
 
+if [[ "$SIM" == "isaac" ]]; then
+    USD="${CASCADE_USD:-$REPO/assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda}"
+    [[ -f "$USD" || $CHECK == 1 ]] || die "Isaac scene USD missing: $USD (it is tracked in git -- is this a partial checkout? set CASCADE_USD to your asset)"
+fi
+DETECTOR_PT="${CASCADE_DETECTOR_MODEL:-$REPO/models/yoloe-11s-seg.pt}"
+[[ -f "$DETECTOR_PT" || $CHECK == 1 ]] || die "detector weights missing: $DETECTOR_PT (tracked in git; set CASCADE_DETECTOR_MODEL to override)"
+
+# ── preflight report (--check) ─────────────────────────────────────────────
+if [[ $CHECK == 1 ]]; then
+    ok()  { printf '  [ok]      %s\n' "$*"; }
+    bad() { printf '  [MISSING] %s\n' "$*"; PREFLIGHT_FAIL=1; }
+    PREFLIGHT_FAIL=0
+    echo "[launch] preflight for sim=$SIM (python=$PY)"
+    "$PY" -c "import cascade" >/dev/null 2>&1 && ok "cascade importable" || bad "cascade not importable (--setup)"
+    [[ -z "$MISSING_MODS" ]] && ok "python extras [$EXTRAS]" || bad "python modules: $MISSING_MODS (--setup)"
+    command -v openclaw >/dev/null 2>&1 && ok "openclaw $(openclaw --version 2>/dev/null | grep -oE '20[0-9]{2}\.[0-9]+\.[0-9]+' | head -1)" || bad "openclaw CLI (--setup installs it)"
+    if [[ "$SIM" == "isaac" ]]; then
+        [[ -n "$ISAAC_PY" ]] && ok "Isaac Sim python: $ISAAC_PY" || bad "Isaac Sim (set ISAACSIM_PATH to the folder holding python.sh)"
+        [[ -f "$USD" ]] && ok "scene USD: $USD" || bad "scene USD $USD"
+        command -v nvidia-smi >/dev/null 2>&1 && ok "NVIDIA GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)" || bad "nvidia-smi (Isaac Sim needs an NVIDIA GPU)"
+        [[ -n "${DISPLAY:-}" || "$(uname -s)" == "Darwin" || $ISAAC_GUI == 0 ]] && ok "display for the editor window (or --headless)" || bad "no DISPLAY: pass --headless or run from the desktop session"
+    fi
+    [[ -f "$DETECTOR_PT" ]] && ok "detector weights" || bad "detector weights $DETECTOR_PT"
+    curl -sf -m 5 -o /dev/null https://openclaw.ai 2>/dev/null && ok "internet (openclaw.ai reachable)" || warn "no internet: fine if OpenClaw + models are already installed"
+    if [[ $PREFLIGHT_FAIL == 1 ]]; then echo "[launch] preflight FAILED -- fix the [MISSING] lines (most: ./scripts/launch.sh --setup --sim $SIM)"; exit 3; fi
+    echo "[launch] preflight OK -> ./scripts/launch.sh --sim $SIM"
+    exit 0
+fi
+
 # ── 3. simulator ────────────────────────────────────────────────────────────
 if [[ "$SIM" == "isaac" ]]; then
     if port_open "$BRIDGE_PORT"; then
         log "Isaac bridge already answering on :$BRIDGE_PORT -> reusing it"
     else
-        gui_flag=(); [[ $ISAAC_GUI == 1 ]] && gui_flag=(--gui)
-        log "starting Isaac Sim bridge (${gui_flag[*]:-headless}) -> $STATE_DIR/isaac_bridge.log"
+        gui_flag=""; [[ $ISAAC_GUI == 1 ]] && gui_flag="--gui"   # string, not array: bash 3.2 + set -u
+        [[ -n "$ISAAC_PY" ]] || ISAAC_PY='${ISAACSIM_PATH}/python.sh'   # dry run on a box without Isaac
+        log "starting Isaac Sim bridge (${gui_flag:-headless}) -> $STATE_DIR/isaac_bridge.log"
         if [[ $DRY == 1 ]]; then
-            printf '        $ %s %s --port %s %s &\n' "$ISAAC_PY" "$REPO/scripts/isaac_bridge.py" "$BRIDGE_PORT" "${gui_flag[*]:-}"
+            printf '        $ %s %s --port %s --usd %s %s &\n' "$ISAAC_PY" "$REPO/scripts/isaac_bridge.py" "$BRIDGE_PORT" "$USD" "${gui_flag:-}"
         else
-            nohup "$ISAAC_PY" "$REPO/scripts/isaac_bridge.py" --port "$BRIDGE_PORT" "${gui_flag[@]}" \
+            # shellcheck disable=SC2086  # $gui_flag is empty or exactly --gui
+            nohup "$ISAAC_PY" "$REPO/scripts/isaac_bridge.py" --port "$BRIDGE_PORT" --usd "$USD" $gui_flag \
                 >"$STATE_DIR/isaac_bridge.log" 2>&1 &
             echo $! >"$STATE_DIR/isaac_bridge.pid"
             wait_port "$BRIDGE_PORT" "$ISAAC_WAIT_S" "Isaac bridge" \
                 || die "Isaac bridge never listened on :$BRIDGE_PORT after ${ISAAC_WAIT_S}s -- see $STATE_DIR/isaac_bridge.log"
+            # a listening port is not a working bridge: ping through the real client
+            "$PY" - "$BRIDGE_PORT" <<'PYEOF' || die "Isaac bridge on :$BRIDGE_PORT did not answer ping -- see $STATE_DIR/isaac_bridge.log"
+import sys
+from cascade.sim.bridge_client import BridgeClient
+c = BridgeClient(port=int(sys.argv[1]), timeout_s=20.0)
+pong = c.request({"op": "ping"})
+assert pong.get("ok"), f"ping answered {pong!r}"
+st = c.request({"op": "state"})
+print(f"[launch] Isaac bridge answers: engine={pong.get('engine')} dofs={len(pong.get('dofs') or [])} state_ok={bool(st.get('ok', True))}")
+PYEOF
             log "Isaac bridge up on :$BRIDGE_PORT"
         fi
     fi
 fi
 
+# ── 3b. sidecars: occupancy bridge + (sim) GraspGen-X stub ─────────────────
+start_sidecar() {  # start_sidecar <name> <port> <wait_s> <cmd...>
+    local name="$1" port="$2" wait_s="$3"; shift 3
+    if port_open "$port"; then
+        log "$name already answering on :$port -> reusing it"
+        return 0
+    fi
+    log "starting $name -> $STATE_DIR/$name.log"
+    if [[ $DRY == 1 ]]; then
+        printf '        $ %s &\n' "$*"
+        return 0
+    fi
+    nohup "$@" >"$STATE_DIR/$name.log" 2>&1 &
+    echo $! >"$STATE_DIR/$name.pid"
+    wait_port "$port" "$wait_s" "$name" || die "$name never listened on :$port after ${wait_s}s -- see $STATE_DIR/$name.log"
+    log "$name up on :$port"
+}
+
+if [[ "$OCCUPANCY" != "none" ]]; then
+    # first Warp kernel compile can take ~30 s cold; nvblox loads CUDA kernels
+    start_sidecar occupancy_bridge "$OCC_PORT" 120 \
+        "$PY" "$REPO/scripts/serve_occupancy_bridge.py" --port "$OCC_PORT" --backend "$OCCUPANCY"
+    if [[ $DRY == 0 ]]; then
+        OCC_DESC="$("$PY" - "$OCC_PORT" <<'PYEOF'
+import sys
+from cascade.perception.occupancy import OccupancyClient
+try:
+    st = OccupancyClient(port=int(sys.argv[1])).probe(timeout_ms=2000)
+    print(st.get("describe") or st.get("backend"))
+except Exception as e:
+    print(f"NOT ANSWERING ({e})")
+PYEOF
+)"
+        log "occupancy: $OCC_DESC"
+    fi
+else
+    log "occupancy bridge skipped (--occupancy none): the clearance gate will be OFF"
+fi
+
+case "$GRASPGENX" in
+    auto) [[ "$SIM" == "none" ]] && GRASPGENX="external" || GRASPGENX="stub" ;;
+esac
+case "$GRASPGENX" in
+    stub)
+        start_sidecar graspgenx_stub "$GGX_PORT" 30 \
+            "$PY" "$REPO/scripts/serve_graspgenx_stub.py" --port "$GGX_PORT" --quiet
+        log "grasp planner: GraspGen-X PROTOCOL STUB on :$GGX_PORT (analytic grasps; the learned model needs a CUDA sidecar)" ;;
+    external)
+        if port_open "$GGX_PORT"; then log "grasp planner: GraspGen-X server answering on :$GGX_PORT"
+        else warn "no GraspGen-X server on :$GGX_PORT -- grasps will use the analytic OBB planner (the demo banner will say so). Start scripts/serve_graspgenx.sh on a CUDA box, or pass --graspgenx stub"; fi ;;
+    none) log "GraspGen-X skipped (--graspgenx none): analytic OBB planner" ;;
+    *) die "--graspgenx must be auto|stub|external|none" ;;
+esac
+
 # ── 4. openclaw ─────────────────────────────────────────────────────────────
 if ! command -v openclaw >/dev/null; then
     log "OpenClaw not installed -> npm install -g openclaw@latest"
     run npm install -g openclaw@latest
+fi
+if ! command -v openclaw >/dev/null 2>&1; then
+    if [[ $SETUP == 1 ]]; then
+        log "installing OpenClaw CLI (https://openclaw.ai/install.sh, unattended)"
+        run bash -c 'curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard' || die "OpenClaw install failed"
+        export PATH="$HOME/.local/bin:$HOME/.openclaw/bin:$PATH"
+        command -v openclaw >/dev/null 2>&1 || die "openclaw not on PATH after install -- open a new shell and re-run"
+    else
+        die "openclaw CLI not found -- run with --setup, or: curl -fsSL https://openclaw.ai/install.sh | bash"
+    fi
 fi
 OC_VER="$(openclaw --version 2>/dev/null | grep -oE '20[0-9]{2}\.[0-9]+\.[0-9]+' | head -1 || true)"
 if [[ -n "$OC_VER" ]]; then
@@ -303,7 +496,18 @@ case "$BRAIN" in
         else
             DEFAULT_MODEL="$(openclaw models status --json 2>/dev/null | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("defaultModel") or "")' 2>/dev/null || true)"
             if [[ -z "$DEFAULT_MODEL" ]]; then
-                die "no local model server and OpenClaw has no default model: run 'openclaw onboard' once (pick a provider you have auth for), then re-run"
+                # Fresh machine, no local model server: the ONE interactive
+                # step. OpenClaw's own onboarding picks a provider and logs
+                # in (OAuth or API key); we cannot and should not guess
+                # credentials. Only under --setup and only on a terminal.
+                if [[ $SETUP == 1 && -t 0 && $DRY == 0 ]]; then
+                    log "OpenClaw has no model yet -> its onboarding wizard (pick a provider you have access to; the robot tools are already registered)"
+                    openclaw onboard --mode local || die "onboarding did not complete"
+                    DEFAULT_MODEL="$(openclaw models status --json 2>/dev/null | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("defaultModel") or "")' 2>/dev/null || true)"
+                    [[ -n "$DEFAULT_MODEL" ]] || die "still no default model after onboarding -- 'openclaw models status'"
+                else
+                    die "no local model server and OpenClaw has no default model: run 'openclaw onboard' once (pick a provider you have auth for), or start a local brain (scripts/serve_cosmos_vllm.sh), then re-run"
+                fi
             fi
             log "brain: no local server; keeping OpenClaw's $DEFAULT_MODEL"
         fi ;;
@@ -322,7 +526,42 @@ run openclaw config validate >/dev/null
 
 # ── 5. proof: the robot tools must actually be listed ───────────────────────
 if [[ $DRY == 0 ]]; then
-    log "probing MCP tools (first call loads perception; up to ~60 s)"
+    # Warm the interpreter ONCE. In a freshly created venv the first import of
+    # cascade.skills.runtime compiles bytecode for the whole stack (torch,
+    # ultralytics, cv2): measured 34 s cold vs 0.1 s warm for tools/list, and
+    # OpenClaw's probe allows 1.5 s -- so a fresh clone failed its own proof
+    # step with "MCP tool listing timed out" although nothing was wrong.
+    log "warming the MCP server's imports (first run in a fresh venv compiles bytecode; up to ~60 s)"
+    (cd "$REPO/models" && "$MCP_PY" -c "import cascade.apps.mcp_server, cascade.skills.runtime" >/dev/null 2>&1) \
+        || warn "import warm-up failed -- the probe below will show whether the server starts"
+    # The tool probe only LISTS tools; the robot stack is built on the first
+    # call. Build it once here, with the exact env the MCP server gets, so
+    # "pinocchio missing" / "asset not found" / "camera failed" surface in
+    # the launcher and not in the visitor's first chat message.
+    log "building the robot runtime once (cameras=$CAMERAS arm=$ARM) -- proves the stack, not just the tool list"
+    if [[ "$SIM" == "isaac" && -z "$ISAAC_PY" ]]; then
+        warn "no Isaac python: skipping the runtime build check"
+    else
+        RUNTIME_CHECK="$(cd "$REPO/models" && CASCADE_CAMERAS="$CAMERAS" CASCADE_ARM="$ARM" CASCADE_DETECTOR_MODEL="$DETECTOR" \
+            CASCADE_DETECT_CLASSES="$CLASSES" YOLO_OFFLINE=True ULTRALYTICS_OFFLINE=True CASCADE_STREAM=0 CASCADE_VIEW=0 CASCADE_BELIEFS=0 \
+            "$PY" - <<'PYEOF' 2>&1 | grep -v "ARB_clip\|linesearch\|^Warp\|Module .* load\|^$" | tail -5
+import os, sys, tempfile
+from cascade.config import load_demo_config
+from cascade.apps.demo import build_runtime
+cams = os.environ["CASCADE_CAMERAS"].split(",")
+cfg = load_demo_config(cameras=cams, arm=os.environ["CASCADE_ARM"], llm="mock")
+rt, arm = build_runtime(cfg, tempfile.mkdtemp(prefix="cascade-check-"), view=False, lazy_arm=True, serve=False)
+print("[launch] runtime builds:", rt.backends())
+try:
+    rt.camera.close()
+except Exception:
+    pass
+PYEOF
+)"
+        printf '%s\n' "$RUNTIME_CHECK" | sed 's/^/        /'
+        [[ "$RUNTIME_CHECK" == *"runtime builds:"* ]] || die "the robot runtime does not build with cameras=$CAMERAS arm=$ARM -- see the error above (missing extra? asset? camera?)"
+    fi
+    log "probing MCP tools"
     # 2.0's plain `mcp probe` prints only a COUNT; `--json` carries the names,
     # namespaced as <server>__<tool>.
     PROBE_JSON="$(openclaw mcp probe "$MCP_NAME" --json 2>/dev/null || true)"
@@ -344,16 +583,64 @@ print(len(tools), int(need <= set(tools)))
     fi
     # a real turn through the brain, so 'it works' means the LLM answered, not just the wiring
     log "one headless turn through the brain (Reply OK)..."
-    ANSWER="$(openclaw agent exec 'Reply with exactly the word OK and nothing else.' --json 2>/dev/null \
-        | "$PY" -c 'import json,sys
-d=json.load(sys.stdin)
-def walk(o):
-    if isinstance(o,str): yield o
-    elif isinstance(o,dict): [ (yield from walk(v)) for v in o.values() ]
-    elif isinstance(o,list): [ (yield from walk(v)) for v in o ]
-print(" ".join(s for s in walk(d) if "OK" in s)[:80])' 2>/dev/null || true)"
-    if [[ "$ANSWER" == *OK* ]]; then log "brain answered."
-    else warn "the brain did not answer a trivial turn -- check 'openclaw models status' (auth) before blaming the robot tools"; fi
+    # Right after `gateway restart` the first agent run can fail while the
+    # gateway re-warms provider auth; retry a couple of times before calling
+    # it a failure, and read the envelope's `final`/`payloads` explicitly
+    # rather than grepping the whole JSON for the letters OK.
+    BRAIN_OK=0
+    for attempt in 1 2 3; do
+        ANSWER="$(openclaw agent exec 'Reply with exactly the word OK and nothing else.' --json --timeout 120 2>/dev/null \
+            | "$PY" -c 'import json,sys
+try:
+    d=json.load(sys.stdin)
+except Exception:
+    print(""); sys.exit()
+txt = d.get("final") or " ".join((p.get("text") or "") for p in (d.get("payloads") or []))
+print((txt or "").strip()[:80])' 2>/dev/null || true)"
+        if [[ "$ANSWER" == *OK* ]]; then BRAIN_OK=1; break; fi
+        (( attempt < 3 )) && { log "brain attempt $attempt got '${ANSWER:-<nothing>}' -- retrying in 5 s"; sleep 5; }
+    done
+    if [[ $BRAIN_OK == 1 ]]; then log "brain answered."
+    else warn "the brain did not answer a trivial turn after 3 attempts -- check 'openclaw models status' (auth) and the network before blaming the robot tools"; fi
+
+    # One REAL robot turn through the chat host in sim modes (--no-robot-turn
+    # skips it; never on real hardware). This is the proof a visitor cares
+    # about: the brain picked the robot tool and physics confirmed the
+    # effect. `toolSummary.failures` counts tool calls that returned an
+    # error -- each one is a line in <run_dir>/server.log.
+    if [[ $ROBOT_TURN == 1 && "$SIM" != "none" && $BRAIN_OK == 1 ]]; then
+        log "one real robot turn: 'pick and place the red object' (up to ~2 min: the sim arm moves)"
+        TURN_JSON="$(openclaw agent exec 'pick and place the red object' --json --timeout 240 2>/dev/null || true)"
+        # (the JSON travels in an env var: a here-doc IS python's stdin, so a
+        # pipe into `python - <<EOF` is silently shadowed)
+        TURN_SUMMARY="$(TURN_JSON="$TURN_JSON" "$PY" - "$REPO" <<'PYEOF' 2>/dev/null || echo "no JSON envelope from agent exec"
+import glob, json, os, sys
+try:
+    d = json.loads(os.environ.get("TURN_JSON") or "")
+except Exception:
+    print("no JSON envelope from agent exec"); sys.exit()
+ts = d.get("toolSummary") or {}
+final = (d.get("final") or "").strip().replace("\n", " ")[:120]
+runs = sorted(glob.glob(os.path.join(sys.argv[1], "runs", "mcp_*", "trace.jsonl")), key=os.path.getmtime)
+verdict = "no trace written"
+if runs:
+    rows = [json.loads(l) for l in open(runs[-1]) if l.strip()]
+    picks = [r for r in rows if r.get("skill") == "pick_and_place"]
+    if picks:
+        pc = (picks[-1].get("result") or {}).get("postcondition") or {}
+        verdict = f"pick_and_place ok={picks[-1]['result'].get('ok')} postcondition={pc.get('status')} channel={pc.get('channel')}"
+    else:
+        verdict = "no pick_and_place call in the trace (the brain answered without moving the robot)"
+    verdict += f" | log: {os.path.dirname(runs[-1])}/server.log"
+print(f"tools={ts.get('calls')} failures={ts.get('failures')} | {verdict} | brain: {final}")
+PYEOF
+)"
+        log "robot turn: $TURN_SUMMARY"
+        case "$TURN_SUMMARY" in
+            *"postcondition=confirmed"*) log "robot turn CONFIRMED by physics." ;;
+            *) warn "the robot turn did not end in a physics-confirmed pick -- read the log path above before demoing" ;;
+        esac
+    fi
 fi
 
 # ── 6. chat ─────────────────────────────────────────────────────────────────
@@ -364,6 +651,8 @@ cat <<EOF
          try:       "what do you see?"  "pick and place the red object"  "did it actually move?"
 $( [[ "$SIM" == "mujoco" ]] && echo '         viewer:    the MuJoCo window opens on the FIRST motion command (arm is lazy until then)' )
 $( [[ "$SIM" == "isaac"  ]] && echo "         isaac:     bridge :$BRIDGE_PORT, log $STATE_DIR/isaac_bridge.log" )
+$( [[ "$OCCUPANCY" != "none" ]] && echo "         occupancy: :$OCC_PORT ${OCC_DESC:-(dry run)}" )
+$( [[ "$GRASPGENX" != "none" ]] && echo "         graspgenx: :$GGX_PORT ($GRASPGENX)" )
          stop:      ./scripts/launch.sh --down
 EOF
 if [[ $OPEN_CHAT == 1 && $DRY == 0 ]]; then

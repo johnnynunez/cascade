@@ -490,3 +490,23 @@ def test_unreadable_neighbor_is_skipped_not_blocking():
 
     h.add_neighbor("broken", lambda: (_ for _ in ()).throw(RuntimeError("bus")))
     assert h._neighbor_violation(np.zeros(5)) is None
+
+
+def test_default_and_empty_arm_names_mean_the_primary():
+    """Measured on a fresh clone: the chat model sent arm="" and then
+    arm="default" (the name list_arms reports for one arm) and both were
+    refused, costing two failed tool calls per pick. They mean 'primary';
+    a wrong name must still be refused."""
+    from cascade.types import SkillError
+
+    a = _FakeArm("left")
+    rt = _RuntimeStub(ArmRig([a], ["left"]), a)
+    assert rt._select_arm("") is None
+    assert rt._select_arm("default") is None
+    assert rt._select_arm("Primary") is None
+    with pytest.raises(SkillError, match="no arm"):
+        rt._select_arm("right")
+    rt_single = _RuntimeStub(None, _FakeArm("only"))
+    assert rt_single._select_arm("default") is None
+    with pytest.raises(SkillError, match="single arm"):
+        rt_single._select_arm("other")

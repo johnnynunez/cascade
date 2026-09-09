@@ -188,7 +188,11 @@ class AgentOrchestrator:
             messages.append(
                 {"role": "assistant", "content": resp.text, "tool_calls": list(resp.tool_calls)}
             )
-            result = self.runtime.execute(call.name, call.arguments)
+            self.runtime.current_tier = "llm"
+            try:
+                result = self.runtime.execute(call.name, call.arguments)
+            finally:
+                self.runtime.current_tier = None
             tool_log.append({"step": step, "tool": call.name, "args": call.arguments, "result": result})
 
             if call.name == "task_done" and result.get("task_complete"):
@@ -365,7 +369,11 @@ class AgentOrchestrator:
             return None, None
         tool_log: list[dict] = []
         for i, (name, args) in enumerate(plan.calls, start=1):
-            result = self.runtime.execute(name, args)
+            self.runtime.current_tier = str(plan.source)  # reflex | experience
+            try:
+                result = self.runtime.execute(name, args)
+            finally:
+                self.runtime.current_tier = None
             tool_log.append({"step": i, "tool": name, "args": args, "result": result})
             if not result.get("ok", False):
                 self.fast_planner.note_outcome(

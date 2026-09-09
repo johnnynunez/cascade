@@ -9,6 +9,7 @@ instead of crashing the loop.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 
@@ -27,6 +28,8 @@ from ..perception.grounding import (
     oriented_bbox,
 )
 from ..types import Detection, Frame, SafetyViolation, SkillError, make_transform, transform_points
+
+logger = logging.getLogger(__name__)
 
 #: skills that move the arm: the WorldWatcher is held while they run so the
 #: held/handled object is not re-fused at a bogus mid-air position.
@@ -102,6 +105,11 @@ class SkillRuntime:
         #: dispatch tier that served the last command ("reflex" |
         #: "experience" | "llm" | "mcp-host"), for the dashboard "via:" chip
         self.last_path: str | None = None
+        #: which dispatch tier is issuing the CURRENT skill calls (reflex /
+        #: experience / llm / mcp-host); set by the dispatcher around its
+        #: calls and written into every trace row so an offline judge can
+        #: score progress per tier (eval/progress_judge.py per_tier()).
+        self.current_tier: str | None = None
         #: monotonic time the current top-level MOTION skill started; while
         #: the arm moves the WorldWatcher is paused, so belief ages measured
         #: from "now" are artificially inflated -- staleness checks measure
@@ -113,6 +121,15 @@ class SkillRuntime:
         #: retries even after every re-scan failed to see the object.
         self._last_reobserve_t: float | None = None
         self._graspgenx = None  # lazy GraspGenXPlanner (grasp.backend)
+        #: latched once the GraspGen-X server failed to answer: later grasps
+        #: go straight to the analytic planner instead of waiting out the
+        #: inference timeout each time
+        self._graspgenx_down = False
+        #: which grasp planner actually produced the last candidate list:
+        #: "obb" | "graspgenx (learned 6-DoF)" | "graspgenx-stub (...)" |
+        #: "obb (graspgenx down)". None until the first grasp. Surfaced by
+        #: `backends()` for the demo banner and the run summary.
+        self.grasp_planner_used: str | None = None
         self._grounder = None  # lazy VLMGrounder (cfg "grounder", 2nd filter)
         # Fake-RL grasp memory (RPent/Harness-VLA pattern): learns which grasp
         # geometry works per object profile from past attempts (wins AND
@@ -210,6 +227,14 @@ class SkillRuntime:
         collision rather than a wrong answer.
         """
         if name is None:
+            return None
+        # Two spellings of "the arm you have" that chat hosts actually send,
+        # measured on a fresh-clone run: `arm=""` (the model fills every
+        # optional schema field) and `arm="default"` (the literal name
+        # `list_arms` itself reports for a single-arm rig). Refusing them cost
+        # two failed tool calls per pick before the model guessed the profile
+        # name. Both mean "primary"; a WRONG name still fails loudly below.
+        if isinstance(name, str) and name.strip().lower() in ("", "default", "primary"):
             return None
         if self.arm_rig is None:
             raise SkillError(
@@ -391,6 +416,15 @@ class SkillRuntime:
         except SkillError as e:
             return {"ok": False, "error": f"SkillError: {e}"}
         self._show_status(f"{name}({_short(args)})")
+        # BEFORE keyframe. `last_frame` is only set by observe(), so the first
+        # skill of a run used to record `keyframe_before: null` -- exactly the
+        # image an outcome judge (eval/progress_judge.py) needs. Take a fresh
+        # frame when none exists yet; never let a camera hiccup block a skill.
+        if self.last_frame is None:
+            try:
+                self.observe()
+            except Exception:  # noqa: BLE001
+                pass
         before = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_before"
         )
@@ -489,10 +523,22 @@ class SkillRuntime:
             )
         except Exception:
             pass
+        # AFTER keyframe. For a MOTION skill this must be a FRESH frame taken
+        # once the arm has stopped: `last_frame` is whatever the skill's last
+        # observe() saw, which is a frame from BEFORE the place motion (or the
+        # BEFORE keyframe itself when the skill never re-observed). Measured:
+        # two chat-driven picks logged byte-identical before/after JPEGs
+        # (md5 8cb509e7...) while physics confirmed a 19.8 cm move -- and the
+        # outcome judge, shown no change, scored 0 % on a confirmed pick.
+        if name in _MOTION_SKILLS:
+            try:
+                self.observe()
+            except Exception:  # noqa: BLE001 -- camera hiccup: keep the stale frame
+                pass
         after = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_after"
         )
-        self.trace.record(name, args, result, dur, before, after)
+        self.trace.record(name, args, result, dur, before, after, tier=self.current_tier)
         err = str(result.get("error", "failed"))
         self._show_status(f"{name} -> " + ("ok" if result["ok"] else err[:60]))
         self.memory.add(
@@ -507,6 +553,26 @@ class SkillRuntime:
         self.last_frame = frame
         self.arm.harness.heartbeat()
         return frame
+
+    def backends(self) -> dict:
+        """Which sidecars are REALLY in the loop, as verified at runtime --
+        not what configs/demo.yaml wishes. Shown in the demo banner, the
+        dashboard and the run summary so a declared-but-absent backend can
+        never pass for a working one."""
+        occ = getattr(self.arm.harness, "occupancy", None)
+        gcfg = self.cfg.grasp
+        want = str(gcfg.get("backend", "obb"))
+        if self.grasp_planner_used is not None:
+            grasp = self.grasp_planner_used
+        elif want == "graspgenx":
+            grasp = "graspgenx (configured; not yet probed -- first grasp probes it)"
+        else:
+            grasp = want
+        return {
+            "grasp_planner": grasp,
+            "occupancy": occ.describe() if occ is not None else "disabled",
+            "occupancy_live": bool(occ is not None and occ.status),
+        }
 
     def frame_jpeg(self) -> bytes | None:
         if self.last_frame is None:
@@ -651,12 +717,20 @@ class SkillRuntime:
         )
         if str(gcfg.get("backend", "obb")) != "graspgenx":
             grasps = obb
+            self.grasp_planner_used = "obb"
+        elif self._graspgenx_down:
+            # Probed dead at startup (or on a previous grasp): do not pay the
+            # inference timeout again on every grasp. `grasp_planner_used`
+            # says so out loud -- the dashboard/summary show it.
+            grasps = obb
+            self.grasp_planner_used = "obb (graspgenx down)"
         else:
             try:
                 if self._graspgenx is None:
                     from ..grasping.graspgenx_backend import GraspGenXPlanner
 
                     self._graspgenx = GraspGenXPlanner(gcfg)
+                    self._graspgenx.probe()   # 300 ms, raises if nothing answers
                 learned = self._graspgenx.plan(fix, max_width_m=self._max_width)
                 self.memory.add(
                     "note",
@@ -664,9 +738,13 @@ class SkillRuntime:
                     f"(top {learned[0].quality:.2f})",
                 )
                 grasps = learned + obb  # learned first; OBB stays as IK fallback
+                self.grasp_planner_used = self._graspgenx.describe()
             except Exception as e:
                 self.memory.add("note", f"graspgenx unavailable ({str(e)[:90]}); OBB fallback")
+                logger.warning("graspgenx unavailable (%s); analytic OBB planner from here on", str(e)[:160])
+                self._graspgenx_down = True
                 grasps = obb
+                self.grasp_planner_used = "obb (graspgenx down)"
 
         # ---- fake-RL memory prior: re-rank + z-nudge -----------------------
         lbl = label or getattr(fix, "label", None) or "object"

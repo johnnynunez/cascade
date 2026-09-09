@@ -377,10 +377,14 @@ class McpSkillServer:
         try:
             # this thread's prints must never reach the protocol stream
             with contextlib.redirect_stdout(sys.stderr):
-                for name, args in plan.calls:
-                    result = rt.execute(name, args)
-                    if not result.get("ok", False):
-                        break
+                rt.current_tier = str(getattr(plan, "source", "reflex"))
+                try:
+                    for name, args in plan.calls:
+                        result = rt.execute(name, args)
+                        if not result.get("ok", False):
+                            break
+                finally:
+                    rt.current_tier = None
             rt.last_path = "reflex"
         finally:
             rt.current_task = None
@@ -484,6 +488,7 @@ class McpSkillServer:
             if name == "verify_last_action":
                 return _text_result(self._verify_last(runtime))
             with self._exec_lock:  # never overlap with a reflex-chat motion
+                runtime.current_tier = "mcp-host"  # the chat host's brain chose this call
                 if name == "pick_and_place":  # narrate on the dashboard
                     obj = (arguments or {}).get("object", "?")
                     dest = (arguments or {}).get("destination")
@@ -494,6 +499,7 @@ class McpSkillServer:
                         runtime.current_task = None
                 else:
                     result = runtime.execute(name, arguments or {})
+                runtime.current_tier = None
                 # after completion, not before: the "via:" chip reports the
                 # tier that LAST SERVED a command, never one still running
                 runtime.last_path = "mcp-host"
@@ -601,6 +607,38 @@ class McpSkillServer:
         }
 
 
+class _Tee:
+    """Write-through to two streams (stderr + server.log); never raises."""
+
+    def __init__(self, *streams):
+        self._streams = streams
+
+    def write(self, data):
+        for st in self._streams:
+            try:
+                st.write(data)
+            except Exception:  # noqa: BLE001
+                pass
+        return len(data)
+
+    def flush(self):
+        for st in self._streams:
+            try:
+                st.flush()
+            except Exception:  # noqa: BLE001
+                pass
+
+    def __getattr__(self, name):
+        return getattr(self._streams[0], name)
+
+
+def _short_args(args: dict) -> str:
+    try:
+        return ", ".join(f"{k}={str(v)[:24]}" for k, v in (args or {}).items())
+    except Exception:  # noqa: BLE001
+        return "?"
+
+
 def _text_result(payload: dict, is_error: bool = False) -> dict:
     return {
         "content": [{"type": "text", "text": json.dumps(payload)}],
@@ -648,15 +686,23 @@ def handle_message(server: McpSkillServer, msg: dict) -> dict | None:
             params = msg.get("params") or {}
             name = params.get("name", "")
             args = params.get("arguments") or {}
+            # One stderr line per tool call with the outcome. The chat host
+            # (OpenClaw `agent exec`) reports only a failure COUNT and keeps
+            # no transcript for isolated runs, so without this line a
+            # "failures: 2" next to a physics-confirmed pick is undebuggable.
+            t_call = time.monotonic()
             try:
-                return _response(req_id, server.call_tool(name, args))
+                out = server.call_tool(name, args)
             except Exception as e:
-                return _response(
-                    req_id,
-                    _text_result(
-                        {"ok": False, "error": f"{type(e).__name__}: {e}"}, is_error=True
-                    ),
-                )
+                out = _text_result({"ok": False, "error": f"{type(e).__name__}: {e}"}, is_error=True)
+            try:
+                body = (out.get("content") or [{}])[0].get("text", "")
+                print(f"[cascade-mcp] tools/call {name}({_short_args(args)}) -> "
+                      f"{'ERROR' if out.get('isError') else 'ok'} in {time.monotonic() - t_call:.1f}s: {body[:200]}",
+                      file=sys.stderr, flush=True)
+            except Exception:  # noqa: BLE001 -- logging must never fail a call
+                pass
+            return _response(req_id, out)
         if is_notification:
             return None
         return _response(req_id, error={"code": -32601, "message": f"method not found: {method}"})
@@ -683,7 +729,19 @@ def main() -> int:
             protocol_out.write(json.dumps(resp) + "\n")
             protocol_out.flush()
 
-    print("[cascade-mcp] cascade MCP server on stdio", file=sys.stderr)
+    # Mirror stderr to a file. A chat host swallows an MCP child's stderr
+    # (OpenClaw shows only a failure count), so on a shared machine the only
+    # way to answer "why did that tool call fail?" is this log. Same folder
+    # as the run's trace.jsonl / keyframes.
+    from ..config import PACKAGE_ROOT
+
+    run_dir = Path(os.environ.get("CASCADE_RUN_DIR", PACKAGE_ROOT / "runs" / f"mcp_{os.getpid()}"))
+    try:
+        run_dir.mkdir(parents=True, exist_ok=True)
+        sys.stderr = _Tee(sys.stderr, open(run_dir / "server.log", "a", buffering=1))
+    except Exception:  # noqa: BLE001 -- a read-only checkout must not kill the server
+        pass
+    print(f"[cascade-mcp] cascade MCP server on stdio (log: {run_dir / 'server.log'})", file=sys.stderr)
     if os.environ.get("CASCADE_PREWARM", "1") != "0":
         server.prewarm_async()
 

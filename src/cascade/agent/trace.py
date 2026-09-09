@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import cv2
 import numpy as np
@@ -28,6 +28,8 @@ class TraceLogger:
         (self.run_dir / "keyframes").mkdir(parents=True, exist_ok=True)
         self._trace_path = self.run_dir / "trace.jsonl"
         self._step = 0
+        #: optional () -> dict of verified sidecar backends, appended to summaries
+        self.backends_fn: Callable[[], dict] | None = None
 
     def save_keyframe(self, rgb: np.ndarray | None, tag: str) -> str | None:
         if rgb is None:
@@ -44,11 +46,13 @@ class TraceLogger:
         duration_ms: float,
         keyframe_before: str | None = None,
         keyframe_after: str | None = None,
+        tier: str | None = None,
     ) -> None:
         rec = {
             "step": self._step,
             "t": time.time(),
             "skill": skill,
+            "tier": tier,
             "args": _jsonable(args),
             "duration_ms": round(duration_ms, 1),
             "result": _jsonable(result),
@@ -60,6 +64,16 @@ class TraceLogger:
         self._step += 1
 
     def finish(self, summary: str) -> None:
+        # The runtime registers `backends_fn` so every summary carries WHICH
+        # sidecars were verifiably in the loop (grasp planner, occupancy
+        # map) -- a declared-but-absent backend must not pass for a working
+        # one in the artifact people read after the demo.
+        if self.backends_fn is not None:
+            try:
+                b = self.backends_fn()
+                summary += "\nbackends: " + ", ".join(f"{k}={v}" for k, v in b.items())
+            except Exception:  # noqa: BLE001 -- never let reporting break a run
+                pass
         (self.run_dir / "summary.txt").write_text(summary + "\n")
 
 

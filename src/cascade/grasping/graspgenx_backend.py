@@ -66,24 +66,50 @@ class GraspGenXClient:
         sock.connect(f"tcp://{self._host}:{self._port}")
         self._sock = sock
 
-    def request(self, payload: dict) -> dict:
+    def request(self, payload: dict, timeout_ms: int | None = None) -> dict:
         import msgpack
         import zmq
 
         if self._sock is None:
             self._connect()
+        sock = self._sock
+        if timeout_ms is not None:
+            sock.setsockopt(zmq.RCVTIMEO, int(timeout_ms))
+            sock.setsockopt(zmq.SNDTIMEO, int(timeout_ms))
         try:
-            self._sock.send(msgpack.packb(payload, use_bin_type=True))
-            raw = self._sock.recv()
+            sock.send(msgpack.packb(payload, use_bin_type=True))
+            raw = sock.recv()
         except zmq.error.Again as e:
             self.close()  # REQ socket is wedged after a timeout
             raise GraspGenXError(
                 f"graspgenx server at {self._host}:{self._port} timed out "
-                f"({self._timeout} ms); is scripts/serve_graspgenx.sh running?"
+                f"({timeout_ms if timeout_ms is not None else self._timeout} ms); "
+                f"is scripts/serve_graspgenx.sh running?"
             ) from e
+        finally:
+            if timeout_ms is not None and self._sock is not None:
+                self._sock.setsockopt(zmq.RCVTIMEO, self._timeout)
+                self._sock.setsockopt(zmq.SNDTIMEO, self._timeout)
         resp = msgpack.unpackb(raw, raw=False)
         if isinstance(resp, dict) and "error" in resp:
             raise GraspGenXError(f"graspgenx server error: {resp['error']}")
+        return resp
+
+    def probe(self, timeout_ms: int = 300) -> dict:
+        """One SHORT round trip at startup: is a GraspGen-X server (or the
+        protocol stub) answering? Raises GraspGenXError otherwise. Without
+        this every grasp paid the full inference timeout (8 s) before
+        falling back to the analytic planner -- and the fallback was a
+        buried memory note, so a demo without the server looked like one
+        with it, just slow.
+
+        Wire: the real server (graspgenx/serving/zmq_server.py) answers
+        `{"action": "health"}` with `{"status": "ok"}`; the repo's protocol
+        stub answers the same (and marks itself `"stub": true`)."""
+        resp = self.request({"action": "health"}, timeout_ms=timeout_ms)
+        ok = isinstance(resp, dict) and (resp.get("status") == "ok" or resp.get("ok") is True)
+        if not ok:
+            raise GraspGenXError(f"graspgenx health returned {resp!r}")
         return resp
 
     def close(self):
@@ -107,6 +133,8 @@ class GraspGenXPlanner:
         self.topk = int(get("topk", 32))
         self.min_score = float(get("min_score", 0.0))
         self.last_latency_s: float | None = None
+        #: what the startup probe saw: {"ok": True, "stub": bool, ...} or None
+        self.status: dict | None = None
         # Cross-embodiment mode: a `sweep` block describes OUR gripper by
         # its swept volume (12 numbers) -- no name lookup, no borrowed
         # Franka. Convention: origin at the JAW CENTER (tip_offset then 0),
@@ -123,6 +151,15 @@ class GraspGenXPlanner:
                 "fingertip_depth": float(sweep.get("fingertip_depth", 0.0)),
             }
             self.tip_offset_m = float(get("tip_offset_m", 0.0))
+
+    def probe(self, timeout_ms: int = 300) -> dict:
+        self.status = self._client.probe(timeout_ms=timeout_ms)
+        return self.status
+
+    def describe(self) -> str:
+        if self.status is None:
+            return "graspgenx (unprobed)"
+        return "graspgenx-stub (analytic protocol double)" if self.status.get("stub") else "graspgenx (learned 6-DoF)"
 
     def plan(self, fix: ObjectFix, max_width_m: float = 0.09) -> list[Grasp]:
         """Segmented base-frame object points -> ranked wrc Grasps."""

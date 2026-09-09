@@ -202,8 +202,8 @@ Optional one-shot helpers, none of them required:
 # Hermes agent host (this project's default) + register the robot with it
 ./scripts/install_hermes.sh --portal
 
-# occupancy/collision-map backend (pyzmq, msgpack-numpy, Open3D; same code
-# path on CPU and GPU, CUDA:0 auto-detected at runtime)
+# occupancy/collision-map backend deps (pyzmq, msgpack-numpy, scipy, Warp;
+# nvblox_torch is added on NVIDIA GPUs where a wheel exists)
 curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/install_occupancy_backend.sh | bash
 
 # full rig bring-up: OpenClaw CLI + Cosmos3-Edge (vLLM) brain + MCP skills.
@@ -214,6 +214,49 @@ curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bo
 
 See the [installation notes](#setup-notes) below for pyrealsense2, YOLOE's
 text encoder, and other rig-specific gotchas.
+
+## One click
+
+Clone and run. On a fresh machine the first run creates the venv, installs
+the extras the mode needs, installs the OpenClaw CLI, starts the sidecars,
+registers the robot tools, proves the brain answers, and opens the chat.
+Every later run just launches.
+
+```bash
+git clone https://github.com/johnnynunez/cascade && cd cascade
+./run.sh                 # Isaac Sim if installed (ISAACSIM_PATH or a standard
+                         # install path), else MuJoCo on any laptop
+./run.sh isaac           # force Isaac Sim: bridge + editor window + OpenClaw chat
+./run.sh mujoco          # force MuJoCo (CPU; opens the viewer on the first motion)
+./run.sh check isaac     # preflight only -- lists what is missing, starts nothing
+./run.sh down            # stop everything it started
+./run.sh isaac --headless --no-open   # extra flags pass through to scripts/launch.sh
+```
+
+What you need for `isaac`: an NVIDIA GPU, Isaac Sim 6.0 (`ISAACSIM_PATH`
+pointing at the folder with `python.sh`; `./run.sh check isaac` tells you
+if it is not found), and a model for the brain -- either a local server
+(`scripts/serve_cosmos_vllm.sh` on the same box) or an OpenClaw provider
+login, which the first run asks for interactively once (`openclaw onboard`)
+and never again. The scene USD (gain-tuned reBot RS arm, table, props, two
+RTX cameras) and the detector weights ship in the repo; nothing else is
+downloaded except Python packages and the OpenClaw CLI.
+
+`./run.sh` is a thin wrapper: `scripts/launch.sh --setup --sim <mode>` when
+setup is needed, `scripts/launch.sh --sim <mode>` afterwards. Before it
+prints READY it proves the stack, not just the wiring: it builds the robot
+runtime once with the exact environment the MCP server gets, lists the
+tools through OpenClaw, gets a trivial answer from the brain, and in sim
+modes runs ONE real chat turn -- `pick and place the red object` -- and
+checks that the physics channel confirmed it (`--no-robot-turn` skips
+that). The banner names every verified component (sim bridge, occupancy
+backend, grasp planner, tool count, chat URL, run log), so a shared machine
+never runs a demo that is silently missing a piece. Every tool call the
+chat host makes is logged to `runs/mcp_<pid>/server.log` -- OpenClaw only
+reports a failure count.
+
+Verified on a fresh copy with no venv (macOS, MuJoCo mode): setup + launch
++ physics-confirmed pick in one command, `tools=2 failures=0`.
 
 ## Quick start
 
@@ -275,10 +318,14 @@ scripts/serve_graspgenx.sh
 # says nothing about grasp quality:
 python scripts/serve_graspgenx_stub.py
 
-# occupancy/collision map (optional, `occupancy.enabled: true`). Uses the same
-# wire deps as above; the bridge ships in this repo and picks Open3D on
-# CUDA:0 / CPU:0, or a pure-numpy fallback:
-python scripts/serve_nvblox_bridge.py
+# occupancy / distance-field map (`occupancy.enabled: true`, the default).
+# ONE bridge, three backends: `nvblox` (real nvblox_torch TSDF+ESDF, P0 on
+# NVIDIA GPUs), `warp` (hardware-agnostic TSDF with carving + exact EDT in
+# Warp kernels -- CPU on this Mac, CUDA on Jetson/x86), `voxel` (numpy). The
+# demo PROBES it at startup and prints which backend answered; a bridge nobody
+# started shows as "occupancy=none (...)" in the banner and the run summary.
+# scripts/launch.sh starts it for you; by hand:
+./scripts/serve_occupancy.sh            # auto: nvblox > warp > voxel
 
 # real SO-101 over USB serial. CHECK THE JOINT SIGNS FIRST -- read-only scan,
 # then a single-joint jog that tells you which wire_signs entry to flip:
@@ -333,12 +380,16 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
 - **[Safety](src/cascade/safety/)** is a fail-closed `SafetyHarness` that
   vets every streamed waypoint (joint limits, velocity caps, workspace AABB,
   table-plane clearance, keep-out zones, perception watchdog, e-stop latch,
-  and an optional [nvblox-style occupancy map](src/cascade/perception/occupancy.py)),
+  and a measured-clearance gate against the [occupancy map](src/cascade/perception/occupancy.py)
+  -- nvblox on NVIDIA GPUs, a Warp TSDF/EDT anywhere else, with the robot's
+  own body masked out of the depth before integration),
   plus an ASPIRE-style multimodal trace (`trace.jsonl` + before/after
   keyframes) on every skill call.
 - **[Grasping](src/cascade/grasping/)** uses learned 6-DoF grasps from a
-  GraspGen-X ZMQ server, falling back to analytic 3D OBB grasps whenever the
-  server is down. Candidates are re-ranked by a persisted grasp-outcome
+  GraspGen-X ZMQ server, probed once at startup (300 ms): when no server
+  answers, the banner and `summary.txt` say `grasp_planner=obb (graspgenx
+  down)` and the analytic 3D OBB planner runs -- no per-grasp timeout, no
+  silent substitution. Candidates are re-ranked by a persisted grasp-outcome
   memory, then vetted against IK *and* the safety-harness geometry.
   The model is conditioned on the gripper as a **swept volume**, so an arm
   whose gripper differs from `demo.yaml`'s reBot default (90 mm jaw) must

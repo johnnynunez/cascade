@@ -84,7 +84,7 @@ class SafetyHarness:
         self.limits = limits
         self.kin = kinematics
         # OccupancyMap | None (see perception/occupancy.py). Optional and
-        # None by default: no nvblox bridge runs unless configured, and an
+        # None by default: no occupancy bridge runs unless configured, and an
         # unconfigured/stale map must never gate motion (booth rule).
         self.occupancy = occupancy
         # Where this arm is bolted, as a 4x4 base->table transform. None means
@@ -467,13 +467,13 @@ class SafetyHarness:
         return self._neighbor_violation(q)
 
     def _occupancy_violation(self, points: np.ndarray, exempt: tuple | None) -> str | None:
-        """nvblox-backed check: any query point closer than min_clearance_m
+        """Occupancy-map check: any query point closer than min_clearance_m
         to a cached obstacle, outside the active grasp exemption.
 
         `points.clearance()` returns None when the map has no fresh data
         (never refreshed, stale, or the bridge is down) -- that is
         indistinguishable from "not configured" on purpose: a stalled
-        nvblox bridge must degrade the same way a missing one does, never
+        occupancy bridge must degrade the same way a missing one does, never
         freeze the arm.
         """
         dist = self.occupancy.clearance(points)
@@ -482,7 +482,7 @@ class SafetyHarness:
         min_c = self.limits.min_clearance_m
         for i, (p, d) in enumerate(zip(points, dist)):
             if d < min_c and not self._in_cylinder(p, exempt):
-                return f"point {i} clearance {d:.3f} m below {min_c:.3f} m (nvblox occupancy)"
+                return f"point {i} clearance {d:.3f} m below {min_c:.3f} m (occupancy map)"
         return None
 
     def _in_grasp_cylinder(self, p: np.ndarray) -> bool:

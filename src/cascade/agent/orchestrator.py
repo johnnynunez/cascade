@@ -80,6 +80,7 @@ class AgentOrchestrator:
         fast_planner: FastPlanner | None = None,
         skill_library=None,
         verify_milestones: bool = True,
+        memory_frames_k: int = 4,
     ):
         self.llm = llm
         self.runtime = runtime
@@ -87,6 +88,12 @@ class AgentOrchestrator:
         self.max_steps = max_steps
         self.decompose = decompose
         self.attach_images = attach_images and llm.supports_vision
+        #: Vesta memory harness (arXiv:2606.20905 §2.4): how many captioned
+        #: PAST frames ride along on every planner turn, on top of the
+        #: current view. 0 = text-only history (the configuration Vesta's
+        #: ablation scores lowest: the planner over-trusts the text and keeps
+        #: "continuing the current task"). Needs a vision model.
+        self.memory_frames_k = int(memory_frames_k) if self.attach_images else 0
         self.fast_planner = fast_planner
         self.skill_library = skill_library
         #: Pigey/Agentic-VLA milestone verification. The symbolic tier reads
@@ -122,6 +129,12 @@ class AgentOrchestrator:
         milestones = self._decompose(task) if self.decompose else []
         if self.tracker is not None:
             self.tracker.reset(milestones)
+        # New episode, new visual history (Vesta: plan.ResetSession()). The
+        # text ring is a rolling 15 s window and is left alone.
+        try:
+            self.runtime.memory.reset_frames()
+        except AttributeError:
+            pass
         messages: list[dict] = []
         tool_log: list[dict] = []
 
@@ -167,7 +180,7 @@ class AgentOrchestrator:
         for step in range(1, self.max_steps + 1):
             resp = self.llm.chat(
                 system=SYSTEM_PROMPT,
-                messages=self._prune_images(messages),
+                messages=self._with_memory_harness(messages),
                 tools=TOOL_SPECS,
                 max_tokens=1024,
             )
@@ -412,6 +425,47 @@ class AgentOrchestrator:
             ),
             None,
         )
+
+    def _with_memory_harness(self, messages: list[dict]) -> list[dict]:
+        """Messages for THIS planner turn: the conversation with all older
+        images stripped, plus one trailing user message carrying the Vesta
+        memory harness -- up to K captioned past frames (initial state first,
+        newest action last, each with the independent verdict on it) and the
+        current view. Rebuilt every turn and never appended to `messages`,
+        so images are sent once per request, not accumulated.
+
+        Falls back to the plain pruned conversation when there is nothing to
+        show (no vision model, K=0, no frames yet)."""
+        pruned = self._prune_images(messages)
+        if self.memory_frames_k <= 0:
+            return pruned
+        try:
+            frames = self.runtime.memory.memory_frames(self.memory_frames_k)
+        except AttributeError:
+            frames = []
+        images = [f["jpeg"] for f in frames]
+        lines = [self.runtime.memory.frame_caption(f) for f in frames]
+        current = self.runtime.frame_jpeg() if self.runtime.last_frame is not None else None
+        if current is not None:
+            images.append(current)
+            lines.append("current view (now)")
+        if not images:
+            return pruned
+        text = (
+            "Memory frames, oldest first; the LAST image is the current view. "
+            "Before choosing a tool, state briefly: Observation (what the "
+            "current view shows), Progress (which steps are done, judged from "
+            "the frames and verdicts, not from your intent), Reasoning (what "
+            "must happen next and why), then call the tool.\n"
+            + "\n".join(f"{i + 1}. {ln}" for i, ln in enumerate(lines))
+        )
+        # Strip any image the pruned history still carries: the harness is
+        # now the single place images enter the request.
+        pruned = [
+            ({k: v for k, v in m.items() if k != "images"} if m.get("images") else m)
+            for m in pruned
+        ]
+        return pruned + [{"role": "user", "content": text, "images": images}]
 
     @staticmethod
     def _prune_images(messages: list[dict]) -> list[dict]:

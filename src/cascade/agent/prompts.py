@@ -29,6 +29,13 @@ Rules:
   something different (re-localize, other yaw, push the object, or report).
 - When the task is complete or truly impossible, call task_done with an honest
   summary. Never claim success you did not verify.
+- When memory frames are attached, they are your record of what you already
+  did: judge progress from them and their verdicts ([CONFIRMED] / [REFUTED]),
+  not from what you intended. A step marked REFUTED did not happen. Do not
+  repeat a step the frames show as done; do not "continue" a step the frames
+  show as finished.
+- Think in four short phases before every tool call: Observation, Progress,
+  Reasoning, Action (the tool call). Keep each to one line.
 """
 
 DECOMPOSE_PROMPT = """Task: {task}

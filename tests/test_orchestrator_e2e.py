@@ -145,3 +145,25 @@ def test_memory_survives_between_tasks(runtime_and_arm):
     assert recall["ok"]
     assert "object_memory" in recall
     assert abs(recall["object_memory"]["last_position"][0] - 0.29) < 0.03
+
+
+@needs_pin
+def test_destination_drop_zone_is_the_configured_point_not_an_object(runtime_and_arm):
+    """Measured on a real chat turn: the planner echoed the literal
+    `"destination": "drop zone"` it had read in a previous result, and
+    pick_and_place tried to LOCALIZE an object called "drop zone" -- 8 failed
+    place attempts, then four minutes of invented coordinates. The drop zone
+    is a configured point; its names mean 'use it', same as omitting it."""
+    from cascade.skills.runtime import _names_drop_zone
+
+    for w in ("drop zone", "Drop Zone", "the drop zone", "drop_zone", "bin", "default", ""):
+        assert _names_drop_zone(w) is (w != ""), w
+    assert not _names_drop_zone("bowl") and not _names_drop_zone("blue cube")
+
+    runtime, arm = runtime_and_arm
+    arm.object_stop_frac = 0.5
+    r = runtime.execute("pick_and_place", {"object": "red cube", "destination": "drop zone"})
+    assert r["ok"], r
+    dz = runtime.cfg.grasp.get("drop_zone")
+    assert r["destination"] == "drop zone"
+    assert abs(r["placed_at"][0] - float(dz[0])) < 1e-6 and abs(r["placed_at"][1] - float(dz[1])) < 1e-6, (r["placed_at"], dz)

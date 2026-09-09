@@ -455,10 +455,17 @@ env = {
 if sim in ("mujoco", "isaac"):
     env["CASCADE_VIEW"] = "1"
     env["DISPLAY"] = os.environ.get("DISPLAY", ":0")
+# requestTimeoutMs: the OpenClaw per-CALL budget (default 60 s). pick_and_place
+# PERSISTS for up to grasp.persist_seconds (120 s) by design; at 60 s the
+# host sends notifications/cancelled, the server treats a cancel mid-motion
+# as the operator walking away and LATCHES THE E-STOP, and every later
+# motion fails "e-stop latched" until reset_stop. Measured on a real chat
+# turn: the pick completed at 60.0 s, confirmed by physics, and was
+# reported as cancelled. Budget = persistence + place + home, with margin.
 print(json.dumps({
     "command": py, "args": ["-m", "cascade.apps.mcp_server"],
     "cwd": os.path.join(repo, "models"),   # YOLOE resolves its text encoder relative to cwd
-    "env": env, "connectionTimeoutMs": 120000,
+    "env": env, "connectionTimeoutMs": 120000, "requestTimeoutMs": 300000,
 }))
 PYEOF
 )"

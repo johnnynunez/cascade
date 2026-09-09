@@ -425,6 +425,17 @@ class SkillRuntime:
                 self.observe()
             except Exception:  # noqa: BLE001
                 pass
+        # Vesta keeps "the first frame ... to preserve the initial state". A
+        # memory with no frame yet is a task's first step: pin the scene as
+        # it was BEFORE anything moved, so memory_frames()[0] is the state
+        # the task is measured against, not the aftermath of step one.
+        if (
+            name in _MOTION_SKILLS
+            and self.last_frame is not None
+            and not self.memory.memory_frames(1)
+        ):
+            self.memory.add("observation", "initial state before the first action",
+                            rgb=self.last_frame.rgb)
         before = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_before"
         )
@@ -541,9 +552,24 @@ class SkillRuntime:
         self.trace.record(name, args, result, dur, before, after, tier=self.current_tier)
         err = str(result.get("error", "failed"))
         self._show_status(f"{name} -> " + ("ok" if result["ok"] else err[:60]))
+        # Vesta memory tuple <step, time, observation, action, verdict>: the
+        # action event carries the AFTER frame (what the world looked like
+        # once this action was done) and the independent postcondition
+        # status, so memory_frames() can show the planner its own history as
+        # captioned images instead of text alone. Motion skills only -- an
+        # observe/list call changes nothing worth a frame, and the harness
+        # would fill with near-duplicates of the current view.
+        pc = result.get("postcondition") if isinstance(result, dict) else None
+        verdict = str((pc or {}).get("status") or "") if isinstance(pc, dict) else ""
         self.memory.add(
             "action" if result["ok"] else "outcome",
             f"{name}({_short(args)}) -> " + ("ok" if result["ok"] else err[:120]),
+            data={"verdict": verdict} if verdict else None,
+            rgb=(
+                self.last_frame.rgb
+                if (name in _MOTION_SKILLS and self.last_frame is not None)
+                else None
+            ),
         )
         return result
 
@@ -1845,7 +1871,7 @@ class SkillRuntime:
                         pass
                     self._reobserve()
                 try:
-                    if destination:
+                    if destination and not _names_drop_zone(destination):
                         res = self.skill_place_on_object(destination)
                     else:
                         dz = gcfg.get("drop_zone", [0.30, -0.20])
@@ -2631,6 +2657,20 @@ def _short(args: dict) -> str:
     return ", ".join(f"{k}={v}" for k, v in args.items())
 
 
+#: Spellings of "the configured drop zone" a planner sends as `destination`.
+#: Measured on a real chat turn: the model read `"destination": "drop zone"`
+#: in a previous result and echoed it back; pick_and_place then tried to
+#: LOCALIZE an object called "drop zone", failed 8 times, and the planner
+#: spent four minutes inventing coordinates. The drop zone is a configured
+#: point, not a detected object -- these names mean "use it".
+_DROP_ZONE_WORDS = {"drop zone", "dropzone", "drop-zone", "drop_zone", "the drop zone",
+                    "bin", "the bin", "default", "zona de descarga"}
+
+
+def _names_drop_zone(destination) -> bool:
+    return str(destination or "").strip().lower() in _DROP_ZONE_WORDS
+
+
 TOOL_SPECS: list[dict] = [
     {
         "name": "grasp_at_pixel",
@@ -2843,7 +2883,8 @@ TOOL_SPECS: list[dict] = [
             "FAST PATH: complete pick-and-place in ONE call. Resolves the "
             "object against the live world model (color queries like 'pink "
             "object' work), grasps, places on the named destination object "
-            "(or the default drop zone if omitted), returns home, and "
+            "(omit `destination`, or pass 'drop zone', for the configured drop "
+            "zone -- it is a fixed point, not an object to find), returns home, and "
             "reports stage timings. Both stages PERSIST: they keep retrying "
             "with fresh perception and fresh grasp plans until they succeed "
             "or the persistence budget runs out. Prefer this over manual "

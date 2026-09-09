@@ -112,6 +112,17 @@ class BeliefStore:
             for b in self._beliefs:
                 if not self._label_agnostic and b.label != label:
                     continue
+                # Two DIFFERENT confirmed colours are two objects, however
+                # close. Proximity matching exists for label aliases of ONE
+                # object ("cube" vs "hassock"); it must not fuse two small
+                # props that sit inside the 8 cm gate. Measured on the
+                # two-cube MuJoCo scene (3.5 cm cubes, 5.8 cm apart): the
+                # blue cube was absorbed into the red belief, count_objects
+                # said 1, and the merged position sat one cube-width off
+                # physics truth. Colour comes from the HSV classifier on the
+                # mask, so it is a measurement, not a label.
+                if color is not None and b.color is not None and b.color != color:
+                    continue
                 # A big object's centre estimate wanders further between
                 # frames than a small one's: two views of a 30 cm bin can
                 # disagree by 8 cm while two 5 cm cubes that far apart are

@@ -116,6 +116,15 @@ grasp:
 
 memory:
   horizon_s: 15.0           # episodic window the agent can consult
+  # Vesta memory harness (arXiv:2606.20905 §2.4): how many captioned PAST
+  # frames (initial state + sampled actions, each with its physics verdict)
+  # the planner sees on every turn, next to the current view. 0 = text-only
+  # history -- the configuration Vesta's ablation scores lowest (49.7 vs
+  # 75.9 for image+text). Also served to a chat host by the `task_memory`
+  # MCP tool. Frames live in their own ring (frames_horizon_s) because a
+  # 15 s window would forget the initial state before one pick finished.
+  frames_k: 4
+  frames_horizon_s: 600.0
   # Persistent spatial memory: the belief store is written on shutdown and
   # reloaded at startup, so the world model survives a restart (the robot does
   # not re-discover a table it already mapped). Everything reloaded is aged

@@ -6,16 +6,28 @@ Read top-down for status; the dated sections are history.
 
 ## Status at a glance (2026-09-10)
 
+**Current delivery priority:** one command per Linux DGX Spark to install
+Isaac Sim **6.1.0.0**, use its **Newton** experience, serve **Cosmos3-Edge**
+and open an isolated OpenClaw chat. Implementation and acceptance boundary
+are tracked in [SPARK_DELIVERY.md](SPARK_DELIVERY.md). No Spark was
+available for this change: publication and the cold-start GPU rehearsal
+remain pending. Newton standalone CPU is an additional test path, not a
+substitute for Isaac/Cosmos on the target.
+
 What a visitor gets today, in one command, on a laptop: `./run.sh` →
 MuJoCo (or Isaac Sim when installed) + OpenClaw chat with 41 robot tools,
 self-proven (runtime built, tools listed, brain answered, one pick
 CONFIRMED by physics, scene reset). Every skill's effect is verified on an
 independent channel, the planner sees its own history as images, and the
-suite is 737 passed / 0 skipped. Unverified on hardware: real-arm motion,
+pre-delivery baseline was 737 passed / 0 skipped (not the final delivery
+suite). Unverified on hardware: real-arm motion,
 the SO-101 serial driver, the ROS2 and Unitree backends.
 
 Open, in priority order (details in the sections below):
 
+0. **Spark delivery acceptance** — finish integration tests, run the exact
+   published build on a clean Spark, require the session-bound physical
+   proof/reset and test every supported scene object before replicating it.
 1. **Real rig first motions** -- onsite checklist (CAN up, gripper travel,
    hand-eye, table plane), `pytest -m hardware`, then `--arm rebot_rs` at
    low velocity. Everything above the driver has been exercised in two
@@ -27,8 +39,9 @@ Open, in priority order (details in the sections below):
    the protocol stub and calibrate `tip_offset_m` / the reBot sweep volume
    in Isaac; the stub only proves the wire.
 4. **Wrist camera** extrinsics validated mid-descent against physics truth.
-5. **Newton as the Isaac default** once `physics_probe.py --engine newton`
-   passes on the real reBot asset (the synthetic-scene blocker is gone).
+5. **Newton target validation** — the Isaac bridge already defaults to
+   Newton. Validate the real reBot asset in Isaac Sim 6.1 on Spark; synthetic
+   contacts or SO-101 standalone tests do not certify that different asset.
 6. **Judge as a metric**: run `scripts/judge_run.py` over every launcher
    proof turn and keep the judge-vs-physics confusion matrix in the run
    summary, so a regression in the outcome pictures shows up as `fn`.

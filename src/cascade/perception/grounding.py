@@ -284,7 +284,9 @@ def localize_object(
             ref = Reference(noun=ref.noun, spatial=spatial_hint,
                             ordinal=ref.ordinal, size=ref.size,
                             exclude=ref.exclude)
-        if not ref.is_plain and len(candidates) > 1:
+        # Even a single candidate can violate an exclusion or an ordinal.
+        # Let the typed reference refusal propagate; it is not a prompt miss.
+        if not ref.is_plain:
             candidates = apply_reference(candidates, ref, _SPATIAL_AXES)
         elif near_xyz is not None and len(candidates) > 1:
             anchor = np.asarray(near_xyz, dtype=float).reshape(3)

@@ -37,7 +37,7 @@ multimodal traces + skill library) and
 advisor + experience memory), in the same
 service-oriented/composable spirit as [RPent](https://github.com/RLinf/RPent).
 
-[Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Booth runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](CLAUDE.md)
+[Spark delivery](docs/SPARK_DELIVERY.md) · [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Booth runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](CLAUDE.md)
 
 ```
 ┌──────────────────────────────────────────┐   ┌──────────────────────────────────────────┐
@@ -171,17 +171,28 @@ CPU otherwise — the same profile runs on both.
 
 ## Install
 
-The package works from a source checkout (config and asset paths derive from
-the package location), on Linux (x86-64 or aarch64) and macOS:
+The one-command delivery targets **Linux DGX Spark: Isaac Sim 6.1.0.0 +
+Newton + Cosmos3-Edge + OpenClaw**. It requires a working NVIDIA driver and
+explicit license acceptance; it does not silently fall back to a hosted
+brain or to MuJoCo. The underlying package still supports Linux and macOS.
+
+**Release status:** these delivery changes must be published before the
+remote command below can install them. Spark/GPU cold-start certification
+is pending; see the [acceptance checklist](docs/SPARK_DELIVERY.md).
 
 ```bash
-# one-liner (clones to ~/cascade, venv + extras, assets, offline verify):
-curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/install.sh | bash
-# flags survive the pipe: | bash -s -- --dir ~/robots/cascade --profile spark
+# One command per Spark, AFTER publishing this installer to that ref:
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bootstrap.sh | bash -s -- --accept-eula
+# For a fleet: pin the URL to a tested commit and pass the same --ref.
 
-# or by hand:
+# The current implementation can be exercised from this checkout:
+bash scripts/install.sh --dir "$PWD" --profile spark --accept-eula
+bash scripts/install.sh --dir "$PWD" --dry-run       # reports only
+# --prepare-only caches dependencies/assets without starting the demo.
+
+# Minimal development installation (no Isaac, model service or chat host):
 git clone https://github.com/johnnynunez/cascade.git && cd cascade
-uv venv && uv pip install -e '.[dev,kinematics]'    # enough to run everything below
+uv venv && uv pip install -e '.[dev,kinematics]'
 ```
 
 `kinematics` (Pinocchio) is not optional in practice — FK/IK back the safety
@@ -224,10 +235,8 @@ Optional one-shot helpers, none of them required:
 # nvblox_torch is added on NVIDIA GPUs where a wheel exists)
 curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/install_occupancy_backend.sh | bash
 
-# full rig bring-up: OpenClaw CLI + Cosmos3-Edge (vLLM) brain + MCP skills.
-# Needs an NVIDIA GPU for the default brain and says so if nvidia-smi is
-# missing -- use --brain qwen or --brain skip on a CPU-only box.
-curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bootstrap.sh | bash
+# Explicit CPU/laptop preparation; never installs Isaac or Cosmos:
+bash scripts/install.sh --profile laptop --brain keep --prepare-only --dir "$PWD"
 ```
 
 See the [installation notes](#setup-notes) below for pyrealsense2, YOLOE's
@@ -235,47 +244,50 @@ text encoder, and other rig-specific gotchas.
 
 ## One click
 
-Clone and run. On a fresh machine the first run creates the venv, installs
-the extras the mode needs, installs the OpenClaw CLI, starts the sidecars,
-registers the robot tools, proves the brain answers, and opens the chat.
-Every later run just launches.
+Use the installer above for a new Spark. `run.sh` launches an installed rig
+or an explicit laptop development mode; its auto-detection is not the
+Spark installation contract. Local MuJoCo/OpenAI tests and standalone
+Newton CPU tests do not certify Isaac/Cosmos GPU operation.
 
 ```bash
 git clone https://github.com/johnnynunez/cascade && cd cascade
 ./run.sh                 # Isaac Sim if installed (ISAACSIM_PATH or a standard
                          # install path), else MuJoCo on any laptop
-./run.sh isaac           # force Isaac Sim: bridge + editor window + OpenClaw chat
-./run.sh mujoco          # force MuJoCo (CPU; opens the viewer on the first motion)
+./run.sh isaac --brain cosmos  # installed Spark: bridge + editor + local brain
+./run.sh mujoco --brain keep  # Mac: keep an already authenticated OpenClaw brain
 ./run.sh check isaac     # preflight only -- lists what is missing, starts nothing
 ./run.sh down            # stop everything it started
 ./run.sh isaac --headless --no-open   # extra flags pass through to scripts/launch.sh
 ```
 
-What you need for `isaac`: an NVIDIA GPU, Isaac Sim 6.0 (`ISAACSIM_PATH`
-pointing at the folder with `python.sh`; `./run.sh check isaac` tells you
-if it is not found), and a model for the brain -- either a local server
-(`scripts/serve_cosmos_vllm.sh` on the same box) or an OpenClaw provider
-login, which the first run asks for interactively once (`openclaw onboard`)
-and never again. The scene USD (gain-tuned reBot RS arm, table, props, two
-RTX cameras) and the detector weights ship in the repo; nothing else is
-downloaded except Python packages and the OpenClaw CLI.
+The Spark installer creates separate `.venv`, `.isaacsim` and `.cosmos`
+environments, a checkout-local OpenClaw 2026.9.3 CLI and the dedicated
+`cascade-demo` profile. It installs Isaac Sim **6.1.0.0** and downloads the
+required scene/perception assets and pinned Cosmos snapshot. Existing
+source releases can be selected with `ISAACSIM_PATH` (the directory with
+`python.sh`); managed Python is selected with `ISAACSIM_PYTHON_EXE`.
+The initial downloads and shader warmup are not an instant launch.
 
 `./run.sh` is a thin wrapper: `scripts/launch.sh --setup --sim <mode>` when
 setup is needed, `scripts/launch.sh --sim <mode>` afterwards. Before it
 prints READY it proves the stack, not just the wiring: it builds the robot
 runtime once with the exact environment the MCP server gets, lists the
 tools through OpenClaw, gets a trivial answer from the brain, and in sim
-modes runs ONE real chat turn -- `pick and place the red object` -- and
-checks that the physics channel confirmed it (`--no-robot-turn` skips
-that). The banner names every verified component (sim bridge, occupancy
+modes runs a real pick and reset in ONE persistent chat session (pink cube
+for Isaac, red cube for MuJoCo). A `proof.json` receipt must bind the
+expected model/session/MCP runtime to the physical result and reset of the
+manipulated prop. `--no-robot-turn` is **STARTED / UNVERIFIED**, never READY.
+The banner names the components actually selected (sim bridge, occupancy
 backend, grasp planner, tool count, chat URL, run log), so a shared machine
 never runs a demo that is silently missing a piece. Every tool call the
 chat host makes is logged to `runs/mcp_<pid>/server.log` -- OpenClaw only
 reports a failure count.
 
-Verified on a fresh export of the committed tree with no venv, assets or
-runs (macOS, MuJoCo mode): venv + extras + fetched meshes + 41 tools +
-physics-confirmed pick + scene reset + MuJoCo window, one command, exit 0.
+The pre-delivery laptop launcher was exercised from a fresh export on
+macOS: installed extras/assets, exposed the robot tools and completed a
+physics-confirmed pick and reset. That historical result is not a Spark
+certificate or evidence for a later edited launcher. Current evidence and
+remaining target checks belong in [SPARK_DELIVERY](docs/SPARK_DELIVERY.md).
 `./run.sh check <mode>` is read-only (it never installs or fetches) and
 `./run.sh down` also reaps the per-session MCP servers the chat host leaves
 behind.
@@ -299,9 +311,9 @@ and how do you know?", it answers from `task_memory`.
 
 Between visitors say **"reset the scene"** (or "start over", "reinicia la
 escena"): arm home, sim props back on their spawn pose, world model and task
-memory cleared. It is a reflex, so it works even with the brain down. The
-launcher runs it itself after its proof turn, so the first visitor starts
-from the spawn layout.
+memory cleared. CASCADE's own CLI has an offline reset reflex; in OpenClaw,
+the host model still chooses the tool. The launcher invokes reset after its
+proof turn so the first visitor starts from the spawn layout.
 
 ## Quick start
 
@@ -683,6 +695,8 @@ silently vanishes.
   instrument, memory stores), module map, decisions, verification status
 - [docs/QUICKSTART.md](docs/QUICKSTART.md) — cómo abrir la demo (en
   español): one click, chat host, CLI, cámaras, parar, si algo falla
+- [docs/SPARK_DELIVERY.md](docs/SPARK_DELIVERY.md) — default Spark install,
+  license consent, isolated services, proof receipts and GPU acceptance gate
 - [docs/BOOTH_RUNBOOK.md](docs/BOOTH_RUNBOOK.md) — the 15-minute hands-on
   booth session: script, safety rules, fallback ladders, reset procedure
   (`scripts/booth_up.sh` / `scripts/booth_reset.sh`)

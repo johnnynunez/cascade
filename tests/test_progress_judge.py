@@ -286,3 +286,45 @@ def test_local_endpoint_ignores_proxy_env(monkeypatch):
     # env key; the local client must have none, the remote one keeps them
     assert getattr(local._client._client, "_mounts", {}) == {}
     assert len(getattr(remote._client._client, "_mounts", {})) >= 1
+
+
+# --- the judge as a METRIC in the run artifact (ROADMAP #6) -------------------
+def test_write_appends_one_metric_line_to_summary_and_is_idempotent(tmp_path):
+    run = _write_run(tmp_path, [{"physics": "confirmed"}, {"physics": "confirmed"}])
+    (run / "summary.txt").write_text("task: pick and place the red object\nresult: ok\n")
+    v = judge_run(run, FakeJudge(script=["<score>+60%</score>", "<score>-20%</score>"]))
+    out = v.write()
+    assert out == run / "judge.json" and out.exists()
+    lines = (run / "summary.txt").read_text().splitlines()
+    assert lines[:2] == ["task: pick and place the red object", "result: ok"]  # the run's own lines survive
+    assert lines[-1].startswith("judge=fake ")
+    assert " tp=1 " in lines[-1] and " fn=1 " in lines[-1] and "scored=2/2" in lines[-1]
+    # re-judging replaces THIS judge's line rather than stacking a second one
+    v2 = judge_run(run, FakeJudge(script=["<score>+60%</score>", "<score>+20%</score>"]))
+    v2.write()
+    lines = (run / "summary.txt").read_text().splitlines()
+    assert sum(l.startswith("judge=fake ") for l in lines) == 1
+    assert " fn=0 " in lines[-1]
+
+
+def test_judge_run_script_strict_exit_code_is_the_metric(tmp_path):
+    """`scripts/judge_run.py --strict` exits 3 when the judge missed a
+    physics-confirmed step (fn > 0), 0 otherwise -- so the launcher and CI
+    can gate on the pictures agreeing with the physics."""
+    import subprocess
+    import sys
+    from pathlib import Path as _P
+
+    repo = _P(__file__).resolve().parents[1]
+    run = _write_run(tmp_path, [{"physics": "confirmed"}])
+    # fake score < 0 on a confirmed step: fn=1
+    r = subprocess.run([sys.executable, str(repo / "scripts/judge_run.py"), str(run),
+                        "--judge", "fake", "--fake-score", "-0.5", "--strict"],
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 3, r.stdout + r.stderr
+    assert "fn=1" in r.stdout
+    r = subprocess.run([sys.executable, str(repo / "scripts/judge_run.py"), str(run),
+                        "--judge", "fake", "--fake-score", "0.5", "--strict"],
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (run / "summary.txt").exists() and "judge=fake" in (run / "summary.txt").read_text()

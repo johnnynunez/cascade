@@ -112,7 +112,18 @@ class AgentOrchestrator:
         )
 
     def run_task(self, task: str) -> TaskReport:
-        report = self._run_task(task)
+        # One persistence budget for the WHOLE task, across tiers: the reflex
+        # tier's pick_and_place, then the LLM tier's retry of the same call,
+        # share it instead of each bringing a fresh `persist_seconds`.
+        begin = getattr(self.runtime, "begin_task_budget", None)
+        if begin is not None:
+            begin()
+        try:
+            report = self._run_task(task)
+        finally:
+            end = getattr(self.runtime, "end_task_budget", None)
+            if end is not None:
+                end()
         # which tier actually served the command -- rendered as the
         # dashboard's "via:" chip, so habit/reflex hits are visibly LLM-free
         self.runtime.last_path = report.path

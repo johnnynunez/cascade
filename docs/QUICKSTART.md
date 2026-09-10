@@ -1,16 +1,43 @@
 # Cómo abrir la demo
 
-Tres formas de hablar con el brazo, de menos a más montaje. **Las cámaras y
-el dashboard están cerrados por defecto** en todas: el chat es la interfaz;
-la UI se abre cuando la pides. Sincronizado con el código el 2026-09-10.
+La entrega usa **DGX Spark/Linux + Isaac Sim 6.1.0.0 + Newton +
+Cosmos3-Edge + OpenClaw**. El launcher abre el chat al terminar el proof;
+`--no-open` evita abrirlo. La UI de cámaras es independiente y opcional.
+El Mac sirve para desarrollo; no certifica la ejecución GPU de la entrega.
 
 ---
 
 ## 0. Un clic (lo que se enseña a un visitante)
 
+### DGX Spark
+
+Después de publicar estos cambios en el ref de distribución:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bootstrap.sh | bash -s -- --accept-eula
+```
+
+Para N máquinas, fija un commit probado tanto en la URL como en `--ref`.
+Esta sesión no publica los cambios ni certifica Spark: aún no hay equipo
+accesible. Desde este checkout se usa:
+
+```bash
+bash scripts/install.sh --dir "$PWD" --profile spark --accept-eula
+# Sólo preparar paquetes/modelos antes del evento, sin arrancar servicios:
+bash scripts/install.sh --dir "$PWD" --profile spark --accept-eula --prepare-only
+```
+
+El instalador pide aceptación explícita de la licencia y no cambia drivers.
+Aísla CASCADE, Isaac y Cosmos; instala OpenClaw 2026.9.3 localmente y usa
+el perfil `cascade-demo`, no la configuración personal. Si Cosmos falla,
+no lo sustituye por OpenAI. Detalles y aceptación pendiente:
+[SPARK_DELIVERY.md](SPARK_DELIVERY.md).
+
+### Desarrollo en el Mac o un rig ya instalado
+
 ```bash
 git clone https://github.com/johnnynunez/cascade && cd cascade
-./run.sh                        # Isaac Sim si está instalado, si no MuJoCo (CPU, cualquier portátil)
+./run.sh mujoco --brain keep     # usa la autenticación ya configurada en OpenClaw
 ./run.sh mujoco --cameras mujoco_scene_two    # la escena de dos cubos (demo de memoria)
 ./run.sh check isaac            # sólo informa qué falta; no instala ni descarga nada
 ./run.sh down                   # para todo lo que arrancó (sidecars + servidores MCP de sesiones viejas)
@@ -21,10 +48,12 @@ del robot, instala/actualiza la CLI de OpenClaw, arranca los sidecars
 (occupancy :5557, GraspGen-X stub :5556), registra las herramientas del
 robot y **prueba el stack antes de decir READY**: construye el runtime con
 el mismo entorno que recibe el servidor, lista las 41 tools, saca una
-respuesta trivial del cerebro, ejecuta UN turno real (`pick and place the
-red object`) y comprueba que la física lo confirmó, y luego resetea la
-escena para que el primer visitante vea el layout de spawn. Las siguientes
-veces sólo lanza (~1 min).
+respuesta trivial del cerebro y ejecuta pick y reset en una misma sesión.
+El receipt `proof.json` debe vincular modelo, sesión y proceso MCP con
+el resultado físico y la restauración del objeto manipulado. Un puerto
+abierto, una frase del modelo o un trace de otra sesión no bastan. Con
+`--no-robot-turn` sólo muestra STARTED / UNVERIFIED, nunca READY. Las
+siguientes ejecuciones reutilizan los paquetes y assets descargados.
 
 El banner READY dice lo que hay de verdad: backend de occupancy, planner de
 agarre (stub o modelo), número de tools, URL del chat, y si la ventana de
@@ -63,7 +92,9 @@ física, 0 fallos, ~100 s.
 
 Entre visitantes: **"reset the scene"** ("start over", "reinicia la
 escena") — brazo a home, props al spawn, world model y memoria de tarea
-limpios. Es un reflejo: funciona con el cerebro caído.
+limpios. En Isaac se exige read-back físico finito de cada prop dentro de
+la tolerancia de spawn. El reflejo funciona sin LLM en la CLI de CASCADE;
+en el chat OpenClaw sigue siendo el modelo del host quien elige la tool.
 
 ---
 

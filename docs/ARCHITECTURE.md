@@ -1,7 +1,8 @@
 # Architecture
 
-Synced to the code on 2026-09-10 (737 tests, 33 skills, 41 MCP tools;
-re-derive before quoting -- see "Counts" at the end). Read this after the
+Synced to the code on 2026-09-10 (33 skills, 41 MCP tools;
+re-derive before quoting -- see "Counts" at the end). Spark delivery has a
+separate acceptance boundary in `docs/SPARK_DELIVERY.md`. Read this after the
 README and before `CLAUDE.md`, which carries the invariants an editor must
 not break.
 
@@ -58,7 +59,7 @@ that back it).
                           │                                                          │
                           ▼                                                          ▼
               apps/mcp_server.py  ── 41 tools ──┐                  agent/orchestrator.py
-              (33 skills − task_done             │                  tier 1 REFLEX   regex grammar      ~µs
+              (34 specs − task_done              │                  tier 1 REFLEX   regex grammar      ~µs
                + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
                world_state, task_memory, ...)    │                  tier 3 LLM      + memory harness   2–15 s/turn
                                                  ▼                            │
@@ -295,11 +296,13 @@ src/cascade/
 │   ├── demo_scene.py   deterministic scene writer: arm MJCF + table + N props
 │   ├── truth.py        physics-truth channel (MuJoCo + Isaac), LazyTruthPoseFn
 │   ├── mujoco_rgbd.py  offscreen RGB-D + data.xpos truth (perception verification)
+│   ├── isaac_reset.py  validates measured per-prop reset replies, never fabricates poses
 │   └── bridge_client.py newline-JSON TCP client for scripts/isaac_bridge.py
 ├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
 └── apps/
     ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
     ├── mcp_server.py   MCP stdio front-end: 41 tools, out-of-band stop, per-call log
+    ├── process_owner.py profile-owned process identity for shutdown and proof binding
     ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
     ├── live_control.py viewer-driven control        record.py / viewer.py  capture / view
 ```
@@ -352,15 +355,27 @@ G1/H1 in Isaac Sim first -- is written up in
 
 ## Launch and hosts
 
+Spark distribution starts at `scripts/bootstrap.sh` → `scripts/install.sh`:
+Linux DGX Spark is the default, with explicit EULA acceptance, pinned Isaac
+Sim **6.1.0.0**, Cosmos3-Edge and a checkout-local OpenClaw 2026.9.3 CLI.
+`.venv`, `.isaacsim` and `.cosmos` isolate incompatible dependencies;
+`cascade-demo` isolates the attendee host profile. The installer does not
+replace drivers or hide unavailable Cosmos behind a cloud fallback.
+`--prepare-only` stops after dependencies/assets; it cannot print READY.
+The package/model resolution and CPU contract tests are not GPU rehearsal:
+see `docs/SPARK_DELIVERY.md` for that still-pending acceptance gate.
+
 `run.sh` → `scripts/launch.sh` is the one-click entry: `--sim auto|isaac|
 mujoco|none`, `--setup` (venv, extras, assets, OpenClaw CLI, provider
 onboarding), `--check` (report only, never mutates), `--dry-run`, `--down`
 (stops the sidecars it started AND the per-session MCP servers the gateway
 never reaps). Before READY it proves the stack: runtime built with the
-server's exact env, tools listed, a trivial brain turn, one real
-`pick and place` turn checked against the physics channel (verdict scoped
-to traces written during that turn), then `reset_scene` so the first
-visitor sees the spawn layout. The MCP server is registered with
+server's exact env, tools listed, a trivial brain turn, one real pick and
+reset in the SAME chat session. Proof must bind model/session, exact MCP
+tool names and the owned live process to its trace; a recent timestamp
+alone cannot establish identity. Reset must include the manipulated prop
+and a subsequent `world_state` read-back. `--no-robot-turn` is STARTED /
+UNVERIFIED, not READY. The MCP server is registered with
 `requestTimeoutMs: 300000` (a persistent pick runs 60–120 s; the host's
 60 s default cancelled it and latched the e-stop), dead MCP entries are
 pruned, and on macOS the server runs under `mjpython` so the MuJoCo window
@@ -389,8 +404,9 @@ openai|local_*`) cascade runs its own loop with all three tiers.
   under one `MujocoArm`; the engine surface is batch-oriented (whole
   qpos/ctrl vectors) so a device runtime does not pay a host↔device
   round-trip per joint. Measured single-arm: C ~4.9 µs/step, Warp on CPU
-  ~3.2 ms/step -- the C engine is the demo default, Warp is for developing
-  the GPU path.
+  ~3.2 ms/step -- the C engine is the laptop MuJoCo default. The Spark
+  delivery uses Isaac's Newton experience; standalone Newton CPU tests
+  are a separate validation path, not an additional CASCADE arm backend.
 - **Feedback, not sleep.** Every backend reports real joint positions;
   settling is `max|q − q*| < tol` with a per-profile tolerance and timeout,
   and a stepped-on-demand sim steps inside its own wait.
@@ -410,8 +426,9 @@ openai|local_*`) cascade runs its own loop with all three tiers.
 
 ## Verification status (2026-09-10, macOS, extras sim + sim-warp + grasping + occupancy + llm)
 
-- `pytest tests/ -q`: **737 passed, 2 deselected (hardware), 0 skipped**,
-  ~4 min. `ruff check src/ scripts/*.py tests/ --select F,E9,B023,B904` clean.
+- Historical pre-delivery baseline: **737 passed, 2 deselected (hardware),
+  0 skipped**, ~4 min. This is not the final count after installer changes;
+  current delivery checks are recorded in `docs/SPARK_DELIVERY.md`.
 - Real chat path, one gateway session (the dashboard path): two-cube
   memory task -- 2 `pick_and_place` confirmed on the physics channel,
   0 tool failures, the brain's answer cites the memory frames' verdicts;

@@ -263,17 +263,28 @@ if [[ -n "$MISSING_MODS" ]]; then
         warn "python deps missing: $MISSING_MODS (run with --setup)"
     fi
 fi
+# `--check` is a REPORT: it must never mutate the venv. (Measured: a
+# `--check --sim isaac` on a MuJoCo-only venv installed 121 MB of torch
+# because these two steps had no CHECK gate, unlike the extras step above.)
 if [[ "$SIM" == "mujoco" ]] && ! "$PY" -c "import mujoco" >/dev/null 2>&1; then
-    log "mujoco missing -> installing the [sim] extra"
-    pip_install -e "$REPO[sim]"
+    if [[ $CHECK == 1 && $SETUP == 0 ]]; then
+        warn "mujoco missing (run with --setup)"
+    else
+        log "mujoco missing -> installing the [sim] extra"
+        pip_install -e "$REPO[sim]"
+    fi
 fi
 if [[ "$EXTRAS" == *perception* ]] && ! "$PY" -c "import torch" >/dev/null 2>&1; then
     # torch is deliberately NOT pinned in pyproject (per-platform builds); the
     # PyPI default is right for macOS (MPS) and CPU Linux, and CUDA x86 gets
     # the CUDA wheel from the default index too. Jetson needs NVIDIA's wheel:
     # install it first and this step is skipped.
-    log "torch missing (YOLOE detector needs it) -> installing the default build for this platform"
-    pip_install torch torchvision || die "torch install failed -- install the wheel for this platform, then re-run"
+    if [[ $CHECK == 1 && $SETUP == 0 ]]; then
+        warn "torch missing (YOLOE detector needs it; run with --setup)"
+    else
+        log "torch missing (YOLOE detector needs it) -> installing the default build for this platform"
+        pip_install torch torchvision || die "torch install failed -- install the wheel for this platform, then re-run"
+    fi
 fi
 
 # ── 2. assets ───────────────────────────────────────────────────────────────
@@ -286,8 +297,12 @@ print(load_demo_config(arm=sys.argv[1]).arm.get("mjcf") or "")
 PYEOF
 )"
     if [[ -n "$MJCF" && ! -f "$MJCF" ]]; then
-        log "robot MJCF missing ($MJCF) -> fetching assets for $ROBOT"
-        run "$PY" "$REPO/scripts/fetch_robot_assets.py" "$ROBOT"
+        if [[ $CHECK == 1 && $SETUP == 0 ]]; then
+            warn "robot MJCF missing ($MJCF); run with --setup to fetch assets for $ROBOT"
+        else
+            log "robot MJCF missing ($MJCF) -> fetching assets for $ROBOT"
+            run "$PY" "$REPO/scripts/fetch_robot_assets.py" "$ROBOT"
+        fi
     fi
 fi
 

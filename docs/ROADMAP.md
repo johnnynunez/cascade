@@ -495,6 +495,61 @@ Three bugs it exposed:
    scan reported one cube of two, on ~1 in 3 runs. The reset burns one frame
    before observing, so the observation is provably post-reset.
 
+**Audit pass (2026-09-10, after the visitor runs).** Lint (`ruff --select
+F,E9`) had never run on this repo: 22 findings, one of them real -- an
+undefined name `ObjectFix` in a `runtime.py` annotation (`F821`); the rest
+unused imports/variables, all fixed, lint now clean and cheap to keep clean.
+Runtime findings, each from a measurement on this machine:
+
+9. **Idle burn.** An MCP server with the runtime up and no tool calls used
+   ~85 % of a core: the rendered camera pumped at the real-camera default of
+   30 fps and each frame is a full offscreen render (1374/2000 samples in
+   `_render`). `mujoco_scene` now declares `fps: 10` (nothing consumes
+   faster than the 3 Hz watcher). And the gateway keeps one MCP server per
+   chat SESSION forever -- two servers from finished sessions were still
+   rendering at 60 % each hours later. `launch.sh --down` now kills ours.
+10. **A dead MCP entry costs every turn.** `wrc-demo` pointed at a removed
+    venv; every visitor turn paid a failed spawn + catalog retry
+    ("[bundle-mcp] failed to start server ... Connection closed").
+    `launch.sh` prunes OpenClaw MCP entries whose command -- or `-m`
+    module, asked of that interpreter -- no longer exists. (First version
+    piped `mcp show` into `python - <<EOF`: the heredoc IS stdin, the pipe
+    is silently dropped, nothing was pruned. The listing goes via a file.)
+11. **The promised MuJoCo window never opened.** The banner said "the MuJoCo
+    window opens on the FIRST motion command"; the arm profile says
+    `view: false` and nothing overrode it, and the failure path logged
+    through an unconfigured `logging` tree, so there was no trace either.
+    `CASCADE_MJ_VIEW=1` (set by the launcher for sim runs) opens it;
+    success and failure both print to the server log.
+11b. **Opening that window with the display asleep killed the server.**
+    First live run after the fix above: the proof turn ran with the screen
+    locked; `CGGetActiveDisplayList` returned 0 displays, GLFW had no
+    monitor and `launch_passive` segfaulted in `_glfwGetVideoModeCocoa`
+    inside the tool call ("MCP error -32000: Connection closed" for the
+    visitor, failures=2). The engine now asks CoreGraphics first, skips
+    with the reason in the run log, retries on the first motion after the
+    screen wakes, and the READY banner reports what actually happened
+    instead of promising a window. The launcher's verdict also only reads
+    traces written DURING its own turn (it had printed "CONFIRMED by
+    physics" from a previous session's trace over a crashed turn).
+12. **The cv2 camera window threw an opaque C++ exception in every run**
+    ("Unknown C++ exception from OpenCV code"): macOS Cocoa windows must be
+    created on the main thread and the RigViewer paints from a worker (and
+    the base dependency is `opencv-python-headless`, which has no highgui at
+    all). It is now skipped up front with a one-line reason.
+13. **`place_at` placed air.** On a visitor run the red cube slipped 4 cm
+    into the carry; `place_at` lowered the empty gripper, reported ok, and
+    only the `pick_and_place` postcondition refuted it 20 s later. The same
+    look that measures the in-jaw offset sees the object far BELOW the TCP
+    -- `place_at` now raises "slipped out of the gripper" (`grasp.slip_drop_m`,
+    6 cm) and releases the held state, so the persistence loop re-grasps
+    immediately instead of after a refuted place.
+14. Tests now pin the reverse skill/spec mapping CLAUDE.md warned about for
+    months (a `skill_*` method without a `TOOL_SPECS` entry), that every
+    `_MOTION_SKILLS` name is a real skill, and that README's headline skill
+    and tool counts equal the derived numbers (they were 30/37 against
+    33/41).
+
 Not adopted, with reasons: Vesta as the brain (no weights); navigation and
 SFT mixture (training); GR00T actor (VLA as executor was ruled out earlier);
 the async planner–actor loop with max staleness (Appendix B) -- tool calls

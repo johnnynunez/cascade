@@ -42,6 +42,15 @@ static_scene: false
 # Rendered frames carry real depth; nothing to fake.
 depth: true
 
+# A rendered camera has no sensor clock: every "frame" is a full 640x480
+# offscreen render (~28 ms on an M-series CPU). Pumped at the real-camera
+# default of 30 fps the stream thread never sleeps -- measured: an IDLE MCP
+# server (runtime up, no tool calls) burned ~85 % of a core, 1374 of 2000
+# samples inside mujoco's _render. Nothing consumes frames faster than the
+# WorldWatcher (3 Hz) except a single get_frame() per skill, so 10 fps keeps
+# the fan quiet and every consumer sees a frame at most 100 ms old.
+fps: 10
+
 # Same colour-threshold mock detector as `mock`: the SO-101 mesh is yellow
 # (R~G) and the table is light grey, so the red-only threshold picks out the
 # prop and nothing else -- no ultralytics import, CI-safe.

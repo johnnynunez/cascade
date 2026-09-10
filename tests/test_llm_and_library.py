@@ -1,4 +1,3 @@
-import numpy as np
 
 from cascade.agent.llm import LLMResponse, MockLLM, ToolCall
 from cascade.agent.orchestrator import AgentOrchestrator
@@ -21,6 +20,40 @@ def test_tool_specs_are_valid_schemas():
 
     for spec in TOOL_SPECS:
         assert hasattr(SkillRuntime, f"skill_{spec['name']}")
+
+
+def test_every_skill_method_has_a_spec_and_motion_skills_exist():
+    """The reverse of the check above -- CLAUDE.md warned for months that
+    'forgetting the spec entry fails no test, the skill just never becomes
+    visible to the LLM/MCP'. Now it fails a test. Also: every name in
+    _MOTION_SKILLS must be a real skill, or a typo there silently stops
+    pausing belief fusion for the skill it meant."""
+    import re
+
+    from cascade.skills.runtime import _MOTION_SKILLS, SkillRuntime
+
+    methods = {m[len("skill_"):] for m in dir(SkillRuntime) if m.startswith("skill_")}
+    specs = {t["name"] for t in TOOL_SPECS}
+    assert methods == specs, (
+        f"skills without a TOOL_SPECS entry: {sorted(methods - specs)}; "
+        f"specs without a method: {sorted(specs - methods)}"
+    )
+    assert _MOTION_SKILLS <= specs, sorted(_MOTION_SKILLS - specs)
+    # README headline counts are derived from these numbers; keep them honest
+    readme = (pathlib_repo() / "README.md").read_text()
+    n_skills = len(specs) - 1  # task_done is loop-internal
+    assert f"## The {n_skills} skills" in readme, f"README still says a different skill count than {n_skills}"
+    m = re.search(r"(\d+) tools total", readme)
+    from cascade.apps.mcp_server import _EXCLUDED_TOOLS, _EXTRA_TOOLS
+
+    n_tools = len(specs - _EXCLUDED_TOOLS) + len(_EXTRA_TOOLS)
+    assert m and int(m.group(1)) == n_tools, (m.group(0) if m else None, n_tools)
+
+
+def pathlib_repo():
+    from pathlib import Path
+
+    return Path(__file__).resolve().parents[1]
 
 
 def test_mock_llm_scripting():

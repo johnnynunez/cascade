@@ -199,7 +199,7 @@ def _monitor(motors, alive, limits, args) -> None:
     seen_max: dict[int, float] = {}
 
     header = "  ".join(f"{'grip' if m == GRIPPER_ID else f'j{m}':>8}" for m in alive)
-    print(f"\n[+] live mechPos (rad). Move each joint BY HAND through its range.")
+    print("\n[+] live mechPos (rad). Move each joint BY HAND through its range.")
     print("    Ctrl+C prints the observed span next to the URDF's local limits.\n")
     print(f"    {header}")
 

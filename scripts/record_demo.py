@@ -9,7 +9,6 @@ Run from the models/ dir (mobileclip CWD dependency) with PYTHONPATH=../src.
 """
 import subprocess
 import sys
-import threading
 import time
 
 import cv2

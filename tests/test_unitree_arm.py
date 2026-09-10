@@ -16,7 +16,6 @@ import sys
 import threading
 import time
 import types
-import zlib
 
 import numpy as np
 import pytest

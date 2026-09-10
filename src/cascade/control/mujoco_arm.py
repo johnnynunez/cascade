@@ -49,6 +49,8 @@ MjModel too), so exactly one mapping serves both runtimes.
 from __future__ import annotations
 
 import logging
+import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -115,9 +117,10 @@ class _MjcEngine:
         # state (site/body xpos) before the first command or FK read.
         self._mj.mj_forward(self.model, self.data)
         self._world.realized = True
+        self._view_wanted = bool(view)
+        self._view_retry_at = 0.0
         if view:
             self._open_viewer()
-
 
     def pull(self) -> tuple[np.ndarray, np.ndarray]:
         # Live numpy views; the caller copies out the addresses it wants.
@@ -134,18 +137,47 @@ class _MjcEngine:
                 self._viewer.sync()
             except Exception:  # noqa: BLE001
                 self._viewer = None
+        elif getattr(self, "_view_wanted", False):
+            # The window was wanted but skipped (display asleep when the arm
+            # connected -- the launcher's proof turn runs with the lid shut
+            # often enough). Re-check at most every few seconds of wall time
+            # so it appears on the first motion AFTER the screen wakes.
+            now = time.monotonic()
+            if now >= self._view_retry_at:
+                self._view_retry_at = now + 5.0
+                if _display_unavailable_reason() is None:
+                    self._open_viewer()
+                    if self._viewer is None:
+                        self._view_wanted = False  # a real failure, not a sleeping display
 
     def timestep(self) -> float:
         return float(self.model.opt.timestep)
 
     def _open_viewer(self) -> None:
+        blocker = _display_unavailable_reason()
+        if blocker:
+            # A window is a nicety; the process hosting the visitor's session is
+            # not. mujoco's simulate reads GLFW's monitor[0] unconditionally,
+            # and GLFW builds that list from CGGetActiveDisplayList -- which
+            # is EMPTY while the display is asleep/locked or the lid is shut
+            # (measured: 1 online display, 0 active, launch_passive -> SIGSEGV
+            # in _glfwGetVideoModeCocoa, taking the whole MCP server down mid
+            # tool call). Refuse to open rather than crash; say why.
+            print(f"[mujoco] viewer skipped: {blocker}; running headless", file=sys.stderr)
+            self._viewer = None
+            return
         try:
             import mujoco.viewer
 
             self._viewer = mujoco.viewer.launch_passive(self.model, self.data)
+            print("[mujoco] viewer window open", file=sys.stderr)
         except Exception as e:  # noqa: BLE001 - a headless box has no display
-            logger.warning("mujoco viewer unavailable (%s); running headless", e)
+            # stderr, not logging: nothing configures the logging tree in the
+            # MCP server, so the warning vanished and "no window" had no cause
+            # in the run log. (macOS: "launch_passive requires mjpython".)
+            print(f"[mujoco] viewer unavailable ({e}); running headless", file=sys.stderr)
             self._viewer = None
+            self._view_wanted = False
 
     def close(self) -> None:
         if self._viewer is not None:
@@ -159,6 +191,36 @@ class _MjcEngine:
 
             mujoco_world.release(self._world)
             self._world = None
+
+
+def _display_unavailable_reason() -> str | None:
+    """Why opening a native window would fail or CRASH here, or None if it is
+    safe to try. Cheap (one CoreGraphics call on macOS, env checks elsewhere);
+    runs before every viewer launch because the answer changes at runtime
+    (display sleep, lid, screen lock)."""
+    import os
+    import platform
+
+    system = platform.system()
+    if system == "Darwin":
+        try:
+            import ctypes
+            import ctypes.util
+
+            cg = ctypes.CDLL(ctypes.util.find_library("CoreGraphics"))
+            n = ctypes.c_uint32(0)
+            arr = (ctypes.c_uint32 * 16)()
+            if cg.CGGetActiveDisplayList(16, arr, ctypes.byref(n)) != 0:
+                return "CoreGraphics cannot list displays"
+            if n.value == 0:
+                return ("no ACTIVE display (screen asleep/locked or lid closed) -- GLFW has "
+                        "no monitor and mujoco's viewer would segfault the process")
+        except Exception as e:  # noqa: BLE001 - no CoreGraphics = not a desktop session
+            return f"no window server ({e})"
+        return None
+    if system == "Linux" and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return "no DISPLAY/WAYLAND_DISPLAY"
+    return None
 
 
 def _select_warp_device(wp, requested: str) -> str:
@@ -270,12 +332,17 @@ class _WarpEngine:
                 "viewer disabled (use engine=mjc for a window, or the dashboard)"
             )
             return
+        blocker = _display_unavailable_reason()
+        if blocker:
+            print(f"[mujoco] viewer skipped: {blocker}; running headless", file=sys.stderr)
+            return
         try:
             import mujoco.viewer
 
             self._viewer = mujoco.viewer.launch_passive(self.model, self.data)
+            print("[mujoco] viewer window open", file=sys.stderr)
         except Exception as e:  # noqa: BLE001
-            logger.warning("mujoco viewer unavailable (%s); running headless", e)
+            print(f"[mujoco] viewer unavailable ({e}); running headless", file=sys.stderr)
             self._viewer = None
 
     def _sync_viewer(self) -> None:
@@ -351,7 +418,13 @@ class MujocoArm(ArmBase):
         self._grip_joint = cfg.get("mj_gripper_joint")
         self._grip_act = cfg.get("mj_gripper_actuator") or self._grip_joint
         self._substeps = max(1, int(cfg.get("substeps", 10)))
-        self._view = bool(cfg.get("view", False))
+        # Profile `view:` is the default; CASCADE_MJ_VIEW=1|0 overrides it
+        # per run. The one-click launcher sets it for sim runs: the banner
+        # promised "the MuJoCo window opens on the first motion" while the
+        # profile said `view: false` and nothing ever flipped it -- measured
+        # on a visitor run: no window, no log line, mjpython for nothing.
+        env_view = os.environ.get("CASCADE_MJ_VIEW")
+        self._view = (env_view != "0") if env_view is not None else bool(cfg.get("view", False))
         self.settle_tol = float(cfg.get("settle_tol", 0.03))
         self.settle_timeout_s = float(cfg.get("settle_timeout_s", 4.0))
         # Which physics runtime backs this arm. `mjc` (C engine) is the default

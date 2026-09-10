@@ -55,7 +55,7 @@ while stage_utils.is_stage_loading():
     app.update()
 
 import omni.usd  # noqa: E402
-from pxr import PhysxSchema, Sdf, UsdPhysics  # noqa: E402
+from pxr import PhysxSchema, UsdPhysics  # noqa: E402
 
 stage = omni.usd.get_context().get_stage()
 root = stage.GetPrimAtPath(args.prim)
@@ -63,7 +63,7 @@ root = stage.GetPrimAtPath(args.prim)
 if not args.self_collision:
     px = PhysxSchema.PhysxArticulationAPI.Apply(root)
     px.CreateEnabledSelfCollisionsAttr(False)
-    print(f"[diag] PhysxArticulationAPI applied, self-collision OFF", flush=True)
+    print("[diag] PhysxArticulationAPI applied, self-collision OFF", flush=True)
 
 # clamp newton solver caps like the bridge does
 for prim in stage.Traverse():
@@ -78,7 +78,7 @@ for _ in range(30):
 # collider, bound at z just under the arm base) to test if the arm-vs-table
 # contact is what diverges the solver.
 if args.add_table:
-    from pxr import Gf, UsdGeom, UsdShade  # noqa: E402
+    from pxr import Gf, UsdGeom  # noqa: E402
 
     _FACES = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6),
               (0, 2, 6, 4), (1, 5, 7, 3)]
@@ -119,7 +119,7 @@ if args.add_table:
 
         _assets = get_assets_root_path()
         if _assets:
-            from pxr import PhysxSchema, Sdf, Usd  # noqa: E402
+            from pxr import PhysxSchema, Usd  # noqa: E402
 
             for _n, _f, _p in [("banana", "011_banana.usd", (0.24, 0.14, 0.018)),
                                ("cracker_box", "003_cracker_box.usd", (0.36, -0.02, 0.107)),
@@ -158,7 +158,6 @@ if args.add_table:
         # both. This is the correct fix: two static bodies never need mutual
         # contacts, and the arm should rest ON the table plane by convention,
         # not be pushed out of it.
-        from pxr import Usd as _Usd  # noqa: E402
 
         arm_grp = UsdPhysics.CollisionGroup.Define(stage, "/World_Props/arm_group")
         furn_grp = UsdPhysics.CollisionGroup.Define(stage, "/World_Props/furniture_group")

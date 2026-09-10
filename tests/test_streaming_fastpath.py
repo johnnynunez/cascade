@@ -12,7 +12,7 @@ import pytest
 from conftest import needs_pin, loopback_host
 
 from cascade.agent.reflex import ExperienceMemory, FastPlanner, parse_command
-from cascade.config import Cfg, load_demo_config
+from cascade.config import load_demo_config
 from cascade.memory.beliefs import BeliefStore
 from cascade.perception.colors import classify_hsv, mask_color, parse_color_query
 from cascade.perception.mock_camera import MockCamera, synthetic_tabletop
@@ -322,9 +322,12 @@ def test_pick_and_place_red_object_end_to_end(tmp_path):
             time.sleep(0.05)
         t0 = time.monotonic()
         result = runtime.execute("pick_and_place", {"object": "red object"})
+        wall_s = time.monotonic() - t0
         assert result.get("ok"), result
         assert result["picked"] == "red object"
         assert result["duration_s"] < 30
+        # the self-reported duration must be the real one, not a stale timer
+        assert abs(wall_s - result["duration_s"]) < 5.0, (wall_s, result["duration_s"])
         assert runtime.held_object is None
         # the fix must have come from the color-aware resolution
         assert runtime.beliefs.find("red object") is not None  # re-registered at drop zone

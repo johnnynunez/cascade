@@ -24,7 +24,7 @@ from cascade.agent.effects import (
     PostconditionChecker,
     annotate_result,
 )
-from cascade.agent.milestones import DONE, PENDING, UNKNOWN, MilestoneTracker
+from cascade.agent.milestones import DONE, UNKNOWN, MilestoneTracker
 from cascade.memory.envelope import OperatingEnvelope, normalize_failure
 from cascade.skills.library import SkillLibrary
 

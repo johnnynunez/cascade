@@ -136,7 +136,7 @@ _RULES: list[tuple[re.Pattern, str]] = [
         "count",
     ),
     (
-        re.compile(rf"^move\s+(?:a\s+(?:bit|little)\s+|slightly\s+)?"
+        re.compile(r"^move\s+(?:a\s+(?:bit|little)\s+|slightly\s+)?"
                    r"(?P<dir>forward|back|left|right|up|down)(?:\s+a\s+(?:bit|little))?$"),
         "move_relative",
     ),

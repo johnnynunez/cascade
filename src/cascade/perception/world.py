@@ -28,7 +28,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..types import Frame
 from .colors import detection_color
 from .grounding import Extrinsics, mask_to_points_cam, oriented_bbox
 from .workspace import WorkspaceFilter

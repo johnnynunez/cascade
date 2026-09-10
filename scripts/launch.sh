@@ -35,7 +35,12 @@
 #                  server registered IDEMPOTENTLY (`mcp set`, not `mcp add`),
 #                  brain resolved (--brain auto keeps whatever auth OpenClaw
 #                  already has; a local server is only used when it answers)
-#   5. proof       `openclaw mcp probe cascade` must list the robot tools
+#   5. proof       `openclaw mcp probe cascade` must list the robot tools; the
+#                  brain answers a turn; in sim modes ONE real pick is checked
+#                  against physics, the scene is reset, and the outcome JUDGE
+#                  (eval.judge) scores the pick's keyframes -- fn>0 in the
+#                  banner means the pictures missed physics-confirmed progress
+#                  (--no-robot-turn / --no-judge skip these)
 #   6. chat        `openclaw dashboard` opens the browser (--no-open to skip)
 #
 # Platform notes (all verified on macOS 26 / OpenClaw 2026.9.3, 2026-09-09):
@@ -50,6 +55,12 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Prefer the pinned, user-local CLI installed with this checkout.
+[[ ! -x "$REPO/.openclaw-cli/bin/openclaw" ]] || export PATH="$REPO/.openclaw-cli/bin:$PATH"
+# A managed Spark install uses its own chat profile on subsequent run/down.
+if [[ -x "$REPO/.isaacsim/bin/python" && -z "${CASCADE_OPENCLAW_PROFILE+x}" ]]; then
+    export CASCADE_OPENCLAW_PROFILE=cascade-demo
+fi
 SIM="auto"            # auto | isaac | mujoco | none
 ARM=""                # default depends on SIM
 CAMERAS=""            # default depends on SIM
@@ -57,6 +68,7 @@ BRAIN="auto"          # auto | keep | cosmos | cosmos-sglang | qwen
 OPEN_CHAT=1
 SETUP=0               # --setup: create venv + install extras + fetch assets + install OpenClaw
 ROBOT_TURN=1          # --no-robot-turn: skip the real pick_and_place proof (sim modes only)
+NO_JUDGE=0            # --no-judge: skip scoring the proof turn with eval.judge
 CHECK=0               # --check: preflight report only
 OCCUPANCY="auto"      # auto | nvblox | warp | voxel | none   (bridge backend, or skip)
 GRASPGENX="auto"      # auto | stub | external | none  (auto = stub in sim, external otherwise)
@@ -68,7 +80,7 @@ ISAAC_GUI=1
 ISAAC_WAIT_S="${ISAAC_WAIT_S:-240}"
 BRIDGE_PORT="${CASCADE_BRIDGE_PORT:-8611}"
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
-STATE_DIR="${CASCADE_LAUNCH_STATE:-$REPO/runs/.launch}"
+STATE_ROOT="${CASCADE_LAUNCH_STATE:-$REPO/runs/.launch}"
 MCP_NAME="${CASCADE_MCP_NAME:-cascade}"
 
 usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; }
@@ -82,6 +94,7 @@ while [[ $# -gt 0 ]]; do
         --no-open) OPEN_CHAT=0; shift ;;
         --setup) SETUP=1; shift ;;
         --no-robot-turn) ROBOT_TURN=0; shift ;;
+        --no-judge)      NO_JUDGE=1; shift ;;
         --check) CHECK=1; shift ;;
         --occupancy) OCCUPANCY="$2"; shift 2 ;;
         --graspgenx) GRASPGENX="$2"; shift 2 ;;
@@ -93,10 +106,27 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# A report flag must never turn into an installer because --setup was added.
+if [[ $CHECK == 1 && $SETUP == 1 ]]; then
+    printf '[launch] ERROR: --check and --setup are mutually exclusive\n' >&2
+    exit 2
+fi
+case "$BRAIN" in auto|keep|cosmos|cosmos-sglang|qwen) ;; *) printf 'unknown --brain %s\n' "$BRAIN" >&2; exit 2 ;; esac
+
 log()  { printf '[launch] %s\n' "$*"; }
 warn() { printf '[launch] WARNING: %s\n' "$*" >&2; }
 die()  { printf '[launch] ERROR: %s\n' "$*" >&2; exit 1; }
 run()  { if [[ $DRY == 1 ]]; then printf '        $ %s\n' "$*"; else "$@"; fi; }
+oc() {
+    if [[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]]; then
+        command openclaw --profile "$CASCADE_OPENCLAW_PROFILE" "$@"
+    else
+        command openclaw "$@"
+    fi
+}
+if [[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]]; then
+    GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18790}"
+fi
 
 # ── python: the repo venv first, then whatever `python3` is ─────────────────
 pick_python() {
@@ -119,6 +149,12 @@ if [[ $SETUP == 1 && ! -x "$REPO/.venv/bin/python" && -z "${PY:-}" ]]; then
     run uv venv --python 3.12 "$REPO/.venv" || die "uv venv failed"
 fi
 PY="$(pick_python)" || die "no python found -- run with --setup (creates $REPO/.venv), or: uv venv $REPO/.venv"
+ownerctl() {
+    "$PY" "$REPO/src/cascade/apps/process_owner.py" --repo "$REPO" \
+        --state-root "$STATE_ROOT" --profile "${CASCADE_OPENCLAW_PROFILE:-}" "$@"
+}
+STATE_DIR="$(ownerctl state-dir)" || die "invalid launch state/profile"
+export CASCADE_MCP_NAME="$MCP_NAME"
 
 port_open() {  # port_open <port> [host]  -- macOS has no `ss`
     "$PY" - "$1" "${2:-127.0.0.1}" <<'PYEOF'
@@ -144,44 +180,8 @@ wait_port() {  # wait_port <port> <seconds> <what>
 
 # ── --down: stop what a previous run started, nothing else ──────────────────
 if [[ $DOWN == 1 ]]; then
-    if [[ -f "$STATE_DIR/isaac_bridge.pid" ]]; then
-        pid=$(cat "$STATE_DIR/isaac_bridge.pid")
-        if kill -0 "$pid" 2>/dev/null; then log "stopping Isaac bridge (pid $pid)"; run kill "$pid"; fi
-        run rm -f "$STATE_DIR/isaac_bridge.pid"
-    fi
-    for svc in occupancy_bridge graspgenx_stub; do
-        if [[ -f "$STATE_DIR/$svc.pid" ]]; then
-            pid=$(cat "$STATE_DIR/$svc.pid")
-            if kill -0 "$pid" 2>/dev/null; then log "stopping $svc (pid $pid)"; run kill "$pid"; fi
-            run rm -f "$STATE_DIR/$svc.pid"
-        fi
-    done
-    # The gateway keeps one MCP server process per chat SESSION and never
-    # reaps them while it runs (measured: two `cascade.apps.mcp_server`
-    # processes from finished sessions, each rendering its camera at
-    # `fps`, 60 % CPU apiece, hours after the last turn). They are ours:
-    # stop them, and leave the gateway itself to whoever started it.
-    ORPHANS="$("$PY" - "$REPO" <<'PYEOF' 2>/dev/null || true
-import subprocess, sys
-repo = sys.argv[1]
-out = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
-for line in out.splitlines():
-    pid, _, cmd = line.strip().partition(" ")
-    if "cascade.apps.mcp_server" in cmd and repo in cmd:
-        print(pid)
-PYEOF
-)"
-    for pid in $ORPHANS; do
-        log "stopping MCP server (pid $pid) left behind by a finished chat session"
-        run kill "$pid" 2>/dev/null || true
-    done
-    if [[ -f "$STATE_DIR/gateway.started" ]]; then
-        log "stopping OpenClaw gateway (this script started it)"
-        run openclaw gateway stop || true
-        run rm -f "$STATE_DIR/gateway.started"
-    else
-        log "gateway was already running before launch.sh; leaving it up"
-    fi
+    if [[ $DRY == 1 || $CHECK == 1 ]]; then ownerctl down --dry-run
+    else ownerctl down; fi
     log "down."
     exit 0
 fi
@@ -189,12 +189,23 @@ fi
 # ── resolve --sim auto ───────────────────────────────────────────────────────
 find_isaac_python() {
     local c
-    for c in "${ISAACSIM_PATH:-}" "$HOME/Projects/isaac/IsaacSim/_build/linux-$(uname -m)/release" \
+    if [[ -n "${ISAACSIM_PYTHON_EXE:-}" ]]; then
+        [[ -x "$ISAACSIM_PYTHON_EXE" ]] || return 1
+        echo "$ISAACSIM_PYTHON_EXE"; return 0
+    fi
+    if [[ -n "${ISAACSIM_PATH:-}" ]]; then
+        [[ -x "$ISAACSIM_PATH/python.sh" ]] || return 1
+        echo "$ISAACSIM_PATH/python.sh"; return 0
+    fi
+    if [[ -x "$REPO/.isaacsim/bin/python" ]]; then
+        echo "$REPO/.isaacsim/bin/python"; return 0
+    fi
+    for c in "$HOME/Projects/isaac/IsaacSim/_build/linux-$(uname -m)/release" \
              "$HOME/isaacsim" "$HOME/.local/share/ov/pkg"/isaac-sim-* /isaac-sim; do
         [[ -n "$c" && -x "$c/python.sh" ]] && { echo "$c/python.sh"; return 0; }
     done
     # pip-installed Isaac Sim into the active python?
-    "$PY" -c "import isaacsim" >/dev/null 2>&1 && { echo "$PY"; return 0; }
+    "$PY" -c "import importlib.metadata; importlib.metadata.version('isaacsim')" >/dev/null 2>&1 && { echo "$PY"; return 0; }
     return 1
 }
 ISAAC_PY=""
@@ -211,6 +222,17 @@ elif [[ "$SIM" == "isaac" ]]; then
     }
 fi
 
+if [[ -n "$ISAAC_PY" ]]; then
+    # find_isaac_python runs in command substitution; exporting inside it
+    # would be lost. Propagate the chosen source root here, to BOTH check
+    # and bridge. A wheel must not inherit somebody else's source apps.
+    if [[ "$(basename "$ISAAC_PY")" == python.sh ]]; then
+        export ISAACSIM_PATH="$(cd "$(dirname "$ISAAC_PY")" && pwd)"
+    else
+        unset ISAACSIM_PATH
+    fi
+fi
+
 case "$SIM" in
     isaac)  ARM="${ARM:-isaac}";        CAMERAS="${CAMERAS:-isaac,isaac_side}" ;;
     mujoco) ARM="${ARM:-so101_mujoco}"; CAMERAS="${CAMERAS:-mujoco_scene}" ;;
@@ -219,7 +241,15 @@ case "$SIM" in
 esac
 log "plan: sim=$SIM arm=$ARM cameras=$CAMERAS brain=$BRAIN python=$PY"
 [[ $DRY == 1 ]] && log "(dry run: commands are printed, nothing is executed)"
-mkdir -p "$STATE_DIR" 2>/dev/null || true
+if [[ $DRY == 1 ]]; then
+    log "would install missing extras/assets, start $SIM and sidecars, register OpenClaw, verify brain + motion + reset, then open chat"
+    log "Isaac target: 6.1.0 (package 6.1.0.0); profile=${CASCADE_OPENCLAW_PROFILE:-default}; no commands executed"
+    exit 0
+fi
+if [[ $CHECK == 0 ]]; then
+    LAUNCH_OWNER="$(ownerctl init)" || die "launch owner initialization failed"
+    export CASCADE_LAUNCH_OWNER="$LAUNCH_OWNER"
+fi
 
 # ── 1. deps ─────────────────────────────────────────────────────────────────
 pip_install() {  # pip_install <spec...>  -- uv when present (fast, no pip needed in the venv)
@@ -321,14 +351,24 @@ if [[ $CHECK == 1 ]]; then
     echo "[launch] preflight for sim=$SIM (python=$PY)"
     "$PY" -c "import cascade" >/dev/null 2>&1 && ok "cascade importable" || bad "cascade not importable (--setup)"
     [[ -z "$MISSING_MODS" ]] && ok "python extras [$EXTRAS]" || bad "python modules: $MISSING_MODS (--setup)"
-    command -v openclaw >/dev/null 2>&1 && ok "openclaw $(openclaw --version 2>/dev/null | grep -oE '20[0-9]{2}\.[0-9]+\.[0-9]+' | head -1)" || bad "openclaw CLI (--setup installs it)"
+    command -v openclaw >/dev/null 2>&1 && ok "openclaw $(oc --version 2>/dev/null | grep -oE '20[0-9]{2}\.[0-9]+\.[0-9]+' | head -1)" || bad "openclaw CLI (--setup installs it)"
     if [[ "$SIM" == "isaac" ]]; then
-        [[ -n "$ISAAC_PY" ]] && ok "Isaac Sim python: $ISAAC_PY" || bad "Isaac Sim (set ISAACSIM_PATH to the folder holding python.sh)"
+        if [[ -n "$ISAAC_PY" ]]; then
+            if ISAAC_INFO="$("$ISAAC_PY" "$REPO/scripts/isaac_runtime.py" --check 2>&1)"; then ok "Isaac Sim: $ISAAC_INFO"
+            else bad "Isaac Sim: $ISAAC_INFO"; fi
+        else
+            bad "Isaac Sim 6.1.0 (run scripts/install.sh --profile spark --accept-eula)"
+        fi
         [[ -f "$USD" ]] && ok "scene USD: $USD" || bad "scene USD $USD"
         command -v nvidia-smi >/dev/null 2>&1 && ok "NVIDIA GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)" || bad "nvidia-smi (Isaac Sim needs an NVIDIA GPU)"
         [[ -n "${DISPLAY:-}" || "$(uname -s)" == "Darwin" || $ISAAC_GUI == 0 ]] && ok "display for the editor window (or --headless)" || bad "no DISPLAY: pass --headless or run from the desktop session"
     fi
     [[ -f "$DETECTOR_PT" ]] && ok "detector weights" || bad "detector weights $DETECTOR_PT"
+    if BRAIN_CHECK="$("$PY" "$REPO/scripts/demo_proof.py" --check-brain "$BRAIN" 2>&1)"; then
+        ok "brain: $BRAIN_CHECK"
+    else
+        bad "brain: $BRAIN_CHECK"
+    fi
     curl -sf -m 5 -o /dev/null https://openclaw.ai 2>/dev/null && ok "internet (openclaw.ai reachable)" || warn "no internet: fine if OpenClaw + models are already installed"
     if [[ $PREFLIGHT_FAIL == 1 ]]; then echo "[launch] preflight FAILED -- fix the [MISSING] lines (most: ./scripts/launch.sh --setup --sim $SIM)"; exit 3; fi
     echo "[launch] preflight OK -> ./scripts/launch.sh --sim $SIM"
@@ -337,6 +377,10 @@ fi
 
 # ── 3. simulator ────────────────────────────────────────────────────────────
 if [[ "$SIM" == "isaac" ]]; then
+    "$ISAAC_PY" "$REPO/scripts/isaac_runtime.py" --check || die "Isaac Sim 6.1.0.0 installation is incomplete"
+    if [[ "$(uname -s)" == Linux && "$(uname -m)" == aarch64 && -f /lib/aarch64-linux-gnu/libgomp.so.1 ]]; then
+        export LD_PRELOAD="/lib/aarch64-linux-gnu/libgomp.so.1${LD_PRELOAD:+:$LD_PRELOAD}"
+    fi
     if port_open "$BRIDGE_PORT"; then
         log "Isaac bridge already answering on :$BRIDGE_PORT -> reusing it"
     else
@@ -349,7 +393,8 @@ if [[ "$SIM" == "isaac" ]]; then
             # shellcheck disable=SC2086  # $gui_flag is empty or exactly --gui
             nohup "$ISAAC_PY" "$REPO/scripts/isaac_bridge.py" --port "$BRIDGE_PORT" --usd "$USD" $gui_flag \
                 >"$STATE_DIR/isaac_bridge.log" 2>&1 &
-            echo $! >"$STATE_DIR/isaac_bridge.pid"
+            bridge_pid=$!
+            ownerctl record --pid "$bridge_pid" --role isaac_bridge >/dev/null
             wait_port "$BRIDGE_PORT" "$ISAAC_WAIT_S" "Isaac bridge" \
                 || die "Isaac bridge never listened on :$BRIDGE_PORT after ${ISAAC_WAIT_S}s -- see $STATE_DIR/isaac_bridge.log"
             # a listening port is not a working bridge: ping through the real client
@@ -362,6 +407,7 @@ assert pong.get("ok"), f"ping answered {pong!r}"
 st = c.request({"op": "state"})
 print(f"[launch] Isaac bridge answers: engine={pong.get('engine')} dofs={len(pong.get('dofs') or [])} state_ok={bool(st.get('ok', True))}")
 PYEOF
+            ownerctl record --pid "$bridge_pid" --role isaac_bridge >/dev/null
             log "Isaac bridge up on :$BRIDGE_PORT"
         fi
     fi
@@ -380,8 +426,10 @@ start_sidecar() {  # start_sidecar <name> <port> <wait_s> <cmd...>
         return 0
     fi
     nohup "$@" >"$STATE_DIR/$name.log" 2>&1 &
-    echo $! >"$STATE_DIR/$name.pid"
+    local service_pid=$!
+    ownerctl record --pid "$service_pid" --role "$name" >/dev/null
     wait_port "$port" "$wait_s" "$name" || die "$name never listened on :$port after ${wait_s}s -- see $STATE_DIR/$name.log"
+    ownerctl record --pid "$service_pid" --role "$name" >/dev/null
     log "$name up on :$port"
 }
 
@@ -422,44 +470,46 @@ case "$GRASPGENX" in
 esac
 
 # ── 4. openclaw ─────────────────────────────────────────────────────────────
-if ! command -v openclaw >/dev/null; then
-    log "OpenClaw not installed -> npm install -g openclaw@latest"
-    run npm install -g openclaw@latest
-fi
 if ! command -v openclaw >/dev/null 2>&1; then
-    if [[ $SETUP == 1 ]]; then
-        log "installing OpenClaw CLI (https://openclaw.ai/install.sh, unattended)"
-        run bash -c 'curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard' || die "OpenClaw install failed"
-        export PATH="$HOME/.local/bin:$HOME/.openclaw/bin:$PATH"
-        command -v openclaw >/dev/null 2>&1 || die "openclaw not on PATH after install -- open a new shell and re-run"
-    else
-        die "openclaw CLI not found -- run with --setup, or: curl -fsSL https://openclaw.ai/install.sh | bash"
-    fi
+    [[ $SETUP == 1 ]] || die "OpenClaw CLI missing; run the installer or launch with --setup"
+    log "installing pinned OpenClaw 2026.9.3 in $REPO/.openclaw-cli"
+    OC_INSTALLER="$STATE_DIR/openclaw-install-cli.sh"
+    curl --fail --show-error --location --retry 3 --connect-timeout 15 \
+        https://openclaw.ai/install-cli.sh -o "$OC_INSTALLER" || die "OpenClaw installer download failed"
+    bash "$OC_INSTALLER" --prefix "$REPO/.openclaw-cli" --version 2026.9.3 \
+        || die "OpenClaw installation failed"
+    export PATH="$REPO/.openclaw-cli/bin:$PATH"
 fi
-OC_VER="$(openclaw --version 2>/dev/null | grep -oE '20[0-9]{2}\.[0-9]+\.[0-9]+' | head -1 || true)"
-if [[ -n "$OC_VER" ]]; then
-    # CalVer: 2.0 == 2026.8.x and later. Refuse to run the 2.0-only flags on 2026.7.
-    if "$PY" -c "import sys; y,m,_=map(int,'$OC_VER'.split('.')); sys.exit(0 if (y,m)>=(2026,8) else 1)"; then
-        log "OpenClaw $OC_VER (>= 2.0)"
-    else
-        log "OpenClaw $OC_VER is pre-2.0 -> upgrading (gateway stopped first: doctor fails while it runs)"
-        run openclaw gateway stop || true
-        run openclaw update --yes --no-restart
-        run openclaw doctor --fix || true
-    fi
-fi
+OC_VER="$(oc --version 2>/dev/null | grep -oE '20[0-9]{2}\.[0-9]+\.[0-9]+' | head -1 || true)"
+[[ -n "$OC_VER" ]] || die "cannot determine OpenClaw version"
+"$PY" -c "import sys; y,m,_=map(int,'$OC_VER'.split('.')); sys.exit(0 if (y,m)>=(2026,8) else 1)" \
+    || die "OpenClaw $OC_VER is unsupported; use the pinned installer (no automatic global migrations)"
+log "OpenClaw $OC_VER (profile=${CASCADE_OPENCLAW_PROFILE:-default})"
+
+# Use exactly the same resolver as --check, including endpoint overrides.
+# An answering endpoint with the wrong model is a hard error, not permission
+# to switch providers. Resolve before touching the gateway configuration.
+BRAIN_INFO="$("$PY" "$REPO/scripts/demo_proof.py" --check-brain "$BRAIN")" \
+    || die "brain resolution failed; configure the selected model/endpoint explicitly"
+log "brain resolution: $BRAIN_INFO"
 
 # gateway up (needed before onboarding and before the probe)
-run openclaw config set gateway.mode local >/dev/null 2>&1 || true
+GATEWAY_OWNED=0
+if ownerctl owns-gateway; then GATEWAY_OWNED=1; fi
+run oc config set gateway.mode local >/dev/null
+run oc config set gateway.port "$GATEWAY_PORT" --strict-json >/dev/null
 if port_open "$GATEWAY_PORT"; then
-    log "gateway already listening on :$GATEWAY_PORT"
+    "$PY" "$REPO/scripts/demo_proof.py" --wait-gateway 45 >/dev/null \
+        || die "port :$GATEWAY_PORT does not answer for this OpenClaw profile; not touching that process"
+    log "gateway already healthy on :$GATEWAY_PORT"
 else
     log "starting gateway"
-    run openclaw gateway install >/dev/null 2>&1 || true
-    run openclaw gateway start >/dev/null 2>&1 || true
+    run oc gateway install >/dev/null 2>&1 || true
+    run oc gateway start >/dev/null 2>&1 || true
     if [[ $DRY == 0 ]]; then
         wait_port "$GATEWAY_PORT" 30 "OpenClaw gateway" || die "gateway never came up on :$GATEWAY_PORT (openclaw gateway status)"
-        touch "$STATE_DIR/gateway.started"
+        ownerctl record-gateway >/dev/null || die "cannot identify the gateway we started"
+        GATEWAY_OWNED=1
     fi
 fi
 
@@ -475,13 +525,15 @@ if [[ "$SIM" == "mujoco" && "$(uname -s)" == "Darwin" && -x "$(dirname "$PY")/mj
     MCP_PY="$(dirname "$PY")/mjpython"
     log "macOS + mujoco: MCP server runs under mjpython so the viewer can open"
 fi
-MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$DETECTOR" "$CLASSES" "$SIM" <<'PYEOF'
+MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$DETECTOR" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" <<'PYEOF'
 import json, os, sys
 py, repo, cams, arm, det, classes, sim = sys.argv[1:8]
+state_dir, owner = sys.argv[8:10]
 env = {
     "CASCADE_CAMERAS": cams, "CASCADE_ARM": arm,
     "CASCADE_DETECTOR_MODEL": det, "CASCADE_DETECT_CLASSES": classes,
     "YOLO_OFFLINE": "True", "ULTRALYTICS_OFFLINE": "True",
+    "CASCADE_OPENCLAW_PROFILE": os.environ.get("CASCADE_OPENCLAW_PROFILE", ""),
 }
 # Sim runs open the physics viewer from the MCP server (CASCADE_VIEW=1 needs
 # DISPLAY set; macOS has no DISPLAY, so give it one -- mujoco.viewer ignores
@@ -500,132 +552,74 @@ if sim == "mujoco":
 # turn: the pick completed at 60.0 s, confirmed by physics, and was
 # reported as cancelled. Budget = persistence + place + home, with margin.
 print(json.dumps({
-    "command": py, "args": ["-m", "cascade.apps.mcp_server"],
+    "command": py, "args": ["-m", "cascade.apps.mcp_server", "--launch-owner", owner, "--launch-state-dir", state_dir],
     "cwd": os.path.join(repo, "models"),   # YOLOE resolves its text encoder relative to cwd
     "env": env, "connectionTimeoutMs": 120000, "requestTimeoutMs": 300000,
 }))
 PYEOF
 )"
-# Prune OpenClaw MCP entries whose command (or `-m` module) no longer
-# exists (renamed venvs, deleted checkouts, renamed packages). Each dead entry costs EVERY turn a failed spawn
-# ("[bundle-mcp] failed to start server ... Connection closed") and a
-# catalog retry; on this machine a stale `wrc-demo` pointing at a removed
-# package did exactly that on every visitor turn.
-if [[ $DRY == 0 ]]; then
-    # NB: `cmd | python - <<'EOF'` loses the pipe -- the heredoc IS stdin
-    # (the script), so sys.stdin.read() saw the program, matched nothing
-    # and pruned nothing in the first live run. Hand the listing over in
-    # a file instead.
-    openclaw mcp show > "$STATE_DIR/mcp_show.txt" 2>/dev/null || true
-    DEAD="$(MCP_SHOW="$STATE_DIR/mcp_show.txt" "$PY" - <<'PYEOF' 2>/dev/null || true
-import json, os, re, shutil, sys
-raw = open(os.environ["MCP_SHOW"], errors="replace").read()
-m = re.search(r"\{.*\}", raw, re.S)
-if not m:
-    sys.exit()
-try:
-    servers = json.loads(m.group(0))
-except Exception:
-    sys.exit()
-servers = servers.get("servers", servers) if isinstance(servers, dict) else {}
-for name, ent in servers.items():
-    if not isinstance(ent, dict):
-        continue
-    cmd = ent.get("command")
-    if not cmd:
-        continue  # remote (url) servers: nothing to check
-    if os.path.isabs(cmd):
-        ok = os.path.exists(cmd)
-    else:
-        ok = shutil.which(cmd) is not None
-    args = ent.get("args") or []
-    # `python -m pkg.module`: the interpreter may well exist while the
-    # package it points at was renamed/removed (this machine: a `wrc-demo`
-    # entry whose venv still had python but no `wrc_demo` package). Ask
-    # THAT interpreter whether the module resolves -- a static path check
-    # cannot see it, and this is exactly what fails on every turn.
-    if ok and len(args) >= 2 and args[0] == "-m" and os.path.basename(cmd).startswith("python"):
-        import subprocess
-
-        try:
-            probe = subprocess.run(
-                [cmd, "-c", f"import importlib.util, sys; sys.exit(0 if importlib.util.find_spec({args[1].split('.')[0]!r}) else 3)"],
-                capture_output=True, timeout=20, cwd=ent.get("cwd") if os.path.isdir(ent.get("cwd") or "") else None,
-            )
-            ok = probe.returncode == 0
-        except Exception:
-            ok = True  # cannot tell; leave it alone
-    if not ok:
-        print(name)
-PYEOF
-)"
-    for dead in $DEAD; do
-        [[ "$dead" == "$MCP_NAME" ]] && continue
-        warn "MCP server '$dead' points at a command/module that no longer exists -- removing it (it failed on every turn)"
-        run openclaw mcp unset "$dead" >/dev/null 2>&1 || true
-    done
-fi
+# Replace only this demo entry. Unrelated MCP servers belong to their owner;
+# a dedicated Spark profile starts empty and does not need global pruning.
 log "registering MCP server '$MCP_NAME' (cameras=$CAMERAS arm=$ARM)"
 mkdir -p "$REPO/models"
-run openclaw mcp set "$MCP_NAME" "$MCP_JSON"
+run oc mcp set "$MCP_NAME" "$MCP_JSON"
 
 # brain
 brain_local() {  # brain_local <base_url> <model_id> <ctx>
-    local base=$1 mid=$2 ctx=$3
-    curl -sf -m 5 "$base/models" >/dev/null || die "no model server on $base -- start scripts/serve_*.sh first, or use --brain auto"
+    local base=$1 mid=$2 ctx=$3 active_cfg providers
+    "$PY" "$REPO/scripts/demo_proof.py" --probe-native "$base" --model "$mid" \
+        || die "requested model lacks working native tool calls; refusing to substitute another brain"
     log "onboarding local provider $base ($mid)"
-    run openclaw onboard --non-interactive --accept-risk --mode local \
+    run oc onboard --non-interactive --accept-risk --mode local \
         --auth-choice custom-api-key --custom-base-url "$base" \
         --custom-model-id "$mid" --custom-compatibility openai --custom-image-input --skip-health
-    CTX="$ctx" MODEL_ID="$mid" run "$PY" - <<'PYEOF'
-import json, os, pathlib
-p = pathlib.Path.home() / ".openclaw/openclaw.json"
-cfg = json.loads(p.read_text()); mid, ctx = os.environ["MODEL_ID"], int(os.environ["CTX"])
-for prov in cfg.get("models", {}).get("providers", {}).values():
-    for m in prov.get("models", []):
-        if m.get("id") == mid: m["contextWindow"] = ctx
-p.write_text(json.dumps(cfg, indent=2)); print(f"[launch] contextWindow={ctx} for {mid}")
+    active_cfg="$(oc config file)" || die "cannot resolve active OpenClaw config"
+    providers="$("$PY" - "$active_cfg" "$mid" "$ctx" <<'PYEOF'
+import json, pathlib, sys
+cfg = json.loads(pathlib.Path(sys.argv[1]).expanduser().read_text())
+providers = cfg.get("models", {}).get("providers", {})
+found = False
+for provider in providers.values():
+    for model in provider.get("models", []):
+        if model.get("id") == sys.argv[2]:
+            model["contextWindow"] = int(sys.argv[3])
+            model["maxTokens"] = min(int(model.get("maxTokens", 4096)), 4096)
+            found = True
+if not found:
+    raise SystemExit("onboarding did not register the requested model")
+print(json.dumps(providers))
 PYEOF
+)" || die "local provider config is incomplete"
+    run oc config set models.providers "$providers" --strict-json >/dev/null
+    log "contextWindow=$ctx for $mid (selected profile only)"
 }
-case "$BRAIN" in
-    keep) log "brain: keeping OpenClaw's current model" ;;
-    auto)
-        # Prefer a local model server that is actually answering; otherwise keep
-        # whatever auth OpenClaw already has, but VERIFY it can answer a turn.
-        if curl -sf -m 3 http://127.0.0.1:8082/v1/models >/dev/null 2>&1; then brain_local http://127.0.0.1:8082/v1 cosmos3-edge 32768
-        elif curl -sf -m 3 http://127.0.0.1:8080/v1/models >/dev/null 2>&1; then
-            MID="$(curl -sf -m 5 http://127.0.0.1:8080/v1/models | "$PY" -c 'import json,sys; d=json.load(sys.stdin); print((d.get("data") or d.get("models"))[0].get("id") or (d.get("models"))[0]["model"])')"
-            brain_local http://127.0.0.1:8080/v1 "$MID" 65536
-        else
-            DEFAULT_MODEL="$(openclaw models status --json 2>/dev/null | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("defaultModel") or "")' 2>/dev/null || true)"
-            if [[ -z "$DEFAULT_MODEL" ]]; then
-                # Fresh machine, no local model server: the ONE interactive
-                # step. OpenClaw's own onboarding picks a provider and logs
-                # in (OAuth or API key); we cannot and should not guess
-                # credentials. Only under --setup and only on a terminal.
-                if [[ $SETUP == 1 && -t 0 && $DRY == 0 ]]; then
-                    log "OpenClaw has no model yet -> its onboarding wizard (pick a provider you have access to; the robot tools are already registered)"
-                    openclaw onboard --mode local || die "onboarding did not complete"
-                    DEFAULT_MODEL="$(openclaw models status --json 2>/dev/null | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("defaultModel") or "")' 2>/dev/null || true)"
-                    [[ -n "$DEFAULT_MODEL" ]] || die "still no default model after onboarding -- 'openclaw models status'"
-                else
-                    die "no local model server and OpenClaw has no default model: run 'openclaw onboard' once (pick a provider you have auth for), or start a local brain (scripts/serve_cosmos_vllm.sh), then re-run"
-                fi
-            fi
-            log "brain: no local server; keeping OpenClaw's $DEFAULT_MODEL"
-        fi ;;
-    cosmos)        brain_local http://127.0.0.1:8082/v1 cosmos3-edge 32768 ;;
-    cosmos-sglang) brain_local http://127.0.0.1:8083/v1 cosmos3-edge 32768 ;;
-    qwen)          MID="$(curl -sf -m 5 http://127.0.0.1:8080/v1/models | "$PY" -c 'import json,sys; d=json.load(sys.stdin); print((d.get("data") or d.get("models"))[0].get("id") or d["models"][0]["model"])')"
-                   brain_local http://127.0.0.1:8080/v1 "$MID" 65536 ;;
-    *) die "unknown --brain $BRAIN (auto|keep|cosmos|cosmos-sglang|qwen)" ;;
-esac
+RESOLVED_BRAIN="$(printf '%s' "$BRAIN_INFO" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["brain"])')"
+if [[ "$RESOLVED_BRAIN" == keep ]]; then
+    log "brain: keeping the resolved OpenClaw model"
+else
+    BASE="$(printf '%s' "$BRAIN_INFO" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["base_url"])')"
+    MID="$(printf '%s' "$BRAIN_INFO" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["model"])')"
+    CTX="$(printf '%s' "$BRAIN_INFO" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["context_window"])')"
+    brain_local "$BASE" "$MID" "$CTX"
+fi
+
+# Dedicated Spark profile: the brain sees this robot, not a general-purpose
+# coding agent's tools or personal skills (also keeps Cosmos context bounded).
+if [[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]]; then
+    run oc config set agents.defaults.skills '[]' --strict-json >/dev/null
+    TOOL_ALLOW="$(MCP_PREFIX="$MCP_NAME" "$PY" -c 'import json,os; print(json.dumps([os.environ["MCP_PREFIX"]+"__*"]))')"
+    run oc config set tools.allow "$TOOL_ALLOW" --strict-json >/dev/null
+    run oc config set agents.defaults.workspace "$STATE_DIR/openclaw-workspace" >/dev/null
+fi
 
 # the gateway serves a stale tool list until restarted after `mcp set`
 log "restarting gateway so it loads the '$MCP_NAME' tools"
-run openclaw gateway restart >/dev/null 2>&1 || true
-[[ $DRY == 0 ]] && { wait_port "$GATEWAY_PORT" 30 "OpenClaw gateway" || die "gateway did not come back after restart"; }
-run openclaw config validate >/dev/null
+run oc gateway restart >/dev/null 2>&1 || true
+[[ $DRY == 0 ]] && { "$PY" "$REPO/scripts/demo_proof.py" --wait-gateway 60 >/dev/null || die "gateway did not become healthy after restart"; }
+if [[ $GATEWAY_OWNED == 1 ]]; then
+    ownerctl record-gateway >/dev/null || die "cannot identify our restarted gateway"
+fi
+run oc config validate >/dev/null
 
 # ── 5. proof: the robot tools must actually be listed ───────────────────────
 if [[ $DRY == 0 ]]; then
@@ -667,7 +661,7 @@ PYEOF
     log "probing MCP tools"
     # 2.0's plain `mcp probe` prints only a COUNT; `--json` carries the names,
     # namespaced as <server>__<tool>.
-    PROBE_JSON="$(openclaw mcp probe "$MCP_NAME" --json 2>/dev/null || true)"
+    PROBE_JSON="$(oc mcp probe "$MCP_NAME" --json 2>/dev/null || true)"
     read -r NTOOLS HAVE_ROBOT <<<"$(printf '%s' "$PROBE_JSON" | "$PY" -c '
 import json, sys
 try:
@@ -681,98 +675,32 @@ print(len(tools), int(need <= set(tools)))
     if [[ "$HAVE_ROBOT" == "1" ]]; then
         log "tools reachable ($NTOOLS listed, incl. pick_and_place / get_observation / analyze_scene)"
     else
-        openclaw mcp doctor "$MCP_NAME" --probe 2>&1 | tail -8 >&2
+        oc mcp doctor "$MCP_NAME" --probe 2>&1 | tail -8 >&2
         die "the MCP probe did not list the robot tools ($NTOOLS found) -- see above"
     fi
-    # a real turn through the brain, so 'it works' means the LLM answered, not just the wiring
-    log "one headless turn through the brain (Reply OK)..."
-    # Right after `gateway restart` the first agent run can fail while the
-    # gateway re-warms provider auth; retry a couple of times before calling
-    # it a failure, and read the envelope's `final`/`payloads` explicitly
-    # rather than grepping the whole JSON for the letters OK.
-    BRAIN_OK=0
-    for attempt in 1 2 3; do
-        ANSWER="$(openclaw agent exec 'Reply with exactly the word OK and nothing else.' --json --timeout 120 2>/dev/null \
-            | "$PY" -c 'import json,sys
-try:
-    d=json.load(sys.stdin)
-except Exception:
-    print(""); sys.exit()
-txt = d.get("final") or " ".join((p.get("text") or "") for p in (d.get("payloads") or []))
-print((txt or "").strip()[:80])' 2>/dev/null || true)"
-        if [[ "$ANSWER" == *OK* ]]; then BRAIN_OK=1; break; fi
-        (( attempt < 3 )) && { log "brain attempt $attempt got '${ANSWER:-<nothing>}' -- retrying in 5 s"; sleep 5; }
-    done
-    if [[ $BRAIN_OK == 1 ]]; then log "brain answered."
-    else warn "the brain did not answer a trivial turn after 3 attempts -- check 'openclaw models status' (auth) and the network before blaming the robot tools"; fi
+    # One gateway session owns the proof world. Never use isolated `agent
+    # exec` calls for pick/reset: those may each spawn a different simulator.
+    log "proving brain, manipulation and reset in one persistent chat session"
+    proof_flags=""
+    [[ $ROBOT_TURN == 0 ]] && proof_flags="--no-robot-turn"
+    # shellcheck disable=SC2086
+    PROOF_JSON="$("$PY" "$REPO/scripts/demo_proof.py" --run --repo "$REPO" \
+        --state-dir "$STATE_DIR" --sim "$SIM" $proof_flags)" \
+        || die "demo verification failed; NOT READY. Evidence: $STATE_DIR/cascade-proof-*/"
+    printf '%s\n' "$PROOF_JSON"
+    PROOF_VERIFIED="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(int(json.load(sys.stdin)["verified"]))')"
+    PROOF_TRACE="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("trace", ""))')"
+    BRAIN_DESC="$(printf '%s' "$PROOF_JSON" | "$PY" -c 'import json,sys; print(json.load(sys.stdin)["model"])')"
 
-    # One REAL robot turn through the chat host in sim modes (--no-robot-turn
-    # skips it; never on real hardware). This is the proof a visitor cares
-    # about: the brain picked the robot tool and physics confirmed the
-    # effect. `toolSummary.failures` counts tool calls that returned an
-    # error -- each one is a line in <run_dir>/server.log.
-    if [[ $ROBOT_TURN == 1 && "$SIM" != "none" && $BRAIN_OK == 1 ]]; then
-        log "one real robot turn: 'pick and place the red object' (up to ~2 min: the sim arm moves)"
-        TURN_T0="$(date +%s)"
-        TURN_JSON="$(openclaw agent exec 'pick and place the red object' --json --timeout 240 2>/dev/null || true)"
-        # (the JSON travels in an env var: a here-doc IS python's stdin, so a
-        # pipe into `python - <<EOF` is silently shadowed)
-        TURN_SUMMARY="$(TURN_JSON="$TURN_JSON" TURN_T0="$TURN_T0" "$PY" - "$REPO" <<'PYEOF' 2>/dev/null || echo "no JSON envelope from agent exec"
-import glob, json, os, sys
-try:
-    d = json.loads(os.environ.get("TURN_JSON") or "")
-except Exception:
-    print("no JSON envelope from agent exec"); sys.exit()
-ts = d.get("toolSummary") or {}
-final = (d.get("final") or "").strip().replace("\n", " ")[:120]
-t0 = float(os.environ.get("TURN_T0") or 0)
-# Only traces written DURING this turn count. The first live run of this
-# block read the newest trace on disk -- from a finished visitor session --
-# and printed "CONFIRMED by physics" over a turn whose server had crashed
-# (failures=2, no trace of its own).
-runs = [t for t in glob.glob(os.path.join(sys.argv[1], "runs", "mcp_*", "trace.jsonl")) if os.path.getmtime(t) >= t0 - 1]
-runs.sort(key=os.path.getmtime)
-verdict = "no trace written by this turn"
-if runs:
-    rows = [json.loads(l) for l in open(runs[-1]) if l.strip()]
-    picks = [r for r in rows if r.get("skill") == "pick_and_place"]
-    if picks:
-        pc = (picks[-1].get("result") or {}).get("postcondition") or {}
-        verdict = f"pick_and_place ok={picks[-1]['result'].get('ok')} postcondition={pc.get('status')} channel={pc.get('channel')}"
-    else:
-        verdict = "no pick_and_place call in the trace (the brain answered without moving the robot)"
-    verdict += f" | log: {os.path.dirname(runs[-1])}/server.log"
-else:
-    logs = [l for l in glob.glob(os.path.join(sys.argv[1], "runs", "mcp_*", "server.log")) if os.path.getmtime(l) >= t0 - 1]
-    if logs:
-        verdict += f" | newest server log: {sorted(logs, key=os.path.getmtime)[-1]}"
-failures = ts.get("failures") or 0
-ok = failures == 0 and "postcondition=confirmed" in verdict
-print(f"{'OK' if ok else 'NOT-OK'} tools={ts.get('calls')} failures={failures} | {verdict} | brain: {final}")
-PYEOF
-)"
-        log "robot turn: ${TURN_SUMMARY#* }"
-        case "$TURN_SUMMARY" in
-            OK*) log "robot turn CONFIRMED by physics." ;;
-            *"failures=0"*) warn "the robot turn did not end in a physics-confirmed pick -- read the log path above before demoing" ;;
-            *) warn "the robot turn had FAILED tool calls (the tool server may have crashed mid-call: see the gateway log, ~/.openclaw/logs or /tmp/openclaw) -- do not demo until a rerun is clean" ;;
-        esac
-        # The proof moved a prop into the drop zone. Put the scene back so the
-        # first visitor starts from the spawn layout, not from the aftermath.
-        log "resetting the scene after the proof turn (props back on spawn, memory cleared)"
-        RESET_JSON="$(openclaw agent exec 'Call the reset_scene tool once and reply with exactly its props_reset list.' --json --timeout 120 2>/dev/null || true)"
-        RESET_OK="$(RESET_JSON="$RESET_JSON" "$PY" - <<'PYEOF' 2>/dev/null || echo ""
-import json, os
-try:
-    d = json.loads(os.environ.get("RESET_JSON") or "")
-    ts = d.get("toolSummary") or {}
-    print("ok" if ts.get("calls") and not ts.get("failures") else "")
-except Exception:
-    print("")
-PYEOF
-)"
-        if [[ "$RESET_OK" == "ok" ]]; then log "scene reset."
-        else warn "scene reset did not go through -- say 'reset the scene' in the chat before the first visitor"; fi
+    # Preserve the optional outcome metric, without making a judge outage
+    # fatal or calling macOS-only caffeinate on Linux. Physics is the gate.
+    JUDGE_NOTE=""
+    if [[ $NO_JUDGE == 0 && $PROOF_VERIFIED == 1 ]]; then
+        TURN_LOG="$(dirname "$PROOF_TRACE")"
+        log "judging proof keyframes (optional metric, not the readiness gate)"
+        JUDGE_OUT="$("$PY" "$REPO/scripts/judge_run.py" "$TURN_LOG" --strict 2>&1 || true)"
+        JUDGE_NOTE="$(printf '%s' "$JUDGE_OUT" | "$PY" -c 'import sys; lines=[x.split("appended to summary.txt: ",1)[1] for x in sys.stdin.read().splitlines() if "appended to summary.txt: " in x]; print(lines[-1] if lines else "unavailable; physical verification remains valid")')"
+        log "judge: $JUDGE_NOTE"
     fi
 fi
 
@@ -782,7 +710,8 @@ fi
 # next motion after the screen wakes), or is unavailable on this box.
 VIEWER_NOTE="the MuJoCo window opens on the FIRST motion command (arm is lazy until then)"
 if [[ "$SIM" == "mujoco" ]]; then
-    NEWEST_LOG="$(ls -t "$REPO"/runs/mcp_*/server.log 2>/dev/null | head -1 || true)"
+    NEWEST_LOG=""
+    if [[ -n "${PROOF_TRACE:-}" ]]; then NEWEST_LOG="$(dirname "$PROOF_TRACE")/server.log"; fi
     if [[ -n "$NEWEST_LOG" ]]; then
         if grep -q "viewer window open" "$NEWEST_LOG" 2>/dev/null; then
             VIEWER_NOTE="the MuJoCo window is open (it follows every motion)"
@@ -793,19 +722,26 @@ if [[ "$SIM" == "mujoco" ]]; then
         fi
     fi
 fi
+LAUNCH_STATUS="STARTED (UNVERIFIED: robot proof skipped)"
+[[ "${PROOF_VERIFIED:-0}" == 1 ]] && LAUNCH_STATUS="READY"
+OC_HINT="openclaw"
+[[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]] && OC_HINT="openclaw --profile $CASCADE_OPENCLAW_PROFILE"
 cat <<EOF
-[launch] READY   sim=$SIM  arm=$ARM  cameras=$CAMERAS
-         chat:      http://127.0.0.1:$GATEWAY_PORT/   (openclaw dashboard)
-         headless:  openclaw agent exec "describe the scene"
+[launch] $LAUNCH_STATUS   sim=$SIM  arm=$ARM  cameras=$CAMERAS
+         brain:     ${BRAIN_DESC:-not verified}
+         chat:      http://127.0.0.1:$GATEWAY_PORT/   ($OC_HINT dashboard)
+         evidence:  $STATE_DIR/proof.json
+         headless:  $OC_HINT agent --session-id cascade-demo -m "describe the scene"
          try:       "what do you see?"  "pick and place the red object"  "did it actually move?"
 $( [[ "$CAMERAS" == *scene_two* ]] && echo '         memory:    "put both cubes in the drop zone, one at a time; call task_memory before each action; then tell me how many you moved and how you know"' )
          reset:     "reset the scene"  (between visitors: props back on spawn, memory cleared)
 $( [[ "$SIM" == "mujoco" ]] && echo "         viewer:    $VIEWER_NOTE" )
+$( [[ -n "${JUDGE_NOTE:-}" ]] && echo "         judge:     $JUDGE_NOTE" )
 $( [[ "$SIM" == "isaac"  ]] && echo "         isaac:     bridge :$BRIDGE_PORT, log $STATE_DIR/isaac_bridge.log" )
 $( [[ "$OCCUPANCY" != "none" ]] && echo "         occupancy: :$OCC_PORT ${OCC_DESC:-(dry run)}" )
 $( [[ "$GRASPGENX" != "none" ]] && echo "         graspgenx: :$GGX_PORT ($GRASPGENX)" )
          stop:      ./scripts/launch.sh --down
 EOF
 if [[ $OPEN_CHAT == 1 && $DRY == 0 ]]; then
-    openclaw dashboard >/dev/null 2>&1 || warn "could not open the browser; use the URL above"
+    oc dashboard >/dev/null 2>&1 || warn "could not open the browser; use the URL above"
 fi

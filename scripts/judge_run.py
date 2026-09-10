@@ -32,6 +32,7 @@ def main() -> int:
     ap.add_argument("--ref-end", help="reference END (goal) image; blank when omitted, as upstream")
     ap.add_argument("--skills", help="comma-separated skills to judge (default: all traced calls)")
     ap.add_argument("--fake-score", type=float, default=None, help="with --judge fake: the constant hop")
+    ap.add_argument("--strict", action="store_true", help="exit 3 when the judge missed a physics-confirmed step (fn > 0)")
     args = ap.parse_args()
 
     from cascade.config import load_demo_config
@@ -90,10 +91,11 @@ def main() -> int:
     for tier, d in v.per_tier().items():
         hps = f"{d['hop_per_s']:+.3f}/s" if d["hop_per_s"] is not None else "n/a"
         print(f"tier {tier:<10} n={d['n']} hop_mean={d['hop_mean']:+.2f} {hps}")
-    out = Path(v.run_dir) / "judge.json"
-    out.write_text(json.dumps(v.to_dict(), indent=1))
-    print(f"wrote {out}")
-    return 0
+    out = v.write()
+    print(f"wrote {out} and appended to summary.txt: {v.summary_line()}")
+    # exit status is the metric: 3 = the judge missed physics-confirmed
+    # progress (fn > 0), so a launcher or CI can gate on it
+    return 3 if v.confusion()["fn"] > 0 and args.strict else 0
 
 
 if __name__ == "__main__":

@@ -434,6 +434,33 @@ class RunVerdict:
             "steps": [s.__dict__ for s in self.steps],
         }
 
+    def summary_line(self) -> str:
+        """One line for `summary.txt` / the launcher banner: the judge as a
+        METRIC next to the physics verdict. `fn` is the number that matters
+        -- a physics-confirmed step the pictures did not show as progress is
+        a regression in what the robot lets the audience see (and the exact
+        symptom of the byte-identical-keyframe bug that motivated this)."""
+        c = self.confusion()
+        agreement = "n/a" if c["agreement"] is None else f"{c['agreement']:.0%}"
+        final = f"{self.final_progress:.2f}" if self.progress else "n/a"
+        return (f"judge={self.judge} mode={self.mode} scored={c['n_scored']}/{len(self.steps)} "
+                f"agreement={agreement} tp={c['tp']} tn={c['tn']} fp={c['fp']} fn={c['fn']} "
+                f"final_progress={final}")
+
+    def write(self, run_dir: str | Path | None = None) -> Path:
+        """Persist `judge.json` next to the trace and append the metric line to
+        `summary.txt` (the artifact people read after a demo). Idempotent per
+        judge name: re-judging replaces this judge's earlier line."""
+        rd = Path(run_dir or self.run_dir)
+        (rd / "judge.json").write_text(json.dumps(self.to_dict(), indent=1))
+        summ = rd / "summary.txt"
+        line = self.summary_line()
+        lines = summ.read_text().splitlines() if summ.exists() else []
+        lines = [l for l in lines if not l.startswith(f"judge={self.judge} ")]
+        lines.append(line)
+        summ.write_text("\n".join(lines) + "\n")
+        return rd / "judge.json"
+
 
 def _task_text(row: dict) -> str:
     """The instruction the judge is given. A skill call has no free-text

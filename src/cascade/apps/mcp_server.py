@@ -806,8 +806,29 @@ def handle_message(server: McpSkillServer, msg: dict) -> dict | None:
 
 
 def main() -> int:
+    import argparse
     import queue
     import signal
+
+    parser = argparse.ArgumentParser(description="CASCADE stdio MCP server")
+    parser.add_argument("--launch-owner")
+    parser.add_argument("--launch-state-dir", type=Path)
+    args = parser.parse_args()
+    if bool(args.launch_owner) != bool(args.launch_state_dir):
+        parser.error("--launch-owner and --launch-state-dir must be supplied together")
+    if args.launch_owner:
+        from .process_owner import load_owner, register_process
+        from ..config import PACKAGE_ROOT
+        import uuid
+
+        owner = load_owner(args.launch_state_dir, PACKAGE_ROOT, os.environ.get("CASCADE_OPENCLAW_PROFILE", ""))
+        if owner is None or owner["owner"] != args.launch_owner:
+            parser.error("launch owner does not match this repo/state/profile")
+        # A fresh process always owns a fresh trace, even after PID reuse or
+        # when its parent happens to export an old CASCADE_RUN_DIR.
+        run_dir = PACKAGE_ROOT / "runs" / f"mcp_{os.getpid()}_{uuid.uuid4().hex}"
+        os.environ["CASCADE_RUN_DIR"] = str(run_dir)
+        register_process(args.launch_state_dir, owner, os.getpid(), "mcp", run_dir=run_dir)
 
     server = McpSkillServer()
     # The prewarm thread wraps its build in redirect_stdout(sys.stderr),

@@ -11,6 +11,7 @@ import numpy as np
 
 from ..config import Cfg
 from ..sim.bridge_client import BridgeClient, BridgeError
+from ..sim.isaac_reset import validate_isaac_reset
 from ..types import RobotState
 from .arm_base import ArmBase
 
@@ -78,6 +79,16 @@ class IsaacArm(ArmBase):
             self._client.stop()
         except BridgeError:
             pass  # bridge gone: sim arm holds position on its own
+
+    def reset_props(self) -> dict:
+        """Reset the live bridge world and return its physics read-back.
+
+        Settling runs on Kit's main thread; allow its 60 s server budget
+        plus transport time rather than the usual short state-query timeout.
+        """
+        if self._stopped:
+            raise BridgeError("soft-stopped; call resume() before reset")
+        return validate_isaac_reset(self._client.request({"op": "reset_props"}, timeout_s=65.0))
 
     def resume(self) -> None:
         self._stopped = False

@@ -1,0 +1,226 @@
+"""Local launch ownership. Stdlib-only; never discover owners by scanning ps.
+
+CASCADE_LAUNCH_STATE is a *root*: unprofiled/ or profile-<OpenClaw profile>/
+contains owner.json, processes/mcp_*.json and named service receipts. A PID
+alone is never authority: both its kernel birth identity and full command
+must still match a receipt belonging to this exact repo/state/profile.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+import uuid
+
+
+def profile_state_dir(root, profile: str) -> Path:
+    if profile and (not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", profile)):
+        raise ValueError("invalid OpenClaw profile name")
+    return Path(root).expanduser().resolve() / ("profile-" + profile if profile else "unprofiled")
+
+
+def _write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temp = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
+    with temp.open("x") as stream:
+        os.chmod(temp, 0o600)
+        json.dump(data, stream)
+        stream.write("\n")
+    temp.replace(path)
+
+
+def load_owner(state_dir, repo, profile: str, *, create: bool = False) -> dict | None:
+    state_dir, repo = Path(state_dir).resolve(), Path(repo).resolve()
+    path = state_dir / "owner.json"
+    expected = {"repo": str(repo), "profile": profile, "state_dir": str(state_dir)}
+    if not path.exists():
+        if not create:
+            return None
+        _write_json(path, {**expected, "owner": uuid.uuid4().hex, "schema": 1})
+    data = json.loads(path.read_text())
+    if (not isinstance(data, dict) or data.get("schema") != 1
+            or not re.fullmatch(r"[0-9a-f]{32}", data.get("owner", ""))
+            or any(data.get(key) != value for key, value in expected.items())):
+        raise ValueError("launch owner does not match repo/state/profile")
+    return data
+
+
+def process_identity(pid: int) -> dict | None:
+    if type(pid) is not int or pid <= 1:
+        return None
+    try:
+        if sys.platform.startswith("linux"):
+            proc = Path("/proc") / str(pid)
+            stat = (proc / "stat").read_text().rsplit(")", 1)[1].split()
+            if stat[0] == "Z" or proc.stat().st_uid != os.getuid():
+                return None
+            birth = Path("/proc/sys/kernel/random/boot_id").read_text().strip() + ":" + stat[19]
+            command = (proc / "cmdline").read_bytes().rstrip(b"\0").replace(b"\0", b" ").decode()
+        elif sys.platform == "darwin":
+            import ctypes
+            import struct
+
+            # PROC_PIDTBSDINFO's start timeval has microseconds. ps lstart's
+            # calendar seconds can collide when a PID is reused quickly.
+            buf = ctypes.create_string_buffer(136)  # struct proc_bsdinfo
+            lib = ctypes.CDLL("/usr/lib/libproc.dylib")
+            if lib.proc_pidinfo(pid, 3, 0, buf, len(buf)) != len(buf):
+                return None
+            sec, usec = struct.unpack_from("=QQ", buf.raw, 120)
+            result = subprocess.run(["ps", "-ww", "-p", str(pid), "-o", "uid=,stat=,command="],
+                                    capture_output=True, text=True, timeout=5)
+            parts = result.stdout.strip().split(None, 2)
+            if result.returncode or len(parts) != 3 or int(parts[0]) != os.getuid() or parts[1].startswith("Z"):
+                return None
+            # Refuse a PID that changed between the kernel and command reads.
+            if lib.proc_pidinfo(pid, 3, 0, buf, len(buf)) != len(buf) or struct.unpack_from("=QQ", buf.raw, 120) != (sec, usec):
+                return None
+            birth, command = f"darwin:{sec}:{usec}", parts[2]
+        else:
+            return None  # no unverified platform fallback for signalling PIDs
+        return {"pid": pid, "birth": birth, "command": command} if command else None
+    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
+        return None
+
+
+def is_live(record: dict, owner: dict) -> bool:
+    if not isinstance(record, dict) or any(record.get(k) != owner.get(k) for k in ("owner", "repo", "profile", "state_dir")):
+        return False
+    current = process_identity(record.get("pid"))
+    if current is None or any(record.get(k) != current[k] for k in ("pid", "birth", "command")):
+        return False
+    if record.get("role") == "mcp":
+        if not re.search(r"(?:^|\s)cascade\.apps\.mcp_server(?:\s|$)", current["command"]):
+            return False
+        if not re.search(r"(?:^|\s)--launch-owner " + re.escape(owner["owner"]) + r"(?:\s|$)", current["command"]):
+            return False
+    return True
+
+
+def register_process(state_dir, owner: dict, pid: int, role: str, *, run_dir=None) -> dict:
+    identity = process_identity(pid)
+    if identity is None:
+        raise ValueError(f"cannot register dead/unreadable process {pid}")
+    if Path(state_dir).resolve() != Path(owner["state_dir"]):
+        raise ValueError("wrong owner state directory")
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", role):
+        raise ValueError("invalid process role")
+    record = {**owner, **identity, "role": role, "instance_id": uuid.uuid4().hex, "registered_at": time.time()}
+    if run_dir is not None:
+        record["run_dir"] = str(Path(run_dir).resolve())
+    if not is_live(record, owner):
+        raise ValueError("process command does not identify its launch owner")
+    name = "processes/mcp_" + record["instance_id"] + ".json" if role == "mcp" else ("gateway.started" if role == "gateway" else role + ".pid")
+    _write_json(Path(state_dir) / name, record)
+    return record
+
+
+def records(state_dir) -> list[dict]:
+    state = Path(state_dir)
+    paths = list((state / "processes").glob("mcp_*.json")) + list(state.glob("*.pid"))
+    if (state / "gateway.started").is_file():
+        paths.append(state / "gateway.started")
+    found = []
+    for path in paths:
+        try:
+            record = json.loads(path.read_text())
+            if isinstance(record, dict):
+                found.append(record)
+        except (OSError, ValueError):
+            continue  # legacy bare PID files are deliberately not authority
+    return found
+
+
+def live_records(state_dir, owner: dict, *, role: str | None = None) -> list[dict]:
+    return [r for r in records(state_dir) if (role is None or r.get("role") == role) and is_live(r, owner)]
+
+
+def stop_owned(state_dir, owner: dict, *, dry_run=False) -> list[int]:
+    import signal
+
+    stopped = []
+    # Service-manager shutdown is intentionally separate from direct PID
+    # signals. An unowned gateway is never stopped to reap its MCP children.
+    for record in sorted(records(state_dir), key=lambda r: r.get("role") == "gateway"):
+        if not is_live(record, owner):
+            continue
+        if dry_run:
+            print(f"would stop {record['role']} pid={record['pid']}")
+            continue
+        if record.get("role") == "gateway":
+            prefix = ["openclaw", *(["--profile", owner["profile"]] if owner["profile"] else [])]
+            status = subprocess.run([*prefix, "gateway", "status", "--json"], capture_output=True, text=True, timeout=30)
+            pid = json.loads(status.stdout).get("service", {}).get("runtime", {}).get("pid") if status.returncode == 0 else None
+            if pid != record["pid"] or not is_live(record, owner):
+                raise ValueError("gateway no longer belongs to this launch owner; refusing stop")
+            subprocess.run([*prefix, "gateway", "stop"], check=True, timeout=30)
+        else:
+            # Re-check immediately before signalling; a bare/stale PID marker
+            # or the same command under a different owner is not sufficient.
+            if not is_live(record, owner):
+                continue
+            try:
+                os.kill(record["pid"], signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        deadline = time.monotonic() + 10
+        while is_live(record, owner) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        if is_live(record, owner):
+            raise ValueError(f"{record['role']} pid={record['pid']} did not stop; receipt retained")
+        stopped.append(record["pid"])
+    return stopped
+
+
+def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", type=Path, required=True)
+    parser.add_argument("--state-root", type=Path, required=True)
+    parser.add_argument("--profile", default="")
+    parser.add_argument("action", choices=["state-dir", "init", "record", "record-gateway", "owns-gateway", "down"])
+    parser.add_argument("--pid", type=int)
+    parser.add_argument("--role")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    try:
+        state = profile_state_dir(args.state_root, args.profile)
+        if args.action == "state-dir":
+            print(state)
+            return 0
+        owner = load_owner(state, args.repo, args.profile, create=args.action == "init")
+        if owner is None:
+            if args.action == "owns-gateway":
+                return 1
+            if args.action == "down":
+                print("no owner receipt for this repo/profile; nothing stopped")
+                return 0
+            raise ValueError("missing owner receipt: initialize launch ownership first")
+        if args.action == "init":
+            print(owner["owner"])
+        elif args.action == "owns-gateway":
+            return 0 if live_records(state, owner, role="gateway") else 1
+        elif args.action == "down":
+            print(json.dumps({"stopped": stop_owned(state, owner, dry_run=args.dry_run)}))
+        else:
+            if args.action == "record-gateway":
+                prefix = ["openclaw", *(["--profile", args.profile] if args.profile else [])]
+                result = subprocess.run([*prefix, "gateway", "status", "--json"], check=True, capture_output=True, text=True, timeout=30)
+                args.pid = json.loads(result.stdout).get("service", {}).get("runtime", {}).get("pid")
+                args.role = "gateway"
+            if not args.pid or not args.role:
+                raise ValueError("record needs a live PID and service role")
+            print(json.dumps(register_process(state, owner, args.pid, args.role)))
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 3
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

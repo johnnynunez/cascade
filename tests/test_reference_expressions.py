@@ -18,9 +18,11 @@ import pytest
 
 from cascade.perception.grounding import _SPATIAL_AXES
 from cascade.perception.reference import (
+    Reference,
     apply_reference,
     parse_reference,
 )
+from cascade.types import SkillError
 
 
 @dataclass
@@ -117,24 +119,26 @@ def test_negation_filters_by_label():
     assert out[0] is blue
 
 
-def test_unsatisfiable_negation_degrades_instead_of_emptying():
-    """Excluding everything must not turn into 'object not found'.
-
-    On a booth the visitor's phrasing is unpredictable; a negation that
-    matches every candidate should fall back to no preference rather than
-    make the robot claim it cannot see an object that is plainly there.
-    """
+def test_unsatisfiable_negation_refuses_instead_of_ignoring_exclusion():
+    """The old no-preference expectation licensed picking a forbidden object."""
     a, b = _c(0.2, 0.1, label="red cup"), _c(0.2, -0.1, label="red cup")
-    out = apply_reference([a, b], parse_reference("the cup, not the red one"),
-                          _SPATIAL_AXES)
-    assert len(out) == 2
+    with pytest.raises(SkillError, match="exclusion.*red.*no candidates"):
+        apply_reference([a, b], parse_reference("the cup, not the red one"),
+                        _SPATIAL_AXES)
 
 
-def test_ordinal_beyond_the_list_clamps():
+def test_ordinal_beyond_the_list_refuses_instead_of_clamping():
+    """The old clamping expectation substituted an object the user did not name."""
     a, b = _c(0.2, 0.1), _c(0.2, -0.1)
-    out = apply_reference([a, b], parse_reference("the fifth cup from the left"),
-                          _SPATIAL_AXES)
-    assert len(out) == 2 and out[0] is not None
+    with pytest.raises(SkillError, match="ordinal 5.*out of range.*2 candidate"):
+        apply_reference([a, b], parse_reference("the fifth cup from the left"),
+                        _SPATIAL_AXES)
+
+
+def test_negative_ordinal_beyond_the_list_refuses_instead_of_clamping():
+    a, b = _c(0.2, 0.1), _c(0.2, -0.1)
+    with pytest.raises(SkillError, match="ordinal.*out of range.*2 candidate"):
+        apply_reference([a, b], Reference(noun="cup", ordinal=-3), _SPATIAL_AXES)
 
 
 def test_plain_reference_leaves_order_untouched():

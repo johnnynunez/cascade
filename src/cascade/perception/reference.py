@@ -27,6 +27,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from ..types import SkillError
+
 #: Ordinal words -> zero-based index into the sorted candidate list.
 _ORDINALS = {
     "first": 0, "1st": 0, "leftmost": 0, "nearest": 0, "closest": 0,
@@ -51,6 +53,14 @@ _NEGATION = re.compile(
     r"\b(?:not|other than|except|besides|instead of)\s+(?:the\s+)?([a-z][a-z ]{0,20}?)\b",
     re.I,
 )
+
+
+class ReferenceResolutionError(SkillError):
+    """An explicit reference cannot be satisfied by the observed candidates.
+
+    This is a refusal, not a transient detection miss. Callers must not
+    replace it with an unconstrained belief or another fallback target.
+    """
 
 
 @dataclass(frozen=True)
@@ -147,7 +157,9 @@ def apply_reference(candidates: list, ref: Reference, axes: dict) -> list:
 
     Ordering is applied before selection so an ordinal counts along the axis
     the phrase named, which is what "second from the left" means. Returns the
-    reordered list; the caller takes element 0 as before.
+    reordered list; the caller takes element 0 as before. Unsatisfiable
+    constraints raise ReferenceResolutionError instead of selecting a
+    different object.
     """
     if not candidates or ref.is_plain:
         return candidates
@@ -160,10 +172,13 @@ def apply_reference(candidates: list, ref: Reference, axes: dict) -> list:
             if ref.exclude not in str(getattr(getattr(c, "detection", None),
                                               "label", "")).lower()
         ]
-        # Never let a negation empty the list: an unsatisfiable exclusion
-        # should degrade to "no preference", not to "object not found".
-        if kept:
-            out = kept
+        if not kept:
+            raise ReferenceResolutionError(
+                f"exclusion {ref.exclude!r} leaves no candidates "
+                f"({len(out)} excluded). Clarify the reference; refusing to "
+                "select a different object."
+            )
+        out = kept
 
     if ref.size is not None:
         def _bulk(c):
@@ -176,7 +191,13 @@ def apply_reference(candidates: list, ref: Reference, axes: dict) -> list:
 
     if ref.ordinal is not None and out:
         idx = ref.ordinal if ref.ordinal >= 0 else len(out) + ref.ordinal
-        idx = max(0, min(idx, len(out) - 1))
+        if not 0 <= idx < len(out):
+            rank = (str(ref.ordinal + 1) if ref.ordinal >= 0
+                    else f"{abs(ref.ordinal)} from the end")
+            raise ReferenceResolutionError(
+                f"ordinal {rank} is out of range for {len(out)} candidate(s). "
+                "Clarify the reference; refusing to select a different object."
+            )
         out = [out[idx]] + out[:idx] + out[idx + 1:]
 
     return out

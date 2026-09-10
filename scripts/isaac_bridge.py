@@ -103,13 +103,11 @@ HOME_Q = [0.0, -1.2, -1.2, 0.0, -0.75, 0.0]  # gripper elbow-up, high
 # (gain tuner 8/8).
 from isaacsim import SimulationApp  # noqa: E402
 
-_release = os.environ.get(
-    "ISAACSIM_PATH",
-    os.path.expanduser(f"~/Projects/isaac/IsaacSim/_build/linux-{os.uname().machine}/release"),
-)
+from isaac_runtime import find_experience  # noqa: E402
+
 _kwargs = {}
 if args.engine == "newton":
-    _kwargs["experience"] = os.path.join(_release, "apps", "isaacsim.exp.full.newton.kit")
+    _kwargs["experience"] = str(find_experience("newton"))
 app = SimulationApp(
     {"headless": not args.gui, "renderer": "RayTracedLighting",
      "width": args.width, "height": args.height},
@@ -909,8 +907,12 @@ def _run_exec_jobs() -> None:
         buf = io.StringIO()
         try:
             with contextlib.redirect_stdout(buf):
-                exec(code, globals())
-            holder["resp"] = {"ok": True, "stdout": buf.getvalue()[-8000:]}
+                if callable(code):
+                    resp = code()
+                else:
+                    exec(code, globals())
+                    resp = {"ok": True}
+            holder["resp"] = {**resp, "stdout": buf.getvalue()[-8000:]}
         except Exception:
             holder["resp"] = {"ok": False, "error": traceback.format_exc()[-2000:],
                               "stdout": buf.getvalue()[-2000:]}
@@ -970,31 +972,13 @@ class Handler(socketserver.StreamRequestHandler):
                 _targets["q"] = None
             return {"ok": True}
         if op == "reset_props":
-            # Re-settle every prop back onto its spawn (main thread, between
-            # sim steps) so a repeated demo starts fresh after a pick moved a
-            # cube into the bin. Reuses the exec-job queue for main-thread
-            # execution.
-            #
-            # KNOWN LIMITATION (Newton): a teleport of a RESTING body does not
-            # reliably stick. The write reaches both solver state buffers
-            # (verified by reading them straight back) and one step later the
-            # body can be at its old pose again. A timeline Stop -> Play does
-            # make the solver re-parse the stage, but it throws during
-            # re-attach on this build and leaves the scene unusable, so it is
-            # NOT done here.
-            #
-            # Consequence for benchmarks: after an episode that put a cube in
-            # the bin, reset_props may leave it there. A sweep MUST verify the
-            # post-reset pose and skip/restart rather than trust it -- see
-            # benchmark/rig/ablation.py, which checks the start pose and
-            # aborts. Without that check a sweep silently measures the
-            # previous episode's end state, `truth=True` becomes a tautology,
-            # and it reports a perfect score with the cube having "moved"
-            # 1.5 cm.
+            # Both settling and read-back run between sim steps on Kit's
+            # MAIN thread. Return the measured result, not exec's generic
+            # "did not throw" acknowledgement. No timeline Stop/Play.
             holder: dict = {}
             done = threading.Event()
             with _exec_lock:
-                _exec_jobs.append(("_settle_props()", holder, done))
+                _exec_jobs.append((_reset_props_verified, holder, done))
             done.wait(timeout=60)
             return holder.get("resp", {"ok": False, "error": "reset timed out"})
         if op == "place_prop":
@@ -1279,6 +1263,53 @@ def _settle_props() -> None:
             print(f"[bridge] settle: {_n} hard-clamped onto table", flush=True)
     for _ in range(30):
         app.update()
+
+
+def _reset_props_verified() -> dict:
+    """Use the existing physical settle path and collect its final poses.
+
+    Positions are physics RigidPrim read-backs in metres, converted from
+    world to robot-base frame. The 2 cm tolerance matches _settle_props;
+    this wrapper changes no controller, contacts or settle tuning.
+    """
+    from isaacsim.core.experimental.prims import RigidPrim
+
+    if not _tl.is_playing():
+        raise RuntimeError("reset requires a playing physics timeline")
+    if not _PROP_SPAWNS:
+        raise RuntimeError("reset has no configured prop spawns to verify")
+    missing = [n for n in _PROP_SPAWNS if not stage.GetPrimAtPath(f"/World_Props/{n}")]
+    if missing:
+        raise RuntimeError(f"reset missing required props: {missing}")
+    _settle_props()
+    if not _tl.is_playing():
+        raise RuntimeError("physics timeline stopped during reset; read-back is unverified")
+    checks = {}
+    errors = []
+    tolerance_m = 0.02
+    for name, spawn in _PROP_SPAWNS.items():
+        positions = RigidPrim(f"/World_Props/{name}").get_world_poses()[0]
+        position = np.asarray(positions.numpy(), dtype=float).reshape(3).copy()
+        position[2] -= BASE_Z
+        finite = bool(np.all(np.isfinite(position)))
+        error_m = float(np.linalg.norm(position - np.asarray(spawn))) if finite else None
+        within = error_m is not None and np.isfinite(error_m) and error_m <= tolerance_m
+        checks[name] = {
+            "spawn_position_m": list(spawn),
+            "position_m": position.tolist() if finite else None,
+            "error_m": error_m if error_m is not None and np.isfinite(error_m) else None,
+            "finite": finite, "within_tolerance": bool(within),
+        }
+        if not within:
+            reason = f"spawn error {error_m} m > {tolerance_m} m" if finite else "non-finite position"
+            errors.append(f"{name}: {reason}")
+    result = {"ok": not errors, "props_reset": list(checks) if not errors else [], "reset_verification": {
+        "channel": "physics", "frame": "robot_base", "tolerance_m": tolerance_m,
+        "props": checks,
+    }}
+    if errors:
+        result["error"] = "reset verification failed: " + "; ".join(errors)
+    return result
 
 
 # The MJWarp solver only exists once physics has been created and stepped, so

@@ -21,6 +21,7 @@ from ..agent.trace import TraceLogger
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..memory import BeliefStore, EpisodicMemory
 from ..perception.colors import detection_color, parse_color_query
+from ..perception.reference import ReferenceResolutionError, parse_reference
 from typing import TYPE_CHECKING
 
 from ..perception.workspace import WorkspaceFilter
@@ -677,14 +678,47 @@ class SkillRuntime:
         return self.kin.fk(self.arm.get_state().q)[:3, 3]
 
     def _reconcile_held(self) -> None:
-        """Drop a stale held-state: if we believe we hold something but the
-        jaws report (near) fully closed, the object slipped out (or a crash
-        left the flag latched). Without this, one dropped object bricks
-        every subsequent pick with 'already holding'."""
+        """Reconcile the held flag with the jaws, in BOTH directions.
+
+        (a) Stale held-state: we believe we hold something but the jaws report
+        (near) fully closed -> it slipped (or a crash left the flag latched);
+        clear it, or one dropped object bricks every later pick with
+        'already holding'.
+        (b) Provisional grasp: a close was commanded but the code never
+        reached the `held_object = label` line (exception during lift, an
+        e-stop, a feedback timeout). If the jaws are stalled OPEN on
+        something, the object IS in the gripper -> promote the marker to the
+        real held state so the next skill does not open the jaws on it.
+        Jaws closed on air -> drop the marker.
+        """
+        prov = getattr(self, "_held_provisional", None)
+        if prov is not None and not self.held_object:
+            wf = self._gripper_width_frac()
+            if wf is not None:
+                if wf >= float(self.cfg.grasp.get("air_grasp_frac", 0.04)):
+                    label, det_label, color = prov
+                    self.held_object = label
+                    self._held_det_label = det_label
+                    self._held_color = color
+                    self.memory.add(
+                        "outcome",
+                        f"the jaws are stalled on {label!r} although the grasp did not "
+                        "complete -- treating it as held",
+                    )
+                self._held_provisional = None  # either promoted or refuted
         if not self.held_object:
             return
         wf = self._gripper_width_frac()
         if wf is None:  # unknown feedback: keep the cautious assumption
+            return
+        thin = float((self.cfg.arm.get("gripper") or {}).get("min_object_m", 0.0) or 0.0)
+        # #2.5: a legitimately held VERY thin object (a card, a cable) stalls
+        # the jaws below `air_grasp_frac` of travel. If the profile declares
+        # `gripper.min_object_m`, anything at or above that width is a real
+        # hold; without the key the 4 % heuristic stands (booth props are
+        # chunky and the SO-101/reBot profiles do not declare it).
+        held_w = self._gripper_width_m()
+        if thin > 0 and held_w is not None and held_w >= thin:
             return
         if wf < float(self.cfg.grasp.get("air_grasp_frac", 0.04)):
             self.memory.add(
@@ -695,6 +729,86 @@ class SkillRuntime:
             self.held_object = None
             self._held_det_label = None
             self._held_color = None
+
+    def _grasp_retry_verdict(self, object: str, attempt: int, last_err: str) -> str | None:
+        """Why persistence should STOP retrying a grasp, or None to keep going.
+
+        Shared by pick_and_place, handover and sort_by_color so the three
+        agree on what a retry cannot cure: an e-stop, an object the world
+        model has never seen after re-scans (a typo, or not on the table),
+        and an object wider than the jaws (re-scanning cannot shrink it)."""
+        if self.arm.harness.estopped:
+            return "e-stop latched; not retrying"
+        if attempt >= 2 and "no detections" in last_err and self.beliefs.find(object) is None:
+            return "never seen after re-scans; giving up early"
+        if "> gripper max" in last_err and "IK failed" not in last_err:
+            return "object wider than the jaws; use push_object; giving up early"
+        return None
+
+    def _grasp_with_persistence(self, object: str, material: str | None = None,
+                                budget_s: float | None = None) -> dict:
+        """Grasp with the SAME persistence pick_and_place has (re-home,
+        re-scan, fresh plan; `grasp.persist_seconds` / `max_pick_attempts`,
+        capped by the task budget). handover and sort_by_color used to call
+        `skill_grasp_object` ONCE and report the first miss as failure --
+        inconsistent with the pick they sit next to on the cheat card."""
+        gcfg = self.cfg.grasp
+        max_attempts = max(int(gcfg.get("max_pick_attempts", 8)), 1)
+        t0 = time.monotonic()
+        deadline = t0 + float(budget_s if budget_s is not None else gcfg.get("persist_seconds", 120.0))
+        task_deadline = getattr(self, "_task_deadline", None)
+        if task_deadline is not None:
+            deadline = min(deadline, task_deadline)
+        last_err = "grasp failed"
+        attempt = 0
+        while attempt < max_attempts:
+            attempt += 1
+            if attempt > 1:
+                if time.monotonic() > deadline:
+                    attempt -= 1
+                    last_err += " (persistence budget exhausted)"
+                    break
+                self.memory.add("note", f"not giving up: attempt {attempt}/{max_attempts} on {object!r}")
+                try:
+                    self.skill_move_home()
+                except (SkillError, SafetyViolation):
+                    pass
+                self._reobserve()
+            try:
+                res = self.skill_grasp_object(object, material=material)
+            except (SkillError, SafetyViolation) as e:
+                res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+            if res.get("ok", True) and res.get("held"):
+                res["grasp_attempts"] = attempt
+                return res
+            last_err = str(res.get("error", "grasp failed"))
+            self.memory.add("outcome", f"grasp attempt {attempt} failed: {last_err[:100]}")
+            stop = self._grasp_retry_verdict(object, attempt, last_err)
+            if stop:
+                last_err += f" ({stop})"
+                break
+        return {"ok": False, "held": False, "error": last_err, "grasp_attempts": attempt}
+
+    def begin_task_budget(self, seconds: float | None = None) -> None:
+        """Open a task-scale persistence budget shared by EVERY tier.
+
+        Called by the orchestrator at task start; `pick_and_place` (and the
+        skills composed from it) cap their own `persist_seconds` deadline to
+        what is left of it. `grasp.task_persist_seconds` (default 1.5x the
+        per-call budget) bounds a whole task, however many tiers retry."""
+        gcfg = self.cfg.grasp
+        if seconds is None:
+            seconds = float(gcfg.get("task_persist_seconds",
+                                     1.5 * float(gcfg.get("persist_seconds", 120.0))))
+        self._task_deadline = time.monotonic() + float(seconds)
+
+    def end_task_budget(self) -> None:
+        self._task_deadline = None
+
+    def _gripper_width_m(self) -> float | None:
+        """Current jaw opening in metres (fraction x max width), or None."""
+        wf = self._gripper_width_frac()
+        return None if wf is None else float(wf) * float(self._max_width)
 
     def _gripper_width_frac(self) -> float | None:
         """0 = fully closed, 1 = fully open (from motor angle, linear map).
@@ -849,6 +963,11 @@ class SkillRuntime:
                     prefer_label=r["prefer_label"],
                 )
                 return frame, fix
+            except ReferenceResolutionError:
+                # An unsatisfied identity constraint is not detector flicker.
+                # Retrying/falling back to a remembered noun can select a
+                # different object than the visitor explicitly requested.
+                raise
             except SkillError as e:
                 last_err = e
         # Second filter: THE OTHER CAMERAS. An object 40 px small (or
@@ -875,9 +994,18 @@ class SkillRuntime:
                     f"through {getattr(cam.stream, 'name', 'another camera')}",
                 )
                 return cframe, fix
+            except ReferenceResolutionError:
+                raise
             except Exception:
                 continue  # a miss or camera hiccup: try the next view
 
+        if not parse_reference(query).is_plain:
+            # A remembered noun (or one guessed bounding box) does not prove
+            # ordering, exclusions or relative size among current instances.
+            raise ReferenceResolutionError(
+                f"Cannot resolve {query!r} from current observations. "
+                "Clarify the reference; refusing an unqualified fallback."
+            )
         belief = r["belief"] or self.beliefs.find(query)
         max_age = float(self.cfg.get("perception_loop", {}).get(
             "belief_fallback_age_s", 3.0))
@@ -1368,7 +1496,17 @@ class SkillRuntime:
                                         bias_compensate=True):
                 raise SkillError("did not settle at grasp pose")
 
-            # 3. close with the material profile (two-stage, stall-aware)
+            # 3. close with the material profile (two-stage, stall-aware).
+            # From this instant the jaws may physically hold the object
+            # while `held_object` is still None: an exception between here
+            # and the assignment below (lift refused by the harness, an
+            # e-stop, a feedback timeout) used to leave a PHYSICALLY held
+            # object LOGICALLY unheld -- the next grasp_object then opened
+            # the jaws on it as "not holding anything". Record a provisional
+            # marker first; `_reconcile_held` promotes it (jaws stalled on
+            # something) or clears it (jaws closed on air) on the next call.
+            self._held_provisional = (label, fix.detection.label,
+                                      detection_color(frame.rgb, fix.detection))
             self._close_two_stage(profile)
 
             # 4. lift back to pregrasp (speed scaled by profile)
@@ -1392,6 +1530,7 @@ class SkillRuntime:
                 and expected_open >= commanded_open + 0.07
             )
             if air_grasp:
+                self._held_provisional = None
                 self.memory.add("outcome", f"grasp {label!r} FAILED: jaws closed on air")
                 try:
                     self.grasp_memory.record(
@@ -1407,6 +1546,7 @@ class SkillRuntime:
         self.held_object = label
         self._held_det_label = fix.detection.label
         self._held_color = detection_color(frame.rgb, fix.detection)
+        self._held_provisional = None  # promoted: the real flag is set now
         # Where the object sat relative to the TCP at the moment of grasp, in
         # the base frame. `place_at` aims the TCP, so without this the object
         # lands wherever the jaws happen to be holding it. MEASURED on LIBERO:
@@ -1823,6 +1963,21 @@ class SkillRuntime:
         gcfg = self.cfg.grasp
         max_attempts = max(int(gcfg.get("max_pick_attempts", 8)), 1)
         deadline = t0 + float(gcfg.get("persist_seconds", 120.0))
+        # #2.3: the budget must not multiply across tiers. The reflex tier
+        # burns persist_seconds, escalates, and the LLM tier calls
+        # pick_and_place on the same object again with a fresh budget -- a
+        # visitor watched 4 minutes of retries on one cube. The orchestrator
+        # opens a task epoch (`begin_task_budget`); inside one, the remaining
+        # TASK budget caps this call's deadline.
+        task_deadline = getattr(self, "_task_deadline", None)
+        if task_deadline is not None:
+            if time.monotonic() >= task_deadline:
+                return {
+                    "ok": False, "stage": "grasp",
+                    "error": "task persistence budget exhausted (an earlier tier already spent it)",
+                    "suggestion": "ask the visitor to reposition the object or pick a different one",
+                }
+            deadline = min(deadline, task_deadline)
 
         grasp = (
             {"held": already_held, "grip_verified": None, "grip_profile": None}
@@ -1872,19 +2027,13 @@ class SkillRuntime:
                     break
                 last_err = str(res.get("error", "grasp failed"))
                 self.memory.add("outcome", f"pick attempt {attempt} failed: {last_err[:100]}")
-                if self.arm.harness.estopped:
-                    last_err += " (e-stop latched; not retrying)"
-                    break
-                # Fail fast on errors persistence cannot cure: an object the
-                # world model has NEVER seen after full re-scans is a typo or
-                # simply not on the table -- burning 2 minutes on it reads as
-                # a hang at a live booth.
-                if (
-                    attempt >= 2
-                    and "no detections" in last_err
-                    and self.beliefs.find(object) is None
-                ):
-                    last_err += " (never seen after re-scans; giving up early)"
+                # Fail fast on what a retry cannot cure (e-stop; an object the
+                # world model has NEVER seen after re-scans -- a typo or not
+                # on the table; an object wider than the jaws): burning two
+                # minutes on those reads as a hang at a live booth.
+                stop = self._grasp_retry_verdict(object, attempt, last_err)
+                if stop:
+                    last_err += f" ({stop})"
                     break
             if grasp is None:
                 # Never leave the arm hanging mid-pose over the table after a
@@ -2085,11 +2234,12 @@ class SkillRuntime:
         if not self.held_object:
             if not label:
                 raise SkillError("not holding anything; say which object to hand over")
-            res = self.skill_grasp_object(label)
+            res = self._grasp_with_persistence(label)
             if not res.get("ok", True) or not res.get("held"):
                 return {
                     "ok": False,
                     "error": f"could not grasp {label!r} for handover: {res.get('error')}",
+                    "grasp_attempts": res.get("grasp_attempts"),
                 }
         hand_q = self._profile_q("handover_q", "present the object to a human")
         if not self.arm.move_joints(hand_q, duration_s=2.0):
@@ -2352,7 +2502,10 @@ class SkillRuntime:
                 continue  # already sorted
             query = f"{b.color} {b.label}" if b.color else b.label
             try:
-                res = self.skill_grasp_object(query)
+                # a per-object slice of the budget: one stubborn object must
+                # not eat the whole sort
+                res = self._grasp_with_persistence(
+                    query, budget_s=float(self.cfg.grasp.get("sort_object_persist_seconds", 40.0)))
             except (SkillError, SafetyViolation) as e:
                 failed.append({"label": query, "error": str(e)})
                 continue
@@ -2464,11 +2617,19 @@ class SkillRuntime:
             out["props_reset"] = list(world.reset_props())
             out["world"] = "mujoco"
         elif hasattr(raw, "reset_props"):
-            try:  # Isaac bridge: best effort, verified by the re-observe below
-                raw.reset_props()
-                out["world"] = "isaac"
+            out["world"] = "isaac"
+            try:  # Isaac bridge returns physics read-back, not camera inference.
+                from ..sim.isaac_reset import validate_isaac_reset
+
+                if not home_ok:
+                    raise SkillError("cannot reset props before the arm reaches home")
+                reset = validate_isaac_reset(raw.reset_props())
+                out["props_reset"] = reset["props_reset"]
+                out["reset_verification"] = reset["reset_verification"]
             except Exception as e:  # noqa: BLE001
                 out["world_error"] = str(e)
+                out["error"] = f"Isaac prop reset failed: {e}"
+                home_ok = False  # do not let the final home result mask a reset failure
         dropped = self.beliefs.clear()
         self.memory.reset_frames()
         self.memory.add("note", f"scene reset: {len(out['props_reset'])} prop(s) respawned, "

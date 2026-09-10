@@ -1,314 +1,426 @@
 # Architecture
 
+Synced to the code on 2026-09-10 (737 tests, 33 skills, 41 MCP tools;
+re-derive before quoting -- see "Counts" at the end). Read this after the
+README and before `CLAUDE.md`, which carries the invariants an editor must
+not break.
+
 ## Design position
 
-Three reference systems informed this design:
+CASCADE is an *agentic* manipulation stack: an LLM (or a human in a chat
+host) commands a **curated skill API**, every skill is safety-gated and
+traced, and the physical effect of every skill is **verified by a channel
+the actuator does not own**. Three published systems set the shape:
 
-- **ASPIRE** (NVIDIA GEAR, 2026): a coding agent programs a robot through a
-  *curated primitive API* whose every call records multimodal evidence
-  (their ablation: the trace-exposing execution engine alone lifted success
-  14% → 62%). We replicate the API surface (`get_observation`, `localize`,
-  `plan_grasp`-equivalent, `solve_ik`, motion + gripper primitives), the
-  per-call trace format (`trace.jsonl` + before/after keyframes), the
-  debugging heuristics (gripper-width-after-close as the grasp-success
-  signal), and the markdown skill library (store implemented in
-  `skills/library.py`; the load-into-context loop is still on the ROADMAP).
-- **Agentic-VLA** (ICML 2026): LLM sub-goal decomposition, a zero-shot VLM
-  "exploration critic" that emits ONE spatial suggestion per consultation
-  (we reuse their prompt near-verbatim), and embedding-indexed experience
-  memory. Their loop is training-time; we repurposed the components into an
-  inference-time execute→verify→recover loop.
+- **ASPIRE** (NVIDIA GEAR, 2026): a coding agent programs a robot through
+  primitives whose every call records multimodal evidence (their ablation:
+  the trace-exposing execution engine alone lifted success 14% → 62%). We
+  replicate the API surface (`get_observation`, `localize_object`,
+  `preview_grasp`, motion + gripper primitives), the per-call trace
+  (`trace.jsonl` + before/after keyframes) and the post-run diagnosis →
+  skill-note loop (`agent/aspire.py`, `scripts/learn_from_runs.py`).
+- **Agentic-VLA** (ICML 2026): LLM sub-goal decomposition, a VLM
+  "exploration critic" consulted on failure (prompt reused near-verbatim,
+  `agent/advisor.py`), embedding-indexed experience memory (tier 2), and
+  *adaptive reward synthesis* -- which we run at inference time as
+  **checkable milestones** (`agent/milestones.py`: symbolic against the
+  world model first, VLM only when the symbolic tier abstains).
 - **Claude plays robotics** (Anthropic, 2026): control-interface level
-  dominates model choice — LLMs commanding high-level primitives massively
-  outperform LLMs near the metal; one LLM turn costs 2–15 s, so anything
-  routine must not wait on the model; only the newest frames matter; and
-  structured text state beats extra image context. This drove the
-  livestreaming redesign below.
+  dominates model choice; one LLM turn costs 2–15 s so routine commands
+  must not wait on the model; structured state beats extra image context;
+  a *cursor the model can query* (`probe_point`) beats overlays it must
+  read (their 6% → 32%).
 
-## Livestreaming + the reflex fast path (2026-07-18)
+Two later additions changed what the loop measures rather than how it acts:
 
-The demo is now an always-on system rather than a per-task pipeline,
-modelled on how humans act: perception never stops, routine commands are
-reflexes, and deliberation is reserved for the novel.
+- **Pigey / Harness-VLA** (2026): a self-reported `ok` is a claim, not a
+  fact. `agent/effects.py` verifies every primitive's effect against an
+  independent channel and **downgrades a reported success** when refuted;
+  `memory/envelope.py` folds outcomes into a per-skill operating envelope
+  the planner reads back.
+- **Vesta** (arXiv:2606.20905, 2026): a VLM planner given its own history as
+  *images + text* plans multi-step tasks far better than one given text
+  alone (their Table 5: 49.7 → 75.9). `memory/episodic.py::memory_frames`
+  + `orchestrator._with_memory_harness` + the `task_memory` MCP tool are
+  that harness. No Vesta weights or code were released; only the harness
+  and the evaluation design were adopted (ROADMAP "Landed 2026-09-10").
+
+We deliberately did **not** build a VLA-policy-in-the-loop executor: the
+deterministic skill stack is debuggable, safety-gateable and runs offline
+(ROADMAP records the decision and the LIBERO layer-attribution numbers
+that back it).
+
+## The runtime, end to end
 
 ```
-N cameras ──CameraStream (thread each, latest-frame slot, drop-stale)
-   │            │
-   │            ├── WorldWatcher (thread, ~3 Hz): detector + HSV color tag
-   │            │     └─> BeliefStore (thread-safe): label+color+3D+freshness
-   │            └── StreamServer (MJPEG dashboard): camera grid + narration
-   │                  feed (episodic events) + object table   -> browser
+                 chat host (OpenClaw / Hermes / Claude Code / Codex)          CLI / REPL
+                 host LLM picks tools over MCP stdio                         --task / --interactive
+                          │                                                          │
+                          ▼                                                          ▼
+              apps/mcp_server.py  ── 41 tools ──┐                  agent/orchestrator.py
+              (33 skills − task_done             │                  tier 1 REFLEX   regex grammar      ~µs
+               + 8 host extras: camera_snapshot, │                  tier 2 HABIT    experience memory  ~ms
+               world_state, task_memory, ...)    │                  tier 3 LLM      + memory harness   2–15 s/turn
+                                                 ▼                            │
+                              skills/runtime.py  SkillRuntime.execute()  ◀────┘
+                              ONE choke point: arm selection, BEFORE keyframe, watcher pause,
+                              skill body, postcondition VERIFY, envelope, AFTER keyframe,
+                              trace row (with tier), memory tuple <frame, action, verdict>
+                                                 │
+        ┌──────────────┬──────────────┬──────────┼───────────────┬─────────────────┬──────────────┐
+        ▼              ▼              ▼          ▼               ▼                 ▼              ▼
+   perception/     grasping/       control/    safety/         memory/            sim/            eval/
+   CameraRig →     GraspGen-X      Pinocchio   SafetyHarness   BeliefStore        MuJoCo world    Robo-Dopamine
+   WorldWatcher    (ZMQ) + OBB     FK/IK,      per arm: every  (persisted),       registry,       progress judge
+   → BeliefStore   fallback,       min-jerk    50 Hz waypoint  EpisodicMemory     rendered RGB-D  (GRM/VLM, off
+   + occupancy     outcome memory  streaming   + occupancy     (frames K=4),      cameras, truth  the hot path)
+   client          re-rank         to ANY arm  + neighbours    envelope, habits   channel
+```
+
+Everything above `SkillRuntime` decides *what*; everything below it is the
+same for every brain, every tier and every robot. That is the property the
+name refers to: behaviour, safety and tracing do not depend on which tier
+(or which hardware) acted.
+
+### Always-on perception, reflex-first dispatch (since 2026-07-18)
+
+```
+N cameras ──CameraStream (thread each, latest-frame slot, drop-stale; rendered
+   │          cameras pump at profile `fps`, 10 for MuJoCo scenes)
+   │            ├── WorldWatcher (thread, ~3 Hz): detector + HSV colour tag +
+   │            │     robot-body mask ──▶ BeliefStore (label + colour + 3D +
+   │            │     freshness) and occupancy integration
+   │            └── StreamServer (lazy MJPEG dashboard: rgb | depth | agent view,
+   │                  narration, object table, chat, STOP)
    │
-chat command ("pick and place pink object")
-   ├─ tier 1 REFLEX   template grammar -> skill calls          (~µs)
-   ├─ tier 2 HABIT    experience memory (hashed-BoW cosine)    (~ms)
-   └─ tier 3 LLM      the original orchestrator loop           (2-15 s/turn)
-        all tiers execute through the same safety-gated SkillRuntime
+chat command ("pick and place the red cube")
+   ├─ tier 1 REFLEX   template grammar -> skill plan          agent/reflex.py
+   ├─ tier 2 HABIT    hashed-BoW cosine ≥ 0.9, wins > losses  runs/experience.json
+   └─ tier 3 LLM      decomposition + tool loop + advisor     agent/orchestrator.py
+        all tiers execute through the same SkillRuntime; every trace row
+        records `tier: reflex | experience | llm | mcp-host`
 ```
 
-Key mechanisms:
+- **Latest-slot streaming, never queues** (`perception/stream.py`).
+- **Warm world model.** Command resolution is a belief lookup, not an
+  observe→detect round trip. Fusion pauses during `_MOTION_SKILLS` (the
+  held object must not be re-fused mid-air). Two observations with
+  DIFFERENT measured colours are two objects however close; proximity
+  fusion (8 cm) is for label aliases of one object.
+- **Colour without CLIP** (`perception/colors.py`): median mask HSV → colour
+  word, stored on beliefs, matched against colour words in queries.
+- **LazyArm** (`control/lazy_arm.py`): the MCP server pre-warms cameras,
+  detector and world model at startup; motors are not touched until the
+  first motion command. Its `profile_type` is readable without
+  materializing, which is what lets the truth channel bind early.
 
-- **Latest-slot streaming, never queues.** A consumer always gets the
-  newest frame; nothing falls behind the sensor (`perception/stream.py`).
-- **Warm world model.** The WorldWatcher fuses every rig camera with depth
-  + extrinsics into the BeliefStore continuously, so command resolution is
-  a dictionary lookup, not an observe→detect round trip. It pauses during
-  arm motion (the held object must not be re-fused mid-air) and heartbeats
-  the safety watchdog (`perception/world.py`).
-- **Color without CLIP.** Detections are color-named from median mask HSV
-  (`perception/colors.py`), stored on beliefs, and matched against color
-  words in queries — "pink object" works on a closed-set COCO detector.
-  When the ultralytics CLIP fork lands, open-vocab prompts slot in and the
-  HSV tag becomes redundant metadata. The VLM can still be consulted (tier
-  3 / advisor), but never on the hot path.
-- **One-call pick-and-place.** `skill_pick_and_place` = resolve → grasp →
-  place (named object or drop zone) → home, with stage timings in the
-  result; both grasp and place stages keep retrying on fresh perception
-  (re-home, re-scan, re-plan) until success or the persistence budget runs
-  out (`grasp.persist_seconds: 120` / `grasp.max_pick_attempts: 8` in
-  configs/demo.yaml). Hermes executes the whole command as a single MCP
-  tool call; compute overhead is <100 ms and total time is arm motion time
-  (`skills/runtime.py`).
-- **LazyArm.** The MCP gateway pre-warms cameras/detector/world model at
-  startup, but motors are not touched until the first motion command
-  (`control/lazy_arm.py`) — starting a chat server must not power a robot.
-- **Social skills.** wave / point_at / handover / sort_by_color /
-  describe_scene / count_objects / move_relative give booth visitors a
-  vocabulary beyond pick-and-place; all deterministic, all harness-gated.
+### The execute() choke point
 
-We deliberately did NOT build a VLA-policy-in-the-loop baseline first: the
-deterministic skill stack is debuggable, safety-gateable, and runs offline.
-The LingBot-VLA-style websocket policy server slots in later as an
-alternative *executor* behind the same skill API (see ROADMAP).
+`SkillRuntime.execute(name, args)` is the only way a skill runs, from any
+tier or host. In order:
+
+1. `arm=` popped from the args and bound thread-locally for this call
+   (multi-arm; `""`/`default` = primary; unknown name = `SkillError`).
+2. BEFORE keyframe (a fresh frame if none exists -- the first skill of a
+   run used to record `null`); a `PostconditionChecker.snapshot()` of the
+   target object.
+3. Watcher paused for motion skills; the skill body runs; every exception
+   becomes `{"ok": false, "error": ...}` -- nothing escapes by design.
+4. **Postcondition verification** (`agent/effects.py`): the effect is
+   measured on the strongest available channel -- `physics` (sim truth),
+   `belief` (perception), `gripper` (jaw width). A refuted claim
+   *downgrades* `ok` and sets `self_reported_ok`. A displacement is two
+   readings of the SAME channel (`_comparable_start`); a verifier that
+   itself crashes yields an UNVERIFIED verdict naming the cause, never a
+   silent pass.
+5. Envelope update (`memory/envelope.py`), AFTER keyframe -- a FRESH frame
+   for motion skills, taken after the arm stopped (the pre-motion
+   `last_frame` graded the logger, not the robot, and an outcome judge
+   scored 0% on a confirmed pick).
+6. Trace row (`trace.jsonl`, with `tier`), and the Vesta memory tuple:
+   AFTER frame + action text + independent verdict.
+
+### Motion safety path
+
+Skills only ever hold a `SafeArm`. `SafeArm.move_joints()` stretches the
+duration so the min-jerk peak stays under the velocity cap, checks
+perception freshness once at `begin_motion()`, then `ArmBase.stream_to()`
+asks `SafetyHarness.approve()` for every 50 Hz waypoint: joint limits and
+margins, workspace AABB, table-plane clearance (with an explicit exemption
+cylinder around a grasp target), keep-out zones, perception watchdog,
+e-stop latch, the **occupancy clearance gate** (`perception/occupancy.py`:
+an ESDF/EDT distance query against the fused map, robot body masked out
+before integration; stale or absent map = SKIP, never "blocked"), and the
+**inter-arm gate** (segment-to-segment link-centreline distance in a shared
+table frame, `safety/geometry.py`, when two arms declare `base_pose`).
+`SafetyViolation` aborts mid-stream. `vet_pose()` is the static twin used
+by grasp ranking so a doomed candidate loses before the arm moves. Gripper
+commands bypass geometric gating (e-stop check only).
+
+### Grasp pipeline
+
+```
+localize ─▶ ObjectFix (base-frame OBB; de-biased centre, verified on 2 engines)
+   ├─▶ GraspGen-X candidates (ZMQ :5556, learned 6-DoF; gripper passed as a
+   │    swept volume -- the arm profile owns `grasp.graspgenx.sweep`)
+   └─▶ OBB candidates (analytic, always computed)     any server error → OBB only,
+                                                      probed ONCE at startup, banner says which
+   grasp-outcome memory re-rank + z-nudge (~/.cascade/grasp_memory.json)
+   select_grasp: jaw-width filter ▸ IK pregrasp → grasp (seeded from home_q, on
+   purpose) ▸ harness pre-vet incl. 7 samples along the descent
+   re-home (forces the elbow-up branch) ▸ pregrasp ▸ exempted descent ▸ two-stage
+   stall-aware close ▸ lift ▸ air-grasp check (jaw fraction) ▸ grip verified
+   place_at: same look that aims the held object detects a SLIP (object far below
+   the TCP) and raises instead of lowering an empty gripper; pick_and_place
+   re-grasps until `grasp.persist_seconds` / `max_pick_attempts` run out
+```
+
+Single-hinge jaws (SO-101) close toward the fixed tip, so the profile
+declares the jaw datum (`jaw_fixed_tip_m`, `jaw_close_dir`) and the selector
+displaces the IK target accordingly -- without it every grasp straddled the
+prop while perception was accurate to 1.4 mm.
+
+### Sim as an instrument, not a stand-in
+
+`sim/mujoco_world.py` keeps ONE `MjModel`/`MjData` per resolved MJCF path
+(refcounted registry, one lock). The arm steps it; rendered cameras
+(`perception/mujoco_camera.py`, `type: mujoco`) paint from it; the truth
+channel (`sim/truth.py`) reads free-body poses from it. So the camera sees
+the physics prop, not a painted one, and `postcondition: confirmed
+(channel: physics)` is a measurement. `demo_scene.py` writes the scene
+(arm MJCF + table + N props from the camera profile's `extra_props`)
+deterministically, so either the arm or a camera can create it first.
+Isaac Sim plays the same role over a TCP bridge (`scripts/isaac_bridge.py`,
+`sim/bridge_client.py`) with `RigidPrim` poses as truth. `reset_scene`
+puts free bodies back on `qpos0` under the world lock, then burns one frame
+before observing (a render in flight when the state was teleported would
+otherwise be served as fresh).
+
+### Memory
+
+| store | what | horizon | consumer |
+|---|---|---|---|
+| `BeliefStore` (`memory/beliefs.py`) | objects: label, colour, 3D, freshness; visible/remembered | persisted across runs (wall-clock stamps, `LOADED_MIN_AGE_S` floor, 6 h max age) | every skill; can inform the agent, can never aim the jaws (`belief_fallback_age_s`) |
+| `EpisodicMemory` text ring | events, outcomes | ~15 s | `recall_memory`, narration |
+| `EpisodicMemory` frame ring | AFTER frame + action + verdict per motion skill | task-scale (600 s), reset per task / by `reset_scene` | `memory_frames(k)`: first frame pinned, uniform sample, newest last → LLM turn (images) and `task_memory` tool |
+| `ExperienceMemory` (`agent/reflex.py`) | command → plan habits, hashed BoW in a TurboQuant index | `runs/experience.json` | tier 2 |
+| `GraspOutcomeMemory` | per-object grasp features, wins/losses | `~/.cascade/grasp_memory.json` | grasp re-rank + z-nudge |
+| `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes | `runs/` | planner context, ROADMAP follow-ups |
+
+`skills/library.py` holds markdown skill notes: `agent/aspire.py` distils a
+*validated repair* (a failure followed by the same primitive succeeding)
+from a finished run's trace (`scripts/learn_from_runs.py`, between sessions,
+never mid-demo), and `retrieve()` loads guard-matched notes into the tier-3
+context at task start (`orchestrator.run_task`, wired in `build_runtime`).
+
+### Evaluation
+
+`eval/progress_judge.py` is a Robo-Dopamine-style progress judge: BEFORE/
+AFTER keyframes (plus optional goal image) → `<score>±NN%</score>` from a
+GRM or any OpenAI-compatible VLM. It runs **off the hot path**
+(`scripts/judge_run.py` over a finished run dir) and is calibrated against
+the physics postcondition per step (confusion matrix in the run summary).
+The first honest number on this rig: +0.45 on a physics-confirmed pick
+after the AFTER-keyframe fix; 0.00 before it.
 
 ## Module map
 
 ```
 src/cascade/
-├── types.py            Frame / Detection / ObjectFix / Grasp / RobotState
-├── config.py           YAML profiles (cameras/, arms/, llm/) merged into one Cfg
+├── types.py            Frame / Detection / ObjectFix / Grasp / RobotState / SkillError
+├── config.py           YAML profiles (cameras/, arms/, llm/) → one Cfg; `extends:`,
+│                       arm `overrides:`, ${repo}/${assets}; CASCADE_BOOTH overlay
+├── device.py           resolve_device(): auto CUDA/ROCm → MPS → CPU, degrade with a warning
 ├── perception/
-│   ├── camera_base.py  CameraBase ABC + factory; Frames carry METRIC depth
-│   ├── realsense_camera.py   D4xx + L515 (local fork's pyrealsense2)
-│   ├── opencv_camera.py      RGB-only UVC
-│   ├── mock_camera.py        synthetic tabletop + npz replay (cascade-record)
-│   ├── isaac_camera.py       Isaac Sim bridge frames (RGB-D + per-frame T_base_cam)
+│   ├── camera_base.py        CameraBase ABC + make_camera(); Frames carry METRIC depth
+│   ├── realsense_camera.py   D4xx / L515          opencv_camera.py  RGB-only UVC
+│   ├── mock_camera.py        synthetic tabletop / npz replay
+│   ├── mujoco_camera.py      RGB-D RENDERED from the shared MuJoCo world (type: mujoco)
+│   ├── isaac_camera.py       Isaac bridge frames (RGB-D + per-frame T_base_cam)
 │   ├── depth_provider.py     sensor → mono plugin → table-plane ray-cast
-│   ├── detector.py           open-vocab YOLOE/YOLO-World + MockDetector
-│   ├── grounding.py          Extrinsics + localize_object (color/near-aware)
-│   ├── vlm_ground.py         second-chance VLM grounder (detector-miss path)
-│   ├── colors.py             mask HSV → color name; color-query parsing
-│   ├── stream.py             CameraStream (pump thread) + CameraRig (N cams)
-│   └── world.py              WorldWatcher: always-on detection → beliefs
+│   ├── detector.py           YOLOE / YOLO-World + MockDetector (open world by default)
+│   ├── vlm_detector.py       VLM as detector      vlm_ground.py  second-chance grounder
+│   ├── segmenter.py          mask refinement      robot_mask.py  arm body out of depth
+│   ├── grounding.py          Extrinsics + localize (colour/near-aware, de-biased OBB centre)
+│   ├── calibration.py        Kabsch camera→base fit with RMSE + degeneracy refusal
+│   ├── colors.py             mask HSV → colour word; colour-query parsing
+│   ├── stream.py / world.py  CameraStream + CameraRig / WorldWatcher (always-on fusion)
+│   ├── occupancy.py          OccupancyMap client + harness clearance gate
+│   ├── occupancy_backends.py nvblox | warp | voxel (+ _warp_tsdf_kernels.py: TSDF carve + exact EDT)
+│   ├── probe.py / pixel_target.py / visual_interface.py / visual_diff.py
+│   │                         cursor, pixel→object, annotated agent view, before/after diff
+│   ├── reference.py          goal/reference images      workspace.py  reachable-region filter
 ├── memory/
-│   ├── turboquant.py   TurboQuant-style rotation+scalar quantizer (numpy)
-│   ├── vector_index.py asymmetric top-k cosine over 4-bit codes
-│   ├── episodic.py     10-15 s ring: events, thumbnails (embeddings opt-in)
-│   ├── beliefs.py      object permanence (visible/remembered states)
-│   └── grasp_memory.py persisted per-object grasp-outcome prior
-│                       (re-ranks candidates + nudges grasp z)
-├── device.py           compute-device resolution: auto CUDA/ROCm → MPS → CPU,
-│                       explicit-but-absent degrades with a warning
+│   ├── beliefs.py      object permanence, colour-aware fusion, save/load (wall clock)
+│   ├── episodic.py     text ring (15 s) + frame ring (task-scale) + memory_frames(k)
+│   ├── envelope.py     Harness-VLA operating envelope (per-skill outcome stats)
+│   ├── grasp_memory.py persisted grasp-outcome prior (re-rank + z-nudge)
+│   └── turboquant.py / vector_index.py   4-bit rotation quantizer + asymmetric top-k
 ├── control/
-│   ├── kinematics.py   Pinocchio FK/IK, explicit URDF/USD (assets/), DLS+restarts,
-│   │                   N controlled joints, optional task weighting
-│   ├── usd_model.py    USD-physics → URDF translation (no aarch64 usd-core)
-│   ├── arm_base.py     min-jerk streaming, feedback-based settling + make_arm
-│   ├── mock_arm.py     kinematic sim + gripper object-stop emulation (any DoF)
-│   ├── lazy_arm.py     defer motor bring-up until the first motion command
-│   ├── isaac_arm.py    Isaac Sim articulation over the TCP bridge
-│   ├── mujoco_arm.py   any MJCF in MuJoCo physics, joints addressed BY NAME;
-│   │                   pluggable runtime -- `engine: mjc` (C, the fast default)
-│   │                   or `engine: warp` (MuJoCo Warp GPU runtime, CPU-capable)
-│   ├── feetech.py      Feetech SCS/STS servo-bus protocol (pure framing)
-│   ├── feetech_arm.py  SO-101 & co: Feetech servos over USB serial, SYNC_WRITE
-│   │                   streaming (UNVERIFIED on hardware)
-│   └── rebot_rs_arm.py real RS arm: motorbridge CAN, mechPos param reads,
-│                       stall-aware two-stage gripper close
-├── safety/harness.py   fail-closed gate for every waypoint + SafeArm wrapper
+│   ├── arm_base.py     six abstract methods + min-jerk stream_to() + make_arm()
+│   ├── arm_rig.py      N named arms, first = manipulation arm (twin of CameraRig)
+│   ├── kinematics.py   Pinocchio FK/IK (DLS + restarts, N joints, task weights)
+│   ├── usd_model.py    USD-physics → URDF (no aarch64 usd-core)
+│   ├── lazy_arm.py     motors untouched until the first motion command
+│   ├── mock_arm.py     kinematic sim, any DoF
+│   ├── mujoco_arm.py   any MJCF; engines mjc (C) | warp (MuJoCo Warp); viewer guarded
+│   │                   by a display probe (a sleeping display segfaults GLFW)
+│   ├── isaac_arm.py    Isaac articulation over the TCP bridge
+│   ├── feetech.py / feetech_arm.py   SO-101 & co over Feetech serial (UNVERIFIED on hw)
+│   ├── rebot_rs_arm.py / rebot_rs_mb_arm.py   reBot B601 over CAN / MotorBridge
+│   ├── ros2_arm.py     ANY ros2_control robot (JointState in, JointTrajectory out)
+│   └── unitree_arm.py  Unitree SDK arms (H1 / H1-2 / G1)
+├── safety/
+│   ├── harness.py      SafetyHarness (approve / vet_pose, escape rules) + SafeArm
+│   └── geometry.py     segment-segment distances for the inter-arm gate
 ├── grasping/
-│   ├── obb_grasp.py    base-frame OBB grasps (short-axis yaw, height frac)
-│   ├── graspgenx_backend.py  learned 6-DoF grasps via ZMQ (default backend,
-│   │                   silent OBB fallback when the server is down)
-│   ├── selector.py     width + IK walk + harness pre-vet callback
-│   │                   (dense sampling along the descent segment)
+│   ├── obb_grasp.py    base-frame OBB grasps      graspgenx_backend.py  ZMQ client + fallback
+│   ├── selector.py     width ▸ IK walk ▸ harness pre-vet (jaw datum aware)
 │   └── force.py        material → two-stage close profiles
 ├── agent/
-│   ├── llm.py          OpenAI-compat (cloud + local Qwen) / Anthropic / Mock
-│   ├── prompts.py      system persona, decomposition, advisor (paper prompt)
-│   ├── advisor.py      failure-triggered VLM consultation
-│   ├── reflex.py       tier-1 command grammar + tier-2 experience memory
-│   ├── trace.py        ASPIRE trace logger
-│   └── orchestrator.py reflex-first agent loop + TaskReport
+│   ├── orchestrator.py reflex → habit → LLM loop; memory harness injection; TaskReport
+│   ├── reflex.py       tier-1 grammar (incl. reset_scene) + tier-2 ExperienceMemory
+│   ├── effects.py      PostconditionChecker + annotate_result (Pigey closed loop)
+│   ├── milestones.py   checkable milestones: symbolic first, VLM second, UNKNOWN honest
+│   ├── llm.py          OpenAI-compat (cloud/local) / Anthropic / Cosmos3 / Mock
+│   ├── cosmos3.py      Cosmos3-Edge XML tool-call dialect
+│   ├── prompts.py / advisor.py   persona, decomposition, VLM critic
+│   ├── aspire.py       post-run diagnosis → skill-library note
+│   └── trace.py        trace.jsonl + keyframes
 ├── skills/
-│   ├── runtime.py      the curated tool surface + JSON schemas (31 specs:
-│   │                   30 skills incl. pick_and_place + social skills,
-│   │                   plus the loop-terminator task_done -- re-derive via
-│   │                   `TOOL_SPECS` in this file, counts drift fast)
-│   └── library.py      learned-skill markdown store (loading loop: ROADMAP)
-├── sim/bridge_client.py  newline-JSON TCP client for scripts/isaac_bridge.py
-└── apps/               demo.py CLI (build_runtime = the composition root),
-                        record.py capture, viewer.py (cascade-view live RGB+D),
-                        live_view.py (RigViewer window: one row per camera,
-                        RGB beside its depth colormap, + draw helpers),
-                        stream_server.py (MJPEG dashboard + narration +
-                        POST /task), mcp_server.py (Hermes/Claude Code
-                        front-end: skill runtime over MCP stdio,
-                        perception pre-warm, lazy arm)
+│   ├── runtime.py      SkillRuntime: 33 skills + task_done, TOOL_SPECS, _MOTION_SKILLS
+│   └── library.py      markdown repair notes; written by aspire.py, retrieved per task
+├── sim/
+│   ├── mujoco_world.py shared MjModel/MjData registry (arm + cameras + truth, one lock)
+│   ├── demo_scene.py   deterministic scene writer: arm MJCF + table + N props
+│   ├── truth.py        physics-truth channel (MuJoCo + Isaac), LazyTruthPoseFn
+│   ├── mujoco_rgbd.py  offscreen RGB-D + data.xpos truth (perception verification)
+│   └── bridge_client.py newline-JSON TCP client for scripts/isaac_bridge.py
+├── eval/progress_judge.py   Robo-Dopamine progress judge (GRM / VLM), off the hot path
+└── apps/
+    ├── demo.py         build_runtime() = the composition root; CLI --task / --interactive
+    ├── mcp_server.py   MCP stdio front-end: 41 tools, out-of-band stop, per-call log
+    ├── stream_server.py lazy MJPEG dashboard (+ chat, STOP)     live_view.py  RigViewer
+    ├── live_control.py viewer-driven control        record.py / viewer.py  capture / view
 ```
 
-## Key decisions
+Sidecars (own process, own venv, ZMQ): `scripts/serve_graspgenx.sh`
+(learned grasps, CUDA) / `serve_graspgenx_stub.py` (protocol double, any
+host); `scripts/serve_occupancy.sh` → `serve_occupancy_bridge.py`
+(`--backend auto`: nvblox > warp > voxel). Both are **probed at startup**
+and named in the banner; a missing sidecar degrades loudly to its fallback,
+never silently.
 
-**Metric depth in the Frame.** The baseline passed uint16 depth in sensor
-units; the L515 (0.25 mm/unit) silently breaks any code written against
-D4xx's 1 mm/unit. Converting at the camera boundary makes every downstream
-consumer unit-safe.
+## Launch and hosts
 
-**Grasps planned in the base frame, not the camera frame.** The baseline
-derived approach direction from the camera ray, so grasp quality depended on
-camera mounting. Here mask points are lifted to 3D, transformed to base, and
-the OBB there gives yaw + width + height — the camera pose only affects
-visibility, not grasp geometry. That is what "camera-agnostic" means
-operationally.
+`run.sh` → `scripts/launch.sh` is the one-click entry: `--sim auto|isaac|
+mujoco|none`, `--setup` (venv, extras, assets, OpenClaw CLI, provider
+onboarding), `--check` (report only, never mutates), `--dry-run`, `--down`
+(stops the sidecars it started AND the per-session MCP servers the gateway
+never reaps). Before READY it proves the stack: runtime built with the
+server's exact env, tools listed, a trivial brain turn, one real
+`pick and place` turn checked against the physics channel (verdict scoped
+to traces written during that turn), then `reset_scene` so the first
+visitor sees the spawn layout. The MCP server is registered with
+`requestTimeoutMs: 300000` (a persistent pick runs 60–120 s; the host's
+60 s default cancelled it and latched the e-stop), dead MCP entries are
+pruned, and on macOS the server runs under `mjpython` so the MuJoCo window
+can open -- when a display is active; a sleeping display is detected and
+the window retried on the next motion instead of segfaulting the server.
 
-**Learned grasps by default, analytic always available.** Since 2026-07-18
-`grasp.backend: graspgenx` (configs/demo.yaml) sends the object's base-frame
-cloud to a GraspGen-X ZMQ server (`scripts/serve_graspgenx.sh`, :5556,
-~1.2 s for 100 samples on the GB10; reBot jaws passed as a swept volume for
-cross-embodiment conditioning, `tip_offset_m` 0.098 empirical) and prepends
-the ranked 6-DoF grasps to the analytic OBB candidates, which are always
-computed. Any server error degrades silently to OBB — the booth must never
-stall on a dead model server. The full pipeline:
+Hosts: OpenClaw (native `mcp.servers`), Hermes (`~/.hermes/config.yaml`),
+Claude Code (`.mcp.json`), Claude Desktop, Codex -- all via
+`scripts/setup_agents.py`. Host and brain are different roles: as a host
+the platform's LLM picks tools and cascade's tiers are bypassed
+(`llm=mock` inside the server); as a brain (`--llm hermes|anthropic|
+openai|local_*`) cascade runs its own loop with all three tiers.
 
+## Key decisions (still load-bearing)
+
+- **Metric depth in the Frame.** Sensor units differ per camera (L515
+  0.25 mm/unit vs D4xx 1 mm); convert at the camera boundary once.
+- **Grasps planned in the base frame.** Camera pose affects visibility,
+  not grasp geometry -- that is what camera-agnostic means operationally.
+- **The arm's shape is data.** `n_joints`, limits, keyframes, tool-frame
+  order, gripper travel, jaw datum, reach come from the profile;
+  `_profile_q` *requires* them (a 6-vector broadcast onto a 5-DoF arm is
+  a bent link). Profiles inherit with `extends:` (same robot, different
+  transport) and carry `overrides:` for rig geometry.
+- **One backend class, pluggable physics engine.** `engine: mjc | warp`
+  under one `MujocoArm`; the engine surface is batch-oriented (whole
+  qpos/ctrl vectors) so a device runtime does not pay a host↔device
+  round-trip per joint. Measured single-arm: C ~4.9 µs/step, Warp on CPU
+  ~3.2 ms/step -- the C engine is the demo default, Warp is for developing
+  the GPU path.
+- **Feedback, not sleep.** Every backend reports real joint positions;
+  settling is `max|q − q*| < tol` with a per-profile tolerance and timeout,
+  and a stepped-on-demand sim steps inside its own wait.
+- **Fail-closed safety, degrade-open knowledge.** Limits and the e-stop
+  fail closed; *information* sources (occupancy map, neighbour arm,
+  grasp server, truth channel, verifier) degrade to "no data, say so",
+  never to "blocked" or to a silent pass. The banner and the run summary
+  name what actually answered.
+- **A claim is not a fact.** Every effect is verified on an independent
+  channel when one exists, and the verdict travels with the result, into
+  the trace, into memory and to the judge.
+- **Memory is structured first, embeddings second.** Recall tools work on
+  labels/time/positions; the TurboQuant index has one live consumer (tier
+  2). Frames -- not text -- are what the planner is shown of its own past.
+- **Device agnosticism is a resolution step.** `device.py` answers "where
+  does this model run" once; torch is not a dependency (per-platform build).
+
+## Verification status (2026-09-10, macOS, extras sim + sim-warp + grasping + occupancy + llm)
+
+- `pytest tests/ -q`: **737 passed, 2 deselected (hardware), 0 skipped**,
+  ~4 min. `ruff check src/ scripts/*.py tests/ --select F,E9,B023,B904` clean.
+- Real chat path, one gateway session (the dashboard path): two-cube
+  memory task -- 2 `pick_and_place` confirmed on the physics channel,
+  0 tool failures, the brain's answer cites the memory frames' verdicts;
+  `reset_scene` returns both props to their spawn pose (mm); a second
+  `world_state` matches the first.
+- One click on a fresh export of the committed tree (no venv, no assets):
+  venv + extras + 24 fetched meshes + 41 tools + physics-confirmed pick +
+  reset + MuJoCo window open, exit 0.
+- Perception de-bias replicated on two engines against physics truth
+  (Isaac 1.85 → 0.56 cm; MuJoCo 2.27 → 0.49 cm).
+- Progress judge vs physics: tp on a confirmed pick after the keyframe
+  fix (was fn).
+- Live hardware: L515 streaming and RobStride mechPos reads were exercised
+  on the reference rig (read-only); **real-arm motion, the SO-101 serial
+  driver, the ROS2 and Unitree backends are unverified on hardware.**
+
+## Known limitations
+
+- Same-colour identical objects closer than 8 cm can blur into one belief
+  (different colours never do).
+- Grip force is a stiffness proxy (kp scaling + stall detection), not a
+  calibrated force loop.
+- `RebotRSArm.disconnect()` cuts torque: park (`move_home`) first.
+- The MCP server executes one tool call at a time; stops are handled
+  out-of-band by the stdin reader (never queued behind a motion), but a
+  second *motion* request waits.
+- The rendered-camera window (`RigViewer`) cannot open on macOS from the
+  server (Cocoa needs the main thread; `opencv-python-headless` has no
+  highgui); the MuJoCo physics window and the browser dashboard are the
+  visuals there.
+- Skill-library notes are retrieved by guard-word match on the task text
+  (`aspire.retrieve`), not by embedding; a visual embedder for episodic
+  recall is still on the ROADMAP.
+
+## Counts
+
+Numbers in these docs drift. Re-derive before quoting:
+
+```bash
+python -m pytest tests/ -q --collect-only | tail -1
+python - <<'EOF'
+import sys; sys.path.insert(0, "src")
+from cascade.skills.runtime import TOOL_SPECS, _MOTION_SKILLS
+from cascade.apps.mcp_server import _EXCLUDED_TOOLS, _EXTRA_TOOLS
+n = {t["name"] for t in TOOL_SPECS}
+print(len(n) - 1, "skills;", len(_MOTION_SKILLS), "motion;", len(n - _EXCLUDED_TOOLS) + len(_EXTRA_TOOLS), "MCP tools")
+EOF
 ```
-localize ─▶ ObjectFix (base-frame OBB)
-   ├─▶ GraspGen-X candidates (ZMQ, learned 6-DoF) ──┐ prepended; any server
-   └─▶ OBB candidates (analytic, always computed) ──┤ error → OBB only
-                                                    ▼
-   grasp-outcome memory re-rank + z-nudge (~/.cascade/grasp_memory.json)
-                                                    ▼
-   select_grasp: jaw-width filter ▸ IK (pregrasp, then grasp seeded from
-   it) ▸ harness pre-vet (pregrasp WITHOUT the exemption cylinder, then 7
-   samples along q_pre→q_grasp with the exemption floored at table_z−0.06)
-                                                    ▼
-   re-home (forces elbow-up IK branch) ▸ pregrasp ▸ exempted descent ▸
-   two-stage stall-aware close ▸ lift ▸ air-grasp check (jaw width fraction)
-```
 
-**Own kinematics wrapper.** reBotArm_control_py's kinematics silently loads
-the URDF named in its *global* config file, ignoring the hardware YAML you
-pass (DM URDF loaded for the RS arm = wrong tool frame). We load whichever
-URDF the arm profile names explicitly. IK: damped least squares in the LOCAL
-frame with joint-limit clamping and random restarts (matches the SDK's math,
-minus the config hazard).
-
-**The arm's shape is data, not code.** `n_joints`, joint limits, `home_q`,
-`handover_q`, the tool-frame column order (`tool_axis_order`), gripper travel
-and the reachable envelope all come from the profile; `SkillRuntime` fetches
-joint-space keyframes through `_profile_q`, which *requires* them rather than
-falling back to a default — a 6-element reBot home pose broadcast onto a
-5-DoF arm is exactly the kind of silent error that ends in a bent link. The
-shipped arms span 5, 6 and 7 DoF with no branching in the skill layer.
-
-Under-actuated chains get `ik_task_weights` (a per-task-DOF weight vector, in
-world axes) if they need it, but *no shipped profile does* — including the
-5-DoF SO-101, whose wrist-roll axis is collinear with the tool approach, so
-for a vertical approach it behaves like a full-pose arm and plain 6-DoF IK
-solves its workspace at a 0.94 rate. The DOF it lacks only shows up for a
-tilted approach; leaving IK unweighted keeps failure as the honest gate
-rather than accepting poses the wrist cannot hold.
-
-**Feedback, not sleep.** The baseline's motions were `sleep(duration + 0.6)`.
-Every backend reports real positions instead: RS motors via `mechPos` (0x7019)
-param reads (motorbridge's `get_state()` never decodes the type-0x18 report
-frames — verified on this rig), Feetech servos via `Present_Position`, MuJoCo
-via `qpos`. Settling is `max|q - q_target| < tol` with a timeout, and the
-tolerance is per profile because a finite-gain position actuator (MuJoCo,
-Isaac) genuinely arrives late where the kinematic mock arrives exactly.
-
-**Device agnosticism is a resolution step, not a policy.** `device.py` is the
-single place that answers "where does this model run": `auto` probes the host
-(CUDA/ROCm → Apple MPS → CPU), and an explicit device the machine lacks
-degrades to the best available with a warning. That last rule matters because
-configs travel — a rig config opened on a laptop should cost a slow run, not a
-dead session, which is the same booth rule the grasp and occupancy backends
-follow. torch is not a dependency: its correct build is per-platform.
-
-**Fail-closed safety.** The SDK enforces nothing outside its IK. Our harness
-gates every waypoint of every streamed motion; grasp descents happen inside
-an explicit exemption cylinder around the target so "don't touch the table"
-and "grasp the object on the table" coexist. Auto-scaled durations keep
-planned min-jerk peaks under the velocity cap; the harness remains the
-backstop.
-
-**Memory is structured first, embeddings second.** The agent's recall tools
-work on labels/time/positions (BeliefStore) — deterministic and testable.
-The TurboQuant index (dim-agnostic, 4-bit codes, asymmetric search) has one
-live consumer today: the tier-2 ExperienceMemory (hashed bag-of-words habit
-recall). Episodic-memory embeddings are opt-in via `embed_dim` and stay OFF
-in the shipped demo (`recall_similar` returns `[]`) until a visual embedder
-is added (ROADMAP). A third store, GraspOutcomeMemory
-(`memory/grasp_memory.py`), persists dimensionless per-object grasp features
-across sessions and re-ranks planner candidates on the grasp hot path. The
-quantizer is pure numpy so the demo carries no exotic dependency (pip
-`turbovec` can slot in behind the same interface).
-
-**Gripper force ≈ commanded stiffness.** The RS gripper is one MIT-mode
-motor; commanded kp bounds stall torque, so material profiles scale effort
-and close depth, and stall detection (mechVel) doubles as the grasp-success
-signal. Current-loop force calibration is an onsite task (see rebot_rs.yaml
-warnings).
-
-## Verification status (2026-07-20, this rig)
-
-- 161 unit/integration tests collected, 159 selected by default (`pytest
-  -q`; 2 hardware-marked), including a full mock-stack grasp-and-place e2e
-  that exercises config → perception → beliefs → grasp planning → IK →
-  safety-gated streaming → gripper verification → memory → trace files.
-- Two adversarial multi-lens review passes, all critical/major findings
-  fixed: 2026-07-16 (4 reviewers × skeptic verification, 34 agents, 29
-  confirmed defects) and 2026-07-18 on the livestreaming redesign (45-agent
-  workflow, 33 confirmed findings). Regression-pinned in
-  `tests/test_review_regressions.py`: inverted spatial hints, baseline
-  hand-eye npz loading, watchdog tripping mid-grasp, below-clearance
-  recovery deadlock, OpenAI/Anthropic tool-protocol violations, unbounded
-  image-context growth (air-grasp detection is pinned in
-  `tests/test_orchestrator_e2e.py`); v2 findings in
-  `tests/test_review_regressions_v2.py`; the remaining v1 fixes
-  (IK-vs-harness margin invariant, stale-CAN-feedback masking bounds,
-  soft-stop torque hold) were pinned late in
-  `tests/test_review_regressions_v3.py` (2026-07-20) against fakes — no
-  hardware needed. A third pass (2026-07-20, booth prep: 40-agent workflow,
-  34 confirmed findings) reviewed the MCP stop channel and booth tooling;
-  its stop-channel defects (stop lost during runtime build, cancellation
-  TOCTOU, reader-thread crash on non-object frames, no staff reset path)
-  are pinned in `tests/test_review_regressions_v4.py`. A fourth pass (same
-  day, 18 agents, 13 confirmed) reviewed the booth-roadmap batch (CASCADE_BOOTH
-  overlay, dashboard routes, MCP-mode reflex chat); its critical —
-  dashboard-chat motion could run concurrently with an MCP tool call — is
-  fixed by `_exec_lock` and pinned in the same v4 file.
-- Live L515 streaming through the full camera stack (hardware-marked test).
-- Live RobStride mechPos param reads for all 7 motors over can0 (read-only).
-- Live YOLO inference (CUDA, GB10) on L515 frames with metric depth lookup.
-- Isaac Sim bridge exercised live on PhysX (scripted picks via
-  `scripts/dashboard_runner.py` / `night_runner.sh`; `physics_probe.py`
-  battery green). Newton engine blocked upstream — see ROADMAP.
-- GraspGen-X backend integrated with first-light verification in sim;
-  tip-offset / sweep-volume calibration still open (see ROADMAP).
-- NOT yet exercised: real-arm motion (needs onsite gripper re-verification
-  and hand-eye calibration), local Qwen serving (scripts provided; the
-  `local_qwen.yaml` profile was reconciled with the serve scripts on
-  2026-07-20 — keep `model:` in sync per the README note).
-
-## Known limitations (accepted for the baseline)
-
-- BeliefStore merges same-label observations within 8 cm (EMA) — two
-  identical objects closer than that can blur into one belief.
-- `RebotRSArm.disconnect()` goes through the SDK's disable_all: park the arm
-  (move_home) before shutting down or it will fall under gravity.
-- Grip force is a stiffness proxy (MIT kp scaling + stall detection), not a
-  calibrated force loop; current-based calibration is an onsite task.
-- The advisor/decompose prompts are single-frame; no video context yet.
-- The MCP server is single-threaded: a long `pick_and_place` blocks
-  `emergency_stop` and every other tool until it returns (SIGINT e-stop
-  works; a bypass stop channel is on the ROADMAP).
+`tests/test_llm_and_library.py` pins the README's headline skill and tool
+counts to these derived numbers, so a drift there fails the suite.

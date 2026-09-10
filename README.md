@@ -40,25 +40,33 @@ service-oriented/composable spirit as [RPent](https://github.com/RLinf/RPent).
 [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Booth runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](CLAUDE.md)
 
 ```
-┌────────────────────────────────────────┐ ┌────────────────────────────────────────┐
-│       chat: Hermes / OpenClaw /        │ │    CLI: --task / --interactive REPL    │
-│       Claude Code / Codex / ...        │ │    (offline, scripted, or mock LLM)    │
-└────────────────────────────────────────┘ └────────────────────────────────────────┘
-                     │                                          │
-   MCP stdio: host's own LLM picks tools    AgentOrchestrator: reflex -> habit -> LLM
-                     ▼                                          ▼
-                     └────────────────────┬────────────────────┘
-              30 traced skills, one surface for MCP + CLI (ASPIRE-style)
-        ▼                ▼                ▼                ▼                ▼
- get_observation   grasp_object       move_home     emergency_stop    recall_memory
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│  perception  │ │   grasping   │ │   control    │ │    safety    │ │    memory    │
-│──────────────│ │──────────────│ │──────────────│ │──────────────│ │──────────────│
-│ RS/UVC/Isaac │ │ GraspGen-X   │ │ FK/IK (pin)  │ │ harness gate │ │ episodic +   │
-│ cams, YOLO   │ │ + OBB fallbk │ │ min-jerk any │ │ +occupancy   │ │ belief/habit │
-│ device: auto │ │              │ │ N-DoF arm    │ │              │ │              │
-└──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
+┌──────────────────────────────────────────┐   ┌──────────────────────────────────────────┐
+│  chat host: OpenClaw / Hermes /          │   │  CLI: --task / --interactive REPL        │
+│  Claude Code / Codex  (MCP stdio,        │   │  AgentOrchestrator: reflex → habit → LLM │
+│  the host's LLM picks the tools)         │   │  (+ its own history as IMAGES, Vesta)    │
+└──────────────────────────────────────────┘   └──────────────────────────────────────────┘
+                     │ 41 tools                                   │ 33 skills
+                     └────────────────────┬──────────────────────┘
+                     SkillRuntime.execute() — ONE choke point, every tier, every robot:
+                     arm select ▸ BEFORE frame ▸ skill ▸ VERIFY effect on an independent
+                     channel ▸ AFTER frame ▸ trace row (tier) ▸ memory <frame, action, verdict>
+        ▼                ▼                ▼                ▼                ▼                ▼
+   perception       grasping         control          safety           memory          sim / eval
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ RS/UVC/Isaac/│ │ GraspGen-X   │ │ FK/IK (pin)  │ │ per-arm gate │ │ beliefs      │ │ MuJoCo world │
+│ MuJoCo cams  │ │ + OBB fallbk │ │ min-jerk to  │ │ every 50 Hz  │ │ (persisted)  │ │ arm+cams+    │
+│ YOLOE, HSV   │ │ outcome mem  │ │ any N-DoF arm│ │ waypoint     │ │ frames K=4   │ │ truth share  │
+│ occupancy    │ │ jaw datum    │ │ mjc | warp   │ │ +occupancy   │ │ habits, env. │ │ Isaac bridge │
+│ device: auto │ │              │ │ ros2 | serial│ │ +neighbours  │ │ grasp prior  │ │ judge (GRM)  │
+└──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
 ```
+
+Every skill's **physical effect is verified** on a channel the actuator does
+not own -- sim physics truth, perception, or jaw width -- and a refuted claim
+downgrades the skill's own `ok`. The verdict travels with the result into the
+trace, into the planner's visual memory and to the off-line progress judge.
+That, plus the cascade of tiers above it, is the whole design; the
+[architecture doc](docs/ARCHITECTURE.md) walks the runtime end to end.
 
 ## What it runs on
 
@@ -255,8 +263,12 @@ never runs a demo that is silently missing a piece. Every tool call the
 chat host makes is logged to `runs/mcp_<pid>/server.log` -- OpenClaw only
 reports a failure count.
 
-Verified on a fresh copy with no venv (macOS, MuJoCo mode): setup + launch
-+ physics-confirmed pick in one command, `tools=2 failures=0`.
+Verified on a fresh export of the committed tree with no venv, assets or
+runs (macOS, MuJoCo mode): venv + extras + fetched meshes + 41 tools +
+physics-confirmed pick + scene reset + MuJoCo window, one command, exit 0.
+`./run.sh check <mode>` is read-only (it never installs or fetches) and
+`./run.sh down` also reaps the per-session MCP servers the chat host leaves
+behind.
 
 The memory demo (two props, the planner must remember what it already
 moved):
@@ -269,9 +281,11 @@ moved):
 #    how many cubes you moved and how you know."
 ```
 
-Measured through OpenClaw: 7 tool calls, 0 failures, 98 s, both
-`pick_and_place` calls `postcondition: confirmed` on the physics channel,
-and the brain's answer cites the memory frames' verdicts, not its intent.
+Measured through OpenClaw in one gateway session (what the dashboard does):
+2 `pick_and_place` calls, both `postcondition: confirmed` on the physics
+channel, 0 tool failures, ~100 s, and the brain's answer cites the memory
+frames' verdicts, not its intent. Asked afterwards "how many did you move
+and how do you know?", it answers from `task_memory`.
 
 Between visitors say **"reset the scene"** (or "start over", "reinicia la
 escena"): arm home, sim props back on their spawn pose, world model and task
@@ -515,8 +529,10 @@ LAN. For attendee-facing sessions, `CASCADE_HIDE_TOOLS=reset_stop` makes
 clearing a stop staff-only. Env knobs:
 `CASCADE_CAMERAS` (comma list, first = manipulation camera), `CASCADE_CAMERA`
 (single-camera fallback), `CASCADE_ARM`, `CASCADE_DETECTOR_MODEL`,
-`CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_VIEW`, `CASCADE_PREWARM`,
-`CASCADE_STREAM`, `CASCADE_STREAM_PORT`, `CASCADE_RUN_DIR` (trace dir), `DISPLAY`. The Isaac bridge
+`CASCADE_DETECT_CLASSES`, `CASCADE_HIDE_TOOLS`, `CASCADE_VIEW` (cv2 camera window),
+`CASCADE_MJ_VIEW` (MuJoCo physics window; the launcher sets it in sim modes),
+`CASCADE_PREWARM`, `CASCADE_STREAM`, `CASCADE_STREAM_PORT`, `CASCADE_RUN_DIR`
+(trace dir), `CASCADE_OCCUPANCY` (`0` skips the bridge probe), `DISPLAY`. The Isaac bridge
 side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 `CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
@@ -526,9 +542,9 @@ escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 One schema source (`TOOL_SPECS` in `src/cascade/skills/runtime.py`) feeds
 every consumer — the built-in `AgentOrchestrator`, the OpenAI/Anthropic
 LLM backends, and the MCP server — so this list is exactly what any brain,
-built-in or external, can call. "moves arm" marks the 15 skills in
-`_MOTION_SKILLS` (17 with `reset_scene` and `turn_screw`), the only ones
-that pause `WorldWatcher` belief fusion while they run.
+built-in or external, can call. "moves arm" marks the 17 skills in
+`_MOTION_SKILLS`, the only ones that pause `WorldWatcher` belief fusion while
+they run (and the ones that record a memory frame + verdict afterwards).
 
 **Perception (no motion)**
 
@@ -559,7 +575,8 @@ that pause `WorldWatcher` belief fusion while they run.
 | `move_relative` | Nudge the gripper a few centimeters (forward/back/left/right/up/down) |
 | `open_gripper` / `close_gripper` | Open (drops what's held) / close with the default grip profile |
 | `move_home` | Return to the home configuration; also clears the camera view |
-| `halt_motion` | Stop the in-flight motion because it's no longer the right action (wrong object, scene changed, subgoal already met) |
+| `turn_screw` | Rotate the held tool/object about the approach axis in place (wrist-roll sweeps, harness-vetted) |
+| `halt_motion` | Stop the in-flight motion because it's no longer the right action (wrong object, scene changed, subgoal already met) -- no motion itself |
 
 **Social / gesture (moves arm)**
 
@@ -651,15 +668,31 @@ silently vanishes.
 
 ## Docs
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — module-by-module design and
-  the decisions behind it
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the runtime end to end
+  (tiers, the `execute()` choke point, verification channels, sim as an
+  instrument, memory stores), module map, decisions, verification status
+- [docs/QUICKSTART.md](docs/QUICKSTART.md) — cómo abrir la demo (en
+  español): one click, chat host, CLI, cámaras, parar, si algo falla
 - [docs/BOOTH_RUNBOOK.md](docs/BOOTH_RUNBOOK.md) — the 15-minute hands-on
   booth session: script, safety rules, fallback ladders, reset procedure
   (`scripts/booth_up.sh` / `scripts/booth_reset.sh`)
-- [docs/ROADMAP.md](docs/ROADMAP.md) — VLA policy backend, GraspGen-X
-  follow-ups, NuRec sim2real, skill-library growth
+- [docs/ROADMAP.md](docs/ROADMAP.md) — what landed when and why (dated
+  sections with the SOTA delta each time), the audit findings, what was
+  deliberately not built, and what is next
+- [docs/BENCHMARKS.md](docs/BENCHMARKS.md) · [docs/LAYER_ATTRIBUTION_LIBERO.md](docs/LAYER_ATTRIBUTION_LIBERO.md)
+  — LIBERO numbers and which layer of the stack each point of success comes from
+- [docs/AGENTIC_UPGRADES.md](docs/AGENTIC_UPGRADES.md) — the Pigey/Harness-VLA/
+  Claude-plays-robotics mechanisms (verification, envelope, cursor) and the
+  pitfalls each one cost
+- [docs/ROS2_BACKEND_BRIEF.md](docs/ROS2_BACKEND_BRIEF.md) · [docs/NEWTON_ENGINE.md](docs/NEWTON_ENGINE.md)
+  · [docs/BRIDGE_DEGRADATION.md](docs/BRIDGE_DEGRADATION.md) — backend briefs
+- Research notes: [SOTA_PERCEPTION_AND_EVALUATION](docs/SOTA_PERCEPTION_AND_EVALUATION.md),
+  [COMPARISON_TO_PUBLISHED_WORK](docs/COMPARISON_TO_PUBLISHED_WORK.md),
+  [PERCEPTION_AND_EXECUTION_RESEARCH](docs/PERCEPTION_AND_EXECUTION_RESEARCH.md),
+  [SOTA_CONTRIBUTION_ANALYSIS](docs/SOTA_CONTRIBUTION_ANALYSIS.md),
+  [SYNTHETIC_RGBD_PIPELINE](docs/SYNTHETIC_RGBD_PIPELINE.md)
 - [CLAUDE.md](CLAUDE.md) — working guide for AI coding agents (commands,
-  invariants, gotchas)
+  invariants, gotchas, doc status)
 
 ## Naming note
 

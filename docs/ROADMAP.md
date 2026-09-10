@@ -1,5 +1,42 @@
 # Roadmap
 
+This file is a dated log: each "Landed <date>" section records what shipped,
+the SOTA delta that motivated it, and what was deliberately NOT adopted.
+Read top-down for status; the dated sections are history.
+
+## Status at a glance (2026-09-10)
+
+What a visitor gets today, in one command, on a laptop: `./run.sh` →
+MuJoCo (or Isaac Sim when installed) + OpenClaw chat with 41 robot tools,
+self-proven (runtime built, tools listed, brain answered, one pick
+CONFIRMED by physics, scene reset). Every skill's effect is verified on an
+independent channel, the planner sees its own history as images, and the
+suite is 737 passed / 0 skipped. Unverified on hardware: real-arm motion,
+the SO-101 serial driver, the ROS2 and Unitree backends.
+
+Open, in priority order (details in the sections below):
+
+1. **Real rig first motions** -- onsite checklist (CAN up, gripper travel,
+   hand-eye, table plane), `pytest -m hardware`, then `--arm rebot_rs` at
+   low velocity. Everything above the driver has been exercised in two
+   simulators; the drivers have not.
+2. **Persistence-loop leftovers** #2–#7 below (provisional held marker,
+   per-task budget cap across tiers, handover/sort persistence, thin-object
+   slip heuristic, fail-fast on over-width, the listed coverage gaps).
+3. **Learned grasps for real**: run `serve_graspgenx.sh` (CUDA) instead of
+   the protocol stub and calibrate `tip_offset_m` / the reBot sweep volume
+   in Isaac; the stub only proves the wire.
+4. **Wrist camera** extrinsics validated mid-descent against physics truth.
+5. **Newton as the Isaac default** once `physics_probe.py --engine newton`
+   passes on the real reBot asset (the synthetic-scene blocker is gone).
+6. **Judge as a metric**: run `scripts/judge_run.py` over every launcher
+   proof turn and keep the judge-vs-physics confusion matrix in the run
+   summary, so a regression in the outcome pictures shows up as `fn`.
+7. **Visual embedder** for episodic recall (`embed_dim`), and action↔object
+   consolidation on top of ExperienceMemory (keys on text today).
+8. **Multi-arm on physics**: `so101_left`/`so101_right` are mock; render a
+   two-arm MuJoCo scene so the inter-arm gate is measured, not simulated.
+
 ## Landed 2026-07-31: the orchestration-gap upgrades
 
 Six-paper synthesis (Pigey, Agentic-VLA, Harness-VLA/RPent, ASPIRE, VIA,
@@ -703,12 +740,16 @@ are synchronous by design here, noted for long-horizon work.
   Upstream asset gets it properly via Seeed-Projects/reBot-Isaacsim#9.
   Investigate the -plus asset's root joint / articulation root config.
 
-- **GraspGen-X backend (integrated 2026-07-18, first-light verified).**
+- **GraspGen-X backend (integrated 2026-07-18, first-light verified;
+  probed-at-startup + protocol stub since 2026-09-09).**
   `grasp.backend: graspgenx` sends the fix's base-frame object cloud to the
   GraspGen-X ZMQ server (`scripts/serve_graspgenx.sh`, own venv
   `~/Projects/demo/.graspgenx`, checkpoints in `GraspGenX/ext/`) and gets
   ranked 6-DoF grasps back (~1.2 s for 100 samples on the GB10); OBB stays
-  as automatic fallback and additional IK candidates. TODO: (1) calibrate
+  as automatic fallback and additional IK candidates. The launcher starts
+  `serve_graspgenx_stub.py` on hosts without CUDA so the client path is
+  exercised everywhere -- the banner says `graspgenx-stub (analytic protocol
+  double)`, and that is NOT the learned model. TODO: (1) calibrate
   `tip_offset_m` in Isaac Sim (gripper-base -> reBot jaw center), (2) refine
   the URDF-derived reBot sweep-volume params in `configs/demo.yaml` with an
   Isaac Sim measurement (franka_panda remains only the no-sweep fallback),
@@ -752,7 +793,9 @@ are synchronous by design here, noted for long-horizon work.
   worth pursuing; remaining learned-grasp work (tip-offset calibration,
   reBot sweep params, collision-aware `infer_scene_pc`) is tracked in the
   near-term GraspGen-X item.
-- **Skill-library growth loop** (ASPIRE) — ✅ **landed 2026-07-31.** After each
+- **Skill-library growth loop** (ASPIRE) — ✅ **landed 2026-07-31** (and
+  wired end to end: `retrieve()` runs in `orchestrator.run_task`; docs that
+  called it store-only were corrected 2026-09-10). After each
   run, `agent/aspire.py` diagnoses the trace, localizes the salient failure,
   and distils *validated repairs* (a failure followed by the same primitive
   succeeding) into `skills_library/*.md`, deduped by (skill, signature);

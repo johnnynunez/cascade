@@ -4,6 +4,7 @@ Run with the isolated Newton interpreter. The physics has its own real tests.
 """
 from pathlib import Path
 import importlib.util
+import hashlib
 import json
 from types import SimpleNamespace
 from urllib.request import ProxyHandler, build_opener
@@ -44,6 +45,8 @@ class RecordingBoundary:
     def metrics(self):
         return {"phase": "fixture", "screw_turns": self.sim_time,
                 "axial_mm": self.sim_time, "applied_torque_nm": 0.1,
+                "motor_torque_nm": 0.02, "seating_contact_force_n": 3.0,
+                "tip_contact_force_n": 1.0,
                 "completed": self.sim_time >= 0.2,
                 "verified": self.good and self.sim_time >= 0.2}
 
@@ -56,6 +59,9 @@ def test_recording_preserves_sampled_states_and_clock(tmp_path):
     np.testing.assert_allclose(archive["times"], [0, 0.1, 0.2])
     np.testing.assert_allclose(archive["body_q"][:, 0, 0], [0, 0.1, 0.2])
     assert json.loads((tmp_path / "summary.json").read_text())["verified"] is True
+    assert result["summary"]["states_sha256"] == hashlib.sha256((tmp_path / "states.npz").read_bytes()).hexdigest()
+    assert result["rows"][-1]["motor_torque_nm"] == 0.02
+    assert result["rows"][-1]["seating_contact_force_n"] == 3.0
 
 
 @pytest.mark.parametrize("case", ["unverified", "nan", "timeout"])
@@ -128,6 +134,8 @@ def test_one_click_bootstrap_uses_a_separate_environment(tmp_path):
                             capture_output=True, text=True, check=True)
     command = json.loads(result.stdout)
     assert command[:3] == ["run", "--no-project", "--isolated"]
-    assert "newton[sim]==1.5.1" in command
+    assert "newton[sim]==1.6.0" in command
+    assert "mujoco==3.12.0" in command
+    assert "mujoco-warp==3.12.0" in command
     assert "viser==1.1.0" in command
     assert command[-4:] == [str(REPO / "scripts/demo_newton_screw.py"), "--no-open", "--port", "8768"]

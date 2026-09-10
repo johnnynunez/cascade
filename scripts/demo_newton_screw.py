@@ -24,7 +24,7 @@ import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
 FIELDS = ("time_s", "phase", "screw_turns", "axial_mm", "applied_torque_nm",
-          "completed", "verified")
+          "motor_torque_nm", "seating_contact_force_n", "tip_contact_force_n", "completed", "verified")
 
 
 def write_json(path, data):
@@ -82,6 +82,8 @@ def simulate(demo, output, *, max_sim_seconds=30.0):
             writer.writeheader()
             writer.writerows(rows)
         write_json(output / "measurements.json", rows)
+        report["states_sha256"] = hashlib.sha256((output / "states.npz").read_bytes()).hexdigest()
+        report["measurements_sha256"] = hashlib.sha256((output / "measurements.json").read_bytes()).hexdigest()
         write_json(output / "summary.json", report)
         return {"body_q": body_q, "rows": rows, "summary": report}
     except Exception as exc:
@@ -118,7 +120,7 @@ def camera_view(viewer, target, *, close=False):
     """Aim the existing Newton camera at the fixture, including future clients."""
     wp = importlib.import_module("warp")
     target = np.asarray(target, dtype=float)
-    offset = np.asarray((0.17, -0.24, 0.15) if close else (0.52, -0.64, 0.38))
+    offset = np.asarray((0.085, -0.12, 0.075) if close else (0.52, -0.64, 0.38))
     position = target + offset
     direction = target - position
     yaw = math.degrees(math.atan2(direction[1], direction[0]))
@@ -161,8 +163,10 @@ def replay(demo, recording, output, *, port=8766, open_browser=True, serve_secon
         server.gui.main_panel.dock_right()
         server.gui.add_markdown("## SO-101 · Apretar un tornillo\n"
                                 "**Newton en CPU — simulación física grabada**\n\n"
-                                "Herramienta montada y rosca por restricción helicoidal. "
-                                "No es contacto entre los filetes, ni control por LLM.")
+                                "Mesa, soporte, herramienta y cabeza con colisiones activas. "
+                                "El asiento se resuelve por contacto.\n\n"
+                                "Rosca por restricción helicoidal y acoplamiento torsional idealizado. "
+                                "No se simula contacto entre filetes ni control por LLM.")
         server.gui.add_markdown("**Ensayo completo: verificado por el núcleo físico.** "
                                 "El visor reproduce los estados calculados; no reintegra la física.")
         progress = server.gui.add_slider("Tiempo del ensayo (s)", min=0.0,
@@ -185,7 +189,7 @@ def replay(demo, recording, output, *, port=8766, open_browser=True, serve_secon
 
         @detail.on_click
         def _detail(_):
-            camera_view(viewer, target, close=True)
+            camera_view(viewer, getattr(demo, "screw_target", target), close=True)
 
         @restart.on_click
         def _restart(_):
@@ -217,7 +221,10 @@ def replay(demo, recording, output, *, port=8766, open_browser=True, serve_secon
                 f"### Fase: {row['phase']}\n\n"
                 f"Giro del tornillo: **{row['screw_turns']:.3f} vueltas**\n\n"
                 f"Avance axial: **{row['axial_mm']:.3f} mm**\n\n"
-                f"Par aplicado: **{row['applied_torque_nm']:.4f} N·m**"
+                f"Par del motor: **{row['motor_torque_nm']:.4f} N·m**\n\n"
+                f"Par del acoplamiento ideal: **{row['applied_torque_nm']:.4f} N·m**\n\n"
+                f"Contacto cabeza–soporte: **{row['seating_contact_force_n']:.3f} N**\n\n"
+                f"Contacto punta–cabeza: **{row['tip_contact_force_n']:.3f} N**"
             )
             if playing.value:
                 if index == len(rows) - 1:
@@ -247,6 +254,8 @@ def main():
         parser.error("port must be between 0 and 65535")
     output = (args.output_dir or REPO / "runs/newton-screw" / uuid.uuid4().hex).resolve()
     sys.path.insert(0, str(REPO / "benchmark/diagnostics"))
+    warp = importlib.import_module("warp")
+    warp.config.log_level = warp.LOG_WARNING
     scene = importlib.import_module("newton_screw_scene")
     assert scene.__file__ is not None
     demo = scene.ScrewDemo(enable_drive=not args.disable_drive, disengaged=args.disengaged)
@@ -256,6 +265,10 @@ def main():
         "warp": importlib.import_module("warp").__version__,
         "device": str(demo.model.device),
         "python": sys.executable,
+        "body_labels": list(demo.model.body_label),
+        "joint_labels": list(demo.model.joint_label),
+        "shape_labels": list(demo.model.shape_label),
+        "shape_flags": demo.model.shape_flags.numpy().tolist(),
         "source_sha256": {str(p.relative_to(REPO)): hashlib.sha256(p.read_bytes()).hexdigest()
                           for p in (Path(__file__), Path(scene.__file__))},
     }

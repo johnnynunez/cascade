@@ -190,6 +190,13 @@ exit line for the lose case (§8). One `pick_and_place` per group, ever.
 
 ## 7. Reset between groups (target: 60 s of hands, run during Q&A)
 
+Say **"reset the scene"** in the chat first (a reflex: works with the brain
+down; also `reset_scene` as a tool). It parks the arm, puts SIM props back
+on their spawn pose, releases anything the runtime believed it held, clears
+the world model and the task-memory frames, and takes one fresh observation.
+On a real rig the props do not teleport: it returns `props_reset: []` and
+the host puts them back on the tape. Then:
+
 ```bash
 scripts/booth_reset.sh              # keep the learned brain (default)
 ```
@@ -198,6 +205,10 @@ Prints the physical checklist (park → props to tape → `/clear` the chat)
 and then verifies the **next** group's perception: every prop must show
 LIVE in the dashboard's world model before you seat anyone — a
 "remembered" ghost row at minute 0 becomes a mystery failure at minute 5.
+Start every group in a **new chat session** (`/clear` or a new
+`--session-id`): the host's tool server is per session and its memory
+frames are per task; a stale session shows the previous group's history
+in `task_memory`.
 
 **Memory policy is deliberate:** grasp memory and tier-2 habits persist all
 day, because the robot measurably improving from morning to afternoon *is*
@@ -222,6 +233,14 @@ the big screen in three minutes."
 throw — *"open the gripper"* → host hand-places the prop → *"close the
 gripper, then throw it in the bin"*. Zero perception dependency, laugh
 intact.
+
+**Tool call cancelled mid-motion** (host timeout or an impatient Esc): the
+arm freezes and the e-stop LATCHES, so the next motion fails too. Say
+`reset_stop` (staff; hidden from attendees via `CASCADE_HIDE_TOOLS`) then
+`reset the scene`. The launcher registers the server with a 300 s budget
+precisely so a persistent pick (60–120 s) is never cut by the host's 60 s
+default — if picks die at exactly 60 s, the registration is stale:
+`./run.sh <mode>` re-registers.
 
 **LLM stalls (G1 ladder, one-way — never switch back mid-session):**
 1. Cloud dead → pre-warmed session on local Qwen (same MCP server, same

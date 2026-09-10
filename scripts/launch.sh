@@ -156,6 +156,25 @@ if [[ $DOWN == 1 ]]; then
             run rm -f "$STATE_DIR/$svc.pid"
         fi
     done
+    # The gateway keeps one MCP server process per chat SESSION and never
+    # reaps them while it runs (measured: two `cascade.apps.mcp_server`
+    # processes from finished sessions, each rendering its camera at
+    # `fps`, 60 % CPU apiece, hours after the last turn). They are ours:
+    # stop them, and leave the gateway itself to whoever started it.
+    ORPHANS="$("$PY" - "$REPO" <<'PYEOF' 2>/dev/null || true
+import subprocess, sys
+repo = sys.argv[1]
+out = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
+for line in out.splitlines():
+    pid, _, cmd = line.strip().partition(" ")
+    if "cascade.apps.mcp_server" in cmd and repo in cmd:
+        print(pid)
+PYEOF
+)"
+    for pid in $ORPHANS; do
+        log "stopping MCP server (pid $pid) left behind by a finished chat session"
+        run kill "$pid" 2>/dev/null || true
+    done
     if [[ -f "$STATE_DIR/gateway.started" ]]; then
         log "stopping OpenClaw gateway (this script started it)"
         run openclaw gateway stop || true
@@ -455,6 +474,9 @@ env = {
 if sim in ("mujoco", "isaac"):
     env["CASCADE_VIEW"] = "1"
     env["DISPLAY"] = os.environ.get("DISPLAY", ":0")
+if sim == "mujoco":
+    # the physics window itself (the arm profile defaults to view: false)
+    env["CASCADE_MJ_VIEW"] = "1"
 # requestTimeoutMs: the OpenClaw per-CALL budget (default 60 s). pick_and_place
 # PERSISTS for up to grasp.persist_seconds (120 s) by design; at 60 s the
 # host sends notifications/cancelled, the server treats a cancel mid-motion
@@ -469,6 +491,65 @@ print(json.dumps({
 }))
 PYEOF
 )"
+# Prune OpenClaw MCP entries whose command (or `-m` module) no longer
+# exists (renamed venvs, deleted checkouts, renamed packages). Each dead entry costs EVERY turn a failed spawn
+# ("[bundle-mcp] failed to start server ... Connection closed") and a
+# catalog retry; on this machine a stale `wrc-demo` pointing at a removed
+# package did exactly that on every visitor turn.
+if [[ $DRY == 0 ]]; then
+    # NB: `cmd | python - <<'EOF'` loses the pipe -- the heredoc IS stdin
+    # (the script), so sys.stdin.read() saw the program, matched nothing
+    # and pruned nothing in the first live run. Hand the listing over in
+    # a file instead.
+    openclaw mcp show > "$STATE_DIR/mcp_show.txt" 2>/dev/null || true
+    DEAD="$(MCP_SHOW="$STATE_DIR/mcp_show.txt" "$PY" - <<'PYEOF' 2>/dev/null || true
+import json, os, re, shutil, sys
+raw = open(os.environ["MCP_SHOW"], errors="replace").read()
+m = re.search(r"\{.*\}", raw, re.S)
+if not m:
+    sys.exit()
+try:
+    servers = json.loads(m.group(0))
+except Exception:
+    sys.exit()
+servers = servers.get("servers", servers) if isinstance(servers, dict) else {}
+for name, ent in servers.items():
+    if not isinstance(ent, dict):
+        continue
+    cmd = ent.get("command")
+    if not cmd:
+        continue  # remote (url) servers: nothing to check
+    if os.path.isabs(cmd):
+        ok = os.path.exists(cmd)
+    else:
+        ok = shutil.which(cmd) is not None
+    args = ent.get("args") or []
+    # `python -m pkg.module`: the interpreter may well exist while the
+    # package it points at was renamed/removed (this machine: a `wrc-demo`
+    # entry whose venv still had python but no `wrc_demo` package). Ask
+    # THAT interpreter whether the module resolves -- a static path check
+    # cannot see it, and this is exactly what fails on every turn.
+    if ok and len(args) >= 2 and args[0] == "-m" and os.path.basename(cmd).startswith("python"):
+        import subprocess
+
+        try:
+            probe = subprocess.run(
+                [cmd, "-c", f"import importlib.util, sys; sys.exit(0 if importlib.util.find_spec({args[1].split('.')[0]!r}) else 3)"],
+                capture_output=True, timeout=20, cwd=ent.get("cwd") if os.path.isdir(ent.get("cwd") or "") else None,
+            )
+            ok = probe.returncode == 0
+        except Exception:
+            ok = True  # cannot tell; leave it alone
+    if not ok:
+        print(name)
+PYEOF
+)"
+    for dead in $DEAD; do
+        [[ "$dead" == "$MCP_NAME" ]] && continue
+        warn "MCP server '$dead' points at a command/module that no longer exists -- removing it (it failed on every turn)"
+        run openclaw mcp unset "$dead" >/dev/null 2>&1 || true
+    done
+fi
 log "registering MCP server '$MCP_NAME' (cameras=$CAMERAS arm=$ARM)"
 mkdir -p "$REPO/models"
 run openclaw mcp set "$MCP_NAME" "$MCP_JSON"
@@ -617,10 +698,11 @@ print((txt or "").strip()[:80])' 2>/dev/null || true)"
     # error -- each one is a line in <run_dir>/server.log.
     if [[ $ROBOT_TURN == 1 && "$SIM" != "none" && $BRAIN_OK == 1 ]]; then
         log "one real robot turn: 'pick and place the red object' (up to ~2 min: the sim arm moves)"
+        TURN_T0="$(date +%s)"
         TURN_JSON="$(openclaw agent exec 'pick and place the red object' --json --timeout 240 2>/dev/null || true)"
         # (the JSON travels in an env var: a here-doc IS python's stdin, so a
         # pipe into `python - <<EOF` is silently shadowed)
-        TURN_SUMMARY="$(TURN_JSON="$TURN_JSON" "$PY" - "$REPO" <<'PYEOF' 2>/dev/null || echo "no JSON envelope from agent exec"
+        TURN_SUMMARY="$(TURN_JSON="$TURN_JSON" TURN_T0="$TURN_T0" "$PY" - "$REPO" <<'PYEOF' 2>/dev/null || echo "no JSON envelope from agent exec"
 import glob, json, os, sys
 try:
     d = json.loads(os.environ.get("TURN_JSON") or "")
@@ -628,8 +710,14 @@ except Exception:
     print("no JSON envelope from agent exec"); sys.exit()
 ts = d.get("toolSummary") or {}
 final = (d.get("final") or "").strip().replace("\n", " ")[:120]
-runs = sorted(glob.glob(os.path.join(sys.argv[1], "runs", "mcp_*", "trace.jsonl")), key=os.path.getmtime)
-verdict = "no trace written"
+t0 = float(os.environ.get("TURN_T0") or 0)
+# Only traces written DURING this turn count. The first live run of this
+# block read the newest trace on disk -- from a finished visitor session --
+# and printed "CONFIRMED by physics" over a turn whose server had crashed
+# (failures=2, no trace of its own).
+runs = [t for t in glob.glob(os.path.join(sys.argv[1], "runs", "mcp_*", "trace.jsonl")) if os.path.getmtime(t) >= t0 - 1]
+runs.sort(key=os.path.getmtime)
+verdict = "no trace written by this turn"
 if runs:
     rows = [json.loads(l) for l in open(runs[-1]) if l.strip()]
     picks = [r for r in rows if r.get("skill") == "pick_and_place"]
@@ -639,13 +727,20 @@ if runs:
     else:
         verdict = "no pick_and_place call in the trace (the brain answered without moving the robot)"
     verdict += f" | log: {os.path.dirname(runs[-1])}/server.log"
-print(f"tools={ts.get('calls')} failures={ts.get('failures')} | {verdict} | brain: {final}")
+else:
+    logs = [l for l in glob.glob(os.path.join(sys.argv[1], "runs", "mcp_*", "server.log")) if os.path.getmtime(l) >= t0 - 1]
+    if logs:
+        verdict += f" | newest server log: {sorted(logs, key=os.path.getmtime)[-1]}"
+failures = ts.get("failures") or 0
+ok = failures == 0 and "postcondition=confirmed" in verdict
+print(f"{'OK' if ok else 'NOT-OK'} tools={ts.get('calls')} failures={failures} | {verdict} | brain: {final}")
 PYEOF
 )"
-        log "robot turn: $TURN_SUMMARY"
+        log "robot turn: ${TURN_SUMMARY#* }"
         case "$TURN_SUMMARY" in
-            *"postcondition=confirmed"*) log "robot turn CONFIRMED by physics." ;;
-            *) warn "the robot turn did not end in a physics-confirmed pick -- read the log path above before demoing" ;;
+            OK*) log "robot turn CONFIRMED by physics." ;;
+            *"failures=0"*) warn "the robot turn did not end in a physics-confirmed pick -- read the log path above before demoing" ;;
+            *) warn "the robot turn had FAILED tool calls (the tool server may have crashed mid-call: see the gateway log, ~/.openclaw/logs or /tmp/openclaw) -- do not demo until a rerun is clean" ;;
         esac
         # The proof moved a prop into the drop zone. Put the scene back so the
         # first visitor starts from the spawn layout, not from the aftermath.
@@ -667,6 +762,22 @@ PYEOF
 fi
 
 # ── 6. chat ─────────────────────────────────────────────────────────────────
+# Tell the truth about the window: the proof turn's server log says whether
+# the MuJoCo viewer opened, was skipped (display asleep: it retries on the
+# next motion after the screen wakes), or is unavailable on this box.
+VIEWER_NOTE="the MuJoCo window opens on the FIRST motion command (arm is lazy until then)"
+if [[ "$SIM" == "mujoco" ]]; then
+    NEWEST_LOG="$(ls -t "$REPO"/runs/mcp_*/server.log 2>/dev/null | head -1 || true)"
+    if [[ -n "$NEWEST_LOG" ]]; then
+        if grep -q "viewer window open" "$NEWEST_LOG" 2>/dev/null; then
+            VIEWER_NOTE="the MuJoCo window is open (it follows every motion)"
+        elif grep -q "viewer skipped: no ACTIVE display" "$NEWEST_LOG" 2>/dev/null; then
+            VIEWER_NOTE="display was asleep/locked during setup -- the MuJoCo window opens on the first motion AFTER the screen is awake"
+        elif grep -q "viewer unavailable" "$NEWEST_LOG" 2>/dev/null; then
+            VIEWER_NOTE="no MuJoCo window on this machine ($(grep -o 'viewer unavailable ([^)]*)' "$NEWEST_LOG" | head -1)); use the dashboard live view"
+        fi
+    fi
+fi
 cat <<EOF
 [launch] READY   sim=$SIM  arm=$ARM  cameras=$CAMERAS
          chat:      http://127.0.0.1:$GATEWAY_PORT/   (openclaw dashboard)
@@ -674,7 +785,7 @@ cat <<EOF
          try:       "what do you see?"  "pick and place the red object"  "did it actually move?"
 $( [[ "$CAMERAS" == *scene_two* ]] && echo '         memory:    "put both cubes in the drop zone, one at a time; call task_memory before each action; then tell me how many you moved and how you know"' )
          reset:     "reset the scene"  (between visitors: props back on spawn, memory cleared)
-$( [[ "$SIM" == "mujoco" ]] && echo '         viewer:    the MuJoCo window opens on the FIRST motion command (arm is lazy until then)' )
+$( [[ "$SIM" == "mujoco" ]] && echo "         viewer:    $VIEWER_NOTE" )
 $( [[ "$SIM" == "isaac"  ]] && echo "         isaac:     bridge :$BRIDGE_PORT, log $STATE_DIR/isaac_bridge.log" )
 $( [[ "$OCCUPANCY" != "none" ]] && echo "         occupancy: :$OCC_PORT ${OCC_DESC:-(dry run)}" )
 $( [[ "$GRASPGENX" != "none" ]] && echo "         graspgenx: :$GGX_PORT ($GRASPGENX)" )

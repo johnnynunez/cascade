@@ -9,7 +9,7 @@
 
 CASCADE is a **robot- and device-agnostic** framework for agentic
 manipulation: arms, cameras, compute and LLM backends are all pluggable
-behind one curated skill API, so the same 30 skills, safety harness and
+behind one curated skill API, so the same 33 skills, safety harness and
 traces work on a 5-DoF hobby arm over USB serial or a 6-DoF industrial arm
 over CAN, on a RealSense or a generic UVC webcam, in MuJoCo or Isaac Sim, on
 a datacenter GPU or a laptop CPU, with a cloud LLM or a local one. Its
@@ -467,13 +467,14 @@ MCP-capable host can drive.
 
 The whole skill runtime is also exposed as an **MCP stdio server**
 (`cascade/apps/mcp_server.py`) — so instead of the built-in loop, any
-MCP-capable agent platform can drive the arm. The agent gets the same 30
+MCP-capable agent platform can drive the arm. The agent gets the same 33
 safety-gated skills (only the loop-internal `task_done` is excluded) plus
-seven gateway extras — `camera_snapshot` (returns a live JPEG the agent can
+eight gateway extras — `camera_snapshot` (returns a live JPEG the agent can
 *see*), `world_state`, `live_view_url`, `robot_knowledge`,
-`verify_last_action`, and `emergency_stop`/`reset_stop` — 37 tools total
-(see [The 30 skills](#the-30-skills) below for what each one does). Safety
-harness, tracing, memory and the always-on camera window are identical —
+`verify_last_action`, `task_memory` (the visual memory harness, as images),
+and `emergency_stop`/`reset_stop` — 41 tools total (re-derive with
+`openclaw mcp probe cascade --json`; see [The 33 skills](#the-33-skills) below
+for what each one does). Safety harness, tracing and memory are identical —
 only the brain swaps.
 
 One registrar for every host — prints what each platform needs, `--write`
@@ -520,14 +521,14 @@ side has its own knobs (`CASCADE_USD`, `CASCADE_PHYSICS_DEVICE` — `cpu` is the
 escape hatch for GPU-PhysX boot NaNs —, `CASCADE_BRIDGE_BIND`,
 `CASCADE_BRIDGE_NO_TARGETS`, `CASCADE_COMPANION_EXTS`); see `scripts/isaac_bridge.py`.
 
-## The 30 skills
+## The 33 skills
 
 One schema source (`TOOL_SPECS` in `src/cascade/skills/runtime.py`) feeds
 every consumer — the built-in `AgentOrchestrator`, the OpenAI/Anthropic
 LLM backends, and the MCP server — so this list is exactly what any brain,
 built-in or external, can call. "moves arm" marks the 15 skills in
-`_MOTION_SKILLS`, the only ones that pause `WorldWatcher` belief fusion
-while they run.
+`_MOTION_SKILLS` (17 with `reset_scene` and `turn_screw`), the only ones
+that pause `WorldWatcher` belief fusion while they run.
 
 **Perception (no motion)**
 
@@ -575,10 +576,19 @@ while they run.
 | skill | what it does |
 |---|---|
 | `recall_memory` | Recent events (~15 s) and, optionally, where a named object was last seen |
+| `list_arms` | Names the arms of a multi-arm rig (skills take `arm="<name>"`; `""`/`default` mean the primary) |
 
-`task_done` (declare success/failure with a summary) is the 31st spec but
+**Session (moves arm)**
+
+| skill | what it does |
+|---|---|
+| `reset_scene` | Between visitors: arm home, sim props back on their spawn pose, world model + task memory cleared, one fresh observation. Also the reflex phrases "reset the scene" / "start over" / "reinicia la escena" |
+
+`task_done` (declare success/failure with a summary) is the 34th spec but
 is loop-internal — excluded from the MCP tool list, since an external host
-ends its own turns its own way.
+ends its own turns its own way. The MCP server adds eight host-side extras
+(`camera_snapshot`, `world_state`, `live_view_url`, `robot_knowledge`,
+`verify_last_action`, `task_memory`, `emergency_stop`, `reset_stop`).
 
 ## Safety notes for a live rig
 

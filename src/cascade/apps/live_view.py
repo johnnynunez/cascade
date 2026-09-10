@@ -74,6 +74,41 @@ def _stack_tiles(tiles: list[np.ndarray]) -> np.ndarray:
     return np.vstack(padded)
 
 
+def _opencv_has_gui() -> bool:
+    """True when this cv2 build can open windows (not the -headless wheel)."""
+    try:
+        info = cv2.getBuildInformation()
+    except Exception:  # noqa: BLE001
+        return False
+    for line in info.splitlines():
+        t = line.strip()
+        if t.startswith("GUI:"):
+            val = t.split(":", 1)[1].strip().upper()
+            return bool(val) and val not in ("NONE", "NO")
+    return False
+
+
+def _cv2_window_unavailable_reason() -> str | None:
+    """Why cv2.imshow cannot run from THIS thread, or None when it can.
+
+    - `opencv-python-headless` (the base dependency) has no highgui at all;
+    - on macOS, Cocoa windows may only be created on the MAIN thread, and
+      the RigViewer runs on a worker (under the MCP server the main thread
+      is the JSON-RPC loop) -> highgui throws an opaque C++ exception."""
+    if not _opencv_has_gui():
+        return ("this venv has opencv-python-headless (no highgui); install "
+                "`opencv-python` in its place for a native camera window")
+    import platform
+
+    # The viewer ALWAYS paints from its own worker thread (see RigViewer._loop),
+    # whichever thread calls start(), so on macOS this is unconditional.
+    if platform.system() == "Darwin":
+        return ("macOS Cocoa windows must be created on the main thread and the "
+                "camera viewer paints from a worker (the demo CLI and the MCP server "
+                "both keep the main thread for control)")
+    return None
+
+
 class RigViewer:
     """cv2 window over a CameraRig: all streams side by side, annotated.
 
@@ -105,6 +140,17 @@ class RigViewer:
 
         if not os.environ.get("DISPLAY") or os.environ.get("CASCADE_VIEW") == "0":
             self._gui_ok = False
+            return
+        reason = _cv2_window_unavailable_reason()
+        if reason:
+            # Two structural cases, both of which used to surface as
+            # "[rig-viewer] viewer disabled: Unknown C++ exception from OpenCV
+            # code" in every run log -- a crash-shaped line for a known
+            # limitation. Name it once, up front.
+            self._gui_ok = False
+            print(f"[rig-viewer] camera window skipped: {reason}. The MuJoCo physics "
+                  "window and the browser dashboard (live_view_url) are unaffected.",
+                  file=sys.stderr)
             return
         self._thread = threading.Thread(target=self._loop, daemon=True, name="rig-viewer")
         self._thread.start()

@@ -9,7 +9,6 @@ obstacle) and the very first grasp was refused by the harness.
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from cascade.perception.occupancy import OccupancyError, OccupancyMap
 from cascade.perception.robot_mask import arm_link_points, robot_mask

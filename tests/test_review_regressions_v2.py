@@ -5,11 +5,10 @@ import threading
 import time
 
 import numpy as np
-import pytest
 
 from conftest import needs_pin
 
-from cascade.config import Cfg, load_demo_config
+from cascade.config import load_demo_config
 from cascade.memory.beliefs import BeliefStore
 from cascade.memory.episodic import EpisodicMemory
 from cascade.perception.colors import center_bbox_mask, classify_hsv, color_matches

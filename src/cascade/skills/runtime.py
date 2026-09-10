@@ -21,12 +21,17 @@ from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..memory import BeliefStore, EpisodicMemory
 from ..perception.colors import detection_color, parse_color_query
 from ..perception.workspace import WorkspaceFilter
+from typing import TYPE_CHECKING
+
 from ..perception.grounding import (
     Extrinsics,
     localize_object,
     mask_to_points_cam,
     oriented_bbox,
 )
+
+if TYPE_CHECKING:  # annotation only; the runtime import stays local (import cycle)
+    from ..types import ObjectFix
 from ..types import Detection, Frame, SafetyViolation, SkillError, make_transform, transform_points
 
 logger = logging.getLogger(__name__)
@@ -1166,7 +1171,6 @@ class SkillRuntime:
         waypoint (position, approach, confidence, learned-memory prior) and
         decide before committing -- the observe-then-act loop, not blind
         execution. Follow with grasp_object to actually execute it."""
-        gcfg = self.cfg.grasp
         frame, fix = self._localize(label, spatial_hint=spatial_hint)
         grasps = self._plan_grasps(fix, label=label)
         if not grasps:
@@ -1549,7 +1553,33 @@ class SkillRuntime:
         # that much. Only the horizontal part is compensated: z is governed by
         # the release height and the wrist ceiling above.
         held_offset = self._held_object_offset()
+        # The same look also answers "is it still in the jaws?". When an
+        # independent channel (sim physics, or the camera seeing the object
+        # on the table) puts the object well below the TCP, it slipped
+        # during the carry and there is nothing to place: lowering an empty
+        # gripper and reporting ok makes pick_and_place's postcondition the
+        # only thing that catches it -- measured on a visitor run: red cube
+        # dropped 4 cm from where it started, `place_at` returned ok,
+        # physics REFUTED it 20 s later. Detecting it here costs nothing and
+        # turns a silent bad place into an honest retry.
         if held_offset is not None:
+            drop_m = float(self.cfg.grasp.get("slip_drop_m", 0.06))
+            if float(held_offset[2]) < -drop_m:
+                self.memory.add(
+                    "outcome",
+                    f"{self.held_object!r} is {-float(held_offset[2])*100:.0f} cm below the "
+                    "gripper -- it slipped during the carry",
+                )
+                try:
+                    self.arm.set_gripper(self._grip_open, effort=0.6)
+                except Exception:  # noqa: BLE001
+                    pass
+                slipped = self.held_object
+                self.held_object = None
+                self._held_det_label = None
+                self._held_color = None
+                self._held_offset = None
+                raise SkillError(f"{slipped!r} slipped out of the gripper during the carry")
             target[0] -= float(held_offset[0])
             target[1] -= float(held_offset[1])
             self.memory.add(
@@ -1707,7 +1737,6 @@ class SkillRuntime:
             raise SkillError(f"direction must be one of {sorted(dirs)}")
         d2 = dirs[direction]
         frame, fix = self._localize(label)
-        gcfg = self.cfg.grasp
         table_z = float(self.cfg.safety.get("table_z", 0.0))
         # Contact LOW on the object (a third of its height, min 1.5 cm above
         # the table) so the push doesn't topple or skim over it.

@@ -276,7 +276,7 @@ def main() -> int:
 
         print("=== plan ===")
         print(f"  channel     {args.channel}")
-        print(f"  hold pose   " + "  ".join(f"{k}:{v:+.4f}" for k, v in q_hold.items()))
+        print("  hold pose   " + "  ".join(f"{k}:{v:+.4f}" for k, v in q_hold.items()))
         print(f"  jog motor   {target_id} ({'gripper' if target_id == GRIPPER_ID else 'arm joint'})")
         print(f"  {start:+.4f} -> {goal:+.4f} rad  (delta {args.delta:+.4f})")
         print(f"  gains       kp={args.kp} kd={args.kd} (from {gain_src})"

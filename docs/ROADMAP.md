@@ -549,6 +549,33 @@ Runtime findings, each from a measurement on this machine:
     `_MOTION_SKILLS` name is a real skill, and that README's headline skill
     and tool counts equal the derived numbers (they were 30/37 against
     33/41).
+15. **The closed loop could switch itself off silently.** `execute()` wrapped
+    the Pigey postcondition check in `except Exception: pass`: a verifier
+    crash (camera hiccup, truth channel down, a checker bug) left the
+    skill's self-reported `ok: True` as the final word with no `verified`
+    flag at all. Now the crash becomes an UNVERIFIED postcondition naming
+    the cause (`verified: false`, `verification_note`), logged to the run
+    dir. Test drives the real `execute()` with a raising verifier; proven
+    by mutation (restoring the swallow fails both tests). Of the other 53
+    `except Exception: pass` sites, the rest guard best-effort side paths
+    (gripper release on abort, keyframe grabs, memory writes); left as is.
+16. **`--check` mutated the venv.** Documented as "report what is missing,
+    exit", `--check --sim isaac` on a MuJoCo venv installed 121 MB of torch
+    (+ torchvision) and would have fetched robot assets: the extras step
+    had a CHECK gate, the mujoco/torch/asset steps did not. All four now
+    warn under `--check`; verified with a package-list diff before/after
+    (103 packages, unchanged).
+17. Two `B023` late-binding closures fixed (`usd_model._parse_joints`
+    bound `body` from the loop -- every joint's attribute lookup would
+    read the LAST joint's block if the lambda were ever called after the
+    loop; `record_demo._rs`), and four `raise ... from e` chains in the
+    probe skills so a KeyError's origin survives into the SkillError.
+18. Verified again on a fresh export of the committed tree
+    (`git archive HEAD` → /tmp, no venv/runs/assets): `./run.sh mujoco
+    --cameras mujoco_scene_two` created the venv, installed the extras,
+    fetched the 24 SO-101 meshes, proved 41 tools, pick CONFIRMED by
+    physics, reset OK, and -- with the display awake this time -- the
+    banner read "the MuJoCo window is open (it follows every motion)".
 
 Not adopted, with reasons: Vesta as the brain (no weights); navigation and
 SFT mixture (training); GR00T actor (VLA as executor was ruled out earlier);

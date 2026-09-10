@@ -7,10 +7,10 @@ if ! command -v uv >/dev/null 2>&1; then
     exit 2
 fi
 exec uv run --no-project --isolated --python 3.12 \
-    --with 'newton[sim]==1.5.1' \
+    --with 'newton[sim]==1.6.0' \
     --with 'warp-lang==1.17.0' \
-    --with 'mujoco==3.11.0' \
-    --with 'mujoco-warp==3.11.0' \
+    --with 'mujoco==3.12.0' \
+    --with 'mujoco-warp==3.12.0' \
     --with 'numpy==2.5.3' \
     --with 'scipy==1.18.1' \
     --with 'trimesh==4.12.2' \

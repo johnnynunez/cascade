@@ -10,6 +10,7 @@ instead of crashing the loop.
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 import time
 
@@ -20,8 +21,9 @@ from ..agent.trace import TraceLogger
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..memory import BeliefStore, EpisodicMemory
 from ..perception.colors import detection_color, parse_color_query
-from ..perception.workspace import WorkspaceFilter
 from typing import TYPE_CHECKING
+
+from ..perception.workspace import WorkspaceFilter
 
 from ..perception.grounding import (
     Extrinsics,
@@ -525,13 +527,22 @@ class SkillRuntime:
         # Pigey closed loop: was the claimed effect real? A refuted
         # postcondition DOWNGRADES a self-reported success (annotate_result).
         if self.effects is not None and result.get("ok") is not None:
-            try:
-                from ..agent.effects import annotate_result
+            from ..agent.effects import UNVERIFIED, Postcondition, annotate_result
 
+            try:
                 pc = self.effects.verify(name, args, result, before=pre_state)
-                result = annotate_result(result, pc)
-            except Exception:
-                pass
+            except Exception as e:  # noqa: BLE001
+                # The verifier itself failing (camera hiccup, truth channel
+                # down) must NOT leave a self-reported `ok` standing as if it
+                # had been checked -- that is the closed loop silently off.
+                # Record it as an UNVERIFIED postcondition that names the
+                # cause, so `verified: false` reaches the agent and the trace.
+                pc = Postcondition(
+                    skill=name, kind="verifier", status=UNVERIFIED,
+                    evidence=f"postcondition check crashed: {type(e).__name__}: {e}",
+                )
+                print(f"[cascade] postcondition verifier for {name} raised: {e!r}", file=sys.stderr)
+            result = annotate_result(result, pc)
         # Harness-VLA: fold the outcome into the learned operating envelope.
         try:
             self.envelope.record(
@@ -2742,10 +2753,10 @@ class SkillRuntime:
 
         try:
             return PointProbe(self).probe(u, v, camera=camera, normalized=normalized)
-        except KeyError:
-            raise SkillError(f"unknown camera {camera!r}")
+        except KeyError as e:
+            raise SkillError(f"unknown camera {camera!r}") from e
         except ValueError as e:
-            raise SkillError(str(e))
+            raise SkillError(str(e)) from e
 
     def skill_locate_pixel(self, label: str, camera: str | None = None) -> dict:
         """Where is a known object in the image? (inverse of probe_point)
@@ -2757,10 +2768,10 @@ class SkillRuntime:
 
         try:
             return PointProbe(self).locate_pixel(label, camera=camera)
-        except KeyError:
-            raise SkillError(f"unknown camera {camera!r}")
+        except KeyError as e:
+            raise SkillError(f"unknown camera {camera!r}") from e
         except ValueError as e:
-            raise SkillError(str(e))
+            raise SkillError(str(e)) from e
 
     def skill_task_done(self, success: bool, summary: str) -> dict:
         if isinstance(success, str):  # schema-lax backends send "false"

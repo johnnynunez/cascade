@@ -55,8 +55,10 @@ for i in range(n):
     except Exception:
         bgrw = bgr0
     h = 480
-    def _rs(im):
+
+    def _rs(im, h=h):
         return cv2.resize(im, (int(im.shape[1] * h / im.shape[0]), h))
+
     left = _rs(bgr0)
     mid = _rs(bgrs)
     right = _rs(bgrw)

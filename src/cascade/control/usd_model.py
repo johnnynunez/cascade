@@ -108,7 +108,10 @@ def _parse_joints(text: str) -> list[dict]:
     joints = []
     for m in _JOINT_DEF.finditer(text):
         body = _block(text, m.end())
-        get = lambda name, default=None: _attr(body, name) or default
+
+        def get(name, default=None, _body=body):  # bind THIS joint's block, not the loop variable
+            return _attr(_body, name) or default
+
         j = {
             "name": m.group(2),
             "type": m.group(1).lower(),  # revolute | prismatic | fixed

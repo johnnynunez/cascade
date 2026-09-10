@@ -311,6 +311,45 @@ host); `scripts/serve_occupancy.sh` → `serve_occupancy_bridge.py`
 and named in the banner; a missing sidecar degrades loudly to its fallback,
 never silently.
 
+## ROS2, humanoids, and what is NOT here yet
+
+**ROS2 today = arms.** `type: ros2` (`control/ros2_arm.py`) speaks the two
+interfaces every `ros2_control` deployment has -- `sensor_msgs/JointState`
+in, `trajectory_msgs/JointTrajectory` (or `Float64MultiArray` for a forward
+position controller) out -- with joints addressed **by name**, so the
+driver's `JointState` order can never shift the mapping. Adding a ROS2 robot
+is copying `configs/arms/ros2_generic.yaml` (a `template: true` file the
+factory refuses to run until its numbers are filled in) and pointing it at
+the robot's URDF, joint names, keyframes, gripper travel and workspace; the
+harness, IK, grasping, skills and MCP tools drive it unchanged. `rclpy` is
+imported inside `connect()`, so the mock stack and CI without ROS2 still
+collect the module; the unit tests inject stub `rclpy` modules. Shipped
+profiles: `so101_ros2`, `piper`, `h1`, `h1_2`, `fr3`. Design rationale (QoS,
+streaming vs. single trajectory, stop semantics, licence notes) in
+`docs/ROS2_BACKEND_BRIEF.md`. **Unverified on hardware.**
+
+**Humanoids today = one arm of a standing robot.** `type: unitree_arm`
+(`control/unitree_arm.py`) drives an arm of a G1 / H1 / H1-2 over Unitree's
+Arm-SDK channel (`rt/arm_sdk` LowCmd with the per-family motor index table
+and the CRC the firmware validates; `rt/lowstate` in), ramping the SDK
+"weight" so the locomotion controller hands the arm over without a jerk.
+Balance, legs, waist and walking stay with Unitree's own controller; a
+handless gen-1 H1 declares `max_width_m: 0` so grasps are refused, not mimed.
+The humanoid profiles' `base_pose` places the shoulder in the shared table
+frame, which is what the inter-arm and occupancy gates need. **Unverified on
+hardware.**
+
+**Not here: a mobile base, navigation, mapping, robot self-localization.**
+Nothing publishes a Twist, consumes odometry or a map, or talks to Nav2;
+"localization" in this codebase means object grounding. The design for that
+layer -- a `MobileBase` twin of `ArmBase`, `MobileRig`, `base=` binding in
+`execute()`, Vesta's three navigation verbs as skills (`go_to_pixel`,
+`turn`, `stop_navigation`) with the memory harness spanning the walk, a
+2D costmap sliced from the existing Warp ESDF, and two navigation backends
+(Nav2 when ROS2 is sourced, the Warp planner otherwise), targeting a Unitree
+G1/H1 in Isaac Sim first -- is written up in
+`docs/MOBILITY_AND_NAVIGATION_DESIGN.md` and scheduled in the ROADMAP.
+
 ## Launch and hosts
 
 `run.sh` → `scripts/launch.sh` is the one-click entry: `--sim auto|isaac|

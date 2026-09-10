@@ -109,6 +109,16 @@ handless arm declares `max_width_m: 0` so grasps are *refused honestly*
 instead of mimed. See [`docs/ROS2_BACKEND_BRIEF.md`](docs/ROS2_BACKEND_BRIEF.md)
 for the design rationale (QoS, streaming trade, stop semantics).
 
+> **Scope, honestly:** ROS2 and the humanoid profiles drive **arms**. There
+> is no mobile base, navigation, mapping or robot self-localization in
+> cascade yet -- "localization" here means finding *objects*. The mobility
+> layer (a `MobileBase` twin of `ArmBase`, Vesta's pixel-goal / turn / stop
+> navigation verbs as skills with the visual memory harness spanning the
+> walk, Nav2 or a Warp costmap planner behind one interface, Unitree G1/H1
+> in Isaac Sim first) is designed in
+> [`docs/MOBILITY_AND_NAVIGATION_DESIGN.md`](docs/MOBILITY_AND_NAVIGATION_DESIGN.md)
+> and is the next structural addition on the [roadmap](docs/ROADMAP.md).
+
 <a id="multi-arm"></a>
 **Multi-arm.** `--arms a,b` builds an `ArmRig` (first = manipulation arm, the
 same shape as the camera rig); every motion skill then takes an optional
@@ -684,6 +694,9 @@ silently vanishes.
 - [docs/AGENTIC_UPGRADES.md](docs/AGENTIC_UPGRADES.md) — the Pigey/Harness-VLA/
   Claude-plays-robotics mechanisms (verification, envelope, cursor) and the
   pitfalls each one cost
+- [docs/MOBILITY_AND_NAVIGATION_DESIGN.md](docs/MOBILITY_AND_NAVIGATION_DESIGN.md)
+  — design for mobile bases, humanoid locomotion and navigation (`MobileBase`,
+  Vesta's nav verbs, Nav2 / Warp planner backends, G1 in Isaac first); not code yet
 - [docs/ROS2_BACKEND_BRIEF.md](docs/ROS2_BACKEND_BRIEF.md) · [docs/NEWTON_ENGINE.md](docs/NEWTON_ENGINE.md)
   · [docs/BRIDGE_DEGRADATION.md](docs/BRIDGE_DEGRADATION.md) — backend briefs
 - Research notes: [SOTA_PERCEPTION_AND_EVALUATION](docs/SOTA_PERCEPTION_AND_EVALUATION.md),

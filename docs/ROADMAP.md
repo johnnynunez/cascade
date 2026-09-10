@@ -36,6 +36,29 @@ Open, in priority order (details in the sections below):
    consolidation on top of ExperienceMemory (keys on text today).
 8. **Multi-arm on physics**: `so101_left`/`so101_right` are mock; render a
    two-arm MuJoCo scene so the inter-arm gate is measured, not simulated.
+9. **Mobility + navigation (the next structural addition, approved
+   2026-09-10 as design-first).** cascade has no mobile base, navigation,
+   mapping or robot self-localization; ROS2 and the humanoid profiles are
+   arm-only. Design in `docs/MOBILITY_AND_NAVIGATION_DESIGN.md`:
+   `MobileBase` (twin of `ArmBase`) + `MobileRig` + `base=` in
+   `execute()`; Vesta's three navigation verbs as skills (`go_to_pixel`,
+   `turn`, `stop_navigation`, plus `go_to_object`, `where_am_i`) with the
+   memory harness spanning the walk and `nav` postconditions on the pose
+   channel; a 2D costmap sliced from the existing Warp ESDF; two nav
+   backends behind one interface (Nav2 `NavigateToPose` when ROS2 is
+   sourced, Warp planner otherwise -- the laptop one-click keeps working);
+   backends `mock_base`, `mujoco_base` (Menagerie Go2/G1, floating base in
+   the shared world), `isaac_base` (G1 + Isaac Lab velocity policy, bridge
+   ops `set_velocity`/`base_pose`), `ros2_base` (`/cmd_vel` Twist +
+   `/odom` + Nav2; reference target = Isaac ROS Deploy's G1 AGILE WBC
+   bringup, which is exactly Twist-driven and has `hardware_type:=mujoco`),
+   `unitree_base` (sdk2 `LocoClient.Move/StopMove/Damp`). First target:
+   Unitree G1/H1 in Isaac Sim. Demo task where mobility is visible: two
+   tables, find the cube, bring it to the tray -- after turning away only
+   the history frames know table A was checked. Order of work and the
+   test-per-step plan are in the design doc. What Vesta does NOT provide
+   here: mapping, SLAM, odometry (it leaves motion to a "navigation
+   backend"), weights or code.
 
 ## Landed 2026-07-31: the orchestration-gap upgrades
 

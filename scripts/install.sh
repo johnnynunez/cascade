@@ -25,7 +25,7 @@ usage() {
         '  --accept-eula   consent to NVIDIA Isaac Sim / Omniverse EULA' \
         '  --dry-run       show plan without downloads or filesystem writes' \
         '  --check         read-only preflight; nonzero when prerequisites missing' \
-        '  --prepare-only  install/cache only; do not start services or proof' \
+        '  --prepare-only  install/cache + Spark shortcuts; no services or proof' \
         '  --no-open       do not open the browser' \
         '  --brain cosmos|keep  default: cosmos on Spark, keep on laptop'
 }
@@ -51,13 +51,14 @@ while [[ $# -gt 0 ]]; do
 done
 case "$PROFILE" in spark) BRAIN="${BRAIN:-cosmos}" ;; laptop|ci) BRAIN="${BRAIN:-keep}" ;; *) die "unknown --profile $PROFILE" ;; esac
 case "$BRAIN" in cosmos|keep) ;; *) die "unknown --brain $BRAIN" ;; esac
+[[ "$PROFILE" != spark || "$BRAIN" == cosmos ]] || die 'Spark delivery requires --brain cosmos; use --profile laptop explicitly for other brains'
 [[ "$PROFILE" == spark || "$BRAIN" == keep ]] || die "--brain cosmos requires --profile spark"
 [[ "$REF" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*$ && "$REF" != *..* && "$REF" != */ && "$REF" != *. && "$REF" != *.lock && "$REF" != */.* && "$REF" != *//* ]] || die "invalid --ref $REF"
 case "$DIR" in /*) ;; *) DIR="$PWD/$DIR" ;; esac
 log "profile=$PROFILE brain=$BRAIN source=$REF dir=$DIR"
 log "CASCADE: Python 3.12 in $DIR/.venv; source changes are preserved"
 if [[ "$PROFILE" == spark ]]; then
-    log "Isaac Sim 6.1.0 (wheel isaacsim[all,extscache]==6.1.0.0), Python 3.12 in $DIR/.isaacsim"
+    log "Isaac Sim 6.1.0: reuse selected/discovered source unchanged; otherwise isaacsim[all,extscache]==6.1.0.0 in $DIR/.isaacsim (Python 3.12)"
     log "YOLOE: CUDA aarch64 cu130 torch + torchvision, promptable/prompt-free weights + mobileclip_blt.ts"
     [[ "$BRAIN" != cosmos ]] || log "Cosmos3-Edge: isolated $DIR/.cosmos; loopback :8082, GPU_FRAC=0.20"
 fi
@@ -67,7 +68,7 @@ if [[ "$DRY" == 1 ]]; then exit 0; fi
 HOST_BAD=0
 if [[ "$PROFILE" == spark ]]; then
   (
-    [[ "$ACCEPT" == 1 || "$CHECK" == 1 ]] || die 'Spark installation requires --accept-eula (https://docs.omniverse.nvidia.com/platform/latest/common/NVIDIA_Omniverse_License_Agreement.html)'
+    [[ "$ACCEPT" == 1 || "$CHECK" == 1 ]] || die 'Spark installation requires --accept-eula (https://docs.omniverse.nvidia.com/eula)'
     [[ "$(uname -s)" == Linux && "$(uname -m)" == aarch64 ]] || die 'Spark requires Linux aarch64; use --profile laptop or ci explicitly on other hosts'
     LIBC="$(getconf GNU_LIBC_VERSION 2>/dev/null || true)"
     [[ "$LIBC" =~ ^glibc\ ([0-9]+)\.([0-9]+)$ ]] || die "cannot determine glibc version: $LIBC"
@@ -82,7 +83,11 @@ if [[ "$CHECK" == 1 ]]; then
     [[ -f "$DIR/pyproject.toml" && -f "$DIR/scripts/install_support.py" ]] || missing "source checkout at $DIR"
     [[ -x "$DIR/.venv/bin/python" ]] || missing "$DIR/.venv/bin/python"
     if [[ "$PROFILE" == spark ]]; then
-        [[ -x "$DIR/.isaacsim/bin/python" ]] || missing "$DIR/.isaacsim/bin/python (Isaac 6.1.0.0)"
+        if [[ -f "$DIR/scripts/install_isaac.sh" ]]; then
+            bash "$DIR/scripts/install_isaac.sh" --dir "$DIR" --check || MISSING=1
+        else
+            missing "$DIR/.isaacsim/bin/python or a valid ISAACSIM_PATH (Isaac 6.1.0.0)"
+        fi
         [[ "$BRAIN" != cosmos || -x "$DIR/.cosmos/bin/vllm" ]] || missing "$DIR/.cosmos/bin/vllm (Cosmos3-Edge)"
     fi
     [[ "$PROFILE" == ci || -x "$DIR/.openclaw-cli/bin/openclaw" ]] || missing 'OpenClaw 2026.9.3 private CLI'
@@ -148,6 +153,16 @@ if ! command -v uv >/dev/null 2>&1; then
     UV_INSTALL_DIR="$HOME/.local/bin" UV_NO_MODIFY_PATH=1 sh -c "$UV_INSTALLER"
 fi
 PY="$DIR/.venv/bin/python"
+record_install() {
+    local consent=""
+    [[ "$ACCEPT" != 1 ]] || consent="--accept-eula"
+    # $consent is empty or the single literal flag, never user input.
+    "$PY" "$DIR/scripts/install_support.py" record --repo "$DIR" --profile "$PROFILE" --brain "$BRAIN" --ref "$SOURCE_REF" $consent
+    if [[ "$PROFILE" == spark ]]; then
+        "$PY" "$DIR/scripts/desktop.py" register --repo "$DIR"
+        log "Desktop entries installed: Install CASCADE (Spark), CASCADE (Spark)"
+    fi
+}
 if [[ ! -x "$PY" ]]; then
     [[ ! -e "$DIR/.venv" ]] || die 'incomplete .venv: move it aside explicitly; installer will not reset it'
     retry uv venv --python 3.12 "$DIR/.venv"
@@ -164,7 +179,7 @@ if [[ "$PROFILE" == spark ]]; then
 fi
 retry uv pip install --python "$PY" -e "$DIR[$EXTRAS]"
 if [[ "$PROFILE" == ci ]]; then
-    "$PY" "$DIR/scripts/install_support.py" record --repo "$DIR" --profile "$PROFILE" --brain "$BRAIN" --ref "$SOURCE_REF"
+    record_install
     log "CI dependencies installed (no services). Python: $PY"
     exit 0
 fi
@@ -210,11 +225,11 @@ if [[ "$BRAIN" == cosmos ]]; then
         "$DIR/scripts/serve_cosmos_vllm.sh" --setup-only
 fi
 if [[ "$PREPARE" == 1 ]]; then
-    "$PY" "$DIR/scripts/install_support.py" record --repo "$DIR" --profile "$PROFILE" --brain "$BRAIN" --ref "$SOURCE_REF"
+    record_install
     log 'PREPARED: dependencies/assets cached. No services started, no runtime or physical proof performed.'
     exit 0
 fi
-"$PY" "$DIR/scripts/install_support.py" record --repo "$DIR" --profile "$PROFILE" --brain "$BRAIN" --ref "$SOURCE_REF"
+record_install
 # Proof and READY belong exclusively to launch.sh, not to the installer.
 set -- launch --repo "$DIR" --profile "$PROFILE" --brain "$BRAIN"
 [[ "$NO_OPEN" != 1 ]] || set -- "$@" --no-open

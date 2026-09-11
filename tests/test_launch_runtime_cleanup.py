@@ -71,4 +71,6 @@ os.execv(original,[original,*args])
     result = subprocess.run(h["command"], env=h["env"], text=True, capture_output=True, timeout=60)
     assert result.returncode != 0
     assert "RUNTIME_FAILURE_SENTINEL" in result.stdout + result.stderr
+    state = Path(h["env"]["CASCADE_LAUNCH_STATE"]) / "profile-isolated-test"
+    assert "RUNTIME_FAILURE_SENTINEL" in (state / "runtime-check.log").read_text()
     assert "[launch] READY" not in result.stdout

@@ -217,6 +217,15 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Private delivery environments and generated model exports, not source manifests.
+/.openclaw-cli/
+/.isaacsim/
+/.cosmos/
+/.cosmos-omni/
+/models/Cosmos3-Edge-hf/
+/models/.Cosmos3-Edge-hf.lock
+/models/.Cosmos3-Edge-hf.staging-*/
+
 # cascade artifacts
 runs/
 datasets/

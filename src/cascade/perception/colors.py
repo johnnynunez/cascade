@@ -49,7 +49,11 @@ def classify_hsv(h: float, s: float, v: float) -> str:
     """Name one OpenCV-HSV color (H 0-180, S/V 0-255)."""
     if v < 46:
         return "black"
-    if s < 45:
+    # Preserve pastel chroma: S=37..42 in real segmented camera samples
+    # was discarded by the old 45 cutoff despite clear channel differences.
+    # A global 30 cutoff keeps weak neutral tints (S~20) achromatic without
+    # special-casing a hue, object label, camera, or requested color.
+    if s < 30:
         return "white" if v > 190 else "gray"
     # Low-saturation bright reds/magentas read as pink to humans.
     if s < 120 and v > 150 and (h <= 10 or h >= 140):

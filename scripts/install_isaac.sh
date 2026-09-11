@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exact Isaac wheel installation. Does not install/change a driver or system Python.
+# Reuse an existing Isaac release or install pinned wheels in an isolated venv.
 set -euo pipefail
 DIR="${CASCADE_HOME:-$PWD}"
 ACCEPT=0
@@ -18,6 +18,37 @@ while [[ $# -gt 0 ]]; do
 done
 case "$DIR" in /*) ;; *) DIR="$PWD/$DIR" ;; esac
 PY="$DIR/.isaacsim/bin/python"
+REUSE=0
+# Explicit paths are authoritative, including a broken path. Never repair a
+# source/standalone Kit environment with pip or silently select another one.
+if [[ -n "${ISAACSIM_PYTHON_EXE:-}" ]]; then
+    PY="$ISAACSIM_PYTHON_EXE"
+    [[ "$PY" == "$DIR/.isaacsim/bin/python" ]] || REUSE=1
+elif [[ -n "${ISAACSIM_PATH:-}" ]]; then
+    PY="$ISAACSIM_PATH/python.sh"; REUSE=1
+elif [[ ! -x "$PY" ]]; then
+    for release in "$HOME/Projects/isaac/IsaacSim/_build/linux-$(uname -m)/release" \
+                   "$HOME/isaacsim" "$HOME/.local/share/ov/pkg"/isaac-sim-* /isaac-sim; do
+        if [[ -x "$release/python.sh" ]]; then PY="$release/python.sh"; REUSE=1; break; fi
+    done
+fi
+if [[ "$REUSE" == 1 ]]; then
+    printf '[install-isaac] Reuse existing Isaac Sim 6.1.0 without package writes: %s\n' "$PY"
+    [[ "$DRY" != 1 ]] || exit 0
+    [[ "$CHECK" == 1 || "$ACCEPT" == 1 ]] || die 'requires --accept-eula; environment variables alone are not consent'
+    [[ -x "$PY" ]] || die "selected Isaac Python is missing: $PY"
+    if [[ "$(basename "$PY")" == python.sh ]]; then
+        export ISAACSIM_PATH="$(cd "$(dirname "$PY")" && pwd)"
+    else
+        unset ISAACSIM_PATH
+    fi
+    env -u PYTHONEXE -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV -u CONDA_PREFIX \
+        -u LD_LIBRARY_PATH -u LD_PRELOAD \
+        PYTHONDONTWRITEBYTECODE=1 "$PY" "$DIR/scripts/isaac_runtime.py" --check \
+        || die 'selected Isaac release is incomplete or incompatible; it was not modified'
+    printf '[install-isaac] Existing release metadata checked; no pip install, Kit startup or GPU proof.\n'
+    exit 0
+fi
 printf '[install-isaac] Isaac Sim 6.1.0, isaacsim[all,extscache]==6.1.0.0, Python 3.12 -> %s\n' "$PY"
 [[ "$DRY" != 1 ]] || exit 0
 verify() {

@@ -28,6 +28,7 @@ def boundary_env(tmp_path):
         "install_isaac.sh",
         "install_support.py",
         "fetch_robot_assets.py",
+        "desktop.py",
     ):
         if (ROOT / "scripts" / name).exists():
             shutil.copy2(ROOT / "scripts" / name, source / "scripts" / name)
@@ -71,6 +72,8 @@ def boundary_env(tmp_path):
         + """
 if a and a[0] == "--version": print("Python 3.12.14")
 elif len(a)>1 and a[0]=="-c" and "version_info" in a[1]: print("3.12")
+elif a and a[0].endswith("/desktop.py") and os.environ.get("BOUNDARY_REAL_DESKTOP") == "1":
+    sys.exit(subprocess.call([sys.executable, *a]))
 sys.exit(int(os.environ.get("BOUNDARY_PY_FAIL", "0")))
 """
     )
@@ -495,6 +498,9 @@ def launch_fixture(tmp_path, monkeypatch):
 
     monkeypatch.delenv("CASCADE_LAUNCH_STATE", raising=False)
     monkeypatch.delenv("CASCADE_OPENCLAW_PROFILE", raising=False)
+    monkeypatch.delenv("ISAACSIM_PATH", raising=False)
+    monkeypatch.delenv("ISAACSIM_PYTHON_EXE", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     support = support_module()
     assert hasattr(support, "launch"), "installer launch supervision is missing"
     with socket.socket() as sock:
@@ -503,6 +509,10 @@ def launch_fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(support, "COSMOS_PORT", port)
     repo = tmp_path / "repo"
     (repo / "scripts").mkdir(parents=True)
+    consent = repo / "runs/.install/install.json"
+    consent.parent.mkdir(parents=True)
+    consent.write_text(json.dumps({"repo": str(repo.resolve()), "eula_accepted": True,
+                                   "eula_url": support.EULA_URL}))  # boundary operator consent
     # Protocol/service double only: neither weights nor GPU code executes.
     executable(
         repo / "scripts/serve_cosmos_vllm.sh",
@@ -864,13 +874,16 @@ def test_installer_delegates_launch_without_falling_back_to_hosted_brain(tmp_pat
     assert "READY" not in result.stdout  # only the real proof launcher may emit it
 
 
-def test_install_record_preserves_source_identity_and_reusable_environment(tmp_path):
+def test_install_record_preserves_source_identity_and_reusable_environment(tmp_path, monkeypatch):
     support = support_module()
     assert hasattr(support, "record_install"), "installation identity is not recorded"
     env, _ = boundary_env(tmp_path)
     repo = Path(env["BOUNDARY_SOURCE"])
     (repo / "pyproject.toml").write_text("# dirty user source\n")
-    support.record_install(repo, "spark", "cosmos", "main")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("ISAACSIM_PATH", raising=False)
+    monkeypatch.delenv("ISAACSIM_PYTHON_EXE", raising=False)
+    support.record_install(repo, "spark", "cosmos", "main", accept_eula=True)
     record = json.loads((repo / "runs/.install/install.json").read_text())
     actual = subprocess.run(
         ["/usr/bin/git", "-C", str(repo), "rev-parse", "HEAD"],

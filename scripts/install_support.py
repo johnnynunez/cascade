@@ -20,6 +20,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 import zipfile
 
 from fetch_robot_assets import fetch
@@ -124,6 +125,43 @@ def prepare_assets(repo: Path) -> None:
 
 
 COSMOS_PORT = 8082
+EULA_URL = "https://docs.omniverse.nvidia.com/eula"
+
+
+def eula_accepted(repo: Path) -> bool:
+    """Only a checkout-bound explicit-consent receipt grants future launches."""
+    try:
+        record = json.loads((repo / "runs/.install/install.json").read_text())
+        return (record.get("repo") == str(repo.resolve())
+                and record.get("eula_accepted") is True
+                and record.get("eula_url") == EULA_URL)
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def isaac_environment(repo: Path) -> dict[str, str]:
+    """Match launcher/installer selection, without importing or modifying Kit."""
+    selected = os.environ.get("ISAACSIM_PYTHON_EXE")
+    source = os.environ.get("ISAACSIM_PATH")
+    if not selected and source:
+        selected = str(Path(source).expanduser() / "python.sh")
+    if not selected:
+        managed = repo / ".isaacsim/bin/python"
+        selected = str(managed)
+        if not managed.is_file():
+            home = Path.home()
+            releases = [home / f"Projects/isaac/IsaacSim/_build/linux-{os.uname().machine}/release",
+                        home / "isaacsim", *sorted((home / ".local/share/ov/pkg").glob("isaac-sim-*")),
+                        Path("/isaac-sim")]
+            for release in releases:
+                if os.access(release / "python.sh", os.X_OK):
+                    selected = str(release / "python.sh")
+                    break
+    python = Path(selected).expanduser().absolute()
+    env = {"ISAACSIM_PYTHON_EXE": str(python)}
+    if python.name == "python.sh":
+        env["ISAACSIM_PATH"] = str(python.parent)
+    return env
 
 
 def model_health() -> bool:
@@ -178,9 +216,16 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False) -> in
     env = os.environ.copy()
     env["PY"] = str(repo / ".venv/bin/python")
     if profile == "spark":
-        env["ISAACSIM_PYTHON_EXE"] = str(repo / ".isaacsim/bin/python")
+        if brain != "cosmos":
+            raise RuntimeError("Spark delivery requires the local cosmos brain; use laptop explicitly for other modes")
+        if not eula_accepted(repo):
+            raise RuntimeError("Spark launch requires explicit consent: run install.sh --accept-eula first")
+        env.pop("ISAACSIM_PATH", None)
+        env.update(isaac_environment(repo))
+        env["CASCADE_INSTALL_PROFILE"] = "spark"
         env["CASCADE_OPENCLAW_PROFILE"] = "cascade-demo"
-        env["OMNI_KIT_ACCEPT_EULA"] = "YES"  # caller already checked explicit consent
+        env["OMNI_KIT_ACCEPT_EULA"] = "YES"  # validated persistent consent above
+        env["PATH"] = str(repo / ".openclaw-cli/bin") + os.pathsep + env.get("PATH", os.defpath)
     root = Path(env.get("CASCADE_LAUNCH_STATE", repo / "runs/.launch")).expanduser()
     if not root.is_absolute():
         root = repo / root
@@ -192,6 +237,21 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False) -> in
     state = profile_state_dir(root, oc_profile)
     owner = load_owner(state, repo, oc_profile, create=True)
     assert owner is not None
+    # Cosmos starts before launch.sh. Invalidate here too, so a failed model
+    # startup cannot leave the previous attendee's READY receipt current.
+    attempt = "startup-attempt-" + uuid.uuid4().hex
+    evidence = state / attempt
+    evidence.mkdir(mode=0o700)
+    proof = state / "proof.json"
+    if proof.is_file():
+        (evidence / "previous-proof.json").write_bytes(proof.read_bytes())
+    temporary = evidence / "initial-proof.json"
+    temporary.write_text(json.dumps({
+        "verified": False, "sim": "isaac" if profile == "spark" else "mujoco",
+        "profile": oc_profile, "started_at": time.time(), "attempt": attempt,
+        "note": "supervised startup in progress; no current proof",
+    }) + "\n")
+    temporary.replace(proof)
     cosmos = None
     launcher = None
     success = False
@@ -274,7 +334,10 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False) -> in
             # Unlinking here could erase a newer invocation's receipt.
 
 
-def record_install(repo: Path, profile: str, brain: str, ref: str) -> None:
+def record_install(repo: Path, profile: str, brain: str, ref: str, *, accept_eula: bool = False) -> None:
+    if profile == "spark" and not (accept_eula or eula_accepted(repo)):
+        raise RuntimeError("cannot record Spark installation without explicit --accept-eula consent")
+
     def git(*args: str) -> str:
         return subprocess.run(
             ["git", "-C", str(repo), *args],
@@ -296,7 +359,12 @@ def record_install(repo: Path, profile: str, brain: str, ref: str) -> None:
         ":!runs",
         ":!models/Cosmos3-Edge-hf",
     )
+    isaac = isaac_environment(repo) if profile == "spark" else {}
     record = {
+        "repo": str(repo.resolve()),
+        "eula_accepted": profile == "spark" and (accept_eula or eula_accepted(repo)),
+        "eula_url": EULA_URL if profile == "spark" else None,
+        "isaac_environment": isaac,
         "source_commit": git("rev-parse", "HEAD"),
         "requested_ref": ref,
         "source_dirty": bool(dirty),
@@ -312,10 +380,10 @@ def record_install(repo: Path, profile: str, brain: str, ref: str) -> None:
     temporary = state / f"install.{os.getpid()}.tmp"
     temporary.write_text(json.dumps(record, indent=2) + "\n")
     temporary.replace(state / "install.json")
-    exports = {"PY": str(repo / ".venv/bin/python")}
+    exports = {"PY": str(repo / ".venv/bin/python"), "CASCADE_INSTALL_PROFILE": profile}
     if profile == "spark":
+        exports.update(isaac)
         exports.update(
-            ISAACSIM_PYTHON_EXE=str(repo / ".isaacsim/bin/python"),
             CASCADE_OPENCLAW_PROFILE="cascade-demo",
             OMNI_KIT_ACCEPT_EULA="YES",
         )
@@ -385,9 +453,11 @@ sys.exit(bool(errors))
                 f"{python}: {result.stdout.strip() or result.stderr.strip()}"
             )
     if profile != "ci":
-        package = (
-            repo / ".openclaw-cli/tools/node/lib/node_modules/openclaw/package.json"
-        )
+        packages = [
+            repo / ".openclaw-cli/tools/node/lib/node_modules/openclaw/package.json",
+            repo / ".openclaw-cli/lib/node_modules/openclaw/package.json",
+        ]
+        package = next((p for p in packages if p.is_file()), packages[0])
         try:
             if json.loads(package.read_text()).get("version") != "2026.9.3":
                 problems.append("OpenClaw package version !=2026.9.3")
@@ -442,6 +512,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--brain", choices=["cosmos", "keep"], default="cosmos")
     parser.add_argument("--ref", default="existing checkout")
     parser.add_argument("--no-open", action="store_true")
+    parser.add_argument("--accept-eula", action="store_true", help="record explicit consent, never inferred from environment")
     args = parser.parse_args(argv)
     repo = args.repo.resolve()
 
@@ -455,7 +526,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.action == "assets":
             prepare_assets(repo)
         elif args.action == "record":
-            record_install(repo, args.profile, args.brain, args.ref)
+            record_install(repo, args.profile, args.brain, args.ref, accept_eula=args.accept_eula)
         elif args.action == "check":
             problems = installation_problems(repo, args.profile, args.brain)
             for problem in problems:

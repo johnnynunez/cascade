@@ -751,26 +751,27 @@ if _PIXEL_MASK_ENABLED:
     for _sensor, _K in _annotators.values():
         _sensor.attach_annotators("instance_id_segmentation")
 
-if args.gui:
+def _frame_gui_viewport():
+    """Frame the presentation camera after Kit's stage/camera warmup.
+
+    Early raw USD edits were overwritten by the viewport controller: the
+    live camera stayed at (5, 5, 5), making the arm tiny in the recording.
+    The rendering manager synchronizes the camera and its orbit target.
+    Calibrated perception cameras and tonemapping remain untouched.
+    """
+    if not args.gui:
+        return
     try:
-        _persp = stage.GetPrimAtPath("/OmniverseKit_Persp")
-        _eye = np.array([1.5, 1.1, BASE_Z + 0.85]) * U
-        _tgt = np.array([0.30, 0.0, BASE_Z + 0.10]) * U
-        _fwd = _tgt - _eye; _fwd /= np.linalg.norm(_fwd)
-        _rgt = np.cross(_fwd, [0.0, 0.0, 1.0]); _rgt /= np.linalg.norm(_rgt)
-        _up = np.cross(_rgt, _fwd)
-        _m = Gf.Matrix4d(
-            _rgt[0], _rgt[1], _rgt[2], 0.0,
-            _up[0], _up[1], _up[2], 0.0,
-            -_fwd[0], -_fwd[1], -_fwd[2], 0.0,
-            _eye[0], _eye[1], _eye[2], 1.0,
+        from isaacsim.core.rendering_manager import ViewportManager
+
+        ViewportManager.set_camera_view(
+            "/OmniverseKit_Persp",
+            eye=[1.15 * U, 0.85 * U, (BASE_Z + 0.70) * U],
+            target=[0.20 * U, 0.015 * U, (BASE_Z + 0.20) * U],
         )
-        _xf = UsdGeom.Xformable(_persp)
-        _xf.ClearXformOpOrder()
-        _xf.AddTransformOp().Set(_m)
         print("[bridge] viewport camera framed on the booth", flush=True)
-    except Exception as _e:
-        print(f"[bridge] viewport framing skipped: {_e}", flush=True)
+    except Exception as exc:
+        print(f"[bridge] viewport framing failed: {exc}", flush=True)
 
 # Companion-pack python server: standard live-inspection endpoint (Johnny's
 # tooling), alongside the bridge's own exec op. Path is machine-specific;
@@ -1364,6 +1365,7 @@ if args.engine == "newton":
 
 _settle_props()
 print("[bridge] props settled onto the table", flush=True)
+_frame_gui_viewport()
 
 _refresh_frames()
 print(f"[bridge] cameras ready: {list(_frames)}", flush=True)

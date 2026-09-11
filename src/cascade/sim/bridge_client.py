@@ -18,6 +18,7 @@ the client is fully covered without a running sim.
 from __future__ import annotations
 
 import base64
+import copy
 import json
 import socket
 import threading
@@ -109,7 +110,21 @@ class BridgeClient:
 
     def frame(self, camera: str = "cam0") -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
         """-> (bgr uint8 HxWx3, depth float32 HxW meters or None, K 3x3)."""
+        frame = self.observation(camera)
+        # Legacy tuple API; new frame consumers must use observation() so
+        # per-frame data cannot race through a mutable `last_*` side channel.
+        self.last_T_base_cam = frame.T_base_cam
+        return frame.rgb, frame.depth_m, frame.K
+
+    def observation(self, camera: str = "cam0"):
+        """One atomic Frame, including producer state and local source binding.
+
+        Missing/malformed proprioception is preserved for the safety consumer
+        to reject; never fill it using a later `state` request. Frame.t is
+        client receipt time, capture.t uses the explicitly named remote clock.
+        """
         import cv2
+        from ..types import Frame
 
         r = self.request({"op": "frame", "camera": camera})
         jpg = np.frombuffer(base64.b64decode(r["rgb_jpeg_b64"]), dtype=np.uint8)
@@ -121,14 +136,36 @@ class BridgeClient:
             raw = zlib.decompress(base64.b64decode(r["depth_z_b64"]))
             depth = np.frombuffer(raw, dtype=np.float32).reshape(r["height"], r["width"]).copy()
         K = np.asarray(r["K"], dtype=np.float64).reshape(3, 3)
-        # Eye-in-hand cameras serve per-frame extrinsics (the camera moves
-        # with the arm); stashed rather than returned to keep the 3-tuple
-        # signature every existing caller expects.
-        self.last_T_base_cam = (
+        T_base_cam = (
             np.asarray(r["T_base_cam"], dtype=np.float64).reshape(4, 4)
             if r.get("T_base_cam") is not None else None
         )
-        return bgr, depth, K
+        robot_mask = None
+        if r.get("robot_pixel_mask") is not None:
+            try:
+                m = r["robot_pixel_mask"]
+                state = r.get("proprioception") or {}
+                if (m.get("version") != 1 or m.get("encoding") != "zlib-u8-base64"
+                        or not m.get("robot_id") or m["robot_id"] != state.get("robot_id")
+                        or m.get("t") != r.get("t") or m.get("t") != state.get("t")
+                        or m.get("shape") != list(bgr.shape[:2])):
+                    raise ValueError("render self-mask identity/shape/clock mismatch")
+                mask_bytes = zlib.decompress(base64.b64decode(m["data"], validate=True))
+                mask = np.frombuffer(mask_bytes, dtype=np.uint8).reshape(bgr.shape[:2])
+                if np.any(mask > 1):
+                    raise ValueError("render self-mask is not binary")
+                robot_mask = mask.astype(bool)
+            except Exception as exc:
+                raise BridgeError(f"invalid render self-mask: {exc}") from exc
+        return Frame(
+            rgb=bgr, depth_m=depth, K=K,
+            depth_source="sensor" if depth is not None else "none",
+            T_base_cam=T_base_cam,
+            robot_mask=robot_mask,
+            capture={"backend": "isaac", "source": self._addr, "camera": camera,
+                     "t": r.get("t"), "proprioception": copy.deepcopy(r.get("proprioception")),
+                     "contact_paths": copy.deepcopy((r.get("robot_pixel_mask") or {}).get("contact_paths", []))},
+        )
 
     def state(self) -> dict:
         return self.request({"op": "state"})

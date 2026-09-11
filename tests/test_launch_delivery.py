@@ -11,10 +11,31 @@ import shutil
 import pytest
 
 from test_demo_proof import model_http_boundary as _model_http_boundary
+from test_isaac_bridge import bridge_port as _bridge_port
 
 model_http_boundary = _model_http_boundary  # share only the real-HTTP boundary fixture
+bridge_port = _bridge_port  # real TCP/client; the simulator is a test double
 
 REPO = Path(__file__).resolve().parents[1]
+
+
+def test_launch_isaac_probe_connects_the_real_wire_client(bridge_port, monkeypatch, capsys):
+    import re
+
+    # Execute the launcher's actual heredoc, not a reimplementation of its
+    # probe. Only the remote simulator is doubled by the TCP fixture.
+    blocks = re.findall(
+        r"<<'PYEOF'[^\n]*\n(.*?)\nPYEOF",
+        (REPO / "scripts/launch.sh").read_text(),
+        flags=re.DOTALL,
+    )
+    probes = [block for block in blocks if "Isaac bridge answers:" in block]
+    assert len(probes) == 1
+    monkeypatch.setattr(sys, "argv", ["-", str(bridge_port[0])])
+
+    exec(compile(probes[0], str(REPO / "scripts/launch.sh"), "exec"), {})
+
+    assert "state_ok=True" in capsys.readouterr().out
 
 
 def test_check_refuses_an_unreachable_explicit_cosmos(tmp_path):
@@ -61,6 +82,8 @@ def launcher_copy(tmp_path):
 
 @pytest.mark.parametrize("profile", ["demo-a", ""])
 def test_down_stops_only_registered_verified_pids_in_selected_profile(tmp_path, profile):
+    import select
+
     from cascade.apps import process_owner as owners
 
     repo = launcher_copy(tmp_path)
@@ -72,25 +95,37 @@ def test_down_stops_only_registered_verified_pids_in_selected_profile(tmp_path, 
     children = []
 
     def child(owner, role, register=True):
-        process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)",
-                                    str(repo), "cascade.apps.mcp_server", "--launch-owner", owner["owner"]])
+        process = subprocess.Popen(
+            [sys.executable, "-c", "import os, time; os.write(1, b'R'); time.sleep(120)",
+             str(repo), "cascade.apps.mcp_server", "--launch-owner", owner["owner"]],
+            stdout=subprocess.PIPE,
+        )
         children.append(process)
+        # Popen can return during exec with /proc/<pid>/cmdline still empty.
+        # Wait for Python itself, not a sleep or a relaxed ownership check.
+        assert process.stdout is not None
+        assert select.select([process.stdout], [], [], 10)[0], (
+            f"fixture child {process.pid} did not become ready (exit={process.poll()})"
+        )
+        assert process.stdout.read(1) == b"R", (
+            f"fixture child {process.pid} exited before readiness (exit={process.poll()})"
+        )
         if register:
             owners.register_process(owner["state_dir"], owner, process.pid, role)
         return process
 
-    a = child(own, "mcp")
-    b = child(other, "mcp")
-    unregistered = child(own, "mcp", register=False)
-    cosmos = child(own, "cosmos")
-    foreign_cosmos = child(other, "cosmos")
-    stale = child(own, "occupancy_bridge")
-    stale_file = state / "occupancy_bridge.pid"
-    receipt = json.loads(stale_file.read_text())
-    stale_file.write_text(json.dumps({**receipt, "birth": "previous-process-at-this-pid"}))
-    # Bare shared legacy markers must not stop anything, even a matching PID.
-    (root / "cosmos.pid").write_text(str(foreign_cosmos.pid))
     try:
+        a = child(own, "mcp")
+        b = child(other, "mcp")
+        unregistered = child(own, "mcp", register=False)
+        cosmos = child(own, "cosmos")
+        foreign_cosmos = child(other, "cosmos")
+        stale = child(own, "occupancy_bridge")
+        stale_file = state / "occupancy_bridge.pid"
+        receipt = json.loads(stale_file.read_text())
+        stale_file.write_text(json.dumps({**receipt, "birth": "previous-process-at-this-pid"}))
+        # Bare shared legacy markers must not stop anything, even a matching PID.
+        (root / "cosmos.pid").write_text(str(foreign_cosmos.pid))
         p = subprocess.run(["bash", str(repo / "scripts/launch.sh"), "--down"],
                            env={**os.environ, "PY": sys.executable, "CASCADE_LAUNCH_STATE": str(root), "CASCADE_OPENCLAW_PROFILE": profile},
                            text=True, capture_output=True, timeout=20)
@@ -103,9 +138,17 @@ def test_down_stops_only_registered_verified_pids_in_selected_profile(tmp_path, 
         assert cosmos.wait(timeout=5) != 0
     finally:
         for process in children:
-            if process.poll() is None:
-                process.terminate()
-            process.wait(timeout=5)
+            try:
+                if process.poll() is None:
+                    process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+            finally:
+                if process.stdout is not None:
+                    process.stdout.close()
 
 
 @pytest.mark.parametrize("version", ["6.1.0", "6.0.0"])

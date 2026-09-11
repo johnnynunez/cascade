@@ -23,6 +23,33 @@ def test_newton_experience_is_found_in_a_wheel_layout(tmp_path):
         isaac_runtime.find_experience("newton", package_roots=[tmp_path / "missing"])
 
 
+@pytest.mark.parametrize("symlink_directory", [False, True])
+def test_source_experience_keeps_release_path_for_relative_extensions(tmp_path, symlink_directory):
+    import isaac_runtime
+
+    # Source builds link their .kit files into release/apps. Kit resolves
+    # ${app}/../extsDeprecated relative to the path it receives, not to
+    # ISAACSIM_PATH. Dereferencing the link hides installed extensions.
+    source = tmp_path / "source"
+    source_kit = _kit(source)
+    release = tmp_path / "release"
+    release.mkdir()
+    apps = release / "apps"
+    if symlink_directory:
+        apps.symlink_to(source_kit.parent, target_is_directory=True)
+    else:
+        apps.mkdir()
+        (apps / source_kit.name).symlink_to(source_kit)
+    extension = release / "extsDeprecated/isaacsim.sensors.physx/config/extension.toml"
+    extension.parent.mkdir(parents=True)
+    extension.write_text('[package]\nversion="1.0.0"\n')
+
+    selected = isaac_runtime.find_experience("newton", release=release)
+
+    assert selected == apps / source_kit.name
+    assert selected.parent.parent.joinpath(extension.relative_to(release)).is_file()
+
+
 def test_managed_runtime_requires_the_requested_release(monkeypatch):
     import isaac_runtime
 

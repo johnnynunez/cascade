@@ -26,6 +26,11 @@ the perception rate); SafetyHarness.approve() at 50 Hz only ever reads the
 cache. Past `max_age_s` the cache is treated as absent (skip the check),
 the same fallback shape as the perception watchdog.
 
+An unavailable registered ROBOT BODY POSE is different from an absent
+bridge: no frame may be integrated without its mask, and clearance raises
+SafetyViolation until a masked depth refresh succeeds. It must not age into
+"no data, skip"; the arm is known to be in the image but cannot be removed.
+
 WHAT IS AND IS NOT DEGRADED. A bridge that is down degrades to "no
 occupancy check" -- the arm keeps every geometric gate it always had -- but
 it must never degrade SILENTLY: `probe()` at startup records which backend
@@ -126,7 +131,8 @@ class OccupancyMap:
     `SafetyHarness.approve()` per waypoint. It returns None (meaning "skip
     the check") whenever there is no fresh cache, so a dead/slow bridge
     degrades exactly like running with no occupancy map at all rather than
-    freezing the arm.
+    freezing the arm. A missing registered robot pose instead fails closed;
+    its frame cannot safely be integrated and is not an empty scene.
     """
 
     def __init__(
@@ -162,13 +168,43 @@ class OccupancyMap:
         #: collision proxies and the clearance gate refuses every motion.
         self._body_fns: list = []
         self._body_radii: list[float] = []
+        self._frame_body_fns: list = []
         self.last_masked_px: int = 0
+        self._body_error: str | None = None
+        self.allowed_contact_paths: set[str] = set()
 
-    def add_robot_body(self, link_points_fn, radius_m: float = 0.06) -> None:
+    def add_robot_body(self, link_points_fn, radius_m: float = 0.06, *, frame_link_points_fn=None) -> None:
         """Register an arm to mask out of the depth before integration.
-        `link_points_fn() -> (L,3) | None` (None = arm not available now)."""
+        `link_points_fn() -> (L,3) | None` (None defers integration and blocks
+        clearance until a masked depth refresh succeeds). If supplied,
+        `frame_link_points_fn(frame)` is REQUIRED for integration: no fallback
+        to current proprioception when a capture snapshot is absent/invalid.
+        Backends without this contract retain the no-argument callback."""
         self._body_fns.append(link_points_fn)
         self._body_radii.append(float(radius_m))
+        self._frame_body_fns.append(frame_link_points_fn)
+        self._body_error = "robot body pose not yet validated by a masked depth refresh"
+
+    def _robot_bodies(self, frame=None) -> list:
+        """Read ALL registered bodies before sending any depth to the map.
+
+        Unknown pose is not an empty scene: integrating it would persist the
+        robot as an obstacle. Latch the fault until a masked refresh succeeds,
+        so an ageing cache cannot silently turn it into a clearance bypass.
+        """
+        bodies = []
+        for i, (fn, radius) in enumerate(zip(self._body_fns, self._body_radii)):
+            try:
+                frame_fn = self._frame_body_fns[i]
+                points = np.asarray(frame_fn(frame) if frame_fn is not None else fn(), dtype=float)
+                if points.ndim != 2 or points.shape[1] != 3 or not len(points) or not np.isfinite(points).all():
+                    raise ValueError("missing or invalid link points")
+            except Exception as e:  # noqa: BLE001 -- includes standby / bridge failures
+                self.last_masked_px = 0
+                self._body_error = f"robot body pose {i} unavailable: {e}"
+                raise OccupancyError(self._body_error) from e
+            bodies.append((points, radius))
+        return bodies
 
     # ── construction ────────────────────────────────────────────────────
 
@@ -222,6 +258,7 @@ class OccupancyMap:
             stride=int(cfg.get("stride", 8)),
             depth_stride=int(cfg.get("depth_stride", 2)),
         )
+        m.allowed_contact_paths = set(cfg.get("allowed_contact_paths", []))
         m.probe(timeout_ms=int(cfg.get("probe_timeout_ms", 300)))
         return m
 
@@ -292,6 +329,8 @@ class OccupancyMap:
                 self._grid = None
             self._last_refresh = time.monotonic()
             self.last_error = None
+            if frame.has_depth:
+                self._body_error = None
             if self.status is None:
                 # the bridge came up after startup: name it now
                 self.probe()
@@ -303,28 +342,41 @@ class OccupancyMap:
         depth = np.ascontiguousarray(frame.depth_m[::s, ::s], dtype=np.float32)
         K = np.asarray(frame.K, dtype=np.float64).copy()
         K[:2, :] /= s
-        depth = self._mask_robot(depth, K, T_base_cam)
+        depth = self._mask_robot(depth, K, T_base_cam, frame=frame)
         self._client.request({
             "action": "integrate_depth", "depth": depth,
             "K": K.astype(np.float32), "T_base_cam": np.asarray(T_base_cam, dtype=np.float32),
         })
 
-    def _mask_robot(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray) -> np.ndarray:
+    def _render_robot_mask(self, frame):
+        mask = getattr(frame, "robot_mask", None)
+        if mask is None:
+            return None
+        contacts = (getattr(frame, "capture", None) or {}).get("contact_paths", [])
+        if (not isinstance(contacts, list) or any(not isinstance(p, str) for p in contacts)
+                or not set(contacts).issubset(self.allowed_contact_paths)):
+            self._body_error = "render mask includes unapproved contact paths"
+            raise OccupancyError(self._body_error)
+        mask = np.asarray(mask)
+        if (mask.dtype != np.bool_ or frame.depth_m is None
+                or mask.shape != frame.depth_m.shape):
+            self._body_error = "invalid render self-mask shape/type"
+            raise OccupancyError(self._body_error)
+        return mask
+
+    def _mask_robot(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray, *, frame=None) -> np.ndarray:
         """Zero the depth pixels on the robot's own body (no measurement:
         neither free nor occupied for the ray-casting backends)."""
-        if not self._body_fns:
-            return depth
+        bodies = self._robot_bodies(frame)
         from .robot_mask import robot_mask
 
         total = np.zeros(depth.shape, dtype=bool)
-        for fn, r in zip(self._body_fns, self._body_radii):
-            try:
-                lp = fn()
-            except Exception:  # noqa: BLE001 -- an arm in standby is not an error
-                lp = None
-            if lp is None:
-                continue
-            total |= robot_mask(depth, K, T_base_cam, np.asarray(lp), radius_m=r)
+        pixels = self._render_robot_mask(frame)
+        if pixels is not None:
+            total = pixels[::self.depth_stride, ::self.depth_stride]
+        else:
+            for lp, r in bodies:
+                total |= robot_mask(depth, K, T_base_cam, lp, radius_m=r)
         self.last_masked_px = int(total.sum())
         if self.last_masked_px:
             depth = depth.copy()
@@ -332,20 +384,22 @@ class OccupancyMap:
         return depth
 
     def _integrate_points(self, frame, T_base_cam: np.ndarray) -> None:
+        bodies = self._robot_bodies(frame)
+        pixels = self._render_robot_mask(frame)
+        if pixels is not None:
+            import copy
+
+            frame = copy.copy(frame)
+            frame.depth_m = frame.depth_m.copy()
+            frame.depth_m[pixels] = 0
+            self.last_masked_px = int(pixels.sum())
         pts_base = self._depth_to_base_points(frame, T_base_cam)
-        if pts_base.shape[0] and self._body_fns:
+        if pts_base.shape[0] and bodies and pixels is None:
             # legacy cloud path: drop points within the body radius of any link
             from .robot_mask import _segment_distances
 
             keep = np.ones(len(pts_base), dtype=bool)
-            for fn, r in zip(self._body_fns, self._body_radii):
-                try:
-                    lp = fn()
-                except Exception:  # noqa: BLE001
-                    lp = None
-                if lp is None:
-                    continue
-                lp = np.asarray(lp, dtype=float)
+            for lp, r in bodies:
                 for i in range(max(len(lp) - 1, 0)):
                     keep &= _segment_distances(pts_base.astype(float), lp[i], lp[i + 1]) > r
             pts_base = pts_base[keep]
@@ -386,7 +440,13 @@ class OccupancyMap:
         point far outside the map inherit an obstacle distance it has no
         relation to, or hide a real one. Unknown (inf) voxels read as far.
         Without a grid (old bridge): brute-force distance to the occupied cloud.
+        A pending/failed robot-body mask raises SafetyViolation even when
+        the cache has aged out; this known fault must never become a bypass.
         """
+        if self._body_error is not None:
+            from ..types import SafetyViolation
+
+            raise SafetyViolation(f"occupancy unsafe: {self._body_error}")
         if self.is_stale():
             return None
         pts = np.atleast_2d(np.asarray(points, dtype=float))

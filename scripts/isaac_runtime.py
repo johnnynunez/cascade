@@ -16,7 +16,10 @@ def _check_kit(path: Path) -> Path:
         raise RuntimeError(f"invalid Isaac experience TOML: {path}") from exc
     if version != "6.1.0":
         raise RuntimeError(f"Isaac experience package.version=6.1.0 required; {path} declares {version!r}")
-    return path.resolve()
+    # Keep the release/apps spelling: source builds symlink .kit files (or
+    # apps itself) into source/apps. Kit anchors ${app}/../extsDeprecated
+    # and extscache to the supplied path; resolve() loses the built tree.
+    return path.absolute()
 
 
 def find_experience(engine: str, *, release=None, package_roots=None) -> Path:

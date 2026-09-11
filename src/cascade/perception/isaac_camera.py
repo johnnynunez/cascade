@@ -39,13 +39,10 @@ class IsaacCamera(CameraBase):
 
     def _grab(self) -> Frame:
         try:
-            bgr, depth, K = self._client.frame(self._camera)
+            frame = self._client.observation(self._camera)
         except BridgeError as e:
             raise CameraError(str(e)) from e
-        return Frame(
-            rgb=bgr,
-            depth_m=depth if self._has_depth else None,
-            K=K,
-            depth_source="sensor" if (depth is not None and self._has_depth) else "none",
-            T_base_cam=getattr(self._client, "last_T_base_cam", None),
-        )
+        if not self._has_depth:
+            frame.depth_m = None
+            frame.depth_source = "none"
+        return frame

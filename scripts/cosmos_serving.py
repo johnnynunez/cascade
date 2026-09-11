@@ -86,11 +86,18 @@ def serving_plan(env=None):
         "--model-impl",
         "transformers",
         "--enforce-eager",
+        "--max-num-seqs",
+        "2",
+        # Keep vision prefill bounded beside Isaac; images remain enabled.
+        "--mm-processor-kwargs",
+        json.dumps({"size": {"shortest_edge": 65536, "longest_edge": 1048576}}),
         "--enable-auto-tool-choice",
         "--tool-call-parser",
         "qwen3_coder",
         "--reasoning-parser",
         "qwen3",
+        "--chat-template",
+        str(venv / "cosmos-chat-template.jinja"),
     ]
     return {
         "venv": str(venv),
@@ -446,6 +453,331 @@ def ensure_rope_compat(module=None, *, version=None, allow_patch=False):
     return {"status": "patched-5.17.0", "path": str(path), **result}
 
 
+def _install_compat_method(module, owner_name, method_name, method_source, *,
+                           expected_sha256, version_ok, smoke, allow_patch,
+                           replacement=None):
+    """Patch only identified wheel bytes, after exercising the candidate in memory.
+
+    Replace the inode: uv wheels can be hardlinked to other environments/cache.
+    Never mutate those shared bytes with write_text on the installed file.
+    """
+    try:
+        return {"status": "upstream-ok", **smoke()}
+    except AttributeError as failure:
+        if not allow_patch:
+            raise RuntimeError("Multimodal compatibility smoke failed; run --setup-only") from failure
+        path = Path(module.__file__)
+        source = path.read_text()
+        if not version_ok or hashlib.sha256(source.encode()).hexdigest() != expected_sha256:
+            raise RuntimeError(f"Unrecognized failing multimodal code/version at {path}; not patched") from failure
+
+    import textwrap
+
+    if replacement is None:
+        anchor = f"class {owner_name}("
+        start = source.index("\n", source.index(anchor)) + 1
+        # The target classes have a one-line declaration; insert one method only.
+        candidate = source[:start] + method_source + "\n" + source[start:]
+    else:
+        import ast
+
+        before, after = replacement
+        if source.count(before) != 1:
+            raise RuntimeError("Unrecognized multimodal replacement anchor")
+        candidate = source.replace(before, after, 1)
+        tree = ast.parse(candidate)
+        cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == owner_name)
+        method = next(node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name == method_name)
+        method_source = ast.get_source_segment(candidate, method)
+    compile(candidate, str(path), "exec")
+    namespace = dict(module.__dict__)
+    exec(compile("from __future__ import annotations\n" + textwrap.dedent(method_source),
+                 str(path), "exec"), namespace)
+    owner = getattr(module, owner_name)
+    previous = owner.__dict__.get(method_name)
+    setattr(owner, method_name, namespace[method_name])
+    temporary = None
+    try:
+        result = smoke()
+        with tempfile.NamedTemporaryFile("w", dir=path.parent, prefix=".cosmos-mm-", delete=False) as out:
+            temporary = Path(out.name)
+            out.write(candidate)
+            out.flush()
+            os.fsync(out.fileno())
+        temporary.chmod(path.stat().st_mode)
+        os.replace(temporary, path)
+    except Exception:
+        if previous is None:
+            delattr(owner, method_name)
+        else:
+            setattr(owner, method_name, previous)
+        raise
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+    return {"status": "patched", "path": str(path), **result}
+
+
+def multimodal_image_smoke(path, module):
+    """Exercise vLLM's actual processor selection, counts and HF pixel layout on CPU."""
+    import torch
+    from transformers import AutoProcessor
+    from vllm.config import ModelConfig
+    from vllm.multimodal.processing import InputProcessingContext
+
+    reference = AutoProcessor.from_pretrained(str(path), local_files_only=True)
+    config = ModelConfig(model=str(path), model_impl="transformers", max_model_len=32768)
+    info = module.MultiModalProcessingInfo(InputProcessingContext(config, reference.tokenizer))
+    processor = info.get_hf_processor()
+    sizes = [(32, 32), (193, 317), (320, 640)]
+    for height, width in sizes:
+        counts = processor._get_num_multimodal_tokens(image_sizes=[(height, width)])
+        image = torch.arange(3 * height * width).reshape(3, height, width).remainder(256).to(torch.uint8)
+        actual = processor.image_processor(image, return_tensors="pt")
+        expected = reference.image_processor(image, return_tensors="pt")
+        if (not torch.equal(actual["pixel_values"], expected["pixel_values"])
+                or not torch.equal(actual["image_grid_thw"], expected["image_grid_thw"])
+                or counts["num_image_patches"] != [actual["pixel_values"].shape[0]]
+                or counts["num_image_tokens"] != [int(actual["image_grid_thw"].prod()) // processor.image_processor.merge_size**2]):
+            raise RuntimeError("vLLM image counts or patch layout differ from official Cosmos HF pixels")
+    return {"cases": len(sizes), "max_image_tokens": info.get_max_image_tokens(),
+            "processor": type(processor).__module__ + "." + type(processor).__name__}
+
+
+def ensure_transformers_processor_compat(path, *, allow_patch=False):
+    import transformers
+    import vllm
+    from vllm.model_executor.models.transformers import multimodal as module
+
+    # The vLLM-native processor is row-major and lacks image patch counting.
+    # HF's Cosmos vision encoder instead consumes block-major patches. Explicit
+    # type selection bypasses that registry ONLY inside the Transformers backend;
+    # the native vLLM backend and all other models keep their existing processors.
+    method = '''    def get_hf_processor(self, **kwargs):
+        if self.get_hf_config().model_type == "cosmos3_edge":
+            return self.ctx.get_hf_processor(transformers.Cosmos3EdgeProcessor, **kwargs)
+        return self.ctx.get_hf_processor(**kwargs)
+'''
+    return _install_compat_method(
+        module, "MultiModalProcessingInfo", "get_hf_processor", method,
+        expected_sha256="3c7ea7bc25e6148ac8c4f65a9928b2a3304ef0a2a9e61884308fcc959ce88047",
+        version_ok=transformers.__version__ == "5.17.0" and vllm.__version__ == "0.29.0",
+        smoke=lambda: multimodal_image_smoke(path, module), allow_patch=allow_patch,
+    )
+
+
+def multimodal_video_smoke(path):
+    """Compare allocation-free counts to real CPU video patchification (no weights)."""
+    import torch
+    from transformers import AutoProcessor
+
+    processor = AutoProcessor.from_pretrained(str(path), local_files_only=True)
+    cases = [((4, 63, 97), {}), ((1, 32, 32), {"do_resize": False}),
+             ((3, 128, 256), {"size": {"shortest_edge": 1024, "longest_edge": 12288}, "merge_size": 1})]
+    for shape, options in cases:
+        frames, height, width = shape
+        video = torch.zeros((frames, 3, height, width), dtype=torch.uint8)
+        counts = processor._get_num_multimodal_tokens(video_sizes=[shape], videos_kwargs=options)
+        actual = processor.video_processor(video, return_tensors="pt", do_sample_frames=False, **options)
+        patches = int(actual["video_grid_thw"].prod())
+        expected = patches // options.get("merge_size", processor.video_processor.merge_size)**2
+        if patches != actual["pixel_values_videos"].shape[0] or counts["num_video_tokens"] != [expected]:
+            raise RuntimeError("Cosmos video token counts differ from actual video patches")
+    return {"cases": len(cases), "video_http_verified": False}
+
+
+def ensure_video_processor_compat(path, *, allow_patch=False):
+    import transformers
+    from transformers.models.cosmos3_edge import video_processing_cosmos3_edge as module
+
+    # Count the frames already selected by the loader, using the same resize and
+    # temporal padding as this Cosmos processor (not Qwen's temporal/cap policy).
+    method = '''    def get_number_of_video_patches(self, num_frames, height, width, videos_kwargs=None):
+        options = videos_kwargs or {}
+        patch = options.get("patch_size", self.patch_size)
+        merge = options.get("merge_size", self.merge_size)
+        temporal = options.get("temporal_patch_size", self.temporal_patch_size)
+        size = options.get("size", self.size)
+        if options.get("do_resize", self.do_resize):
+            height, width = smart_resize(
+                num_frames=num_frames, height=height, width=width,
+                temporal_factor=temporal, factor=patch * merge,
+                min_pixels=size["shortest_edge"], max_pixels=size["longest_edge"],
+            )
+        return ((num_frames + temporal - 1) // temporal) * (height // patch) * (width // patch)
+'''
+    return _install_compat_method(
+        module, "Cosmos3EdgeVideoProcessor", "get_number_of_video_patches", method,
+        expected_sha256="5286800003bb76d043b1b02a3f175fb17c198d29a7c8a676b51091121d3f0014",
+        version_ok=transformers.__version__ == "5.17.0",
+        smoke=lambda: multimodal_video_smoke(path), allow_patch=allow_patch,
+    )
+
+
+def model_config_smoke(path):
+    """Catch registry/config substitution before GPU weight allocation."""
+    import torch
+    from transformers import AutoModel
+    from transformers.models.cosmos3_edge.configuration_cosmos3_edge import Cosmos3EdgeConfig
+    from vllm.config import ModelConfig
+
+    config = ModelConfig(model=str(path), model_impl="transformers", max_model_len=32768)
+    reference = Cosmos3EdgeConfig.from_pretrained(str(path), local_files_only=True)
+    with torch.device("meta"):
+        model = AutoModel.from_config(config.hf_config)
+    layers = len(model.get_decoder().layers)
+    if (type(config.hf_config) is not Cosmos3EdgeConfig
+            or layers != reference.text_config.num_hidden_layers
+            or "MoE" in config._architecture):
+        raise RuntimeError("vLLM selected a different Cosmos architecture than the HF export")
+    return {"decoder_layers": layers, "architecture": config._architecture, "weights_allocated": False}
+
+
+def ensure_model_config_compat(path, *, allow_patch=False):
+    import transformers
+    import vllm
+    from vllm.config import model as module
+
+    before = "        self.hf_config = hf_config\n"
+    # Do NOT reconstruct from native to_dict(): Nemotron defaults leak into the
+    # dense HF config and trigger MoE detection. Reload the original config and
+    # preserve the same explicit overrides; leave the native backend unchanged.
+    after = '''        if self.model_impl == "transformers" and hf_config.model_type == "cosmos3_edge":
+            from transformers.models.cosmos3_edge.configuration_cosmos3_edge import Cosmos3EdgeConfig
+            hf_config = Cosmos3EdgeConfig.from_pretrained(
+                self.hf_config_path or self.model, revision=self.revision,
+                code_revision=self.code_revision, token=self.hf_token,
+            )
+            if hf_overrides_kw:
+                hf_config.update(hf_overrides_kw)
+            if hf_overrides_fn:
+                hf_config = hf_overrides_fn(hf_config)
+        self.hf_config = hf_config
+'''
+    return _install_compat_method(
+        module, "ModelConfig", "__post_init__", "",
+        expected_sha256="de2309f4f710f04588ac0835e1cfd215e1310bcb136bf53142685c926256a27c",
+        version_ok=transformers.__version__ == "5.17.0" and vllm.__version__ == "0.29.0",
+        smoke=lambda: model_config_smoke(path), allow_patch=allow_patch,
+        replacement=(before, after),
+    )
+
+
+def native_grammar_smoke(path, module):
+    """Compile the native grammar; reject incomplete generated calls on CPU."""
+    import xgrammar as xgr
+    from transformers import AutoTokenizer
+    from vllm.entrypoints.openai.chat_completion.protocol import ChatCompletionRequest
+
+    tokenizer = AutoTokenizer.from_pretrained(str(path), local_files_only=True)
+    request = ChatCompletionRequest(
+        model=os.environ.get("SERVED_NAME", "cosmos3-edge"), messages=[], tool_choice="auto",
+        tools=[{"type": "function", "function": {"name": "probe", "parameters": {
+            "type": "object", "properties": {"ready": {"type": "boolean"}}, "required": ["ready"]}}}],
+    )
+    parser = module.Qwen3EngineToolParser(tokenizer, tools=request.tools)
+    tag = parser.get_structural_tag(request)
+    tag.model_dump()  # Missing auto grammar is the exact pre-patch failure.
+    compiler = xgr.GrammarCompiler(xgr.TokenizerInfo.from_huggingface(tokenizer))
+    compiled = compiler.compile_structural_tag(tag)
+    for prefix, suffix in [("", ""), ("<tool_call>\n", "\n</tool_call>")]:
+        good = prefix + "<function=probe>\n<parameter=ready>true</parameter>\n</function>" + suffix
+        bad = prefix + "<function=probe>\n</function>" + suffix
+        if not xgr.GrammarMatcher(compiled).accept_string(good) or xgr.GrammarMatcher(compiled).accept_string(bad):
+            raise RuntimeError("Native Cosmos grammar admits incomplete or rejects valid calls")
+    return {"cases": 4, "decoding": "native schema-constrained auto tools", "generation_verified": False}
+
+
+def ensure_native_grammar_compat(path, *, allow_patch=False):
+    import transformers
+    import vllm
+    from vllm.tool_parsers import qwen3_engine_tool_parser as module
+
+    # Keep the actual Qwen parser and all argument extraction unchanged. Apply
+    # schema constraints DURING decoding, including Cosmos' unwrapped functions
+    # (already understood by this parser, but missed by its default grammar).
+    method = r'''    def get_structural_tag(self, request, *, reasoning=False):
+        import os
+        from copy import deepcopy
+        from xgrammar import StructuralTag
+        if request.model != os.environ.get("SERVED_NAME", "cosmos3-edge") or request.tool_choice != "auto":
+            return Qwen3ParserToolAdapter.get_structural_tag(self, request, reasoning=reasoning)
+        bounded = request.model_copy(deep=True)
+        for tool in bounded.tools or []:
+            function = getattr(tool, "function", tool)
+            if getattr(function, "strict", False) is None:
+                function.strict = True
+        tag = Qwen3ParserToolAdapter.get_structural_tag(self, bounded, reasoning=reasoning)
+        if tag is None:
+            return None
+        data = tag.model_dump()
+        def widen(node):
+            if isinstance(node, dict):
+                if node.get("type") == "triggered_tags":
+                    added = []
+                    for item in node.get("tags", []):
+                        if item.get("begin", "").startswith("<tool_call>\n<function="):
+                            bare = deepcopy(item)
+                            bare["begin"] = bare["begin"].removeprefix("<tool_call>\n")
+                            bare["end"] = bare["end"].removesuffix("\n</tool_call>")
+                            added.append(bare)
+                    if added:
+                        node["tags"].extend(added)
+                        node["triggers"] = ["<tool_call>", "<function="]
+                for value in list(node.values()):
+                    widen(value)
+            elif isinstance(node, list):
+                for value in node:
+                    widen(value)
+        widen(data)
+        return StructuralTag.model_validate(data)
+'''
+    return _install_compat_method(
+        module, "Qwen3EngineToolParser", "get_structural_tag", method,
+        expected_sha256="3cf83a2a9408d72c79082825464b2c4dea1147ff390289dfb8936c5501114be9",
+        version_ok=transformers.__version__ == "5.17.0" and vllm.__version__ == "0.29.0",
+        smoke=lambda: native_grammar_smoke(path, module), allow_patch=allow_patch,
+    )
+
+
+def serving_chat_template(source):
+    """Keep NVIDIA's images/history/XML calls; encode *tool schemas* as JSON.
+
+    The pinned Edge weights confuse XML schema <parameter> tags with emitted
+    <parameter=NAME> calls. JSON schemas avoid that ambiguity. The native vLLM
+    Qwen parser still handles model-generated arguments, unchanged.
+    """
+    if hashlib.sha256(source.encode()).hexdigest() != "7120ee6666468d4e9b2dc11e133ac5c2fa765fa5907706bf0f906270aa5510c8":
+        raise RuntimeError("Unrecognized Cosmos chat template; not patched")
+    start = source.index('    {{- "<tools>" }}')
+    last = '</tools>" }}'
+    end = source.index(last, start) + len(last)
+    return source[:start] + '    {{- "<tools>\\n" ~ (tools | tojson) ~ "\\n</tools>" }}' + source[end:]
+
+
+def ensure_chat_template(export_path, venv, *, allow_write=False):
+    """Publish the derived serving template outside the checksummed model export."""
+    source = (Path(export_path) / "chat_template.jinja").read_text()
+    candidate = serving_chat_template(source)
+    path = Path(venv) / "cosmos-chat-template.jinja"
+    if path.is_file() and path.read_text() == candidate:
+        return {"status": "reused", "path": str(path)}
+    if not allow_write:
+        raise RuntimeError("Missing/mismatched Cosmos serving template; run --setup-only")
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile("w", dir=path.parent, prefix=".cosmos-template-", delete=False) as out:
+            temporary = Path(out.name)
+            out.write(candidate)
+            out.flush()
+            os.fsync(out.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+    return {"status": "created", "path": str(path)}
+
+
 def check_stack():
     import importlib.metadata
 
@@ -621,13 +953,23 @@ def main(argv=None):
             export_status = "validated"
         else:
             export_status = atomic_export(export_path, build_export)
+        model_compat = ensure_model_config_compat(export_path, allow_patch=not args.check)
+        image_compat = ensure_transformers_processor_compat(export_path, allow_patch=not args.check)
+        video_compat = ensure_video_processor_compat(export_path, allow_patch=not args.check)
+        native_grammar = ensure_native_grammar_compat(export_path, allow_patch=not args.check)
         processor = processor_smoke(export_path)
+        chat_template = ensure_chat_template(export_path, plan["venv"], allow_write=not args.check)
         report = {
             "state": "prepared-unverified",
             "native_generation_verified": False,
             "stack": stack,
             "cuda": cuda,
             "rope": rope,
+            "model_compat": model_compat,
+            "image_compat": image_compat,
+            "video_compat": video_compat,
+            "native_grammar": native_grammar,
+            "chat_template": chat_template,
             "export": export_status,
             "export_dir": str(export_path),
             "processor": processor,

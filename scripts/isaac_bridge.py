@@ -120,6 +120,10 @@ import isaacsim.core.experimental.utils.stage as stage_utils  # noqa: E402
 from isaacsim.core.simulation_manager import SimulationManager  # noqa: E402
 
 SimulationManager.switch_physics_engine(args.engine)
+if args.engine == "newton":
+    from newton_mesh_compat import install_newton_mesh_guard
+
+    install_newton_mesh_guard()
 stage_utils.open_stage(args.usd)
 while stage_utils.is_stage_loading():
     app.update()
@@ -647,6 +651,12 @@ CAM_DEFS = {
     "wrist": _camera("/World_Cams/wrist", (0.50, 0.0, 0.50), (0.30, 0.0, 0.0),
                      (0.0, 0.0, 1.0), focal_mm=15.13),
 }
+if os.environ.get("CASCADE_PROOF_CAMERA") == "1":
+    # Recording-only wide view; leave calibrated perception cameras unchanged.
+    CAM_DEFS["proof"] = _camera(
+        "/World_Cams/proof", (1.1, -1.1, 0.9), (0.20, 0.02, 0.30),
+        (0.0, 0.0, 1.0), focal_mm=16.0,
+    )
 
 # Mount (ee frame): the EE convention is x = approach, y = jaw-opening,
 # z = x cross y (z points UP at home). Bracket 6 cm above the wrist, view
@@ -731,6 +741,15 @@ def _update_wrist_cam():
 _annotators: dict[str, tuple] = {
     name: (sensor, K) for name, (sensor, K) in CAM_DEFS.items()
 }
+_PIXEL_MASK_ENABLED = os.environ.get("CASCADE_ISAAC_PIXEL_MASK") == "1"
+if _PIXEL_MASK_ENABLED:
+    import runpy as _mask_runpy
+    from pathlib import Path as _MaskPath
+
+    _encode_robot_mask = _mask_runpy.run_path(str(_MaskPath(__file__).with_name("isaac_self_mask.py")))["encode_robot_mask"]
+
+    for _sensor, _K in _annotators.values():
+        _sensor.attach_annotators("instance_id_segmentation")
 
 if args.gui:
     try:
@@ -1038,7 +1057,21 @@ import cv2  # noqa: E402  (ships with the isaacsim python)
 
 
 def _refresh_frames():
+    # Called on the main thread after app.update(), before jobs/physics can
+    # advance. CameraSensor supplies no exposure timestamp for RGB/depth:
+    # this is a completed physics/render-loop snapshot, NOT exposure time.
     t = time.monotonic()
+    try:
+        q = art.get_dof_positions().numpy()[0].copy()
+        snapshot = {
+            "version": 1, "backend": "isaac", "robot_id": args.prim,
+            "joint_convention": "asset", "q": [float(q[i]) for i in ARM_IDX],
+            "t": t, "time_source": "physics_loop_monotonic",
+        }
+    except Exception:
+        # Preserve viewing during stale-view transitions, but make this frame
+        # explicitly unmaskable. Never reuse prior q or kill the Kit loop.
+        snapshot = None
     for cam_name, (sensor, K) in _annotators.items():
         rgb_data, _ = sensor.get_data("rgb")
         if rgb_data is None:
@@ -1061,14 +1094,24 @@ def _refresh_frames():
                 depth_b64 = base64.b64encode(zlib.compress(d.tobytes(), 3)).decode()
         h, w = bgr.shape[:2]
         entry = {
-            "ok": True, "width": w, "height": h, "K": K,
+            "ok": True, "width": w, "height": h, "K": [list(row) for row in K],
             "rgb_jpeg_b64": base64.b64encode(jpg.tobytes()).decode(),
             "depth_z_b64": depth_b64, "t": t,
+            "proprioception": ({**snapshot, "q": list(snapshot["q"])}
+                               if snapshot is not None else None),
         }
+        if globals().get("_PIXEL_MASK_ENABLED", False):
+            try:
+                _ids, _info = sensor.get_data("instance_id_segmentation")
+                _ids = _ids.numpy() if hasattr(_ids, "numpy") else np.asarray(_ids)
+                entry["robot_pixel_mask"] = _encode_robot_mask(_ids, _info, args.prim, t)
+            except Exception as _e:
+                # View remains available; required-mask consumers refuse motion.
+                entry["robot_pixel_mask_error"] = str(_e)
         if cam_name == "wrist" and _wrist_T is not None:
             # eye-in-hand: extrinsics move with the arm; serve the matrix
             # that was current when this frame rendered
-            entry["T_base_cam"] = _wrist_T
+            entry["T_base_cam"] = [list(row) for row in _wrist_T]
         _frames[cam_name] = entry
 
 
@@ -1439,12 +1482,15 @@ try:
                 art.set_dof_position_targets(tgt.reshape(1, -1))
             except Exception:
                 pass  # stale view during a Stop/Play transition
-        app.update()
-        _run_exec_jobs()
         step += 1
         if step % args.cam_every == 0:
+            # Author before rendering; changing this after app.update would
+            # label the old image with NEXT frame's wrist extrinsics.
             _update_wrist_cam()
-            _refresh_frames()
+        app.update()
+        if step % args.cam_every == 0:
+            _refresh_frames()  # read q + RGB-D before any exec job can step
+        _run_exec_jobs()
 finally:
     server.shutdown()
     app_utils.stop()

@@ -103,7 +103,7 @@ HOME_Q = [0.0, -1.2, -1.2, 0.0, -0.75, 0.0]  # gripper elbow-up, high
 # (gain tuner 8/8).
 from isaacsim import SimulationApp  # noqa: E402
 
-from isaac_runtime import find_experience  # noqa: E402
+from isaac_runtime import ensure_time_code_range, find_experience  # noqa: E402
 
 _kwargs = {}
 if args.engine == "newton":
@@ -867,6 +867,7 @@ _fix_gravity()
 # ── articulation (create AFTER play, gain-tuner gotcha) ──────────────────
 from isaacsim.core.experimental.prims import Articulation  # noqa: E402
 
+print(f"[bridge] stage playback range: {ensure_time_code_range(stage)}", flush=True)
 app_utils.play(commit=True)
 for _ in range(10):
     app.update()

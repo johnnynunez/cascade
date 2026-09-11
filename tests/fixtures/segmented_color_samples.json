@@ -1,0 +1,106 @@
+[
+  {
+    "key": "cam0_0",
+    "expected": "green",
+    "original_color": "green",
+    "label": "sponge",
+    "mask_pixels": 9202,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "cam0_1",
+    "expected": "white",
+    "original_color": "white",
+    "label": "desktop",
+    "mask_pixels": 590910,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "cam0_2",
+    "expected": "pink",
+    "original_color": "white",
+    "label": "building block",
+    "mask_pixels": 8000,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "cam0_3",
+    "expected": "white",
+    "original_color": "white",
+    "label": "dollhouse",
+    "mask_pixels": 31634,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "cam0_4",
+    "expected": "orange",
+    "original_color": "orange",
+    "label": "playing mahjong",
+    "mask_pixels": 56306,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "cam0_5",
+    "expected": "gray",
+    "original_color": "gray",
+    "label": "water purifier",
+    "mask_pixels": 23224,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "side_0",
+    "expected": "green",
+    "original_color": "green",
+    "label": "sponge",
+    "mask_pixels": 7938,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "side_1",
+    "expected": "white",
+    "original_color": "white",
+    "label": "table",
+    "mask_pixels": 325966,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "side_2",
+    "expected": "yellow",
+    "original_color": "yellow",
+    "label": "sponge",
+    "mask_pixels": 14320,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "side_3",
+    "expected": "black",
+    "original_color": "black",
+    "label": "darkness",
+    "mask_pixels": 398724,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "side_4",
+    "expected": "pink",
+    "original_color": "white",
+    "label": "candle",
+    "mask_pixels": 6966,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "side_5",
+    "expected": "gray",
+    "original_color": "gray",
+    "label": "scale model",
+    "mask_pixels": 32370,
+    "captured_bgr_samples": 4000
+  },
+  {
+    "key": "side_6",
+    "expected": "black",
+    "original_color": "black",
+    "label": "martial arts gym",
+    "mask_pixels": 445602,
+    "captured_bgr_samples": 4000
+  }
+]

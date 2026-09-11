@@ -195,6 +195,16 @@ git clone https://github.com/johnnynunez/cascade.git && cd cascade
 uv venv && uv pip install -e '.[dev,kinematics]'
 ```
 
+On a Linux desktop, register **Install CASCADE (Spark)** and **CASCADE (Spark)**
+with `python3 scripts/desktop.py register --repo "$PWD"`. Registration starts
+nothing and accepts no license; the installer shortcut asks for explicit
+consent. Successful Spark preparation also registers these entries. The launch
+shortcut reuses the recorded Isaac source/wheel environment, supervises local
+Cosmos and requires fresh physical proof before READY. Logs persist under
+`runs/.install/` and `runs/.launch/`. Existing Isaac source releases are reused
+without pip writes to embedded packages. See the
+[desktop and source-reuse instructions](docs/SPARK_DELIVERY.md#desktop-installation-and-launch).
+
 `kinematics` (Pinocchio) is not optional in practice — FK/IK back the safety
 layer, so every run needs it. Everything else is opt-in, one extra per
 capability, because none of them are wanted on all hosts:

@@ -21,7 +21,7 @@
 #   1. deps        venv python that imports cascade (+ mujoco for --sim mujoco)
 #   2. assets      robot meshes for the sim arm (scripts/fetch_robot_assets.py)
 #   3. simulator   isaac: scripts/isaac_bridge.py under Isaac's python.sh, wait
-#                  for the TCP bridge on :8611 (default 240 s -- Kit is slow)
+#                  for the TCP bridge on :8611 (cold Newton setup can exceed 10 minutes)
 #                  mujoco: nothing to start; the MCP server owns the world and
 #                  opens the passive viewer itself (CASCADE_VIEW=1 + DISPLAY)
 #                  none: nothing
@@ -77,7 +77,7 @@ GGX_PORT="${CASCADE_GRASPGENX_PORT:-5556}"
 DRY=0
 DOWN=0
 ISAAC_GUI=1
-ISAAC_WAIT_S="${ISAAC_WAIT_S:-240}"
+ISAAC_WAIT_S="${ISAAC_WAIT_S:-1200}"
 BRIDGE_PORT="${CASCADE_BRIDGE_PORT:-8611}"
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
 STATE_ROOT="${CASCADE_LAUNCH_STATE:-$REPO/runs/.launch}"
@@ -86,6 +86,10 @@ MCP_NAME="${CASCADE_MCP_NAME:-cascade}"
 usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; }
 
 while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --sim|--arm|--cameras|--brain|--occupancy|--graspgenx)
+            [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { printf '[launch] ERROR: missing value for %s\n' "$1" >&2; exit 2; } ;;
+    esac
     case "$1" in
         --sim) SIM="$2"; shift 2 ;;
         --arm) ARM="$2"; shift 2 ;;
@@ -112,6 +116,15 @@ if [[ $CHECK == 1 && $SETUP == 1 ]]; then
     exit 2
 fi
 case "$BRAIN" in auto|keep|cosmos|cosmos-sglang|qwen) ;; *) printf 'unknown --brain %s\n' "$BRAIN" >&2; exit 2 ;; esac
+case "$SIM" in auto|isaac|mujoco|none) ;; *) printf 'unknown --sim %s\n' "$SIM" >&2; exit 2 ;; esac
+case "$OCCUPANCY" in auto|nvblox|warp|voxel|none) ;; *) printf 'unknown --occupancy %s\n' "$OCCUPANCY" >&2; exit 2 ;; esac
+case "$GRASPGENX" in auto|stub|external|none) ;; *) printf 'unknown --graspgenx %s\n' "$GRASPGENX" >&2; exit 2 ;; esac
+[[ "$ISAAC_WAIT_S" =~ ^[1-9][0-9]*$ ]] || { printf 'ISAAC_WAIT_S must be a positive integer\n' >&2; exit 2; }
+if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark && $DOWN == 0 ]]; then
+    [[ "$SIM" != auto ]] || SIM=isaac
+    [[ "$BRAIN" != auto ]] || BRAIN=cosmos
+    [[ "$SIM" == isaac && "$BRAIN" == cosmos ]] || { printf '[launch] ERROR: Spark delivery requires Isaac + Cosmos, not a substituted demo\n' >&2; exit 2; }
+fi
 
 log()  { printf '[launch] %s\n' "$*"; }
 warn() { printf '[launch] WARNING: %s\n' "$*" >&2; }
@@ -168,11 +181,26 @@ finally:
     s.close()
 PYEOF
 }
-wait_port() {  # wait_port <port> <seconds> <what>
-    local port=$1 secs=$2 what=$3 i
+wait_port() {  # wait_port <port> <seconds> <what> [owned_pid] [log]
+    local port=$1 secs=$2 what=$3 pid="${4:-}" logfile="${5:-}" i
     for ((i = 0; i < secs; i++)); do
         port_open "$port" && return 0
-        (( i % 15 == 14 )) && log "still waiting for $what on :$port (${i}s)"
+        if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
+            warn "$what process $pid exited during startup; see $logfile"
+            return 1
+        fi
+        if (( i % 15 == 14 )); then
+            log "still waiting for $what on :$port (${i}/${secs}s); log=$logfile"
+            if [[ -n "$logfile" && -f "$logfile" ]]; then
+                "$PY" - "$logfile" <<'PYEOF'
+import pathlib, sys
+with pathlib.Path(sys.argv[1]).open('rb') as stream:
+    stream.seek(0, 2)
+    stream.seek(max(0, stream.tell() - 4096))
+    print('\n'.join(stream.read().decode(errors='replace').splitlines()[-3:]), flush=True)
+PYEOF
+            fi
+        fi
         sleep 1
     done
     return 1
@@ -240,6 +268,7 @@ case "$SIM" in
     *) die "unknown --sim $SIM (auto|isaac|mujoco|none)" ;;
 esac
 log "plan: sim=$SIM arm=$ARM cameras=$CAMERAS brain=$BRAIN python=$PY"
+[[ "$SIM" != isaac ]] || log "Isaac startup budget=${ISAAC_WAIT_S}s (cold collision preprocessing/shaders); ISAAC_WAIT_S overrides it"
 [[ $DRY == 1 ]] && log "(dry run: commands are printed, nothing is executed)"
 if [[ $DRY == 1 ]]; then
     log "would install missing extras/assets, start $SIM and sidecars, register OpenClaw, verify brain + motion + reset, then open chat"
@@ -249,10 +278,27 @@ fi
 if [[ $CHECK == 0 ]]; then
     LAUNCH_OWNER="$(ownerctl init)" || die "launch owner initialization failed"
     export CASCADE_LAUNCH_OWNER="$LAUNCH_OWNER"
+    # Dependency/boot failures invalidate READY too, before reaching proof.
+    "$PY" - "$STATE_DIR" "$SIM" <<'PYEOF'
+import json, os, pathlib, sys, time, uuid
+state, sim = pathlib.Path(sys.argv[1]), sys.argv[2]
+attempt = 'launch-attempt-' + uuid.uuid4().hex
+evidence = state / attempt
+evidence.mkdir(mode=0o700)
+previous = state / 'proof.json'
+if previous.is_file():
+    (evidence / 'previous-proof.json').write_bytes(previous.read_bytes())
+report = {'verified': False, 'sim': sim, 'started_at': time.time(), 'attempt': attempt,
+          'profile': os.environ.get('CASCADE_OPENCLAW_PROFILE', ''), 'note': 'launch in progress; no current proof'}
+temporary = evidence / 'initial-proof.json'
+temporary.write_text(json.dumps(report) + '\n')
+temporary.replace(previous)
+PYEOF
 fi
 
 # ── 1. deps ─────────────────────────────────────────────────────────────────
 pip_install() {  # pip_install <spec...>  -- uv when present (fast, no pip needed in the venv)
+    [[ "${CASCADE_INSTALL_PROFILE:-}" != spark ]] || die "Spark dependencies are missing; repair via scripts/install.sh --profile spark --accept-eula (no unpinned installs at launch)"
     if command -v uv >/dev/null 2>&1 || [[ -x "$HOME/.local/bin/uv" ]]; then
         export PATH="$HOME/.local/bin:$PATH"
         run uv pip install --python "$PY" "$@"
@@ -344,6 +390,13 @@ DETECTOR_PT="${CASCADE_DETECTOR_MODEL:-$REPO/models/yoloe-11s-seg.pt}"
 [[ -f "$DETECTOR_PT" || $CHECK == 1 ]] || die "detector weights missing: $DETECTOR_PT (tracked in git; set CASCADE_DETECTOR_MODEL to override)"
 
 # ── preflight report (--check) ─────────────────────────────────────────────
+isaac_metadata_check() {
+    # python.sh honors PYTHONEXE and loader variables even for metadata-only
+    # checks. Do not let an agent/app environment select or contaminate Kit.
+    env -u PYTHONEXE -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV -u CONDA_PREFIX \
+        -u LD_LIBRARY_PATH -u LD_PRELOAD \
+        PYTHONDONTWRITEBYTECODE=1 "$ISAAC_PY" "$REPO/scripts/isaac_runtime.py" --check
+}
 if [[ $CHECK == 1 ]]; then
     ok()  { printf '  [ok]      %s\n' "$*"; }
     bad() { printf '  [MISSING] %s\n' "$*"; PREFLIGHT_FAIL=1; }
@@ -354,7 +407,7 @@ if [[ $CHECK == 1 ]]; then
     command -v openclaw >/dev/null 2>&1 && ok "openclaw $(oc --version 2>/dev/null | grep -oE '20[0-9]{2}\.[0-9]+\.[0-9]+' | head -1)" || bad "openclaw CLI (--setup installs it)"
     if [[ "$SIM" == "isaac" ]]; then
         if [[ -n "$ISAAC_PY" ]]; then
-            if ISAAC_INFO="$("$ISAAC_PY" "$REPO/scripts/isaac_runtime.py" --check 2>&1)"; then ok "Isaac Sim: $ISAAC_INFO"
+            if ISAAC_INFO="$(isaac_metadata_check 2>&1)"; then ok "Isaac Sim: $ISAAC_INFO"
             else bad "Isaac Sim: $ISAAC_INFO"; fi
         else
             bad "Isaac Sim 6.1.0 (run scripts/install.sh --profile spark --accept-eula)"
@@ -377,7 +430,7 @@ fi
 
 # ── 3. simulator ────────────────────────────────────────────────────────────
 if [[ "$SIM" == "isaac" ]]; then
-    "$ISAAC_PY" "$REPO/scripts/isaac_runtime.py" --check || die "Isaac Sim 6.1.0.0 installation is incomplete"
+    isaac_metadata_check || die "Isaac Sim 6.1.0.0 installation is incomplete"
     if [[ "$(uname -s)" == Linux && "$(uname -m)" == aarch64 && -f /lib/aarch64-linux-gnu/libgomp.so.1 ]]; then
         export LD_PRELOAD="/lib/aarch64-linux-gnu/libgomp.so.1${LD_PRELOAD:+:$LD_PRELOAD}"
     fi
@@ -391,15 +444,20 @@ if [[ "$SIM" == "isaac" ]]; then
             printf '        $ %s %s --port %s --usd %s %s &\n' "$ISAAC_PY" "$REPO/scripts/isaac_bridge.py" "$BRIDGE_PORT" "$USD" "${gui_flag:-}"
         else
             # shellcheck disable=SC2086  # $gui_flag is empty or exactly --gui
-            nohup "$ISAAC_PY" "$REPO/scripts/isaac_bridge.py" --port "$BRIDGE_PORT" --usd "$USD" $gui_flag \
+            nohup "$PY" "$REPO/scripts/isaac_launch.py" --python "$ISAAC_PY" -- \
+                "$REPO/scripts/isaac_bridge.py" --port "$BRIDGE_PORT" --usd "$USD" $gui_flag \
                 >"$STATE_DIR/isaac_bridge.log" 2>&1 &
             bridge_pid=$!
             ownerctl record --pid "$bridge_pid" --role isaac_bridge >/dev/null
-            wait_port "$BRIDGE_PORT" "$ISAAC_WAIT_S" "Isaac bridge" \
+            wait_port "$BRIDGE_PORT" "$ISAAC_WAIT_S" "Isaac bridge" "$bridge_pid" "$STATE_DIR/isaac_bridge.log" \
                 || die "Isaac bridge never listened on :$BRIDGE_PORT after ${ISAAC_WAIT_S}s -- see $STATE_DIR/isaac_bridge.log"
-            # a listening port is not a working bridge: ping through the real client
-            "$PY" - "$BRIDGE_PORT" <<'PYEOF' || die "Isaac bridge on :$BRIDGE_PORT did not answer ping -- see $STATE_DIR/isaac_bridge.log"
-import sys
+            ownerctl record --pid "$bridge_pid" --role isaac_bridge >/dev/null
+            log "Isaac bridge up on :$BRIDGE_PORT"
+        fi
+    fi
+    # Probe borrowed bridges too. An open port is neither health nor proof.
+    "$PY" - "$BRIDGE_PORT" <<'PYEOF' || die "Isaac bridge on :$BRIDGE_PORT failed health -- see $STATE_DIR/isaac_bridge.log"
+import math, os, sys
 from cascade.sim.bridge_client import BridgeClient
 c = BridgeClient(port=int(sys.argv[1]), timeout_s=20.0)
 c.connect()
@@ -407,14 +465,14 @@ try:
     pong = c.request({"op": "ping"})
     assert pong.get("ok"), f"ping answered {pong!r}"
     st = c.request({"op": "state"})
+    assert st.get('ok') is True and isinstance(st.get('q'), list) and st['q'], f"invalid joint state: {st!r}"
+    assert all(isinstance(q, (int, float)) and math.isfinite(q) for q in st['q']), "non-finite joint state"
+    if os.environ.get('CASCADE_INSTALL_PROFILE') == 'spark':
+        assert pong.get('engine') == 'newton', f"Spark requires Newton, received {pong.get('engine')!r}"
     print(f"[launch] Isaac bridge answers: engine={pong.get('engine')} dofs={len(pong.get('dofs') or [])} state_ok={bool(st.get('ok', True))}")
 finally:
     c.close()
 PYEOF
-            ownerctl record --pid "$bridge_pid" --role isaac_bridge >/dev/null
-            log "Isaac bridge up on :$BRIDGE_PORT"
-        fi
-    fi
 fi
 
 # ── 3b. sidecars: occupancy bridge + (sim) GraspGen-X stub ─────────────────
@@ -519,7 +577,12 @@ fi
 
 # register the MCP server -- idempotent (`mcp set` replaces; `mcp add` errors on an existing name)
 DETECTOR="${CASCADE_DETECTOR_MODEL:-$REPO/models/yoloe-11s-seg.pt}"
-CLASSES="${CASCADE_DETECT_CLASSES:-cube,banana,bottle,cup,bowl,box,plate,toy}"
+CLASSES="${CASCADE_DETECT_CLASSES:-}"
+if [[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]]; then
+    export CASCADE_GRASP_MEMORY_PATH="${CASCADE_GRASP_MEMORY_PATH:-$STATE_DIR/memory/grasp_memory.json}"
+    export CASCADE_ENVELOPE_PATH="${CASCADE_ENVELOPE_PATH:-$STATE_DIR/memory/envelope.json}"
+    export CASCADE_BELIEFS_PATH="${CASCADE_BELIEFS_PATH:-$STATE_DIR/memory/beliefs.json}"
+fi
 # The MCP server is what opens the MuJoCo viewer, and on macOS
 # `mujoco.viewer.launch_passive` REFUSES to run under plain python ("requires
 # mjpython") -- the arm then logs a warning and runs headless, i.e. no sim
@@ -529,25 +592,33 @@ if [[ "$SIM" == "mujoco" && "$(uname -s)" == "Darwin" && -x "$(dirname "$PY")/mj
     MCP_PY="$(dirname "$PY")/mjpython"
     log "macOS + mujoco: MCP server runs under mjpython so the viewer can open"
 fi
-MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$DETECTOR" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" <<'PYEOF'
+MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$DETECTOR" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" "$ISAAC_GUI" <<'PYEOF'
 import json, os, sys
 py, repo, cams, arm, det, classes, sim = sys.argv[1:8]
 state_dir, owner = sys.argv[8:10]
 env = {
     "CASCADE_CAMERAS": cams, "CASCADE_ARM": arm,
-    "CASCADE_DETECTOR_MODEL": det, "CASCADE_DETECT_CLASSES": classes,
+    "CASCADE_DETECTOR_MODEL": det,
     "YOLO_OFFLINE": "True", "ULTRALYTICS_OFFLINE": "True",
     "CASCADE_OPENCLAW_PROFILE": os.environ.get("CASCADE_OPENCLAW_PROFILE", ""),
 }
+if classes:
+    env["CASCADE_DETECT_CLASSES"] = classes  # explicit operator vocabulary only
+for key in ("CASCADE_GRASP_MEMORY_PATH", "CASCADE_ENVELOPE_PATH", "CASCADE_BELIEFS_PATH", "CASCADE_BELIEFS"):
+    if key in os.environ:
+        env[key] = os.environ[key]
 # Sim runs open the physics viewer from the MCP server (CASCADE_VIEW=1 needs
 # DISPLAY set; macOS has no DISPLAY, so give it one -- mujoco.viewer ignores
 # the value, it only gates the "is there a screen" check).
 if sim in ("mujoco", "isaac"):
-    env["CASCADE_VIEW"] = "1"
-    env["DISPLAY"] = os.environ.get("DISPLAY", ":0")
+    env["CASCADE_VIEW"] = os.environ.get("CASCADE_VIEW", "1") if sys.argv[10] == "1" else "0"
+    if "DISPLAY" in os.environ:
+        env["DISPLAY"] = os.environ["DISPLAY"]
+    elif sys.platform == "darwin":
+        env["DISPLAY"] = ":0"  # gates the macOS viewer, not an X11 connection
 if sim == "mujoco":
     # the physics window itself (the arm profile defaults to view: false)
-    env["CASCADE_MJ_VIEW"] = "1"
+    env["CASCADE_MJ_VIEW"] = os.environ.get("CASCADE_MJ_VIEW", "1") if sys.argv[10] == "1" else "0"
 # requestTimeoutMs: the OpenClaw per-CALL budget (default 60 s). pick_and_place
 # PERSISTS for up to grasp.persist_seconds (120 s) by design; at 60 s the
 # host sends notifications/cancelled, the server treats a cancel mid-motion
@@ -613,7 +684,13 @@ if [[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]]; then
     run oc config set agents.defaults.skills '[]' --strict-json >/dev/null
     TOOL_ALLOW="$(MCP_PREFIX="$MCP_NAME" "$PY" -c 'import json,os; print(json.dumps([os.environ["MCP_PREFIX"]+"__*"]))')"
     run oc config set tools.allow "$TOOL_ALLOW" --strict-json >/dev/null
-    run oc config set agents.defaults.workspace "$STATE_DIR/openclaw-workspace" >/dev/null
+    ACTIVE_CONFIG="$(oc config file)" || die "cannot resolve selected OpenClaw profile"
+    PROFILE_WORKSPACE="$("$PY" -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).expanduser().parent / "workspace")' "$ACTIVE_CONFIG")"
+    # Workspace attestations outlive the checkout/runs directory. Preserve the
+    # profile-home workspace and bind both default and main-agent overrides.
+    mkdir -p "$PROFILE_WORKSPACE"
+    run oc config set agents.defaults.workspace "$PROFILE_WORKSPACE" >/dev/null
+    run oc config set agents.entries.main.workspace "$PROFILE_WORKSPACE" >/dev/null
 fi
 
 # the gateway serves a stale tool list until restarted after `mcp set`
@@ -645,7 +722,7 @@ if [[ $DRY == 0 ]]; then
     else
         RUNTIME_CHECK="$(cd "$REPO/models" && CASCADE_CAMERAS="$CAMERAS" CASCADE_ARM="$ARM" CASCADE_DETECTOR_MODEL="$DETECTOR" \
             CASCADE_DETECT_CLASSES="$CLASSES" YOLO_OFFLINE=True ULTRALYTICS_OFFLINE=True CASCADE_STREAM=0 CASCADE_VIEW=0 CASCADE_BELIEFS=0 \
-            "$PY" - <<'PYEOF' 2>&1 | grep -v "ARB_clip\|linesearch\|^Warp\|Module .* load\|^$" | tail -5
+            "$PY" - <<'PYEOF' 2>&1 | tee "$STATE_DIR/runtime-check.log" | grep -v "ARB_clip\|linesearch\|^Warp\|Module .* load\|^$" | tail -5
 import os, sys, tempfile
 from cascade.config import load_demo_config
 from cascade.apps.demo import build_runtime, shutdown_runtime
@@ -659,7 +736,7 @@ finally:
 PYEOF
 )" || {
             printf '%s\n' "$RUNTIME_CHECK" >&2
-            die "the robot runtime check failed; the captured diagnostic is above"
+            die "the robot runtime check failed; full diagnostic: $STATE_DIR/runtime-check.log"
         }
         printf '%s\n' "$RUNTIME_CHECK" | sed 's/^/        /'
         [[ "$RUNTIME_CHECK" == *"runtime builds:"* ]] || die "the robot runtime does not build with cameras=$CAMERAS arm=$ARM -- see the error above (missing extra? asset? camera?)"

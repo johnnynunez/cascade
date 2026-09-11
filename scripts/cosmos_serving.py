@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Pinned, isolated Cosmos3-Edge reasoner sidecar for an OpenAI/MCP chat host.
+"""Pinned Cosmos3-Edge HF reasoner on ordinary vLLM, NOT vLLM-Omni.
 
 This process serves a model; it never starts cascade's in-process agent loop.
 Heavy imports are deliberately lazy so --help/--dry-run work without CUDA.
+Omni's Cosmos3 diffusion pipeline is a different deployment and does not
+register this reasoner-only export for native chat/tool calling.
 """
 
 from __future__ import annotations
@@ -31,6 +33,15 @@ REQUIREMENTS = ("vllm==0.29.0", "torch==2.13.0", "transformers==5.17.0", "ninja"
 
 def serving_plan(env=None):
     env = os.environ if env is None else env
+    engine = env.get("COSMOS_ENGINE", "vllm")
+    if engine != "vllm":
+        raise ValueError(
+            f"COSMOS_ENGINE={engine!r} cannot serve this HF reasoner-only export. "
+            "This script uses ordinary vLLM, not vLLM-Omni. The inspected Omni "
+            "0.29.0rc1 supports the full Cosmos3 diffusion model, but does not "
+            "register the HF reasoner as an Omni chat pipeline. Keep its "
+            "incompatible dependencies in a separate environment."
+        )
     venv = Path(env.get("VENV", str(REPO / ".cosmos"))).expanduser().absolute()
     for protected in (REPO, REPO / ".venv", REPO / ".isaacsim"):
         if venv.resolve() == protected.resolve() or (
@@ -100,6 +111,9 @@ def serving_plan(env=None):
         str(venv / "cosmos-chat-template.jinja"),
     ]
     return {
+        "engine": "vllm",
+        "model_component": "hf-reasoner-only",
+        "vllm_omni": False,
         "venv": str(venv),
         "export_dir": str(export_dir),
         "model": {
@@ -127,6 +141,20 @@ def ensure_environment(plan):
             raise RuntimeError(
                 f"{venv} is not a virtual environment; refusing to overwrite it"
             )
+        # uv pip install reconciles requested packages, not the requirements of
+        # every existing package. It would replace Omni's Transformers <5.15
+        # with 5.17.0 and leave a broken Omni installation behind. Read metadata
+        # without importing that environment's packages or executing its code.
+        import importlib.metadata
+
+        sites = [str(path) for path in venv.glob("lib*/python*/site-packages")]
+        for distribution in importlib.metadata.distributions(path=sites):
+            name = (distribution.metadata["Name"] or "").lower().replace("_", "-")
+            if name == "vllm-omni":
+                raise RuntimeError(
+                    f"{venv} contains vLLM-Omni; keep a separate reasoner VENV "
+                    "rather than replacing its incompatible Transformers pin"
+                )
     else:
         subprocess.run(["uv", "venv", str(venv), "--python", "3.12"], check=True)
     # uv reconciles the exact pins on every run; merely finding bin/vllm is
@@ -888,6 +916,8 @@ def main(argv=None):
         epilog=(
             "Environment: VENV (default checkout/.cosmos), MODEL_DIR, EXPORT_DIR, "
             "PORT=8082, CTX=32768, GPU_FRAC=0.20, SERVED_NAME=cosmos3-edge. "
+            "COSMOS_ENGINE=vllm is the only supported engine for this HF export; "
+            "an explicit Omni request fails rather than falling back. "
             "HF_REPO and MODEL_REVISION are locked; this is not a hosted-OpenAI fallback."
         ),
     )
@@ -961,6 +991,9 @@ def main(argv=None):
         chat_template = ensure_chat_template(export_path, plan["venv"], allow_write=not args.check)
         report = {
             "state": "prepared-unverified",
+            "engine": plan["engine"],
+            "model_component": plan["model_component"],
+            "vllm_omni": plan["vllm_omni"],
             "native_generation_verified": False,
             "stack": stack,
             "cuda": cuda,

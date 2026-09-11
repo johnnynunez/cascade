@@ -167,6 +167,16 @@ class WorldWatcher:
             return
         cam.last_seq = frame.frame_id
         frame = cam.depth.ensure_depth(frame)
+        T = None
+        if frame.has_depth and cam.fuse:
+            # Mask geometry before waiting for semantic inference/its lock.
+            # Otherwise the robot can move during detection and a current
+            # joint pose masks an OLD image, permanently fusing self ghosts.
+            T = (frame.T_base_cam if frame.T_base_cam is not None
+                 else cam.extrinsics.cam_to_base())
+            if self._occupancy is not None:
+                # Keep geometry fresh during motion; only beliefs are paused.
+                self._occupancy.refresh(frame, T)
         dets = self._detector.detect(frame, classes=self._classes)
         cam.stream.set_overlay(detections=dets)
         self.last_dets[cam.stream.name] = dets
@@ -176,19 +186,8 @@ class WorldWatcher:
         # watchdog window and rely on this).
         if self._harness is not None:
             self._harness.heartbeat()
-        if not frame.has_depth or not cam.fuse:
+        if T is None:
             return
-        # Eye-in-hand cameras carry their extrinsics IN the frame (the
-        # camera rides the arm); static cameras use the profile matrix.
-        T = (frame.T_base_cam if frame.T_base_cam is not None
-             else cam.extrinsics.cam_to_base())
-        if self._occupancy is not None:
-            # Scene geometry, not object identity: refresh even while
-            # belief fusion is paused for motion -- the held object shows
-            # up as depth near the gripper either way, and skipping the
-            # refresh here would let the obstacle map go stale for exactly
-            # the duration motion needs it most.
-            self._occupancy.refresh(frame, T)
         if self.is_paused:
             return
         fused = 0

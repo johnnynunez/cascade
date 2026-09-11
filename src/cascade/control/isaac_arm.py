@@ -50,7 +50,9 @@ class IsaacArm(ArmBase):
         self._client.close()
 
     def get_state(self) -> RobotState:
-        s = self._client.state()
+        return self._decode_state(self._client.state())
+
+    def _decode_state(self, s: dict) -> RobotState:
         # asset -> local convention
         q = np.asarray(s["q"], dtype=float)[: self.n_joints] * self._signs
         dq = np.asarray(s.get("dq", []), dtype=float)
@@ -60,6 +62,35 @@ class IsaacArm(ArmBase):
             gripper_pos=float(s.get("gripper_pos", 0.0)),
             gripper_valid="gripper_pos" in s,
         )
+
+    def state_from_frame(self, frame) -> RobotState:
+        """Require this bridge/robot's capture-time q, then use driver signs.
+
+        Endpoint binding comes from the camera client, not an untrusted wire
+        field. An old bridge or a camera for another arm must fail closed.
+        No timestamp is treated as exposure time or compared across hosts.
+        """
+        c = getattr(frame, "capture", None)
+        if (not isinstance(c, dict) or c.get("backend") != "isaac"
+                or c.get("source") != self._client._addr):
+            raise BridgeError("Isaac capture source missing or belongs to another bridge")
+        s = c.get("proprioception")
+        robot_id = self._cfg.get("bridge_robot_id")
+        if (not isinstance(s, dict) or type(s.get("version")) is not int or s["version"] != 1
+                or s.get("backend") != "isaac" or not robot_id or s.get("robot_id") != robot_id
+                or s.get("joint_convention") != "asset"):
+            raise BridgeError("Isaac capture snapshot missing/invalid or robot identity mismatch")
+        t = s.get("t")
+        if (type(t) not in (int, float) or not np.isfinite(t) or t < 0
+                or t != c.get("t") or s.get("time_source") != "physics_loop_monotonic"):
+            raise BridgeError("Isaac capture snapshot timestamp/clock mismatch")
+        q = np.asarray(s.get("q"))
+        if (q.shape != (self.n_joints,) or q.dtype.kind not in "fiu"
+                or not np.isfinite(q).all()):
+            raise BridgeError("Isaac capture snapshot requires finite, exact-DOF asset joints")
+        if self._cfg.get("require_robot_pixel_mask") and getattr(frame, "robot_mask", None) is None:
+            raise BridgeError("Isaac render robot pixel mask required")
+        return self._decode_state(s)
 
     def send_joint_target(self, q: np.ndarray) -> None:
         if self._stopped:

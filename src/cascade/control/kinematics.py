@@ -54,6 +54,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from threading import local
 
 import numpy as np
 
@@ -92,7 +93,10 @@ class Kinematics:
 
             xml = apply_joint_signs(xml, joint_signs)
         self.model = pin.buildModelFromXML(xml)
-        self.data = self.model.createData()
+        # The model is immutable; Pinocchio Data is mutable scratch state.
+        # Perception masks and the control/IK loop query this object in
+        # parallel, so sharing Data can substitute another thread's pose.
+        self._thread_data = local()
         self.ee_frame = ee_frame
         self.fid = self.model.getFrameId(ee_frame)
         if self.fid >= len(self.model.frames.tolist()):
@@ -108,6 +112,12 @@ class Kinematics:
         )
         if self.task_weights is not None and np.any(self.task_weights < 0):
             raise ValueError(f"ik_task_weights must be >= 0, got {ik_task_weights!r}")
+
+    @property
+    def data(self):
+        if not hasattr(self._thread_data, "data"):
+            self._thread_data.data = self.model.createData()
+        return self._thread_data.data
 
     def _pad(self, q: np.ndarray) -> np.ndarray:
         qf = np.zeros(self.nq)

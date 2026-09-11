@@ -4,6 +4,9 @@
 type: isaac
 bridge_host: 127.0.0.1
 bridge_port: 8611
+# Exact articulation identity advertised by the bridge's capture snapshot.
+# Custom --prim deployments must bind their own value; never borrow another arm's q.
+bridge_robot_id: /tn__00armrs_asmv3_hJ6D/Geometry/base_link
 n_joints: 6
 settle_tol: 0.045
 # Newton needs longer than PhysX to settle the last of the tracking error

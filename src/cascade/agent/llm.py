@@ -144,6 +144,9 @@ class OpenAICompatClient(LLMClient):
             ]
             # One tool call per turn keeps the loop deterministic.
             kwargs["parallel_tool_calls"] = False
+        extra_body = self._extra_body()
+        if extra_body:
+            kwargs["extra_body"] = extra_body
         resp = self._call_with_param_fallback(kwargs)
         choice = resp.choices[0].message
         calls = []
@@ -154,6 +157,10 @@ class OpenAICompatClient(LLMClient):
                 args = {"_raw": tc.function.arguments}
             calls.append(ToolCall(name=tc.function.name, arguments=args, id=tc.id))
         return LLMResponse(text=choice.content or "", tool_calls=calls)
+
+    def _extra_body(self) -> dict:
+        """Provider-specific HTTP fields; empty for standard OpenAI."""
+        return {}
 
     def _call_with_param_fallback(self, kwargs: dict):
         """Newer OpenAI models reject max_tokens (want max_completion_tokens);

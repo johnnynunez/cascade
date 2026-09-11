@@ -70,9 +70,16 @@ def test_dry_run_pins_isolated_native_openai_contract_without_writes(tmp_path):
     assert argv[argv.index("--max-model-len") + 1] == "32768"
     assert argv[argv.index("--tool-call-parser") + 1] == "qwen3_coder"
     assert argv[argv.index("--reasoning-parser") + 1] == "qwen3"
+    assert argv[argv.index("--chat-template") + 1] == str(tmp_path / "isolated cosmos/cosmos-chat-template.jinja")
     assert argv[argv.index("--host") + 1] == "127.0.0.1"
     assert "--enable-auto-tool-choice" in argv
     assert "--enforce-eager" in argv
+    # A 16-Mpixel default image makes vision prefill dwarf this sidecar's
+    # 0.20 GPU budget; cap resolution, not the image modality itself.
+    assert argv[argv.index("--max-num-seqs") + 1] == "2"
+    mm = json.loads(argv[argv.index("--mm-processor-kwargs") + 1])
+    assert mm == {"size": {"shortest_edge": 65536, "longest_edge": 1048576}}
+    assert "--language-model-only" not in argv
     assert not (tmp_path / "isolated cosmos").exists()
     assert not (tmp_path / "models").exists()
     assert "git+" not in result.stdout
@@ -452,6 +459,21 @@ def test_prepared_runtime_runs_cuda_export_and_exec_in_order(tmp_path, monkeypat
         helper, "atomic_export", lambda path, builder: events.append("export")
     )
     monkeypatch.setattr(
+        helper, "ensure_model_config_compat", lambda path, **kwargs: events.append("model-compat")
+    )
+    monkeypatch.setattr(
+        helper, "ensure_transformers_processor_compat", lambda path, **kwargs: events.append("image-compat")
+    )
+    monkeypatch.setattr(
+        helper, "ensure_video_processor_compat", lambda path, **kwargs: events.append("video-compat")
+    )
+    monkeypatch.setattr(
+        helper, "ensure_native_grammar_compat", lambda path, **kwargs: events.append("native-grammar")
+    )
+    monkeypatch.setattr(
+        helper, "ensure_chat_template", lambda *args, **kwargs: events.append("chat-template")
+    )
+    monkeypatch.setattr(
         helper, "processor_smoke", lambda path: events.append("processor")
     )
 
@@ -468,7 +490,7 @@ def test_prepared_runtime_runs_cuda_export_and_exec_in_order(tmp_path, monkeypat
     monkeypatch.setattr(helper.os, "execve", exec_server)
     with pytest.raises(ExecBoundary):
         helper.main(["--_prepared"])
-    assert events == ["stack", "cuda", "rope", "export", "processor", "serve"]
+    assert events == ["stack", "cuda", "rope", "export", "model-compat", "image-compat", "video-compat", "native-grammar", "processor", "chat-template", "serve"]
 
 
 @pytest.mark.parametrize("raw", ["null", "[]", '"broken"'])

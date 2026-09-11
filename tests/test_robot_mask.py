@@ -100,7 +100,7 @@ def test_map_zeroes_the_registered_arm_before_shipping_the_frame():
     assert m.last_masked_px == int(arm_px.sum()) or m.last_masked_px >= int(arm_px.sum() * 0.95)
 
 
-def test_an_arm_in_standby_is_skipped_not_fatal():
+def test_an_arm_in_standby_defers_integration_until_it_can_be_masked():
     depth = _depth_with_arm_and_cube()
     frame = Frame(rgb=np.zeros((H, W, 3), np.uint8), depth_m=depth, K=K)
     c = _RecordingClient()
@@ -111,8 +111,8 @@ def test_an_arm_in_standby_is_skipped_not_fatal():
         raise RuntimeError("arm not connected")
     m.add_robot_body(boom, radius_m=0.04)
     m.refresh(frame, T_base_cam=T)
-    assert m.last_error is None
-    assert np.array_equal(c.depths[-1], depth)                 # nothing masked, nothing broken
+    assert m.last_error is not None and "robot body pose" in m.last_error
+    assert c.depths == [], "unknown pose must never send unmasked arm depth"
     assert m.last_masked_px == 0
 
 

@@ -31,6 +31,13 @@ class Frame:
     # eye-in-hand cameras (extrinsics move with the arm); None = use the
     # camera profile's static extrinsics
 
+    # Optional capture provenance + proprioception, carried WITH the image.
+    # `t` above remains client-local receipt time (freshness); capture clocks
+    # can be remote and must never be compared with the client's monotonic().
+    capture: dict | None = None
+    # Optional exact self-pixel mask from this render product; raw depth stays intact.
+    robot_mask: np.ndarray | None = None
+
     @property
     def has_depth(self) -> bool:
         return self.depth_m is not None

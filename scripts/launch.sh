@@ -402,10 +402,14 @@ if [[ "$SIM" == "isaac" ]]; then
 import sys
 from cascade.sim.bridge_client import BridgeClient
 c = BridgeClient(port=int(sys.argv[1]), timeout_s=20.0)
-pong = c.request({"op": "ping"})
-assert pong.get("ok"), f"ping answered {pong!r}"
-st = c.request({"op": "state"})
-print(f"[launch] Isaac bridge answers: engine={pong.get('engine')} dofs={len(pong.get('dofs') or [])} state_ok={bool(st.get('ok', True))}")
+c.connect()
+try:
+    pong = c.request({"op": "ping"})
+    assert pong.get("ok"), f"ping answered {pong!r}"
+    st = c.request({"op": "state"})
+    print(f"[launch] Isaac bridge answers: engine={pong.get('engine')} dofs={len(pong.get('dofs') or [])} state_ok={bool(st.get('ok', True))}")
+finally:
+    c.close()
 PYEOF
             ownerctl record --pid "$bridge_pid" --role isaac_bridge >/dev/null
             log "Isaac bridge up on :$BRIDGE_PORT"
@@ -644,17 +648,19 @@ if [[ $DRY == 0 ]]; then
             "$PY" - <<'PYEOF' 2>&1 | grep -v "ARB_clip\|linesearch\|^Warp\|Module .* load\|^$" | tail -5
 import os, sys, tempfile
 from cascade.config import load_demo_config
-from cascade.apps.demo import build_runtime
+from cascade.apps.demo import build_runtime, shutdown_runtime
 cams = os.environ["CASCADE_CAMERAS"].split(",")
 cfg = load_demo_config(cameras=cams, arm=os.environ["CASCADE_ARM"], llm="mock")
 rt, arm = build_runtime(cfg, tempfile.mkdtemp(prefix="cascade-check-"), view=False, lazy_arm=True, serve=False)
-print("[launch] runtime builds:", rt.backends())
 try:
-    rt.camera.close()
-except Exception:
-    pass
+    print("[launch] runtime builds:", rt.backends())
+finally:
+    shutdown_runtime(rt, arm)
 PYEOF
-)"
+)" || {
+            printf '%s\n' "$RUNTIME_CHECK" >&2
+            die "the robot runtime check failed; the captured diagnostic is above"
+        }
         printf '%s\n' "$RUNTIME_CHECK" | sed 's/^/        /'
         [[ "$RUNTIME_CHECK" == *"runtime builds:"* ]] || die "the robot runtime does not build with cameras=$CAMERAS arm=$ARM -- see the error above (missing extra? asset? camera?)"
     fi

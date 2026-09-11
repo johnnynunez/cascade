@@ -156,21 +156,50 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
     )
     if occupancy is not None:
         # The depth camera sees THIS arm: register it for body masking so its
-        # own links are not integrated as obstacles. Reads the arm's state
-        # only when it is up -- never materializes a LazyArm.
+        # own links are not integrated as obstacles. Never materialize a
+        # LazyArm: real motor bring-up must remain an explicit user action.
         from ..perception.robot_mask import arm_link_points
 
         base_T = _base_transform(acfg)
 
-        def _body_points(_arm=arm, _kin=kin, _T=base_T):
-            if not getattr(_arm, "connected", True):
-                return None
-            pts = arm_link_points(_kin, _arm.get_state().q)
+        def _body_points(_arm=arm, _kin=kin, _T=base_T, _cfg=acfg, *, frame=None):
+            if frame is not None and _cfg.get("type") == "isaac":
+                from ..control.isaac_arm import IsaacArm
+
+                q = IsaacArm(_cfg).state_from_frame(frame).q
+            elif not getattr(_arm, "connected", True):
+                if _cfg.get("type") != "isaac":
+                    return None  # occupancy refuses an unmaskable frame
+                # The simulator already exists independently of LazyArm.
+                # Use a short-lived READ-ONLY connection, reusing IsaacArm's
+                # asset->local joint normalization. No actuator factory,
+                # targets, gripper, reset or stop; no socket left at teardown.
+                from ..control.isaac_arm import IsaacArm
+
+                observer = IsaacArm(_cfg)
+                try:
+                    observer.connect()
+                    q = observer.get_state().q
+                finally:
+                    observer.disconnect()
+            else:
+                q = _arm.get_state().q
+            pts = arm_link_points(_kin, q)
             if _T is not None:
                 pts = pts @ _T[:3, :3].T + _T[:3, 3]
             return pts
 
-        occupancy.add_robot_body(_body_points, radius_m=float(acfg.get("body_mask_radius_m", 0.06)))
+        frame_body = None
+        if acfg.get("type") == "isaac":
+            # Explicit backend binding. A legacy/malformed Isaac frame must
+            # fail closed, not silently read today's q for yesterday's image.
+            def frame_body(frame):
+                if frame is None:
+                    raise ValueError("Isaac capture snapshot required")
+                return _body_points(frame=frame)
+
+        occupancy.add_robot_body(_body_points, radius_m=float(acfg.get("body_mask_radius_m", 0.06)),
+                                 frame_link_points_fn=frame_body)
     return arm, SafeArm(arm, harness), kin
 
 

@@ -83,6 +83,7 @@ def test_reset_normalizes_object_name_not_a_colour_substring(tmp_path):
 @pytest.fixture
 def host_boundary(tmp_path, monkeypatch):
     """Only the host/simulator are doubles; identity, files and runner are real."""
+    import select
     import subprocess
     import time
     from cascade.apps import process_owner as owners
@@ -96,9 +97,21 @@ def host_boundary(tmp_path, monkeypatch):
     original_run = subprocess.run
 
     def spawn(record_owner=owner, dead=False):
-        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)",
-                                  "cascade.apps.mcp_server", "--launch-owner", record_owner["owner"]])
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import os, time; os.write(1, b'R'); time.sleep(120)",
+             "cascade.apps.mcp_server", "--launch-owner", record_owner["owner"]],
+            stdout=subprocess.PIPE,
+        )
         info["children"].append(child)
+        # Popen can return during exec with /proc/<pid>/cmdline still empty.
+        # Wait for the final Python child; never relax real ownership checks.
+        assert child.stdout is not None
+        assert select.select([child.stdout], [], [], 10)[0], (
+            f"fixture child {child.pid} did not become ready (exit={child.poll()})"
+        )
+        assert child.stdout.read(1) == b"R", (
+            f"fixture child {child.pid} exited or sent invalid readiness (exit={child.poll()})"
+        )
         run_dir = repo / "runs" / f"mcp_{child.pid}_fixture"
         record = owners.register_process(record_owner["state_dir"], record_owner, child.pid, "mcp", run_dir=run_dir)
         if dead:
@@ -149,9 +162,132 @@ def host_boundary(tmp_path, monkeypatch):
         yield info
     finally:
         for child in info["children"]:
-            if child.poll() is None:
-                child.terminate()
-            child.wait(timeout=5)
+            try:
+                if child.poll() is None:
+                    child.terminate()
+                try:
+                    child.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait(timeout=5)
+            finally:
+                if child.stdout is not None:
+                    child.stdout.close()
+
+
+def test_host_boundary_waits_for_final_exec_before_registration(host_boundary, monkeypatch):
+    import select
+    import subprocess
+    from cascade.apps import process_owner as owners
+
+    original_popen, original_select = subprocess.Popen, select.select
+    children, waits = [], []
+
+    def gated_popen(cmd, **kwargs):
+        if cmd[:2] != [sys.executable, "-c"]:
+            return original_popen(cmd, **kwargs)
+        # Hold a real intermediate interpreter until the fixture waits for
+        # readiness. Only the final exec may emit the fixture's ready byte.
+        trampoline = ("import os, sys\n"
+                      "if os.read(0, 1) != b'G': os._exit(72)\n"
+                      "os.execv(sys.executable, [sys.executable, *sys.argv[1:]])\n")
+        child = original_popen([sys.executable, "-c", trampoline, *cmd[1:]],
+                               stdin=subprocess.PIPE, **kwargs)
+        children.append(child)
+        return child
+
+    def release_exec(readers, writers, errors, timeout):
+        assert readers == [children[0].stdout]
+        waits.append(timeout)
+        children[0].stdin.write(b"G")
+        children[0].stdin.close()
+        return original_select(readers, writers, errors, timeout)
+
+    monkeypatch.setattr(subprocess, "Popen", gated_popen)
+    monkeypatch.setattr(select, "select", release_exec)
+    try:
+        record = host_boundary["spawn"]()
+        assert waits == [10], "identity was read before waiting for the final child"
+        assert "os.execv" not in record["command"], "registered the intermediate interpreter"
+        assert owners.is_live(record, host_boundary["owner"])
+        assert owners.records(host_boundary["state"]) == [record]
+    finally:
+        for child in children:
+            child.stdin.close()
+
+
+@pytest.mark.parametrize("failure", ["timeout", "eof", "invalid", "stubborn", "registration"])
+def test_host_boundary_cleans_children_after_spawn_failure(tmp_path, monkeypatch, failure):
+    import select
+    import subprocess
+    from cascade.apps import process_owner as owners
+
+    # Drive the real yield fixture so its finalizer can be checked inside the
+    # test, including a child which never acquired an ownership receipt.
+    boundary = host_boundary.__wrapped__(tmp_path, monkeypatch)
+    h = next(boundary)
+    original_popen, original_select = subprocess.Popen, select.select
+    original_register = owners.register_process
+    created, registrations = [], []
+    sources = {
+        "timeout": "import os; os.read(0, 1)",
+        "eof": "pass",
+        "invalid": "import os, time; os.write(1, b'X'); time.sleep(120)",
+        "stubborn": ("import os, signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                     "os.write(1, b'X'); time.sleep(120)"),
+    }
+
+    def faulty_popen(cmd, **kwargs):
+        if cmd[:2] != [sys.executable, "-c"]:
+            return original_popen(cmd, **kwargs)
+        cmd = list(cmd)
+        cmd[2] = sources.get(failure, cmd[2])
+        child = original_popen(cmd, stdin=subprocess.PIPE, **kwargs)
+        created.append(child)
+        return child
+
+    def register(*args, **kwargs):
+        registrations.append(args[2])
+        if failure == "registration":
+            raise ValueError("injected registration failure")
+        return original_register(*args, **kwargs)
+
+    try:
+        with monkeypatch.context() as faults:
+            faults.setattr(subprocess, "Popen", faulty_popen)
+            faults.setattr(owners, "register_process", register)
+            if failure == "timeout":
+                # The child blocks on a real pipe. Exercise select's timeout
+                # result immediately, not by sleeping or retrying registration.
+                faults.setattr(select, "select", lambda r, w, e, timeout: original_select(r, w, e, 0))
+            error = ValueError if failure == "registration" else AssertionError
+            message = "injected registration failure" if failure == "registration" else "ready|readiness"
+            with pytest.raises(error, match=message):
+                h["spawn"]()
+            assert len(created) == 1
+            assert h["children"] == created, "failed spawn escaped fixture cleanup"
+            assert registrations == ([created[0].pid] if failure == "registration" else [])
+            assert owners.records(h["state"]) == []
+        # A failed/stubborn child must not prevent cleanup of later children.
+        record = h["spawn"]()
+        assert owners.is_live(record, h["owner"])
+        boundary.close()
+        assert len(h["children"]) == 2
+        assert all(child.returncode is not None for child in h["children"]), "child was not reaped"
+        assert all(child.stdout.closed for child in h["children"]), "readiness pipe leaked"
+    finally:
+        try:
+            boundary.close()
+        finally:
+            # Test-owned stdin and an emergency guard keep a regressed
+            # finalizer from leaking real processes during the RED test.
+            for child in created + [c for c in h["children"] if c not in created]:
+                if child.poll() is None:
+                    child.kill()
+                child.wait(timeout=5)
+                for stream in (child.stdin, child.stdout):
+                    if stream is not None:
+                        stream.close()
 
 
 def test_proof_uses_one_session_and_checks_real_trace(host_boundary):

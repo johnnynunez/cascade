@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import math
 import os
 from pathlib import Path
 import tomllib
@@ -48,6 +49,32 @@ def find_experience(engine: str, *, release=None, package_roots=None) -> Path:
         f"Isaac {engine} experience {name} not found; install isaacsim[all,extscache]==6.1.0.0 "
         "in the Isaac Python environment, or set ISAACSIM_PATH to a complete release"
     )
+
+
+def ensure_time_code_range(stage, *, duration_s: float = 24 * 60 * 60) -> dict:
+    """Give static robot assets a usable playback range without replacing animation.
+
+    Isaac 6.1 warns that startTimeCode == endTimeCode loops one frame and
+    prevents time-accumulating sensors/controllers from producing output.
+    This changes timeline metadata only, never a body pose or physics limit.
+    """
+    duration_s = float(duration_s)
+    if not math.isfinite(duration_s) or duration_s <= 0:
+        raise ValueError("Playback duration must be finite and positive")
+    start = float(stage.GetStartTimeCode())
+    end = float(stage.GetEndTimeCode())
+    rate = float(stage.GetTimeCodesPerSecond())
+    if not all(math.isfinite(v) for v in (start, end, rate)) or rate <= 0:
+        raise ValueError("Invalid stage time-code metadata")
+    changed = end <= start
+    if changed:
+        stage.SetStartTimeCode(start)
+        stage.SetEndTimeCode(start + duration_s * rate)
+        end = float(stage.GetEndTimeCode())
+        if not math.isfinite(end) or end <= start:
+            raise RuntimeError("Stage did not accept a non-degenerate playback range")
+    return {"changed": changed, "start": start, "end": end,
+            "time_codes_per_second": rate}
 
 
 def installation_info() -> dict:

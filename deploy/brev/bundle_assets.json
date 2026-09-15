@@ -1,0 +1,1110 @@
+{
+  "schema": 1,
+  "layout": "cascade-kitchen-v1",
+  "description": "Required separately supplied runtime assets, at paths relative to the asset root. No downloads are performed.",
+  "licenses": {
+    "source": "Preserve the CASCADE MIT license and authorship.",
+    "kitchen_and_orange": "Lightwheel CC BY-NC 4.0; retain demo/vendor-kitchen/LICENSE.txt and SOURCE_README.md, plus the Orange001 notice.",
+    "procedural_props": "Scoped CC0-1.0 dedication in demo/scene/props/LICENSE.txt.",
+    "robot": "Retain assets/REBOT_UPSTREAM_LICENSE.txt and assets/REBOT_PROVENANCE.md, including the legacy metadata distinction.",
+    "native_ui": "OpenClaw 2026.9.3 MIT; retain web/openclaw-ui/OPENCLAW-LICENSE.txt.",
+    "perception": "Supply the pinned weights under their upstream terms; these files are not redistributed in this checkout."
+  },
+  "files": {
+    "assets/REBOT_PROVENANCE.md": {
+      "sha256": "8b4e68f439cf5fbb168d28e8bf4d084e0926e1e543d274b2603e4651a06aae5e",
+      "size_bytes": 1357,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/REBOT_UPSTREAM_LICENSE.txt": {
+      "sha256": "3c46ce472bd9cd9c419bae897f4ced4ae73691c41fdd8eafa8a4b673725664e8",
+      "size_bytes": 1069,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/CMakeLists.txt": {
+      "sha256": "8bf353a574306f457d6bacae9b0d90d713f57a2e3373bb3e8aa21bfe47fc7a6a",
+      "size_bytes": 294,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/config/joint_names_00-arm-rs_asm-v3.yaml": {
+      "sha256": "a56625bcecc3fe54566bc32d3ec9d8d9af51ddc4ec5f36002fb1ab4657788229",
+      "size_bytes": 121,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/launch/display.launch": {
+      "sha256": "1b37bc515b59184e3ed5423ceb263fc108d40e88c8b25b9180ff60779f1a202a",
+      "size_bytes": 509,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/launch/gazebo.launch": {
+      "sha256": "1d0dc63b72d21eb7a7841d04eaee0f11ebad820d5a22ddcba497640eee0a10c6",
+      "size_bytes": 576,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/base_link.STL": {
+      "sha256": "af1df69639fb1f1022ad94ca1537157f8dbef379ec37fd75d8901d30d4061cbe",
+      "size_bytes": 4090884,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/cnc2.STL": {
+      "sha256": "fa41ae81c68a7ce3ad49c3680ac7cde88fa5d02984298846f3c6fa6a28d009db",
+      "size_bytes": 1147884,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/cnc3.STL": {
+      "sha256": "4018cd61ac7d6dd97cfe45cb7b0480d0275476757c2afc61bf05bd287fad3ca4",
+      "size_bytes": 3364484,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/cnc4.STL": {
+      "sha256": "6a85571eaedbbf06a799a89fd56d9cf3778070cd852ec6cb6da285ec34a35dec",
+      "size_bytes": 1431284,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/cnc5.STL": {
+      "sha256": "1772159cd66b600c0ed0db67c7f5c33865ee09e9b2dae02339d95d9cef158489",
+      "size_bytes": 305384,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/cnc7.STL": {
+      "sha256": "2d6088744c7d5195fc3f78d930dba9a9843ad208b2a6243fade1aaf17fecc782",
+      "size_bytes": 204384,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/cnc_left.STL": {
+      "sha256": "8f8ed951fad05dd5e3fec04f697864a64e394db9138d72fdfa62f8f047388aa6",
+      "size_bytes": 127284,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/cnc_right.STL": {
+      "sha256": "d7be82297465675b19b5651f3e25c5bab82d33a20bab2aa48ddffbbcf8c65072",
+      "size_bytes": 127284,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/gripper_end.STL": {
+      "sha256": "d52ed4bb37754fa9d57cc21b4be3b9f90373b6d5594c521e7c3cd3a1adf5ba62",
+      "size_bytes": 4037884,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/gripper_left.STL": {
+      "sha256": "1f604d582dc23814948c5b07c034672690b78b76acad25f3650d90e3fa8165cd",
+      "size_bytes": 862384,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/gripper_right.STL": {
+      "sha256": "b6b5c4df5b71c24e382c602daa977884e4fa1aaa24f7937f5a7d26dea9784aed",
+      "size_bytes": 862384,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/link1.STL": {
+      "sha256": "60860556dd91b15eff0bb7d3a5bffcf4b34ac98156c542f203ad6ce755be2d1d",
+      "size_bytes": 1582084,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/link2.STL": {
+      "sha256": "f3653afa47f7f2ee9733416e56c52745b5eaafd23ca6c84360dffd440e12668d",
+      "size_bytes": 6477584,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/link3.STL": {
+      "sha256": "3d6502345c14bd2d6c5b9c394672efdaa2b787cc81a0bed23a0bde574e787a28",
+      "size_bytes": 8212984,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/link4.STL": {
+      "sha256": "431e5e7365ba31df598207dee6d48ff3051ec32f6d42dcae8e3b25e7807617c4",
+      "size_bytes": 5179084,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/link5.STL": {
+      "sha256": "e8888083f0cf597e7f0afb7b273b81f55df7ef45eee706dbf840c9ef365c7b1e",
+      "size_bytes": 4043384,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/link6.STL": {
+      "sha256": "29a7809bde57f21b536588e78e66bec137f1fbe50308b71ffa842b6efbb109fd",
+      "size_bytes": 1224984,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/motor_2_3.STL": {
+      "sha256": "509d445fa6cade769d0c9865b5ae7e6d7ae7cf05496ade798e293edc834f9725",
+      "size_bytes": 4571184,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/motor_4.STL": {
+      "sha256": "2251e479b009b2c1335e0c932dd44bf3f170cf55fec1febd944ae087bbbcac22",
+      "size_bytes": 4205884,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/motor_5.STL": {
+      "sha256": "87a9380b8441116d1e31eafcdd2900a06eb3ad9a0858b7715b41485660af07b4",
+      "size_bytes": 3770584,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/motor_6.STL": {
+      "sha256": "a488f0f5d5727b2086f1511570f06a722b6e6312894ba12d7eacd0614208d527",
+      "size_bytes": 3679784,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/motor_7.STL": {
+      "sha256": "4e019eae9e44376b9d876eae995535bcca7761e4083a3ed0d8705d25cffa9dc1",
+      "size_bytes": 3783084,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/pla2_black.STL": {
+      "sha256": "3334ffafff11e43f2bc6102e734e2fe0b61369ae5dd657163c01e005f5fa753d",
+      "size_bytes": 655884,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/pla2_green.STL": {
+      "sha256": "3c1445d686ec45637f2ca16546b23c06a1671ae4266b7df0ae00671e1b093431",
+      "size_bytes": 102884,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/pla3_black.STL": {
+      "sha256": "c016b5474dcb126363ee3e9ff74441de7cc6414f2b38eccee57c5e824ae59d9e",
+      "size_bytes": 539984,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/pla3_green.STL": {
+      "sha256": "7aee9689f19b6cb697bc81e2005b2652a1fad2887798108d96500bd82796b212",
+      "size_bytes": 102884,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/pla5_green.STL": {
+      "sha256": "d8810ec3fe0a9cb56d5fb9939d6f826b8cc62dd2691131aa44ccf9f9d01cc547",
+      "size_bytes": 58384,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/pla7_green.STL": {
+      "sha256": "00b3c3d51f6f756ab96fc65a229610b952ce4a8be927e2ec404bacbcf43f4afc",
+      "size_bytes": 50584,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/pla_left.STL": {
+      "sha256": "0e774ab0bf2975792982adf646465c7ed1ff35b9ed0ad9bf3fb14c9d7480ebef",
+      "size_bytes": 735184,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/meshes/pla_right.STL": {
+      "sha256": "43556446abbbecd847bb09a4dc13d4ef2aa266a9ba904e5ac9ccff89a3c8280d",
+      "size_bytes": 735184,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/package.xml": {
+      "sha256": "9c272815d8693cc142c0b5b6127e088f791fef5902a71c8c44c5643f7713350e",
+      "size_bytes": 663,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.csv": {
+      "sha256": "5b921c678f5c003869a9b410ad866fcc172f67435efc905fd32bd16e9434d959",
+      "size_bytes": 40254,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf": {
+      "sha256": "72b4a40aeb78f1229c782e7501c3be26ea093562cf960a0ca1c2e4a966b4e4e3",
+      "size_bytes": 19683,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda": {
+      "sha256": "05f6a56536c3eaaa18e6885ca25bb7459830c7868118b4798cbc19d4cf0eca91",
+      "size_bytes": 7368,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/usd/RS-rebot-dev-arm/payloads/Physics/mujoco.usda": {
+      "sha256": "07375ed46040d801ccfed1573487d419fc0210aefb70c45b55a13e2c468c7347",
+      "size_bytes": 990,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/usd/RS-rebot-dev-arm/payloads/RS-rebot-dev-arm_base.usd": {
+      "sha256": "8c3032f13836e4fdd64d396e723700ea498c2ea226bdac3ab1ca066c98729555",
+      "size_bytes": 22760,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/usd/RS-rebot-dev-arm/payloads/RS-rebot-dev-arm_meshes.usd": {
+      "sha256": "ce87268f1b5014e5e9ac5c56869c139e445af9b1a4517665490b7641c2dbdf20",
+      "size_bytes": 19866757,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/usd/RS-rebot-dev-arm/payloads/RS-rebot-dev-arm_physics.usd": {
+      "sha256": "492cb67c57862ee433a755cc6c55870085d121988f10e7760f4d2565099b6bd7",
+      "size_bytes": 26872,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/usd/RS-rebot-dev-arm/payloads/instances.usda": {
+      "sha256": "88207a5e3c834d6df80d4d89dc13088e4b537d52dca70356cb28d68a99f6dea9",
+      "size_bytes": 18699,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/usd/RS-rebot-dev-arm/payloads/materials.usda": {
+      "sha256": "9aab2842d3adeef3c89aeb3e70770efad37cfdeaf2b01dad2b2620568d9bc2cf",
+      "size_bytes": 3814,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "assets/usd/RS-rebot-dev-arm/payloads/robot.usda": {
+      "sha256": "4073334882178254d854e4f48bb0f786073ae6c60abe62a54de666daf4b8067e",
+      "size_bytes": 5045,
+      "provenance": "Seeed reBot robot assets; bundled upstream notice and provenance"
+    },
+    "demo/scene/assets/background.usda": {
+      "sha256": "3e555fc2c1ace3419680cfbcaeeb33b101c682e00f3dc130b7029b54f2cb1108",
+      "size_bytes": 158423,
+      "provenance": "Lightwheel Kitchen static adaptation; CC BY-NC 4.0; bundled notice"
+    },
+    "demo/scene/assets/kitchen_root_local.usdc": {
+      "sha256": "ccef25c5044b600a4490e6e583de84ff0723d956890ddc88de1a68b552f94d7b",
+      "size_bytes": 177314096,
+      "provenance": "Lightwheel Kitchen static adaptation; CC BY-NC 4.0; bundled notice"
+    },
+    "demo/scene/assets/lemon.usda": {
+      "sha256": "e9eb4e394d4f9aab891626bffbac587bdcae68d6f352286c1ee9389b2f8cb022",
+      "size_bytes": 95084,
+      "provenance": "Original procedural prop; CC0-1.0; demo/scene/props/LICENSE.txt"
+    },
+    "demo/scene/assets/orange70.usda": {
+      "sha256": "19a1e91cb966abb6c0b215cdee96418548487a92d0aaefb37b8da4caf02dccd5",
+      "size_bytes": 431673,
+      "provenance": "Lightwheel Orange001 adaptation; CC BY-NC 4.0; bundled notice"
+    },
+    "demo/scene/assets/orange70_LICENSE.txt": {
+      "sha256": "0afca3145596cd005f6f6ed977313ea31928094fc5b4aaabc21bb765ea369d09",
+      "size_bytes": 19342,
+      "provenance": "Lightwheel Orange001 adaptation; CC BY-NC 4.0; bundled notice"
+    },
+    "demo/scene/assets/tomato_can.usda": {
+      "sha256": "f730d6cb00ad22e6cf468c86c1d4bb8adb59e5280356a5590d87b8b514514a1f",
+      "size_bytes": 303182,
+      "provenance": "Original procedural prop; CC0-1.0; demo/scene/props/LICENSE.txt"
+    },
+    "demo/vendor-kitchen/CoffeeMachine006/CoffeeMachine006.usd": {
+      "sha256": "b5b7d05a7d07a989eb9a9c6a7ec00ac3194975040c4a84471be25ac51138eb80",
+      "size_bytes": 64468823,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Dishwasher054/Dishwasher054.usd": {
+      "sha256": "ea4d914d14c1397300b7ccb6e931c7e742cb45ae00c1b58132db69cf251a31ed",
+      "size_bytes": 19953909,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Dishwasher054/textures/T_Dishwasher054_BC001.png": {
+      "sha256": "72ac714b3fda8ec53badfb8f22b3de772beaf816380b8ed015c0c0695b2b73f9",
+      "size_bytes": 24907,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Door012/Door012.usd": {
+      "sha256": "90998e1824677d2db3b8231abd99547036f91e2cb62822a3ef18b57e2cac9fe4",
+      "size_bytes": 4847621,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Choppingboard_01/Collected_SM_P_Choppingboard_01/Props/Materials/Textures/7443619-files-24.jpg": {
+      "sha256": "98781c58f12c493c7b6fb72d05e7c25cbd740ea2a118fda3c37d8ce5fbbf3666",
+      "size_bytes": 1992330,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Choppingboard_01/Collected_SM_P_Choppingboard_01/Props/Materials/Textures/7443619-files-42.jpg": {
+      "sha256": "ba75bb47f43750e30cca46348ad78640bcb5e810945ac010110f46b04f42def9",
+      "size_bytes": 481788,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Choppingboard_01/Collected_SM_P_Choppingboard_01/Props/Materials/Textures/7443619-files-43.jpg": {
+      "sha256": "8c9b522d5ff3f796a08624faca73520d4dabd640e2a7e48895dc2936994a61d1",
+      "size_bytes": 631660,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Choppingboard_01/Collected_SM_P_Choppingboard_01/Props/Materials/Textures/7443619-files-7.jpg": {
+      "sha256": "b810886b7363729e5a8e5ba4c50839086902f46b9566ba6fd2261c6a18bbe6e5",
+      "size_bytes": 753400,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Choppingboard_01/Collected_SM_P_Choppingboard_01/Props/Materials/Textures/7443619-files-8.jpg": {
+      "sha256": "cef86c6050c85c2df05b9bb53ea978ef0d425e14414c5482e24f4be0fe1ac611",
+      "size_bytes": 915812,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Choppingboard_01/Collected_SM_P_Choppingboard_01/Props/SM_P_Choppingboard_01.usd": {
+      "sha256": "32f4d2ca6bcf50fd4d7bb7b577d82750bebe2828ee2750ead3eac9020e83d9c6",
+      "size_bytes": 1658511,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Choppingboard_01/Collected_SM_P_Choppingboard_01/SM_P_Choppingboard_01.usd": {
+      "sha256": "15ae2570b5e947a71b7001dd064d9cd88927c1104023afdd8c4bd550d6e50325",
+      "size_bytes": 310485,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Flavour_02/Collected_SM_P_Flavour_02/Props/SM_P_Flavour_02.usd": {
+      "sha256": "08b8017332509b11abde8788f88fb1e673e92fa029502c0bf5f1622711b85497",
+      "size_bytes": 2057219,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Flavour_02/Collected_SM_P_Flavour_02/Props/SM_P_Flavour_03.usd": {
+      "sha256": "8d2f6314817392ca4096ebf328f3ef66b66f1b4ca523978bfe8272f316e95d7c",
+      "size_bytes": 253144,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Flavour_02/Collected_SM_P_Flavour_02/Props/SM_P_Flavour_03_Cover.usd": {
+      "sha256": "96c270a39bb1c2318d5af2ac861ad727793260329af76fb7294161c3e8567e34",
+      "size_bytes": 263474,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Flavour_02/Collected_SM_P_Flavour_02/Props/SM_P_Flavour_04.usd": {
+      "sha256": "d43c86f7e815656b145761fa04a24296f684196e0146f80b6effa77229c828c2",
+      "size_bytes": 933142,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Flavour_02/Collected_SM_P_Flavour_02/Props/SM_P_Jar_01.usd": {
+      "sha256": "918ee6cfbfb5b6c54651da0f9295ad5e3b41f914c66ef8fc016fe56e59a011fd",
+      "size_bytes": 978750,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Flavour_02/Collected_SM_P_Flavour_02/Props/SM_P_Tray_01.usd": {
+      "sha256": "4f0716281b45e2ed411632073cd1624216a2afe227cfac19c99254f7cc5cf6b8",
+      "size_bytes": 202276,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/InteractiveAsset/SM_P_Flavour_02/Collected_SM_P_Flavour_02/SM_P_Flavour_02.usd": {
+      "sha256": "9e52d10c4d1e77f13cd1eab95516bf35dd4e38d6b73231cab7694e3a4b6443bb",
+      "size_bytes": 16755280,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Cabinet001/Kitchen_Cabinet001.usd": {
+      "sha256": "d56d7b62682d19e591058c350ab5bed93dd3634994c20f3e6b5368d4655b58f6",
+      "size_bytes": 42138147,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Cabinet001/texture/Kitchen_Cabinet001_BC001.jpg": {
+      "sha256": "011ff0109b2db67b1a93a1a9908f48a6fff8008aac08e631c4006c0e1c8e9ecf",
+      "size_bytes": 1141068,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Cabinet001/texture/Kitchen_Cabinet001_R001.jpg": {
+      "sha256": "73f967ad10cb7bb28abd5b1bedcaa80d1136a70344d5c4d438df4e0671ffaccd",
+      "size_bytes": 427073,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Cabinet002/Kitchen_Cabinet002.usd": {
+      "sha256": "7f4b736e6392cff56afa357b3ecfffc230c98bc496c49e7b80b5e61312f00ace",
+      "size_bytes": 37055058,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_InsularShelf/Kitchen_InsularShelf.usd": {
+      "sha256": "343073572964cd097351c8746765c108e5af41ac9e0fa758f2394dce10d70ce3",
+      "size_bytes": 19376087,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_InsularShelf/texture/Kitchen_InsularShelf_BC001.jpg": {
+      "sha256": "a4052bbd23b52d2344b15340f00b8f5c8cbcc181e7f21f7a80f936738e5a022d",
+      "size_bytes": 416584,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_InsularShelf/texture/Kitchen_InsularShelf_R001.jpg": {
+      "sha256": "22c23c729d09fc43f1509d384564a9316bf0ed9c680d1f6749bef19b193620b4",
+      "size_bytes": 146295,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_InsularShelf/texture/tfhofbfc_4K_Albedo.jpg": {
+      "sha256": "2128f31bdbafd3ae7ee8b44af1ae43fc8cb5201097a00adf0f5381357f6bb54d",
+      "size_bytes": 6904986,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_InsularShelf/texture/tfhofbfc_4K_Normal.jpg": {
+      "sha256": "c489572dc591c05fc396465c41cc8dc41eaefbe5a0e7afee210f107204a0a65d",
+      "size_bytes": 1772245,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_InsularShelf/texture/tfhofbfc_4K_Roughness.jpg": {
+      "sha256": "6fc42075481d05046c2a011830d294a2761016afb6303d11e7ddcb9d6477a9cc",
+      "size_bytes": 4498366,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_InsularShelf/texture/tfjbderc_4K_Albedo.jpg": {
+      "sha256": "4c5c35fe2a26305c101a0baf66786d05ba599d1c23230d8ce5c364ea541f8e0e",
+      "size_bytes": 4467167,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_InsularShelf/texture/tfjbderc_4K_Albedo_lv.jpg": {
+      "sha256": "a9b9d6333a1b8afa45674d58c9a14af1533bd51e71ebc36fbbd03cf3b4cb9f11",
+      "size_bytes": 4762922,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_InsularShelf/texture/tfjbderc_4K_Normal.jpg": {
+      "sha256": "8635be1638792304491bbe43c8e4f064e118c09621eef0c03de10e7342f92d54",
+      "size_bytes": 1055561,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_InsularShelf/texture/tfjbderc_4K_Roughness.jpg": {
+      "sha256": "d55fcae6b82e76e6d1e96a7ea6876cebb33ce96e70edb27b641fba3e3fca5fed",
+      "size_bytes": 3539501,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Basket.usd": {
+      "sha256": "0e719a5c8d8013694ce9509732a4bc3f3fc72e5bf71f72e731cef66fa1b5331a",
+      "size_bytes": 40294263,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Bottle.usd": {
+      "sha256": "c5574d1abaa041db07b2e70656f0ddd1abb614ed764bc3fef74b5ceecbb7298f",
+      "size_bytes": 8838210,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Bottle005.usd": {
+      "sha256": "2642722cb84da99dffb9ce93a2d481194fd91dbdb8a956725e83f0a4070032b6",
+      "size_bytes": 1043235,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Bottle006.usd": {
+      "sha256": "0796f6b9143ba15eaf9b41c25cb945a002d6413bed4cf084d05a7904c3168caf",
+      "size_bytes": 1043122,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Bottle007.usd": {
+      "sha256": "8ae20cc39ed06e90917ee7860915143c2b2f3afdedc14cbd70745b8e37e1ad3a",
+      "size_bytes": 1043114,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Box.usd": {
+      "sha256": "ce5a4b97655734c45878347600b3b6ca9fd6685e71e7947ca3192e4925c93cd1",
+      "size_bytes": 4243318,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Box02.usd": {
+      "sha256": "1ae918431879c70f9a60ac5bac36b1d3bdc7f4422dc45d8974e331a86a5f62d2",
+      "size_bytes": 9866701,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Box07.usd": {
+      "sha256": "09542dc7d3a9c4a34a0559e205500f97f70b1625b94744555bdbc885c4a4771a",
+      "size_bytes": 12178440,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Disk001.usd": {
+      "sha256": "822e16fe883f869398c75bde326ba06485c428d113c7891553a00ba32d6d6915",
+      "size_bytes": 298195,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Disk002.usd": {
+      "sha256": "a873ffa057631641ea71b538a394402f25422eb91e1f534a837d2d52dbd1fdac",
+      "size_bytes": 9435467,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Flowers001.usd": {
+      "sha256": "f7a16997447ac20f545ec8dadad11e6a1edfec2a0b86d1436982afa0d04e08a3",
+      "size_bytes": 282849824,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Flowers002.usd": {
+      "sha256": "4cb0e9795e7960b92035b20bd97809ab78f4dcb11acdb06fb0d22f285f9cccbe",
+      "size_bytes": 17573332,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Hookrack001.usd": {
+      "sha256": "fea699e512095cd3933cf216da16a7ec89c78cb27c8293a1f7ac80e7f73981a1",
+      "size_bytes": 17803411,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_KnifeHolders001.usd": {
+      "sha256": "87b57b23a7d09c6f2e0760ca94389542db02e3cbbc3b0a3f278e56737b710b8c",
+      "size_bytes": 95904,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Orange001.usd": {
+      "sha256": "cfdf805bbcbb7d4f087553f962a73bb7d2b7b4a6775fb836c88afc0261d7b0da",
+      "size_bytes": 12858592,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Orange002.usd": {
+      "sha256": "fe38e3b82d2d9ff4433bbda747df974b5fa81fbe150936926a6036c120b67885",
+      "size_bytes": 8344965,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Paper.usd": {
+      "sha256": "24aba28cdd1c3bdd2bc82465b9a54d69cbddacd97e5600f05e6949f8f9bc4d83",
+      "size_bytes": 5278480,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_Shelf001.usd": {
+      "sha256": "e38b1f8ff3c1d0e5a13f76032c1d5489e88fccac68a7b3f02520cf76a3a73ff5",
+      "size_bytes": 1950040,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_bottle002.usd": {
+      "sha256": "61a377fb4661cb5d2be71d642cd9802358576cb9a4b2df5439a96f51ec6370f4",
+      "size_bytes": 471629,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_bottle003.usd": {
+      "sha256": "cc0595f9fd1a7470ec36e5e1a61f190e5d7686441a0525e7c7630ddcd9153fb4",
+      "size_bytes": 1960433,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/Kitchen_bottle004.usd": {
+      "sha256": "4043143d015c0c2426dca2a996e6bfb1e0e5dbb8cdb0eb918caf736388ed952b",
+      "size_bytes": 1968323,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/1.jpg": {
+      "sha256": "ba75bb47f43750e30cca46348ad78640bcb5e810945ac010110f46b04f42def9",
+      "size_bytes": 481788,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/20412140-files-013.jpg": {
+      "sha256": "b810886b7363729e5a8e5ba4c50839086902f46b9566ba6fd2261c6a18bbe6e5",
+      "size_bytes": 753400,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/20412140-files-014.jpg": {
+      "sha256": "8c9b522d5ff3f796a08624faca73520d4dabd640e2a7e48895dc2936994a61d1",
+      "size_bytes": 631660,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/20412140-files-015.jpg": {
+      "sha256": "cef86c6050c85c2df05b9bb53ea978ef0d425e14414c5482e24f4be0fe1ac611",
+      "size_bytes": 915812,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/20412140-files-016.jpg": {
+      "sha256": "96b797a75632bb0ef6baac3284c2071b4003c814aa91c40d145b7ae2c384c26b",
+      "size_bytes": 136184,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/20412140-files-017.jpg": {
+      "sha256": "70618593aae86843346338a7baf9a00efd7e59ac8cf53b6ed9ddfa31c33155d6",
+      "size_bytes": 74570,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/20412140-files-018.jpg": {
+      "sha256": "c5feb38072bcafe032ace559508c1b2c8f3a99b2868954174ba5ac28dc194927",
+      "size_bytes": 89484,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/20412140-files-019.jpg": {
+      "sha256": "0f1459d44c1f9c7e9a3018d218375e88e2ac6d3d7e6dd400b77999cd2cd94169",
+      "size_bytes": 113696,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/20412140-files-020.jpg": {
+      "sha256": "eaad4d25165d7e384b33f35db5b253d5e021676cbebfafd33eb4510d03813008",
+      "size_bytes": 230632,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-125.jpg": {
+      "sha256": "8d2e9c1ed6d4f13f229e800ba1fcd0c2d7c440609e755f5a35048571986471c0",
+      "size_bytes": 446968,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-138.jpg": {
+      "sha256": "e2d666330d68e5e73b5b0b0c3b7a410b1274ea8389fc977474471394c4131362",
+      "size_bytes": 1108396,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-139.jpg": {
+      "sha256": "24d934a5ca676f94cbd515701760382b5194d1132e392d6553ed2cb5ddd4da36",
+      "size_bytes": 944508,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-140.jpg": {
+      "sha256": "f29c25dcc5caf44e5f86b94be70d8b6199c9e1fb23e8f359d745dd7d2a9f47ee",
+      "size_bytes": 1048715,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-151.jpg": {
+      "sha256": "ba7469fd676cd30a9372893b3fe8953147e835d7fd5ceb584e349f8c0a69dd3a",
+      "size_bytes": 264357,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-152.jpg": {
+      "sha256": "114c4e7e893b7d289c2939d2c17955006a55c6c416425b933dbb039dcdc9b37a",
+      "size_bytes": 206595,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-22.jpg": {
+      "sha256": "1871909ee79518480dd5ca81ca8be0706bb8552199357749f747c49f4382bf83",
+      "size_bytes": 109854,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-25.jpg": {
+      "sha256": "63a4fb769fe2de323b614e9aa5d60ccc1c1519a4c7f4c0f702899b2e205cdcef",
+      "size_bytes": 143431,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-26.jpg": {
+      "sha256": "93d03f3743c97129f606d23b3ef55d313a4a331a2d74fb74d70f676f4cb240a5",
+      "size_bytes": 182449,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-27.jpg": {
+      "sha256": "940298eb576844c1225d0b4b4387606e7f3f569c3c4ca7c3a875e183b06d0bba",
+      "size_bytes": 1755561,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-69.jpg": {
+      "sha256": "e9395101493890235e0faccb5228075017327f026bb7883fcdd1cb51b9bf14df",
+      "size_bytes": 51005,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-70.jpg": {
+      "sha256": "82abf246d9f9c17803a65340cadeac4bc469325442851c1d3d6013d381998d6c",
+      "size_bytes": 14578,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-71.jpg": {
+      "sha256": "8dd48d62461cd0b52bc6f1bef855d91fcaa73b3ffd09052667424e95cee2bcfc",
+      "size_bytes": 23872,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-72.jpg": {
+      "sha256": "92b90e70fac6fb2506ad21f23c2aced481d0264816d5edb2eb67c65c7f63542a",
+      "size_bytes": 137985,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-73.jpg": {
+      "sha256": "15c476387f91f2b67af93b3f723068ad162cc276564bed02812dbe9aa5f6f673",
+      "size_bytes": 23006,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-91.jpg": {
+      "sha256": "cae671593da5ff92b27379d7d9bbf40e297c664762523567c40c5e0d8991b727",
+      "size_bytes": 659054,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-92.jpg": {
+      "sha256": "c1040b5272938a2400f367b64d3c985af0591089cf332c213ba8eaf139ba08d1",
+      "size_bytes": 117875,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/8670919-files-93.jpg": {
+      "sha256": "55e2f01bd674b4e267fd480c01a0a89306c28cf6dcdbdc9ab1b755f1d8c0bac0",
+      "size_bytes": 654742,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/texture/T_knifeHolders001_BC.png": {
+      "sha256": "a523c1f2a9aa9475a3b16698c45944f5e9eac4bc56e52b7d9979a4aab7bedba7",
+      "size_bytes": 852147,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-022.JPG": {
+      "sha256": "448bf147a565197715de47667e150543f5df526074d4de78cc6b1e720e57ddc0",
+      "size_bytes": 1780688,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-023.JPG": {
+      "sha256": "f992cac7d704e7417bc262b6216203eb0495c24cbc4aedf1675b82b2b16fc6b4",
+      "size_bytes": 1389301,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-024.JPG": {
+      "sha256": "0e17295d4b0da031ca9991d2bd1067693f1cc50405b3ce7dfd4e38e11e415f38",
+      "size_bytes": 1826740,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-025.JPG": {
+      "sha256": "eed6201ab206378455e30b844654920ae2a52444f3f9a9ff994c1c2c4737e630",
+      "size_bytes": 5187893,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-046.jpg": {
+      "sha256": "79407d82e08f357d13e759bfd7d67ef1cccc316300b50e39be3ef829db76345b",
+      "size_bytes": 1146766,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-047.jpg": {
+      "sha256": "55b55414e470a505ae19cd9b3c70b7d4c18e6a3b623c44471b880ddb610079a4",
+      "size_bytes": 490823,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-050.jpg": {
+      "sha256": "341de6272fd0b3a51b6e53e55860af13525d40e0f8f5caa3ef5dcae1624199d6",
+      "size_bytes": 26882,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-051.jpg": {
+      "sha256": "a52ac83884804c42c6b67111882a82d47f5ffe4abdd1187d57897f9e207de7c1",
+      "size_bytes": 473070,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-052.jpg": {
+      "sha256": "7804735c64b0d98cd0a8071406235c5b0c7dbf48149d79dc87b5484f6d7d4493",
+      "size_bytes": 2982670,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-053.jpg": {
+      "sha256": "25dca6bf08fb54429cab40bda75020f96a37b09b89d1528981ff78bb8c733b1d",
+      "size_bytes": 2504287,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-054.jpg": {
+      "sha256": "4fed9956be5dd387621ede893c1e67251da8da7bbf00b3fe741b99277285bf50",
+      "size_bytes": 6004150,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-055.jpg": {
+      "sha256": "8eb0f6d0d5683b8dee91be3ecdd56411b544e1703aa75057e111cb20b64a7126",
+      "size_bytes": 6606941,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-056.jpg": {
+      "sha256": "d7e2b4a4556ea3191ece11f07de28963b803195e4e47f4622db4ce6b762529a7",
+      "size_bytes": 4746005,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-057.jpg": {
+      "sha256": "4392ab0e9787893d2a16c7ba135ddffe17841967ba09990232517e6b9802efb0",
+      "size_bytes": 12624430,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-058.jpg": {
+      "sha256": "e29742370f4ca45fed71cbd6b1325c4fce04f7a90454db69ed9f162da88d69d5",
+      "size_bytes": 414429,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-059.jpg": {
+      "sha256": "d82b53cc364238da26fa77c0351df7cd3b48ccd55720a6a0004c469e0a3c7f38",
+      "size_bytes": 328278,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-060.jpg": {
+      "sha256": "30a5c0c6b76e009a9e5dab22ca86ae44fba79db5d8cd633e48cc865ef86f292a",
+      "size_bytes": 2266372,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-061.jpg": {
+      "sha256": "534d018398cfd4a3bd7d6ef3eb39b1b50c89ada983b14907c3b902bb2002fec5",
+      "size_bytes": 1658715,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-062.jpg": {
+      "sha256": "d1b3a43100057eb2f03e37192d1129681c616f82ae3b613775454faaf1fea326",
+      "size_bytes": 4422804,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-063.jpg": {
+      "sha256": "eb2cf8fcf113f9e549350c6927cbc1ec4659abe5302d0236142ea5151c19132d",
+      "size_bytes": 244899,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-065.jpg": {
+      "sha256": "75ea311beb01fd05391f13becdaed4011b93e2d711bc45c7e929fa68280820a6",
+      "size_bytes": 170852,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-125.JPG": {
+      "sha256": "c2c73b1a23ab2c3c32c8081fc34c30a6f93bd9ec68aec278bca41e4826200ed4",
+      "size_bytes": 100491,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-128.JPG": {
+      "sha256": "4074a8606cd8dbb9aa78c64992ea9c1192fb51776b9f79cc5504f1a4b20f1ba3",
+      "size_bytes": 17794,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-131.jpg": {
+      "sha256": "e8f4fb7ff0489e4da3f7165e2418d13c6b464ad565fa54ef8c09c559731685ca",
+      "size_bytes": 45900,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-155.JPG": {
+      "sha256": "cf441fd7af7bfe155d4a19b15181ebb0ed03c2fcc47d0d750f083fee87d3009c",
+      "size_bytes": 586932,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-156.JPG": {
+      "sha256": "f8bfffcdc9f193e18f3a0342d4f2233bdb35ac702a1612f9c595521a8dc1bf58",
+      "size_bytes": 1907942,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-157.JPG": {
+      "sha256": "f9ca312c5a05ae78b4412e943b4b5495678346ed733e406b1d6432686d0b1a5d",
+      "size_bytes": 1907544,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-168.jpg": {
+      "sha256": "7eb035e79b25796536e08db847621bce301dfe020d3f480932e26f57a7ba0021",
+      "size_bytes": 255487,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-169.jpg": {
+      "sha256": "c81f35e4123e3d46fc1553eee2988179768e4dc33b7af53d7a6211784051ea9d",
+      "size_bytes": 376218,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-170.jpg": {
+      "sha256": "c827ad68c638ba55ed607e9648c7fd51f30ce1b0ae75113a85ca222e0df952b7",
+      "size_bytes": 80613,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_Other/textures/19913701-files-183.png": {
+      "sha256": "fbd9a6190ff04919a25db166ef65b586a010c52de4e6fde7d94c70cccd7c7d0d",
+      "size_bytes": 2102358,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Kitchen_TopCabinet/Kitchen_TopCabinet.usd": {
+      "sha256": "d521bf4addf725d1dfdb6a2219f05c4d6ddddf2ca562782adb2b7453d92b985f",
+      "size_bytes": 25225893,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/LICENSE.txt": {
+      "sha256": "0afca3145596cd005f6f6ed977313ea31928094fc5b4aaabc21bb765ea369d09",
+      "size_bytes": 19342,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Microwave017/Microwave017.usd": {
+      "sha256": "a6645c97c6d8d30f91d4e8bd627059e1bbeeb1f170ccd22da8ad37d6ca10b3b0",
+      "size_bytes": 38715987,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Microwave017/Tex/T_Microwave170001.jpg": {
+      "sha256": "28daf8f2aeae081b0c7ed91c627bfbf36efe5d65647ca2ad97777a3b811adf09",
+      "size_bytes": 345471,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Microwave017/Tex/T_Microwave170002.jpg": {
+      "sha256": "bab71b7a63c28e530d35de1d97fe4de0f000a912edf61b55095975dc1ad07b88",
+      "size_bytes": 297288,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Pot057/Pot057.usd": {
+      "sha256": "4d36ce9bde33830f2df13632dffcdd56eded1188edfcf3c7229f1f9e846a753f",
+      "size_bytes": 3031470,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Pot057/textures/T_Pot057_BC001.png": {
+      "sha256": "c2f46626129f3cc62a75f804f34bfc3c88f2b2dd3b248df21c46a3f54ce4d118",
+      "size_bytes": 7052,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/RangeHood015/RangeHood015.usd": {
+      "sha256": "acf43be175ab4d1c4e660807edecddc6da23bc8d4cd290590fe562919995b9d4",
+      "size_bytes": 10430574,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/RangeHood015/textures/T_RangeHood015_BC001.png": {
+      "sha256": "d798ca1f393c795d43476dc41b60e64442803d69a2007b09a0975da6d0fb895e",
+      "size_bytes": 360670,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/Refrigerator001.usd": {
+      "sha256": "421d229ce4dc6837773855461c376ff1bef891d780ec2c7dc86098a7c769f64b",
+      "size_bytes": 80215685,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0000.jpg": {
+      "sha256": "a69ae2a0448f5c3f9c83d433357dca95e228c47a118e625d310d22ab187c1726",
+      "size_bytes": 36707,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0002.jpg": {
+      "sha256": "5f57665ce5af8b6d9a6b0b34d8b55af751237667e70caf94f3ba0b826b5e308e",
+      "size_bytes": 39328,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0003.jpg": {
+      "sha256": "40555f5142443f7063ced3396767bdaa0b4924765e5770e26a1d07ee4c8ba1e5",
+      "size_bytes": 19688,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0004.jpg": {
+      "sha256": "2d287b80f5040e313dbe79015128a2fa95124d61ebb8b9bae0fc7826d709efac",
+      "size_bytes": 28980,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0006.jpg": {
+      "sha256": "a0bd5c6f32a14da9ef77fd6e163f1ef7cdce0192bd6be3e243396fab67915570",
+      "size_bytes": 35510,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0008.jpg": {
+      "sha256": "4ac393db01cea15a1eb62699625a147ee680a037f11d51fe0c9babf5e7bd572b",
+      "size_bytes": 40686,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0009.jpg": {
+      "sha256": "2c4a5c908ee4b20cab1ef177eff5520c906de1280671ecf94d350cfeb2cab376",
+      "size_bytes": 44683,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0011.jpg": {
+      "sha256": "fa9cade799e5f394e213b9eac56906c42e83dc60dfa18cb57a64b89f2238edec",
+      "size_bytes": 56573,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0013.jpg": {
+      "sha256": "bfc827fc2308a49e0d4bf0e04c59b4cd75e7beb7f783728e6dbef5a1046039bb",
+      "size_bytes": 27967,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0014.jpg": {
+      "sha256": "c5c20e641a39ba33b2983518121134205cd5cc53edd14c93bd1182aaf269c3ff",
+      "size_bytes": 190859,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0016.jpg": {
+      "sha256": "8ce2b00ba08bc1892a10f81f413fbe3feaeb4f69fbd548f55ab5ecab5444e20e",
+      "size_bytes": 74042,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0019.jpg": {
+      "sha256": "dc6266a465cd5fc082295fc1fe3e7ddf7d0b22d07bcfd1bdf729dcde618765d3",
+      "size_bytes": 30768,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0020.jpg": {
+      "sha256": "7fc1b727866b0ae2adf5617e910bb9764a141a84121e5c2b41801c5ab0e241c5",
+      "size_bytes": 51465,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0022.jpg": {
+      "sha256": "548378c5bfb91a0b3552b74e24135751282d422d30703eded43b4f372c8b9a68",
+      "size_bytes": 55041,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0024.jpg": {
+      "sha256": "e312ede85cbef5df0786ec0fda3c5a34979d9ad8ad2cbf6ad4023e4ef04b853a",
+      "size_bytes": 37648,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0025.jpg": {
+      "sha256": "b0415c13c7218190ad38e16c23990d90b21c2f5cbbaa3f0520c706cabe4a7836",
+      "size_bytes": 10551,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0027.jpg": {
+      "sha256": "0ffa13b1bcf0552816bb4fa29f6a71335290eb6e9d38d5a39a3cdc425577382e",
+      "size_bytes": 6428,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0029.jpg": {
+      "sha256": "b604e54c196fe5b22273f45808f45ee824fc5dd0bf4674d6e505f024f72b6fb7",
+      "size_bytes": 6428,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0030.jpg": {
+      "sha256": "d6bb68e34a7d996ed93ca65fbf59fcaf902d99a4ca2b56312fdbe122570d8d54",
+      "size_bytes": 36031,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0032.jpg": {
+      "sha256": "9dafe1a82a15744f0526d226f87c2322f1a997c2c20f875df9fe2922a8a9ce26",
+      "size_bytes": 18894,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Refrigerator001/texture/T_Refrigerator1_0034.jpg": {
+      "sha256": "009ba5f54f24e3f8817482844d17adc42a1cb9de906eed6a705d7f26124e226b",
+      "size_bytes": 29637,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/SOURCE_README.md": {
+      "sha256": "e59dc83818646e85a5f388e714334def7a15a349bc4cae8e7783c833a7812823",
+      "size_bytes": 3822,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Sink054/Sink054.usd": {
+      "sha256": "4dd71001ea65ed14d1622f756d1c86b5433b6cadcc972f3981d4a8920dfded68",
+      "size_bytes": 19886039,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Sink054/texutre/T_Sink054_BC001.png": {
+      "sha256": "aca8b3e2d672ce53124cc79611b6657dfac943b83708b21060381ea22e2a4dc5",
+      "size_bytes": 9742,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Stovetop012/Stovetop012.usd": {
+      "sha256": "2eaea2bc322e428d72043887519cbb124f64c4b7983fcb39b3b03494d058e0b4",
+      "size_bytes": 2690367,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Stovetop012/texture/T_Stovetop012_BC001.png": {
+      "sha256": "e9842aba69961220c38c3409b124af8159ee62460ca0787a97fd20c785e2cf5a",
+      "size_bytes": 203652,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Toaster003/Toaster003.usd": {
+      "sha256": "b08d66168def455c974d8d1b806e4c39f5221588b7c91da53c8c0ef9f65435d2",
+      "size_bytes": 1866700,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/Toaster003/textures/T_Toaster003_BC001.png": {
+      "sha256": "2925f10460bd3911b2efe5632d782935b0f010ca41280868f270c7d024a998ca",
+      "size_bytes": 624306,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/WallStackOven004/WallStackOven004.usd": {
+      "sha256": "0c32a1811e506daabe048d55622fe7b5dcae604f4a6712fd08fcd74b5d153386",
+      "size_bytes": 15561614,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/WallStackOven004/texture/T_WallStackOven004_BC001.png": {
+      "sha256": "ca07bcabba3dbec94f93d24e8308875028076cf2bfd0ad716267f128f3d20387",
+      "size_bytes": 294961,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/omniverse-content-production.s3.us-west-2.amazonaws.com/Assets/Extensions/Samples/Paint/cube.usd": {
+      "sha256": "1f8d657db45da241d17a6c80ba848b67b7d5fd141e57bfa7860e27a48c9ba6f5",
+      "size_bytes": 1581,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/texture/Kitchen_Ground_BC.jpg": {
+      "sha256": "9f7f41d248faf4e983cbe62c0896fd1b253c86a63748089b14f3c65b5ed5bd52",
+      "size_bytes": 7500085,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/texture/Kitchen_Ground_N.jpg": {
+      "sha256": "7b83ea7a6ee405b3801d4440dd2f12291920971b0efcf5329f29a0ec915fb021",
+      "size_bytes": 1651236,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/texture/Kitchen_Ground_R.jpg": {
+      "sha256": "6bd6b58bc8c07c27b02fd447a97b81c66fb0ea3f1e88cce1b1be0c6bf071e990",
+      "size_bytes": 3783961,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/texture/Kitchen_Wall_BC002.jpg": {
+      "sha256": "a20837398e5cf2f3a4269d1e3a377847420ad2b05b6b1709311598aa733ff3e7",
+      "size_bytes": 12961412,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/texture/Kitchen_Wall_N002.jpg": {
+      "sha256": "cd29015c6a13d33f2478684511220340acdbf6d046af10210cf3bf870898035a",
+      "size_bytes": 3316572,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/texture/Kitchen_Wall_R002.jpg": {
+      "sha256": "5879835727980ce79b61ad25bad901186dc2d3c606e76a822c0972b174a1fe11",
+      "size_bytes": 1910012,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "demo/vendor-kitchen/texture/chive 7000x3500.hdr": {
+      "sha256": "c59a6e3a38518541d1c99f8fdb622f0aecd1e5a2d917f2364af47f2ec2ff1ccc",
+      "size_bytes": 71376022,
+      "provenance": "Lightwheel Kitchen; CC BY-NC 4.0; bundled source and modification notices"
+    },
+    "models/mobileclip_blt.ts": {
+      "sha256": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54",
+      "size_bytes": 599764649,
+      "provenance": "Pinned CASCADE perception weights supplied separately"
+    },
+    "models/sam2.1_t.pt": {
+      "sha256": "3c1e81ca9b037dd39d70a014ddb9a813d6c4c4e12555420db7eaff31689bd4e3",
+      "size_bytes": 78105722,
+      "provenance": "Pinned CASCADE perception weights supplied separately"
+    },
+    "models/yoloe-11s-seg-pf.pt": {
+      "sha256": "292bdf157a9ec7315f34b567cb93467c5043cd1889a1cc18abbfdeb88d7a948d",
+      "size_bytes": 27948751,
+      "provenance": "Pinned CASCADE perception weights supplied separately"
+    },
+    "models/yoloe-11s-seg.pt": {
+      "sha256": "8e439445c87338b79d9ce21dec109f4621e26df67e94d26ea1a98c1e64dce3e3",
+      "size_bytes": 27803986,
+      "provenance": "Pinned CASCADE perception weights supplied separately"
+    },
+    "web/openclaw-ui/assets/control-ui-core-BRgpioGt.css": {
+      "sha256": "32ad4cfd78c3228e41fba20048594aad55507d5f163305e4c4e7719655a5e2d6",
+      "size_bytes": 279654,
+      "provenance": "Pinned OpenClaw 2026.9.3 presentation; MIT; web/openclaw-ui/OPENCLAW-LICENSE.txt"
+    },
+    "web/openclaw-ui/index.html": {
+      "sha256": "41f91affd297eae1f568a94f309eedf2c4d04df16599917380f197a7b3461e00",
+      "size_bytes": 11442,
+      "provenance": "Pinned OpenClaw 2026.9.3 presentation; MIT; web/openclaw-ui/OPENCLAW-LICENSE.txt"
+    }
+  }
+}

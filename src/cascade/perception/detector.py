@@ -75,6 +75,7 @@ class OpenVocabDetector(Detector):
         # pinned, rather than loading the promptable one and replacing it.
         pf = self._pf_path() if (prompt_free and not classes) else None
         self._model = YOLO(pf or model_path)
+        self._prepare_cuda_model()
         if pf is not None:
             self._prompt_free = True
         elif classes:
@@ -103,6 +104,7 @@ class OpenVocabDetector(Detector):
         from ultralytics import YOLO  # lazy heavy import
 
         self._model = YOLO(pf_path)
+        self._prepare_cuda_model()
         self._prompt_free = True
         self._filter_only = False
         self._classes = []
@@ -134,13 +136,21 @@ class OpenVocabDetector(Detector):
             from ultralytics import YOLO  # lazy heavy import
 
             self._model = YOLO(self._model_path)
+            self._prepare_cuda_model()
             self._prompt_free = False
         # YOLOE needs text embeddings passed explicitly; YOLO-World does not.
         # Closed-set models (yolo11n, ...) have no set_classes at all: fall
         # back to post-filtering detections by label (self._filter_only).
         self._filter_only = False
         try:
-            self._model.set_classes(classes, self._model.get_text_pe(classes))
+            embeddings = self._model.get_text_pe(classes)
+            import os
+            if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+                if getattr(getattr(embeddings, "device", None), "type", None) != "cuda":
+                    raise RuntimeError("GPU detector text embeddings did not use CUDA; CPU fallback is forbidden")
+                from .cuda_math import record
+                record("neural_text_embeddings", embeddings)
+            self._model.set_classes(classes, embeddings)
         except (AttributeError, TypeError):
             try:
                 self._model.set_classes(classes)
@@ -155,12 +165,34 @@ class OpenVocabDetector(Detector):
             ) from e
         self._classes = list(classes)
 
+    def _prepare_cuda_model(self) -> None:
+        """Place weights before text encoding too, including each vocabulary reload."""
+        import os
+        if os.environ.get("CASCADE_REQUIRE_CUDA", "0") != "1":
+            return
+        self._model.to(self._device)
+        parameters = list(self._model.model.parameters())
+        if not parameters or any(p.device.type != "cuda" for p in parameters):
+            raise RuntimeError("GPU detector weights are not entirely on CUDA; CPU fallback is forbidden")
+        logger.info("GPU detector attestation: %s on %s, %d CUDA parameter tensors",
+                    self._model_path, self._device, len(parameters))
+
     def detect(self, frame: Frame, classes: list[str] | None = None) -> list[Detection]:
-        if classes:
-            self.set_classes(classes)
+        # None is an open-world request, not "reuse the last grasp query".
+        # Otherwise one targeted search hides every other prop from the
+        # shared watcher and subsequent get_observation calls indefinitely.
+        self.set_classes(classes)
         results = self._model.predict(
             frame.rgb, conf=self._conf, device=self._device, verbose=False
         )
+        import os
+        if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+            outputs = [getattr(result, kind, None) for result in results for kind in ("boxes", "masks")]
+            tensors = [value.data for value in outputs if value is not None]
+            if not tensors or any(tensor.device.type != "cuda" for tensor in tensors):
+                raise RuntimeError("GPU detector prediction did not return CUDA tensors; CPU fallback is forbidden")
+            from .cuda_math import record
+            record("neural_detector_outputs", *tensors)
         dets = self._parse(results[0], frame)
         if self._filter_only and self._classes:
             # Loose word-overlap match so "red cup" still finds COCO's "cup".
@@ -169,6 +201,8 @@ class OpenVocabDetector(Detector):
         return dets
 
     def _parse(self, result, frame: Frame) -> list[Detection]:
+        import os
+        strict_cuda = os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1"
         dets: list[Detection] = []
         names = result.names
         boxes = result.boxes
@@ -177,7 +211,7 @@ class OpenVocabDetector(Detector):
         h, w = frame.rgb.shape[:2]
         masks = None
         if result.masks is not None:
-            masks = result.masks.data.cpu().numpy()  # (N, mh, mw) float
+            masks = result.masks.data if strict_cuda else result.masks.data.cpu().numpy()
         for i in range(len(boxes)):
             label = names[int(boxes.cls[i])]
             conf = float(boxes.conf[i])
@@ -186,10 +220,16 @@ class OpenVocabDetector(Detector):
             if masks is not None and i < len(masks):
                 m = masks[i]
                 if m.shape != (h, w):
-                    import cv2
-
-                    m = cv2.resize(m, (w, h), interpolation=cv2.INTER_NEAREST)
+                    if strict_cuda:
+                        import torch.nn.functional as F
+                        m = F.interpolate(m[None, None], size=(h, w), mode="nearest")[0, 0]
+                    else:
+                        import cv2
+                        m = cv2.resize(m, (w, h), interpolation=cv2.INTER_NEAREST)
                 mask = m > 0.5
+                if strict_cuda:
+                    from .cuda_math import record
+                    record("neural_segmentation_mask", mask)
             obb = None
             if getattr(result, "obb", None) is not None and result.obb is not None:
                 try:

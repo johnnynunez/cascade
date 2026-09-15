@@ -36,6 +36,24 @@ def test_pick_proof_requires_current_physics_evidence(tmp_path):
         check(path, 99.0, "red cube")
 
 
+def test_generic_configured_drop_point_keeps_the_physics_proof_contract(tmp_path):
+    from cascade.agent.effects import PostconditionChecker, annotate_result
+
+    args = {"object": "red cube", "destination": "drop zone"}
+    result = {"ok": True, "picked": "red cube", "placed_at": [.30, -.20, .1],
+              "destination": "drop zone", "destination_kind": "configured_point"}
+    checker = PostconditionChecker(object_pose=lambda name: [.305, -.205, .03])
+    verdict = checker.verify("pick_and_place", args, result,
+        {"label": "red cube", "pose": [.1, .1, .03], "channel": "physics"})
+    result = annotate_result(result, verdict)
+    assert result["verified"] is True
+    assert verdict.status == "confirmed" and verdict.channel == "physics"
+    assert verdict.measured["target_err_m"] < .01
+    path = _trace(tmp_path, [{"t": 100.0, "skill": "pick_and_place",
+                             "args": args, "result": result}])
+    assert demo_proof.validate_pick_trace(path, 99.0, "red cube") == path
+
+
 @pytest.mark.parametrize("result", [
     {"ok": False}, {"verified": False},
     {"postcondition": {"status": "confirmed", "channel": "belief"}},

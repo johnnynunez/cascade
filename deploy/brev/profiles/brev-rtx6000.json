@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "name": "brev-rtx6000",
+  "architecture": "x86_64",
+  "accelerator": {
+    "name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "min_vram_mib": 90000,
+    "minimum_free_before_start_mib": 70000,
+    "minimum_headroom_mib": 12288,
+    "compute_capability": "12.0"
+  },
+  "storage": {
+    "mount": "/opt/dlami/nvme",
+    "root": "/opt/dlami/nvme/paai-demo",
+    "min_available_gib": 180,
+    "min_root_available_gib": 8
+  },
+  "source": {
+    "origin": "https://github.com/johnnynunez/cascade.git",
+    "revision": "1c95dfdcd9d02846165055ccef8d21110ad96357"
+  },
+  "isaac": {
+    "image": "nvcr.io/nvidia/isaac-sim:6.1.0",
+    "accept_eula": "Y",
+    "physics_engine": "physx",
+    "physics_device": "cuda:0",
+    "physics_dt_s": 0.008333333333333333
+  },
+  "model": {
+    "id": "Qwen/Qwen3.8-27B",
+    "official_repository": "Qwen/Qwen3.8-27B",
+    "official_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "quant_repository": "ggml-org/Qwen3.8-27B-GGUF",
+    "quant_revision": "0669b98607d47046c7c2b3f801011d54a08cfccf",
+    "context_size": 16384,
+    "parallel_slots": 1,
+    "runtime_revision": "5f436dddb440a288ee5611d7d1eca564a6aca9f4",
+    "cuda_architectures": "120a-real",
+    "model_filename": "Qwen3.8-27B-Q8_0.gguf",
+    "projector_filename": "mmproj-Qwen3.8-27B-BF16.gguf",
+    "manifest": "profiles/qwen3.8-27b-q8.json"
+  },
+  "openclaw": {
+    "version": "2026.9.3",
+    "profile": "cascade"
+  },
+  "network": {
+    "access": "tailscale",
+    "tailscale_hostname": "paai-demo-rtx6000",
+    "bind": "discover-target-tailscale-ip",
+    "public_ports": false,
+    "http_ports": [
+      8091,
+      8092,
+      18791
+    ],
+    "private_control_ports": [
+      8041,
+      8611,
+      18790
+    ],
+    "webrtc_signal_ports": [
+      49100,
+      49101,
+      49102
+    ],
+    "webrtc_media_ports": [
+      47998,
+      47999,
+      48000
+    ]
+  },
+  "streaming": {
+    "enabled": false,
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "codec": "h264",
+    "encoder": "nvenc",
+    "requested_bitrate_mbps": 6,
+    "requested_keyframe_interval_s": 1,
+    "live_verified": false
+  },
+  "public_visitor": {
+    "enabled": false,
+    "local_auth": false,
+    "video": false
+  },
+  "health": {
+    "startup_timeout_s": 1200,
+    "request_timeout_s": 5
+  },
+  "live_verified": false,
+  "system": {
+    "min_vcpu": 8,
+    "min_ram_gib": 55
+  },
+  "image": "paai-demo:x86_64"
+}

@@ -1,168 +1,166 @@
 # Synthetic-Augmented RGB-D → 3D Object Localization
 
-Análisis del pipeline propuesto (imagen del 2026-07-31) frente a lo que este
-repo ya tiene, con **el problema medido en el rig**, no estimado.
+Analysis of the proposed pipeline (diagram dated 2026-07-31) against what this
+repository already provides, using **measurements from the rig**.
 
 ---
 
-## El problema que ataca — medido, no supuesto
+## The measured problem
 
-`scripts/eval_detector.py`, 12 frames, escena **completamente estática**,
-ground truth de física Isaac (`TruthPoseReader` → PhysX, independiente de
-percepción):
+`scripts/eval_detector.py`, 12 frames, a **completely static scene**, and
+Isaac physics ground truth (`TruthPoseReader` → PhysX, independent of
+perception):
 
 ```
-GROUND TRUTH (3 objetos)
+GROUND TRUTH (3 objects)
    pink_cube   [0.17,  0.15, 0.04]
    green_cube  [0.30,  0.16, 0.04]
    bin         [0.18, -0.17, 0.03]
 
-count por frame : [3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
-estabilidad     : FLICKER
-count modal     : WRONG  (4, deberian ser 3)
+count per frame : [3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+stability       : FLICKER
+modal count     : WRONG  (4, should be 3)
 
 precision       : 76.6%
 recall          : 100.0%
-phantom rate    : 23.4%   (11 de 47 detecciones)
-localizacion    : media 2.4 cm, peor 3.9 cm
+phantom rate    : 23.4%   (11 of 47 detections)
+localization    : mean 2.4 cm, worst 3.9 cm
 ```
 
-Tres lecturas, y conviene separarlas:
+Three findings need separate treatment:
 
-1. **Recall 100%.** Nunca se pierde un objeto real. El detector no es ciego.
-2. **Precision 76.6% — un fantasma persistente.** Ve 4 objetos donde hay 3,
-   frame tras frame. No es ruido aleatorio: es un falso positivo *estable*,
-   que entra en el world model y sobrevive. Ya se coló en la UI — es el 4º
-   badge que salió en el `annotated_view` de la primera sesión.
-3. **Flicker.** El primer frame ve 3, los demás 4. La misma escena da
-   respuestas distintas, así que "¿cuántos cubos hay?" no tiene respuesta
-   estable.
+1. **Recall 100%.** Every real object is detected.
+2. **Precision 76.6% — a persistent phantom.** The detector sees four objects
+   where there are three, frame after frame. This is a *stable* false positive
+   that enters the world model and persists. It also appeared in the UI as
+   the fourth badge in the first session's `annotated_view`.
+3. **Flicker.** The first frame reports three objects; the rest report four.
+   The same scene produces different answers, so "how many cubes are there?"
+   has no stable answer.
 
-Y un dato que exculpa al bloque C: **localización media 2.4 cm**. El
-levantamiento 2D→3D funciona bien. El problema está *aguas arriba*, en qué
-máscaras produce el detector, no en cómo se convierten a 3D.
+The **mean localization error of 2.4 cm** suggests block C works well:
+2D→3D lifting is already effective. The problem is upstream, in the masks the
+detector produces.
 
-Un detector open-vocabulary genérico (YOLOE + prompts de texto) nunca vio
-*esta* mesa, *estos* cubos, *esta* iluminación. Está haciendo zero-shot sobre
-un dominio para el que no fue entrenado, y ese 23.4% es el precio.
+A generic open-vocabulary detector (YOLOE with text prompts) has never seen
+*this* table, *these* cubes, or *this* lighting. It is operating zero-shot in
+a domain it was not trained for, with a measured phantom rate of 23.4%.
 
-**Ese es exactamente el hueco que llena el pipeline.**
+**This is the gap the proposed pipeline addresses.**
 
 ---
 
-## Qué propone, bloque a bloque
+## The proposal, block by block
 
-| bloque | qué hace | estado en este repo |
+| Block | Function | Status in this repository |
 |---|---|---|
-| **A** RGB-D bootstrapping | capturas eye-in-hand → etiquetado asistido por SAM → fine-tune → re-etiquetar → promover a train/val | ❌ no existe |
-| **B** síntesis de vistas | levantar objetos a nubes de puntos, re-renderizar con pitch/yaw, componer escenas nuevas etiquetadas | ❌ no existe |
-| **C** YOLO-Seg + 2D→3D lifting | máscara + profundidad + intrínsecos → centroide en base frame | ✅ **ya implementado** |
-| **D** centroide para robótica | el centroide alimenta el agarre | ✅ **ya implementado** |
+| **A** RGB-D bootstrapping | Eye-in-hand captures → SAM-assisted labeling → fine-tune → relabel → promote to train/validation sets | ❌ Not implemented |
+| **B** View synthesis | Lift objects to point clouds, render again with different pitch/yaw, compose new labeled scenes | ❌ Not implemented |
+| **C** YOLO-Seg + 2D→3D lifting | Mask + depth + intrinsics → centroid in the base frame | ✅ **Implemented** |
+| **D** Centroid for robotics | Feed the centroid into grasp planning | ✅ **Implemented** |
 
-**El bloque C ya está entero** en `perception/grounding.py`:
-`mask_to_points_cam()` retroproyecta píxeles de máscara con banda de
-profundidad inter-cuantil (justo lo que el diagrama llama *lift objects to
-point clouds*), y `oriented_bbox()` da centro + ejes por PCA. `probe.py`
-añade `deproject()` con lectura de profundidad por mediana.
+**Block C is already complete** in `perception/grounding.py`:
+`mask_to_points_cam()` backprojects mask pixels using an interquantile depth
+band (the diagram's *lift objects to point clouds* step), and
+`oriented_bbox()` computes the center and axes with PCA. `probe.py` adds
+`deproject()` with median depth sampling.
 
-O sea: **el pipeline no propone reemplazar nada de lo que tienes. Propone
-alimentar lo que ya funciona con un detector que no alucine.**
+The proposal therefore builds on the existing pipeline by **supplying it
+with a detector that produces fewer false positives**.
 
 ---
 
-## El bucle de auto-etiquetado (bloque A) es lo valioso
+## The value of the self-labeling loop (block A)
 
-La idea que hace esto barato es que **el propio robot genera las etiquetas**:
+The key to reducing cost is that **the robot generates its own labels**:
 
 ```
-capturas eye-in-hand → SAM etiqueta (solo RGB) → fine-tune bootstrap
-      ↑                                                    ↓
-      └──────── revisar ← generar etiquetas nuevas ────────┘
+eye-in-hand captures → SAM labels (RGB only) → bootstrap fine-tuning
+      ↑                                                ↓
+      └──────── review ← generate new labels ──────────┘
 ```
 
-Cada vuelta el modelo etiqueta mejor, así que la vuelta siguiente necesita
-menos revisión humana. Es Voyager/ASPIRE aplicado a percepción en vez de a
-skills — y encaja exactamente con el bucle exterior que ya montamos:
-`scripts/learn_from_runs.py` + el cron nocturno.
+Each iteration improves labeling, reducing the human review needed on the
+next pass. This applies the Voyager/ASPIRE approach to perception and fits
+the existing outer loop: `scripts/learn_from_runs.py` and the nightly cron job.
 
-**Ya tienes 80 keyframes acumulados** de las sesiones previas, gratis, con
-pose de brazo y beliefs asociados. Ese es el arranque del bloque A sin
-capturar nada nuevo.
+**The earlier sessions had already accumulated 80 keyframes**, with arm poses
+and associated beliefs. These provide a starting point for block A without
+capturing new data.
 
-Y algo que el diagrama no puede saber pero este repo sí: **tenemos ground
-truth de física**. `TruthPoseReader` da la posición real de cada prop. Eso
-convierte el "SELECTED SUBSET / review" manual del bloque A en un filtro
-automático: una etiqueta cuyo centroide 3D no cae a <6 cm de un prop real es
-basura y se descarta sola. En sim, el bucle A se cierra **sin humano**.
-
----
-
-## Dónde discrepo del diagrama
-
-**1. El bloque B (composición sintética) es el de peor relación coste/valor
-aquí, y lo pondría el último.**
-
-El pipeline lo justifica para conseguir diversidad de puntos de vista. Pero
-este rig tiene **Isaac Sim**: puedo mover la cámara, cambiar iluminación,
-randomizar poses de props y sacar *renders físicamente correctos con
-etiquetas perfectas* — sin recortar-y-pegar nubes de puntos, que produce
-composiciones con iluminación inconsistente y bordes de recorte que el modelo
-aprende como atajo. Domain randomization nativa gana a composición 2.5D
-cuando ya tienes el simulador.
-
-El bloque B tiene sentido cuando tu dominio es **solo real** y no tienes
-gemelo digital. Para el D435i/L515 sobre el brazo físico, sí. Para la demo en
-sim, Isaac lo hace mejor.
-
-**2. "Get centroid for robotic tasks" (D) es donde el diagrama es más débil.**
-
-Un centroide es suficiente para *pointing*, no para *grasping*. Ya aprendimos
-esto en este repo por las malas: el centroide de una nube de puntos parcial
-está sesgado hacia la cara visible, y GraspGenX existe precisamente porque un
-OBB no basta para elegir orientación de pinza. El pipeline no debería
-sustituir a GraspGenX; debería **darle mejores máscaras**.
-
-**3. Falta el bucle de verificación.** El diagrama es abierto: entrena,
-despliega, fin. No dice cómo sabes que el modelo nuevo es mejor. Con
-`TruthPoseReader` eso es medible: precision/recall contra física, antes y
-después. Sin esa métrica, "promote to train set" es fe.
+The repository also has **physics ground truth**: `TruthPoseReader` reports
+the actual position of each prop. This can turn block A's manual
+"SELECTED SUBSET / review" step into an automatic filter: reject a label if
+its 3D centroid is not within 6 cm of a real prop. In simulation, this closes
+loop A **without human review**.
 
 ---
 
-## Lo que haría, en orden
+## Where the diagram needs changes
 
-**1. Métrica primero — ✅ HECHO.** `scripts/eval_detector.py` puntúa
-precision/recall/flicker/localización contra física. Baseline registrado
-arriba. Sin esto, "promote to train set" es fe.
+**1. Block B (synthetic composition) has the weakest return for its cost on
+this rig and should come last.**
+
+The pipeline proposes it to increase viewpoint diversity. This rig already
+has **Isaac Sim**, which can move the camera, vary lighting, randomize prop
+poses, and produce *physically correct renders with ground-truth labels*.
+Composing point clouds can introduce inconsistent lighting and cutout edges
+that the model learns as shortcuts. Native domain randomization is preferable
+when the simulator is already available.
+
+Block B makes sense for a **physical-only domain** without a digital twin,
+such as a D435i/L515 on the physical arm. For the simulated demo, use Isaac.
+
+**2. "Get centroid for robotic tasks" (D) is the diagram's weakest step.**
+
+A centroid is enough for pointing, but grasping needs more information.
+Measurements in this repository showed that a partial point cloud's centroid
+is biased toward its visible face. GraspGenX addresses grasp orientation,
+which an OBB alone cannot determine. The pipeline should **provide GraspGenX
+with better masks**.
+
+**3. The verification loop is missing.** The diagram ends at training and
+deployment without defining how to establish whether the new model improves
+on the old one. `TruthPoseReader` makes this measurable: compare precision
+and recall against physics before and after training. Promotion into the
+training set needs that measurement.
+
+---
+
+## Recommended implementation order
+
+**1. Establish the metric — ✅ DONE.** `scripts/eval_detector.py` measures
+precision, recall, flicker, and localization against physics. The baseline
+is recorded above and provides the comparison needed for label promotion.
 
 ```bash
 cd models && PYTHONPATH=../src python ../scripts/eval_detector.py \
     --frames 12 --json /tmp/det_baseline.json
 ```
 
-**2. Auto-etiquetado en sim, sin humano (1-2 días).** Randomizar props en
-Isaac, capturar RGB-D + máscaras + pose real, y **filtrar cada etiqueta
-contra la verdad física**. Esto es el bloque A con el paso de revisión
-automatizado — el sim regala lo que en el mundo real cuesta un humano.
+**2. Automate labeling in simulation (estimated 1–2 days).** Randomize props
+in Isaac, capture RGB-D, masks, and actual poses, and **filter every label
+against physics ground truth**. This implements block A with automated
+review, using information that would require human annotation on a real rig.
 
-**3. Fine-tune YOLOE sobre ese conjunto y volver a medir con (1).**
-Objetivo concreto y falsable: **precision de 76.6% a >95%**, y `count_stable`
-= true en 12 frames. Si no se mueve, el enfoque no valía y lo sabremos.
+**3. Fine-tune YOLOE on that dataset and repeat step 1.** The measurable
+target is **precision rising from 76.6% to >95%**, with `count_stable = true`
+over 12 frames. If the measurements do not improve, reject the approach.
 
-**4. Enganchar al cron nocturno que ya existe.** `learn_from_runs.py` ya
-corre a las 03:00. Que también acumule keyframes etiquetados y dispare un
-fine-tune cuando haya suficientes nuevos. Ahí se cierra el bucle A del
-diagrama, sin intervención.
+**4. Connect it to the existing nightly cron job.** `learn_from_runs.py`
+was already scheduled for 03:00 on the rig. Extend it to accumulate labeled
+keyframes and trigger fine-tuning when enough new examples are available.
+This closes block A's loop without manual intervention.
 
-**5. Bloque B solo para el brazo real**, donde no hay gemelo digital.
+**5. Reserve block B for the physical arm**, where no digital twin is available.
 
 ---
 
-## Veredicto
+## Assessment
 
-La idea es **buena y ataca un problema real y medido de este repo** (49% de
-fantasmas). El bloque C que propone ya lo tienes construido y probado, lo cual
-es una señal de que el diseño es correcto — coincide con lo que ya hacía falta.
+The proposal addresses a **measured problem in this repository**: a 23.4%
+phantom detection rate. Block C is already implemented and tested, supporting
+that part of the design.
 
-El valor está en **A**, no en B. Y en este rig, A sale mucho más barato de lo
-que el diagrama asume, porque la física da las etiquetas gratis.
+Prioritize **A**. Physics ground truth makes its labeling loop cheaper on this
+rig than the diagram assumes.

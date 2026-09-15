@@ -5,7 +5,7 @@ chat user, and any browser on the LAN can watch what the robot sees while it
 acts -- detections, agent status and world state overlaid live.
 
 Routes:
-    /                    dark dashboard: N camera tiles + world-state panel
+    /                    light dashboard: N camera tiles + world-state panel
     /stream/<name>       multipart/x-mixed-replace MJPEG (annotated)
     /snapshot/<name>.jpg one annotated frame
     /state               JSON: beliefs (with colors), cameras, agent status
@@ -23,7 +23,7 @@ so any number of viewers can attach without slowing perception or control.
 #
 #     /stream/<name>       detections + HUD          (what the detector sees)
 #     /depth/<name>        depth colormap + source   (what the geometry sees)
-#     /annotated/<name>    VIA marks + grid + IK band (what the agent reasons on)
+#     /annotated/<name>    VIA marks + grid + optional configured display band
 #     /analyze             one-shot JSON: detections, depth stats, description
 #
 # The depth view matters because `depth_source` silently degrades through
@@ -48,80 +48,157 @@ from .live_view import draw_detections, draw_hud
 _BOUNDARY = "wrcframe"
 
 _INDEX_HTML = """<!doctype html>
-<html><head><meta charset="utf-8"><title>cascade :: live</title><style>
- body {{ background:#0d1117; color:#d7dde3; font:14px/1.4 system-ui,sans-serif; margin:0; }}
- header {{ padding:10px 16px; background:#161c22; display:flex; gap:14px;
-           align-items:baseline; border-bottom:1px solid #21262d; }}
- header h1 {{ font-size:16px; margin:0; color:#76b900; }}
- #task {{ color:#f0b429; font-weight:600; }}
- #status {{ color:#9fb0c0; margin-left:auto; font:12px ui-monospace,monospace; }}
- main {{ display:grid; grid-template-columns: 1fr 380px; gap:12px; padding:12px; }}
- #cams {{ display:flex; flex-wrap:wrap; gap:12px; align-content:start; }}
- .cam {{ background:#161c22; border-radius:8px; padding:8px; }}
- .cam h2 {{ font-size:13px; margin:0 0 6px 2px; color:#9fb0c0; font-weight:500;
-            display:flex; align-items:center; gap:8px; }}
- .cam img {{ max-width:min(44vw,760px); border-radius:4px; display:block; }}
- .views {{ margin-left:auto; display:flex; gap:4px; }}
- .views button {{ background:#0d1117; border:1px solid #30363d; color:#9fb0c0;
-                  border-radius:5px; font:11px ui-monospace,monospace;
-                  padding:3px 8px; cursor:pointer; }}
- .views button.on {{ background:#76b900; border-color:#76b900; color:#0d1117;
-                     font-weight:700; }}
- aside {{ display:flex; flex-direction:column; gap:12px; min-width:300px; }}
- .panel {{ background:#161c22; border-radius:8px; padding:10px 12px; }}
- .panel h3 {{ margin:0 0 8px; font-size:12px; color:#9fb0c0; text-transform:uppercase;
-              letter-spacing:.06em; }}
- #feed {{ font:12px/1.55 ui-monospace,monospace; height:44vh; overflow-y:auto;
-          white-space:pre-wrap; }}
- #feed .obs {{ color:#79c0ff; }} #feed .act {{ color:#7ee787; }}
- #feed .out {{ color:#ff7b72; }} #feed .note {{ color:#f0b429; }}
- table {{ width:100%; border-collapse:collapse; font:12px ui-monospace,monospace; }}
- td, th {{ padding:3px 6px; text-align:left; border-bottom:1px solid #21262d; }}
- .chip {{ display:inline-block; width:10px; height:10px; border-radius:2px;
-          margin-right:6px; vertical-align:baseline; border:1px solid #444; }}
- .remembered {{ opacity:.55; }}
+<html lang="en"><head><meta charset="utf-8"><meta name="color-scheme" content="light"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Physical Agentic AI · OpenClaw Demo</title><style>
+ :root {{ color-scheme: light; background: #f7f6f2; color: #242722; }}
+ * {{ box-sizing: border-box; }}
+ body {{ background: #f7f6f2; color: #242722; color-scheme: light; font: 15px/1.6 system-ui,sans-serif; margin: 0; -webkit-font-smoothing: antialiased; }}
+ header {{ max-width: 1680px; margin: auto; padding: 23px 28px; display: flex; flex-wrap: wrap; gap: 12px 22px; align-items: center; border-bottom: 1px solid #d4d8c9; }}
+ header h1 {{ font-size: 20px; line-height: 1.4; letter-spacing: -.4px; margin: 0; font-weight: 650; color: #242722; }}
+ header a {{ text-underline-offset: 4px; }}
+ #task {{ color: #4c5940; font-size: 13px; font-weight: 550; }}
+ #status {{ color: #596153; margin-left: auto; font: 12px/1.6 system-ui,sans-serif; max-width: 380px; }}
+ main {{ max-width: 1680px; margin: auto; display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(310px, 1fr); gap: 22px; padding: 28px; align-items: start; }}
+ #cams {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-content: start; min-width: 0; }}
+ .cam {{ position: relative; min-width: 0; border: 1px solid #d4d8c9; background: #fdfcf8; border-radius: 12px; padding: 12px; overflow: hidden; }}
+ .cam:has(#img-worktop) {{ grid-column: 1 / -1; grid-row: 1; }}
+ .cam h2 {{ font-size: 15px; line-height: 1.4; margin: 0 0 12px; color: #38422f; font-weight: 620; display: flex; align-items: center; gap: 8px; text-transform: capitalize; flex-wrap: wrap; }}
+ .cam img {{ width: 100%; max-width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: contain; background: #e8e8df; border-radius: 7px; display: block; }}
+ #cams[data-transport="offline"] .cam img, .cam[data-stream-state="offline"] img {{ visibility: hidden; }}
+ #cams[data-transport="offline"] .cam::after, .cam[data-stream-state="offline"]::after {{ content: "Camera disconnected · reconnecting"; position: absolute; inset: 58px 12px 12px; display: grid; place-items: center; padding: 16px; text-align: center; color: #795a29; background: #efeee7; border-radius: 7px; font-size: 14px; }}
+ .views {{ margin-left: auto; display: flex; gap: 5px; }}
+ .views button {{ background: #f7f6f2; border: 1px solid #c4ccb8; color: #4c5940; border-radius: 6px; font: 550 11px/1.4 system-ui,sans-serif; min-height: 30px; padding: 6px 10px; cursor: pointer; }}
+ .views button.on {{ background: #b4e35a; border-color: #91b749; color: #242722; font-weight: 650; }}
+ button:focus-visible, a:focus-visible, input:focus-visible {{ outline: 3px solid #648e22; outline-offset: 3px; }}
+ button:hover {{ filter: brightness(.97); }}
+ aside {{ display: flex; flex-direction: column; gap: 16px; min-width: 0; }}
+ .panel {{ border: 1px solid #d4d8c9; background: #efeee7; border-radius: 12px; padding: 18px; min-width: 0; overflow-wrap: anywhere; }}
+ .panel h3 {{ margin: 0 0 12px; font-size: 12px; color: #4c5940; text-transform: uppercase; letter-spacing: .08em; font-weight: 650; }}
+ .panel p {{ margin: 8px 0 12px; font-size: 14px; line-height: 1.7; }}
+ #read-only-panel > a {{ display: inline-flex; align-items: center; background: #b4e35a; color: #242722 !important; border: 1px solid #a0c850; border-radius: 8px; font-size: 14px; font-weight: 650; padding: 10px 16px; min-height: 44px; text-decoration: none; }}
+ #feed {{ font: 12px/1.65 ui-monospace,monospace; min-height: 120px; max-height: 28vh; overflow-y: auto; white-space: pre-wrap; }}
+ #feed .obs {{ color: #375e7c; }} #feed .act {{ color: #436123; }}
+ #feed .out {{ color: #aa3523; }} #feed .note {{ color: #795a29; }}
+ table {{ width: 100%; border-collapse: collapse; font: 12px/1.6 system-ui,sans-serif; }}
+ td, th {{ padding: 6px 4px; text-align: left; border-bottom: 1px solid #d4d8c9; }}
+ th {{ color: #4c5940; font-weight: 600; }}
+ .chip {{ display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: baseline; border: 1px solid #596153; }}
+ .remembered {{ opacity: .6; }}
+ [hidden] {{ display: none !important; }}
+ @media (max-width: 1100px) {{
+   header {{ padding: 22px; }}
+   #status {{ width: 100%; max-width: none; margin-left: 0; }}
+   main {{ padding: 22px; gap: 18px; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); }}
+   .cam {{ padding: 10px; }}
+   .cam h2 {{ font-size: 14px; }}
+   .views {{ gap: 4px; }}
+   .views button {{ padding: 5px 7px; }}
+ }}
+ @media (max-width: 800px) {{
+   header {{ padding: 20px; gap: 9px 16px; }}
+   header h1 {{ font-size: 19px; }}
+   #status {{ overflow-wrap: anywhere; }}
+   main {{ grid-template-columns: minmax(0, 1fr); padding: 20px; }}
+   #cams {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+   #feed {{ min-height: 80px; }}
+   aside {{ min-width: 0; }}
+ }}
+ @media (max-width: 480px) {{
+   main {{ padding: 16px; }}
+   #cams {{ gap: 12px; grid-template-columns: minmax(0, 1fr); }}
+   .cam:has(#img-worktop) {{ grid-column: auto; }}
+   .cam {{ padding: 12px; }}
+   .cam h2 {{ font-size: 15px; }}
+   .views button {{ padding: 7px 10px; min-height: 34px; }}
+ }}
 </style></head><body>
-<header><h1>cascade &middot; live</h1>
- <span id="task">no task</span>
- <a href="/keyframes" style="color:#9fb0c0;font-size:12px">keyframes</a>
+<header><h1>Physical Agentic AI &middot; OpenClaw Demo</h1>
+ <span id="task">{initial_task}</span>
+ <a href="/keyframes" {command_hidden} style="color:#65695e;font-size:12px">keyframes</a>
  <span id="status">connecting...</span></header>
 <main>
  <div id="cams">{tiles}</div>
  <aside>
-  <div class="panel"><h3>talk to the robot</h3>
+  <div class="panel" id="read-only-panel" {read_only_hidden}><h3>Watch the robot</h3>
+   <p>Keep these cameras beside your OpenClaw conversation. Watch Worktop for the object and Side for the lift. Use the guide's camera preview to check the current scene.</p>
+   <a href="/openclaw/?connect=1" target="_blank" rel="noopener noreferrer"
+      style="color:#375e7c">Open OpenClaw ↗</a>
+   <p style="font-size:12px;color:#65695e">Send one order in the chat, wait for the movement, then ask for a physics check.</p></div>
+  <div class="panel" id="command-panel" {command_hidden}><h3>Talk to the robot</h3>
    <form id="chat" style="display:flex;gap:6px">
-    <input id="cmd" placeholder="pick and place pink object"
-      style="flex:1;background:#0d1117;border:1px solid #30363d;border-radius:6px;
-             color:#d7dde3;padding:7px 10px;font:13px system-ui">
-    <button style="background:#76b900;border:0;border-radius:6px;color:#0d1117;
-                   font-weight:700;padding:0 14px;cursor:pointer">send</button>
-    <button type="button" id="stopbtn"
-      style="background:#d9534f;border:0;border-radius:6px;color:#fff;
-             font-weight:700;padding:0 14px;cursor:pointer">stop</button>
-   </form><div id="chatmsg" style="font:11px ui-monospace,monospace;color:#9fb0c0;
+    <input id="cmd" {command_disabled} placeholder="Pick up the green cube and place it in the target area"
+      style="flex:1;background:#f7f6f2;border:1px solid #b3b9a8;border-radius:6px;
+             color:#242722;padding:7px 10px;font:13px system-ui">
+    <button {command_disabled} style="background:#b4e35a;border:0;border-radius:6px;color:#242722;
+                   font-weight:700;padding:0 14px;cursor:pointer">Send</button>
+    <button type="button" id="stopbtn" {command_disabled}
+      style="background:#fff0e9;border:0;border-radius:6px;color:#833b24;
+             font-weight:700;padding:0 14px;cursor:pointer">Stop</button>
+   </form><div id="chatmsg" style="font:11px ui-monospace,monospace;color:#65695e;
                                    margin-top:6px;max-height:14vh;overflow-y:auto"></div></div>
-  <div class="panel"><h3>robot narration</h3><div id="feed">waiting...</div></div>
-  <div class="panel"><h3>perception analysis
-   <button id="anbtn" style="float:right;background:#0d1117;border:1px solid #30363d;
-     color:#9fb0c0;border-radius:5px;font:11px ui-monospace,monospace;
-     padding:2px 8px;cursor:pointer">analyze</button></h3>
+  <div class="panel runtime-panel" {command_hidden}><h3>Robot activity</h3><div id="feed">Waiting for the next action…</div></div>
+  <div class="panel runtime-panel" {command_hidden}><h3>What the robot sees
+   <button id="anbtn" style="float:right;background:#f7f6f2;border:1px solid #b3b9a8;
+     color:#65695e;border-radius:5px;font:11px ui-monospace,monospace;
+     padding:2px 8px;cursor:pointer">Analyze</button></h3>
    <div id="analysis" style="font:12px/1.5 ui-monospace,monospace;
-        white-space:pre-wrap;max-height:34vh;overflow-y:auto">click analyze for detections, depth stats and a scene description</div></div>
-  <div class="panel"><h3>objects in the world model</h3>
-   <table><thead><tr><th>object</th><th>color</th><th>position (m)</th><th>state</th></tr></thead>
+        white-space:pre-wrap;max-height:34vh;overflow-y:auto">Click Analyze to inspect the current scene and identify its objects.</div></div>
+  <div class="panel runtime-panel" {command_hidden}><h3>Objects in view</h3>
+   <table><thead><tr><th>Object</th><th>Color</th><th>Position (m)</th><th>State</th></tr></thead>
    <tbody id="objs"></tbody></table></div>
-  <div class="panel"><h3>grasp memory (learned priors)</h3>
+  <div class="panel runtime-panel" {command_hidden}><h3>Learning from previous grasps</h3>
    <div id="gmem" style="font:12px/1.55 ui-monospace,monospace;
         white-space:pre-wrap">empty</div></div>
  </aside>
 </main>
 <script>
+ let readOnly = {read_only_json};
+ let currentState = null, transportFailed = false;
+ const reconnectTimers = new Map();
+ function updateCameraStatus() {{
+   if (transportFailed) {{
+     document.getElementById('status').textContent = 'Camera connection lost · reconnecting automatically';
+   }} else if (currentState) {{
+     document.getElementById('status').textContent = statusSummary(currentState);
+   }}
+ }}
+ function reconnectStream(img) {{
+   clearTimeout(reconnectTimers.get(img)); reconnectTimers.delete(img);
+   const url = new URL(img.src, location.href);
+   url.searchParams.set('reconnect', Date.now());
+   img.src = url.href;
+ }}
+ function cameraTransportFailed() {{
+   transportFailed = true;
+   document.getElementById('cams').dataset.transport = 'offline';
+   document.querySelectorAll('.cam').forEach(tile => tile.dataset.streamState = 'offline');
+   updateCameraStatus();
+ }}
+ document.querySelectorAll('.cam img').forEach(img => {{
+   img.addEventListener('load', () => {{
+     img.closest('.cam').dataset.streamState = 'connected';
+     clearTimeout(reconnectTimers.get(img)); reconnectTimers.delete(img);
+     updateCameraStatus();
+   }});
+   img.addEventListener('error', () => {{
+     img.closest('.cam').dataset.streamState = 'offline';
+     updateCameraStatus();
+     clearTimeout(reconnectTimers.get(img));
+     reconnectTimers.set(img, setTimeout(() => {{
+       if (!transportFailed && navigator.onLine) reconnectStream(img);
+     }}, 1500));
+   }});
+ }});
+ window.addEventListener('offline', cameraTransportFailed);
+ window.addEventListener('pageshow', event => {{ if (event.persisted) cameraTransportFailed(); }});
+ document.addEventListener('visibilitychange', () => {{
+   if (document.visibilityState === 'visible') cameraTransportFailed();
+ }});
  const CSS = {{observation:'obs', action:'act', outcome:'out', note:'note'}};
  const SWATCH = {{red:'#e5484d', orange:'#f76b15', yellow:'#ffe629', green:'#46a758',
    cyan:'#00a2c7', blue:'#0090ff', purple:'#8e4ec6', pink:'#f76190',
    brown:'#ad7f58', white:'#eee', gray:'#888', black:'#111'}};
  // Per-camera view switch: rgb (detections) | depth (colormap + stats) |
- // agent (VIA marks + metric grid + reachable IK band). Swapping the <img>
+ // agent (VIA marks + metric grid + configured display band). Swapping the <img>
  // src tears down the old MJPEG socket, so only one stream per tile is ever
  // encoding -- that is what keeps 3 cameras x 3 views affordable.
  function setView(cam, mode, btn) {{
@@ -159,36 +236,72 @@ _INDEX_HTML = """<!doctype html>
    box.scrollTop = box.scrollHeight;
  }}
  document.getElementById('stopbtn').addEventListener('click', async () => {{
+   if (readOnly) return;
    try {{
      const r = await (await fetch('/cancel', {{method: 'POST'}})).json();
      log(r.cancelled ? 'cancelled - the arm is stopping' : (r.error || 'cancel failed'),
-         r.cancelled ? '#f0b429' : '#ff7b72');
-   }} catch (e) {{ log('error: ' + e, '#ff7b72'); }}
+         r.cancelled ? '#795a29' : '#aa3523');
+   }} catch (e) {{ log('error: ' + e, '#aa3523'); }}
  }});
  document.getElementById('chat').addEventListener('submit', async (ev) => {{
    ev.preventDefault();
+   if (readOnly) return;
    const box = document.getElementById('cmd');
    const task = box.value.trim();
    if (!task) return;
-   log('> ' + task, '#d7dde3');
+   log('> ' + task, '#242722');
    box.value = '';                       // clear immediately: the chat stays
    try {{                                 // usable while the arm works
      const r = await (await fetch('/task', {{method: 'POST',
        headers: {{'Content-Type': 'application/json'}},
        body: JSON.stringify({{task}})}})).json();
      log(r.accepted ? `running: ${{r.task}}` : (r.error || 'rejected'),
-         r.accepted ? '#7ee787' : '#ff7b72');
+         r.accepted ? '#436123' : '#aa3523');
      if (!r.accepted) box.value = task;   // give a rejected command back
-   }} catch (e) {{ log('error: ' + e, '#ff7b72'); box.value = task; }}
+   }} catch (e) {{ log('error: ' + e, '#aa3523'); box.value = task; }}
  }});
+ function statusSummary(s) {{
+   if (s.read_only === true) {{
+     const cameras = Object.entries(s.cameras || {{}});
+     const online = cameras.filter(([name, camera]) => {{
+       const img = document.getElementById('img-' + name);
+       return camera.online === true && img?.naturalWidth > 0
+         && img.closest('.cam').dataset.streamState !== 'offline';
+     }}).length;
+     return cameras.length && online === cameras.length
+       ? `${{online}} camera feeds connected · check the guide for current snapshots`
+       : `${{online}} of ${{cameras.length}} views connected · cameras reconnect automatically`;
+   }}
+   const parts = [`${{Object.keys(s.cameras || {{}}).length}} cams`];
+   const hasHolding = Object.prototype.hasOwnProperty.call(s, 'holding');
+   const hasArm = typeof s.arm_connected === 'boolean';
+   if (hasHolding) parts.push(`holding: ${{s.holding || '-'}}`);
+   if (hasArm) parts.push(`arm: ${{s.arm_connected ? 'up' : 'standby'}}`);
+   if (s.last_path) parts.push(`via: ${{s.last_path}}`);
+   if (!hasHolding && !hasArm) parts.push('Robot state unavailable');
+   if (s.agent_status) parts.push(s.agent_status);
+   return parts.join(' | ');
+ }}
  async function tick() {{
+   const controller = new AbortController();
+   const timeout = setTimeout(() => controller.abort(), 2000);
    try {{
-     const s = await (await fetch('/state')).json();
-     document.getElementById('task').textContent = s.task ? `task: ${{s.task}}` : 'idle - waiting for a command';
-     document.getElementById('status').textContent =
-       `${{Object.keys(s.cameras).length}} cams | holding: ${{s.holding || '-'}} | ` +
-       `arm: ${{s.arm_connected ? 'up' : 'standby'}} | via: ${{s.last_path || '-'}} | ` +
-       `${{s.agent_status}}`;
+     const response = await fetch('/state', {{signal: controller.signal, cache: 'no-store'}});
+     if (!response.ok) throw Error('Camera status unavailable');
+     const s = await response.json();
+     if (!s || typeof s.cameras !== 'object' || !s.cameras) throw Error('Camera status missing');
+     const recovering = transportFailed;
+     transportFailed = false; currentState = s;
+     document.getElementById('cams').dataset.transport = 'connected';
+     if (recovering) document.querySelectorAll('.cam img').forEach(reconnectStream);
+     readOnly = s.read_only === true;
+     document.getElementById('read-only-panel').hidden = !readOnly;
+     document.getElementById('command-panel').hidden = readOnly;
+     document.querySelectorAll('.runtime-panel').forEach(el => el.hidden = readOnly);
+     document.querySelectorAll('#chat input, #chat button').forEach(el => el.disabled = readOnly);
+     document.getElementById('task').textContent = readOnly ? 'Live cameras · send orders in OpenClaw' :
+       (s.task ? `task: ${{s.task}}` : 'idle - waiting for a command');
+     updateCameraStatus();
      document.getElementById('gmem').textContent =
        (s.grasp_memory || []).join('\\n') || 'empty';
      const feed = document.getElementById('feed');
@@ -203,7 +316,8 @@ _INDEX_HTML = """<!doctype html>
        `<td><span class="chip" style="background:${{SWATCH[o.color] || '#333'}}"></span>${{o.color || '?'}}</td>` +
        `<td>[${{o.position.join(', ')}}]</td><td>${{o.state}} (${{o.age_s}}s)</td></tr>`
      ).join('');
-   }} catch (e) {{}}
+   }} catch (e) {{ cameraTransportFailed(); }}
+   finally {{ clearTimeout(timeout); }}
    setTimeout(tick, 500);
  }}
  tick();
@@ -381,7 +495,7 @@ class StreamServer:
         return buf.tobytes() if ok else None
 
     def annotated_view_jpeg(self, name: str) -> bytes | None:
-        """VIA-style agent view: numbered marks, metric grid, IK band.
+        """VIA-style agent view: marks, grid, optional configured display band.
 
         Requires the runtime (for beliefs/extrinsics/config); without it we
         fall back to the plain detection view rather than erroring, so the
@@ -391,7 +505,7 @@ class StreamServer:
         if runtime is None:
             return self.annotated_jpeg(name)
         try:
-            from ..perception.visual_interface import VisualInterface
+            from ..perception.visual_interface import VisualInterface, configured_grasp_band
 
             stream = self._rig.get(name)
             frame = stream.latest()
@@ -404,8 +518,7 @@ class StreamServer:
                 extrinsics=runtime.extrinsics,
                 workspace=dict(getattr(ws_raw, "_data", ws_raw)),
                 table_z=float(cfg.safety.get("table_z", 0.0)),
-                reach_x=(float(grasp_cfg.get("reach_x_min", 0.155)),
-                         float(grasp_cfg.get("reach_x_max", 0.185))),
+                reach_x=configured_grasp_band(grasp_cfg),
             )
             try:
                 tcp = runtime._tcp()
@@ -571,17 +684,24 @@ def _make_handler(server: StreamServer):
             self._json({"accepted": True, "task": task})
 
         def _index(self):
+            read_only = server.state().get("read_only") is True
             tiles = "".join(
                 f'<div class="cam"><h2>{n}'
                 f'<span class="views">'
                 f"<button class=\"on\" onclick=\"setView('{n}','rgb',this)\">rgb</button>"
-                f"<button onclick=\"setView('{n}','depth',this)\">depth</button>"
-                f"<button onclick=\"setView('{n}','agent',this)\">agent</button>"
+                f"<button {'hidden' if read_only else ''} onclick=\"setView('{n}','depth',this)\">depth</button>"
+                f"<button {'hidden' if read_only else ''} onclick=\"setView('{n}','agent',this)\">agent</button>"
                 f'</span></h2>'
                 f'<img id="img-{n}" src="/stream/{n}" alt="{n}"></div>'
                 for n in server._rig.names
             )
-            body = _INDEX_HTML.format(tiles=tiles).encode()
+            body = _INDEX_HTML.format(
+                tiles=tiles, read_only_json=json.dumps(read_only),
+                command_hidden="hidden" if read_only else "",
+                read_only_hidden="" if read_only else "hidden",
+                command_disabled="disabled" if read_only else "",
+                initial_task="Live cameras · send orders in OpenClaw" if read_only else "no task",
+            ).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -610,18 +730,18 @@ def _make_handler(server: StreamServer):
                 f'<figure style="margin:0"><img src="/keyframe/{p.name}" '
                 f'style="max-width:340px;border-radius:4px;display:block">'
                 f'<figcaption style="font:11px ui-monospace,monospace;'
-                f'color:#9fb0c0">{p.name}</figcaption></figure>'
+                f'color:#65695e">{p.name}</figcaption></figure>'
                 for p in files[:24]
             ) or "<p>no keyframes yet</p>"
             body = (
-                '<!doctype html><html><head><meta charset="utf-8">'
+                '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="color-scheme" content="light">'
                 '<meta http-equiv="refresh" content="3">'
-                "<title>cascade :: keyframes</title></head>"
-                '<body style="background:#0d1117;color:#d7dde3;'
+                "<title>OpenClaw Demo · Keyframes</title></head>"
+                '<body style="background:#f7f6f2;color:#242722;'
                 'font:14px system-ui;padding:14px">'
-                '<h1 style="font-size:16px;color:#76b900">'
+                '<h1 style="font-size:16px;color:#436123">'
                 'per-skill before/after keyframes (newest first) &middot; '
-                '<a href="/" style="color:#9fb0c0">dashboard</a></h1>'
+                '<a href="/" style="color:#65695e">dashboard</a></h1>'
                 f'<div style="display:flex;flex-wrap:wrap;gap:12px">{cells}'
                 "</div></body></html>"
             ).encode()

@@ -79,6 +79,9 @@ def segment_at_pixel(
     Iterative rather than recursive: a 256x256 region would blow the Python
     recursion limit.
     """
+    import os
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        raise RuntimeError("GPU pixel perception requires its CUDA segmenter; CPU depth connectivity is forbidden")
     d = np.asarray(depth_m, dtype=np.float32)
     h, w = d.shape
     if not (0 <= v < h and 0 <= u < w):
@@ -129,6 +132,14 @@ def fix_from_mask(
     """
     if not frame.has_depth or frame.depth_m is None:
         raise SkillError("this camera has no depth; cannot lift a mask to 3D")
+
+    import os
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from .cuda_math import pixel_geometry
+        valid, points, center, extents, axes, bbox = pixel_geometry(frame, mask, T_cam2base)
+        return ObjectFix(label=label, position=center, points=points,
+            detection=Detection(label=label, conf=1.0, bbox=bbox, mask=valid),
+            extent=extents, axes=axes)
 
     d = np.asarray(frame.depth_m, dtype=np.float32)
     valid = np.asarray(mask, dtype=bool) & np.isfinite(d) & (d > 0)

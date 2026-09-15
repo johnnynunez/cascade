@@ -74,9 +74,8 @@ class BridgeClient:
         this call only.
 
         Some ops legitimately take much longer than a normal round trip:
-        `reset_props` under Newton does a timeline Stop -> Play (the only way
-        a resting body's pose actually sticks on that engine) and needs tens
-        of seconds. Timing out client-side while the bridge is mid-reset
+        `reset_props` settles and verifies props on the simulation's main
+        thread and can need tens of seconds. Timing out client-side mid-reset
         leaves the caller reading a half-reset scene, which is how a sweep
         ends up measuring the previous episode's end state.
         """

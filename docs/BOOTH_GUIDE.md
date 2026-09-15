@@ -24,8 +24,11 @@ the same “Reset the scene.” order you can type in chat. Keep this chat open
 while reset runs. A long conversation can delay it. Wait for **Scene reset**
 and **Live** in all three camera views. Check that the gripper is empty, the
 arm is home and the props are back. If reset is not confirmed, read the chat
-before trying again.
-Reset is disabled while the chat is disconnected.
+before trying again. If you reload the page, read the reset result in chat
+before sending another order. Reset is disabled while the chat is disconnected.
+
+Use one operator chat at a time. All connected chats control the same kitchen;
+another chat can move an object after your reset.
 
 After the reset finishes, click **+** in OpenClaw for the next attendee. Each
 attendee starts a new session. Starting a session does not reset the kitchen.

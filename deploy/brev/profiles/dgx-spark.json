@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "name": "dgx-spark",
+  "architecture": "aarch64",
+  "accelerator": "GB10",
+  "status": "PLAN_ONLY",
+  "live_verified": false,
+  "shared": [
+    "gate-based orchestration",
+    "model provenance",
+    "health contract",
+    "OpenClaw tool API",
+    "kitchen scene"
+  ],
+  "architecture_specific": [
+    "Isaac arm64 image or NVIDIA source installation",
+    "native arm64 model server with GB10 CUDA architecture",
+    "memory and camera profiling"
+  ],
+  "default_upstream_model": "Cosmos3-Edge",
+  "cosmos_gpu_cold_start_certified": false
+}

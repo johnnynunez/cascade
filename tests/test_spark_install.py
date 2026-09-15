@@ -14,6 +14,7 @@ import subprocess
 import sys
 
 import pytest
+from conftest import start_sleeping_process
 
 
 def boundary_env(tmp_path):
@@ -493,6 +494,52 @@ def test_spark_assets_manifest_contains_only_shipped_detector_and_encoder():
     assert support.scene_problems(ROOT) == []
 
 
+def fixture_model_health(repo):
+    """Only the sleeping process in this fixture can satisfy readiness."""
+    from cascade.apps.process_owner import process_identity
+
+    try:
+        pid = int((repo / "service.pid").read_text())
+    except (OSError, ValueError):
+        return False
+    current = process_identity(pid)
+    return current is not None and str(repo / "scripts") in current["command"]
+
+
+@pytest.mark.parametrize("payload, expected", [
+    (b'{"data":[{"id":"cosmos3-edge"}]}', True),
+    (b'{"data":[{"id":"another-model"}]}', "wrong model"),
+    (b'{"data":[]}', "wrong model"),
+    (b'[]', "wrong model"),
+    (b'not json', False),
+    (OSError("offline"), False),
+])
+def test_model_health_validates_response_without_using_a_proxy(monkeypatch, payload, expected):
+    import io
+    from types import SimpleNamespace
+
+    support = support_module()
+    calls = []
+
+    def open_response(url, timeout):
+        calls.append((url, timeout))
+        if isinstance(payload, OSError):
+            raise payload
+        return io.BytesIO(payload)
+
+    def opener(proxy_handler):
+        assert proxy_handler.proxies == {}
+        return SimpleNamespace(open=open_response)
+
+    monkeypatch.setattr(support.urllib.request, "build_opener", opener)
+    if isinstance(expected, str):
+        with pytest.raises(RuntimeError, match=expected):
+            support.model_health()
+    else:
+        assert support.model_health() is expected
+    assert calls == [(f"http://127.0.0.1:{support.COSMOS_PORT}/v1/models", 2)]
+
+
 def launch_fixture(tmp_path, monkeypatch):
     import socket
 
@@ -513,24 +560,19 @@ def launch_fixture(tmp_path, monkeypatch):
     consent.parent.mkdir(parents=True)
     consent.write_text(json.dumps({"repo": str(repo.resolve()), "eula_accepted": True,
                                    "eula_url": support.EULA_URL}))  # boundary operator consent
-    # Protocol/service double only: neither weights nor GPU code executes.
+    # These tests exercise process ownership, not an HTTP/model server.
     executable(
         repo / "scripts/serve_cosmos_vllm.sh",
         f"#!{sys.executable}\n"
         + """
-import os,sys,json,pathlib
-from http.server import BaseHTTPRequestHandler, HTTPServer
-pathlib.Path("service.pid").write_text(str(os.getpid()))
+import os,sys,json,pathlib,time
 pathlib.Path("service-env.json").write_text(json.dumps({k:os.environ.get(k) for k in ("VENV","MODEL_DIR","GPU_FRAC","CTX","COSMOS_PYTHON")}))
 if os.environ.get("BOUNDARY_DIE"): sys.exit(47)
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200); self.end_headers()
-        self.wfile.write(json.dumps({"data":[{"id":"cosmos3-edge"}]}).encode())
-    def log_message(self, format, *args): pass
-HTTPServer(("127.0.0.1",int(os.environ["PORT"])),Handler).serve_forever()
+pathlib.Path("service.pid").write_text(str(os.getpid()))
+time.sleep(60)
 """,
     )
+    monkeypatch.setattr(support, "model_health", lambda: fixture_model_health(repo))
     launcher = """
 import json,os,pathlib,sys
 pathlib.Path("launch-record.json").write_text(json.dumps({"args":sys.argv[1:], "env":{k:os.environ.get(k) for k in ("ISAACSIM_PYTHON_EXE","CASCADE_OPENCLAW_PROFILE","PY")}}))
@@ -643,8 +685,7 @@ def test_unhealthy_owned_cosmos_refuses_duplicate_without_touching_it(tmp_path, 
     state = repo / "runs/.launch/profile-cascade-demo"
     owner = load_owner(state, repo, "cascade-demo", create=True)
     assert owner is not None
-    other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"],
-                             start_new_session=True)
+    other = start_sleeping_process(start_new_session=True)
     try:
         receipt = register_process(state, owner, other.pid, "cosmos")
         with pytest.raises(RuntimeError, match="recorded Cosmos process.*unhealthy"):
@@ -692,8 +733,7 @@ def test_failed_launch_preserves_a_replacement_cosmos_receipt(tmp_path, monkeypa
     state = repo / "runs/.launch/profile-cascade-demo"
     owner = load_owner(state, repo, "cascade-demo", create=True)
     assert owner is not None
-    other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"],
-                             start_new_session=True)
+    other = start_sleeping_process(start_new_session=True)
     try:
         replacement = register_process(state, owner, other.pid, "cosmos")
         marker = state / "cosmos.pid"
@@ -796,7 +836,10 @@ def test_sigterm_cleans_new_cosmos_group_instead_of_orphaning_it(tmp_path, monke
     support, repo = launch_fixture(tmp_path, monkeypatch)
     executable(repo / "scripts/launch.sh", "#!/bin/bash\nexec sleep 60\n")
     code = (
-        "import sys; sys.path.insert(0,sys.argv[1]); import install_support as s; "
+        "import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); "
+        "sys.path.insert(0,sys.argv[4]); import install_support as s; "
+        "from test_spark_install import fixture_model_health; "
+        "s.model_health=lambda: fixture_model_health(Path(sys.argv[3])); "
         's.COSMOS_PORT=int(sys.argv[2]); raise SystemExit(s.main(["launch","--repo",sys.argv[3]]))'
     )
     proc = subprocess.Popen(
@@ -808,6 +851,7 @@ def test_sigterm_cleans_new_cosmos_group_instead_of_orphaning_it(tmp_path, monke
             str(ROOT / "scripts"),
             str(support.COSMOS_PORT),
             str(repo),
+            str(ROOT / "tests"),
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

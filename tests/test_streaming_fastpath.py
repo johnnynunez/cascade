@@ -223,7 +223,7 @@ def test_stream_server_serves_state_snapshot_and_index():
         jpeg = urllib.request.urlopen(f"{base}/snapshot/over.jpg", timeout=5).read()
         assert jpeg[:2] == b"\xff\xd8"  # JPEG magic
         html = urllib.request.urlopen(f"{base}/", timeout=5).read().decode()
-        assert "/stream/over" in html and "robot narration" in html
+        assert "/stream/over" in html and "Robot activity" in html
     finally:
         server.stop()
         rig.close()
@@ -262,7 +262,7 @@ def test_stream_server_keyframes_routes(tmp_path):
 
         # the dashboard links the gallery and carries the new panels
         index = urllib.request.urlopen(f"{base}/", timeout=5).read().decode()
-        assert "/keyframes" in index and "grasp memory" in index and "via:" in index
+        assert "/keyframes" in index and "Learning from previous grasps" in index and "via:" in index
     finally:
         server.stop()
         rig.close()

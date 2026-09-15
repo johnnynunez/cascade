@@ -127,6 +127,10 @@ def _rim_grasp_width(points: np.ndarray, obj_top_z: float,
     because containers taper (see below), and grasp_z sits below the lip so
     the pads straddle the wall instead of resting on its top edge.
     """
+    import os
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from ..perception.cuda_math import rim_grasp_width
+        return rim_grasp_width(points, obj_top_z, band_m=band_m, up=up)
     if points is None or len(points) < 60:
         return None
     axis = (np.array([0.0, 0.0, 1.0]) if up is None
@@ -208,11 +212,10 @@ def plan_grasps_from_fix(
 
     obj_top_z = float(fix.points[:, 2].max())
     points_min_z = float(fix.points[:, 2].min())
-    # Top-down cameras only see the object's top surface, so points_min sits
-    # near the top and would collapse the height estimate. Objects rest on
-    # the table: unless the cloud clearly starts well above it (stacked),
-    # take the table as the bottom.
-    if points_min_z - table_z < 0.5 * max(obj_top_z - table_z, 0.01):
+    # A top-only cloud cannot locate the bottom. Keep the tabletop prior
+    # unless side geometry resolves the vertical extent.
+    if (obj_top_z - points_min_z <= 0.01
+            or points_min_z - table_z < 0.5 * max(obj_top_z - table_z, 0.01)):
         obj_bottom_z = table_z
     else:
         obj_bottom_z = points_min_z

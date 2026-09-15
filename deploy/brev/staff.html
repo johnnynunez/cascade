@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Build a Claw with PAAI, Physical Agentic AI. How the demo works and how to run a task in OpenClaw with live robot cameras.">
+  <title>Build a Claw · PAAI</title>
+  <link rel="stylesheet" href="/staff/style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the guide</a>
+  <header>
+    <a class="brand" href="/">PAAI<span>Physical Agentic AI</span></a>
+    <nav aria-label="On this page"><a href="#how">How this works</a><a href="#workflow">The workflow</a></nav>
+  </header>
+  <main id="main">
+    <p class="eyebrow">A guide for staff and attendees</p>
+    <h1>Build a Claw.</h1>
+    <p class="lede">Give a robot a task in OpenClaw. Watch it through the cameras.</p>
+
+    <section id="how" aria-labelledby="how-title">
+      <h2 id="how-title">A. How this works</h2>
+      <p>PAAI is installed on a remote Brev machine with an RTX PRO 6000 GPU. It also runs on a DGX Spark. The booth computer opens the chat and cameras; the robot simulation runs on the GPU machine.</p>
+      <p>You use the normal <strong>OpenClaw</strong> screen. OpenClaw passes your request to the <strong>CASCADE</strong> robot tools. Those tools inspect the scene and move the arm in <strong>NVIDIA Isaac Sim</strong>. The Chrome extension shows the live cameras beside the chat.</p>
+      <p>The arm and kitchen are simulated. Staff show you how to use the chat, then you give the orders.</p>
+      <figure class="screen">
+        <a href="/staff/media/openclaw-cameras.png" aria-label="Open the full OpenClaw and camera screenshot"><img src="/staff/media/openclaw-cameras.png" width="1600" height="957" alt="OpenClaw with Reset above the conversation and the PAAI Chrome extension showing a live Worktop view of the robot arm, cubes, fruit, can, green zone and wooden box."></a>
+        <figcaption>The booth screen: OpenClaw on the left, the camera extension on the right. A real capture from the running Brev demo.</figcaption>
+      </figure>
+    </section>
+
+    <section id="workflow" aria-labelledby="workflow-title">
+      <h2 id="workflow-title">B. The workflow</h2>
+      <ol class="steps">
+        <li>
+          <h3>Open the chat</h3>
+          <p>On the booth computer, open the private demo link supplied by the operator. Click <strong>Open OpenClaw</strong>. Wait for <strong>Ready</strong> and check that you can type in the message box.</p>
+          <details>
+            <summary>First time on this computer?</summary>
+            <p>Open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, then choose <strong>Load unpacked</strong> and select this checkout’s <code>extensions/chrome</code> folder. See the <a href="https://github.com/johnnynunez/cascade/blob/paai-event-demo/docs/CHROME_EXTENSION.md">extension setup</a> for the full steps.</p>
+            <p>The public attendee link shows cameras. Use the private demo link for OpenClaw. The operator shares access details privately.</p>
+          </details>
+        </li>
+        <li>
+          <h3>Put the cameras beside it</h3>
+          <p>In the OpenClaw tab, click the <strong>Physical Agentic AI · OpenClaw Demo</strong> extension. Click <strong>Connect cameras</strong>, allow access to the demo host, then choose <strong>Side panel</strong>.</p>
+          <p><strong>Worktop</strong> shows objects and destinations. <strong>Side</strong> shows the lift and release. <strong>Kitchen</strong> shows the room. Check all three views and wait for <strong>Live</strong>.</p>
+          <p>Click the camera image to see it large. Click again or press <strong>Escape</strong> to return.</p>
+        </li>
+        <li>
+          <h3>Ask it to look</h3>
+          <p>Staff can start with: “Ask about the kitchen, then give the arm one task. We will watch what happens.” Type this in OpenClaw and click the send arrow:</p>
+          <blockquote>what are you seeing?</blockquote>
+          <p>Wait for the reply and compare it with Worktop. The green cube is an object; the green outline on the counter is a destination. If the description is wrong, ask for a fresh observation before moving.</p>
+        </li>
+        <li>
+          <h3>Give one order</h3>
+          <p>Name one object and one destination. For example:</p>
+          <div class="orders">
+            <blockquote>move the orange to the box</blockquote>
+            <blockquote>move the green cube to the green zone</blockquote>
+            <blockquote>move the red cube to the red zone</blockquote>
+          </div>
+          <p>Use the loose orange near the arm. The box is the shallow wooden tray beside the green zone.</p>
+          <p class="note">The current kitchen has green and pink cubes, with no red zone. The red request is unsupported in this scene. Do not substitute the pink cube or the green zone.</p>
+          <p>Wait for the tool and the full reply. A pick can take one to two minutes. Send the next movement only after the arm finishes.</p>
+        </li>
+        <li>
+          <h3>Watch and check</h3>
+          <p>Use Side to check that the object lifts and stays in the gripper. Use Worktop to watch the release and see where it settles. Read the result with the attendee.</p>
+          <p>A missed grasp is a failed attempt. Keep an <strong>unverified</strong> result unverified. A nearby position alone does not prove release inside the destination.</p>
+        </li>
+        <li>
+          <h3>Reset before the next task</h3>
+          <p>After the current tool finishes, click <strong>Reset</strong> above the conversation in OpenClaw. The button sends the same order as typing:</p>
+          <blockquote>Reset the scene.</blockquote>
+          <p>Keep this chat open while reset runs. A long conversation can delay it.</p>
+          <p>Wait for <strong>Scene reset</strong> and <strong>Live</strong> in all three camera views. Check that the gripper is empty, the arm is home and the loose objects are back. If reset is not confirmed, read the chat before trying again. A new chat does not reset the kitchen.</p>
+          <p>For the next attendee, click <strong>+</strong> in OpenClaw to start a new session after the reset finishes.</p>
+        </li>
+      </ol>
+      <details class="recovery">
+        <summary>If something goes wrong</summary>
+        <h3>A missed grasp or dropped object</h3>
+        <p>Let the tool finish. Read the failure, reset once and inspect. If it keeps missing, return to observation and let the operator check the demo.</p>
+        <h3>A frozen camera</h3>
+        <p>Pause new movement requests. Keep the extension open while it reconnects. Try <strong>Reconnect</strong> if needed. Check all three views before continuing.</p>
+        <h3>A disconnected chat</h3>
+        <p>Reset is disabled while the chat is disconnected. Return to the private demo page. Click <strong>Open OpenClaw</strong> again and read the connection check.</p>
+        <h3>An empty reply or generation error</h3>
+        <p>After the active tool finishes, click <strong>+</strong> at the top left of OpenClaw to start a new session. Ask for a fresh scene image before another movement. A new session does not reset the kitchen.</p>
+        <h3>A reset reply without a reset</h3>
+        <p>After the active tool finishes, send this once:</p>
+        <blockquote>Call reset_scene once for a fresh reset. Wait for the tool result, then stop.</blockquote>
+        <p>If it fails, keep the result and have the operator recover the demo.</p>
+      </details>
+      <p class="limits">This version has a small set of prepared objects and skills. Descriptions and grasps can fail, especially for the lemon and unusual arrangements. A chat description does not certify the arm’s home pose or an empty gripper. Camera previews update a few times per second. Check each attempt.</p>
+      <p class="setup-links">Machine setup: <a href="https://github.com/johnnynunez/cascade/blob/paai-event-demo/docs/BREV.md">Brev</a> · <a href="https://github.com/johnnynunez/cascade/blob/paai-event-demo/docs/DGX_SPARK_SETUP.md">DGX Spark</a>. The live checks for this guide were made on Brev.</p>
+    </section>
+  </main>
+  <footer>
+    <p>PAAI was built by Johnny Núñez and Asier Arranz.</p>
+    <p>Kitchen and orange assets by <a href="https://github.com/LightwheelAI/Lightwheel_Kitchen" rel="noreferrer">Lightwheel</a>, <a href="https://creativecommons.org/licenses/by-nc/4.0/" rel="noreferrer">CC BY-NC 4.0</a>, adapted for this demo.</p>
+  </footer>
+</body>
+</html>

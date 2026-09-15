@@ -106,10 +106,12 @@ and a contradicted range on a call that's otherwise `ok` gets a non-blocking
 
 ### 4. Readable interface (VIA)
 
-`annotated_view` renders what the agent actually needs: numbered badges per
-object (so it says "object 2", not a label string it hopes matches), a 5 cm
-base-frame grid, the TCP, and the top-down IK band shaded green. Projection
-verified against live frames — badges land on the cubes.
+`annotated_view` renders a fresh camera frame with numbered badges for tracked
+objects, a 5 cm base-frame grid and the tool position when available. MCP
+returns the image with its numbered-object key. Other callers receive the
+saved trace path. Badges describe tracked estimates, which may be stale or
+mislabeled; use `get_observation` to refresh tracking. A shaded display band
+appears only when configured. It does not verify IK or grasp reachability.
 
 ## The outer loop
 
@@ -195,15 +197,15 @@ richer picture for the model is not where the win is; giving it something to
 
 ```
 probe_point(u, v)  -> distance_m, base-frame position, which tracked object is
-                      there, reachable{in_workspace, in_topdown_ik_band},
+                      nearby, reachable{in_workspace, ik_checked: false,
+                      grasp_checked: false},
                       from_gripper{distance_m, delta_xyz_m}
 locate_pixel(label)-> where a known object is IN THE IMAGE (pixel + normalized)
 ```
 
-Every field is a scalar the agent can compare, not a texture it must
-interpret. `reachable` is the "orientation" signal in this rig's terms: the
-B601-RS only solves strict top-down IK at x ≈ 0.155–0.185, so the probe says
-so *with the numbers* instead of shading a region and hoping.
+These numbers describe the buffered frame being probed. Workspace membership
+is a configured bound. The probe does not solve IK or validate a grasp; those
+checks belong to the planner and motion harness.
 
 **Verified on the live rig** against Isaac physics truth:
 
@@ -215,7 +217,7 @@ That second number is a semantic, not a bug, and it is reported in the payload
 (`measures: "visible surface at this pixel, not the object centre"`) so an
 agent cannot quietly feed a probe into a grasp centre and grasp high. Grasp
 planning keeps using segmented point clouds; the cursor is for *relative*
-judgements — is this reachable, what is here, how far is the gripper.
+judgements: what is here, and how far is it from the gripper.
 
 Note the dashboard's depth and annotated views survive this result unscathed:
 they are rendered for a **human** in a browser, not injected into the model's
@@ -278,8 +280,8 @@ switches, plus the chat that drives the same robot:
 
 - **rgb** — detections + HUD (what the *detector* sees)
 - **depth** — colormap + range stats (what the *geometry* sees)
-- **agent** — VIA marks, metric grid, reachable IK band (what the *agent*
-  reasons on)
+- **agent** — tracked-object marks, metric grid and an optional configured
+  display band; these do not verify reachability
 
 The depth view earns its place because `depth_source` degrades silently
 (`sensor -> mono -> plane -> none`) and a wrong grasp z is usually a depth

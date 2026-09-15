@@ -31,14 +31,19 @@ from __future__ import annotations
 
 import argparse
 import base64
+from contextlib import ExitStack
 import json
 import math
 import os
+import signal
 import socketserver
 import sys
 import threading
 import time
 import zlib
+
+if os.path.lexists("/data/acceptance/STOP"):
+    raise SystemExit("[bridge] startup refused: retained STOP at /data/acceptance/STOP")
 
 # Default to the gain-tuned RS asset that ships in this repo (drives, robot
 # schema, self-collision off, solver caps already baked by
@@ -53,6 +58,7 @@ DEFAULT_PRIM = "/tn__00armrs_asmv3_hJ6D/Geometry/base_link"
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("--usd", default=DEFAULT_USD, help="reBot RS scene USD (gain-tuned asset)")
+p.add_argument("--scene-config", help="optional local kitchen scene JSON (pre-play)")
 p.add_argument("--prim", default=DEFAULT_PRIM, help="articulation root prim path")
 p.add_argument("--engine", default="newton", choices=["newton", "physx"])
 # Newton is the default engine. Both historical blockers were re-tested on
@@ -70,11 +76,13 @@ p.add_argument("--engine", default="newton", choices=["newton", "physx"])
 # Pass --engine physx to fall back to the old path.
 p.add_argument("--port", type=int, default=8611)
 p.add_argument("--gui", action="store_true", help="run with the editor window (default: headless)")
-p.add_argument("--width", type=int, default=1280)
-p.add_argument("--height", type=int, default=720)
-p.add_argument("--dt", type=float, default=1.0 / 60.0)
-p.add_argument("--cam-every", type=int, default=2, help="refresh camera cache every N sim steps")
+p.add_argument("--width", type=int, default=int(os.environ.get("CASCADE_ISAAC_WIDTH", "1280")))
+p.add_argument("--height", type=int, default=int(os.environ.get("CASCADE_ISAAC_HEIGHT", "720")))
+p.add_argument("--dt", type=float, default=float(os.environ.get("CASCADE_ISAAC_DT", str(1.0 / 60.0))))
+p.add_argument("--cam-every", type=int, default=int(os.environ.get("CASCADE_ISAAC_CAM_EVERY", "2")), help="refresh camera cache every N sim steps")
 args = p.parse_args()
+if not 0 < args.dt <= 1.0:
+    p.error("--dt / CASCADE_ISAAC_DT must be finite and in (0, 1] seconds")
 
 # Demo spawn/ready pose (LOCAL joint convention). NOTE: the straight-up
 # pose is blocked on this asset -- drive-travel from q=0 sweeps the
@@ -103,7 +111,8 @@ HOME_Q = [0.0, -1.2, -1.2, 0.0, -0.75, 0.0]  # gripper elbow-up, high
 # (gain tuner 8/8).
 from isaacsim import SimulationApp  # noqa: E402
 
-from isaac_runtime import ensure_time_code_range, find_experience  # noqa: E402
+from isaac_runtime import (ensure_time_code_range, find_experience, physics_timestep_identity,
+                           setup_physics, physics_device_identity, GpuPhysicsLogGuard)  # noqa: E402
 
 _kwargs = {}
 if args.engine == "newton":
@@ -113,6 +122,19 @@ app = SimulationApp(
      "width": args.width, "height": args.height},
     **_kwargs,
 )
+
+if args.scene_config and args.engine == "physx":
+    # Local cooking avoids a UJITSO cache stall without changing the simulation backend.
+    import carb.settings
+    carb.settings.get_settings().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    print("[bridge] kitchen collision cooking: local PhysX (UJITSO disabled)", flush=True)
+
+_REQUIRE_CUDA = os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1"
+_gpu_log_guard = GpuPhysicsLogGuard()
+_gpu_log_consumer = None
+if _REQUIRE_CUDA:
+    import omni.log
+    _gpu_log_consumer = omni.log.get_log().add_message_consumer(_gpu_log_guard.on_message)
 
 import numpy as np  # noqa: E402
 import isaacsim.core.experimental.utils.app as app_utils  # noqa: E402
@@ -133,11 +155,6 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdPhysics  # noqa: E402
 
 stage = omni.usd.get_context().get_stage()
 
-# The gain-tuned asset persists newton:solver:nconmax=8192, sized for the
-# patched newton_stage build. Stock develop computes rigid_contact_max from
-# geometry (~4.7k here) and errors out EVERY step on the mismatch, killing
-# contacts. Clamp the persisted cap IMMEDIATELY after load, before any
-# update tick lets the physics parser read it.
 # PhysX articulation self-collision must be OFF for this asset (it ships
 # newton:selfCollisionEnabled=0 but no PhysX equivalent): the straight-up
 # pose puts adjacent elbow colliders in deep penetration -> NaN explosion.
@@ -161,105 +178,51 @@ if _root:
     print("[bridge] PhysxArticulationAPI applied; self-collision disabled (PhysX)",
           flush=True)
 
-for prim in stage.Traverse():
-    attr = prim.GetAttribute("newton:solver:nconmax")
-    if attr and attr.IsValid() and attr.HasValue():
-        old = attr.Get()
-        if old and old > 4600:
-            attr.Set(4600)  # just under the geometry estimate (~4745)
-            print(f"[bridge] clamped {prim.GetPath()} newton:solver:nconmax {old} -> 4600",
-                  flush=True)
+def _configure_newton_before_play() -> None:
+    """Allocate both contact buffers through the installed pre-play API."""
+    import copy
+    import omni.timeline
+    from isaacsim.physics.newton import (
+        MuJoCoSolverConfig, acquire_stage, configure_newton, get_newton_config,
+    )
+
+    ns = acquire_stage()
+    if ns is None or get_newton_config() is None:
+        raise RuntimeError("Newton stage/configuration unavailable before play")
+    if ns.initialized or omni.timeline.get_timeline_interface().is_playing():
+        raise RuntimeError("Contact buffers must be configured before Newton initialization")
+    cfg = copy.deepcopy(get_newton_config())
+    # Use the correct config class before initialization; otherwise Isaac replaces
+    # an XPBD/VBD config with a fresh MuJoCo config and restores the 200 default.
+    if not isinstance(cfg.solver_cfg, MuJoCoSolverConfig):
+        cfg.solver_cfg = MuJoCoSolverConfig()
+    # Recorded peak is 30,955. 32,768 is the smallest power of two above it.
+    # For this shipped scene condim=3, pyramidal cone => four constraint rows
+    # per contact; retain 1,200 additional rows for non-contact constraints.
+    cfg.solver_cfg.nconmax = 32768
+    cfg.solver_cfg.njmax = 4 * 32768 + 1200
+    cfg.collision_cfg.rigid_contact_max = 32768
+    cfg.num_substeps = 4  # Preserve baseline integration substeps.
+    configure_newton(cfg)
+    print("[bridge] pre-play Newton contacts=32768, constraint rows=132272", flush=True)
 
 
-def _raise_newton_contact_cap(min_contacts: int = 4600) -> None:
-    """Give MJWarp room for this scene's real contact count.
+def _verify_newton_contact_buffers() -> None:
+    from isaacsim.physics.newton import acquire_stage
 
-    Authoring `newton:solver:nconmax` on the prim is NOT enough: the MJWarp
-    solver instantiates with its own default (200 on this build) and then
-    DISCARDS every contact beyond it, printing
-
-        Number of Newton contacts (1015) exceeded MJWarp limit (200).
-
-    once per step. Dropped contacts is exactly the observed symptom -- props
-    resting on the table for a while and then sinking through it, fingers
-    closing on an object without holding it.
-
-    But the cap must also stay BELOW the allocated contact buffer. Newton
-    sizes `contacts.rigid_contact_max` from the geometry (~6915 here, which
-    matches the self-contact count in the asset's own evidence package), and
-    asking for more than that fails EVERY step with
-
-        MuJoCo naconmax (8192) exceeds contacts.rigid_contact_max (6915)
-
-    which drives the articulation to NaN. 4600 is the value the asset itself
-    persists in `newton:solver:nconmax`, comfortably under the allocation and
-    ~3x the measured peak during a grasp (1695).
-
-    `njmax` (constraint rows) is raised alongside it: the stock 1200 is the
-    other half of the pair the asset's evidence package calls out as
-    "overflow instantly with this asset" (analysis_2026-07-07 finding 6,
-    which pairs 8192 nconmax with 32768 njmax).
-    """
-    try:
-        import isaacsim.physics.newton.impl.extension as _ne
-    except Exception as _e:                       # physx run: nothing to do
-        return
-    _ns = getattr(_ne, "_newton_stage", None)
-    if _ns is None:
-        return
-    _cfg = getattr(_ns, "cfg", None)
-    _solver = getattr(_cfg, "solver_cfg", None) if _cfg is not None else None
-    if _solver is None:
-        print("[bridge] newton solver_cfg unavailable; contact cap left at default",
-              flush=True)
-        return
-    for _name in ("nconmax", "ncon_max", "rigid_contact_max"):
-        if hasattr(_solver, _name):
-            _old = getattr(_solver, _name)
-            if _old is None or _old < min_contacts:
-                setattr(_solver, _name, min_contacts)
-                print(f"[bridge] newton solver {_name}: {_old} -> {min_contacts}",
-                      flush=True)
-    # constraint rows: the other half of the documented pair
-    if hasattr(_solver, "njmax"):
-        _oldj = getattr(_solver, "njmax")
-        if _oldj is None or _oldj < 32768:
-            _solver.njmax = 32768
-            print(f"[bridge] newton solver njmax: {_oldj} -> 32768", flush=True)
-
-    # ── anti-tunnelling, the Newton way ──────────────────────────────────
-    # Measured: during a grasp the cube reached 7.5 m/s and ended at
-    # z=-0.188 -- THROUGH a 3 cm table slab -- while the arm was almost still
-    # (max |dq| 0.075 rad/s) and with zero contact penetration. That is a
-    # MISSED contact: at num_substeps=1 and 1/60 s, a body only needs
-    # ~1.8 m/s to clear the whole slab between two collision checks.
-    #
-    # The PhysX knobs for this (maxLinearVelocity, enableCCD,
-    # enableSpeculativeCCD) are authored on the props but Newton IGNORES
-    # them: its model exposes only `particle_max_velocity`, nothing for rigid
-    # bodies. The lever Newton does respect is substepping -- each substep is
-    # a fresh collision check, so N substeps raise the tunnelling threshold
-    # by N.
-    #
-    # 4 substeps puts the threshold at ~7.2 m/s, just above the measured
-    # ejection speed; combined with a wider contact margin (which lets the
-    # solver see an approaching body before it overlaps) this closes the gap
-    # without a big step-cost increase.
-    if _cfg is not None and getattr(_cfg, "num_substeps", 1) < 4:
-        _old_ss = _cfg.num_substeps
-        _cfg.num_substeps = 4
-        print(f"[bridge] newton num_substeps: {_old_ss} -> 4 "
-              f"(tunnelling threshold ~1.8 -> ~7.2 m/s)", flush=True)
-    if (_cfg is not None and hasattr(_cfg, "contact_margin")
-            and _cfg.contact_margin < 0.02):
-        _old_cm = _cfg.contact_margin
-        _cfg.contact_margin = 0.02
-        print(f"[bridge] newton contact_margin: {_old_cm} -> 0.02",
-              flush=True)
-
-
-if args.engine == "newton":
-    _raise_newton_contact_cap()
+    ns = acquire_stage()
+    if ns is None or not ns.initialized:
+        raise RuntimeError("Newton failed to initialize")
+    mjw = ns.solver.mjw_data
+    if mjw.naconmax < 32768 or ns.contacts.rigid_contact_max < mjw.naconmax:
+        raise RuntimeError(
+            f"Inconsistent live contact buffers: MJWarp={mjw.naconmax}, "
+            f"Newton={ns.contacts.rigid_contact_max}"
+        )
+    if mjw.njmax < 132272:
+        raise RuntimeError(f"Live constraint buffer remained too small: {mjw.njmax}")
+    print(f"[bridge] live Newton contacts={ns.contacts.rigid_contact_max}, "
+          f"MJWarp contacts={mjw.naconmax}, constraint rows={mjw.njmax}", flush=True)
 
 
 for _ in range(30):
@@ -329,21 +292,13 @@ BASE_Z = float(_robot_range.GetMin()[2]) * MPU  # meters
 print(f"[bridge] robot base plane at world z={BASE_Z:.3f} m; "
       f"authoring the tabletop there", flush=True)
 
-# GPU physics: device="cpu" (inherited from the gain-tuner precision
-# scripts) runs MuJoCo-Warp on the CPU and stutters badly with the full
-# booth scene while RTX renders on the GPU. But GPU PhysX (cuda:0) NaNs the
-# whole scene at boot on some builds/GPUs (Blackwell RTX PRO 6000 here:
-# arm + props explode to ~1e12 on the first tick). $CASCADE_PHYSICS_DEVICE
-# overrides; default cuda:0 with a cpu fallback if GPU pipelines are
-# unavailable.
+# Explicit CPU remains available for general compatibility profiles; the GPU
+# demo requires CUDA. Allocation/setup errors propagate without a CPU retry.
 _phys_dev = os.environ.get("CASCADE_PHYSICS_DEVICE", "cuda:0")
-try:
-    SimulationManager.setup_simulation(dt=args.dt, device=_phys_dev)
-except Exception:
-    SimulationManager.setup_simulation(dt=args.dt, device="cpu")
-    print("[bridge] WARNING: GPU physics unavailable, using CPU", flush=True)
-else:
-    print(f"[bridge] physics device: {_phys_dev}", flush=True)
+setup_physics(SimulationManager, dt=args.dt, device=_phys_dev,
+              require_cuda=os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1")
+print(f"[bridge] physics device: {_phys_dev}; CPU fallback disabled", flush=True)
+print(f"[bridge] physics timestep requested: {args.dt:.9f} s ({1.0 / args.dt:g} Hz)", flush=True)
 
 # ── lights ───────────────────────────────────────────────────────────────
 # Moderate intensities: overexposure washes saturated albedos to pastel,
@@ -449,22 +404,37 @@ def _cube(path, pos, size, color, dynamic, mass=0.05):
 _STATIC_PROPS: list[str] = []
 
 
-# Open-top bin centered on the demo DROP ZONE (grasp.drop_zone in
-# configs/demo.yaml): destination-less pick_and_place drops INTO it, and
-# "put it in the box" resolves it as a named destination. Walls only --
-# the table is the floor; static colliders so visitors can't topple it.
-_BIN = (0.18, -0.17)
-for _i, (_wpos, _wsize) in enumerate([
-    ((_BIN[0] + 0.07, _BIN[1], 0.03), (0.01, 0.15, 0.06)),
-    ((_BIN[0] - 0.07, _BIN[1], 0.03), (0.01, 0.15, 0.06)),
-    ((_BIN[0], _BIN[1] + 0.07, 0.03), (0.15, 0.01, 0.06)),
-    ((_BIN[0], _BIN[1] - 0.07, 0.03), (0.15, 0.01, 0.06)),
-]):
-    _cube(f"/World_Props/bin_wall{_i}", _wpos, _wsize, (0.72, 0.52, 0.22), dynamic=False)
+_SCENE_PROP_SPECS = []
+_SCENE_IDENTITY = {"scene_config": None, "scene_config_sha256": None}
+if args.scene_config:
+    # Pure USD scene authoring: completed before play, with unchanged helpers.
+    sys.path.insert(0, os.path.join(_REPO_ROOT, "demo"))
+    from isaac_scene import read_config, prepare_scene, configure_cubes, decorate_cube
+    import omni.timeline
 
-# Table top surface at z=0 (the real base sits on the table -> table_z=0
-# in configs/demo.yaml). Slab top edge exactly at z=0.
-_cube("/World_Props/table", (0.30, 0.0, -0.015), (0.9, 0.9, 0.03), (0.55, 0.45, 0.35), dynamic=False)
+    _scene_config = read_config(args.scene_config)
+    _SCENE_IDENTITY = _scene_config["_identity"]
+    _SCENE_PROP_SPECS = prepare_scene(
+        stage, _scene_config, cube=_cube, bind_pmat=_bind_pmat,
+        base_z=BASE_Z, is_playing=omni.timeline.get_timeline_interface().is_playing(),
+    )
+else:
+    # Open-top bin centered on the demo DROP ZONE (grasp.drop_zone in
+    # configs/demo.yaml): destination-less pick_and_place drops INTO it, and
+    # "put it in the box" resolves it as a named destination. Walls only --
+    # the table is the floor; static colliders so visitors can't topple it.
+    _BIN = (0.18, -0.17)
+    for _i, (_wpos, _wsize) in enumerate([
+        ((_BIN[0] + 0.07, _BIN[1], 0.03), (0.01, 0.15, 0.06)),
+        ((_BIN[0] - 0.07, _BIN[1], 0.03), (0.01, 0.15, 0.06)),
+        ((_BIN[0], _BIN[1] + 0.07, 0.03), (0.15, 0.01, 0.06)),
+        ((_BIN[0], _BIN[1] - 0.07, 0.03), (0.15, 0.01, 0.06)),
+    ]):
+        _cube(f"/World_Props/bin_wall{_i}", _wpos, _wsize, (0.72, 0.52, 0.22), dynamic=False)
+
+    # Table top surface at z=0 (the real base sits on the table -> table_z=0
+    # in configs/demo.yaml). Slab top edge exactly at z=0.
+    _cube("/World_Props/table", (0.30, 0.0, -0.015), (0.9, 0.9, 0.03), (0.55, 0.45, 0.35), dynamic=False)
 # Props sit in the arm's TOP-DOWN IK envelope (x~0.18) AND clear of the
 # robot base_link footprint (base spans y in [-0.10, 0.10]) -- a dynamic
 # prop born inside the base collider gets ejected on the first tick (the
@@ -481,8 +451,22 @@ PROPS = [
     ("pink_cube", (0.17, 0.15, 0.04), (0.95, 0.30, 0.70), 0.05, 0.08),
     ("green_cube", (0.30, 0.16, 0.04), (0.10, 0.75, 0.20), 0.05, 0.08),
 ]
+if args.scene_config:
+    # Scene-specific layout is authored before play and bound to the scene
+    # identity. Keep the general demo layout and all body/controller settings.
+    PROPS = configure_cubes(_scene_config, PROPS)
 for name, pos, rgb, width, height in PROPS:
-    _cube(f"/World_Props/{name}", pos, (width, width, height), rgb, dynamic=True)
+    _mesh = _cube(f"/World_Props/{name}", pos, (width, width, height), rgb, dynamic=True)
+    if args.scene_config:
+        decorate_cube(stage, _mesh, rgb,
+                      style=_scene_config.get("cube_surfaces", {}).get(name, "stone"))
+
+# Custom bodies already exist; register them without creating duplicate boxes.
+PROPS.extend(spec.bridge_tuple() for spec in _SCENE_PROP_SPECS)
+_PROP_DIMENSIONS = {name: (width, width, height) for name, _, _, width, height in PROPS}
+_PROP_DIMENSIONS.update({spec.name: spec.dimensions for spec in _SCENE_PROP_SPECS})
+_PROP_VISUAL_DIMENSIONS = dict(_PROP_DIMENSIONS)
+_PROP_VISUAL_DIMENSIONS.update({spec.name: spec.visual_dimensions for spec in _SCENE_PROP_SPECS})
 
 # YCB props from the Isaac asset library: textured REAL objects the
 # open-vocab detector actually recognizes (flat-shaded cubes register as
@@ -632,7 +616,9 @@ def _camera(path, eye, target, up, focal_mm=18.0, haperture_mm=20.955):
           flush=True)
     for row in rows:
         print(f"[bridge]     - {row}", flush=True)
-    return sensor, K
+    from isaac_camera_readback import CpuCameraReadback
+
+    return CpuCameraReadback(sensor), K
 
 
 # cam0 = the manipulation camera, mounted like the REAL rig's tripod: off to
@@ -773,10 +759,10 @@ def _frame_gui_viewport():
     except Exception as exc:
         print(f"[bridge] viewport framing failed: {exc}", flush=True)
 
-# Companion-pack python server: standard live-inspection endpoint (Johnny's
-# tooling), alongside the bridge's own exec op. Path is machine-specific;
-# skip cleanly when the extension folder is absent (set $CASCADE_COMPANION_EXTS
-# to enable on a machine that has it).
+# Companion-pack python server: standard live-inspection endpoint (the
+# project's tooling), alongside the bridge's own exec op. Path is
+# machine-specific; skip cleanly when the extension folder is absent (set
+# $CASCADE_COMPANION_EXTS to enable on a machine that has it).
 try:
     import omni.kit.app as _kit_app
 
@@ -805,16 +791,12 @@ _gmat_api.CreateStaticFrictionAttr(1.5)
 _gmat_api.CreateDynamicFrictionAttr(1.3)
 _gmat_api.CreateRestitutionAttr(0.0)
 PhysxSchema.PhysxMaterialAPI.Apply(_gmat.GetPrim()).CreateFrictionCombineModeAttr("max")
-for _prim in stage.Traverse():
-    _p = str(_prim.GetPath())
-    if _prim.HasAPI(UsdPhysics.CollisionAPI) and (
-        "gripper_left" in _p or "gripper_right" in _p
-    ):
-        UsdShade.MaterialBindingAPI.Apply(_prim)
-        UsdShade.MaterialBindingAPI(_prim).Bind(
-            _gmat, UsdShade.Tokens.strongerThanDescendants, "physics"
-        )
-        print(f"[bridge] gripper pad material -> {_p}", flush=True)
+from isaac_materials import bind_gripper_physics_material  # noqa: E402
+
+for _binding in bind_gripper_physics_material(stage, args.prim, _gmat):
+    print(f"[bridge] gripper pad material -> {_binding['body']} "
+          f"({len(_binding['colliders'])} directly bound colliders; "
+          f"{len(_binding['deinstanced_collision_branches'])} collision branches made editable)", flush=True)
 
 # ── arm visual materials ─────────────────────────────────────────────────
 # The reBot palette now lives in the asset itself (payloads/materials.usda +
@@ -868,6 +850,14 @@ _fix_gravity()
 from isaacsim.core.experimental.prims import Articulation  # noqa: E402
 
 print(f"[bridge] stage playback range: {ensure_time_code_range(stage)}", flush=True)
+if _REQUIRE_CUDA and args.engine == "physx":
+    # Contact-force instrumentation only; no geometry, material or forces change.
+    for _contact_name, *_ in PROPS:
+        _contact_prim = stage.GetPrimAtPath(f"/World_Props/{_contact_name}")
+        if _contact_prim and _contact_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            PhysxSchema.PhysxContactReportAPI.Apply(_contact_prim).CreateThresholdAttr(0.0)
+if args.engine == "newton":
+    _configure_newton_before_play()
 app_utils.play(commit=True)
 for _ in range(10):
     app.update()
@@ -875,6 +865,8 @@ for _ in range(10):
 _fix_gravity()
 engine = str(SimulationManager.get_active_physics_engine()).lower()
 print(f"[bridge] physics engine: {engine}", flush=True)
+if args.engine == "newton":
+    _verify_newton_contact_buffers()
 
 art = Articulation(args.prim)
 assert art.num_dofs > 0, "0 DOFs: articulation created before play?"
@@ -892,9 +884,7 @@ print(f"[bridge] arm idx {ARM_IDX} grip idx {GRIP_IDX} "
 
 # World-spawn poses for every dynamic prop: re-applied when the user
 # presses Stop/Play in the editor (physics re-parse scatters them).
-_PROP_SPAWNS = {
-    "pink_cube": (0.17, 0.15, 0.04), "green_cube": (0.30, 0.16, 0.04),
-}
+_PROP_SPAWNS = {name: tuple(pos) for name, pos, *_ in PROPS}
 
 _state_lock = threading.Lock()
 # Spawn STRAIGHT UP (presentation pose): q=0 lies flat OVER the table and
@@ -915,12 +905,81 @@ _targets: dict = {
 _frames: dict[str, dict] = {}  # camera cache refreshed by the main loop
 _exec_lock = threading.Lock()
 _exec_jobs: list = []  # (code, result_holder, done_event) -> main loop
+_gpu_contact_views = {}
+_camera_video = None
+_camera_video_startup_error = None
+_shutdown_requested = False
+
+
+def _request_shutdown(_signum, _frame) -> None:
+    # Signal callbacks must not call USD, writers or physics APIs.
+    global _shutdown_requested
+    _shutdown_requested = True
+
+
+def _bridge_should_stop() -> bool:
+    global _shutdown_requested
+    if os.path.lexists("/data/acceptance/STOP"):
+        _shutdown_requested = True
+    return _shutdown_requested
+
+
+def _camera_video_status() -> dict:
+    if _camera_video is not None:
+        return _camera_video.status()
+    if _camera_video_startup_error is not None:
+        return {"enabled": True, "state": "failed", "live_verified": False,
+                "error": _camera_video_startup_error}
+    return {"enabled": False, "state": "disabled", "live_verified": False}
+
+
+def _gpu_contact_snapshot(name="pink_cube") -> dict:
+    """Read GPU force tensors for an existing prop against both actual jaws.
+
+    Contact tracking was enabled before play. Creating/readback of this sensor
+    view changes no body transform, contact material, drive or force.
+    """
+    if name not in _PROP_SPAWNS or engine != "physx":
+        raise RuntimeError("GPU contact snapshot requires a named PhysX demo prop")
+    view = _gpu_contact_views.get(name)
+    if view is None:
+        jaw_root = args.prim + "/link1/link2/link3/link4/link5/link6/gripper_end"
+        jaws = [jaw_root + "/gripper_left", jaw_root + "/gripper_right"]
+        if any(not stage.GetPrimAtPath(path).HasAPI(UsdPhysics.RigidBodyAPI) for path in jaws):
+            raise RuntimeError("GPU contact sensor could not bind the two actual rigid jaws")
+        view = SimulationManager.get_physics_simulation_view().create_rigid_contact_view(
+            ["/World_Props/" + name], [jaws], max_contact_data_count=256)
+        if view.sensor_count != 1 or view.filter_count != 2:
+            raise RuntimeError("GPU contact sensor did not bind one prop and both jaws")
+        _gpu_contact_views[name] = view
+    net = view.get_net_contact_forces(args.dt)
+    pair = view.get_contact_force_matrix(args.dt)
+    forces, points, normals, separations, counts, starts = view.get_contact_data(args.dt)
+    arrays = (net, pair, forces, points, normals, separations, counts, starts)
+    if any(str(array.device) != _phys_dev or not str(array.device).startswith("cuda:") for array in arrays):
+        raise RuntimeError("GPU contact tensors fell back to CPU or a different device")
+    pair_np = pair.numpy().reshape(1, 2, 3)
+    net_np = net.numpy().reshape(1, 3)
+    counts_np = counts.numpy().reshape(1, 2)
+    if not (np.isfinite(pair_np).all() and np.isfinite(net_np).all()):
+        raise RuntimeError("Non-finite GPU contact force")
+    if counts_np.sum() >= view.max_contact_data_count:
+        raise RuntimeError("GPU contact observation buffer may be truncated")
+    return {"channel": "physx_gpu_contact_tensor", "device": str(pair.device),
+            "sensor_paths": list(view.sensor_paths), "filter_paths": list(view.filter_paths),
+            "net_force_n": net_np[0].tolist(), "jaw_forces_n": pair_np[0].tolist(),
+            "jaw_contact_counts": counts_np[0].tolist(),
+            "physics_dt_s": args.dt, "physics_step": SimulationManager.get_num_physics_steps()}
 
 
 def _run_exec_jobs() -> None:
     with _exec_lock:
         jobs, _exec_jobs[:] = list(_exec_jobs), []
     for code, holder, done in jobs:
+        if _bridge_should_stop():
+            holder["resp"] = {"ok": False, "error": "bridge shutdown requested"}
+            done.set()
+            continue
         import contextlib
         import io
         import traceback
@@ -950,6 +1009,23 @@ def _grip_frac_now(q_full: np.ndarray) -> float:
 
 
 class Handler(socketserver.StreamRequestHandler):
+    # Optional startup metadata is attached before serving. Keep protocol
+    # handlers usable independently of the Kit scene-authoring lifecycle.
+    scene_identity = {}
+    def _on_main(self, fn, timeout=5.0):
+        """Physics tensor APIs may only run between updates on Kit's thread."""
+        if _bridge_should_stop():
+            return {"ok": False, "error": "bridge shutdown requested"}
+        holder = {}
+        done = threading.Event()
+        with _exec_lock:
+            if _shutdown_requested:
+                return {"ok": False, "error": "bridge shutdown requested"}
+            _exec_jobs.append((fn, holder, done))
+        if not done.wait(timeout=timeout):
+            return {"ok": False, "error": "physics read timed out waiting for the main loop"}
+        return holder["resp"]
+
     def handle(self):
         for raw in self.rfile:
             try:
@@ -962,22 +1038,40 @@ class Handler(socketserver.StreamRequestHandler):
     def _dispatch(self, req: dict) -> dict:
         op = req.get("op")
         if op == "ping":
-            return {"ok": True, "engine": engine, "dofs": names}
+            return {"ok": True, "engine": engine, "dofs": names, **self.scene_identity}
         if op == "frame":
             cached = _frames.get(req.get("camera", "cam0"))
             if cached is None:
                 return {"ok": False,
                         "error": f"unknown/not-ready camera; have {list(_frames)}"}
             return cached
+        if op == "camera_video":
+            action = req.get("action", "status")
+            if action not in {"status", "restart"}:
+                return {"ok": False, "error": "unknown camera video action"}
+
+            def camera_video_action():
+                if action == "restart":
+                    if _camera_video is None:
+                        return {"ok": False, "error": "camera video is not active",
+                                "camera_video": _camera_video_status()}
+                    _camera_video.restart_camera(req.get("camera"))
+                status = _camera_video_status()
+                return {"ok": action == "status" or status["state"] == "attached",
+                        "camera_video": status}
+
+            return self._on_main(camera_video_action)
         if op == "state":
-            q = art.get_dof_positions().numpy()[0].astype(float)
-            dq = art.get_dof_velocities().numpy()[0].astype(float)
-            return {
-                "ok": True,
-                "q": [float(q[i]) for i in ARM_IDX],
-                "dq": [float(dq[i]) for i in ARM_IDX],
-                "gripper_pos": _grip_frac_now(q),
-            }
+            def read_state():
+                q = art.get_dof_positions().numpy()[0].astype(float)
+                dq = art.get_dof_velocities().numpy()[0].astype(float)
+                return {
+                    "ok": True,
+                    "q": [float(q[i]) for i in ARM_IDX],
+                    "dq": [float(dq[i]) for i in ARM_IDX],
+                    "gripper_pos": _grip_frac_now(q),
+                }
+            return self._on_main(read_state)
         if op == "set_joints":
             with _state_lock:
                 _targets["q"] = [float(x) for x in req["q"]][:6]
@@ -1050,6 +1144,17 @@ class Handler(socketserver.StreamRequestHandler):
 
 
 socketserver.ThreadingTCPServer.allow_reuse_address = True  # survive TIME_WAIT
+# Read timing after physics initialization, on Kit's main thread. Ping serves
+# this startup identity without making SDK calls from its socket thread.
+Handler.scene_identity = {**_SCENE_IDENTITY, **physics_timestep_identity(SimulationManager)}
+Handler.scene_identity.update(physics_device_identity(SimulationManager, require_cuda=_REQUIRE_CUDA))
+_gpu_log_guard.check() if _REQUIRE_CUDA else None
+Handler.scene_identity["gpu_attestation"]["fallback_log_count"] = len(_gpu_log_guard.failures)
+if _REQUIRE_CUDA and not (np.isfinite(art.get_dof_positions().numpy()).all()
+                          and np.isfinite(art.get_dof_velocities().numpy()).all()):
+    raise RuntimeError("GPU physics produced non-finite articulation state before readiness")
+print(f"[bridge] GPU attestation: {json.dumps(Handler.scene_identity['gpu_attestation'])}", flush=True)
+print(f"[bridge] physics timestep actual: {Handler.scene_identity['physics_dt_s']:.9f} s", flush=True)
 server = socketserver.ThreadingTCPServer((os.environ.get("CASCADE_BRIDGE_BIND", "127.0.0.1"), args.port), Handler)
 server.daemon_threads = True
 threading.Thread(target=server.serve_forever, daemon=True, name="bridge-tcp").start()
@@ -1238,6 +1343,30 @@ def _settle_props() -> None:
     """
     from isaacsim.core.experimental.prims import RigidPrim  # noqa: E402
 
+    last_capture = time.monotonic()
+    camera_warning = False
+
+    def _step():
+        nonlocal last_capture, camera_warning
+        # Reset runs inside a main-thread job. Its nested Kit updates must
+        # publish cameras too; otherwise viewers lose every view while the
+        # props settle. Keep the same physics steps and cap encoding at 2 Hz.
+        capture_due = time.monotonic() - last_capture >= .5
+        if capture_due:
+            _update_wrist_cam()
+        app.update()
+        if capture_due:
+            try:
+                _refresh_frames()
+            except Exception as exc:
+                # Camera loss must not interrupt a physical reset halfway.
+                # reset_scene still requires a fresh observation afterward.
+                if not camera_warning:
+                    print(f"[bridge] reset camera refresh failed: {exc}", flush=True)
+                    camera_warning = True
+            finally:
+                last_capture = time.monotonic()
+
     def _zero_vel(_rp) -> bool:
         return _zero_prop_velocity(_rp)
 
@@ -1286,12 +1415,12 @@ def _settle_props() -> None:
         for _n in names:
             _place(_n, _PROP_SPAWNS[_n], 0.03)
         for _ in range(120):
-            app.update()
+            _step()
         # re-zero velocity mid-settle to kill any contact runaway early
         for _n in names:
             _zero_vel(RigidPrim(f"/World_Props/{_n}"))
         for _ in range(60):
-            app.update()
+            _step()
         stragglers = [n for n in names
                       if _escaped(RigidPrim(f"/World_Props/{n}"), _PROP_SPAWNS[n])]
         if not stragglers:
@@ -1307,7 +1436,7 @@ def _settle_props() -> None:
             _place(_n, _PROP_SPAWNS[_n], 0.0)
             print(f"[bridge] settle: {_n} hard-clamped onto table", flush=True)
     for _ in range(30):
-        app.update()
+        _step()
 
 
 def _reset_props_verified() -> dict:
@@ -1356,13 +1485,6 @@ def _reset_props_verified() -> dict:
         result["error"] = "reset verification failed: " + "; ".join(errors)
     return result
 
-
-# The MJWarp solver only exists once physics has been created and stepped, so
-# the early call above is a no-op on most boots. Raise the cap again here,
-# before the props are settled -- settling is the first thing that depends on
-# contacts actually being resolved rather than discarded.
-if args.engine == "newton":
-    _raise_newton_contact_cap()
 
 _settle_props()
 print("[bridge] props settled onto the table", flush=True)
@@ -1453,8 +1575,24 @@ def _resume_scene():
 
 
 step = 0
+_previous_sigterm = signal.signal(signal.SIGTERM, _request_shutdown)
 try:
-    while app.is_running():
+    if os.environ.get("PAAI_CAMERA_VIDEO_CONFIG") and not _bridge_should_stop():
+        try:
+            sys.path.insert(0, os.path.join(_REPO_ROOT, "deploy", "brev", "streaming"))
+            from camera_stream_lifecycle import camera_video_from_environment
+
+            _camera_video = camera_video_from_environment()
+            if _camera_video is not None:
+                _camera_video.start({name: sensor for name, (sensor, _) in CAM_DEFS.items()})
+        except Exception as _e:
+            _camera_video_startup_error = f"{type(_e).__name__}: {_e}"[:500]
+        print(f"[bridge] camera video: {json.dumps(_camera_video_status())}", flush=True)
+    while app.is_running() and not _bridge_should_stop():
+        if _camera_video is not None and _camera_video.poll():
+            print(f"[bridge] camera video: {json.dumps(_camera_video_status())}", flush=True)
+        if _REQUIRE_CUDA:
+            _gpu_log_guard.check()
         playing = _tl.is_playing()
         if not playing:
             _was_playing = False
@@ -1465,6 +1603,10 @@ try:
             _was_playing = True
             for _ in range(5):
                 app.update()  # let physics finish re-attaching
+                if _bridge_should_stop():
+                    break
+            if _bridge_should_stop():
+                break
             try:
                 _resume_scene()
             except Exception as _e:
@@ -1491,11 +1633,29 @@ try:
             # label the old image with NEXT frame's wrist extrinsics.
             _update_wrist_cam()
         app.update()
+        if _bridge_should_stop():
+            break
+        if _REQUIRE_CUDA and step % 120 == 0:
+            identity = physics_device_identity(SimulationManager, require_cuda=True)
+            if not (np.isfinite(art.get_dof_positions().numpy()).all()
+                    and np.isfinite(art.get_dof_velocities().numpy()).all()):
+                raise RuntimeError("GPU physics produced non-finite articulation state")
+            identity["gpu_attestation"]["fallback_log_count"] = len(_gpu_log_guard.failures)
+            Handler.scene_identity.update(identity)
         if step % args.cam_every == 0:
             _refresh_frames()  # read q + RGB-D before any exec job can step
         _run_exec_jobs()
 finally:
-    server.shutdown()
-    app_utils.stop()
-    app.close()
-    sys.exit(0)
+    _shutdown_requested = True
+    # ExitStack runs every cleanup even if a writer or another callback fails.
+    with ExitStack() as cleanup:
+        cleanup.callback(signal.signal, signal.SIGTERM, _previous_sigterm)
+        cleanup.callback(app.close)
+        cleanup.callback(app_utils.stop)
+        if _gpu_log_consumer is not None:
+            cleanup.callback(lambda: omni.log.get_log().remove_message_consumer(_gpu_log_consumer))
+        cleanup.callback(server.server_close)
+        cleanup.callback(server.shutdown)
+        if _camera_video is not None:
+            cleanup.callback(_camera_video.stop)
+        cleanup.callback(_run_exec_jobs)

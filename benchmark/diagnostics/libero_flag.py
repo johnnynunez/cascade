@@ -13,12 +13,13 @@ settle, then read the env's success predicate BEFORE running any skill.
 """
 import os
 import sys
+from pathlib import Path
 
-REPO = "/home/johnny/Projects/demo/cascade"
+REPO = str(Path(__file__).resolve().parents[2])
 sys.path.insert(0, REPO + "/src")
 # LIBERO lives as a source checkout, not an installed package. Point at it
 # directly. Do NOT add REPO/benchmark: it has a `libero/` dir that shadows it.
-sys.path.insert(0, os.path.expanduser("~/bench/LIBERO"))
+sys.path.insert(0, os.path.expanduser(os.environ.get("CASCADE_BENCH_LIBERO", "~/bench/LIBERO")))
 os.environ.setdefault("MUJOCO_GL", "egl")
 os.environ.setdefault("MUJOCO_EGL_DEVICE_ID", "0")
 

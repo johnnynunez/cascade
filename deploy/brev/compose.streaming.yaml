@@ -1,0 +1,49 @@
+services:
+  demo:
+    environment:
+      PAAI_CAMERA_VIDEO_CONFIG: /data/camera-video.json
+    volumes:
+      - type: bind
+        source: ${PAAI_ROOT}/deployment/camera-video.json
+        target: /data/camera-video.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /run/paai-camera-network
+        target: /run/paai-camera-network
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      camera-relay:
+        condition: service_started
+  camera-relay:
+    image: bluenviron/mediamtx@sha256:095da39dd94defa496d592e8b7a968bfd171491ea325d5176c6d32929ba4f1f9
+    platform: linux/amd64
+    command: [/mediamtx.yml]
+    network_mode: host
+    user: "${PAAI_UID:-1000}:${PAAI_GID:-1000}"
+    init: true
+    restart: always
+    stop_grace_period: 15s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    volumes:
+      - type: bind
+        source: ${PAAI_ROOT}/deployment/mediamtx.yml
+        target: /mediamtx.yml
+        read_only: true
+        bind:
+          create_host_path: false
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"

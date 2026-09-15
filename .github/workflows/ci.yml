@@ -39,6 +39,20 @@ jobs:
       - run: uv sync --extra dev --extra kinematics --extra arm-feetech --extra sim --extra sim-warp --extra grasping
       - run: uv run pytest tests/ -q
 
+  booth-ui:
+    name: booth pages and camera extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: check camera controls and page behavior
+        run: >-
+          node --test extensions/chrome/tests/*.test.mjs
+          deploy/runtime/tests/*.cjs deploy/runtime/tests/*.mjs
+          deploy/brev/tests/*.cjs deploy/brev/tests/*.mjs
+
   # Guards the offline story: a run needs base deps + kinematics and NOTHING
   # else -- no torch, no ultralytics, no simulator, no serial port, no
   # accelerator. If one of those imports creeps into a default code path, every

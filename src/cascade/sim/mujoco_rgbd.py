@@ -1,35 +1,9 @@
-"""Offscreen RGB-D from an MJCF, with an exact extrinsic -- for verifying
-perception against physics ground truth on any machine.
+"""Render RGB-D from a declared MJCF camera for independent perception checks.
 
-WHY THIS EXISTS. `grounding._recentre_by_size` (the fix for the 1.6-1.9 cm
-grasp-target bias) was designed and measured entirely on the ISAAC rig: every
-script under benchmark/diagnostics/ that produced those numbers hardcodes a
-/home/johnny path and a bridge on :8611. A correction derived from ONE
-simulator, verified by that same simulator, is exactly the kind of claim this
-repo's "engine agreement is the gold metric" rule exists to distrust. This
-module makes the same measurement available in MuJoCo, on a laptop, with
-`data.xpos` of the prop body as an independent ground-truth channel.
-
-TWO TRAPS, both hit and measured while building this -- do not "simplify" them
-back:
-
-1. **Use a camera DECLARED in the MJCF, never a reconstructed free camera.**
-   Posing an `MjvCamera` by deriving azimuth/elevation/lookat from a transform
-   silently renders depth relative to the LOOKAT PLANE rather than the eye. The
-   tell was `reported + true_range = 1.9533` for every range: depth DECREASING
-   as the object moved away. A declared `<camera>` gives MuJoCo the exact pose,
-   and `data.cam_xpos`/`cam_xmat` then report it back so the extrinsic used for
-   backprojection is the renderer's own, not a reconstruction of it.
-
-2. **MuJoCo's camera frame is not OpenCV's.** `cam_xmat` columns are
-   (right, up, backward) -- the camera looks down its **-z** with +y up, while
-   `mask_to_points_cam` backprojects with +x right, +y DOWN, +z forward. The
-   conversion is a 180 deg rotation about x (flip y and z). Skipping it puts
-   every point behind the camera, which reads as a calibration error.
-
-On macOS the renderer warns `ARB_clip_control unavailable ... depth accuracy
-will be limited`; measured against geometry the residual is ~1e-3 m, well under
-the centimetre-scale effects this bench is built to resolve.
+A declared camera preserves eye-relative depth; a reconstructed free camera
+can instead measure from its look-at plane. Convert MuJoCo's right/up/backward
+camera axes to OpenCV's right/down/forward convention before backprojection.
+The macOS renderer's measured depth noise floor is approximately one millimeter.
 """
 
 from __future__ import annotations

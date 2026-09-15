@@ -1,7 +1,7 @@
 {
   "suite": "libero_spatial",
   "policy": "openvla",
-  "policy_desc": "OpenVLA (/home/johnny/models/openvla-7b-libero-spatial, center_crop=0.9)",
+  "policy_desc": "OpenVLA (${CASCADE_BENCH_MODELS}/openvla-7b-libero-spatial, center_crop=0.9)",
   "episodes_per_task": 5,
   "resolution": 256,
   "max_steps": 220,

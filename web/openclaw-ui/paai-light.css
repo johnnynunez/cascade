@@ -1,0 +1,117 @@
+/* Native OpenClaw light palette, tuned to the tutorial's paper and lime. */
+:root[data-paai-light] {
+  color-scheme: light !important;
+  background: #f7f6f2 !important;
+  color: #242722 !important;
+  --bg: #f7f6f2 !important;
+  --bg-accent: #efeee7 !important;
+  --bg-elevated: #fdfcf8 !important;
+  --bg-hover: #e8e8df !important;
+  --bg-muted: #efeee7 !important;
+  --bg-content: #f7f6f2 !important;
+  --card: #fdfcf8 !important;
+  --card-foreground: #242722 !important;
+  --card-highlight: #64754a08 !important;
+  --popover: #fdfcf8 !important;
+  --popover-foreground: #242722 !important;
+  --panel: #f7f6f2 !important;
+  --panel-strong: #efeee7 !important;
+  --panel-hover: #e8e8df !important;
+  --chrome: #f7f6f2f5 !important;
+  --chrome-strong: #f7f6f2fa !important;
+  --text: #48503f !important;
+  --text-strong: #242722 !important;
+  --chat-text: #242722 !important;
+  --muted: #65695e !important;
+  --muted-strong: #535a4c !important;
+  --muted-foreground: #65695e !important;
+  --border: #d4d8c9 !important;
+  --border-strong: #b3b9a8 !important;
+  --border-hover: #aab39c !important;
+  --input: #d4d8c9 !important;
+  --accent: #b4e35a !important;
+  --accent-hover: #a7d44f !important;
+  --accent-foreground: #242722 !important;
+  --accent-subtle: #b4e35a26 !important;
+  --accent-muted: #b4e35a4d !important;
+  --accent-2: #436123 !important;
+  --ring: #648e22 !important;
+  --focus: #648e22 !important;
+  --focus-ring: #648e22 !important;
+  --primary: #b4e35a !important;
+  --primary-foreground: #242722 !important;
+  --secondary: #efeee7 !important;
+  --secondary-foreground: #242722 !important;
+  --code-bg: #efeee7 !important;
+  --control-ui-system-chrome-background: #f7f6f2 !important;
+  --lightningcss-light: initial !important;
+  --lightningcss-dark: !important;
+}
+html[data-paai-light] body,
+html[data-paai-light] body.openclaw-mount-fallback-active {
+  color-scheme: light !important;
+  background: #f7f6f2 !important;
+  color: #242722 !important;
+}
+html[data-paai-light] a:not(.btn):not([role="button"]) { color: #436123 !important; }
+html[data-paai-light] .mount-fallback__panel {
+  background: #efeee7 !important;
+  border-color: #d4d8c9 !important;
+  box-shadow: 0 16px 60px #24272214 !important;
+}
+html[data-paai-light] .mount-fallback__eyebrow,
+html[data-paai-light] .mount-fallback__panel p,
+html[data-paai-light] .mount-fallback__panel ul { color: #65695e !important; }
+html[data-paai-light] .mount-fallback__panel a { color: #436123 !important; }
+html[data-paai-light] .mount-fallback__button--primary {
+  background: #b4e35a !important;
+  color: #242722 !important;
+  border-color: #a0c850 !important;
+}
+
+/* Lime is an action surface; text controls need a darker green on paper. */
+html[data-paai-light] .chat-controls__permission-trigger--default {
+  color: #48652c !important;
+}
+html[data-paai-light] textarea::placeholder {
+  color: #69715f !important;
+  opacity: 1;
+}
+html[data-paai-light] .new-session-page__start-submit:not(:disabled):not([aria-disabled="true"]) {
+  background: #b4e35a !important;
+  color: #242722 !important;
+}
+html[data-paai-light] .sidebar-brand__new-thread:hover,
+html[data-paai-light] .sidebar-new-session:hover {
+  background: #e8f2d9 !important;
+  color: #3c5b22 !important;
+}
+
+/* Keep scene recovery visible above the conversation and away from cameras. */
+.paai-reset {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid #d4d8c9;
+  color: #535a4c;
+  font: 13px/1.4 system-ui, sans-serif;
+}
+.paai-reset__button {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 6px 16px;
+  border: 1px solid #a0c850;
+  border-radius: 8px;
+  background: #b4e35a;
+  color: #242722;
+  font: 600 13px/1.4 system-ui, sans-serif;
+  cursor: pointer;
+}
+.paai-reset__button:hover:enabled { background: #a7d44f; }
+.paai-reset__button:disabled { opacity: .55; cursor: default; }
+.paai-reset__button:focus-visible { outline: 3px solid #648e22; outline-offset: 3px; }
+@media (max-width: 650px) {
+  .paai-reset { padding: 8px 12px; gap: 8px; font-size: 12px; }
+}

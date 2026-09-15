@@ -1,0 +1,16 @@
+/STATE.json
+/READY.json
+/SUPERVISOR_STATE.txt
+/.operation.lock
+/access/
+/screenshots/
+/proof/
+/logs/
+/research/
+/publication/
+/supervisor-logs/
+/container/openclaw.tar.zst
+/container/clip-source.tar.gz
+__pycache__/
+*.pyc
+.pytest_cache/

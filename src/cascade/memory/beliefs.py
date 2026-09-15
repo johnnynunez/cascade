@@ -102,11 +102,15 @@ class BeliefStore:
         now = time.monotonic() if t is None else t
         position = np.asarray(position, dtype=float).reshape(3)
         if points is not None:
-            pts = np.asarray(points, dtype=np.float32).reshape(-1, 3)
-            if pts.shape[0] > 384:
-                idx = np.random.default_rng(0).choice(pts.shape[0], 384, replace=False)
-                pts = pts[idx]
-            points = pts.copy()
+            if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+                from ..perception.cuda_math import remember_cloud
+                points = remember_cloud(points)
+            else:
+                pts = np.asarray(points, dtype=np.float32).reshape(-1, 3)
+                if pts.shape[0] > 384:
+                    idx = np.random.default_rng(0).choice(pts.shape[0], 384, replace=False)
+                    pts = pts[idx]
+                points = pts.copy()
         with self._lock:
             best, best_d = None, None
             for b in self._beliefs:
@@ -325,7 +329,7 @@ class BeliefStore:
                     # every episode.
                     "points": (
                         None if b.points is None
-                        else [[float(v) for v in p] for p in b.points[::4]]
+                        else b.points[::4].tolist()
                     ),
                     "aliases": sorted(b.aliases),
                     "observations": int(b.observations),

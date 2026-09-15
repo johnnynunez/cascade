@@ -151,24 +151,38 @@ def test_probe_on_empty_table_reports_no_object_but_offers_the_nearest():
 # ── reachability: the "orientation" signal the ablation says models need ──
 
 
-def test_probe_flags_a_point_outside_the_topdown_ik_band():
-    """x=0.28 is reachable in the AABB but hopeless for a top-down grasp."""
-    rt = _runtime()
-    out = PointProbe(rt).probe(W / 2, H / 2)  # lands at x=0.0... use a belief
+def test_probe_does_not_infer_ik_failure_from_a_configured_x_band():
+    """The narrow historical display band rejected proven kitchen grasp poses."""
     rt2 = _runtime(beliefs=[_belief("cube", [0.28, 0.0, 0.10])])
     probe = PointProbe(rt2)
     out = probe.probe(*probe.locate_pixel("cube")["pixel"])
     assert out["reachable"]["in_workspace"] is True
-    assert out["reachable"]["in_topdown_ik_band"] is False
-    assert "IK band" in out["reachable"]["note"]
+    assert out["reachable"]["ik_checked"] is False
+    assert out["reachable"]["grasp_checked"] is False
+    assert "in_topdown_ik_band" not in out["reachable"]
+    assert "push" not in out["reachable"]["note"]
 
 
-def test_probe_confirms_a_point_inside_the_ik_band():
+def test_probe_does_not_infer_ik_success_from_a_configured_x_band():
     rt = _runtime(beliefs=[_belief("cube", [0.17, 0.0, 0.10])])
     probe = PointProbe(rt)
     out = probe.probe(*probe.locate_pixel("cube")["pixel"])
-    assert out["reachable"]["in_topdown_ik_band"] is True
-    assert "note" not in out["reachable"]
+    assert out["reachable"]["in_workspace"] is True
+    assert out["reachable"]["ik_checked"] is False
+    assert "does not establish reachability" in out["reachable"]["note"]
+
+
+def test_probe_without_a_configured_band_never_invents_one():
+    rt = _runtime(beliefs=[_belief("green cube", [0.24, 0.0, 0.10])])
+    rt.cfg.grasp._data.clear()
+    probe = PointProbe(rt)
+
+    out = probe.probe(*probe.locate_pixel("green cube")["pixel"])
+
+    assert out["reachable"]["in_workspace"] is True
+    assert out["reachable"]["workspace_source"] == "configuration"
+    assert out["reachable"]["ik_checked"] is False
+    assert "topdown_ik_band_x" not in out["reachable"]
 
 
 def test_probe_flags_a_point_outside_the_workspace():

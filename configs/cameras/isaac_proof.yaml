@@ -1,0 +1,13 @@
+# Audience camera declared by CASCADE_PROOF_CAMERA=1 on the Isaac bridge.
+# Viewing only: calibrated manipulation continues through the primary camera.
+extends: isaac
+sim_camera: proof
+name: kitchen
+fuse_beliefs: false
+extrinsics:
+  mode: eye_to_hand
+  T:
+    - [0.779509, 0.241376, -0.578017, 1.10]
+    - [0.626391, -0.300379, 0.719310, -1.10]
+    - [0.0, -0.922773, -0.385344, 0.90]
+    - [0.0, 0.0, 0.0, 1.0]

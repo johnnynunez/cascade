@@ -24,7 +24,10 @@ re-authored meshes.
 Test it head to head in plain MuJoCo (fast, deterministic, no Isaac):
 command a series of openings on the stock model and on a copy with the pair
 excluded, and compare achieved joint positions against the commanded targets.
+
+Set REBOT_MJCF_ROOT to the reBot-Isaacsim mjcf/rebot_devarm directory.
 """
+import os
 import sys
 from pathlib import Path
 
@@ -36,7 +39,13 @@ except ImportError:
     print("mujoco not available in this interpreter")
     sys.exit(1)
 
-SRC = Path("/home/johnny/Projects/demo/reBot-Isaacsim/mjcf/rebot_devarm/rebot_devarm.xml")
+REBOT_ROOT = Path(os.environ.get(
+    "REBOT_MJCF_ROOT",
+    Path(__file__).resolve().parents[3] / "reBot-Isaacsim/mjcf/rebot_devarm",
+)).expanduser()
+SRC = REBOT_ROOT / "rebot_devarm.xml"
+if not SRC.is_file():
+    raise SystemExit("Set REBOT_MJCF_ROOT to the directory containing rebot_devarm.xml.")
 xml = SRC.read_text()
 
 # build the variant with the finger pair excluded

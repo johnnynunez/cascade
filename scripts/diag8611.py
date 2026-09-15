@@ -1,7 +1,7 @@
 """Clean grasp diagnosis for the ORIGINAL cascade scene (port 8611)."""
 import sys
 from pathlib import Path
-sys.path.insert(0, "/home/johnny/Projects/demo/cascade/src")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from cascade.config import load_demo_config
 from cascade.apps.demo import build_runtime
 from cascade.sim.bridge_client import BridgeClient

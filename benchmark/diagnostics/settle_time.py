@@ -20,8 +20,9 @@ settle time, out to 30 s. If it decays, it was never a constraint at all.
 """
 import sys
 import time
+from pathlib import Path
 
-sys.path.insert(0, "/home/johnny/Projects/demo/cascade/src")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from cascade.sim.bridge_client import BridgeClient
 

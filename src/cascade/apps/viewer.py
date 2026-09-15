@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
             dets = []
             if detect_on and detector is not None:
                 try:
-                    dets = detector.detect(frame)
+                    dets = detector.detect(frame, classes=classes)
                 except Exception as e:
                     detect_on = False
                     print(f"[cascade-view] detection disabled: {e}", file=sys.stderr)

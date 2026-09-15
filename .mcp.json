@@ -2,13 +2,13 @@
   "mcpServers": {
     "cascade": {
       "type": "stdio",
-      "command": "/home/johnny/Projects/demo/.demo/bin/python",
+      "command": "python3",
       "args": [
         "-m",
         "cascade.apps.mcp_server"
       ],
       "env": {
-        "PYTHONPATH": "/home/johnny/Projects/demo/cascade/src",
+        "PYTHONPATH": "src",
         "CASCADE_CAMERAS": "isaac,isaac_side",
         "CASCADE_ARM": "isaac",
         "CASCADE_DETECT_CLASSES": "banana,soup can,cracker box,cube,bottle,box",

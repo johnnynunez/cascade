@@ -1,5 +1,12 @@
 # Booth runbook — hands-on expo session
 
+This runbook covers the physical tabletop rig. For **PAAI, Physical Agentic
+AI** at Build a Claw on Brev, use the [staff guide](BOOTH_GUIDE.md) and
+[Brev deployment guide](BREV.md). That demo uses a simulated arm, prepared
+objects and OpenClaw on the booth computer; its public visitor page shows
+cameras only. The physical staging, throw and hardware-stop procedures below
+do not describe the Brev kitchen.
+
 A hands-on booth session for this rig, designed around hard constraints:
 
 - **15 minutes end-to-end per group** of 3–5 attendees + 1 staff host,

@@ -1,9 +1,9 @@
 """Localization bias in MuJoCo, measured against physics ground truth.
 
 `grounding._recentre_by_size` corrects a 1.6-1.9 cm bias in the grasp target.
-It was designed and measured entirely on the ISAAC rig -- every script that
-produced those numbers hardcodes a /home/johnny path and a bridge on :8611 --
-so this re-measures it on a second engine, on a laptop, against `data.xpos`.
+It was initially designed and measured on the ISAAC rig through the bridge
+on :8611. This re-measures it on a second engine, on a laptop, against
+`data.xpos`.
 
     python benchmark/diagnostics/mujoco_localize_bias.py
 """

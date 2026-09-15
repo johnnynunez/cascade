@@ -19,9 +19,8 @@ This module renders the annotated view VIA relies on:
   agent refers to "object 2" instead of hoping its label string matches;
 * a projected **base-frame grid** with metre ticks, so "further right" has a
   number attached;
-* the **reachable envelope** drawn as an overlay -- on this arm top-down IK
-  only solves in a narrow band (x ~ 0.16-0.18, TCP z in [0.06, 0.12]), and an
-  agent that can SEE the reachable region stops proposing poses outside it;
+* an optional **configured grasp band** drawn as a display hint. No default
+  band is assumed; this overlay does not run inverse kinematics;
 * the **gripper's current TCP** and the pending target, so the agent can
   judge its own motion visually rather than trusting a number it cannot check.
 
@@ -54,7 +53,7 @@ class Mark:
     label: str
     uv: tuple[int, int]
     position: list[float]
-    reachable: bool = True
+    reachable: bool | None = None
     confirmed: bool = True
     extra: dict = field(default_factory=dict)
 
@@ -96,15 +95,15 @@ class VisualInterface:
     """Renders the agent-facing annotated view of a frame.
 
     ``workspace`` is the safety AABB dict ({min: [...], max: [...]}) and
-    ``reach`` is the (x_min, x_max) top-down IK band; both come straight from
-    configs/demo.yaml so the drawing never drifts from the harness.
+    ``reach_x`` is an optional configured (x_min, x_max) display band.
+    Neither one establishes that a grasp or an IK solution exists.
     """
 
     def __init__(
         self,
         extrinsics=None,
         workspace: dict | None = None,
-        reach_x: tuple[float, float] = (0.16, 0.18),
+        reach_x: tuple[float, float] | None = None,
         table_z: float = 0.0,
         grid_step_m: float = 0.05,
         min_observations: int = 2,
@@ -112,7 +111,7 @@ class VisualInterface:
     ):
         self.extrinsics = extrinsics
         self.workspace = workspace or {}
-        self.reach_x = reach_x
+        self.reach_x = _valid_band(reach_x)
         self.table_z = float(table_z)
         self.grid_step = float(grid_step_m)
         #: A belief re-observed fewer than this many times AND not currently
@@ -163,7 +162,7 @@ class VisualInterface:
                 cv2.drawMarker(img, p, (0, 0, 255), cv2.MARKER_TILTED_CROSS, 18, 2)
                 _put_label(img, "target", (p[0] + 10, p[1] - 8), (0, 0, 255))
 
-        self._draw_legend(img, len(marks))
+        self._draw_legend(img, marks)
         return img, marks
 
     # ── layers ───────────────────────────────────────────────────────────
@@ -206,7 +205,9 @@ class VisualInterface:
                 _put_label(img, f"{x:.2f}", (int(uv[0]) - 12, int(uv[1]) + 14), (170, 170, 170), 0.36)
 
     def _draw_envelope(self, img, T, K) -> None:
-        """The band where strict top-down IK actually solves on this arm."""
+        """An explicitly configured display hint; no IK claim."""
+        if self.reach_x is None:
+            return
         ws = self.workspace
         try:
             y0, y1 = float(ws["min"][1]), float(ws["max"][1])
@@ -226,7 +227,7 @@ class VisualInterface:
         cv2.addWeighted(overlay, 0.18, img, 0.82, 0, img)
         cv2.polylines(img, [poly], True, (0, 200, 0), 2, cv2.LINE_AA)
         anchor = uv[np.argmin(uv[:, 1])]
-        _put_label(img, "top-down IK band", (int(anchor[0]), int(anchor[1]) - 8), (0, 220, 0), 0.45)
+        _put_label(img, "configured grasp band", (int(anchor[0]), int(anchor[1]) - 8), (0, 220, 0), 0.45)
 
     def _draw_marks(self, img, beliefs, T, K, now: float | None = None) -> list[Mark]:
         now = time.monotonic() if now is None else now
@@ -244,7 +245,7 @@ class VisualInterface:
             if not (-w < u < 2 * w and -h < v < 2 * h):
                 continue
             color = _COLORS[(i - 1) % len(_COLORS)]
-            reachable = self._reachable(pos)
+            in_workspace = self._in_workspace(pos)
             label = str(getattr(b, "label", "?"))
             last_seen_t = getattr(b, "last_seen_t", now)
             age_s = max(0.0, float(now - last_seen_t))
@@ -253,6 +254,16 @@ class VisualInterface:
             # spotted: a real object. A single stale sighting is drawn but
             # NOT handed to the agent as an equal-confidence numbered target.
             confirmed = age_s <= self.visible_horizon_s or observations >= self.min_observations
+
+            in_image = bool(0 <= uv[0] < w and 0 <= uv[1] < h)
+            marks.append(
+                Mark(index=i, label=label, uv=(u, v), position=pos.tolist(),
+                     confirmed=confirmed,
+                     extra={"age_s": round(age_s, 1), "in_workspace": in_workspace,
+                            "ik_checked": False, "projected_in_image": in_image})
+            )
+            if not in_image:
+                continue
 
             if confirmed:
                 cv2.circle(img, (u, v), 13, color, 2, cv2.LINE_AA)
@@ -263,17 +274,12 @@ class VisualInterface:
             cv2.rectangle(img, (u - 24, v - 26), (u - 6, v - 8), color, -1)
             _put_label(img, str(i), (u - 21, v - 12), _BLACK, 0.5, 2)
             tag = f"{label}  ({pos[0]:.2f}, {pos[1]:.2f})"
-            if not reachable:
-                tag += " OUT-OF-REACH"
+            if in_workspace is False:
+                tag += " OUTSIDE WORKSPACE"
             if not confirmed:
                 tag += f"  UNCONFIRMED {age_s:.0f}s"
             _put_label(img, tag, (u + 18, v + 4), color, 0.44)
 
-            marks.append(
-                Mark(index=i, label=label, uv=(u, v), position=pos.tolist(),
-                     reachable=reachable, confirmed=confirmed,
-                     extra={"age_s": round(age_s, 1)})
-            )
         return marks
 
     def _draw_tcp(self, img, tcp, T, K) -> None:
@@ -284,22 +290,23 @@ class VisualInterface:
         cv2.drawMarker(img, p, (0, 255, 255), cv2.MARKER_CROSS, 22, 2)
         _put_label(img, f"TCP z={tcp[2]:.3f}", (p[0] + 12, p[1] + 16), (0, 255, 255), 0.44)
 
-    def _draw_legend(self, img, n_marks: int) -> None:
+    def _draw_legend(self, img, marks: list[Mark]) -> None:
         h = img.shape[0]
+        n_badges = sum(mark.extra["projected_in_image"] for mark in marks)
         _put_label(
-            img, f"{n_marks} tracked object(s) | numbers = object ids | grid = 5 cm",
+            img, f"{n_badges} badges | {len(marks)} tracked objects | grid = 5 cm",
             (10, h - 12), _WHITE, 0.42,
         )
 
     # ── helpers ──────────────────────────────────────────────────────────
 
-    def _reachable(self, pos) -> bool:
+    def _in_workspace(self, pos) -> bool | None:
         ws = self.workspace
         try:
             lo, hi = ws["min"], ws["max"]
-        except (KeyError, TypeError):
-            return True
-        return all(float(lo[i]) <= float(pos[i]) <= float(hi[i]) for i in range(2))
+            return all(float(lo[i]) <= float(pos[i]) <= float(hi[i]) for i in range(3))
+        except (KeyError, TypeError, ValueError, IndexError):
+            return None
 
     # ── the text half of the interface ───────────────────────────────────
 
@@ -311,14 +318,21 @@ class VisualInterface:
         every mark referable and gives the metric values exactly.
         """
         if not marks:
-            return "Annotated view: no objects currently tracked."
+            return (
+                "Annotated view: no tracked-object projections available for this frame. "
+                "This does not establish that the scene is empty."
+            )
         lines = [
-            "Annotated view: each object carries a numbered badge. Refer to "
-            "objects by number; coordinates are base-frame metres (x forward, "
-            "y left, z up)."
+            "Annotated view: badges mark tracked positions projected inside this camera image. "
+            "Projection does not establish current visibility or exclude occlusion. "
+            "Entries outside the image have no badge. Coordinates are base-frame metres (x forward, "
+            "y left, z up). Workspace bounds and any configured grasp band "
+            "do not verify inverse kinematics or grasp reachability."
         ]
         for m in marks:
-            flag = "" if m.reachable else "  [outside the workspace AABB]"
+            flag = "  [outside the workspace AABB]" if m.extra.get("in_workspace") is False else ""
+            if m.extra.get("projected_in_image") is False:
+                flag += "  [projects outside this camera image; no badge]"
             if not m.confirmed:
                 flag += "  [UNCONFIRMED: one stale sighting, may not be real]"
             lines.append(
@@ -326,6 +340,21 @@ class VisualInterface:
                 f"{m.position[1]:.3f}, {m.position[2]:.3f}){flag}"
             )
         return "\n".join(lines)
+
+
+def _valid_band(value) -> tuple[float, float] | None:
+    try:
+        if value is None or len(value) != 2:
+            return None
+        low, high = map(float, value)
+        return (low, high) if np.isfinite([low, high]).all() and low < high else None
+    except (TypeError, ValueError):
+        return None
+
+
+def configured_grasp_band(grasp_cfg) -> tuple[float, float] | None:
+    """Do not substitute a different arm's display range for missing config."""
+    return _valid_band((grasp_cfg.get("reach_x_min"), grasp_cfg.get("reach_x_max")))
 
 
 def annotate_frame(runtime, **kwargs) -> tuple[np.ndarray | None, list[Mark]]:
@@ -344,10 +373,7 @@ def annotate_frame(runtime, **kwargs) -> tuple[np.ndarray | None, list[Mark]]:
         extrinsics=runtime.extrinsics,
         workspace=workspace,
         table_z=float(cfg.safety.get("table_z", 0.0)),
-        reach_x=(
-            float(grasp_cfg.get("reach_x_min", 0.155)),
-            float(grasp_cfg.get("reach_x_max", 0.185)),
-        ),
+        reach_x=configured_grasp_band(grasp_cfg),
     )
     try:
         tcp = runtime._tcp()

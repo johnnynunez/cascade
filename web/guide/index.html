@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light"><meta name="description" content="Connect the Build a Claw booth to OpenClaw and check the live PAAI cameras.">
+  <meta name="openclaw-demo" content="/api/status">
+  <title>PAAI · Open the booth</title><link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css"><script src="app.js" defer></script><script src="/learner-flow.js" defer></script>
+</head>
+<body class="guide-page">
+<a class="skip" href="#steps">Skip to booth setup</a>
+<header class="topbar"><a id="brand-launcher" class="brand" href="/">PAAI<span>Physical Agentic AI</span></a><nav aria-label="Navigation"><a href="#steps">Booth setup</a><a id="launcher-link" href="/">Refresh setup ↗</a></nav></header>
+<main id="main">
+<section class="intro guide-intro" aria-labelledby="title">
+  <div class="intro-copy"><p class="eyebrow">Build a Claw · Booth setup</p><h1 id="title">Open the booth.</h1><p class="lede">Connect OpenClaw, then put the camera extension beside it.</p><p class="guide-lead">Use this private page to open the normal OpenClaw chat. The <a href="/staff/">Build a Claw guide</a> explains how PAAI works and walks staff and attendees through a task.</p><div class="buttons hero-actions"><a id="chat-link" class="button primary" href="/openclaw" data-learner-openclaw target="_blank">Open OpenClaw <span aria-hidden="true">↗</span></a><a class="button quiet" href="#steps">Set up the cameras <span aria-hidden="true">↓</span></a></div>
+  <section id="launch-monitor" class="launch-monitor" aria-labelledby="launch-monitor-title" aria-live="polite" data-state="waiting">
+      <div class="launch-monitor-head"><strong id="launch-monitor-title">Your connection, step by step</strong><span id="launch-monitor-state" class="monitor-phase">Waiting</span></div>
+      <ol class="launch-steps">
+        <li data-step="demo" data-state="waiting"><span class="monitor-icon" aria-hidden="true">○</span><div><strong>Check the demo</strong><span class="monitor-detail">Make sure the kitchen is ready to respond.</span></div><span class="monitor-phase">Waiting</span></li>
+        <li data-step="cameras" data-state="waiting"><span class="monitor-icon" aria-hidden="true">○</span><div><strong>Find the live cameras</strong><span class="monitor-detail">Connect Kitchen, Worktop, and Side.</span></div><span class="monitor-phase">Waiting</span></li>
+        <li data-step="chat" data-state="waiting"><span class="monitor-icon" aria-hidden="true">○</span><div><strong>Open your chat</strong><span class="monitor-detail">Prepare your OpenClaw conversation.</span></div><span class="monitor-phase">Waiting</span></li>
+        <li data-step="ready" data-state="waiting"><span class="monitor-icon" aria-hidden="true">○</span><div><strong>Ready for your first order</strong><span class="monitor-detail">Confirm the chat is connected.</span></div><span class="monitor-phase">Waiting</span></li>
+      </ol><p id="launch-monitor-note" class="monitor-note">Click Open OpenClaw to begin. Each check updates from the demo.</p><button id="launch-retry" class="quiet monitor-retry" type="button" hidden>Retry connection</button>
+    </section>
+  </div>
+  <figure class="guide-scene"><div class="scene-heading"><strong id="scene-name">The demo kitchen</strong><span id="scene-state" class="scene-state">Connecting</span></div><div class="scene-media" id="scene-media" aria-busy="true"><img id="scene-image" width="960" height="540" alt="Kitchen camera showing the robotic arm and the objects on the worktop" hidden><div id="camera-placeholder" class="camera-placeholder" role="status"><strong id="camera-state-title">Loading the kitchen</strong><p id="camera-state-detail">The guide stays available while the camera connects.</p></div></div><div id="view-buttons" class="view-buttons" role="group" aria-label="Camera viewpoint" hidden></div><figcaption id="scene-caption">Waiting for a current camera image.</figcaption><a id="camera-link" class="inline-link" href="/cameras/" target="_blank" rel="noopener noreferrer">See all three cameras ↗</a><p class="camera-lesson">Choose <b>Worktop</b> for objects and zones, <b>Side</b> for the lift, and <b>Kitchen</b> for the whole scene.</p></figure>
+</section>
+<div class="guide-status" role="status"><strong id="status-title">The guide is available</strong><span id="status-detail">Checking whether chat and cameras are ready…</span></div>
+<section id="steps" class="guide-proof" aria-labelledby="setup-title">
+  <div>
+    <h2 id="setup-title">Put the cameras beside OpenClaw.</h2>
+    <p>Wait for <b>Ready</b> above. In the new OpenClaw tab, click the <b>Physical Agentic AI · OpenClaw Demo</b> extension. Choose <b>Connect cameras</b>, allow access to this demo’s host, then choose <b>Side panel</b>.</p>
+    <p>Check <b>Worktop</b>, <b>Side</b> and <b>Kitchen</b>. Wait for <b>Live</b> before the attendee sends an order. Staff teach the workflow using the guide below.</p>
+    <p>If the extension is not installed, follow the <a href="https://github.com/johnnynunez/cascade/blob/paai-event-demo/docs/CHROME_EXTENSION.md">Chrome extension setup</a>.</p>
+    <a class="button primary" href="/staff/">Read the Build a Claw guide</a>
+  </div>
+</section>
+<details class="details"><summary>If the connection fails</summary>
+  <p>Read the unfinished check and click <b>Retry connection</b>. Wait for an enabled message box in OpenClaw.</p>
+  <p>If a camera looks frozen, pause new movement requests. Use this page’s camera buttons to check each current view. The extension can reconnect while the chat stays open.</p>
+  <a id="prepare-link" href="/">Refresh the connection page</a>
+</details>
+<p id="notification" class="notification" role="status" hidden></p>
+</main>
+<footer><span>PAAI · Physical Agentic AI</span><span>Kitchen and orange assets by <a href="https://github.com/LightwheelAI/Lightwheel_Kitchen" rel="noreferrer">Lightwheel</a>, <a href="assets/Lightwheel-LICENSE.txt">CC BY-NC 4.0</a>, adapted for this demo.</span></footer>
+</body></html>

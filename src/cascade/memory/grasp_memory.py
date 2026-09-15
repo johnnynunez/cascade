@@ -78,8 +78,9 @@ def grasp_features(grasp, fix) -> dict:
         obj_yaw = 0.0
     yaw_rel = (yaw - obj_yaw + math.pi) % math.pi   # 0..pi, jaw is symmetric
     try:
-        top_z = float(np.asarray(fix.points)[:, 2].max())
-        bot_z = float(np.asarray(fix.points)[:, 2].min())
+        cloud = fix.points if hasattr(fix.points, "device") else np.asarray(fix.points)
+        top_z = float(cloud[:, 2].max())
+        bot_z = float(cloud[:, 2].min())
         h = max(top_z - bot_z, 1e-3)
         depth_frac = float(np.clip((top_z - grasp.position[2]) / h, 0.0, 1.0))
     except Exception:

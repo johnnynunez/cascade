@@ -18,7 +18,7 @@ import cv2
 import numpy as np
 import pytest
 
-from conftest import REPO
+from conftest import REPO, load_isaac_bridge_definitions
 from cascade.config import Cfg
 from cascade.perception.isaac_camera import IsaacCamera
 
@@ -28,9 +28,6 @@ ROBOT = "/tn__00armrs_asmv3_hJ6D/Geometry/base_link"
 @pytest.fixture
 def capture_bridge(loopback):
     """Execute actual producer and Handler, without importing/booting Kit."""
-    tree = ast.parse((REPO / "scripts/isaac_bridge.py").read_text())
-    nodes = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))
-             and n.name in {"_refresh_frames", "Handler"}]
     q = np.array([[0., -1.2, -1.2, 0., -0.75, 0., 0.5]])
     rgba = np.full((12, 16, 4), 90, np.uint8)
     depth = np.full((12, 16, 1), 0.6, np.float32)
@@ -45,7 +42,7 @@ def capture_bridge(loopback):
                                    get_dof_velocities=lambda: SimpleNamespace(numpy=lambda: np.zeros_like(q))),
                _grip_frac_now=lambda q: 0.5,
                ARM_IDX=list(range(6)), names=[f"joint{i}" for i in range(7)])
-    exec(compile(ast.Module(body=nodes, type_ignores=[]), "isaac_capture_definitions", "exec"), env)
+    load_isaac_bridge_definitions({"_refresh_frames", "Handler"}, env)
     env["_refresh_frames"]()
     srv = socketserver.ThreadingTCPServer((loopback, 0), env["Handler"])
     srv.daemon_threads = True
@@ -172,7 +169,8 @@ def test_demo_masks_delayed_frame_with_captured_not_current_joints(capture_bridg
         arm.disconnect()
 
 
-def test_actual_main_loop_captures_before_jobs_and_keeps_rendered_wrist_pose(capture_bridge):
+@pytest.mark.parametrize("require_cuda", [False, True])
+def test_actual_main_loop_captures_before_jobs_and_keeps_rendered_wrist_pose(capture_bridge, require_cuda):
     """Run one real main-loop iteration; do not copy its scheduling logic."""
     b = capture_bridge
     events, rendered_T, rendered_q = [], [], []
@@ -192,8 +190,11 @@ def test_actual_main_loop_captures_before_jobs_and_keeps_rendered_wrist_pose(cap
         b.q[0, 0] += .7
 
     tree = ast.parse((REPO / "scripts/isaac_bridge.py").read_text())
-    loop = next(n for n in ast.walk(tree) if isinstance(n, ast.While)
-                and ast.unparse(n.test) == "app.is_running()")
+    loops = [node for node in ast.walk(tree) if isinstance(node, ast.While)
+             and any(isinstance(test, ast.Call) and ast.unparse(test) == "app.is_running()"
+                     for test in ast.walk(node.test))]
+    assert len(loops) == 1, "expected one simulator main loop"
+    loop = loops[0]
     running = iter([True, False])
     refresh = b.env["_refresh_frames"]
 
@@ -203,6 +204,7 @@ def test_actual_main_loop_captures_before_jobs_and_keeps_rendered_wrist_pose(cap
 
     b.env.update(app=SimpleNamespace(is_running=lambda: next(running), update=update),
                  _tl=SimpleNamespace(is_playing=lambda: True), _was_playing=True,
+                 _REQUIRE_CUDA=require_cuda, _gpu_log_guard=SimpleNamespace(check=lambda: None),
                  _state_lock=threading.Lock(), _targets=dict(q=None, grip_frac=None, stopped=True),
                  _run_exec_jobs=jobs, _update_wrist_cam=wrist, _refresh_frames=capture, step=1)
     b.env["args"].cam_every = 2

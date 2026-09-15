@@ -1,0 +1,19 @@
+numpy==2.5.1
+opencv-python-headless==5.0.0.93
+PyYAML==6.0.3
+pin==4.1.0
+ultralytics==8.4.148
+# Pinned ultralytics/CLIP revision a13192f8cb767260d7dfd98c843b0716593169e7.
+clip @ file:///opt/paai/clip-source.tar.gz#sha256=a6612386ce34f6e08591c603e67855e93abf3b7b418dc81e68b28d891ac5bcd8
+ftfy==6.3.1
+regex==2026.9.10
+tqdm==4.70.1
+wcwidth==0.8.3
+pyzmq==27.2.0
+msgpack==1.2.2
+msgpack-numpy==0.4.8
+aiohttp==3.14.3
+websockets==10.4
+openai==3.13.0
+scipy==1.18.1
+Pillow==12.3.0

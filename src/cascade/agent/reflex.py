@@ -48,7 +48,7 @@ _RULES: list[tuple[re.Pattern, str]] = [
         re.compile(rf"^{_PLACE}\s+(?:it|this|that|lo|la|eso)\s+{_PREP}\s+{_ART}(?P<dest>.+)$"),
         "place_held",
     ),
-    # "pick up the X and put it in the Y" / "coge la X y ponla en la Y"
+    # "pick up the X and put it in the Y"
     (
         re.compile(
             rf"^{_PICK}(?:\s+up)?\s+{_ART}(?P<obj>.+?)\s+(?:and|y)\s+{_PLACE}"
@@ -56,22 +56,21 @@ _RULES: list[tuple[re.Pattern, str]] = [
         ),
         "pick_and_place",
     ),
-    # "put/place the pink cube in the bowl" / "pon el cubo rosa en el bol"
+    # "put/place the pink cube in the bowl"
     (
         re.compile(
             rf"^{_PLACE}\s+{_ART}(?P<obj>.+?)\s+{_PREP}\s+{_ART}(?P<dest>.+)$"
         ),
         "pick_and_place",
     ),
-    # "grab the banana and throw it" / "coge la banana y lánzala" /
-    # "throw the cube (to the left)" / "lanza el cubo (a la izquierda)"
+    # "grab the banana and throw it" / "throw the cube (to the left)"
     # MUST precede the generic "pick" rule, whose lazy object group would
     # otherwise swallow "banana and throw it" as the thing to grasp.
     (
         re.compile(
             rf"^(?:{_PICK}(?:\s+up)?\s+{_ART}(?P<obj>.+?)\s+(?:and|y)\s+)?"
             r"(?:throw|toss|launch|l[aá]nza|tira|arroja)"
-            r"(?:la|lo|las|los)?"      # enclitic pronoun: lánzala / tíralo
+            r"(?:la|lo|las|los)?"      # optional enclitic pronoun
             r"(?:\s+(?:it|lo|la))?"
             rf"(?:\s+{_ART}(?P<obj2>.+?))?"
             r"(?:\s+(?:to\s+the\s+|a\s+la\s+|hacia\s+)?"
@@ -79,7 +78,7 @@ _RULES: list[tuple[re.Pattern, str]] = [
         ),
         "throw",
     ),
-    # "pick (up) (and place/put) X (in/on Y)" / "coge y coloca el objeto rosa"
+    # "pick (up) (and place/put) X (in/on Y)"
     (
         re.compile(
             rf"^{_PICK}(?:\s+up)?\s+(?:(?P<andplace>(?:and|y)\s+{_PLACE}(?:\s+it)?)\s+)?"
@@ -106,15 +105,12 @@ _RULES: list[tuple[re.Pattern, str]] = [
         re.compile(rf"^(?:hand|give|pass|bring)\s+(?:me\s+|us\s+)?{_ART}(?P<obj>.+?)$|^(?:dame|pasame|traeme)\s+{_ART}(?P<obj2>.+?)$"),
         "handover",
     ),
-    # "point at/to the pink object" / "señala el objeto rosa"
+    # "point at/to the pink object"
     (
         re.compile(rf"^(?:point\s+(?:at|to)|show\s+me|senala|señala)\s+{_ART}(?P<obj>.+)$"),
         "point_at",
     ),
-    # "tighten/loosen the screw (three turns)" / "aprieta/afloja el tornillo"
-    # / "unscrew the bolt" / "desatornilla la tuerca". MUST precede nothing in
-    # particular (no other rule matches these verbs), but sits before wave for
-    # tidy grouping with the other object-verb rules.
+    # "tighten/loosen the screw (three turns)" / "unscrew the bolt"
     (
         re.compile(
             r"^(?P<verb>tighten|screw\s+in|screw|aprieta|atornilla|enrosca|"

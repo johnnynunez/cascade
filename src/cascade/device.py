@@ -95,7 +95,7 @@ def _is_available(device: str) -> bool:
             # An explicit index must exist: "cuda:1" on a single-GPU box is a
             # config written for a bigger machine.
             _, _, idx = str(device).partition(":")
-            return not idx.strip() or int(idx) < torch.cuda.device_count()
+            return not idx.strip() or 0 <= int(idx) < torch.cuda.device_count()
         if fam == "mps":
             mps = getattr(torch.backends, "mps", None)
             return mps is not None and mps.is_available()
@@ -115,6 +115,16 @@ def resolve_device(spec: str | None = AUTO, *, what: str = "model") -> str:
     env = os.environ.get(DEVICE_ENV, "").strip()
     requested = env or (spec if spec is not None else AUTO)
     requested = str(requested).strip() or AUTO
+
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        chosen = best_device() if requested.lower() == AUTO else requested
+        torch = _torch()
+        version = getattr(torch, "version", None)
+        if (_family(chosen) != "cuda" or not _is_available(chosen)
+                or torch is None or not getattr(version, "cuda", None)
+                or getattr(version, "hip", None)):
+            raise RuntimeError(f"{what} requires NVIDIA CUDA; requested {requested!r}, available {chosen!r}; CPU fallback is forbidden")
+        return chosen
 
     if requested.lower() == AUTO:
         chosen = best_device()

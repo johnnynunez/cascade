@@ -139,6 +139,56 @@ def live_records(state_dir, owner: dict, *, role: str | None = None) -> list[dic
     return [r for r in records(state_dir) if (role is None or r.get("role") == role) and is_live(r, owner)]
 
 
+def _run_gateway_stop(command: list[str], *, timeout_s: float = 360.0,
+                      cleanup_s: float = 5.0) -> None:
+    """Bound the CLI and its respawned children in a dedicated process group.
+
+    OpenClaw's managed stop permits 315 seconds to drain active work and its
+    installed systemd unit grants 330 seconds. A 30-second caller deadline
+    interrupts a legitimate stop. The group contains only this spawned CLI;
+    service-manager-owned gateway processes retain the owner checks below.
+    """
+    import signal
+
+    proc = subprocess.Popen(command, start_new_session=True)
+    handlers = {}
+
+    def interrupted(number, frame):
+        raise InterruptedError(f"gateway stop interrupted by signal {number}")
+
+    def group_signal(number):
+        try:
+            os.killpg(proc.pid, number)
+        except ProcessLookupError:
+            pass
+
+    try:
+        for number in (signal.SIGTERM, signal.SIGHUP):
+            handlers[number] = signal.signal(number, interrupted)
+        returncode = proc.wait(timeout=timeout_s)
+        if returncode:
+            raise subprocess.CalledProcessError(returncode, command)
+    finally:
+        # Finish children even when the node launcher exits before its respawn,
+        # or the caller is interrupted. No process-name scan is involved.
+        for number in handlers:
+            signal.signal(number, signal.SIG_IGN)
+        group_signal(signal.SIGTERM)
+        deadline = time.monotonic() + cleanup_s
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(proc.pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.05)
+        group_signal(signal.SIGKILL)
+        try:
+            proc.wait(timeout=cleanup_s)
+        finally:
+            for number, previous in handlers.items():
+                signal.signal(number, previous)
+
+
 def stop_owned(state_dir, owner: dict, *, dry_run=False) -> list[int]:
     import signal
 
@@ -157,7 +207,7 @@ def stop_owned(state_dir, owner: dict, *, dry_run=False) -> list[int]:
             pid = json.loads(status.stdout).get("service", {}).get("runtime", {}).get("pid") if status.returncode == 0 else None
             if pid != record["pid"] or not is_live(record, owner):
                 raise ValueError("gateway no longer belongs to this launch owner; refusing stop")
-            subprocess.run([*prefix, "gateway", "stop"], check=True, timeout=30)
+            _run_gateway_stop([*prefix, "gateway", "stop", "--force"])
         else:
             # Re-check immediately before signalling; a bare/stale PID marker
             # or the same command under a different owner is not sufficient.

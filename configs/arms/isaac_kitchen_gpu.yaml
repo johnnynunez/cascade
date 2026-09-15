@@ -1,0 +1,9 @@
+# The calibrated kitchen behavior with strict CUDA supplied by the GPU service.
+extends: isaac_kitchen
+overrides:
+  detector:
+    device: auto
+  grasp:
+    # Reach the existing carry height vertically before crossing the low
+    # platform. The140mm target/145mm ceiling, speeds and forces are unchanged.
+    pre_carry_lift: true

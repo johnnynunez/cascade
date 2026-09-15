@@ -15,13 +15,22 @@ actually convex by testing its own vertices against its hull.
 
 Then answer the question that matters: along the axis the fingers close on,
 where does the collision surface sit versus the visual surface?
+
+Set REBOT_MJCF_ROOT to the reBot-Isaacsim mjcf/rebot_devarm directory.
 """
+import os
 import struct
 from pathlib import Path
 
 import numpy as np
 
-ASSETS = Path("/home/johnny/Projects/demo/reBot-Isaacsim/mjcf/rebot_devarm/assets")
+REBOT_ROOT = Path(os.environ.get(
+    "REBOT_MJCF_ROOT",
+    Path(__file__).resolve().parents[3] / "reBot-Isaacsim/mjcf/rebot_devarm",
+)).expanduser()
+ASSETS = REBOT_ROOT / "assets"
+if not ASSETS.is_dir():
+    raise SystemExit("Set REBOT_MJCF_ROOT to a reBot-Isaacsim mjcf/rebot_devarm directory with assets.")
 
 
 def load_obj_faces(path):

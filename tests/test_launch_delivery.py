@@ -9,6 +9,7 @@ import json
 import shutil
 
 import pytest
+from conftest import start_sleeping_process
 
 from test_demo_proof import model_http_boundary as _model_http_boundary
 from test_isaac_bridge import bridge_port as _bridge_port
@@ -210,7 +211,7 @@ os.execv(os.environ['REAL_PY'],[os.environ['REAL_PY'],*args])
 ''')
     py.chmod(0o755)
     oc = bindir / "openclaw"
-    oc.write_text(f'#!{sys.executable}\n' + '''import json,os,sys,signal,subprocess
+    oc.write_text(f'#!{sys.executable}\n' + '''import json,os,sys,signal,subprocess,select
 from pathlib import Path
 args=sys.argv[1:]
 with open(os.environ['HOST_LOG'],'a') as f: f.write(json.dumps(args)+'\\n')
@@ -224,10 +225,18 @@ elif args==['gateway','status','--json']:
 elif args==['gateway','restart'] and os.environ.get('GATEWAY_TEST_PID'):
     pidfile=Path(os.environ['GATEWAY_TEST_PID'])
     os.kill(int(pidfile.read_text()),signal.SIGTERM)
-    child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(120)','openclaw-test-gateway'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    child=subprocess.Popen([sys.executable,'-c',"import os,time; os.write(1,b'R'); time.sleep(120)",'openclaw-test-gateway'],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
+    try:
+        assert select.select([child.stdout],[],[],10)[0] and child.stdout.read(1)==b'R'
+    except BaseException:
+        child.kill(); child.wait(); raise
+    finally:
+        child.stdout.close()
     pidfile.write_text(str(child.pid))
-elif args==['gateway','stop']:
+elif args==['gateway','stop','--force']:
     os.kill(int(Path(os.environ['GATEWAY_TEST_PID']).read_text()),signal.SIGTERM)
+elif args[:2]==['gateway','stop']:
+    raise SystemExit('fixture requires explicit --force for managed gateway stop')
 elif args[:2]==['mcp','probe']:
     print(json.dumps({'tools':[os.environ['CASCADE_MCP_NAME']+'__'+s for s in ['pick_and_place','get_observation','analyze_scene','world_state','reset_scene']]}))
 elif args[:2]==['mcp','set']: Path(os.environ['MCP_CONFIG']).write_text(args[3])
@@ -281,12 +290,12 @@ def test_owned_gateway_receipt_follows_our_restart_and_down_is_profile_scoped(la
     h = launcher_boundary
     state = owners.profile_state_dir(h["env"]["CASCADE_LAUNCH_STATE"], "isolated-test")
     owner = owners.load_owner(state, h["repo"], "isolated-test", create=True)
-    initial = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)", "openclaw-test-gateway"])
+    initial = start_sleeping_process("openclaw-test-gateway")
     pidfile = tmp_path / "gateway.pid"
     pidfile.write_text(str(initial.pid))
     h["env"]["GATEWAY_TEST_PID"] = str(pidfile)
-    owners.register_process(state, owner, initial.pid, "gateway")
     try:
+        owners.register_process(state, owner, initial.pid, "gateway")
         launch = subprocess.run(h["command"], env=h["env"], capture_output=True, text=True, timeout=60)
         assert launch.returncode == 0, launch.stdout + launch.stderr
         receipt = json.loads((state / "gateway.started").read_text())
@@ -295,10 +304,13 @@ def test_owned_gateway_receipt_follows_our_restart_and_down_is_profile_scoped(la
         down = subprocess.run(["bash", str(h["repo"] / "scripts/launch.sh"), "--down"], env=h["env"], capture_output=True, text=True, timeout=30)
         assert down.returncode == 0, down.stdout + down.stderr
         assert not owners.is_live(receipt, owner)
+        assert owners.process_identity(receipt["pid"]) is None, "managed stop left the fake gateway running"
         commands = [json.loads(line) for line in Path(h["env"]["HOST_LOG"]).read_text().splitlines()]
-        stops = [c for c in commands if c[-2:] == ["gateway", "stop"]]
-        assert stops == [["--profile", "isolated-test", "gateway", "stop"]]
+        stops = [c for c in commands if c[2:4] == ["gateway", "stop"]]
+        assert stops == [["--profile", "isolated-test", "gateway", "stop", "--force"]]
     finally:
+        if initial.poll() is None:
+            initial.terminate()
         initial.wait(timeout=5)
         import signal
         try:

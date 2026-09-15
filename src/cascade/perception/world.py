@@ -29,9 +29,10 @@ from dataclasses import dataclass
 import numpy as np
 
 from .colors import detection_color
+from .freshness import capture_marker, frames_after_reset, newer_capture
 from .grounding import Extrinsics, mask_to_points_cam, oriented_bbox
 from .workspace import WorkspaceFilter
-from ..types import transform_points
+from ..types import Frame, transform_points
 
 
 class LockedDetector:
@@ -60,6 +61,9 @@ class WatchedCamera:
     fuse: bool = True  # False: overlay/heartbeat only (no 3D fusion), e.g.
     # an audience camera with placeholder extrinsics
     last_error: str | None = None
+    fusion_floor: Frame | None = None
+    reset_pending: bool = False
+    last_capture: dict | None = None
 
 
 class WorldWatcher:
@@ -95,6 +99,7 @@ class WorldWatcher:
         self._stop = False
         self._pause_count = 0
         self._pause_lock = threading.Lock()
+        self._fusion_epoch = 0
         self._thread: threading.Thread | None = None
         self._ignore: set[str] = set()
         self.ticks = 0
@@ -123,11 +128,13 @@ class WorldWatcher:
         depend on the heartbeat staying alive longer than watchdog_s."""
         with self._pause_lock:
             self._pause_count += 1
+            self._fusion_epoch += 1
         try:
             yield
         finally:
             with self._pause_lock:
                 self._pause_count -= 1
+                self._fusion_epoch += 1
 
     @property
     def is_paused(self) -> bool:
@@ -136,6 +143,45 @@ class WorldWatcher:
     def ignore_label(self, label: str | None) -> None:
         """Skip fusing this label (e.g. the object currently in the jaws)."""
         self._ignore = {label} if label else set()
+
+    def reset_camera_frames(self, primary, *, timeout_s=5):
+        """Fence every fusing camera while reset owns the existing pause.
+
+        A camera that times out remains fenced. If it later recovers, its
+        first delivery establishes a floor and only a newer capture can fuse.
+        """
+        watched = [cam for cam in self._cams if cam.fuse or cam.stream is primary]
+        cameras = [primary] + [cam.stream for cam in watched if cam.stream is not primary]
+        with self._pause_lock:
+            if not self._pause_count:
+                raise RuntimeError("Reset camera barrier requires paused belief fusion")
+            for cam in watched:
+                cam.fusion_floor = None
+                cam.reset_pending = True
+
+        def floor_ready(stream, frame):
+            with self._pause_lock:
+                for cam in watched:
+                    if cam.stream is stream:
+                        cam.fusion_floor = frame
+
+        observed = frames_after_reset(cameras, timeout_s=timeout_s, on_floor=floor_ready)
+        with self._pause_lock:
+            for cam in watched:
+                cam.reset_pending = False
+        return observed
+
+    def _fusion_allowed(self, cam, frame, epoch):
+        """Called under _pause_lock, including immediately before each commit."""
+        if self._pause_count or epoch != self._fusion_epoch:
+            return False
+        if cam.reset_pending and cam.fusion_floor is None:
+            cam.fusion_floor = frame
+            return False
+        if cam.fusion_floor is not None and not newer_capture(frame, cam.fusion_floor):
+            return False
+        cam.reset_pending = False
+        return True
 
     # ── the loop ─────────────────────────────────────────────────────────
 
@@ -158,14 +204,23 @@ class WorldWatcher:
                 time.sleep(self._period - elapsed)
 
     def _tick(self, cam: WatchedCamera) -> None:
+        with self._pause_lock:
+            epoch = self._fusion_epoch
         frame = cam.stream.latest()
         if frame is None:
             return
-        # A stream serves the same frame until the camera produces a new one;
-        # skip re-detection on frames we already processed.
+        # Local frame IDs count deliveries. An Isaac bridge can deliver the
+        # same rendered capture at the client's much faster polling rate.
         if frame.frame_id == cam.last_seq:
             return
         cam.last_seq = frame.frame_id
+        if (getattr(frame, "capture", None) or {}).get("backend") == "isaac":
+            marker = capture_marker(frame)
+            if marker == cam.last_capture:
+                return
+            cam.last_capture = marker
+        else:
+            cam.last_capture = None
         frame = cam.depth.ensure_depth(frame)
         T = None
         if frame.has_depth and cam.fuse:
@@ -188,8 +243,9 @@ class WorldWatcher:
             self._harness.heartbeat()
         if T is None:
             return
-        if self.is_paused:
-            return
+        with self._pause_lock:
+            if not self._fusion_allowed(cam, frame, epoch):
+                return
         fused = 0
         for d in dets:
             if d.label in self._ignore:
@@ -197,9 +253,13 @@ class WorldWatcher:
             mask = d.mask
             if mask is None:
                 h, w = frame.rgb.shape[:2]
-                mask = np.zeros((h, w), dtype=bool)
-                x0, y0, x1, y1 = d.bbox.astype(int)
-                mask[max(y0, 0):min(y1, h), max(x0, 0):min(x1, w)] = True
+                from .cuda_math import enabled, bbox_mask
+                if enabled():
+                    mask = bbox_mask((h, w), d.bbox)
+                else:
+                    mask = np.zeros((h, w), dtype=bool)
+                    x0, y0, x1, y1 = d.bbox.astype(int)
+                    mask[max(y0, 0):min(y1, h), max(x0, 0):min(x1, w)] = True
             pts_cam = mask_to_points_cam(frame, mask)
             if pts_cam.shape[0] < 10:
                 continue
@@ -207,16 +267,20 @@ class WorldWatcher:
             center, extents, _ = oriented_bbox(pts_base)
             why = self._workspace.reject(
                 center, extents,
-                mask_frac=float(mask.sum()) / float(mask.size) if mask.size else None,
+                mask_frac=float(mask.sum()) / float(mask.numel() if hasattr(mask, "numel") else mask.size),
             )
             if why is not None:
                 continue  # scenery, the robot itself, or out of reach
-            self._beliefs.update(
-                d.label, center, d.conf, extent=extents,
-                top_z=float(pts_base[:, 2].max()), t=frame.t,
-                color=detection_color(frame.rgb, d),
-                points=pts_base if d.mask is not None else None,
-            )
+            color = detection_color(frame.rgb, d)
+            with self._pause_lock:
+                if not self._fusion_allowed(cam, frame, epoch):
+                    return
+                self._beliefs.update(
+                    d.label, center, d.conf, extent=extents,
+                    top_z=float(pts_base[:, 2].max()), t=frame.t,
+                    color=color,
+                    points=pts_base if d.mask is not None else None,
+                )
             fused += 1
         if fused:
             self.last_update_t = time.monotonic()

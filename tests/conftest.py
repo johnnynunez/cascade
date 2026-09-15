@@ -1,5 +1,9 @@
+import ast
+import select
+import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -17,6 +21,39 @@ USD = REPO / "assets" / "usd" / "RS-rebot-dev-arm" / "RS-rebot-dev-arm.usda"
 # Assets are authored in the mirrored joint convention; the SDK and every q
 # constant in this repo are local (q_local = -q_asset). See usd_model.
 JOINT_SIGNS = [-1, -1, -1, -1, -1, -1]
+
+
+def load_isaac_bridge_definitions(names, env):
+    """Load bridge handlers and their shutdown guard without booting Kit."""
+    path = REPO / "scripts/isaac_bridge.py"
+    tree = ast.parse(path.read_text(), filename=str(path))
+    wanted = set(names) | {"_bridge_should_stop", "_request_shutdown"}
+    nodes = [node for node in tree.body
+             if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in wanted]
+    assert {node.name for node in nodes} == wanted
+    # Unit tests have their own shutdown state and never consult a live STOP file.
+    env.setdefault("os", SimpleNamespace(path=SimpleNamespace(lexists=lambda _path: False)))
+    env.setdefault("_shutdown_requested", False)
+    env.setdefault("_camera_video", None)
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), "exec"), env)
+
+
+def start_sleeping_process(*args, start_new_session=False):
+    """Wait until Python has completed exec before recording its identity."""
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import os,time; os.write(1,b'R'); time.sleep(120)", *args],
+        stdout=subprocess.PIPE, start_new_session=start_new_session,
+    )
+    try:
+        assert select.select([child.stdout], [], [], 10)[0], "fixture child did not start"
+        assert child.stdout.read(1) == b"R", "fixture child exited before readiness"
+        return child
+    except BaseException:
+        child.kill()
+        child.wait(timeout=5)
+        raise
+    finally:
+        child.stdout.close()
 
 
 def has_pinocchio() -> bool:

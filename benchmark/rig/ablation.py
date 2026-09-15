@@ -48,6 +48,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import os
 import time
 from pathlib import Path
 
@@ -274,7 +275,9 @@ def main() -> int:
     ap.add_argument("--conditions", default="skill_only,verify_only,verify_retry")
     ap.add_argument("--states", type=int, default=10)
     ap.add_argument("--llm", default="mock")
-    ap.add_argument("--json", default="/home/johnny/bench/results/wrc_ablation.json")
+    ap.add_argument("--json", default=str(Path(os.environ.get(
+        "CASCADE_BENCH_RESULTS", Path(__file__).resolve().parents[1] / "results",
+    )).expanduser() / "wrc_ablation.json"))
     a = ap.parse_args()
 
     with claim_rig():

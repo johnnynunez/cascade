@@ -20,7 +20,7 @@ If it stays False -> my fix is broken and the whole sweep is void.
 import os
 import sys
 
-sys.path.insert(0, os.path.expanduser("~/bench/LIBERO"))
+sys.path.insert(0, os.path.expanduser(os.environ.get("CASCADE_BENCH_LIBERO", "~/bench/LIBERO")))
 os.environ.setdefault("MUJOCO_GL", "egl")
 
 import numpy as np

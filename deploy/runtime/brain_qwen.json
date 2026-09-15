@@ -1,0 +1,7 @@
+{
+  "server": "/opt/paai/llama/llama-server",
+  "model_path": "/data/models/qwen3.8-27b/Qwen3.8-27B-Q8_0.gguf",
+  "mmproj_path": "/data/models/qwen3.8-27b/mmproj-Qwen3.8-27B-BF16.gguf",
+  "model_id": "Qwen/Qwen3.8-27B",
+  "context_window": 16384
+}

@@ -6,10 +6,9 @@ because near faces subtend more pixels per unit area than far ones. Left
 uncorrected the finger catches the object's edge and shoves it away -- the
 "air grasp" failure.
 
-The correction was designed and measured entirely on the ISAAC rig (every
-script under benchmark/diagnostics/ that produced those numbers hardcodes a
-/home/johnny path and a bridge on :8611), and NOTHING re-checked it on another
-engine. A correction derived from one simulator and validated by that same
+The correction was initially designed and measured entirely on the ISAAC rig
+using the bridge on :8611. It had not been re-checked on another engine.
+A correction derived from one simulator and validated by that same
 simulator is what this repo's "engine agreement is the gold metric" rule exists
 to distrust.
 

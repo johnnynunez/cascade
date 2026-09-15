@@ -11,6 +11,7 @@ object" working with any detector backend.
 from __future__ import annotations
 
 import numpy as np
+import os
 
 # Canonical palette. Hue bands are OpenCV HSV (H in [0, 180)).
 COLOR_NAMES = (
@@ -110,6 +111,9 @@ def center_bbox_mask(shape_hw: tuple[int, int], bbox, frac: float = 0.5):
     segmentation mask, the box edges are mostly background -- naming the
     color from the whole box lets the background veto the object."""
     h, w = shape_hw
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from .cuda_math import bbox_mask
+        return bbox_mask((h, w), bbox, fraction=frac, inclusive=True)
     x0, y0, x1, y1 = [float(v) for v in bbox]
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
     hw, hh = (x1 - x0) * frac / 2, (y1 - y0) * frac / 2
@@ -129,6 +133,9 @@ def detection_color(bgr: np.ndarray, det) -> str | None:
 
 def mask_color(bgr: np.ndarray, mask: np.ndarray | None, max_px: int = 4000) -> str | None:
     """Median-HSV color name of the masked pixels (None when unusable)."""
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from .cuda_math import mask_color as cuda_color
+        return cuda_color(bgr, mask, max_px=max_px)
     import cv2
 
     if mask is None or not mask.any():

@@ -1,0 +1,25 @@
+extends: isaac
+overrides:
+  perception_loop:
+    # Kitchen captures update about 3 Hz. Idle chat sessions must not each
+    # transfer and decode the same three RGB-D captures 15 times per second.
+    max_camera_poll_hz: 4.0
+  # Named fruit targets use measured color and depth when detector labels vary.
+  object_descriptions:
+    lemon: yellow object
+    orange: orange fruit
+  detector:
+    device: cpu
+  grasp:
+    max_pick_attempts: 2
+    drop_zone: [0.14, -0.27]
+    drop_zone_name: green square
+    open_box:
+      center_xy_m: [0.30, -0.14]
+      release_height_m: 0.104
+    # Wall-clock motion must allow enough simulated steps under rendering load.
+    move_duration_s: 7.5
+    release_height_m: 0.10
+    release_clearance_m: 0.115
+    # Clear the released object before the empty gripper returns home.
+    post_place_retreat_offset_m: 0.025

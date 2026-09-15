@@ -90,13 +90,29 @@ def _hidden_tools() -> set[str]:
     hidden.discard("emergency_stop")
     return hidden
 
+
+def _robot_state_provenance(state: dict) -> dict:
+    """Session tracking does not measure current gripper contents or home pose."""
+    result = dict(state)
+    held = result.pop("holding", None)
+    if held is not None:
+        result["tracked_holding"] = {"label": held, "source": "session_state"}
+    result["gripper_contents"] = "not_measured"
+    result["home_pose"] = "not_verified"
+    return result
+
+
 _EXTRA_TOOLS = [
     {
         "name": "camera_snapshot",
         "description": (
             "Capture a camera frame and return it as an image, with the "
             "depth source noted. Use this to SEE the workspace. Optional "
-            "`camera` selects one of the rig cameras (see world_state)."
+            "`camera` selects a rig camera by exact name. When the user "
+            "provides a camera name, call this tool directly: it validates "
+            "availability and reports any unavailable-camera error. A prior "
+            "world_state call is not required. Use world_state to discover "
+            "names only when the request does not specify a camera."
         ),
         "parameters": {
             "type": "object",
@@ -107,12 +123,15 @@ _EXTRA_TOOLS = [
     {
         "name": "world_state",
         "description": (
-            "INSTANT text snapshot of the live world model: every object "
-            "with color + 3D position + freshness, what the gripper holds, "
-            "camera FPS, and the livestream URL. Perception runs "
-            "continuously, so prefer this over camera_snapshot when you "
-            "only need to know WHAT is where -- it costs no image tokens "
-            "and returns immediately."
+            "Read tracked objects, MCP session state and cached camera statistics. "
+            "session_state.agent_status is last activity text, not a startup or "
+            "health check. arm_connected means this session opened its control "
+            "connection; false is normal before first control use. Perception "
+            "counters describe this session's detection and belief updates. This "
+            "does not query simulator health, arm pose or gripper contents. "
+            "tracked_holding is session history, not a current contact measurement. "
+            "Object labels and positions may be remembered: use get_observation "
+            "for the visible scene and localize_object for measured positions."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
@@ -153,12 +172,12 @@ _EXTRA_TOOLS = [
     {
         "name": "verify_last_action",
         "description": (
-            "Report whether the robot's recent actions had their claimed "
-            "physical effect, checked against an INDEPENDENT observation "
-            "(sim physics truth or the perception belief store) rather than "
-            "the actuator's own self-report. Use it when a skill returned ok "
-            "but you want proof before building on it, or to explain to the "
-            "human what actually happened."
+            "Read saved postcondition verdicts for recent actions, including "
+            "their evidence and channel. This does not perform a fresh sensor "
+            "check or upgrade an unverified result. A belief position written "
+            "by the skill does not independently confirm placement. Explain "
+            "confirmed, refuted or unverified using the recorded channel; use "
+            "get_observation for a new visual inspection."
         ),
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
@@ -168,8 +187,8 @@ _EXTRA_TOOLS = [
             "Your visual memory of the current task: up to K captioned frames "
             "-- the scene BEFORE the first action, then what it looked like "
             "after each action, each with the independent verdict on that "
-            "action (confirmed / refuted / unverified) -- and the current "
-            "view last. Call it before deciding the next step of any task "
+            "action (confirmed / refuted / unverified) -- and a fresh current "
+            "view last when the camera is available. Call it before deciding the next step of any task "
             "with more than one action (counting, sorting, 'put N objects "
             "in', 'find without repeating'): judge what is DONE from these "
             "frames and verdicts, never from what you intended. Pass "
@@ -535,6 +554,8 @@ class McpSkillServer:
                 # after completion, not before: the "via:" chip reports the
                 # tier that LAST SERVED a command, never one still running
                 runtime.last_path = "mcp-host"
+                if name in {"get_observation", "describe_scene"} and result.get("ok"):
+                    return self._image_result(runtime, runtime.last_frame, result)
         return _text_result(result, is_error=not result.get("ok", False))
 
     def _robot_knowledge(self, runtime) -> dict:
@@ -580,20 +601,16 @@ class McpSkillServer:
                 "data": base64.b64encode(fr["jpeg"]).decode(),
                 "mimeType": "image/jpeg",
             })
-        try:
-            runtime.observe()
-            current = runtime.frame_jpeg()
-        except Exception:  # noqa: BLE001 -- a camera hiccup must not hide the history
-            current = runtime.frame_jpeg()
+        snapshot = self._camera_snapshot(runtime)
+        current = not snapshot["isError"]
+        current_view = {"available": current,
+                        **json.loads(snapshot["content"][-1]["text"])}
         if current:
             content.append({"type": "text", "text": "current view (now)"})
-            content.append({
-                "type": "image",
-                "data": base64.b64encode(current).decode(),
-                "mimeType": "image/jpeg",
-            })
+            content.extend(snapshot["content"])
         summary = {
             "ok": True,
+            "current_view": current_view,
             "frames": len(frames),
             "steps_recorded": [
                 {"step": fr["step"], "age_s": fr["age_s"], "action": fr["text"],
@@ -604,8 +621,9 @@ class McpSkillServer:
                 "Judge progress from the frames and verdicts above. A step "
                 "marked refuted did not happen."
                 if frames else
-                "No actions recorded yet in this task: only the current view."
-            ),
+                "No actions recorded yet in this task."
+            ) + (" Fresh current view attached." if current else
+                 " Current camera view unavailable; saved frames are history only."),
         }
         content.append({"type": "text", "text": json.dumps(summary)})
         return {"content": content, "isError": False}
@@ -630,44 +648,69 @@ class McpSkillServer:
     def _world_state(self, runtime) -> dict:
         from ..apps.demo import _runtime_state
 
-        state = _runtime_state(runtime)
+        state = _robot_state_provenance(_runtime_state(runtime))
+        state["session_state"] = {
+            "source": "mcp_runtime",
+            **{key: state.pop(key) for key in ("agent_status", "arm_connected", "perception")
+               if key in state},
+        }
+        state["live_arm_feedback"] = False
+        state["simulator_status"] = "not_queried"
         state["cameras"] = runtime.rig.stats() if getattr(runtime, "rig", None) else {}
+        state["camera_statistics_note"] = (
+            "Cached stream statistics: frame_id counts client deliveries; FPS is "
+            "recent observed capture cadence. A single counter or zero FPS does "
+            "not establish simulator health. Use a fresh image for current visibility."
+        )
         if runtime.stream_server is not None:
             state["live_view_url"] = runtime.stream_server.url
         state["ok"] = True
         return state
 
     def _camera_snapshot(self, runtime, camera: str | None = None) -> dict:
-        rig = getattr(runtime, "rig", None)
-        age_s = 0.0
-        if camera and rig is not None:
-            try:
-                stream = rig.get(camera)
-            except KeyError as e:
-                return _text_result({"ok": False, "error": str(e)}, is_error=True)
-            frame = stream.latest()
-            if frame is None:
-                return _text_result({"ok": False, "error": "no frame yet"}, is_error=True)
-            # latest() never blocks -- do not silently serve a pre-glitch
-            # frame as if it were live.
-            age_s = round(time.monotonic() - frame.t, 1)
-            if stream.last_error and age_s > 2.0:
-                return _text_result(
-                    {"ok": False,
-                     "error": f"camera {camera!r} is not delivering frames "
-                              f"(last error: {stream.last_error}; newest frame "
-                              f"is {age_s}s old)"},
-                    is_error=True,
-                )
-            import cv2
+        from ..skills.runtime import _fresh_camera_frame
 
-            ok, buf = cv2.imencode(".jpg", frame.rgb, [cv2.IMWRITE_JPEG_QUALITY, 85])
-            jpeg = buf.tobytes() if ok else None
-        else:
-            frame = runtime.observe()
-            jpeg = runtime.frame_jpeg()
-        if not jpeg:
-            return _text_result({"ok": False, "error": "no frame available"}, is_error=True)
+        with self._exec_lock:
+            try:
+                rig = getattr(runtime, "rig", None)
+                frame = (_fresh_camera_frame(rig.get(camera)) if camera and rig is not None
+                         else runtime.observe_fresh())
+            except Exception as exc:
+                return _text_result({"ok": False, "error": str(exc)}, is_error=True)
+            return self._image_result(runtime, frame, camera=camera)
+
+    def _image_result(self, runtime, frame, payload=None, camera=None) -> dict:
+        from ..skills.runtime import _frame_age_s, _jpeg
+
+        try:
+            age_s = _frame_age_s(frame)
+            jpeg = _jpeg(frame.rgb)
+            if not jpeg:
+                raise ValueError("Camera frame could not be encoded")
+        except Exception as exc:
+            return _text_result({"ok": False, "error": str(exc)}, is_error=True)
+        rig = getattr(runtime, "rig", None)
+        metadata = {"camera": camera or (rig.primary.name if rig is not None else "primary"),
+                    "depth_source": frame.depth_source, "frame_id": int(frame.frame_id),
+                    "frame_age_s": age_s, "age_clock": "client_monotonic", "t": time.time()}
+        result = metadata
+        if payload is not None:
+            robot = _robot_state_provenance(payload.get("robot", {}))
+            if robot.get("live_arm_feedback") is False:
+                robot.pop("status", None)
+                robot["pose_status"] = "not_measured"
+            result = {
+                "ok": payload.get("ok", False),
+                "observation_frame": metadata,
+                "configured_zones": payload.get("configured_zones", []),
+                "robot": robot,
+                "observation_note": (
+                    "Identify visible objects, colors and relations from the attached image; "
+                    "state uncertainty when unclear. Configured zones are fixed destinations, "
+                    "not evidence of visibility or occupancy. Use localize_object when a "
+                    "measured object position is needed."
+                ),
+            }
         return {
             "content": [
                 {
@@ -677,15 +720,7 @@ class McpSkillServer:
                 },
                 {
                     "type": "text",
-                    "text": json.dumps(
-                        {
-                            "camera": camera or (runtime.rig.primary.name
-                                                 if getattr(runtime, "rig", None) else "primary"),
-                            "depth_source": frame.depth_source,
-                            "frame_age_s": age_s,
-                            "t": time.time(),
-                        }
-                    ),
+                    "text": json.dumps(result),
                 },
             ],
             "isError": False,

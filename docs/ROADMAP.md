@@ -1,8 +1,22 @@
 # Roadmap
 
 This file is a dated log: each "Landed <date>" section records what shipped,
-the SOTA delta that motivated it, and what was deliberately NOT adopted.
+the work that motivated it, and what was deliberately not adopted.
 Read top-down for status; the dated sections are history.
+
+## PAAI event follow-up (2026-09-15)
+
+The initial **PAAI, Physical Agentic AI** demo for **Build a Claw** has
+successful orange and tomato-can pick/place cases checked with camera images
+and simulator physics. Guided scene inspection, delivery-zone grounding,
+camera streaming, authenticated access and reset/recovery have also been
+tested. These are bounded event checks; object coverage and generalization
+remain work for later versions.
+
+- Evaluate **Cosmos3-Edge** as a perception and reasoning backend. Structured
+  grounding, generalization and OpenClaw integration need more validation.
+  Retain the reliable event backend until Cosmos passes the same acceptance
+  gates.
 
 ## Status at a glance (2026-09-10)
 

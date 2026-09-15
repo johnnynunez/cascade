@@ -178,7 +178,11 @@ class TruthPoseReader:
             return self._cache
         raw = self._probe()
         if raw is None:
-            return self._cache  # keep the last good reading rather than lying
+            # The TTL-valid cache already returned above. A failed fresh probe
+            # cannot extend an expired pose's lifetime as current physics.
+            self._cache = {}
+            self._cache_t = 0.0
+            return {}
         # Drop insane poses INSTEAD of caching them: a body caught mid-solver
         # reports things like [-11.8, -10.6, -122.1], and passing that to the
         # checker converts a numerical fault into a confident verdict about a
@@ -285,13 +289,23 @@ _GENERIC = {"object", "objects", "thing", "things", "item", "items", "the", "a",
 _COLOURS = {"red", "green", "blue", "pink", "yellow", "orange", "purple",
             "white", "black", "brown", "grey", "gray", "cyan", "magenta"}
 
+_NOUN_ALIASES = {"tin": "can"}
+
+
+def _label_tokens(name: str) -> set[str]:
+    tokens = {_ES_EN.get(t, t) for t in _normalize(name).split("_")
+              if t and t not in _GENERIC}
+    return {_NOUN_ALIASES.get(t, t) for t in tokens}
+
 
 def _match_label(label: str, poses: dict):
     """Shared label -> pose resolution.
 
     Rules, in order (see TruthPoseReader for the incidents behind them):
       1. exact normalized name;
-      2. >= 2 shared content tokens ("pink cube" vs pink_cube); a single
+      2. a unique best match with >= 2 shared content tokens; candidates
+         must retain every non-generic query token, including noun aliases
+         ("tomato tin" vs tomato_can); a single
          shared token is NOT identification ("pink cube" vs green_cube share
          {cube} -- returning the green cube confirmed against the wrong
          object entirely);
@@ -305,19 +319,26 @@ def _match_label(label: str, poses: dict):
     want = _normalize(label)
     if want in poses:
         return poses[want]
-    want_tokens = {t for t in want.split("_") if t and t not in _GENERIC}
-    want_tokens |= {_ES_EN.get(t, t) for t in want_tokens}
-    best, best_score = None, 0
+    want_tokens = _label_tokens(want)
+    candidates = []
     for key, xyz in poses.items():
-        score = len(want_tokens & set(key.split("_")))
+        tokens = _label_tokens(key)
+        if not want_tokens.issubset(tokens):
+            continue
+        candidates.append((tokens, xyz))
+    best, best_score = [], 0
+    for tokens, xyz in candidates:
+        score = len(want_tokens & tokens)
         if score > best_score:
-            best, best_score = xyz, score
+            best, best_score = [xyz], score
+        elif score == best_score:
+            best.append(xyz)
     if best_score >= 2:
-        return best
+        return best[0] if len(best) == 1 else None
     colours = want_tokens & _COLOURS
     if len(colours) == 1:
         colour = next(iter(colours))
-        hits = [xyz for key, xyz in poses.items() if colour in key.split("_")]
+        hits = [xyz for tokens, xyz in candidates if colour in tokens]
         if len(hits) == 1:
             return hits[0]
     return None
@@ -340,10 +361,16 @@ class LazyTruthPoseFn:
     same rule as ``make_truth_pose_fn``), caches it once found, and forgets it
     again if the sim goes away. ``PostconditionChecker`` sees a plain
     ``object_pose(label)`` callable either way.
+
+    When explicitly given the warmed camera rig and Isaac arm profile, it
+    can bind through a matching camera-owned client before any arm use. That
+    supplies a physics pre-state without materializing the lazy actuator.
     """
 
-    def __init__(self, arm):
+    def __init__(self, arm, *, camera_rig=None, arm_cfg=None):
         self._arm = arm
+        self._camera_rig = camera_rig
+        self._arm_cfg = arm_cfg
         self._reader = None
 
     def _resolve(self):
@@ -353,7 +380,9 @@ class LazyTruthPoseFn:
                 return self._reader
             self._reader = None
         try:
-            self._reader = make_truth_pose_fn(self._arm)
+            self._reader = _matching_isaac_camera_reader(self._arm, self._camera_rig, self._arm_cfg)
+            if self._reader is None:
+                self._reader = make_truth_pose_fn(self._arm)
         except Exception:
             self._reader = None
         return self._reader
@@ -371,6 +400,51 @@ class LazyTruthPoseFn:
         return self._resolve() is not None
 
 
+def _matching_isaac_camera_reader(arm, rig, cfg):
+    """Borrow an already-open, identity-matched camera transport for truth.
+
+    Isaac exists before its LazyArm materializes. CameraRig owns this client's
+    connection and teardown; verification never calls an arm factory, connect,
+    resume, reset, target or gripper method.
+    """
+    if rig is None or cfg is None or cfg.get("type") != "isaac":
+        return None
+    kind = type(arm).__name__
+    if kind == "LazyArm":
+        if arm.__dict__.get("_profile_type") != "isaac":
+            return None
+    elif kind != "IsaacArm":
+        return None
+    endpoint = (str(cfg.get("bridge_host", "127.0.0.1")), int(cfg.get("bridge_port", 8611)))
+    robot_id = cfg.get("bridge_robot_id")
+    if not robot_id:
+        return None
+    for stream in rig:
+        camera = getattr(stream, "_camera", None)
+        if type(camera).__name__ != "IsaacCamera":
+            continue
+        client = camera.__dict__.get("_client")
+        if client is None or getattr(client, "_addr", None) != endpoint:
+            continue
+        frame = stream.latest()
+        capture = getattr(frame, "capture", None)
+        if not isinstance(capture, dict):
+            continue
+        state = capture.get("proprioception") or {}
+        stamp = capture.get("t")
+        if (capture.get("backend") != "isaac" or capture.get("source") != endpoint
+                or type(stamp) not in (int, float) or not math.isfinite(stamp) or stamp < 0
+                or type(state.get("version")) is not int or state.get("version") != 1
+                or state.get("backend") != "isaac"
+                or state.get("joint_convention") != "asset"
+                or state.get("robot_id") != robot_id
+                or state.get("t") != stamp
+                or state.get("time_source") != "physics_loop_monotonic"):
+            continue
+        return TruthPoseReader(client, ttl_s=0.0)
+    return None
+
+
 def _mujoco_scene_of(arm) -> str | None:
     """The MJCF path a (materialized) MuJoCo arm simulates, else None."""
     real = arm
@@ -379,7 +453,7 @@ def _mujoco_scene_of(arm) -> str | None:
     if real is None or type(real).__name__ != "MujocoArm":
         return None
     if getattr(real, "world", None) is None:
-        return None  # not connected, or the Warp engine (device-side state)
+        return None  # not connected
     return str(real.mjcf_path)
 
 

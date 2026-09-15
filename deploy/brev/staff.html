@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Staff guide for the initial PAAI, Physical Agentic AI demo at Build a Claw: introduce a task, watch the result and reset.">
+  <title>PAAI, Physical Agentic AI · Staff guide</title>
+  <link rel="stylesheet" href="/staff/style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to staff guide</a>
+  <header>
+    <a class="brand" href="/">PAAI<span>Physical Agentic AI</span></a>
+    <span class="event">Build a Claw · Staff guide</span>
+  </header>
+  <main id="main">
+    <section class="intro" aria-labelledby="title">
+      <p class="eyebrow">Initial event version</p>
+      <h1 id="title">Help someone try PAAI.</h1>
+      <p class="lede">Let the attendee ask about the kitchen, choose an object and watch the robot try the task.</p>
+      <p>PAAI, Physical Agentic AI connects plain English requests to a simulated robot arm. OpenClaw uses CASCADE tools to inspect the kitchen and move prepared objects in NVIDIA Isaac Sim 6.1.</p>
+      <div class="links">
+        <a class="button" href="/">Open attendee cameras</a>
+        <a href="https://github.com/johnnynunez/cascade/blob/brev-rtx6000-kitchen-20260914/docs/BOOTH_GUIDE.md">Markdown guide</a>
+        <a href="https://github.com/johnnynunez/cascade/blob/brev-rtx6000-kitchen-20260914/docs/DGX_SPARK_SETUP.md">DGX Spark setup</a>
+      </div>
+    </section>
+
+    <section class="talk" aria-labelledby="intro-title">
+      <p class="eyebrow">Your 20-second introduction</p>
+      <h2 id="intro-title">Start with what they can do.</h2>
+      <blockquote>“This is PAAI, Physical Agentic AI. You can ask about the kitchen or give the robot a task in plain English. We'll watch it through three cameras, then check whether it moved the right object. Start by asking what it can see.”</blockquote>
+    </section>
+
+    <section aria-labelledby="before-title">
+      <h2 id="before-title">Before a group arrives</h2>
+      <ol>
+        <li>Open the attendee page. Check <strong>Kitchen</strong>, <strong>Worktop</strong> and <strong>Side</strong> for current images and wait for <strong>Live</strong>.</li>
+        <li>Use the connected OpenClaw chat on the booth computer. Keep Worktop beside it. This page and the attendee link do not send robot commands.</li>
+        <li>Wait for any active task to finish. Reset once and check that the arm and loose props return to their starting places.</li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="run-title">
+      <h2 id="run-title">Walk through one task</h2>
+      <div class="steps">
+        <article><p class="eyebrow">1 · Look</p><h3>Inspect the scene</h3><p>Compare the chat reply with <strong>Worktop</strong>. It shows the objects and the green delivery square. The green cube is a separate object.</p></article>
+        <article><p class="eyebrow">2 · Move</p><h3>Send one request</h3><p>Choose one object and a clear destination. Watch the lift in <strong>Side</strong>. A pick can take about one to two minutes; wait for the full reply.</p></article>
+        <article><p class="eyebrow">3 · Check</p><h3>Read the result</h3><p>Watch the release and settled object in <strong>Worktop</strong>. <strong>Kitchen</strong> shows the whole room. Review the tool result together, then reset.</p></article>
+      </div>
+    </section>
+
+    <section aria-labelledby="prompts-title">
+      <h2 id="prompts-title">Prompts to try</h2>
+      <p>Send these in the booth computer's connected chat. Keep the delivery square empty and reset between movement requests.</p>
+      <dl class="prompts">
+        <div><dt>Inspect the scene</dt><dd>What can you see on the worktop? Do not move anything.</dd></div>
+        <div><dt>Locate the zone</dt><dd>Where is the green delivery zone? Do not move anything.</dd></div>
+        <div><dt>Move the orange</dt><dd>Pick up the orange and put it in the green square. Then stop.</dd></div>
+        <div><dt>Try the lemon</dt><dd>Pick up the lemon and put it in the green square. Then stop.</dd></div>
+        <div><dt>Move the can</dt><dd>Pick up the tomato can and put it in the green square. Then stop.</dd></div>
+        <div><dt>Reset</dt><dd>Reset the scene.</dd></div>
+      </dl>
+      <p>The green square is the delivery zone. Use the single loose orange near the arm; the oranges on the plate are outside the grasp area. The lemon can be hard to identify and grasp.</p>
+      <details>
+        <summary>If the scene description is unclear</summary>
+        <p>Try this guided observation prompt, then compare the reply with Worktop:</p>
+        <blockquote>Call get_observation once for a fresh view. Describe only the objects, colors and shapes visible in the returned image. Say when something is unclear; do not treat configured destinations as proof that an area is visible or empty. Use at most three short sentences. Do not move anything or call another tool.</blockquote>
+      </details>
+    </section>
+
+    <section aria-labelledby="success-title">
+      <h2 id="success-title">What a successful run looks like</h2>
+      <p>The requested object lifts clear of the counter, stays in the gripper during the move, and settles fully inside the green border after release. Check Side for the lift and open jaws, then Worktop for the final position.</p>
+      <p>After the movement, ask:</p>
+      <blockquote>Check the object's final position using physics. What does the evidence confirm, and what is still unverified?</blockquote>
+      <p>Keep an <strong>unverified</strong> result as unverified. A position near the zone's center does not by itself prove full containment or release. If the views and readback disagree, pause and have the demo operator review the result.</p>
+      <p>Successful orange and tomato-can pick/place cases have been checked with camera images and simulator physics. Guided scene inspection, locating the delivery zone, authenticated camera streaming and reset/recovery have also been tested. Each new run still needs its own check.</p>
+    </section>
+
+    <section aria-labelledby="recovery-title">
+      <h2 id="recovery-title">If something goes wrong</h2>
+      <div class="recovery">
+        <article>
+          <h3>Missed grasp or dropped object</h3>
+          <p>Let the current tool finish. Say, “The gripper missed; this attempt did not complete the task.” Read the result, then reset once. Do not queue retries while the arm is moving.</p>
+          <p>If it keeps missing, return to scene inspection and ask the demo operator for help.</p>
+        </article>
+        <article>
+          <h3>Old or frozen camera</h3>
+          <p>Pause new movement requests. Let the page reconnect, then refresh it if needed. Check all three views; a Live label alone is not enough if the image stays frozen during motion.</p>
+          <p>If a view remains stale, let the active task finish and have the operator check the feed. Request a fresh observation before the next movement.</p>
+        </article>
+      </div>
+      <h3>Reset between tasks</h3>
+      <p>A new chat does not reset the scene. Wait for the current tool to finish. If a normal reset request did not trigger a tool call, send this once:</p>
+      <blockquote>Call reset_scene now for a fresh reset. Call it exactly once and wait for the tool result. Reply briefly in English, then stop.</blockquote>
+      <p>Check for an empty gripper at home, the loose props back in their starting positions and current images from all three cameras. Leave a failed reset result in the chat and ask the operator to recover the demo before another turn.</p>
+    </section>
+
+    <section aria-labelledby="limits-title">
+      <h2 id="limits-title">Known limits</h2>
+      <ul>
+        <li>This is a simulation with a small set of prepared objects and skills. It does not establish performance on physical hardware.</li>
+        <li>Object descriptions can be wrong, especially with the lemon or partly hidden objects. Compare them with the current view.</li>
+        <li>Grasps and unusual arrangements can fail. Do not promise that every request will work.</li>
+        <li>Camera previews update only a few times per second. Smooth playback does not mean the scene is captured at that rate.</li>
+      </ul>
+    </section>
+
+    <section class="access" aria-labelledby="access-title">
+      <h2 id="access-title">Live Brev access and setup</h2>
+      <p>The event demo runs on Brev <strong>paai-demo-rtx6000</strong>. The operator shares the current HTTPS link and Basic Auth credentials privately. The fields below are placeholders.</p>
+      <dl class="access-list">
+        <div><dt>Attendee page</dt><dd><code>&lt;public-https-url&gt;/</code></dd></div>
+        <div><dt>Staff page</dt><dd><code>&lt;public-https-url&gt;/staff/</code></dd></div>
+        <div><dt>Username</dt><dd><code>&lt;staff-username&gt;</code></dd></div>
+        <div><dt>Password</dt><dd><code>&lt;staff-password&gt;</code></dd></div>
+      </dl>
+      <p>Both public pages require authentication. Keep credentials out of screenshots and documentation. Commands use the booth computer's connected chat; OpenClaw administration and raw controls stay private.</p>
+      <p>For a new machine, follow <a href="https://github.com/johnnynunez/cascade/blob/brev-rtx6000-kitchen-20260914/docs/DGX_SPARK_SETUP.md">DGX Spark setup</a>. For the running event system, use the <a href="https://github.com/johnnynunez/cascade/blob/brev-rtx6000-kitchen-20260914/docs/BREV.md">Brev deployment guide</a>.</p>
+    </section>
+  </main>
+  <footer>
+    <p>PAAI was built together by Asier Arranz and Johnny Núñez.</p>
+    <p>Kitchen and orange assets by <a href="https://github.com/LightwheelAI/Lightwheel_Kitchen" rel="noreferrer">Lightwheel</a>, <a href="https://creativecommons.org/licenses/by-nc/4.0/" rel="noreferrer">CC BY-NC 4.0</a>, adapted for this demo.</p>
+  </footer>
+</body>
+</html>

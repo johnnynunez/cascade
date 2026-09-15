@@ -7,7 +7,6 @@ never evidence that Newton or the shipped asset works on a DGX Spark.
 """
 from __future__ import annotations
 
-import ast
 from concurrent.futures import ThreadPoolExecutor
 import json
 import socketserver
@@ -18,7 +17,7 @@ from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import pytest
-from conftest import REPO, loopback_host
+from conftest import load_isaac_bridge_definitions, loopback_host
 
 from cascade.agent.trace import TraceLogger
 from cascade.config import Cfg
@@ -26,6 +25,7 @@ from cascade.control.isaac_arm import IsaacArm
 from cascade.memory import BeliefStore, EpisodicMemory
 from cascade.sim.bridge_client import BridgeError
 from cascade.skills.runtime import SkillRuntime
+from cascade.types import Frame
 
 
 class PhysicsBoundary:
@@ -80,11 +80,8 @@ def _load_bridge_definitions(monkeypatch, physics):
     Do not copy/reimplement the handler or reset logic in the tests. Loading
     its AST definitions is necessary because importing the script boots Kit.
     """
-    path = REPO / "scripts" / "isaac_bridge.py"
-    tree = ast.parse(path.read_text(), filename=str(path))
     wanted = {"Handler", "_run_exec_jobs", "_settle_props", "_zero_prop_velocity",
               "_reset_props_verified"}
-    nodes = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name in wanted]
     prims = ModuleType("isaacsim.core.experimental.prims")
     prims.RigidPrim = physics.rigid_prim
     monkeypatch.setitem(sys.modules, prims.__name__, prims)
@@ -99,7 +96,7 @@ def _load_bridge_definitions(monkeypatch, physics):
         "_tl": SimpleNamespace(is_playing=lambda: True),
         "_newton_teleport": physics.teleport,
     }
-    exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), "exec"), env)
+    load_isaac_bridge_definitions(wanted, env)
     return env
 
 
@@ -136,13 +133,18 @@ def _runtime(arm, physics, demo_cfg, tmp_path):
         physics.events.append(("home",))
         return True
 
-    def no_camera():
-        raise RuntimeError("camera boundary absent in CPU protocol contract test")
+    def camera_frame():
+        return Frame(rgb=np.zeros((12, 12, 3), np.uint8), depth_m=None, K=np.eye(3))
 
-    safe_arm = SimpleNamespace(raw=arm, move_joints=home)
+    safe_arm = SimpleNamespace(raw=arm, move_joints=home,
+        get_state=lambda: SimpleNamespace(q=np.zeros(6), gripper_pos=1.0),
+        harness=SimpleNamespace(heartbeat=lambda: None))
     return SkillRuntime(
-        camera=SimpleNamespace(get_frame=no_camera), depth_provider=None, detector=None,
-        extrinsics=None, kin=None, safe_arm=safe_arm, memory=EpisodicMemory(),
+        camera=SimpleNamespace(get_frame=camera_frame),
+        depth_provider=SimpleNamespace(ensure_depth=lambda frame: frame),
+        detector=SimpleNamespace(detect=lambda *a, **kw: []),
+        extrinsics=None, kin=SimpleNamespace(fk=lambda q: np.eye(4)),
+        safe_arm=safe_arm, memory=EpisodicMemory(),
         beliefs=BeliefStore(), trace=TraceLogger(tmp_path / "run"), cfg=demo_cfg,
     )
 
@@ -153,6 +155,7 @@ def test_dispatcher_records_measured_isaac_reset_in_its_own_trace(reset_bridge, 
     result = _pump_main_thread(env, lambda: runtime.execute("reset_scene", {}))
 
     assert result["ok"] is True, result
+    assert result["observation_refreshed"] is True
     assert result["world"] == "isaac", result
     assert result["props_reset"] == list(physics.spawns), result
     verification = result["reset_verification"]
@@ -169,6 +172,19 @@ def test_dispatcher_records_measured_isaac_reset_in_its_own_trace(reset_bridge, 
     assert len(rows) == 1
     assert rows[0]["skill"] == "reset_scene"
     assert rows[0]["result"] == result
+
+
+def test_measured_reset_with_failed_camera_is_not_complete_success(reset_bridge, demo_cfg, tmp_path):
+    arm, physics, env = reset_bridge
+    runtime = _runtime(arm, physics, demo_cfg, tmp_path)
+    def missing_camera():
+        raise RuntimeError("camera boundary unavailable")
+    runtime.camera.get_frame = missing_camera
+    result = _pump_main_thread(env, lambda: runtime.execute("reset_scene", {}))
+    assert result["ok"] is False and result["observation_refreshed"] is False
+    assert result["props_reset"] == list(physics.spawns)
+    assert result["reset_verification"]["channel"] == "physics"
+    assert result["objects_visible"] == [] and result["observe_error"]
 
 
 @pytest.mark.parametrize("bad_position", [

@@ -37,7 +37,7 @@ multimodal traces + skill library) and
 advisor + experience memory), in the same
 service-oriented/composable spirit as [RPent](https://github.com/RLinf/RPent).
 
-[Spark delivery](docs/SPARK_DELIVERY.md) · [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Booth runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](CLAUDE.md)
+[PAAI staff guide](docs/BOOTH_GUIDE.md) · [DGX Spark setup](docs/DGX_SPARK_SETUP.md) · [Spark delivery](docs/SPARK_DELIVERY.md) · [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Physical rig runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](CLAUDE.md)
 
 ```
 ┌──────────────────────────────────────────┐   ┌──────────────────────────────────────────┐
@@ -61,12 +61,69 @@ service-oriented/composable spirit as [RPent](https://github.com/RLinf/RPent).
 └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
 ```
 
-Every skill's **physical effect is verified** on a channel the actuator does
-not own -- sim physics truth, perception, or jaw width -- and a refuted claim
-downgrades the skill's own `ok`. The verdict travels with the result into the
+Motion skills report **confirmed, refuted or unverified postconditions**
+from sim physics truth, perception or jaw width. A refuted claim downgrades
+the skill's own `ok`. The verdict travels with the result into the
 trace, into the planner's visual memory and to the off-line progress judge.
 That, plus the cascade of tiers above it, is the whole design; the
 [architecture doc](docs/ARCHITECTURE.md) walks the runtime end to end.
+
+## PAAI, Physical Agentic AI
+
+PAAI is the initial **Build a Claw** event demo. Attendees use OpenClaw chat
+to inspect a simulated kitchen and ask the arm to move prepared objects.
+CASCADE connects those requests to robot skills in NVIDIA Isaac Sim 6.1.
+Three camera views show the action; simulator physics readback helps check
+the result.
+
+The authenticated attendee page shows cameras. A separate `/staff/` page
+explains the prompts, result checks and recovery steps. See the
+[booth guide](docs/BOOTH_GUIDE.md) for the staff walkthrough.
+
+## Brev deployment
+
+The kitchen demo runs on Brev.dev with an AWS `g7e.2xlarge`: one RTX PRO 6000
+Blackwell Server Edition with 96 GB VRAM, eight vCPUs, 62 GiB RAM and a 1.7 TB
+NVMe volume. It uses Isaac Sim 6.1 / CUDA PhysX and Qwen3.8-27B **Q8_0**, with
+the vision projector and model fully on the GPU.
+
+Select a matching instance with `brev create <name> --type g7e.2xlarge --flex-ports`.
+GPU/VRAM and `--min-disk` search filters help check capacity; verify the actual
+NVMe mount after boot. Brev SSH uses a managed relay that can close while the
+VM remains healthy. Tailscale to the VM's own SSH server was the working
+fallback; check both devices' key expiry. Put heavy data under
+`/opt/dlami/nvme/paai-demo`. If bridge containers fail because `docker0` is
+missing, `sudo systemctl restart docker` repairs that specific first-boot fault.
+
+Prepare the external source/asset bundle and site profile using
+[the deployment instructions](docs/BREV.md). For the first installation:
+
+```bash
+./deploy/brev/deploy.sh preflight --profile /srv/cascade/site.json
+./deploy/brev/deploy.sh install --profile /srv/cascade/site.json
+```
+
+`install` prepares and starts the demo; `start` resumes a prepared installation.
+The same entry point supports `status`, `restart` and `stop`. The demo and
+public ngrok visitor use supervision across disconnects. The public page
+shows authenticated cameras while OpenClaw administration and raw Isaac
+control ports remain private. See [the deployment instructions](docs/BREV.md)
+for preparation inputs, observed behavior and remaining certification limits.
+
+## Chrome extension
+
+The optional [camera companion](extensions/chrome) puts Kitchen, Worktop and
+Side views beside the real OpenClaw chat. In `chrome://extensions`, enable
+**Developer mode**, choose **Load unpacked**, and select `extensions/chrome`.
+Open the private booth guide, click **Open OpenClaw**, and wait for **Ready**.
+In the connected chat tab, click the extension, select **Connect cameras**,
+allow the demo host, then choose **Side panel** or **Show in chat**.
+
+The public camera page needs no extension. Real Chrome on Brev passed the
+native side panel, host permission and three advancing camera feeds. The guide
+also opened authenticated OpenClaw beside the native panel on Brev. The extension
+does not handle gateway authentication or public visitor credentials.
+See [installation details and tested limitations](docs/CHROME_EXTENSION.md).
 
 ## What it runs on
 
@@ -170,6 +227,9 @@ to work on the MJWarp path itself. `device: auto` resolves to CUDA when present,
 CPU otherwise — the same profile runs on both.
 
 ## Install
+
+Start with the [DGX Spark setup guide](docs/DGX_SPARK_SETUP.md) for host
+checks, installation, startup and recovery.
 
 The one-command delivery targets **Linux DGX Spark: Isaac Sim 6.1.0.0 +
 Newton + Cosmos3-Edge + OpenClaw**. It requires a working NVIDIA driver and
@@ -319,8 +379,8 @@ channel, 0 tool failures, ~100 s, and the brain's answer cites the memory
 frames' verdicts, not its intent. Asked afterwards "how many did you move
 and how do you know?", it answers from `task_memory`.
 
-Between visitors say **"reset the scene"** (or "start over", "reinicia la
-escena"): arm home, sim props back on their spawn pose, world model and task
+Between visitors say **"reset the scene"** (or "start over"): arm home, sim
+props back on their spawn pose, world model and task
 memory cleared. CASCADE's own CLI has an offline reset reflex; in OpenClaw,
 the host model still chooses the tool. The launcher invokes reset after its
 proof turn so the first visitor starts from the spawn layout.
@@ -582,13 +642,13 @@ they run (and the ones that record a memory frame + verdict afterwards).
 
 | skill | what it does |
 |---|---|
-| `get_observation` | Fresh camera frame: visible objects with 3D positions, remembered objects, robot state |
-| `list_objects` | Every object the robot knows about, including out-of-view ones with last-known position + age |
-| `describe_scene` | Instant text description from the live world model — no motion, no camera wait |
+| `get_observation` | Fresh camera capture and tracking update. MCP returns the image, frame freshness, configured destinations and robot state; use `localize_object` for measured object positions |
+| `list_objects` | Tracked detections and remembered entries with last-known position and age; labels are tentative and the list is not an exhaustive scene inventory |
+| `describe_scene` | Fresh scene observation without motion. MCP returns an image and scene metadata for visual inspection; configured destinations do not establish visibility or occupancy |
 | `analyze_scene` | Full perception report: per-camera detections, depth quality, scene description, numbered object key |
 | `annotated_view` | Rendered camera view with numbered object badges, a 5 cm base-frame grid, and the reachable region shaded |
 | `count_objects` | Count known objects, optionally filtered ("red", "cube", "pink object") |
-| `localize_object` | Precisely localize one named object: base-frame position + size |
+| `localize_object` | Localize a named object from camera depth: base-frame position and size in meters. Configured-zone names return their configured XY center, with configuration provenance |
 | `probe_point` | Cursor: click a pixel, get distance, 3D position, which object it is, reachability, offset from the gripper |
 | `locate_pixel` | Inverse of `probe_point`: given a tracked object, where is it in the image right now |
 | `preview_grasp` | Plan a grasp and report the proposed waypoint (position, approach, confidence) **without** moving |
@@ -631,7 +691,7 @@ they run (and the ones that record a memory frame + verdict afterwards).
 
 | skill | what it does |
 |---|---|
-| `reset_scene` | Between visitors: arm home, sim props back on their spawn pose, world model + task memory cleared, one fresh observation. Also the reflex phrases "reset the scene" / "start over" / "reinicia la escena" |
+| `reset_scene` | Between visitors: arm home, sim props back on their spawn pose, world model + task memory cleared, one fresh observation. Also the reflex phrases "reset the scene" / "start over" |
 
 `task_done` (declare success/failure with a summary) is the 34th spec but
 is loop-internal — excluded from the MCP tool list, since an external host
@@ -703,8 +763,8 @@ silently vanishes.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the runtime end to end
   (tiers, the `execute()` choke point, verification channels, sim as an
   instrument, memory stores), module map, decisions, verification status
-- [docs/QUICKSTART.md](docs/QUICKSTART.md) — cómo abrir la demo (en
-  español): one click, chat host, CLI, cámaras, parar, si algo falla
+- [docs/QUICKSTART.md](docs/QUICKSTART.md) — launch the demo, use the chat host,
+  CLI and cameras, stop services and troubleshoot failures
 - [docs/SPARK_DELIVERY.md](docs/SPARK_DELIVERY.md) — default Spark install,
   license consent, isolated services, proof receipts and GPU acceptance gate
 - [docs/BOOTH_RUNBOOK.md](docs/BOOTH_RUNBOOK.md) — the 15-minute hands-on

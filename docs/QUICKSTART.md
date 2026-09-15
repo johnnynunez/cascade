@@ -1,104 +1,113 @@
-# Cómo abrir la demo
+# Opening the demo
 
-La entrega usa **DGX Spark/Linux + Isaac Sim 6.1.0.0 + Newton +
-Cosmos3-Edge + OpenClaw**. El launcher abre el chat al terminar el proof;
-`--no-open` evita abrirlo. La UI de cámaras es independiente y opcional.
-El Mac sirve para desarrollo; no certifica la ejecución GPU de la entrega.
+The original delivery profile uses **DGX Spark/Linux + Isaac Sim 6.1.0.0 +
+Newton + Cosmos3-Edge + OpenClaw**. The launcher opens chat after the proof
+completes; `--no-open` keeps it closed. The camera UI is separate and optional.
+The Mac is a development platform; its results do not certify the delivery's
+GPU execution. Spark/GPU cold-start certification remains pending.
+
+For the **Brev RTX PRO 6000 profile with PhysX and Qwen3.8-27B Q8_0**, see
+[the Brev instructions](BREV.md). They describe the tested deployment and its
+remaining acceptance limits.
+The performance and test counts below describe earlier development runs,
+not a Spark or Brev certification.
 
 ---
 
-## 0. Un clic (lo que se enseña a un visitante)
+## 0. One click for visitors
 
 ### DGX Spark
 
-Después de publicar estos cambios en el ref de distribución:
+Once these changes are available at the distribution ref:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bootstrap.sh | bash -s -- --accept-eula
 ```
 
-Para N máquinas, fija un commit probado tanto en la URL como en `--ref`.
-Esta sesión no publica los cambios ni certifica Spark: aún no hay equipo
-accesible. Desde este checkout se usa:
+For multiple machines, pin a proven commit in both the URL and `--ref`.
+Spark cold-start certification remains pending until the required acceptance
+run succeeds on a Spark machine.
+From this checkout, use:
 
 ```bash
 bash scripts/install.sh --dir "$PWD" --profile spark --accept-eula
-# Sólo preparar paquetes/modelos antes del evento, sin arrancar servicios:
+# Prepare packages/models before the event without starting services:
 bash scripts/install.sh --dir "$PWD" --profile spark --accept-eula --prepare-only
 ```
 
-El instalador pide aceptación explícita de la licencia y no cambia drivers.
-Aísla CASCADE, Isaac y Cosmos; instala OpenClaw 2026.9.3 localmente y usa
-el perfil `cascade-demo`, no la configuración personal. Si Cosmos falla,
-no lo sustituye por OpenAI. Detalles y aceptación pendiente:
+The installer requires explicit license acceptance and leaves drivers
+unchanged. It isolates CASCADE, Isaac, and Cosmos, installs OpenClaw
+2026.9.3 locally, and uses the `cascade-demo` profile independently of
+personal configuration. A Cosmos failure does not trigger an OpenAI
+fallback. For details and the pending acceptance gate, see
 [SPARK_DELIVERY.md](SPARK_DELIVERY.md).
 
-### Desarrollo en el Mac o un rig ya instalado
+### Development on a Mac or an installed rig
 
 ```bash
 git clone https://github.com/johnnynunez/cascade && cd cascade
-./run.sh mujoco --brain keep     # usa la autenticación ya configurada en OpenClaw
-./run.sh mujoco --cameras mujoco_scene_two    # la escena de dos cubos (demo de memoria)
-./run.sh check isaac            # sólo informa qué falta; no instala ni descarga nada
-./run.sh down                   # para todo lo que arrancó (sidecars + servidores MCP de sesiones viejas)
+./run.sh mujoco --brain keep     # use authentication already configured in OpenClaw
+./run.sh mujoco --cameras mujoco_scene_two    # two-cube scene for the memory demo
+./run.sh check isaac            # report missing requirements without installing or downloading
+./run.sh down                   # stop owned sidecars and MCP servers from earlier sessions
 ```
 
-La primera vez crea el venv, instala los extras del modo, baja los meshes
-del robot, instala/actualiza la CLI de OpenClaw, arranca los sidecars
-(occupancy :5557, GraspGen-X stub :5556), registra las herramientas del
-robot y **prueba el stack antes de decir READY**: construye el runtime con
-el mismo entorno que recibe el servidor, lista las 41 tools, saca una
-respuesta trivial del cerebro y ejecuta pick y reset en una misma sesión.
-El receipt `proof.json` debe vincular modelo, sesión y proceso MCP con
-el resultado físico y la restauración del objeto manipulado. Un puerto
-abierto, una frase del modelo o un trace de otra sesión no bastan. Con
-`--no-robot-turn` sólo muestra STARTED / UNVERIFIED, nunca READY. Las
-siguientes ejecuciones reutilizan los paquetes y assets descargados.
+The first run creates the venv, installs the mode's extras, downloads robot
+meshes, installs or updates the OpenClaw CLI, starts the sidecars
+(occupancy :5557, GraspGen-X stub :5556), and registers the robot tools.
+It **checks the stack before reporting READY**: it builds the runtime with
+the same environment as the server, lists the 41 tools, requests a simple
+brain response, and performs pick and reset within one session.
+The `proof.json` receipt must bind the model, session, and MCP process to
+the physical result and restoration of the manipulated object. An open
+port, a model response, or another session's trace is insufficient.
+With `--no-robot-turn`, the status is STARTED / UNVERIFIED, never READY.
+Subsequent runs reuse downloaded packages and assets.
 
-El banner READY dice lo que hay de verdad: backend de occupancy, planner de
-agarre (stub o modelo), número de tools, URL del chat, y si la ventana de
-MuJoCo está abierta o por qué no (pantalla bloqueada → se abre en el primer
-movimiento tras despertarla).
+The READY banner reports the actual occupancy backend, grasp planner
+(stub or model), tool count, chat URL, and whether the MuJoCo window is
+open. If the display was locked at startup, it explains why the window
+was deferred; the window opens on the first movement after the display wakes.
 
-Luego abre `http://127.0.0.1:18789/` y habla, o sin navegador:
+Then open `http://127.0.0.1:18789/` and chat, or use the terminal:
 
 ```bash
 openclaw agent exec "what do you see?"
 openclaw agent exec "pick and place the red object"
 openclaw agent exec "did it actually move?"
-# una sesión con memoria entre turnos (lo que hace el dashboard):
+# One session retaining memory between turns, as the dashboard does:
 openclaw agent -m "put both cubes in the drop zone, one at a time; call task_memory before each action" --session-id demo-1
 openclaw agent -m "how many did you move and how do you know?" --session-id demo-1
 openclaw agent -m "reset the scene" --session-id demo-1
 ```
 
-Cada llamada a herramienta que hace el host queda en
-`runs/mcp_<pid>/server.log` (OpenClaw sólo enseña un contador de fallos).
+Every host tool call is recorded in `runs/mcp_<pid>/server.log`.
+OpenClaw itself shows only a failure counter.
 
-### La demo de memoria (dos cubos)
+### Memory demo with two cubes
 
-Un pick-and-place es markoviano: nadie ve trabajar la memoria. Con dos
-props, tras el primer pick la vista actual sola no dice si se movió uno o
-ninguno. Di en el chat:
+A single pick-and-place is Markovian, so it does not visibly demonstrate
+memory. With two props, the current view after the first pick alone does
+not establish whether one object or neither has moved. Ask in chat:
 
 > Put both cubes in the drop zone, one at a time. Before each action call
 > task_memory to see what you already did, and when both are done tell me
 > how many cubes you moved and how you know.
 
-El cerebro ve hasta K=4 frames de lo que ya hizo (estado inicial, la vista
-tras cada acción, el veredicto de la física) junto a la vista actual, y su
-respuesta cita esos veredictos. Medido: 2 `pick_and_place` confirmados por
-física, 0 fallos, ~100 s.
+The brain receives up to K=4 frames from its earlier actions: the initial
+state, views after actions, and physics verdicts, alongside the current
+view. Its answer cites those verdicts. Recorded development result:
+2 physics-confirmed `pick_and_place` actions, 0 failures, approximately 100 s.
 
-Entre visitantes: **"reset the scene"** ("start over", "reinicia la
-escena") — brazo a home, props al spawn, world model y memoria de tarea
-limpios. En Isaac se exige read-back físico finito de cada prop dentro de
-la tolerancia de spawn. El reflejo funciona sin LLM en la CLI de CASCADE;
-en el chat OpenClaw sigue siendo el modelo del host quien elige la tool.
+Between visitors, ask **"reset the scene"** or "start over". The arm
+returns home, props return to spawn, and the world model and task memory
+are cleared. Isaac requires finite physical readback of each prop within
+the spawn tolerance. The reflex works without an LLM in the CASCADE CLI;
+in OpenClaw chat, the host model still chooses the tool.
 
 ---
 
-## 0-bis. Sin hardware, sin GPU, sin servidores, sin OpenClaw
+## 0b. Without hardware, a GPU, servers, or OpenClaw
 
 ```bash
 uv venv && uv pip install -e '.[dev,kinematics]' && source .venv/bin/activate
@@ -106,33 +115,37 @@ python -m cascade.apps.demo --arm so101_mock --camera mock_small \
     --task "pick and place the red object"
 ```
 
-Eso ejecuta la cascada completa sobre un SO-101 de 5 ejes simulado
-cinemáticamente. Con `.[sim]` + `python scripts/fetch_robot_assets.py so101`
-pasas a física real en MuJoCo (`--arm so101_mujoco --camera mujoco_scene`):
-la cámara está RENDERIZADA desde el mismo mundo que pisa el brazo y la
-postcondición lee la pose real del prop → `postcondition: confirmed
-(channel: physics)`. Con `.[sim-warp]`, `--arm so101_mjwarp` es el MISMO
-MJCF sobre MuJoCo Warp (GPU; en CPU ~650× más lento que el motor C — vale
-para desarrollar esa ruta, no para enseñar la demo).
+This runs the complete cascade on a kinematically simulated five-axis
+SO-101. With `.[sim]` and `python scripts/fetch_robot_assets.py so101`,
+use MuJoCo physics via `--arm so101_mujoco --camera mujoco_scene`.
+The camera renders the same world as the arm, and the postcondition reads
+the prop's physical pose: `postcondition: confirmed (channel: physics)`.
+With `.[sim-warp]`, `--arm so101_mjwarp` uses the same MJCF in MuJoCo Warp
+on the GPU. Its CPU path was approximately 650× slower than the C engine
+in the recorded comparison; use it for developing that path, not presenting
+the demo.
 
 ---
 
-## 1. El rig de referencia (reBot / Isaac Sim + cerebro local)
+## 1. Reference rig: reBot / Isaac Sim with a local brain
 
-Requisitos que arrancan una vez, cada uno en su terminal:
+Start each required component once, in its own terminal. Choose one of the
+two brain servers shown below. These commands retain the original local
+server profiles; use the Brev guide for the Qwen3.8 production profile.
 
 ```bash
 export ISAACSIM_PATH=~/Projects/isaac/IsaacSim/_build/linux-x86_64/release
-./run.sh isaac                          # arranca el bridge (:8611) y todo lo demás
-# o a mano:
-$ISAACSIM_PATH/python.sh scripts/isaac_bridge.py     # Newton por defecto; --engine physx
+./run.sh isaac                          # start the bridge (:8611) and the rest of the stack
+# Or start the bridge manually:
+$ISAACSIM_PATH/python.sh scripts/isaac_bridge.py     # Newton by default; --engine physx
 
-scripts/serve_qwen_llamacpp.sh          # Qwen3.6 -> :8080   (uno de los dos)
+scripts/serve_qwen_llamacpp.sh          # Qwen3.6 -> :8080   (choose one brain server)
 scripts/serve_cosmos_vllm.sh            # Cosmos3-Edge -> :8082
-TORCH_CUDA_ARCH_LIST=12.0 scripts/serve_graspgenx.sh franka_panda 5556   # agarres 6-DoF aprendidos
+TORCH_CUDA_ARCH_LIST=12.0 scripts/serve_graspgenx.sh franka_panda 5556   # learned 6-DoF grasps
 ```
 
-Comprobar que todo está vivo (sin `ss`, que en macOS no existe):
+Check service reachability without relying on `ss`, which macOS does not
+provide. This is a connectivity check, not a readiness certificate:
 
 ```bash
 python - <<'EOF'
@@ -143,10 +156,10 @@ for p in (8611, 8080, 8082, 5556, 5557, 18789):
 EOF
 ```
 
-`./run.sh isaac --brain auto` usa el servidor local si responde y, si no,
-la autenticación que OpenClaw ya tenga.
+`./run.sh isaac --brain auto` uses the local server when it responds;
+otherwise, it uses authentication already configured in OpenClaw.
 
-## 2. Una orden desde la terminal (sin chat host)
+## 2. One terminal command without a chat host
 
 ```bash
 cd models && python -m cascade.apps.demo \
@@ -154,95 +167,100 @@ cd models && python -m cascade.apps.demo \
     --task "pick and place the pink cube in the box" --no-view
 ```
 
-> `cd models` no es opcional con el detector YOLOE: busca `mobileclip_blt.ts`
-> en el CWD. Con las cámaras mock/MuJoCo no hace falta.
+> `cd models` is required for the YOLOE detector: it looks for
+> `mobileclip_blt.ts` in the CWD. Mock/MuJoCo cameras do not require it.
 
-Perfiles de cerebro: `--llm hermes` (Nous Portal, `NOUS_API_KEY`) |
+Brain profiles: `--llm hermes` (Nous Portal, `NOUS_API_KEY`) |
 `local_qwen` | `local_cosmos` | `local_cosmos_sglang` | `anthropic` |
-`openai` | `mock` (comprobación de cableado, sin LLM). Por defecto `auto`:
-Hermes, Anthropic u OpenAI según qué clave esté exportada; sin ninguna,
-`mock`. El CLI corre las tres capas (reflejo → hábito → LLM); el chat host
-sólo la suya.
+`openai` | `mock` (wiring check without an LLM). The default is `auto`:
+Hermes, Anthropic, or OpenAI according to the exported key; without a key,
+it uses `mock`. The CLI runs all three layers: reflex → habit → LLM.
+The chat host runs only its own layer.
 
-## 3. Chat interactivo en la terminal
+## 3. Interactive terminal chat
 
 ```bash
 cd models && python -m cascade.apps.demo \
     --cameras isaac,isaac_side --arm isaac --llm local_qwen --interactive
 ```
 
-Entiende español e inglés: `describe the scene` / `¿qué ves?` · `coge el
-cubo rosa y ponlo en la caja` · `abre las cámaras` (devuelve una URL) ·
-`lanza la banana` · `reinicia la escena`.
+It accepts English and Spanish instructions. English examples:
+`describe the scene` / `what do you see?` · `pick up the pink cube and put
+it in the box` · `open the cameras` (returns a URL) · `throw the banana` ·
+`reset the scene`.
 
 ---
 
-## Las cámaras: cerradas hasta que las pidas
+## Cameras open on request
 
-Perception **nunca para** (el rig bombea frames y el world model sigue
-caliente), pero no se bindea ningún puerto hasta que alguien quiere mirar.
+Perception **keeps running**: the rig supplies frames and the world model
+stays current. The viewer does not bind a port until someone requests it.
 
-| skill | qué hace |
+| Skill | Behavior |
 |---|---|
-| `analyze_scene` | "¿qué ves?" **sin abrir nada**: detecciones + calidad de profundidad + descripción |
-| `open_live_view` / `close_live_view` / `live_view_status` | dashboard en el navegador, y liberar el puerto |
-| `probe_point(u,v)` | **cursor**: qué hay en ese píxel, distancia, si es alcanzable |
-| `annotated_view` | marcas numeradas + rejilla de 5 cm + región alcanzable |
-| `task_memory` (sólo MCP) | los K frames de lo que ya hizo en esta tarea, con veredicto |
-| `world_state` (sólo MCP) | objetos, qué sostiene, último camino de despacho |
+| `analyze_scene` | Answer "what do you see?" **without opening a viewer**: detections, depth quality, and description |
+| `open_live_view` / `close_live_view` / `live_view_status` | Open, close, or inspect the browser dashboard; closing releases its port |
+| `probe_point(u,v)` | Inspect a **cursor** location: object at the pixel, distance, and reachability |
+| `annotated_view` | Numbered markers, a 5 cm grid, and the reachable region |
+| `task_memory` (MCP only) | Up to K frames from earlier actions in this task, with verdicts |
+| `world_state` (MCP only) | Objects, the held object, and the latest dispatch path |
 
-El dashboard se **auto-cierra a los 15 min** sin nadie mirando. Vistas:
-**rgb** (detector + HUD), **depth** (colormap + min/mediana/máx + % válido),
-**agent** (marcas, rejilla, banda IK). Más panel analyze, world model,
-narración y un chat que maneja el mismo brazo.
+The dashboard **closes automatically after 15 minutes** without a viewer.
+Views include **rgb** (detector and HUD), **depth** (colormap,
+minimum/median/maximum, and valid percentage), and **agent** (markers,
+grid, and IK band). It also provides an analysis panel, world model,
+narration, and chat controlling the same arm.
 
-`stream.mode` en `configs/demo.yaml`; `CASCADE_STREAM` manda encima:
-`lazy` (por defecto) · `eager` (bindea al arrancar; `booth.yaml` lo fija) ·
-`off` (`CASCADE_STREAM=0`, kill switch). `CASCADE_BOOTH=1` = modo feria.
+Set `stream.mode` in `configs/demo.yaml`; `CASCADE_STREAM` takes precedence:
+`lazy` (default) · `eager` (bind at startup; selected by `booth.yaml`) ·
+`off` (`CASCADE_STREAM=0`, kill switch). `CASCADE_BOOTH=1` enables booth mode.
 
-Ventanas nativas: la de **MuJoCo** se abre con `CASCADE_MJ_VIEW=1` (el
-launcher lo pone en modo sim; en macOS bajo `mjpython`). Si la pantalla
-está bloqueada al arrancar, se salta con motivo en el log y se abre en el
-primer movimiento tras despertarla — abrirla a ciegas segfaulteaba el
-servidor. La ventana cv2 de cámaras no se abre desde el servidor en macOS
-(Cocoa exige el hilo principal); usa el dashboard.
-
----
-
-## Parar el brazo
-
-- Dashboard: botón rojo **stop**
-- MCP/OpenClaw: herramienta `emergency_stop` (fuera de banda: no espera a
-  que acabe el movimiento); `reset_stop` lo desactiva (`CASCADE_HIDE_TOOLS=reset_stop`
-  lo hace sólo-staff)
-- Terminal: `Ctrl+C` (soft-stop; otra vez para salir)
-- Cancelar el turno en el host a mitad de movimiento también congela el
-  brazo — y deja el e-stop puesto: di `reset_stop` antes del siguiente.
+The native **MuJoCo** window opens with `CASCADE_MJ_VIEW=1`, which the
+launcher sets in simulation mode, using `mjpython` on macOS. If the
+display is locked at startup, the launcher logs the reason for deferring
+the window and opens it on the first movement after the display wakes.
+Opening it while the display was locked caused server segmentation faults.
+The server does not open a cv2 camera window on macOS because Cocoa
+requires the main thread; use the dashboard.
 
 ---
 
-## Si algo falla
+## Stopping the arm
+
+- Dashboard: red **stop** button.
+- MCP/OpenClaw: `emergency_stop` acts out of band, without waiting for the
+  movement to finish. `reset_stop` clears it; `CASCADE_HIDE_TOOLS=reset_stop`
+  reserves that operation for staff.
+- Terminal: `Ctrl+C` soft-stops; press it again to exit.
+- Canceling a host turn during movement also freezes the arm and leaves
+  the emergency stop engaged. Use `reset_stop` before the next movement.
+
+---
+
+## Troubleshooting
 
 ```bash
-python -m pytest tests/ -q                    # 737 passed / 2 deselected / 0 skipped, ~4 min
-python scripts/learn_from_runs.py --report    # qué falló últimamente y por qué
-./run.sh check mujoco                         # preflight de sólo lectura
-tail -f runs/mcp_*/server.log                 # cada tools/call del host, con resultado
+python -m pytest tests/ -q                    # historical run: 737 passed / 2 deselected / 0 skipped, ~4 min
+python scripts/learn_from_runs.py --report    # recent failures and their causes
+./run.sh check mujoco                         # read-only preflight
+tail -f runs/mcp_*/server.log                 # each host tools/call and its result
 ```
 
-- **El turno del visitante falla con "Connection closed"** → el servidor MCP
-  murió a mitad de llamada. Mira `~/Library/Logs/DiagnosticReports/mjpython-*.ips`
-  (macOS) y `/tmp/openclaw/openclaw-<fecha>.log`. Causa conocida y cerrada:
-  abrir la ventana de MuJoCo con la pantalla dormida.
-- **El pick se cancela a los 60 s y luego todo falla con e-stop** → el host
-  tiene `requestTimeoutMs` en el default (60 s); el launcher registra 300 s.
-  Reregistra con `./run.sh <modo>` y `reset_stop`.
-- **Cada turno tarda 10 s más de lo debido** → una entrada MCP muerta en
-  `~/.openclaw/openclaw.json`; el launcher las poda al arrancar.
-- **Puerto 8090 ocupado** → un run antiguo sigue vivo. `CASCADE_STREAM_PORT=8097`.
-- **`no frame yet`** → el rig aún calienta; espera 2-3 s.
-- **YOLOE no encuentra pesos** → no arrancaste desde `models/`.
-- **El agente no llama a ninguna herramienta con Cosmos** → el perfil debe ser
-  `type: cosmos3`, no `openai_compat` (emite tool calls en XML).
-- **La lista de tools está obsoleta tras cambiar el registro** → `openclaw
-  gateway restart`; el launcher lo hace por ti.
+- **A visitor turn fails with "Connection closed"** → the MCP server
+  exited during the call. Check `~/Library/Logs/DiagnosticReports/mjpython-*.ips`
+  on macOS and `/tmp/openclaw/openclaw-<date>.log`. A known, resolved cause
+  was opening the MuJoCo window while the display was asleep.
+- **A pick is canceled after 60 s and later calls fail with e-stop** → the
+  host still has the default 60-second `requestTimeoutMs`; the launcher
+  registers 300 seconds. Register again with `./run.sh <mode>` and use
+  `reset_stop`.
+- **Every turn takes an extra 10 s** → a dead MCP entry remains in
+  `~/.openclaw/openclaw.json`; the launcher prunes these at startup.
+- **Port 8090 is busy** → an earlier run is still active. Use
+  `CASCADE_STREAM_PORT=8097`.
+- **`no frame yet`** → the rig is still warming up; allow 2–3 seconds.
+- **YOLOE cannot find its weights** → start from `models/`.
+- **The agent does not call tools with Cosmos** → the profile must use
+  `type: cosmos3`, rather than `openai_compat`, because it emits XML tool calls.
+- **The tool list is stale after registration changes** → run `openclaw
+  gateway restart`; the launcher does this automatically.

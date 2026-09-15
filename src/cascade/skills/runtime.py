@@ -54,6 +54,40 @@ def _jpeg(rgb: np.ndarray, quality: int = 85) -> bytes:
     return buf.tobytes() if ok else b""
 
 
+def _frame_age_s(frame: Frame, max_age_s: float = 5.0) -> float:
+    """Frame.t is client-local receipt time, never the remote capture clock."""
+    try:
+        age = time.monotonic() - float(frame.t)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise SkillError("Camera frame has no valid local timestamp") from exc
+    if not np.isfinite(age) or age < 0:
+        raise SkillError("Camera frame has an invalid local timestamp")
+    if age > max_age_s:
+        raise SkillError(f"Camera frame is {age:.1f}s old; wait for reconnection and try again")
+    return round(age, 3)
+
+
+def _fresh_camera_frame(camera, previous: Frame | None = None) -> Frame:
+    from ..perception.freshness import read_frame_after
+
+    if hasattr(camera, "latest"):
+        previous = camera.latest() or previous
+    try:
+        frame = read_frame_after(camera, after=previous, timeout_s=5.0)
+    except (TimeoutError, ValueError) as exc:
+        raise SkillError("Camera did not provide a fresh frame; wait for reconnection and try again") from exc
+    _frame_age_s(frame)
+    return frame
+
+
+class _PostPlaceRetreatPlanError(SkillError):
+    """Retraction cannot be planned; stop before placement or recovery motion."""
+
+
+class _PreCarryLiftError(SkillError):
+    """Carry clearance is unavailable; retain the grasp without a home sweep."""
+
+
 class SkillRuntime:
     def __init__(
         self,
@@ -544,6 +578,12 @@ class SkillRuntime:
                 )
                 print(f"[cascade] postcondition verifier for {name} raised: {e!r}", file=sys.stderr)
             result = annotate_result(result, pc)
+        if name == "pick_and_place" and result.get("ok") is False:
+            result["next_action"] = (
+                "If the user said 'then stop', report this failure and end the turn. "
+                "Do not start another pick, rename the requested object or destination, "
+                "or invent a placement using manual coordinates."
+            )
         # Harness-VLA: fold the outcome into the learned operating envelope.
         try:
             self.envelope.record(
@@ -599,6 +639,13 @@ class SkillRuntime:
         self.arm.harness.heartbeat()
         return frame
 
+    def observe_fresh(self) -> Frame:
+        frame = _fresh_camera_frame(self.camera, self.last_frame)
+        frame = self.depth.ensure_depth(frame)
+        self.last_frame = frame
+        self.arm.harness.heartbeat()
+        return frame
+
     def backends(self) -> dict:
         """Which sidecars are REALLY in the loop, as verified at runtime --
         not what configs/demo.yaml wishes. Shown in the demo banner, the
@@ -628,7 +675,8 @@ class SkillRuntime:
         summaries = []
         if not frame.has_depth:
             return [
-                {"label": d.label, "conf": round(d.conf, 2), "position": None}
+                {"label": d.label, "color": detection_color(frame.rgb, d),
+                 "conf": round(d.conf, 2), "position": None}
                 for d in dets
             ]
         if T is None:
@@ -638,9 +686,8 @@ class SkillRuntime:
             mask = d.mask
             if mask is None:
                 h, w = frame.rgb.shape[:2]
-                mask = np.zeros((h, w), dtype=bool)
-                x0, y0, x1, y1 = d.bbox.astype(int)
-                mask[max(y0, 0):min(y1, h), max(x0, 0):min(x1, w)] = True
+                from ..perception.grounding import _bbox_mask
+                mask = _bbox_mask(frame, d)
             pts_cam = mask_to_points_cam(frame, mask)
             if pts_cam.shape[0] < 10:
                 continue
@@ -651,7 +698,7 @@ class SkillRuntime:
             # open vocabulary has names for them.
             if self._workspace.reject(
                 center, extents,
-                mask_frac=float(mask.sum()) / float(mask.size) if mask.size else None,
+                mask_frac=(float(mask.sum()) / float(mask.numel() if hasattr(mask, "numel") else mask.size)),
             ) is not None:
                 continue
             # Colour is what keeps two small props apart in the belief store
@@ -659,15 +706,17 @@ class SkillRuntime:
             # The WorldWatcher path tagged it; this one did not, so a fresh
             # get_observation on the two-cube scene fused red and blue into
             # one belief 3 cm from either -- both call sites must tag.
+            color = detection_color(frame.rgb, d)
             self.beliefs.update(
                 d.label, center, d.conf, extent=extents,
                 top_z=float(pts_base[:, 2].max()), t=frame.t,
-                color=detection_color(frame.rgb, d),
+                color=color,
                 points=pts_base if d.mask is not None else None,
             )
             summaries.append(
                 {
                     "label": d.label,
+                    "color": color,
                     "conf": round(d.conf, 2),
                     "position": [round(float(x), 3) for x in center],
                 }
@@ -824,16 +873,49 @@ class SkillRuntime:
 
     # ── language -> world resolution ─────────────────────────────────────
 
+    def _visual_query(self, query: str) -> str:
+        """Explicit booth names may use a measured-color description.
+
+        This does not provide a position, change detector labels or rewrite
+        referring expressions. Unconfigured visitor queries stay unchanged.
+        """
+        descriptions = self.cfg.get("object_descriptions") or {}
+        description = descriptions.get(query.strip().lower())
+        if description is None:
+            return query
+        if (not isinstance(description, str) or not description.strip()
+                or parse_color_query(description)[0] is None):
+            raise SkillError("Configured object description needs an explicit measured color")
+        return description.strip()
+
+    def _target_resolution(self, query, frame, fix):
+        visual_query = self._visual_query(query)
+        if visual_query == query:
+            return {}
+        return {"target_resolution": {
+            "requested": query, "visual_query": visual_query,
+            "detected_as": fix.detection.label,
+            "measured_color": detection_color(frame.rgb, fix.detection),
+            "unique_reachable_match": True,
+        }}
+
     def _resolve_query(self, query: str) -> dict:
         """Turn a user phrase ("pink object", "red mug", "bottle") into
         detector inputs, using the live belief store when it already knows
         the answer (the WorldWatcher keeps it warm)."""
-        color, noun = parse_color_query(query)
-        belief = self.beliefs.find(query)
+        visual_query = self._visual_query(query)
+        color, noun = parse_color_query(visual_query)
+        if visual_query != query:
+            return {
+                "prompts": [visual_query], "vocab": None, "color": color,
+                "near_xyz": None, "belief": None, "prefer_label": None,
+                "configured_description": True,
+            }
+        belief = self.beliefs.find(visual_query)
         near = belief.position.copy() if belief is not None else None
         prompts = vocab = prefer = None
         if noun:
-            q = query.strip().lower()
+            q = visual_query.strip().lower()
             prompts = [noun] if noun == q else [q, noun]
         elif belief is not None and (color is None or belief.color == color):
             # Warm path: the world model already knows the answer. When the
@@ -853,6 +935,7 @@ class SkillRuntime:
         return {
             "prompts": prompts, "vocab": vocab, "color": color,
             "near_xyz": near, "belief": belief, "prefer_label": prefer,
+            "configured_description": visual_query != query,
         }
 
     def _plan_grasps(self, fix, label: str | None = None) -> list:
@@ -937,6 +1020,17 @@ class SkillRuntime:
             self.memory.add("note", f"grasp-memory prior skipped ({str(e)[:60]})")
         return grasps
 
+    def _localization_workspace_bounds(self):
+        """Read the selected arm's existing limits without connecting it."""
+        limits = getattr(getattr(self.arm, "harness", None), "limits", None)
+        if limits is None:
+            return None  # generic perception-only runtimes have no actuator
+        bounds = tuple(np.asarray(getattr(limits, name), dtype=float).reshape(3)
+                       for name in ("workspace_min", "workspace_max"))
+        if not np.all(np.isfinite(bounds)) or np.any(bounds[0] > bounds[1]):
+            raise SkillError("invalid active arm localization workspace")
+        return bounds
+
     def _localize(self, query: str, spatial_hint: str | None = None):
         """Fresh frame + color/proximity-aware 3D fix for a user phrase.
 
@@ -950,6 +1044,13 @@ class SkillRuntime:
         "now" -- the watcher is paused while the arm moves, so beliefs age
         artificially during exactly the retries that need them."""
         r = self._resolve_query(query)
+        workspace_bounds = self._localization_workspace_bounds()
+        def in_workspace(position):
+            if workspace_bounds is None:
+                return True
+            point = np.asarray(position, dtype=float).reshape(3)
+            return (np.all(np.isfinite(point)) and np.all(point >= workspace_bounds[0])
+                    and np.all(point <= workspace_bounds[1]))
         frame = None
         last_err: SkillError | None = None
         tries = int(self.cfg.get("perception_loop", {}).get("localize_frames", 3))
@@ -961,6 +1062,8 @@ class SkillRuntime:
                     prompts=r["prompts"], spatial_hint=spatial_hint,
                     color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
                     prefer_label=r["prefer_label"],
+                    workspace_bounds=workspace_bounds,
+                    require_unique=r["configured_description"],
                 )
                 return frame, fix
             except ReferenceResolutionError:
@@ -987,6 +1090,8 @@ class SkillRuntime:
                     prompts=r["prompts"], spatial_hint=spatial_hint,
                     color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
                     prefer_label=r["prefer_label"],
+                    workspace_bounds=workspace_bounds,
+                    require_unique=r["configured_description"],
                 )
                 self.memory.add(
                     "note",
@@ -999,6 +1104,10 @@ class SkillRuntime:
             except Exception:
                 continue  # a miss or camera hiccup: try the next view
 
+        if r["configured_description"]:
+            # A remembered label or unfiltered VLM fix cannot prove the
+            # configured color is currently visible and unique.
+            raise last_err or SkillError(f"No current visual match for {query!r}")
         if not parse_reference(query).is_plain:
             # A remembered noun (or one guessed bounding box) does not prove
             # ordering, exclusions or relative size among current instances.
@@ -1026,6 +1135,7 @@ class SkillRuntime:
             # store's neighbor tolerance (pink~red) is for conversation, not
             # for choosing what the jaws close on.
             and (r["color"] is None or belief.color == r["color"])
+            and in_workspace(belief.position)
         )
         if mem_ok:
             self.memory.add(
@@ -1039,8 +1149,13 @@ class SkillRuntime:
         # full VLM reads easily; one slow call only ever runs on this
         # failure path.
         fix = self._vlm_ground_fix(frame, query)
-        if fix is not None:
+        if fix is not None and in_workspace(fix.position):
             return frame, fix
+        if fix is not None:
+            last_err = SkillError(
+                f"localize {query!r} failed: VLM fix at "
+                f"{np.round(fix.position, 3).tolist()} is outside the active arm workspace"
+            )
         raise last_err
 
     def _vlm_ground_fix(self, frame, query: str):
@@ -1084,10 +1199,8 @@ class SkillRuntime:
                     break
             if det is None:
                 return None
-            h, w = gframe.rgb.shape[:2]
-            mask = np.zeros((h, w), dtype=bool)
-            x0, y0, x1, y1 = det.bbox.astype(int)
-            mask[max(y0, 0):min(y1, h), max(x0, 0):min(x1, w)] = True
+            from ..perception.grounding import _bbox_mask
+            mask = _bbox_mask(gframe, det)
             pts_cam = mask_to_points_cam(gframe, mask)
             if pts_cam.shape[0] < 30:
                 return None
@@ -1169,7 +1282,13 @@ class SkillRuntime:
         center = np.asarray(belief.position, dtype=float).reshape(3)
         pts_mem = getattr(belief, "points", None)
         if pts_mem is not None and len(pts_mem) >= 50:
-            pts = np.asarray(pts_mem, dtype=float)
+            import os
+            require_cuda = os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1"
+            if require_cuda:
+                from ..perception.cuda_math import tensor, shift_cloud
+                pts = tensor(pts_mem)
+            else:
+                pts = np.asarray(pts_mem, dtype=float)
             obb_center, extents, axes = oriented_bbox(pts)
             # Re-center on the fused position in XY ONLY.
             #
@@ -1186,7 +1305,7 @@ class SkillRuntime:
             # from the fused estimate, which is what tracking is good at.
             shift = center - obb_center
             shift[2] = 0.0
-            pts = pts + shift
+            pts = shift_cloud(pts, shift) if require_cuda else pts + shift
             det = Detection(
                 label=belief.label, conf=float(belief.conf),
                 bbox=np.zeros(4, dtype=np.float32),
@@ -1200,16 +1319,21 @@ class SkillRuntime:
         half = np.clip(ext[:3] / 2.0, 0.01, 0.2)
         top_z = float(belief.top_z) if belief.top_z is not None else float(center[2] + half[2])
         bottom_z = top_z - 2 * half[2]
-        rng = np.random.default_rng(0)
-        pts = []
-        for ax in range(3):  # sample the 6 box faces
-            for sign in (-1.0, 1.0):
-                p = (rng.random((60, 3)) - 0.5) * 2 * half
-                p[:, ax] = sign * half[ax]
-                pts.append(p)
-        pts = np.concatenate(pts)
-        pts[:, 2] = np.clip(pts[:, 2] + (top_z + bottom_z) / 2, bottom_z, top_z)
-        pts[:, :2] += center[:2]
+        import os
+        if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+            from ..perception.cuda_math import box_cloud
+            pts = box_cloud(center, half, top_z, bottom_z)
+        else:
+            rng = np.random.default_rng(0)
+            pts = []
+            for ax in range(3):  # sample the 6 box faces
+                for sign in (-1.0, 1.0):
+                    p = (rng.random((60, 3)) - 0.5) * 2 * half
+                    p[:, ax] = sign * half[ax]
+                    pts.append(p)
+            pts = np.concatenate(pts)
+            pts[:, 2] = np.clip(pts[:, 2] + (top_z + bottom_z) / 2, bottom_z, top_z)
+            pts[:, :2] += center[:2]
         det = Detection(
             label=belief.label, conf=float(belief.conf),
             bbox=np.zeros(4, dtype=np.float32),
@@ -1243,7 +1367,11 @@ class SkillRuntime:
                 "note": "clears automatically when the next motion begins"}
 
     def skill_get_observation(self) -> dict:
-        frame = self.observe()
+        return self._describe_observation(self.observe_fresh())
+
+    def _describe_observation(self, frame: Frame) -> dict:
+        """Analyze exactly the supplied frame, including a verified reset frame."""
+        _frame_age_s(frame)
         dets = self.detector.detect(frame, classes=self._default_classes)
         self._show_detections(dets)
         objects = self._update_beliefs_from_frame(frame, dets)
@@ -1265,23 +1393,76 @@ class SkillRuntime:
                 "holding": self.held_object,
             }
         else:
-            robot = {"status": "standby (motors unpowered until the first motion)",
+            robot = {"status": "standby (arm control has not been opened in this session)",
+                     "live_arm_feedback": False,
                      "holding": self.held_object}
         return {
             "objects_visible": objects,
-            "objects_remembered": self.beliefs.summary(),
+            # The fused store includes both recent and remembered objects.
+            # Calling the whole list 'remembered' made native chat describe
+            # freshly detected props as absent from the current camera frame.
+            "objects_tracked": self.beliefs.summary(),
+            "observation_note": (
+                "objects_visible contains detections from this camera frame, with measured colors. "
+                "Detector labels are estimates, not confirmed object identities. "
+                "objects_tracked is the fused history and may include the same detections; "
+                "read each entry's state and age_s. A remembered entry is a last-known position, "
+                "not proof of current visibility. Use the current camera image to identify objects; "
+                "do not repeat a detector name that the image does not support. "
+                "Configured zones identify fixed destinations, not current visibility."
+            ),
+            "configured_zones": self._configured_zones(),
+            "observation_frame": {"frame_id": int(frame.frame_id),
+                                  "frame_age_s": _frame_age_s(frame)},
             "robot": robot,
             "depth_source": frame.depth_source,
         }
+
+    def _configured_zones(self) -> list[dict]:
+        grasp = self.cfg.get("grasp", {})
+        entries = []
+        if grasp.get("drop_zone") is not None:
+            entries.append((grasp.get("drop_zone_name", "drop zone"), "delivery_area",
+                            grasp.get("drop_zone")))
+        box = grasp.get("open_box")
+        if box is not None:
+            if not hasattr(box, "get"):
+                raise SkillError("Configured open box requires a finite XY center")
+            entries.append(("open box", "container", box.get("center_xy_m")))
+        zones = []
+        for name, kind, position in entries:
+            try:
+                center = np.asarray(position, dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise SkillError("Configured zone requires a finite XY center") from exc
+            if (not isinstance(name, str) or not name.strip()
+                    or center.shape != (2,) or not np.isfinite(center).all()):
+                raise SkillError("Configured zone requires a name and a finite XY center")
+            zones.append({"name": name, "kind": kind, "source": "configuration",
+                          "position_xy_m": center.tolist(), "visibility": "not_established"})
+        return zones
 
     def skill_list_objects(self) -> dict:
         return {
             "objects": self.beliefs.summary(),
             "holding": self.held_object,
-            "note": "state=remembered means not currently visible; position is last known",
+            "note": ("Tracked objects only, not an exhaustive scene inventory; labels may be approximate. "
+                     "A missing name does not prove absence. get_observation refreshes the camera; "
+                     "localize_object or pick_and_place can actively search for a requested object. "
+                     "state=remembered means not currently visible; position is last known"),
         }
 
     def skill_localize_object(self, label: str, spatial_hint: str | None = None) -> dict:
+        query = str(label).strip().lower()
+        zones = self._configured_zones()
+        for zone in zones:
+            if (query == zone["name"].strip().lower()
+                    or (zone["kind"] == "delivery_area" and _names_drop_zone(query))
+                    or (zone["kind"] == "container" and query in _OPEN_BOX_WORDS)):
+                return {"label": label, **zone,
+                        "note": "Configured destination; use a fresh camera image to establish visibility."}
+        if _names_drop_zone(query):
+            raise SkillError("No delivery zone is configured")
         frame, fix = self._localize(label, spatial_hint=spatial_hint)
         color = detection_color(frame.rgb, fix.detection)
         # Beliefs live under DETECTOR labels (what the watcher re-fuses);
@@ -1293,6 +1474,7 @@ class SkillRuntime:
         )
         return {
             "label": label,
+            **self._target_resolution(label, frame, fix),
             "detected_as": fix.detection.label,
             "color": color,
             "position": [round(float(x), 3) for x in fix.position],
@@ -1572,6 +1754,9 @@ class SkillRuntime:
         )
         return {
             "held": label,
+            # Pixel-addressed callers bypass the unique description search.
+            **(self._target_resolution(label, frame, fix)
+               if _fix is None or _frame is None else {}),
             "grip_profile": profile.name,
             "grip_verified": verified,
             "gripper_open_frac": round(width_after_lift, 2) if verified else None,
@@ -1667,6 +1852,7 @@ class SkillRuntime:
             fix = localize_object(
                 frame, label, self.detector, self.extrinsics,
                 prompts=[label], near_xyz=tcp,
+                workspace_bounds=self._localization_workspace_bounds(),
             )
             offset = np.asarray(fix.position, float) - tcp
             # Sanity gate: the object is IN the gripper, so it cannot be far
@@ -1689,7 +1875,7 @@ class SkillRuntime:
         # Strict top-down poses only solve below ~0.15 m on this wrist: a
         # tall destination (the bin walls) must become "release from the
         # ceiling and let it drop", not an unreachable-pose failure.
-        z_cap = float(gcfg.get("topdown_z_max", 0.15)) - 0.005
+        z_cap = float(gcfg.get("topdown_carry_z_max", gcfg.get("topdown_z_max", 0.15))) - 0.005
         if release_z > z_cap:
             self.memory.add(
                 "note",
@@ -1743,27 +1929,94 @@ class SkillRuntime:
         from ..grasping.obb_grasp import _yaw_rotation
 
         q_now = self.arm.get_state().q
+        tcp_now = self.kin.fk(q_now)
         hover = target + np.array([0.0, 0.0, float(gcfg.get("pregrasp_offset_m", 0.12))])
+        # Finish the horizontal carry before lowering the held object. A
+        # low release target must not also lower a can through the worktop's
+        # other props while it is still crossing to that target.
+        hover[2] = max(hover[2], float(tcp_now[2, 3]))
         hover[2] = min(hover[2], z_cap)  # same wrist ceiling as the release
-        # Placement yaw is arbitrary: walk candidate yaws (radial first --
-        # kindest to the wrist) until both hover and release poses solve.
+        lift = None
+        carry_start = q_now
+        if (bool(gcfg.get("pre_carry_lift", False))
+                and float(hover[2]) > float(tcp_now[2, 3]) + .001):
+            # Reaching the clearance height only at the far end of the
+            # horizontal chord can catch a tall payload on a low platform.
+            # First reach the SAME already-planned height at the current XY
+            # and orientation. Plan and vet this phase before any motion.
+            lift_pose = tcp_now.copy()
+            lift_pose[2, 3] = float(hover[2])
+            lift = self.kin.ik(lift_pose, q_now)
+            if (not lift.success or np.max(np.abs(lift.q - q_now)) > np.pi):
+                raise _PreCarryLiftError("pre-carry lift is unreachable; keeping the grasp")
+            for fraction in (.15, .3, .45, .6, .75, .9, 1.):
+                reason = self.arm.harness.vet_pose(q_now + fraction * (lift.q - q_now))
+                if reason:
+                    raise _PreCarryLiftError(f"pre-carry lift is unsafe: {reason}")
+            carry_start = lift.q
+        # Plan empty-gripper clearance before release so the trip home cannot
+        # tip the placed object. Keep release yaw and XY through retraction.
+        retreat_target = None
+        retreat_offset = gcfg.get("post_place_retreat_offset_m")
+        if retreat_offset is not None:
+            retreat_offset = float(retreat_offset)
+            if not np.isfinite(retreat_offset) or retreat_offset <= 0:
+                raise _PostPlaceRetreatPlanError("post-place retreat offset must be finite and positive")
+            retreat_target = target.copy()
+            retreat_target[2] = max(float(hover[2]), release_z + retreat_offset)
+        # Preserve held yaw to avoid loading an off-center grasp. Nearby yaws
+        # avoid wrist unwinding when the original yaw approaches joint limits.
         radial = float(np.arctan2(y, x))
-        pre = low = None
-        for yaw in (radial, 0.0, np.pi / 4, -np.pi / 4, np.pi / 2, -np.pi / 2):
+        yaws = [radial, 0.0, np.pi / 4, -np.pi / 4, np.pi / 2, -np.pi / 2]
+        approach_col = 0 if self._tool_axis_order == "down_open" else 2
+        opening_col = 0 if self._tool_axis_order == "open_down" else 1
+        if float(-tcp_now[2, approach_col]) > 0.95:
+            held_yaw = float(np.arctan2(tcp_now[1, opening_col], tcp_now[0, opening_col]))
+            near_yaws = [held_yaw]
+            for delta in (np.pi / 4, np.pi / 2, 3 * np.pi / 4, np.pi):
+                near_yaws.extend((held_yaw - delta, held_yaw + delta))
+            yaws = near_yaws + yaws
+        pre = low = retreat = None
+        for yaw in yaws:
             R = _yaw_rotation(yaw, axis_order=self._tool_axis_order)
-            cand_pre = self.kin.ik(make_transform(R, hover), q_now)
-            if not cand_pre.success:
+            cand_pre = self.kin.ik(make_transform(R, hover), carry_start)
+            if (not cand_pre.success
+                    or np.max(np.abs(cand_pre.q - carry_start)) > np.pi):
                 continue
             cand_low = self.kin.ik(make_transform(R, target), cand_pre.q)
-            if cand_low.success:
-                pre, low = cand_pre, cand_low
+            if (cand_low.success
+                    and np.max(np.abs(cand_low.q - cand_pre.q)) <= np.pi):
+                cand_retreat = None
+                if retreat_target is not None:
+                    # Reuse the existing pose exactly when the hover already
+                    # provides this clearance (e.g. the kitchen pink cube).
+                    cand_retreat = (cand_pre if np.array_equal(retreat_target, hover)
+                                    else self.kin.ik(make_transform(R, retreat_target), cand_low.q))
+                    if (not cand_retreat.success
+                            or np.max(np.abs(cand_retreat.q - cand_low.q)) > np.pi):
+                        continue
+                pre, low, retreat = cand_pre, cand_low, cand_retreat
                 break
         if pre is None or low is None:
-            raise SkillError(
+            retreat_detail = (f", post-place retreat {retreat_target.round(3).tolist()}"
+                              if retreat_target is not None else "")
+            error_type = _PostPlaceRetreatPlanError if retreat_target is not None else SkillError
+            raise error_type(
                 f"place pose unreachable at {target.round(3).tolist()} "
-                f"(hover {hover.round(3).tolist()}, all yaws tried)"
+                f"(hover {hover.round(3).tolist()}{retreat_detail}, all yaws tried)"
             )
 
+        retreat_error = None
+        if lift is not None:
+            try:
+                lifted = self.arm.move_joints(
+                    lift.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                )
+            except (SkillError, SafetyViolation) as exc:
+                raise _PreCarryLiftError(f"pre-carry lift was interrupted: {exc}") from exc
+            if not lifted:
+                raise _PreCarryLiftError("pre-carry lift did not settle; keeping the grasp")
+            self.memory.add("action", f"reached planned carry height {hover[2]:.3f} m before horizontal transport")
         if not self.arm.move_joints(pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5))):
             raise SkillError("did not settle above the place target")
         self.arm.harness.allow_grasp_descent(target[:2], z_min=release_z - 0.02)
@@ -1793,10 +2046,16 @@ class SkillRuntime:
             self._held_color = None
             self.memory.add("action", f"placed {placed!r} at {target.round(3).tolist()}")
             try:
-                self.arm.move_joints(pre.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)))
+                ascended = self.arm.move_joints(
+                    retreat.q if retreat is not None else pre.q,
+                    duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                )
+                if retreat is not None and not ascended:
+                    retreat_error = "did not settle at the post-place retreat pose"
             except (SkillError, SafetyViolation) as e:
-                # The place already happened; report success and let the
-                # caller's move_home park the arm.
+                if retreat is not None:
+                    retreat_error = f"post-place retreat aborted: {e}"
+                # Keep legacy behavior when no explicit retreat was requested.
                 self.memory.add("note", f"placed, but the ascent aborted: {e}")
         finally:
             self.arm.harness.clear_grasp_exemption()
@@ -1804,10 +2063,22 @@ class SkillRuntime:
         # postcondition channel scores the object's final pose against this,
         # so returning the offset-compensated TCP point would grade the place
         # against the wrong thing and quietly forgive the compensation error.
+        result = {}
+        if retreat_target is not None:
+            result["post_place_retreat"] = {
+                "ok": retreat_error is None,
+                "tcp_at": [round(float(v), 3) for v in retreat_target],
+            }
+            if retreat_error is not None:
+                # Release already happened. Do not retry this grasp/place or
+                # take the unsafe home sweep after a failed clearance motion.
+                result.update(ok=False, stage="retreat", error=retreat_error,
+                              home_skipped=True)
         return {"placed": placed,
                 "at": [round(float(x), 3), round(float(y), 3),
                        round(float(release_z), 3)],
-                "tcp_at": [round(float(v), 3) for v in target]}
+                "tcp_at": [round(float(v), 3) for v in target],
+                **result}
 
     def _destination_fix(self, label: str):
         """Where is the destination RIGHT NOW, not when the task started?
@@ -1852,6 +2123,20 @@ class SkillRuntime:
         self._adopt_unknown_held()
         if not self.held_object:
             raise SkillError("not holding anything")
+        # The fixed box grouping prim has no cavity pose. Use its calibrated
+        # release pose through the existing place_at safety checks.
+        box = self.cfg.grasp.get("open_box")
+        if box is not None and str(label).strip().lower() in _OPEN_BOX_WORDS:
+            try:
+                center = np.asarray(box.get("center_xy_m"), dtype=float)
+                release = float(box.get("release_height_m"))
+            except (TypeError, ValueError) as exc:
+                raise SkillError("configured open box has an invalid release pose") from exc
+            if (center.shape != (2,) or not np.isfinite(center).all()
+                    or not np.isfinite(release) or release <= 0):
+                raise SkillError("configured open box requires finite XY and a positive release height")
+            result = self.skill_place_at(float(center[0]), float(center[1]), release)
+            return {**result, "destination": "open box", "destination_kind": "configured_point"}
         # Re-check the destination immediately before committing to a drop
         # point. The belief may be stale: it was seeded when the task started
         # and the world does not hold still, which is the whole premise of the
@@ -1961,6 +2246,17 @@ class SkillRuntime:
         t0 = time.monotonic()
         timings: dict[str, float] = {}
         gcfg = self.cfg.grasp
+        destination_name = (gcfg.get("drop_zone_name", "drop zone")
+                            if not destination or _names_drop_zone(destination) else destination)
+        failure_destination = {}
+        if not destination or _names_drop_zone(destination):
+            dz = gcfg.get("drop_zone", [0.30, -0.20])
+            # A failed grasp/carry still aimed at this calibrated floor mark.
+            # Without this context, the postcondition checker may resolve its
+            # colour name as a movable object or an absent body's zero pose.
+            failure_destination = {"destination": destination_name,
+                "destination_kind": "configured_point",
+                "target": [float(dz[0]), float(dz[1])]}
         max_attempts = max(int(gcfg.get("max_pick_attempts", 8)), 1)
         deadline = t0 + float(gcfg.get("persist_seconds", 120.0))
         # #2.3: the budget must not multiply across tiers. The reflex tier
@@ -1973,6 +2269,7 @@ class SkillRuntime:
         if task_deadline is not None:
             if time.monotonic() >= task_deadline:
                 return {
+                    **failure_destination,
                     "ok": False, "stage": "grasp",
                     "error": "task persistence budget exhausted (an earlier tier already spent it)",
                     "suggestion": "ask the visitor to reposition the object or pick a different one",
@@ -2043,6 +2340,7 @@ class SkillRuntime:
                 except (SkillError, SafetyViolation):
                     pass
                 return {
+                    **failure_destination,
                     "ok": False, "stage": "grasp",
                     "error": f"grasp failed after {attempt} attempts "
                              f"({round(time.monotonic() - t0, 1)}s): {last_err}",
@@ -2073,12 +2371,27 @@ class SkillRuntime:
                     else:
                         dz = gcfg.get("drop_zone", [0.30, -0.20])
                         res = self.skill_place_at(float(dz[0]), float(dz[1]))
+                    if (res.get("placed") and not self.held_object
+                            and res.get("post_place_retreat", {}).get("ok") is False):
+                        # The object was released, so another pick/place retry
+                        # could strike it. Preserve the failure and stop here.
+                        placed = res
+                        break
                     if not res.get("ok", True):
                         raise SkillError(str(res.get("error", "place failed")))
                     placed = res
                     break
                 except (SkillError, SafetyViolation) as e:
                     place_err = f"{type(e).__name__}: {e}"
+                    if isinstance(e, (_PostPlaceRetreatPlanError, _PreCarryLiftError)):
+                        return {
+                            **failure_destination,
+                            "ok": False, "stage": ("carry_clearance" if isinstance(e, _PreCarryLiftError)
+                                                    else "retreat_plan"), "error": place_err,
+                            "holding": self.held_object, "home_skipped": True,
+                            "grip_verified": grasp.get("grip_verified"),
+                            "grasp_attempts": attempt, "place_attempts": p_attempt,
+                        }
                     self.memory.add(
                         "outcome", f"place attempt {p_attempt} failed: {place_err[:100]}"
                     )
@@ -2096,6 +2409,7 @@ class SkillRuntime:
                 )
                 if not can_regrasp:
                     return {
+                        **failure_destination,
                         "ok": False, "stage": "place",
                         "error": f"place failed after {p_attempt} attempts: {place_err}",
                         "note": (
@@ -2112,48 +2426,67 @@ class SkillRuntime:
                 grasp = None  # back to the grasp stage within the same budget
         timings["place_s"] = round(time.monotonic() - tp, 2)
 
-        if bool(self.cfg.grasp.get("home_after_place", True)):
+        return_home = {"attempted": False, "reason": "disabled_by_profile"}
+        if placed.get("home_skipped", False):
+            return_home["reason"] = "retreat_failed"
+        if (not placed.get("home_skipped", False)
+                and bool(self.cfg.grasp.get("home_after_place", True))):
             try:  # clear the camera view for the next command; best effort
                 self.skill_move_home()
-            except (SkillError, SafetyViolation):
-                pass
+                return_home = {"attempted": True, "ok": True, "at": "home"}
+            except (SkillError, SafetyViolation) as exc:
+                return_home = {"attempted": True, "ok": False, "error": str(exc)}
         total = round(time.monotonic() - t0, 2)
+        destination_name = placed.get("destination", destination_name)
         self.memory.add(
             "action",
-            f"pick_and_place {object!r} -> {destination or 'drop zone'} in {total}s",
+            f"pick_and_place {object!r} -> {destination_name} in {total}s",
         )
-        return {
+        result = {
             "picked": object,
             "placed_at": placed.get("at"),
-            "destination": destination or "drop zone",
+            "destination": destination_name,
             "grip_profile": grasp.get("grip_profile"),
             "grip_verified": grasp.get("grip_verified"),
             "grasp_attempts": attempt,
             "place_attempts": p_attempt,
             "duration_s": total,
             "timings": timings,
+            "return_home": return_home,
+            "next_action": "Report this result, including any return_home failure, and await the next user order. Do not add another movement to this request.",
         }
+        if "target_resolution" in grasp:
+            result["target_resolution"] = grasp["target_resolution"]
+        if (not destination or _names_drop_zone(destination)
+                or placed.get("destination_kind") == "configured_point"):
+            result["destination_kind"] = "configured_point"
+        if "post_place_retreat" in placed:
+            result["post_place_retreat"] = placed["post_place_retreat"]
+            if not placed["post_place_retreat"]["ok"]:
+                result.update(ok=False, stage="retreat", error=placed["error"],
+                              home_skipped=True)
+        return result
 
     # ── social / audience skills (deterministic, harness-gated) ─────────
 
     def skill_describe_scene(self) -> dict:
-        """INSTANT text description from the live world model (no detector
-        pass, no motion): what is where, colors, what the gripper holds."""
-        objs = self.beliefs.summary()
+        """Refresh the camera and distinguish detector estimates from memory."""
+        observation = self.skill_get_observation()
+        objs = observation["objects_visible"]
         parts = []
         for o in objs:
             color = f"{o['color']} " if o.get("color") else ""
-            parts.append(
-                f"a {color}{o['label']} at [{o['position'][0]}, {o['position'][1]}]"
-                + (" (remembered)" if o["state"] == "remembered" else "")
-            )
+            position = o.get("position")
+            location = f" at [{position[0]}, {position[1]}]" if position is not None else ""
+            parts.append(f"{color}{o['label']}{location}")
         text = (
-            "I see " + "; ".join(parts) + "." if parts
-            else "I don't know of any objects yet -- let me look around."
+            "Unconfirmed detector estimates: " + "; ".join(parts) + "." if parts
+            else "No objects were detected in this frame; that does not establish an empty scene."
         )
+        text += " Identify visible objects from the current camera image."
         if self.held_object:
             text += f" I am holding the {self.held_object}."
-        return {"description": text, "objects": objs, "holding": self.held_object}
+        return {**observation, "description": text, "objects": objs, "holding": self.held_object}
 
     def skill_count_objects(self, query: str | None = None) -> dict:
         beliefs = self.beliefs.all()
@@ -2581,7 +2914,8 @@ class SkillRuntime:
         rest (home, memory, re-observe) still applies. The arm goes home
         FIRST so a prop respawning under the gripper is not respawned into
         the jaws."""
-        out: dict = {"props_reset": [], "world": None}
+        out: dict = {"props_reset": [], "world": None, "observation_refreshed": False,
+                     "objects_visible": []}
         home_ok = True
         try:
             self.skill_move_home()
@@ -2635,23 +2969,33 @@ class SkillRuntime:
         self.memory.add("note", f"scene reset: {len(out['props_reset'])} prop(s) respawned, "
                                 f"{dropped} belief(s) forgotten")
         try:
-            # The camera pumps on its own thread: a render that was already
-            # in flight when the props teleported completes "after this call"
-            # yet shows the OLD world (measured: the red cube still at the
-            # drop zone, occluded by the home-pose gripper -> the fresh scan
-            # reported one cube of two). Burn one frame so the observation
-            # below is provably rendered after the reset.
+            # A cached Isaac image can be delivered repeatedly with NEW local
+            # frame IDs and receipt times. Fence by the carried producer clock,
+            # and analyze that exact frame instead of fetching another copy.
             if out["props_reset"]:
-                try:
-                    self.camera.get_frame()
-                except Exception:  # noqa: BLE001
-                    pass
-            obs = self.skill_get_observation()
+                from ..perception.freshness import capture_marker, frames_after_reset
+
+                watcher = self.watcher
+                observed = (watcher.reset_camera_frames(self.camera) if watcher is not None
+                            else frames_after_reset([self.camera]))
+                frame = self.depth.ensure_depth(observed[0][2])
+                self.last_frame = frame
+                self.arm.harness.heartbeat()
+                obs = self._describe_observation(frame)
+                out["observation_freshness"] = [
+                    {"camera": getattr(camera, "name", None),
+                     "floor": capture_marker(floor), "observed": capture_marker(fresh)}
+                    for camera, floor, fresh in observed
+                ]
+            else:
+                obs = self.skill_get_observation()
             out["objects_visible"] = obs.get("objects_visible", [])
+            out["observation_refreshed"] = True
         except Exception as e:  # noqa: BLE001
             out["observe_error"] = str(e)
+            out.setdefault("error", f"Reset observation could not be refreshed: {e}")
         out["beliefs_forgotten"] = dropped
-        out["ok"] = home_ok
+        out["ok"] = home_ok and out["observation_refreshed"]
         return out
 
     def skill_move_home(self) -> dict:
@@ -2802,14 +3146,19 @@ class SkillRuntime:
                 ],
             }
             if frame.has_depth and frame.depth_m is not None:
-                depth = np.asarray(frame.depth_m, dtype=np.float32)
-                valid = depth[np.isfinite(depth) & (depth > 0)]
-                entry["depth"] = {
-                    "valid_fraction": round(float(valid.size) / float(depth.size), 3),
-                    "min_m": round(float(valid.min()), 3) if valid.size else None,
-                    "median_m": round(float(np.median(valid)), 3) if valid.size else None,
-                    "max_m": round(float(valid.max()), 3) if valid.size else None,
-                }
+                import os
+                if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+                    from ..perception.cuda_math import depth_statistics
+                    entry["depth"] = depth_statistics(frame.depth_m)
+                else:
+                    depth = np.asarray(frame.depth_m, dtype=np.float32)
+                    valid = depth[np.isfinite(depth) & (depth > 0)]
+                    entry["depth"] = {
+                        "valid_fraction": round(float(valid.size) / float(depth.size), 3),
+                        "min_m": round(float(valid.min()), 3) if valid.size else None,
+                        "median_m": round(float(np.median(valid)), 3) if valid.size else None,
+                        "max_m": round(float(valid.max()), 3) if valid.size else None,
+                    }
             else:
                 entry["depth"] = None
                 entry["depth_warning"] = (
@@ -2951,7 +3300,16 @@ def _short(args: dict) -> str:
 #: spent four minutes inventing coordinates. The drop zone is a configured
 #: point, not a detected object -- these names mean "use it".
 _DROP_ZONE_WORDS = {"drop zone", "dropzone", "drop-zone", "drop_zone", "the drop zone",
-                    "bin", "the bin", "default", "zona de descarga"}
+                    "bin", "the bin", "default", "zona de descarga",
+                    "green square", "the green square", "green target square",
+                    "the green target square", "cuadrado verde", "el cuadrado verde",
+                    "delivery area", "the delivery area", "delivery zone", "the delivery zone",
+                    "green delivery area", "the green delivery area",
+                    "green delivery zone", "the green delivery zone",
+                    "green zone", "the green zone", "delivery square", "the delivery square"}
+
+_OPEN_BOX_WORDS = {"open box", "the open box", "open_box", "beige box", "the beige box",
+                   "box", "the box", "storage box", "the storage box", "wooden box", "the wooden box"}
 
 
 def _names_drop_zone(destination) -> bool:
@@ -3010,12 +3368,12 @@ TOOL_SPECS: list[dict] = [
     },
     {
         "name": "get_observation",
-        "description": "Capture a fresh camera frame; returns visible objects with 3D positions (base frame, meters), remembered objects, and robot state.",
+        "description": "Capture a fresh camera frame and update object tracking. MCP returns that image with frame freshness, configured destinations and robot status. Identify visible objects from the image. Use localize_object for measured object positions; configured zones do not establish visibility. Inspect before acting when identity or presence is uncertain.",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
         "name": "list_objects",
-        "description": "List every object the robot knows about, including remembered (currently not visible) ones with last-known positions and age.",
+        "description": "List tracked objects, including remembered ones with last-known positions and age. This is not exhaustive and names can be approximate. A missing name does not prove absence: refresh with get_observation or actively search with localize_object/pick_and_place.",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
@@ -3125,7 +3483,7 @@ TOOL_SPECS: list[dict] = [
     },
     {
         "name": "localize_object",
-        "description": "Precisely localize one object by name; returns base-frame position and size. Use a spatial_hint word (left/right/front/back) to disambiguate duplicates.",
+        "description": "Localize an object from camera depth; returns base-frame position and size in meters. Exact configured-zone names and delivery-area aliases return the configured XY center with configuration provenance, not a detected object or visibility claim. Use spatial_hint to disambiguate objects; clarify if the requested identity remains uncertain.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -3170,18 +3528,27 @@ TOOL_SPECS: list[dict] = [
             "FAST PATH: complete pick-and-place in ONE call. Resolves the "
             "object against the live world model (color queries like 'pink "
             "object' work), grasps, places on the named destination object "
-            "(omit `destination`, or pass 'drop zone', for the configured drop "
-            "zone -- it is a fixed point, not an object to find), returns home, and "
-            "reports stage timings. Both stages PERSIST: they keep retrying "
+            "(pass 'green square' for the kitchen's marked green square or "
+            "'open box' for its calibrated beige box; "
+            "omit `destination` or pass 'drop zone' for the configured placement "
+            "point), returns home, and reports stage timings. The result "
+            "includes return_home: do not call move_home again after this "
+            "tool. When the user says 'then stop', report the result and "
+            "end the turn without any further movement tool, including when "
+            "the result is a failure. Do not retry under a guessed name or "
+            "invent a manual destination after that failure. "
+            "Both stages PERSIST: they keep retrying "
             "with fresh perception and fresh grasp plans until they succeed "
             "or the persistence budget runs out. Prefer this over manual "
-            "localize/grasp/place for any 'pick X [put it in Y]' request."
+            "localize/grasp/place for any 'pick X [put it in Y]' request. "
+            "Actively searches the camera for the requested name even when "
+            "that exact label is absent from list_objects."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "object": {"type": "string", "description": "what to pick, e.g. 'pink object', 'red mug'"},
-                "destination": {"type": "string", "description": "named object to place on/in; omit for the drop zone"},
+                "destination": {"type": "string", "description": "'green square' for the marked kitchen target; 'open box' for the calibrated beige box; another named object to place on/in; omit for the configured placement point"},
                 "material": {
                     "type": "string",
                     "enum": ["rigid", "fragile", "soft", "deformable", "slippery", "heavy"],
@@ -3227,7 +3594,7 @@ TOOL_SPECS: list[dict] = [
     },
     {
         "name": "describe_scene",
-        "description": "INSTANT text description of everything the robot knows (objects, colors, positions, what it holds) from the live world model -- no motion, no camera wait. Prefer this for 'what do you see?' questions.",
+        "description": "Inspect the current scene without moving. MCP returns a fresh camera image with frame freshness, configured destinations and robot status. Identify visible objects and distinguish marked delivery areas from movable objects using the image. Use localize_object for measured object positions. Configured destinations do not establish visibility or occupancy.",
         "parameters": {"type": "object", "properties": {}, "required": []},
     },
     {
@@ -3297,7 +3664,7 @@ TOOL_SPECS: list[dict] = [
             "wrist roll: the jaws engage the head, turn through the wrist's "
             "free travel, release, counter-rotate and re-engage until the "
             "requested number of turns is applied. tighten = clockwise from "
-            "above (right-hand thread). Use for 'aprieta el tornillo' / "
+            "above (right-hand thread). Use for 'tighten the screw' / "
             "'unscrew the bolt' / 'loosen the knob two turns'."
         ),
         "parameters": {

@@ -4,6 +4,7 @@ Uses the mock camera/arm profiles (env), so this covers everything Hermes /
 Claude Code exercise except physical hardware.
 """
 
+import base64
 import json
 import os
 import queue
@@ -12,6 +13,8 @@ import sys
 import threading
 import time
 
+import cv2
+import numpy as np
 import pytest
 
 from conftest import REPO, has_pinocchio, loopback_host
@@ -130,12 +133,17 @@ def test_tools_call_observation_and_memory(client):
     client.request("initialize", {"protocolVersion": "2025-06-18"})
     client.notify("notifications/initialized")
 
-    payload, is_err = _tool_payload(
-        client.request("tools/call", {"name": "get_observation", "arguments": {}})
-    )
+    response = client.request("tools/call", {"name": "get_observation", "arguments": {}})
+    payload, is_err = _tool_payload(response)
     assert not is_err
     assert payload["ok"]
-    assert any(o["label"] == "red cube" for o in payload["objects_visible"])
+    assert "objects_visible" not in payload
+    assert 0 <= payload["observation_frame"]["frame_age_s"] <= 5
+    image = next(block for block in response["result"]["content"] if block["type"] == "image")
+    pixels = cv2.imdecode(np.frombuffer(base64.b64decode(image["data"]), np.uint8), cv2.IMREAD_COLOR)
+    assert pixels.shape == (480, 640, 3)
+    red_box = pixels[220:240, 300:340].mean(axis=(0, 1))
+    assert red_box[2] > red_box[0] + 100 and red_box[2] > red_box[1] + 100
 
     payload, is_err = _tool_payload(
         client.request("tools/call", {"name": "recall_memory",
@@ -143,6 +151,7 @@ def test_tools_call_observation_and_memory(client):
     )
     assert not is_err
     assert "object_memory" in payload
+    assert payload["object_memory"]["label"] == "red cube"
 
 
 def test_camera_snapshot_returns_image_block(client):
@@ -245,7 +254,13 @@ def test_new_livestream_tools_over_jsonrpc(client):
     )
     assert not is_err and payload["ok"]
     assert "objects" in payload and "cameras" in payload
-    assert payload["arm_connected"] is False  # LazyArm untouched by a look
+    assert payload["session_state"]["arm_connected"] is False  # LazyArm untouched by a look
+    assert payload["session_state"]["source"] == "mcp_runtime"
+    assert payload["simulator_status"] == "not_queried"
+    assert "holding" not in payload
+    assert payload["live_arm_feedback"] is False
+    assert payload["gripper_contents"] == "not_measured"
+    assert payload["home_pose"] == "not_verified"
 
     # live_view_url with CASCADE_STREAM=0: honest error, not a bogus URL.
     # The dashboard is lazy now (chat is the UI), so this tool OPENS the view

@@ -132,6 +132,9 @@ def make_transform(rotation: np.ndarray, translation: np.ndarray) -> np.ndarray:
 
 def transform_points(T: np.ndarray, points: np.ndarray) -> np.ndarray:
     """Apply a 4x4 transform to (N, 3) points."""
+    if getattr(getattr(points, "device", None), "type", None) == "cuda":
+        from .perception.cuda_math import transform
+        return transform(T, points)
     pts = np.asarray(points, dtype=float)
     return pts @ T[:3, :3].T + T[:3, 3]
 

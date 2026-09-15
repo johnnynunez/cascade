@@ -13,12 +13,13 @@ It can read the baseline repo's hand_eye.npz files (key T_result) unchanged.
 from __future__ import annotations
 
 from pathlib import Path
+import os
 from typing import Callable
 
 import numpy as np
 
 from ..types import Detection, Frame, ObjectFix, SkillError, transform_points
-from .reference import Reference, apply_reference, parse_reference
+from .reference import Reference, ReferenceResolutionError, apply_reference, parse_reference
 
 
 class Extrinsics:
@@ -72,6 +73,9 @@ def mask_to_points_cam(
     The inter-quantile depth band drops mixed/flying pixels at mask edges
     (a real problem on the L515 around object silhouettes).
     """
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from .cuda_math import backproject
+        return backproject(frame, mask, max_points=max_points, depth_band=depth_band)
     if not frame.has_depth:
         raise SkillError("no depth available; cannot lift mask to 3D")
     ys, xs = np.nonzero(mask)
@@ -95,6 +99,9 @@ def mask_to_points_cam(
 
 def oriented_bbox(points: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """PCA oriented bounding box -> (center, extents desc-sorted, axes cols)."""
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from .cuda_math import oriented_bbox as cuda_bbox
+        return cuda_bbox(points)
     centroid = points.mean(axis=0)
     centered = points - centroid
     cov = np.cov(centered.T)
@@ -141,6 +148,9 @@ def _recentre_by_size(center, pts_base, extents, cam_pos):
     which is what a hard-coded constant does off its fitting set. Worst case
     is what decides whether a grasp lands, so the principled correction wins.
     """
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from .cuda_math import recentre
+        return recentre(center, pts_base, extents, cam_pos)
     pts = np.asarray(pts_base, dtype=float)
     if pts.shape[0] < 20:
         return center
@@ -179,6 +189,9 @@ def _recentre_by_size(center, pts_base, extents, cam_pos):
 
 def _bbox_mask(frame: Frame, det: Detection) -> np.ndarray:
     h, w = frame.rgb.shape[:2]
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from .cuda_math import bbox_mask
+        return bbox_mask((h, w), det.bbox)
     m = np.zeros((h, w), dtype=bool)
     x0, y0, x1, y1 = det.bbox.astype(int)
     m[max(y0, 0) : min(y1, h), max(x0, 0) : min(x1, w)] = True
@@ -210,6 +223,8 @@ def localize_object(
     near_xyz: np.ndarray | None = None,
     vocab: list[str] | None = None,
     prefer_label: str | None = None,
+    workspace_bounds: tuple[np.ndarray, np.ndarray] | None = None,
+    require_unique: bool = False,
 ) -> ObjectFix:
     """Find `label` in the frame and return its base-frame 3D fix.
 
@@ -223,6 +238,13 @@ def localize_object(
     from .colors import color_matches, detection_color
 
     T_cam2base = extrinsics.cam_to_base()
+    if workspace_bounds is not None:
+        workspace_min, workspace_max = [
+            np.asarray(bound, dtype=float).reshape(3) for bound in workspace_bounds
+        ]
+        if (not np.all(np.isfinite([workspace_min, workspace_max]))
+                or np.any(workspace_min > workspace_max)):
+            raise SkillError("invalid localization workspace bounds")
     if vocab:
         rounds = [(vocab, "vocabulary")]
     else:
@@ -259,6 +281,24 @@ def localize_object(
             center, extents, axes = oriented_bbox(pts_base)
             center = _recentre_by_size(center, pts_base, extents,
                                        T_cam2base[:3, 3])
+            if (os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1"
+                    and "can" in str(det.label).lower().replace("_", " ").split()):
+                # A partial cylindrical shell is not a box of the same
+                # thickness. Use only observed shape evidence; uncertain
+                # cylinders and all other objects retain the prior centre.
+                from .cuda_math import refine_upright_cylinder
+                center, _ = refine_upright_cylinder(center, pts_base)
+            # Rank only actionable measured candidates. A high-confidence
+            # background fruit must not hide a lower-confidence countertop
+            # prop, nor prevent the caller trying another camera/prompt.
+            if workspace_bounds is not None and (
+                    not np.all(np.isfinite(center))
+                    or np.any(center < workspace_min) or np.any(center > workspace_max)):
+                last_reason = (
+                    f"detected {det.label!r} at {np.round(center, 3).tolist()} "
+                    "outside the active arm workspace"
+                )
+                continue
             fix = ObjectFix(
                 label=label,
                 position=center,
@@ -274,6 +314,11 @@ def localize_object(
         candidates = exact or loose
         if not candidates:
             continue
+        if require_unique and len(candidates) != 1:
+            raise ReferenceResolutionError(
+                f"Configured visual description for {label!r} matches "
+                f"{len(candidates)} reachable objects; refusing an ambiguous grasp"
+            )
         # Referring expressions ("the second cup from the left", "the biggest
         # block", "not the red one"). VoLo makes complex references one of its
         # four capability suites and ASPIRE ships the same ordering rule as a

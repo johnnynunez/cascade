@@ -6,6 +6,7 @@
 #   ./scripts/launch.sh                     # auto: Isaac Sim if installed, else MuJoCo
 #   ./run.sh                               # ONE CLICK on a fresh clone: --setup --sim auto
 #   ./scripts/launch.sh --sim isaac         # Isaac Sim (bridge + editor window) + OpenClaw
+#   ./scripts/launch.sh --sim isaac --engine physx --scene-config demo/scene/kitchen_config.json
 #   ./scripts/launch.sh --setup --sim isaac # same, but first create the venv, install the
 #                                          # extras this mode needs, fetch assets, install
 #                                          # OpenClaw -- idempotent, safe to re-run
@@ -77,6 +78,9 @@ GGX_PORT="${CASCADE_GRASPGENX_PORT:-5556}"
 DRY=0
 DOWN=0
 ISAAC_GUI=1
+ISAAC_ENGINE=""       # explicit --engine newton|physx; otherwise bridge default
+SCENE_CONFIG=""       # explicit --scene-config JSON; Isaac only
+SCENE_CONFIG_SHA256=""
 ISAAC_WAIT_S="${ISAAC_WAIT_S:-1200}"
 BRIDGE_PORT="${CASCADE_BRIDGE_PORT:-8611}"
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
@@ -87,7 +91,7 @@ usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --sim|--arm|--cameras|--brain|--occupancy|--graspgenx)
+        --sim|--arm|--cameras|--brain|--occupancy|--graspgenx|--engine|--scene-config)
             [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { printf '[launch] ERROR: missing value for %s\n' "$1" >&2; exit 2; } ;;
     esac
     case "$1" in
@@ -95,6 +99,8 @@ while [[ $# -gt 0 ]]; do
         --arm) ARM="$2"; shift 2 ;;
         --cameras) CAMERAS="$2"; shift 2 ;;
         --brain) BRAIN="$2"; shift 2 ;;
+        --engine) ISAAC_ENGINE="$2"; shift 2 ;;
+        --scene-config) SCENE_CONFIG="$2"; shift 2 ;;
         --no-open) OPEN_CHAT=0; shift ;;
         --setup) SETUP=1; shift ;;
         --no-robot-turn) ROBOT_TURN=0; shift ;;
@@ -119,11 +125,17 @@ case "$BRAIN" in auto|keep|cosmos|cosmos-sglang|qwen) ;; *) printf 'unknown --br
 case "$SIM" in auto|isaac|mujoco|none) ;; *) printf 'unknown --sim %s\n' "$SIM" >&2; exit 2 ;; esac
 case "$OCCUPANCY" in auto|nvblox|warp|voxel|none) ;; *) printf 'unknown --occupancy %s\n' "$OCCUPANCY" >&2; exit 2 ;; esac
 case "$GRASPGENX" in auto|stub|external|none) ;; *) printf 'unknown --graspgenx %s\n' "$GRASPGENX" >&2; exit 2 ;; esac
+case "$ISAAC_ENGINE" in ""|newton|physx) ;; *) printf 'unknown --engine %s (newton|physx)\n' "$ISAAC_ENGINE" >&2; exit 2 ;; esac
+if [[ -n "$ISAAC_ENGINE$SCENE_CONFIG" && "$SIM" != isaac && "$SIM" != auto ]]; then
+    printf '[launch] ERROR: --engine and --scene-config apply only to Isaac Sim (--sim isaac)\n' >&2
+    exit 2
+fi
 [[ "$ISAAC_WAIT_S" =~ ^[1-9][0-9]*$ ]] || { printf 'ISAAC_WAIT_S must be a positive integer\n' >&2; exit 2; }
 if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark && $DOWN == 0 ]]; then
     [[ "$SIM" != auto ]] || SIM=isaac
     [[ "$BRAIN" != auto ]] || BRAIN=cosmos
     [[ "$SIM" == isaac && "$BRAIN" == cosmos ]] || { printf '[launch] ERROR: Spark delivery requires Isaac + Cosmos, not a substituted demo\n' >&2; exit 2; }
+    [[ "$ISAAC_ENGINE" != physx ]] || { printf '[launch] ERROR: Spark delivery requires the Newton engine\n' >&2; exit 2; }
 fi
 
 log()  { printf '[launch] %s\n' "$*"; }
@@ -261,6 +273,47 @@ if [[ -n "$ISAAC_PY" ]]; then
     fi
 fi
 
+if [[ -n "$ISAAC_ENGINE$SCENE_CONFIG" && "$SIM" != isaac ]]; then
+    printf '[launch] ERROR: --engine and --scene-config require Isaac; --sim auto selected %s\n' "$SIM" >&2
+    exit 2
+fi
+if [[ "$SIM" == isaac && -n "${CASCADE_ISAAC_DT+x}" ]]; then
+    # Reject invalid explicit timing before launch state/dependencies/services.
+    "$PY" - "$CASCADE_ISAAC_DT" <<'PYEOF' || exit 2
+import math, sys
+try:
+    value = float(sys.argv[1])
+    if not math.isfinite(value) or not 0 < value <= 1:
+        raise ValueError("must be finite and in (0, 1] seconds")
+except (TypeError, ValueError) as exc:
+    print(f"[launch] ERROR: invalid CASCADE_ISAAC_DT: {exc}", file=sys.stderr)
+    sys.exit(2)
+PYEOF
+fi
+
+if [[ -n "$SCENE_CONFIG" ]]; then
+    # Canonical identity is checked again against the running bridge. A changed
+    # file at the same path must not let a stale scene masquerade as this one.
+    SCENE_INFO="$("$PY" - "$SCENE_CONFIG" <<'PYEOF'
+import hashlib, json, pathlib, sys
+try:
+    path = pathlib.Path(sys.argv[1]).expanduser().resolve(strict=True)
+    if '\n' in str(path) or '\r' in str(path):
+        raise ValueError('scene configuration path cannot contain line breaks')
+    data = path.read_bytes()
+    if not isinstance(json.loads(data), dict):
+        raise ValueError('scene configuration must be a JSON object')
+    print(path)
+    print(hashlib.sha256(data).hexdigest())
+except (OSError, ValueError) as exc:
+    print(f'[launch] ERROR: invalid --scene-config: {exc}', file=sys.stderr)
+    sys.exit(2)
+PYEOF
+)" || exit 2
+    SCENE_CONFIG="${SCENE_INFO%$'\n'*}"
+    SCENE_CONFIG_SHA256="${SCENE_INFO##*$'\n'}"
+fi
+
 case "$SIM" in
     isaac)  ARM="${ARM:-isaac}";        CAMERAS="${CAMERAS:-isaac,isaac_side}" ;;
     mujoco) ARM="${ARM:-so101_mujoco}"; CAMERAS="${CAMERAS:-mujoco_scene}" ;;
@@ -269,6 +322,7 @@ case "$SIM" in
 esac
 log "plan: sim=$SIM arm=$ARM cameras=$CAMERAS brain=$BRAIN python=$PY"
 [[ "$SIM" != isaac ]] || log "Isaac startup budget=${ISAAC_WAIT_S}s (cold collision preprocessing/shaders); ISAAC_WAIT_S overrides it"
+[[ "$SIM" != isaac ]] || log "Isaac selection: engine=${ISAAC_ENGINE:-newton (bridge default)} scene-config=${SCENE_CONFIG:-default} sha256=${SCENE_CONFIG_SHA256:-none}"
 [[ $DRY == 1 ]] && log "(dry run: commands are printed, nothing is executed)"
 if [[ $DRY == 1 ]]; then
     log "would install missing extras/assets, start $SIM and sidecars, register OpenClaw, verify brain + motion + reset, then open chat"
@@ -437,15 +491,20 @@ if [[ "$SIM" == "isaac" ]]; then
     if port_open "$BRIDGE_PORT"; then
         log "Isaac bridge already answering on :$BRIDGE_PORT -> reusing it"
     else
-        gui_flag=""; [[ $ISAAC_GUI == 1 ]] && gui_flag="--gui"   # string, not array: bash 3.2 + set -u
+        # This array is always nonempty, including on macOS's bash 3.2.
+        isaac_args=(--port "$BRIDGE_PORT" --usd "$USD")
+        [[ $ISAAC_GUI != 1 ]] || isaac_args+=(--gui)
+        [[ -z "$ISAAC_ENGINE" ]] || isaac_args+=(--engine "$ISAAC_ENGINE")
+        [[ -z "$SCENE_CONFIG" ]] || isaac_args+=(--scene-config "$SCENE_CONFIG")
         [[ -n "$ISAAC_PY" ]] || ISAAC_PY='${ISAACSIM_PATH}/python.sh'   # dry run on a box without Isaac
-        log "starting Isaac Sim bridge (${gui_flag:-headless}) -> $STATE_DIR/isaac_bridge.log"
+        log "starting Isaac Sim bridge (engine=${ISAAC_ENGINE:-newton}, gui=$ISAAC_GUI) -> $STATE_DIR/isaac_bridge.log"
         if [[ $DRY == 1 ]]; then
-            printf '        $ %s %s --port %s --usd %s %s &\n' "$ISAAC_PY" "$REPO/scripts/isaac_bridge.py" "$BRIDGE_PORT" "$USD" "${gui_flag:-}"
+            printf '        $ %q ' "$ISAAC_PY"
+            printf '%q ' "$REPO/scripts/isaac_bridge.py" "${isaac_args[@]}"
+            printf '&\n'
         else
-            # shellcheck disable=SC2086  # $gui_flag is empty or exactly --gui
             nohup "$PY" "$REPO/scripts/isaac_launch.py" --python "$ISAAC_PY" -- \
-                "$REPO/scripts/isaac_bridge.py" --port "$BRIDGE_PORT" --usd "$USD" $gui_flag \
+                "$REPO/scripts/isaac_bridge.py" "${isaac_args[@]}" \
                 >"$STATE_DIR/isaac_bridge.log" 2>&1 &
             bridge_pid=$!
             ownerctl record --pid "$bridge_pid" --role isaac_bridge >/dev/null
@@ -456,20 +515,38 @@ if [[ "$SIM" == "isaac" ]]; then
         fi
     fi
     # Probe borrowed bridges too. An open port is neither health nor proof.
-    "$PY" - "$BRIDGE_PORT" <<'PYEOF' || die "Isaac bridge on :$BRIDGE_PORT failed health -- see $STATE_DIR/isaac_bridge.log"
+    "$PY" - "$BRIDGE_PORT" "$ISAAC_ENGINE" "$SCENE_CONFIG" "$SCENE_CONFIG_SHA256" <<'PYEOF' || die "Isaac bridge on :$BRIDGE_PORT failed health/scene identity -- see $STATE_DIR/isaac_bridge.log"
 import math, os, sys
 from cascade.sim.bridge_client import BridgeClient
+expected_dt = None
+if 'CASCADE_ISAAC_DT' in os.environ:
+    try:
+        expected_dt = float(os.environ['CASCADE_ISAAC_DT'])
+    except (TypeError, ValueError) as exc:
+        raise AssertionError("invalid CASCADE_ISAAC_DT: expected finite timestep in (0, 1] seconds") from exc
+    assert math.isfinite(expected_dt) and 0 < expected_dt <= 1, "invalid CASCADE_ISAAC_DT: expected finite timestep in (0, 1] seconds"
 c = BridgeClient(port=int(sys.argv[1]), timeout_s=20.0)
 c.connect()
 try:
     pong = c.request({"op": "ping"})
     assert pong.get("ok"), f"ping answered {pong!r}"
+    expected_engine, expected_scene, expected_sha = (sys.argv[2:] + ['', '', ''])[:3]
+    if expected_engine:
+        assert pong.get('engine') == expected_engine, f"requested Isaac engine {expected_engine!r}, received {pong.get('engine')!r}"
+    if expected_scene:
+        assert pong.get('scene_config') == expected_scene, f"requested scene {expected_scene!r}, received {pong.get('scene_config')!r}"
+        assert pong.get('scene_config_sha256') == expected_sha, 'running Isaac scene config differs from requested bytes; restart that scene explicitly'
+    if expected_dt is not None:
+        actual_dt = pong.get('physics_dt_s')
+        assert type(actual_dt) in (int, float) and math.isfinite(actual_dt) and 0 < actual_dt <= 1, "running Isaac bridge has no valid actual physics timestep; restart it explicitly"
+        assert math.isclose(actual_dt, expected_dt, rel_tol=1e-6, abs_tol=1e-12), (
+            f"requested Isaac timestep {expected_dt:.12g}s, received {actual_dt:.12g}s; restart that bridge explicitly")
     st = c.request({"op": "state"})
     assert st.get('ok') is True and isinstance(st.get('q'), list) and st['q'], f"invalid joint state: {st!r}"
     assert all(isinstance(q, (int, float)) and math.isfinite(q) for q in st['q']), "non-finite joint state"
     if os.environ.get('CASCADE_INSTALL_PROFILE') == 'spark':
         assert pong.get('engine') == 'newton', f"Spark requires Newton, received {pong.get('engine')!r}"
-    print(f"[launch] Isaac bridge answers: engine={pong.get('engine')} dofs={len(pong.get('dofs') or [])} state_ok={bool(st.get('ok', True))}")
+    print(f"[launch] Isaac bridge answers: engine={pong.get('engine')} dofs={len(pong.get('dofs') or [])} state_ok={bool(st.get('ok', True))} physics_dt_s={pong.get('physics_dt_s')}")
 finally:
     c.close()
 PYEOF
@@ -592,7 +669,7 @@ if [[ "$SIM" == "mujoco" && "$(uname -s)" == "Darwin" && -x "$(dirname "$PY")/mj
     MCP_PY="$(dirname "$PY")/mjpython"
     log "macOS + mujoco: MCP server runs under mjpython so the viewer can open"
 fi
-MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$DETECTOR" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" "$ISAAC_GUI" <<'PYEOF'
+MCP_JSON="$("$PY" - "$MCP_PY" "$REPO" "$CAMERAS" "$ARM" "$DETECTOR" "$CLASSES" "$SIM" "$STATE_DIR" "$LAUNCH_OWNER" "$ISAAC_GUI" "$OCCUPANCY" <<'PYEOF'
 import json, os, sys
 py, repo, cams, arm, det, classes, sim = sys.argv[1:8]
 state_dir, owner = sys.argv[8:10]
@@ -607,6 +684,11 @@ if classes:
 for key in ("CASCADE_GRASP_MEMORY_PATH", "CASCADE_ENVELOPE_PATH", "CASCADE_BELIEFS_PATH", "CASCADE_BELIEFS"):
     if key in os.environ:
         env[key] = os.environ[key]
+if sys.argv[11] == "none":
+    # --occupancy none is an explicit runtime opt-out, not just permission
+    # to omit its server. Otherwise lazy-arm preflight still asks the dead
+    # map for robot body poses and refuses every motion before connect().
+    env["CASCADE_OCCUPANCY"] = "0"
 # Sim runs open the physics viewer from the MCP server (CASCADE_VIEW=1 needs
 # DISPLAY set; macOS has no DISPLAY, so give it one -- mujoco.viewer ignores
 # the value, it only gates the "is there a screen" check).
@@ -647,7 +729,9 @@ brain_local() {  # brain_local <base_url> <model_id> <ctx>
     log "onboarding local provider $base ($mid)"
     run oc onboard --non-interactive --accept-risk --mode local \
         --auth-choice custom-api-key --custom-base-url "$base" \
-        --custom-model-id "$mid" --custom-compatibility openai --custom-image-input --skip-health
+        --custom-model-id "$mid" --custom-compatibility openai --custom-image-input --skip-health \
+        --skip-ui --suppress-gateway-token-output --skip-channels --skip-hooks \
+        --skip-daemon --skip-bootstrap --skip-skills
     active_cfg="$(oc config file)" || die "cannot resolve active OpenClaw config"
     providers="$("$PY" - "$active_cfg" "$mid" "$ctx" <<'PYEOF'
 import json, pathlib, sys

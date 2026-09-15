@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Watch the initial PAAI, Physical Agentic AI kitchen demo for Build a Claw through three live cameras.">
+  <title>PAAI, Physical Agentic AI · Build a Claw</title>
+  <link rel="stylesheet" href="/visitor.css">
+  <script src="/visitor-player.js" defer></script>
+  <script src="/visitor.js" defer></script>
+</head>
+<body>
+  <header><span class="brand">PAAI, Physical Agentic AI</span><span class="badge">Build a Claw</span></header>
+  <main>
+    <div class="intro"><div><h1>Watch the robot try a kitchen task.</h1><p>Ask about the scene, choose an object and follow a simulated arm in NVIDIA Isaac Sim. This is the initial PAAI event demo.</p></div><span id="status" role="status">Connecting to the kitchen…</span></div>
+    <nav aria-label="Camera selection"><button data-camera="kitchen">Kitchen</button><button data-camera="worktop" aria-pressed="true">Worktop</button><button data-camera="side">Side</button></nav>
+    <figure><img id="camera" alt="Live Worktop camera" width="960" height="540"><video id="video" aria-label="Live kitchen video" width="960" height="540" muted autoplay playsinline hidden></video><figcaption id="caption">Worktop · live camera</figcaption></figure>
+    <section class="guide"><article><span class="step">01 / LOOK</span><h2>Choose a view</h2><p>Worktop shows objects and the green delivery square. Side shows lifts and releases. Kitchen shows the whole room.</p></article><article><span class="step">02 / ASK</span><h2>Try a request</h2><p>At the booth, type “What can you see?” or “Put the orange in the green square” in the connected OpenClaw chat.</p></article><article><span class="step">03 / CHECK</span><h2>Watch the result</h2><p>Look for the object lifting, leaving the gripper and settling in the zone. Read the result with staff; reset after the task finishes.</p></article></section>
+    <p class="note">This page shows cameras only. The demo uses prepared objects in simulation. Grasps can miss, and camera previews update only a few times per second.</p>
+  </main>
+  <footer>PAAI was built together by Asier Arranz and Johnny Núñez. Kitchen and orange assets by <a href="https://github.com/LightwheelAI/Lightwheel_Kitchen" rel="noreferrer">Lightwheel</a>, <a href="https://creativecommons.org/licenses/by-nc/4.0/" rel="noreferrer">CC BY-NC 4.0</a>, adapted for this demo.</footer>
+</body>
+</html>

@@ -69,6 +69,10 @@ def _median_depth(depth: np.ndarray, u: int, v: int, r: int = PATCH_R) -> float 
     off: sensor depth maps have holes and flying pixels, especially on object
     silhouettes (documented on the L515 in perception/grounding.py).
     """
+    import os
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from .cuda_math import median_depth
+        return median_depth(depth, u, v, r)
     h, w = depth.shape[:2]
     u0, u1 = max(0, u - r), min(w, u + r + 1)
     v0, v1 = max(0, v - r), min(h, v + r + 1)

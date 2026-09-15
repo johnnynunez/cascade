@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
@@ -210,7 +211,18 @@ def validate_envelope(data: dict, required_tool: str | tuple[str, ...] | None = 
     return result
 
 
+def proof_timeout(timeout: int) -> int:
+    try:
+        scale = float(os.environ.get("CASCADE_PROOF_TIMEOUT_SCALE", "1"))
+    except ValueError as exc:
+        raise ProofError("CASCADE_PROOF_TIMEOUT_SCALE must be finite and between 1 and 4") from exc
+    if not math.isfinite(scale) or not 1 <= scale <= 4:
+        raise ProofError("CASCADE_PROOF_TIMEOUT_SCALE must be finite and between 1 and 4")
+    return math.ceil(timeout * scale)
+
+
 def agent_turn(session: str, model: str, message: str, output, timeout: int, required_tool=None) -> dict:
+    timeout = proof_timeout(timeout)
     command = oc_command("agent", "--session-id", session, "--model", model,
                          "--message", message, "--json", "--timeout", str(timeout))
     p = subprocess.run(command, capture_output=True, text=True, timeout=timeout + 30)
@@ -247,7 +259,7 @@ def _bound_world(state_dir, owner, baseline, started, expected=None) -> dict:
         raise ProofError("expected exactly one NEW live MCP of this launch owner; cannot bind the session to a world")
     record = fresh[0]
     run_dir = Path(record.get("run_dir", "")).resolve()
-    if run_dir.parent != Path(owner["repo"]) / "runs" or not run_dir.name.startswith(f"mcp_{record['pid']}_"):
+    if run_dir.parent != (Path(owner["repo"]) / "runs").resolve() or not run_dir.name.startswith(f"mcp_{record['pid']}_"):
         raise ProofError("owner record has an invalid runtime trace directory")
     return record
 

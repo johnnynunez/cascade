@@ -24,10 +24,11 @@ way run_wrc does, and read what line 346 would read.
 """
 import os
 import sys
+from pathlib import Path
 
-REPO = "/home/johnny/Projects/demo/cascade"
+REPO = str(Path(__file__).resolve().parents[2])
 sys.path.insert(0, REPO + "/src")
-sys.path.insert(0, os.path.expanduser("~/bench/LIBERO"))
+sys.path.insert(0, os.path.expanduser(os.environ.get("CASCADE_BENCH_LIBERO", "~/bench/LIBERO")))
 os.environ.setdefault("MUJOCO_GL", "egl")
 
 sys.path.insert(0, REPO + "/benchmark/libero")

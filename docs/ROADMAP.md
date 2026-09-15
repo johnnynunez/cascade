@@ -1,8 +1,22 @@
 # Roadmap
 
 This file is a dated log: each "Landed <date>" section records what shipped,
-the SOTA delta that motivated it, and what was deliberately NOT adopted.
+the work that motivated it, and what was deliberately not adopted.
 Read top-down for status; the dated sections are history.
+
+## PAAI event follow-up (2026-09-15)
+
+The initial **PAAI, Physical Agentic AI** demo for **Build a Claw** has
+successful orange and tomato-can pick/place cases checked with camera images
+and simulator physics. Guided scene inspection, delivery-zone grounding,
+camera streaming, authenticated access and reset/recovery have also been
+tested. These are bounded event checks; object coverage and generalization
+remain work for later versions.
+
+- Evaluate **Cosmos3-Edge** as a perception and reasoning backend. Structured
+  grounding, generalization and OpenClaw integration need more validation.
+  Retain the reliable event backend until Cosmos passes the same acceptance
+  gates.
 
 ## Status at a glance (2026-09-10)
 
@@ -91,7 +105,8 @@ Waddle) + a Cosmos3-Edge backend. Full write-up in
   primitive actually works + a normalised failure taxonomy, injected at task
   start. Advisory only — the harness stays the sole authority on motion.
 - **Annotated interface (VIA).** `annotated_view` skill: numbered object
-  badges, 5 cm metric grid, TCP, and the top-down IK band drawn on the frame.
+  badges, 5 cm metric grid, TCP, and an optional configured display band.
+  MCP receives the image and key. These do not verify IK or grasp reachability.
 - **Cosmos3-Edge.** `configs/llm/local_cosmos.yaml` + `agent/cosmos3.py`
   (parses its XML tool-call format — the plain `openai_compat` client silently
   never calls tools) + `scripts/serve_cosmos_vllm.sh`.

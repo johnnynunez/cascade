@@ -22,7 +22,7 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, "/home/johnny/Projects/demo/cascade/src")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import numpy as np
 import yaml
@@ -43,7 +43,7 @@ time.sleep(1.5)
 t = np.asarray(truth.pose("pink cube"), dtype=float)
 print(f"true cube centre (base): {np.round(t, 4)}")
 
-cfgp = Path("/home/johnny/Projects/demo/cascade/configs/cameras/isaac.yaml")
+cfgp = Path(__file__).resolve().parents[2] / "configs/cameras/isaac.yaml"
 y = yaml.safe_load(cfgp.read_text())
 T = np.array(y["extrinsics"]["T"], dtype=float)      # cam -> base
 print(f"\nT (cam->base):\n{np.round(T, 4)}")

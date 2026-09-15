@@ -261,3 +261,29 @@ Log/
 
 # MuJoCo renderer scratch log (written into the CWD on some GL paths)
 MUJOCO_LOG.TXT
+
+# Local Brev deployment receipts, runtime inputs and evidence.
+/deploy/brev/STATE.json
+/deploy/brev/READY.json
+/deploy/brev/.operation.lock
+/deploy/brev/access/
+/deploy/brev/logs/
+/deploy/brev/proof/
+/deploy/brev/publication/
+/deploy/brev/container/clip-source.tar.gz
+/deploy/runtime/*-plan.json
+/deploy/runtime/*-state.json
+/runtime/
+/demo/STOP
+/STOP
+
+# Licensed scene and perception data are supplied in the external bundle.
+/demo/scene/assets/
+/demo/vendor-kitchen/
+/assets/robots/rebot/
+/assets/usd/RS-rebot-dev-arm/
+/.brev-acceptance/
+
+# Local Chrome extension packages.
+/extensions/chrome/*.zip
+/extensions/chrome/*.zip.sha256

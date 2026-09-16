@@ -51,7 +51,7 @@ def register(repo: Path, *, desktop_dir: Path | None = None) -> list[Path]:
     paths = []
     for action, name in (("install", "Install CASCADE (Spark)"), ("launch", "CASCADE (Spark)")):
         text = ("[Desktop Entry]\nVersion=1.0\nType=Application\n"
-                f"Name={name}\nComment=Isaac Sim + local Cosmos + isolated OpenClaw; physical proof required\n"
+                f"Name={name}\nComment=Isaac Sim + local model + isolated OpenClaw; physical proof required\n"
                 f"Exec=/usr/bin/python3 {_exec_arg(str(repo / 'scripts/desktop.py'))} {action} --repo {_exec_arg(str(repo))}\n"
                 "Icon=applications-engineering\nTerminal=true\nStartupNotify=false\nCategories=Development;Science;\n")
         for directory in destinations:
@@ -67,7 +67,7 @@ def register(repo: Path, *, desktop_dir: Path | None = None) -> list[Path]:
 
 
 def confirm_eula() -> bool:
-    message = ("Install CASCADE for this Linux Spark using Isaac Sim 6.1, local Cosmos and OpenClaw.\n\n"
+    message = ("Install CASCADE for this Linux Spark using Isaac Sim 6.1, the local model and OpenClaw.\n\n"
                f"Review the NVIDIA Isaac Sim / Omniverse EULA:\n{EULA_URL}\n\n"
                "Do you explicitly agree to this EULA? Downloads may be large. No driver or OS changes. "
                "If installation succeeds, the simulation proof will move the simulated robot. No physical hardware.")
@@ -103,7 +103,7 @@ def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: boo
             command.append("--prepare-only")
     else:
         command = [str(repo / ".venv/bin/python"), str(repo / "scripts/install_support.py"),
-                   "launch", "--repo", str(repo), "--profile", "spark", "--brain", "cosmos"]
+                   "launch", "--repo", str(repo), "--profile", "spark", "--brain", "qwen"]
     if dry_run:
         print(json.dumps({"action": action, "command_after_consent": command,
                           "dry_run": True, "services_started": False}))
@@ -116,7 +116,8 @@ def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: boo
         if not eula_accepted(repo):
             raise RuntimeError("No explicit license-consent receipt for this checkout. Open 'Install CASCADE (Spark)' first.")
         record = json.loads((repo / "runs/.install/install.json").read_text())
-        if record.get("profile") != "spark" or record.get("brain") != "cosmos":
+        # Existing Spark consent remains valid across the model installation fix.
+        if record.get("profile") != "spark" or record.get("brain") not in ("qwen", "cosmos"):
             raise RuntimeError("This is not a prepared Spark installation. Open 'Install CASCADE (Spark)'.")
         if not os.access(repo / ".venv/bin/python", os.X_OK):
             raise RuntimeError("Application environment is missing. Open 'Install CASCADE (Spark)' to repair it; no fallback.")
@@ -137,7 +138,7 @@ def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: boo
         report = {"action": action, "repo": str(repo), "log": str(log_path), "started_at": time.time(), "exit_code": None}
         latest = state / "desktop-latest.json"
         _write_status(latest, report)
-        print(f"[desktop] {action.upper()}: Isaac + local Cosmos + OpenClaw profile cascade-demo", flush=True)
+        print(f"[desktop] {action.upper()}: Isaac + local model + OpenClaw profile cascade-demo", flush=True)
         print(f"[desktop] Full progress log: {log_path}", flush=True)
         code = 1
         with log_path.open("w") as log:

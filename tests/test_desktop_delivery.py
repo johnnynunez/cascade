@@ -109,7 +109,8 @@ def test_installer_runs_existing_pipeline_and_keeps_progress_log(tmp_path, monke
     assert "READY" not in log.read_text()
 
 
-def test_launch_uses_installer_supervisor_with_pinned_source_and_profile(tmp_path):
+@pytest.mark.parametrize("recorded_brain", ["qwen", "cosmos"])
+def test_launch_uses_installer_supervisor_with_pinned_source_and_profile(tmp_path, recorded_brain):
     module = controller()
     repo = tmp_path / "repo"
     script = repo / "scripts/install_support.py"
@@ -121,12 +122,12 @@ def test_launch_uses_installer_supervisor_with_pinned_source_and_profile(tmp_pat
     consent = repo / "runs/.install/install.json"
     consent.parent.mkdir(parents=True)
     consent.write_text(json.dumps({"repo": str(repo.resolve()), "eula_accepted": True,
-                                   "eula_url": module.EULA_URL, "profile": "spark", "brain": "cosmos",
+                                   "eula_url": module.EULA_URL, "profile": "spark", "brain": recorded_brain,
                                    "isaac_environment": {"ISAACSIM_PATH": "/selected/source", "ISAACSIM_PYTHON_EXE": "/selected/source/python.sh"}}))
     assert module.perform(repo, "launch") == 0
     latest = json.loads((repo / "runs/.install/desktop-latest.json").read_text())
     output = [json.loads(s) for s in Path(latest["log"]).read_text().splitlines() if s.startswith('{')][0]
-    assert output["args"] == ["launch", "--repo", str(repo), "--profile", "spark", "--brain", "cosmos"]
+    assert output["args"] == ["launch", "--repo", str(repo), "--profile", "spark", "--brain", "qwen"]
     assert output["source"] == "/selected/source"
     assert output["profile"] == "cascade-demo"
 

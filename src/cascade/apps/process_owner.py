@@ -98,6 +98,12 @@ def is_live(record: dict, owner: dict) -> bool:
             return False
         if not re.search(r"(?:^|\s)--launch-owner " + re.escape(owner["owner"]) + r"(?:\s|$)", current["command"]):
             return False
+    if record.get("role") == "gateway_child":
+        try:
+            if record.get("process_group") != record["pid"] or os.getpgid(record["pid"]) != record["pid"]:
+                return False
+        except ProcessLookupError:
+            return False
     return True
 
 
@@ -110,6 +116,10 @@ def register_process(state_dir, owner: dict, pid: int, role: str, *, run_dir=Non
     if not re.fullmatch(r"[a-z][a-z0-9_]*", role):
         raise ValueError("invalid process role")
     record = {**owner, **identity, "role": role, "instance_id": uuid.uuid4().hex, "registered_at": time.time()}
+    if role == "gateway_child":
+        if os.getpgid(pid) != pid:
+            raise ValueError("foreground gateway must own a private process group")
+        record["process_group"] = pid
     if run_dir is not None:
         record["run_dir"] = str(Path(run_dir).resolve())
     if not is_live(record, owner):
@@ -189,19 +199,45 @@ def _run_gateway_stop(command: list[str], *, timeout_s: float = 360.0,
                 signal.signal(number, previous)
 
 
-def stop_owned(state_dir, owner: dict, *, dry_run=False) -> list[int]:
+def stop_private_gateway(record: dict, owner: dict, *, timeout_s: float = 5) -> None:
+    """Stop only a previously verified foreground gateway and its private group."""
+    import signal
+
+    if record.get("role") != "gateway_child" or not is_live(record, owner):
+        raise ValueError("foreground gateway no longer belongs to this launch owner")
+    pid = record["pid"]
+    try:
+        os.killpg(pid, signal.SIGTERM)
+        deadline = time.monotonic() + timeout_s
+        while is_live(record, owner) and time.monotonic() < deadline:
+            time.sleep(.05)
+        # The wrapper can exit before its child. This group was checked above
+        # and contains only the foreground gateway started by this checkout.
+        current = process_identity(pid)
+        if current is not None and any(current[key] != record[key] for key in ("birth", "command")):
+            raise ValueError("foreground gateway identity changed while stopping")
+        os.killpg(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def stop_owned(state_dir, owner: dict, *, dry_run=False, roles=None) -> list[int]:
     import signal
 
     stopped = []
     # Service-manager shutdown is intentionally separate from direct PID
     # signals. An unowned gateway is never stopped to reap its MCP children.
-    for record in sorted(records(state_dir), key=lambda r: r.get("role") == "gateway"):
+    for record in sorted(records(state_dir), key=lambda r: r.get("role") in ("gateway", "gateway_child")):
+        if roles is not None and record.get("role") not in roles:
+            continue
         if not is_live(record, owner):
             continue
         if dry_run:
             print(f"would stop {record['role']} pid={record['pid']}")
             continue
-        if record.get("role") == "gateway":
+        if record.get("role") == "gateway_child":
+            stop_private_gateway(record, owner)
+        elif record.get("role") == "gateway":
             prefix = ["openclaw", *(["--profile", owner["profile"]] if owner["profile"] else [])]
             status = subprocess.run([*prefix, "gateway", "status", "--json"], capture_output=True, text=True, timeout=30)
             pid = json.loads(status.stdout).get("service", {}).get("runtime", {}).get("pid") if status.returncode == 0 else None

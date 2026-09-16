@@ -226,6 +226,14 @@ def test_terminal_close_stops_only_its_child_and_records_interruption(tmp_path, 
             assert process.poll() is None
             time.sleep(0.02)
         assert marker.is_file()
+        # PID creation precedes both the child's print and the controller's log
+        # write. Interrupt only after the line we assert below is persisted.
+        report = json.loads((repo / "runs/.install/desktop-latest.json").read_text())
+        log = Path(report["log"])
+        while "CHILD_READY" not in log.read_text() and time.monotonic() < deadline:
+            assert process.poll() is None
+            time.sleep(0.02)
+        assert "CHILD_READY" in log.read_text()
         process.send_signal(signum)
         output, _ = process.communicate(timeout=15)
         assert process.returncode == 130, output

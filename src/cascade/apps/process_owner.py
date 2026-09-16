@@ -216,6 +216,13 @@ def stop_private_gateway(record: dict, owner: dict, *, timeout_s: float = 5) -> 
         current = process_identity(pid)
         if current is not None and any(current[key] != record[key] for key in ("birth", "command")):
             raise ValueError("foreground gateway identity changed while stopping")
+        if sys.platform == "darwin":
+            # Reap our exited child before signalling a possible zombie-only
+            # group. Surviving workers still need the group SIGKILL below.
+            try:
+                os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                pass  # another launcher process created this gateway
         os.killpg(pid, signal.SIGKILL)
     except ProcessLookupError:
         pass

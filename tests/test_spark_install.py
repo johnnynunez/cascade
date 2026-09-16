@@ -615,8 +615,9 @@ sys.exit(int(os.environ.get("BOUNDARY_LAUNCH_FAIL","0")))
 
 @pytest.mark.parametrize("final_exec", [False, True])
 @pytest.mark.parametrize("custom_state", [False, True])
+@pytest.mark.parametrize("headless", [False, True])
 def test_launch_hands_exact_env_to_launcher_and_records_owned_qwen(
-    tmp_path, monkeypatch, custom_state, final_exec
+    tmp_path, monkeypatch, custom_state, final_exec, headless
 ):
     from cascade.apps.process_owner import live_records, load_owner, stop_owned
 
@@ -632,9 +633,14 @@ def test_launch_hands_exact_env_to_launcher_and_records_owned_qwen(
         monkeypatch.setenv("CASCADE_LAUNCH_STATE", str(root))
     state = root / "profile-cascade-demo"
     try:
-        assert support.launch(repo, "spark", "qwen", no_open=True) == 0
+        # Exercise the supervisor CLI parser and the real launcher subprocess.
+        # Keep signal handlers local to this test's mocked process boundary.
+        monkeypatch.setattr(support.signal, "signal", lambda *args: None)
+        options = ["--no-open", *(["--headless"] if headless else [])]
+        assert support.main(["launch", "--repo", str(repo), "--profile", "spark",
+                             "--brain", "qwen", *options]) == 0
         record = json.loads((repo / "launch-record.json").read_text())
-        assert record["args"] == ["--sim", "isaac", "--brain", "qwen", "--no-open"]
+        assert record["args"] == ["--sim", "isaac", "--brain", "qwen", *options]
         assert record["env"] == {
             "ISAACSIM_PYTHON_EXE": str(repo / ".isaacsim/bin/python"),
             "CASCADE_OPENCLAW_PROFILE": "cascade-demo",

@@ -285,7 +285,7 @@ def stop_group(process: subprocess.Popen) -> None:
     process.wait(timeout=5)
 
 
-def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False) -> int:
+def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, headless: bool = False) -> int:
     from cascade.apps.process_owner import (
         live_records, load_owner, profile_state_dir, register_process,
     )
@@ -420,6 +420,8 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False) -> in
         ]
         if no_open:
             command.append("--no-open")
+        if headless:
+            command.append("--headless")
         launcher = subprocess.Popen(command, cwd=repo, env=env, start_new_session=True)
         while launcher.poll() is None:
             if qwen is not None and qwen.poll() is not None:
@@ -660,6 +662,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--brain", choices=["qwen", "keep"], default="qwen")
     parser.add_argument("--ref", default="existing checkout")
     parser.add_argument("--no-open", action="store_true")
+    parser.add_argument("--headless", action="store_true", help="launch Isaac without an editor window")
     parser.add_argument("--accept-eula", action="store_true", help="record explicit consent, never inferred from environment")
     args = parser.parse_args(argv)
     repo = args.repo.resolve()
@@ -683,7 +686,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"[cascade-install] MISSING: {problem}")
             return 3 if problems else 0
         else:
-            return launch(repo, args.profile, args.brain, no_open=args.no_open)
+            return launch(repo, args.profile, args.brain, no_open=args.no_open, headless=args.headless)
     except KeyboardInterrupt:
         print(
             "[cascade-install] interrupted; newly started services stopped",

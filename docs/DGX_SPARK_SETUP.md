@@ -52,8 +52,12 @@ required environment or asset is missing.
 ## 3. Start
 
 ```bash
-python3 scripts/desktop.py launch --repo "$PWD"
+python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open
 ```
+
+This works from a remote shell. The cameras and physical checks run without
+opening windows. From a logged-in desktop session, omit `--headless --no-open`
+to open the Isaac editor and chat.
 
 Cold shader and collision preparation can take more than ten minutes.
 The launcher shows progress and allows 20 minutes for Isaac startup.
@@ -76,7 +80,14 @@ reset. `PREPARED` or `STARTED / UNVERIFIED` is not a READY result.
 
 ## 4. Use OpenClaw
 
-Use the chat opened by the launcher. Send one order at a time:
+To open the chat from the Spark's desktop, run:
+
+```bash
+OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" \
+  .openclaw-cli/bin/openclaw --profile cascade-demo dashboard
+```
+
+Send one order at a time:
 
 > Move the green cube to the green square.
 
@@ -100,7 +111,7 @@ For a stalled camera or failed startup, restart this installation:
 
 ```bash
 ./run.sh down
-python3 scripts/desktop.py launch --repo "$PWD"
+python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open
 ```
 
 Find the latest desktop log and physical proof here:

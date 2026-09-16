@@ -57,7 +57,8 @@ print(json.dumps({"argv": sys.argv[1:], "environment": {key: os.environ[key] for
     return repo, entry, environment
 
 
-@pytest.mark.parametrize("arguments", [[], ["--engine", "physx", "--arm", "isaac_kitchen_gpu", "--occupancy", "none"]])
+@pytest.mark.parametrize("arguments", [[], ["--engine", "physx", "--arm", "isaac_kitchen_gpu", "--occupancy", "none"],
+                                      pytest.param(["--headless", "--no-open"], id="headless")])
 def test_spark_default_passes_brev_engine_profile_and_cuda_to_bridge(tmp_path, arguments):
     repo, entry, environment = launch_boundary(tmp_path)
     result = subprocess.run(["bash", str(entry), *arguments], env=environment,
@@ -69,7 +70,8 @@ def test_spark_default_passes_brev_engine_profile_and_cuda_to_bridge(tmp_path, a
                       str(repo / "demo/scene/kitchen_config.json")],
         "occupancy": "0",
     }
-    assert child["argv"] == ["--port", "8611", "--usd", str(repo / "robot.usda"), "--gui",
+    assert child["argv"] == ["--port", "8611", "--usd", str(repo / "robot.usda"),
+                             *([] if "--headless" in arguments else ["--gui"]),
                              "--engine", "physx", "--scene-config", str(repo / "demo/scene/kitchen_config.json")]
     assert child["environment"] == {
         "CASCADE_REQUIRE_CUDA": "1", "CASCADE_PHYSICS_DEVICE": "cuda:0",

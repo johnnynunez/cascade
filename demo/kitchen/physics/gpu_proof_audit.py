@@ -17,6 +17,9 @@ import time
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
+# exec can queue behind the native reset on Kit's main thread. The bridge
+# allows 30 seconds before returning its own error; keep time to receive it.
+EXEC_TIMEOUT_S = 35
 
 
 def _load(name, path):
@@ -354,7 +357,7 @@ class GpuProofObserver:
             with (self.out / "wire.jsonl").open("w") as wires, (self.out / "samples.jsonl").open("w") as samples:
                 while not self._stop.is_set() and time.monotonic() - self.started < self.budget_s:
                     began = time.monotonic()
-                    reply = client.request({"op": "exec", "code": self.code}, timeout_s=8)
+                    reply = client.request({"op": "exec", "code": self.code}, timeout_s=EXEC_TIMEOUT_S)
                     finished = time.monotonic()
                     wires.write(json.dumps({"sequence": len(self.records), "reply": reply}) + "\n")
                     wires.flush()
@@ -427,7 +430,7 @@ class GpuProofObserver:
     def stop(self):
         self._stop.set()
         if self._thread:
-            self._thread.join(timeout=12)
+            self._thread.join(timeout=EXEC_TIMEOUT_S + 10)  # pending exec plus final 8-second ping
             if self._thread.is_alive():
                 self.errors.append("GPU observer thread did not stop within the socket timeout")
         if self.out.is_dir():

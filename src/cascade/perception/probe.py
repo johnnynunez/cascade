@@ -19,7 +19,7 @@ That distinction is the whole design of this module. A probe is not a picture:
 
     probe_point(u, v)  ->  depth at that pixel, the 3D point in the robot's
                            base frame, which tracked object is there, whether
-                           the arm can actually reach it, and how far it is
+                           it is inside the configured workspace, and how far it is
                            from the current gripper position.
 
 Everything returned is a scalar the agent can compare, not a texture it has to
@@ -43,7 +43,7 @@ camera). Round-trip 3D -> pixel -> 3D closes to **1.6 mm**, so the geometry is
 sound; the offset is physics, not error.
 
 Practical consequence: do NOT feed a probe straight into a grasp centre. Use
-it for *relative* judgements -- is this reachable, which object is here, how
+it for *relative* judgements -- where is this point, which object is here, how
 far is the gripper -- and let the grasp planner keep using segmented point
 clouds for the object frame. `probe_top_z` is reported separately for the case
 where the top face is exactly what you want (grasp depth).
@@ -69,6 +69,10 @@ def _median_depth(depth: np.ndarray, u: int, v: int, r: int = PATCH_R) -> float 
     off: sensor depth maps have holes and flying pixels, especially on object
     silhouettes (documented on the L515 in perception/grounding.py).
     """
+    import os
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from .cuda_math import median_depth
+        return median_depth(depth, u, v, r)
     h, w = depth.shape[:2]
     u0, u1 = max(0, u - r), min(w, u + r + 1)
     v0, v1 = max(0, v - r), min(h, v + r + 1)
@@ -114,13 +118,10 @@ class PointProbe:
             T = self.rt.extrinsics.cam_to_base()
         return frame, np.asarray(T, dtype=float)
 
-    def _reach(self) -> tuple[dict, tuple[float, float]]:
+    def _workspace(self) -> dict:
         cfg = self.rt.cfg
         ws_raw = cfg.safety.get("workspace", {}) or {}
-        ws = dict(getattr(ws_raw, "_data", ws_raw))
-        g = cfg.grasp if hasattr(cfg, "grasp") else {}
-        band = (float(g.get("reach_x_min", 0.155)), float(g.get("reach_x_max", 0.185)))
-        return ws, band
+        return dict(getattr(ws_raw, "_data", ws_raw))
 
     # ── the cursor ───────────────────────────────────────────────────────
 
@@ -199,9 +200,9 @@ class PointProbe:
                     "offset_m": round(hit_d, 4),
                 }
 
-        # can the arm actually act here? (the "orientation" the ablation says
-        # models are missing -- a number, not a shaded region)
-        ws, band = self._reach()
+        # A workspace bound is a configured limit, not an IK solution. The
+        # old default X band incorrectly rejected proven kitchen grasp poses.
+        ws = self._workspace()
         try:
             lo, hi = ws["min"], ws["max"]
             inside = all(float(lo[i]) <= p_base[i] <= float(hi[i]) for i in range(3))
@@ -209,15 +210,19 @@ class PointProbe:
             inside = None
         out["reachable"] = {
             "in_workspace": inside,
-            "in_topdown_ik_band": bool(band[0] <= p_base[0] <= band[1]),
-            "topdown_ik_band_x": [round(band[0], 3), round(band[1], 3)],
+            "workspace_source": "configuration",
+            "ik_checked": False,
+            "grasp_checked": False,
+            "note": (
+                "Workspace membership does not establish reachability. "
+                "No inverse-kinematics solution or grasp plan was checked."
+            ),
         }
         if inside is False:
-            out["reachable"]["note"] = "outside the safety workspace AABB: motion will be refused"
-        elif not out["reachable"]["in_topdown_ik_band"]:
             out["reachable"]["note"] = (
-                f"outside the strict top-down IK band (x {band[0]:.3f}-{band[1]:.3f} m); "
-                "a top-down grasp here will likely fail IK -- push the object closer first"
+                "This surface point is outside the configured TCP workspace; "
+                "a direct TCP motion to it would be refused. "
+                "No inverse-kinematics solution or grasp plan was checked."
             )
 
         # how far is the gripper from this point right now

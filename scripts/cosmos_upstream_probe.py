@@ -318,7 +318,7 @@ def probe(cache):
         },
     }
     arguments = {
-        "label": "cubo azul",
+        "label": "blue cube",
         "count": 2,
         "enabled": True,
         "point": [0.1, 0.2, 0.3],

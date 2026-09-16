@@ -110,7 +110,7 @@ def make_viewer(*, port=8766, record_to_viser=None):
         def _get_viser(cls):
             return LocalModule()
 
-    viewer = LoopbackViewer(port=port, label="Newton CPU · SO-101 · Tornillo",
+    viewer = LoopbackViewer(port=port, label="Newton CPU · SO-101 · Screw",
                             verbose=False, share=False, record_to_viser=record_to_viser)
     viewer._port = viewer._server.get_port()
     return viewer
@@ -161,25 +161,25 @@ def replay(demo, recording, output, *, port=8766, open_browser=True, serve_secon
         server.gui.configure_theme(dark_mode=True, show_share_button=False,
                                    brand_color=(40, 170, 130))
         server.gui.main_panel.dock_right()
-        server.gui.add_markdown("## SO-101 · Apretar un tornillo\n"
-                                "**Newton en CPU — simulación física grabada**\n\n"
-                                "Mesa, soporte, herramienta y cabeza con colisiones activas. "
-                                "El asiento se resuelve por contacto.\n\n"
-                                "Rosca por restricción helicoidal y acoplamiento torsional idealizado. "
-                                "No se simula contacto entre filetes ni control por LLM.")
-        server.gui.add_markdown("**Ensayo completo: verificado por el núcleo físico.** "
-                                "El visor reproduce los estados calculados; no reintegra la física.")
-        progress = server.gui.add_slider("Tiempo del ensayo (s)", min=0.0,
+        server.gui.add_markdown("## SO-101 · Tighten a screw\n"
+                                "**Newton on CPU — recorded physics simulation**\n\n"
+                                "Collisions are active for the table, fixture, tool and screw head. "
+                                "Contact determines seating.\n\n"
+                                "The thread uses a helical constraint and idealized torsional coupling. "
+                                "Thread contact and LLM control are not simulated.")
+        server.gui.add_markdown("**Experiment complete: verified by the physics solver.** "
+                                "The viewer replays computed states without rerunning the simulation.")
+        progress = server.gui.add_slider("Experiment time (s)", min=0.0,
                                         max=float(rows[-1]["time_s"]),
                                         step=float(demo.frame_dt), initial_value=0.0,
                                         disabled=True)
         info = server.gui.add_markdown("")
-        playing = server.gui.add_checkbox("Reproducir", initial_value=True)
-        rate = server.gui.add_slider("Velocidad", min=0.25, max=2.0, step=0.25, initial_value=1.0)
-        overview = server.gui.add_button("Vista del brazo")
-        detail = server.gui.add_button("Acercar al tornillo")
-        restart = server.gui.add_button("Repetir desde el inicio")
-        server.gui.add_markdown(f"Resultados locales: `{output}`")
+        playing = server.gui.add_checkbox("Play", initial_value=True)
+        rate = server.gui.add_slider("Playback speed", min=0.25, max=2.0, step=0.25, initial_value=1.0)
+        overview = server.gui.add_button("Arm overview")
+        detail = server.gui.add_button("Zoom in on screw")
+        restart = server.gui.add_button("Replay from start")
+        server.gui.add_markdown(f"Local results: `{output}`")
         index = 0
         rewind = False
 
@@ -218,13 +218,13 @@ def replay(demo, recording, output, *, port=8766, open_browser=True, serve_secon
             viewer.end_frame()
             progress.value = row["time_s"]
             info.content = (
-                f"### Fase: {row['phase']}\n\n"
-                f"Giro del tornillo: **{row['screw_turns']:.3f} vueltas**\n\n"
-                f"Avance axial: **{row['axial_mm']:.3f} mm**\n\n"
-                f"Par del motor: **{row['motor_torque_nm']:.4f} N·m**\n\n"
-                f"Par del acoplamiento ideal: **{row['applied_torque_nm']:.4f} N·m**\n\n"
-                f"Contacto cabeza–soporte: **{row['seating_contact_force_n']:.3f} N**\n\n"
-                f"Contacto punta–cabeza: **{row['tip_contact_force_n']:.3f} N**"
+                f"### Phase: {row['phase']}\n\n"
+                f"Screw rotation: **{row['screw_turns']:.3f} turns**\n\n"
+                f"Axial travel: **{row['axial_mm']:.3f} mm**\n\n"
+                f"Motor torque: **{row['motor_torque_nm']:.4f} N·m**\n\n"
+                f"Ideal coupling torque: **{row['applied_torque_nm']:.4f} N·m**\n\n"
+                f"Head–fixture contact: **{row['seating_contact_force_n']:.3f} N**\n\n"
+                f"Tip–head contact: **{row['tip_contact_force_n']:.3f} N**"
             )
             if playing.value:
                 if index == len(rows) - 1:

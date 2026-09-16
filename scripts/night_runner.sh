@@ -4,9 +4,22 @@
 # feeds it a rotating list of agent tasks so there's always motion to watch.
 # The dashboard stays up on http://<LAN-IP>:8090/ the entire time.
 set -u
-cd /home/johnny/Projects/demo/cascade/models
-export PYTHONPATH=/home/johnny/Projects/demo/cascade/src
-PY=/home/johnny/Projects/demo/.demo/bin/python
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO/models" || exit 1
+export PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}"
+if [[ -n "${PY:-}" ]]; then
+  :
+elif [[ -x "$REPO/.venv/bin/python" ]]; then
+  PY="$REPO/.venv/bin/python"
+elif [[ -x "$REPO/../.demo/bin/python" ]]; then
+  PY="$REPO/../.demo/bin/python"
+else
+  PY="$(command -v python3 || true)"
+fi
+if [[ -z "$PY" ]]; then
+  echo "[night_runner] Python not found; set PY to an interpreter with cascade installed" >&2
+  exit 1
+fi
 
 # Guard 1: refuse to start a second dashboard. A stale instance still holding
 # :8090 while pointed at a dead bridge is what spams "Broken pipe" -- never

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -25,6 +26,8 @@ sys.path.insert(0, str(REPO / "src"))
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_dir")
+    ap.add_argument("--config", default=os.environ.get("CASCADE_JUDGE_CONFIG"),
+                    help="JSON file containing a complete eval.judge configuration (also CASCADE_JUDGE_CONFIG)")
     ap.add_argument("--judge", choices=["grm", "vlm", "fake"], help="override eval.judge.backend")
     ap.add_argument("--model", help="model name (GRM served name, or the VLM)")
     ap.add_argument("--base-url", help="OpenAI-compatible endpoint (vLLM serving GRM, local Cosmos3, ...)")
@@ -32,7 +35,7 @@ def main() -> int:
     ap.add_argument("--ref-end", help="reference END (goal) image; blank when omitted, as upstream")
     ap.add_argument("--skills", help="comma-separated skills to judge (default: all traced calls)")
     ap.add_argument("--fake-score", type=float, default=None, help="with --judge fake: the constant hop")
-    ap.add_argument("--strict", action="store_true", help="exit 3 when the judge missed a physics-confirmed step (fn > 0)")
+    ap.add_argument("--strict", action="store_true", help="exit 3 for disagreement; exit 4 when a physics-confirmed step has no score")
     args = ap.parse_args()
 
     from cascade.config import load_demo_config
@@ -42,6 +45,16 @@ def main() -> int:
     ev = cfg.get("eval")
     jd = ev.get("judge") if ev is not None else None
     ecfg = jd.as_dict() if jd is not None and hasattr(jd, "as_dict") else dict(jd or {})
+    if args.config:
+        # This is a complete configuration, not a deep merge: a direct local
+        # endpoint must not inherit the default gateway's backend-model pin
+        # or credential lookup. CLI overrides below still take precedence.
+        try:
+            ecfg = json.loads(Path(args.config).read_text())
+            if not isinstance(ecfg, dict):
+                raise ValueError("judge config must be a JSON object")
+        except (OSError, ValueError) as exc:
+            ap.error(f"cannot load judge config: {exc}")
     if args.judge:
         ecfg["backend"] = args.judge
     if args.model:
@@ -53,8 +66,6 @@ def main() -> int:
     mode = args.mode or str(ecfg.get("mode", "incremental"))
     # OpenClaw gateway path: fill OPENCLAW_GATEWAY_TOKEN from the local
     # config when the judge is pointed at the gateway and the env is empty.
-    import os
-
     if str(ecfg.get("api_key", "")) == "$OPENCLAW_GATEWAY_TOKEN" and not os.environ.get("OPENCLAW_GATEWAY_TOKEN"):
         oc = Path.home() / ".openclaw" / "openclaw.json"
         if oc.exists():
@@ -95,6 +106,8 @@ def main() -> int:
     print(f"wrote {out} and appended to summary.txt: {v.summary_line()}")
     # exit status is the metric: 3 = the judge missed physics-confirmed
     # progress (fn > 0), so a launcher or CI can gate on it
+    if args.strict and any(s.physics == "confirmed" and s.hop is None for s in v.steps):
+        return 4
     return 3 if v.confusion()["fn"] > 0 and args.strict else 0
 
 

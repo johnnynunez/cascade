@@ -26,7 +26,9 @@ from cascade.agent.effects import (
     DEST_TOLERANCE_M,
     REFUTED,
     SAME_PLACE_M,
+    UNVERIFIED,
     PostconditionChecker,
+    annotate_result,
 )
 
 
@@ -114,3 +116,57 @@ def test_unresolvable_destination_does_not_break_the_check():
     )
     assert "dest_err_m" not in pc.measured
     assert pc.status in {"confirmed", "unverified", REFUTED}
+
+
+def test_marked_square_is_not_resolved_as_the_green_cube_itself():
+    calls = []
+
+    def pose(name):
+        calls.append(name)
+        return np.array([.145, -.275, .03])
+
+    pc = _run(PostconditionChecker(object_pose=pose),
+        {"object": "green cube", "destination": "green square"},
+        {"ok": True, "picked": "green cube", "placed_at": [.14, -.27, .1],
+         "destination": "green square", "destination_kind": "configured_point"},
+        {"label": "green cube", "pose": [.18, -.03, .03], "channel": "physics"})
+    assert "green square" not in calls
+    assert "dest_err_m" not in pc.measured
+    assert pc.measured["target_err_m"] > 0
+    assert pc.measured["destination"] == "green square"
+    assert "green square center (physics)" in pc.evidence
+    assert pc.status == UNVERIFIED
+
+
+def test_missed_marked_square_still_fails_the_physical_target_check():
+    pc = _run(_checker({"green cube": np.array([.3, -.27, .03])}),
+        {"object": "green cube", "destination": "green square"},
+        {"ok": True, "picked": "green cube", "placed_at": [.14, -.27, .1],
+         "destination": "green square", "destination_kind": "configured_point"},
+        {"label": "green cube", "pose": [.18, -.03, .03], "channel": "physics"})
+    assert pc.status == REFUTED
+
+
+def test_configured_center_cannot_confirm_containment_outside_the_green_square():
+    pc = _run(_checker({"orange": np.array([.23, -.27, .03])}),
+        {"object": "orange", "destination": "green square"},
+        {"ok": True, "picked": "orange", "placed_at": [.14, -.27, .1],
+         "destination": "green square", "destination_kind": "configured_point"},
+        {"label": "orange", "pose": [.3, .1, .03], "channel": "physics"})
+    assert pc.status == UNVERIFIED
+    assert pc.measured["target_err_m"] == .09
+    assert "containment and release are not established" in pc.evidence
+    result = annotate_result({"ok": True}, pc)
+    assert result["ok"] is True
+    assert result["verified"] is False
+
+
+def test_open_box_center_alone_cannot_confirm_a_release_inside_the_box():
+    pc = _run(_checker({"orange": np.array([.30, -.14, .13])}),
+        {"object": "orange", "destination": "open box"},
+        {"ok": True, "picked": "orange", "placed_at": [.30, -.14, .104],
+         "destination": "open box", "destination_kind": "configured_point"},
+        {"label": "orange", "pose": [.2, .1, .03], "channel": "physics"})
+    assert pc.status == UNVERIFIED
+    assert pc.measured["target_err_m"] == 0
+    assert "open box center (physics)" in pc.evidence

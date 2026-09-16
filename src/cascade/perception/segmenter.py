@@ -103,6 +103,12 @@ class PointSegmenter:
                     device=self.device, verbose=False)
         if not res or res[0].masks is None or len(res[0].masks.data) == 0:
             raise SkillError(f"segmenter returned no mask at ({u}, {v})")
+        import os
+        if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+            if res[0].masks.data.device.type != "cuda":
+                raise RuntimeError("GPU segmenter prediction did not return CUDA tensors; CPU fallback is forbidden")
+            from .cuda_math import segment_mask
+            return segment_mask(res[0].masks.data[0], frame.rgb.shape[:2])
 
         mask = res[0].masks.data[0].cpu().numpy().astype(bool)
         h, w = frame.rgb.shape[:2]
@@ -134,13 +140,23 @@ def fix_at_pixel(
     `fix_from_pixel` raises rather than returning a wrong pose when its fill
     escapes, so a degraded run fails honestly instead of grasping into a table.
     """
+    import os
+    require_cuda = os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1"
+    if segmenter is None and require_cuda:
+        raise SkillError("GPU pixel perception requires its CUDA segmenter; depth fallback is forbidden")
     if segmenter is not None:
         try:
             mask = segmenter.mask_at(frame, u, v)
+            if require_cuda:
+                # The shared CUDA geometry path checks finite depth and the
+                # unchanged minimum region size without copying a mask to CPU.
+                return fix_from_mask(frame, T_cam2base, mask, label=label)
             valid = int((mask & np.isfinite(frame.depth_m)
                          & (frame.depth_m > 0)).sum()) if frame.depth_m is not None else 0
             if valid >= MIN_REGION_PX:
                 return fix_from_mask(frame, T_cam2base, mask, label=label)
+            if require_cuda:
+                raise SkillError(f"GPU segmenter mask has only {valid} valid-depth pixels; depth fallback is forbidden")
             logger.warning(
                 "segmenter mask at (%s, %s) has only %d valid-depth pixels; "
                 "falling back to depth connectivity", u, v, valid,
@@ -148,6 +164,8 @@ def fix_at_pixel(
         except SkillError:
             raise
         except Exception as e:  # noqa: BLE001 - never let a model break a grasp
+            if require_cuda:
+                raise
             logger.warning("segmenter unavailable (%s); falling back to depth", e)
 
     return fix_from_pixel(frame, T_cam2base, u, v, label=label)

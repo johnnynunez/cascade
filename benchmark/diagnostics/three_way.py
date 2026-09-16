@@ -28,7 +28,7 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, "/home/johnny/Projects/demo/cascade/src")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import cv2
 import numpy as np
@@ -49,7 +49,7 @@ c.connect()
 truth = TruthPoseReader(c, ttl_s=0)
 
 T = np.array(yaml.safe_load(
-    open("/home/johnny/Projects/demo/cascade/configs/cameras/isaac.yaml")
+    open(Path(__file__).resolve().parents[2] / "configs/cameras/isaac.yaml")
 )["extrinsics"]["T"], dtype=float)
 CAM = T[:3, 3]
 

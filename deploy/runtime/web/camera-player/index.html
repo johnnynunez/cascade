@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live kitchen · Physical Agentic AI</title>
+  <link rel="stylesheet" href="/camera-player/viewer.css">
+  <script src="/camera-player/mediamtx-reader.js"></script>
+  <script type="module" src="/camera-player/viewer.mjs"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <div><p class="eyebrow">Physical Agentic AI</p><h1>Live kitchen</h1></div>
+      <nav aria-label="Demo"><a href="/">Booth guide</a><a class="primary" href="/openclaw/?connect=1" target="paai-openclaw" rel="noopener">Open OpenClaw ↗</a></nav>
+    </header>
+    <p class="intro">Watch the robot while you chat in OpenClaw. Choose a view to follow the grasp and placement.</p>
+    <section class="viewer" aria-label="Kitchen cameras">
+      <div class="toolbar">
+        <div class="cameras" role="group" aria-label="Camera">
+          <button type="button" data-camera="kitchen" aria-pressed="false">Kitchen</button>
+          <button type="button" data-camera="worktop" aria-pressed="true">Worktop</button>
+          <button type="button" data-camera="side" aria-pressed="false">Side</button>
+        </div>
+        <button type="button" id="reconnect">Reconnect</button>
+      </div>
+      <div class="picture">
+        <video id="camera" autoplay muted playsinline aria-label="Worktop camera"></video>
+        <p id="video-message" role="status">Connecting to Worktop…</p>
+      </div>
+      <div class="readout">
+        <span id="connection" role="status">Connecting</span>
+        <output id="quality" aria-label="Browser video measurements" title="Presented browser frames, age since last presentation, connection retries started, and browser-reported dropped frames. These are not capture-to-display latency measurements.">No presented frame yet</output>
+      </div>
+    </section>
+    <footer><span>Camera viewing does not move the robot.</span><a href="/cameras/?transport=jpeg">Open image view</a></footer>
+    <noscript><p>Enable JavaScript for live video, or use the <a href="/cameras/?transport=jpeg">image view</a>.</p></noscript>
+  </main>
+</body>
+</html>

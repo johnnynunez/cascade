@@ -1,0 +1,73 @@
+name: paai-demo
+services:
+  demo:
+    image: paai-demo:x86_64
+    build:
+      context: ./container
+      network: host
+      args:
+        CUDA_ARCHITECTURES: ${PAAI_CUDA_ARCHITECTURES:?The selected GPU architecture is required}
+    runtime: nvidia
+    network_mode: host
+    pid: host
+    user: "${PAAI_UID:-1000}:${PAAI_GID:-1000}"
+    # The official Isaac installation permits traversal by its owning group.
+    group_add:
+      - "1234"
+    init: true
+    restart: always
+    stop_grace_period: 90s
+    shm_size: 8gb
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      ACCEPT_EULA: "Y"
+      OMNI_KIT_ACCEPT_EULA: "YES"
+      PRIVACY_CONSENT: "N"
+      NVIDIA_VISIBLE_DEVICES: "0"
+      NVIDIA_DRIVER_CAPABILITIES: all
+      HOME: /data/home
+      USER: ubuntu
+      LOGNAME: ubuntu
+      LD_LIBRARY_PATH: /opt/paai/llama:/opt/paai/cuda/lib
+      PAAI_MODEL_ID: Qwen/Qwen3.8-27B
+      PAAI_INSTANCE: ${PAAI_INSTANCE:?The selected target is required}
+      PAAI_CONTEXT_WINDOW: "16384"
+      PAAI_DATA_DIR: /data
+      PAAI_STATE_DIR: /data/state
+      PAAI_HTTP_BIND: ${PAAI_TAILNET_IP:?The verified target Tailscale IPv4 is required}
+      PAAI_ACCESS_MODE: tailscale
+      PAAI_APP_PYTHON: /opt/paai/venv/bin/python
+      PAAI_NODE: /usr/local/bin/node
+      PAAI_ISAAC_PYTHON: /isaac-sim/python.sh
+      PAAI_LLAMA_SERVER: /opt/paai/llama/llama-server
+      PAAI_MODEL_DIR: /data/models/qwen3.8-27b
+      PAAI_MODEL_FILE: /data/models/qwen3.8-27b/${PAAI_MODEL_FILENAME:?The selected Qwen model is required}
+      PAAI_MMPROJ_FILE: /data/models/qwen3.8-27b/mmproj-Qwen3.8-27B-BF16.gguf
+      PAAI_PERCEPTION_DIR: /workspace/models
+      PAAI_OPENCLAW_CLI: /opt/paai/openclaw/node_modules/openclaw/openclaw.mjs
+      PAAI_OPENCLAW_STATE_DIR: /data/private/openclaw
+      PAAI_OPENCLAW_UI_ROOT: /data/web/openclaw-ui
+      PAAI_OPENCLAW_PROFILE: cascade
+      PAAI_EXPECTED_GPU: ${PAAI_EXPECTED_GPU:?The selected GPU name is required}
+      PAAI_MIN_VRAM_MIB: ${PAAI_MIN_VRAM_MIB:?The selected GPU memory requirement is required}
+      CUDA_CACHE_PATH: /data/cache/cuda
+      WARP_CACHE_PATH: /data/cache/warp
+      __GL_SHADER_DISK_CACHE_PATH: /data/cache/shaders
+    volumes:
+      - ${PAAI_ROOT:?The NVMe deployment root is required}/source:/workspace
+      - ${PAAI_ROOT}/data:/data
+      - ${PAAI_ROOT}/models:/data/models
+      - ${PAAI_ROOT}/data/cache/kit:/isaac-sim/kit/cache
+      - ${PAAI_ROOT}/data/logs/isaac:/isaac-sim/.nvidia-omniverse/logs
+    healthcheck:
+      test: [CMD, /opt/paai/venv/bin/python, /workspace/deploy/runtime/runtime.py, health, --root, /workspace]
+      interval: 30s
+      timeout: 25s
+      start_period: 20m
+      retries: 3
+    logging:
+      driver: local
+      options:
+        max-size: 20m
+        max-file: "3"

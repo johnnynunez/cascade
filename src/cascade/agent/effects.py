@@ -221,14 +221,7 @@ class PostconditionChecker:
             return None
         return v
 
-    #: A drop point the SKILL reported is not independent evidence -- the same
-    #: code path that chose it also wrote the belief we would compare against.
-    #: Confirming a placement from the belief channel therefore just replays
-    #: the robot's own intention back at it: on the live rig a Spanish command
-    #: ("cubo rosa") failed to match the sim prim `pink_cube`, the physics
-    #: channel returned None, and the belief channel cheerfully reported
-    #: "0.0 cm from the requested drop point" while the cube sat at
-    #: (0.361, 0.010) -- nowhere near the bin.
+    # A placement needs an independent pose channel; the skill also writes belief.
     _SELF_REPORTED_TARGET_NEEDS_INDEPENDENT_CHANNEL = True
 
     # ── verification ─────────────────────────────────────────────────────
@@ -361,7 +354,11 @@ class PostconditionChecker:
             or (args.get("label") if str(pc.skill) == "place_on_object" else None)
         )
         dest_pose = None
-        if dest_label and str(dest_label) != str(label):
+        # A calibrated floor mark has no movable body. A colour-only pose
+        # fallback can otherwise resolve "green square" to the green cube
+        # itself and report a meaningless zero destination error.
+        if (dest_label and str(dest_label) != str(label)
+                and result.get("destination_kind") != "configured_point"):
             dest_pose, _ = self._best_pose(str(dest_label))
         pose, channel = self._best_pose(label) if label else (None, "")
         if pose is None:
@@ -403,6 +400,17 @@ class PostconditionChecker:
                     f"{[round(float(v), 3) for v in target[:2]]})"
                 )
                 return
+            # The kitchen's bounded areas require containment, beyond a point-placement check.
+            if (result.get("destination_kind") == "configured_point"
+                    and result.get("destination") in {"green square", "open box"}):
+                pc.status = UNVERIFIED
+                point_name = result.get("destination") or "configured drop point"
+                pc.measured["destination"] = point_name
+                pc.evidence = (
+                    f"{label} is {err*100:.1f} cm from the {point_name} center ({channel}); "
+                    "full object containment and release are not established by a center position"
+                )
+                return
             # Agreement with a SELF-REPORTED drop point only counts when it
             # comes from a channel the skill does not own. `placed_at` and the
             # belief were both written by the same code path, so "0.0 cm from
@@ -436,7 +444,9 @@ class PostconditionChecker:
                 )
                 return
             pc.status = CONFIRMED
-            pc.evidence = f"{label} is {err*100:.1f} cm from the requested drop point ({channel})"
+            point_name = result.get("destination") or "requested drop point"
+            pc.measured["destination"] = point_name
+            pc.evidence = f"{label} is {err*100:.1f} cm from the {point_name} center ({channel})"
             return
         # No drop point to compare against: "it moved" is NOT evidence that it
         # went where it was asked to go. Say so instead of confirming.

@@ -168,5 +168,7 @@ def test_pick_and_place_attempt_budget_is_honored(tmp_path):
         assert result["stage"] == "grasp"
         assert "after 2 attempts" in result["error"]
         assert runtime.held_object is None
+        assert "then stop" in result["next_action"]
+        assert "Do not start another pick" in result["next_action"]
     finally:
         shutdown_runtime(runtime, arm)

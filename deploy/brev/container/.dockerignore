@@ -1,0 +1,7 @@
+*
+!Dockerfile
+!requirements.txt
+!entrypoint.py
+!materialize_ui.mjs
+!clip-source.tar.gz
+!openclaw.tar.zst

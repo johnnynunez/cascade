@@ -6,8 +6,9 @@ from inside the same interpreter before handing control to its main().
 import os
 import runpy
 import sys
+from pathlib import Path
 
-REPO = "/home/johnny/Projects/demo/cascade"
+REPO = str(Path(__file__).resolve().parents[2])
 sys.path.insert(0, REPO + "/src")
 sys.path.insert(0, REPO + "/benchmark")
 os.environ.setdefault("MUJOCO_GL", "egl")

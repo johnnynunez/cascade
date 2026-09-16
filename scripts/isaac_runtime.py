@@ -9,6 +9,71 @@ from pathlib import Path
 import tomllib
 
 
+def setup_physics(simulation_manager, *, dt: float, device: str, require_cuda: bool = False) -> None:
+    """Configure the requested backend once. A CUDA failure is never a CPU retry."""
+    if require_cuda and not str(device).startswith("cuda:"):
+        raise RuntimeError(f"GPU demo requires an explicit CUDA physics device; received {device!r}")
+    simulation_manager.setup_simulation(dt=dt, device=device)
+
+
+def physics_device_identity(simulation_manager, *, require_cuda: bool = False) -> dict:
+    """Attest actual backend data allocation, independently of requested env values."""
+    engine = str(simulation_manager.get_active_physics_engine()).lower()
+    device = str(simulation_manager.get_device())
+    scenes = simulation_manager.get_physics_scenes()
+    view = simulation_manager.get_physics_simulation_view()
+    if not scenes or view is None or not view.is_valid:
+        raise RuntimeError("Cannot attest GPU physics without registered scenes and a valid live tensor view")
+    tensor_device = str(view.device)
+    ordinal = int(view.device_ordinal)
+    cuda_context_present = bool(view.cuda_context)
+    dynamics = all(scene.get_enabled_gpu_dynamics() for scene in scenes) if engine == "physx" else None
+    broadphases = [str(scene.get_broadphase_type()) for scene in scenes] if engine == "physx" else []
+    gpu = (engine in ("physx", "newton") and device.startswith("cuda:")
+           and tensor_device.startswith("cuda:") and ordinal >= 0 and cuda_context_present
+           and device == tensor_device == f"cuda:{ordinal}"
+           and (engine != "physx" or (dynamics and all(b == "GPU" for b in broadphases))))
+    if require_cuda and not gpu:
+        raise RuntimeError(f"GPU physics required; CUDA readback mismatch: engine={engine}, "
+                           f"device={device}, tensor={tensor_device}, ordinal={ordinal}, "
+                           f"context={cuda_context_present}, dynamics={dynamics}, broadphase={broadphases}")
+    attestation = {"required": require_cuda, "backend": engine, "device": device,
+                   "tensor_device": tensor_device, "tensor_device_ordinal": ordinal,
+                   "cuda_context_present": cuda_context_present, "gpu_dynamics": dynamics,
+                   "broadphase": broadphases[0] if len(set(broadphases)) == 1 else broadphases,
+                   "cpu_fallback_allowed": False}
+    return {"physics_device": device, "physics_tensor_device": tensor_device,
+            "physics_gpu": bool(gpu), "gpu_attestation": attestation}
+
+
+class GpuPhysicsLogGuard:
+    """Latch explicit CPU contact fallback and buffer truncation from native logs.
+
+    The callback only stores text; it never logs or calls Kit from its log thread.
+    The simulator's main thread calls check() before publishing readiness/stepping.
+    """
+    def __init__(self):
+        import threading
+        self._lock = threading.Lock()
+        self.failures = []
+
+    def on_message(self, channel, level, module, filename, function, line, message, *rest):
+        value = str(message)
+        lower = value.lower()
+        physics = any(word in str(channel).lower() + " " + lower for word in ("physx", "physics", "newton", "mjwarp", "collision"))
+        fallback = any(word in lower for word in ("fall back to cpu", "fallback to cpu", "falling back to cpu", "failed to cook gpu-compatible"))
+        overflow = "overflow" in lower and any(word in lower for word in ("contact", "constraint", "pair"))
+        if physics and (fallback or overflow):
+            with self._lock:
+                if len(self.failures) < 20:
+                    self.failures.append({"channel": str(channel), "message": value[:2000]})
+
+    def check(self):
+        with self._lock:
+            if self.failures:
+                raise RuntimeError("GPU physics/contact failure: " + self.failures[0]["message"])
+
+
 def _check_kit(path: Path) -> Path:
     try:
         with path.open("rb") as stream:
@@ -75,6 +140,35 @@ def ensure_time_code_range(stage, *, duration_s: float = 24 * 60 * 60) -> dict:
             raise RuntimeError("Stage did not accept a non-degenerate playback range")
     return {"changed": changed, "start": start, "end": end,
             "time_codes_per_second": rate}
+
+
+def physics_timestep_identity(simulation_manager) -> dict:
+    """Read actual configured physics timing on Kit's main thread before serving.
+
+    get_physics_dt() alone silently returns 1/60 when its scene is absent.
+    Require actual scene objects and agreement across the registered scenes.
+    No requested argument, default timestep, or stage timeline is a readback.
+    """
+    scenes = simulation_manager.get_physics_scenes()
+    if not scenes:
+        raise RuntimeError("Cannot publish physics timestep without registered physics scenes")
+    def valid(value):
+        if isinstance(value, (bool, str, bytes)):
+            raise RuntimeError("Physics timestep readback must be numeric")
+        try:
+            dt = float(value)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("Physics timestep readback must be numeric") from exc
+        if not math.isfinite(dt) or not 0 < dt <= 1:
+            raise RuntimeError("Physics timestep readback must be finite and in (0, 1] seconds")
+        return dt
+    dt = valid(simulation_manager.get_physics_dt())
+    for scene in scenes:
+        scene_dt = valid(scene.get_dt())
+        if not math.isclose(dt, scene_dt, rel_tol=1e-6, abs_tol=1e-12):
+            raise RuntimeError("Registered physics scenes disagree on actual timestep")
+    return {"physics_dt_s": dt, "physics_dt_source": "SimulationManager.get_physics_dt",
+            "physics_dt_scene_count": len(scenes)}
 
 
 def installation_info() -> dict:

@@ -22,8 +22,7 @@ whether the bowl actually ends up on the plate.
 import os
 import sys
 
-REPO = "/home/johnny/Projects/demo/cascade"
-sys.path.insert(0, os.path.expanduser("~/bench/LIBERO"))
+sys.path.insert(0, os.path.expanduser(os.environ.get("CASCADE_BENCH_LIBERO", "~/bench/LIBERO")))
 os.environ.setdefault("MUJOCO_GL", "egl")
 
 import numpy as np

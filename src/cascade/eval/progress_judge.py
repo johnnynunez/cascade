@@ -218,7 +218,8 @@ class OpenAICompatJudge(ProgressJudge):
     def __init__(self, model: str, base_url: str | None = None, api_key: str | None = None,
                  kind: str = "vlm", temperature: float = 0.1, top_p: float = 0.9,
                  max_tokens: int = 64, timeout_s: float = 120.0,
-                 extra_headers: dict | None = None, fresh_session: bool = False):
+                 extra_headers: dict | None = None, fresh_session: bool = False,
+                 extra_body: dict | None = None):
         try:
             from openai import OpenAI
         except ImportError as e:  # pragma: no cover - extra not installed
@@ -248,6 +249,8 @@ class OpenAICompatJudge(ProgressJudge):
         self.max_tokens = max_tokens
         self.name = f"{kind}:{model}"
         self.last_raw: str | None = None
+        self.last_metadata: dict | None = None
+        self.extra_body = dict(extra_body or {})
         # Gateways that front an AGENT (OpenClaw's /v1/chat/completions) pick
         # the backend weights from a header and keep per-session history;
         # `extra_headers` carries the model pin (x-openclaw-model) and
@@ -261,6 +264,8 @@ class OpenAICompatJudge(ProgressJudge):
             self.name = f"{kind}:{backend} via {model}"
 
     def score(self, task: str, before: bytes, after: bytes, **refs) -> float:
+        self.last_raw = None
+        self.last_metadata = None
         content = interleave(task, build_images(before, after, **refs))
         headers = dict(self.extra_headers)
         if self.fresh_session:
@@ -272,8 +277,16 @@ class OpenAICompatJudge(ProgressJudge):
             messages=[{"role": "user", "content": content}],
             temperature=self.temperature, top_p=self.top_p, max_tokens=self.max_tokens,
             extra_headers=headers or None,
+            **({"extra_body": self.extra_body} if self.extra_body else {}),
         )
         self.last_raw = (resp.choices[0].message.content or "") if resp.choices else ""
+        usage = getattr(resp, "usage", None)
+        self.last_metadata = {
+            "model": getattr(resp, "model", None),
+            "finish_reason": getattr(resp.choices[0], "finish_reason", None) if resp.choices else None,
+            "usage": usage.model_dump() if usage is not None else None,
+            "reasoning_chars": len(getattr(resp.choices[0].message, "reasoning_content", "") or "") if resp.choices else 0,
+        }
         return parse_score(self.last_raw)
 
 
@@ -322,6 +335,7 @@ def make_judge(cfg: dict | None) -> ProgressJudge:
             temperature=float(cfg.get("temperature", 0.1)), top_p=float(cfg.get("top_p", 0.9)),
             max_tokens=int(cfg.get("max_tokens", 64)), timeout_s=float(cfg.get("timeout_s", 120.0)),
             extra_headers=headers, fresh_session=bool(cfg.get("fresh_session", False)),
+            extra_body=cfg.get("extra_body"),
         )
     raise JudgeError(f"eval.judge.backend must be grm|vlm|fake, got {kind!r}")
 
@@ -369,6 +383,8 @@ class StepVerdict:
     tier: str | None
     duration_s: float | None
     error: str | None = None
+    raw: str | None = None
+    response_metadata: dict | None = None
 
     def agrees_with_physics(self) -> bool | None:
         """Judge says progress (hop > 0) iff physics confirmed. None when
@@ -518,6 +534,9 @@ def judge_run(run_dir: str | Path, judge: ProgressJudge, mode: str = "incrementa
                 # A 503 or timeout from the model endpoint is a fact about this
                 # step, not about the run: record it and keep judging.
                 sv.error = f"{type(e).__name__}: {str(e)[:160]}"
+            finally:
+                sv.raw = getattr(judge, "last_raw", None)
+                sv.response_metadata = getattr(judge, "last_metadata", None)
         else:
             sv.error = "missing keyframe pair"
         steps.append(sv)

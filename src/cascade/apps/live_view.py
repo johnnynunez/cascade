@@ -49,7 +49,10 @@ def draw_detections(img: np.ndarray, dets) -> None:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 200, 255), 2, cv2.LINE_AA)
         if d.mask is not None and d.mask.shape == img.shape[:2]:
             overlay = img.copy()
-            overlay[d.mask] = (0, 200, 255)
+            # This copy belongs to final browser image composition; perception
+            # continues to own the original CUDA mask.
+            mask = d.mask.detach().cpu().numpy() if hasattr(d.mask, "detach") else d.mask
+            overlay[mask] = (0, 200, 255)
             cv2.addWeighted(overlay, 0.25, img, 0.75, 0, dst=img)
 
 
@@ -267,7 +270,7 @@ class FrameHub:
                 self._cond.wait(timeout=0.2)
 
     def get_frame(self, timeout_s: float = 3.0) -> Frame:
-        """Return a frame captured AFTER this call (fresh observation)."""
+        """Return the next delivery, or the last frame if the producer stalls."""
         with self._cond:
             want = self._latest_seq + 1
             deadline = time.monotonic() + timeout_s
@@ -279,6 +282,11 @@ class FrameHub:
                     raise RuntimeError("frame hub produced no frames")
                 self._cond.wait(timeout=remaining)
             return self._latest
+
+    def get_fresh_frame(self, *, after: Frame | None = None, timeout_s: float = 5.0) -> Frame:
+        from ..perception.freshness import wait_stream_frame
+
+        return wait_stream_frame(self, after=after, timeout_s=timeout_s)
 
     # ── annotations from the runtime ─────────────────────────────────────
 

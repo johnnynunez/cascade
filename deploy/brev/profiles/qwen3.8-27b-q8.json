@@ -1,0 +1,32 @@
+{
+  "source_model": {
+    "repo_id": "Qwen/Qwen3.8-27B",
+    "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "license": {
+      "url": "https://huggingface.co/Qwen/Qwen3.8-27B/resolve/1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0/LICENSE",
+      "size_bytes": 11544,
+      "sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a"
+    }
+  },
+  "quantization": {
+    "repo_id": "ggml-org/Qwen3.8-27B-GGUF",
+    "revision": "0669b98607d47046c7c2b3f801011d54a08cfccf",
+    "license": "Apache-2.0",
+    "files": [
+      {
+        "filename": "Qwen3.8-27B-Q8_0.gguf",
+        "size_bytes": 28595763552,
+        "sha256": "f5c702d8820d36fb55985bb238fc83ee3a313e920f4b752a437c3a6a9e14e4c8",
+        "url": "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/0669b98607d47046c7c2b3f801011d54a08cfccf/Qwen3.8-27B-Q8_0.gguf",
+        "role": "model"
+      },
+      {
+        "filename": "mmproj-Qwen3.8-27B-BF16.gguf",
+        "size_bytes": 931145888,
+        "sha256": "de2a49866988ea272c43dc2a43ee2662c25725a717ca5b9059ea420a97f53fe8",
+        "url": "https://huggingface.co/ggml-org/Qwen3.8-27B-GGUF/resolve/0669b98607d47046c7c2b3f801011d54a08cfccf/mmproj-Qwen3.8-27B-BF16.gguf",
+        "role": "vision_projector"
+      }
+    ]
+  }
+}

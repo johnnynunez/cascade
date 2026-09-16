@@ -29,7 +29,7 @@ PyTorch, Astral, Node.js and npm.
 The source URL and `--ref` below use the same tested commit.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/8fc5dacc4a7767f236969146465a4c068e59bd68/scripts/bootstrap.sh | bash -s -- --ref 8fc5dacc4a7767f236969146465a4c068e59bd68 --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark"
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/ed2f73a4915bf5e6140e7b806023485ddbcf173e/scripts/bootstrap.sh | bash -s -- --ref ed2f73a4915bf5e6140e7b806023485ddbcf173e --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark"
 ```
 
 `--accept-eula` accepts NVIDIA's Isaac Sim / Omniverse license.

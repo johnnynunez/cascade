@@ -26,11 +26,10 @@ This module is that arrow, in two directions:
     afterwards that worked.
 
 ``distil(diagnosis)``
-    Turn a *repaired* failure into a library entry: failure signature,
-    when-to-apply guard, and the strategy that actually fixed it.  Only
-    validated repairs are written -- a failure with no subsequent success
-    teaches nothing except "this breaks", which the envelope model already
-    records.
+    Turn a failure followed by a matching, measured-confirmed retry into a
+    library note: failure signature, recorded context, argument changes and
+    verifier receipt. This is an observed association, not a causal repair
+    or a transferable control policy. Unknown routing/possession is rejected.
 
 ``retrieve(task)``
     Pull the guard-matching entries into the agent's context for the next run.
@@ -41,6 +40,7 @@ scope for a live booth demo, but the loop below is the part that compounds.
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 import time
@@ -49,15 +49,57 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..memory.envelope import normalize_failure
+from .effects import CONFIRMED, POSTCONDITIONS
 
 #: A repair is only credited when the same primitive later succeeded within
 #: this many steps -- otherwise the "fix" is just an unrelated later action.
 REPAIR_WINDOW = 6
 
+# Preserve recorded task identifiers; changing the goal is not repairing it.
+_GOAL_KEYS = ("object", "label", "query", "destination", "arm", "spatial_hint",
+              "camera", "x", "y", "z", "direction", "distance_m")
+
+
+def _same_goal(before: dict, after: dict) -> bool:
+    return (
+        isinstance(before, dict) and isinstance(after, dict)
+        and {k: v for k, v in before.items() if k in _GOAL_KEYS}
+        == {k: v for k, v in after.items() if k in _GOAL_KEYS}
+    )
+
+
+def _confirmed_postcondition(skill: str, pc: object) -> bool:
+    if not isinstance(pc, dict) or not isinstance(skill, str) or skill not in POSTCONDITIONS:
+        return False
+    return (
+        pc.get("status") == CONFIRMED and pc.get("skill") == skill
+        and pc.get("kind") == POSTCONDITIONS[skill]
+        and pc.get("channel") in ("physics", "belief", "gripper", "visual_diff")
+        and isinstance(pc.get("evidence"), str) and bool(pc["evidence"].strip())
+        and isinstance(pc.get("measured"), dict) and bool(pc["measured"])
+    )
+
+
+def _same_context(skill: str, before: object, after: object) -> bool:
+    """Require explicit routing and pre-call possession, never infer legacy state."""
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return False
+    arm = before.get("arm")
+    if not isinstance(arm, str) or not arm.strip() or arm != after.get("arm"):
+        return False
+    if "held_object" not in before or "held_object" not in after:
+        return False
+    subject = before["held_object"]
+    if subject != after["held_object"]:
+        return False
+    if skill in {"place_at", "place_on_object", "throw", "handover"}:
+        return isinstance(subject, str) and bool(subject.strip())
+    return subject is None or isinstance(subject, str)
+
 
 @dataclass
 class Diagnosis:
-    """What went wrong in one run, and what (if anything) fixed it."""
+    """Recorded failure and subsequent confirmed retry, not causal attribution."""
 
     run: str
     task: str = ""
@@ -66,8 +108,11 @@ class Diagnosis:
     signature: str = ""
     error: str = ""
     failed_args: dict = field(default_factory=dict)
+    failed_context: dict = field(default_factory=dict)
     repair_skill: str = ""
     repair_args: dict = field(default_factory=dict)
+    repair_context: dict = field(default_factory=dict)
+    repair_postcondition: dict = field(default_factory=dict)
     repaired: bool = False
     n_calls: int = 0
     n_failures: int = 0
@@ -75,8 +120,12 @@ class Diagnosis:
 
     @property
     def teachable(self) -> bool:
-        """Only validated repairs become skills (ASPIRE Sec 2.2)."""
-        return self.repaired and bool(self.failed_skill) and bool(self.signature)
+        """Only scoped, measured-confirmed retry associations become notes."""
+        return (self.repaired and bool(self.failed_skill) and bool(self.signature)
+                and self.repair_skill == self.failed_skill
+                and _same_goal(self.failed_args, self.repair_args)
+                and _same_context(self.failed_skill, self.failed_context, self.repair_context)
+                and _confirmed_postcondition(self.repair_skill, self.repair_postcondition))
 
     def as_dict(self) -> dict:
         return {
@@ -87,6 +136,9 @@ class Diagnosis:
             "signature": self.signature,
             "error": self.error[:300],
             "repair_skill": self.repair_skill,
+            "failed_context": copy.deepcopy(self.failed_context),
+            "repair_context": copy.deepcopy(self.repair_context),
+            "repair_postcondition": copy.deepcopy(self.repair_postcondition),
             "repaired": self.repaired,
             "n_calls": self.n_calls,
             "n_failures": self.n_failures,
@@ -96,7 +148,8 @@ class Diagnosis:
         if not self.failed_skill:
             return f"{self.run}: {self.n_calls} calls, no failures"
         base = f"{self.run}: {self.failed_skill} failed ({self.signature})"
-        return base + (f" -> repaired by {self.repair_skill}" if self.repaired else " -> never repaired")
+        return base + (f" -> later matching {self.repair_skill} confirmed"
+                       if self.teachable else " -> no matching confirmed retry")
 
 
 def _read_trace(run_dir: Path) -> list[dict]:
@@ -151,13 +204,23 @@ def diagnose(run_dir: str | Path) -> Diagnosis | None:
     for idx, rec in failures:
         skill = rec.get("skill", "")
         for later in records[idx + 1: idx + 1 + REPAIR_WINDOW]:
-            if later.get("skill") == skill and (later.get("result") or {}).get("ok"):
+            result = later.get("result") or {}
+            if (later.get("skill") in {"reset_scene", "task_done"}
+                    or result.get("task_complete") is True):
+                break
+            postcondition = result.get("postcondition")
+            if (later.get("skill") == skill and result.get("ok") is True
+                    and result.get("verified", True) is True
+                    and _same_goal(rec.get("args") or {}, later.get("args") or {})
+                    and _same_context(skill, rec.get("context"), later.get("context"))
+                    and _confirmed_postcondition(skill, postcondition)):
                 chosen = (idx, rec, later)
                 break
     if chosen is None:
         idx, rec = failures[0]
         diag.failed_skill = rec.get("skill", "")
         diag.failed_args = rec.get("args") or {}
+        diag.failed_context = copy.deepcopy(rec.get("context") or {})
         diag.error = str((rec.get("result") or {}).get("error", ""))
         diag.signature = normalize_failure(diag.error)
         diag.keyframe = rec.get("keyframe_after") or ""
@@ -166,11 +229,14 @@ def diagnose(run_dir: str | Path) -> Diagnosis | None:
     idx, rec, fix = chosen
     diag.failed_skill = rec.get("skill", "")
     diag.failed_args = rec.get("args") or {}
+    diag.failed_context = copy.deepcopy(rec.get("context") or {})
     diag.error = str((rec.get("result") or {}).get("error", ""))
     diag.signature = normalize_failure(diag.error)
     diag.keyframe = rec.get("keyframe_after") or ""
     diag.repair_skill = fix.get("skill", "")
     diag.repair_args = fix.get("args") or {}
+    diag.repair_context = copy.deepcopy(fix.get("context") or {})
+    diag.repair_postcondition = copy.deepcopy(fix["result"]["postcondition"])
     diag.repaired = True
     return diag
 
@@ -186,69 +252,30 @@ def _arg_delta(before: dict, after: dict) -> str:
             parts.append(f"`{key}` {b} -> {a} ({a - b:+.4g})")
         else:
             parts.append(f"`{key}` {b!r} -> {a!r}")
-    return "; ".join(parts) if parts else "same arguments, retried after re-observing"
+    return "; ".join(parts) if parts else "same arguments (no parameter change recorded)"
 
 
-#: Signature -> generalisable strategy text.  These encode what this rig has
-#: actually taught us (see the repo's CLAUDE.md and the B601-RS IK envelope).
-_STRATEGY_HINTS: dict[str, str] = {
-    "geometry:link_below_table": (
-        "A wrist/elbow link dipped under the table plane. Raise the grasp "
-        "target (grasp nearer the object's TOP face, i.e. a smaller "
-        "`depth_fraction`) rather than translating in XY -- on the B601-RS the "
-        "safe top-down TCP window is roughly z in [0.06, 0.12] at x ~ 0.16-0.18."
-    ),
-    "kinematics:ik_unreachable": (
-        "Top-down IK has a narrow envelope on this arm (x ~ 0.16-0.18; strict "
-        "top-down poses fail above z ~ 0.15). Re-home first so IK seeds from "
-        "the elbow-up branch, then request a pose inside the envelope, or push "
-        "the object closer before grasping."
-    ),
-    "contact:air_grasp": (
-        "The jaw closed on nothing: the grasp was too shallow or mis-centred. "
-        "Deepen the grasp slightly and re-localize the object before retrying "
-        "-- a stale belief centre is the usual cause."
-    ),
-    "perception:not_found": (
-        "The object was never grounded. Re-observe from a second camera or "
-        "localize by an explicit label/spatial hint before any motion; do not "
-        "retry the motion against a belief that was never confirmed."
-    ),
-    "geometry:object_too_wide": (
-        "The object exceeds the jaw span at the planned grasp. Re-plan a grasp "
-        "across the object's SHORT axis, or push it instead of lifting it."
-    ),
-    "safety:stale_perception": (
-        "Perception went stale mid-motion. Re-observe immediately before the "
-        "motion skill so the freshness check at begin_motion() passes."
-    ),
-    "geometry:outside_workspace": (
-        "The requested pose left the workspace AABB. Clamp the target into the "
-        "configured workspace and prefer the known-reachable drop zone."
-    ),
-}
 
 
 def distil(diag: Diagnosis, library) -> Path | None:
-    """Write a validated repair into the ``SkillLibrary``.  None if not teachable."""
+    """Write a scoped retry association into the library; None if not teachable."""
     if not diag.teachable:
         return None
     delta = _arg_delta(diag.failed_args, diag.repair_args)
-    hint = _STRATEGY_HINTS.get(diag.signature, "")
+    pc = diag.repair_postcondition
     obj = diag.failed_args.get("label") or diag.failed_args.get("query") or ""
     guard_terms = sorted({w for w in re.findall(r"[a-z]{3,}", f"{diag.failed_skill} {obj} {diag.task}".lower())})
 
     strategy = [
-        f"When `{diag.failed_skill}` fails with **{diag.signature}**, the repair "
-        f"that worked on this rig was: {delta}.",
-    ]
-    if hint:
-        strategy.append("")
-        strategy.append(f"Why: {hint}")
-    strategy += [
+        f"Recorded retry of `{diag.failed_skill}` after **{diag.signature}**: {delta}.",
         "",
+        "This is an observed association, not a proven causal repair or a policy for "
+        "other robots. Check the current task and arm profile; retain all safety checks.",
+        "",
+        f"Recorded pre-call context: `{json.dumps(diag.repair_context, sort_keys=True)}`",
+        f"Recorded confirmation: `{json.dumps(pc, sort_keys=True)}`",
         f"Observed error: `{diag.error[:200]}`",
-        f"Repaired by: `{diag.repair_skill}({json.dumps(diag.repair_args, default=str)[:200]})`",
+        f"Confirmed retry: `{diag.repair_skill}({json.dumps(diag.repair_args, default=str)[:200]})`",
     ]
 
     title = f"{diag.failed_skill} {diag.signature.replace(':', ' ')}"

@@ -3,6 +3,7 @@ import ast
 import base64
 from copy import deepcopy
 import contextlib
+import hashlib
 import importlib.util
 import io
 import json
@@ -19,6 +20,18 @@ SPEC.loader.exec_module(proof)
 gpu = proof.shared
 MARKS = {name: {"monotonic": t} for name, t in zip(
     ("pick_begin", "pick_end", "reset_begin", "reset_end"), (99.9, 102.55, 102.59, 104.1))}
+
+
+def support_fixture(vertices, counts, indices, selected=None):
+    selected = list(range(len(vertices))) if selected is None else list(selected)
+    digest = lambda v: hashlib.sha256(np.ascontiguousarray(v, dtype='<f4').tobytes()).hexdigest()
+    return {"method": "physx_collision_representation", "engine": "physx", "stage_id": 7,
+        "collider_path": "/World_Props/orange/Collision", "physics_step": 0,
+        "result": "RESULT_VALID", "convex_count": 1, "frame": "body_local", "units": "m",
+        "source_vertices_f32_sha256": digest(vertices),
+        "source_topology_sha256": hashlib.sha256(json.dumps([counts, indices], separators=(',', ':')).encode()).hexdigest(),
+        "vertex_count": len(selected), "vertices_f32_sha256": digest(np.asarray(vertices)[selected]),
+        "authored_vertex_indices": selected}
 
 
 def trajectory(object_name="orange", destination_name="open box"):
@@ -45,6 +58,7 @@ def trajectory(object_name="orange", destination_name="open box"):
         spec = expected["convex_colliders"][object_name]
         vertices, counts, indices = gpu.convex.expected_hull(spec)
         geometry["convex_collider"] = {"body_name": object_name, "collider_path": "/World_Props/orange/Collision",
+            "stage_id": 7, "physx_support": support_fixture(vertices, counts, indices),
             "frame": "body_local", "units": "m", "vertices_m": vertices.tolist(),
             "face_vertex_counts": counts, "face_vertex_indices": indices, "subdivision_none": True,
             "collision_approximation": "convexHull", "collision_enabled": True, "one_collider_one_body": True,
@@ -76,6 +90,8 @@ def trajectory(object_name="orange", destination_name="open box"):
                 "filter_paths": [[jaw_root + "/gripper_left", jaw_root + "/gripper_right"]],
                 "physics_step": i * 12, "jaw_forces_n": [[.2, 0., 0.], [-.2, 0., 0.]] if lifting else [[0.] * 3] * 2,
                 "jaw_contact_counts": [1, 1] if lifting else [0, 0]}, "scene_geometry": deepcopy(geometry)}
+        if object_name == "orange":
+            sample["scene_geometry"]["convex_collider"]["physx_support"]["physics_step"] = i * 12
         for name, spawn in spawns.items():
             xyz = list(spawn)
             if name == object_name:

@@ -661,6 +661,7 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
         if not all(inventory.values()):
             return result
         collider_geometry = None
+        support_geometry = None
         if object_name in convex.CONVEX_TARGETS and expected_scene_geometry is None:
             raise ValueError("Convex proof requires its configured collider and the green square")
         if destination_name == "open box" and expected_scene_geometry is None:
@@ -685,6 +686,17 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
                         "frame": "body_local", "units": "m", "collision_approximation": "convexHull",
                         "vertices_f32_sha256": binding["vertices_f32_sha256"],
                         "vertex_count": binding["vertex_count"], "scene_config_binding_verified": True,
+                        "scene_config_sha256": expected["scene_config_sha256"],
+                        "half_height_argument_used": False, "upright_tilt_limit_applied": False})
+                support_binding = convex.audit_support_binding(all_samples, object_name=object_name)
+                result["convex_support_geometry"] = support_binding
+                checks.update(support_binding["checks"])
+                if not support_binding["pass"]:
+                    return result
+                support_geometry = strict.VerifiedColliderGeometry(
+                    vertices_m=support_binding["vertices_m"], body_name=object_name,
+                    receipt={**support_binding["binding"], "body_name": object_name,
+                        "scene_config_binding_verified": True,
                         "scene_config_sha256": expected["scene_config_sha256"],
                         "half_height_argument_used": False, "upright_tilt_limit_applied": False})
             verified_dimensions = all_samples[0]["scene_geometry"]["prop_dimensions_m"][object_name]
@@ -718,7 +730,11 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
                 and r["client_finished_monotonic"] <= times[2]]
         result["pick"] = strict.audit_records(pick, object_name=object_name, target_xy=target_xy,
             support_top_z=support_top_z, object_half_height=object_half_height,
-            **({"collider_geometry": collider_geometry} if collider_geometry is not None else {}))
+            **({"collider_geometry": support_geometry} if support_geometry is not None else {}))
+        if support_geometry is not None:
+            result["pick"]["limitations"][0] = (
+                "Support uses the live PhysX collision representation in body-local coordinates. "
+                "The complete authored hull separately bounds the horizontal footprint.")
         checks["strict_pick_place_and_cameras"] = result["pick"]["pass"]
         if expected is not None and collider_geometry is not None:
             result["pick"]["destination_name"] = destination_name
@@ -736,6 +752,7 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
                 support_tolerance = .005
             footprint = convex_settle.audit_convex_settle_geometry(pick, object_name=object_name,
                 vertices_body_m=collider_geometry.vertices_m,
+                support_vertices_body_m=support_geometry.vertices_m,
                 inner_bounds_xy_m=convex_bounds,
                 support_top_z_m=support_top_z,
                 settle_sim_s=result["pick"]["criteria"]["settle_sim_s"],

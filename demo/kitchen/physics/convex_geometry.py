@@ -1,11 +1,12 @@
 """Bind authored can/fruit hulls to live USD and physical tensor readback.
 
-This module never changes the stage or issues motion. Engine hull cooking may
-simplify authored geometry; equality with an internal cooked hull is not claimed.
+This module never changes the stage or issues motion. Authored vertices retain
+the full footprint; PhysX's returned collision representation supplies support.
 """
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import numpy as np
 
@@ -96,7 +97,10 @@ def _convex_live_snapshot():
         mass = view.get_masses()
         com, com_quat = view.get_coms()
         inertia = view.get_inertias()
+    support = _convex_support_snapshot(prim, vertices,
+        list(mesh.GetFaceVertexCountsAttr().Get()), list(mesh.GetFaceVertexIndicesAttr().Get()))
     return {"body_name": name, "collider_path": path + "/Collision",
+        "stage_id": support["stage_id"], "physx_support": support,
         "frame": "body_local", "units": "m", "vertices_m": vertices.tolist(),
         "face_vertex_counts": list(mesh.GetFaceVertexCountsAttr().Get()),
         "face_vertex_indices": list(mesh.GetFaceVertexIndicesAttr().Get()),
@@ -118,7 +122,117 @@ def _convex_live_snapshot():
         "mass_properties_channel": "physics_tensor",
         "tensor_devices": [str(v.device) for v in (mass, com, com_quat, inertia)]}
 _gpu_observed["scene_geometry"]["convex_collider"] = _convex_live_snapshot()
-'''.replace('OBJECT_LITERAL', repr(object_name))
+'''.replace('OBJECT_LITERAL', repr(object_name)).replace(
+    'def _convex_live_snapshot():', support_snapshot_code() + '\ndef _convex_live_snapshot():')
+
+
+def support_snapshot_code():
+    """Query the exact live stage/prim; never author physics or read saved proof."""
+    return '''
+def _convex_support_snapshot(prim, vertices, counts, indices):
+    import omni.physx as _support_physx
+    from omni.physx.bindings._physx import PhysxCollisionRepresentationResult as _support_result
+    from pxr import UsdUtils as _support_utils, PhysicsSchemaTools as _support_paths
+    if str(engine).lower() != "physx" or not _tl.is_playing():
+        raise RuntimeError("Convex support requires live PhysX")
+    stage_id = int(_support_utils.StageCache.Get().GetId(stage).ToLongInt())
+    path = str(prim.GetPath())
+    if stage_id <= 0 or stage.GetPrimAtPath(path) != prim:
+        raise RuntimeError("Convex support stage/prim binding failed")
+    replies = []
+    def received(result, convexes):
+        replies.append((result, convexes))
+    task = _support_physx.get_physx_cooking_interface().request_convex_collision_representation(
+        stage_id, _support_paths.sdfPathToInt(path), False, received)
+    if (len(replies) != 1 or replies[0][0] != _support_result.RESULT_VALID
+            or len(replies[0][1]) != 1):
+        raise RuntimeError("PhysX did not return one valid synchronous convex representation")
+    returned = _obs_np.asarray([list(v) for v in replies[0][1][0].vertices], dtype=float)
+    if (returned.ndim != 2 or returned.shape[1:] != (3,)
+            or not 4 <= len(returned) <= len(vertices)
+            or not _obs_np.isfinite(returned).all()
+            or _obs_np.linalg.matrix_rank(returned-returned[0]) != 3):
+        raise RuntimeError("PhysX returned invalid solid convex support geometry")
+    # Retain exact returned coordinates as indices into the independently bound
+    # authored array. This is lossless and stays within the bridge's wire limit.
+    lookup = {tuple(v): i for i, v in enumerate(vertices)}
+    if len(lookup) != len(vertices) or any(tuple(v) not in lookup for v in returned):
+        raise RuntimeError("Unsupported PhysX representation outside authored vertices")
+    selected = [lookup[tuple(v)] for v in returned]
+    if (len(set(selected)) != len(selected)
+            or not _obs_np.array_equal(returned.min(axis=0), vertices.min(axis=0))
+            or not _obs_np.array_equal(returned.max(axis=0), vertices.max(axis=0))):
+        raise RuntimeError("PhysX support representation has repeated vertices or changed bounds")
+    def digest(points):
+        return _obs_hash.sha256(_obs_np.ascontiguousarray(points, dtype="<f4").tobytes()).hexdigest()
+    topology = _obs_json.dumps([counts, indices], separators=(",", ":")).encode()
+    return {"method": "physx_collision_representation", "engine": "physx",
+        "stage_id": stage_id, "collider_path": path,
+        "physics_step": int(_obs_SM.get_num_physics_steps()),
+        "result": "RESULT_VALID", "convex_count": 1, "frame": "body_local", "units": "m",
+        "source_vertices_f32_sha256": digest(vertices),
+        "source_topology_sha256": _obs_hash.sha256(topology).hexdigest(),
+        "vertex_count": len(returned), "vertices_f32_sha256": digest(returned),
+        "authored_vertex_indices": selected}
+'''
+
+
+def audit_support_binding(samples, *, object_name):
+    """Bind every returned support hull to that sample's authored collider."""
+    checks = {key: bool(samples) for key in (
+        'physx_support_live_identity', 'physx_support_source_matches',
+        'physx_support_solid_subset', 'physx_support_geometry_unchanged')}
+    reference = None
+    first_vertices = None
+    for sample in samples:
+        item = sample.get('scene_geometry', {}).get('convex_collider', {})
+        support = item.get('physx_support', {})
+        try:
+            stage_id = item.get('stage_id')
+            checks['physx_support_live_identity'] &= bool(
+                sample.get('engine') == support.get('engine') == 'physx'
+                and support.get('method') == 'physx_collision_representation'
+                and type(stage_id) is int and stage_id > 0
+                and type(support.get('stage_id')) is int and support.get('stage_id') == stage_id
+                and item.get('collider_path') == support.get('collider_path')
+                    == '/World_Props/' + object_name + '/Collision'
+                and type(support.get('physics_step')) is int
+                and support['physics_step'] == sample['physics_step']
+                and support.get('result') == 'RESULT_VALID'
+                and type(support.get('convex_count')) is int and support.get('convex_count') == 1
+                and support.get('frame') == 'body_local' and support.get('units') == 'm'
+                and item.get('collider_to_body_identity') is True
+                and item.get('body_no_scale_or_shear') is True)
+            vertices = np.asarray(item['vertices_m'], float)
+            source_hash = hashlib.sha256(np.ascontiguousarray(vertices, dtype='<f4').tobytes()).hexdigest()
+            topology = json.dumps([item['face_vertex_counts'], item['face_vertex_indices']],
+                                  separators=(',', ':')).encode()
+            checks['physx_support_source_matches'] &= bool(
+                support.get('source_vertices_f32_sha256') == source_hash
+                and support.get('source_topology_sha256') == hashlib.sha256(topology).hexdigest())
+            selected = support.get('authored_vertex_indices')
+            valid = bool(isinstance(selected, list) and 4 <= len(selected) <= len(vertices)
+                and all(type(i) is int and 0 <= i < len(vertices) for i in selected)
+                and len(set(selected)) == len(selected)
+                and type(support.get('vertex_count')) is int and support['vertex_count'] == len(selected))
+            if not valid:
+                raise ValueError('Missing or invalid support vertex indices')
+            returned = vertices[selected]
+            returned_hash = hashlib.sha256(np.ascontiguousarray(returned, dtype='<f4').tobytes()).hexdigest()
+            checks['physx_support_solid_subset'] &= bool(np.isfinite(returned).all()
+                and np.linalg.matrix_rank(returned-returned[0]) == 3
+                and np.array_equal(returned.min(axis=0), vertices.min(axis=0))
+                and np.array_equal(returned.max(axis=0), vertices.max(axis=0))
+                and support.get('vertices_f32_sha256') == returned_hash)
+            identity = {key: value for key, value in support.items() if key != 'physics_step'}
+            if reference is None:
+                reference, first_vertices = identity, returned.copy()
+            checks['physx_support_geometry_unchanged'] &= identity == reference
+        except (AttributeError, KeyError, TypeError, ValueError, IndexError, np.linalg.LinAlgError):
+            checks['physx_support_solid_subset'] = False
+    return {'pass': bool(all(checks.values())), 'checks': checks, 'samples': len(samples),
+            'source': 'live PhysX collision representation for support only; authored footprint retained',
+            'binding': reference, 'vertices_m': first_vertices.tolist() if first_vertices is not None else None}
 
 
 def audit_binding(samples, *, object_name, expected):

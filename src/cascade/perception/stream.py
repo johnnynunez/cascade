@@ -22,6 +22,7 @@ import threading
 import time
 
 from ..types import Frame
+from .freshness import capture_marker
 
 
 class CameraStream:
@@ -39,6 +40,9 @@ class CameraStream:
         self._stop = False
         self._thread: threading.Thread | None = None
         self._fps = 0.0
+        self._fps_producer = False
+        self._fps_capture: tuple[dict, float] | None = None
+        self._fps_capture_received: float | None = None
         self._last_error: str | None = None
 
     # ── CameraBase-compatible surface ────────────────────────────────────
@@ -69,7 +73,11 @@ class CameraStream:
                 self._cond.wait(timeout=0.2)
 
     def get_frame(self, timeout_s: float = 3.0) -> Frame:
-        """Return a frame captured AFTER this call (fresh observation)."""
+        """Return the next delivery, or the last frame if the producer stalls.
+
+        A network camera may deliver the same capture repeatedly. Use
+        get_fresh_frame(after=...) when a new producer capture is required.
+        """
         with self._cond:
             want = self._latest_seq + 1
             deadline = time.monotonic() + timeout_s
@@ -81,6 +89,11 @@ class CameraStream:
                     raise RuntimeError(f"camera stream {self.name!r} produced no frames")
                 self._cond.wait(timeout=remaining)
             return self._latest
+
+    def get_fresh_frame(self, *, after: Frame | None = None, timeout_s: float = 5.0) -> Frame:
+        from .freshness import wait_stream_frame
+
+        return wait_stream_frame(self, after=after, timeout_s=timeout_s)
 
     # ── streaming consumers (viewers, watcher) ───────────────────────────
 
@@ -102,6 +115,13 @@ class CameraStream:
 
     @property
     def fps(self) -> float:
+        """Observed capture cadence; cached remote deliveries add no frames."""
+        if self._fps_producer and self._fps_capture_received is not None:
+            # This is elapsed time on the receiving host, never the age of a
+            # remote timestamp. A frozen capture cannot retain its old rate.
+            gap = time.monotonic() - self._fps_capture_received
+            if gap > 0:
+                return min(self._fps, 1.0 / gap)
         return self._fps
 
     @property
@@ -123,6 +143,35 @@ class CameraStream:
 
     # ── pump loop ────────────────────────────────────────────────────────
 
+    def _update_fps(self, frame: Frame, now: float, previous_delivery: float) -> None:
+        capture = getattr(frame, "capture", None)
+        if isinstance(capture, dict) and capture.get("backend") == "isaac":
+            self._fps_producer = True
+        try:
+            marker = capture_marker(frame)
+            if marker["channel"] == "local_frame":
+                if self._fps_producer:
+                    raise ValueError("Producer capture identity disappeared")
+                self._fps = 0.9 * self._fps + 0.1 * (1.0 / max(now - previous_delivery, 1e-6))
+                return
+        except ValueError:
+            self._fps = 0.0
+            self._fps_capture = None
+            self._fps_capture_received = None
+            return
+        self._fps_producer = True
+        stamp = marker.pop("t")
+        previous = self._fps_capture
+        self._fps_capture = marker, stamp
+        if previous is None or marker != previous[0] or stamp < previous[1]:
+            # A new identity or clock needs its own complete capture interval.
+            self._fps = 0.0
+            self._fps_capture_received = now
+        elif stamp > previous[1]:
+            measured = 1.0 / max(stamp - previous[1], 1e-6)
+            self._fps = 0.9 * self._fps + 0.1 * measured if self._fps else measured
+            self._fps_capture_received = now
+
     def _loop(self) -> None:
         t_prev = time.monotonic()
         while not self._stop:
@@ -136,7 +185,7 @@ class CameraStream:
                 time.sleep(0.2)
                 continue
             now = time.monotonic()
-            self._fps = 0.9 * self._fps + 0.1 * (1.0 / max(now - t_prev, 1e-6))
+            self._update_fps(frame, now, t_prev)
             t_prev = now
             with self._cond:
                 self._latest = frame

@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "robot_prim": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+  "background": "assets/background.usda",
+  "kitchen_translation_m": [
+    0.2,
+    -0.225,
+    -0.8583813550720012
+  ],
+  "cube_positions": {
+    "green_cube": [
+      0.24,
+      0.01,
+      0.03
+    ],
+    "pink_cube": [
+      0.27,
+      0.11,
+      0.03
+    ]
+  },
+  "cube_dimensions": {
+    "pink_cube": [
+      0.0375,
+      0.0375,
+      0.06
+    ],
+    "green_cube": [
+      0.0375,
+      0.0375,
+      0.06
+    ]
+  },
+  "asset_scale": 0.75,
+  "counter": {
+    "min": [
+      -0.15987323186177282,
+      -0.379085082641188,
+      -0.03
+    ],
+    "max": [
+      0.9867574274915567,
+      0.3795904990656434,
+      0.0
+    ],
+    "source_mesh": "/root/Kitchen_InsularShelf_01/Kitchen_InsularShelf/Kitchen_InsularShelf"
+  },
+  "open_box": {
+    "name": "open box",
+    "center_xy_m": [
+      0.3,
+      -0.14
+    ],
+    "outer_dimensions_m": [
+      0.14,
+      0.14,
+      0.04
+    ],
+    "wall_thickness_m": 0.006,
+    "base_thickness_m": 0.004,
+    "interior_dimensions_m": [
+      0.128,
+      0.128,
+      0.036
+    ],
+    "color": [
+      0.64,
+      0.47,
+      0.29
+    ],
+    "support_top_z_m": 0.004,
+    "rim_top_z_m": 0.04,
+    "note": "Five static colliders form a 128 mm cavity that clears the configured 90 mm gripper."
+  },
+  "target_pad": {
+    "name": "green square",
+    "center_xy_m": [
+      0.14,
+      -0.27
+    ],
+    "outer_size_m": 0.16,
+    "border_width_m": 0.01,
+    "surface_z_m": 0.0006,
+    "support_top_z_m": 0.0,
+    "color": [
+      0.055,
+      0.54,
+      0.11
+    ],
+    "fill_opacity": 0.23,
+    "note": "Visual paint on the countertop; successful placement requires the whole collider inside the border."
+  },
+  "props": [
+    {
+      "name": "tomato_can",
+      "asset": "assets/tomato_can.usda",
+      "position": [
+        0.225,
+        0.215,
+        0.04125
+      ],
+      "dimensions": [
+        0.05445,
+        0.05445,
+        0.0825
+      ],
+      "visual_dimensions": [
+        0.05445,
+        0.05544,
+        0.0825
+      ],
+      "visual_offset": [
+        0.0,
+        0.0,
+        -0.04125
+      ],
+      "visual_scale": 0.825,
+      "proxy": "cylinder",
+      "mass": 0.067381875,
+      "color": [
+        0.66,
+        0.035,
+        0.02
+      ]
+    },
+    {
+      "name": "lemon",
+      "asset": "assets/lemon.usda",
+      "position": [
+        0.32,
+        0.005,
+        0.0216
+      ],
+      "dimensions": [
+        0.0684,
+        0.0432,
+        0.0432
+      ],
+      "visual_dimensions": [
+        0.0684,
+        0.0432,
+        0.0513
+      ],
+      "visual_offset": [
+        0,
+        0,
+        -0.0216
+      ],
+      "visual_scale": 0.9,
+      "proxy": "ellipsoid",
+      "mass": 0.047385,
+      "color": [
+        0.92,
+        0.59,
+        0.018
+      ]
+    },
+    {
+      "name": "orange",
+      "asset": "assets/orange70.usda",
+      "position": [
+        0.18,
+        0.12,
+        0.026380231603980064
+      ],
+      "dimensions": [
+        0.05163983628153801,
+        0.05232211947441101,
+        0.05276046320796013
+      ],
+      "visual_dimensions": [
+        0.05163983628153801,
+        0.05232211947441101,
+        0.05276046320796013
+      ],
+      "visual_offset": [
+        0,
+        0,
+        0
+      ],
+      "proxy": "ellipsoid",
+      "mass": 0.0686,
+      "color": [
+        0.95,
+        0.34,
+        0.035
+      ]
+    }
+  ],
+  "physics_material": {
+    "static_friction": 1.1,
+    "dynamic_friction": 1.0,
+    "restitution": 0.0
+  },
+  "cube_surfaces": {
+    "green_cube": "stone",
+    "pink_cube": "puzzle"
+  }
+}

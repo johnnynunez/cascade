@@ -367,6 +367,18 @@ def make_backend(name: str, **kw):
     warp-lang imports, else voxel. Explicit names never fall through: asking
     for nvblox on a machine without it is an error, not a quiet downgrade."""
     name = (name or "auto").lower()
+    import os
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        requested = kw.get("device", "auto")
+        if name == "voxel" or (requested != "auto" and not str(requested).startswith("cuda:")):
+            raise RuntimeError("GPU occupancy requires CUDA TSDF/ESDF; CPU voxel fallback is forbidden")
+        kw["device"] = "cuda:0" if requested == "auto" else requested
+        if name == "auto":
+            try:
+                return NvbloxBackend(**kw)
+            except Exception:
+                # Another GPU implementation is permitted; CPU degradation is not.
+                return WarpTsdfBackend(**kw)
     if name == "auto":
         try:
             return NvbloxBackend(**kw)

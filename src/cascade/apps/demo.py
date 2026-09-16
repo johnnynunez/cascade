@@ -45,12 +45,24 @@ from ..skills.runtime import SkillRuntime
 def _camera_cfgs(cfg) -> list[Cfg]:
     """All camera profiles (cfg.cameras when present, else [cfg.camera])."""
     raw = cfg.get("cameras")
-    if raw:
-        return [Cfg(c) if isinstance(c, dict) else c for c in raw]
-    return [cfg.camera]
+    cameras = [Cfg(c) if isinstance(c, dict) else c for c in raw] if raw else [cfg.camera]
+    limit = cfg.get("perception_loop", {}).get("max_camera_poll_hz")
+    if limit is None:
+        return cameras
+    import math
+
+    limit = float(limit)
+    if not math.isfinite(limit) or limit < 1:
+        raise ValueError("max_camera_poll_hz must be finite and at least 1 Hz")
+    # Some remote cameras return their last capture on every request. Avoid
+    # repeatedly transferring and decoding it faster than the scene renders.
+    # Copy the profiles: tuning this runtime must not rewrite calibration or
+    # the caller's configured camera rates.
+    return [Cfg({**camera.as_dict(), "fps": min(float(camera.get("fps", 30.0)), limit)})
+            for camera in cameras]
 
 
-def _truth_pose_fn(safe_arm):
+def _truth_pose_fn(safe_arm, *, camera_rig=None, arm_cfg=None):
     """Ground-truth prop poses when running against a simulator, else None.
 
     Pigey's postcondition checker prefers a channel the actuator does not
@@ -66,13 +78,16 @@ def _truth_pose_fn(safe_arm):
     shown in, and every chat-driven pick verified against the belief store
     only. Mock and real arms still yield None on every call, and a real arm
     is never materialized by the probe.
+
+    A warmed, identity-matched Isaac camera supplies its existing transport
+    so the first pre-motion snapshot can use physics while the arm is lazy.
     """
     try:
         from ..sim.truth import LazyTruthPoseFn
 
         # skills only ever hold a SafeArm; the backend is behind .raw
         raw = getattr(safe_arm, "raw", safe_arm)
-        fn = LazyTruthPoseFn(raw)
+        fn = LazyTruthPoseFn(raw, camera_rig=camera_rig, arm_cfg=arm_cfg)
         # A MOCK or REAL arm can never grow a truth channel: hand the checker
         # None so its reports say "belief", not a lazy stub that stays empty.
         # Sim arms (Isaac bridge, MuJoCo) may not be bound yet -- keep the
@@ -398,7 +413,7 @@ def build_runtime(
     # can report ground-truth prim poses, which beats perception; on the real
     # rig the checker falls back to the belief store automatically.
     if bool(cfg.get("verify_effects", True)):
-        runtime.attach_verifier(object_pose=_truth_pose_fn(safe_arm))
+        runtime.attach_verifier(object_pose=_truth_pose_fn(safe_arm, camera_rig=rig, arm_cfg=arm_cfgs[0]))
 
     pcfg = cfg.get("perception_loop", _empty_cfg())
     if bool(pcfg.get("enabled", True)):
@@ -446,9 +461,15 @@ def build_runtime(
             on_poll=lambda: runtime.live_view.note_poll(),
         )
 
-    runtime.live_view = LiveViewController(
-        _make_stream_server, mode=mode, idle_timeout_s=idle_timeout
-    )
+    external_view = os.environ.get("CASCADE_EXTERNAL_VIEW_URL")
+    if external_view:
+        from .external_view import ExternalLiveViewController
+        runtime.live_view = ExternalLiveViewController(external_view)
+        mode = "supervised"
+    else:
+        runtime.live_view = LiveViewController(
+            _make_stream_server, mode=mode, idle_timeout_s=idle_timeout
+        )
     if mode == "eager":
         opened = runtime.live_view.open(reason="stream.mode: eager")
         if not opened.get("ok"):

@@ -1,7 +1,7 @@
 """Systematic grasp diagnosis for the trophy, via build_runtime()."""
 import sys
 from pathlib import Path
-sys.path.insert(0, "/home/johnny/Projects/demo/cascade_moon/src")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import numpy as np
 from cascade.config import load_demo_config
 from cascade.apps.demo import build_runtime

@@ -1,5 +1,8 @@
 # DGX Spark demo delivery
 
+For the installation walkthrough, start with [DGX Spark setup](DGX_SPARK_SETUP.md).
+This document covers installer behavior and acceptance checks in more detail.
+
 ## Target and certification boundary
 
 One independent installation per DGX Spark, running Linux / DGX OS with a
@@ -25,9 +28,9 @@ curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bo
 ```
 
 For an event, use an immutable tested ref rather than a moving `main`, and
-pass that same ref to the installer with `--ref`. This development session
-does not publish a branch, tag or release. Until publication, exercise the
-installer from the local checkout:
+pass that same ref to the installer with `--ref`. The installer must exist
+at that ref before the remote command can use it. To exercise it from an
+existing checkout:
 
 ```bash
 bash scripts/install.sh --dir "$PWD" --profile spark --accept-eula

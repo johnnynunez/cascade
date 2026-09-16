@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import configparser
 import json
 import os
 from pathlib import Path
@@ -49,9 +50,25 @@ def test_registration_is_idempotent_and_launches_no_services(tmp_path, monkeypat
         assert str(repo) in text
         assert "--accept-eula" not in text, "a desktop shortcut cannot grant consent"
         assert os.access(entry, os.X_OK)
+        parsed = configparser.ConfigParser(interpolation=None)
+        parsed.read_string(text)
+        assert parsed.sections() == ["Desktop Entry"]
+        assert parsed["Desktop Entry"]["Type"] == "Application"
+        assert parsed["Desktop Entry"]["Name"]
+        assert parsed["Desktop Entry"]["Exec"]
+    assert not (repo / "runs").exists()
+
+
+@pytest.mark.skipif(shutil.which("desktop-file-validate") is None,
+                    reason="desktop-file-utils is not installed on this platform")
+def test_registered_entries_pass_native_desktop_validator(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    repo = tmp_path / "checkout with spaces"
+    (repo / "scripts").mkdir(parents=True)
+    shutil.copy2(ROOT / "scripts/desktop.py", repo / "scripts/desktop.py")
+    for entry in controller().register(repo, desktop_dir=tmp_path / "Desktop"):
         validate = subprocess.run(["desktop-file-validate", str(entry)], capture_output=True, text=True)
         assert validate.returncode == 0, validate.stdout + validate.stderr
-    assert not (repo / "runs").exists()
 
 
 def test_declined_install_does_not_write_or_spawn(tmp_path, monkeypatch):

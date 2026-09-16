@@ -93,6 +93,10 @@ def _gray(img: np.ndarray) -> np.ndarray:
 
 def _changed_fraction(a: np.ndarray, b: np.ndarray) -> float:
     """Fraction of pixels whose intensity moved more than PIXEL_DELTA."""
+    import os
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from .cuda_math import changed_fraction
+        return changed_fraction(a, b, threshold=PIXEL_DELTA)
     if a.shape != b.shape or a.size == 0:
         return 0.0
     return float((np.abs(_gray(a) - _gray(b)) > PIXEL_DELTA).mean())

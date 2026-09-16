@@ -74,8 +74,16 @@ both finger contacts, release, settled support and the whole collider inside
 the destination. The orange uses its measured convex collider and the box's
 measured cavity and floor. Every camera must advance during motion and reset.
 The proof retains native tool results, physics samples, scene hashes,
-screenshots and reset readbacks. A tool failure, refuted placement or failed
-audit prevents READY. `--no-robot-turn` remains STARTED / UNVERIFIED.
+screenshots and reset readbacks. A failed native placement or reset, refuted
+placement or failed audit prevents READY. `--no-robot-turn` remains
+STARTED / UNVERIFIED.
+
+The tested orange case needed two grasp attempts. Its placement passed the
+independent audit, but the return-home substep reported `did not settle at home`.
+The following native reset and final inspection passed. Reset and inspect
+before another order if this warning appears. The native tool's center-only
+postcondition remains unverified; the independent audit establishes containment,
+release and support.
 
 ## Clean-room acceptance
 

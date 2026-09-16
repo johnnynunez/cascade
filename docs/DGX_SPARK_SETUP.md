@@ -29,7 +29,7 @@ PyTorch, Astral, Node.js and npm.
 The source URL and `--ref` below use the same tested commit.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/TESTED_COMMIT/scripts/bootstrap.sh | bash -s -- --ref TESTED_COMMIT --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark"
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/8fc5dacc4a7767f236969146465a4c068e59bd68/scripts/bootstrap.sh | bash -s -- --ref 8fc5dacc4a7767f236969146465a4c068e59bd68 --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark"
 ```
 
 `--accept-eula` accepts NVIDIA's Isaac Sim / Omniverse license.
@@ -103,9 +103,14 @@ After reset completes, send:
 Check that the orange was released inside the box. Reset and inspect again
 before the next visitor.
 
+OpenClaw may say "Placement unverified" because its tool reports only the
+object's center position. The startup proof checks full placement separately.
+
 ## 5. Recover
 
 For a missed grasp, ask OpenClaw to reset and inspect before another order.
+Do the same after `did not settle at home`. This occurred after the tested
+orange placement; the following reset passed.
 For an installer error, keep the diagnostic and rerun the same install command.
 For a stalled camera or failed startup, restart this installation:
 

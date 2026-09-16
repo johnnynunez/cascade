@@ -1,8 +1,8 @@
 """Opt-in REAL OpenClaw/Cosmos chat regression; read-only CASCADE world_state.
 
 Run on Spark with COSMOS_OPENCLAW_LIVE=1 CASCADE_OPENCLAW_PROFILE=cascade-demo
-and the private OpenClaw binary on PATH. Requires the exclusive profile's
-allowlist to be exactly cascade__world_state; this test never enables motion.
+and the private OpenClaw binary on PATH. Uses the existing attendee catalog
+without narrowing its schemas, and sends a natural session-status question.
 COSMOS_OPENCLAW_EVIDENCE selects a retained artifact directory.
 """
 from __future__ import annotations
@@ -27,7 +27,8 @@ def test_real_openclaw_executes_world_state(include_ok):
     assert os.environ.get("CASCADE_OPENCLAW_PROFILE") == "cascade-demo"
     config = json.loads((Path.home() / ".openclaw-cascade-demo/openclaw.json").read_text())
     assert config["gateway"]["port"] == 18790
-    assert config["tools"]["allow"] == ["cascade__world_state"], "deny motion tools before this live check"
+    catalog = json.loads((REPO / "demo/kitchen/openclaw-plugin/attendee-tools.json").read_text())
+    assert config["tools"]["allow"] == ["cascade__" + tool["name"] for tool in catalog]
     assert config["models"]["providers"][MODEL.split("/")[0]]["baseUrl"] == "http://127.0.0.1:8082/v1"
     spec = importlib.util.spec_from_file_location("cosmos_chat_demo_proof", REPO / "scripts/demo_proof.py")
     assert spec and spec.loader
@@ -47,8 +48,7 @@ def test_real_openclaw_executes_world_state(include_ok):
         assert " ".join(p.get("text", "") for p in brain.get("payloads", [])).strip() == "OK"
     world = proof.agent_turn(
         session, MODEL,
-        "Call CASCADE world_state exactly once as the initial health check. Do not move the robot. "
-        "Do not use system commands or other MCP servers." + ("" if include_ok else " Report the returned result."),
+        "What is the session status?",
         evidence / "02-world.json", 90, "world_state",
     )
     meta = world["meta"]

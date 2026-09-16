@@ -172,7 +172,9 @@ def test_setup_installs_current_visitor_policy_and_keeps_existing_auth(configure
     template = (runtime.ROOT / 'demo/kitchen/visitor-instructions.md').read_text().strip()
     assert template in policy
     assert 'Existing operator note.' in policy
-    assert 'at most once' in policy and 'camera_snapshot' in policy
+    assert 'at most one motion action per order' in policy
+    assert 'Answer attendees in English.' in policy
+    assert '`isaac` (Worktop), `isaac_side` (Side), and `kitchen`' in policy
     assert policy.count('<!-- BEGIN CASCADE KITCHEN VISITOR INSTRUCTIONS -->') == 1
     assert deployment['state_dir'] == configured['PAAI_STATE_DIR']
     assert deployment['brain_plan']['context_window'] == 16384

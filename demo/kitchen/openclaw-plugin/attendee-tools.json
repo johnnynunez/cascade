@@ -1,0 +1,50 @@
+[
+  {
+    "name": "describe_scene",
+    "description": "Inspect the current table without moving the robot. Use for 'What can you see on the table?', 'Describe the scene', or an inventory. Returns a fresh camera image, observed objects and configured destinations. Ground the answer in the image; configured destinations alone do not prove visibility or occupancy.",
+    "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": false}
+  },
+  {
+    "name": "localize_object",
+    "description": "Locate a named object in the current scene: 'Where is the orange?' or 'Find the green cube'. Returns a position measured from camera depth. A named destination may return its configured position with that provenance. Does not move the robot. Ask for clarification if the identity remains ambiguous.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "label": {"type": "string", "description": "Object or destination name from the current scene."},
+        "spatial_hint": {"type": "string", "enum": ["left", "right", "front", "back", "near", "far"], "description": "Optional relation that distinguishes matching objects."}
+      },
+      "required": ["label"], "additionalProperties": false
+    }
+  },
+  {
+    "name": "pick_and_place",
+    "description": "Move one named object to a named destination: 'put the green cube in the green square', 'place the orange in the open box', or 'move the tomato can to the green square'. Handles perception, bounded grasp attempts, placement and return home in one action. Report the actual result; failed or unverified placement is not success. Do not repeat the action after its result.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "object": {"type": "string", "description": "Name of the object to move from the current scene, preserving the visitor's identity and color."},
+        "destination": {"type": "string", "description": "Named destination: 'green square' is the marked placement area; 'open box' is the calibrated beige box. Use the destination requested by the visitor."}
+      },
+      "required": ["object", "destination"], "additionalProperties": false
+    }
+  },
+  {
+    "name": "reset_scene",
+    "description": "Start over or reset the simulation when the visitor says 'Let's start over', 'Reset the scene', or 'Put everything back'. Returns simulated props to their starting poses, clears tracking and captures a fresh observation. Use only for an explicit reset request; never automatically after a failed placement.",
+    "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": false}
+  },
+  {
+    "name": "camera_snapshot",
+    "description": "Show a fresh view from a requested camera without moving the robot. Use for 'Show me the side camera'. Camera names are isaac (Worktop), isaac_side (Side), and kitchen (Kitchen). An omitted camera uses the primary view. Report any unavailable-camera error.",
+    "parameters": {
+      "type": "object",
+      "properties": {"camera": {"type": "string", "description": "Exact camera name; omit for the primary camera."}},
+      "required": [], "additionalProperties": false
+    }
+  },
+  {
+    "name": "world_state",
+    "description": "Read session status, tracked objects and cached camera counters: 'What is the session status?' or 'Check the camera statistics'. This is remembered state, not a fresh image or an independent check of simulator health, gripper contents, home pose or completed placement.",
+    "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": false}
+  }
+]

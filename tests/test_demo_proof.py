@@ -151,16 +151,16 @@ def host_boundary(tmp_path, monkeypatch):
         message = cmd[cmd.index("--message") + 1]
         tools = []
         text = "OK"
-        if "pick_and_place" in message:
+        if "pick_and_place" in message or message.startswith("Please put the"):
             tools = ["cascade__pick_and_place"]
             trace = info.get("trace", repo / "runs/mcp_foreign/trace.jsonl")
             _trace(repo / "runs", [_pick(t=time.time())], trace.parent.name)
-        elif "reset_scene" in message:
+        elif "reset_scene" in message or message.startswith("Let's start over"):
             tools = ["cascade__reset_scene"] + ([] if info["drop_world_state"] else ["cascade__world_state"])
             trace = info.get("trace", repo / "runs/mcp_foreign/trace.jsonl")
             with trace.open("a") as f:
                 f.write(json.dumps({"t": time.time(), "skill": "reset_scene", "result": {"ok": True, "world": "mujoco", "props_reset": ["red_cube"]}}) + "\n")
-        elif "world_state" in message:
+        elif "world_state" in message or message == "What is the session status?":
             tools = ["cascade__world_state"]
             if info["binding"] in ("new", "ambiguous", "dead"):
                 spawn(dead=info["binding"] == "dead")
@@ -318,7 +318,7 @@ def test_proof_uses_one_session_and_checks_real_trace(host_boundary):
     assert len(calls) == 4
     assert len({cmd[cmd.index("--session-id") + 1] for cmd in calls}) == 1
     assert all("exec" not in cmd for cmd in calls)
-    assert "world_state" in calls[1][calls[1].index("--message") + 1]
+    assert calls[1][calls[1].index("--message") + 1] == "What is the session status?"
     assert result["process"]["pid"] == h["record"]["pid"]
 
 
@@ -333,7 +333,7 @@ def test_proof_refuses_unbound_world_before_any_motion(host_boundary, binding):
     _trace(h["repo"] / "runs", [_pick(t=time.time())], "mcp_unrelated")
     with pytest.raises(demo_proof.ProofError, match="new|owner|live"):
         demo_proof.run_proof(h["repo"], h["state"], "mujoco")
-    assert not any("pick_and_place" in c[c.index("--message") + 1] for c in h["calls"])
+    assert not any(c[c.index("--message") + 1].startswith("Please put the") for c in h["calls"])
     assert json.loads((h["state"] / "proof.json").read_text())["verified"] is False
 
 
@@ -494,3 +494,14 @@ def test_auto_brain_only_falls_back_on_connection_failure(model_http_boundary, m
     assert info["brain"] == "qwen"
     assert info["model"] == "qwen-test"
     assert info["base_url"] == h["base_url"]
+
+
+def test_public_generic_proof_uses_natural_robot_requests(host_boundary):
+    h = host_boundary
+    demo_proof.run_proof(h["repo"], h["state"], "mujoco", True)
+    messages = [cmd[cmd.index("--message") + 1] for cmd in h["calls"]]
+    assert messages[1:] == [
+        "What is the session status?",
+        "Please put the red cube in the drop zone.",
+        "Let's start over, then show the session status.",
+    ]

@@ -87,18 +87,22 @@ OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" \
   .openclaw-cli/bin/openclaw --profile cascade-demo dashboard
 ```
 
-Send one order at a time:
+Write normal English in the message box. Start with:
 
-> Move the green cube to the green square.
+> What can you see on the table?
+
+Compare the answer with the live cameras. Send one order at a time:
+
+> Could you put the green cube in the green square?
 
 Wait for the result. Check that the cube was released inside the square.
 Then send:
 
-> Reset the scene. Inspect it after the reset.
+> Let's start over.
 
 After reset completes, send:
 
-> Put the orange in the open box.
+> Please put the orange in the open box.
 
 Check that the orange was released inside the box. Reset and inspect again
 before the next visitor.

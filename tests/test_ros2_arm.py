@@ -321,11 +321,29 @@ def test_stop_publishes_empty_trajectory_and_suppresses(ros2_stub):
         arm.disconnect()
 
 
-def test_stale_state_raises(ros2_stub):
+def test_stale_state_raises(ros2_stub, monkeypatch):
+    from cascade.control import ros2_arm
+
+    clock = types.SimpleNamespace(now=0.0)
+    monkeypatch.setattr(ros2_arm, "time", types.SimpleNamespace(
+        monotonic=lambda: clock.now,
+        sleep=lambda _: pytest.fail("synchronous JointState setup waited"),
+    ))
+    add_node = _FakeExecutor.add_node
+
+    def add_node_with_state(executor, node):
+        add_node(executor, node)
+        _feed_state(node, np.zeros(5), gripper=0.6)
+
+    # Supply feedback before connect checks freshness, independent of scheduling.
+    monkeypatch.setattr(_FakeExecutor, "add_node", add_node_with_state)
     arm = _mk_arm(state_timeout_s=0.05)
-    _connect(arm)
     try:
-        time.sleep(0.12)
+        arm.connect()
+        assert arm.get_state().t == 0.0
+        clock.now = 0.05
+        assert arm.get_state().t == 0.0
+        clock.now = 0.051
         with pytest.raises(RuntimeError, match="stale"):
             arm.get_state()
     finally:

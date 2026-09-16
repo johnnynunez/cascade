@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reuse an existing Isaac release or install pinned wheels in an isolated venv.
+# Install pinned wheels in an isolated venv, or honor an explicit Isaac path.
 set -euo pipefail
 DIR="${CASCADE_HOME:-$PWD}"
 ACCEPT=0
@@ -26,11 +26,6 @@ if [[ -n "${ISAACSIM_PYTHON_EXE:-}" ]]; then
     [[ "$PY" == "$DIR/.isaacsim/bin/python" ]] || REUSE=1
 elif [[ -n "${ISAACSIM_PATH:-}" ]]; then
     PY="$ISAACSIM_PATH/python.sh"; REUSE=1
-elif [[ ! -x "$PY" ]]; then
-    for release in "$HOME/Projects/isaac/IsaacSim/_build/linux-$(uname -m)/release" \
-                   "$HOME/isaacsim" "$HOME/.local/share/ov/pkg"/isaac-sim-* /isaac-sim; do
-        if [[ -x "$release/python.sh" ]]; then PY="$release/python.sh"; REUSE=1; break; fi
-    done
 fi
 if [[ "$REUSE" == 1 ]]; then
     printf '[install-isaac] Reuse existing Isaac Sim 6.1.0 without package writes: %s\n' "$PY"
@@ -101,7 +96,9 @@ retry uv pip install --python "$PY" 'torch==2.11.0+cu130' --index-url https://do
 # Both indexes are required: e.g. mujoco-usd-converter==0.5.0 is on PyPI,
 # while NVIDIA has a different version. uv's first-index strategy cannot
 # resolve that exact dependency; the Isaac family remains pinned to 6.1.0.0.
-retry uv pip install --python "$PY" 'isaacsim[all,extscache]==6.1.0.0' \
+# Isaac core pins this prerelease transitively. Make that exact requirement
+# explicit so uv accepts it without enabling prereleases for every package.
+retry uv pip install --python "$PY" 'isaacsim[all,extscache]==6.1.0.0' 'tinyobjloader==2.0.0rc13' \
     --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match
 verify
 printf '[install-isaac] Installed metadata and Newton experience checked; no Kit/GPU execution performed.\n'

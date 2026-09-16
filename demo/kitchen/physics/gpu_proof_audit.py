@@ -17,6 +17,9 @@ import time
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
+# exec can queue behind the native reset on Kit's main thread. The bridge
+# allows 30 seconds before returning its own error; keep time to receive it.
+EXEC_TIMEOUT_S = 35
 
 
 def _load(name, path):
@@ -296,9 +299,9 @@ class GpuProofObserver:
                 self.expected_scene_geometry is None or "open_box" not in self.expected_scene_geometry):
             raise ValueError("Open-box proof requires independently expected box geometry")
         if self.object_name in convex.CONVEX_TARGETS:
-            if (self.expected_scene_geometry is None or self.destination_name != "green square"
+            if (self.expected_scene_geometry is None
                     or self.object_name not in self.expected_scene_geometry.get("convex_colliders", {})):
-                raise ValueError("Convex proof requires its configured collider and the green square")
+                raise ValueError("Convex proof requires its configured collider geometry")
         self.out = Path(out).resolve()
         if not self.out.is_relative_to(ROOT) or not .05 <= interval_s <= 1 or not 1 <= budget_s <= 7200:
             raise ValueError("Invalid bounded observer path or timing")
@@ -309,12 +312,15 @@ class GpuProofObserver:
         self._thread = None
         self.complete = False
 
-    def __enter__(self):
-        self.out.mkdir(parents=True, exist_ok=False)
-        self.code = snapshot_code(object_name=self.object_name,
+    def _snapshot_code(self):
+        return snapshot_code(object_name=self.object_name,
             include_scene_geometry=self.expected_scene_geometry is not None,
             include_open_box=self.expected_scene_geometry is not None and "open_box" in self.expected_scene_geometry,
             expected_props=self.expected_props)
+
+    def __enter__(self):
+        self.out.mkdir(parents=True, exist_ok=False)
+        self.code = self._snapshot_code()
         (self.out / "snapshot-code.py").write_text(self.code)
         self.started = time.monotonic()
         self._thread = threading.Thread(target=self._collect, name="gpu-proof-observer", daemon=True)
@@ -351,7 +357,7 @@ class GpuProofObserver:
             with (self.out / "wire.jsonl").open("w") as wires, (self.out / "samples.jsonl").open("w") as samples:
                 while not self._stop.is_set() and time.monotonic() - self.started < self.budget_s:
                     began = time.monotonic()
-                    reply = client.request({"op": "exec", "code": self.code}, timeout_s=8)
+                    reply = client.request({"op": "exec", "code": self.code}, timeout_s=EXEC_TIMEOUT_S)
                     finished = time.monotonic()
                     wires.write(json.dumps({"sequence": len(self.records), "reply": reply}) + "\n")
                     wires.flush()
@@ -424,7 +430,7 @@ class GpuProofObserver:
     def stop(self):
         self._stop.set()
         if self._thread:
-            self._thread.join(timeout=12)
+            self._thread.join(timeout=EXEC_TIMEOUT_S + 10)  # pending exec plus final 8-second ping
             if self._thread.is_alive():
                 self.errors.append("GPU observer thread did not stop within the socket timeout")
         if self.out.is_dir():
@@ -655,6 +661,7 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
         if not all(inventory.values()):
             return result
         collider_geometry = None
+        support_geometry = None
         if object_name in convex.CONVEX_TARGETS and expected_scene_geometry is None:
             raise ValueError("Convex proof requires its configured collider and the green square")
         if destination_name == "open box" and expected_scene_geometry is None:
@@ -662,8 +669,6 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
         if expected_scene_geometry is not None:
             if destination_name == "open box" and "open_box" not in expected:
                 raise ValueError("Open-box proof requires independently expected box geometry")
-            if object_name in convex.CONVEX_TARGETS and destination_name != "green square":
-                raise ValueError("Convex target proof currently supports the green square only")
             result["scene_geometry"] = audit_scene_geometry(all_samples, expected)
             checks.update(result["scene_geometry"]["checks"])
             if not result["scene_geometry"]["pass"]:
@@ -681,6 +686,17 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
                         "frame": "body_local", "units": "m", "collision_approximation": "convexHull",
                         "vertices_f32_sha256": binding["vertices_f32_sha256"],
                         "vertex_count": binding["vertex_count"], "scene_config_binding_verified": True,
+                        "scene_config_sha256": expected["scene_config_sha256"],
+                        "half_height_argument_used": False, "upright_tilt_limit_applied": False})
+                support_binding = convex.audit_support_binding(all_samples, object_name=object_name)
+                result["convex_support_geometry"] = support_binding
+                checks.update(support_binding["checks"])
+                if not support_binding["pass"]:
+                    return result
+                support_geometry = strict.VerifiedColliderGeometry(
+                    vertices_m=support_binding["vertices_m"], body_name=object_name,
+                    receipt={**support_binding["binding"], "body_name": object_name,
+                        "scene_config_binding_verified": True,
                         "scene_config_sha256": expected["scene_config_sha256"],
                         "half_height_argument_used": False, "upright_tilt_limit_applied": False})
             verified_dimensions = all_samples[0]["scene_geometry"]["prop_dimensions_m"][object_name]
@@ -714,21 +730,38 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
                 and r["client_finished_monotonic"] <= times[2]]
         result["pick"] = strict.audit_records(pick, object_name=object_name, target_xy=target_xy,
             support_top_z=support_top_z, object_half_height=object_half_height,
-            **({"collider_geometry": collider_geometry} if collider_geometry is not None else {}))
+            **({"collider_geometry": support_geometry} if support_geometry is not None else {}))
+        if support_geometry is not None:
+            result["pick"]["limitations"][0] = (
+                "Support uses the live PhysX collision representation in body-local coordinates. "
+                "The complete authored hull separately bounds the horizontal footprint.")
         checks["strict_pick_place_and_cameras"] = result["pick"]["pass"]
         if expected is not None and collider_geometry is not None:
             result["pick"]["destination_name"] = destination_name
-            pad = expected["target_pad"]
-            half = pad["outer_size_m"] / 2 - pad["border_width_m"]
-            center = np.asarray(pad["center_xy_m"])
+            if destination_name == "open box":
+                convex_bounds = interior_bounds
+                # A counter pose under the thin box floor is not a placement
+                # inside the box. Match the existing cube floor criterion.
+                floor_thickness = box_parts["floor"][1][2] - box_parts["floor"][0][2]
+                support_tolerance = min(.001, floor_thickness / 4)
+            else:
+                pad = expected["target_pad"]
+                half = pad["outer_size_m"] / 2 - pad["border_width_m"]
+                center = np.asarray(pad["center_xy_m"])
+                convex_bounds = [(center-half).tolist(), (center+half).tolist()]
+                support_tolerance = .005
             footprint = convex_settle.audit_convex_settle_geometry(pick, object_name=object_name,
                 vertices_body_m=collider_geometry.vertices_m,
-                inner_bounds_xy_m=[(center-half).tolist(), (center+half).tolist()],
+                support_vertices_body_m=support_geometry.vertices_m,
+                inner_bounds_xy_m=convex_bounds,
                 support_top_z_m=support_top_z,
                 settle_sim_s=result["pick"]["criteria"]["settle_sim_s"],
-                min_final_samples=result["pick"]["criteria"]["min_final_samples"])
+                min_final_samples=result["pick"]["criteria"]["min_final_samples"],
+                max_support_gap_m=support_tolerance, max_penetration_m=support_tolerance)
             result["convex_footprint"] = footprint
-            checks["whole_convex_collider_inside_green_square_and_supported"] = footprint["geometry_pass"]
+            footprint_check = ("whole_convex_collider_inside_open_box_and_supported"
+                if destination_name == "open box" else "whole_convex_collider_inside_green_square_and_supported")
+            checks[footprint_check] = footprint["geometry_pass"]
             if object_name == "tomato_can":
                 # A stable can lying on its side is not the requested upright place.
                 final_indices = [r["sample_index"] for r in footprint["samples"]]

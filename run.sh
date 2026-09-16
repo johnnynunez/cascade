@@ -27,7 +27,7 @@ case "$mode" in
         shift
         check_mode="$default_sim"
         case "${1:-}" in isaac|mujoco|none|auto) check_mode="$1"; shift ;; esac
-        if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then set -- --brain cosmos "$@"; fi
+        if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then set -- --brain qwen "$@"; fi
         exec "$REPO/scripts/launch.sh" --check --sim "$check_mode" "$@" ;;
     down)  shift; exec "$REPO/scripts/launch.sh" --down "$@" ;;
     -h|--help|help) sed -n '2,12p' "$0"; exit 0 ;;
@@ -41,7 +41,7 @@ esac
 setup=""
 if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
     # Do not repair a deleted app environment with arbitrary platform wheels.
-    exec "$REPO/scripts/launch.sh" --sim "$mode" --brain cosmos "$@"
+    exec "$REPO/scripts/launch.sh" --sim "$mode" --brain qwen "$@"
 fi
 if ! [[ -x "$REPO/.venv/bin/python" ]] || ! "$REPO/.venv/bin/python" -c "import cascade" >/dev/null 2>&1 \
    || { [[ ! -x "$REPO/.openclaw-cli/bin/openclaw" ]] && ! command -v openclaw >/dev/null 2>&1; }; then

@@ -30,14 +30,15 @@ def oc_command(*args: str) -> list[str]:
     return ["openclaw", *(["--profile", profile] if profile else []), *args]
 
 
-def wait_gateway(wait_s: float = 45, *, retry_delay: float = 1) -> dict:
+def wait_gateway(wait_s: float = 45, *, retry_delay: float = 1, environment=None, command_prefix=None) -> dict:
     import time
 
     deadline = time.monotonic() + wait_s
     while time.monotonic() < deadline:
         remaining = deadline - time.monotonic()
         try:
-            p = subprocess.run(oc_command("health", "--json", "--timeout", "5000"),
+            command = [*command_prefix, "health", "--json", "--timeout", "5000"] if command_prefix else oc_command("health", "--json", "--timeout", "5000")
+            p = subprocess.run(command, env=environment,
                                capture_output=True, text=True, timeout=max(0.1, min(8, remaining)))
             if p.returncode == 0 and json.loads(p.stdout).get("ok") is True:
                 return {"ok": True, "profile": os.environ.get("CASCADE_OPENCLAW_PROFILE", "")}
@@ -116,10 +117,12 @@ def check_brain(brain: str) -> dict:
     endpoints = {
         "cosmos": (os.environ.get("CASCADE_COSMOS_BASE_URL", "http://127.0.0.1:8082/v1"), "cosmos3-edge"),
         "cosmos-sglang": (os.environ.get("CASCADE_COSMOS_SGLANG_BASE_URL", "http://127.0.0.1:8083/v1"), "cosmos3-edge"),
-        "qwen": (os.environ.get("CASCADE_QWEN_BASE_URL", "http://127.0.0.1:8080/v1"), None),
+        "qwen": (os.environ.get("CASCADE_QWEN_BASE_URL", "http://127.0.0.1:8080/v1"),
+                 "Qwen/Qwen3.8-27B" if os.environ.get("CASCADE_INSTALL_PROFILE") == "spark" else None),
     }
     if brain in endpoints:
-        return {**local_brain(*endpoints[brain]), "brain": brain, "context_window": 65536 if brain == "qwen" else 32768}
+        context = 32768 if os.environ.get("CASCADE_INSTALL_PROFILE") == "spark" else (65536 if brain == "qwen" else 32768)
+        return {**local_brain(*endpoints[brain]), "brain": brain, "context_window": context}
     if brain not in ("auto", "keep"):
         raise ProofError(f"unknown brain: {brain}")
     if brain == "auto":
@@ -141,7 +144,7 @@ def check_brain(brain: str) -> dict:
     return {"brain": "keep", "model": model, "note": "configured; inference is tested at launch, not by read-only check"}
 
 
-def validate_pick_trace(path, started: float, target: str):
+def validate_pick_trace(path, started: float, target: str, *, placement_audit=None):
     """Read ONLY the trace explicitly bound to this session's live process."""
     from pathlib import Path
 
@@ -152,6 +155,10 @@ def validate_pick_trace(path, started: float, target: str):
         rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     except (OSError, ValueError) as exc:
         raise ProofError(f"unreadable current trace: {path}") from exc
+    if placement_audit is not None:
+        current = [row for row in rows if row.get("t", 0) >= started and row.get("skill") == "pick_and_place"]
+        if len(current) != 1:
+            raise ProofError("Spark acceptance requires exactly one current pick_and_place action")
     candidates = []
     for row in rows:
         if row.get("t", 0) < started or row.get("skill") != "pick_and_place":
@@ -160,7 +167,17 @@ def validate_pick_trace(path, started: float, target: str):
         pc = result.get("postcondition") or {}
         if (row.get("args") or {}).get("object", "").strip().casefold() != target.strip().casefold():
             continue
-        if result.get("ok") is True and result.get("verified") is True and pc.get("status") == "confirmed" and pc.get("channel") == "physics":
+        confirmed = (result.get("verified") is True and pc.get("status") == "confirmed"
+                     and pc.get("channel") == "physics")
+        if placement_audit is not None:
+            # Bounded destinations need the passive scene-bound geometry audit.
+            # A refuted or failed native action can never be rescued by it.
+            confirmed = (placement_audit.get("pass") is True
+                         and placement_audit.get("object_name") == "_".join(target.casefold().split())
+                         and placement_audit.get("destination_name") == (row.get("args") or {}).get("destination")
+                         and pc.get("status") in ("confirmed", "unverified")
+                         and pc.get("channel") == "physics")
+        if result.get("ok") is True and confirmed:
             candidates.append(path)
     if len(candidates) != 1:
         raise ProofError(f"expected one current physics-confirmed pick for {target!r}; found {len(candidates)}")
@@ -264,6 +281,82 @@ def _bound_world(state_dir, owner, baseline, started, expected=None) -> dict:
     return record
 
 
+def make_spark_witness(repo, evidence, *, object_name, destination_name):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "cascade_spark_placement_proof", repo / "demo/kitchen/physics/spark_proof.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.SparkKitchenWitness(
+        evidence / "physics", scene_config=repo / "demo/scene/kitchen_config.json",
+        object_name=object_name, destination_name=destination_name,
+        port=int(os.environ.get("CASCADE_BRIDGE_PORT", "8611")))
+
+
+def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
+    """Two native OpenClaw orders, each followed by an observed same-world reset."""
+    from pathlib import Path
+    import time
+
+    model, session = report["model"], report["session_id"]
+    prefix = os.environ.get("CASCADE_MCP_NAME", "cascade") + "__"
+
+    def turn(tool, arguments, output, timeout=150, instruction=""):
+        result = agent_turn(session, model,
+            f"{instruction + ' ' if instruction else ''}Call the native MCP tool {prefix}{tool} exactly once "
+            f"with arguments {json.dumps(arguments)}. Use those plain JSON values. "
+            "Wait for the real tool response and summarize it in one sentence. "
+            "Do not use system commands or other tools.", output, timeout, tool)
+        summary = result["meta"]["toolSummary"]
+        if summary["calls"] != 1 or summary["tools"] != [prefix + tool]:
+            raise ProofError(f"Spark acceptance requires exactly one native {tool} call")
+        return result
+
+    turn("world_state", {}, evidence / "01-world.json")
+    process = _bound_world(state_dir, owner, baseline, report["started_at"])
+    trace = Path(process["run_dir"]) / "trace.jsonl"
+    report.update(process=process, trace=str(trace), cases=[])
+    for number, (target, destination) in enumerate(
+            (("green cube", "green square"), ("orange", "open box")), 1):
+        case_dir = evidence / f"case-{number}"
+        case_dir.mkdir()
+        turn("get_observation", {}, case_dir / "01-inspect.json",
+             instruction=f"Inspect the current {target} and {destination}.")
+        _bound_world(state_dir, owner, baseline, report["started_at"], process)
+        witness = make_spark_witness(repo, case_dir,
+                                    object_name="_".join(target.split()), destination_name=destination)
+        with witness:
+            witness.mark("pick_begin")
+            started = time.time()
+            turn("pick_and_place", {"object": target, "destination": destination, "arm": "default"},
+                 case_dir / "02-pick.json", 300,
+                 instruction=f"Move the {target} to the {destination} in the simulation.")
+            _bound_world(state_dir, owner, baseline, report["started_at"], process)
+            witness.settle(wall_timeout=90)
+            witness.mark("pick_end")
+            witness.capture_frames("placed")
+            reset_started = time.time()
+            witness.mark("reset_begin")
+            turn("reset_scene", {"arm": "default"}, case_dir / "03-reset.json", 240)
+            _bound_world(state_dir, owner, baseline, report["started_at"], process)
+            props = validate_reset_trace(trace, reset_started, "isaac", target)
+            turn("world_state", {}, case_dir / "04-world-reset.json")
+            turn("get_observation", {}, case_dir / "05-inspect-reset.json",
+                 instruction="Inspect the fresh image after resetting the scene.")
+            _bound_world(state_dir, owner, baseline, report["started_at"], process)
+            witness.settle(wall_timeout=90)
+            witness.mark("reset_end")
+            witness.capture_frames("reset")
+        physical = witness.audit()
+        validate_pick_trace(trace, started, target, placement_audit=physical)
+        report["cases"].append({"object": target, "destination": destination,
+                                "physics": physical, "props_reset": props,
+                                "evidence_dir": str(case_dir)})
+        _write_receipt(report, state_dir)
+    report.update(verified=True, props_reset=report["cases"][-1]["props_reset"])
+
+
 def run_proof(repo, state_dir, sim: str, robot_turn: bool = True) -> dict:
     """Run the REAL host, keeping pick and reset in one persistent session."""
     from pathlib import Path
@@ -289,6 +382,11 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True) -> dict:
     model = check_brain("keep")["model"]
     report["model"] = model
     print(f"[proof] brain={model} session={session}", file=sys.stderr, flush=True)
+    if robot_turn and sim == "isaac" and os.environ.get("CASCADE_INSTALL_PROFILE") == "spark":
+        _run_spark_cases(repo, state_dir, evidence, report, owner, baseline)
+        (evidence / "proof.json").write_text(json.dumps(report, indent=2) + "\n")
+        _write_receipt(report, state_dir)
+        return report
     brain = agent_turn(session, model, "Reply with exactly OK and nothing else. Do not call tools.", evidence / "01-brain.json", 120)
     text = " ".join(p.get("text", "") for p in brain.get("payloads", [])).strip()
     if text != "OK":

@@ -1,171 +1,137 @@
 # PAAI on DGX Spark
 
-This guide follows the existing [Spark installer](SPARK_DELIVERY.md). It is
-for preparing a separate Spark installation of PAAI, Physical Agentic AI.
-The live Build a Claw kitchen demo runs on Brev; Spark still needs its own
-camera, GPU physics, tool-call and reset acceptance run.
+PAAI means Physical Agentic AI. This installs the Build a Claw kitchen demo
+with Isaac Sim, local Qwen Q4 and OpenClaw.
 
 ## 1. Check the machine
 
-Use a DGX Spark with Linux `aarch64` and NVIDIA DGX OS 7. NVIDIA's
-[Isaac Sim 6.1 requirements](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/installation/requirements.html)
-list **580.159.03** as the tested Spark driver. Check the installed driver
-against that support guidance. The installer checks that it works; it does
-not qualify every driver version or replace drivers.
+Use Linux on DGX Spark with a working NVIDIA driver and CUDA toolkit.
+The host needs Bash, Git, Git LFS, curl, Python 3, CA certificates,
+`libgomp1` and a C++ compiler (`build-essential` on DGX OS).
 
 ```bash
 uname -m
-cat /etc/os-release
-getconf GNU_LIBC_VERSION
 nvidia-smi
+/usr/local/cuda/bin/nvcc --version
+git lfs version
+getconf GNU_LIBC_VERSION
 free -h
 df -h "$HOME" /tmp
-ss -lnt
-systemctl --user list-units --type=service --state=running
-command -v git curl python3
-python3 -c 'import ctypes; ctypes.CDLL("libgomp.so.1")'
 ```
 
-The host needs Bash, Git, curl, trusted CA certificates and `libgomp1`.
-The installer requires glibc 2.35 or newer.
-Keep existing GPU jobs and services running; arrange a separate rehearsal
-window if their memory use leaves too little room. Spark shares memory
-between CPU and GPU, so inspect `free` as well as `nvidia-smi`.
+Expect `aarch64` and glibc 2.35 or newer. Allow space for the runtime,
+models and caches. The model and vision projector alone use about 19 GB.
+HTTPS access is needed for GitHub, Hugging Face, PyPI, NVIDIA packages,
+PyTorch, Astral, Node.js and npm.
 
-Allow disk space for Isaac, model snapshots, isolated environments and
-download/shader caches. The dry run does not estimate peak storage. Prepare
-downloads before the event. Outbound HTTPS must reach GitHub,
-`raw.githubusercontent.com`, `astral.sh`, PyPI, `pypi.nvidia.com`,
-`download.pytorch.org`, Hugging Face, `openclaw.ai`, `nodejs.org`, the npm registry and
-NVIDIA's online asset host:
-`omniverse-content-production.s3-us-west-2.amazonaws.com`. Allow their
-artifact/CDN redirects too.
+## 2. Install
 
-## 2. Choose the source and inspect the plan
-
-Use a reviewed, tested commit. The remote bootstrap URL and `--ref` must
-name the same commit. See [the existing one-command flow](SPARK_DELIVERY.md#one-command-per-machine).
-From a checkout of that commit:
+The source URL and `--ref` below use the same tested commit.
 
 ```bash
-bash scripts/bootstrap.sh --dir "$PWD" --profile spark --dry-run
-bash scripts/install.sh --dir "$PWD" --profile spark --check
+curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/8fc5dacc4a7767f236969146465a4c068e59bd68/scripts/bootstrap.sh | bash -s -- --ref 8fc5dacc4a7767f236969146465a4c068e59bd68 --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark"
 ```
 
-Both commands are read-only and start no services. `--check` exits with
-code 3 when an environment or asset is missing; that is expected before a
-first installation. A passing check verifies preparation, not a live demo.
+`--accept-eula` accepts NVIDIA's Isaac Sim / Omniverse license.
+The command installs the app packages, Isaac runtime, OpenClaw,
+Qwen model, vision projector, llama.cpp and kitchen assets.
+It verifies downloaded files. No manual release download is needed.
 
-## 3. Prepare Isaac and the application
-
-Isaac Sim 6.1 requires Python 3.12. The installer uses separate environments
-for CASCADE (`.venv`), managed Isaac (`.isaacsim`) and the local reasoning
-service. It installs its own OpenClaw CLI under `.openclaw-cli` and obtains
-`uv` if needed. Native Python/CUDA packages are selected for arm64; do not
-copy environments or binaries from Brev. The exact package pins remain in
-[Spark delivery](SPARK_DELIVERY.md#isolation-and-defaults).
-
-If a complete Isaac **6.1.0** source/standalone release already exists,
-select its directory containing `python.sh` using the existing flow:
+The first install downloads large files and builds llama.cpp for Spark.
+Wait for `PREPARED` and exit code 0. Preparation starts no demo services.
+A repeated install reuses verified files.
 
 ```bash
-export ISAACSIM_PATH="$HOME/Projects/isaac/IsaacSim/_build/linux-aarch64/release"
-bash scripts/install_isaac.sh --dir "$PWD" --check
+cd "$HOME/paai-spark"
+bash scripts/install.sh --profile spark --dir "$PWD" --check
 ```
 
-Use that path only when the release exists. An explicit broken or older
-release fails the check. Reuse leaves its embedded packages alone. Without
-a selected/discovered release, the installer prepares
-`isaacsim[all,extscache]==6.1.0.0` in `.isaacsim`. NVIDIA also recommends
-[a dedicated Isaac environment](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/installation/install_python.html).
+This read-only check must exit 0. Before installation, exit 3 means a
+required environment or asset is missing.
 
-After reviewing and accepting the NVIDIA license, prepare without starting
-the demo:
+## 3. Start
 
 ```bash
-bash scripts/install.sh --dir "$PWD" --profile spark --accept-eula --prepare-only
-bash scripts/install.sh --dir "$PWD" --profile spark --check
+python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open
 ```
 
-For a new machine, the same installer can prepare and launch in one command
-after the tested ref is published:
+This works from a remote shell. The cameras and physical checks run without
+opening windows. From a logged-in desktop session, omit `--headless --no-open`
+to open the Isaac editor and chat.
+
+Cold shader and collision preparation can take more than ten minutes.
+The launcher shows progress and allows 20 minutes for Isaac startup.
+It uses the same PhysX CUDA scene and arm profile as the working Brev demo.
+It starts local Qwen and the dedicated OpenClaw `cascade-demo` profile.
+It then tests both orders below, with a reset after each.
+
+Wait for `READY`. Check the current result:
 
 ```bash
-CASCADE_REF='<tested-commit>'
-curl -fsSL "https://raw.githubusercontent.com/johnnynunez/cascade/$CASCADE_REF/scripts/bootstrap.sh" | bash -s -- --ref "$CASCADE_REF" --accept-eula
+OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" \
+  .openclaw-cli/bin/openclaw --profile cascade-demo health --json
+python3 -m json.tool runs/.launch/profile-cascade-demo/proof.json
 ```
 
-## 4. Start, check and recover
+The health result must contain `"ok": true`. The proof must contain
+`"verified": true`, the selected Qwen model, two cases and passing physical
+audits. All three cameras must advance. Each audit includes a successful
+reset. `PREPARED` or `STARTED / UNVERIFIED` is not a READY result.
 
-From the prepared checkout, launch the complete stack:
+## 4. Use OpenClaw
+
+To open the chat from the Spark's desktop, run:
 
 ```bash
-python3 scripts/desktop.py launch --repo "$PWD"
+OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" \
+  .openclaw-cli/bin/openclaw --profile cascade-demo dashboard
 ```
 
-The desktop controller supervises the local reasoning service, restores the
-selected Isaac environment and runs the physical proof. It also registers
-CASCADE with the dedicated OpenClaw `cascade-demo` profile and checks its
-tools. Use this entry point for full startup; the lower-level `run.sh`
-launch expects the reasoning service to be running already.
+Send one order at a time:
 
-Spark selects the release's `isaacsim.exp.full.newton.kit` experience and
-requires the Newton engine. The bridge requests `cuda:0` by default. During
-rehearsal, verify the bridge's GPU attestation in `isaac_bridge.log`: the
-actual backend must be `newton`, both device fields must identify CUDA,
-and the tensor view must have a CUDA context. A requested device or a
-successful package import alone does not establish GPU physics.
+> Move the green cube to the green square.
 
-Use the existing commands and receipts for status:
+Wait for the result. Check that the cube was released inside the square.
+Then send:
+
+> Reset the scene. Inspect it after the reset.
+
+After reset completes, send:
+
+> Put the orange in the open box.
+
+Check that the orange was released inside the box. Reset and inspect again
+before the next visitor.
+
+OpenClaw may say "Placement unverified" because its tool reports only the
+object's center position. The startup proof checks full placement separately.
+
+## 5. Recover
+
+For a missed grasp, ask OpenClaw to reset and inspect before another order.
+Do the same after `did not settle at home`. This occurred after the tested
+orange placement; the following reset passed.
+For an installer error, keep the diagnostic and rerun the same install command.
+For a stalled camera or failed startup, restart this installation:
 
 ```bash
-./run.sh check isaac
-.openclaw-cli/bin/openclaw --profile cascade-demo gateway status
+./run.sh down
+python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open
+```
+
+Find the latest desktop log and physical proof here:
+
+```bash
 python3 -m json.tool runs/.install/desktop-latest.json
 python3 -m json.tool runs/.launch/profile-cascade-demo/proof.json
 ```
 
-Cold collision preprocessing and shader warmup can exceed ten minutes;
-the launcher allows 1,200 seconds for Isaac by default. Logs are under
-`runs/.install/` and `runs/.launch/profile-cascade-demo/`. A fresh successful
-proof must show a physics-confirmed pick and reset in the same world.
-Preparation alone does not print a verified READY result.
+Full logs are in `runs/.install/desktop-*/progress.log` and
+`runs/.launch/profile-cascade-demo/`. Case screenshots and audits are in
+the `evidence_dir` named by the proof.
 
-For the smoke test, inspect the scene, check that every configured camera
-advances, move a supported object, confirm its release, then reset and
-inspect again. Use the [full Spark acceptance checklist](SPARK_DELIVERY.md#cold-start-acceptance-on-a-spark)
-before offering the machine to attendees.
+The demo uses gateway port 18790, model port 8080 and Isaac bridge port 8611.
+A port conflict stops startup with a diagnostic. Keep the existing personal
+OpenClaw gateway on 18789 and other services running.
 
-For a missed grasp, inspect and reset before retrying. For a stale camera,
-check the bridge log and current frames. If this installation needs a
-restart, `./run.sh down` stops its owned processes; then repeat the desktop
-launch. Leave unrelated services and occupied ports alone. Keep the logs
-when a check fails, fix the reported prerequisite, and rerun the same ref.
-
-## Ports and access
-
-| Port | Use | Access |
-| --- | --- | --- |
-| 18790 | Dedicated OpenClaw demo gateway | Loopback; private administration |
-| 18789 | Existing default OpenClaw gateway | Leave existing service alone |
-| 8611 | Isaac control bridge | Loopback; contains raw control operations |
-| 8082 | Local reasoning API | Loopback |
-| 5556 | Optional grasp service | Private; the shipped stub binds loopback |
-| 5557 | Optional occupancy service | Binds all interfaces; restrict with the host firewall |
-
-The Spark installer does not publish the Brev visitor or create an ngrok
-tunnel. A public visitor needs a separately configured authenticated proxy
-with a small route allowlist. Keep gateway bootstrap, raw control and admin
-routes private. Do not expose these service ports directly. Do not install
-Hermes or Telegram on the demo host.
-
-## What differs from Brev
-
-Brev runs an x86_64 container with its own event configuration, camera relay,
-authentication and supervision. Spark needs arm64 dependencies, GB10/shared
-memory qualification and its own Newton rehearsal. The Brev deployment
-profile is not a Spark installer. Shared source and successful Brev runs do
-not certify a Spark cold start.
-
-Return to the [booth guide](BOOTH_GUIDE.md) for the staff script and recovery
-steps used at Build a Claw.
+See [Spark delivery](SPARK_DELIVERY.md) for file identities and acceptance details.

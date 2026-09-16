@@ -27,6 +27,7 @@ def test_private_delivery_artifacts_are_ignored_without_hiding_manifests(tmp_pat
         ".cosmos/bin/vllm", ".isaacsim/bin/python",
         "models/Cosmos3-Edge-hf/config.json", "models/.Cosmos3-Edge-hf.lock",
         "models/.Cosmos3-Edge-hf.staging-test/model.safetensors",
+        ".llama.cpp/build/bin/llama-server", "models/qwen3.8-27b/LICENSE",
     ]
     result = subprocess.run(["git", "check-ignore", "--stdin"], cwd=tmp_path,
                             input="\n".join(artifacts) + "\n", capture_output=True, text=True)
@@ -109,12 +110,12 @@ def test_source_selection_survives_helper_launch(tmp_path, monkeypatch):
     source = source_release(tmp_path)
     monkeypatch.setenv("ISAACSIM_PATH", str(source))
     monkeypatch.delenv("ISAACSIM_PYTHON_EXE", raising=False)
-    assert helper.launch(repo, "spark", "cosmos", no_open=True) == 0
+    assert helper.launch(repo, "spark", "qwen", no_open=True) == 0
     try:
         record = json.loads((repo / "launch-record.json").read_text())
         assert record["env"]["ISAACSIM_PYTHON_EXE"] == str(source / "python.sh")
     finally:
-        for process in helper._fixture_cosmos:
+        for process in helper._fixture_qwen:
             helper.stop_group(process)
 
 
@@ -124,14 +125,14 @@ def test_direct_helper_launch_does_not_grant_eula_consent(tmp_path, monkeypatch)
     monkeypatch.setattr(helper, "model_health", lambda: True)
     monkeypatch.setattr(helper.subprocess, "Popen", lambda *a, **kw: pytest.fail("spawned without consent"))
     with pytest.raises(RuntimeError, match="consent|accept-eula"):
-        helper.launch(tmp_path, "spark", "cosmos")
+        helper.launch(tmp_path, "spark", "qwen")
     assert not (tmp_path / "runs/.launch").exists()
 
 
 def test_spark_cannot_keep_an_unproven_cloud_brain(tmp_path):
     result = run_stdin(tmp_path, "--profile", "spark", "--brain", "keep", "--dry-run")
     assert result.returncode != 0
-    assert "cosmos" in result.stderr.lower()
+    assert "qwen" in result.stderr.lower()
 
 
 def test_install_check_accepts_private_npm_cli_layout(tmp_path, monkeypatch):
@@ -140,9 +141,10 @@ def test_install_check_accepts_private_npm_cli_layout(tmp_path, monkeypatch):
     package.parent.mkdir(parents=True)
     package.write_text('{"version":"2026.9.3"}')
     monkeypatch.setattr(helper, "scene_problems", lambda repo: [])
+    monkeypatch.setattr(helper, "kitchen_problems", lambda repo: [])
     monkeypatch.setattr(helper, "model_asset_valid", lambda *args: True)
     monkeypatch.setattr(helper.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, "", ""))
-    problems = helper.installation_problems(tmp_path, "spark", "cosmos")
+    problems = helper.installation_problems(tmp_path, "spark", "qwen")
     assert not any("OpenClaw" in p for p in problems), problems
 
 
@@ -158,7 +160,7 @@ def test_launch_failure_before_proof_invalidates_previous_green_receipt(launcher
     assert json.loads((state / "proof.json").read_text())["verified"] is False
 
 
-def test_supervised_cosmos_startup_failure_invalidates_previous_green(tmp_path, monkeypatch):
+def test_supervised_qwen_startup_failure_invalidates_previous_green(tmp_path, monkeypatch):
     helper, repo = launch_fixture(tmp_path, monkeypatch)
     state = repo / "runs/.launch/profile-cascade-demo"
     state.mkdir(parents=True)
@@ -170,13 +172,13 @@ def test_supervised_cosmos_startup_failure_invalidates_previous_green(tmp_path, 
 
     monkeypatch.setattr(helper, "model_health", unhealthy_model)
     with pytest.raises(RuntimeError, match="wrong model"):
-        helper.launch(repo, "spark", "cosmos")
+        helper.launch(repo, "spark", "qwen")
     current = json.loads((state / "proof.json").read_text())
     assert current["verified"] is False
     assert current["profile"] == "cascade-demo"
     assert (state / current["attempt"] / "previous-proof.json").read_text() == previous
     assert not (repo / "launch-record.json").exists()
-    assert helper._fixture_cosmos == []
+    assert helper._fixture_qwen == []
 
 
 def test_launch_preserves_profile_home_workspace_and_open_vocabulary(launcher_boundary):
@@ -226,7 +228,7 @@ def test_run_restores_installed_source_profile_and_forces_spark_contract(tmp_pat
     assert lines[:2] == ["cascade-demo", "/a/source release"]
     assert "--setup" not in lines
     assert lines[lines.index("--sim") + 1] == "isaac"
-    assert lines[lines.index("--brain") + 1] == "cosmos"
+    assert lines[lines.index("--brain") + 1] == "qwen"
 
 
 @pytest.mark.parametrize("args", [["--sim"], ["--occupancy", "bogus"], ["--graspgenx", "bogus"]])
@@ -284,6 +286,12 @@ def test_spark_launcher_never_repairs_missing_deps_with_unpinned_pip(launcher_bo
     h["env"]["ISAACSIM_PYTHON_EXE"] = sys.executable  # metadata boundary, never reached
     command = list(h["command"])
     command[command.index("--sim") + 1] = "isaac"
+    command[command.index("--arm") + 1] = "isaac_kitchen_gpu"
+    scene = h["repo"] / "demo/scene/kitchen_config.json"
+    scene.parent.mkdir(parents=True)
+    scene.write_text("{}")
+    # This boundary targets dependency repair after the independent asset gate.
+    (h["repo"] / "scripts/kitchen_assets.py").write_text("raise SystemExit(0)\n")
     wrapper = Path(h["env"]["PY"])
     wrapper.write_text(wrapper.read_text().replace("print('')  # dependency boundary", "print('missing-perception')  # dependency boundary"))
     attempted = h["repo"] / "unexpected-install"
@@ -310,7 +318,7 @@ def test_mcp_preserves_explicit_view_disable(launcher_boundary):
 def test_isaac_cold_start_budget_is_visible_and_at_least_twenty_minutes(tmp_path):
     env = {**os.environ, "CASCADE_LAUNCH_STATE": str(tmp_path / "state")}
     env.pop("ISAAC_WAIT_S", None)
-    result = subprocess.run(["bash", str(REPO / "scripts/launch.sh"), "--dry-run", "--sim", "isaac", "--brain", "cosmos"],
+    result = subprocess.run(["bash", str(REPO / "scripts/launch.sh"), "--dry-run", "--sim", "isaac", "--brain", "qwen"],
                             env=env, text=True, capture_output=True, timeout=20)
     assert result.returncode == 0
     assert "startup budget=1200s" in result.stdout

@@ -26,14 +26,15 @@ bootstrap() {
             --no-open|--prepare-only) shift ;;
             -h|--help)
                 printf '%s\n' 'bootstrap.sh -> install.sh [--profile spark|laptop|ci] [--dir PATH] [--ref REF]' \
-                    '  --dry-run --check --accept-eula --prepare-only --no-open --brain cosmos|keep'
+                    '  --dry-run --check --accept-eula --prepare-only --no-open --brain qwen|keep'
                 return 0 ;;
             *) printf 'unknown flag %s\n' "$arg" >&2; return 2 ;;
         esac
     done
-    case "$profile" in spark) brain="${brain:-cosmos}" ;; laptop|ci) brain="${brain:-keep}" ;; *) printf 'unknown --profile %s\n' "$profile" >&2; return 2 ;; esac
-    case "$brain" in cosmos|keep) ;; *) printf 'unknown --brain %s\n' "$brain" >&2; return 2 ;; esac
-    [[ "$profile" == spark || "$brain" == keep ]] || { printf '%s\n' '--brain cosmos requires --profile spark' >&2; return 2; }
+    case "$profile" in spark) brain="${brain:-qwen}" ;; laptop|ci) brain="${brain:-keep}" ;; *) printf 'unknown --profile %s\n' "$profile" >&2; return 2 ;; esac
+    case "$brain" in qwen|keep) ;; *) printf 'unknown --brain %s\n' "$brain" >&2; return 2 ;; esac
+    [[ "$profile" == spark || "$brain" == keep ]] || { printf '%s\n' '--brain qwen requires --profile spark' >&2; return 2; }
+    [[ "$profile" != spark || "$brain" == qwen ]] || { printf '%s\n' 'Spark delivery requires --brain qwen' >&2; return 2; }
     [[ "$ref" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*$ && "$ref" != *..* && "$ref" != */ && "$ref" != *. && "$ref" != *.lock && "$ref" != */.* && "$ref" != *//* ]] || { printf 'invalid --ref %s\n' "$ref" >&2; return 2; }
     if [[ -f "$dir/scripts/install.sh" ]]; then
         return 10  # use local source; no network needed
@@ -42,12 +43,13 @@ bootstrap() {
     printf '[cascade-install] CASCADE Python 3.12 in %s/.venv\n' "$dir"
     if [[ "$profile" == spark ]]; then
         printf '[cascade-install] Isaac Sim 6.1.0, exact wheel 6.1.0.0 / Python 3.12 in %s/.isaacsim\n' "$dir"
-        [[ "$brain" != cosmos ]] || printf '[cascade-install] Cosmos3-Edge in %s/.cosmos, loopback :8082, GPU_FRAC=0.20\n' "$dir"
+        printf '[cascade-install] Qwen Q4 + vision projector: pinned downloads in %s/models/qwen3.8-27b; project-owned CUDA llama.cpp, loopback :8080\n' "$dir"
+        printf '%s\n' '[cascade-install] Kitchen: download and verify the 166-file kitchen-v1 release automatically.'
     fi
     [[ "$profile" == ci ]] || printf '[cascade-install] OpenClaw 2026.9.3 rootless in %s/.openclaw-cli (Spark profile cascade-demo)\n' "$dir"
     [[ "$dry" != 1 ]] || return 0
     if [[ "$check" == 1 ]]; then
-        printf '%s\n' "MISSING: source checkout, $dir/.venv, $dir/.isaacsim, $dir/.cosmos, OpenClaw private CLI"
+        printf '%s\n' "MISSING: source checkout, $dir/.venv, $dir/.isaacsim, local model / llama-server, OpenClaw private CLI"
         return 3
     fi
     [[ "$profile" != spark || "$accept" == 1 ]] || { printf '%s\n' 'Spark installation requires --accept-eula' >&2; return 2; }

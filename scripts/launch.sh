@@ -133,10 +133,28 @@ fi
 [[ "$ISAAC_WAIT_S" =~ ^[1-9][0-9]*$ ]] || { printf 'ISAAC_WAIT_S must be a positive integer\n' >&2; exit 2; }
 if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark && $DOWN == 0 ]]; then
     [[ "$SIM" != auto ]] || SIM=isaac
-    [[ "$BRAIN" != auto ]] || BRAIN=cosmos
-    [[ "$SIM" == isaac && "$BRAIN" == cosmos ]] || { printf '[launch] ERROR: Spark delivery requires Isaac + Cosmos, not a substituted demo\n' >&2; exit 2; }
-    [[ "$ISAAC_ENGINE" != physx ]] || { printf '[launch] ERROR: Spark delivery requires the Newton engine\n' >&2; exit 2; }
+    [[ "$BRAIN" != auto ]] || BRAIN=qwen
+    [[ "$SIM" == isaac && "$BRAIN" == qwen ]] || { printf '[launch] ERROR: Spark delivery requires Isaac + the pinned local model\n' >&2; exit 2; }
+    [[ "${ISAAC_ENGINE:-physx}" == physx ]] || { printf '[launch] ERROR: Spark event delivery uses the working booth PhysX engine\n' >&2; exit 2; }
+    ISAAC_ENGINE=physx
+    # Match the published kitchen's calibrated arm, event cameras and timestep.
+    SCENE_CONFIG="${SCENE_CONFIG:-$REPO/demo/scene/kitchen_config.json}"
+    ARM="${ARM:-isaac_kitchen_gpu}"
+    [[ "$ARM" == isaac_kitchen_gpu ]] || { printf '[launch] ERROR: Spark event delivery requires --arm isaac_kitchen_gpu\n' >&2; exit 2; }
+    CAMERAS="${CAMERAS:-isaac,isaac_side,isaac_proof}"
+    # Match the event booth's published OBB grasp path and disabled occupancy.
+    [[ "$OCCUPANCY" != auto ]] || OCCUPANCY=none
+    [[ "$OCCUPANCY" == none ]] || { printf '[launch] ERROR: Spark event delivery requires --occupancy none\n' >&2; exit 2; }
+    [[ "$GRASPGENX" != auto ]] || GRASPGENX=none
+    export CASCADE_QWEN_BASE_URL=http://127.0.0.1:8080/v1
+    export CASCADE_PROOF_CAMERA="${CASCADE_PROOF_CAMERA:-1}"
+    export CASCADE_ISAAC_PIXEL_MASK="${CASCADE_ISAAC_PIXEL_MASK:-1}"
+    export CASCADE_ISAAC_DT="${CASCADE_ISAAC_DT-0.008333333333333333}"
+    export CASCADE_PHYSICS_DEVICE="${CASCADE_PHYSICS_DEVICE:-cuda:0}"
+    export CASCADE_REQUIRE_CUDA=1
 fi
+
+[[ "$OCCUPANCY" != none ]] || export CASCADE_OCCUPANCY=0
 
 log()  { printf '[launch] %s\n' "$*"; }
 warn() { printf '[launch] WARNING: %s\n' "$*" >&2; }
@@ -180,6 +198,13 @@ ownerctl() {
 }
 STATE_DIR="$(ownerctl state-dir)" || die "invalid launch state/profile"
 export CASCADE_MCP_NAME="$MCP_NAME"
+if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
+    # Profile names alone still share the user's daemon manager. Keep the
+    # event config/database/cache in this checkout and run a private child.
+    export OPENCLAW_STATE_DIR="$STATE_DIR/openclaw"
+    export OPENCLAW_CONFIG_PATH="$OPENCLAW_STATE_DIR/openclaw.json"
+    export NODE_COMPILE_CACHE="$OPENCLAW_STATE_DIR/cache/node-compile"
+fi
 
 port_open() {  # port_open <port> [host]  -- macOS has no `ss`
     "$PY" - "$1" "${2:-127.0.0.1}" <<'PYEOF'
@@ -350,6 +375,11 @@ temporary.replace(previous)
 PYEOF
 fi
 
+if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
+    "$PY" "$REPO/scripts/kitchen_assets.py" --repo "$REPO" --check \
+        || die "Spark kitchen assets are missing or invalid; run python3 scripts/kitchen_assets.py --repo \"$REPO\" to install the bundle"
+fi
+
 # ── 1. deps ─────────────────────────────────────────────────────────────────
 pip_install() {  # pip_install <spec...>  -- uv when present (fast, no pip needed in the venv)
     [[ "${CASCADE_INSTALL_PROFILE:-}" != spark ]] || die "Spark dependencies are missing; repair via scripts/install.sh --profile spark --accept-eula (no unpinned installs at launch)"
@@ -485,6 +515,8 @@ fi
 # ── 3. simulator ────────────────────────────────────────────────────────────
 if [[ "$SIM" == "isaac" ]]; then
     isaac_metadata_check || die "Isaac Sim 6.1.0.0 installation is incomplete"
+    isaac_started_s=$SECONDS
+    bridge_pid=""
     if [[ "$(uname -s)" == Linux && "$(uname -m)" == aarch64 && -f /lib/aarch64-linux-gnu/libgomp.so.1 ]]; then
         export LD_PRELOAD="/lib/aarch64-linux-gnu/libgomp.so.1${LD_PRELOAD:+:$LD_PRELOAD}"
     fi
@@ -515,9 +547,10 @@ if [[ "$SIM" == "isaac" ]]; then
         fi
     fi
     # Probe borrowed bridges too. An open port is neither health nor proof.
-    "$PY" - "$BRIDGE_PORT" "$ISAAC_ENGINE" "$SCENE_CONFIG" "$SCENE_CONFIG_SHA256" <<'PYEOF' || die "Isaac bridge on :$BRIDGE_PORT failed health/scene identity -- see $STATE_DIR/isaac_bridge.log"
-import math, os, sys
-from cascade.sim.bridge_client import BridgeClient
+    isaac_remaining_s=$((ISAAC_WAIT_S - (SECONDS - isaac_started_s)))
+    "$PY" - "$BRIDGE_PORT" "$ISAAC_ENGINE" "$SCENE_CONFIG" "$SCENE_CONFIG_SHA256" "$isaac_remaining_s" "$bridge_pid" <<'PYEOF' || die "Isaac bridge on :$BRIDGE_PORT failed health/scene identity -- see $STATE_DIR/isaac_bridge.log"
+import math, os, sys, time
+from cascade.sim.bridge_client import BridgeClient, BridgeError
 expected_dt = None
 if 'CASCADE_ISAAC_DT' in os.environ:
     try:
@@ -525,30 +558,59 @@ if 'CASCADE_ISAAC_DT' in os.environ:
     except (TypeError, ValueError) as exc:
         raise AssertionError("invalid CASCADE_ISAAC_DT: expected finite timestep in (0, 1] seconds") from exc
     assert math.isfinite(expected_dt) and 0 < expected_dt <= 1, "invalid CASCADE_ISAAC_DT: expected finite timestep in (0, 1] seconds"
-c = BridgeClient(port=int(sys.argv[1]), timeout_s=20.0)
-c.connect()
-try:
-    pong = c.request({"op": "ping"})
-    assert pong.get("ok"), f"ping answered {pong!r}"
-    expected_engine, expected_scene, expected_sha = (sys.argv[2:] + ['', '', ''])[:3]
-    if expected_engine:
-        assert pong.get('engine') == expected_engine, f"requested Isaac engine {expected_engine!r}, received {pong.get('engine')!r}"
-    if expected_scene:
-        assert pong.get('scene_config') == expected_scene, f"requested scene {expected_scene!r}, received {pong.get('scene_config')!r}"
-        assert pong.get('scene_config_sha256') == expected_sha, 'running Isaac scene config differs from requested bytes; restart that scene explicitly'
-    if expected_dt is not None:
-        actual_dt = pong.get('physics_dt_s')
-        assert type(actual_dt) in (int, float) and math.isfinite(actual_dt) and 0 < actual_dt <= 1, "running Isaac bridge has no valid actual physics timestep; restart it explicitly"
-        assert math.isclose(actual_dt, expected_dt, rel_tol=1e-6, abs_tol=1e-12), (
-            f"requested Isaac timestep {expected_dt:.12g}s, received {actual_dt:.12g}s; restart that bridge explicitly")
-    st = c.request({"op": "state"})
-    assert st.get('ok') is True and isinstance(st.get('q'), list) and st['q'], f"invalid joint state: {st!r}"
-    assert all(isinstance(q, (int, float)) and math.isfinite(q) for q in st['q']), "non-finite joint state"
-    if os.environ.get('CASCADE_INSTALL_PROFILE') == 'spark':
-        assert pong.get('engine') == 'newton', f"Spark requires Newton, received {pong.get('engine')!r}"
-    print(f"[launch] Isaac bridge answers: engine={pong.get('engine')} dofs={len(pong.get('dofs') or [])} state_ok={bool(st.get('ok', True))} physics_dt_s={pong.get('physics_dt_s')}")
-finally:
-    c.close()
+deadline = time.monotonic() + max(0, float(sys.argv[5]) if len(sys.argv) > 5 else 20.0)
+owned_pid = int(sys.argv[6]) if len(sys.argv) > 6 and sys.argv[6] else None
+while True:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise RuntimeError('Isaac startup budget expired before finite joint state became ready')
+    if owned_pid is not None:
+        os.kill(owned_pid, 0)  # fail promptly if our bridge exited during warmup
+    c = BridgeClient(port=int(sys.argv[1]), timeout_s=min(20.0, remaining))
+    try:
+        c.connect()
+        pong = c.request({"op": "ping"})
+        assert pong.get("ok"), f"ping answered {pong!r}"
+        expected_engine, expected_scene, expected_sha = (sys.argv[2:] + ['', '', ''])[:3]
+        if expected_engine:
+            assert pong.get('engine') == expected_engine, f"requested Isaac engine {expected_engine!r}, received {pong.get('engine')!r}"
+        if expected_scene:
+            assert pong.get('scene_config') == expected_scene, f"requested scene {expected_scene!r}, received {pong.get('scene_config')!r}"
+            assert pong.get('scene_config_sha256') == expected_sha, 'running Isaac scene config differs from requested bytes; restart that scene explicitly'
+        if expected_dt is not None:
+            actual_dt = pong.get('physics_dt_s')
+            assert type(actual_dt) in (int, float) and math.isfinite(actual_dt) and 0 < actual_dt <= 1, "running Isaac bridge has no valid actual physics timestep; restart it explicitly"
+            assert math.isclose(actual_dt, expected_dt, rel_tol=1e-6, abs_tol=1e-12), (
+                f"requested Isaac timestep {expected_dt:.12g}s, received {actual_dt:.12g}s; restart that bridge explicitly")
+        if os.environ.get('CASCADE_INSTALL_PROFILE') == 'spark':
+            assert pong.get('engine') == 'physx', f"Spark event delivery requires PhysX, received {pong.get('engine')!r}"
+            attestation = pong.get('gpu_attestation') or {}
+            assert pong.get('physics_gpu') is True and attestation.get('required') is True, 'Spark requires live CUDA physics attestation'
+            assert attestation.get('backend') == 'physx' and attestation.get('cuda_context_present') is True, 'Spark requires the PhysX CUDA context'
+            assert attestation.get('gpu_dynamics') is True and attestation.get('broadphase') == 'GPU', 'Spark requires GPU dynamics and broadphase'
+            device = pong.get('physics_device')
+            assert isinstance(device, str) and device.startswith('cuda:') and device == pong.get('physics_tensor_device') == attestation.get('device') == attestation.get('tensor_device'), 'Spark physics and tensor CUDA devices differ'
+            ordinal = attestation.get('tensor_device_ordinal')
+            assert type(ordinal) is int and ordinal >= 0 and device == f'cuda:{ordinal}', 'Spark CUDA device ordinal differs from the tensor device'
+            assert attestation.get('cpu_fallback_allowed') is False, 'Spark event delivery forbids CPU physics fallback'
+        st = c.request({"op": "state"})
+        assert st.get('ok') is True and isinstance(st.get('q'), list) and st['q'], f"invalid joint state: {st!r}"
+        assert all(type(q) in (int, float) and math.isfinite(q) for q in st['q']), "non-finite joint state"
+        print(f"[launch] Isaac bridge answers: engine={pong.get('engine')} dofs={len(pong.get('dofs') or [])} state_ok={bool(st.get('ok', True))} physics_dt_s={pong.get('physics_dt_s')}")
+        break
+    except BridgeError as exc:
+        # The socket opens before physics settling and RTX warmup finish.
+        # Retry this explicit transient within the ORIGINAL startup budget.
+        # Identity errors, invalid state and other bridge failures stay fatal.
+        if str(exc) != 'physics read timed out waiting for the main loop':
+            raise
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError('Isaac startup budget expired waiting for the main loop') from exc
+        print(f'[launch] Isaac socket open; waiting for main loop ({remaining:.0f}s remain)', flush=True)
+    finally:
+        c.close()
+    time.sleep(min(1.0, max(0, deadline - time.monotonic())))
 PYEOF
 fi
 
@@ -635,16 +697,36 @@ log "brain resolution: $BRAIN_INFO"
 # gateway up (needed before onboarding and before the probe)
 GATEWAY_OWNED=0
 if ownerctl owns-gateway; then GATEWAY_OWNED=1; fi
+SPARK_GATEWAY_STARTED=0
+spark_gateway() {
+    "$PY" "$REPO/scripts/openclaw_gateway.py" "$1" --repo "$REPO" \
+        --state-dir "$STATE_DIR" --profile "$CASCADE_OPENCLAW_PROFILE" --port "$GATEWAY_PORT"
+}
+if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
+    run spark_gateway prepare || die "cannot prepare this checkout's OpenClaw gateway"
+    spark_gateway_cleanup() {
+        local status=$?
+        if [[ $status != 0 && $SPARK_GATEWAY_STARTED == 1 ]]; then
+            spark_gateway stop || warn "owned gateway cleanup failed; inspect $STATE_DIR/openclaw-gateway.log"
+        fi
+        return "$status"
+    }
+    trap spark_gateway_cleanup EXIT
+    trap 'exit 143' TERM
+    trap 'exit 129' HUP
+fi
 run oc config set gateway.mode local >/dev/null
 run oc config set gateway.port "$GATEWAY_PORT" --strict-json >/dev/null
-if port_open "$GATEWAY_PORT"; then
+if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
+    log "configuring the checkout's OpenClaw profile before foreground startup"
+elif port_open "$GATEWAY_PORT"; then
     "$PY" "$REPO/scripts/demo_proof.py" --wait-gateway 45 >/dev/null \
         || die "port :$GATEWAY_PORT does not answer for this OpenClaw profile; not touching that process"
     log "gateway already healthy on :$GATEWAY_PORT"
 else
     log "starting gateway"
-    run oc gateway install >/dev/null 2>&1 || true
-    run oc gateway start >/dev/null 2>&1 || true
+    run oc gateway install || die "OpenClaw gateway installation failed; inspect the diagnostic above"
+    run oc gateway start || die "OpenClaw gateway start failed; inspect the diagnostic above"
     if [[ $DRY == 0 ]]; then
         wait_port "$GATEWAY_PORT" 30 "OpenClaw gateway" || die "gateway never came up on :$GATEWAY_PORT (openclaw gateway status)"
         ownerctl record-gateway >/dev/null || die "cannot identify the gateway we started"
@@ -766,7 +848,14 @@ fi
 # coding agent's tools or personal skills (also keeps Cosmos context bounded).
 if [[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]]; then
     run oc config set agents.defaults.skills '[]' --strict-json >/dev/null
-    TOOL_ALLOW="$(MCP_PREFIX="$MCP_NAME" "$PY" -c 'import json,os; print(json.dumps([os.environ["MCP_PREFIX"]+"__*"]))')"
+    TOOL_ALLOW="$("$PY" - "$MCP_NAME" "${CASCADE_INSTALL_PROFILE:-}" <<'PYEOF'
+import json, sys
+names = ("world_state", "get_observation", "describe_scene", "camera_snapshot",
+         "analyze_scene", "pick_and_place", "reset_scene", "emergency_stop", "reset_stop"
+         ) if sys.argv[2] == "spark" else ("*",)
+print(json.dumps([sys.argv[1] + "__" + name for name in names]))
+PYEOF
+)"
     run oc config set tools.allow "$TOOL_ALLOW" --strict-json >/dev/null
     ACTIVE_CONFIG="$(oc config file)" || die "cannot resolve selected OpenClaw profile"
     PROFILE_WORKSPACE="$("$PY" -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).expanduser().parent / "workspace")' "$ACTIVE_CONFIG")"
@@ -775,14 +864,77 @@ if [[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]]; then
     mkdir -p "$PROFILE_WORKSPACE"
     run oc config set agents.defaults.workspace "$PROFILE_WORKSPACE" >/dev/null
     run oc config set agents.entries.main.workspace "$PROFILE_WORKSPACE" >/dev/null
+    if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
+        if [[ "$RESOLVED_BRAIN" != keep ]]; then
+            AGENT_MODELS="$("$PY" - "$ACTIVE_CONFIG" "$MID" "$BASE" <<'PYEOF'
+import json, pathlib, sys
+cfg = json.loads(pathlib.Path(sys.argv[1]).expanduser().read_text())
+defaults = cfg.get("agents", {}).get("defaults", {})
+selection = defaults.get("model", {})
+selected = selection.get("primary") if isinstance(selection, dict) else selection
+provider, _, model = (selected or "").partition("/")
+registered = cfg.get("models", {}).get("providers", {}).get(provider, {})
+if model != sys.argv[2] or registered.get("baseUrl", "").rstrip("/") != sys.argv[3].rstrip("/"):
+    raise SystemExit("selected Spark model differs from the onboarded local provider")
+models = defaults.get("models", {})
+params = models.setdefault(selected, {}).setdefault("params", {})
+params["temperature"] = 0
+# The local native parser can hold an empty-argument call until the response
+# budget ends. Keep event replies short enough to arrive within the host turn.
+params["maxTokens"] = min(int(params.get("maxTokens", 256)), 256)
+params.setdefault("chat_template_kwargs", {})["enable_thinking"] = False
+print(json.dumps(models))
+PYEOF
+)" || die "could not configure selected Spark model parameters"
+            run oc config set agents.defaults.models "$AGENT_MODELS" --strict-json >/dev/null
+            # Keep the small local controller's context about this kitchen.
+            # The supported hook retains the entire selected workspace AGENTS.md;
+            # native tools, conversation history and physical checks are unchanged.
+            KITCHEN_PLUGINS="$("$PY" - "$ACTIVE_CONFIG" "$REPO" "$PROFILE_WORKSPACE" <<'PYEOF'
+import json, pathlib, sys
+cfg = json.loads(pathlib.Path(sys.argv[1]).expanduser().read_text())
+selection = cfg["agents"]["defaults"]["model"]
+selected = selection["primary"] if isinstance(selection, dict) else selection
+provider, _, model = selected.partition("/")
+plugins = cfg.get("plugins", {})
+plugin_id = "cascade-kitchen-prompt"
+plugin_path = str(pathlib.Path(sys.argv[2]) / "demo/kitchen/openclaw-plugin")
+paths = plugins.setdefault("load", {}).setdefault("paths", [])
+if plugin_path not in paths:
+    paths.append(plugin_path)
+if "allow" in plugins and plugin_id not in plugins["allow"]:
+    plugins["allow"].append(plugin_id)
+entry = plugins.setdefault("entries", {}).setdefault(plugin_id, {})
+entry["enabled"] = True
+entry.setdefault("hooks", {}).update(allowConversationAccess=True, allowPromptInjection=True)
+entry["config"] = {"workspaceDir": sys.argv[3], "modelProviderId": provider, "modelId": model}
+print(json.dumps(plugins))
+PYEOF
+)" || die "could not configure the kitchen chat context"
+            run oc config set plugins "$KITCHEN_PLUGINS" --strict-json >/dev/null
+        fi
+        "$PY" - "$REPO" "$PROFILE_WORKSPACE" <<'PYEOF' || die "could not synchronize kitchen visitor instructions in $PROFILE_WORKSPACE"
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]) / 'demo/kitchen'))
+from visitor_instructions import sync_visitor_instructions
+sync_visitor_instructions(Path(sys.argv[2]))
+PYEOF
+    fi
 fi
 
-# the gateway serves a stale tool list until restarted after `mcp set`
-log "restarting gateway so it loads the '$MCP_NAME' tools"
-run oc gateway restart >/dev/null 2>&1 || true
-[[ $DRY == 0 ]] && { "$PY" "$REPO/scripts/demo_proof.py" --wait-gateway 60 >/dev/null || die "gateway did not become healthy after restart"; }
-if [[ $GATEWAY_OWNED == 1 ]]; then
-    ownerctl record-gateway >/dev/null || die "cannot identify our restarted gateway"
+if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
+    log "starting the checkout's foreground gateway with '$MCP_NAME' tools"
+    [[ $DRY == 1 ]] || SPARK_GATEWAY_STARTED=1
+    run spark_gateway start || die "OpenClaw foreground startup failed; inspect $STATE_DIR/openclaw-gateway.log"
+else
+    # Managed development gateways reload the MCP configuration via restart.
+    log "restarting gateway so it loads the '$MCP_NAME' tools"
+    run oc gateway restart >/dev/null 2>&1 || true
+    [[ $DRY == 0 ]] && { "$PY" "$REPO/scripts/demo_proof.py" --wait-gateway 60 >/dev/null || die "gateway did not become healthy after restart"; }
+    if [[ $GATEWAY_OWNED == 1 ]]; then
+        ownerctl record-gateway >/dev/null || die "cannot identify our restarted gateway"
+    fi
 fi
 run oc config validate >/dev/null
 

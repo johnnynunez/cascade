@@ -200,6 +200,49 @@ def test_metadata_only_does_not_write_or_fetch(tmp_path, monkeypatch, capsys):
     assert not root.exists()
 
 
+def test_spark_manifest_pins_q4_and_matching_vision_projector():
+    manifest = SCRIPT.parent / "profiles/qwen3.8-27b-q4.json"
+    files = fetch.load_manifest(manifest, 32 * 1024**3)
+    assert [a.filename for a in files] == ["Qwen3.8-27B-UD-Q4_K_XL.gguf", "mmproj-BF16.gguf", "LICENSE"]
+    assert sum(a.size_bytes for a in files) == 18_854_552_600
+    assert all("/resolve/f1bfb127c64f7072bdd2cad55f258b9c8b2910fe/" in a.url for a in files[:2])
+
+
+def test_empty_destination_downloads_from_mirror_and_retains_public_identity(tmp_path, monkeypatch):
+    model = fetch.Artifact("Qwen-fixture.gguf", len(BODY), hashlib.sha256(BODY).hexdigest(),
+                           "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/" + "a" * 40 + "/Qwen-fixture.gguf")
+    monkeypatch.setattr(fetch, "load_manifest", lambda *args: [model])
+    root = tmp_path / "fresh"
+    with local_server(lambda handler, number: full_response(handler)) as (url, requests):
+        assert fetch.main(["--root", str(root), "--model-mirror-url", url, "--reserve-bytes", "0"]) == 0
+    assert requests == [None]
+    destination = root / fetch.MODEL_DIRECTORY / model.filename
+    assert destination.read_bytes() == BODY
+    receipt = json.loads(destination.with_name(model.filename + ".verified.json").read_text())
+    assert receipt["url"] == model.url
+    assert receipt["download_url"] == url
+    assert receipt["sha256"] == model.sha256
+    before = {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in root.rglob("*") if p.is_file()}
+    monkeypatch.setattr(fetch, "_sha256_file", lambda *args: pytest.fail("unchanged receipt rehashed"))
+    assert fetch.main(["--root", str(root), "--check"]) == 0
+    after = {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in root.rglob("*") if p.is_file()}
+    assert before == after
+
+
+@pytest.mark.parametrize("url", ["https://127.0.0.1/model", "http://example.com/model", "http://user@localhost/model", "http://localhost/model?token=x"])
+def test_model_mirror_rejects_nonlocal_or_credentialled_urls(tmp_path, capsys, url):
+    root = tmp_path / "absent"
+    assert fetch.main(["--root", str(root), "--model-mirror-url", url]) == 1
+    assert "loopback HTTP URL" in capsys.readouterr().out
+    assert not root.exists()
+
+
+def test_check_missing_models_does_not_create_destination(tmp_path):
+    root = tmp_path / "absent"
+    assert fetch.main(["--root", str(root), "--check"]) == 1
+    assert not root.exists()
+
+
 def test_download_requires_an_explicit_root(capsys):
     assert fetch.main([]) == 1
     assert "--root is required" in capsys.readouterr().out

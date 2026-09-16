@@ -56,11 +56,16 @@ def test_launch_adapter_runs_real_child_with_exit_status_and_sanitized_env(tmp_p
     child = tmp_path / "child.py"
     child.write_text('import os,json,sys; print(json.dumps(dict(os.environ))); sys.exit(17)\n')
     result = subprocess.run([sys.executable, str(ROOT / "scripts/isaac_launch.py"), "--python", sys.executable, "--", str(child)],
-                            env={**os.environ, "PYTHONEXE": "/agent/python", "VIRTUAL_ENV": "/agent"},
+                            env={**os.environ, "PYTHONEXE": "/agent/python", "VIRTUAL_ENV": "/agent",
+                                 "CASCADE_REQUIRE_CUDA": "1", "CASCADE_ISAAC_DT": "0.008333333333333333",
+                                 "PAAI_CAMERA_VIDEO_CONFIG": str(tmp_path / "optional-video.json")},
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 17
     env = json.loads(result.stdout)
     assert "PYTHONEXE" not in env and "VIRTUAL_ENV" not in env
+    assert env["CASCADE_REQUIRE_CUDA"] == "1"
+    assert env["CASCADE_ISAAC_DT"] == "0.008333333333333333"
+    assert "PAAI_CAMERA_VIDEO_CONFIG" not in env
 
 
 def test_term_reaches_the_source_wrappers_child_process(tmp_path):

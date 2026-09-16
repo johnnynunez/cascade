@@ -27,7 +27,7 @@ usage() {
         '  --check         read-only preflight; nonzero when prerequisites missing' \
         '  --prepare-only  install/cache + Spark shortcuts; no services or proof' \
         '  --no-open       do not open the browser' \
-        '  --brain cosmos|keep  default: cosmos on Spark, keep on laptop'
+        '  --brain qwen|keep  default: qwen on Spark, keep on laptop'
 }
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -49,18 +49,19 @@ while [[ $# -gt 0 ]]; do
         *) die "unknown flag $1 (see --help)" ;;
     esac
 done
-case "$PROFILE" in spark) BRAIN="${BRAIN:-cosmos}" ;; laptop|ci) BRAIN="${BRAIN:-keep}" ;; *) die "unknown --profile $PROFILE" ;; esac
-case "$BRAIN" in cosmos|keep) ;; *) die "unknown --brain $BRAIN" ;; esac
-[[ "$PROFILE" != spark || "$BRAIN" == cosmos ]] || die 'Spark delivery requires --brain cosmos; use --profile laptop explicitly for other brains'
-[[ "$PROFILE" == spark || "$BRAIN" == keep ]] || die "--brain cosmos requires --profile spark"
+case "$PROFILE" in spark) BRAIN="${BRAIN:-qwen}" ;; laptop|ci) BRAIN="${BRAIN:-keep}" ;; *) die "unknown --profile $PROFILE" ;; esac
+case "$BRAIN" in qwen|keep) ;; *) die "unknown --brain $BRAIN" ;; esac
+[[ "$PROFILE" != spark || "$BRAIN" == qwen ]] || die 'Spark delivery requires --brain qwen; use --profile laptop explicitly for other brains'
+[[ "$PROFILE" == spark || "$BRAIN" == keep ]] || die "--brain qwen requires --profile spark"
 [[ "$REF" =~ ^[A-Za-z0-9_][A-Za-z0-9_./-]*$ && "$REF" != *..* && "$REF" != */ && "$REF" != *. && "$REF" != *.lock && "$REF" != */.* && "$REF" != *//* ]] || die "invalid --ref $REF"
 case "$DIR" in /*) ;; *) DIR="$PWD/$DIR" ;; esac
 log "profile=$PROFILE brain=$BRAIN source=$REF dir=$DIR"
 log "CASCADE: Python 3.12 in $DIR/.venv; source changes are preserved"
 if [[ "$PROFILE" == spark ]]; then
-    log "Isaac Sim 6.1.0: reuse selected/discovered source unchanged; otherwise isaacsim[all,extscache]==6.1.0.0 in $DIR/.isaacsim (Python 3.12)"
+    log "Isaac Sim 6.1.0: isaacsim[all,extscache]==6.1.0.0 in $DIR/.isaacsim (Python 3.12); explicit ISAACSIM_PATH is honored"
     log "YOLOE: CUDA aarch64 cu130 torch + torchvision, promptable/prompt-free weights + mobileclip_blt.ts"
-    [[ "$BRAIN" != cosmos ]] || log "Cosmos3-Edge: isolated $DIR/.cosmos; loopback :8082, GPU_FRAC=0.20"
+    log "Qwen Q4 + vision projector: pinned downloads in $DIR/models/qwen3.8-27b; verified CUDA llama.cpp in $DIR/.llama.cpp, loopback :8080"
+    log 'Kitchen: download and verify the 166-file kitchen-v1 release automatically.'
 fi
 [[ "$PROFILE" == ci ]] || log "OpenClaw 2026.9.3: rootless private install, profile cascade-demo on Spark"
 log 'No driver/OS changes. GPU rehearsal remains required; installation is not physical proof.'
@@ -88,7 +89,7 @@ if [[ "$CHECK" == 1 ]]; then
         else
             missing "$DIR/.isaacsim/bin/python or a valid ISAACSIM_PATH (Isaac 6.1.0.0)"
         fi
-        [[ "$BRAIN" != cosmos || -x "$DIR/.cosmos/bin/vllm" ]] || missing "$DIR/.cosmos/bin/vllm (Cosmos3-Edge)"
+        [[ -f "$DIR/scripts/serve_qwen_llamacpp.sh" ]] || missing 'local model / llama-server setup helper'
     fi
     [[ "$PROFILE" == ci || -x "$DIR/.openclaw-cli/bin/openclaw" ]] || missing 'OpenClaw 2026.9.3 private CLI'
     if [[ -f "$DIR/scripts/install_support.py" && -x "$DIR/.venv/bin/python" ]]; then
@@ -174,6 +175,8 @@ case "$PROFILE" in
     spark) EXTRAS=kinematics,grasping,occupancy,llm,perception ;;
 esac
 if [[ "$PROFILE" == spark ]]; then
+    # Resolve source payloads before the large runtime/package downloads.
+    "$PY" "$DIR/scripts/install_support.py" robot-assets --repo "$DIR"
     retry uv pip install --python "$PY" 'torch==2.14.0+cu130' 'torchvision==0.29.0+cu130' \
         --index-url https://download.pytorch.org/whl/cu130
 fi
@@ -220,13 +223,16 @@ if [[ ! "$OC_VERSION" =~ (^|[[:space:]])2026\.9\.3($|[[:space:]]) ]]; then
 fi
 OC_VERSION="$("$OC_PREFIX/bin/openclaw" --version)"
 [[ "$OC_VERSION" =~ (^|[[:space:]])2026\.9\.3($|[[:space:]]) ]] || die "OpenClaw version mismatch: $OC_VERSION (expected 2026.9.3)"
-if [[ "$BRAIN" == cosmos ]]; then
-    VENV="$DIR/.cosmos" MODEL_DIR="$DIR/models" GPU_FRAC=0.20 COSMOS_PYTHON="$PY" \
-        "$DIR/scripts/serve_cosmos_vllm.sh" --setup-only
+if [[ "$BRAIN" == qwen ]]; then
+    retry uv pip install --python "$PY" 'cmake==4.1.0' 'ninja==1.13.0'
+    PY="$PY" MODEL_ROOT="$DIR" CASCADE_INSTALL_PROFILE="$PROFILE" "$DIR/scripts/serve_qwen_llamacpp.sh" --setup-only
 fi
 if [[ "$PREPARE" == 1 ]]; then
     record_install
     log 'PREPARED: dependencies/assets cached. No services started, no runtime or physical proof performed.'
+    if [[ "$PROFILE" == spark ]]; then
+        printf '[cascade-install] Next: python3 %q launch --repo %q\n' "$DIR/scripts/desktop.py" "$DIR"
+    fi
     exit 0
 fi
 record_install

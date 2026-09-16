@@ -222,6 +222,8 @@ __marimo__/
 /.isaacsim/
 /.cosmos/
 /.cosmos-omni/
+/.llama.cpp/
+/models/qwen3.8-27b/
 /models/Cosmos3-Edge-hf/
 /models/.Cosmos3-Edge-hf.lock
 /models/.Cosmos3-Edge-hf.staging-*/

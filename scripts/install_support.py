@@ -8,11 +8,13 @@ imports torch/Isaac in the installer process or changes third-party sources.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
 from pathlib import Path
 import shlex
+import shutil
 import signal
 import socket
 import subprocess
@@ -24,6 +26,7 @@ import uuid
 import zipfile
 
 from fetch_robot_assets import fetch
+from kitchen_assets import kitchen_problems, prepare_kitchen
 
 # Release asset byte counts from github.com/ultralytics/assets v8.3.0.
 # The two YOLOE weights are already tracked; only the TS encoder is not.
@@ -33,6 +36,8 @@ MODEL_ASSETS = {
     "mobileclip_blt.ts": 599764649,
 }
 MODEL_RELEASE = "https://github.com/ultralytics/assets/releases/download/v8.3.0"
+ROBOT_ASSET_DIRS = ("assets/usd/RS-rebot-dev-arm", "assets/urdf/00-arm-rs_asm-v3")
+ROBOT_LFS_INCLUDE = ",".join(f"{directory}/**" for directory in ROBOT_ASSET_DIRS)
 
 
 def model_asset_valid(path: Path, size: int) -> bool:
@@ -45,13 +50,34 @@ def model_asset_valid(path: Path, size: int) -> bool:
         return False
 
 
+def model_lfs_pointer(path: Path, size: int) -> bool:
+    """Recognize a canonical placeholder for this exact expected payload size."""
+    try:
+        if not path.is_file() or path.stat().st_size > 1024:
+            return False
+        lines = path.read_text(encoding="ascii").splitlines()
+    except (OSError, UnicodeError):
+        return False
+    return (
+        len(lines) == 3
+        and lines[0] == "version https://git-lfs.github.com/spec/v1"
+        and lines[1].startswith("oid sha256:")
+        and len(lines[1][11:]) == 64
+        and all(char in "0123456789abcdef" for char in lines[1][11:])
+        and lines[2] == f"size {size}"
+    )
+
+
 def ensure_model_asset(url: str, dest: Path, size: int) -> None:
     if dest.exists():
-        if not model_asset_valid(dest, size):
+        if model_asset_valid(dest, size):
+            return
+        if not model_lfs_pointer(dest, size):
             raise RuntimeError(
                 f"invalid model asset {dest}; preserve/move it aside explicitly, then retry"
             )
-        return
+        # A clone without LFS leaves tracked placeholders. The existing pinned
+        # release download can hydrate these; arbitrary corrupt files stay put.
     staged = dest.with_suffix(dest.suffix + ".download")
     try:
         # Reuse the existing byte-count checked, retrying downloader. Validate
@@ -91,7 +117,7 @@ def scene_problems(repo: Path) -> list[str]:
                 "ls-files",
                 "-z",
                 "--",
-                "assets/usd/RS-rebot-dev-arm",
+                *ROBOT_ASSET_DIRS,
             ],
             capture_output=True,
             check=True,
@@ -113,19 +139,61 @@ def scene_problems(repo: Path) -> list[str]:
     return problems
 
 
-def prepare_assets(repo: Path) -> None:
+def prepare_robot_assets(repo: Path) -> None:
+    """Hydrate only unresolved shipped robot payloads, without changing Git config."""
     problems = scene_problems(repo)
+    if any(problem.startswith("unresolved Git LFS pointer:") for problem in problems):
+        if shutil.which("git-lfs") is None:
+            raise RuntimeError(
+                "The shipped robot assets need Git LFS. Install git-lfs, verify "
+                "`git lfs version`, then rerun the Spark installer; it will fetch "
+                "only the required robot USD/URDF subtrees."
+            )
+        result = subprocess.run(
+            ["git", "-C", str(repo), "lfs", "pull", f"--include={ROBOT_LFS_INCLUDE}", "--exclude="],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode:
+            raise RuntimeError(
+                "Robot Git LFS download failed; rerun the Spark installer after "
+                f"repairing access: {result.stderr.strip() or result.stdout.strip()}"
+            )
+        problems = scene_problems(repo)
     if problems:
         raise RuntimeError("\n".join(problems))
+
+
+def prepare_assets(repo: Path) -> None:
+    prepare_robot_assets(repo)
     for name, size in MODEL_ASSETS.items():
         ensure_model_asset(f"{MODEL_RELEASE}/{name}", repo / "models" / name, size)
+    prepare_kitchen(repo)
     print(
-        "[cascade-install] Shipped reBot assets and YOLOE/TS encoder validated; no unrelated robot assets fetched."
+        "[cascade-install] reBot, perception and Build a Claw kitchen assets validated."
     )
 
 
-COSMOS_PORT = 8082
+QWEN_PORT = 8080
 EULA_URL = "https://docs.omniverse.nvidia.com/eula"
+MODEL_ENV_KEYS = ("CASCADE_QWEN_MODEL", "CASCADE_QWEN_MMPROJ", "LLAMA_SERVER", "LLAMA_DIR")
+
+
+def model_environment(repo: Path) -> dict[str, str]:
+    """Retain only local model/server paths, with explicit environment overrides."""
+    try:
+        record = json.loads((repo / "runs/.install/install.json").read_text())
+        saved = record.get("model_environment", {}) if record.get("repo") == str(repo.resolve()) else {}
+        if not isinstance(saved, dict):
+            saved = {}
+    except (OSError, ValueError, AttributeError):
+        saved = {}
+    result = {}
+    for key in MODEL_ENV_KEYS:
+        value = os.environ.get(key, saved.get(key))
+        if isinstance(value, str):
+            result[key] = str(Path(value).expanduser().resolve()) if value else ""
+    return result
 
 
 def eula_accepted(repo: Path) -> bool:
@@ -146,17 +214,7 @@ def isaac_environment(repo: Path) -> dict[str, str]:
     if not selected and source:
         selected = str(Path(source).expanduser() / "python.sh")
     if not selected:
-        managed = repo / ".isaacsim/bin/python"
-        selected = str(managed)
-        if not managed.is_file():
-            home = Path.home()
-            releases = [home / f"Projects/isaac/IsaacSim/_build/linux-{os.uname().machine}/release",
-                        home / "isaacsim", *sorted((home / ".local/share/ov/pkg").glob("isaac-sim-*")),
-                        Path("/isaac-sim")]
-            for release in releases:
-                if os.access(release / "python.sh", os.X_OK):
-                    selected = str(release / "python.sh")
-                    break
+        selected = str(repo / ".isaacsim/bin/python")
     python = Path(selected).expanduser().absolute()
     env = {"ISAACSIM_PYTHON_EXE": str(python)}
     if python.name == "python.sh":
@@ -169,7 +227,7 @@ def model_health() -> bool:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
         with opener.open(
-            f"http://127.0.0.1:{COSMOS_PORT}/v1/models", timeout=2
+            f"http://127.0.0.1:{QWEN_PORT}/v1/models", timeout=2
         ) as response:
             data = json.load(response)
     except (OSError, ValueError, urllib.error.URLError):
@@ -179,11 +237,33 @@ def model_health() -> bool:
         if isinstance(data, dict)
         else set()
     )
-    if "cosmos3-edge" not in models:
+    if "Qwen/Qwen3.8-27B" not in models:
         raise RuntimeError(
-            f"wrong model on :{COSMOS_PORT}: {sorted(models, key=str)}; expected cosmos3-edge"
+            f"wrong model on :{QWEN_PORT}: {sorted(models, key=str)}; expected Qwen/Qwen3.8-27B"
         )
     return True
+
+
+def qwen_binding(repo: Path, env: dict[str, str]) -> dict:
+    """Bind a supervised model process to its selected files and launch script."""
+    directory = repo / "models/qwen3.8-27b"
+    server_directory = Path(env.get("LLAMA_DIR") or repo / ".llama.cpp")
+    paths = {
+        "model": Path(env.get("CASCADE_QWEN_MODEL") or directory / "Qwen3.8-27B-UD-Q4_K_XL.gguf"),
+        "projector": Path(env.get("CASCADE_QWEN_MMPROJ") or directory / "mmproj-BF16.gguf"),
+        "server": Path(env.get("LLAMA_SERVER") or server_directory / "build/bin/llama-server"),
+    }
+    identities = {}
+    for role, path in paths.items():
+        try:
+            info = path.stat()
+        except OSError as exc:
+            raise RuntimeError(f"Qwen {role} is missing at {path}; rerun the Spark installer") from exc
+        identities[role] = {"path": str(path.resolve()), "size_bytes": info.st_size,
+                            "mtime_ns": info.st_mtime_ns, "ctime_ns": info.st_ctime_ns,
+                            "device": info.st_dev, "inode": info.st_ino}
+    return {"files": identities, "port": QWEN_PORT,
+            "launcher_sha256": hashlib.sha256((repo / "scripts/serve_qwen_llamacpp.sh").read_bytes()).hexdigest()}
 
 
 def stop_group(process: subprocess.Popen) -> None:
@@ -210,22 +290,29 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False) -> in
         live_records, load_owner, profile_state_dir, register_process,
     )
 
-    wait_seconds = float(os.environ.get("CASCADE_COSMOS_WAIT_S", "1800"))
+    wait_seconds = float(os.environ.get("CASCADE_MODEL_WAIT_S", "1800"))
     if not math.isfinite(wait_seconds) or wait_seconds <= 0:
-        raise ValueError("CASCADE_COSMOS_WAIT_S must be positive and finite")
+        raise ValueError("CASCADE_MODEL_WAIT_S must be positive and finite")
     env = os.environ.copy()
     env["PY"] = str(repo / ".venv/bin/python")
     if profile == "spark":
-        if brain != "cosmos":
-            raise RuntimeError("Spark delivery requires the local cosmos brain; use laptop explicitly for other modes")
+        if brain != "qwen":
+            raise RuntimeError("Spark delivery requires the local qwen brain; use laptop explicitly for other modes")
         if not eula_accepted(repo):
             raise RuntimeError("Spark launch requires explicit consent: run install.sh --accept-eula first")
         env.pop("ISAACSIM_PATH", None)
         env.update(isaac_environment(repo))
+        env.update(model_environment(repo))
         env["CASCADE_INSTALL_PROFILE"] = "spark"
         env["CASCADE_OPENCLAW_PROFILE"] = "cascade-demo"
+        env["CASCADE_QWEN_BASE_URL"] = f"http://127.0.0.1:{QWEN_PORT}/v1"
         env["OMNI_KIT_ACCEPT_EULA"] = "YES"  # validated persistent consent above
-        env["PATH"] = str(repo / ".openclaw-cli/bin") + os.pathsep + env.get("PATH", os.defpath)
+        # install.sh bootstraps uv here without editing shell profiles. Desktop
+        # and remote sessions may not inherit that directory in PATH.
+        env["PATH"] = os.pathsep.join((
+            str(repo / ".openclaw-cli/bin"), str(Path.home() / ".local/bin"),
+            env.get("PATH", os.defpath),
+        ))
     root = Path(env.get("CASCADE_LAUNCH_STATE", repo / "runs/.launch")).expanduser()
     if not root.is_absolute():
         root = repo / root
@@ -237,7 +324,7 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False) -> in
     state = profile_state_dir(root, oc_profile)
     owner = load_owner(state, repo, oc_profile, create=True)
     assert owner is not None
-    # Cosmos starts before launch.sh. Invalidate here too, so a failed model
+    # Qwen starts before launch.sh. Invalidate here too, so a failed model
     # startup cannot leave the previous attendee's READY receipt current.
     attempt = "startup-attempt-" + uuid.uuid4().hex
     evidence = state / attempt
@@ -252,34 +339,49 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False) -> in
         "note": "supervised startup in progress; no current proof",
     }) + "\n")
     temporary.replace(proof)
-    cosmos = None
+    qwen = None
     launcher = None
     success = False
     try:
-        if brain == "cosmos" and not model_health():
+        if profile == "spark":
+            problems = kitchen_problems(repo)
+            if problems:
+                raise RuntimeError("\n".join(problems))
+        healthy_model = brain == "qwen" and model_health()
+        if healthy_model and profile == "spark":
+            owned = live_records(state, owner, role="qwen")
+            if len(owned) != 1:
+                raise RuntimeError(
+                    f"Qwen port :{QWEN_PORT} is served outside this installation's ownership; "
+                    "the existing process was preserved. Stop its own deployment before starting this one."
+                )
+            if owned[0].get("model_binding") != qwen_binding(repo, env):
+                raise RuntimeError(
+                    f"Owned Qwen on :{QWEN_PORT} uses different or changed model/server files; "
+                    "the existing process was preserved. Run this installation's stop command, then start again."
+                )
+        if brain == "qwen" and not healthy_model:
             try:
-                with socket.create_connection(("127.0.0.1", COSMOS_PORT), timeout=0.5):
+                with socket.create_connection(("127.0.0.1", QWEN_PORT), timeout=0.5):
                     raise RuntimeError(
-                        f"port :{COSMOS_PORT} is occupied but Cosmos is not healthy; refusing to start a duplicate"
+                        f"port :{QWEN_PORT} is occupied but Qwen is not healthy; refusing to start a duplicate"
                     )
             except (ConnectionRefusedError, TimeoutError, OSError):
                 pass
-            if live_records(state, owner, role="cosmos"):
+            if live_records(state, owner, role="qwen"):
                 raise RuntimeError(
-                    f"recorded Cosmos process is still starting/unhealthy; inspect {state / 'cosmos.log'}"
+                    f"recorded Qwen process is still starting/unhealthy; inspect {state / 'qwen.log'}"
                 )
             service_env = dict(
                 env,
-                VENV=str(repo / ".cosmos"),
-                MODEL_DIR=str(repo / "models"),
-                PORT=str(COSMOS_PORT),
-                GPU_FRAC="0.20",
+                MODEL_ROOT=str(repo),
+                PORT=str(QWEN_PORT),
                 CTX="32768",
-                COSMOS_PYTHON=env["PY"],
             )
-            with (state / "cosmos.log").open("ab") as log:
-                cosmos = subprocess.Popen(
-                    [str(repo / "scripts/serve_cosmos_vllm.sh")],
+            binding = qwen_binding(repo, env)
+            with (state / "qwen.log").open("ab") as log:
+                qwen = subprocess.Popen(
+                    [str(repo / "scripts/serve_qwen_llamacpp.sh")],
                     cwd=repo,
                     env=service_env,
                     stdin=subprocess.DEVNULL,
@@ -289,20 +391,25 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False) -> in
                 )
             deadline = time.monotonic() + wait_seconds
             while True:
-                if cosmos.poll() is not None:
+                if qwen.poll() is not None:
                     raise RuntimeError(
-                        f"Cosmos exited with status {cosmos.returncode}; see {state / 'cosmos.log'}"
+                        f"Qwen exited with status {qwen.returncode}; see {state / 'qwen.log'}"
                     )
                 if model_health():
                     break
                 if time.monotonic() >= deadline:
                     raise RuntimeError(
-                        f"Cosmos health timeout; see {state / 'cosmos.log'}"
+                        f"Qwen health timeout; see {state / 'qwen.log'}"
                     )
                 time.sleep(0.25)
-            # Register only the child created here, after its final exec and
-            # semantic health. Never adopt a borrowed healthy endpoint.
-            register_process(state, owner, cosmos.pid, "cosmos")
+            # Register only this invocation's child and the files it was given.
+            if binding != qwen_binding(repo, env):
+                raise RuntimeError("Qwen model/server files changed during startup; retry after restoring this installation")
+            receipt = register_process(state, owner, qwen.pid, "qwen")
+            receipt["model_binding"] = binding
+            temporary = state / f"qwen.{qwen.pid}.tmp"
+            temporary.write_text(json.dumps(receipt, indent=2) + "\n")
+            temporary.replace(state / "qwen.pid")
         command = [
             "bash",
             str(repo / "scripts/launch.sh"),
@@ -315,9 +422,9 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False) -> in
             command.append("--no-open")
         launcher = subprocess.Popen(command, cwd=repo, env=env, start_new_session=True)
         while launcher.poll() is None:
-            if cosmos is not None and cosmos.poll() is not None:
+            if qwen is not None and qwen.poll() is not None:
                 raise RuntimeError(
-                    f"Cosmos exited with status {cosmos.returncode} during launcher proof; see {state / 'cosmos.log'}"
+                    f"Qwen exited with status {qwen.returncode} during launcher proof; see {state / 'qwen.log'}"
                 )
             time.sleep(0.1)
         success = launcher.returncode == 0
@@ -327,11 +434,30 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False) -> in
             # A failed leader may already have exited while its sidecars are
             # still running in this invocation's private process group.
             stop_group(launcher)
-        if not success and cosmos is not None:
-            stop_group(cosmos)
+        if not success and qwen is not None:
+            stop_group(qwen)
             # Like stop_owned(), retain the inert receipt for diagnosis.
             # Liveness is checked by kernel identity, not file existence.
             # Unlinking here could erase a newer invocation's receipt.
+
+
+def package_inventory(python: Path) -> dict:
+    """Read actual package metadata without importing the application or Kit."""
+    if not os.access(python, os.X_OK):
+        return {"available": False, "error": "interpreter is missing"}
+    code = """import importlib.metadata as m, json, platform, sys
+print(json.dumps({"available": True, "python": platform.python_version(),
+                  "executable": sys.executable, "architecture": platform.machine(),
+                  "packages": {d.metadata["Name"]: d.version for d in m.distributions() if d.metadata["Name"]}}))
+"""
+    env = {key: value for key, value in os.environ.items()
+           if key not in ("PYTHONHOME", "PYTHONPATH", "VIRTUAL_ENV", "CONDA_PREFIX")}
+    try:
+        result = subprocess.run([str(python), "-B", "-c", code], capture_output=True,
+                                text=True, check=True, timeout=30, env=env)
+        return json.loads(result.stdout.strip().splitlines()[-1])
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError) as exc:
+        return {"available": False, "error": type(exc).__name__}
 
 
 def record_install(repo: Path, profile: str, brain: str, ref: str, *, accept_eula: bool = False) -> None:
@@ -355,24 +481,43 @@ def record_install(repo: Path, profile: str, brain: str, ref: str, *, accept_eul
         ":!.venv",
         ":!.isaacsim",
         ":!.cosmos",
+        ":!.llama.cpp",
+        ":!models/qwen3.8-27b",
         ":!.openclaw-cli",
         ":!runs",
         ":!models/Cosmos3-Edge-hf",
     )
     isaac = isaac_environment(repo) if profile == "spark" else {}
+    model = model_environment(repo) if profile == "spark" else {}
+    app_inventory = package_inventory(repo / ".venv/bin/python")
+    isaac_inventory = package_inventory(Path(isaac["ISAACSIM_PYTHON_EXE"])) if isaac else {}
+    def read_json(path: Path):
+        try:
+            return json.loads(path.read_text())
+        except (OSError, ValueError):
+            return None
+    openclaw_package = next((value for path in (
+        repo / ".openclaw-cli/tools/node/lib/node_modules/openclaw/package.json",
+        repo / ".openclaw-cli/lib/node_modules/openclaw/package.json",
+    ) if isinstance(value := read_json(path), dict)), {})
     record = {
         "repo": str(repo.resolve()),
         "eula_accepted": profile == "spark" and (accept_eula or eula_accepted(repo)),
         "eula_url": EULA_URL if profile == "spark" else None,
         "isaac_environment": isaac,
+        "model_environment": model,
         "source_commit": git("rev-parse", "HEAD"),
         "requested_ref": ref,
         "source_dirty": bool(dirty),
         "profile": profile,
         "brain": brain,
-        "isaac_package": "6.1.0.0" if profile == "spark" else None,
-        "openclaw": "2026.9.3" if profile != "ci" else None,
-        "python": "3.12",
+        "isaac_package": isaac_inventory.get("packages", {}).get("isaacsim"),
+        "openclaw": openclaw_package.get("version"),
+        "python": app_inventory.get("python"),
+        "dependencies": {"app": app_inventory, "isaac": isaac_inventory},
+        "model_receipts": [dict(path=str(path), receipt=read_json(path))
+                           for path in sorted((repo / "models/qwen3.8-27b").glob("*.verified.json"))],
+        "llama_runtime": read_json(repo / ".llama.cpp/build/.cascade-runtime.json"),
         "gpu_validated": False,
     }
     state = repo / "runs/.install"
@@ -383,6 +528,7 @@ def record_install(repo: Path, profile: str, brain: str, ref: str, *, accept_eul
     exports = {"PY": str(repo / ".venv/bin/python"), "CASCADE_INSTALL_PROFILE": profile}
     if profile == "spark":
         exports.update(isaac)
+        exports.update(model)
         exports.update(
             CASCADE_OPENCLAW_PROFILE="cascade-demo",
             OMNI_KIT_ACCEPT_EULA="YES",
@@ -391,7 +537,8 @@ def record_install(repo: Path, profile: str, brain: str, ref: str, *, accept_eul
     text += "\n".join(
         f"export {key}={shlex.quote(value)}" for key, value in exports.items()
     )
-    text += f'\nexport PATH={shlex.quote(str(repo / ".openclaw-cli/bin"))}:"$PATH"\n'
+    bins = os.pathsep.join((str(repo / ".openclaw-cli/bin"), str(repo / ".venv/bin"), str(Path.home() / ".local/bin")))
+    text += f'\nexport PATH={shlex.quote(bins)}:"$PATH"\n'
     temporary.write_text(text)
     temporary.replace(state / "env.sh")
     print(
@@ -465,6 +612,7 @@ sys.exit(bool(errors))
             problems.append(f"OpenClaw 2026.9.3 package metadata: {package}")
     if profile == "spark":
         problems.extend(scene_problems(repo))
+        problems.extend(kitchen_problems(repo))
         for name, size in MODEL_ASSETS.items():
             if not model_asset_valid(repo / "models" / name, size):
                 problems.append(f"detector/encoder asset {repo / 'models' / name}")
@@ -481,14 +629,14 @@ sys.exit(bool(errors))
         )
         if result.returncode:
             problems.append(result.stdout.strip() + " " + result.stderr.strip())
-        if brain == "cosmos":
+        if brain == "qwen":
             result = subprocess.run(
-                [str(repo / "scripts/serve_cosmos_vllm.sh"), "--check"],
+                [str(repo / "scripts/serve_qwen_llamacpp.sh"), "--check"],
                 env=dict(
                     os.environ,
-                    VENV=str(repo / ".cosmos"),
-                    MODEL_DIR=str(repo / "models"),
-                    COSMOS_PYTHON=sys.executable,
+                    MODEL_ROOT=str(repo),
+                    CASCADE_INSTALL_PROFILE=profile,
+                    PY=sys.executable,
                     PYTHONDONTWRITEBYTECODE="1",
                 ),
                 capture_output=True,
@@ -496,7 +644,7 @@ sys.exit(bool(errors))
             )
             if result.returncode:
                 problems.append(
-                    "Cosmos preflight: "
+                    "Qwen preflight: "
                     + result.stdout.strip()
                     + " "
                     + result.stderr.strip()
@@ -506,10 +654,10 @@ sys.exit(bool(errors))
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["assets", "record", "launch", "check"])
+    parser.add_argument("action", choices=["robot-assets", "assets", "record", "launch", "check"])
     parser.add_argument("--repo", type=Path, required=True)
     parser.add_argument("--profile", choices=["spark", "laptop", "ci"], default="spark")
-    parser.add_argument("--brain", choices=["cosmos", "keep"], default="cosmos")
+    parser.add_argument("--brain", choices=["qwen", "keep"], default="qwen")
     parser.add_argument("--ref", default="existing checkout")
     parser.add_argument("--no-open", action="store_true")
     parser.add_argument("--accept-eula", action="store_true", help="record explicit consent, never inferred from environment")
@@ -523,7 +671,9 @@ def main(argv: list[str] | None = None) -> int:
         signal.signal(signal.SIGTERM, interrupted)
         signal.signal(signal.SIGHUP, interrupted)
     try:
-        if args.action == "assets":
+        if args.action == "robot-assets":
+            prepare_robot_assets(repo)
+        elif args.action == "assets":
             prepare_assets(repo)
         elif args.action == "record":
             record_install(repo, args.profile, args.brain, args.ref, accept_eula=args.accept_eula)

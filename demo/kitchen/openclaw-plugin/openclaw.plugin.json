@@ -1,0 +1,16 @@
+{
+  "id": "cascade-kitchen-prompt",
+  "name": "CASCADE kitchen prompt",
+  "description": "Keep the dedicated kitchen agent focused on its robot and operator instructions.",
+  "activation": {"onStartup": true},
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["workspaceDir", "modelProviderId", "modelId"],
+    "properties": {
+      "workspaceDir": {"type": "string", "minLength": 1},
+      "modelProviderId": {"type": "string", "minLength": 1},
+      "modelId": {"type": "string", "minLength": 1}
+    }
+  }
+}

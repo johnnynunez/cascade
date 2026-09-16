@@ -56,11 +56,16 @@ def test_launch_adapter_runs_real_child_with_exit_status_and_sanitized_env(tmp_p
     child = tmp_path / "child.py"
     child.write_text('import os,json,sys; print(json.dumps(dict(os.environ))); sys.exit(17)\n')
     result = subprocess.run([sys.executable, str(ROOT / "scripts/isaac_launch.py"), "--python", sys.executable, "--", str(child)],
-                            env={**os.environ, "PYTHONEXE": "/agent/python", "VIRTUAL_ENV": "/agent"},
+                            env={**os.environ, "PYTHONEXE": "/agent/python", "VIRTUAL_ENV": "/agent",
+                                 "CASCADE_REQUIRE_CUDA": "1", "CASCADE_ISAAC_DT": "0.008333333333333333",
+                                 "PAAI_CAMERA_VIDEO_CONFIG": str(tmp_path / "optional-video.json")},
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 17
     env = json.loads(result.stdout)
     assert "PYTHONEXE" not in env and "VIRTUAL_ENV" not in env
+    assert env["CASCADE_REQUIRE_CUDA"] == "1"
+    assert env["CASCADE_ISAAC_DT"] == "0.008333333333333333"
+    assert "PAAI_CAMERA_VIDEO_CONFIG" not in env
 
 
 def test_term_reaches_the_source_wrappers_child_process(tmp_path):
@@ -99,3 +104,66 @@ def test_term_reaches_the_source_wrappers_child_process(tmp_path):
                 os.kill(pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
+
+
+def test_failed_launcher_group_cleanup_stops_managed_isaac(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "scripts"))
+    spec = importlib.util.spec_from_file_location("isaac_cleanup_support", ROOT / "scripts/install_support.py")
+    support = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(support)
+    marker = tmp_path / "kit.json"
+    adapter_marker = tmp_path / "adapter.pid"
+    worker = tmp_path / "synthetic_kit.py"
+    worker.write_text(
+        "import json,os,pathlib,sys,time\n"
+        "path = pathlib.Path(sys.argv[1])\n"
+        "path.with_suffix('.tmp').write_text(json.dumps({\"pid\":os.getpid(),\"group\":os.getpgrp()}))\n"
+        "path.with_suffix('.tmp').replace(path)\n"
+        "time.sleep(60)\n"
+    )
+    launcher = tmp_path / "failed_launcher.py"
+    launcher.write_text(
+        "import pathlib,subprocess,sys,time\n"
+        "marker = pathlib.Path(sys.argv[1])\n"
+        "adapter = subprocess.Popen([sys.executable,sys.argv[2],'--python',sys.executable,'--',sys.argv[3],str(marker)])\n"
+        "pathlib.Path(sys.argv[4]).write_text(str(adapter.pid))\n"
+        "deadline = time.monotonic() + 5\n"
+        "while not marker.exists() and time.monotonic() < deadline: time.sleep(.01)\n"
+        "if not marker.exists(): raise RuntimeError('synthetic Kit failed to start')\n"
+        "raise SystemExit(17)\n"
+    )
+    process = subprocess.Popen(
+        [sys.executable, str(launcher), str(marker), str(ROOT / "scripts/isaac_launch.py"),
+         str(worker), str(adapter_marker)], start_new_session=True,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    kit_pid = None
+    try:
+        assert process.wait(timeout=10) == 17
+        identity = json.loads(marker.read_text())
+        kit_pid = identity["pid"]
+        # Exercise the real supervisor after its direct launcher has exited.
+        support.stop_group(process)
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            status = subprocess.run(["ps", "-p", str(kit_pid), "-o", "stat="],
+                                    capture_output=True, text=True).stdout.strip()
+            if not status or "Z" in status:
+                break
+            time.sleep(.02)
+        assert not status or "Z" in status, "failed launcher cleanup orphaned its managed Isaac process"
+        assert kit_pid == int(adapter_marker.read_text())
+        assert identity["group"] == process.pid
+    finally:
+        # Only this fixture's group and recorded synthetic Kit can be signalled.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        if kit_pid is None and marker.exists():
+            kit_pid = json.loads(marker.read_text())["pid"]
+        if kit_pid is not None:
+            try:
+                os.kill(kit_pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        process.wait(timeout=5)

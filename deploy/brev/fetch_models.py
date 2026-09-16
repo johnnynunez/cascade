@@ -23,6 +23,7 @@ import tempfile
 import time
 from typing import Callable
 import urllib.error
+import urllib.parse
 import urllib.request
 
 
@@ -50,6 +51,7 @@ class Artifact:
     size_bytes: int
     sha256: str
     url: str
+    download_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -79,8 +81,8 @@ def load_manifest(path: Path, max_bytes: int) -> list[Artifact]:
     if source.get("repo_id") != "Qwen/Qwen3.8-27B":
         raise DownloadError("Manifest must select the official Qwen/Qwen3.8-27B model.")
     quant = data.get("quantization", {})
-    if quant.get("repo_id") != "ggml-org/Qwen3.8-27B-GGUF":
-        raise DownloadError("Manifest must select the reviewed ggml-org quantization.")
+    if quant.get("repo_id") not in ("ggml-org/Qwen3.8-27B-GGUF", "unsloth/Qwen3.8-27B-GGUF"):
+        raise DownloadError("Manifest must select a reviewed Qwen3.8 quantization repository.")
     revision = quant.get("revision", "")
     if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise DownloadError("Manifest must pin a complete quantization revision.")
@@ -190,6 +192,8 @@ def _write_receipt(destination: Path, artifact: Artifact, verified: os.stat_resu
         "sha256": artifact.sha256,
         "verified_at_utc": datetime.now(timezone.utc).isoformat(),
     }
+    if artifact.download_url is not None:
+        data["download_url"] = artifact.download_url
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile("w", dir=destination.parent, prefix=".receipt-",
@@ -241,7 +245,7 @@ def _transfer(artifact: Artifact, partial: Path, offset: int, limits: Limits) ->
     headers = {"Accept-Encoding": "identity", "User-Agent": "paai-brev-model-fetch/1"}
     if offset:
         headers["Range"] = f"bytes={offset}-"
-    request = urllib.request.Request(artifact.url, headers=headers)
+    request = urllib.request.Request(artifact.download_url or artifact.url, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=min(limits.timeout, limits.check())) as response:
             expected = _response_size(response, artifact, offset)
@@ -338,6 +342,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, help="Heavy deployment root; files use models/qwen3.8-27b.")
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--metadata-only", action="store_true", help="Print the plan without writes or network.")
+    parser.add_argument("--check", action="store_true", help="Verify installed files without downloads or writes.")
+    parser.add_argument("--model-mirror-url", help="Optional loopback HTTP mirror of the pinned model; all checksums still apply.")
     parser.add_argument("--timeout", type=float, default=30, help="Network operation timeout in seconds.")
     parser.add_argument("--max-seconds", type=float, default=7200, help="Total transfer and verification time cap.")
     parser.add_argument("--attempts", type=int, default=4, help="Maximum HTTP attempts per artifact.")
@@ -351,6 +357,16 @@ def main(argv: list[str] | None = None) -> int:
         if not 1 <= args.attempts <= 10 or args.max_bytes <= 0 or args.reserve_bytes < 0:
             raise DownloadError("Invalid attempt count, byte cap, or disk reserve.")
         artifacts = load_manifest(args.manifest, args.max_bytes)
+        if args.model_mirror_url:
+            mirror = urllib.parse.urlsplit(args.model_mirror_url)
+            if (mirror.scheme != "http" or mirror.hostname not in ("localhost", "127.0.0.1", "::1")
+                    or mirror.username is not None or mirror.password is not None or mirror.fragment or mirror.query):
+                raise DownloadError("Model mirror must be a loopback HTTP URL without credentials, query or fragment.")
+            model = next((a for a in artifacts if a.filename.startswith("Qwen") and a.filename.endswith(".gguf")), None)
+            if model is None:
+                raise DownloadError("The manifest has no model to mirror.")
+            artifacts = [Artifact(a.filename, a.size_bytes, a.sha256, a.url,
+                                  args.model_mirror_url if a is model else None) for a in artifacts]
         if args.metadata_only:
             emit("plan", files=[a.__dict__ for a in artifacts],
                  total_bytes=sum(a.size_bytes for a in artifacts),
@@ -362,6 +378,14 @@ def main(argv: list[str] | None = None) -> int:
                         args.reserve_bytes, args.stop_file)
         limits.check()
         directory = args.root.resolve() / MODEL_DIRECTORY
+        if args.check:
+            for artifact in artifacts:
+                destination = directory / artifact.filename
+                if not _receipt_matches(destination, artifact):
+                    _sha256_file(destination, artifact, limits)
+                emit("checked", filename=artifact.filename, size_bytes=artifact.size_bytes,
+                     sha256=artifact.sha256, url=artifact.url)
+            return 0
         directory.mkdir(parents=True, exist_ok=True)
         lock_fd = os.open(directory / ".fetch-models.lock", os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         with os.fdopen(lock_fd, "w") as lock:

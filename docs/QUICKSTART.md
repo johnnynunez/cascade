@@ -1,10 +1,9 @@
 # Opening the demo
 
-The original delivery profile uses **DGX Spark/Linux + Isaac Sim 6.1.0.0 +
-Newton + Cosmos3-Edge + OpenClaw**. The launcher opens chat after the proof
-completes; `--no-open` keeps it closed. The camera UI is separate and optional.
-The Mac is a development platform; its results do not certify the delivery's
-GPU execution. Spark/GPU cold-start certification remains pending.
+The PAAI event profile uses **DGX Spark/Linux + Isaac Sim 6.1 + PhysX CUDA +
+Qwen Q4 + OpenClaw**. Use the [DGX Spark setup guide](DGX_SPARK_SETUP.md)
+for the tested install, startup, READY checks and recovery commands.
+The Mac is a development platform; its results do not certify Spark execution.
 
 For the **Brev RTX PRO 6000 profile with PhysX and Qwen3.8-27B Q8_0**, see
 [the Brev instructions](BREV.md). They describe the tested deployment and its
@@ -18,29 +17,11 @@ not a Spark or Brev certification.
 
 ### DGX Spark
 
-Once these changes are available at the distribution ref:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bootstrap.sh | bash -s -- --accept-eula
-```
-
-For multiple machines, pin a proven commit in both the URL and `--ref`.
-Spark cold-start certification remains pending until the required acceptance
-run succeeds on a Spark machine.
-From this checkout, use:
-
-```bash
-bash scripts/install.sh --dir "$PWD" --profile spark --accept-eula
-# Prepare packages/models before the event without starting services:
-bash scripts/install.sh --dir "$PWD" --profile spark --accept-eula --prepare-only
-```
-
-The installer requires explicit license acceptance and leaves drivers
-unchanged. It isolates CASCADE, Isaac, and Cosmos, installs OpenClaw
-2026.9.3 locally, and uses the `cascade-demo` profile independently of
-personal configuration. A Cosmos failure does not trigger an OpenAI
-fallback. For details and the pending acceptance gate, see
-[SPARK_DELIVERY.md](SPARK_DELIVERY.md).
+Run the single install command in [DGX Spark setup](DGX_SPARK_SETUP.md#2-install).
+It pins the source commit and installs the runtime, Qwen Q4, OpenClaw and
+verified kitchen assets. Follow that guide to start and check the demo.
+The event flow uses the dedicated `cascade-demo` profile and installs no Cosmos.
+See [Spark delivery](SPARK_DELIVERY.md) for file identities and acceptance details.
 
 ### Development on a Mac or an installed rig
 

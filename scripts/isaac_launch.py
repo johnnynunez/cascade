@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Start Isaac in an isolated environment and forward stop to its process group.
+"""Start Isaac in an isolated environment with owned shutdown.
 
+A managed wheel's Python replaces this adapter in the launcher's group.
 A source release's python.sh spawns (does not exec) Kit Python. Owning only
 that shell PID leaks Kit on shutdown. This stable adapter owns its private
 child group; it never signals a reused or externally started simulator.
@@ -49,6 +50,9 @@ def main() -> int:
     command = args.args[1:] if args.args[:1] == ["--"] else args.args
     if not command:
         parser.error("an Isaac script/metadata command is required after --")
+    if source is None:
+        # Keep Kit in the owned launcher group even if the launcher exits first.
+        os.execve(str(python), [str(python), *command], clean_environment(os.environ, source=None))
     child = None
     pending = []
 

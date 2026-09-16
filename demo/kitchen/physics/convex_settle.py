@@ -11,6 +11,7 @@ import numpy as np
 
 def audit_convex_settle_geometry(samples, *, object_name, vertices_body_m,
                                 inner_bounds_xy_m, support_top_z_m,
+                                support_vertices_body_m=None,
                                 settle_sim_s=.5, min_final_samples=4,
                                 max_sample_gap_sim_s=.25,
                                 min_inside_margin_m=0.,
@@ -26,7 +27,9 @@ def audit_convex_settle_geometry(samples, *, object_name, vertices_body_m,
     Thus all transformed vertices inside a convex square imply the complete
     authored hull footprint is inside. The minimum world Z is an actual hull
     support vertex, rather than an artificial corner of its bounding box.
-    No unsampled trajectory, cooked-hull or contact-force claim is made.
+    A separately bound collision representation may supply support vertices;
+    the complete authored vertices still determine every XY clearance.
+    No unsampled trajectory or contact-force claim is made.
     """
     if object_name not in {"tomato_can", "lemon", "orange"}:
         raise ValueError("Convex settling supports tomato_can, lemon and configured orange only")
@@ -36,6 +39,12 @@ def audit_convex_settle_geometry(samples, *, object_name, vertices_body_m,
             or not np.isfinite(vertices).all() or np.abs(vertices).max() > 10
             or np.linalg.matrix_rank(vertices - vertices[0]) < 3):
         raise ValueError("Expected finite solid convex-collider body-local vertices")
+    support_vertices = vertices if support_vertices_body_m is None else np.asarray(support_vertices_body_m, float)
+    if (support_vertices.ndim != 2 or support_vertices.shape[1:] != (3,)
+            or not 4 <= len(support_vertices) <= 10000
+            or not np.isfinite(support_vertices).all() or np.abs(support_vertices).max() > 10
+            or np.linalg.matrix_rank(support_vertices-support_vertices[0]) < 3):
+        raise ValueError("Expected separately verified solid body-local support vertices")
     if (bounds.shape != (2, 2) or not np.isfinite(bounds).all()
             or not (bounds[1] > bounds[0]).all()):
         raise ValueError("Expected measured nonempty axis-aligned square inner bounds")
@@ -92,8 +101,9 @@ def audit_convex_settle_geometry(samples, *, object_name, vertices_body_m,
         clearances = np.column_stack((world[:, :2] - bounds[0], bounds[1] - world[:, :2]))
         vertex, boundary = np.unravel_index(int(np.argmin(clearances)), clearances.shape)
         clearance = float(clearances[vertex, boundary])
-        support = int(np.argmin(world[:, 2]))
-        bottom = float(world[support, 2])
+        support_world = support_vertices @ rotation.T + poses[index]
+        support = int(np.argmin(support_world[:, 2]))
+        bottom = float(support_world[support, 2])
         gap = bottom - support_top_z_m
         inside = clearance >= min_inside_margin_m  # no outward tolerance
         supported = -max_penetration_m <= gap <= max_support_gap_m
@@ -103,15 +113,16 @@ def audit_convex_settle_geometry(samples, *, object_name, vertices_body_m,
                          "sim_time": float(clocks[index]), "min_inside_clearance_m": clearance,
                          "worst_boundary": labels[boundary], "worst_boundary_vertex_index": int(vertex),
                          "footprint_bounds_xy_m": [world[:, :2].min(axis=0).tolist(), world[:, :2].max(axis=0).tolist()],
-                         "support_vertex_index": support, "support_vertex_body_m": vertices[support].tolist(),
-                         "support_vertex_world_m": world[support].tolist(),
+                         "support_vertex_index": support, "support_vertex_body_m": support_vertices[support].tolist(),
+                         "support_vertex_world_m": support_world[support].tolist(),
                          "lowest_vertex_world_z_m": bottom, "support_gap_m": float(gap),
                          "inside": bool(inside), "supported": bool(supported)})
     return {"geometry_pass": bool(all(checks.values())), "checks": checks,
             "scope": "geometry only, at recorded settle poses; not a campaign pass",
             "geometry_source_verified_by_this_function": False,
-            "method": "all actual transformed convex vertices; minimum world-Z vertex for support",
+            "method": "all authored vertices for XY; minimum transformed support vertex for Z",
             "object_name": object_name, "vertex_count": len(vertices),
+            "support_vertex_count": len(support_vertices),
             "inner_bounds_xy_m": bounds.tolist(), "support_top_z_m": float(support_top_z_m),
             "settle_window_sim_s": duration, "final_samples": len(receipts),
             "max_sample_gap_sim_s": max_gap, "min_inside_margin_m": min_inside_margin_m,

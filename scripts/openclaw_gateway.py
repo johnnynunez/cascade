@@ -8,6 +8,7 @@ from pathlib import Path
 import signal
 import socket
 import subprocess
+import sys
 import time
 
 from cascade.apps.process_owner import live_records, load_owner, register_process, stop_owned
@@ -77,6 +78,9 @@ def start(repo, state, owner, port, *, wait_seconds=60):
         if not success and child is not None:
             # This Popen was created here in its own group. It is not a
             # discovered endpoint or an old numeric PID file.
+            if sys.platform == "darwin":
+                # Darwin returns EPERM for a group containing only a zombie.
+                child.poll()
             try:
                 os.killpg(child.pid, signal.SIGTERM)
                 child.wait(timeout=5)

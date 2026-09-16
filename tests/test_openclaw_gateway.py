@@ -7,6 +7,7 @@ import socket
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -141,6 +142,92 @@ def test_gateway_start_failure_leaves_no_owned_service(private_gateway, monkeypa
         gateway.start(h["repo"], h["state"], h["owner"], h["port"], wait_seconds=.3)
     assert not owners.live_records(h["state"], h["owner"], role="gateway_child")
     assert not gateway.port_open(h["port"])
+
+
+@pytest.mark.parametrize("platform", ["darwin", "linux"])
+def test_start_failure_preserves_error_when_exited_child_needs_reaping(private_gateway, monkeypatch, platform):
+    """Darwin rejects signals to a group containing only an unreaped zombie."""
+    h = private_gateway
+    child = SimpleNamespace(pid=424242, reaped=False)
+
+    def reap(*args, **kwargs):
+        child.reaped = True
+        return 23
+
+    child.poll = child.wait = reap
+    monkeypatch.setattr(gateway, "sys", SimpleNamespace(platform=platform), raising=False)
+    monkeypatch.setattr(gateway.subprocess, "Popen", lambda *args, **kwargs: child)
+    monkeypatch.setattr(gateway.signal, "signal", lambda *args: gateway.signal.SIG_DFL)
+
+    def unhealthy(*args, **kwargs):
+        raise RuntimeError("gateway did not become healthy")
+
+    def group_signal(pid, number):
+        assert pid == child.pid
+        if child.reaped:
+            raise ProcessLookupError("empty process group")
+        if platform == "darwin":
+            raise PermissionError("zombie-only process group")
+
+    monkeypatch.setattr(gateway, "wait_gateway", unhealthy)
+    monkeypatch.setattr(gateway.os, "killpg", group_signal)
+    with pytest.raises(RuntimeError, match="did not become healthy"):
+        gateway.start(h["repo"], h["state"], h["owner"], h["port"])
+    assert child.reaped
+
+
+@pytest.mark.parametrize("platform,worker,denied,own_child", [
+    ("darwin", False, False, True),
+    ("darwin", True, False, True),
+    ("darwin", True, False, False),
+    ("darwin", True, True, True),
+    ("linux", False, False, True),
+    ("linux", True, False, True),
+    ("linux", True, True, True),
+])
+def test_private_stop_handles_zombie_boundary_without_hiding_denial(monkeypatch, platform, worker, denied, own_child):
+    import signal
+
+    record = {"pid": 424242, "role": "gateway_child", "birth": "known", "command": "known"}
+    state = {"alive": True, "reaped": False, "worker": worker}
+    signals, reaps = [], []
+    monkeypatch.setattr(owners, "sys", SimpleNamespace(platform=platform))
+    monkeypatch.setattr(owners, "is_live", lambda *args: state["alive"])
+    monkeypatch.setattr(owners, "process_identity", lambda pid: None)
+
+    def waitpid(pid, flags):
+        assert pid == record["pid"] and flags == os.WNOHANG
+        reaps.append(pid)
+        if not own_child:
+            raise ChildProcessError("created by another launcher process")
+        state["reaped"] = True
+        return pid, 0
+
+    def group_signal(pid, number):
+        assert pid == record["pid"]
+        signals.append(number)
+        if number == signal.SIGTERM:
+            state["alive"] = False
+        elif denied:
+            raise PermissionError("live worker signal denied")
+        elif state["worker"]:
+            state["worker"] = False
+        elif platform == "darwin" and not state["reaped"]:
+            raise PermissionError("zombie-only process group")
+        else:
+            raise ProcessLookupError("empty process group")
+
+    monkeypatch.setattr(owners.os, "waitpid", waitpid)
+    monkeypatch.setattr(owners.os, "killpg", group_signal)
+    if denied:
+        with pytest.raises(PermissionError, match="live worker signal denied"):
+            owners.stop_private_gateway(record, {})
+    else:
+        owners.stop_private_gateway(record, {})
+        assert not state["worker"]
+    assert signals == [signal.SIGTERM, signal.SIGKILL]
+    if platform == "linux":
+        assert not reaps
 
 
 def test_owned_group_cleanup_reaps_a_worker_that_ignores_term(private_gateway, monkeypatch):

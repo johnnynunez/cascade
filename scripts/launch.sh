@@ -848,11 +848,10 @@ fi
 # coding agent's tools or personal skills (also keeps Cosmos context bounded).
 if [[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]]; then
     run oc config set agents.defaults.skills '[]' --strict-json >/dev/null
-    TOOL_ALLOW="$("$PY" - "$MCP_NAME" "${CASCADE_INSTALL_PROFILE:-}" <<'PYEOF'
-import json, sys
-names = ("world_state", "get_observation", "describe_scene", "camera_snapshot",
-         "analyze_scene", "pick_and_place", "reset_scene", "emergency_stop", "reset_stop"
-         ) if sys.argv[2] == "spark" else ("*",)
+    TOOL_ALLOW="$("$PY" - "$MCP_NAME" "${CASCADE_INSTALL_PROFILE:-}" "$REPO" <<'PYEOF'
+import json, pathlib, sys
+catalog = pathlib.Path(sys.argv[3]) / "demo/kitchen/openclaw-plugin/attendee-tools.json"
+names = [tool["name"] for tool in json.loads(catalog.read_text())] if sys.argv[2] == "spark" else ("*",)
 print(json.dumps([sys.argv[1] + "__" + name for name in names]))
 PYEOF
 )"
@@ -890,7 +889,7 @@ PYEOF
             # Keep the small local controller's context about this kitchen.
             # The supported hook retains the entire selected workspace AGENTS.md;
             # native tools, conversation history and physical checks are unchanged.
-            KITCHEN_PLUGINS="$("$PY" - "$ACTIVE_CONFIG" "$REPO" "$PROFILE_WORKSPACE" <<'PYEOF'
+            KITCHEN_PLUGINS="$("$PY" - "$ACTIVE_CONFIG" "$REPO" "$PROFILE_WORKSPACE" "$MCP_NAME" <<'PYEOF'
 import json, pathlib, sys
 cfg = json.loads(pathlib.Path(sys.argv[1]).expanduser().read_text())
 selection = cfg["agents"]["defaults"]["model"]
@@ -907,7 +906,7 @@ if "allow" in plugins and plugin_id not in plugins["allow"]:
 entry = plugins.setdefault("entries", {}).setdefault(plugin_id, {})
 entry["enabled"] = True
 entry.setdefault("hooks", {}).update(allowConversationAccess=True, allowPromptInjection=True)
-entry["config"] = {"workspaceDir": sys.argv[3], "modelProviderId": provider, "modelId": model}
+entry["config"] = {"workspaceDir": sys.argv[3], "modelProviderId": provider, "modelId": model, "mcpName": sys.argv[4]}
 print(json.dumps(plugins))
 PYEOF
 )" || die "could not configure the kitchen chat context"

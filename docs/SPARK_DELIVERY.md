@@ -59,6 +59,19 @@ unrelated occupied port; it does not adopt or stop that service.
 Process receipts bind the checkout, profile, command, PID and process birth.
 `./run.sh down` stops only processes belonging to the installation.
 
+## Natural English requests
+
+The attendee profile presents six high-level tools: scene inspection, object
+location, pick and place, reset, camera images and session status. Qwen chooses
+the native call with `tool_choice: auto`. The adapter does not select intent
+from keywords, narrow the catalog for an order or rewrite the attendee's message.
+Advanced tools remain available outside this profile.
+
+The startup proof uses the same natural English requests shown in the setup
+guide. Scene answers must be grounded in current images, and genuine ambiguity
+requires clarification. Failed and unverified tool results remain visible in
+the English answer; the adapter never upgrades them to success.
+
 ## READY checks
 
 The launcher invalidates old success before starting a new proof.
@@ -78,12 +91,19 @@ screenshots and reset readbacks. A failed native placement or reset, refuted
 placement or failed audit prevents READY. `--no-robot-turn` remains
 STARTED / UNVERIFIED.
 
-The tested orange case needed two grasp attempts. Its placement passed the
+The earlier installation acceptance's orange case needed two grasp attempts. Its placement passed the
 independent audit, but the return-home substep reported `did not settle at home`.
 The following native reset and final inspection passed. Reset and inspect
 before another order if this warning appears. The native tool's center-only
 postcondition remains unverified; the independent audit establishes containment,
 release and support.
+
+Natural-language acceptance also passed inspection, green cube placement,
+orange placement and same-world resets with native request/response traces.
+An initial orange attempt failed at the pre-grasp pose and was reported plainly.
+After a natural reset and cleanup of completed test sessions, a retry passed
+the unchanged physical audit. This does not establish the cause of the first
+failure. No controller or physics setting was changed for that retry.
 
 ## Clean-room acceptance
 

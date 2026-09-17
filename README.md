@@ -1,6 +1,11 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
 <p align="center">
+  <img src="docs/assets/paai-dgx-spark-natural-language-demo.gif" alt="OpenClaw moves a tomato can to the green square in the NVIDIA DGX Spark kitchen demo" width="480" height="270"><br>
+  <a href="docs/DGX_SPARK_SETUP.md">PAAI demo running on NVIDIA DGX Spark · 6× speed</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT"></a>

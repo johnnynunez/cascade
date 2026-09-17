@@ -208,11 +208,22 @@ otherwise be served as fresh).
 | `GraspOutcomeMemory` | per-object grasp features, wins/losses | `~/.cascade/grasp_memory.json` | grasp re-rank + z-nudge |
 | `OperatingEnvelope` (`memory/envelope.py`) | per-skill outcome statistics and failure classes | `runs/` | planner context, ROADMAP follow-ups |
 
-`skills/library.py` holds markdown skill notes: `agent/aspire.py` distils a
-*validated repair* (a failure followed by the same primitive succeeding)
-from a finished run's trace (`scripts/learn_from_runs.py`, between sessions,
-never mid-demo), and `retrieve()` loads guard-matched notes into the tier-3
-context at task start (`orchestrator.run_task`, wired in `build_runtime`).
+`skills/library.py` stores markdown guidance. Between sessions,
+`agent/aspire.py` admits a failed-then-successful retry only when its skill,
+goal parameters, resolved arm and pre-call held-object context match, its
+postcondition is measured and confirmed, and no explicit reset/task-end
+record intervenes. `SkillRuntime.execute()` records that context separately
+from tool arguments, without probing a lazy backend. Legacy traces lacking
+context cannot produce new notes.
+
+`scripts/learn_from_runs.py` harvests eligible associations; `retrieve()`
+loads keyword-matched notes into the tier-3 context at task start
+(`orchestrator.run_task`, with the library supplied by `demo.main`). A note
+preserves the recorded evidence, not proof of a causal repair or transfer to
+another rig.
+This gate does not change experience-memory or operating-envelope admission.
+See [retry evidence admission](DREAM_RSI_ADAPTATION.md) for the exact checks,
+CLI workflow and remaining state/episode-lineage limits.
 
 ### Evaluation
 

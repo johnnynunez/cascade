@@ -77,6 +77,45 @@ def runtime(tmp_path):
     return rt
 
 
+@pytest.mark.parametrize("selectors,expected_arms", [
+    ((None, "left"), ["left", "left"]),
+    (("default", "primary"), ["left", "left"]),
+    (("left", "right"), ["left", "right"]),
+])
+def test_dispatch_trace_preserves_resolved_arm_and_pre_call_subject(runtime, selectors, expected_arms):
+    """Real dispatch/verifier/logger; only physical work is a data-only callback."""
+    left, right = SimpleNamespace(name="left"), SimpleNamespace(name="right")
+    runtime._arm = left
+    runtime.arm_rig = ArmRig([left, right], ["left", "right"])
+    poses = {"cube": [0.2, 0.1, 0.03]}
+    runtime.effects = PostconditionChecker(object_pose=lambda label: poses[label], gripper_frac=lambda: 0.5)
+    selected_arms = []
+
+    def grasp(label):
+        selected_arms.append(runtime.arm.name)
+        if len(selected_arms) == 1:
+            return {"ok": False, "error": "air grasp"}
+        poses[label] = [0.2, 0.1, 0.06]
+        runtime.held_object = label
+        return {"ok": True, "held": label}
+
+    runtime.skill_grasp_object = grasp
+    for selector in selectors:
+        args = {"label": "cube"}
+        if selector is not None:
+            args["arm"] = selector
+        runtime.execute("grasp_object", args)
+    rows = [json.loads(line) for line in (runtime.trace.run_dir / "trace.jsonl").read_text().splitlines()]
+    assert selected_arms == expected_arms
+    assert [r.get("context", {}).get("arm") for r in rows] == expected_arms
+    assert all(r["args"] == {"label": "cube"} for r in rows)
+    assert all(r["context"]["held_object"] is None for r in rows)
+    assert runtime.held_object == "cube" and runtime.arm is left
+    diag = diagnose(runtime.trace.run_dir)
+    assert diag is not None
+    assert diag.teachable is (expected_arms[0] == expected_arms[1])
+
+
 @pytest.mark.parametrize("with_rig", [False, True])
 def test_trace_routing_never_probes_arm_backend(runtime, with_rig):
     class NoProbeArm:

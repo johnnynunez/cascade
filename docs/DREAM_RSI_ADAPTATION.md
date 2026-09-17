@@ -1,57 +1,143 @@
-# Dream-RSI-inspired evidence admission
+# Scoped retry evidence admission
 
-## Scope
+A later successful action is not necessarily a repair of an earlier failure.
+CASCADE's ASPIRE trace-to-library path now requires matching context and a
+measured confirmation before writing a new guidance note. This is an
+admission safeguard, not a policy optimizer or a change to robot control.
 
-This is a first prerequisite for replay-based improvement, not an implementation of Dream-RSI's policy optimizer. Dream-RSI evaluates exploration controllers against recorded discovery outcomes while keeping the underlying model, evaluator and execution interfaces fixed (Section 3, pages 4 to 6).[1]
+## Admission contract
 
-Its replay is restricted to recorded continuations. It does not predict new robot outcomes, and the published experiments concern algorithm engineering, mathematics and GPU kernels rather than robotics.[1] The pinned upstream repository has not released its implementation or reproduction scripts.[2]
+[`agent/aspire.py`](../src/cascade/agent/aspire.py) examines at most the next
+six trace rows after a failed call (`REPAIR_WINDOW`). A candidate must pass
+all of these checks:
 
-## What changed in CASCADE
+| Check | Required evidence |
+|---|---|
+| Result | Literal `ok: true`; `verified`, if present, must also be literal `true` |
+| Postcondition | `status: confirmed`, the same skill, and its registered postcondition kind |
+| Measurement | A `physics`, `belief`, `gripper` or `visual_diff` channel, nonempty evidence text and nonempty measurements; command-only `arm` confirmation is rejected |
+| Goal | Equality of the recorded identity-bearing arguments listed below |
+| Context | Explicit matching resolved arm identity and pre-call held-object label |
+| Boundary | No intervening `reset_scene`, `task_done` or result with `task_complete: true` |
 
-The existing `agent/aspire.py` path associates a failed skill with a later retry, then writes a reusable library entry. Previously, a later `ok: true` for the same skill name was enough, even if the postcondition was unverified or the target had changed.
+Goal comparison preserves the recorded values of `object`, `label`, `query`,
+`destination`, `arm`, `spatial_hint`, `camera`, `x`, `y`, `z`, `direction` and
+`distance_m`. It does not infer that differently named targets are the same.
+Other parameters can differ, and their recorded delta is included in the note.
+For `place_at`, `place_on_object`, `throw` and `handover`, the held-object label
+must be nonempty on both calls; equal missing possession is not enough.
 
-Newly harvested retry associations now require:
+Examples of the admission decision (illustrative, not robot measurements):
 
-- A literal `ok: true` tool result plus a `confirmed` postcondition, with no contradictory `verified` flag.
-- A matching skill and postcondition kind.
-- A measured `physics`, `belief`, `gripper` or `visual_diff` channel with evidence and measurements. Command-only `arm` confirmation is not sufficient.
-- Matching recorded task parameters, including object/label, destination, spatial hint, coordinates, direction and distance when present.
-- Explicit matching resolved arm identity and pre-call held-object context. Placement, throw and handover require a nonempty held-object label on both sides.
-- No intervening `reset_scene`, `task_done` or `task_complete: true` result within the existing repair window.
+- Failed red-cube grasp, followed by a physics-confirmed red-cube grasp on the
+  same arm with matching pre-call possession: eligible.
+- Failed red-cube grasp, followed by a successful blue-cube grasp: rejected.
+- Same request but a different arm, different held subject, absent context,
+  unverified outcome or contradictory `verified: false`: rejected.
+- A matching success after an explicit scene reset or task end: rejected.
 
-`SkillRuntime.execute()` records `context.arm` and `context.held_object` before the skill body runs. Omitted/default/primary arm selectors resolve to the same registry identity; logging never probes the arm backend. Skill kwargs and routing behavior are unchanged. `TraceLogger.record()` accepts optional context for compatibility, but traces without explicit routing and possession context cannot produce new notes.
+## Trace context and generated notes
 
-`Diagnosis` retains the actual postcondition and both contexts, and `distil()` rechecks their compatibility before writing. Generated notes include the scope and measured confirmation. They no longer inject fixed reBot workspace advice, claim unrecorded re-observation, or describe a later success as proof of a causal repair.
+[`SkillRuntime.execute()`](../src/cascade/skills/runtime.py) records context
+before the skill body runs, separately from its arguments. For example, a
+placement can record `{"arm": "left", "held_object": "red cube"}` even when
+it clears `held_object` after opening the gripper. These are recorded labels,
+not independently sensed object-instance identities.
 
-This removes unsupported interpretation from newly generated guidance. It is not proof that a parameter change caused the successful retry. The paper's comparison against semantic guidance is limited to its ConvDiv experiment (Section 5.1, page 11); it is not evidence that repair memory is generally harmful.[1]
+Omitted, default and primary selectors resolve through the arm registry before
+logging. Logging does not probe a lazy arm backend or power hardware. Skill
+arguments and routing behavior are unchanged.
 
-## Unchanged behavior
+[`TraceLogger.record()`](../src/cascade/agent/trace.py) keeps `context` optional
+for caller compatibility. Reading legacy traces remains supported, but absent
+or incomplete arm/possession context cannot produce new notes. Do not fill in
+missing historical context by guessing the robot or object.
 
-- No changes to Qwen weights, prompts, control commands, IK, collision thresholds or motion limits.
-- No changes to the postcondition evaluator.
-- Operating-envelope and experience-memory admission are separate paths and are not modified here.
-- No new simulator execution, automatic policy deployment or robot motion.
-- No deletion or migration of existing library entries. This admission rule applies to newly distilled repairs; manually authored and older notes remain untouched.
+`diagnose()` retains both contexts and the confirmation receipt. `distil()`
+rechecks their compatibility before writing a note with the observed error,
+argument delta and evidence. The note calls this a recorded association: it
+must not claim that the parameter change caused success, invent a
+re-observation or prescribe fixed workspace values from another robot.
 
-## Verification
+`harvest()` retains its existing per-call deduplication by `(skill, signature)`.
+Storage still overwrites the existing file when a note has the same title-derived
+slug; there is no migration, bulk deletion or historical revalidation. Retrieval
+still matches keywords, not arm/scene compatibility. Recorded scope is guidance
+for the reader, not an enforced retrieval filter or cross-task promotion gate.
 
-Run the focused regression suite in the development environment:
+## Inspect and harvest offline
+
+Run from the checkout root with the development environment installed. Choose
+a directory whose immediate children are reviewed sessions containing
+`trace.jsonl`; keep unrelated robot/deployment histories separate. The example
+uses `runs/`, the CLI default:
 
 ```bash
-python -m pytest tests/test_agentic_upgrades.py tests/test_aspire_admission.py \
-  tests/test_llm_and_library.py tests/test_arm_rig.py tests/test_verifier_crash.py -q
+# Inspect first: no library notes or persisted envelope updates.
+.venv/bin/python scripts/learn_from_runs.py --runs runs --dry-run --report
+
+# After reviewing the selected sessions, write notes and envelope updates.
+.venv/bin/python scripts/learn_from_runs.py --runs runs \
+  --library skills_library --envelope ~/.cascade/envelope.json --json
 ```
 
-The tests use explicitly synthetic trace fixtures and real dispatch/checker/logger integration with data-only physical callbacks. They cover missing/unverified/refuted postconditions, contradictory verification flags, changed task parameters, resolved arm aliases, changed held subjects, explicit task/reset boundaries, mismatched verifier records, command-only confirmation, and preservation of measured evidence. Placement coverage verifies that the trace retains the subject even when the skill clears it. A backend-probe sentinel checks that logging alone never accesses lazy hardware. These are not robot trials or performance measurements.
+The script also ingests outcomes into the operating envelope, a separate
+learning path that this admission change does not modify. A dry run may create
+an empty library directory; `--report` alone is not read-only. Do not combine
+`--dry-run` with `--export-md` when avoiding file output, because that option
+explicitly writes an export.
 
-## Limits and the next research step
+The built-in orchestrator retrieves keyword-matched library notes at task
+start. Harvesting stays between sessions; this script neither runs a robot nor
+replays the recorded actions in a simulator.
 
-Matching recorded parameters and labels does not establish equality of hidden physical state, object instance, scene, model revision or calibration. Held-object context is the runtime's recorded possession label, not independently sensed identity or a new per-arm possession model. The gate trusts the recorded verifier receipt; it does not re-evaluate historical measurements. Legacy traces without context are excluded, not retroactively repaired. Existing library notes are not migrated or deleted.
+## Verify the contract
 
-Only explicit task-end/reset rows stop matching. Hosts and fast paths that do not emit task markers still lack a proven episode boundary; a run directory alone does not establish one. Do not merge unrelated robot/deployment histories and treat the resulting association as a transferable policy. Full episode/state lineage remains future work.
+```bash
+.venv/bin/python -m pytest tests/test_agentic_upgrades.py \
+  tests/test_aspire_admission.py tests/test_llm_and_library.py \
+  tests/test_arm_rig.py tests/test_verifier_crash.py -q
 
-A faithful next step would record explicit decision/state lineage and evaluate bounded stop/continue policies on supported historical prefixes. Unsupported actions or branches must remain unknown. Candidate selection would need episode-level held-out data and fresh, independently graded trials with fixed safety and evaluation rules. A better score on the same replay history is not a guarantee of better online behavior.[1]
+# Broader non-hardware regression suite.
+.venv/bin/python -m pytest tests/ -q
+```
 
-Sources:
-[1] https://github.com/zhengkid/Dream-RSI/blob/4149ea9181ab1db80f85717ffda2c9f0f130e85b/papers/Dream-RSI.pdf (Dream-RSI paper)
-[2] https://github.com/zhengkid/Dream-RSI/tree/4149ea9181ab1db80f85717ffda2c9f0f130e85b (Dream-RSI repository)
+The admission tests use synthetic trace fixtures and real dispatch, checker,
+logger and library integration with data-only physical callbacks. They cover
+negative admission cases, resolved aliases, pre-placement possession,
+explicit boundaries and retention of evidence. A backend-probe sentinel checks
+that logging alone never accesses lazy hardware. These tests are not physical
+trials or measured improvements in robot success rate.
+
+A MuJoCo pick-and-place/reset run can separately check that manipulation still
+works and produces scoped traces. It does not establish that this gate learns
+better policies, and it does not certify the Isaac/CUDA/OpenClaw deployment.
+
+## Boundaries and research provenance
+
+- No changes to model weights, motion commands, IK, safety limits or the
+  postcondition evaluator. Experience-memory and operating-envelope admission
+  remain separate and unchanged.
+- The gate trusts historical verifier receipts structurally; it does not
+  re-evaluate their measurements or establish equality of hidden state,
+  scene, object instance, model revision or calibration.
+- Held-object context is the runtime's existing global label, not a new
+  per-arm possession model. Hosts without explicit task/reset records still
+  lack proven episode boundaries; a run directory alone is not one.
+- Notes are guidance, not transferable controllers. Matching one retry does
+  not prove causality, cross-task generalization or better future performance.
+
+Dream-RSI motivates restricting claims to recorded continuations. Its paper
+evaluates exploration controllers with fixed underlying models and execution
+interfaces (Section 3, pages 4–6); the experiments concern algorithm
+engineering, mathematics and GPU kernels, not robotics.[1] Its semantic-guidance
+comparison is specific to ConvDiv (Section 5.1, page 11), not evidence that
+repair memory is generally harmful. The pinned repository has no released
+implementation or reproduction scripts.[2]
+
+CASCADE does not implement Dream-RSI's policy optimizer. Further work would
+need explicit state/episode lineage, held-out episodes and independently
+measured new trials before claiming online improvement.
+
+[1] [Dream-RSI paper, pinned revision](https://github.com/zhengkid/Dream-RSI/blob/4149ea9181ab1db80f85717ffda2c9f0f130e85b/papers/Dream-RSI.pdf)
+[2] [Dream-RSI repository, same revision](https://github.com/zhengkid/Dream-RSI/tree/4149ea9181ab1db80f85717ffda2c9f0f130e85b)

@@ -548,6 +548,11 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
 - The **[agent](src/cascade/agent/)** dispatches through three tiers —
   reflex (regex, no LLM) → experience (learned habits) → LLM — so routine
   commands never wait on the model, with a VLM advisor kicking in on failure.
+- **[Retry evidence](docs/DREAM_RSI_ADAPTATION.md)** gates new ASPIRE library
+  notes: a later success must match the failed action's goal, resolved arm
+  and held-object context, with a measured, confirmed postcondition and no
+  intervening reset or task end. This filters unsupported learning; it does
+  not change robot control or establish that a retry caused an improvement.
 
 cascade works with hosted and local [LLM backends](#llm-backends) and is
 exposed as an [MCP server](#run-it-under-any-mcp-agent-platform) any
@@ -781,6 +786,8 @@ silently vanishes.
 - [docs/AGENTIC_UPGRADES.md](docs/AGENTIC_UPGRADES.md) — the Pigey/Harness-VLA/
   Claude-plays-robotics mechanisms (verification, envelope, cursor) and the
   pitfalls each one cost
+- [docs/DREAM_RSI_ADAPTATION.md](docs/DREAM_RSI_ADAPTATION.md) — scoped retry
+  admission, trace context, offline learning commands and verification limits
 - [docs/MOBILITY_AND_NAVIGATION_DESIGN.md](docs/MOBILITY_AND_NAVIGATION_DESIGN.md)
   — design for mobile bases, humanoid locomotion and navigation (`MobileBase`,
   Vesta's nav verbs, Nav2 / Warp planner backends, G1 in Isaac first); not code yet

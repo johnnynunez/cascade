@@ -47,6 +47,7 @@ class TraceLogger:
         keyframe_before: str | None = None,
         keyframe_after: str | None = None,
         tier: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> None:
         rec = {
             "step": self._step,
@@ -54,6 +55,7 @@ class TraceLogger:
             "skill": skill,
             "tier": tier,
             "args": _jsonable(args),
+            "context": _jsonable(context),
             "duration_ms": round(duration_ms, 1),
             "result": _jsonable(result),
             "keyframe_before": keyframe_before,

@@ -15,10 +15,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from cascade.agent.aspire import diagnose, distil, harvest, retrieve
+from cascade.agent.aspire import Diagnosis, diagnose, distil, harvest, retrieve
 from cascade.agent.cosmos3 import parse_xml_tool_calls, strip_reasoning
 from cascade.agent.effects import (
     CONFIRMED,
+    POSTCONDITIONS,
     REFUTED,
     UNVERIFIED,
     PostconditionChecker,
@@ -414,9 +415,26 @@ def test_cosmos3_strips_reasoning_block():
 # ── ASPIRE: trace -> diagnosis -> skill ──────────────────────────────────
 
 
-def _write_run(tmp_path, name, records, summary="task: pick the cube\nsuccess: true"):
+def _confirmed_result(skill="grasp_object"):
+    return {
+        "ok": True,
+        "postcondition": {
+            "skill": skill, "kind": POSTCONDITIONS[skill], "status": CONFIRMED,
+            "channel": "physics", "evidence": "Synthetic fixture: object rose above the table",
+            "measured": {"rise_m": 0.03},
+        },
+    }
+
+
+def _write_run(tmp_path, name, records, summary="task: pick the cube\nsuccess: true", *, scoped=True):
     run = tmp_path / name
     run.mkdir(parents=True)
+    if scoped:
+        # Explicit fixture context, matching the production trace contract.
+        records = [{**r, "context": r.get("context", {
+            "arm": (r.get("args") or {}).get("arm", "default"),
+            "held_object": "cube" if r.get("skill") in {"place_at", "place_on_object"} else None,
+        })} for r in records]
     (run / "trace.jsonl").write_text("\n".join(json.dumps(r) for r in records))
     (run / "summary.txt").write_text(summary)
     return run
@@ -427,11 +445,11 @@ def test_diagnose_localizes_failure_and_its_repair(tmp_path):
         tmp_path,
         "run1",
         [
-            {"skill": "grasp_object", "args": {"label": "cube", "depth_fraction": 0.5},
+            {"skill": "grasp_object", "args": {"label": "cube", "material": "rigid"},
              "result": {"ok": False, "error": "SafetyViolation: link/joint 7 would hit the table"},
              "duration_ms": 500},
-            {"skill": "grasp_object", "args": {"label": "cube", "depth_fraction": 0.15},
-             "result": {"ok": True}, "duration_ms": 800},
+            {"skill": "grasp_object", "args": {"label": "cube", "material": "soft"},
+             "result": _confirmed_result(), "duration_ms": 800},
         ],
     )
     diag = diagnose(run)
@@ -451,32 +469,69 @@ def test_unrepaired_failure_is_not_teachable(tmp_path):
     assert diag.failed_skill == "grasp_object" and not diag.teachable
 
 
+@pytest.mark.parametrize("confirmed_retries", [False, True])
+def test_diagnose_selects_last_confirmed_retry_or_first_failure(tmp_path, confirmed_retries):
+    records = []
+    for label, error in (("red cube", "air grasp"), ("blue cube", "no IK solution")):
+        records.append({
+            "skill": "grasp_object", "args": {"label": label},
+            "context": {"arm": "left", "held_object": None},
+            "result": {"ok": False, "error": error},
+            "keyframe_after": f"{label}.jpg",
+        })
+        result = _confirmed_result()
+        if not confirmed_retries:
+            result["postcondition"]["status"] = UNVERIFIED
+        records.append({
+            "skill": "grasp_object", "args": {"label": label},
+            "context": {"arm": "left", "held_object": None}, "result": result,
+        })
+    # A later unmatched failure must not displace the last confirmed pair.
+    records.append({"skill": "grasp_object", "args": {"label": "green cube"},
+                    "result": {"ok": False, "error": "object not found"}})
+    diag = diagnose(_write_run(tmp_path, "selection", records))
+    selected = records[2] if confirmed_retries else records[0]
+    assert diag is not None
+    assert diag.n_calls == 5 and diag.n_failures == 3
+    assert diag.failed_skill == selected["skill"]
+    assert diag.failed_args == selected["args"]
+    assert diag.failed_context == selected["context"]
+    assert diag.error == selected["result"]["error"]
+    assert diag.keyframe == selected["keyframe_after"]
+    assert diag.repaired is confirmed_retries and diag.teachable is confirmed_retries
+    if confirmed_retries:
+        assert diag.repair_args == selected["args"]
+        assert diag.repair_postcondition == records[3]["result"]["postcondition"]
+    else:
+        assert diag.repair_skill == "" and diag.repair_postcondition == {}
+
+
 def test_distil_writes_a_retrievable_library_entry(tmp_path):
     run = _write_run(
         tmp_path,
         "run3",
         [
-            {"skill": "grasp_object", "args": {"label": "cube", "depth_fraction": 0.5},
+            {"skill": "grasp_object", "args": {"label": "cube", "material": "rigid"},
              "result": {"ok": False, "error": "link/joint 7 would hit the table"}},
-            {"skill": "grasp_object", "args": {"label": "cube", "depth_fraction": 0.15},
-             "result": {"ok": True}},
+            {"skill": "grasp_object", "args": {"label": "cube", "material": "soft"},
+             "result": _confirmed_result()},
         ],
     )
     library = SkillLibrary(tmp_path / "lib")
     path = distil(diagnose(run), library)
     assert path is not None and path.exists()
     body = path.read_text()
-    assert "depth_fraction" in body and "0.5 -> 0.15" in body
+    assert "material" in body and "'rigid' -> 'soft'" in body
 
     injected = retrieve(library, "grasp the cube")
-    assert "ASPIRE library" in injected and "depth_fraction" in injected
+    assert "ASPIRE library" in injected and "material" in injected
 
 
 def test_harvest_dedupes_by_skill_and_signature(tmp_path):
     records = [
-        {"skill": "grasp_object", "args": {"depth_fraction": 0.5},
+        {"skill": "grasp_object", "args": {"label": "cube", "material": "rigid"},
          "result": {"ok": False, "error": "link/joint 7 would hit the table"}},
-        {"skill": "grasp_object", "args": {"depth_fraction": 0.15}, "result": {"ok": True}},
+        {"skill": "grasp_object", "args": {"label": "cube", "material": "soft"}, "result": _confirmed_result()},
     ]
     for i in range(3):
         _write_run(tmp_path, f"run{i}", records)
@@ -488,3 +543,162 @@ def test_harvest_dedupes_by_skill_and_signature(tmp_path):
 
 def test_retrieve_is_empty_on_a_fresh_library(tmp_path):
     assert retrieve(SkillLibrary(tmp_path / "lib"), "pick the cube") == ""
+
+
+@pytest.mark.parametrize("status", [None, UNVERIFIED, REFUTED])
+def test_diagnose_does_not_learn_unconfirmed_retries(tmp_path, status):
+    retry = _confirmed_result()
+    if status is None:
+        retry.pop("postcondition")
+    else:
+        retry["postcondition"]["status"] = status
+    run = _write_run(tmp_path, "unconfirmed", [
+        {"skill": "grasp_object", "args": {"object": "green cube"},
+         "result": {"ok": False, "error": "air grasp"}},
+        {"skill": "grasp_object", "args": {"object": "green cube"}, "result": retry},
+    ])
+    diag = diagnose(run)
+    assert diag is not None
+    assert not diag.repaired
+    assert not diag.teachable
+    library = SkillLibrary(tmp_path / "lib")
+    assert distil(diag, library) is None
+    assert library.entries() == []
+
+
+@pytest.mark.parametrize("skill,field,before,after", [
+    ("pick_and_place", "object", "green cube", "pink cube"),
+    ("grasp_object", "label", "green cube", "pink cube"),
+    ("grasp_object", "arm", "left", "right"),
+    ("pick_and_place", "destination", "box", "green square"),
+    ("grasp_object", "spatial_hint", "left", "right"),
+    ("place_at", "x", 0.2, 0.3),
+    ("push_object", "direction", "left", "right"),
+    ("push_object", "distance_m", 0.02, 0.1),
+])
+def test_diagnose_does_not_credit_a_different_goal(tmp_path, skill, field, before, after):
+    args = {
+        "grasp_object": {"label": "cube"},
+        "pick_and_place": {"object": "cube", "destination": "box"},
+        "place_at": {"x": 0.2, "y": 0.1, "z": 0.1},
+        "push_object": {"label": "cube", "direction": "left", "distance_m": 0.02},
+    }[skill]
+    run = _write_run(tmp_path, "changed-goal", [
+        {"skill": skill, "args": {**args, field: before},
+         "result": {"ok": False, "error": "air grasp"}},
+        {"skill": skill, "args": {**args, field: after}, "result": _confirmed_result(skill)},
+    ])
+    diag = diagnose(run)
+    assert diag is not None and not diag.teachable
+
+
+def test_diagnose_does_not_credit_success_after_scene_reset(tmp_path):
+    run = _write_run(tmp_path, "reset-boundary", [
+        {"skill": "grasp_object", "args": {"label": "cube"},
+         "result": {"ok": False, "error": "air grasp"}},
+        {"skill": "reset_scene", "args": {}, "result": {"ok": True}},
+        {"skill": "grasp_object", "args": {"label": "cube"}, "result": _confirmed_result()},
+    ])
+    diag = diagnose(run)
+    assert diag is not None and not diag.teachable
+
+
+@pytest.mark.parametrize("field,value", [
+    ("skill", "move_home"), ("kind", "at_home"), ("channel", ""),
+    ("channel", "arm"), ("channel", "llm"), ("evidence", ""), ("measured", {}),
+])
+def test_diagnose_requires_matching_measured_confirmation(tmp_path, field, value):
+    result = _confirmed_result()
+    result["postcondition"][field] = value
+    run = _write_run(tmp_path, "invalid-confirmation", [
+        {"skill": "grasp_object", "args": {"label": "cube"},
+         "result": {"ok": False, "error": "air grasp"}},
+        {"skill": "grasp_object", "args": {"label": "cube"}, "result": result},
+    ])
+    diag = diagnose(run)
+    assert diag is not None and not diag.teachable
+
+
+def test_distil_rechecks_confirmation_before_writing(tmp_path):
+    diag = Diagnosis(run="unsupported", failed_skill="grasp_object",
+                     signature="contact:air_grasp", repair_skill="grasp_object", repaired=True)
+    library = SkillLibrary(tmp_path / "lib")
+    assert not diag.teachable
+    assert distil(diag, library) is None
+    assert not library.entries()
+
+
+def test_diagnosis_preserves_the_actual_repair_confirmation(tmp_path):
+    result = _confirmed_result()
+    run = _write_run(tmp_path, "receipt", [
+        {"skill": "grasp_object", "args": {"label": "cube"},
+         "result": {"ok": False, "error": "air grasp"}},
+        {"skill": "grasp_object", "args": {"label": "cube"}, "result": result},
+    ])
+    diag = diagnose(run)
+    assert diag is not None and diag.teachable
+    assert diag.as_dict().get("repair_postcondition") == result["postcondition"]
+
+
+def test_distil_records_evidence_without_inventing_robot_advice(tmp_path):
+    result = _confirmed_result()
+    run = _write_run(tmp_path, "observed-only", [
+        {"skill": "grasp_object", "args": {"label": "cube"},
+         "result": {"ok": False, "error": "link/joint 7 would hit the table"}},
+        {"skill": "grasp_object", "args": {"label": "cube"}, "result": result},
+    ])
+    diag = diagnose(run)
+    assert diag is not None
+    entry = distil(diag, SkillLibrary(tmp_path / "lib"))
+    assert entry is not None
+    text = entry.read_text()
+    assert result["postcondition"]["evidence"] in text
+    assert '"rise_m": 0.03' in text and "physics" in text
+    assert "B601" not in text
+    assert "re-observing" not in text  # no observation call occurred in this trace
+
+
+def test_legacy_trace_without_routing_context_is_not_teachable(tmp_path):
+    run = _write_run(tmp_path, "unknown-context", [
+        {"skill": "grasp_object", "args": {"label": "cube"},
+         "result": {"ok": False, "error": "air grasp"}},
+        {"skill": "grasp_object", "args": {"label": "cube"}, "result": _confirmed_result()},
+    ], scoped=False)
+    diag = diagnose(run)
+    assert diag is not None and not diag.teachable
+
+
+@pytest.mark.parametrize("before_subject,after_subject,expected", [
+    ("red cube", "blue cube", False), (None, None, False), ("red cube", "red cube", True),
+])
+def test_placement_retry_needs_the_same_recorded_subject(tmp_path, before_subject, after_subject, expected):
+    coords = {"x": 0.2, "y": 0.1, "z": 0.05}
+    label = after_subject or "blue cube"
+    checker = PostconditionChecker(object_pose=lambda _: [0.2, 0.1, 0.05], gripper_frac=lambda: 1.0)
+    result = {"ok": True, "placed": label, "at": [0.2, 0.1, 0.05]}
+    result = annotate_result(result, checker.verify("place_at", coords, result,
+        before={"label": label, "pose": [0.3, 0.1, 0.1], "channel": "physics"}))
+    middle = ({"skill": "grasp_object", "args": {"label": "blue cube"}, "result": _confirmed_result()}
+              if after_subject == "blue cube" else {"skill": "get_observation", "result": {"ok": True}})
+    run = _write_run(tmp_path, "held-subject", [
+        {"skill": "place_at", "args": coords, "result": {"ok": False, "error": "object slipped"},
+         "context": {"arm": "default", "held_object": before_subject}},
+        middle,
+        {"skill": "place_at", "args": coords, "result": result,
+         "context": {"arm": "default", "held_object": after_subject}},
+    ])
+    diag = diagnose(run)
+    assert diag is not None and diag.teachable is expected
+
+
+@pytest.mark.parametrize("success", [True, False])
+def test_completed_task_is_a_learning_boundary(tmp_path, success):
+    run = _write_run(tmp_path, "task-boundary", [
+        {"skill": "grasp_object", "args": {"label": "cube"},
+         "result": {"ok": False, "error": "air grasp"}},
+        {"skill": "task_done", "args": {"success": success, "summary": "finished"},
+         "result": {"ok": True, "task_complete": True, "success": success}},
+        {"skill": "grasp_object", "args": {"label": "cube"}, "result": _confirmed_result()},
+    ])
+    diag = diagnose(run)
+    assert diag is not None and not diag.teachable

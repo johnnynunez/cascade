@@ -34,6 +34,7 @@ from ..perception.grounding import (
 )
 
 if TYPE_CHECKING:  # annotation only; the runtime import stays local (import cycle)
+    from ..control.arm_rig import ArmRig
     from ..types import ObjectFix
 from ..types import Detection, Frame, SafetyViolation, SkillError, make_transform, transform_points
 
@@ -109,7 +110,7 @@ class SkillRuntime:
         self.kin = kin
         self._arm = safe_arm
         #: optional ArmRig (set by the app wiring). None = single arm.
-        self.arm_rig = None
+        self.arm_rig: ArmRig | None = None
         #: per-call arm override, set by execute() for the duration of one
         #: skill call. Thread-local because the MCP server answers stop
         #: frames on a reader thread while a skill runs on a worker: a plain
@@ -458,6 +459,15 @@ class SkillRuntime:
             selected = self._select_arm(arm_name)
         except SkillError as e:
             return {"ok": False, "error": f"SkillError: {e}"}
+        # Record the resolved identity, not the optional selector stripped
+        # above. Consult only the rig registry: reading backend attributes
+        # through a LazyArm can power hardware merely to produce a log.
+        effective_arm = self._arm if selected is None else selected
+        resolved_arm = (
+            next((key for key, arm in self.arm_rig.arms.items() if arm is effective_arm), None)
+            if self.arm_rig is not None else "default"
+        )
+        trace_context = {"arm": resolved_arm, "held_object": self.held_object}
         self._show_status(f"{name}({_short(args)})")
         # BEFORE keyframe. `last_frame` is only set by observe(), so the first
         # skill of a run used to record `keyframe_before: null` -- exactly the
@@ -616,7 +626,8 @@ class SkillRuntime:
         after = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_after"
         )
-        self.trace.record(name, args, result, dur, before, after, tier=self.current_tier)
+        self.trace.record(name, args, result, dur, before, after,
+                          tier=self.current_tier, context=trace_context)
         err = str(result.get("error", "failed"))
         self._show_status(f"{name} -> " + ("ok" if result["ok"] else err[:60]))
         # Vesta memory tuple <step, time, observation, action, verdict>: the

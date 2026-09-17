@@ -5,24 +5,25 @@ This is the OUTER loop of the system. The inner loop (the agent) acts and
 leaves ASPIRE traces; this script reads those traces while nothing is running
 and folds them into the two persistent models the next session starts from:
 
-1. ``OperatingEnvelope``  (Harness-VLA) -- where each primitive is proven to
-   work and how it usually fails, learned from every recorded outcome.
-2. ``SkillLibrary``       (ASPIRE)      -- validated repairs distilled into
-   retrievable markdown guidance.
+1. ``OperatingEnvelope`` (Harness-VLA) -- per-primitive outcome statistics
+   and failure signatures from the selected traces.
+2. ``SkillLibrary`` (ASPIRE) -- matching, measured-confirmed retry
+   associations distilled into scoped markdown guidance, not causal repairs.
 
 Nothing here touches the robot, so it is safe to run from cron, from a Hermes
 scheduled job, or by hand between demo sessions:
 
-    # after a session
-    python scripts/learn_from_runs.py --report
+    # inspect after a session, without writing notes or envelope updates
+    python scripts/learn_from_runs.py --dry-run --report
 
     # nightly, from Hermes
     python scripts/learn_from_runs.py --json
 
-Design note: this deliberately runs as a separate process rather than inside
-the agent. Learning mid-demo would change behaviour under the audience's feet
-and burn booth seconds; learning between sessions makes each morning's robot
-strictly better than last night's without a single retrained weight.
+This runs as a separate process so harvesting does not change guidance
+mid-session. Better future performance still requires independent trials.
+See docs/DREAM_RSI_ADAPTATION.md for admission rules, legacy traces and the
+separate envelope path. --report alone writes updates; --dry-run may create
+an empty library directory, and --export-md always writes its requested file.
 """
 
 from __future__ import annotations

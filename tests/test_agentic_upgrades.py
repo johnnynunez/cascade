@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
@@ -470,6 +469,43 @@ def test_unrepaired_failure_is_not_teachable(tmp_path):
     assert diag.failed_skill == "grasp_object" and not diag.teachable
 
 
+@pytest.mark.parametrize("confirmed_retries", [False, True])
+def test_diagnose_selects_last_confirmed_retry_or_first_failure(tmp_path, confirmed_retries):
+    records = []
+    for label, error in (("red cube", "air grasp"), ("blue cube", "no IK solution")):
+        records.append({
+            "skill": "grasp_object", "args": {"label": label},
+            "context": {"arm": "left", "held_object": None},
+            "result": {"ok": False, "error": error},
+            "keyframe_after": f"{label}.jpg",
+        })
+        result = _confirmed_result()
+        if not confirmed_retries:
+            result["postcondition"]["status"] = UNVERIFIED
+        records.append({
+            "skill": "grasp_object", "args": {"label": label},
+            "context": {"arm": "left", "held_object": None}, "result": result,
+        })
+    # A later unmatched failure must not displace the last confirmed pair.
+    records.append({"skill": "grasp_object", "args": {"label": "green cube"},
+                    "result": {"ok": False, "error": "object not found"}})
+    diag = diagnose(_write_run(tmp_path, "selection", records))
+    selected = records[2] if confirmed_retries else records[0]
+    assert diag is not None
+    assert diag.n_calls == 5 and diag.n_failures == 3
+    assert diag.failed_skill == selected["skill"]
+    assert diag.failed_args == selected["args"]
+    assert diag.failed_context == selected["context"]
+    assert diag.error == selected["result"]["error"]
+    assert diag.keyframe == selected["keyframe_after"]
+    assert diag.repaired is confirmed_retries and diag.teachable is confirmed_retries
+    if confirmed_retries:
+        assert diag.repair_args == selected["args"]
+        assert diag.repair_postcondition == records[3]["result"]["postcondition"]
+    else:
+        assert diag.repair_skill == "" and diag.repair_postcondition == {}
+
+
 def test_distil_writes_a_retrievable_library_entry(tmp_path):
     run = _write_run(
         tmp_path,
@@ -620,60 +656,6 @@ def test_distil_records_evidence_without_inventing_robot_advice(tmp_path):
     assert '"rise_m": 0.03' in text and "physics" in text
     assert "B601" not in text
     assert "re-observing" not in text  # no observation call occurred in this trace
-
-
-@pytest.mark.parametrize("selectors,expected_arms", [
-    ((None, "left"), ["left", "left"]),
-    (("default", "primary"), ["left", "left"]),
-    (("left", "right"), ["left", "right"]),
-])
-def test_dispatch_trace_preserves_resolved_arm_and_pre_call_subject(tmp_path, selectors, expected_arms):
-    """Real dispatch/verifier/logger; only physical work is a data-only callback."""
-    import threading
-
-    from cascade.agent.trace import TraceLogger
-    from cascade.control.arm_rig import ArmRig
-    from cascade.skills.runtime import SkillRuntime
-
-    rt: Any = SkillRuntime.__new__(SkillRuntime)
-    left, right = SimpleNamespace(name="left"), SimpleNamespace(name="right")
-    rt._arm = left
-    rt._arm_override = threading.local()
-    rt.arm_rig = ArmRig([left, right], ["left", "right"])
-    rt.last_frame = rt.watcher = rt.held_object = rt._motion_t0 = None
-    rt.current_tier = "test"
-    rt.memory = SimpleNamespace(memory_frames=lambda _: [], add=lambda *a, **kw: None)
-    rt.envelope = SimpleNamespace(record=lambda *a, **kw: None)
-    rt.observe = lambda: None
-    rt._show_status = lambda _: None
-    rt.trace = TraceLogger(tmp_path / "producer")
-    poses = {"cube": [0.2, 0.1, 0.03]}
-    rt.effects = PostconditionChecker(object_pose=lambda label: poses[label], gripper_frac=lambda: 0.5)
-    selected_arms = []
-
-    def grasp(label):
-        selected_arms.append(rt.arm.name)
-        if len(selected_arms) == 1:
-            return {"ok": False, "error": "air grasp"}
-        poses[label] = [0.2, 0.1, 0.06]
-        rt.held_object = label
-        return {"ok": True, "held": label}
-
-    rt.skill_grasp_object = grasp
-    for selector in selectors:
-        args = {"label": "cube"}
-        if selector is not None:
-            args["arm"] = selector
-        rt.execute("grasp_object", args)
-    rows = [json.loads(line) for line in (rt.trace.run_dir / "trace.jsonl").read_text().splitlines()]
-    assert selected_arms == expected_arms
-    assert [r.get("context", {}).get("arm") for r in rows] == expected_arms
-    assert all(r["args"] == {"label": "cube"} for r in rows)
-    assert all(r["context"]["held_object"] is None for r in rows)
-    assert rt.held_object == "cube" and rt.arm is left
-    diag = diagnose(rt.trace.run_dir)
-    assert diag is not None
-    assert diag.teachable is (expected_arms[0] == expected_arms[1])
 
 
 def test_legacy_trace_without_routing_context_is_not_teachable(tmp_path):

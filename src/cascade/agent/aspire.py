@@ -1,41 +1,21 @@
-"""ASPIRE's self-improvement loop: diagnose a run, distil a reusable skill.
-
-ASPIRE (NVIDIA GEAR) is a continual-learning system that "inspects rollout
-traces, diagnoses failures, repairs programs, validates corrected behaviors,
-and saves reusable skills for future tasks", and its ablations credit the
-growing skill library with the largest transfer gain -- skills learned in sim
-carry into real-robot runs *as in-context guidance*, reaching first success
-with fewer tokens.
-
-cascade already ships two thirds of this:
-
-* the rich multimodal trace (``agent/trace.py`` -- trace.jsonl + keyframes),
-* the library schema and retrieval (``skills/library.py``).
-
-What was missing is the arrow between them.  ``SkillLibrary``'s own docstring
-admits it: *"the orchestrator does not call this yet -- the load-into-context
-loop is a ROADMAP item"*.  Nothing ever wrote an entry and nothing ever read
-one back, so every run started as ignorant as the first.
-
-This module is that arrow, in two directions:
+"""Scoped retry evidence for the ASPIRE trace-to-library path.
 
 ``diagnose(run_dir)``
-    Read a finished run's trace, localize the failure (the ASPIRE "selectively
-    inspect salient primitive logs" step), and emit a structured ``Diagnosis``
-    -- what broke, which primitive, under what signature, and what the run did
-    afterwards that worked.
+    Match a failed call to a later measured-confirmed retry within a bounded
+    trace window. Require the same goal, resolved arm and pre-call possession;
+    explicit reset/task-end rows stop matching. Unknown context is rejected.
 
-``distil(diagnosis)``
-    Turn a failure followed by a matching, measured-confirmed retry into a
-    library note: failure signature, recorded context, argument changes and
-    verifier receipt. This is an observed association, not a causal repair
-    or a transferable control policy. Unknown routing/possession is rejected.
+``distil(diagnosis, library)`` / ``harvest(runs_dir, library)``
+    Recheck eligibility and persist the error, context, argument delta and
+    verifier receipt as guidance. A matching retry is an observed association,
+    not proof of a causal repair or a transferable control policy.
 
-``retrieve(task)``
-    Pull the guard-matching entries into the agent's context for the next run.
+``retrieve(library, task)``
+    Load keyword-matched notes into the built-in orchestrator at task start.
 
-The evolutionary-search half of ASPIRE (parallel program variants) is out of
-scope for a live booth demo, but the loop below is the part that compounds.
+Harvesting runs offline through ``scripts/learn_from_runs.py``. This module
+does not execute retries, change a controller or independently re-evaluate
+historical measurements. See ``docs/DREAM_RSI_ADAPTATION.md`` for the contract.
 """
 
 from __future__ import annotations
@@ -198,8 +178,8 @@ def diagnose(run_dir: str | Path) -> Diagnosis | None:
     if not failures:
         return diag
 
-    # The salient failure is the LAST one that was subsequently repaired;
-    # falling back to the first failure when nothing was ever repaired.
+    # Select the LAST failure with a matching confirmed retry, or the first
+    # failure when no eligible retry was recorded.
     chosen = None
     for idx, rec in failures:
         skill = rec.get("skill", "")
@@ -214,25 +194,17 @@ def diagnose(run_dir: str | Path) -> Diagnosis | None:
                     and _same_goal(rec.get("args") or {}, later.get("args") or {})
                     and _same_context(skill, rec.get("context"), later.get("context"))
                     and _confirmed_postcondition(skill, postcondition)):
-                chosen = (idx, rec, later)
+                chosen = (rec, later)
                 break
-    if chosen is None:
-        idx, rec = failures[0]
-        diag.failed_skill = rec.get("skill", "")
-        diag.failed_args = rec.get("args") or {}
-        diag.failed_context = copy.deepcopy(rec.get("context") or {})
-        diag.error = str((rec.get("result") or {}).get("error", ""))
-        diag.signature = normalize_failure(diag.error)
-        diag.keyframe = rec.get("keyframe_after") or ""
-        return diag
-
-    idx, rec, fix = chosen
+    rec, fix = chosen if chosen is not None else (failures[0][1], None)
     diag.failed_skill = rec.get("skill", "")
     diag.failed_args = rec.get("args") or {}
     diag.failed_context = copy.deepcopy(rec.get("context") or {})
     diag.error = str((rec.get("result") or {}).get("error", ""))
     diag.signature = normalize_failure(diag.error)
     diag.keyframe = rec.get("keyframe_after") or ""
+    if fix is None:
+        return diag
     diag.repair_skill = fix.get("skill", "")
     diag.repair_args = fix.get("args") or {}
     diag.repair_context = copy.deepcopy(fix.get("context") or {})
@@ -253,8 +225,6 @@ def _arg_delta(before: dict, after: dict) -> str:
         else:
             parts.append(f"`{key}` {b!r} -> {a!r}")
     return "; ".join(parts) if parts else "same arguments (no parameter change recorded)"
-
-
 
 
 def distil(diag: Diagnosis, library) -> Path | None:
@@ -289,11 +259,7 @@ def distil(diag: Diagnosis, library) -> Path | None:
 
 
 def harvest(runs_dir: str | Path, library, limit: int = 100) -> dict:
-    """Diagnose every run under ``runs_dir`` and distil the repaired ones.
-
-    This is the batch entry point for the OUTER loop -- a Hermes cron job can
-    call it after a demo session so the next session starts smarter.
-    """
+    """Diagnose selected runs and distil eligible retry associations offline."""
     root = Path(runs_dir).expanduser()
     if not root.exists():
         return {"runs": 0, "diagnosed": 0, "learned": 0, "entries": []}

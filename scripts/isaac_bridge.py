@@ -84,12 +84,14 @@ args = p.parse_args()
 if not 0 < args.dt <= 1.0:
     p.error("--dt / CASCADE_ISAAC_DT must be finite and in (0, 1] seconds")
 
-# Demo spawn/ready pose (LOCAL joint convention). NOTE: the straight-up
-# pose is blocked on this asset -- drive-travel from q=0 sweeps the
-# props and jams, while joint-state authoring or tensor teleports NaN
-# the solver (custom fixed-joint stack). The upstream asset gets the
-# straight spawn properly via Seeed-Projects/reBot-Isaacsim#9.
-HOME_Q = [0.0, -1.2, -1.2, 0.0, -0.75, 0.0]  # gripper elbow-up, high
+# Demo ready target in the ASSET joint convention; IsaacArm converts the
+# profile's local home_q with joint_signs before sending the same target.
+# Neutral joint5 keeps gripper_end +X forward and its jaw-opening +Y lateral;
+# the old -0.75 rad target yawed the gripper sideways by 43 degrees.
+# Keep the raised-elbow target: earlier straight-up spawn attempts swept
+# the props and jammed; joint-state authoring or tensor teleports produced
+# NaNs in the solver with this asset's custom fixed-joint stack.
+HOME_Q = [0.0, -1.2, -1.2, 0.0, 0.0, 0.0]  # elbow raised, gripper forward
 # THIS asset's j2/j3 limits are [-3.14, 0] (mirror convention). The old
 # [0, +1.2, +1.2, ...] was for the spark `-plus` asset (j2/j3 in [0,+pi]) and
 # is ILLEGAL here: PhysX clamps +1.2 to 0, the arm collapses, and the gripper
@@ -887,15 +889,10 @@ print(f"[bridge] arm idx {ARM_IDX} grip idx {GRIP_IDX} "
 _PROP_SPAWNS = {name: tuple(pos) for name, pos, *_ in PROPS}
 
 _state_lock = threading.Lock()
-# Spawn STRAIGHT UP (presentation pose): q=0 lies flat OVER the table and
-# sits exactly ON the j2/j3 lower limits. Straight vertical = j2 at +90 deg
-# (local convention), j3 kept 1 deg inside its 0 lower limit. The TCP is
-# outside the demo workspace AABB here (x~0) -- the harness's workspace
-# escape rule lets the first commanded motion come home.
+# Hold the elbow-raised, forward-facing ready pose in raw asset DOFs.
 # CASCADE_BRIDGE_NO_TARGETS=1: asset-inspection mode -- apply NO runtime targets
 # so the asset's own authored joint state/drive targets are what you see
-# (used to validate the initial-pose PR; also note HOME_Q is in the LOCAL
-# joint convention and would fight a mirror-convention asset).
+# on initial playback and after an editor Stop/Play.
 _NO_TARGETS = os.environ.get("CASCADE_BRIDGE_NO_TARGETS", "0") == "1"
 _targets: dict = {
     "q": None if _NO_TARGETS else list(HOME_Q),
@@ -1546,8 +1543,8 @@ def _resume_scene():
     art = Articulation(args.prim)
     _init_wrist_cam()
     with _state_lock:
-        _targets["q"] = list(HOME_Q)
-        _targets["grip_frac"] = 1.0
+        _targets["q"] = None if _NO_TARGETS else list(HOME_Q)
+        _targets["grip_frac"] = None if _NO_TARGETS else 1.0
         _targets["stopped"] = False
     # Props: the USD re-parse already rebirths them at their authored spawn
     # poses. The old code skipped this under Newton because "RigidPrim

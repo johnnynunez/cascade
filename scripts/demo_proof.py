@@ -90,10 +90,14 @@ def probe_native_tools(base: str, model: str) -> dict:
     info = local_brain(base, model)
     payload = {
         "model": model, "stream": False, "temperature": 0, "max_tokens": 512,
-        "messages": [{"role": "user", "content": "Call cascade_readiness once with ready=true. Do not answer in prose."}],
+        "messages": [{"role": "system", "content": "Use the available tools to check readiness or explain capabilities."},
+                     {"role": "user", "content": "Are you ready?"}],
         "tools": [{"type": "function", "function": {
-            "name": "cascade_readiness", "description": "Report readiness; this tool has no side effects.",
+            "name": "cascade_readiness", "description": "Check whether the demo is ready. Set ready=true to request the readiness check. This diagnostic has no side effects.",
             "parameters": {"type": "object", "properties": {"ready": {"type": "boolean"}}, "required": ["ready"]},
+        }}, {"type": "function", "function": {
+            "name": "cascade_capabilities", "description": "List the available demo capabilities when someone asks what the demo can do.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
         }}],
         "tool_choice": "auto",
         "chat_template_kwargs": {"enable_thinking": False},
@@ -302,18 +306,20 @@ def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
     model, session = report["model"], report["session_id"]
     prefix = os.environ.get("CASCADE_MCP_NAME", "cascade") + "__"
 
-    def turn(tool, arguments, output, timeout=150, instruction=""):
-        result = agent_turn(session, model,
-            f"{instruction + ' ' if instruction else ''}Call the native MCP tool {prefix}{tool} exactly once "
-            f"with arguments {json.dumps(arguments)}. Use those plain JSON values. "
-            "Wait for the real tool response and summarize it in one sentence. "
-            "Do not use system commands or other tools.", output, timeout, tool)
+    def turn(message, tool, output, timeout=150):
+        # Expected tools validate the completed result; they never alter the
+        # visitor's message or constrain native model selection.
+        result = agent_turn(session, model, message, output, timeout, tool)
         summary = result["meta"]["toolSummary"]
-        if summary["calls"] != 1 or summary["tools"] != [prefix + tool]:
-            raise ProofError(f"Spark acceptance requires exactly one native {tool} call")
+        read_tools = {prefix + name for name in
+                      ("describe_scene", "localize_object", "camera_snapshot", "world_state")}
+        if not set(summary["tools"]).issubset(read_tools | {prefix + tool}):
+            raise ProofError("Spark acceptance used an unexpected action or non-attendee tool")
+        # Current owner-bound trace validators count motion/reset calls. A
+        # native inspection before that action is allowed when needed.
         return result
 
-    turn("world_state", {}, evidence / "01-world.json")
+    turn("What can you see on the table?", "describe_scene", evidence / "01-scene.json")
     process = _bound_world(state_dir, owner, baseline, report["started_at"])
     trace = Path(process["run_dir"]) / "trace.jsonl"
     report.update(process=process, trace=str(trace), cases=[])
@@ -321,29 +327,25 @@ def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
             (("green cube", "green square"), ("orange", "open box")), 1):
         case_dir = evidence / f"case-{number}"
         case_dir.mkdir()
-        turn("get_observation", {}, case_dir / "01-inspect.json",
-             instruction=f"Inspect the current {target} and {destination}.")
-        _bound_world(state_dir, owner, baseline, report["started_at"], process)
         witness = make_spark_witness(repo, case_dir,
                                     object_name="_".join(target.split()), destination_name=destination)
         with witness:
             witness.mark("pick_begin")
             started = time.time()
-            turn("pick_and_place", {"object": target, "destination": destination, "arm": "default"},
-                 case_dir / "02-pick.json", 300,
-                 instruction=f"Move the {target} to the {destination} in the simulation.")
+            message = ("Could you put the green cube in the green square?" if number == 1
+                       else "Please put the orange in the open box.")
+            turn(message, "pick_and_place", case_dir / "02-pick.json", 300)
             _bound_world(state_dir, owner, baseline, report["started_at"], process)
             witness.settle(wall_timeout=90)
             witness.mark("pick_end")
             witness.capture_frames("placed")
             reset_started = time.time()
             witness.mark("reset_begin")
-            turn("reset_scene", {"arm": "default"}, case_dir / "03-reset.json", 240)
+            turn("Let's start over.", "reset_scene", case_dir / "03-reset.json", 240)
             _bound_world(state_dir, owner, baseline, report["started_at"], process)
             props = validate_reset_trace(trace, reset_started, "isaac", target)
-            turn("world_state", {}, case_dir / "04-world-reset.json")
-            turn("get_observation", {}, case_dir / "05-inspect-reset.json",
-                 instruction="Inspect the fresh image after resetting the scene.")
+            turn("What is the session status?", "world_state", case_dir / "04-world-reset.json")
+            turn("What can you see on the table?", "describe_scene", case_dir / "05-inspect-reset.json")
             _bound_world(state_dir, owner, baseline, report["started_at"], process)
             witness.settle(wall_timeout=90)
             witness.mark("reset_end")
@@ -394,24 +396,21 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True) -> dict:
     if robot_turn and sim != "none":
         target = "pink cube" if sim == "isaac" else "red cube"
         agent_turn(session, model,
-                   "Call CASCADE world_state exactly once as the initial health check. Do not move the robot. "
-                   "Do not use system commands or other MCP servers.", evidence / "02-world.json", 150, "world_state")
+                   "What is the session status?", evidence / "02-world.json", 150, "world_state")
         process = _bound_world(state_dir, owner, baseline, report["started_at"])
         trace = Path(process["run_dir"]) / "trace.jsonl"
         report["process"] = process
         started = time.time()
         print(f"[proof] picking {target} (physics confirmation required)", file=sys.stderr, flush=True)
         agent_turn(session, model,
-                   f"In the CASCADE simulation only, call pick_and_place exactly once with object={target!r}, "
-                   "destination='drop zone'. Do not use system commands or other MCP servers. Report its result.",
+                   f"Please put the {target} in the drop zone.",
                    evidence / "03-pick.json", 300, "pick_and_place")
         _bound_world(state_dir, owner, baseline, report["started_at"], process)
         validate_pick_trace(trace, started, target)
         reset_started = time.time()
         print("[proof] resetting the SAME world", file=sys.stderr, flush=True)
         agent_turn(session, model,
-                   "Call CASCADE reset_scene exactly once, then world_state to read back the reset. "
-                   "Do not use system commands or other MCP servers.",
+                   "Let's start over, then show the session status.",
                    evidence / "04-reset.json", 150, ("reset_scene", "world_state"))
         _bound_world(state_dir, owner, baseline, report["started_at"], process)
         props = validate_reset_trace(trace, reset_started, sim, target)

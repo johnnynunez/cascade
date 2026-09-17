@@ -51,19 +51,18 @@
         <li>
           <h3>Ask it to look</h3>
           <p>Staff can start with: “Ask about the kitchen, then give the arm one task. We will watch what happens.” Type this in OpenClaw and click the send arrow:</p>
-          <blockquote>what are you seeing?</blockquote>
+          <blockquote>What can you see on the table?</blockquote>
           <p>Wait for the reply and compare it with Worktop. The green cube is an object; the green outline on the counter is a destination. If the description is wrong, ask for a fresh observation before moving.</p>
         </li>
         <li>
           <h3>Give one order</h3>
           <p>Name one object and one destination. For example:</p>
           <div class="orders">
-            <blockquote>move the orange to the box</blockquote>
-            <blockquote>move the green cube to the green zone</blockquote>
-            <blockquote>move the red cube to the red zone</blockquote>
+            <blockquote>Please put the orange in the open box.</blockquote>
+            <blockquote>Could you put the green cube in the green square?</blockquote>
           </div>
           <p>Use the loose orange near the arm. The box is the shallow wooden tray beside the green zone.</p>
-          <p class="note">The current kitchen has green and pink cubes, with no red zone. The red request is unsupported in this scene. Do not substitute the pink cube or the green zone.</p>
+          <p class="note">Use names from the current scene. If an object or destination is unclear, answer the assistant’s clarification before continuing.</p>
           <p>Wait for the tool and the full reply. A pick can take one to two minutes. Send the next movement only after the arm finishes.</p>
         </li>
         <li>
@@ -73,8 +72,9 @@
         </li>
         <li>
           <h3>Reset before the next task</h3>
-          <p>After the current tool finishes, click <strong>Reset</strong> above the conversation in OpenClaw. The button sends the same order as typing:</p>
-          <blockquote>Reset the scene.</blockquote>
+          <p>After the current tool finishes, type:</p>
+          <blockquote>Let's start over.</blockquote>
+          <p>You can also click <strong>Reset</strong> above the conversation in OpenClaw.</p>
           <p>Keep this chat open while reset runs. A long conversation can delay it.</p>
           <p>Wait for <strong>Scene reset</strong> and <strong>Live</strong> in all three camera views. Check that the gripper is empty, the arm is home and the loose objects are back. If reset is not confirmed, read the chat before trying again. A new chat does not reset the kitchen.</p>
           <p>For the next attendee, click <strong>+</strong> in OpenClaw to start a new session after the reset finishes.</p>
@@ -92,7 +92,7 @@
         <p>After the active tool finishes, click <strong>+</strong> at the top left of OpenClaw to start a new session. Ask for a fresh scene image before another movement. A new session does not reset the kitchen.</p>
         <h3>A reset reply without a reset</h3>
         <p>After the active tool finishes, send this once:</p>
-        <blockquote>Call reset_scene once for a fresh reset. Wait for the tool result, then stop.</blockquote>
+        <blockquote>Please reset the scene.</blockquote>
         <p>If it fails, keep the result and have the operator recover the demo.</p>
       </details>
       <p class="limits">This version has a small set of prepared objects and skills. Descriptions and grasps can fail, especially for the lemon and unusual arrangements. A chat description does not certify the arm’s home pose or an empty gripper. Camera previews update a few times per second. Check each attempt.</p>

@@ -1,6 +1,11 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
 <p align="center">
+  <img src="docs/assets/paai-dgx-spark-natural-language-demo.gif" alt="OpenClaw moves a tomato can to the green square in the NVIDIA DGX Spark kitchen demo" width="1280"><br>
+  <a href="docs/DGX_SPARK_SETUP.md">PAAI demo running on NVIDIA DGX Spark · 6× speed</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT"></a>
@@ -79,6 +84,19 @@ the result.
 The authenticated attendee page shows cameras. A separate `/staff/` page
 explains the prompts, result checks and recovery steps. See the
 [booth guide](docs/BOOTH_GUIDE.md) for the staff walkthrough.
+
+## Roadmap
+
+We are working on two things next.
+
+**Newton parity.** The current event path uses CUDA PhysX because it is the
+repeatable setup today. We are closing the cross-engine reproducibility gap in
+contact, grasp and placement behavior, then we can move the full demo to
+Newton.
+
+**Cosmos 3 Edge.** We will add it when native tool calling through OpenClaw is
+consistent enough for normal attendee requests. Until then, Qwen remains the
+working event path.
 
 ## Brev deployment
 

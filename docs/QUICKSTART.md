@@ -165,10 +165,9 @@ cd models && python -m cascade.apps.demo \
     --cameras isaac,isaac_side --arm isaac --llm local_qwen --interactive
 ```
 
-It accepts English and Spanish instructions. English examples:
-`describe the scene` / `what do you see?` · `pick up the pink cube and put
-it in the box` · `open the cameras` (returns a URL) · `throw the banana` ·
-`reset the scene`.
+Use normal English, naming objects and destinations from the current scene:
+`What can you see on the table?` · `Could you put the green cube in the green
+square?` · `Please put the orange in the open box.` · `Let's start over.`
 
 ---
 

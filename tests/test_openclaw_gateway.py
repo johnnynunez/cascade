@@ -1,5 +1,6 @@
 """Real private process/socket tests; OpenClaw itself is a local CLI double."""
 import importlib.util
+import errno
 import json
 import os
 from pathlib import Path
@@ -228,6 +229,181 @@ def test_private_stop_handles_zombie_boundary_without_hiding_denial(monkeypatch,
     assert signals == [signal.SIGTERM, signal.SIGKILL]
     if platform == "linux":
         assert not reaps
+
+
+@pytest.mark.parametrize("returncode,stdout,stderr,own_child,stopped", [
+    pytest.param(0, "424242 424242 Zs\n424243 424242 Z+\n", "", True, True, id="zombies-after-waitpid-zero"),
+    pytest.param(0, "424243 424242 Z\n", "", False, True, id="zombie-not-our-child"),
+    pytest.param(1, "", "", True, True, id="empty-after-waitpid-zero"),
+    pytest.param(1, "", "", False, True, id="empty-not-our-child"),
+    pytest.param(0, "424242 424242 Z\n424243 424242 S\n", "", True, False, id="live-worker"),
+    pytest.param(0, "424243 424242 U\n", "", False, False, id="live-uninterruptible-worker"),
+    pytest.param(0, "", "", True, False, id="unexpected-empty-success"),
+    pytest.param(0, "", "Failure calling sysctl: Operation not permitted\n", True, False, id="sysctl-error-exits-zero"),
+    pytest.param(1, "", "ps: denied\n", True, False, id="query-denied"),
+    pytest.param(2, "", "", True, False, id="unknown-exit-code"),
+    pytest.param(1, "424242 424242 Z\n", "", True, False, id="rows-with-failed-query"),
+    pytest.param(0, "424242 424242 Z", "", True, False, id="incomplete-final-row"),
+    pytest.param(0, "424242 424242\n", "", True, False, id="missing-state"),
+    pytest.param(0, "424242 999999 Z\n", "", True, False, id="different-group"),
+    pytest.param(0, "424242 424242 Z\n424242 424242 Z\n", "", True, False, id="duplicate-member"),
+    pytest.param(0, "424242 424242 Zunknown\n", "", True, False, id="unknown-state"),
+    pytest.param(0, "PID PGID STAT\n", "", True, False, id="unexpected-header"),
+    pytest.param(0, "424242 424242 Z\n", "warning\n", True, False, id="warning-with-zombie"),
+])
+def test_darwin_private_stop_proves_group_exit_before_accepting_eperm(
+        monkeypatch, capsys, returncode, stdout, stderr, own_child, stopped):
+    import signal
+
+    record = {"pid": 424242, "process_group": 424242, "role": "gateway_child",
+              "birth": "darwin:known", "command": "known"}
+    live = [True]
+    calls = []
+    denied = PermissionError(errno.EPERM, "group signal denied")
+    monkeypatch.setattr(owners, "sys", SimpleNamespace(platform="darwin", stderr=sys.stderr))
+    monkeypatch.setattr(owners, "is_live", lambda *args: live[0])
+    monkeypatch.setattr(owners, "process_identity", lambda pid: None)
+    monkeypatch.setenv("COMMAND_MODE", "legacy")
+
+    def waitpid(pid, flags):
+        assert pid == record["pid"] and flags == os.WNOHANG
+        if not own_child:
+            raise ChildProcessError(errno.ECHILD, "created by another launcher")
+        return 0, 0  # The leader was not reapable at this boundary.
+
+    def group_signal(pid, number):
+        assert pid == record["process_group"]
+        calls.append(number)
+        if number == signal.SIGTERM:
+            live[0] = False
+        else:
+            raise denied
+
+    def query(command, **kwargs):
+        assert calls == [signal.SIGTERM, signal.SIGKILL]
+        assert command == ["/bin/ps", "-ww", "-x", "-g", "424242", "-o", "pid=,pgid=,stat="]
+        assert kwargs["env"]["COMMAND_MODE"] == "unix2003"
+        assert kwargs["env"]["LC_ALL"] == "C"
+        assert kwargs["capture_output"] and kwargs["text"] and kwargs["timeout"] > 0
+        return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+
+    monkeypatch.setattr(owners.os, "waitpid", waitpid)
+    monkeypatch.setattr(owners.os, "killpg", group_signal)
+    monkeypatch.setattr(owners.subprocess, "run", query)
+    if stopped:
+        owners.stop_private_gateway(record, {})
+    else:
+        with pytest.raises(PermissionError) as error:
+            owners.stop_private_gateway(record, {})
+        assert error.value is denied
+    assert calls == [signal.SIGTERM, signal.SIGKILL]
+    diagnostic = json.loads(capsys.readouterr().err.split("gateway group SIGKILL EPERM: ", 1)[1])
+    assert diagnostic["pid"] == diagnostic["process_group"] == record["pid"]
+    assert diagnostic["birth"] == record["birth"]
+    assert diagnostic["query"]["no_live_members"] is stopped
+    assert diagnostic["query"]["returncode"] == returncode
+    assert diagnostic["query"]["stderr"] == stderr
+    assert diagnostic["query"]["complete"]
+    if own_child:
+        assert diagnostic["waitpid"]["result"] == [0, 0]
+    else:
+        assert diagnostic["waitpid"]["errno"] == errno.ECHILD
+    assert diagnostic["term_monotonic"] <= diagnostic["waitpid"]["monotonic"] <= diagnostic["kill_monotonic"]
+
+
+@pytest.mark.parametrize("query_error", [
+    PermissionError(errno.EACCES, "cannot execute ps"),
+    subprocess.TimeoutExpired("ps", 5, output="424242 424242 Z\n", stderr="partial"),
+    UnicodeError("unreadable output"),
+])
+def test_darwin_group_query_failure_retains_original_permission_error(monkeypatch, capsys, query_error):
+    import signal
+
+    record = {"pid": 424242, "role": "gateway_child", "birth": "known", "command": "known"}
+    denied = PermissionError(errno.EPERM, "original group signal denied")
+    monkeypatch.setattr(owners, "sys", SimpleNamespace(platform="darwin", stderr=sys.stderr))
+    monkeypatch.setattr(owners, "is_live", lambda *args: True)
+    monkeypatch.setattr(owners, "process_identity", lambda pid: None)
+    monkeypatch.setattr(owners.os, "waitpid", lambda *args: (0, 0))
+
+    def group_signal(pid, number):
+        if number == signal.SIGKILL:
+            raise denied
+
+    def query(*args, **kwargs):
+        raise query_error
+
+    monkeypatch.setattr(owners.os, "killpg", group_signal)
+    monkeypatch.setattr(owners.subprocess, "run", query)
+    with pytest.raises(PermissionError) as error:
+        owners.stop_private_gateway(record, {}, timeout_s=0)
+    assert error.value is denied
+    diagnostic = json.loads(capsys.readouterr().err.split("gateway group SIGKILL EPERM: ", 1)[1])
+    assert not diagnostic["query"]["no_live_members"]
+    assert not diagnostic["query"]["complete"]
+    assert diagnostic["query"]["error"]
+
+
+@pytest.mark.parametrize("platform,step,error_number", [
+    ("darwin", "term", errno.EPERM),
+    ("darwin", "waitpid", errno.EPERM),
+    ("darwin", "kill", errno.EACCES),
+    ("linux", "kill", errno.EPERM),
+])
+def test_private_stop_other_permission_errors_never_query_a_group(monkeypatch, platform, step, error_number):
+    import signal
+
+    record = {"pid": 424242, "role": "gateway_child", "birth": "known", "command": "known"}
+    denied = PermissionError(error_number, "signal or reap denied")
+    monkeypatch.setattr(owners, "sys", SimpleNamespace(platform=platform))
+    monkeypatch.setattr(owners, "is_live", lambda *args: True)
+    monkeypatch.setattr(owners, "process_identity", lambda pid: None)
+
+    def group_signal(pid, number):
+        if (number == signal.SIGTERM and step == "term") or (number == signal.SIGKILL and step == "kill"):
+            raise denied
+
+    def waitpid(*args):
+        if step == "waitpid":
+            raise denied
+        return 0, 0
+
+    monkeypatch.setattr(owners.os, "killpg", group_signal)
+    monkeypatch.setattr(owners.os, "waitpid", waitpid)
+    monkeypatch.setattr(owners.subprocess, "run", lambda *a, **kw: pytest.fail("unexpected group query"))
+    with pytest.raises(PermissionError) as error:
+        owners.stop_private_gateway(record, {}, timeout_s=0)
+    assert error.value is denied
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Darwin exact-PGID ps contract")
+def test_darwin_exact_group_query_distinguishes_live_and_unreaped_child():
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import sys; print('ready', flush=True); sys.stdin.read(1)"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, start_new_session=True,
+    )
+    try:
+        assert child.stdout.readline() == "ready\n"
+        snapshot = owners._darwin_group_snapshot(child.pid)
+        assert snapshot["complete"] and not snapshot["no_live_members"], snapshot
+        assert any(member["pid"] == child.pid for member in snapshot["members"]), snapshot
+        child.stdin.write("x")
+        child.stdin.flush()
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            snapshot = owners._darwin_group_snapshot(child.pid)
+            if snapshot["no_live_members"]:
+                break
+            time.sleep(.02)
+        assert snapshot["no_live_members"], snapshot
+        assert len(snapshot["members"]) == 1, snapshot
+        assert snapshot["members"][0]["pid"] == snapshot["members"][0]["pgid"] == child.pid, snapshot
+        assert snapshot["members"][0]["state"].startswith("Z"), snapshot
+    finally:
+        child.kill()
+        child.wait(timeout=3)
+        child.stdin.close()
+        child.stdout.close()
 
 
 def test_owned_group_cleanup_reaps_a_worker_that_ignores_term(private_gateway, monkeypatch):

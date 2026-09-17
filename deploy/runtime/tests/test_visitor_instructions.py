@@ -19,10 +19,10 @@ def current_block():
 
 
 def test_camera_status_guidance_does_not_promote_cached_statistics_to_live_evidence():
-    text = policy.SOURCE_PATH.read_text()
-    assert 'cached client delivery statistics' in text
-    assert 'One result cannot establish a fresh capture' in text
-    assert 'camera_snapshot' in text and 'get_observation' in text
+    text = ' '.join(policy.SOURCE_PATH.read_text().split())
+    assert 'Status counters are cached' in text
+    assert 'one status result does not establish advancing cameras or a fresh capture' in text
+    assert 'Obtain a fresh image before describing a camera view' in text
     assert 'authority for camera availability' not in text
 
 

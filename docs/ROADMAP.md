@@ -319,7 +319,8 @@ Open follow-ups from this work:
    at replay; this is the shape for #8 and fixes tier-2's text keys. (M)
 10. **ASPIRE cross-task promotion gate.** `agent/aspire.py`: promote a
     distilled skill only when seen in ≥2 distinct tasks (`occurrences`,
-    `source_tasks`); today one lucky repair is retrievable as proven. (S)
+    `source_tasks`); the scoped retry-admission gate still permits retrieval
+    after one confirmed retry, without cross-task validation. (S)
 11. **Pigey snapshot/restore + occlusion search** as composite skills over
     `BeliefStore` (`snapshot_scene`/`restore_scene`, `search_for_object`):
     the one demo beat visible from chat that no current skill covers. (M)
@@ -847,12 +848,14 @@ are synchronous by design here, noted for long-horizon work.
 - **Skill-library growth loop** (ASPIRE) — ✅ **landed 2026-07-31** (and
   wired end to end: `retrieve()` runs in `orchestrator.run_task`; docs that
   called it store-only were corrected 2026-09-10). After each
-  run, `agent/aspire.py` diagnoses the trace, localizes the salient failure,
-  and distils *validated repairs* (a failure followed by the same primitive
-  succeeding) into `skills_library/*.md`, deduped by (skill, signature);
+  run, `agent/aspire.py` diagnoses the trace and distils scoped,
+  measured-confirmed retry associations into `skills_library/*.md`, deduped
+  by (skill, signature) within a harvest. Matching goals, resolved arms and
+  pre-call possession are required; explicit reset/task-end rows stop matching.
   `retrieve()` loads guard-matched entries into the agent context at task
   start. Batch entry point: `scripts/learn_from_runs.py` (runs between
-  sessions, never mid-demo). See `docs/AGENTIC_UPGRADES.md`.
+  sessions, never mid-demo). This is not causal or cross-task validation;
+  see [admission rules and limits](DREAM_RSI_ADAPTATION.md).
 
 ## Long term: sim2real with NuRec / Isaac
 

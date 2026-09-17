@@ -100,6 +100,8 @@ Three properties that are load-bearing and easy to break: (1) the distance is SE
 
 ## Testing conventions
 
+- **Retry-evidence admission:** `agent/aspire.py` must reject missing context, changed goals/arms/possession, unmeasured confirmations and matches across explicit reset/task-end rows. `SkillRuntime.execute()` captures resolved arm identity and possession BEFORE the skill, from the registry only — logging must never probe a `LazyArm` backend. Keep the focused tests in `test_agentic_upgrades.py` and `test_aspire_admission.py` with library/routing/verifier regressions. See `docs/DREAM_RSI_ADAPTATION.md`; a successful simulator demo is not evidence of causal learning or better grasp performance.
+
 - Shared surface in `tests/conftest.py`: `REPO`, `URDF`, `USD`, `SO101_URDF`, `JOINT_SIGNS`, `has_pinocchio()`, `needs_pin`, `needs_pin_so101`, and the `demo_cfg` / `rng` fixtures. Import via `from conftest import ...`.
 - **Do not gate a test on an optional extra when the contract can be faked.** CI installs neither `openai` nor `anthropic`, so an `importorskip("openai")` means the assertion runs on NO machine; `tests/test_hermes_brain.py` injects a stub `openai` module into `sys.modules` instead and asserts what the client was constructed with. Reserve real skips for things a stub cannot stand in for (physics, hardware).
 - Tests that fake the host for `device.py` must clear the `lru_cache` on `_torch`/`best_device` at BOTH ends, and defensively (monkeypatch's finalizer runs after the fixture teardown, so `_torch` may already be a plain function by then).

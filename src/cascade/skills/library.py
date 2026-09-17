@@ -1,12 +1,11 @@
-"""Learned-skill library (ASPIRE Sec 2.2): validated repairs persisted as
-markdown so future runs (and future agents) start smarter.
+"""Markdown guidance storage and keyword retrieval for the ASPIRE library.
 
-Entry schema mirrors the paper: failure signature, when-to-apply guard,
-strategy, optional parameters (e.g. per-object grasp yaw/z-offset), origin
-task. Files live in <repo>/skills_library/<slug>.md; ``relevant(task)``
-returns the entries whose guard keywords match, ready to inject into the
-agent's context. NOTE: the orchestrator does not call this yet — the
-load-into-context loop is a ROADMAP item ("skill-library growth loop").
+Entries carry a failure signature, when-to-apply keywords, strategy and
+origin. Files live in <repo>/skills_library/<slug>.md. ``relevant(task)``
+selects notes for ``agent.aspire.retrieve``, which the built-in orchestrator
+calls at task start. Admission of newly harvested retry evidence belongs to
+``agent.aspire``; this store also accepts manual notes and does not validate
+their claims or enforce robot/scene identity during retrieval.
 """
 
 from __future__ import annotations

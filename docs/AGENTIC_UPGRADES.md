@@ -118,17 +118,21 @@ appears only when configured. It does not verify IK or grasp reachability.
 `scripts/learn_from_runs.py` runs **between** sessions (cron / Hermes job):
 
 ```bash
-python scripts/learn_from_runs.py --report
+python scripts/learn_from_runs.py --dry-run --report
 ```
 
-It folds every `runs/*/trace.jsonl` into the envelope model and distils
-validated repairs (a failure followed by the same primitive succeeding) into
-`skills_library/*.md`, deduped by `(skill, signature)`. The orchestrator
-retrieves guard-matched entries at task start.
+It folds recorded outcomes into the envelope model. The separate library
+path admits only matching-goal retries with explicit arm/possession context,
+measured confirmation and no intervening reset or task end. It writes the
+recorded association into `skills_library/*.md`, deduped by `(skill, signature)`
+within a harvest; the orchestrator retrieves keyword-matched notes at task
+start. See [retry evidence admission](DREAM_RSI_ADAPTATION.md) for inspection
+commands and limits. A later success is not proof of a causal repair.
 
-Learning deliberately does **not** happen mid-demo: it would change behaviour
-under the audience's feet and burn booth seconds. Each morning's robot is
-better than last night's, with no retrained weights.
+Harvesting deliberately does **not** happen mid-demo: it would change guidance
+under the audience's feet and burn booth seconds. The example is an inspection
+run; omit `--dry-run` only after reviewing the sessions. Better future robot
+performance requires independent trials, not merely more library entries.
 
 ## Cosmos3-Edge
 

@@ -14,12 +14,17 @@ host_boundary = _host_boundary
 @pytest.fixture
 def spark_boundary(host_boundary, monkeypatch):
     h = host_boundary
-    h.update(turns=[], audits=[], witnesses=[], audit_fail=None, duplicate_call=False,
-             reset_failure=False, wrong_object=False)
+    h.update(turns=[], prompts=[], audits=[], witnesses=[], audit_fail=None, duplicate_call=False,
+             reset_failure=False, wrong_object=False, extra_inspection=False)
     monkeypatch.setenv("CASCADE_INSTALL_PROFILE", "spark")
 
     def turn(session, model, message, output, timeout, required_tool=None):
-        arguments = json.loads(re.search(r"with arguments (\{.*?\})\.", message).group(1))
+        legacy = re.search(r"with arguments (\{.*?\})\.", message)
+        arguments = json.loads(legacy.group(1)) if legacy else {
+            "Could you put the green cube in the green square?": {"object": "green cube", "destination": "green square"},
+            "Please put the orange in the open box.": {"object": "orange", "destination": "open box"},
+        }.get(message, {})
+        h["prompts"].append(message)
         h["turns"].append((required_tool, arguments, session))
         output.write_text(json.dumps({"synthetic_test_only": True, "arguments": arguments}))
         if "trace" not in h:
@@ -34,14 +39,19 @@ def spark_boundary(host_boundary, monkeypatch):
                               "postcondition": {"status": "unverified", "channel": "physics"}}}
             with trace.open("a") as stream:
                 stream.write(json.dumps(row) + "\n")
+                if h["duplicate_call"]:
+                    stream.write(json.dumps(row) + "\n")
         elif required_tool == "reset_scene":
             row = {"t": time.time(), "skill": "reset_scene", "result": {
                 "ok": not h["reset_failure"], "world": "isaac",
                 "props_reset": ["pink_cube", "green_cube", "tomato_can", "lemon", "orange"]}}
             with trace.open("a") as stream:
                 stream.write(json.dumps(row) + "\n")
-        return {"meta": {"toolSummary": {"calls": 2 if h["duplicate_call"] else 1,
-                "tools": ["cascade__" + required_tool], "failures": 0}}}
+        tools = ["cascade__" + required_tool]
+        if h["extra_inspection"] and required_tool == "pick_and_place":
+            tools.insert(0, "cascade__describe_scene")
+        return {"meta": {"toolSummary": {"calls": 2 if h["duplicate_call"] else len(tools),
+                "tools": tools, "failures": 0}}}
 
     class Witness:
         def __init__(self, repo, evidence, *, object_name, destination_name):
@@ -82,8 +92,8 @@ def test_two_native_orders_with_observed_resets_share_one_real_process_binding(s
     assert [(case["object"], case["destination"]) for case in report["cases"]] == [
         ("green cube", "green square"), ("orange", "open box")]
     tools = [tool for tool, _, _ in h["turns"]]
-    assert tools == ["world_state", *(["get_observation", "pick_and_place", "reset_scene",
-                                      "world_state", "get_observation"] * 2)]
+    assert tools == ["describe_scene", *(["pick_and_place", "reset_scene",
+                                      "world_state", "describe_scene"] * 2)]
     assert len({session for _, _, session in h["turns"]}) == 1
     assert h["audits"] == ["green_cube", "orange"]
     assert len(h["children"]) == 1
@@ -104,3 +114,25 @@ def test_no_ready_receipt_for_failed_or_substituted_cases(spark_boundary, fault)
     assert json.loads((h["state"] / "proof.json").read_text())["verified"] is False
     if fault != "orange_audit":
         assert not any(arguments.get("object") == "orange" for _, arguments, _ in h["turns"])
+
+
+def test_spark_acceptance_uses_only_natural_attendee_messages(spark_boundary):
+    h = spark_boundary
+    demo_proof.run_proof(h["repo"], h["state"], "isaac", True)
+    assert h["prompts"] == [
+        "What can you see on the table?",
+        "Could you put the green cube in the green square?",
+        "Let's start over.",
+        "What is the session status?",
+        "What can you see on the table?",
+        "Please put the orange in the open box.",
+        "Let's start over.",
+        "What is the session status?",
+        "What can you see on the table?",
+    ]
+
+
+def test_natural_pick_allows_an_inspection_before_its_single_motion(spark_boundary):
+    h = spark_boundary
+    h["extra_inspection"] = True
+    assert demo_proof.run_proof(h["repo"], h["state"], "isaac", True)["verified"] is True

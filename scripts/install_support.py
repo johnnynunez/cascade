@@ -8,11 +8,13 @@ imports torch/Isaac in the installer process or changes third-party sources.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
+import re
 import shlex
 import shutil
 import signal
@@ -266,22 +268,48 @@ def qwen_binding(repo: Path, env: dict[str, str]) -> dict:
             "launcher_sha256": hashlib.sha256((repo / "scripts/serve_qwen_llamacpp.sh").read_bytes()).hexdigest()}
 
 
-def stop_group(process: subprocess.Popen) -> None:
-    # This group was created by THIS invocation (never signal a stale PID file).
+def _group_is_stopped(pgid: int) -> bool:
+    """An exited leader alone cannot prove that its private workers stopped."""
     try:
-        os.killpg(process.pid, signal.SIGTERM)
+        result = subprocess.run(
+            ["ps", "-A", "-o", "pid=,pgid=,stat="], capture_output=True, text=True,
+            timeout=5, env={**os.environ, "LC_ALL": "C"},
+        )
+    except (OSError, UnicodeError, subprocess.TimeoutExpired):
+        return False
+    if result.returncode or result.stderr or not result.stdout.endswith("\n"):
+        return False
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) != 3 or not all(value.isdecimal() for value in fields[:2]):
+            return False
+        if int(fields[1]) == pgid and not re.fullmatch(r"Z[+<>AELNPSVWXsl]*", fields[2]):
+            return False
+    return True
+
+
+def _signal_owned_group(pgid: int, number: int) -> None:
+    try:
+        os.killpg(pgid, number)
     except ProcessLookupError:
         pass
+    except PermissionError as error:
+        # Some kernels deny signals to zombie-only groups. Preserve a real
+        # denial unless a complete process snapshot proves no live members.
+        if error.errno != errno.EPERM or not _group_is_stopped(pgid):
+            raise
+
+
+def stop_group(process: subprocess.Popen) -> None:
+    # This group was created by THIS invocation (never signal a stale PID file).
+    _signal_owned_group(process.pid, signal.SIGTERM)
     try:
         process.wait(timeout=10)
     except subprocess.TimeoutExpired:
         pass
     # A leader may exit on TERM while a worker ignores it. Reap the entire
     # private group, not just Popen's direct child (vLLM has worker processes).
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+    _signal_owned_group(process.pid, signal.SIGKILL)
     process.wait(timeout=5)
 
 

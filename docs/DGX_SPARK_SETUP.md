@@ -63,7 +63,7 @@ The source URL and `--ref` use the same pinned commit. This single command
 preserves a nonzero download/install exit status and saves installation output:
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/ed2f73a4915bf5e6140e7b806023485ddbcf173e/scripts/bootstrap.sh | bash -s -- --ref ed2f73a4915bf5e6140e7b806023485ddbcf173e --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark" 2>&1 | tee "$HOME/paai-spark-install.log"'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/485ad2654c8fab5fac16b212ce5443c3b4de939f/scripts/bootstrap.sh | bash -s -- --ref 485ad2654c8fab5fac16b212ce5443c3b4de939f --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark" 2>&1 | tee "$HOME/paai-spark-install.log"'
 ```
 
 The installer clones the pinned source and prepares the following files.

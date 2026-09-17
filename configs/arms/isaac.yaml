@@ -17,7 +17,9 @@ model: ${assets}/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf
 # Assets are mirrored vs. the SDK/hardware convention (q_local = -q_asset).
 joint_signs: [-1, -1, -1, -1, -1, -1]
 ee_frame: gripper_end
-home_q: [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
+# Elbow raised; gripper_end +X points forward and +Y opens the jaws.
+# A 0.75 rad joint5 offset yaws the gripper sideways by 43 degrees here.
+home_q: [0.0, 1.2, 1.2, 0.0, 0.0, 0.0]
 handover_q: [0.5, 1.2, 1.2, 0.0, 0.75, 0.0]
 
 gripper:

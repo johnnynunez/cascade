@@ -7,10 +7,10 @@ model: ${assets}/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf
 joint_signs: [-1, -1, -1, -1, -1, -1]
 ee_frame: gripper_end
 n_joints: 6
-home_q: [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]
-# Present-to-human pose: home leaned toward the operator's side. Was a
-# hardcoded default inside skill_handover; moved here because a keyframe for
-# one arm is not a keyframe for another.
+# Forward-facing gripper, matching the RS/Isaac ready pose (joint5 neutral).
+home_q: [0.0, 1.2, 1.2, 0.0, 0.0, 0.0]
+# Present-to-human pose: turn the base and wrist toward the operator.
+# Kept separate from the forward-facing ready pose.
 handover_q: [0.5, 1.2, 1.2, 0.0, 0.75, 0.0]
 
 gripper:

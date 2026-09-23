@@ -22,12 +22,13 @@ SAFETY MODEL -- read this before running:
 - `--delta` and `--kp` are hard-capped (MAX_DELTA_RAD / MAX_DELTA_YAW_RAD and
   MAX_KP) because the RobStride MIT gain scale is NOT yet characterized on this
   build, so an order-of-magnitude typo must not be expressible.
-- Gains default to the JOGGED JOINT's own values from
-  configs/arms/rebot_rs_mb.yaml, not to a flat number. An earlier version used
-  kp=8 for every joint and reported joints 3-5 as "blocked" when they were
-  merely being driven at a fraction of their configured gain -- a validation
-  run that does not use production's gains certifies nothing about production.
-  Override with --kp/--kd only to explore; fix the profile for anything real.
+- Gains default to the JOGGED JOINT's own values from the SDK's
+  rebotarm_rs.yaml (loaded via the `rebot_rs` profile), not to a flat number.
+  An earlier version used kp=8 for every joint and reported joints 3-5 as
+  "blocked" when they were merely being driven at a fraction of their
+  configured gain -- a validation run that does not use production's gains
+  certifies nothing about production. Override with --kp/--kd only to explore;
+  fix the SDK for anything real.
 - Run from a pose that is mechanically stable (the calibrated zero is), with
   the arm supported and nobody within reach.
 
@@ -46,6 +47,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -61,12 +63,11 @@ ARM_IDS = (1, 2, 3, 4, 5, 6)
 GRIPPER_ID = 7
 HOST_ID = 0xFD
 
-#: Hard caps. These are deliberately small: the MIT gain scale for this build
-#: is uncharacterized, so an order-of-magnitude mistake in --kp must not be
-#: expressible. Raise them only after gains are validated on the rig.
+#: Hard caps. Sized to admit the SDK's vendor gains (joint 2 is kp=100 / kd=12
+#: on an rs-06) while still rejecting an order-of-magnitude typo.
 MAX_DELTA_RAD = 0.15
-MAX_KP = 30.0
-MAX_KD = 3.0
+MAX_KP = 150.0
+MAX_KD = 15.0
 
 #: Base yaw (motor 1) rotates about the vertical axis, so gravity does no work
 #: on it at any pose and a large delta cannot make the arm sag or run away --
@@ -91,32 +92,48 @@ def _read(motor, param: int, timeout_ms: int = 300) -> float | None:
         return None
 
 
-def _profile_gains(motor_id: int) -> tuple[float, float] | None:
-    """The profile's own MIT gains for this motor, or None if unavailable.
-
-    Jogging every joint with one flat kp is actively misleading. On the rig
-    2026-08-27 a uniform kp=8 moved joint 4 by 0.006 rad of a commanded 0.100
-    and joints 3 and 5 by 0.015, which the script reported as "blocked" when it
-    only meant the gain was far below the 12/30/10 the profile declares. Worse,
-    a near-zero response leaves the joint's SIGN unmeasured: 0.35 deg of travel
-    can be compliance and backlash rather than tracking, and it is invisible to
-    the eye. Validate with the gains production will use, or certify nothing.
+@lru_cache(maxsize=1)
+def _sdk_motors() -> dict[int, tuple[str, float, float]] | None:
+    """Per-motor (model, kp, kd) from the SDK's rebotarm_rs.yaml, loaded via the
+    `rebot_rs` profile's sdk_path. The `rebot_rs` backend runs with exactly this
+    (rs-06 on joints 1-3, rs-00 elsewhere), so the hold/jog test must use the
+    same per-joint models and gains -- a run on the flat rs-00 of the mb profile
+    certifies nothing about production.
     """
     try:
         from cascade.config import load_demo_config
 
-        arm = load_demo_config(cameras=["mock"], arm="rebot_rs_mb", llm="mock").arm
-        if motor_id == GRIPPER_ID:
-            g = arm.get("gripper") or {}
-            kp, kd = g.get("kp"), g.get("kd")
-            return (float(kp), float(kd)) if kp is not None and kd is not None else None
-        kps, kds = arm.get("mit_kp"), arm.get("mit_kd")
-        if not kps or not kds or motor_id > min(len(kps), len(kds)):
+        arm = load_demo_config(cameras=["mock"], arm="rebot_rs", llm="mock").arm
+        sdk_path = arm.get("sdk_path")
+        if not sdk_path:
             return None
-        return float(kps[motor_id - 1]), float(kds[motor_id - 1])
+        sys.path.insert(0, sdk_path)
+        from reBotArm_control_py.actuator import load_cfg
+
+        cfg = load_cfg(arm.get("hw_yaml", "rebotarm_rs.yaml"))
+        out: dict[int, tuple[str, float, float]] = {}
+        for j in cfg["joints"]:
+            out[int(j.motor_id)] = (str(j.model), float(j.kp), float(j.kd))
+        return out
     except Exception as e:
-        print(f"[warn] profile gains unavailable ({type(e).__name__}: {e})")
+        print(f"[warn] SDK motors unavailable ({type(e).__name__}: {e})")
         return None
+
+
+def _profile_gains(motor_id: int) -> tuple[float, float] | None:
+    """The SDK's own MIT gains for this motor, or None if unavailable.
+
+    Jogging every joint with one flat kp is actively misleading: on the rig
+    2026-08-27 a uniform kp=8 moved joint 4 by 0.006 rad of a commanded 0.100,
+    which reads as "blocked" when the gain is simply far below the joint's own
+    value. A near-zero response also leaves the joint's SIGN unmeasured. Always
+    validate with the gains production will use, or certify nothing.
+    """
+    sdk = _sdk_motors()
+    if sdk and motor_id in sdk:
+        _, kp, kd = sdk[motor_id]
+        return kp, kd
+    return None
 
 
 def _urdf_local_limits():
@@ -144,7 +161,9 @@ def _urdf_local_limits():
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--channel", default="can0")
-    ap.add_argument("--model", default="rs-00")
+    ap.add_argument("--model", default="rs-00",
+                    help="fallback motor model only if the SDK config can't be "
+                         "read; otherwise the per-joint rs-06/rs-00 is used")
     ap.add_argument("--joint", type=int, required=True, choices=list(ARM_IDS) + [GRIPPER_ID],
                     help="motor id to jog (1..6 arm, 7 gripper)")
     ap.add_argument("--delta", type=float, default=0.05,
@@ -152,10 +171,10 @@ def main() -> int:
                          f"or {MAX_DELTA_YAW_RAD} for the base yaw)")
     ap.add_argument("--kp", type=float, default=None,
                     help=f"MIT kp (<= {MAX_KP}); default is this joint's value "
-                         "from configs/arms/rebot_rs_mb.yaml")
+                         "from the SDK's rebotarm_rs.yaml")
     ap.add_argument("--kd", type=float, default=None,
                     help=f"MIT kd (<= {MAX_KD}); default is this joint's value "
-                         "from the profile")
+                         "from the SDK's rebotarm_rs.yaml")
     ap.add_argument("--duration", type=float, default=1.5, help="seconds for the ramp")
     ap.add_argument("--rate-hz", type=float, default=50.0)
     ap.add_argument("--hold-only", action="store_true",
@@ -194,11 +213,14 @@ def main() -> int:
 
     from motorbridge import Controller, Mode
 
+    sdk = _sdk_motors()
     ctrl = Controller(channel=args.channel)
-    motors = {
-        mid: ctrl.add_robstride_motor(motor_id=mid, feedback_id=HOST_ID, model=args.model)
-        for mid in (*ARM_IDS, GRIPPER_ID)
-    }
+    motors: dict[int, object] = {}
+    for mid in (*ARM_IDS, GRIPPER_ID):
+        model = sdk[mid][0] if sdk and mid in sdk else args.model
+        motors[mid] = ctrl.add_robstride_motor(
+            motor_id=mid, feedback_id=HOST_ID, model=model
+        )
     # Bound before the try so the Ctrl+C handler can never raise NameError while
     # trying to soft-stop: an interrupt arriving during setup must still take the
     # re-assert-the-hold path, not crash out and leave the arm uncommanded.
@@ -290,6 +312,11 @@ def main() -> int:
             + ("*" if mid == target_id else "")
             for mid in sorted(gains)
         ) + "   (kp/kd, * = the jogged joint)")
+        print("  models      " + "  ".join(
+            f"{'grip' if mid == GRIPPER_ID else f'j{mid}'}:"
+            f"{sdk[mid][0] if sdk and mid in sdk else args.model}"
+            for mid in sorted(motors)
+        ))
         print(f"  return      {'no' if args.no_return else 'yes, back to start'}")
         print(f"  end state   {'TORQUE OFF (arm falls if unsupported)' if args.disable_after else 'holding'}")
 

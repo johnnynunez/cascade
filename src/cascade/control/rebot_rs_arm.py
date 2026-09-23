@@ -17,8 +17,9 @@ Operational notes (verified on this rig 2026-07):
 - bring the bus up first: sudo ip link set can0 up type can bitrate 1000000
 - do NOT run motorbridge-gateway / MotorBridge Studio at the same time; both
   use host id 0xFD and fight over reporting mode.
-- gripper open/close angles below were characterized on the DM build; RS
-  travel and stall torque MUST be re-verified onsite before first grasp.
+- gripper open/close angles were re-measured on the RS build (0 -> +6.39 rad,
+  closed at 0; see configs/arms/rebot_rs.yaml). The open/close KP/KD are still
+  the conservative values and should be bumped after an onsite grasp check.
 """
 
 from __future__ import annotations

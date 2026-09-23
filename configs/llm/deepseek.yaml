@@ -1,0 +1,31 @@
+# DeepSeek as the brain, over its OpenAI-compatible API.
+#
+#   export DEEPSEEK_API_KEY=sk-...
+#   python -m cascade.apps.demo --arm rebot_rs_mb --cameras <cam> --llm deepseek
+#
+# DeepSeek's /chat/completions endpoint is OpenAI-compatible, so this rides the
+# same openai_compat client as the `openai` profile. Two things differ:
+#
+#   - base_url points at DeepSeek (their docs accept both this and .../v1).
+#   - supports_vision is FALSE: deepseek-chat / deepseek-reasoner are text-only
+#     models, so the orchestrator skips attaching camera JPEGs (same shape as
+#     the hermes profile). The agent still orchestrates from the perception
+#     layer's TEXT (detected object labels + measured positions), which is what
+#     text-only brains like Hermes already do on this framework.
+#
+# Model choice:
+#   deepseek-chat      -> DeepSeek-V3, non-thinking, fast, supports tool calling.
+#                        The right pick for the agent loop.
+#   deepseek-reasoner  -> DeepSeek-R1, thinking mode, slower; tool calling works
+#                        but a thinking preamble per step makes the loop laggy.
+#
+# If your key is exported as OPENAI_API_KEY instead, set api_key_env: OPENAI_API_KEY
+# (do NOT rely on `--llm auto` for DeepSeek: auto maps OPENAI_API_KEY to the
+# `openai` profile, whose base_url is null and model is gpt-5.5 -- a DeepSeek key
+# pointed at api.openai.com will not authenticate).
+type: openai_compat
+model: deepseek-chat
+base_url: https://api.deepseek.com
+api_key_env: DEEPSEEK_API_KEY
+supports_vision: false
+temperature: 0.2

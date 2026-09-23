@@ -5,7 +5,10 @@
 # and make sure motorbridge-gateway / MotorBridge Studio are NOT running
 # (host-id 0xFD conflict).
 type: rebot_rs
-sdk_path: /home/spark/Projects/demo/reBotArm_control_py
+# The SDK lives one directory up from this repo (<repo>/../reBotArm_control_py)
+# so the path is portable instead of a dev-box absolute path. Run
+# scripts/update_rebot_sdk.sh to clone/pull it into place.
+sdk_path: ${repo}/../reBotArm_control_py
 hw_yaml: rebotarm_rs.yaml
 model: ${assets}/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf
 # Assets are mirrored vs. the SDK/hardware convention (q_local = -q_asset).
@@ -21,10 +24,14 @@ mit_kp: null
 mit_kd: null
 
 gripper:
-  # !!! Characterized on the DM build (open -6.8 rad / close 0.0). The RS
-  # gripper (rs-00 + rack-pinion) travel and stall torque MUST be re-verified
-  # onsite before the first grasp; adjust these and max_width_m accordingly.
-  open_pos: -6.8
+  # MEASURED on the RS build (scripts/diag_rebot_mb.py): travel runs 0.0 ->
+  # +6.39 rad, closed at 0. That is the OPPOSITE polarity to the old DM values
+  # (open -6.8), which drove the jaws into the closed hard stop at full effort.
+  # open_pos keeps margin off the +6.39 physical end. The arm gains above are
+  # inherited from the SDK's rebotarm_rs.yaml, but the gripper KP/KD below are
+  # cascade's own and still the conservative RS values -- bump after an onsite
+  # grasp check if the jaws need more force.
+  open_pos: 6.2
   closed_pos: 0.0
   max_width_m: 0.09
   kp: 6.0

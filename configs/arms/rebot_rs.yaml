@@ -18,10 +18,33 @@ n_joints: 6
 # Forward-facing gripper, matching the Isaac ready pose (joint5 neutral).
 home_q: [0.0, 1.2, 1.2, 0.0, 0.0, 0.0]
 handover_q: [0.5, 1.2, 1.2, 0.0, 0.75, 0.0]
+# Rest pose for the shutdown park: the exact mechanical zero. Joints 2 and 3
+# (shoulder lift + elbow) have their lower limit at 0 rad, so this parks them
+# ON the stop; the park relaxes the joint margin (joint_margin=0) for this
+# move only so it can reach it, while every other safety gate still runs.
+park_q: [0.0, 0.0, -0.05, 0.0, 0.0, 0.0]
+
+# Per-arm speed cap: below the global demo.yaml default (1.2 rad/s). Lower =
+# slower but longer moves -- min-jerk peak velocity (1.875*dq/T) is auto-stretched
+# under 0.9*this, so this is a ceiling, not a duration multiplier.
+overrides:
+  safety:
+    max_joint_vel: 0.8
 
 # MIT gains per joint (null = use the SDK's rebotarm_rs.yaml values).
 mit_kp: null
 mit_kd: null
+
+# Gravity-compensation feedforward: Pinocchio g(q) added to every MIT arm
+# command as the tau term, so joints 2/3 (shoulder lift + elbow) no longer sag
+# under their own weight. Pure PD (tau_ff=0) holds with steady-state error
+# g/kp -- the "joint 3 drops then recovers" transient the park showed (elbow
+# load ~6.7 N·m vs kp=95 -> ~0.07 rad droop). tau_scale is the SDK's empirical
+# model-vs-hardware correction on the two gravity-loaded joints; set enabled:
+# false to fall back to pure PD.
+gravity_comp:
+  enabled: true
+  tau_scale: [1.0, 1.10, 1.10, 1.0, 1.0, 1.0]
 
 gripper:
   # MEASURED on the RS build (scripts/diag_rebot_mb.py): travel runs 0.0 ->
@@ -34,5 +57,9 @@ gripper:
   open_pos: 6.2
   closed_pos: 0.0
   max_width_m: 0.09
-  kp: 6.0
+  kp: 2.0
   kd: 0.4
+  # Holding stiffness applied AFTER contact is detected: the jaws close at
+  # kp above, then relax to this much lower value so a held object is gripped
+  # lightly (tau = kp*(target - pos)) instead of crushed. Opening is unaffected.
+  hold_kp: 0.01

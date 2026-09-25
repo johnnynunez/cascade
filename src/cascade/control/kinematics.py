@@ -214,3 +214,20 @@ class Kinematics:
         pin.forwardKinematics(self.model, self.data, qf)
         return np.array([np.asarray(self.data.oMi[j].translation)
                          for j in range(1, self.model.njoints)])
+
+    def gravity_torque(self, q: np.ndarray) -> np.ndarray:
+        """Generalized gravity force g(q) -> (n_controlled,) in LOCAL (motor)
+        convention -- the MIT feedforward that holds the arm against gravity
+        with zero steady-state error.
+
+        Because `joint_signs` re-signs the model's joint axes to the local
+        convention at load time (see the module docstring), Pinocchio's
+        `computeGeneralizedGravity` already returns the torque in the same
+        convention the motors command, so no further sign flip is applied
+        here. The passive DOF (gripper / finger joints) are dropped; they are
+        zero under gravity anyway.
+        """
+        pin = self._pin
+        qf = self._pad(q)
+        pin.computeGeneralizedGravity(self.model, self.data, qf)
+        return np.asarray(self.data.g)[: self.n].copy()

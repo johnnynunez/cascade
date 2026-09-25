@@ -169,6 +169,11 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
         SafetyLimits.from_config(view.safety), kinematics=kin, occupancy=occupancy,
         base_pose=_base_transform(acfg),
     )
+    # Optional profile-defined rest pose for the shutdown park (see
+    # _park_pose). Defaults to the clamped all-zero fallback when absent.
+    park_q = acfg.get("park_q")
+    if park_q is not None:
+        harness.park_q = list(park_q)
     if occupancy is not None:
         # The depth camera sees THIS arm: register it for body masking so its
         # own links are not integrated as obstacles. Never materialize a
@@ -549,6 +554,83 @@ def _runtime_state(runtime) -> dict:
     return out
 
 
+def _park_pose(arm) -> list[float]:
+    """The rest pose for the shutdown park.
+
+    Prefers the profile's `park_q` (an exact, arm-author-chosen pose, e.g. the
+    reBot's mechanical zero). When absent -- or mis-sized -- falls back to the
+    all-zero vector clamped into the harness joint margin, because some arms
+    (the reBot RS) have a joint whose lower limit is 0 rad and a literal zero
+    would sit on the mechanical stop. Returns [0.0]*n when no kinematics or
+    limits are available."""
+    n = int(arm.n_joints)
+    park_q = getattr(arm.harness, "park_q", None)
+    if park_q is not None and len(park_q) == n:
+        return [float(v) for v in park_q]
+    kin = getattr(arm.harness, "kin", None)
+    limits = getattr(kin, "joint_limits", None) if kin is not None else None
+    q = [0.0] * n
+    if limits is not None:
+        lo, hi = limits
+        m = float(arm.harness.limits.joint_margin)
+        for j in range(n):
+            low, high = float(lo[j]) + m, float(hi[j]) - m
+            q[j] = min(max(0.0, low), high)
+    return q
+
+
+def _park_gripper(arm) -> None:
+    """Close the gripper to its zero before torque is cut, so a held object is
+    not dropped (or the jaws left open) at disconnect. The reBot RS closes
+    under torque/stall detection (`close_gripper_torque`); other backends have
+    no such method and are left as they are -- their disconnect is not a real
+    drop. Runs after the arm is already materialized by `move_joints`, so
+    reaching through `.raw` for the backend method does not power the bus as a
+    side effect of a probe.
+    """
+    closer = getattr(arm.raw, "close_gripper_torque", None)
+    if callable(closer):
+        print("[cascade] closing gripper (torque-detected) before disconnect")
+        closer()
+
+
+def _park_arm(runtime, duration_s: float = 2.0) -> None:
+    """Slowly drive every arm to its zero pose before torque is cut.
+
+    `disconnect()` disables torque, so an arm left at the working height drops
+    under gravity when the program exits. Parking first streams the joints
+    back to zero (near the table) over `duration_s`, so any residual drop is a
+    few centimetres onto the table instead of a free fall, then closes the
+    gripper so it is not left open (or dropping a held object). It must run
+    FIRST in teardown: `move_joints` -> `begin_motion` checks the perception
+    watchdog, which is only fresh while the watcher is still running.
+
+    Never raises and never blocks teardown: a standby arm (a LazyArm that was
+    never materialized) is not touched (parking it would energize the motors
+    for nothing), an e-stopped arm is left exactly where it is (the latch means
+    "do not move"), and any arm that cannot move simply has its torque cut by
+    the disconnect that follows.
+    """
+    rig = getattr(runtime, "arm_rig", None)
+    arms = list(rig) if rig is not None and len(rig) > 1 else [runtime.arm]
+    for arm in arms:
+        if arm is None:
+            continue
+        try:
+            if arm.harness.estopped:
+                continue
+            if not getattr(arm.raw, "connected", True):
+                continue
+            print("[cascade] parking arm to safe rest pose before disconnect")
+            # joint_margin=0 lets the park reach the mechanical stop (an exact
+            # zero on the reBot's joint 2/3, whose lower limit IS 0); every
+            # other safety gate (workspace, table, velocity) still runs.
+            arm.move_joints(_park_pose(arm), duration_s=duration_s, joint_margin=0.0)
+            _park_gripper(arm)
+        except Exception as e:  # a failed park must not block teardown
+            print(f"[cascade] park skipped ({type(e).__name__}: {e})")
+
+
 def shutdown_runtime(runtime, arm) -> None:
     """Stop threads and hardware in dependency order; never raises.
 
@@ -577,7 +659,11 @@ def shutdown_runtime(runtime, arm) -> None:
         else:
             arm.disconnect()
 
+    def _park():
+        _park_arm(runtime)
+
     for step in (
+        _park,
         _save_beliefs,
         lambda: runtime.watcher.stop() if runtime.watcher is not None else None,
         lambda: runtime.stream_server.stop() if getattr(runtime, "stream_server", None) else None,
@@ -692,14 +778,24 @@ def main(argv: list[str] | None = None) -> int:
     if runtime.stream_server is not None:
         print(f"[cascade] LIVESTREAM dashboard: {runtime.stream_server.url}")
 
-    # Ctrl+C = soft stop (freeze + latch e-stop, no free-fall); a second
-    # Ctrl+C raises KeyboardInterrupt and tears the process down.
+    # Ctrl+C = graceful stop: halt the in-flight motion and unwind to the
+    # `finally` below, where shutdown_runtime parks the arm to zero before
+    # cutting torque. A second Ctrl+C restores the default handler and is the
+    # hard kill (for when teardown ever hangs).
     import signal
 
     def _sigint(_sig, _frm):
-        print("\n[cascade] SIGINT: soft-stopping the arm (Ctrl+C again to exit)")
-        runtime.arm.stop()
+        print("\n[cascade] SIGINT: parking the arm to zero (Ctrl+C again to force-exit)")
+        # No e-stop latch here: the arm must still be able to move to its safe
+        # pose. halt() stops the in-flight motion at the next waypoint; the
+        # SystemExit abandons it immediately and unwinds to shutdown_runtime
+        # (which parks, then disconnects), then exits cleanly with code 0.
+        try:
+            runtime.arm.harness.halt("SIGINT: graceful shutdown")
+        except Exception:
+            pass
         signal.signal(signal.SIGINT, signal.default_int_handler)
+        raise SystemExit(0)
 
     signal.signal(signal.SIGINT, _sigint)
     from ..agent.llm import MockLLM

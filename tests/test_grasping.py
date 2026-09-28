@@ -74,6 +74,48 @@ def test_force_profiles():
     assert select_profile("box", material_hint="very fragile item").name == "fragile"
 
 
+def test_select_grasp_executes_the_flip_with_less_wrist_travel():
+    """A parallel jaw has two wrist poses per grasp (jaws swapped, 180 deg
+    apart about the approach). MEASURED on the kitchen orange: the planner
+    ranked yaw and yaw+pi 0.534 vs 0.529, the selector took the first IK-valid
+    one -- a 156.5 deg wrist spin from home -- and at the kitchen's real-time
+    factor the wrist was still turning when the settle window closed, twice.
+
+    Real reBot kinematics + real OBB planner, every object yaw around the
+    circle: the executed pregrasp must never need more joint travel than its
+    own jaw-swapped twin, and the wrist roll must stay within a quarter turn.
+    """
+    from cascade.config import load_demo_config
+    from cascade.control.kinematics import Kinematics
+    from cascade.grasping import select_grasp
+    from cascade.grasping.selector import _flip_twin
+    from cascade.types import make_transform
+
+    cfg = load_demo_config(arm="isaac_kitchen_gpu", camera="mock", llm="mock")
+    acfg = cfg.arm
+    kin = Kinematics(model_path=acfg.model, ee_frame=acfg.get("ee_frame", "gripper_end"),
+                     n_controlled=int(acfg.get("n_joints", 6)),
+                     joint_signs=acfg.get("joint_signs"),
+                     ik_task_weights=acfg.get("ik_task_weights"))
+    home = np.asarray(acfg.home_q, dtype=float)
+    offset = float(cfg.grasp.get("pregrasp_offset_m", 0.04))
+    order = str(acfg.get("tool_axis_order", "down_open"))
+    worst_roll = 0.0
+    for yaw in np.radians(np.arange(-180, 180, 15)):
+        fix = make_fix(center=(0.26, -0.06), size=(0.07, 0.04, 0.05), yaw=float(yaw))
+        grasps = plan_grasps_from_fix(fix, table_z=0.0, max_width_m=0.09, axis_order=order)
+        g, q_pre, _ = select_grasp(grasps, kin, home, pregrasp_offset_m=offset)
+        twin = _flip_twin(g)
+        T_pre = make_transform(twin.rotation, twin.position - twin.approach * offset)
+        sol = kin.ik(T_pre, home)
+        travel = float(np.max(np.abs(np.asarray(q_pre) - home)))
+        if sol.success:
+            twin_travel = float(np.max(np.abs(np.asarray(sol.q) - home)))
+            assert travel <= twin_travel + 1e-6, (np.degrees(yaw), travel, twin_travel)
+        worst_roll = max(worst_roll, abs(float(q_pre[5] - home[5])))
+    assert np.degrees(worst_roll) <= 95.0, np.degrees(worst_roll)
+
+
 def test_select_grasp_offsets_a_single_hinge_jaw():
     """A hinge jaw closes against its FIXED tip, not about the frame origin.
 

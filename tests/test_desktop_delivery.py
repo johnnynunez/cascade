@@ -43,7 +43,8 @@ def test_registration_is_idempotent_and_launches_no_services(tmp_path, monkeypat
     before = {str(p): p.stat().st_mtime_ns for p in first}
     assert module.register(repo, desktop_dir=desktop) == first
     assert {str(p): p.stat().st_mtime_ns for p in first} == before
-    assert len(first) == 4
+    assert len(first) == 5
+    assert repo / "runs/.install/paai-spark.desktop" in first
     for entry in first:
         text = entry.read_text()
         assert "Terminal=true" in text
@@ -56,7 +57,7 @@ def test_registration_is_idempotent_and_launches_no_services(tmp_path, monkeypat
         assert parsed["Desktop Entry"]["Type"] == "Application"
         assert parsed["Desktop Entry"]["Name"]
         assert parsed["Desktop Entry"]["Exec"]
-    assert not (repo / "runs").exists()
+    assert not (repo / "runs/.install/install.json").exists()
 
 
 @pytest.mark.skipif(shutil.which("desktop-file-validate") is None,
@@ -131,7 +132,8 @@ def test_launch_uses_installer_supervisor_with_pinned_source_and_profile(tmp_pat
     assert result.returncode == 0, result.stdout + result.stderr
     latest = json.loads((repo / "runs/.install/desktop-latest.json").read_text())
     output = [json.loads(s) for s in Path(latest["log"]).read_text().splitlines() if s.startswith('{')][0]
-    assert output["args"] == ["launch", "--repo", str(repo), "--profile", "spark", "--brain", "qwen", *options]
+    assert output["args"] == ["launch", "--repo", str(repo), "--profile", "spark", "--brain", "qwen", "--headless",
+                              *(["--no-open"] if "--no-open" in options else [])]
     assert output["source"] == "/selected/source"
     assert output["profile"] == "cascade-demo"
 

@@ -31,6 +31,7 @@ def boundary_env(tmp_path):
         "kitchen_assets.py",
         "fetch_robot_assets.py",
         "desktop.py",
+        "spark_browser.py",
     ):
         if (ROOT / "scripts" / name).exists():
             shutil.copy2(ROOT / "scripts" / name, source / "scripts" / name)
@@ -557,6 +558,8 @@ def launch_fixture(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     support = support_module()
     assert hasattr(support, "launch"), "installer launch supervision is missing"
+    monkeypatch.setattr(support, "start_spark_surfaces", lambda repo, env: None)
+    monkeypatch.setattr(support, "open_browser", lambda repo: None)
     monkeypatch.setattr(support, "kitchen_problems", lambda repo: [])
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))

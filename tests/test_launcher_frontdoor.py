@@ -273,7 +273,7 @@ def test_installer_registration_creates_real_entries_only_in_private_home(tmp_pa
         entries = sorted(directory.glob("cascade-*.desktop"))
         assert len(entries) == 2
         assert {next(line for line in p.read_text().splitlines() if line.startswith("Name=")) for p in entries} == {
-            "Name=CASCADE (Spark)", "Name=Install CASCADE (Spark)"}
+            "Name=PAAI (Spark)", "Name=Install PAAI (Spark)"}
         assert all("--accept-eula" not in p.read_text() and os.access(p, os.X_OK) for p in entries)
     assert unrelated.read_text() == "operator's existing shortcut"
     assert not (tmp_path / "home/cascade/runs/.launch").exists()

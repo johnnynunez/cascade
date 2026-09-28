@@ -6,6 +6,12 @@ booth guide, click Open OpenClaw and wait for Ready. In the connected chat tab,
 invoke the extension, click Connect cameras and allow the demo host. Choose
 Kitchen, Worktop or Side in the side panel or chat overlay.
 
+On the DGX Spark, use the **PAAI (Spark)** launcher from the
+[Spark setup guide](../../docs/DGX_SPARK_SETUP.md). It opens a dedicated
+Chromium profile with this extension loaded. All three cameras appear beside
+the attendee chat without a permission prompt. Automatic insertion is limited
+to the local PAAI page on port 8092; the camera reader uses loopback port 8091.
+
 Click the camera image to enlarge it. Click again or press Escape to return.
 You can also reach the image with Tab and open it with Enter or Space. The
 side panel opens a larger window; the chat overlay expands within the tab.

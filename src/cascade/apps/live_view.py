@@ -159,9 +159,14 @@ class RigViewer:
         self._thread.start()
 
     def stop(self) -> None:
+        # The loop is inside cv2 (imshow/waitKey/resize, GIL released) most of
+        # the time; returning before it ends lets that native code race the
+        # interpreter's exit (see perception/thread_join.py).
+        from ..perception.thread_join import join_thread
+
         self._stop = True
-        if self._thread is not None:
-            self._thread.join(timeout=5)
+        thread = self._thread
+        if thread is not None and join_thread(thread, what="rig-viewer"):
             self._thread = None
 
     def _render_tile(self, stream) -> np.ndarray | None:

@@ -631,6 +631,32 @@ def _park_arm(runtime, duration_s: float = 2.0) -> None:
             print(f"[cascade] park skipped ({type(e).__name__}: {e})")
 
 
+def owned_threads(runtime) -> list:
+    """Every worker thread a built runtime owns, as (label, Thread) pairs.
+
+    shutdown_runtime stops each of these and must not return while one is
+    still alive: a daemon thread still inside native code (torch/CUDA, cv2,
+    a bridge socket) at interpreter exit aborts the process. That was the
+    launcher's intermittent "terminate called without an active exception".
+    """
+    import threading
+
+    out = []
+
+    def add(label, owner):
+        thread = getattr(owner, "_thread", None) if owner is not None else None
+        if isinstance(thread, threading.Thread):
+            out.append((label, thread))
+
+    add("watcher", getattr(runtime, "watcher", None))
+    add("stream-server", getattr(runtime, "stream_server", None))
+    add("viewer", getattr(runtime, "viewer", None))
+    rig = getattr(runtime, "rig", None)
+    for stream in (list(rig) if rig is not None else []):
+        add(f"stream-{getattr(stream, 'name', '?')}", stream)
+    return out
+
+
 def shutdown_runtime(runtime, arm) -> None:
     """Stop threads and hardware in dependency order; never raises.
 
@@ -639,8 +665,17 @@ def shutdown_runtime(runtime, arm) -> None:
     disconnected through it -- disconnecting only the primary would leave a
     second arm powered (torque on, unsupervised) after teardown reported
     success.
+
+    Order: park (needs the watcher's heartbeat) -> save beliefs -> watcher
+    (the consumer of the camera streams) -> dashboard -> viewer -> camera
+    streams (producers) -> arms. Each thread owner WAITS for its thread's
+    in-flight work; a bounded join here once let the watcher's first cold
+    YOLOE inference (> 5 s) outlive shutdown and abort the launcher's
+    runtime check at interpreter exit.
     """
     import contextlib
+
+    threads = owned_threads(runtime)
 
     def _save_beliefs():
         # Persist the world model FIRST: it is the only step whose input the
@@ -673,6 +708,15 @@ def shutdown_runtime(runtime, arm) -> None:
     ):
         with contextlib.suppress(Exception):
             step()
+
+    for label, thread in threads:
+        if thread.is_alive():
+            # Every owner above waits without a bound, so this only fires if
+            # an owner regresses to a bounded join. Name it: the alternative
+            # is an unexplained abort at interpreter exit.
+            print(f"[cascade] WARNING: {label} thread {thread.name!r} is still running "
+                  "after shutdown; native code may abort the process at exit",
+                  file=sys.stderr)
 
 
 def _empty_cfg():

@@ -31,6 +31,7 @@ import numpy as np
 from .colors import detection_color
 from .freshness import capture_marker, frames_after_reset, newer_capture
 from .grounding import Extrinsics, mask_to_points_cam, oriented_bbox
+from .thread_join import cancel_stop_before_exit, join_thread, stop_before_exit
 from .workspace import WorkspaceFilter
 from ..types import Frame, transform_points
 
@@ -101,6 +102,8 @@ class WorldWatcher:
         self._pause_lock = threading.Lock()
         self._fusion_epoch = 0
         self._thread: threading.Thread | None = None
+        self._exit_hook = None
+        self._wake = threading.Event()
         self._ignore: set[str] = set()
         self.ticks = 0
         self.last_dets: dict[str, list] = {}
@@ -112,14 +115,38 @@ class WorldWatcher:
         if self._thread is not None:
             return
         self._stop = False
+        self._wake.clear()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="world-watcher")
         self._thread.start()
+        # Safety net for callers that never reach stop() (an exception between
+        # build_runtime and shutdown_runtime, a script that just returns):
+        # stop() still runs at exit, while the interpreter is intact.
+        self._exit_hook = stop_before_exit(self)
 
-    def stop(self) -> None:
+    def stop(self, timeout_s: float | None = None) -> None:
+        """Stop the loop and WAIT until the tick in flight has finished.
+
+        A tick runs native code (YOLOE/torch/CUDA, cv2, the occupancy
+        client). This used to be `join(timeout=5)`, which returned while the
+        first inference of a cold process (> 5 s while CUDA JIT-compiles its
+        kernels) was still running. The launcher's runtime check then reached
+        interpreter exit, and the watcher thread aborted the process with
+        "terminate called without an active exception" when it came back
+        from torch (3 of 20 kitchen launches; 3 of 3 with a cold kernel
+        cache; see perception/thread_join.py). Every call in a tick is
+        bounded by its own I/O timeout or by compute, so waiting is the safe
+        stop; join_thread logs where the thread is every 10 s meanwhile.
+        `timeout_s` exists for the atexit safety net only; if it expires the
+        thread handle is kept, so a later stop() can still join it.
+        """
         self._stop = True
-        if self._thread is not None:
-            self._thread.join(timeout=5)
+        self._wake.set()
+        thread = self._thread
+        if thread is not None and join_thread(thread, what="watcher", timeout_s=timeout_s):
             self._thread = None
+        if self._thread is None:
+            cancel_stop_before_exit(self._exit_hook)
+            self._exit_hook = None
 
     @contextlib.contextmanager
     def paused(self):
@@ -201,7 +228,9 @@ class WorldWatcher:
                     cam.last_error = msg
             elapsed = time.monotonic() - t0
             if elapsed < self._period:
-                time.sleep(self._period - elapsed)
+                # Interruptible: stop() wakes this at once, so stopping an
+                # idle watcher costs no inter-tick sleep.
+                self._wake.wait(self._period - elapsed)
 
     def _tick(self, cam: WatchedCamera) -> None:
         with self._pause_lock:

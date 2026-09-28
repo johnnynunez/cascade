@@ -8,7 +8,7 @@
   frame.id = 'paai-camera-extension';
   frame.title = 'PAAI camera extension: Kitchen, Worktop and Side';
   frame.src = chrome.runtime.getURL('local.html');
-  frame.style.cssText = 'display:block;width:100%;height:330px;border:0;margin:0 0 20px;border-radius:12px';
+  frame.style.cssText = 'display:block;width:100%;height:390px;border:0;margin:0 0 20px;border-radius:12px';
   const main = document.querySelector('main');
   if (!main) return;
   main.prepend(frame);

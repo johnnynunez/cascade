@@ -35,6 +35,7 @@ def capture_bridge(loopback):
     sensor = SimpleNamespace(get_data=lambda name: (
         rgba if name == "rgb" else depth, {}))
     env = dict(np=np, time=time, cv2=cv2, base64=base64, zlib=zlib, json=json,
+               threading=threading,
                socketserver=socketserver, _frames={}, _wrist_T=wrist_T,
                _annotators={n: (sensor, np.eye(3).tolist()) for n in ("cam0", "side", "wrist")},
                MPU=1., args=SimpleNamespace(prim=ROBOT), engine="newton",
@@ -42,7 +43,7 @@ def capture_bridge(loopback):
                                    get_dof_velocities=lambda: SimpleNamespace(numpy=lambda: np.zeros_like(q))),
                _grip_frac_now=lambda q: 0.5,
                ARM_IDX=list(range(6)), names=[f"joint{i}" for i in range(7)])
-    load_isaac_bridge_definitions({"_refresh_frames", "Handler"}, env)
+    load_isaac_bridge_definitions({"_refresh_frames", "_LazyFrame", "Handler"}, env)
     env["_refresh_frames"]()
     srv = socketserver.ThreadingTCPServer((loopback, 0), env["Handler"])
     srv.daemon_threads = True
@@ -108,6 +109,51 @@ def test_producer_state_failure_publishes_unmaskable_frame_not_previous_q(captur
     # q or tear down the entire simulator for an unavailable articulation view.
     b.env["_refresh_frames"]()
     assert b.env["_frames"]["cam0"]["proprioception"] is None
+
+
+def test_refresh_captures_on_main_thread_but_encodes_only_for_the_reader(capture_bridge):
+    """The main-loop refresh must copy the buffers and NOT JPEG/zlib-encode.
+
+    Measured on the kitchen bridge (4 cameras, 1280x720): eager encoding cost
+    265-324 ms of main-thread time per refresh and held the simulation at
+    0.105x real time (0.60x with the refresh skipped), so wall-clock skill
+    timeouts expired while the arm was still moving. The frame a client
+    receives must still be the one captured at refresh time, encoded once.
+    """
+    b = capture_bridge
+    calls = []
+    real_imencode, real_compress = cv2.imencode, zlib.compress
+
+    def imencode(*a, **kw):
+        calls.append("jpeg")
+        return real_imencode(*a, **kw)
+
+    def compress(*a, **kw):
+        calls.append("zlib")
+        return real_compress(*a, **kw)
+
+    b.env["cv2"] = SimpleNamespace(cvtColor=cv2.cvtColor, COLOR_RGB2BGR=cv2.COLOR_RGB2BGR,
+                                   IMWRITE_JPEG_QUALITY=cv2.IMWRITE_JPEG_QUALITY, imencode=imencode)
+    b.env["zlib"] = SimpleNamespace(compress=compress)
+    b.env["_refresh_frames"]()
+    assert calls == [], "the main-loop refresh encoded frames nobody asked for"
+    # The renderer reuses its buffers after the capture.
+    b.rgba[:] = 255
+    b.depth[:] = 3.
+    cam = IsaacCamera(Cfg(dict(bridge_host=b.host, bridge_port=b.port)))
+    with cam:
+        f = cam.get_frame()
+    assert calls == ["jpeg", "zlib"], calls
+    np.testing.assert_allclose(f.depth_m, 0.6)
+    assert f.rgb.max() < 100
+    with cam:
+        again = cam.get_frame()
+    assert calls == ["jpeg", "zlib"], "a cached capture was re-encoded"
+    np.testing.assert_array_equal(again.rgb, f.rgb)
+    # In-bridge consumers (observer / proof snapshot code) index the cache.
+    assert b.env["_frames"]["cam0"]["rgb_jpeg_b64"]
+    assert b.env["_frames"]["side"].get("depth_z_b64")
+    json.dumps(b.env["_frames"]["wrist"].wire())
 
 
 @pytest.mark.parametrize("depth_supported", [True, False])

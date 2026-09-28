@@ -1041,7 +1041,9 @@ class Handler(socketserver.StreamRequestHandler):
             if cached is None:
                 return {"ok": False,
                         "error": f"unknown/not-ready camera; have {list(_frames)}"}
-            return cached
+            # Encoded here, on the TCP thread, not on the sim main loop.
+            wire = getattr(cached, "wire", None)
+            return wire() if wire is not None else cached
         if op == "camera_video":
             action = req.get("action", "status")
             if action not in {"status", "restart"}:
@@ -1160,6 +1162,69 @@ print(f"[bridge] serving cascade bridge on :{args.port}", flush=True)
 import cv2  # noqa: E402  (ships with the isaacsim python)
 
 
+class _LazyFrame(dict):
+    """One camera's cached wire frame whose RGB JPEG and zlib depth are
+    encoded on first READ instead of on every main-loop capture.
+
+    MEASURED on the kitchen bridge (4 cameras at 1280x720, RTX PRO 6000,
+    2026-09-28): the eager encode cost 265-324 ms of MAIN-THREAD time per
+    refresh -- zlib of one 3.7 MB float32 depth image alone 33-69 ms per
+    camera -- so the loop ran 6.3 iterations/s and the simulation 0.105x
+    real time, which turned every wall-clock skill timeout ~10x tighter in
+    sim time ("did not settle at pregrasp pose"). With the refresh skipped
+    the same loop ran 36 iterations/s (0.60x). Almost all of that work was
+    thrown away: the next refresh replaced the frame before any client
+    asked for it.
+
+    The CAPTURE is unchanged and still happens on the main thread right
+    after app.update(): the raw buffers, K, the wrist pose and the joint
+    snapshot are copied there, so a served frame is exactly as fresh and as
+    self-consistent as before. Only the encoding moves to the thread that
+    reads it (and runs at most once per frame).
+    """
+
+    _LAZY_KEYS = ("rgb_jpeg_b64", "depth_z_b64")
+
+    def __init__(self, entry, rgb, depth):
+        super().__init__(entry)
+        self._raw = (rgb, depth)
+        self._encode_lock = threading.Lock()
+
+    def _encode(self):
+        with self._encode_lock:
+            if self._raw is None:
+                return
+            rgb, depth = self._raw
+            bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+            ok, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            if not ok:
+                raise RuntimeError("JPEG encode failed for a captured camera frame")
+            depth_b64 = None
+            if depth is not None:
+                depth[~np.isfinite(depth)] = 0.0  # RTX far-clip returns inf
+                depth_b64 = base64.b64encode(zlib.compress(depth.tobytes(), 3)).decode()
+            dict.__setitem__(self, "rgb_jpeg_b64", base64.b64encode(jpg.tobytes()).decode())
+            dict.__setitem__(self, "depth_z_b64", depth_b64)
+            self._raw = None
+
+    def __missing__(self, key):
+        if key not in self._LAZY_KEYS:
+            raise KeyError(key)
+        self._encode()
+        return dict.__getitem__(self, key)
+
+    def get(self, key, default=None):
+        if key in self._LAZY_KEYS:
+            self._encode()
+        return dict.get(self, key, default)
+
+    def wire(self) -> dict:
+        """The complete JSON-ready frame (json.dumps would not call
+        __missing__, so the Handler serves this, never the object itself)."""
+        self._encode()
+        return dict(self)
+
+
 def _refresh_frames():
     # Called on the main thread after app.update(), before jobs/physics can
     # advance. CameraSensor supplies no exposure timestamp for RGB/depth:
@@ -1183,24 +1248,21 @@ def _refresh_frames():
         rgba = np.asarray(rgb_data.numpy() if hasattr(rgb_data, "numpy") else rgb_data)
         if rgba.size == 0:
             continue
-        bgr = cv2.cvtColor(rgba[..., :3].astype(np.uint8), cv2.COLOR_RGB2BGR)
-        ok, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
-        if not ok:
-            continue
+        # COPY now (astype always copies): the renderer reuses this buffer
+        # after the next update. Encoding is deferred to the reader.
+        rgb = rgba[..., :3].astype(np.uint8)
         depth_data, _ = sensor.get_data("distance_to_image_plane")
-        depth_b64 = None
+        depth = None
         if depth_data is not None:
             d = np.asarray(depth_data.numpy() if hasattr(depth_data, "numpy") else depth_data)
             if d.size:
-                # sensor returns (H, W, 1); the wire format is flat (H, W)
-                d = np.ascontiguousarray(np.squeeze(d), dtype=np.float32) * MPU
-                d[~np.isfinite(d)] = 0.0  # RTX far-clip returns inf
-                depth_b64 = base64.b64encode(zlib.compress(d.tobytes(), 3)).decode()
-        h, w = bgr.shape[:2]
+                # sensor returns (H, W, 1); the wire format is flat (H, W).
+                # `* MPU` allocates, so this is a private copy as well.
+                depth = np.ascontiguousarray(np.squeeze(d), dtype=np.float32) * MPU
+        h, w = rgb.shape[:2]
         entry = {
             "ok": True, "width": w, "height": h, "K": [list(row) for row in K],
-            "rgb_jpeg_b64": base64.b64encode(jpg.tobytes()).decode(),
-            "depth_z_b64": depth_b64, "t": t,
+            "t": t,
             "proprioception": ({**snapshot, "q": list(snapshot["q"])}
                                if snapshot is not None else None),
         }
@@ -1216,7 +1278,7 @@ def _refresh_frames():
             # eye-in-hand: extrinsics move with the arm; serve the matrix
             # that was current when this frame rendered
             entry["T_base_cam"] = [list(row) for row in _wrist_T]
-        _frames[cam_name] = entry
+        _frames[cam_name] = _LazyFrame(entry, rgb, depth)
 
 
 # ── main loop: physics + rendering stay on the main thread (Kit rule) ────

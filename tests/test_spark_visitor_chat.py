@@ -85,11 +85,13 @@ def test_local_and_public_visitors_share_one_order_lock_and_proof_session(chat, 
     submitted = chat.submit("Let's start over.")
     assert entered.wait(2)
     second = chat_module.AttendeeChat(chat.repo)
+    assert second.status()["ready"] is True and second.status()["busy"] is True
     with pytest.raises(chat_module.BusyError):
         second.submit("Move the cube")
     release.set()
     result = finished(chat)
     assert result["id"] == submitted["id"] and result["status"] == "done"
+    assert chat.status()["ready"] is True
     command, kwargs = commands[0]
     assert command[1:4] == ["--profile", "cascade-demo", "agent"]
     assert command[command.index("--session-id") + 1] == "cascade-proof-" + "a" * 32
@@ -113,9 +115,49 @@ def test_cli_failure_and_interrupted_turn_never_claim_success(chat, monkeypatch)
     monkeypatch.setattr(chat_module.subprocess, "run", lambda *a, **kw: SimpleNamespace(returncode=1, stdout="private-token-fixture"))
     chat.submit("Move the cube")
     assert finished(chat)["status"] == "error"
+    assert chat.status()["ready"] is False
+    assert json.loads(chat.result_path.read_text())["order"]["status"] == "uncertain"
+    with pytest.raises(chat_module.BusyError):
+        chat.submit("Move another cube")
     chat.save_order(chat.configuration()[0]["session_id"], {"id": "a" * 32, "status": "running"})
     assert chat.status()["order"]["status"] == "error"
     assert "private-token-fixture" not in chat.result_path.read_text()
+
+
+def test_abandoned_order_blocks_both_visitors_until_a_new_verified_world(chat, monkeypatch):
+    proof, _ = chat.configuration()
+    identifier = "c" * 32
+    chat.save_order(proof["session_id"], {"id": identifier, "status": "running"})
+    second = chat_module.AttendeeChat(chat.repo)
+    assert second.busy() is False
+    state = second.status()
+    assert state["ready"] is False and state["order"]["status"] == "error"
+    assert "cascade-proof" not in json.dumps(state)
+    assert second.status("d" * 32)["ready"] is False
+    with pytest.raises(chat_module.BusyError):
+        second.submit("Please move the orange")
+    assert json.loads(chat.result_path.read_text())["order"]["status"] == "running"
+
+    proof["session_id"] = "cascade-proof-" + "b" * 32
+    (chat.state / "proof.json").write_text(json.dumps(proof))
+    recovered = second.status()
+    assert recovered["ready"] is True and recovered["order"]["status"] == "error"
+    assert "cascade-proof" not in json.dumps(recovered)
+    monkeypatch.setattr(chat_module.subprocess, "run", lambda *a, **kw: SimpleNamespace(returncode=0, stdout=json.dumps(answer(chat))))
+    second.submit("Describe the scene")
+    assert finished(second)["status"] == "done"
+
+
+def test_cli_timeout_keeps_the_uncertain_order_latched(chat, monkeypatch):
+    def timeout(command, **kwargs):
+        raise chat_module.subprocess.TimeoutExpired(command, 270, output="private-token-fixture")
+    monkeypatch.setattr(chat_module.subprocess, "run", timeout)
+    chat.submit("Move the cube")
+    assert finished(chat)["status"] == "error"
+    assert chat.status()["ready"] is False
+    assert "private-token-fixture" not in chat.result_path.read_text()
+    with pytest.raises(chat_module.BusyError):
+        chat.submit("Move another cube")
 
 
 @contextmanager

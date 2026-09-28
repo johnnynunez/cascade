@@ -68,6 +68,28 @@ class AttendeeChat:
                 return True
         return False
 
+    def unfinished(self, session):
+        if not self.result_path.exists():
+            return None
+        record = json.loads(self.result_path.read_text())
+        if (record.get("session") == session
+                and record.get("order", {}).get("status") in ("running", "uncertain")):
+            return record["order"]
+        return None
+
+    def order_state(self, session):
+        # Read the latch while holding the same lock as admission. An in-flight
+        # submit cannot appear abandoned between lock inspection and the read.
+        with self.lock_path.open("a+") as lock:
+            busy = False
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                busy = True
+            pending = self.unfinished(session)
+        blocked = bool(pending and (pending["status"] == "uncertain" or not busy))
+        return busy, blocked
+
     def status(self, identifier=None):
         try:
             proof, _ = self.configuration()
@@ -75,7 +97,8 @@ class AttendeeChat:
         except (OSError, ValueError, KeyError, TypeError):
             proof = {}
             ready = False
-        result = {"enabled": True, "ready": ready, "busy": self.busy(), "agent": "cascade-demo"}
+        busy, blocked = self.order_state(proof.get("session_id"))
+        result = {"enabled": True, "ready": ready and not blocked, "busy": busy, "agent": "cascade-demo"}
         path = self.result_path
         if identifier is not None:
             if not re.fullmatch(r"[a-f0-9]{32}", identifier):
@@ -84,11 +107,13 @@ class AttendeeChat:
         if path.exists():
             record = json.loads(path.read_text())
             previous = record["order"]
-            if record.get("session") == proof.get("session_id"):
-                # A crash never turns an uncertain robot action into success.
-                if previous.get("status") == "running" and not result["busy"]:
-                    previous = {"id": previous["id"], "status": "error",
-                                "message": "The connection ended. Check the cameras before sending another order."}
+            current = record.get("session") == proof.get("session_id")
+            if previous.get("status") in ("running", "uncertain") and (not current or blocked):
+                previous = {"id": previous["id"], "status": "error",
+                            "message": ("The previous order could not be confirmed. The demo is reconnecting."
+                                        if current else "The previous order was interrupted. The demo has restarted.")}
+                result["order"] = previous
+            elif current:
                 result["order"] = previous
         return result
 
@@ -110,6 +135,11 @@ class AttendeeChat:
             raise BusyError("Wait for the current order to finish") from None
         identifier = uuid.uuid4().hex
         try:
+            # A lost CLI does not prove its gateway or physical action stopped.
+            # Only a new verified proof session clears this durable latch.
+            proof, config = self.configuration()
+            if self.unfinished(proof["session_id"]):
+                raise BusyError("The demo must recover before another order")
             self.save_order(proof["session_id"], {"id": identifier, "status": "running", "started_at": time.time()})
             for old in sorted(self.directory.glob("order-*.json"), key=lambda path: path.stat().st_mtime)[:-32]:
                 old.unlink()
@@ -121,8 +151,7 @@ class AttendeeChat:
         return {"id": identifier, "status": "running"}
 
     def _turn(self, identifier, message, proof, config, lock):
-        result = {"id": identifier, "status": "error",
-                  "message": "The order could not be confirmed. Check the cameras before trying again."}
+        result = {"id": identifier, "status": "uncertain"}
         try:
             env = {key: value for key, value in os.environ.items() if not key.startswith("OPENCLAW_")}
             env.update(OPENCLAW_PROFILE="cascade-demo", OPENCLAW_STATE_DIR=str(self.state / "openclaw"),

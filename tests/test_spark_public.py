@@ -70,3 +70,78 @@ def test_systemd_argument_escaping_never_interprets_percent_or_dollars():
     assert public.unit_arg('/tmp/a $name 100%') == '"/tmp/a $$name 100%%"'
     with pytest.raises(ValueError):
         public.unit_arg("/tmp/name\nExecStart=/other")
+
+
+@pytest.fixture
+def public_check(tmp_path, monkeypatch):
+    directory = public.private_root(tmp_path)
+    (directory / "settings.json").write_text(json.dumps({"domain": "visitor.example.invalid"}))
+    (directory / "auth.json").write_text(json.dumps({"username": "visitor", "password": "fixture-password"}))
+    gateway = tmp_path / "runs/.launch/profile-cascade-demo/openclaw/openclaw.json"
+    gateway.parent.mkdir(parents=True)
+    gateway.write_text(json.dumps({"gateway": {"auth": {"token": "private-token-fixture"}}}))
+    monkeypatch.setattr(public, "owned_units", lambda repo: {
+        name: {"installed": True, "active": True} for name in public.SERVICES})
+    monkeypatch.setattr(public, "browser_module", lambda repo: SimpleNamespace(ready=lambda repo: True))
+    monkeypatch.setattr(public.time, "sleep", lambda seconds: None)
+
+    def verify(chat_body):
+        frame = 0
+        def response(url, authorization=None):
+            nonlocal frame
+            path = public.urlsplit(url).path
+            if authorization is None:
+                return 401, b"Authentication required"
+            if path == "/api/chat":
+                return 200, chat_body
+            if path in ("/", "/visitor.js"):
+                return 200, b"Visitor"
+            if path == "/api/status":
+                frame += 1
+                return 200, json.dumps({"cameras": [{"name": name, "online": True, "frame_id": frame}
+                    for name in ("kitchen", "worktop", "side")]}).encode()
+            if path.startswith("/snapshot/"):
+                return 200, b"\xff\xd8fixture\xff\xd9"
+            return 404, b"Not found"
+        monkeypatch.setattr(public, "public_get", response)
+        return public.check(tmp_path)
+    return verify
+
+
+@pytest.mark.parametrize("chat", [
+    {}, {"enabled": False, "ready": True, "agent": "cascade-demo"},
+    {"enabled": True, "ready": False, "agent": "cascade-demo"},
+    {"enabled": True, "ready": True, "agent": "personal"},
+    {"enabled": "true", "ready": True, "agent": "cascade-demo"},
+    {"enabled": True, "ready": 1, "agent": "cascade-demo"}, [],
+])
+def test_public_ready_rejects_wrong_or_unready_chat_even_with_http_200(public_check, chat):
+    with pytest.raises(RuntimeError, match="attendee chat is not READY"):
+        public_check(json.dumps(chat).encode())
+
+
+def test_public_ready_rejects_invalid_chat_json_even_with_http_200(public_check):
+    with pytest.raises(RuntimeError, match="attendee chat is not READY"):
+        public_check(b"<html>Wrong application</html>")
+
+
+def test_public_ready_requires_the_connected_attendee_agent(public_check):
+    result = public_check(json.dumps({"enabled": True, "ready": True, "agent": "cascade-demo"}).encode())
+    assert result["healthy"] is True
+    assert result["attendee_chat_ready"] is True
+    assert result["cameras_advancing"] is True
+
+
+def test_service_recovery_stops_its_owned_demo_after_three_unready_chat_checks(tmp_path, monkeypatch):
+    calls, sleeps = [], []
+    monkeypatch.setattr(public, "browser_module", lambda repo: SimpleNamespace(ready=lambda repo: False))
+    monkeypatch.setattr(public.signal, "signal", lambda *args: None)
+    monkeypatch.setattr(public.time, "sleep", sleeps.append)
+    monkeypatch.setattr(public.subprocess, "run", lambda command, **kwargs:
+                        calls.append(command) or SimpleNamespace(returncode=0))
+    with pytest.raises(RuntimeError, match="restarting the owned stack"):
+        public.serve(tmp_path)
+    assert sleeps == [10, 10, 10]
+    assert len(calls) == 2
+    assert calls[0][1:3] == [str(tmp_path / "scripts/desktop.py"), "launch"]
+    assert calls[1] == [str(tmp_path / "run.sh"), "down"]

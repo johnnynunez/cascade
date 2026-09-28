@@ -255,6 +255,14 @@ def check(repo):
         code, body = public_get(origin + path, credential)
         if code != 200:
             raise RuntimeError("The public visitor is unavailable")
+        if path == "/api/chat":
+            try:
+                chat = json.loads(body)
+            except (ValueError, UnicodeDecodeError):
+                raise RuntimeError("The public attendee chat is not READY") from None
+            if (not isinstance(chat, dict) or chat.get("enabled") is not True
+                    or chat.get("ready") is not True or chat.get("agent") != "cascade-demo"):
+                raise RuntimeError("The public attendee chat is not READY")
         gateway = json.loads((repo / "runs/.launch/profile-cascade-demo/openclaw/openclaw.json").read_text())
         for secret in gateway.get("gateway", {}).get("auth", {}).values():
             if isinstance(secret, str) and len(secret) >= 8 and secret.encode() in body:
@@ -274,7 +282,8 @@ def check(repo):
         code, body = public_get(origin + f"/snapshot/{name}.jpg", credential)
         if code != 200 or not body.startswith(b"\xff\xd8") or not body.endswith(b"\xff\xd9"):
             raise RuntimeError("A public camera image is incomplete")
-    return {**result, "healthy": True, "basic_auth": True, "private_routes_blocked": True, "cameras_advancing": True}
+    return {**result, "healthy": True, "basic_auth": True, "private_routes_blocked": True,
+            "cameras_advancing": True, "attendee_chat_ready": True}
 
 
 def disable(repo):

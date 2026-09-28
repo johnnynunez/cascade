@@ -407,3 +407,86 @@ def test_task_memory_attaches_the_fresh_frame_and_its_provenance():
     assert summary["current_view"]["age_clock"] == "client_monotonic"
     assert summary["current_view"]["frame_id"] == frame.frame_id
     assert 0 <= summary["current_view"]["frame_age_s"] < 1
+
+
+
+# ── slow perception is not a dead camera ─────────────────────────────────
+# A kitchen launch failed its proof at step 1: the first describe_scene of a
+# fresh MCP process found its frame "13.6 s old; wait for reconnection" --
+# the frame was fresh when analysis began, the FIRST inference of the process
+# was slow, and the camera was live the whole time (the same call took
+# 2.7 s, then 0.1 s, when repeated against the same bridge).
+
+def _slow_analysis(rt, current, slow_calls):
+    """The detector 'takes' 6 s on its first `slow_calls` analyses, i.e. the
+    frame was fresh at capture and is past the 5 s limit when analysis ends;
+    the camera keeps producing newer captures meanwhile."""
+    calls = []
+    detect = rt.detector.detect
+
+    def detect_slowly(frame, classes=None):
+        calls.append(frame.frame_id)
+        if len(calls) <= slow_calls:
+            frame.t -= 6.0  # 6 s of inference on the client clock
+            current[0] = packet(capture_t=10.0 + len(calls))  # camera still live
+        return detect(frame, classes=classes)
+
+    rt.detector = SimpleNamespace(detect=detect_slowly)
+    return calls
+
+
+@pytest.mark.parametrize("name", ["describe_scene", "get_observation"])
+def test_slow_first_analysis_is_redone_on_a_newer_capture(monkeypatch, name):
+    rt, current, requests = scene_runtime(monkeypatch)
+    calls = _slow_analysis(rt, current, slow_calls=1)
+
+    obs = getattr(rt, "skill_" + name)()
+
+    assert len(calls) == 2 and calls[0] != calls[1] and len(requests) == 2
+    assert obs["observation_frame"]["frame_id"] == calls[1] == rt.last_frame.frame_id
+    assert 0 <= obs["observation_frame"]["frame_age_s"] < 5
+    assert "camera is live" in obs["observation_retry"]
+    assert obs["objects_visible"][0]["label"] == "sponge"
+
+
+def test_repeated_slow_analysis_fails_once_without_blaming_the_camera(monkeypatch):
+    rt, current, _ = scene_runtime(monkeypatch)
+    calls = _slow_analysis(rt, current, slow_calls=2)
+
+    with pytest.raises(SkillError) as err:
+        rt.skill_get_observation()
+
+    assert len(calls) == 2  # exactly one retry, never a loop
+    assert "camera is live" in str(err.value)
+    assert "reconnection" not in str(err.value)
+
+
+def test_frame_already_stale_before_analysis_still_reports_the_camera(monkeypatch):
+    rt, current, _ = scene_runtime(monkeypatch)
+    calls = _slow_analysis(rt, current, slow_calls=0)
+
+    def aged(frame):
+        frame.t -= 6.0  # stale on arrival: the camera, not perception
+        return frame
+
+    rt.depth = SimpleNamespace(ensure_depth=aged)
+
+    with pytest.raises(SkillError, match="wait for reconnection"):
+        rt.skill_get_observation()
+    assert calls == []  # never analyzed, never retried
+
+
+def test_mcp_describe_scene_survives_a_cold_first_inference(monkeypatch):
+    rt, current, requests = scene_runtime(monkeypatch)
+    _slow_analysis(rt, current, slow_calls=1)
+    rt.execute = lambda name, args: {**getattr(rt, "skill_" + name)(**args), "ok": True}
+    server = McpSkillServer()
+    server._runtime = rt
+
+    result = server.call_tool("describe_scene", {})
+
+    assert not result["isError"] and len(requests) == 2
+    data = payload(result)
+    assert data["observation_frame"]["frame_id"] == rt.last_frame.frame_id
+    image = next(block for block in result["content"] if block["type"] == "image")
+    assert base64.b64decode(image["data"]) == _jpeg(rt.last_frame.rgb)

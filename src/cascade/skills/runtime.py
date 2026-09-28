@@ -68,6 +68,24 @@ def _frame_age_s(frame: Frame, max_age_s: float = 5.0) -> float:
     return round(age, 3)
 
 
+class SlowPerceptionError(SkillError):
+    """The frame was fresh when analysis began; the analysis itself outlasted
+    the age limit. The camera is live, so "wait for reconnection" would be
+    false -- the caller may analyze a newer frame instead."""
+
+
+def _analyzed_frame_age_s(frame: Frame, analysis_s: float, max_age_s: float = 5.0) -> float:
+    """Age of a frame whose freshness was checked BEFORE analysis: past the
+    limit now only because the analysis was slow, reported as exactly that."""
+    age = _frame_age_s(frame, max_age_s=float("inf"))
+    if age > max_age_s:
+        raise SlowPerceptionError(
+            f"Perception took {analysis_s:.1f}s on a frame that was fresh at capture, so the "
+            f"result is {age:.1f}s old; the camera is live -- retry the observation"
+        )
+    return age
+
+
 def _fresh_camera_frame(camera, previous: Frame | None = None) -> Frame:
     from ..perception.freshness import read_frame_after
 
@@ -1394,11 +1412,25 @@ class SkillRuntime:
                 "note": "clears automatically when the next motion begins"}
 
     def skill_get_observation(self) -> dict:
-        return self._describe_observation(self.observe_fresh())
+        try:
+            return self._describe_observation(self.observe_fresh())
+        except SlowPerceptionError as slow:
+            # The camera was live; the ANALYSIS outlasted the age limit. The
+            # first inference in a new process is the slow one (3.5 s cold vs
+            # 0.02 s warm, measured on the kitchen scene), and a kitchen
+            # launch's first describe_scene found its frame 13.6 s old after
+            # analysis -- reported as "wait for reconnection", which failed the
+            # proof at step 1. Analyze ONE newer frame (observe_fresh fences on
+            # a newer capture); a second slow analysis raises honestly.
+            logger.warning("slow perception, analyzing a newer frame: %s", slow)
+            observation = self._describe_observation(self.observe_fresh())
+            observation["observation_retry"] = str(slow)
+            return observation
 
     def _describe_observation(self, frame: Frame) -> dict:
         """Analyze exactly the supplied frame, including a verified reset frame."""
         _frame_age_s(frame)
+        analysis_started = time.monotonic()
         dets = self.detector.detect(frame, classes=self._default_classes)
         self._show_detections(dets)
         objects = self._update_beliefs_from_frame(frame, dets)
@@ -1440,7 +1472,8 @@ class SkillRuntime:
             ),
             "configured_zones": self._configured_zones(),
             "observation_frame": {"frame_id": int(frame.frame_id),
-                                  "frame_age_s": _frame_age_s(frame)},
+                                  "frame_age_s": _analyzed_frame_age_s(
+                                      frame, time.monotonic() - analysis_started)},
             "robot": robot,
             "depth_source": frame.depth_source,
         }

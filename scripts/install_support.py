@@ -180,7 +180,13 @@ def prepare_assets(repo: Path) -> None:
 
 
 QWEN_PORT = 8080
-EULA_URL = "https://docs.omniverse.nvidia.com/eula"
+# The license page the operator is asked to review (docs/DGX_SPARK_SETUP.md,
+# the consent dialog) and the URL recorded with their consent must be the same.
+EULA_URL = "https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html"
+# Receipts written before 2026-09-29 name this URL. It is the same Omniverse
+# license, but the link now answers HTTP 403 (AccessDenied), so it is only
+# honoured for existing consent and never shown to a new operator.
+LEGACY_EULA_URLS = ("https://docs.omniverse.nvidia.com/eula",)
 MODEL_ENV_KEYS = ("CASCADE_QWEN_MODEL", "CASCADE_QWEN_MMPROJ", "LLAMA_SERVER", "LLAMA_DIR")
 
 
@@ -201,15 +207,22 @@ def model_environment(repo: Path) -> dict[str, str]:
     return result
 
 
-def eula_accepted(repo: Path) -> bool:
-    """Only a checkout-bound explicit-consent receipt grants future launches."""
+def recorded_eula_url(repo: Path) -> str | None:
+    """The license URL of this checkout's existing consent receipt, if valid."""
     try:
         record = json.loads((repo / "runs/.install/install.json").read_text())
-        return (record.get("repo") == str(repo.resolve())
-                and record.get("eula_accepted") is True
-                and record.get("eula_url") == EULA_URL)
+        url = record.get("eula_url")
+        if (record.get("repo") == str(repo.resolve()) and record.get("eula_accepted") is True
+                and url in (EULA_URL, *LEGACY_EULA_URLS)):
+            return url
     except (OSError, ValueError, AttributeError):
-        return False
+        pass
+    return None
+
+
+def eula_accepted(repo: Path) -> bool:
+    """Only a checkout-bound explicit-consent receipt grants future launches."""
+    return recorded_eula_url(repo) is not None
 
 
 def isaac_environment(repo: Path) -> dict[str, str]:
@@ -592,11 +605,14 @@ def record_install(repo: Path, profile: str, brain: str, ref: str, *, accept_eul
         repo / ".openclaw-cli/tools/node/lib/node_modules/openclaw/package.json",
         repo / ".openclaw-cli/lib/node_modules/openclaw/package.json",
     ) if isinstance(value := read_json(path), dict)), {})
+    # Consent given now names the current page; consent carried over from an
+    # earlier receipt keeps the URL the operator actually agreed to.
+    carried_url = None if accept_eula else recorded_eula_url(repo)
     record = {
         "repo": str(repo.resolve()),
         "runtime_home": str(Path.home().resolve()),
-        "eula_accepted": profile == "spark" and (accept_eula or eula_accepted(repo)),
-        "eula_url": EULA_URL if profile == "spark" else None,
+        "eula_accepted": profile == "spark" and (accept_eula or carried_url is not None),
+        "eula_url": (carried_url or EULA_URL) if profile == "spark" else None,
         "isaac_environment": isaac,
         "model_environment": model,
         "source_commit": git("rev-parse", "HEAD"),

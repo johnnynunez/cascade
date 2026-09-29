@@ -16,8 +16,11 @@ The installer does not change the driver or operating system.
 ### 1. Check the Spark
 
 This takes a few seconds. DGX OS provides the NVIDIA driver and CUDA toolkit.
-The check also requires Git LFS, a compiler and Chromium. If it reports a
-missing system package, use the [administrator command](#system-prerequisites)
+The check also requires Git LFS and a compiler. Chromium, `gio` and
+`gnome-terminal` are needed only for the desktop launcher in Step 5: from a
+graphical session they are required, and over SSH a missing one is a
+`WARNING` that does not block Steps 2–4. If the check reports a missing
+system package, use the [administrator command](#system-prerequisites)
 before continuing.
 
 ```bash
@@ -340,8 +343,13 @@ python3 "$HOME/paai-spark/scripts/spark_public.py" disable --repo "$HOME/paai-sp
 Success: `PUBLIC STOPPED`.
 
 The dedicated `paai-spark-demo`, `paai-spark-visitor` and `paai-spark-ngrok`
-user services restart on failure. The desktop launcher attaches to this
-same installation. The existing ngrok sessions stay unchanged.
+user services are supervised separately. The demo service restarts after a
+crash or a failed health check, at most three starts per hour. A launch that
+never reaches `READY` is not restarted, because it would rebuild the whole
+stack in a loop. Read `runs/.install/desktop-latest.json`, fix the cause, then
+run `enable` again, which clears the failed state. The visitor and ngrok
+services restart until the demo is ready. The desktop launcher attaches to
+this same installation. The existing ngrok sessions stay unchanged.
 
 An authenticated visitor gets three live cameras and chat with the
 `cascade-demo` agent and its six attendee tools. Send one order at a time;

@@ -69,7 +69,7 @@ if [[ "$DRY" == 1 ]]; then exit 0; fi
 HOST_BAD=0
 if [[ "$PROFILE" == spark ]]; then
   (
-    [[ "$ACCEPT" == 1 || "$CHECK" == 1 ]] || die 'Spark installation requires --accept-eula (https://docs.omniverse.nvidia.com/eula)'
+    [[ "$ACCEPT" == 1 || "$CHECK" == 1 ]] || die 'Spark installation requires --accept-eula (https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html)'
     [[ "$(uname -s)" == Linux && "$(uname -m)" == aarch64 ]] || die 'Spark requires Linux aarch64; use --profile laptop or ci explicitly on other hosts'
     LIBC="$(getconf GNU_LIBC_VERSION 2>/dev/null || true)"
     [[ "$LIBC" =~ ^glibc\ ([0-9]+)\.([0-9]+)$ ]] || die "cannot determine glibc version: $LIBC"

@@ -46,7 +46,7 @@ def test_advice_preserves_file_bytes_and_metadata(cache, tmp_path, monkeypatch):
     assert (path.read_bytes(), path.stat().st_mtime_ns, path.stat().st_size) == before
 
 
-@pytest.mark.parametrize("kind", ["outside", "symlink", "parent_symlink", "hardlink", "mapped", "wrong_uid", "dirty", "writeback", "changed", "unavailable", "foreign"])
+@pytest.mark.parametrize("kind", ["outside", "symlink", "parent_symlink", "hardlink", "wrong_uid", "dirty", "writeback", "changed", "unavailable", "foreign"])
 def test_cache_hint_refuses_unproven_or_shared_scope(cache, tmp_path, monkeypatch, kind):
     module, path, record = cache
     current = record()
@@ -65,8 +65,6 @@ def test_cache_hint_refuses_unproven_or_shared_scope(cache, tmp_path, monkeypatc
     elif kind == "hardlink":
         os.link(path, path.with_suffix(".shared"))
         current = record()
-    elif kind == "mapped":
-        monkeypatch.setattr(module, "model_is_mapped", lambda *args: True)
     elif kind == "wrong_uid":
         monkeypatch.setattr(module.os, "getuid", lambda: path.stat().st_uid + 1)
     elif kind in ("dirty", "writeback"):
@@ -93,6 +91,60 @@ def test_model_mapping_uses_inode_and_device(cache):
     spec.loader.exec_module(actual)
     with path.open("rb") as stream, mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ):
         assert actual.model_is_mapped(os.getpid(), path.stat())
+
+
+def test_file_mapped_by_the_server_is_still_advised(cache, tmp_path, monkeypatch):
+    # llama-server runs without --no-mmap, so the owned model is always mapped.
+    # A guard that skipped mapped files turned the release into a permanent no-op.
+    module, path, record = cache
+    monkeypatch.setattr(module, "model_is_mapped", lambda *args: True)
+    calls = []
+    monkeypatch.setattr(module.os, "posix_fadvise", lambda *args: calls.append(args[1:]))
+    result = module.release_clean_model_cache(tmp_path, record(), {})
+    assert result["status"] == "advised" and result["server_maps_file"] is True
+    assert calls == [(0, 0, os.POSIX_FADV_DONTNEED)]
+
+
+def test_real_kernel_releases_unmapped_pages_and_keeps_mapped_ones(cache, tmp_path):
+    """No doubles below the ownership check: real mmap, cachestat and fadvise."""
+    import mmap
+    _, path, record = cache
+    spec = importlib.util.spec_from_file_location("actual_model_cache", ROOT / "scripts/model_cache.py")
+    actual = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(actual)
+    page = actual.PAGE_SIZE
+    # Control: tmpfs/shmem pages cannot be dropped, so first prove this
+    # filesystem honours DONTNEED at all on an unmapped, clean file.
+    control = tmp_path / "control.bin"
+    control.write_bytes(os.urandom(256 * page))
+    with control.open("rb") as stream:
+        os.fsync(stream.fileno())
+        stream.read()
+        try:
+            control_before = actual.cached_pages(stream.fileno())["cached"]
+        except OSError:
+            pytest.skip("cachestat is unavailable on this kernel")
+        os.posix_fadvise(stream.fileno(), 0, 0, os.POSIX_FADV_DONTNEED)
+        if control_before == 0 or actual.cached_pages(stream.fileno())["cached"] > control_before // 2:
+            pytest.skip("this filesystem keeps its page cache (e.g. tmpfs)")
+    # Large enough that ext4/xfs large folios (up to 2 MiB) around the mapped
+    # head cannot hold the whole file: a mapped folio is never invalidated.
+    count = max(64, (16 * 1024 * 1024) // page)
+    path.write_bytes(os.urandom(count * page))
+    with path.open("rb+") as written:
+        os.fsync(written.fileno())                         # dirty pages are refused by design
+    with path.open("rb") as stream:
+        stream.read()                                      # populate the page cache
+        if actual.cached_pages(stream.fileno())["cached"] < count // 2:
+            pytest.skip("page cache was not populated (memory pressure)")
+        with mmap.mmap(stream.fileno(), 8 * page, access=mmap.ACCESS_READ) as mapped:
+            assert sum(mapped[i * page] for i in range(8)) >= 0   # fault the 8 mapped pages in
+            result = actual.release_clean_model_cache(tmp_path, record(), {})
+            assert result["status"] == "advised" and result["server_maps_file"] is True
+            assert result["cached_pages_before"] >= count // 2
+            assert 8 <= result["cached_pages_after"] <= result["cached_pages_before"] // 2
+            assert result["released_bytes"] == (result["cached_pages_before"] - result["cached_pages_after"]) * page
+            assert mapped[0] == path.read_bytes()[0]       # the mapped view still reads the file
 
 
 def test_hint_runs_after_healthy_owned_qwen_and_before_isaac_start(tmp_path, monkeypatch):

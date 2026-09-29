@@ -217,8 +217,15 @@ session for each attendee, after the reset finishes. The
 
 If the browser disconnects during Reset, reconnect and read the original tool
 result before trying again. The button does not resend an uncertain order.
-Readiness briefly showed unavailable during a live reset while cameras kept
-updating, then recovered without a restart. Wait for Ready before the next order.
+All OpenClaw sessions share the same physical scene. Use one operator chat at
+a time; another session can move a restored object after your reset. Check the
+tool history and cameras before treating a later moved object as a reset failure.
+During reset, the simulator readiness check can briefly report `BridgeError`.
+Read-only sampling of the deployed check recorded two-second bridge timeouts;
+the bridge still answered ping and cameras kept updating. The check passed
+again after reset without a restart. Wait for Ready before the next order.
+Reloading the browser after an accepted reset did not replay it; read the
+original result in chat after a reload.
 
 `annotated_view` sends OpenClaw the rendered image and its numbered-object
 key. Badges are tracked estimates, which can be stale or mislabeled. The chat

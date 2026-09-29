@@ -37,7 +37,7 @@ jobs:
       # client cannot even be built. The heavy extras (perception/arm) stay
       # hardware-only.
       - run: uv sync --extra dev --extra kinematics --extra arm-feetech --extra sim --extra sim-warp --extra grasping
-      - run: uv run pytest tests/ -q
+      - run: uv run pytest tests/ deploy/brev/tests/test_public_visitor.py deploy/brev/tests/test_visitor_video.py -q
 
   booth-ui:
     name: booth pages and camera extension

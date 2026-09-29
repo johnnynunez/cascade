@@ -1,300 +1,352 @@
 # PAAI on NVIDIA DGX Spark
 
-PAAI means Physical Agentic AI. This installs the Build a Claw kitchen demo
-with Isaac Sim, local Qwen Q4 and OpenClaw.
+PAAI means Physical Agentic AI. This installs the Build a Claw kitchen demo:
+Isaac Sim, local Qwen Q4, OpenClaw and the PAAI camera extension in Chromium.
+No model API key is needed.
 
-## 1. Check the machine
+## Quick path
 
-Use NVIDIA DGX Spark with Linux `aarch64`, glibc 2.35 or newer, a working
-NVIDIA driver compatible with CUDA 13, and the CUDA toolkit with `nvcc`.
-Use a normal user account with a writable home directory. The installer does
-not install system packages or change the driver or operating system.
+Use a normal account on the Spark. Start with a new `$HOME/paai-spark` folder.
+Run each numbered block once. Wait for its success line and exit code 0
+before continuing. For diagnostics, use the read-only commands below. Never
+repeat Start just to see more output. If a command fails, stop and read
+[recovery](#if-something-goes-wrong).
+The installer does not change the driver or operating system.
 
-The host also needs Bash, Git, Git LFS, curl, Python 3, CA certificates,
-`libgomp1` and a C++ compiler. If these are missing on DGX OS, an administrator
-can install them before continuing:
+### 1. Check the Spark
 
-```bash
-sudo apt-get update && sudo apt-get install -y git git-lfs curl python3 ca-certificates build-essential libgomp1
-```
-
-```bash
-uname -m
-nvidia-smi
-/usr/local/cuda/bin/nvcc --version
-command -v bash git curl python3 c++
-git lfs version
-getconf GNU_LIBC_VERSION
-python3 -c 'import ctypes; ctypes.CDLL("libgomp.so.1")'
-free -h
-df -h "$HOME" "${TMPDIR:-/tmp}"
-```
-
-Every command above must succeed. Plan for at least 150 GB free for the
-checkout, runtime environments, download caches and build products, plus
-space for evidence and shader caches. This is a planning allowance, not an
-installer-enforced minimum. Check the cache volume too if `XDG_CACHE_HOME` or
-`UV_CACHE_DIR` points elsewhere. The model and vision projector alone use
-18.85 GB; the compressed kitchen archive adds 0.71 GB before extraction.
-
-Expect tens of GB of downloads and a local CUDA build; first installation
-depends on connection speed and can take much longer than a rerun. Outbound
-HTTPS must reach GitHub (including raw files, releases and Git LFS), Hugging
-Face and its file hosts, PyPI, `pypi.nvidia.com`, `download.pytorch.org`,
-`astral.sh`, `openclaw.ai`, Node.js and the npm registry, including redirects.
-No model API key is needed for this local setup.
-
-## 2. Install
-
-Start with a new `$HOME/paai-spark` destination and the default runtime/model
-paths. Existing `ISAACSIM_PATH`, `ISAACSIM_PYTHON_EXE`, `CASCADE_QWEN_MODEL`,
-`CASCADE_QWEN_MMPROJ`, `LLAMA_DIR` or `LLAMA_SERVER` overrides select other
-files; remove those overrides from this shell for a clean install.
-
-Review the [NVIDIA Isaac Sim / Omniverse EULA](https://docs.omniverse.nvidia.com/eula)
-before running the command. **`--accept-eula` is explicit acceptance**, not
-a prompt: the command below proceeds without asking again. An agent needs
-its operator's explicit consent before using that flag. Without it, Spark
-installation exits 2 before dependency installation. Setting
-`OMNI_KIT_ACCEPT_EULA=YES` alone does not grant consent. `--dry-run` and
-`--check` need no consent and do not accept the license.
-
-The source URL and `--ref` use the same pinned commit. This single command
-preserves a nonzero download/install exit status and saves installation output:
+This takes a few seconds. DGX OS provides the NVIDIA driver and CUDA toolkit.
+The check also requires Git LFS, a compiler and Chromium. If it reports a
+missing system package, use the [administrator command](#system-prerequisites)
+before continuing.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/8470c98403195aaacc96a80f5f397b6d12fb336a/scripts/bootstrap.sh | bash -s -- --ref 8470c98403195aaacc96a80f5f397b6d12fb336a --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark" 2>&1 | tee "$HOME/paai-spark-install.log"'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/fac5332416f688fd5d035e0b0a8088d52ef4d469/scripts/spark_prerequisites.py | python3 -'
 ```
 
-The installer clones the pinned source and prepares the following files.
-Paths are relative to `$HOME/paai-spark` unless stated otherwise.
+Success: `PREREQUISITES_OK`.
 
-| Download or build | Location |
-| --- | --- |
-| App and Python 3.12 packages, including CUDA perception wheels | `.venv/` |
-| Isaac Sim `isaacsim[all,extscache]==6.1.0.0` and its separate Python 3.12 environment | `.isaacsim/` |
-| OpenClaw 2026.9.3 and its private Node.js runtime | `.openclaw-cli/` |
-| Pinned Qwen Q4 model and BF16 vision projector, with size/hash receipts | `models/qwen3.8-27b/` |
-| Pinned llama.cpp source, local CUDA build and runtime receipt | `.llama.cpp/`, `.llama.cpp/build/.cascade-runtime.json` |
-| Robot Git LFS files and perception weights | `assets/`, `models/` |
-| Verified 166-file kitchen release, including asset license notices | `demo/scene/assets/`, `demo/vendor-kitchen/` |
-| Source/package identities, explicit consent and reusable environment | `runs/.install/install.json`, `runs/.install/env.sh` |
+### 2. Install
 
-The installer also uses `~/.local/bin/uv`, the uv cache (normally
-`~/.cache/uv`) and `~/.cache/cascade/installers`. uv obtains Python 3.12 if
-needed. Desktop shortcuts are registered under the user's application and
-desktop directories. No manual release download is needed.
+Before your first installation, review the [NVIDIA Isaac Sim / Omniverse
+licenses](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html).
+**`--accept-eula` records your explicit acceptance for this checkout.**
+An agent must have the operator's explicit consent. If that consent is
+already supplied, proceed to the install command; do not fetch the license
+page or ask for consent again. `OMNI_KIT_ACCEPT_EULA=YES` alone does not grant consent.
 
-Wait for `PREPARED` and exit code 0. Preparation starts no demo services.
-A rerun reuses verified files. Consent is recorded against the absolute
-checkout path in `runs/.install/install.json`; subsequent launches use that
-receipt. Moving the checkout requires installation with explicit consent
-again. Do not manufacture or edit consent receipts. The desktop install
-shortcut asks for `I agree` (or the consent dialog); the launch shortcut
-does not install dependencies or grant consent.
-
-## 3. Check preparation without starting services
+The source URL and `--ref` select the same tested commit. This downloads the
+runtime, model and assets, then builds the local CUDA model server. Allow
+space for at least 150 GiB. A fresh installation from public download sites
+took about 25 minutes. Plan for 30–90 minutes; slower connections take longer.
+The progress log shows each stage.
 
 ```bash
-cd "$HOME/paai-spark"
-bash scripts/install.sh --profile spark --dir "$PWD" --check
-python3 -m json.tool runs/.install/install.json
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/fac5332416f688fd5d035e0b0a8088d52ef4d469/scripts/bootstrap.sh | bash -s -- --ref fac5332416f688fd5d035e0b0a8088d52ef4d469 --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark" 2>&1 | tee "$HOME/paai-spark-install.log"'
 ```
 
-The read-only `--check` must exit 0. It checks package metadata, pinned model
-and build identities, robot files and kitchen checksums without downloads,
-license acceptance, Kit startup or robot motion. The install receipt must
-show this checkout's `repo`, the pinned `source_commit`, `source_dirty: false`,
-`profile: "spark"`, `brain: "qwen"` and `eula_accepted: true`.
+Success: `PREPARED`. No demo services have started yet.
 
-| Result | Meaning and next action |
-| --- | --- |
-| `PREPARED`, installer exit 0 | Dependencies/assets are ready for a launch attempt; no live proof yet. |
-| `--check` exit 0 | Preparation checks passed; continue to launch. |
-| `--check` exit 3 | A prerequisite, runtime or asset is missing/invalid; stop and inspect `MISSING` diagnostics. |
-| Exit 2 | Consent, arguments or host prerequisites were rejected; fix that diagnostic before retrying. |
-| Other nonzero exit | Installation or launch failed; keep its output and inspect the relevant log. |
-| Desktop exit 75 | Another install/launch holds the checkout lock; inspect `desktop-latest.json`, do not start a duplicate. |
-| `STARTED (UNVERIFIED: robot proof skipped)` | Services may be running, but the physical proof was skipped; this is not `READY`. |
-| `READY`, launch exit 0 | Require the current health and proof checks below before handing over the demo. |
+### 3. Check the installation
 
-## 4. Start and verify
-
-Check [ports and coexistence](#7-ports-and-coexistence) before starting. From
-the checkout:
+This is read-only. It starts no services and accepts no license. The check
+took about five seconds in the measured installation.
 
 ```bash
-python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open
+cd "$HOME/paai-spark" && bash scripts/install.sh --profile spark --dir "$PWD" --check && printf 'CHECKED\n'
 ```
 
-This works from a remote shell. The cameras and physical checks run without
-opening windows. From a logged-in desktop session, omit `--headless --no-open`
-to open the Isaac editor and chat.
+Success: `CHECKED`. The receipt is `runs/.install/install.json`.
 
-Cold shader and collision preparation can take more than ten minutes.
-The launcher allows 30 minutes for model health and 20 minutes for Isaac
-startup, followed by the two physical acceptance cases. Let those bounded
-checks finish; launching a second copy does not speed them up.
-It uses the same PhysX CUDA scene and arm profile as the working Brev demo.
-It starts local Qwen and the dedicated OpenClaw `cascade-demo` profile.
-It then tests both orders below, with a reset after each.
+### 4. Start and prove the demo
 
-Wait for `READY` and launch exit 0. Check current health and receipts:
+This starts the dedicated `cascade-demo` OpenClaw agent and moves the
+simulated robot through two placement checks and resets. The measured start
+and proof took about 14 minutes. Cold shader and collision preparation can
+take longer. The physical checks can be quiet for several minutes. Wait for
+the command to finish even when no new log lines appear; do not start another copy. The model health timeout
+is 30 minutes and the Isaac startup timeout is 20 minutes.
 
 ```bash
-OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" \
-  .openclaw-cli/bin/openclaw --profile cascade-demo health --json
-python3 -m json.tool runs/.install/desktop-latest.json
-python3 -m json.tool runs/.launch/profile-cascade-demo/proof.json
+(
+  set -o pipefail
+  cd "$HOME/paai-spark" || exit
+  python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open 2>&1 |
+    tee "$HOME/paai-spark-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
+) && python3 "$HOME/paai-spark/scripts/spark_verify.py" --repo "$HOME/paai-spark" --expected-ref fac5332416f688fd5d035e0b0a8088d52ef4d469
 ```
 
-Require all of these facts, not just a listening port or an English success
-message:
+Success: one `READY` summary with both placements, cameras and resets passing.
+The command checks the [current proof](#verify-the-result), health and live
+process ownership. Full output stays in `$HOME/paai-spark-launch.log`; the
+terminal shows only progress and the compact result. Do not repeat this
+block to obtain more output.
 
-- Health contains `"ok": true`; the desktop receipt has `action: "launch"`
-  and `exit_code: 0`.
-- `proof.json` has `verified: true`, `sim: "isaac"` and the selected
-  provider's `Qwen/Qwen3.8-27B` model. Its `started_at` falls between the
-  desktop receipt's `started_at` and `finished_at`; an earlier proof is stale.
-- `cases` contains green cube → green square and orange → open box. Each
-  case has `physics.pass: true`, `physics.event_cameras.pass: true` and
-  `props_reset` containing the manipulated prop (`green_cube` or `orange`).
-- Each case's `evidence_dir` contains the native turns and
-  `physics/gpu-physical-audit.json`, with `physics/placed-<camera>.jpg` and
-  `physics/reset-<camera>.jpg` screenshots. Inspect those audits and the
-  current cameras: `cam0`, `side` and `proof` must all advance. A missing,
-  failed or stale observation means stop, even if chat sounds successful.
+### 5. Open the demo in one click
 
-## 5. Use natural English in OpenClaw
+On the Spark desktop, open the app grid and click **PAAI (Spark)**. The
+launcher starts the stack when needed or attaches to the running stack.
+It opens a dedicated Chromium profile with the camera extension already
+loaded. The connected OpenClaw chat and three live cameras appear together.
+No extension setup, token paste or permission prompt is needed.
 
-To open the chat from the Spark's desktop, run:
+The same registered launcher can be opened from a graphical terminal:
 
 ```bash
-OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" \
-  .openclaw-cli/bin/openclaw --profile cascade-demo dashboard
+gio launch "$HOME/paai-spark/runs/.install/paai-spark.desktop"
 ```
 
-Write normal English in the message box. Start with:
+Success: the connected chat and advancing Worktop (`cam0`), Side (`side`)
+and Kitchen (`proof`) views. Attaching normally takes a few seconds.
+The launcher file above is also the target for desktop automation.
+
+Write normal English in the chat. First inspect the table:
 
 > What can you see on the table?
 
-Compare the answer with the live cameras. Send one order at a time:
+Then send one order and wait for it to finish:
 
 > Could you put the green cube in the green square?
 
-Wait for the result. Check that the cube was released inside the square.
-Then send:
+Check that the cube is released inside the square. To reset, send:
 
 > Let's start over.
 
-After reset completes, send:
+After reset, try the second order:
 
 > Please put the orange in the open box.
 
-Check that the orange was released inside the box. Reset and inspect again
-before the next visitor.
+Check that the orange is released inside the box. Reset before the next visitor.
 
-OpenClaw may say "Placement unverified" because its tool reports only the
-object's center position. The startup proof checks full placement separately.
+### 6. Stop cleanly
 
-## 6. Stop cleanly
-
-After the last request finishes, stop this installation from its checkout:
+Wait for the last request to finish. This stops only this checkout's stack.
+The second command checks that no owned process remains. Allow up to a minute.
 
 ```bash
+bash -e <<'BASH'
+cd "$HOME/paai-spark"
 ./run.sh down
-./run.sh down --dry-run
+remaining=$(./run.sh down --dry-run)
+printf '%s\n' "$remaining"
+case "$remaining" in *'would stop'*) exit 1 ;; esac
+printf 'STOPPED\n'
+BASH
 ```
 
-The first command must exit 0. The read-only second command must list no
-`would stop` processes. Stop uses recorded checkout/profile/process identities;
-it leaves unrelated services and cached installation files intact. Retained
-receipts are diagnostic history, not evidence that a stopped demo is ready.
+Success: `STOPPED`, with no `would stop` lines. Keep the installed files.
+Next time, click **PAAI (Spark)** to start. The remaining sections are
+reference material; the Bonus Track is optional.
 
-## 7. Ports and coexistence
+## System prerequisites
 
-| Default loopback port | Service |
+Use Linux `aarch64`, glibc 2.35 or newer, a working NVIDIA driver compatible
+with CUDA 13, and a CUDA toolkit with `nvcc`. DGX OS ships the driver and
+CUDA toolkit; see the [DGX Spark software versions](https://docs.nvidia.com/dgx/dgx-spark/release-notes.html).
+The setup check reports missing host components; it does not install them.
+
+If the quick-path check reports missing packages, an administrator runs this
+one command, then repeats Step 1. Skip it when Step 1 already passes.
+
+```bash
+sudo apt-get update && sudo apt-get install -y git git-lfs curl python3 ca-certificates build-essential libgomp1 libglib2.0-bin gnome-terminal chromium-browser && printf 'PACKAGES_READY\n'
+```
+
+Use Chromium for the automatic extension. Branded Google Chrome 137 and
+newer [does not support this loading flag](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY/m/S0ET5wPjCAAJ).
+The launcher handles the Chromium snap's profile and file access paths.
+In GNOME, the app-grid entry works immediately. A desktop-file manager may
+require **Allow Launching** for an untrusted icon; use the app-grid entry.
+
+Keep at least 150 GiB free in the home volume, with room for later evidence
+and shader caches. Also check another cache volume if you override
+`XDG_CACHE_HOME` or `UV_CACHE_DIR`. The model and projector use 18.85 GB;
+the compressed kitchen archive adds 0.71 GB before extraction.
+
+Outbound HTTPS must reach GitHub and Git LFS, Hugging Face and its file
+hosts, PyPI, `pypi.nvidia.com`, `download.pytorch.org`, `astral.sh`,
+`openclaw.ai`, Node.js and the npm registry, including redirects.
+
+Start in a clean shell. Remove `ISAACSIM_PATH`, `ISAACSIM_PYTHON_EXE`,
+`CASCADE_QWEN_MODEL`, `CASCADE_QWEN_MMPROJ`, `LLAMA_DIR` and `LLAMA_SERVER`
+overrides if you used another installation. The quick path uses private
+runtimes in this checkout.
+
+## Installed files
+
+Paths are relative to `$HOME/paai-spark`.
+
+| Component | Location |
 | --- | --- |
-| 18790 | This checkout's foreground OpenClaw gateway, profile `cascade-demo` |
+| App, Python 3.12 and CUDA perception packages | `.venv/` |
+| Isaac Sim `isaacsim[all,extscache]==6.1.0.0`, Python 3.12 | `.isaacsim/` |
+| OpenClaw 2026.9.3 and private Node.js | `.openclaw-cli/` |
+| Pinned Qwen Q4 model and BF16 vision projector | `models/qwen3.8-27b/` |
+| Pinned llama.cpp CUDA build and receipt | `.llama.cpp/build/` |
+| Robot Git LFS files and perception weights | `assets/`, `models/` |
+| Verified 166-file kitchen release and license notices | `demo/scene/assets/`, `demo/vendor-kitchen/` |
+| Source, package and consent receipt; reusable environment | `runs/.install/install.json`, `runs/.install/env.sh` |
+
+The installer also uses `$HOME/.local/bin/uv`, `$HOME/.cache/uv` and
+`$HOME/.cache/cascade/installers`. It obtains Python 3.12 when needed.
+Preparation registers the desktop launcher. A rerun reuses verified files.
+
+Consent belongs to the absolute checkout path recorded in `install.json`.
+Moving the checkout requires installation with explicit consent again.
+Do not edit consent receipts. `--dry-run` and `--check` grant no consent.
+
+## Verify the result
+
+The installation receipt must show the checkout's `repo`, the pinned
+`source_commit`, `source_dirty: false`, `profile: "spark"`, `brain: "qwen"`
+and `eula_accepted: true`.
+
+Step 4 validates `runs/.install/desktop-latest.json` and
+`runs/.launch/profile-cascade-demo/proof.json` without printing their full
+contents. It checks these facts while the demo is running:
+
+- Health has `"ok": true`. The desktop receipt has `action: "launch"` and
+  `exit_code: 0`.
+- The current `proof.json` has `verified: true`, `sim: "isaac"` and model
+  `Qwen/Qwen3.8-27B`. On a fresh start, `attached: false` in the desktop
+  receipt and proof `started_at` between its `started_at` and `finished_at`
+  establish that this launch ran the proof.
+- Reopening the launcher records `attached: true`. It keeps the existing
+  proof, whose `session_id`, `started_at` and `process` must match the
+  desktop receipt's `proof` object. The launcher verifies that the owned
+  simulation process is still live before attaching.
+- Its `cases` include green cube to green square and orange to open box.
+  Each has `physics.pass: true`, `physics.event_cameras.pass: true`, and
+  `props_reset` containing `green_cube` or `orange` respectively.
+- Each case's `evidence_dir` holds native turns,
+  `physics/gpu-physical-audit.json`, `physics/placed-<camera>.jpg` and
+  `physics/reset-<camera>.jpg`. All three live cameras must advance.
+
+`PREPARED` means the dependencies are ready. `READY` requires the physical
+proof. `STARTED (UNVERIFIED: robot proof skipped)` is not an accepted result.
+An old receipt or an English success message is not proof.
+
+OpenClaw may report "Placement unverified" when a tool checks only the
+object's center. Inspect the placement and the physical audit before
+calling the result successful.
+
+## Ports and coexistence
+
+| Loopback port | Service |
+| --- | --- |
 | 8080 | This checkout's local Qwen API |
+| 8091 | This checkout's read-only camera surface |
+| 8092 | This checkout's local chat and camera extension |
+| 8093 | Optional authenticated visitor surface |
 | 8611 | Isaac bridge |
-| 18789 | Separate personal OpenClaw gateway; leave it running |
+| 18790 | This checkout's OpenClaw gateway, profile `cascade-demo` |
+| 4043 | Optional dedicated ngrok agent API |
 
-The optional live-view dashboard uses `0.0.0.0:8090` when explicitly opened
-or eager streaming is selected. It remains unbound in the default lazy mode;
-the Spark attendee tools do not open it. Leave unrelated listeners on 8090 alone.
+The demo does not use port 8090. The separate personal OpenClaw gateway
+on 18789 stays untouched. Spark does not start occupancy or GraspGen-X
+sidecars on 5557/5556. OpenClaw state stays under
+`runs/.launch/profile-cascade-demo/openclaw/`.
 
-The Spark defaults do not start occupancy or GraspGen-X sidecars on 5557/5556.
-OpenClaw configuration, workspace and memory stay under
-`runs/.launch/profile-cascade-demo/openclaw/`; no gateway system service is
-installed. Run only one Spark demo stack on these default ports at a time.
+Run one Spark stack at a time. Before the first start, `ss -ltnp` shows
+occupied ports. A service owned by another application must stay running;
+resolve the conflict before launching. Never kill a process by its port
+or name. Reopening this checkout's launcher attaches to its running stack.
+Never expose the OpenClaw gateway, Qwen API, Isaac bridge or MCP publicly.
 
-Before a clean launch, `ss -ltnp` can identify occupied ports, but cannot prove
-readiness. Unrelated listeners on 8080 or 18790 cause startup to fail and are
-preserved. The launcher can reuse an existing Isaac bridge on 8611 only after
-health and scene-identity checks; it does not acquire ownership of that
-borrowed process. For a clean install demonstration, stop if 8611 already
-belongs to another stack and let that stack's owner resolve it. Do not kill
-processes by port or process name. Keep unrelated services running.
+## If something goes wrong
 
-The chat is bound to loopback. Use the Spark desktop's dashboard, or an
-authenticated SSH tunnel to port 18790 for a remote browser; do not expose the
-gateway publicly to make the demo reachable.
+Keep `$HOME/paai-spark-install.log`. For an install error, correct only the
+reported package, network or disk issue. Repeat the same pinned install
+command once. The installer already has bounded download retries.
 
-## 8. Recover with a bounded retry
-
-For a missed grasp, ask OpenClaw to reset and inspect before another order.
-Do the same after `did not settle at home`. This occurred after the tested
-orange placement; the following reset passed.
-For an installer error, keep `$HOME/paai-spark-install.log`, correct only the
-reported prerequisite/network/disk issue and rerun the same pinned command
-once. The script performs its own bounded download retries. An existing dirty
-checkout is preserved; it will not switch refs over local changes. An
-incomplete environment or changed llama.cpp source/build is refused rather
-than silently deleted. Keep those paths for diagnosis instead of resetting
-them or reinstalling in an endless loop.
-
-For a stalled camera or failed startup, inspect the logs below, then stop this
-installation and retry launch once:
+For a failed launch or stalled camera, inspect the log path printed by the
+launcher. From a terminal, stop this checkout and retry once:
 
 ```bash
-./run.sh down && python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open
+cd "$HOME/paai-spark" && ./run.sh down && python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open
 ```
 
-If the same failure returns, stop this installation and report the failing
-command, exit status and evidence paths. Do not extend timeouts repeatedly,
-skip the robot proof, change the model/physics/controller settings or delete
-receipts to obtain `READY`.
-
-Find the latest desktop log and physical proof here:
+To inspect the current launch without starting it again, use these read-only
+commands. The first prints the short desktop receipt and its full log path:
 
 ```bash
-python3 -m json.tool runs/.install/desktop-latest.json
-python3 -m json.tool runs/.launch/profile-cascade-demo/proof.json
+python3 -m json.tool "$HOME/paai-spark/runs/.install/desktop-latest.json"
+python3 "$HOME/paai-spark/scripts/spark_browser.py" --repo "$HOME/paai-spark" --check
 ```
 
 Full logs are in `runs/.install/desktop-*/progress.log` and
-`runs/.launch/profile-cascade-demo/`, particularly `qwen.log`,
-`isaac_bridge.log` and `openclaw-gateway.log`. Case screenshots, native turns
-and audits are in the `evidence_dir` named by the proof. Early bootstrap
-failures may have only terminal output and `$HOME/paai-spark-install.log`;
-absence of an install receipt is a failure to investigate, not consent.
+`runs/.launch/profile-cascade-demo/`: `qwen.log`, `isaac_bridge.log` and
+`openclaw-gateway.log`. An early bootstrap error may leave only the install
+log. Exit 2 means rejected arguments, consent or host prerequisites. A
+read-only check that exits 3 reports `MISSING` components.
 
-## 9. Agent checklist
+If the same failure returns, stop and report the command, exit code and
+log path. Keep incomplete environments and failed evidence for diagnosis.
+Do not extend timeouts repeatedly, skip the robot proof, edit receipts or
+change the model or physics settings to obtain `READY`.
 
-1. Confirm the prerequisite commands, available disk/network and operator EULA
-   consent. Stop before installation if any requirement is missing.
-2. Run the pinned preparation command once. Require exit 0, `PREPARED` and
-   the matching `install.json` source/path/consent fields.
-3. Run the read-only installation check. Require exit 0; exit 3 is a stop.
-4. Check port ownership, then launch once. Require exit 0 and the current
-   health, desktop receipt, both physical cases, both resets and advancing
-   cameras described above. An open port, old receipt or agent prose never
-   establishes readiness.
-5. Send natural English requests one at a time; preserve failed or unverified
-   results. Reset and inspect before another attempt. Follow the single-retry
-   recovery limit; if it fails again, stop and report the evidence.
-6. When finished, run the clean stop and require no remaining `would stop`
-   entries in the read-only ownership check. Leave unrelated services alone.
+For a missed grasp or `did not settle at home`, reset and inspect before
+another order. Send only one order at a time.
+
+## Agent checklist
+
+1. Complete the quick path in order. Require the operator's EULA consent.
+2. Require `PREPARED`, exit 0, and matching source, path and consent fields.
+3. Require read-only `--check` exit 0, then launch exit 0 and `READY`.
+4. Verify current health, proof, both physics cases, resets and all cameras.
+5. Open the registered launcher in a graphical session. Verify the connected
+   chat, loaded extension and cameras. Send a natural-English order and reset.
+6. Require clean stop exit 0 and no `would stop` entries. Preserve evidence
+   and unrelated services. Report failed or unverified results honestly.
 
 See [Spark delivery](SPARK_DELIVERY.md) for file identities and acceptance details.
+
+## Bonus Track: Always-on demo on ngrok for testing purposes
+
+This is optional and is not part of the official setup. At events, the demo
+runs on the Spark with its own monitor and keyboard.
+
+Install the Linux arm64 executable from [ngrok's download page](https://ngrok.com/download/linux)
+and use an ngrok account with a stable domain. Keep its token in a private
+ngrok configuration file. Create a private JSON file containing
+`{"username":"<visitor-name>","password":"<visitor-password>"}` and set its
+mode to `0600`. Use a password of at least 12 characters. The ngrok
+configuration file must also have mode `0600`. Replace every placeholder
+below. Never put credentials in the domain or commit these files.
+
+The desktop user's systemd user manager must have linger enabled to survive
+logout. If `loginctl show-user "$USER" -p Linger` does not show `Linger=yes`,
+ask the administrator to enable it before using this optional track.
+
+Enable:
+
+```bash
+python3 "$HOME/paai-spark/scripts/spark_public.py" enable --repo "$HOME/paai-spark" --domain '<your-domain>.ngrok.dev' --auth-file '<private-visitor-auth.json>' --ngrok '<path-to-ngrok>' --ngrok-config '<existing-ngrok.yml>'
+```
+
+Success: `PUBLIC ENABLED`. This registers the services. A stopped demo
+still needs its normal startup time. Check after it reaches `READY`:
+
+```bash
+python3 "$HOME/paai-spark/scripts/spark_public.py" check --repo "$HOME/paai-spark"
+```
+
+Success: `PUBLIC READY`. Disable the public endpoint and its demo stack:
+
+```bash
+python3 "$HOME/paai-spark/scripts/spark_public.py" disable --repo "$HOME/paai-spark"
+```
+
+Success: `PUBLIC STOPPED`.
+
+The dedicated `paai-spark-demo`, `paai-spark-visitor` and `paai-spark-ngrok`
+user services restart on failure. The desktop launcher attaches to this
+same installation. The existing ngrok sessions stay unchanged.
+
+An authenticated visitor gets three live cameras and chat with the
+`cascade-demo` agent and its six attendee tools. Send one order at a time;
+"Let's start over." resets. Requests without credentials receive HTTP 401.
+The public surface excludes the OpenClaw Control UI, administration,
+configuration, tool policy and raw backend APIs. The gateway token stays on
+the Spark and is never sent to a browser. Disabling stops these dedicated
+services and keeps the installation files.

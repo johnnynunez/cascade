@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import threading
 from urllib.error import URLError
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from urllib.request import urlopen
 
 CAMERAS = ("kitchen", "worktop", "side")
@@ -64,17 +64,37 @@ class VisitorHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; frame-ancestors 'none'")
+        frames = "; frame-src chrome-extension:" if (getattr(self.server, "chat", None) is not None
+                                                     and self.server.server_port == 8092) else ""
+        self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; frame-ancestors 'none'" + frames)
         if status == 401:
             self.send_header("WWW-Authenticate", 'Basic realm="Physical Agentic AI", charset="UTF-8"')
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self):
+    def authenticated(self):
+        if getattr(self.server, "chat", None) is not None and not self.server.authorization:
+            # Local chat must not accept a DNS-rebinding origin.
+            try:
+                host = urlsplit("http://" + self.headers.get("Host", ""))
+                local = host.hostname in ("127.0.0.1", "localhost") and host.port == self.server.server_port
+            except ValueError:
+                local = False
+            if not local:
+                self.close_connection = True
+                self.respond(403, b'{"error":"Use the local demo address"}')
+                return False
         if self.server.authorization and not hmac.compare_digest(
             self.headers.get("Authorization", ""), self.server.authorization
         ):
-            return self.respond(401, b'{"error":"Authentication required"}')
+            self.close_connection = True
+            self.respond(401, b'{"error":"Authentication required"}')
+            return False
+        return True
+
+    def do_GET(self):
+        if not self.authenticated():
+            return
         path = urlsplit(self.path).path
         if path in ("/", "/visitor.css", "/visitor.js", "/visitor-player.js",
                     "/staff/", "/staff/style.css", "/staff/media/openclaw-cameras.png"):
@@ -89,6 +109,13 @@ class VisitorHandler(BaseHTTPRequestHandler):
             }[path]
             return self.respond(200, (ROOT / name).read_bytes(), content_type)
         try:
+            if path == "/api/chat":
+                chat = getattr(self.server, "chat", None)
+                if chat is None:
+                    return self.respond(200, b'{"enabled":false}')
+                identifier = parse_qs(urlsplit(self.path).query).get("id", [None])[0]
+                result = {**chat.status(identifier), "local_extension": self.server.server_port == 8092}
+                return self.respond(200, json.dumps(result).encode())
             if path in {f"/video/{name}.mp4" for name in CAMERAS}:
                 return self.video(path.split("/")[-1][:-4])
             if path == "/api/status":
@@ -148,6 +175,36 @@ class VisitorHandler(BaseHTTPRequestHandler):
             self.close_connection = True
 
     def do_POST(self):
+        if not self.authenticated():
+            return
+        chat = getattr(self.server, "chat", None)
+        if urlsplit(self.path).path == "/api/chat" and chat is not None:
+            origin = self.headers.get("Origin")
+            if (self.headers.get("Sec-Fetch-Site") == "cross-site"
+                    or (origin and (urlsplit(origin).scheme not in ("http", "https")
+                                    or urlsplit(origin).netloc != self.headers.get("Host")))):
+                self.close_connection = True
+                return self.respond(403, b'{"error":"Use the chat on this page"}')
+            if self.headers.get_content_type() != "application/json" or self.headers.get("Transfer-Encoding"):
+                self.close_connection = True
+                return self.respond(415, b'{"error":"A JSON message is required"}')
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 8192:
+                    raise ValueError("Invalid request size")
+                body = json.loads(self.rfile.read(length))
+                if not isinstance(body, dict) or set(body) != {"message"}:
+                    raise ValueError("Only a message is accepted")
+                result = chat.submit(body["message"])
+                return self.respond(202, json.dumps(result).encode())
+            except (ValueError, TypeError):
+                self.close_connection = True
+                return self.respond(400, b'{"error":"Send one message of at most 2000 characters"}')
+            except RuntimeError:
+                return self.respond(409, b'{"error":"Wait for the current order to finish"}')
+            except OSError:
+                return self.respond(503, b'{"error":"The demo is reconnecting"}')
+        self.close_connection = True
         self.respond(405, b'{"error":"Method not allowed"}')
 
 
@@ -156,12 +213,17 @@ def main():
     parser.add_argument("--port", type=int, default=8093)
     parser.add_argument("--camera-origin", default="http://127.0.0.1:8091")
     parser.add_argument("--auth-file", type=Path)
+    parser.add_argument("--repo", type=Path, help="Enable restricted attendee chat for this prepared Spark checkout")
     parser.add_argument("--video", action="store_true", help="Share the camera feeds as NVENC H.264 video")
     parser.add_argument("--ffmpeg", default="ffmpeg")
     args = parser.parse_args()
     server = VisitorServer(("127.0.0.1", args.port), VisitorHandler)
     server.camera_origin = args.camera_origin.rstrip("/")
     server.video = None
+    server.chat = None
+    if args.repo:
+        from visitor_chat import AttendeeChat
+        server.chat = AttendeeChat(args.repo)
     if args.video:
         from visitor_video import VideoStreams
         server.video = VideoStreams(server.camera_origin, args.ffmpeg)

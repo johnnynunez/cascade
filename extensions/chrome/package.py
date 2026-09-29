@@ -4,7 +4,7 @@ from pathlib import Path
 from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 import hashlib
 ROOT = Path(__file__).resolve().parent
-FILES = ['manifest.json','worker.js','inject.js','popup.html','popup.mjs','panel.html','panel.mjs','zoom.mjs','core.mjs','discovery.mjs','history.mjs','ui.css','README.md']
+FILES = ['manifest.json','worker.js','inject.js','popup.html','popup.mjs','panel.html','panel.mjs','zoom.mjs','core.mjs','discovery.mjs','history.mjs','ui.css','local.js','local.html','local.css','local.mjs','README.md']
 def main():
     destination = ROOT / 'Physical-Agentic-AI-OpenClaw-Demo.zip'
     with ZipFile(destination, 'w', compression=ZIP_DEFLATED, compresslevel=9) as archive:

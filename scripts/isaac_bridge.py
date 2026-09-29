@@ -84,6 +84,11 @@ args = p.parse_args()
 if not 0 < args.dt <= 1.0:
     p.error("--dt / CASCADE_ISAAC_DT must be finite and in (0, 1] seconds")
 
+# Ownership registration must see this final interpreter, not the adapter
+# before exec. This handshake runs before loading Kit or creating GPU state.
+from isaac_launch import publish_ready
+publish_ready()
+
 # Demo ready target in the ASSET joint convention; IsaacArm converts the
 # profile's local home_q with joint_signs before sending the same target.
 # Neutral joint5 keeps gripper_end +X forward and its jaw-opening +Y lateral;
@@ -851,7 +856,10 @@ _fix_gravity()
 # ── articulation (create AFTER play, gain-tuner gotcha) ──────────────────
 from isaacsim.core.experimental.prims import Articulation  # noqa: E402
 
+import faulthandler
+faulthandler.dump_traceback_later(120, repeat=False, exit=False)
 print(f"[bridge] stage playback range: {ensure_time_code_range(stage)}", flush=True)
+print("[bridge] initializing contact reports", flush=True)
 if _REQUIRE_CUDA and args.engine == "physx":
     # Contact-force instrumentation only; no geometry, material or forces change.
     for _contact_name, *_ in PROPS:
@@ -860,10 +868,15 @@ if _REQUIRE_CUDA and args.engine == "physx":
             PhysxSchema.PhysxContactReportAPI.Apply(_contact_prim).CreateThresholdAttr(0.0)
 if args.engine == "newton":
     _configure_newton_before_play()
+print("[bridge] starting timeline play with committed callbacks", flush=True)
 app_utils.play(commit=True)
+print("[bridge] timeline play returned", flush=True)
 for _ in range(10):
+    print(f"[bridge] initial app update {_ + 1}/10 begin", flush=True)
     app.update()
+    print(f"[bridge] initial app update {_ + 1}/10 complete", flush=True)
 # Gravity can be reset by the physics parser on play; re-assert once more.
+print("[bridge] validating gravity after first play", flush=True)
 _fix_gravity()
 engine = str(SimulationManager.get_active_physics_engine()).lower()
 print(f"[bridge] physics engine: {engine}", flush=True)
@@ -1158,6 +1171,7 @@ server = socketserver.ThreadingTCPServer((os.environ.get("CASCADE_BRIDGE_BIND", 
 server.daemon_threads = True
 threading.Thread(target=server.serve_forever, daemon=True, name="bridge-tcp").start()
 print(f"[bridge] serving cascade bridge on :{args.port}", flush=True)
+faulthandler.cancel_dump_traceback_later()
 
 import cv2  # noqa: E402  (ships with the isaacsim python)
 

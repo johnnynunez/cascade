@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import errno
+import fcntl
 import hashlib
 import json
 import math
@@ -29,6 +30,8 @@ import zipfile
 
 from fetch_robot_assets import fetch
 from kitchen_assets import kitchen_problems, prepare_kitchen
+from model_cache import release_clean_model_cache
+from spark_browser import ready as spark_ready, start_surfaces as start_spark_surfaces, open_browser
 
 # Release asset byte counts from github.com/ultralytics/assets v8.3.0.
 # The two YOLOE weights are already tracked; only the TS encoder is not.
@@ -314,6 +317,42 @@ def stop_group(process: subprocess.Popen) -> None:
 
 
 def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, headless: bool = False) -> int:
+    if profile != "spark":
+        return _launch(repo, profile, brain, no_open=no_open, headless=headless)
+    if brain != "qwen" or not eula_accepted(repo):
+        # Preserve the existing consent/model validation before creating state.
+        return _launch(repo, profile, brain, no_open=no_open, headless=headless)
+    state = repo / "runs/.install"
+    state.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with (state / "launch.lock").open("a+") as lock:
+        # A second click waits for the same startup; it never starts a rival.
+        deadline = time.monotonic() + 3600
+        while True:
+            try:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("Startup is still running after one hour; inspect desktop-latest.json")
+                time.sleep(.5)
+        if spark_ready(repo, surfaces=False):
+            from cascade.apps.process_owner import live_records
+            from spark_browser import ownership, runtime_home
+            state, owner = ownership(repo)
+            env = dict(os.environ, HOME=runtime_home(repo))
+            env.update(model_environment(repo))
+            owned = live_records(state, owner, role="qwen")
+            if len(owned) != 1 or owned[0].get("model_binding") != qwen_binding(repo, env) or not model_health():
+                raise RuntimeError("Running demo model no longer matches this installation; inspect its logs")
+            start_spark_surfaces(repo, env)
+            print("[launch] READY: attached to this installation's running demo", flush=True)
+            if not no_open:
+                open_browser(repo)
+            return 0
+        return _launch(repo, profile, brain, no_open=no_open, headless=headless)
+
+
+def _launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, headless: bool = False) -> int:
     from cascade.apps.process_owner import (
         live_records, load_owner, profile_state_dir, register_process,
     )
@@ -328,6 +367,8 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, headl
             raise RuntimeError("Spark delivery requires the local qwen brain; use laptop explicitly for other modes")
         if not eula_accepted(repo):
             raise RuntimeError("Spark launch requires explicit consent: run install.sh --accept-eula first")
+        record = json.loads((repo / "runs/.install/install.json").read_text())
+        env["HOME"] = record.get("runtime_home", env.get("HOME", str(Path.home())))
         env.pop("ISAACSIM_PATH", None)
         env.update(isaac_environment(repo))
         env.update(model_environment(repo))
@@ -370,6 +411,9 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, headl
     qwen = None
     launcher = None
     success = False
+    stack_started = False
+    launched_at = time.time()
+    baseline = {row.get("instance_id") for row in live_records(state, owner)}
     try:
         if profile == "spark":
             problems = kitchen_problems(repo)
@@ -438,6 +482,11 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, headl
             temporary = state / f"qwen.{qwen.pid}.tmp"
             temporary.write_text(json.dumps(receipt, indent=2) + "\n")
             temporary.replace(state / "qwen.pid")
+        if profile == "spark":
+            owned = live_records(state, owner, role="qwen")
+            if len(owned) == 1:
+                report = release_clean_model_cache(repo, owned[0], owner)
+                print("[launch] Loaded model file cache: " + json.dumps(report), flush=True)
         command = [
             "bash",
             str(repo / "scripts/launch.sh"),
@@ -446,7 +495,7 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, headl
             "--brain",
             brain,
         ]
-        if no_open:
+        if no_open or profile == "spark":
             command.append("--no-open")
         if headless:
             command.append("--headless")
@@ -457,7 +506,12 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, headl
                     f"Qwen exited with status {qwen.returncode} during launcher proof; see {state / 'qwen.log'}"
                 )
             time.sleep(0.1)
-        success = launcher.returncode == 0
+        stack_started = launcher.returncode == 0
+        if stack_started and profile == "spark":
+            start_spark_surfaces(repo, env)
+            if not no_open:
+                open_browser(repo)
+        success = stack_started
         return launcher.returncode
     finally:
         if launcher is not None and (not success or launcher.poll() is None):
@@ -469,6 +523,14 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, headl
             # Like stop_owned(), retain the inert receipt for diagnosis.
             # Liveness is checked by kernel identity, not file existence.
             # Unlinking here could erase a newer invocation's receipt.
+        if not success and stack_started:
+            from cascade.apps.process_owner import stop_owned
+            new_roles = {row["role"] for row in live_records(state, owner)
+                         if row.get("instance_id") not in baseline and row.get("registered_at", 0) >= launched_at}
+            stop_owned(state, owner, roles=new_roles)
+            current = json.loads(proof.read_text())
+            current.update(verified=False, note="camera/chat/browser startup failed; see desktop progress log")
+            proof.write_text(json.dumps(current, indent=2) + "\n")
 
 
 def package_inventory(python: Path) -> dict:
@@ -532,6 +594,7 @@ def record_install(repo: Path, profile: str, brain: str, ref: str, *, accept_eul
     ) if isinstance(value := read_json(path), dict)), {})
     record = {
         "repo": str(repo.resolve()),
+        "runtime_home": str(Path.home().resolve()),
         "eula_accepted": profile == "spark" and (accept_eula or eula_accepted(repo)),
         "eula_url": EULA_URL if profile == "spark" else None,
         "isaac_environment": isaac,
@@ -560,6 +623,7 @@ def record_install(repo: Path, profile: str, brain: str, ref: str, *, accept_eul
         exports.update(isaac)
         exports.update(model)
         exports.update(
+            HOME=record["runtime_home"],
             CASCADE_OPENCLAW_PROFILE="cascade-demo",
             OMNI_KIT_ACCEPT_EULA="YES",
         )

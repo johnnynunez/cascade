@@ -14,7 +14,14 @@ import sys
 
 
 MIN_FREE_BYTES = 150 * 1024**3
-COMMANDS = ("bash", "git", "curl", "python3", "c++", "gio", "gnome-terminal")
+COMMANDS = ("bash", "git", "curl", "python3", "c++")
+# Needed only by the one-click desktop path (Step 5). Install, check, launch
+# and proof (Steps 2-4) run headless over SSH without them.
+DESKTOP_COMMANDS = ("gio", "gnome-terminal")
+
+
+def graphical_session() -> bool:
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
 def output(command: list[str]) -> str:
@@ -24,17 +31,28 @@ def output(command: list[str]) -> str:
     return result.stdout.strip()
 
 
-def check() -> list[str]:
+def check(warnings: list[str] | None = None) -> list[str]:
     problems: list[str] = []
+    warnings = [] if warnings is None else warnings
+    desktop = graphical_session()
 
     def require(condition: bool, message: str) -> None:
         if not condition:
             problems.append(message)
 
+    def desktop_requirement(condition: bool, message: str) -> None:
+        # A missing desktop component blocks the one-click path only. From a
+        # graphical session it is a failure; over SSH it is a warning.
+        if not condition:
+            (problems if desktop else warnings).append(message)
+
     require(platform.system() == "Linux" and platform.machine() == "aarch64",
             "Use NVIDIA DGX Spark with Linux aarch64.")
     for command in COMMANDS:
         require(shutil.which(command) is not None, f"Missing command: {command}.")
+    for command in DESKTOP_COMMANDS:
+        desktop_requirement(shutil.which(command) is not None,
+                            f"Missing command: {command} (desktop launcher only).")
 
     for label, command, expected in (
         ("glibc", ["getconf", "GNU_LIBC_VERSION"], r"glibc (\d+)\.(\d+)"),
@@ -76,7 +94,7 @@ def check() -> list[str]:
     browser = next((candidate for candidate in
                     (shutil.which("chromium"), shutil.which("chromium-browser"), "/snap/bin/chromium")
                     if candidate and os.access(candidate, os.X_OK)), None)
-    require(browser is not None, "Chromium is missing; install chromium-browser.")
+    desktop_requirement(browser is not None, "Chromium is missing; install chromium-browser (desktop launcher only).")
     if browser:
         print(f"Chromium executable: {browser}")
 
@@ -92,7 +110,13 @@ def check() -> list[str]:
 
 
 def main() -> int:
-    problems = check()
+    warnings: list[str] = []
+    problems = check(warnings)
+    for warning in warnings:
+        print(f"WARNING: {warning}", file=sys.stderr)
+    if warnings and not problems:
+        print("No graphical session: Steps 2-4 can run headless. Install the desktop "
+              "packages before using the PAAI (Spark) launcher.", file=sys.stderr)
     if problems:
         for problem in problems:
             print(f"MISSING: {problem}", file=sys.stderr)

@@ -32,6 +32,7 @@ def boundary_env(tmp_path):
         "fetch_robot_assets.py",
         "desktop.py",
         "spark_browser.py",
+        "model_cache.py",
     ):
         if (ROOT / "scripts" / name).exists():
             shutil.copy2(ROOT / "scripts" / name, source / "scripts" / name)

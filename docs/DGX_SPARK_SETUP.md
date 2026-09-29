@@ -7,8 +7,10 @@ No model API key is needed.
 ## Quick path
 
 Use a normal account on the Spark. Start with a new `$HOME/paai-spark` folder.
-Run one step at a time. Wait for its success line and exit code 0 before
-continuing. If a command fails, stop and read [recovery](#if-something-goes-wrong).
+Run each numbered block once. Wait for its success line and exit code 0
+before continuing. For diagnostics, use the read-only commands below. Never
+repeat Start just to see more output. If a command fails, stop and read
+[recovery](#if-something-goes-wrong).
 The installer does not change the driver or operating system.
 
 ### 1. Check the Spark
@@ -19,7 +21,7 @@ missing system package, use the [administrator command](#system-prerequisites)
 before continuing.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/3908838af35d4433f2864efc393c6e6593d76468/scripts/spark_prerequisites.py | python3 -'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/4bb7fce9c2d8b865b0876782600b8df33d74388a/scripts/spark_prerequisites.py | python3 -'
 ```
 
 Success: `PREREQUISITES_OK`.
@@ -32,20 +34,20 @@ explicit consent. `OMNI_KIT_ACCEPT_EULA=YES` alone does not grant consent.
 
 The source URL and `--ref` select the same tested commit. This downloads the
 runtime, model and assets, then builds the local CUDA model server. Allow
-space for at least 150 GiB. Installation time depends on the connection and
-the first CUDA build; plan for one to three hours on the first installation.
-This is a planning estimate; the progress log shows each stage.
+space for at least 150 GiB. A fresh installation from public download sites
+took about 25 minutes. Plan for 30–90 minutes; slower connections take longer.
+The progress log shows each stage.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/3908838af35d4433f2864efc393c6e6593d76468/scripts/bootstrap.sh | bash -s -- --ref 3908838af35d4433f2864efc393c6e6593d76468 --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark" 2>&1 | tee "$HOME/paai-spark-install.log"'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/4bb7fce9c2d8b865b0876782600b8df33d74388a/scripts/bootstrap.sh | bash -s -- --ref 4bb7fce9c2d8b865b0876782600b8df33d74388a --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark" 2>&1 | tee "$HOME/paai-spark-install.log"'
 ```
 
 Success: `PREPARED`. No demo services have started yet.
 
 ### 3. Check the installation
 
-This is read-only. It starts no services and accepts no license. Allow a few
-minutes to verify the large model and asset files.
+This is read-only. It starts no services and accepts no license. The check
+took about five seconds in the measured installation.
 
 ```bash
 cd "$HOME/paai-spark" && bash scripts/install.sh --profile spark --dir "$PWD" --check && printf 'CHECKED\n'
@@ -56,23 +58,26 @@ Success: `CHECKED`. The receipt is `runs/.install/install.json`.
 ### 4. Start and prove the demo
 
 This starts the dedicated `cascade-demo` OpenClaw agent and moves the
-simulated robot through two placement checks and resets. Cold shader and
-collision preparation can take more than ten minutes. Keep waiting while
-the log shows progress; do not start another copy. The model health timeout
+simulated robot through two placement checks and resets. The measured start
+and proof took about 14 minutes. Cold shader and collision preparation can
+take longer. The physical checks can be quiet for several minutes. Wait for
+the command to finish even when no new log lines appear; do not start another copy. The model health timeout
 is 30 minutes and the Isaac startup timeout is 20 minutes.
 
 ```bash
-cd "$HOME/paai-spark" &&
-python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open &&
-OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" .openclaw-cli/bin/openclaw --profile cascade-demo health --json &&
-python3 -m json.tool runs/.install/install.json &&
-python3 -m json.tool runs/.install/desktop-latest.json &&
-python3 -m json.tool runs/.launch/profile-cascade-demo/proof.json
+(
+  set -o pipefail
+  cd "$HOME/paai-spark" || exit
+  python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open 2>&1 |
+    tee "$HOME/paai-spark-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
+) && python3 "$HOME/paai-spark/scripts/spark_verify.py" --repo "$HOME/paai-spark" --expected-ref 4bb7fce9c2d8b865b0876782600b8df33d74388a
 ```
 
-Success: `READY`. Require the [current proof](#verify-the-result) before
-continuing. The command prints the health and receipts described there.
-A listening port does not prove that the robot works.
+Success: one `READY` summary with both placements, cameras and resets passing.
+The command checks the [current proof](#verify-the-result), health and live
+process ownership. Full output stays in `$HOME/paai-spark-launch.log`; the
+terminal shows only progress and the compact result. Do not repeat this
+block to obtain more output.
 
 ### 5. Open the demo in one click
 
@@ -193,9 +198,9 @@ The installation receipt must show the checkout's `repo`, the pinned
 `source_commit`, `source_dirty: false`, `profile: "spark"`, `brain: "qwen"`
 and `eula_accepted: true`.
 
-Step 4 prints `runs/.install/desktop-latest.json` and
-`runs/.launch/profile-cascade-demo/proof.json`. Require all of these while
-the demo is running:
+Step 4 validates `runs/.install/desktop-latest.json` and
+`runs/.launch/profile-cascade-demo/proof.json` without printing their full
+contents. It checks these facts while the demo is running:
 
 - Health has `"ok": true`. The desktop receipt has `action: "launch"` and
   `exit_code: 0`.
@@ -258,10 +263,12 @@ launcher. From a terminal, stop this checkout and retry once:
 cd "$HOME/paai-spark" && ./run.sh down && python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open
 ```
 
-Find the exact latest log with:
+To inspect the current launch without starting it again, use these read-only
+commands. The first prints the short desktop receipt and its full log path:
 
 ```bash
 python3 -m json.tool "$HOME/paai-spark/runs/.install/desktop-latest.json"
+python3 "$HOME/paai-spark/scripts/spark_browser.py" --repo "$HOME/paai-spark" --check
 ```
 
 Full logs are in `runs/.install/desktop-*/progress.log` and

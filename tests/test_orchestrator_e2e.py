@@ -18,12 +18,13 @@ from cascade.agent.orchestrator import AgentOrchestrator
 
 @pytest.fixture
 def runtime_and_arm(demo_cfg, tmp_path):
-    from cascade.apps.demo import build_runtime
+    from cascade.apps.demo import build_runtime, shutdown_runtime
 
     runtime, arm = build_runtime(demo_cfg, tmp_path / "run")
-    yield runtime, arm
-    runtime.camera.close()
-    arm.disconnect()
+    try:
+        yield runtime, arm
+    finally:
+        shutdown_runtime(runtime, arm)
 
 
 def _script(*calls: ToolCall) -> list[LLMResponse]:
@@ -44,22 +45,26 @@ def test_grasp_and_place_happy_path(runtime_and_arm, tmp_path):
         )
     )
     agent = AgentOrchestrator(llm, runtime, advisor=None, decompose=False, max_steps=10)
-    report = agent.run_task("move the red cube to the front-left of the table")
+    # The static mock camera keeps rendering the cube at its original pose.
+    # Pause its background fusion while checking the scripted belief update;
+    # explicit observations, detection and watchdog heartbeats still run.
+    with runtime.watcher.paused():
+        report = agent.run_task("move the red cube to the front-left of the table")
 
-    assert report.success
-    assert report.steps == 4
-    results = {e["tool"]: e["result"] for e in report.tool_log}
-    assert results["get_observation"]["ok"]
-    assert any(o["label"] == "red cube" for o in results["get_observation"]["objects_visible"])
-    assert results["grasp_object"]["ok"], results["grasp_object"]
-    assert results["grasp_object"]["held"] == "red cube"
-    assert results["place_at"]["ok"], results["place_at"]
-    assert runtime.held_object is None
+        assert report.success
+        assert report.steps == 4
+        results = {e["tool"]: e["result"] for e in report.tool_log}
+        assert results["get_observation"]["ok"]
+        assert any(o["label"] == "red cube" for o in results["get_observation"]["objects_visible"])
+        assert results["grasp_object"]["ok"], results["grasp_object"]
+        assert results["grasp_object"]["held"] == "red cube"
+        assert results["place_at"]["ok"], results["place_at"]
+        assert runtime.held_object is None
 
-    # Belief followed the object to the place target.
-    b = runtime.beliefs.find("red cube")
-    assert b is not None
-    assert np.allclose(b.position[:2], [0.20, -0.15], atol=0.02)
+        # Belief followed the object to the place target.
+        b = runtime.beliefs.find("red cube")
+        assert b is not None
+        assert np.allclose(b.position[:2], [0.20, -0.15], atol=0.02)
 
     # Trace artifacts exist and parse.
     trace_file = runtime.trace.run_dir / "trace.jsonl"

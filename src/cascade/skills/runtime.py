@@ -34,6 +34,7 @@ from ..perception.grounding import (
 )
 
 if TYPE_CHECKING:  # annotation only; the runtime import stays local (import cycle)
+    from ..control.arm_rig import ArmRig
     from ..types import ObjectFix
 from ..types import Detection, Frame, SafetyViolation, SkillError, make_transform, transform_points
 
@@ -65,6 +66,24 @@ def _frame_age_s(frame: Frame, max_age_s: float = 5.0) -> float:
     if age > max_age_s:
         raise SkillError(f"Camera frame is {age:.1f}s old; wait for reconnection and try again")
     return round(age, 3)
+
+
+class SlowPerceptionError(SkillError):
+    """The frame was fresh when analysis began; the analysis itself outlasted
+    the age limit. The camera is live, so "wait for reconnection" would be
+    false -- the caller may analyze a newer frame instead."""
+
+
+def _analyzed_frame_age_s(frame: Frame, analysis_s: float, max_age_s: float = 5.0) -> float:
+    """Age of a frame whose freshness was checked BEFORE analysis: past the
+    limit now only because the analysis was slow, reported as exactly that."""
+    age = _frame_age_s(frame, max_age_s=float("inf"))
+    if age > max_age_s:
+        raise SlowPerceptionError(
+            f"Perception took {analysis_s:.1f}s on a frame that was fresh at capture, so the "
+            f"result is {age:.1f}s old; the camera is live -- retry the observation"
+        )
+    return age
 
 
 def _fresh_camera_frame(camera, previous: Frame | None = None) -> Frame:
@@ -109,7 +128,7 @@ class SkillRuntime:
         self.kin = kin
         self._arm = safe_arm
         #: optional ArmRig (set by the app wiring). None = single arm.
-        self.arm_rig = None
+        self.arm_rig: ArmRig | None = None
         #: per-call arm override, set by execute() for the duration of one
         #: skill call. Thread-local because the MCP server answers stop
         #: frames on a reader thread while a skill runs on a worker: a plain
@@ -458,6 +477,15 @@ class SkillRuntime:
             selected = self._select_arm(arm_name)
         except SkillError as e:
             return {"ok": False, "error": f"SkillError: {e}"}
+        # Record the resolved identity, not the optional selector stripped
+        # above. Consult only the rig registry: reading backend attributes
+        # through a LazyArm can power hardware merely to produce a log.
+        effective_arm = self._arm if selected is None else selected
+        resolved_arm = (
+            next((key for key, arm in self.arm_rig.arms.items() if arm is effective_arm), None)
+            if self.arm_rig is not None else "default"
+        )
+        trace_context = {"arm": resolved_arm, "held_object": self.held_object}
         self._show_status(f"{name}({_short(args)})")
         # BEFORE keyframe. `last_frame` is only set by observe(), so the first
         # skill of a run used to record `keyframe_before: null` -- exactly the
@@ -616,7 +644,8 @@ class SkillRuntime:
         after = self.trace.save_keyframe(
             self.last_frame.rgb if self.last_frame is not None else None, f"{name}_after"
         )
-        self.trace.record(name, args, result, dur, before, after, tier=self.current_tier)
+        self.trace.record(name, args, result, dur, before, after,
+                          tier=self.current_tier, context=trace_context)
         err = str(result.get("error", "failed"))
         self._show_status(f"{name} -> " + ("ok" if result["ok"] else err[:60]))
         # Vesta memory tuple <step, time, observation, action, verdict>: the
@@ -1383,11 +1412,25 @@ class SkillRuntime:
                 "note": "clears automatically when the next motion begins"}
 
     def skill_get_observation(self) -> dict:
-        return self._describe_observation(self.observe_fresh())
+        try:
+            return self._describe_observation(self.observe_fresh())
+        except SlowPerceptionError as slow:
+            # The camera was live; the ANALYSIS outlasted the age limit. The
+            # first inference in a new process is the slow one (3.5 s cold vs
+            # 0.02 s warm, measured on the kitchen scene), and a kitchen
+            # launch's first describe_scene found its frame 13.6 s old after
+            # analysis -- reported as "wait for reconnection", which failed the
+            # proof at step 1. Analyze ONE newer frame (observe_fresh fences on
+            # a newer capture); a second slow analysis raises honestly.
+            logger.warning("slow perception, analyzing a newer frame: %s", slow)
+            observation = self._describe_observation(self.observe_fresh())
+            observation["observation_retry"] = str(slow)
+            return observation
 
     def _describe_observation(self, frame: Frame) -> dict:
         """Analyze exactly the supplied frame, including a verified reset frame."""
         _frame_age_s(frame)
+        analysis_started = time.monotonic()
         dets = self.detector.detect(frame, classes=self._default_classes)
         self._show_detections(dets)
         objects = self._update_beliefs_from_frame(frame, dets)
@@ -1429,7 +1472,8 @@ class SkillRuntime:
             ),
             "configured_zones": self._configured_zones(),
             "observation_frame": {"frame_id": int(frame.frame_id),
-                                  "frame_age_s": _frame_age_s(frame)},
+                                  "frame_age_s": _analyzed_frame_age_s(
+                                      frame, time.monotonic() - analysis_started)},
             "robot": robot,
             "depth_source": frame.depth_source,
         }

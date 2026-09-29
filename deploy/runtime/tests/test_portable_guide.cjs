@@ -29,12 +29,17 @@ test('the perception table distinguishes MCP images from measured localization',
   assert.match(row('localize_object'), /camera depth.*configuration provenance/);
 });
 
-test('the public visitor remains a light camera page without a chat form', () => {
+test('the light camera page enables attendee chat only for a configured Spark', () => {
   const html = fs.readFileSync(path.join(root, 'deploy/brev/visitor.html'), 'utf8');
   const css = fs.readFileSync(path.join(root, 'deploy/brev/visitor.css'), 'utf8');
+  const script = fs.readFileSync(path.join(root, 'deploy/brev/visitor.js'), 'utf8');
   assert.match(html, /<meta name="color-scheme" content="light">/);
   assert.match(css, /:root\{color-scheme:light;/);
-  assert.doesNotMatch(html, /<(?:form|input|textarea)\b/i);
+  assert.match(html, /<section id="attendee-chat" hidden[^>]*>[\s\S]*?<form id="chat-form">[\s\S]*?<\/section>/);
+  assert.match(script, /chatPanel\.hidden = !state\.enabled;/);
+  assert.match(script, /if \(!state\.enabled\) return;/);
+  assert.match(script, /fetch\('\/api\/chat', \{method: 'POST'/);
+  assert.doesNotMatch(html + script, /gatewayUrl|bootstrapToken|OPENCLAW_GATEWAY_TOKEN|\/api\/control|\/v1\/chat\/completions/);
   assert.doesNotMatch(html, /(?:href|src)="[^"\s]*(?:openclaw|bootstrap)/i);
   for (const name of ['camera', 'video', 'status', 'caption']) {
     assert.equal([...html.matchAll(new RegExp(`\\bid="${name}"`, 'g'))].length, 1);

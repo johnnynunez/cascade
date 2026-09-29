@@ -1,0 +1,532 @@
+#!/usr/bin/env python3
+"""Run a prepared Spark demo and a restricted ngrok visitor with user services."""
+from __future__ import annotations
+
+import argparse
+import base64
+import http.client
+import importlib.util
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import shlex
+import signal
+import socket
+import subprocess
+import sys
+import threading
+import time
+from urllib.error import HTTPError
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+SERVICES = ("paai-spark-demo", "paai-spark-visitor", "paai-spark-ngrok")
+CAMERA_ORIGIN = "http://127.0.0.1:8091"
+VISITOR_ORIGIN = "http://127.0.0.1:8093"
+PROC = Path("/proc")
+# `_serve` exits with this status when the launch never reached READY. The demo
+# unit lists it in RestartPreventExitStatus: a launch that failed once is
+# retried by an operator after reading the logs, not by systemd in a loop that
+# rebuilds the whole Isaac + Qwen stack every few minutes.
+LAUNCH_FAILED = 3
+DEMO_START_LIMIT = "StartLimitIntervalSec=3600\nStartLimitBurst=3\n"
+
+
+def run(command, timeout=30, **kwargs):
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout, **kwargs)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("The service operation timed out; private output withheld") from None
+    if result.returncode:
+        raise RuntimeError("The service operation failed; private output withheld")
+    return result.stdout
+
+
+def private_file(path):
+    path = Path(path).expanduser()
+    if (path.is_symlink() or not path.is_file() or path.stat().st_uid != os.getuid()
+            or path.stat().st_mode & 0o077 or path.stat().st_size > 65536):
+        raise ValueError("Credential files must be owned by this user and have mode 0600")
+    return path
+
+
+def private_json(path, value):
+    if path.is_symlink():
+        raise ValueError("Private files must not be symbolic links")
+    temporary = path.with_suffix(".tmp")
+    with open(temporary, "w", opener=lambda p, flags: os.open(p, flags | os.O_NOFOLLOW, 0o600)) as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        json.dump(value, stream, indent=2)
+        stream.write("\n")
+    temporary.chmod(0o600)
+    temporary.replace(path)
+
+
+def root_path(path):
+    root = Path(path).resolve(strict=True)
+    receipt = json.loads((root / "runs/.install/install.json").read_text())
+    if receipt.get("repo") != str(root) or receipt.get("profile") != "spark" or not receipt.get("eula_accepted"):
+        raise ValueError("Use the original prepared Spark checkout")
+    return root
+
+
+def private_root(repo):
+    directory = repo / "runs/.install/public"
+    if directory.is_symlink():
+        raise ValueError("The private service directory must not be a symbolic link")
+    directory.mkdir(parents=True, mode=0o700, exist_ok=True)
+    directory.chmod(0o700)
+    return directory
+
+
+def browser_module(repo):
+    sys.path.insert(0, str(repo / "src"))
+    spec = importlib.util.spec_from_file_location("spark_browser", repo / "scripts/spark_browser.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def runtime_home(repo):
+    return browser_module(repo).runtime_home(repo)
+
+
+def unit_directory():
+    # The user manager belongs to the real user even during a private-HOME test.
+    return Path(pwd.getpwuid(os.getuid()).pw_dir) / ".config/systemd/user"
+
+
+def unit_arg(value, *, expand_dollars=True):
+    value = str(value)
+    if any(character in value for character in "\n\r\x00"):
+        raise ValueError("Service arguments cannot contain line breaks")
+    value = value.replace("\\", "\\\\").replace('"', '\\"').replace("%", "%%")
+    return '"' + (value.replace("$", "$$") if expand_dollars else value) + '"'
+
+
+def unit_path(value):
+    # Path-valued directives do not use ExecStart's argument quoting.
+    value = str(value)
+    if not value.startswith("/") or any(character in value for character in "\n\r\x00"):
+        raise ValueError("Service paths must be absolute and contain no line breaks or NUL")
+    return value.replace("%", "%%")
+
+
+def visitor_command(repo):
+    return ["/usr/bin/python3", str(repo / "deploy/brev/visitor.py"), "--port", "8093",
+            "--camera-origin", CAMERA_ORIGIN, "--repo", str(repo),
+            "--auth-file", str(repo / "runs/.install/public/auth.json")]
+
+
+def units(repo, settings):
+    script = repo / "scripts/spark_public.py"
+    common = ["/usr/bin/python3", str(script)]
+    commands = {
+        "paai-spark-demo": [*common, "_serve", "--repo", str(repo)],
+        "paai-spark-visitor": visitor_command(repo),
+        "paai-spark-ngrok": [*common, "_ngrok", "--repo", str(repo)],
+    }
+    result = {}
+    environment = ["/usr/bin/env", "-i", "HOME=" + settings["runtime_home"],
+                   "USER=" + pwd.getpwuid(os.getuid()).pw_name, "LANG=C.UTF-8",
+                   "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                   "PYTHONUNBUFFERED=1", "PYTHONDONTWRITEBYTECODE=1",
+                   f"XDG_RUNTIME_DIR=/run/user/{os.getuid()}",
+                   f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{os.getuid()}/bus"]
+    for name, command in commands.items():
+        after = "network-online.target" + (" paai-spark-demo.service" if name != "paai-spark-demo" else "")
+        if name == "paai-spark-demo":
+            # Restart after a crash or a failed health check, at most 3 starts
+            # per hour; never after a launch that did not reach READY.
+            limits = DEMO_START_LIMIT
+            restart = f"Restart=on-failure\nRestartPreventExitStatus={LAUNCH_FAILED}\nRestartSec=30\n"
+        else:
+            # Light processes that wait for the demo: retry until it is READY.
+            limits = "StartLimitIntervalSec=0\n"
+            restart = "Restart=always\nRestartSec=10\n"
+        result[name] = (f"# PAAI Spark checkout: {repo}\n[Unit]\nDescription=PAAI Spark {name}\n"
+                        f"After={after}\n{limits}[Service]\nType=simple\n"
+                        f"WorkingDirectory={unit_path(repo)}\nEnvironment={unit_arg('HOME=' + settings['runtime_home'], expand_dollars=False)}\n"
+                        "Environment=PYTHONUNBUFFERED=1\nEnvironment=PYTHONDONTWRITEBYTECODE=1\n"
+                        f"ExecStart={' '.join(unit_arg(part) for part in environment + command)}\n"
+                        f"{restart}TimeoutStopSec=420\nKillMode=mixed\n"
+                        "UMask=0077\nNoNewPrivileges=true\n[Install]\nWantedBy=default.target\n")
+    return result
+
+
+def owned_units(repo):
+    result = {}
+    directory = unit_directory()
+    for name in SERVICES:
+        output = run(["systemctl", "--user", "show", name + ".service", "--no-pager",
+                      "--property=LoadState,ActiveState,FragmentPath,DropInPaths"])
+        values = dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
+        path = directory / (name + ".service")
+        fragment = values.get("FragmentPath")
+        if values.get("DropInPaths"):
+            raise ValueError("A PAAI service has overrides; review its ownership first")
+        if fragment or path.exists():
+            if (path.is_symlink() or (fragment and Path(fragment) != path)
+                    or not path.read_text().startswith(f"# PAAI Spark checkout: {repo}\n")):
+                raise ValueError("A PAAI service name belongs to another installation")
+            result[name] = {"installed": True, "active": values.get("ActiveState") == "active"}
+        elif values.get("LoadState") != "not-found":
+            raise ValueError("A PAAI service owner could not be established")
+        else:
+            result[name] = {"installed": False, "active": False}
+    return result
+
+
+def ngrok_token(repo, token_file, config_file):
+    if token_file:
+        token = private_file(token_file).read_text().strip()
+    else:
+        config_file = private_file(config_file)
+        # The prepared application has PyYAML; do not print or modify the account config.
+        source = ("import json,sys,yaml; c=yaml.safe_load(open(sys.argv[1])); "
+                  "print(json.dumps(c.get('agent',{}).get('authtoken') or c.get('authtoken')))")
+        token = json.loads(run([str(repo / ".venv/bin/python"), "-c", source, str(config_file)]))
+    if not isinstance(token, str) or not token or any(character.isspace() for character in token):
+        raise ValueError("The ngrok credential is invalid")
+    return token
+
+
+def enable(repo, args):
+    owned = owned_units(repo)
+    if run(["loginctl", "show-user", str(os.getuid()), "--property=Linger", "--value"]).strip() != "yes":
+        raise RuntimeError("This user's linger is disabled; logout persistence is unavailable")
+    if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?", args.domain or "") or "." not in args.domain:
+        raise ValueError("Supply the reserved ngrok domain, without a scheme or path")
+    auth = json.loads(private_file(args.auth_file).read_text())
+    if (set(auth) != {"username", "password"} or not all(isinstance(v, str) and v for v in auth.values())
+            or ":" in auth["username"] or len(auth["password"]) < 12
+            or any("\n" in v or "\r" in v for v in auth.values())):
+        raise ValueError("Use a username and a password of at least 12 characters")
+    executable = Path(args.ngrok).expanduser().resolve(strict=True)
+    if not os.access(executable, os.X_OK):
+        raise ValueError("The ngrok executable is unavailable")
+    token = ngrok_token(repo, args.token_file, args.ngrok_config)
+    directory = private_root(repo)
+    def changed(path, value):
+        return not path.exists() or json.loads(path.read_text()) != value
+    auth_changed = changed(directory / "auth.json", auth)
+    config = {"version": "3", "agent": {
+        "authtoken": token, "web_addr": "127.0.0.1:4043", "update_check": False}}
+    config_changed = changed(directory / "ngrok.json", config)
+    private_json(directory / "auth.json", auth)
+    private_json(directory / "ngrok.json", config)
+    run([str(executable), "config", "check", "--config", str(directory / "ngrok.json")])
+    settings = {"repo": str(repo), "domain": args.domain, "ngrok": str(executable), "runtime_home": runtime_home(repo)}
+    settings_changed = changed(directory / "settings.json", settings)
+    private_json(directory / "settings.json", settings)
+    directory_units = unit_directory()
+    directory_units.mkdir(parents=True, exist_ok=True)
+    changed_units = {"paai-spark-visitor"} if auth_changed else set()
+    if config_changed or settings_changed:
+        changed_units.add("paai-spark-ngrok")
+    for name, contents in units(repo, settings).items():
+        path = directory_units / (name + ".service")
+        previous = path.read_text() if path.exists() else ""
+        if previous != contents:
+            if path.is_symlink():
+                raise ValueError("Service files must not be symbolic links")
+            path.write_text(contents)
+            path.chmod(0o600)
+            changed_units.add(name)
+    run(["systemctl", "--user", "daemon-reload"])
+    # An explicit enable is the operator's retry after a failed launch, so it
+    # clears the demo's start-limit/failed state before starting it again.
+    run(["systemctl", "--user", "reset-failed", "paai-spark-demo.service"])
+    run(["systemctl", "--user", "enable", "--now", *[name + ".service" for name in SERVICES]], timeout=45)
+    for name in SERVICES:
+        if name not in changed_units:
+            continue
+        if owned[name]["active"]:
+            run(["systemctl", "--user", "restart", name + ".service"], timeout=450)
+    return {"enabled": True, "url": "https://" + args.domain,
+            "message": "Services enabled. Run check after the demo reports READY."}
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, request, file, code, message, headers, new_url):
+        return None
+
+
+def public_get(url, authorization=None):
+    headers = {"ngrok-skip-browser-warning": "1"}
+    if authorization:
+        headers["Authorization"] = authorization
+    try:
+        response = build_opener(NoRedirect()).open(Request(url, headers=headers), timeout=10)
+    except HTTPError as error:
+        response = error
+    with response:
+        return response.status, response.read(4 * 1024 * 1024)
+
+
+def check(repo):
+    owned = owned_units(repo)
+    result = {"healthy": False, "services": owned}
+    if not all(row["installed"] and row["active"] for row in owned.values()):
+        return result
+    if not browser_module(repo).ready(repo):
+        result["reason"] = "The local demo is not READY"
+        return result
+    directory = private_root(repo)
+    settings = json.loads((directory / "settings.json").read_text())
+    auth = json.loads((directory / "auth.json").read_text())
+    credential = "Basic " + base64.b64encode((auth["username"] + ":" + auth["password"]).encode()).decode()
+    origin = "https://" + settings["domain"]
+    result["url"] = origin
+    if public_get(origin)[0] != 401:
+        raise RuntimeError("The public URL did not require authentication")
+    for path in ("/openclaw/", "/api/openclaw-bootstrap", "/__openclaw/", "/api/control",
+                 "/v1/models", "/state", "/config", "/rpc", "/mcp", "/auth.json"):
+        if public_get(origin + path, credential)[0] != 404:
+            raise RuntimeError("The public URL did not block a private route")
+    for path in ("/", "/visitor.js", "/api/chat"):
+        code, body = public_get(origin + path, credential)
+        if code != 200:
+            raise RuntimeError("The public visitor is unavailable")
+        if path == "/api/chat":
+            try:
+                chat = json.loads(body)
+            except (ValueError, UnicodeDecodeError):
+                raise RuntimeError("The public attendee chat is not READY") from None
+            if (not isinstance(chat, dict) or chat.get("enabled") is not True
+                    or chat.get("ready") is not True or chat.get("agent") != "cascade-demo"):
+                raise RuntimeError("The public attendee chat is not READY")
+        gateway = json.loads((repo / "runs/.launch/profile-cascade-demo/openclaw/openclaw.json").read_text())
+        for secret in gateway.get("gateway", {}).get("auth", {}).values():
+            if isinstance(secret, str) and len(secret) >= 8 and secret.encode() in body:
+                raise RuntimeError("The public visitor disclosed a private credential")
+    frames = []
+    for index in range(2):
+        code, body = public_get(origin + "/api/status", credential)
+        rows = json.loads(body).get("cameras", []) if code == 200 else []
+        if len(rows) != 3 or {row.get("name") for row in rows} != {"kitchen", "worktop", "side"} or not all(row.get("online") for row in rows):
+            raise RuntimeError("The three public cameras are unavailable")
+        frames.append({row["name"]: row.get("frame_id") for row in rows})
+        if index == 0:
+            time.sleep(2)
+    if any(frames[0][name] == frames[1][name] for name in frames[0]):
+        raise RuntimeError("A public camera is not advancing")
+    for name in frames[0]:
+        code, body = public_get(origin + f"/snapshot/{name}.jpg", credential)
+        if code != 200 or not body.startswith(b"\xff\xd8") or not body.endswith(b"\xff\xd9"):
+            raise RuntimeError("A public camera image is incomplete")
+    return {**result, "healthy": True, "basic_auth": True, "private_routes_blocked": True,
+            "cameras_advancing": True, "attendee_chat_ready": True}
+
+
+def disable(repo):
+    owned = owned_units(repo)
+    names = [name + ".service" for name in reversed(SERVICES) if owned[name]["installed"]]
+    if names:
+        run(["systemctl", "--user", "disable", "--now", *names], timeout=450)
+    return {"enabled": False, "services": owned_units(repo)}
+
+
+def serve(repo):
+    """Run the owned stack. Returns LAUNCH_FAILED when it never reached READY."""
+    def interrupted(_number, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
+    signal.signal(signal.SIGINT, interrupted)
+    module = browser_module(repo)
+    try:
+        command = ["/usr/bin/python3", str(repo / "scripts/desktop.py"), "launch", "--repo", str(repo), "--headless", "--no-open"]
+        code = subprocess.run(command, cwd=repo).returncode
+        if code:
+            print(f"[public] The demo launch exited {code} without READY; not restarting. "
+                  "Inspect runs/.install/desktop-latest.json, then run enable again.", file=sys.stderr, flush=True)
+            return LAUNCH_FAILED
+        failures = 0
+        while True:
+            time.sleep(10)
+            failures = 0 if module.ready(repo) else failures + 1
+            if failures >= 3:
+                raise RuntimeError("The demo health check failed; restarting the owned stack")
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        subprocess.run([str(repo / "run.sh"), "down"], cwd=repo, timeout=390)
+
+
+def visitor_sockets(pid):
+    process = PROC / str(pid)
+    sockets = set()
+    for path in (process / "fd").iterdir():
+        try:
+            target = os.readlink(path)
+        except FileNotFoundError:
+            continue  # A completed HTTP connection may close during this read.
+        match = re.fullmatch(r"socket:\[(\d+)\]", target)
+        if match:
+            sockets.add(match[1])
+    rows = [line.split() for line in (process / "net/tcp").read_text().splitlines()[1:]]
+    return sockets, [row for row in rows if len(row) >= 10]
+
+
+def visitor_owner(repo):
+    """Prove the configured service owns the exact IPv4 loopback listener."""
+    try:
+        output = run(["systemctl", "--user", "show", "paai-spark-visitor.service", "--no-pager",
+                      "--property=MainPID,LoadState,ActiveState,FragmentPath,DropInPaths"], timeout=3)
+        properties = dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
+        unit = unit_directory() / "paai-spark-visitor.service"
+        pid = int(properties.get("MainPID", "0"))
+        if (pid <= 1 or properties.get("LoadState") != "loaded" or properties.get("ActiveState") != "active"
+                or properties.get("DropInPaths") or properties.get("FragmentPath") != str(unit)
+                or unit.is_symlink() or not unit.read_text().startswith(f"# PAAI Spark checkout: {repo}\n")):
+            raise ValueError("Unowned visitor service")
+        process = PROC / str(pid)
+        before = (process / "stat").read_text().rsplit(")", 1)[1].split()
+        command = (process / "cmdline").read_bytes().rstrip(b"\0").decode().split("\0")
+        if (process.stat().st_uid != os.getuid() or before[0] == "Z"
+                or (process / "cwd").resolve(strict=True) != repo
+                or command != visitor_command(repo)):
+            raise ValueError("Unowned visitor process")
+        sockets, rows = visitor_sockets(pid)
+        local = "0100007F:" + format(8093, "04X")
+        listeners = [row for row in rows if row[3] == "0A"
+                     and row[1] in (local, "00000000:" + format(8093, "04X"))]
+        if len(listeners) != 1 or listeners[0][1] != local or listeners[0][9] not in sockets:
+            raise ValueError("Unowned visitor listener")
+        after = (process / "stat").read_text().rsplit(")", 1)[1].split()
+        if after[0] == "Z" or before[19] != after[19]:
+            raise ValueError("Visitor process changed")
+        return pid, before[19], listeners[0][9]
+    except (OSError, ValueError, IndexError, RuntimeError) as error:
+        raise RuntimeError("The authenticated visitor does not own its loopback port") from None
+
+
+def owned_visitor_get(repo, owner, path, authorization=None):
+    """Bind credentials to an accepted socket owned by the verified visitor."""
+    with socket.create_connection(("127.0.0.1", 8093), timeout=2) as connection:
+        if visitor_owner(repo) != owner:
+            raise RuntimeError("The visitor identity changed")
+        remote = "0100007F:" + format(connection.getsockname()[1], "04X")
+        local = "0100007F:" + format(8093, "04X")
+        deadline = time.monotonic() + 2
+        while True:
+            sockets, rows = visitor_sockets(owner[0])
+            if any(row[1] == local and row[2] == remote and row[3] == "01" and row[9] in sockets for row in rows):
+                break
+            if time.monotonic() >= deadline:
+                raise RuntimeError("The visitor did not own the accepted connection")
+            time.sleep(.02)
+        if visitor_owner(repo) != owner:
+            raise RuntimeError("The visitor identity changed")
+        client = http.client.HTTPConnection("127.0.0.1", 8093, timeout=2)
+        client.sock = connection
+        # HTTPConnection must never reconnect to an unverified listener.
+        def no_reconnect():
+            raise RuntimeError("The verified visitor connection ended")
+        client.connect = no_reconnect
+        try:
+            client.request("GET", path, headers={"Authorization": authorization} if authorization else {})
+            response = client.getresponse()
+            body = response.read(65537)
+            if len(body) > 65536:
+                raise RuntimeError("The visitor health response is too large")
+            return response.status, body
+        finally:
+            client.close()
+
+
+def verify_local_visitor(repo, auth, expected=None):
+    owner = visitor_owner(repo)
+    if expected is not None and owner != expected:
+        raise RuntimeError("The visitor identity changed; closing its tunnel")
+    if owned_visitor_get(repo, owner, "/")[0] != 401:
+        raise RuntimeError("The local visitor did not require authentication")
+    authorization = "Basic " + base64.b64encode((auth["username"] + ":" + auth["password"]).encode()).decode()
+    status, body = owned_visitor_get(repo, owner, "/api/chat", authorization)
+    try:
+        chat = json.loads(body)
+    except (ValueError, UnicodeDecodeError):
+        chat = None
+    if (status != 200 or not isinstance(chat, dict) or chat.get("enabled") is not True
+            or chat.get("ready") is not True or chat.get("agent") != "cascade-demo"):
+        raise RuntimeError("The local attendee chat is not READY")
+    if visitor_owner(repo) != owner:
+        raise RuntimeError("The visitor identity changed; closing its tunnel")
+    return owner
+
+
+def ngrok_service(repo):
+    directory = private_root(repo)
+    settings = json.loads((directory / "settings.json").read_text())
+    token = json.loads((directory / "ngrok.json").read_text())["agent"]["authtoken"]
+    auth = json.loads((directory / "auth.json").read_text())
+    owner = verify_local_visitor(repo, auth)
+    command = [settings["ngrok"], "http", VISITOR_ORIGIN, "--url", "https://" + settings["domain"],
+               "--config", str(directory / "ngrok.json"), "--inspect=false", "--log=stdout", "--log-format=json"]
+    child = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    def interrupted(_number, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
+    signal.signal(signal.SIGINT, interrupted)
+    def read_log():
+        for line in child.stdout:
+            for secret in (token, auth["password"], base64.b64encode((auth["username"] + ":" + auth["password"]).encode()).decode()):
+                line = line.replace(secret, "[private]")
+            print(line.rstrip(), flush=True)
+    reader = threading.Thread(target=read_log, daemon=True)
+    reader.start()
+    try:
+        while child.poll() is None:
+            verify_local_visitor(repo, auth, expected=owner)
+            time.sleep(1)
+        return child.wait()
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        if child.poll() is None:
+            child.terminate()
+            try:
+                child.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait(timeout=5)
+        reader.join(timeout=2)
+        child.stdout.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("operation", choices=("enable", "check", "disable", "_serve", "_ngrok"))
+    parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument("--domain")
+    parser.add_argument("--auth-file", type=Path)
+    parser.add_argument("--ngrok", type=Path)
+    credentials = parser.add_mutually_exclusive_group()
+    credentials.add_argument("--ngrok-config", type=Path)
+    credentials.add_argument("--token-file", type=Path)
+    args = parser.parse_args()
+    if args.operation == "enable" and (not args.auth_file or not args.ngrok or not args.domain or not (args.ngrok_config or args.token_file)):
+        parser.error("enable requires --domain, --auth-file, --ngrok, and --ngrok-config or --token-file")
+    repo = root_path(args.repo)
+    if args.operation == "_serve":
+        return serve(repo)
+    if args.operation == "_ngrok":
+        return ngrok_service(repo)
+    result = enable(repo, args) if args.operation == "enable" else check(repo) if args.operation == "check" else disable(repo)
+    print(json.dumps(result, indent=2))
+    if args.operation == "check":
+        if result["healthy"]:
+            print("PUBLIC READY")
+        return 0 if result["healthy"] else 1
+    print("PUBLIC ENABLED" if args.operation == "enable" else "PUBLIC STOPPED")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, RuntimeError, KeyError, subprocess.SubprocessError) as error:
+        print(f"[public] {type(error).__name__}: {error}", file=sys.stderr)
+        raise SystemExit(1)

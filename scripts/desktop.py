@@ -35,7 +35,7 @@ def register(repo: Path, *, desktop_dir: Path | None = None) -> list[Path]:
     """Install checkout-specific entries, leaving every other app untouched."""
     repo = repo.resolve()
     if not (repo / "scripts/desktop.py").is_file():
-        raise RuntimeError(f"not a CASCADE checkout: {repo}")
+        raise RuntimeError(f"not a PAAI checkout: {repo}")
     data = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
     destinations = [data / "applications"]
     if desktop_dir is None:
@@ -49,9 +49,9 @@ def register(repo: Path, *, desktop_dir: Path | None = None) -> list[Path]:
         destinations.append(desktop_dir)
     identifier = hashlib.sha256(str(repo).encode()).hexdigest()[:12]
     paths = []
-    for action, name in (("install", "Install CASCADE (Spark)"), ("launch", "CASCADE (Spark)")):
+    for action, name in (("install", "Install PAAI (Spark)"), ("launch", "PAAI (Spark)")):
         text = ("[Desktop Entry]\nVersion=1.0\nType=Application\n"
-                f"Name={name}\nComment=Isaac Sim + local Cosmos + isolated OpenClaw; physical proof required\n"
+                f"Name={name}\nComment=Isaac Sim + local model + isolated OpenClaw; physical proof required\n"
                 f"Exec=/usr/bin/python3 {_exec_arg(str(repo / 'scripts/desktop.py'))} {action} --repo {_exec_arg(str(repo))}\n"
                 "Icon=applications-engineering\nTerminal=true\nStartupNotify=false\nCategories=Development;Science;\n")
         for directory in destinations:
@@ -63,16 +63,26 @@ def register(repo: Path, *, desktop_dir: Path | None = None) -> list[Path]:
                 temporary.chmod(0o755)
                 temporary.replace(path)
             paths.append(path)
+            if directory == desktop_dir and shutil.which("gio"):
+                subprocess.run(["gio", "set", str(path), "metadata::trusted", "true"],
+                               capture_output=True, timeout=10, check=False)
+        if action == "launch":
+            fixed = repo / "runs/.install/paai-spark.desktop"
+            fixed.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            if not fixed.exists() or fixed.read_text() != text:
+                fixed.write_text(text)
+                fixed.chmod(0o755)
+            paths.append(fixed)
     return paths
 
 
 def confirm_eula() -> bool:
-    message = ("Install CASCADE for this Linux Spark using Isaac Sim 6.1, local Cosmos and OpenClaw.\n\n"
+    message = ("Install PAAI for this Linux Spark using Isaac Sim 6.1, the local model and OpenClaw.\n\n"
                f"Review the NVIDIA Isaac Sim / Omniverse EULA:\n{EULA_URL}\n\n"
                "Do you explicitly agree to this EULA? Downloads may be large. No driver or OS changes. "
                "If installation succeeds, the simulation proof will move the simulated robot. No physical hardware.")
     if (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")) and shutil.which("zenity"):
-        return subprocess.run(["zenity", "--question", "--title=Install CASCADE", "--no-markup",
+        return subprocess.run(["zenity", "--question", "--title=Install PAAI", "--no-markup",
                                "--width=620", "--ok-label=I agree and install", "--cancel-label=Cancel",
                                "--default-cancel", "--text=" + message]).returncode == 0
     if sys.stdin.isatty():
@@ -88,12 +98,15 @@ def _write_status(path: Path, report: dict) -> None:
     temporary.replace(path)
 
 
-def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: bool = False) -> int:
+def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: bool = False,
+            headless: bool = False, no_open: bool = False) -> int:
     repo = repo.resolve()
     if action not in ("install", "launch"):
         raise ValueError(f"unknown desktop action: {action}")
     if prepare_only and action != "install":
         raise ValueError("--prepare-only belongs to install, not launch")
+    if (headless or no_open) and action != "launch":
+        raise ValueError("--headless and --no-open belong to launch")
     env = os.environ.copy()
     env.update(CASCADE_INSTALL_PROFILE="spark", CASCADE_OPENCLAW_PROFILE="cascade-demo",
                PYTHONUNBUFFERED="1", PYTHONDONTWRITEBYTECODE="1")
@@ -103,7 +116,12 @@ def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: boo
             command.append("--prepare-only")
     else:
         command = [str(repo / ".venv/bin/python"), str(repo / "scripts/install_support.py"),
-                   "launch", "--repo", str(repo), "--profile", "spark", "--brain", "cosmos"]
+                   "launch", "--repo", str(repo), "--profile", "spark", "--brain", "qwen"]
+        # The desktop window is Chromium. The simulator's editor is unnecessary
+        # for the three live cameras and would consume extra shared GPU memory.
+        command.append("--headless")
+        if no_open:
+            command.append("--no-open")
     if dry_run:
         print(json.dumps({"action": action, "command_after_consent": command,
                           "dry_run": True, "services_started": False}))
@@ -114,12 +132,14 @@ def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: boo
             return 2
     else:
         if not eula_accepted(repo):
-            raise RuntimeError("No explicit license-consent receipt for this checkout. Open 'Install CASCADE (Spark)' first.")
+            raise RuntimeError("No explicit license-consent receipt for this checkout. Open 'Install PAAI (Spark)' first.")
         record = json.loads((repo / "runs/.install/install.json").read_text())
-        if record.get("profile") != "spark" or record.get("brain") != "cosmos":
-            raise RuntimeError("This is not a prepared Spark installation. Open 'Install CASCADE (Spark)'.")
+        env["HOME"] = record.get("runtime_home", env.get("HOME", str(Path.home())))
+        # Existing Spark consent remains valid across the model installation fix.
+        if record.get("profile") != "spark" or record.get("brain") not in ("qwen", "cosmos"):
+            raise RuntimeError("This is not a prepared Spark installation. Open 'Install PAAI (Spark)'.")
         if not os.access(repo / ".venv/bin/python", os.X_OK):
-            raise RuntimeError("Application environment is missing. Open 'Install CASCADE (Spark)' to repair it; no fallback.")
+            raise RuntimeError("Application environment is missing. Open 'Install PAAI (Spark)' to repair it; no fallback.")
         for key, value in record.get("isaac_environment", {}).items():
             if key in ("ISAACSIM_PATH", "ISAACSIM_PYTHON_EXE"):
                 env[key] = value
@@ -129,15 +149,28 @@ def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: boo
         try:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            print(f"[desktop] An install/launch is already in progress. See {state / 'desktop-latest.json'}", flush=True)
-            return 75
+            if action == "launch":
+                print("[desktop] Waiting for this installation's current startup…", flush=True)
+                deadline = time.monotonic() + 3600
+                while True:
+                    try:
+                        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        break
+                    except BlockingIOError:
+                        if time.monotonic() >= deadline:
+                            raise RuntimeError(f"Startup still running after one hour; inspect {state / 'desktop-latest.json'}")
+                        time.sleep(.5)
+            else:
+                print(f"[desktop] An install is already in progress. See {state / 'desktop-latest.json'}", flush=True)
+                return 75
         directory = state / ("desktop-" + time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8])
         directory.mkdir(mode=0o700)
         log_path = directory / "progress.log"
-        report = {"action": action, "repo": str(repo), "log": str(log_path), "started_at": time.time(), "exit_code": None}
+        report = {"action": action, "repo": str(repo), "log": str(log_path), "started_at": time.time(), "exit_code": None,
+                  "attached": False}
         latest = state / "desktop-latest.json"
         _write_status(latest, report)
-        print(f"[desktop] {action.upper()}: Isaac + local Cosmos + OpenClaw profile cascade-demo", flush=True)
+        print(f"[desktop] {action.upper()}: Isaac + local model + OpenClaw profile cascade-demo", flush=True)
         print(f"[desktop] Full progress log: {log_path}", flush=True)
         code = 1
         with log_path.open("w") as log:
@@ -148,6 +181,8 @@ def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: boo
                                            stderr=subprocess.STDOUT, text=True, errors="replace", start_new_session=True)
                 assert process.stdout is not None
                 for line in process.stdout:
+                    if line.startswith("[launch] READY: attached to this installation's running demo"):
+                        report["attached"] = True
                     print(line, end="", flush=True)
                     log.write(line)
                     log.flush()
@@ -165,6 +200,11 @@ def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: boo
                 if process is not None and process.stdout is not None:
                     process.stdout.close()
                 report.update(exit_code=code, finished_at=time.time())
+                proof_path = Path(env.get("CASCADE_LAUNCH_STATE", repo / "runs/.launch")) / "profile-cascade-demo/proof.json"
+                if action == "launch" and code == 0 and proof_path.is_file():
+                    proof = json.loads(proof_path.read_text())
+                    report["proof"] = {"path": str(proof_path), "session_id": proof.get("session_id"),
+                                       "started_at": proof.get("started_at"), "process": proof.get("process")}
                 _write_status(latest, report)
         print(f"[desktop] Exit {code}. Log: {log_path}", flush=True)
         return code
@@ -177,7 +217,11 @@ def main() -> int:
     parser.add_argument("--desktop-dir", type=Path)
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--headless", action="store_true", help="launch Isaac without an editor window")
+    parser.add_argument("--no-open", action="store_true", help="do not open the chat browser")
     args = parser.parse_args()
+    if (args.headless or args.no_open) and args.action != "launch":
+        parser.error("--headless and --no-open belong to launch")
 
     def interrupted(_signum, _frame):
         # Terminal close and service-manager termination must use the same
@@ -195,7 +239,8 @@ def main() -> int:
             else:
                 print(json.dumps({"entries": [str(p) for p in register(args.repo, desktop_dir=args.desktop_dir)], "services_started": False}))
             return 0
-        code = perform(args.repo, args.action, prepare_only=args.prepare_only, dry_run=args.dry_run)
+        code = perform(args.repo, args.action, prepare_only=args.prepare_only, dry_run=args.dry_run,
+                       headless=args.headless, no_open=args.no_open)
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
         print(f"[desktop] ERROR: {exc}", file=sys.stderr, flush=True)
     except KeyboardInterrupt:

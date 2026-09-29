@@ -274,8 +274,16 @@ class SafetyHarness:
 
     # ── the gate ─────────────────────────────────────────────────────────
 
-    def approve(self, q_prev: np.ndarray, q_next: np.ndarray, dt: float) -> None:
-        """Raise SafetyViolation if the waypoint must not be executed."""
+    def approve(self, q_prev: np.ndarray, q_next: np.ndarray, dt: float,
+                joint_margin: float | None = None) -> None:
+        """Raise SafetyViolation if the waypoint must not be executed.
+
+        `joint_margin` overrides the configured safety margin for this one
+        move -- the park drives a joint onto its mechanical stop (exact zero),
+        which the normal margin would reject. None keeps `limits.joint_margin`.
+        Every other gate (workspace, table clearance, keep-outs, velocity,
+        neighbours) still runs at full strength.
+        """
         if self._estopped:
             raise SafetyViolation("e-stop latched")
         if self._halt is not None:
@@ -293,7 +301,7 @@ class SafetyHarness:
 
         if self.kin is not None:
             lo, hi = self.kin.joint_limits
-            m = self.limits.joint_margin
+            m = self.limits.joint_margin if joint_margin is None else float(joint_margin)
             low_bad = q_next < lo + m - 1e-9
             high_bad = q_next > hi - m + 1e-9
             if np.any(low_bad) or np.any(high_bad):
@@ -539,7 +547,7 @@ class SafeArm:
         return self._arm.get_state()
 
     def move_joints(self, q_target: np.ndarray, duration_s: float = 2.0,
-                    **backend_kw) -> bool:
+                    joint_margin: float | None = None, **backend_kw) -> bool:
         # Min-jerk peak velocity is 1.875 * dq / T; stretch the duration so
         # the planned profile stays safely under the cap (harness remains the
         # backstop for anything else).
@@ -547,6 +555,17 @@ class SafeArm:
         needed = 1.875 * dq_max / (0.9 * self.harness.limits.max_joint_vel)
         duration_s = max(duration_s, needed)
         self.harness.begin_motion()  # perception-freshness check happens here
+        approve = self.harness.approve
+        if joint_margin is not None:
+            # The park drives onto the mechanical stop; relax only the joint
+            # margin for THIS move (see SafetyHarness.approve). The closure
+            # keeps the stream's per-waypoint approve() call signature intact.
+            h = self.harness
+            jm = float(joint_margin)
+
+            def approve(q_prev, q_next, dt):
+                h.approve(q_prev, q_next, dt, joint_margin=jm)
+
         try:
             # `backend_kw` forwards backend-specific hints (e.g. a measured
             # descend-bias compensation) without this layer knowing what they
@@ -554,13 +573,13 @@ class SafeArm:
             # hint never becomes a hard dependency.
             try:
                 return self._arm.stream_to(q_target, duration_s,
-                                           approve=self.harness.approve,
+                                           approve=approve,
                                            **backend_kw)
             except TypeError:
                 if not backend_kw:
                     raise
                 return self._arm.stream_to(q_target, duration_s,
-                                           approve=self.harness.approve)
+                                           approve=approve)
         finally:
             self.harness.end_motion()
 

@@ -7,6 +7,7 @@ must still match a receipt belonging to this exact repo/state/profile.
 """
 from __future__ import annotations
 
+import errno
 import json
 import os
 from pathlib import Path
@@ -98,6 +99,12 @@ def is_live(record: dict, owner: dict) -> bool:
             return False
         if not re.search(r"(?:^|\s)--launch-owner " + re.escape(owner["owner"]) + r"(?:\s|$)", current["command"]):
             return False
+    if record.get("role") == "gateway_child":
+        try:
+            if record.get("process_group") != record["pid"] or os.getpgid(record["pid"]) != record["pid"]:
+                return False
+        except ProcessLookupError:
+            return False
     return True
 
 
@@ -110,6 +117,10 @@ def register_process(state_dir, owner: dict, pid: int, role: str, *, run_dir=Non
     if not re.fullmatch(r"[a-z][a-z0-9_]*", role):
         raise ValueError("invalid process role")
     record = {**owner, **identity, "role": role, "instance_id": uuid.uuid4().hex, "registered_at": time.time()}
+    if role == "gateway_child":
+        if os.getpgid(pid) != pid:
+            raise ValueError("foreground gateway must own a private process group")
+        record["process_group"] = pid
     if run_dir is not None:
         record["run_dir"] = str(Path(run_dir).resolve())
     if not is_live(record, owner):
@@ -189,19 +200,129 @@ def _run_gateway_stop(command: list[str], *, timeout_s: float = 360.0,
                 signal.signal(number, previous)
 
 
-def stop_owned(state_dir, owner: dict, *, dry_run=False) -> list[int]:
+def _darwin_group_snapshot(pgid: int) -> dict:
+    """Check only an already verified private group; never discover owners."""
+    command = ["/bin/ps", "-ww", "-x", "-g", str(pgid), "-o", "pid=,pgid=,stat="]
+    snapshot = {"command": command, "monotonic": time.monotonic(), "complete": False,
+                "truncated": False, "no_live_members": False, "members": []}
+    try:
+        # Darwin ignores -g in legacy mode. One -g selector uses KERN_PROC_PGRP;
+        # -x includes members without a terminal, and -ww prevents row clipping.
+        result = subprocess.run(command, capture_output=True, text=True, timeout=5,
+                                env={"COMMAND_MODE": "unix2003", "LC_ALL": "C"})
+    except (OSError, UnicodeError, subprocess.TimeoutExpired) as error:
+        snapshot.update(error=str(error), errno=getattr(error, "errno", None),
+                        truncated=isinstance(error, (UnicodeError, subprocess.TimeoutExpired)))
+        for name in ("stdout", "stderr"):
+            output = getattr(error, name, None)
+            snapshot[name] = output.decode("utf-8", errors="replace") if isinstance(output, bytes) else output
+        return snapshot
+    snapshot.update(complete=True, returncode=result.returncode, stdout=result.stdout, stderr=result.stderr)
+    # Darwin ps can exit zero on a sysctl error, with the failure on stderr.
+    if result.stderr:
+        return snapshot
+    if result.returncode == 1 and result.stdout == "":
+        snapshot["no_live_members"] = True
+        return snapshot
+    if result.returncode != 0 or not result.stdout or not result.stdout.endswith("\n"):
+        return snapshot
+    seen = set()
+    for line in result.stdout.splitlines():
+        row = re.fullmatch(r"\s*([0-9]+)\s+([0-9]+)\s+([IRSTUZ][+<>AELNSVWXs]*)\s*", line)
+        if row is None:
+            return snapshot
+        pid, group, state = int(row[1]), int(row[2]), row[3]
+        if pid <= 1 or group != pgid or pid in seen:
+            return snapshot
+        seen.add(pid)
+        snapshot["members"].append({"pid": pid, "pgid": group, "state": state})
+    snapshot["no_live_members"] = all(member["state"].startswith("Z") for member in snapshot["members"])
+    return snapshot
+
+
+def stop_private_gateway(record: dict, owner: dict, *, timeout_s: float = 5) -> None:
+    """Stop only a previously verified foreground gateway and its private group."""
     import signal
 
+    if record.get("role") != "gateway_child" or not is_live(record, owner):
+        raise ValueError("foreground gateway no longer belongs to this launch owner")
+    pid = record["pid"]
+    diagnostic = ({"pid": pid, "process_group": pid, "birth": record["birth"],
+                   "term_monotonic": time.monotonic()} if sys.platform == "darwin" else None)
+    try:
+        os.killpg(pid, signal.SIGTERM)
+        deadline = time.monotonic() + timeout_s
+        while is_live(record, owner) and time.monotonic() < deadline:
+            time.sleep(.05)
+        # The wrapper can exit before its child. This group was checked above
+        # and contains only the foreground gateway started by this checkout.
+        current = process_identity(pid)
+        if current is not None and any(current[key] != record[key] for key in ("birth", "command")):
+            raise ValueError("foreground gateway identity changed while stopping")
+        if sys.platform == "darwin":
+            # Reap our exited child before signalling a possible zombie-only
+            # group. Surviving workers still need the group SIGKILL below.
+            diagnostic["waitpid"] = {"monotonic": time.monotonic()}
+            try:
+                diagnostic["waitpid"]["result"] = os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError as error:
+                # Another launcher process created this gateway.
+                diagnostic["waitpid"].update(errno=error.errno, error=str(error))
+            diagnostic["kill_monotonic"] = time.monotonic()
+        try:
+            os.killpg(pid, signal.SIGKILL)
+        except PermissionError as error:
+            if sys.platform != "darwin" or error.errno != errno.EPERM:
+                raise
+            # Darwin can return EPERM for a zombie-only group. A missing leader
+            # alone proves nothing: a TERM-ignoring worker may still be alive.
+            diagnostic["query"] = _darwin_group_snapshot(pid)
+            print("gateway group SIGKILL EPERM: " + json.dumps(diagnostic), file=sys.stderr)
+            if not diagnostic["query"]["no_live_members"]:
+                raise
+    except ProcessLookupError:
+        pass
+
+
+def stop_owned_process(record: dict, owner: dict, *, term_timeout_s: float = 10,
+                       kill_timeout_s: float = 5) -> None:
+    """Bound shutdown of one owned PID, rechecking identity before escalation."""
+    import signal
+
+    for number, timeout in ((signal.SIGTERM, term_timeout_s), (signal.SIGKILL, kill_timeout_s)):
+        # A PID, command name, or listening port alone never permits a signal.
+        # This check also prevents escalation after exit and PID reuse.
+        if not is_live(record, owner):
+            return
+        try:
+            os.kill(record["pid"], number)
+        except ProcessLookupError:
+            return
+        if number == signal.SIGKILL:
+            print(f"{record['role']} pid={record['pid']} did not exit after SIGTERM; sent SIGKILL to the owned PID",
+                  file=sys.stderr, flush=True)
+        deadline = time.monotonic() + timeout
+        while is_live(record, owner) and time.monotonic() < deadline:
+            time.sleep(.05)
+    if is_live(record, owner):
+        raise ValueError(f"{record['role']} pid={record['pid']} did not stop after SIGTERM and SIGKILL; receipt retained")
+
+
+def stop_owned(state_dir, owner: dict, *, dry_run=False, roles=None) -> list[int]:
     stopped = []
     # Service-manager shutdown is intentionally separate from direct PID
     # signals. An unowned gateway is never stopped to reap its MCP children.
-    for record in sorted(records(state_dir), key=lambda r: r.get("role") == "gateway"):
+    for record in sorted(records(state_dir), key=lambda r: r.get("role") in ("gateway", "gateway_child")):
+        if roles is not None and record.get("role") not in roles:
+            continue
         if not is_live(record, owner):
             continue
         if dry_run:
             print(f"would stop {record['role']} pid={record['pid']}")
             continue
-        if record.get("role") == "gateway":
+        if record.get("role") == "gateway_child":
+            stop_private_gateway(record, owner)
+        elif record.get("role") == "gateway":
             prefix = ["openclaw", *(["--profile", owner["profile"]] if owner["profile"] else [])]
             status = subprocess.run([*prefix, "gateway", "status", "--json"], capture_output=True, text=True, timeout=30)
             pid = json.loads(status.stdout).get("service", {}).get("runtime", {}).get("pid") if status.returncode == 0 else None
@@ -209,14 +330,7 @@ def stop_owned(state_dir, owner: dict, *, dry_run=False) -> list[int]:
                 raise ValueError("gateway no longer belongs to this launch owner; refusing stop")
             _run_gateway_stop([*prefix, "gateway", "stop", "--force"])
         else:
-            # Re-check immediately before signalling; a bare/stale PID marker
-            # or the same command under a different owner is not sufficient.
-            if not is_live(record, owner):
-                continue
-            try:
-                os.kill(record["pid"], signal.SIGTERM)
-            except ProcessLookupError:
-                pass
+            stop_owned_process(record, owner)
         deadline = time.monotonic() + 10
         while is_live(record, owner) and time.monotonic() < deadline:
             time.sleep(0.05)

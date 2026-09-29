@@ -84,12 +84,19 @@ args = p.parse_args()
 if not 0 < args.dt <= 1.0:
     p.error("--dt / CASCADE_ISAAC_DT must be finite and in (0, 1] seconds")
 
-# Demo spawn/ready pose (LOCAL joint convention). NOTE: the straight-up
-# pose is blocked on this asset -- drive-travel from q=0 sweeps the
-# props and jams, while joint-state authoring or tensor teleports NaN
-# the solver (custom fixed-joint stack). The upstream asset gets the
-# straight spawn properly via Seeed-Projects/reBot-Isaacsim#9.
-HOME_Q = [0.0, -1.2, -1.2, 0.0, -0.75, 0.0]  # gripper elbow-up, high
+# Ownership registration must see this final interpreter, not the adapter
+# before exec. This handshake runs before loading Kit or creating GPU state.
+from isaac_launch import publish_ready
+publish_ready()
+
+# Demo ready target in the ASSET joint convention; IsaacArm converts the
+# profile's local home_q with joint_signs before sending the same target.
+# Neutral joint5 keeps gripper_end +X forward and its jaw-opening +Y lateral;
+# the old -0.75 rad target yawed the gripper sideways by 43 degrees.
+# Keep the raised-elbow target: earlier straight-up spawn attempts swept
+# the props and jammed; joint-state authoring or tensor teleports produced
+# NaNs in the solver with this asset's custom fixed-joint stack.
+HOME_Q = [0.0, -1.2, -1.2, 0.0, 0.0, 0.0]  # elbow raised, gripper forward
 # THIS asset's j2/j3 limits are [-3.14, 0] (mirror convention). The old
 # [0, +1.2, +1.2, ...] was for the spark `-plus` asset (j2/j3 in [0,+pi]) and
 # is ILLEGAL here: PhysX clamps +1.2 to 0, the arm collapses, and the gripper
@@ -849,7 +856,10 @@ _fix_gravity()
 # ── articulation (create AFTER play, gain-tuner gotcha) ──────────────────
 from isaacsim.core.experimental.prims import Articulation  # noqa: E402
 
+import faulthandler
+faulthandler.dump_traceback_later(120, repeat=False, exit=False)
 print(f"[bridge] stage playback range: {ensure_time_code_range(stage)}", flush=True)
+print("[bridge] initializing contact reports", flush=True)
 if _REQUIRE_CUDA and args.engine == "physx":
     # Contact-force instrumentation only; no geometry, material or forces change.
     for _contact_name, *_ in PROPS:
@@ -858,10 +868,15 @@ if _REQUIRE_CUDA and args.engine == "physx":
             PhysxSchema.PhysxContactReportAPI.Apply(_contact_prim).CreateThresholdAttr(0.0)
 if args.engine == "newton":
     _configure_newton_before_play()
+print("[bridge] starting timeline play with committed callbacks", flush=True)
 app_utils.play(commit=True)
+print("[bridge] timeline play returned", flush=True)
 for _ in range(10):
+    print(f"[bridge] initial app update {_ + 1}/10 begin", flush=True)
     app.update()
+    print(f"[bridge] initial app update {_ + 1}/10 complete", flush=True)
 # Gravity can be reset by the physics parser on play; re-assert once more.
+print("[bridge] validating gravity after first play", flush=True)
 _fix_gravity()
 engine = str(SimulationManager.get_active_physics_engine()).lower()
 print(f"[bridge] physics engine: {engine}", flush=True)
@@ -887,15 +902,10 @@ print(f"[bridge] arm idx {ARM_IDX} grip idx {GRIP_IDX} "
 _PROP_SPAWNS = {name: tuple(pos) for name, pos, *_ in PROPS}
 
 _state_lock = threading.Lock()
-# Spawn STRAIGHT UP (presentation pose): q=0 lies flat OVER the table and
-# sits exactly ON the j2/j3 lower limits. Straight vertical = j2 at +90 deg
-# (local convention), j3 kept 1 deg inside its 0 lower limit. The TCP is
-# outside the demo workspace AABB here (x~0) -- the harness's workspace
-# escape rule lets the first commanded motion come home.
+# Hold the elbow-raised, forward-facing ready pose in raw asset DOFs.
 # CASCADE_BRIDGE_NO_TARGETS=1: asset-inspection mode -- apply NO runtime targets
 # so the asset's own authored joint state/drive targets are what you see
-# (used to validate the initial-pose PR; also note HOME_Q is in the LOCAL
-# joint convention and would fight a mirror-convention asset).
+# on initial playback and after an editor Stop/Play.
 _NO_TARGETS = os.environ.get("CASCADE_BRIDGE_NO_TARGETS", "0") == "1"
 _targets: dict = {
     "q": None if _NO_TARGETS else list(HOME_Q),
@@ -1044,7 +1054,9 @@ class Handler(socketserver.StreamRequestHandler):
             if cached is None:
                 return {"ok": False,
                         "error": f"unknown/not-ready camera; have {list(_frames)}"}
-            return cached
+            # Encoded here, on the TCP thread, not on the sim main loop.
+            wire = getattr(cached, "wire", None)
+            return wire() if wire is not None else cached
         if op == "camera_video":
             action = req.get("action", "status")
             if action not in {"status", "restart"}:
@@ -1159,8 +1171,72 @@ server = socketserver.ThreadingTCPServer((os.environ.get("CASCADE_BRIDGE_BIND", 
 server.daemon_threads = True
 threading.Thread(target=server.serve_forever, daemon=True, name="bridge-tcp").start()
 print(f"[bridge] serving cascade bridge on :{args.port}", flush=True)
+faulthandler.cancel_dump_traceback_later()
 
 import cv2  # noqa: E402  (ships with the isaacsim python)
+
+
+class _LazyFrame(dict):
+    """One camera's cached wire frame whose RGB JPEG and zlib depth are
+    encoded on first READ instead of on every main-loop capture.
+
+    MEASURED on the kitchen bridge (4 cameras at 1280x720, RTX PRO 6000,
+    2026-09-28): the eager encode cost 265-324 ms of MAIN-THREAD time per
+    refresh -- zlib of one 3.7 MB float32 depth image alone 33-69 ms per
+    camera -- so the loop ran 6.3 iterations/s and the simulation 0.105x
+    real time, which turned every wall-clock skill timeout ~10x tighter in
+    sim time ("did not settle at pregrasp pose"). With the refresh skipped
+    the same loop ran 36 iterations/s (0.60x). Almost all of that work was
+    thrown away: the next refresh replaced the frame before any client
+    asked for it.
+
+    The CAPTURE is unchanged and still happens on the main thread right
+    after app.update(): the raw buffers, K, the wrist pose and the joint
+    snapshot are copied there, so a served frame is exactly as fresh and as
+    self-consistent as before. Only the encoding moves to the thread that
+    reads it (and runs at most once per frame).
+    """
+
+    _LAZY_KEYS = ("rgb_jpeg_b64", "depth_z_b64")
+
+    def __init__(self, entry, rgb, depth):
+        super().__init__(entry)
+        self._raw = (rgb, depth)
+        self._encode_lock = threading.Lock()
+
+    def _encode(self):
+        with self._encode_lock:
+            if self._raw is None:
+                return
+            rgb, depth = self._raw
+            bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+            ok, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            if not ok:
+                raise RuntimeError("JPEG encode failed for a captured camera frame")
+            depth_b64 = None
+            if depth is not None:
+                depth[~np.isfinite(depth)] = 0.0  # RTX far-clip returns inf
+                depth_b64 = base64.b64encode(zlib.compress(depth.tobytes(), 3)).decode()
+            dict.__setitem__(self, "rgb_jpeg_b64", base64.b64encode(jpg.tobytes()).decode())
+            dict.__setitem__(self, "depth_z_b64", depth_b64)
+            self._raw = None
+
+    def __missing__(self, key):
+        if key not in self._LAZY_KEYS:
+            raise KeyError(key)
+        self._encode()
+        return dict.__getitem__(self, key)
+
+    def get(self, key, default=None):
+        if key in self._LAZY_KEYS:
+            self._encode()
+        return dict.get(self, key, default)
+
+    def wire(self) -> dict:
+        """The complete JSON-ready frame (json.dumps would not call
+        __missing__, so the Handler serves this, never the object itself)."""
+        self._encode()
+        return dict(self)
 
 
 def _refresh_frames():
@@ -1186,24 +1262,21 @@ def _refresh_frames():
         rgba = np.asarray(rgb_data.numpy() if hasattr(rgb_data, "numpy") else rgb_data)
         if rgba.size == 0:
             continue
-        bgr = cv2.cvtColor(rgba[..., :3].astype(np.uint8), cv2.COLOR_RGB2BGR)
-        ok, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
-        if not ok:
-            continue
+        # COPY now (astype always copies): the renderer reuses this buffer
+        # after the next update. Encoding is deferred to the reader.
+        rgb = rgba[..., :3].astype(np.uint8)
         depth_data, _ = sensor.get_data("distance_to_image_plane")
-        depth_b64 = None
+        depth = None
         if depth_data is not None:
             d = np.asarray(depth_data.numpy() if hasattr(depth_data, "numpy") else depth_data)
             if d.size:
-                # sensor returns (H, W, 1); the wire format is flat (H, W)
-                d = np.ascontiguousarray(np.squeeze(d), dtype=np.float32) * MPU
-                d[~np.isfinite(d)] = 0.0  # RTX far-clip returns inf
-                depth_b64 = base64.b64encode(zlib.compress(d.tobytes(), 3)).decode()
-        h, w = bgr.shape[:2]
+                # sensor returns (H, W, 1); the wire format is flat (H, W).
+                # `* MPU` allocates, so this is a private copy as well.
+                depth = np.ascontiguousarray(np.squeeze(d), dtype=np.float32) * MPU
+        h, w = rgb.shape[:2]
         entry = {
             "ok": True, "width": w, "height": h, "K": [list(row) for row in K],
-            "rgb_jpeg_b64": base64.b64encode(jpg.tobytes()).decode(),
-            "depth_z_b64": depth_b64, "t": t,
+            "t": t,
             "proprioception": ({**snapshot, "q": list(snapshot["q"])}
                                if snapshot is not None else None),
         }
@@ -1219,7 +1292,7 @@ def _refresh_frames():
             # eye-in-hand: extrinsics move with the arm; serve the matrix
             # that was current when this frame rendered
             entry["T_base_cam"] = [list(row) for row in _wrist_T]
-        _frames[cam_name] = entry
+        _frames[cam_name] = _LazyFrame(entry, rgb, depth)
 
 
 # ── main loop: physics + rendering stay on the main thread (Kit rule) ────
@@ -1546,8 +1619,8 @@ def _resume_scene():
     art = Articulation(args.prim)
     _init_wrist_cam()
     with _state_lock:
-        _targets["q"] = list(HOME_Q)
-        _targets["grip_frac"] = 1.0
+        _targets["q"] = None if _NO_TARGETS else list(HOME_Q)
+        _targets["grip_frac"] = None if _NO_TARGETS else 1.0
         _targets["stopped"] = False
     # Props: the USD re-parse already rebirths them at their authored spawn
     # poses. The old code skipped this under Newton because "RigidPrim

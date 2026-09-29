@@ -43,7 +43,8 @@ def test_registration_is_idempotent_and_launches_no_services(tmp_path, monkeypat
     before = {str(p): p.stat().st_mtime_ns for p in first}
     assert module.register(repo, desktop_dir=desktop) == first
     assert {str(p): p.stat().st_mtime_ns for p in first} == before
-    assert len(first) == 4
+    assert len(first) == 5
+    assert repo / "runs/.install/paai-spark.desktop" in first
     for entry in first:
         text = entry.read_text()
         assert "Terminal=true" in text
@@ -56,7 +57,7 @@ def test_registration_is_idempotent_and_launches_no_services(tmp_path, monkeypat
         assert parsed["Desktop Entry"]["Type"] == "Application"
         assert parsed["Desktop Entry"]["Name"]
         assert parsed["Desktop Entry"]["Exec"]
-    assert not (repo / "runs").exists()
+    assert not (repo / "runs/.install/install.json").exists()
 
 
 @pytest.mark.skipif(shutil.which("desktop-file-validate") is None,
@@ -109,7 +110,9 @@ def test_installer_runs_existing_pipeline_and_keeps_progress_log(tmp_path, monke
     assert "READY" not in log.read_text()
 
 
-def test_launch_uses_installer_supervisor_with_pinned_source_and_profile(tmp_path):
+@pytest.mark.parametrize("recorded_brain", ["qwen", "cosmos"])
+@pytest.mark.parametrize("options", [[], ["--headless"], ["--no-open"], ["--headless", "--no-open"]])
+def test_launch_uses_installer_supervisor_with_pinned_source_and_profile(tmp_path, recorded_brain, options):
     module = controller()
     repo = tmp_path / "repo"
     script = repo / "scripts/install_support.py"
@@ -121,12 +124,16 @@ def test_launch_uses_installer_supervisor_with_pinned_source_and_profile(tmp_pat
     consent = repo / "runs/.install/install.json"
     consent.parent.mkdir(parents=True)
     consent.write_text(json.dumps({"repo": str(repo.resolve()), "eula_accepted": True,
-                                   "eula_url": module.EULA_URL, "profile": "spark", "brain": "cosmos",
+                                   "eula_url": module.EULA_URL, "profile": "spark", "brain": recorded_brain,
                                    "isaac_environment": {"ISAACSIM_PATH": "/selected/source", "ISAACSIM_PYTHON_EXE": "/selected/source/python.sh"}}))
-    assert module.perform(repo, "launch") == 0
+    result = subprocess.run([sys.executable, "-B", str(ROOT / "scripts/desktop.py"),
+                             "launch", "--repo", str(repo), *options],
+                            capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stdout + result.stderr
     latest = json.loads((repo / "runs/.install/desktop-latest.json").read_text())
     output = [json.loads(s) for s in Path(latest["log"]).read_text().splitlines() if s.startswith('{')][0]
-    assert output["args"] == ["launch", "--repo", str(repo), "--profile", "spark", "--brain", "cosmos"]
+    assert output["args"] == ["launch", "--repo", str(repo), "--profile", "spark", "--brain", "qwen", "--headless",
+                              *(["--no-open"] if "--no-open" in options else [])]
     assert output["source"] == "/selected/source"
     assert output["profile"] == "cascade-demo"
 
@@ -221,6 +228,14 @@ def test_terminal_close_stops_only_its_child_and_records_interruption(tmp_path, 
             assert process.poll() is None
             time.sleep(0.02)
         assert marker.is_file()
+        # PID creation precedes both the child's print and the controller's log
+        # write. Interrupt only after the line we assert below is persisted.
+        report = json.loads((repo / "runs/.install/desktop-latest.json").read_text())
+        log = Path(report["log"])
+        while "CHILD_READY" not in log.read_text() and time.monotonic() < deadline:
+            assert process.poll() is None
+            time.sleep(0.02)
+        assert "CHILD_READY" in log.read_text()
         process.send_signal(signum)
         output, _ = process.communicate(timeout=15)
         assert process.returncode == 130, output

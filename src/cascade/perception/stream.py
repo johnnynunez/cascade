@@ -23,6 +23,7 @@ import time
 
 from ..types import Frame
 from .freshness import capture_marker
+from .thread_join import join_thread
 
 
 class CameraStream:
@@ -60,9 +61,13 @@ class CameraStream:
         self._thread.start()
 
     def close(self) -> None:
+        # Wait for the grab in flight (a bridge `frame` request is bounded by
+        # its socket timeout, then decodes in cv2) BEFORE closing the camera:
+        # a pump thread still inside native code at interpreter exit aborts
+        # the process (see perception/thread_join.py).
         self._stop = True
-        if self._thread is not None:
-            self._thread.join(timeout=5)
+        thread = self._thread
+        if thread is not None and join_thread(thread, what=f"stream-{self.name}"):
             self._thread = None
         self._camera.close()
 

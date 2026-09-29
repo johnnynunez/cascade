@@ -13,6 +13,17 @@ import numpy as np
 from ..types import Grasp, SkillError, make_transform
 
 
+def _flip_twin(g: Grasp) -> Grasp:
+    """The same parallel-jaw grasp with the jaws swapped: the TCP rotated
+    180 degrees about the approach axis. Position, width and approach are
+    unchanged; only which finger lands on which side differs."""
+    a = np.asarray(g.approach, dtype=float).reshape(3)
+    a = a / max(float(np.linalg.norm(a)), 1e-12)
+    flip = 2.0 * np.outer(a, a) - np.eye(3)  # rotation by pi about `a`
+    return Grasp(position=g.position, rotation=flip @ np.asarray(g.rotation, dtype=float),
+                 width_m=g.width_m, approach=g.approach, quality=g.quality, label=g.label)
+
+
 def select_grasp(
     grasps: list[Grasp],
     kin,
@@ -29,6 +40,18 @@ def select_grasp(
     veto candidates on grounds IK cannot see (safety-harness geometry): a
     candidate that would abort mid-descent must lose the ranking here, not
     kill the attempt later.
+
+    A symmetric parallel jaw has TWO wrist poses for every grasp (jaws
+    swapped, 180 degrees apart about the approach). The planners emit both
+    and rank them by quality, which is ~equal by construction -- so the
+    ranking picked the flip by a 1 % tie-break, blind to joint travel.
+    MEASURED on the kitchen orange: the chosen pose spun the wrist 156.5
+    degrees from home while its twin needed ~24; at the kitchen's real-time
+    factor the wrist was still creeping (153.2 -> 154.5 deg) when the settle
+    window closed, and the proof failed twice with "did not settle at
+    pregrasp pose". The best candidate is therefore executed in whichever
+    orientation needs the smaller largest-joint excursion from `q_current`.
+    Single-hinge jaws (below) are not symmetric and keep their pose.
 
     `jaw_fixed_tip_m` + `jaw_close_dir` (both TOOL frame) describe a
     single-hinge jaw whose closing point is not symmetric about the tool
@@ -57,13 +80,10 @@ def select_grasp(
         n = float(np.linalg.norm(close_dir))
         if n > 1e-9:
             close_dir = close_dir / n
-    for g in sorted(grasps, key=lambda g: -g.quality):
-        if g.width_m > max_width_m:
-            reasons.append(
-                f"{g.label}: required width {g.width_m * 1000:.0f}mm > gripper "
-                f"max {max_width_m * 1000:.0f}mm (consider push or regrasp)"
-            )
-            continue
+    q_ref = np.asarray(q_current, dtype=float).reshape(-1)
+
+    def _solve(g: Grasp):
+        """-> (q_pre, q_grasp) or a failure reason string."""
         p_grasp = g.position
         if fixed_tip is not None and close_dir is not None:
             off = fixed_tip + close_dir * (float(g.width_m) / 2.0)
@@ -74,16 +94,38 @@ def select_grasp(
         )
         pre = kin.ik(T_pre, q_current)
         if not pre.success:
-            reasons.append(f"pregrasp IK failed (err {pre.error:.4f})")
-            continue
+            return f"pregrasp IK failed (err {pre.error:.4f})"
         grasp = kin.ik(T_grasp, pre.q)
         if not grasp.success:
-            reasons.append(f"grasp IK failed (err {grasp.error:.4f})")
-            continue
+            return f"grasp IK failed (err {grasp.error:.4f})"
         if validate is not None:
             reason = validate(g, pre.q, grasp.q)
             if reason:
-                reasons.append(f"{g.label}: {reason}")
-                continue
-        return g, pre.q, grasp.q
+                return f"{g.label}: {reason}"
+        return pre.q, grasp.q
+
+    def _travel(q_pre) -> float:
+        q = np.asarray(q_pre, dtype=float).reshape(-1)
+        n = min(q.size, q_ref.size)
+        return float(np.max(np.abs(q[:n] - q_ref[:n]))) if n else 0.0
+
+    for g in sorted(grasps, key=lambda g: -g.quality):
+        if g.width_m > max_width_m:
+            reasons.append(
+                f"{g.label}: required width {g.width_m * 1000:.0f}mm > gripper "
+                f"max {max_width_m * 1000:.0f}mm (consider push or regrasp)"
+            )
+            continue
+        solved = _solve(g)
+        if isinstance(solved, str):
+            reasons.append(solved)
+            continue
+        best = (g, *solved)
+        if fixed_tip is None:
+            twin = _flip_twin(g)
+            twin_solved = _solve(twin)
+            if (not isinstance(twin_solved, str)
+                    and _travel(twin_solved[0]) < _travel(solved[0])):
+                best = (twin, *twin_solved)
+        return best
     raise SkillError("no executable grasp: " + "; ".join(reasons[:4]))

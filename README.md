@@ -1,6 +1,11 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
 <p align="center">
+  <img src="docs/assets/paai-dgx-spark-natural-language-demo.gif" alt="OpenClaw moves a tomato can to the green square in the NVIDIA DGX Spark kitchen demo" width="1280"><br>
+  <a href="docs/DGX_SPARK_SETUP.md">PAAI demo running on NVIDIA DGX Spark · 6× speed</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT"></a>
@@ -79,6 +84,19 @@ the result.
 The authenticated attendee page shows cameras. A separate `/staff/` page
 explains the prompts, result checks and recovery steps. See the
 [booth guide](docs/BOOTH_GUIDE.md) for the staff walkthrough.
+
+## Roadmap
+
+We are working on two things next.
+
+**Newton parity.** The current event path uses CUDA PhysX because it is the
+repeatable setup today. We are closing the cross-engine reproducibility gap in
+contact, grasp and placement behavior, then we can move the full demo to
+Newton.
+
+**Cosmos 3 Edge.** We will add it when native tool calling through OpenClaw is
+consistent enough for normal attendee requests. Until then, Qwen remains the
+working event path.
 
 ## Brev deployment
 
@@ -231,39 +249,26 @@ CPU otherwise — the same profile runs on both.
 Start with the [DGX Spark setup guide](docs/DGX_SPARK_SETUP.md) for host
 checks, installation, startup and recovery.
 
-The one-command delivery targets **Linux DGX Spark: Isaac Sim 6.1.0.0 +
-Newton + Cosmos3-Edge + OpenClaw**. It requires a working NVIDIA driver and
-explicit license acceptance; it does not silently fall back to a hosted
-brain or to MuJoCo. The underlying package still supports Linux and macOS.
-
-**Release status:** these delivery changes must be published before the
-remote command below can install them. Spark/GPU cold-start certification
-is pending; see the [acceptance checklist](docs/SPARK_DELIVERY.md).
+The Spark installer prepares **Isaac Sim 6.1, Qwen Q4 with vision,
+OpenClaw and the kitchen assets**. It downloads and verifies the model and
+kitchen automatically. Use the single command in the
+[Spark setup guide](docs/DGX_SPARK_SETUP.md#2-install), then start with:
 
 ```bash
-# One command per Spark, AFTER publishing this installer to that ref:
-curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/main/scripts/bootstrap.sh | bash -s -- --accept-eula
-# For a fleet: pin the URL to a tested commit and pass the same --ref.
+python3 scripts/desktop.py launch --repo "$PWD"
+```
 
-# The current implementation can be exercised from this checkout:
-bash scripts/install.sh --dir "$PWD" --profile spark --accept-eula
-bash scripts/install.sh --dir "$PWD" --dry-run       # reports only
-# --prepare-only caches dependencies/assets without starting the demo.
+READY requires two native OpenClaw orders: green cube to green square,
+then orange to open box, with a verified reset after each. Live simulation
+state and advancing cameras verify both cases. Logs and screenshots remain
+under `runs/.install/` and `runs/.launch/profile-cascade-demo/`.
 
-# Minimal development installation (no Isaac, model service or chat host):
+For development without Isaac or a local model:
+
+```bash
 git clone https://github.com/johnnynunez/cascade.git && cd cascade
 uv venv && uv pip install -e '.[dev,kinematics]'
 ```
-
-On a Linux desktop, register **Install CASCADE (Spark)** and **CASCADE (Spark)**
-with `python3 scripts/desktop.py register --repo "$PWD"`. Registration starts
-nothing and accepts no license; the installer shortcut asks for explicit
-consent. Successful Spark preparation also registers these entries. The launch
-shortcut reuses the recorded Isaac source/wheel environment, supervises local
-Cosmos and requires fresh physical proof before READY. Logs persist under
-`runs/.install/` and `runs/.launch/`. Existing Isaac source releases are reused
-without pip writes to embedded packages. See the
-[desktop and source-reuse instructions](docs/SPARK_DELIVERY.md#desktop-installation-and-launch).
 
 `kinematics` (Pinocchio) is not optional in practice — FK/IK back the safety
 layer, so every run needs it. Everything else is opt-in, one extra per
@@ -317,34 +322,32 @@ text encoder, and other rig-specific gotchas.
 Use the installer above for a new Spark. `run.sh` launches an installed rig
 or an explicit laptop development mode; its auto-detection is not the
 Spark installation contract. Local MuJoCo/OpenAI tests and standalone
-Newton CPU tests do not certify Isaac/Cosmos GPU operation.
+Newton CPU tests do not certify the Spark event flow.
 
 ```bash
 git clone https://github.com/johnnynunez/cascade && cd cascade
 ./run.sh                 # Isaac Sim if installed (ISAACSIM_PATH or a standard
                          # install path), else MuJoCo on any laptop
-./run.sh isaac --brain cosmos  # installed Spark: bridge + editor + local brain
+python3 scripts/desktop.py launch --repo "$PWD"  # prepared Spark, full stack
 ./run.sh mujoco --brain keep  # Mac: keep an already authenticated OpenClaw brain
 ./run.sh check isaac     # preflight only -- lists what is missing, starts nothing
 ./run.sh down            # stop everything it started
 ./run.sh isaac --headless --no-open   # extra flags pass through to scripts/launch.sh
 ```
 
-The Spark installer creates separate `.venv`, `.isaacsim` and `.cosmos`
-environments, a checkout-local OpenClaw 2026.9.3 CLI and the dedicated
-`cascade-demo` profile. It installs Isaac Sim **6.1.0.0** and downloads the
-required scene/perception assets and pinned Cosmos snapshot. Existing
-source releases can be selected with `ISAACSIM_PATH` (the directory with
-`python.sh`); managed Python is selected with `ISAACSIM_PYTHON_EXE`.
-The initial downloads and shader warmup are not an instant launch.
+The Spark installer creates a private app environment, managed Isaac runtime,
+OpenClaw CLI and model runtime. It downloads Qwen Q4, its vision projector,
+robot assets and kitchen files. See [Spark delivery](docs/SPARK_DELIVERY.md)
+for the pinned identities and isolation rules.
 
 `./run.sh` is a thin wrapper: `scripts/launch.sh --setup --sim <mode>` when
 setup is needed, `scripts/launch.sh --sim <mode>` afterwards. Before it
 prints READY it proves the stack, not just the wiring: it builds the robot
 runtime once with the exact environment the MCP server gets, lists the
 tools through OpenClaw, gets a trivial answer from the brain, and in sim
-modes runs a real pick and reset in ONE persistent chat session (pink cube
-for Isaac, red cube for MuJoCo). A `proof.json` receipt must bind the
+modes runs physical orders and reset in one persistent chat session. Spark
+requires green cube to green square and orange to open box; generic Isaac
+uses the pink cube, and MuJoCo uses the red cube. A `proof.json` receipt must bind the
 expected model/session/MCP runtime to the physical result and reset of the
 manipulated prop. `--no-robot-turn` is **STARTED / UNVERIFIED**, never READY.
 The banner names the components actually selected (sim bridge, occupancy
@@ -545,6 +548,11 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
 - The **[agent](src/cascade/agent/)** dispatches through three tiers —
   reflex (regex, no LLM) → experience (learned habits) → LLM — so routine
   commands never wait on the model, with a VLM advisor kicking in on failure.
+- **[Retry evidence](docs/DREAM_RSI_ADAPTATION.md)** gates new ASPIRE library
+  notes: a later success must match the failed action's goal, resolved arm
+  and held-object context, with a measured, confirmed postcondition and no
+  intervening reset or task end. This filters unsupported learning; it does
+  not change robot control or establish that a retry caused an improvement.
 
 cascade works with hosted and local [LLM backends](#llm-backends) and is
 exposed as an [MCP server](#run-it-under-any-mcp-agent-platform) any
@@ -607,7 +615,7 @@ python scripts/setup_agents.py --camera d455f --arm rebot_rs --write
 | **Claude Code** | project `.mcp.json` (ships in this repo; interpreter path is machine-specific, and it pins the Isaac camera/arm profiles) | if your checkout lives elsewhere, regenerate with the profiles you want: `setup_agents.py --host claude --camera isaac,isaac_side --arm isaac --write` (add `--python <interpreter>` if your venv is not at `<checkout-parent>/.demo`); user-scope: `--host claude` prints the `claude mcp add` one-liner |
 | **Claude Desktop** | `claude_desktop_config.json` | paste the JSON block from `setup_agents.py --host claude` |
 | **Codex CLI** | `~/.codex/config.toml` `[mcp_servers.cascade]` | `setup_agents.py --host codex --write`, verify with `codex mcp list` |
-| **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `./scripts/launch.sh` (one click, verified on OpenClaw 2.0 = 2026.9.3: brings up the simulator if there is one, registers the server idempotently with `openclaw mcp set`, restarts the gateway, checks the robot tools are listed via `mcp probe --json` and that the brain answers a turn, then opens the web chat; `--brain auto` keeps whatever auth OpenClaw already has unless a local model server is answering) · `./scripts/bootstrap.sh` (fresh GPU box: installs the OpenClaw CLI + Cosmos3-Edge brain + registers skills) · `./scripts/openclaw_demo.sh` (local-brain variant when the servers are already up); `setup_agents.py --host openclaw` prints the `openclaw mcp add` one-liner + JSON block. OpenClaw blocks the `PYTHONPATH` env — the package must be editable-installed in the venv (the scripts handle it). On macOS the server is launched under `mjpython` so the MuJoCo viewer can open (plain python refuses `launch_passive` there) |
+| **OpenClaw** | native `mcp.servers` (2026+) or [mcporter](https://docs.openclaw.ai/cli/mcp) | `./scripts/launch.sh` (one click, verified on OpenClaw 2.0 = 2026.9.3: brings up the simulator if there is one, registers the server idempotently with `openclaw mcp set`, restarts the gateway, checks the robot tools are listed via `mcp probe --json` and that the brain answers a turn, then opens the web chat; `--brain auto` keeps whatever auth OpenClaw already has unless a local model server is answering) · `./scripts/bootstrap.sh` (fresh Spark: installs Isaac, Qwen Q4, OpenClaw and verified kitchen assets) · `./scripts/openclaw_demo.sh` (local-brain variant when the servers are already up); `setup_agents.py --host openclaw` prints the `openclaw mcp add` one-liner + JSON block. OpenClaw blocks the `PYTHONPATH` env — the package must be editable-installed in the venv (the scripts handle it). On macOS the server is launched under `mjpython` so the MuJoCo viewer can open (plain python refuses `launch_passive` there) |
 
 The server pre-warms perception at startup (cameras + detector + world
 model) while the ARM stays unpowered until the first motion command
@@ -778,6 +786,8 @@ silently vanishes.
 - [docs/AGENTIC_UPGRADES.md](docs/AGENTIC_UPGRADES.md) — the Pigey/Harness-VLA/
   Claude-plays-robotics mechanisms (verification, envelope, cursor) and the
   pitfalls each one cost
+- [docs/DREAM_RSI_ADAPTATION.md](docs/DREAM_RSI_ADAPTATION.md) — scoped retry
+  admission, trace context, offline learning commands and verification limits
 - [docs/MOBILITY_AND_NAVIGATION_DESIGN.md](docs/MOBILITY_AND_NAVIGATION_DESIGN.md)
   — design for mobile bases, humanoid locomotion and navigation (`MobileBase`,
   Vesta's nav verbs, Nav2 / Warp planner backends, G1 in Isaac first); not code yet

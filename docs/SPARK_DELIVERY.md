@@ -1,6 +1,8 @@
 # Spark delivery details
 
 Use [DGX Spark setup](DGX_SPARK_SETUP.md) for the install and start commands.
+That guide remains pinned to the earlier scene. Re-pinning it for the original
+kitchen requires a fresh installation and physical acceptance on Spark.
 The default event flow installs Isaac Sim, Qwen Q4, the vision projector,
 llama.cpp, OpenClaw and the verified kitchen. Cosmos is not installed.
 
@@ -14,7 +16,7 @@ llama.cpp, OpenClaw and the verified kitchen. Cosmos is not installed.
 | Vision | `models/qwen3.8-27b/mmproj-BF16.gguf` |
 | llama.cpp | `.llama.cpp`, pinned source and local CUDA build receipt |
 | OpenClaw | `.openclaw-cli/bin/openclaw`, version 2026.9.3; profile `cascade-demo` |
-| Kitchen | `demo/scene/assets/` and `demo/vendor-kitchen/`; all 166 manifest members verified |
+| Original kitchen | `demo/own_kitchen.py`, `demo/own_kitchen_props.py` and `demo/scene/props/`; verified by `demo/scene/own_assets.json` |
 
 The model manifest is
 [`deploy/brev/profiles/qwen3.8-27b-q4.json`](../deploy/brev/profiles/qwen3.8-27b-q4.json).
@@ -23,14 +25,12 @@ The model alias is `Qwen/Qwen3.8-27B`; reasoning is off.
 The installer fetches the model and projector into the project and builds
 its own aarch64 llama.cpp. It does not need a preinstalled model server.
 
-The kitchen comes from the `kitchen-v1` release. Its archive is 705,250,534
-bytes with SHA-256
-`c94c2826180e295e4df16d799b5b3f581c9a2e60b08f0c34a99831ca1f80e35d`.
-The installer checks the archive, then every member against
-[`bundle_assets.json`](../deploy/brev/bundle_assets.json).
-It rejects unexpected members, links and unsafe paths. The Lightwheel
-CC BY-NC and orange asset notices remain with the installed files.
-The release is an installer detail. Do not add the unpacked asset tree to Git.
+The current checkout contains the kitchen geometry, procedural materials,
+orange and bowl generators, and the small text prop layers. The installer
+verifies these source files against [`own_assets.json`](../demo/scene/own_assets.json)
+without downloading a kitchen archive. See the
+[scene provenance notice](../demo/scene/NOTICE.md) and
+[original prop dedication](../demo/scene/props/LICENSE.txt).
 
 `--check` downloads nothing. It verifies the installed runtime, model
 identities, robot assets and kitchen files. A passing check proves preparation.
@@ -91,19 +91,20 @@ screenshots and reset readbacks. A failed native placement or reset, refuted
 placement or failed audit prevents READY. `--no-robot-turn` remains
 STARTED / UNVERIFIED.
 
-The earlier installation acceptance's orange case needed two grasp attempts. Its placement passed the
+The previous scene's installation acceptance needed two orange grasp attempts. Its placement passed the
 independent audit, but the return-home substep reported `did not settle at home`.
 The following native reset and final inspection passed. Reset and inspect
 before another order if this warning appears. The native tool's center-only
 postcondition remains unverified; the independent audit establishes containment,
 release and support.
 
-Natural-language acceptance also passed inspection, green cube placement,
+The previous scene's natural-language acceptance also passed inspection, green cube placement,
 orange placement and same-world resets with native request/response traces.
 An initial orange attempt failed at the pre-grasp pose and was reported plainly.
 After a natural reset and cleanup of completed test sessions, a retry passed
 the unchanged physical audit. This does not establish the cause of the first
 failure. No controller or physics setting was changed for that retry.
+These historical results do not establish acceptance of the original kitchen on Spark.
 
 ## Clean-room acceptance
 

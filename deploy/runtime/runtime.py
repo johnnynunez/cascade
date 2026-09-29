@@ -475,17 +475,23 @@ def simulator_probe():
     finally:
         client.close()
     scene = ROOT / 'demo/scene/kitchen_config.json'
+    spec = importlib.util.spec_from_file_location('runtime_kitchen_identity', ROOT / 'demo/scene_identity.py')
+    identity_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(identity_module)
+    expected_identity = identity_module.scene_identity(scene)
     attestation = pong.get('gpu_attestation', {})
     valid = (pong.get('ok') is True and pong.get('engine') == 'physx' and
         pong.get('scene_config') == str(scene) and
-        pong.get('scene_config_sha256') == hashlib.sha256(scene.read_bytes()).hexdigest() and
+        all(pong.get(key) == expected_identity[key] for key in
+            ('scene_name', 'scene_config_sha256', 'scene_assets_sha256', 'scene_content_sha256')) and
         math.isclose(pong.get('physics_dt_s', 0), 1 / 120, rel_tol=1e-6) and
         pong.get('physics_gpu') is True and attestation.get('cpu_fallback_allowed') is False and
         attestation.get('device') == 'cuda:0' and state.get('q') and all(math.isfinite(x) for x in state['q']))
     if not valid:
         raise ValueError('Isaac did not prove the expected scene, live joints, and GPU PhysX')
     return {'ready': True, 'gpu_attestation': attestation, 'physics_dt_s': pong['physics_dt_s'],
-            'scene_sha256': pong['scene_config_sha256'], 'joints_finite': True}
+            'scene_sha256': pong['scene_config_sha256'], 'scene_content_sha256': pong['scene_content_sha256'],
+            'scene_name': pong['scene_name'], 'joints_finite': True}
 
 
 def smoke():

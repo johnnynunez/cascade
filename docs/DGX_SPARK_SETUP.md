@@ -4,6 +4,10 @@ PAAI means Physical Agentic AI. This installs the Build a Claw kitchen demo:
 Isaac Sim, local Qwen Q4, OpenClaw and the PAAI camera extension in Chromium.
 No model API key is needed.
 
+The commands below remain pinned to the previously verified revision and install
+its earlier kitchen. The original kitchen now included in this repository needs
+a fresh Spark installation and physical proof before this guide can be re-pinned.
+
 ## Quick path
 
 Use a normal account on the Spark. Start with a new `$HOME/paai-spark` folder.
@@ -187,7 +191,7 @@ Paths are relative to `$HOME/paai-spark`.
 | Pinned Qwen Q4 model and BF16 vision projector | `models/qwen3.8-27b/` |
 | Pinned llama.cpp CUDA build and receipt | `.llama.cpp/build/` |
 | Robot Git LFS files and perception weights | `assets/`, `models/` |
-| Verified 166-file kitchen release and license notices | `demo/scene/assets/`, `demo/vendor-kitchen/` |
+| Earlier kitchen from this guide's pinned revision | `demo/scene/` |
 | Source, package and consent receipt; reusable environment | `runs/.install/install.json`, `runs/.install/env.sh` |
 
 The installer also uses `$HOME/.local/bin/uv`, `$HOME/.cache/uv` and

@@ -36,6 +36,8 @@ def boundary_env(tmp_path):
     ):
         if (ROOT / "scripts" / name).exists():
             shutil.copy2(ROOT / "scripts" / name, source / "scripts" / name)
+    (source / "demo").mkdir()
+    shutil.copy2(ROOT / "demo/scene_identity.py", source / "demo/scene_identity.py")
     (source / "pyproject.toml").write_text(
         '[project]\nname="boundary-double"\nversion="0.0.0"\n'
     )

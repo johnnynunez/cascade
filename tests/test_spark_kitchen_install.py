@@ -150,14 +150,14 @@ def test_spark_check_reports_missing_kitchen(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(support, "MODEL_ASSETS", {})
     monkeypatch.setattr(support, "scene_problems", lambda repo: [])
     monkeypatch.setattr(support, "kitchen_problems", lambda repo: [
-        "missing kitchen asset: demo/scene/assets/background.usda"
+        "Missing kitchen source: demo/own_kitchen.py"
     ])
     monkeypatch.setattr(support.subprocess, "run", lambda *a, **kw:
                         SimpleNamespace(returncode=0, stdout="", stderr=""))
 
     assert support.main(["check", "--repo", str(tmp_path), "--profile", "spark"]) == 3
     output = capsys.readouterr().out
-    assert "missing kitchen asset: demo/scene/assets/background.usda" in output
+    assert "Missing kitchen source: demo/own_kitchen.py" in output
     assert "READY" not in output
 
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import fcntl
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -35,6 +36,7 @@ class AttendeeChat:
         self.directory = self.state / "visitor"
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.lock_path = self.directory / "order.lock"
+        self.admission_path = self.directory / "admission.lock"
         self.result_path = self.directory / "latest.json"
 
     def configuration(self):
@@ -60,8 +62,17 @@ class AttendeeChat:
                     and {"qwen", "isaac_bridge", "gateway_child"} <=
                     {row["role"] for row in live_records(self.state, owner)})
 
+    @contextmanager
+    def admission(self):
+        # This lock covers only admission/status bookkeeping, never an agent
+        # turn. Health readers cannot impersonate a running order to submit().
+        with self.admission_path.open("a+") as mutex:
+            self.admission_path.chmod(0o600)
+            fcntl.flock(mutex, fcntl.LOCK_EX)
+            yield
+
     def busy(self):
-        with self.lock_path.open("a+") as lock:
+        with self.admission(), self.lock_path.open("a+") as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
@@ -78,9 +89,9 @@ class AttendeeChat:
         return None
 
     def order_state(self, session):
-        # Read the latch while holding the same lock as admission. An in-flight
-        # submit cannot appear abandoned between lock inspection and the read.
-        with self.lock_path.open("a+") as lock:
+        # Serialize the snapshot with admission, but only try the worker lock:
+        # a real active order must be reported immediately, never waited out.
+        with self.admission(), self.lock_path.open("a+") as lock:
             busy = False
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -126,28 +137,29 @@ class AttendeeChat:
         if not isinstance(message, str) or not message.strip() or len(message) > 2000:
             raise ValueError("Use a message between 1 and 2000 characters")
         proof, config = self.configuration()
-        lock = self.lock_path.open("a+")
-        self.lock_path.chmod(0o600)
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            lock.close()
-            raise BusyError("Wait for the current order to finish") from None
-        identifier = uuid.uuid4().hex
-        try:
-            # A lost CLI does not prove its gateway or physical action stopped.
-            # Only a new verified proof session clears this durable latch.
-            proof, config = self.configuration()
-            if self.unfinished(proof["session_id"]):
-                raise BusyError("The demo must recover before another order")
-            self.save_order(proof["session_id"], {"id": identifier, "status": "running", "started_at": time.time()})
-            for old in sorted(self.directory.glob("order-*.json"), key=lambda path: path.stat().st_mtime)[:-32]:
-                old.unlink()
-            worker = threading.Thread(target=self._turn, args=(identifier, message.strip(), proof, config, lock), daemon=True)
-            worker.start()
-        except BaseException:
-            lock.close()
-            raise
+        with self.admission():
+            lock = self.lock_path.open("a+")
+            self.lock_path.chmod(0o600)
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                lock.close()
+                raise BusyError("Wait for the current order to finish") from None
+            identifier = uuid.uuid4().hex
+            try:
+                # A lost CLI does not prove its gateway or physical action stopped.
+                # Only a new verified proof session clears this durable latch.
+                proof, config = self.configuration()
+                if self.unfinished(proof["session_id"]):
+                    raise BusyError("The demo must recover before another order")
+                self.save_order(proof["session_id"], {"id": identifier, "status": "running", "started_at": time.time()})
+                for old in sorted(self.directory.glob("order-*.json"), key=lambda path: path.stat().st_mtime)[:-32]:
+                    old.unlink()
+                worker = threading.Thread(target=self._turn, args=(identifier, message.strip(), proof, config, lock), daemon=True)
+                worker.start()
+            except BaseException:
+                lock.close()
+                raise
         return {"id": identifier, "status": "running"}
 
     def _turn(self, identifier, message, proof, config, lock):

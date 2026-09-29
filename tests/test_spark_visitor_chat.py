@@ -86,8 +86,10 @@ def test_local_and_public_visitors_share_one_order_lock_and_proof_session(chat, 
     assert entered.wait(2)
     second = chat_module.AttendeeChat(chat.repo)
     assert second.status()["ready"] is True and second.status()["busy"] is True
+    rejection_started = time.monotonic()
     with pytest.raises(chat_module.BusyError):
         second.submit("Move the cube")
+    assert time.monotonic() - rejection_started < 1
     release.set()
     result = finished(chat)
     assert result["id"] == submitted["id"] and result["status"] == "done"
@@ -97,6 +99,75 @@ def test_local_and_public_visitors_share_one_order_lock_and_proof_session(chat, 
     assert command[command.index("--session-id") + 1] == "cascade-proof-" + "a" * 32
     assert kwargs["env"]["OPENCLAW_STATE_DIR"] == str(chat.state / "openclaw")
     assert kwargs["pass_fds"] and "private-token-fixture" not in str(command)
+
+
+def test_concurrent_health_snapshot_does_not_reject_an_idle_order(chat, monkeypatch):
+    observer = chat_module.AttendeeChat(chat.repo)
+    snapshot_entered, release_snapshot = threading.Event(), threading.Event()
+    submitted, results, errors = threading.Event(), [], []
+    actual = observer.unfinished
+    def paused_snapshot(session):
+        snapshot_entered.set()
+        assert release_snapshot.wait(3)
+        return actual(session)
+    monkeypatch.setattr(observer, "unfinished", paused_snapshot)
+    monkeypatch.setattr(chat_module.subprocess, "run", lambda *a, **kw:
+                        SimpleNamespace(returncode=0, stdout=json.dumps(answer(chat))))
+    reader = threading.Thread(target=observer.status)
+    def submit():
+        try:
+            results.append(chat.submit("Describe the scene"))
+        except Exception as error:
+            errors.append(error)
+        finally:
+            submitted.set()
+    writer = threading.Thread(target=submit)
+    reader.start()
+    try:
+        assert snapshot_entered.wait(2)
+        writer.start()
+        # Only short bookkeeping is held; no worker exists to justify409.
+        assert not submitted.wait(.1)
+    finally:
+        release_snapshot.set()
+        reader.join(3)
+        if writer.ident is not None:
+            writer.join(3)
+    assert submitted.is_set() and not errors
+    assert len(results) == 1 and finished(chat)["status"] == "done"
+
+
+def test_concurrent_health_readers_cannot_hide_an_abandoned_order(chat, monkeypatch):
+    session = chat.configuration()[0]["session_id"]
+    chat.save_order(session, {"id": "c" * 32, "status": "running"})
+    observer = chat_module.AttendeeChat(chat.repo)
+    entered, release, second_done = threading.Event(), threading.Event(), threading.Event()
+    actual = observer.unfinished
+    states = []
+    def paused_snapshot(session):
+        entered.set()
+        assert release.wait(3)
+        return actual(session)
+    monkeypatch.setattr(observer, "unfinished", paused_snapshot)
+    first = threading.Thread(target=lambda: states.append(observer.status()))
+    def second_read():
+        states.append(chat.status())
+        second_done.set()
+    second = threading.Thread(target=second_read)
+    first.start()
+    try:
+        assert entered.wait(2)
+        second.start()
+        assert not second_done.wait(.1)
+    finally:
+        release.set()
+        first.join(3)
+        if second.ident is not None:
+            second.join(3)
+    assert len(states) == 2
+    assert all(state["ready"] is False and state["busy"] is False for state in states)
+    with pytest.raises(chat_module.BusyError):
+        chat.submit("Move the cube")
 
 
 def test_only_assistant_text_and_allowed_tool_names_reach_the_visitor(chat, monkeypatch):

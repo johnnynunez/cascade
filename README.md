@@ -138,6 +138,12 @@ also opened authenticated OpenClaw beside the native panel on Brev. The extensio
 does not handle gateway authentication or public visitor credentials.
 See [installation details and tested limitations](docs/CHROME_EXTENSION.md).
 
+A Firefox build of the same companion lives in
+[`extensions/firefox`](extensions/firefox). Build it with
+`python3 extensions/firefox/package.py`, then load the `.xpi` from
+`about:debugging` as a temporary add-on. See the
+[Firefox instructions](docs/FIREFOX_EXTENSION.md).
+
 ## What it runs on
 
 **Robots.** Add one by subclassing `ArmBase` (six methods) and dropping a

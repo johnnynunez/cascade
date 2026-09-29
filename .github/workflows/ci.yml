@@ -50,6 +50,7 @@ jobs:
       - name: check camera controls and page behavior
         run: >-
           node --test extensions/chrome/tests/*.test.mjs
+          extensions/firefox/tests/*.test.mjs
           deploy/runtime/tests/*.cjs deploy/runtime/tests/*.mjs
           deploy/brev/tests/*.cjs deploy/brev/tests/*.mjs
 

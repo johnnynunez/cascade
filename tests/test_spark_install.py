@@ -646,7 +646,7 @@ def test_launch_hands_exact_env_to_launcher_and_records_owned_qwen(
         assert support.main(["launch", "--repo", str(repo), "--profile", "spark",
                              "--brain", "qwen", *options]) == 0
         record = json.loads((repo / "launch-record.json").read_text())
-        assert record["args"] == ["--sim", "isaac", "--brain", "qwen", *options]
+        assert record["args"] == ["--sim", "isaac", "--brain", "qwen", *options, "--no-judge"]
         assert record["env"] == {
             "ISAACSIM_PYTHON_EXE": str(repo / ".isaacsim/bin/python"),
             "CASCADE_OPENCLAW_PROFILE": "cascade-demo",

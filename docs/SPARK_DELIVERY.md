@@ -58,6 +58,9 @@ The gateway runs as a project-owned foreground process on loopback port
 unrelated occupied port; it does not adopt or stop that service.
 Process receipts bind the checkout, profile, command, PID and process birth.
 `./run.sh down` stops only processes belonging to the installation.
+The Spark launch passes `--no-judge`: the optional keyframe judge in
+`configs/demo.yaml` targets the personal gateway with a token from
+`~/.openclaw`, so it never runs here. The physical audit is the gate.
 
 ## Natural English requests
 

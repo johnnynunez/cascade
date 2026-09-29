@@ -514,6 +514,11 @@ def _launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, head
             command.append("--no-open")
         if headless:
             command.append("--headless")
+        if profile == "spark":
+            # The optional keyframe judge (eval.judge) calls the personal
+            # OpenClaw gateway with a token read from ~/.openclaw. Spark stays
+            # on its own profile; the physical audit remains the READY gate.
+            command.append("--no-judge")
         launcher = subprocess.Popen(command, cwd=repo, env=env, start_new_session=True)
         while launcher.poll() is None:
             if qwen is not None and qwen.poll() is not None:

@@ -46,7 +46,8 @@ def private_json(path, value):
     if path.is_symlink():
         raise ValueError("Private files must not be symbolic links")
     temporary = path.with_suffix(".tmp")
-    with temporary.open("w", opener=lambda p, flags: os.open(p, flags | os.O_NOFOLLOW, 0o600)) as stream:
+    with open(temporary, "w", opener=lambda p, flags: os.open(p, flags | os.O_NOFOLLOW, 0o600)) as stream:
+        os.fchmod(stream.fileno(), 0o600)
         json.dump(value, stream, indent=2)
         stream.write("\n")
     temporary.chmod(0o600)
@@ -95,6 +96,14 @@ def unit_arg(value, *, expand_dollars=True):
     return '"' + (value.replace("$", "$$") if expand_dollars else value) + '"'
 
 
+def unit_path(value):
+    # Path-valued directives do not use ExecStart's argument quoting.
+    value = str(value)
+    if not value.startswith("/") or any(character in value for character in "\n\r\x00"):
+        raise ValueError("Service paths must be absolute and contain no line breaks or NUL")
+    return value.replace("%", "%%")
+
+
 def units(repo, settings):
     script = repo / "scripts/spark_public.py"
     common = ["/usr/bin/python3", str(script)]
@@ -116,7 +125,7 @@ def units(repo, settings):
         after = "network-online.target" + (" paai-spark-demo.service" if name != "paai-spark-demo" else "")
         result[name] = (f"# PAAI Spark checkout: {repo}\n[Unit]\nDescription=PAAI Spark {name}\n"
                         f"After={after}\nStartLimitIntervalSec=0\n[Service]\nType=simple\n"
-                        f"WorkingDirectory={unit_arg(repo, expand_dollars=False)}\nEnvironment={unit_arg('HOME=' + settings['runtime_home'], expand_dollars=False)}\n"
+                        f"WorkingDirectory={unit_path(repo)}\nEnvironment={unit_arg('HOME=' + settings['runtime_home'], expand_dollars=False)}\n"
                         "Environment=PYTHONUNBUFFERED=1\nEnvironment=PYTHONDONTWRITEBYTECODE=1\n"
                         f"ExecStart={' '.join(unit_arg(part) for part in environment + command)}\n"
                         "Restart=always\nRestartSec=10\nTimeoutStopSec=420\nKillMode=mixed\n"

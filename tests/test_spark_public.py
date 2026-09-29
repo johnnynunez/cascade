@@ -3,6 +3,8 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -57,6 +59,68 @@ def test_secrets_require_private_owner_files_and_never_enter_failed_command_outp
     assert "private-token-fixture" not in str(failure.value)
 
 
+def test_private_json_creates_and_atomically_replaces_real_private_files(tmp_path):
+    path = tmp_path / "credentials.json"
+    public.private_json(path, {"password": "first-fixture-password"})
+    assert json.loads(path.read_text()) == {"password": "first-fixture-password"}
+    assert path.stat().st_mode & 0o777 == 0o600
+    with path.open() as previous:
+        public.private_json(path, {"password": "second-fixture-password"})
+        assert json.load(previous) == {"password": "first-fixture-password"}
+    assert json.loads(path.read_text()) == {"password": "second-fixture-password"}
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert not path.with_suffix(".tmp").exists()
+
+
+@pytest.mark.parametrize("link_location", ["destination", "temporary"])
+def test_private_json_refuses_symlinks_without_touching_the_target(tmp_path, link_location):
+    victim = tmp_path / "unrelated.json"
+    victim.write_text("leave unchanged")
+    path = tmp_path / "credentials.json"
+    link = path if link_location == "destination" else path.with_suffix(".tmp")
+    link.symlink_to(victim)
+    with pytest.raises((ValueError, OSError)):
+        public.private_json(path, {"password": "private-fixture"})
+    assert victim.read_text() == "leave unchanged"
+    assert link.is_symlink()
+
+
+def test_enable_writes_real_private_configuration_and_units(tmp_path, monkeypatch):
+    repo = tmp_path / "checkout"
+    repo.mkdir()
+    auth_file, token_file, executable = (tmp_path / name for name in ("auth.json", "token", "ngrok"))
+    auth_file.write_text(json.dumps({"username": "visitor", "password": "fixture-password"}))
+    token_file.write_text("fixture-ngrok-token")
+    executable.write_text("#!/bin/sh\nexit 0\n")
+    auth_file.chmod(0o600)
+    token_file.chmod(0o600)
+    executable.chmod(0o700)
+    unit_directory = tmp_path / "user-units"
+    monkeypatch.setattr(public, "unit_directory", lambda: unit_directory)
+    monkeypatch.setattr(public, "runtime_home", lambda root: str(tmp_path))
+    commands = []
+    def external(command, **kwargs):
+        commands.append(command)
+        if command[0] == "loginctl":
+            return "yes\n"
+        if command[:3] == ["systemctl", "--user", "show"]:
+            return "LoadState=not-found\nActiveState=inactive\nFragmentPath=\nDropInPaths=\n"
+        return ""
+    monkeypatch.setattr(public, "run", external)
+    result = public.enable(repo, SimpleNamespace(domain="visitor.example.invalid", auth_file=auth_file,
+        ngrok=executable, token_file=token_file, ngrok_config=None))
+    assert result["enabled"] is True
+    private = repo / "runs/.install/public"
+    for name in ("auth.json", "ngrok.json", "settings.json"):
+        assert (private / name).stat().st_mode & 0o777 == 0o600
+        assert isinstance(json.loads((private / name).read_text()), dict)
+    assert json.loads((private / "ngrok.json").read_text())["agent"]["authtoken"] == "fixture-ngrok-token"
+    assert {path.stem for path in unit_directory.glob("*.service")} == set(public.SERVICES)
+    assert all("fixture-password" not in path.read_text() and "fixture-ngrok-token" not in path.read_text()
+               for path in unit_directory.glob("*.service"))
+    assert ["systemctl", "--user", "enable", "--now", *[name + ".service" for name in public.SERVICES]] in commands
+
+
 def test_disable_checks_ownership_then_stops_only_new_units(tmp_path, monkeypatch):
     owned = {name: {"installed": True, "active": True} for name in public.SERVICES}
     calls = []
@@ -70,6 +134,34 @@ def test_systemd_argument_escaping_never_interprets_percent_or_dollars():
     assert public.unit_arg('/tmp/a $name 100%') == '"/tmp/a $$name 100%%"'
     with pytest.raises(ValueError):
         public.unit_arg("/tmp/name\nExecStart=/other")
+
+
+def test_systemd_path_directive_is_absolute_without_argument_quotes():
+    assert public.unit_path("/tmp/checkout with spaces/100%") == "/tmp/checkout with spaces/100%%"
+    for invalid in ("relative/path", "/tmp/line\nbreak", "/tmp/line\rbreak", "/tmp/nul\0"):
+        with pytest.raises(ValueError):
+            public.unit_path(invalid)
+
+
+@pytest.mark.skipif(shutil.which("systemd-analyze") is None, reason="systemd-analyze is unavailable")
+def test_generated_user_units_pass_real_systemd_validation_with_spaces_and_percent(tmp_path):
+    repo = tmp_path / "checkout with spaces 100%"
+    repo.mkdir()
+    generated = tmp_path / "unit-validation"
+    generated.mkdir()
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    paths = []
+    for name, contents in public.units(repo, {"runtime_home": str(tmp_path / "private home 100%")}).items():
+        path = generated / (name + ".service")
+        path.write_text(contents)
+        paths.append(str(path))
+    # This parses temporary files only. It neither installs nor starts a unit.
+    result = subprocess.run([shutil.which("systemd-analyze"), "--user", "--man=no", "verify", *paths],
+                            env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8",
+                                 "XDG_RUNTIME_DIR": str(runtime)},
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.fixture

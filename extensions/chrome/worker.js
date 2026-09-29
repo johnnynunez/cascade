@@ -12,7 +12,8 @@ chrome.history.onVisited.addListener(async visit => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.setAccessLevel({accessLevel:'TRUSTED_CONTEXTS'});
+  // Firefox has no storage access levels; its content scripts cannot read storage.session.
+  chrome.storage.local.setAccessLevel?.({accessLevel:'TRUSTED_CONTEXTS'});
 });
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(''))) return;
@@ -31,7 +32,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         chrome.tabs.sendMessage(sender.tab.id,{type:'close'}).catch(()=>{});
       }
       reply({ok:true});
-    }, () => reply({ok:false, error:'Open “Side panel” from the OpenClaw Demo extension in Chrome.'}));
+    }, () => reply({ok:false, error:'Open “Side panel” from the OpenClaw Demo extension.'}));
     return true;
   }
   if (['collapse','close','move','enlarge-camera'].includes(message.type) && sender.tab) {

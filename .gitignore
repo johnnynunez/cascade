@@ -287,3 +287,8 @@ MUJOCO_LOG.TXT
 # Local Chrome extension packages.
 /extensions/chrome/*.zip
 /extensions/chrome/*.zip.sha256
+
+# Local Firefox extension builds.
+/extensions/firefox/build/
+/extensions/firefox/*.xpi
+/extensions/firefox/*.xpi.sha256

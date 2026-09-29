@@ -39,7 +39,7 @@ export function cameraZoom({viewer, companion, embedded, resizeEmbedded, window,
       viewer.focus({preventScroll:true});
       return;
     }
-    // Calling window.open directly from the tile's click keeps Chrome's user
+    // Calling window.open directly from the tile's click keeps the browser's user
     // gesture. No camera URL, credential, or additional host grant is needed.
     enlarged = true;
     try {
@@ -74,7 +74,7 @@ export function cameraZoom({viewer, companion, embedded, resizeEmbedded, window,
       viewer.focus({preventScroll:true});
     } catch {
       restore();
-      throw new Error('Chrome could not open the camera window. Try Show in chat.');
+      throw new Error('The browser could not open the camera window. Try Show in chat.');
     }
   }
 

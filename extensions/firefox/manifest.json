@@ -2,13 +2,18 @@
   "manifest_version": 3,
   "name": "Physical Agentic AI · OpenClaw Demo",
   "version": "1.5.0",
-  "minimum_chrome_version": "116",
   "description": "A robotic arm powered by OpenClaw in NVIDIA Isaac Sim. Cameras appear automatically beside the chat.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "paai-openclaw-demo@johnnynunez.github.io",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {"required": ["none"]}
+    }
+  },
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
-    "sidePanel",
     "history"
   ],
   "optional_host_permissions": [
@@ -22,15 +27,18 @@
     "run_at": "document_idle"
   }],
   "background": {
-    "service_worker": "worker.js",
+    "scripts": ["worker.js"],
     "type": "module"
   },
   "action": {
     "default_title": "Physical Agentic AI · OpenClaw Demo · Show cameras",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_area": "navbar"
   },
-  "side_panel": {
-    "default_path": "panel.html?surface=side"
+  "sidebar_action": {
+    "default_title": "Physical Agentic AI · OpenClaw Demo",
+    "default_panel": "panel.html?surface=side",
+    "open_at_install": false
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none';"

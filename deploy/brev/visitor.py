@@ -66,8 +66,9 @@ class VisitorHandler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         if location is not None:
             self.send_header("Location", location)
-        frames = "; frame-src chrome-extension:" if (getattr(self.server, "chat", None) is not None
-                                                     and self.server.server_port == 8092) else ""
+        # The local camera extension frame: Chrome and Firefox extension schemes.
+        frames = "; frame-src chrome-extension: moz-extension:" if (getattr(self.server, "chat", None) is not None
+                                                                    and self.server.server_port == 8092) else ""
         self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; frame-ancestors 'none'" + frames)
         if status == 401:
             self.send_header("WWW-Authenticate", 'Basic realm="Physical Agentic AI", charset="UTF-8"')

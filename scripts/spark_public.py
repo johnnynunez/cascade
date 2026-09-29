@@ -26,6 +26,12 @@ SERVICES = ("paai-spark-demo", "paai-spark-visitor", "paai-spark-ngrok")
 CAMERA_ORIGIN = "http://127.0.0.1:8091"
 VISITOR_ORIGIN = "http://127.0.0.1:8093"
 PROC = Path("/proc")
+# `_serve` exits with this status when the launch never reached READY. The demo
+# unit lists it in RestartPreventExitStatus: a launch that failed once is
+# retried by an operator after reading the logs, not by systemd in a loop that
+# rebuilds the whole Isaac + Qwen stack every few minutes.
+LAUNCH_FAILED = 3
+DEMO_START_LIMIT = "StartLimitIntervalSec=3600\nStartLimitBurst=3\n"
 
 
 def run(command, timeout=30, **kwargs):
@@ -131,12 +137,21 @@ def units(repo, settings):
                    f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{os.getuid()}/bus"]
     for name, command in commands.items():
         after = "network-online.target" + (" paai-spark-demo.service" if name != "paai-spark-demo" else "")
+        if name == "paai-spark-demo":
+            # Restart after a crash or a failed health check, at most 3 starts
+            # per hour; never after a launch that did not reach READY.
+            limits = DEMO_START_LIMIT
+            restart = f"Restart=on-failure\nRestartPreventExitStatus={LAUNCH_FAILED}\nRestartSec=30\n"
+        else:
+            # Light processes that wait for the demo: retry until it is READY.
+            limits = "StartLimitIntervalSec=0\n"
+            restart = "Restart=always\nRestartSec=10\n"
         result[name] = (f"# PAAI Spark checkout: {repo}\n[Unit]\nDescription=PAAI Spark {name}\n"
-                        f"After={after}\nStartLimitIntervalSec=0\n[Service]\nType=simple\n"
+                        f"After={after}\n{limits}[Service]\nType=simple\n"
                         f"WorkingDirectory={unit_path(repo)}\nEnvironment={unit_arg('HOME=' + settings['runtime_home'], expand_dollars=False)}\n"
                         "Environment=PYTHONUNBUFFERED=1\nEnvironment=PYTHONDONTWRITEBYTECODE=1\n"
                         f"ExecStart={' '.join(unit_arg(part) for part in environment + command)}\n"
-                        "Restart=always\nRestartSec=10\nTimeoutStopSec=420\nKillMode=mixed\n"
+                        f"{restart}TimeoutStopSec=420\nKillMode=mixed\n"
                         "UMask=0077\nNoNewPrivileges=true\n[Install]\nWantedBy=default.target\n")
     return result
 
@@ -221,6 +236,9 @@ def enable(repo, args):
             path.chmod(0o600)
             changed_units.add(name)
     run(["systemctl", "--user", "daemon-reload"])
+    # An explicit enable is the operator's retry after a failed launch, so it
+    # clears the demo's start-limit/failed state before starting it again.
+    run(["systemctl", "--user", "reset-failed", "paai-spark-demo.service"])
     run(["systemctl", "--user", "enable", "--now", *[name + ".service" for name in SERVICES]], timeout=45)
     for name in SERVICES:
         if name not in changed_units:
@@ -312,6 +330,7 @@ def disable(repo):
 
 
 def serve(repo):
+    """Run the owned stack. Returns LAUNCH_FAILED when it never reached READY."""
     def interrupted(_number, _frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupted)
@@ -319,8 +338,11 @@ def serve(repo):
     module = browser_module(repo)
     try:
         command = ["/usr/bin/python3", str(repo / "scripts/desktop.py"), "launch", "--repo", str(repo), "--headless", "--no-open"]
-        if subprocess.run(command, cwd=repo).returncode:
-            raise RuntimeError("The demo did not reach READY")
+        code = subprocess.run(command, cwd=repo).returncode
+        if code:
+            print(f"[public] The demo launch exited {code} without READY; not restarting. "
+                  "Inspect runs/.install/desktop-latest.json, then run enable again.", file=sys.stderr, flush=True)
+            return LAUNCH_FAILED
         failures = 0
         while True:
             time.sleep(10)
@@ -328,7 +350,7 @@ def serve(repo):
             if failures >= 3:
                 raise RuntimeError("The demo health check failed; restarting the owned stack")
     except KeyboardInterrupt:
-        pass
+        return 0
     finally:
         subprocess.run([str(repo / "run.sh"), "down"], cwd=repo, timeout=390)
 
@@ -489,8 +511,7 @@ def main():
         parser.error("enable requires --domain, --auth-file, --ngrok, and --ngrok-config or --token-file")
     repo = root_path(args.repo)
     if args.operation == "_serve":
-        serve(repo)
-        return 0
+        return serve(repo)
     if args.operation == "_ngrok":
         return ngrok_service(repo)
     result = enable(repo, args) if args.operation == "enable" else check(repo) if args.operation == "check" else disable(repo)

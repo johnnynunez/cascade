@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -20,13 +21,82 @@ def test_user_units_restore_install_home_and_supervise_only_their_stack(tmp_path
     units = public.units(tmp_path, settings)
     assert set(units) == {"paai-spark-demo", "paai-spark-visitor", "paai-spark-ngrok"}
     for contents in units.values():
-        assert "Restart=always" in contents and "KillMode=mixed" in contents
+        assert "KillMode=mixed" in contents
         assert "WantedBy=default.target" in contents
         assert 'Environment="HOME=' + settings["runtime_home"] + '"' in contents
         assert "sudo" not in contents and "8090" not in contents
         assert "gateway.token" not in contents
     assert "8093" in units["paai-spark-visitor"]
     assert "--auth-file" in units["paai-spark-visitor"]
+
+
+def unit_directives(contents):
+    return dict(line.split("=", 1) for line in contents.splitlines() if "=" in line and not line.startswith("#"))
+
+
+def test_demo_unit_never_relaunches_a_stack_that_failed_to_reach_ready(tmp_path):
+    demo = unit_directives(public.units(tmp_path, {"runtime_home": str(tmp_path)})["paai-spark-demo"])
+    assert demo["Restart"] == "on-failure"
+    assert demo["RestartPreventExitStatus"] == str(public.LAUNCH_FAILED)
+    assert int(demo["StartLimitBurst"]) <= 3 and int(demo["StartLimitIntervalSec"]) >= 3600
+    for name in ("paai-spark-visitor", "paai-spark-ngrok"):
+        light = unit_directives(public.units(tmp_path, {"runtime_home": str(tmp_path)})[name])
+        assert light["Restart"] == "always" and light["StartLimitIntervalSec"] == "0"
+
+
+def test_serve_reports_failed_launch_with_the_non_restarting_status(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(public, "browser_module", lambda repo: SimpleNamespace(ready=lambda repo: True))
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=1 if "launch" in command else 0)
+    monkeypatch.setattr(public.subprocess, "run", fake_run)
+    assert public.serve(tmp_path) == public.LAUNCH_FAILED
+    assert calls[-1] == [str(tmp_path / "run.sh"), "down"]
+
+
+def test_serve_health_failure_after_ready_is_a_restartable_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(public, "browser_module", lambda repo: SimpleNamespace(ready=lambda repo: False))
+    monkeypatch.setattr(public.subprocess, "run", lambda command, **kwargs: SimpleNamespace(returncode=0))
+    monkeypatch.setattr(public.time, "sleep", lambda seconds: None)
+    with pytest.raises(RuntimeError, match="health check failed"):
+        public.serve(tmp_path)
+
+
+def _user_manager_available():
+    if shutil.which("systemd-run") is None or shutil.which("systemctl") is None:
+        return False
+    return subprocess.run(["systemctl", "--user", "is-system-running"], capture_output=True, text=True,
+                          timeout=10).stdout.strip() in ("running", "degraded")
+
+
+@pytest.mark.skipif(not _user_manager_available(), reason="no systemd user manager")
+def test_real_user_manager_honours_the_demo_restart_policy(tmp_path):
+    """Run the demo unit's own restart directives on a real transient unit."""
+    demo = unit_directives(public.units(tmp_path, {"runtime_home": str(tmp_path)})["paai-spark-demo"])
+    counter = tmp_path / "starts"
+    for status, expected_starts in ((public.LAUNCH_FAILED, 1), (1, 2)):
+        counter.write_text("")
+        unit = f"paai-restart-policy-test-{os.getpid()}-{status}"
+        properties = [f"Restart={demo['Restart']}", f"RestartPreventExitStatus={demo['RestartPreventExitStatus']}",
+                      "RestartSec=1", "StartLimitIntervalSec=60", "StartLimitBurst=2"]
+        command = ["systemd-run", "--user", "--quiet", "--collect", f"--unit={unit}",
+                   *[item for p in properties for item in ("-p", p)],
+                   "/bin/sh", "-c", f"echo x >> '{counter}'; exit {status}"]
+        try:
+            subprocess.run(command, check=True, capture_output=True, text=True, timeout=30)
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline:
+                state = subprocess.run(["systemctl", "--user", "show", unit, "-p", "ActiveState", "--value"],
+                                       capture_output=True, text=True, timeout=10).stdout.strip()
+                if state in ("failed", "inactive") and len(counter.read_text().split()) >= expected_starts:
+                    time.sleep(2.5)            # a restart would land within RestartSec
+                    break
+                time.sleep(.2)
+            assert len(counter.read_text().split()) == expected_starts, (status, counter.read_text())
+        finally:
+            subprocess.run(["systemctl", "--user", "stop", unit], capture_output=True, timeout=30)
+            subprocess.run(["systemctl", "--user", "reset-failed", unit], capture_output=True, timeout=30)
 
 
 def test_existing_unrelated_service_is_never_adopted(tmp_path, monkeypatch):
@@ -118,6 +188,9 @@ def test_enable_writes_real_private_configuration_and_units(tmp_path, monkeypatc
     assert {path.stem for path in unit_directory.glob("*.service")} == set(public.SERVICES)
     assert all("fixture-password" not in path.read_text() and "fixture-ngrok-token" not in path.read_text()
                for path in unit_directory.glob("*.service"))
+    assert ["systemctl", "--user", "reset-failed", "paai-spark-demo.service"] in commands
+    assert (commands.index(["systemctl", "--user", "reset-failed", "paai-spark-demo.service"])
+            < commands.index(["systemctl", "--user", "enable", "--now", *[name + ".service" for name in public.SERVICES]]))
     assert ["systemctl", "--user", "enable", "--now", *[name + ".service" for name in public.SERVICES]] in commands
 
 

@@ -164,7 +164,17 @@ def test_spark_check_reports_missing_kitchen(tmp_path, monkeypatch, capsys):
 def test_spark_launch_refuses_incomplete_kitchen_before_starting_services(tmp_path, monkeypatch):
     support = support_module()
     monkeypatch.delenv("CASCADE_LAUNCH_STATE", raising=False)
-    monkeypatch.setattr(support, "eula_accepted", lambda repo: True)
+    # A prepared checkout can lose an asset later. Keep its real consent and
+    # runtime identity so the kitchen gate, rather than a missing receipt, fails.
+    installed = tmp_path / "runs/.install/install.json"
+    installed.parent.mkdir(parents=True)
+    home = tmp_path / "home"
+    home.mkdir()
+    installed.write_text(json.dumps({
+        "repo": str(tmp_path.resolve()), "runtime_home": str(home),
+        "eula_accepted": True, "eula_url": support.EULA_URL,
+        "profile": "spark", "brain": "qwen",
+    }))
     monkeypatch.setattr(support, "kitchen_problems", lambda repo: ["missing kitchen asset"])
     receipt = tmp_path / "runs/.launch/profile-cascade-demo/proof.json"
     receipt.parent.mkdir(parents=True)

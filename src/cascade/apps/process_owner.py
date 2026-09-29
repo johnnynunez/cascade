@@ -284,9 +284,31 @@ def stop_private_gateway(record: dict, owner: dict, *, timeout_s: float = 5) -> 
         pass
 
 
-def stop_owned(state_dir, owner: dict, *, dry_run=False, roles=None) -> list[int]:
+def stop_owned_process(record: dict, owner: dict, *, term_timeout_s: float = 10,
+                       kill_timeout_s: float = 5) -> None:
+    """Bound shutdown of one owned PID, rechecking identity before escalation."""
     import signal
 
+    for number, timeout in ((signal.SIGTERM, term_timeout_s), (signal.SIGKILL, kill_timeout_s)):
+        # A PID, command name, or listening port alone never permits a signal.
+        # This check also prevents escalation after exit and PID reuse.
+        if not is_live(record, owner):
+            return
+        try:
+            os.kill(record["pid"], number)
+        except ProcessLookupError:
+            return
+        if number == signal.SIGKILL:
+            print(f"{record['role']} pid={record['pid']} did not exit after SIGTERM; sent SIGKILL to the owned PID",
+                  file=sys.stderr, flush=True)
+        deadline = time.monotonic() + timeout
+        while is_live(record, owner) and time.monotonic() < deadline:
+            time.sleep(.05)
+    if is_live(record, owner):
+        raise ValueError(f"{record['role']} pid={record['pid']} did not stop after SIGTERM and SIGKILL; receipt retained")
+
+
+def stop_owned(state_dir, owner: dict, *, dry_run=False, roles=None) -> list[int]:
     stopped = []
     # Service-manager shutdown is intentionally separate from direct PID
     # signals. An unowned gateway is never stopped to reap its MCP children.
@@ -308,14 +330,7 @@ def stop_owned(state_dir, owner: dict, *, dry_run=False, roles=None) -> list[int
                 raise ValueError("gateway no longer belongs to this launch owner; refusing stop")
             _run_gateway_stop([*prefix, "gateway", "stop", "--force"])
         else:
-            # Re-check immediately before signalling; a bare/stale PID marker
-            # or the same command under a different owner is not sufficient.
-            if not is_live(record, owner):
-                continue
-            try:
-                os.kill(record["pid"], signal.SIGTERM)
-            except ProcessLookupError:
-                pass
+            stop_owned_process(record, owner)
         deadline = time.monotonic() + 10
         while is_live(record, owner) and time.monotonic() < deadline:
             time.sleep(0.05)

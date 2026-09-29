@@ -11,8 +11,15 @@ and attendees. Open `/staff/` on the running demo. It has two sections:
 **How this works** and **The workflow**.
 The operator shares the live link and access details privately.
 
-Use the private demo’s `/guide/` page to open the connected OpenClaw chat.
-The public attendee link shows cameras only.
+On the Brev booth deployment, use the private demo’s `/guide/` page to open
+the connected OpenClaw chat. The private links (`/guide/`, `/openclaw/` and
+`/cameras/`) are reachable only over the booth’s Tailscale network. The
+public attendee link shows cameras only.
+
+On a DGX Spark there is no `/guide/` page. Click **PAAI (Spark)** in the app
+grid: it opens the connected chat and the three cameras at
+`http://127.0.0.1:8092`. See [Open OpenClaw](DGX_SPARK_SETUP.md#open-openclaw)
+for the native dashboard and remote access.
 
 ## One task
 

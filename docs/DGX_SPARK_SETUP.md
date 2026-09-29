@@ -28,9 +28,12 @@ Success: `PREREQUISITES_OK`.
 
 ### 2. Install
 
-Read the [NVIDIA Isaac Sim / Omniverse EULA](https://docs.omniverse.nvidia.com/eula).
-**`--accept-eula` means you accept it.** An agent must have the operator's
-explicit consent. `OMNI_KIT_ACCEPT_EULA=YES` alone does not grant consent.
+Before your first installation, review the [NVIDIA Isaac Sim / Omniverse
+licenses](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html).
+**`--accept-eula` records your explicit acceptance for this checkout.**
+An agent must have the operator's explicit consent. If that consent is
+already supplied, proceed to the install command; do not fetch the license
+page or ask for consent again. `OMNI_KIT_ACCEPT_EULA=YES` alone does not grant consent.
 
 The source URL and `--ref` select the same tested commit. This downloads the
 runtime, model and assets, then builds the local CUDA model server. Allow

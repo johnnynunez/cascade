@@ -5,6 +5,7 @@
 #     ./run.sh isaac              # force Isaac Sim (needs ISAACSIM_PATH or a standard install)
 #     ./run.sh mujoco             # force MuJoCo (CPU, any laptop)
 #     ./run.sh check [isaac]      # preflight only: what is missing, nothing started
+#     ./run.sh dashboard [--no-open] # open OpenClaw Control (or print its URL)
 #     ./run.sh down               # stop everything this script started
 #
 # First run on a fresh machine does the setup (uv venv, python extras, OpenClaw
@@ -30,9 +31,14 @@ case "$mode" in
         if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then set -- --brain qwen "$@"; fi
         exec "$REPO/scripts/launch.sh" --check --sim "$check_mode" "$@" ;;
     down)  shift; exec "$REPO/scripts/launch.sh" --down "$@" ;;
-    -h|--help|help) sed -n '2,12p' "$0"; exit 0 ;;
+    dashboard)
+        shift
+        dashboard_python="${PY:-$REPO/.venv/bin/python}"
+        [[ -x "$dashboard_python" ]] || dashboard_python="$(command -v python3)"
+        exec "$dashboard_python" "$REPO/scripts/dashboard.py" "$@" ;;
+    -h|--help|help) sed -n '2,13p' "$0"; exit 0 ;;
     --*) mode="$default_sim" ;;  # flags only: ./run.sh --headless
-    *) echo "unknown mode '$mode' (isaac|mujoco|none|auto|check|down)" >&2; exit 2 ;;
+    *) echo "unknown mode '$mode' (isaac|mujoco|none|auto|check|dashboard|down)" >&2; exit 2 ;;
 esac
 
 # Setup is needed until the venv imports cascade AND the OpenClaw CLI exists.

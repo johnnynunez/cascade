@@ -183,6 +183,10 @@ def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: boo
                 for line in process.stdout:
                     if line.startswith("[launch] READY: attached to this installation's running demo"):
                         report["attached"] = True
+                    if line.strip() == "Demo UI: http://127.0.0.1:8092":
+                        report["demo_ui"] = "http://127.0.0.1:8092"
+                    if line.strip() == "OpenClaw dashboard: ./run.sh dashboard":
+                        report["openclaw_dashboard"] = "./run.sh dashboard"
                     print(line, end="", flush=True)
                     log.write(line)
                     log.flush()

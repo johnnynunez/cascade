@@ -277,7 +277,7 @@ To open the native OpenClaw Control UI on port 18790 with the current token,
 run this in the Spark's desktop session:
 
 ```bash
-cd "$HOME/paai-spark" && OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" .openclaw-cli/bin/openclaw --profile cascade-demo dashboard
+cd "$HOME/paai-spark" && ./run.sh dashboard
 ```
 
 Without a desktop session, the same command prints an SSH tunnel command and

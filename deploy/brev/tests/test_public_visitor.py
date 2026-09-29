@@ -75,7 +75,7 @@ def test_administrative_routes_and_writes_never_reach_the_camera_backend(camera)
     with serving(visitor.VisitorHandler) as (server, origin):
         server.authorization = ""
         server.camera_origin = camera[0]
-        for path in ("/openclaw/", "/api/openclaw-bootstrap", "/__openclaw/", "/api/control",
+        for path in ("/guide", "/guide/", "/openclaw", "/openclaw/", "/api/openclaw-bootstrap", "/__openclaw/", "/api/control",
                      "/snapshot/../private", "/%2e%2e/openclaw/", "/staff/../openclaw/",
                      "/staff/%2e%2e/openclaw/", "/staff/auth.json", "/staff/index.html"):
             assert fetch(origin + path)[0] == 404

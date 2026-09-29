@@ -282,7 +282,7 @@ def check(repo):
     result["url"] = origin
     if public_get(origin)[0] != 401:
         raise RuntimeError("The public URL did not require authentication")
-    for path in ("/openclaw/", "/api/openclaw-bootstrap", "/__openclaw/", "/api/control",
+    for path in ("/guide", "/guide/", "/openclaw", "/openclaw/", "/api/openclaw-bootstrap", "/__openclaw/", "/api/control",
                  "/v1/models", "/state", "/config", "/rpc", "/mcp", "/auth.json"):
         if public_get(origin + path, credential)[0] != 404:
             raise RuntimeError("The public URL did not block a private route")

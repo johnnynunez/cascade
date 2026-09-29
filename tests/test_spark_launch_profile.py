@@ -22,6 +22,22 @@ ROOT = Path(__file__).resolve().parents[1]
 LAUNCH = ROOT / "scripts/launch.sh"
 
 
+def test_ready_banner_prints_both_spark_entry_points(tmp_path):
+    source = LAUNCH.read_text()
+    banner = source[source.index('LAUNCH_STATUS="STARTED'):]
+    env = {"PATH": "/usr/bin:/bin", "CASCADE_INSTALL_PROFILE": "spark", "PROOF_VERIFIED": "1",
+           "CASCADE_OPENCLAW_PROFILE": "cascade-demo", "SIM": "isaac", "ARM": "isaac_kitchen_gpu",
+           "CAMERAS": "isaac", "STATE_DIR": str(tmp_path), "GATEWAY_PORT": "18790",
+           "BRIDGE_PORT": "8611", "OCCUPANCY": "none", "GRASPGENX": "none", "OPEN_CHAT": "0", "DRY": "1"}
+    result = subprocess.run(["bash", "-euc", banner], env=env, capture_output=True, text=True, timeout=5)
+    assert result.returncode == 0, result.stderr
+    assert "[launch] READY" in result.stdout
+    assert "Demo UI: http://127.0.0.1:8092" in result.stdout
+    assert "OpenClaw dashboard: ./run.sh dashboard" in result.stdout
+    assert "#token=" not in result.stdout
+    assert not list(tmp_path.iterdir())
+
+
 def launch_boundary(tmp_path):
     """Execute the real option block and bridge argument builder in a shell."""
     repo = tmp_path / "repo"

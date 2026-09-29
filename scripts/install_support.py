@@ -359,6 +359,8 @@ def launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, headl
                 raise RuntimeError("Running demo model no longer matches this installation; inspect its logs")
             start_spark_surfaces(repo, env)
             print("[launch] READY: attached to this installation's running demo", flush=True)
+            print("         Demo UI: http://127.0.0.1:8092\n"
+                  "         OpenClaw dashboard: ./run.sh dashboard", flush=True)
             if not no_open:
                 open_browser(repo)
             return 0

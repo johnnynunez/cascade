@@ -8,11 +8,28 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from urllib.parse import urlsplit
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
 from cascade.apps.process_owner import live_records, load_owner, profile_state_dir
+
+
+def spark_install(repo: Path) -> bool:
+    try:
+        return json.loads((repo / "runs/.install/install.json").read_text()).get("profile") == "spark"
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def native_links(command: list[str], env: dict[str, str], repo: Path) -> dict:
+    result = subprocess.run([*command, "dashboard", "--json"], env=env, cwd=repo,
+                            stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30)
+    details = json.loads(result.stdout) if result.returncode == 0 else {}
+    if not isinstance(details, dict) or not details.get("url") or details.get("ok") is False:
+        raise RuntimeError("OpenClaw could not produce a dashboard URL. Check this checkout's gateway logs.")
+    return details
 
 
 def dashboard(repo: Path, *, no_open: bool = False) -> int:
@@ -45,12 +62,22 @@ def dashboard(repo: Path, *, no_open: bool = False) -> int:
     # The native CLI reads the current token from this profile and handles the
     # authenticated browser URL. Never store that URL in a launcher receipt.
     if no_open:
-        result = subprocess.run([*command, "dashboard", "--json"], env=env, cwd=repo,
-                                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30)
-        details = json.loads(result.stdout) if result.returncode == 0 else {}
-        if not isinstance(details, dict) or not details.get("url") or details.get("ok") is False:
-            raise RuntimeError("OpenClaw could not produce a dashboard URL. Check this checkout's gateway logs.")
-        print(details["url"])
+        print(native_links(command, env, repo)["url"])
+        return 0
+    if spark_install(repo) and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        # The native CLI would open the default browser, which does not load
+        # the camera extension. Hand its one-time sign-in link to the PAAI
+        # browser profile instead; the link expires unused after ten minutes.
+        url = native_links(command, env, repo).get("browserUrl")
+        target = urlsplit(url) if isinstance(url, str) else None
+        if (target is None or target.scheme != "http" or target.hostname != "127.0.0.1"
+                or target.username or target.password or "bootstrapToken=" not in target.fragment):
+            raise RuntimeError("OpenClaw could not produce a sign-in link. Check this checkout's gateway logs.")
+        sys.path.insert(0, str(repo / "scripts"))
+        from spark_browser import open_browser
+        open_browser(repo, url=url)
+        print("[dashboard] OpenClaw opened in the PAAI browser. Press Ctrl+Shift+Y "
+              "or click the camera extension to show the cameras beside the chat.", flush=True)
         return 0
     return subprocess.run([*command, "dashboard"],
                           env=env, cwd=repo, stdin=subprocess.DEVNULL).returncode

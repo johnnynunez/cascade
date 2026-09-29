@@ -868,9 +868,10 @@ if _REQUIRE_CUDA and args.engine == "physx":
             PhysxSchema.PhysxContactReportAPI.Apply(_contact_prim).CreateThresholdAttr(0.0)
 if args.engine == "newton":
     _configure_newton_before_play()
-print("[bridge] starting timeline play with committed callbacks", flush=True)
-app_utils.play(commit=True)
-print("[bridge] timeline play returned", flush=True)
+print("[bridge] queueing timeline play for the first app update", flush=True)
+# Apply playback callbacks in Kit's normal update phase before articulation.
+app_utils.play(commit=False)
+print("[bridge] timeline play queued", flush=True)
 for _ in range(10):
     print(f"[bridge] initial app update {_ + 1}/10 begin", flush=True)
     app.update()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import http.client
 import importlib.util
 import json
 import os
@@ -12,8 +13,10 @@ import pwd
 import re
 import shlex
 import signal
+import socket
 import subprocess
 import sys
+import threading
 import time
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -22,6 +25,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 SERVICES = ("paai-spark-demo", "paai-spark-visitor", "paai-spark-ngrok")
 CAMERA_ORIGIN = "http://127.0.0.1:8091"
 VISITOR_ORIGIN = "http://127.0.0.1:8093"
+PROC = Path("/proc")
 
 
 def run(command, timeout=30, **kwargs):
@@ -104,14 +108,18 @@ def unit_path(value):
     return value.replace("%", "%%")
 
 
+def visitor_command(repo):
+    return ["/usr/bin/python3", str(repo / "deploy/brev/visitor.py"), "--port", "8093",
+            "--camera-origin", CAMERA_ORIGIN, "--repo", str(repo),
+            "--auth-file", str(repo / "runs/.install/public/auth.json")]
+
+
 def units(repo, settings):
     script = repo / "scripts/spark_public.py"
     common = ["/usr/bin/python3", str(script)]
     commands = {
         "paai-spark-demo": [*common, "_serve", "--repo", str(repo)],
-        "paai-spark-visitor": ["/usr/bin/python3", str(repo / "deploy/brev/visitor.py"), "--port", "8093",
-                              "--camera-origin", CAMERA_ORIGIN, "--repo", str(repo),
-                              "--auth-file", str(private_root(repo) / "auth.json")],
+        "paai-spark-visitor": visitor_command(repo),
         "paai-spark-ngrok": [*common, "_ngrok", "--repo", str(repo)],
     }
     result = {}
@@ -325,11 +333,114 @@ def serve(repo):
         subprocess.run([str(repo / "run.sh"), "down"], cwd=repo, timeout=390)
 
 
+def visitor_sockets(pid):
+    process = PROC / str(pid)
+    sockets = set()
+    for path in (process / "fd").iterdir():
+        try:
+            target = os.readlink(path)
+        except FileNotFoundError:
+            continue  # A completed HTTP connection may close during this read.
+        match = re.fullmatch(r"socket:\[(\d+)\]", target)
+        if match:
+            sockets.add(match[1])
+    rows = [line.split() for line in (process / "net/tcp").read_text().splitlines()[1:]]
+    return sockets, [row for row in rows if len(row) >= 10]
+
+
+def visitor_owner(repo):
+    """Prove the configured service owns the exact IPv4 loopback listener."""
+    try:
+        output = run(["systemctl", "--user", "show", "paai-spark-visitor.service", "--no-pager",
+                      "--property=MainPID,LoadState,ActiveState,FragmentPath,DropInPaths"], timeout=3)
+        properties = dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
+        unit = unit_directory() / "paai-spark-visitor.service"
+        pid = int(properties.get("MainPID", "0"))
+        if (pid <= 1 or properties.get("LoadState") != "loaded" or properties.get("ActiveState") != "active"
+                or properties.get("DropInPaths") or properties.get("FragmentPath") != str(unit)
+                or unit.is_symlink() or not unit.read_text().startswith(f"# PAAI Spark checkout: {repo}\n")):
+            raise ValueError("Unowned visitor service")
+        process = PROC / str(pid)
+        before = (process / "stat").read_text().rsplit(")", 1)[1].split()
+        command = (process / "cmdline").read_bytes().rstrip(b"\0").decode().split("\0")
+        if (process.stat().st_uid != os.getuid() or before[0] == "Z"
+                or (process / "cwd").resolve(strict=True) != repo
+                or command != visitor_command(repo)):
+            raise ValueError("Unowned visitor process")
+        sockets, rows = visitor_sockets(pid)
+        local = "0100007F:" + format(8093, "04X")
+        listeners = [row for row in rows if row[3] == "0A"
+                     and row[1] in (local, "00000000:" + format(8093, "04X"))]
+        if len(listeners) != 1 or listeners[0][1] != local or listeners[0][9] not in sockets:
+            raise ValueError("Unowned visitor listener")
+        after = (process / "stat").read_text().rsplit(")", 1)[1].split()
+        if after[0] == "Z" or before[19] != after[19]:
+            raise ValueError("Visitor process changed")
+        return pid, before[19], listeners[0][9]
+    except (OSError, ValueError, IndexError, RuntimeError) as error:
+        raise RuntimeError("The authenticated visitor does not own its loopback port") from None
+
+
+def owned_visitor_get(repo, owner, path, authorization=None):
+    """Bind credentials to an accepted socket owned by the verified visitor."""
+    with socket.create_connection(("127.0.0.1", 8093), timeout=2) as connection:
+        if visitor_owner(repo) != owner:
+            raise RuntimeError("The visitor identity changed")
+        remote = "0100007F:" + format(connection.getsockname()[1], "04X")
+        local = "0100007F:" + format(8093, "04X")
+        deadline = time.monotonic() + 2
+        while True:
+            sockets, rows = visitor_sockets(owner[0])
+            if any(row[1] == local and row[2] == remote and row[3] == "01" and row[9] in sockets for row in rows):
+                break
+            if time.monotonic() >= deadline:
+                raise RuntimeError("The visitor did not own the accepted connection")
+            time.sleep(.02)
+        if visitor_owner(repo) != owner:
+            raise RuntimeError("The visitor identity changed")
+        client = http.client.HTTPConnection("127.0.0.1", 8093, timeout=2)
+        client.sock = connection
+        # HTTPConnection must never reconnect to an unverified listener.
+        def no_reconnect():
+            raise RuntimeError("The verified visitor connection ended")
+        client.connect = no_reconnect
+        try:
+            client.request("GET", path, headers={"Authorization": authorization} if authorization else {})
+            response = client.getresponse()
+            body = response.read(65537)
+            if len(body) > 65536:
+                raise RuntimeError("The visitor health response is too large")
+            return response.status, body
+        finally:
+            client.close()
+
+
+def verify_local_visitor(repo, auth, expected=None):
+    owner = visitor_owner(repo)
+    if expected is not None and owner != expected:
+        raise RuntimeError("The visitor identity changed; closing its tunnel")
+    if owned_visitor_get(repo, owner, "/")[0] != 401:
+        raise RuntimeError("The local visitor did not require authentication")
+    authorization = "Basic " + base64.b64encode((auth["username"] + ":" + auth["password"]).encode()).decode()
+    status, body = owned_visitor_get(repo, owner, "/api/chat", authorization)
+    try:
+        chat = json.loads(body)
+    except (ValueError, UnicodeDecodeError):
+        chat = None
+    if (status != 200 or not isinstance(chat, dict) or chat.get("enabled") is not True
+            or chat.get("ready") is not True or chat.get("agent") != "cascade-demo"):
+        raise RuntimeError("The local attendee chat is not READY")
+    if visitor_owner(repo) != owner:
+        raise RuntimeError("The visitor identity changed; closing its tunnel")
+    return owner
+
+
 def ngrok_service(repo):
     directory = private_root(repo)
     settings = json.loads((directory / "settings.json").read_text())
     token = json.loads((directory / "ngrok.json").read_text())["agent"]["authtoken"]
     auth = json.loads((directory / "auth.json").read_text())
+    owner = verify_local_visitor(repo, auth)
     command = [settings["ngrok"], "http", VISITOR_ORIGIN, "--url", "https://" + settings["domain"],
                "--config", str(directory / "ngrok.json"), "--inspect=false", "--log=stdout", "--log-format=json"]
     child = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -337,11 +448,17 @@ def ngrok_service(repo):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
-    try:
+    def read_log():
         for line in child.stdout:
             for secret in (token, auth["password"], base64.b64encode((auth["username"] + ":" + auth["password"]).encode()).decode()):
                 line = line.replace(secret, "[private]")
             print(line.rstrip(), flush=True)
+    reader = threading.Thread(target=read_log, daemon=True)
+    reader.start()
+    try:
+        while child.poll() is None:
+            verify_local_visitor(repo, auth, expected=owner)
+            time.sleep(1)
         return child.wait()
     except KeyboardInterrupt:
         return 0
@@ -353,6 +470,8 @@ def ngrok_service(repo):
             except subprocess.TimeoutExpired:
                 child.kill()
                 child.wait(timeout=5)
+        reader.join(timeout=2)
+        child.stdout.close()
 
 
 def main():

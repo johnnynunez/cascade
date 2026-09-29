@@ -535,10 +535,22 @@ if [[ "$SIM" == "isaac" ]]; then
             printf '%q ' "$REPO/scripts/isaac_bridge.py" "${isaac_args[@]}"
             printf '&\n'
         else
-            nohup "$PY" "$REPO/scripts/isaac_launch.py" --python "$ISAAC_PY" -- \
+            isaac_ready_dir="$(mktemp -d "$STATE_DIR/isaac-startup.XXXXXXXX")"
+            isaac_ready_file="$isaac_ready_dir/interpreter.json"
+            nohup "$PY" "$REPO/scripts/isaac_launch.py" --python "$ISAAC_PY" --ready-file "$isaac_ready_file" -- \
                 "$REPO/scripts/isaac_bridge.py" "${isaac_args[@]}" \
                 >"$STATE_DIR/isaac_bridge.log" 2>&1 &
             bridge_pid=$!
+            interpreter_status=0
+            "$PY" "$REPO/scripts/isaac_launch.py" --wait-ready "$bridge_pid" --ready-file "$isaac_ready_file" \
+                || interpreter_status=$?
+            if [[ $interpreter_status == 4 ]]; then
+                bridge_exit=0
+                wait "$bridge_pid" || bridge_exit=$?
+                die "Isaac bridge exited with status $bridge_exit before interpreter readiness -- see $STATE_DIR/isaac_bridge.log"
+            elif [[ $interpreter_status != 0 ]]; then
+                die "Isaac interpreter readiness failed -- see $STATE_DIR/isaac_bridge.log"
+            fi
             ownerctl record --pid "$bridge_pid" --role isaac_bridge >/dev/null
             wait_port "$BRIDGE_PORT" "$ISAAC_WAIT_S" "Isaac bridge" "$bridge_pid" "$STATE_DIR/isaac_bridge.log" \
                 || die "Isaac bridge never listened on :$BRIDGE_PORT after ${ISAAC_WAIT_S}s -- see $STATE_DIR/isaac_bridge.log"

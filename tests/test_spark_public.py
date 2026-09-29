@@ -237,3 +237,143 @@ def test_service_recovery_stops_its_owned_demo_after_three_unready_chat_checks(t
     assert len(calls) == 2
     assert calls[0][1:3] == [str(tmp_path / "scripts/desktop.py"), "launch"]
     assert calls[1] == [str(tmp_path / "run.sh"), "down"]
+
+
+@pytest.fixture
+def visitor_process(tmp_path, monkeypatch):
+    repo = tmp_path / "checkout"
+    repo.mkdir()
+    directory = public.private_root(repo)
+    public.private_json(directory / "settings.json", {"domain": "visitor.example.invalid", "ngrok": "/fixture/ngrok"})
+    public.private_json(directory / "ngrok.json", {"agent": {"authtoken": "fixture-ngrok-token"}})
+    public.private_json(directory / "auth.json", {"username": "visitor", "password": "fixture-password"})
+    units = tmp_path / "units"
+    units.mkdir()
+    unit = units / "paai-spark-visitor.service"
+    unit.write_text(f"# PAAI Spark checkout: {repo}\n[Service]\n")
+    proc = tmp_path / "proc"
+    process = proc / "12345"
+    (process / "fd").mkdir(parents=True)
+    (process / "net").mkdir()
+    fields = ["S"] + ["0"] * 18 + ["98765"] + ["0"] * 4
+    (process / "stat").write_text("12345 (visitor) " + " ".join(fields))
+    (process / "cmdline").write_bytes(b"\0".join(part.encode() for part in public.visitor_command(repo)) + b"\0")
+    (process / "cwd").symlink_to(repo)
+    (process / "fd/3").symlink_to("socket:[111]")
+    (process / "fd/4").symlink_to("socket:[222]")
+    listener = "0: 0100007F:1F9D 00000000:0000 0A 0:0 00:0 0 1000 0 111"
+    connected = "1: 0100007F:1F9D 0100007F:B26E 01 0:0 00:0 0 1000 0 222"
+    (process / "net/tcp").write_text("header\n" + listener + "\n" + connected + "\n")
+    monkeypatch.setattr(public, "PROC", proc)
+    monkeypatch.setattr(public, "unit_directory", lambda: units)
+    monkeypatch.setattr(public, "run", lambda *args, **kwargs:
+        f"MainPID=12345\nLoadState=loaded\nActiveState=active\nFragmentPath={unit}\nDropInPaths=\n")
+    return repo, process, (12345, "98765", "111")
+
+
+def test_visitor_guard_proves_process_command_cwd_and_listener_inode(visitor_process):
+    repo, process, identity = visitor_process
+    assert public.visitor_owner(repo) == identity
+    (process / "cmdline").write_bytes(b"/usr/bin/python3\0/another/server.py\0")
+    with pytest.raises(RuntimeError, match="does not own"):
+        public.visitor_owner(repo)
+
+
+def test_foreign_port_never_receives_credentials_or_starts_ngrok(visitor_process, monkeypatch):
+    repo, process, _ = visitor_process
+    (process / "fd/3").unlink()  # Port 8093 remains in the table, owned elsewhere.
+    monkeypatch.setattr(public, "owned_visitor_get", lambda *a, **kw: pytest.fail("Foreign listener was contacted"))
+    monkeypatch.setattr(public.subprocess, "Popen", lambda *a, **kw: pytest.fail("A foreign listener was exposed"))
+    with pytest.raises(RuntimeError, match="does not own"):
+        public.ngrok_service(repo)
+
+
+def test_authentication_waits_for_the_accepted_connection_owner(visitor_process, monkeypatch):
+    repo, process, identity = visitor_process
+    (process / "fd/4").unlink()  # Correct listener, but this connection belongs elsewhere.
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def getsockname(self): return ("127.0.0.1", 45678)
+    monkeypatch.setattr(public.socket, "create_connection", lambda *a, **kw: Connection())
+    ticks = iter((0, 3))
+    monkeypatch.setattr(public.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(public.http.client, "HTTPConnection", lambda *a, **kw: pytest.fail("Credentials reached an unowned connection"))
+    with pytest.raises(RuntimeError, match="accepted connection"):
+        public.owned_visitor_get(repo, identity, "/api/chat", "Basic fixture-private")
+
+
+def test_owned_connection_can_authenticate_without_reconnecting(visitor_process, monkeypatch):
+    repo, _, identity = visitor_process
+    requests = []
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def getsockname(self): return ("127.0.0.1", 45678)
+    class Client:
+        def __init__(self, *args, **kwargs): pass
+        def request(self, method, path, headers):
+            with pytest.raises(RuntimeError, match="verified visitor connection ended"):
+                self.connect()
+            requests.append((method, path, headers))
+        def getresponse(self): return SimpleNamespace(status=200, read=lambda limit: b'{"agent":"cascade-demo"}')
+        def close(self): pass
+    monkeypatch.setattr(public.socket, "create_connection", lambda *a, **kw: Connection())
+    monkeypatch.setattr(public.http.client, "HTTPConnection", Client)
+    assert public.owned_visitor_get(repo, identity, "/api/chat", "Basic fixture-private")[0] == 200
+    assert requests == [("GET", "/api/chat", {"Authorization": "Basic fixture-private"})]
+
+
+@pytest.mark.parametrize("anonymous_status,chat", [
+    (200, {"enabled": True, "ready": True, "agent": "cascade-demo"}),
+    (401, {"enabled": True, "ready": False, "agent": "cascade-demo"}),
+    (401, {"enabled": True, "ready": True, "agent": "personal"}),
+])
+def test_auth_or_attendee_mismatch_never_starts_ngrok(visitor_process, monkeypatch, anonymous_status, chat):
+    repo, _, _ = visitor_process
+    monkeypatch.setattr(public, "owned_visitor_get", lambda repo, owner, path, authorization=None:
+        (anonymous_status, b"entry") if authorization is None else (200, json.dumps(chat).encode()))
+    monkeypatch.setattr(public.subprocess, "Popen", lambda *a, **kw: pytest.fail("Unverified visitor was exposed"))
+    with pytest.raises(RuntimeError):
+        public.ngrok_service(repo)
+
+
+def test_valid_owned_visitor_starts_ngrok_and_owner_loss_stops_that_child(visitor_process, monkeypatch):
+    import io
+    repo, process, _ = visitor_process
+    monkeypatch.setattr(public, "owned_visitor_get", lambda repo, owner, path, authorization=None:
+        (401, b"entry") if authorization is None else
+        (200, b'{"enabled":true,"ready":true,"agent":"cascade-demo"}'))
+    monkeypatch.setattr(public.signal, "signal", lambda *args: None)
+    commands = []
+    class Child:
+        def __init__(self):
+            self.stdout = io.StringIO("")
+            self.returncode = None
+            self.terminated = False
+        def poll(self): return self.returncode
+        def terminate(self):
+            self.terminated = True
+            self.returncode = 0
+        def wait(self, **kwargs): return self.returncode
+    child = Child()
+    monkeypatch.setattr(public.subprocess, "Popen", lambda command, **kwargs: commands.append(command) or child)
+    def ownership_loss(seconds):
+        assert seconds == 1
+        (process / "fd/3").unlink()
+    monkeypatch.setattr(public.time, "sleep", ownership_loss)
+    with pytest.raises(RuntimeError, match="does not own"):
+        public.ngrok_service(repo)
+    assert len(commands) == 1 and commands[0][:3] == ["/fixture/ngrok", "http", public.VISITOR_ORIGIN]
+    assert child.terminated and child.stdout.closed
+
+
+@pytest.mark.skipif(not Path("/proc/self/net/tcp").exists(), reason="Linux proc socket tables are unavailable")
+def test_socket_inode_reader_matches_a_real_ephemeral_loopback_listener():
+    import socket
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        sockets, rows = public.visitor_sockets(os.getpid())
+        address = "0100007F:" + format(listener.getsockname()[1], "04X")
+        assert any(row[1] == address and row[3] == "0A" and row[9] in sockets for row in rows)

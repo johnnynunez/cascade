@@ -97,7 +97,9 @@ def test_preparation_check_does_not_accept_eula_or_start_services():
         "bash", "scripts/install.sh", "--profile", "spark", "--dir", "$PWD", "--check",
     ]
     guide = GUIDE.read_text()
-    assert "https://docs.omniverse.nvidia.com/eula" in guide
+    assert "https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html" in guide
+    assert "already supplied, proceed to the install command" in guide
+    assert "do not fetch the license" in guide
     assert "OMNI_KIT_ACCEPT_EULA=YES" in guide
     assert "alone does not grant consent" in guide
     assert "runs/.install/install.json" in guide

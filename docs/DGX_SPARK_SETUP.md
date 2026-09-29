@@ -97,6 +97,9 @@ It opens a dedicated Chromium profile with the camera extension already
 loaded. The connected OpenClaw chat and three live cameras appear together.
 No extension setup, token paste or permission prompt is needed.
 
+That page, `http://127.0.0.1:8092`, is the demo UI. For the native OpenClaw
+dashboard or access from another computer, see [Open OpenClaw](#open-openclaw).
+
 The same registered launcher can be opened from a graphical terminal:
 
 ```bash
@@ -259,6 +262,36 @@ occupied ports. A service owned by another application must stay running;
 resolve the conflict before launching. Never kill a process by its port
 or name. Reopening this checkout's launcher attaches to its running stack.
 Never expose the OpenClaw gateway, Qwen API, Isaac bridge or MCP publicly.
+
+## Open OpenClaw
+
+The launcher opens the demo page at `http://127.0.0.1:8092`. It is the
+OpenClaw chat for the `cascade-demo` agent, with the three cameras beside it.
+There is no `/guide` or `/openclaw` page on the Spark; those pages belong to
+the Brev booth deployment.
+
+You never need to copy the gateway token. It changes on every launch, and
+both the launcher and the command below read the current one.
+
+To open the native OpenClaw Control UI on port 18790 with the current token,
+run this in the Spark's desktop session:
+
+```bash
+cd "$HOME/paai-spark" && OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" .openclaw-cli/bin/openclaw --profile cascade-demo dashboard
+```
+
+Without a desktop session, the same command prints an SSH tunnel command and
+the local address to open.
+
+To use the demo from another computer, forward both ports over SSH, then open
+`http://localhost:8092`. Replace `user@spark-host` with your Spark login:
+
+```bash
+ssh -L 8092:127.0.0.1:8092 -L 18790:127.0.0.1:18790 user@spark-host
+```
+
+Forward these ports only over SSH. For a shareable URL, use the optional
+[Bonus Track](#bonus-track-always-on-demo-on-ngrok-for-testing-purposes).
 
 ## If something goes wrong
 

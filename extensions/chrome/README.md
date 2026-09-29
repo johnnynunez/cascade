@@ -11,6 +11,9 @@ On the DGX Spark, use the **PAAI (Spark)** launcher from the
 Chromium profile with this extension loaded. All three cameras appear beside
 the attendee chat without a permission prompt. Automatic insertion is limited
 to the local PAAI page on port 8092; the camera reader uses loopback port 8091.
+`./run.sh dashboard` opens OpenClaw itself (port 18790) in the same profile.
+That gateway advertises no cameras, so discovery falls back to port 8091 on the
+same loopback host grant.
 
 Click the camera image to enlarge it. Click again or press Escape to return.
 You can also reach the image with Tab and open it with Enter or Space. The

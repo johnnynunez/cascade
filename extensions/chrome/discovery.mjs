@@ -1,5 +1,6 @@
 import {parseCameraURL,cameraNames} from './core.mjs';
 export const LABELS={kitchen:'Kitchen',worktop:'Worktop',side:'Side'};
+const SPARK_GATEWAY_STATUS='http://127.0.0.1:18790/api/status',SPARK_CAMERA_STATUS='http://127.0.0.1:8091/api/status';
 export function cleanURL(value,relativeTo){
  const u=new URL(value,relativeTo);
  if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash||/%|\\/.test(u.pathname))throw Error('Invalid discovery endpoint');
@@ -49,10 +50,19 @@ export async function bootstrap(info){
  return {statusURL,permission:hostPermission(statusURL)};
 }
 export async function discover(hint,signal){
- const config=contract(await boundedJSON(hint.statusURL,signal),hint.statusURL),live=await boundedJSON(config.stateURL,signal);
+ let status=hint.statusURL,raw;
+ try{raw=await boundedJSON(status,signal);}
+ catch(error){
+  // A DGX Spark serves its OpenClaw gateway and cameras on separate loopback
+  // ports, and the gateway advertises no cameras. Same host grant, no token.
+  if(status!==SPARK_GATEWAY_STATUS||signal?.aborted)throw error;
+  status=SPARK_CAMERA_STATUS;raw=await boundedJSON(status,signal);
+ }
+ const config=contract(raw,status),live=await boundedJSON(config.stateURL,signal);
  const names=cameraNames(live).filter(name=>config.streams[name]);if(!names.length)throw Error('No cameras announced');
  config.names=names;config.defaultCamera=names.includes(config.defaultCamera)?config.defaultCamera:names.includes('worktop')?'worktop':names[0];
  // Only public endpoint metadata enters storage. No token or gateway storage.
- await chrome.storage.local.set({demoDiscovery:config,discoveryHint:config.statusURL});
+ // Keep the page's own hint, so reopening the panel repeats the same discovery.
+ await chrome.storage.local.set({demoDiscovery:config,discoveryHint:hint.statusURL});
  return {config,state:live};
 }

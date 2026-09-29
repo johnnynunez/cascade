@@ -32,7 +32,8 @@ $('connect').addEventListener('click',async()=>{
  catch{state('offline','Could not connect','Reopen the extension and try again.');}
 });
 $('attach').addEventListener('click',()=>attach(true));
-$('side').addEventListener('click',()=>{if(!tab)return;chrome.sidePanel.open({windowId:tab.windowId}).then(async()=>{await chrome.storage.session.remove('allowed:'+tab.id);await chrome.tabs.sendMessage(tab.id,{type:'close'}).catch(()=>{});window.close();}).catch(()=>{$('integration').textContent='Click Side panel again to open the camera.';});});
+// Chrome's side panel or Firefox's sidebar; either must open inside this click.
+$('side').addEventListener('click',()=>{if(!tab)return;(chrome.sidePanel?chrome.sidePanel.open({windowId:tab.windowId}):chrome.sidebarAction.open()).then(async()=>{await chrome.storage.session.remove('allowed:'+tab.id);await chrome.tabs.sendMessage(tab.id,{type:'close'}).catch(()=>{});window.close();}).catch(()=>{$('integration').textContent='Click Side panel again to open the camera.';});});
 $('revoke').addEventListener('click',async()=>{if(hint){await chrome.permissions.remove({origins:[hint.permission]});$('views').replaceChildren();await connect();}});
 [tab]=await chrome.tabs.query({active:true,currentWindow:true});
 let advertised;

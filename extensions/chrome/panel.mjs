@@ -6,6 +6,9 @@ const elements=new Map([...document.querySelectorAll('[id]')].map(element=>[elem
 const $=id=>elements.get(id)||document.getElementById(id);
 const embedded=new URLSearchParams(location.search).get('surface')==='embedded';
 if (!embedded) { document.body.classList.add('side'); for(const id of ['move','side','collapse','close']) $(id).hidden=true; }
+// Firefox gives the embedded page content-script APIs only (no permissions API) and
+// cannot open its sidebar from there; Chrome keeps both, so it keeps the button.
+else if (!chrome.permissions) $('side').hidden=true;
 let config,hint, generation=0, controllers=[], timers=[], imageURL=null, selected='', paused=false, collapsed=false, left=false;
 let lastFrame=0,lastState=0,lastAdvance=0,hasAdvanced=false,lastId=null,cameraError=false,networkError='',retryAt=0;
 let authorized=false;
@@ -102,7 +105,7 @@ async function start(reset=false,attempt=0){
  if(paused||collapsed||outOfView()){refresh();return;}
  try{
   hint=await bootstrap();if(gen!==generation)return;
-  if(!await chrome.permissions.contains({origins:[hint.permission]})){
+  if(chrome.permissions&&!await chrome.permissions.contains({origins:[hint.permission]})){
    if(gen!==generation)return;state('idle','Permission needed','Connect the cameras to view the demo.');
    $('connect').hidden=false;$('retry').hidden=true;$('permission-note').hidden=false;
    $('empty-title').textContent='Cameras beside your chat.';$('empty-detail').textContent='Kitchen, Worktop, and Side are set up automatically.';return;
@@ -133,7 +136,7 @@ window.addEventListener('message',e=>{if(!embedded||e.source!==parent)return;if(
 document.addEventListener('visibilitychange',()=>{const hidden=outOfView();if(hidden!==wasOutOfView){wasOutOfView=hidden;start();}});
 window.addEventListener('pagehide',()=>{zoom.restore({focus:false});cancel();forgetFrame();});
 chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes.discoveryHint&&changes.discoveryHint.newValue!==changes.discoveryHint.oldValue)start(true);if(area==='local'&&changes.selectedCamera&&changes.selectedCamera.newValue!==selected){selected=changes.selectedCamera.newValue;start(true);}});
-chrome.permissions.onRemoved.addListener(()=>start(true));
-chrome.permissions.onAdded.addListener(()=>start(true));
+chrome.permissions?.onRemoved.addListener(()=>start(true));
+chrome.permissions?.onAdded.addListener(()=>start(true));
 authorized=!!(await chrome.runtime.sendMessage({type:'authorize-panel'}))?.ok;
 await start();

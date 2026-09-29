@@ -84,6 +84,11 @@ args = p.parse_args()
 if not 0 < args.dt <= 1.0:
     p.error("--dt / CASCADE_ISAAC_DT must be finite and in (0, 1] seconds")
 
+# Ownership registration must see this final interpreter, not the adapter
+# before exec. This handshake runs before loading Kit or creating GPU state.
+from isaac_launch import publish_ready
+publish_ready()
+
 # Demo ready target in the ASSET joint convention; IsaacArm converts the
 # profile's local home_q with joint_signs before sending the same target.
 # Neutral joint5 keeps gripper_end +X forward and its jaw-opening +Y lateral;

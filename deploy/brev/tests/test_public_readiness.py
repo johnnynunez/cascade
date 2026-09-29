@@ -45,7 +45,6 @@ def public_responses(monkeypatch):
         ("/staff/", False): (401, b"Authentication required"),
         ("/staff/", True): (200, (HERE / "staff.html").read_bytes()),
         ("/staff/style.css", True): (200, (HERE / "staff.css").read_bytes()),
-        ("/staff/media/openclaw-cameras.png", True): (200, (HERE / "staff-openclaw-cameras.png").read_bytes()),
         ("/api/status", True): (200, json.dumps({"cameras": cameras}).encode()),
         ("/snapshot/worktop.jpg", True): (200, b"\xff\xd8fixture\xff\xd9"),
         **{(path, True): (404, b"Not found") for path in
@@ -75,7 +74,6 @@ def test_readiness_requires_page_cameras_authentication_and_admin_exclusion(publ
     ("/staff/", False, (200, b"Public staff page"), "require authentication"),
     ("/staff/", True, (200, b"Attendee page"), "installed staff page"),
     ("/staff/style.css", True, (404, b"Missing stylesheet"), "installed staff page"),
-    ("/staff/media/openclaw-cameras.png", True, (404, b"Missing screenshot"), "installed staff page"),
     ("/api/status", True, (200, b'{"cameras":[]}'), "three public cameras"),
     ("/snapshot/worktop.jpg", True, (200, b"\xff\xd8truncated"), "complete JPEG"),
     ("/openclaw/", True, (200, b"Admin"), "administrative routes"),

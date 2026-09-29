@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "scene_name": "paai-own-kitchen-v1",
+  "files": {
+    "scripts/isaac_bridge.py": {
+      "sha256": "b328775fb308d545ca050dca844b82291416434a6c3e7e3ca4ce0a0e1da31bc6",
+      "size_bytes": 83588
+    },
+    "demo/isaac_scene.py": {
+      "sha256": "d2a70095efb546080aeecd28325f5f1c3a3682739e62142c45fedfc8b0f0a40b",
+      "size_bytes": 30546
+    },
+    "demo/own_kitchen.py": {
+      "sha256": "5a0f72575604b04737ed9dbec5f54fa9dc6400d6d8cc694303563a9890791f13",
+      "size_bytes": 32323
+    },
+    "demo/own_kitchen_props.py": {
+      "sha256": "68351c3787af0e5aadf789f162341c6b997294b9e1d4b201aa112b85f05fcb0f",
+      "size_bytes": 22992
+    },
+    "demo/scene_identity.py": {
+      "sha256": "b925f7ef5d4b8494c8731c6568689b0c594a98d1bdff26064f955bb86d1413eb",
+      "size_bytes": 5482
+    },
+    "demo/scene/NOTICE.md": {
+      "sha256": "f528f5cf50e0219179d78bcb765c91cde1840dae9103a132c7da97ccd14e0619",
+      "size_bytes": 2068
+    },
+    "demo/scene/props/LICENSE.txt": {
+      "sha256": "e00c86b567f134534dd961c545ced96de5843db95fc04a3240ad84adf89fe23f",
+      "size_bytes": 988
+    },
+    "demo/scene/props/lemon.usda": {
+      "sha256": "e9eb4e394d4f9aab891626bffbac587bdcae68d6f352286c1ee9389b2f8cb022",
+      "size_bytes": 95084
+    },
+    "demo/scene/props/tomato_can.usda": {
+      "sha256": "f730d6cb00ad22e6cf468c86c1d4bb8adb59e5280356a5590d87b8b514514a1f",
+      "size_bytes": 303182
+    }
+  }
+}

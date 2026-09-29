@@ -98,6 +98,7 @@ def runtime_identity():
     return {
         "ok": True, "engine": "physx", "scene_config": "/fixture/kitchen_config.json",
         "scene_config_sha256": "a" * 64, "physics_dt_s": 1 / 120,
+        "scene_name": "paai-own-kitchen-v1", "scene_content_sha256": "c" * 64,
         "physics_gpu": True, "physics_device": "cuda:0", "physics_tensor_device": "cuda:0",
         "gpu_attestation": {
             "required": True, "backend": "physx", "device": "cuda:0", "tensor_device": "cuda:0",
@@ -110,6 +111,7 @@ def runtime_identity():
 @pytest.mark.parametrize("fault", [
     None, "newton", "cpu", "unguarded", "no_context", "cpu_broadphase", "different_tensor",
     "wrong_ordinal", "fallback_allowed", "wrong_scene", "wrong_dt",
+    "wrong_kitchen", "missing_content", "wrong_content",
 ])
 def test_spark_probe_requires_actual_brev_runtime_identity(monkeypatch, fault, capsys):
     """A healthy socket cannot substitute for the live engine/device/scene."""
@@ -134,6 +136,12 @@ def test_spark_probe_requires_actual_brev_runtime_identity(monkeypatch, fault, c
         pong["scene_config_sha256"] = "b" * 64
     elif fault == "wrong_dt":
         pong["physics_dt_s"] = 1 / 60
+    elif fault == "wrong_kitchen":
+        pong["scene_name"] = "unreviewed"
+    elif fault == "missing_content":
+        pong.pop("scene_content_sha256")
+    elif fault == "wrong_content":
+        pong["scene_content_sha256"] = "d" * 64
     requests = []
 
     class Bridge(socketserver.StreamRequestHandler):
@@ -155,7 +163,7 @@ def test_spark_probe_requires_actual_brev_runtime_identity(monkeypatch, fault, c
             monkeypatch.setenv("CASCADE_INSTALL_PROFILE", "spark")
             monkeypatch.setenv("CASCADE_ISAAC_DT", "0.008333333333333333")
             monkeypatch.setattr(sys, "argv", ["-", str(server.server_address[1]), "physx",
-                                               "/fixture/kitchen_config.json", "a" * 64, "2", ""])
+                                               "/fixture/kitchen_config.json", "a" * 64, "2", "", "c" * 64])
             # Preserve the real TCP client while honoring the repository's VPN-safe host fixture.
             from cascade.sim import bridge_client
             real_client = bridge_client.BridgeClient

@@ -23,7 +23,6 @@ def serve(path, *, method='GET', peer='100.64.0.10'):
 @pytest.mark.parametrize('path,name,mime', [
     ('/staff/', 'staff.html', 'text/html'),
     ('/staff/style.css', 'staff.css', 'text/css'),
-    ('/staff/media/openclaw-cameras.png', 'staff-openclaw-cameras.png', 'image/png'),
 ])
 def test_canonical_guide_assets_require_private_access(path, name, mime):
     response = serve(path)

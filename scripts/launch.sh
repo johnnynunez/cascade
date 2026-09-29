@@ -319,24 +319,33 @@ fi
 if [[ -n "$SCENE_CONFIG" ]]; then
     # Canonical identity is checked again against the running bridge. A changed
     # file at the same path must not let a stale scene masquerade as this one.
-    SCENE_INFO="$("$PY" - "$SCENE_CONFIG" <<'PYEOF'
+    SCENE_INFO="$("$PY" - "$SCENE_CONFIG" "$REPO" <<'PYEOF'
 import hashlib, json, pathlib, sys
 try:
     path = pathlib.Path(sys.argv[1]).expanduser().resolve(strict=True)
     if '\n' in str(path) or '\r' in str(path):
         raise ValueError('scene configuration path cannot contain line breaks')
     data = path.read_bytes()
-    if not isinstance(json.loads(data), dict):
+    config = json.loads(data)
+    if not isinstance(config, dict):
         raise ValueError('scene configuration must be a JSON object')
+    content = '-'
+    if config.get('scene_name') == 'paai-own-kitchen-v1':
+        sys.path.insert(0, str(pathlib.Path(sys.argv[2]) / 'demo'))
+        from scene_identity import scene_identity
+        content = scene_identity(path)['scene_content_sha256']
     print(path)
     print(hashlib.sha256(data).hexdigest())
+    print(content)
 except (OSError, ValueError) as exc:
     print(f'[launch] ERROR: invalid --scene-config: {exc}', file=sys.stderr)
     sys.exit(2)
 PYEOF
 )" || exit 2
-    SCENE_CONFIG="${SCENE_INFO%$'\n'*}"
-    SCENE_CONFIG_SHA256="${SCENE_INFO##*$'\n'}"
+    SCENE_CONFIG="${SCENE_INFO%%$'\n'*}"
+    SCENE_REST="${SCENE_INFO#*$'\n'}"
+    SCENE_CONFIG_SHA256="${SCENE_REST%%$'\n'*}"
+    SCENE_CONTENT_SHA256="${SCENE_REST#*$'\n'}"
 fi
 
 case "$SIM" in
@@ -377,7 +386,7 @@ fi
 
 if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
     "$PY" "$REPO/scripts/kitchen_assets.py" --repo "$REPO" --check \
-        || die "Spark kitchen assets are missing or invalid; run python3 scripts/kitchen_assets.py --repo \"$REPO\" to install the bundle"
+        || die "Original kitchen sources are missing or invalid; restore the matching source checkout and run python3 scripts/kitchen_assets.py --repo \"$REPO\" --check"
 fi
 
 # ── 1. deps ─────────────────────────────────────────────────────────────────
@@ -560,7 +569,7 @@ if [[ "$SIM" == "isaac" ]]; then
     fi
     # Probe borrowed bridges too. An open port is neither health nor proof.
     isaac_remaining_s=$((ISAAC_WAIT_S - (SECONDS - isaac_started_s)))
-    "$PY" - "$BRIDGE_PORT" "$ISAAC_ENGINE" "$SCENE_CONFIG" "$SCENE_CONFIG_SHA256" "$isaac_remaining_s" "$bridge_pid" <<'PYEOF' || die "Isaac bridge on :$BRIDGE_PORT failed health/scene identity -- see $STATE_DIR/isaac_bridge.log"
+    "$PY" - "$BRIDGE_PORT" "$ISAAC_ENGINE" "$SCENE_CONFIG" "$SCENE_CONFIG_SHA256" "$isaac_remaining_s" "$bridge_pid" "${SCENE_CONTENT_SHA256:--}" <<'PYEOF' || die "Isaac bridge on :$BRIDGE_PORT failed health/scene identity -- see $STATE_DIR/isaac_bridge.log"
 import math, os, sys, time
 from cascade.sim.bridge_client import BridgeClient, BridgeError
 expected_dt = None
@@ -589,6 +598,10 @@ while True:
         if expected_scene:
             assert pong.get('scene_config') == expected_scene, f"requested scene {expected_scene!r}, received {pong.get('scene_config')!r}"
             assert pong.get('scene_config_sha256') == expected_sha, 'running Isaac scene config differs from requested bytes; restart that scene explicitly'
+            expected_content = sys.argv[7] if len(sys.argv) > 7 else '-'
+            if expected_content != '-':
+                assert pong.get('scene_name') == 'paai-own-kitchen-v1', 'running Isaac kitchen identity differs'
+                assert pong.get('scene_content_sha256') == expected_content, 'running Isaac kitchen artwork differs from verified source bytes; restart that scene explicitly'
         if expected_dt is not None:
             actual_dt = pong.get('physics_dt_s')
             assert type(actual_dt) in (int, float) and math.isfinite(actual_dt) and 0 < actual_dt <= 1, "running Isaac bridge has no valid actual physics timestep; restart it explicitly"

@@ -6,7 +6,6 @@ moves a live body. Lengths and returned body-center spawns are in metres.
 from __future__ import annotations
 
 import json
-import hashlib
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,16 +59,18 @@ def read_config(path):
             or surfaces.get("green_cube", "stone") != "stone"):
         raise ValueError("Cube surfaces must preserve green stone and optional pink puzzle styling")
     config["_directory"] = str(config_path.parent)
-    config["_identity"] = {"scene_config": str(config_path),
-                           "scene_config_sha256": hashlib.sha256(raw).hexdigest()}
+    from scene_identity import scene_identity
+    config["_identity"] = scene_identity(config_path)
     return config
 
 
 def _asset(config, name):
     path = (Path(config["_directory"]) / name).resolve()
     kitchen = Path(__file__).resolve().parent
-    if not path.is_relative_to(kitchen) or not path.is_file():
-        raise ValueError(f"Kitchen asset must be a local kitchen file: {path}")
+    from scene_identity import SOURCE_FILES
+    if (not path.is_relative_to(kitchen) or not path.is_file()
+            or path.relative_to(kitchen.parent).as_posix() not in SOURCE_FILES):
+        raise ValueError(f"Kitchen asset must be a verified authored source: {path}")
     return path
 
 
@@ -299,9 +300,9 @@ def prepare_scene(stage, config, *, cube, bind_pmat, base_z, is_playing):
     if not stage.GetPrimAtPath(config["robot_prim"]):
         raise ValueError("Expected shipped reBot articulation root is missing")
 
-    background = stage.DefinePrim("/Kitchen", "Xform")
-    background.GetReferences().AddReference(str(_asset(config, config["background"])), "/Kitchen")
-    # Fail closed if future vendor/plugin composition reintroduces physics.
+    from own_kitchen import author_kitchen
+    background = author_kitchen(stage, counter=config["counter"])
+    # The visual room must never add a second simulation or collision body.
     for prim in Usd.PrimRange(background):
         schemas = prim.GetMetadata("apiSchemas")
         names = schemas.GetAppliedItems() if schemas else []
@@ -346,11 +347,17 @@ def prepare_scene(stage, config, *, cube, bind_pmat, base_z, is_playing):
         UsdPhysics.RigidBodyAPI(body).CreateRigidBodyEnabledAttr(True)
         UsdPhysics.RigidBodyAPI(body).CreateKinematicEnabledAttr(False)
         UsdPhysics.MassAPI(body).CreateCenterOfMassAttr(Gf.Vec3f(0))
-        visual = stage.DefinePrim(path + "/Visual", "Xform")
-        visual.GetReferences().AddReference(str(_asset(config, item["asset"])), "/Prop")
-        if "visual_scale" in item:
-            _scale_and_texture_visual(stage, visual, float(item["visual_scale"]))
-        _matrix(visual, item["visual_offset"])
+        if name == "orange":
+            if item.get("visual") != "procedural_orange" or "asset" in item:
+                raise ValueError("Orange must use the original procedural visual")
+            from own_kitchen_props import author_orange
+            author_orange(stage, path + "/Visual", dimensions=item["dimensions"])
+        else:
+            visual = stage.DefinePrim(path + "/Visual", "Xform")
+            visual.GetReferences().AddReference(str(_asset(config, item["asset"])), "/Prop")
+            if "visual_scale" in item:
+                _scale_and_texture_visual(stage, visual, float(item["visual_scale"]))
+            _matrix(visual, item["visual_offset"])
         collision = UsdGeom.Mesh.Define(stage, path + "/Collision")
         mesh_geometry(collision, *convex_points(item["proxy"], item["dimensions"]))
         collision.CreateVisibilityAttr("invisible")

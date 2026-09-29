@@ -22,8 +22,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 HERE = Path(__file__).resolve().parent
 DOWNLOAD = "https://bin.ngrok.com/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz"
 VISITOR_FILES = ("visitor.py", "visitor.html", "visitor.css", "visitor.js",
-                 "visitor_video.py", "visitor-player.js", "staff.html", "staff.css",
-                 "staff-openclaw-cameras.png")
+                 "visitor_video.py", "visitor-player.js", "staff.html", "staff.css")
 VISITOR_ORIGIN = "http://127.0.0.1:8093"
 SERVICES = ("paai-visitor", "paai-ngrok")
 UNIT_DIRECTORY = Path("/etc/systemd/system")
@@ -86,8 +85,7 @@ def verify_visitor(url, auth):
     status, body = public_get(url + "/", authorization, deadline)
     if status != 200 or body != (HERE / "visitor.html").read_bytes():
         raise RuntimeError("The public URL did not serve the installed visitor page")
-    for path, filename in (("/staff/", "staff.html"), ("/staff/style.css", "staff.css"),
-                           ("/staff/media/openclaw-cameras.png", "staff-openclaw-cameras.png")):
+    for path, filename in (("/staff/", "staff.html"), ("/staff/style.css", "staff.css")):
         status, body = public_get(url + path, authorization, deadline)
         if status != 200 or body != (HERE / filename).read_bytes():
             raise RuntimeError("The public URL did not serve the installed staff page")

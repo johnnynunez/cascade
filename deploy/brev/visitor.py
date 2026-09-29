@@ -97,7 +97,7 @@ class VisitorHandler(BaseHTTPRequestHandler):
             return
         path = urlsplit(self.path).path
         if path in ("/", "/visitor.css", "/visitor.js", "/visitor-player.js",
-                    "/staff/", "/staff/style.css", "/staff/media/openclaw-cameras.png"):
+                    "/staff/", "/staff/style.css"):
             name, content_type = {
                 "/": ("visitor.html", "text/html; charset=utf-8"),
                 "/visitor.css": ("visitor.css", "text/css; charset=utf-8"),
@@ -105,7 +105,6 @@ class VisitorHandler(BaseHTTPRequestHandler):
                 "/visitor-player.js": ("visitor-player.js", "text/javascript; charset=utf-8"),
                 "/staff/": ("staff.html", "text/html; charset=utf-8"),
                 "/staff/style.css": ("staff.css", "text/css; charset=utf-8"),
-                "/staff/media/openclaw-cameras.png": ("staff-openclaw-cameras.png", "image/png"),
             }[path]
             return self.respond(200, (ROOT / name).read_bytes(), content_type)
         try:

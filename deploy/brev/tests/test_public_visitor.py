@@ -120,8 +120,7 @@ def test_staff_page_is_separate_authenticated_and_cannot_proxy_requests(camera):
         server.camera_origin = camera[0]
         server.authorization = "Basic " + base64.b64encode(b"staff:fixture-password").decode()
         headers = {"Authorization": server.authorization}
-        for path, name in (("/staff/", "staff.html"), ("/staff/style.css", "staff.css"),
-                           ("/staff/media/openclaw-cameras.png", "staff-openclaw-cameras.png")):
+        for path, name in (("/staff/", "staff.html"), ("/staff/style.css", "staff.css")):
             assert fetch(origin + path)[0] == 401
             assert fetch(origin + path, headers={"Authorization": "Basic wrong"})[0] == 401
             status, body = fetch(origin + path + "?url=http://private.invalid/openclaw/", headers=headers)

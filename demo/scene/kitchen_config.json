@@ -1,12 +1,6 @@
 {
   "version": 1,
   "robot_prim": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
-  "background": "assets/background.usda",
-  "kitchen_translation_m": [
-    0.2,
-    -0.225,
-    -0.8583813550720012
-  ],
   "cube_positions": {
     "green_cube": [
       0.24,
@@ -31,7 +25,6 @@
       0.06
     ]
   },
-  "asset_scale": 0.75,
   "counter": {
     "min": [
       -0.15987323186177282,
@@ -42,8 +35,7 @@
       0.9867574274915567,
       0.3795904990656434,
       0.0
-    ],
-    "source_mesh": "/root/Kitchen_InsularShelf_01/Kitchen_InsularShelf/Kitchen_InsularShelf"
+    ]
   },
   "open_box": {
     "name": "open box",
@@ -93,7 +85,7 @@
   "props": [
     {
       "name": "tomato_can",
-      "asset": "assets/tomato_can.usda",
+      "asset": "props/tomato_can.usda",
       "position": [
         0.225,
         0.215,
@@ -125,7 +117,7 @@
     },
     {
       "name": "lemon",
-      "asset": "assets/lemon.usda",
+      "asset": "props/lemon.usda",
       "position": [
         0.32,
         0.005,
@@ -157,7 +149,6 @@
     },
     {
       "name": "orange",
-      "asset": "assets/orange70.usda",
       "position": [
         0.18,
         0.12,
@@ -184,7 +175,8 @@
         0.95,
         0.34,
         0.035
-      ]
+      ],
+      "visual": "procedural_orange"
     }
   ],
   "physics_material": {
@@ -195,5 +187,6 @@
   "cube_surfaces": {
     "green_cube": "stone",
     "pink_cube": "puzzle"
-  }
+  },
+  "scene_name": "paai-own-kitchen-v1"
 }

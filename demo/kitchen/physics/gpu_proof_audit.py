@@ -91,6 +91,16 @@ def validate_expected_scene_geometry(value):
         raise ValueError("Green square requires a nonempty interior on its support surface")
     result = {"scene_config_sha256": digest, "prop_dimensions_m": dimensions,
               "target_pad": normalized_pad}
+    if "scene_name" in value:
+        if value["scene_name"] != "paai-own-kitchen-v1":
+            raise ValueError("Expected the original kitchen scene identity")
+        result["scene_name"] = value["scene_name"]
+        for key in ("scene_assets_sha256", "scene_content_sha256"):
+            content_digest = value.get(key)
+            if (not isinstance(content_digest, str) or len(content_digest) != 64
+                    or any(c not in "0123456789abcdef" for c in content_digest)):
+                raise ValueError("Expected verified kitchen content identity")
+            result[key] = content_digest
     if "convex_colliders" in value:
         result["convex_colliders"] = convex.validate_specs(value["convex_colliders"], dimensions)
     if "open_box" in value:
@@ -131,6 +141,11 @@ def load_expected_scene_geometry(path):
     expected = {
         "scene_config_sha256": hashlib.sha256(raw).hexdigest(),
         "prop_dimensions_m": dimensions, "target_pad": config.get("target_pad")}
+    if config.get("scene_name") == "paai-own-kitchen-v1":
+        identity_module = _load("cascade_expected_kitchen_identity", ROOT / "demo/scene_identity.py")
+        identity = identity_module.scene_identity(path)
+        expected.update({key: identity[key] for key in
+                         ("scene_name", "scene_assets_sha256", "scene_content_sha256")})
     # Legacy cube-only geometry receipts did not supply proxy/mass contracts.
     # They remain usable for cubes; convex proof requires the complete contract.
     if any('proxy' in p or 'mass' in p for p in config.get('props', [])):
@@ -196,6 +211,9 @@ def _gpu_scene_geometry_snapshot():
                 and _obs_UP.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "boundingCube"),
             "rigid_body": bool(prim.HasAPI(_obs_UP.RigidBodyAPI))}
     _result = {"scene_config_sha256": _SCENE_IDENTITY.get("scene_config_sha256"),
+        "scene_name": _SCENE_IDENTITY.get("scene_name"),
+        "scene_assets_sha256": _SCENE_IDENTITY.get("scene_assets_sha256"),
+        "scene_content_sha256": _SCENE_IDENTITY.get("scene_content_sha256"),
         "prop_dimensions_m": {name: list(_PROP_DIMENSIONS[name]) for name in EXPECTED_PROPS_LITERAL},
         "cube_colliders": cubes,
         "target_pad": {"name": "green square", "border_vertices_m": bw.tolist(), "fill_vertices_m": fw.tolist(),
@@ -484,6 +502,9 @@ def audit_scene_geometry(samples, expected):
     inner = _square_vertices(pad, pad["outer_size_m"] / 2 - pad["border_width_m"])
     checks = {"scene_config_sha256_matches": bool(samples), "prop_dimensions_match": bool(samples),
               "cube_collider_geometry_matches": bool(samples), "green_square_geometry_matches": bool(samples)}
+    identity_keys = ("scene_name", "scene_assets_sha256", "scene_content_sha256") if "scene_name" in expected else ()
+    for key in identity_keys:
+        checks[key + "_matches"] = bool(samples)
     if "open_box" in expected:
         checks["open_box_geometry_matches"] = bool(samples)
         expected_parts = _open_box_part_bounds(expected["open_box"])
@@ -505,6 +526,8 @@ def audit_scene_geometry(samples, expected):
                 checks[check] = False
             continue
         checks["scene_config_sha256_matches"] &= geometry.get("scene_config_sha256") == expected["scene_config_sha256"]
+        for key in identity_keys:
+            checks[key + "_matches"] &= geometry.get(key) == expected[key]
         dimensions = geometry.get("prop_dimensions_m", {})
         checks["prop_dimensions_match"] &= bool(isinstance(dimensions, dict)
             and set(dimensions) == set(expected["prop_dimensions_m"])

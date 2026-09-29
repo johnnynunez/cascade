@@ -17,13 +17,20 @@ BUILD_INPUTS = {
     "clip": {"sha256": "a6612386ce34f6e08591c603e67855e93abf3b7b418dc81e68b28d891ac5bcd8",
              "size_bytes": 4339014},
 }
-LAYOUT = "cascade-kitchen-v1"
+LAYOUT = "cascade-own-kitchen-v2"
+SCENE_NAME = "paai-own-kitchen-v1"
 ASSET_MANIFEST = Path(__file__).with_name("bundle_assets.json")
+KITCHEN_SOURCE_FILES = (
+    "scripts/isaac_bridge.py",
+    "demo/isaac_scene.py", "demo/own_kitchen.py", "demo/own_kitchen_props.py",
+    "demo/scene_identity.py", "demo/scene/NOTICE.md", "demo/scene/props/LICENSE.txt",
+    "demo/scene/props/lemon.usda", "demo/scene/props/tomato_can.usda",
+)
 RUNTIME_FILES = (
     "LICENSE", "pyproject.toml", "src/cascade/__init__.py",
     "scripts/isaac_bridge.py", "scripts/isaac_runtime.py",
-    "demo/isaac_scene.py", "demo/serve_isaac_view.py", "demo/scene/kitchen_config.json",
-    "demo/scene/props/LICENSE.txt", "deploy/runtime/runtime.py", "deploy/runtime/brain.py",
+    *KITCHEN_SOURCE_FILES, "demo/serve_isaac_view.py", "demo/scene/kitchen_config.json",
+    "demo/scene/own_assets.json", "deploy/runtime/runtime.py", "deploy/runtime/brain.py",
     "deploy/runtime/brain_qwen.json", "deploy/runtime/web_runtime.py",
     "web/guide/index.html", "web/openclaw-ui/paai-light.js", "web/openclaw-ui/paai-reset.js",
     "web/openclaw-ui/paai-light.css", "web/openclaw-ui/OPENCLAW-LICENSE.txt",
@@ -120,7 +127,7 @@ def asset_inventory():
 
 
 def runtime_inventory(source, record):
-    """Require the relocated runtime and its separately licensed data inputs."""
+    """Require authored scene sources and separately licensed robot/model inputs."""
     if record.get("layout") != LAYOUT:
         raise ValueError("The bundle uses an unsupported runtime layout")
     files = record["files"]
@@ -132,10 +139,22 @@ def runtime_inventory(source, record):
     for name, expected in assets["files"].items():
         if any(files[name].get(key) != expected[key] for key in ("sha256", "size_bytes")):
             raise ValueError(f"The bundle differs from the pinned asset inventory: {name}")
+    kitchen = json.loads(member(source, "demo/scene/own_assets.json").read_text())
+    if (kitchen.get("schema") != 1 or kitchen.get("scene_name") != SCENE_NAME
+            or not isinstance(kitchen.get("files"), dict)
+            or set(kitchen["files"]) != set(KITCHEN_SOURCE_FILES)):
+        raise ValueError("The bundle needs the complete authored kitchen source inventory")
+    for name, expected in kitchen["files"].items():
+        if (not isinstance(expected, dict)
+                or any(files[name].get(key) != expected.get(key) for key in ("sha256", "size_bytes"))):
+            raise ValueError(f"The bundle differs from its authored kitchen source inventory: {name}")
     config = json.loads(member(source, "demo/scene/kitchen_config.json").read_text())
-    for name in [config["background"], *(p["asset"] for p in config["props"] if p.get("asset"))]:
+    if config.get("scene_name") != SCENE_NAME or "background" in config:
+        raise ValueError("The bundle requires the repository-authored kitchen scene")
+    for name in (p["asset"] for p in config["props"] if p.get("asset")):
         asset = (source / "demo/scene" / name).resolve()
-        if not asset.is_relative_to(source / "demo") or str(asset.relative_to(source)) not in files:
+        if (not asset.is_relative_to(source / "demo/scene/props")
+                or str(asset.relative_to(source)) not in kitchen["files"]):
             raise ValueError("Scene configuration references an asset outside the admitted bundle")
 
 

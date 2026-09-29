@@ -8,7 +8,7 @@ attendee asks about the scene, gives one order, and watches the simulated arm.
 
 The [Build a Claw page](../deploy/brev/staff.html) is the main guide for staff
 and attendees. Open `/staff/` on the running demo. It has two sections:
-**How this works** and **The workflow**, with a real OpenClaw screenshot.
+**How this works** and **The workflow**.
 The operator shares the live link and access details privately.
 
 Use the private demo’s `/guide/` page to open the connected OpenClaw chat.
@@ -46,7 +46,6 @@ either. Use the reset result and cameras to check readiness.
 [Chrome extension](CHROME_EXTENSION.md) · [Brev](BREV.md) ·
 [DGX Spark](DGX_SPARK_SETUP.md)
 
-PAAI was built by Johnny Núñez and Asier Arranz. Kitchen and orange assets
-by [Lightwheel](https://github.com/LightwheelAI/Lightwheel_Kitchen),
-[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/), adapted for
-this demo.
+PAAI was built by Johnny Núñez and Asier Arranz. Its original kitchen, orange
+and bowl are authored in this repository. See the
+[scene provenance notice](../demo/scene/NOTICE.md).

@@ -28,10 +28,12 @@ def distribution(tmp_path, monkeypatch):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("Source fixture\n")
     (checkout / "demo/scene/kitchen_config.json").write_text(json.dumps({
-        "background": "assets/background.usda", "props": [{"asset": "assets/orange70.usda"}]}))
-    data = {"demo/scene/assets/background.usda": b"licensed background fixture",
-            "demo/scene/assets/orange70.usda": b"licensed orange fixture",
-            "demo/vendor-kitchen/LICENSE.txt": b"license fixture"}
+        "scene_name": bundle.SCENE_NAME, "props": [{"asset": "props/lemon.usda"}, {"visual": "procedural_orange"}]}))
+    (checkout / "demo/scene/own_assets.json").write_text(json.dumps({
+        "schema": 1, "scene_name": bundle.SCENE_NAME,
+        "files": {name: expected((checkout / name).read_bytes()) for name in bundle.KITCHEN_SOURCE_FILES}}))
+    data = {"assets/REBOT_UPSTREAM_LICENSE.txt": b"robot license fixture",
+            "models/detector.pt": b"perception fixture"}
     for name, value in data.items():
         path = assets / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -64,7 +66,9 @@ def test_assembled_runtime_is_admitted_by_existing_prepare(distribution, tmp_pat
                               archive, clip, boundary=lambda: None)
     assert admitted["source_files"] == result["files"]
     assert result["downloads"] == admitted["downloads"] == 0
-    assert (output / "source/demo/vendor-kitchen/LICENSE.txt").read_bytes() == b"license fixture"
+    assert (output / "source/assets/REBOT_UPSTREAM_LICENSE.txt").read_bytes() == b"robot license fixture"
+    assert (output / "source/demo/scene/props/lemon.usda").read_bytes() == b"Source fixture\n"
+    assert record["layout"] == "cascade-own-kitchen-v2"
     assert not (output / "source/kitchen").exists()
 
 
@@ -75,7 +79,7 @@ def test_repeat_assembly_reuses_certified_asset_bytes(distribution, monkeypatch)
 
     def guarded_open(path, *args, **kwargs):
         if path.is_relative_to(assets) or path.is_relative_to(output / "source"):
-            if path.name != "kitchen_config.json":
+            if path.name not in ("kitchen_config.json", "own_assets.json"):
                 pytest.fail("Unchanged certified asset or output was read again")
         return old_open(path, *args, **kwargs)
 
@@ -87,7 +91,7 @@ def test_repeat_assembly_reuses_certified_asset_bytes(distribution, monkeypatch)
 
 def test_missing_licensed_asset_prevents_manifest(distribution):
     checkout, assets, output, _ = distribution
-    (assets / "demo/vendor-kitchen/LICENSE.txt").rename(assets / "held-license.txt")
+    (assets / "assets/REBOT_UPSTREAM_LICENSE.txt").rename(assets / "held-license.txt")
     with pytest.raises(ValueError, match="missing"):
         assemble(distribution)
     assert not (output / "PORTABLE_BUNDLE.json").exists()
@@ -123,8 +127,16 @@ def test_output_inside_checkout_is_refused(distribution):
 def test_scene_reference_must_belong_to_admitted_files(distribution):
     checkout, _, output, _ = distribution
     (checkout / "demo/scene/kitchen_config.json").write_text(json.dumps({
-        "background": "../../private/background.usda", "props": []}))
+        "scene_name": bundle.SCENE_NAME, "props": [{"asset": "../../private/background.usda"}]}))
     with pytest.raises(ValueError, match="outside the admitted bundle"):
+        assemble(distribution)
+    assert not (output / "PORTABLE_BUNDLE.json").exists()
+
+
+def test_authored_source_change_requires_matching_scene_manifest(distribution):
+    checkout, _, output, _ = distribution
+    (checkout / "demo/own_kitchen_props.py").write_text("Changed original geometry\n")
+    with pytest.raises(ValueError, match="differs from its authored kitchen"):
         assemble(distribution)
     assert not (output / "PORTABLE_BUNDLE.json").exists()
 

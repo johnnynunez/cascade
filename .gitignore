@@ -279,9 +279,7 @@ MUJOCO_LOG.TXT
 /demo/STOP
 /STOP
 
-# Licensed scene and perception data are supplied in the external bundle.
-/demo/scene/assets/
-/demo/vendor-kitchen/
+# Robot and perception data may be supplied in the external bundle.
 /assets/robots/rebot/
 /assets/usd/RS-rebot-dev-arm/
 /.brev-acceptance/

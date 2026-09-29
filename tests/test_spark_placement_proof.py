@@ -54,6 +54,8 @@ def trajectory(object_name="orange", destination_name="open box"):
             "support_is_static_collider": True},
         "open_box": {"name": "open box", "parts_bounds_xyz_m": gpu._open_box_part_bounds(expected["open_box"]),
                      "five_static_colliders": True, "axis_aligned": True, "visible": True}}
+    geometry.update({key: expected[key] for key in
+                     ("scene_name", "scene_assets_sha256", "scene_content_sha256") if key in expected})
     if object_name == "orange":
         spec = expected["convex_colliders"][object_name]
         vertices, counts, indices = gpu.convex.expected_hull(spec)
@@ -190,3 +192,19 @@ def test_snapshot_is_read_only_and_keeps_exact_convex_codec(object_name, destina
     with contextlib.redirect_stdout(output):
         exec('import zlib as _obs_zlib' + code.split('import zlib as _obs_zlib', 1)[1], namespace)
     assert gpu.original.parse_snapshot_reply({"ok": True, "stdout": output.getvalue()}) == sample
+
+
+@pytest.mark.parametrize("key", ["scene_name", "scene_assets_sha256", "scene_content_sha256"])
+@pytest.mark.parametrize("fault", ["missing", "stale"])
+def test_original_kitchen_proof_rejects_missing_or_stale_artwork_identity(key, fault):
+    rows, expected = trajectory()
+    assert key in expected
+    for row in rows:
+        geometry = row["physics"]["scene_geometry"]
+        if fault == "missing":
+            geometry.pop(key)
+        else:
+            geometry[key] = "0" * 64
+    result = audit(rows, expected)
+    assert not result["pass"]
+    assert not result["checks"][key + "_matches"]

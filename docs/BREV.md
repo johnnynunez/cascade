@@ -62,21 +62,21 @@ Keep models, Docker layers, build inputs, Isaac caches and recordings below
 tested machine. A separate Docker daemon uses
 `unix:///run/paai-demo-docker.sock`, leaving the system daemon's data alone.
 
-The deployment requires a separately supplied source and licensed asset
-bundle with a relative checksum manifest, plus the pinned OpenClaw and
-CLIP archives. This kitchen deployment's Lightwheel assets, perception weights
-and pinned runtime archives are supplied separately. Supply the external
-files at the relative paths listed in
+The deployment requires a source and asset bundle with a relative checksum
+manifest, plus the pinned OpenClaw and CLIP archives. The original kitchen,
+orange and bowl are included in the source checkout and verified offline.
+Robot assets, perception weights and pinned runtime archives remain separately
+supplied inputs. Supply the external files at the relative paths listed in
 [`bundle_assets.json`](../deploy/brev/bundle_assets.json), preserving their
 license notices.
 
 CASCADE's source license remains MIT. The runtime installs
 [Ultralytics](https://www.ultralytics.com/license) and its pinned
 [CLIP fork](https://github.com/ultralytics/CLIP/blob/a13192f8cb767260d7dfd98c843b0716593169e7/LICENSE)
-under AGPL-3.0 terms; separate vendor licensing may apply. Lightwheel assets
-use CC BY-NC 4.0. Preserve each dependency's notices and source obligations
-when distributing a runtime. Attribution alone does not establish permission
-for commercial use of the assets.
+under AGPL-3.0 terms; separate vendor licensing may apply. The original scene's
+[provenance notice](../demo/scene/NOTICE.md) records its authored assets and
+materials. Preserve each dependency's notices and source obligations when
+distributing a runtime.
 
 Assemble the distribution once outside the checkout, then import it;
 valid receipts let subsequent operations reuse the bytes:

@@ -27,15 +27,18 @@ def distribution(tmp_path, monkeypatch):
     source = tmp_path / "separate-source"
     files = {name: b"source fixture\n" for name in bundle.RUNTIME_FILES}
     files.update({"LICENSE": b"source notice", "src/cascade/app.py": b"pass\n",
-                  "demo/scene/assets/background.usda": b"licensed background fixture"})
+                  "assets/REBOT_UPSTREAM_LICENSE.txt": b"robot license fixture"})
     files["demo/scene/kitchen_config.json"] = json.dumps({
-        "background": "assets/background.usda", "props": []}).encode()
+        "scene_name": bundle.SCENE_NAME, "props": [{"asset": "props/lemon.usda"}]}).encode()
+    files["demo/scene/own_assets.json"] = json.dumps({
+        "schema": 1, "scene_name": bundle.SCENE_NAME,
+        "files": {name: expected(files[name]) for name in bundle.KITCHEN_SOURCE_FILES}}).encode()
     for name, data in files.items():
         (source / name).parent.mkdir(parents=True, exist_ok=True)
         (source / name).write_bytes(data)
     assets = tmp_path / "asset-manifest.json"
-    assets.write_text(json.dumps({"files": {"demo/scene/assets/background.usda": {
-        **expected(files["demo/scene/assets/background.usda"]), "provenance": "Licensed fixture"}}}))
+    assets.write_text(json.dumps({"files": {"assets/REBOT_UPSTREAM_LICENSE.txt": {
+        **expected(files["assets/REBOT_UPSTREAM_LICENSE.txt"]), "provenance": "Robot license fixture"}}}))
     monkeypatch.setattr(bundle, "ASSET_MANIFEST", assets)
     inputs = {"openclaw": b"native archive fixture", "clip": b"tokenizer archive fixture"}
     monkeypatch.setattr(bundle, "BUILD_INPUTS", {k: expected(v) for k, v in inputs.items()})
@@ -243,7 +246,7 @@ def test_missing_or_legacy_layout_cannot_bypass_runtime_admission(distribution, 
 def test_omitted_asset_cannot_receive_a_complete_source_receipt(distribution):
     here, _, _, manifest, *_ = distribution
     record = json.loads(manifest.read_text())
-    omitted = record["files"].pop("demo/scene/assets/background.usda")
+    omitted = record["files"].pop("assets/REBOT_UPSTREAM_LICENSE.txt")
     record["file_count"] -= 1
     record["source_bytes"] -= omitted["size_bytes"]
     manifest.write_text(json.dumps(record))

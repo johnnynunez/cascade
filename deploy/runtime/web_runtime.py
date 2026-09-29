@@ -303,11 +303,10 @@ class WebRuntime:
             return self.static_response(self.ui, path[1:])
         if path == '/learner-flow.js':
             return self.static_response(self.root / 'demo/kitchen/dashboard', 'learner-flow.js')
-        if path in ('/staff/', '/staff/style.css', '/staff/media/openclaw-cameras.png'):
+        if path in ('/staff/', '/staff/style.css'):
             if request.method not in ('GET', 'HEAD'):
                 return web.Response(status=405, headers={**self.headers(), 'Allow': 'GET, HEAD'})
-            name = {'/staff/': 'staff.html', '/staff/style.css': 'staff.css',
-                    '/staff/media/openclaw-cameras.png': 'staff-openclaw-cameras.png'}[path]
+            name = {'/staff/': 'staff.html', '/staff/style.css': 'staff.css'}[path]
             return self.static_response(self.root / 'deploy/brev', name)
         if path == '/' and request.transport.get_extra_info('sockname')[1] == 18791:
             raise web.HTTPFound('/openclaw/')

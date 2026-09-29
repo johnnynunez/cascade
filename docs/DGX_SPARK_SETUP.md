@@ -94,11 +94,13 @@ block to obtain more output.
 On the Spark desktop, open the app grid and click **PAAI (Spark)**. The
 launcher starts the stack when needed or attaches to the running stack.
 It opens a dedicated Chromium profile with the camera extension already
-loaded. The connected OpenClaw chat and three live cameras appear together.
+loaded, on the PAAI demo page: a chat box that sends each order to the
+OpenClaw `cascade-demo` agent, with three live cameras beside it.
 No extension setup, token paste or permission prompt is needed.
 
-That page, `http://127.0.0.1:8092`, is the demo UI. For the native OpenClaw
-dashboard or access from another computer, see [Open OpenClaw](#open-openclaw).
+That page, `http://127.0.0.1:8092`, is the demo's own web UI, not the
+OpenClaw interface. For the native OpenClaw dashboard or access from another
+computer, see [Open OpenClaw](#open-openclaw).
 
 The same registered launcher can be opened from a graphical terminal:
 
@@ -265,8 +267,9 @@ Never expose the OpenClaw gateway, Qwen API, Isaac bridge or MCP publicly.
 
 ## Open OpenClaw
 
-The launcher opens the demo page at `http://127.0.0.1:8092`. It is the
-OpenClaw chat for the `cascade-demo` agent, with the three cameras beside it.
+The launcher opens the PAAI demo page at `http://127.0.0.1:8092`. Its chat
+box relays each message to the OpenClaw `cascade-demo` agent, but the page is
+the demo's own web UI, not OpenClaw's.
 There is no `/guide` or `/openclaw` page on the Spark; those pages belong to
 the Brev booth deployment.
 
@@ -280,8 +283,14 @@ run this in the Spark's desktop session:
 cd "$HOME/paai-spark" && ./run.sh dashboard
 ```
 
+On the Spark desktop, this opens OpenClaw in the PAAI Chromium profile, where
+the camera extension is loaded. Click the extension or press **Ctrl+Shift+Y**
+to show Kitchen, Worktop and Side beside the chat. The one-time sign-in link
+expires after 10 minutes and is not written to any receipt or log.
+
 Without a desktop session, the same command prints an SSH tunnel command and
-the local address to open.
+the local address to open. That browser does not load the camera extension
+unless you install it there yourself.
 
 To use the demo from another computer, forward both ports over SSH, then open
 `http://localhost:8092`. Replace `user@spark-host` with your Spark login:

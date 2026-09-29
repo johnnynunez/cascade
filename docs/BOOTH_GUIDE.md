@@ -17,9 +17,10 @@ the connected OpenClaw chat. The private links (`/guide/`, `/openclaw/` and
 public attendee link shows cameras only.
 
 On a DGX Spark there is no `/guide/` page. Click **PAAI (Spark)** in the app
-grid: it opens the connected chat and the three cameras at
-`http://127.0.0.1:8092`. See [Open OpenClaw](DGX_SPARK_SETUP.md#open-openclaw)
-for the native dashboard and remote access.
+grid: it opens the PAAI demo page at `http://127.0.0.1:8092`, a chat box that
+relays each order to OpenClaw, with the three cameras beside it. For the
+normal OpenClaw chat, run `./run.sh dashboard`; see
+[Open OpenClaw](DGX_SPARK_SETUP.md#open-openclaw).
 
 ## One task
 

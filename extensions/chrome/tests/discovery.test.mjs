@@ -49,3 +49,34 @@ test('fresh profile discovers only live-announced cameras and persists public me
   assert.ok(!JSON.stringify(saved).includes('token'));
  }finally{Object.assign(globalThis,original);}
 });
+test('the Spark gateway page falls back to the local camera server on the same host grant',async()=>{
+ const original={chrome:globalThis.chrome,fetch:globalThis.fetch};const saved={},requests=[];
+ const cameras=['kitchen','worktop','side'];
+ globalThis.chrome={storage:{local:{get:async()=>saved,set:async values=>Object.assign(saved,values)}}};
+ globalThis.fetch=async url=>{requests.push(url);
+  if(url==='http://127.0.0.1:8091/api/status')return new Response(JSON.stringify({camera_discovery:{version:1,base_url:'/',state_url:'/state',default_camera:'worktop',cameras:cameras.map(name=>({name,stream_url:'/stream/'+name}))}}),{headers:{'content-type':'application/json'}});
+  if(url==='http://127.0.0.1:8091/state')return new Response(JSON.stringify({cameras:Object.fromEntries(cameras.map(n=>[n,{frame_id:3,online:true}]))}),{headers:{'content-type':'application/json'}});
+  return new Response('Not Found',{status:404,headers:{'content-type':'text/plain'}});};
+ try{
+  const hint=await bootstrap({pageURL:'http://127.0.0.1:18790/chat/main'});
+  assert.equal(hint.statusURL,'http://127.0.0.1:18790/api/status');assert.equal(hint.permission,'http://127.0.0.1/*');
+  const {config}=await discover(hint);
+  assert.deepEqual(requests,['http://127.0.0.1:18790/api/status','http://127.0.0.1:8091/api/status','http://127.0.0.1:8091/state']);
+  assert.equal(config.base,'http://127.0.0.1:8091');assert.equal(config.streams.side,'http://127.0.0.1:8091/stream/side');
+  assert.equal(config.permission,hint.permission,'the fallback must not need another host grant');
+  assert.deepEqual(config.names,cameras);
+  assert.equal(saved.discoveryHint,hint.statusURL,'keep the page hint so reopening the panel does not restart discovery');
+ }finally{Object.assign(globalThis,original);}
+});
+test('the local camera fallback never applies to remote pages or to the camera server itself',async()=>{
+ const original={chrome:globalThis.chrome,fetch:globalThis.fetch};const requests=[];
+ globalThis.chrome={storage:{local:{get:async()=>({}),set:async()=>{}}}};
+ globalThis.fetch=async url=>{requests.push(url);return new Response('Not Found',{status:404,headers:{'content-type':'text/plain'}});};
+ try{
+  for(const pageURL of ['https://demo.example/openclaw/','http://100.90.1.2:18790/chat','http://localhost:18790/chat','http://127.0.0.1:8091/']){
+   requests.length=0;
+   await assert.rejects(discover(await bootstrap({pageURL})));
+   assert.equal(requests.length,1,pageURL+' must not try a second server');
+  }
+ }finally{Object.assign(globalThis,original);}
+});

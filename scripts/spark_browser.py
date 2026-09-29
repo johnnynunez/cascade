@@ -103,7 +103,7 @@ def start_surfaces(repo, env):
         raise
 
 
-def browser_plan(repo, env=None):
+def browser_plan(repo, env=None, url=CHAT_URL):
     """Keep snap data inside its writable area and personal profiles separate."""
     repo = Path(repo).resolve()
     env = dict(os.environ if env is None else env)
@@ -133,16 +133,17 @@ def browser_plan(repo, env=None):
             env.setdefault("DBUS_SESSION_BUS_ADDRESS", "unix:path=" + str(bus))
     command = [browser, "--user-data-dir=" + str(profile), "--load-extension=" + str(extension),
                "--no-first-run", "--no-default-browser-check", "--disable-session-crashed-bubble",
-               "--new-window", "--window-size=1500,1000", CHAT_URL]
+               "--new-window", "--window-size=1500,1000", url]
     if env.get("PAAI_BROWSER_DEBUG") == "1":
         command[1:1] = ["--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1"]
     return command, env, data, extension
 
 
-def open_browser(repo):
+def open_browser(repo, url=CHAT_URL):
+    """Open the attendee chat, or another local page, in the extension profile."""
     if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
         raise RuntimeError("A graphical session is required to open PAAI. Use --no-open for service startup")
-    command, env, data, extension = browser_plan(repo)
+    command, env, data, extension = browser_plan(repo, url=url)
     data.mkdir(parents=True, exist_ok=True, mode=0o700)
     extension.mkdir(exist_ok=True, mode=0o700)
     source = Path(repo) / "extensions/chrome"
@@ -162,15 +163,18 @@ def open_browser(repo):
         log_path.chmod(0o600)
         process = subprocess.Popen(command, cwd=data, env=env, stdin=subprocess.DEVNULL,
                                    stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-    receipt = Path(repo) / "runs/.install/browser.json"
-    receipt.write_text(json.dumps({"data": str(data), "profile": str(data / "profile"),
-        "extension": str(extension), "url": CHAT_URL, "pid": process.pid,
-        "debug_enabled": env.get("PAAI_BROWSER_DEBUG") == "1"}) + "\n")
-    receipt.chmod(0o600)
+    if url == CHAT_URL:
+        # Other pages can carry a one-time sign-in fragment: never record them.
+        receipt = Path(repo) / "runs/.install/browser.json"
+        receipt.write_text(json.dumps({"data": str(data), "profile": str(data / "profile"),
+            "extension": str(extension), "url": CHAT_URL, "pid": process.pid,
+            "debug_enabled": env.get("PAAI_BROWSER_DEBUG") == "1"}) + "\n")
+        receipt.chmod(0o600)
     time.sleep(1)
     if process.poll() not in (None, 0):
         raise RuntimeError(f"Chromium exited {process.returncode}; see {log_path}")
-    print("[desktop] PAAI chat and camera extension opened", flush=True)
+    if url == CHAT_URL:
+        print("[desktop] PAAI chat and camera extension opened", flush=True)
 
 
 def main():

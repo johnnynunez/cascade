@@ -1069,10 +1069,16 @@ LAUNCH_STATUS="STARTED (UNVERIFIED: robot proof skipped)"
 [[ "${PROOF_VERIFIED:-0}" == 1 ]] && LAUNCH_STATUS="READY"
 OC_HINT="openclaw"
 [[ -n "${CASCADE_OPENCLAW_PROFILE:-}" ]] && OC_HINT="openclaw --profile $CASCADE_OPENCLAW_PROFILE"
+if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
+    UI_HINTS="Demo UI: http://127.0.0.1:8092
+         OpenClaw dashboard: ./run.sh dashboard"
+else
+    UI_HINTS="chat:      http://127.0.0.1:$GATEWAY_PORT/   ($OC_HINT dashboard)"
+fi
 cat <<EOF
 [launch] $LAUNCH_STATUS   sim=$SIM  arm=$ARM  cameras=$CAMERAS
          brain:     ${BRAIN_DESC:-not verified}
-         chat:      http://127.0.0.1:$GATEWAY_PORT/   ($OC_HINT dashboard)
+         $UI_HINTS
          evidence:  $STATE_DIR/proof.json
          headless:  $OC_HINT agent --session-id cascade-demo -m "describe the scene"
          try:       "what do you see?"  "pick and place the red object"  "did it actually move?"

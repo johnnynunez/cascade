@@ -57,13 +57,15 @@ class VisitorHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-    def respond(self, status, body, content_type="application/json"):
+    def respond(self, status, body, content_type="application/json", *, location=None):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
+        if location is not None:
+            self.send_header("Location", location)
         frames = "; frame-src chrome-extension:" if (getattr(self.server, "chat", None) is not None
                                                      and self.server.server_port == 8092) else ""
         self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self' blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; frame-ancestors 'none'" + frames)
@@ -96,6 +98,19 @@ class VisitorHandler(BaseHTTPRequestHandler):
         if not self.authenticated():
             return
         path = urlsplit(self.path).path
+        # Only the local Spark chat has these operator hints. The public
+        # visitor (8093, including ngrok) keeps its administrative-route 404s.
+        if (self.server.server_port == 8092 and getattr(self.server, "chat", None) is not None
+                and not self.server.authorization):
+            if path in ("/guide", "/guide/"):
+                return self.respond(302, b"", location="/")
+            if path in ("/openclaw", "/openclaw/"):
+                return self.respond(200, b'<!doctype html><html lang="en"><meta charset="utf-8">'
+                    b'<title>OpenClaw dashboard</title><h1>OpenClaw Control</h1>'
+                    b'<p>In a terminal in this checkout, run <code>./run.sh dashboard</code>.</p>'
+                    b'<p>To print the URL, run <code>./run.sh dashboard --no-open</code>.</p>'
+                    b'<p><a href="/">Back to the demo chat and cameras</a></p></html>',
+                    "text/html; charset=utf-8")
         if path in ("/", "/visitor.css", "/visitor.js", "/visitor-player.js",
                     "/staff/", "/staff/style.css"):
             name, content_type = {

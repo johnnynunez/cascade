@@ -152,6 +152,30 @@ def test_duplicate_click_does_not_launch_second_subprocess(tmp_path, monkeypatch
         assert module.perform(repo, "install") == 75
 
 
+@pytest.mark.parametrize("attached", [False, True])
+def test_ready_and_attach_receipts_include_only_token_free_entry_points(tmp_path, attached):
+    module = controller()
+    script = tmp_path / "scripts/install_support.py"
+    script.parent.mkdir()
+    status = "[launch] READY: attached to this installation's running demo" if attached else "[launch] READY   sim=isaac"
+    script.write_text(f"print({status!r})\n"
+                      "print('         Demo UI: http://127.0.0.1:8092')\n"
+                      "print('         OpenClaw dashboard: ./run.sh dashboard')\n")
+    python = tmp_path / ".venv/bin/python"
+    python.parent.mkdir(parents=True)
+    python.symlink_to(sys.executable)
+    consent = tmp_path / "runs/.install/install.json"
+    consent.parent.mkdir(parents=True)
+    consent.write_text(json.dumps({"repo": str(tmp_path), "eula_accepted": True,
+                                  "eula_url": module.EULA_URL, "profile": "spark", "brain": "qwen"}))
+    assert module.perform(tmp_path, "launch", no_open=True) == 0
+    receipt = json.loads((consent.parent / "desktop-latest.json").read_text())
+    assert receipt["attached"] is attached
+    assert receipt["demo_ui"] == "http://127.0.0.1:8092"
+    assert receipt["openclaw_dashboard"] == "./run.sh dashboard"
+    assert "token" not in json.dumps(receipt)
+
+
 def test_spawn_failure_keeps_failed_status_and_diagnostic_log(tmp_path, monkeypatch):
     module = controller()
     monkeypatch.setattr(module, "confirm_eula", lambda: True)

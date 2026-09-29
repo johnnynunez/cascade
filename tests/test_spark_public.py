@@ -28,6 +28,7 @@ def test_user_units_restore_install_home_and_supervise_only_their_stack(tmp_path
         assert "gateway.token" not in contents
     assert "8093" in units["paai-spark-visitor"]
     assert "--auth-file" in units["paai-spark-visitor"]
+    assert public.VISITOR_ORIGIN == "http://127.0.0.1:8093"
 
 
 def unit_directives(contents):
@@ -252,9 +253,11 @@ def public_check(tmp_path, monkeypatch):
 
     def verify(chat_body):
         frame = 0
+        requested = []
         def response(url, authorization=None):
             nonlocal frame
             path = public.urlsplit(url).path
+            requested.append(path)
             if authorization is None:
                 return 401, b"Authentication required"
             if path == "/api/chat":
@@ -269,7 +272,9 @@ def public_check(tmp_path, monkeypatch):
                 return 200, b"\xff\xd8fixture\xff\xd9"
             return 404, b"Not found"
         monkeypatch.setattr(public, "public_get", response)
-        return public.check(tmp_path)
+        result = public.check(tmp_path)
+        assert {"/guide", "/guide/", "/openclaw", "/openclaw/"} <= set(requested)
+        return result
     return verify
 
 

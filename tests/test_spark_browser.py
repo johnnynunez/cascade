@@ -122,7 +122,7 @@ def test_camera_surface_caches_original_jpegs_and_refuses_raw_or_motion_routes()
             server.server_close()
 
 
-def test_repeat_launch_attaches_without_restarting_or_invalidating_proof(tmp_path, monkeypatch):
+def test_repeat_launch_attaches_without_restarting_or_invalidating_proof(tmp_path, monkeypatch, capsys):
     sys.path.insert(0, str(ROOT / "scripts"))
     try:
         helper = load("install_support")
@@ -142,6 +142,10 @@ def test_repeat_launch_attaches_without_restarting_or_invalidating_proof(tmp_pat
         monkeypatch.setattr(helper, "_launch", lambda *a, **kw: pytest.fail("duplicated the stack"))
         assert helper.launch(tmp_path, "spark", "qwen") == 0
         assert calls == ["surfaces", "browser"]
+        output = capsys.readouterr().out
+        assert "READY: attached" in output
+        assert "Demo UI: http://127.0.0.1:8092" in output
+        assert "OpenClaw dashboard: ./run.sh dashboard" in output
     finally:
         sys.path.pop(0)
 

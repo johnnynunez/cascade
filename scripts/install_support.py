@@ -30,6 +30,7 @@ import zipfile
 
 from fetch_robot_assets import fetch
 from kitchen_assets import kitchen_problems, prepare_kitchen
+from model_cache import release_clean_model_cache
 from spark_browser import ready as spark_ready, start_surfaces as start_spark_surfaces, open_browser
 
 # Release asset byte counts from github.com/ultralytics/assets v8.3.0.
@@ -481,6 +482,11 @@ def _launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, head
             temporary = state / f"qwen.{qwen.pid}.tmp"
             temporary.write_text(json.dumps(receipt, indent=2) + "\n")
             temporary.replace(state / "qwen.pid")
+        if profile == "spark":
+            owned = live_records(state, owner, role="qwen")
+            if len(owned) == 1:
+                report = release_clean_model_cache(repo, owned[0], owner)
+                print("[launch] Loaded model file cache: " + json.dumps(report), flush=True)
         command = [
             "bash",
             str(repo / "scripts/launch.sh"),

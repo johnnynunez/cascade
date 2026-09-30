@@ -222,6 +222,48 @@ GPU services and are not performance comparisons. Presenter defaults remain
 unchanged; robust home planning, safe failed-grasp recovery, fresh camera
 delivery and repeated complete campaigns remain blockers.
 
+## Home planning and retained recovery failures
+
+The [follow-up receipt](../benchmark/results/nvblox-rtx-recovery-progress-20261001.json)
+preserves source manifests and artifact hashes for trials 15–16, including
+failures. The manifests match commits `9fb8121` and `bfffa80`, respectively.
+Both campaigns requested two rounds of all five objects and stopped at the
+first can case; neither is a completed five-object campaign.
+
+Home motion now preflights the complete bounded joint route and checks each
+streamed waypoint again. Planning finishes before the streaming clock starts.
+Feedback that continues settling is measured and re-vetted within five seconds
+and eight checks, retaining the 1 mrad drift limit and stop/watchdog checks.
+A pre-close descent failure withdraws to its vetted pregrasp within the
+original contact exemption. This does not establish post-close held recovery.
+
+| Trial | Recorded result |
+| --- | --- |
+| 15 | Can placement physics and the subsequent explicit reset passed. Overall **FAIL**: two early camera samples were 2.903/2.998 seconds old, above the unchanged 2-second limit. The remaining samples were at most 0.599 seconds old. The return-home inside the pick also refused feedback drift during preflight; the harness now checks this separately. |
+| 16 | Application perception moved to GPU 1, while Isaac, mapping and GraspGen-X stayed on GPU 0. Camera checks passed, maximum age 0.582 seconds. **FAIL**: the first lift stopped after a 500 ms mapping timeout during attachment; reset then refused unknown attached clearance. |
+
+Trial 15's application reported a completed placement despite its nested
+return-home failure. Its physical placement evidence remains valid, but that
+result cannot establish a complete task. The diagnostic now requires
+`return_home.ok=true` separately. The recorded feedback changed by 8.22 mrad
+over approximately 0.46 seconds; bounded rebinding addresses that measured
+settling rather than widening the drift tolerance.
+
+After trial 16, a separate read-only observation retained 21 physics samples
+and three RGB-D captures. Both jaws still contacted the can near its original
+support surface. This is retained-state evidence, not successful recovery.
+The historical harness also attempted to park after its observer closed;
+unknown attached clearance rejected that attempt. Subsequent diagnostics close
+their consumers and sockets without a park command. Neither a simulator
+restart nor an unobserved release may be counted as recovery of this episode.
+
+The full regression at `d0efb1b` passed 2,569 tests, with 43 skipped and three
+deselected. A later independent run of home, contact recovery and camera-probe
+tests passed 47 tests after feedback rebinding. These scopes precede subsequent
+attachment-barrier work and do not replace live acceptance. Frozen-camera and
+labelled descent-failure probes are implemented; live PASS receipts remain
+required.
+
 ## Replay and regression evidence
 
 An RTX PRO 6000 Blackwell CUDA replay used identical archived idle and held

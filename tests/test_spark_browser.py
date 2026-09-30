@@ -151,18 +151,18 @@ def test_repeat_launch_attaches_without_restarting_or_invalidating_proof(tmp_pat
 
 
 def test_surface_failure_stops_only_components_created_by_this_start(tmp_path, monkeypatch):
-    import subprocess
+    from conftest import start_sleeping_process
     from test_spark_install import launch_fixture
     from cascade.apps.process_owner import load_owner, register_process
     helper, repo = launch_fixture(tmp_path, monkeypatch)
     state = repo / "runs/.launch/profile-cascade-demo"
     owner = load_owner(state, repo, "cascade-demo", create=True)
-    prior = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(60)"])
+    prior = start_sleeping_process()
     new = []
     register_process(state, owner, prior.pid, "preserved")
 
     def broken_surfaces(repo, env):
-        process = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(60)"])
+        process = start_sleeping_process()
         new.append(process)
         register_process(state, owner, process.pid, "cameras")
         raise RuntimeError("camera startup boundary failure")

@@ -68,9 +68,19 @@ def load_fixture(path: Path) -> dict:
             raise ValueError("Expected completion must be a boolean")
         if not isinstance(case["state"], dict):
             raise ValueError("Each pilot state must be an object")
-        # State and labels stay in separate fields. Never send an entire case.
-        if {"expected_choice", "expected_complete"}.intersection(case["state"]):
-            raise ValueError("Expected labels must not appear in model state")
+        # Validate every state before any request, including cases late in a run.
+        canonical_json(case["state"])
+        # Replayed observations/history can nest scoring metadata in lists or
+        # objects. State and labels must stay separate at every depth.
+        pending = [case["state"]]
+        while pending:
+            value = pending.pop()
+            if isinstance(value, dict):
+                if {"expected_choice", "expected_complete"}.intersection(value):
+                    raise ValueError("Expected labels must not appear in model state")
+                pending.extend(value.values())
+            elif isinstance(value, list):
+                pending.extend(value)
     return fixture
 
 
@@ -127,9 +137,18 @@ def _git_revision() -> str | None:
         return None
 
 
+def _save_report(report: dict, output: Path) -> None:
+    report["summary"] = summarize(report["cases"])
+    temporary = output.with_suffix(output.suffix + ".tmp")
+    temporary.write_text(json.dumps(report, indent=2, ensure_ascii=False, allow_nan=False) + "\n")
+    temporary.replace(output)
+
+
 def run_probe(client: SystemOneClient, fixture: dict, *, output: Path,
               fixture_sha256: str, cases: list[dict] | None = None) -> dict:
     selected = fixture["cases"] if cases is None else cases
+    if not selected:
+        raise ValueError("A pilot must contain at least one case")
     questions = questions_for(fixture)
     report = {
         "schema_version": 1,
@@ -142,9 +161,14 @@ def run_probe(client: SystemOneClient, fixture: dict, *, output: Path,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "timeout_s": client.timeout_s,
         "attempts_per_case": 1,
+        "planned_case_ids": [case["id"] for case in selected],
+        "run_complete": False,
         "cases": [],
     }
     output.parent.mkdir(parents=True, exist_ok=True)
+    # Replace a previous report before the first request; an interrupted cold
+    # start must not leave old successful results looking like this run's output.
+    _save_report(report, output)
     for case in selected:
         row = {k: case[k] for k in ("id", "language", "category", "expected_choice", "expected_complete")}
         row["state_sha256"] = hashlib.sha256(canonical_json(case["state"])).hexdigest()
@@ -168,14 +192,14 @@ def run_probe(client: SystemOneClient, fixture: dict, *, output: Path,
             row.update({"status": "error", "error": str(exc),
                         "latency_ms": (time.monotonic() - started) * 1000})
         report["cases"].append(row)
-        report["summary"] = summarize(report["cases"])
         # Keep successful and failed cases even if the next request is interrupted.
-        temporary = output.with_suffix(output.suffix + ".tmp")
-        temporary.write_text(json.dumps(report, indent=2, ensure_ascii=False, allow_nan=False) + "\n")
-        temporary.replace(output)
+        _save_report(report, output)
         print(f"{case['id']}: {row['status']} "
               f"choice={row.get('choice', {}).get('choice', '-')} "
               f"match={row.get('choice_correct', False)} {row['latency_ms']:.1f} ms", flush=True)
+    report["run_complete"] = True
+    report["finished_at"] = datetime.now(timezone.utc).isoformat()
+    _save_report(report, output)
     return report
 
 

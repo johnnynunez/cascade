@@ -164,6 +164,16 @@ credential only for the official HTTPS origin. Local endpoints do not receive
 it. Credentials and complete untrusted response bodies are excluded from error
 messages. An HTTP timeout is not a real-time control deadline.
 
+New diagnostic reports record `planned_case_ids` and start with
+`run_complete: false` before the first request, so an interrupted cold start
+cannot leave an older report masquerading as the new result. Each finished
+case is saved atomically. `run_complete: true` and `finished_at` mean all
+selected cases were attempted; consult `summary.request_errors` for failed
+requests. Summary accuracy uses only the cases attempted so far, so an
+incomplete report must not be presented as a full run. Fixtures are checked
+for non-finite state values and nested expected-label fields before inference.
+The original pilot artifacts and their manifest remain unchanged.
+
 The next useful experiment is a separate set of captured Cascade task states,
 with human-reviewed candidate actions and arguments, compared against the
 existing planner. Evaluate decision quality and latency before considering an

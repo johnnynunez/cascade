@@ -111,3 +111,17 @@ def test_planner_rejects_malformed_selection_without_actuating(arguments):
         tool_calls=[SimpleNamespace(name="select_candidate", arguments=arguments)]))
     with pytest.raises(DecisionError, match="invalid"):
         backend.evaluate(replay.load_fixture(replay.DEFAULT_FIXTURE)["cases"][0])
+
+
+def test_rules_baseline_uses_status_and_complete_reset_evidence():
+    cases = replay.load_fixture(replay.DEFAULT_FIXTURE)["cases"]
+    backend = replay.RulesBackend()
+    for case in cases:
+        response = backend.evaluate(case)
+        assert response["choice"]["choice"] == case["expected_choice"]
+        assert response["completion"]["boolean"] == case["expected_complete"]
+    case = cases[1]
+    case["record"]["result"]["reset_verification"]["props"].pop("orange")
+    response = backend.evaluate(case)
+    assert response["completion"]["boolean"] is False
+    assert response["choice"]["choice"] != case["expected_choice"]

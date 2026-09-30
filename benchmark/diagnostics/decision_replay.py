@@ -39,6 +39,11 @@ COMPLETION = "Is the captured operation's physical goal independently verified c
 # make the experiment an instruction-copying test. The raw record is retained.
 OMITTED_RESULT_FIELDS = {"next_action", "note", "suggestion"}
 PREPARED_TOOLS = {"task_done", "pick_and_place", "reset_scene", "move_home"}
+REPORT_SUMMARIES = {
+    "success": "The requested operation is independently verified complete.",
+    "unverified": "The operation finished, but the requested physical goal remains unverified. Awaiting the next user order.",
+    "failed": "The requested operation failed. The recorded failure requires review before any further movement.",
+}
 
 
 def digest(value) -> str:
@@ -127,6 +132,41 @@ class NativeBackend:
                 "reported_model": response.reported_model, "latency_ms": response.latency_ms,
                 "request_sha256": response.request_sha256, "response_sha256": response.response_sha256,
                 "usage": response.usage}
+
+
+class RulesBackend:
+    """Fixture-specific status-report baseline, not a new runtime verifier.
+
+    Uses measured reset fields and existing runtime status. Geometry checks
+    remain the runtime's responsibility. No model, transport, or scoring fields
+    participate in the prediction.
+    """
+    endpoint = "offline:recorded-status-rules"
+    model = "recorded-status-rules-v1"
+    timeout_s = 0
+
+    def evaluate(self, case):
+        started = time.monotonic()
+        state = state_for(case)
+        result = state["result"]
+        outcome = "unverified"
+        if result.get("ok") is False or result.get("postcondition", {}).get("status") == "refuted":
+            outcome = "failed"
+        elif state["operation"]["skill"] == "reset_scene" and result.get("ok") is True:
+            verification = result.get("reset_verification", {})
+            props = verification.get("props", {})
+            if (verification.get("channel") == "physics" and result.get("observation_refreshed") is True
+                    and set(props) == set(result.get("props_reset", [])) and props
+                    and all(p.get("finite") is True and p.get("within_tolerance") is True for p in props.values())):
+                outcome = "success"
+        matches = [c for c in case["candidates"] if c["tool"] == "task_done"
+                   and c["arguments"] == {"success": outcome == "success", "summary": REPORT_SUMMARIES[outcome]}]
+        if len(matches) != 1:
+            raise DecisionError("Rules baseline requires the frozen report templates")
+        response = {"choice": {"choice": matches[0]["id"]}, "completion": {"boolean": outcome == "success"}}
+        return {**response, "reported_model": self.model, "latency_ms": (time.monotonic() - started) * 1000,
+                "request_sha256": digest({"state": state, "candidates": criteria_for(case)}),
+                "response_sha256": digest(response), "usage": None}
 
 
 class PlannerBackend:
@@ -229,22 +269,28 @@ def run_replay(backend, fixture, output, fixture_sha256):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--backend", required=True, choices=["native", "planner"])
-    parser.add_argument("--base-url", required=True)
-    parser.add_argument("--model", required=True)
+    parser.add_argument("--backend", required=True, choices=["native", "planner", "rules"])
+    parser.add_argument("--base-url")
+    parser.add_argument("--model")
     parser.add_argument("--fixture", type=Path, default=DEFAULT_FIXTURE)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--timeout", type=float, default=120)
     args = parser.parse_args(argv)
     # The captured evidence diagnostic deliberately supports local servers only.
     from urllib.parse import urlsplit
-    parsed = urlsplit(args.base_url)
-    if parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
-        parser.error("Captured replay endpoints must be local loopback")
+    if args.backend != "rules":
+        if not args.base_url or not args.model:
+            parser.error("Model backends require --base-url and --model")
+        parsed = urlsplit(args.base_url)
+        if parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+            parser.error("Captured replay endpoints must be local loopback")
     try:
         fixture = load_fixture(args.fixture)
-        native = SystemOneClient(args.base_url, args.model, timeout_s=args.timeout)
-        backend = NativeBackend(native) if args.backend == "native" else PlannerBackend(args.base_url.rstrip("/"), args.model, args.timeout)
+        if args.backend == "rules":
+            backend = RulesBackend()
+        else:
+            native = SystemOneClient(args.base_url, args.model, timeout_s=args.timeout)
+            backend = NativeBackend(native) if args.backend == "native" else PlannerBackend(args.base_url.rstrip("/"), args.model, args.timeout)
         report = run_replay(backend, fixture, args.output, hashlib.sha256(args.fixture.read_bytes()).hexdigest())
     except (ValueError, KeyError, OSError) as exc:
         parser.error(str(exc))

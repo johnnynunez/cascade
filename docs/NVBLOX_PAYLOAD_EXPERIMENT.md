@@ -165,6 +165,63 @@ hashes. The original seven trial records are unchanged. These application
 hashes do not independently attest every external service file; bridge
 probes retain the reported backend, voxel size and masking capability.
 
+## RTX physical continuation, 2026-10-01
+
+The complete-surface replay below motivated a higher initial lift. Trials
+11–13 used a separate RTX simulator on port 8691, native masked nvblox at
+5 mm, GPU PhysX at 120 Hz and a separate real GraspGen-X CUDA service. They
+used a 100 mm initial approach/lift. The 30 mm clearance, unknown-space rule,
+workspace bounds, contact cylinder and physical acceptance criteria were
+unchanged. All three campaigns failed overall; the
+[compact receipts](../benchmark/results/nvblox-rtx-payload-experiment-20261001.json)
+retain the original source, campaign, receipt and witness hashes.
+
+| Trial | Object | Requested support gap | Outcome |
+| --- | --- | --- | --- |
+| 11 | Tomato can | 15 mm | Carry reached the destination. Descent stopped at 29.63 mm observed clearance; 0 / 2,605 samples were unknown. Release and reset failed. |
+| 12 | Tomato can | 40 mm | All physical placement checks passed, including bilateral support during entry, actual release, complete footprint containment and upright settling; center error 8.7 mm. Overall acceptance failed on home/reset and camera freshness. |
+| 13 | Orange | 40 mm | Grasp failed after two attempts on a TCP clearance of 19 mm; no attached payload was recorded. Reset also failed. Camera checks passed. |
+
+Trial 12's last payload query had 0 / 2,582 unknown samples and at least
+49.66 mm observed clearance. The subsequent empty-gripper home trajectory
+crossed the configured workspace's y = -0.30 m boundary, so both return-home
+and reset stopped. The maximum recorded camera age was 3.10 s, above the
+unchanged 2 s limit. Thus physical placement evidence is positive, but this
+is not a passed task-and-reset acceptance. The runtime's center-only placement
+postcondition also remained explicitly unverified.
+
+Trial 13 reduced render resolution from 1280×720 to 960×540 to test camera
+freshness on the shared RTX host. It passed those camera checks but stopped
+at the orange, before the requested green cube, pink cube and lemon runs.
+Trial 12 similarly stopped before its remaining four objects. There is no
+complete five-object regression for the 100 mm / 40 mm configuration.
+
+The support gap is a requested controller setting, not a measured release
+height. The held object's support offset and TCP height ceiling determine
+the effective command. The diagnostic rejects a requested gap above the
+configured ceiling, records the setting and preserves the runtime's ceiling.
+It does not widen the intentional-contact cylinder to lower the can farther.
+The independently observed release and settling, rather than the requested
+gap, establish the positive placement evidence in trial 12.
+
+The trial-12 application command was:
+
+```bash
+CASCADE_GRASPGENX_PORT=25556 .venv/bin/python benchmark/diagnostics/kitchen_acceptance.py \
+  --port 8691 --engine physx --occupancy nvblox --occupancy-port 25559 \
+  --pregrasp-offset 0.10 --place-support-clearance 0.04 --map-cameras 3 \
+  --rounds 1 --objects tomato_can orange green_cube pink_cube lemon --fail-fast \
+  --output runs/nvblox-rtx/physical-new
+```
+
+These results do not isolate a causal benefit from either setting: the GPU,
+grasp samples and, in trial 13, image resolution differ from the earlier Spark
+trials. Local GraspGen-X used PyTorch 2.7.0+cu128, while nvblox retained its
+separate 2.14.1+cu132 environment. Wall times came from a host running other
+GPU services and are not performance comparisons. Presenter defaults remain
+unchanged; robust home planning, safe failed-grasp recovery, fresh camera
+delivery and repeated complete campaigns remain blockers.
+
 ## Replay and regression evidence
 
 An RTX PRO 6000 Blackwell CUDA replay used identical archived idle and held
@@ -246,11 +303,17 @@ home, while camera or integration failures preserve the pending barrier and
 held state. Live Spark fault injection for a stalled camera followed by a
 successful retry remains unvalidated.
 
+The continuation's focused suite passed 70 tests, with one optional native
+CUDA test deselected. Seven new regressions reject invalid depth units,
+non-rigid camera calibration, mismatched capture identities and a changed
+anchor/held robot. The real CUDA surface replay was rerun after that input
+validation was added; its receipt matches the committed replay source hashes.
+
 ## Scope and remaining work
 
 This is a diagnostic using a mock language model; it is not a full native-agent
 `launch.sh` READY proof. The initial lift/approach offset is 80 mm, versus the
-40 mm initial diagnostic. Therefore absolute placement errors from these runs
+40 mm initial diagnostic; the later RTX trials used 100 mm. Therefore absolute placement errors from these runs
 cannot isolate a causal accuracy benefit from nvblox or from a third camera.
 No improvement in grasp or placement accuracy has been demonstrated.
 

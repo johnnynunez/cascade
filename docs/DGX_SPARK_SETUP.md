@@ -66,7 +66,7 @@ system package, use the [administrator command](#system-prerequisites)
 before continuing.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/spark_prerequisites.py | python3 -'
+bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/spark_prerequisites.py | python3 -'
 ```
 
 Success: `PREREQUISITES_OK`.
@@ -90,7 +90,7 @@ planning estimate; slower connections can take longer.
 The progress log shows each stage.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/bootstrap.sh | bash -s -- --ref 9cf540279f09df8197eda6541311b41edb455243 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
+bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/bootstrap.sh | env -u ISAACSIM_PATH -u ISAACSIM_PYTHON_EXE -u CASCADE_QWEN_MODEL -u CASCADE_QWEN_MMPROJ -u LLAMA_SERVER -u LLAMA_DIR bash -s -- --ref 9cf540279f09df8197eda6541311b41edb455243 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
 ```
 
 Success: `PREPARED`. No demo services or startup manipulation tests have run.

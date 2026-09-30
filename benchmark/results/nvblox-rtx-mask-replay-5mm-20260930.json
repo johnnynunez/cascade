@@ -1,0 +1,262 @@
+{
+  "scope": "Identical measured idle and held RGB-D snapshots; no motion or synthetic depth. Query positions recorded from trials07/08. Compare zeroed masked depth with native inactive measured rays.",
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "torch": "2.14.1+cu132",
+  "cuda": "13.2",
+  "points_m": [
+    [
+      0.2465,
+      0.1987,
+      0.1179
+    ],
+    [
+      0.2621,
+      0.1909,
+      0.125
+    ],
+    [
+      0.2416,
+      0.2155,
+      0.1045
+    ],
+    [
+      0.2371,
+      0.2128,
+      0.1045
+    ]
+  ],
+  "variants": [
+    {
+      "native_mask": false,
+      "stages": [
+        {
+          "episode": "can-idle-centres",
+          "through_camera": "cam0",
+          "query_m": [
+            0.09359753195128086,
+            null,
+            null,
+            null
+          ],
+          "known_grid_voxels": 564695,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 3,
+            "minimum_observed_clearance_m": 0.09359753195128086,
+            "surfaces_by_camera": {}
+          }
+        },
+        {
+          "episode": "can-idle-centres",
+          "through_camera": "side",
+          "query_m": [
+            0.093574559737541,
+            null,
+            null,
+            null
+          ],
+          "known_grid_voxels": 815666,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 3,
+            "minimum_observed_clearance_m": 0.093574559737541,
+            "surfaces_by_camera": {}
+          }
+        },
+        {
+          "episode": "can-idle-centres",
+          "through_camera": "proof",
+          "query_m": [
+            0.09359753195128086,
+            0.0926372965267944,
+            0.10040671266790675,
+            0.09863564370908659
+          ],
+          "known_grid_voxels": 1020975,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.0926372965267944,
+            "surfaces_by_camera": {}
+          }
+        },
+        {
+          "episode": "can-held-09",
+          "through_camera": "cam0",
+          "query_m": [
+            0.09359753195128086,
+            0.0926372965267944,
+            0.10040671266790675,
+            0.09863564370908659
+          ],
+          "known_grid_voxels": 1023116,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.0926372965267944,
+            "surfaces_by_camera": {}
+          }
+        },
+        {
+          "episode": "can-held-09",
+          "through_camera": "side",
+          "query_m": [
+            0.093574559737541,
+            0.0926372965267944,
+            0.09927504939709089,
+            0.09785049945098985
+          ],
+          "known_grid_voxels": 1038035,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.0926372965267944,
+            "surfaces_by_camera": {}
+          }
+        },
+        {
+          "episode": "can-held-09",
+          "through_camera": "proof",
+          "query_m": [
+            0.09359753195128086,
+            0.0926372965267944,
+            0.10040671266790675,
+            0.09863564370908659
+          ],
+          "known_grid_voxels": 1087909,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.0926372965267944,
+            "surfaces_by_camera": {}
+          }
+        }
+      ]
+    },
+    {
+      "native_mask": true,
+      "stages": [
+        {
+          "episode": "can-idle-centres",
+          "through_camera": "cam0",
+          "query_m": [
+            0.09359753195128086,
+            0.0926372965267944,
+            0.10040671266790675,
+            0.09863564370908659
+          ],
+          "known_grid_voxels": 623941,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.0926372965267944,
+            "surfaces_by_camera": {}
+          }
+        },
+        {
+          "episode": "can-idle-centres",
+          "through_camera": "side",
+          "query_m": [
+            0.093574559737541,
+            0.0926372965267944,
+            0.09927504939709089,
+            0.09785049945098985
+          ],
+          "known_grid_voxels": 863258,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.0926372965267944,
+            "surfaces_by_camera": {}
+          }
+        },
+        {
+          "episode": "can-idle-centres",
+          "through_camera": "proof",
+          "query_m": [
+            0.09359753195128086,
+            0.0926372965267944,
+            0.10040671266790675,
+            0.09863564370908659
+          ],
+          "known_grid_voxels": 1102857,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.0926372965267944,
+            "surfaces_by_camera": {}
+          }
+        },
+        {
+          "episode": "can-held-09",
+          "through_camera": "cam0",
+          "query_m": [
+            0.09359753195128086,
+            0.0926372965267944,
+            0.10040671266790675,
+            0.09863564370908659
+          ],
+          "known_grid_voxels": 1104658,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.0926372965267944,
+            "surfaces_by_camera": {}
+          }
+        },
+        {
+          "episode": "can-held-09",
+          "through_camera": "side",
+          "query_m": [
+            0.093574559737541,
+            0.0926372965267944,
+            0.09927504939709089,
+            0.09785049945098985
+          ],
+          "known_grid_voxels": 1110992,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.0926372965267944,
+            "surfaces_by_camera": {}
+          }
+        },
+        {
+          "episode": "can-held-09",
+          "through_camera": "proof",
+          "query_m": [
+            0.09359753195128086,
+            0.0926372965267944,
+            0.10040671266790675,
+            0.09863564370908659
+          ],
+          "known_grid_voxels": 1132704,
+          "query": {
+            "samples": 4,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.0926372965267944,
+            "surfaces_by_camera": {}
+          }
+        }
+      ]
+    }
+  ],
+  "captures": {
+    "can-idle-centres": {
+      "metadata_sha256": "2996305c1b998304dca448cb73867aabef73b9f3fdc8a1f4c399f132d60be4a7",
+      "cameras": {
+        "cam0": "0c870985b23d1e2e1120433627e3901c706d3bdd6af23d2b5f9dedda9cade4f4",
+        "side": "dc5c7ed433f89d304b1f6fb314a1fc9eeafaa8bfdaed5c4bdd5030505ce6e44a",
+        "proof": "86ee27968c5201245cb6a4585e6be240439c51c1370e21334a813f609bd48c60"
+      }
+    },
+    "can-held-09": {
+      "metadata_sha256": "6a36c48644946931e03f0acf48bfcbc86a3066280401af9579e17bf09169347a",
+      "cameras": {
+        "cam0": "e05c9b5f8d0e49836ad1524bf926056de2f247a30f0427493d22762ba03d00f6",
+        "side": "7a4b0b0bd6e8c67c7f9b1a8e78ba0ebc6feea1ea47f1eadd68f0243af495080e",
+        "proof": "4e7e620488f2ab21a9cd2ea8870ff96c0f32be8d49d203124b9bb48ca5c816b7"
+      }
+    }
+  }
+}

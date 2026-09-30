@@ -230,7 +230,7 @@ def test_surface_interpreter_failure_reaps_its_exact_child_and_closes_pipes(tmp_
         pair = original_pipe()
         descriptors.extend(pair)
         return pair
-    monkeypatch.setattr(browser.subprocess, "Popen", capture)
+    monkeypatch.setattr(browser, "subprocess", SimpleNamespace(**{**vars(browser.subprocess), "Popen": capture}))
     monkeypatch.setattr(browser.os, "pipe", pipe)
     code = {"timeout": "import time; time.sleep(120)",
             "eof": "raise SystemExit(23)",
@@ -248,10 +248,20 @@ def test_surface_interpreter_failure_reaps_its_exact_child_and_closes_pipes(tmp_
 
 
 @pytest.mark.parametrize("failure", ["registration", "readiness"])
-def test_surface_startup_preserves_prior_owned_child_when_new_start_fails(tmp_path, monkeypatch, failure):
+@pytest.mark.parametrize("identity_probe", ["native", "subprocess"])
+def test_surface_startup_preserves_prior_owned_child_when_new_start_fails(tmp_path, monkeypatch, failure, identity_probe):
     from conftest import start_sleeping_process
     import cascade.apps.process_owner as owners
     browser = load("spark_browser")
+    if identity_probe == "subprocess":
+        original_identity = owners.process_identity
+        def identity_with_subprocess(pid):
+            # Darwin obtains the command via ps. Its read-only helper process
+            # must not be mistaken for a newly created camera/chat surface.
+            owners.subprocess.run(["ps", "-p", str(pid), "-o", "pid="],
+                                  capture_output=True, text=True, timeout=5)
+            return original_identity(pid)
+        monkeypatch.setattr(owners, "process_identity", identity_with_subprocess)
     state = tmp_path / "state"
     owner = owners.load_owner(state, tmp_path, "cascade-demo", create=True)
     prior = start_sleeping_process()
@@ -270,7 +280,8 @@ def test_surface_startup_preserves_prior_owned_child_when_new_start_fails(tmp_pa
             child = original_popen(command, **kwargs)
             created.append(child)
             return child
-        monkeypatch.setattr(browser.subprocess, "Popen", capture)
+        monkeypatch.setattr(browser, "subprocess", SimpleNamespace(**{**vars(browser.subprocess), "Popen": capture}))
+        assert owners.subprocess.Popen is original_popen
         if failure == "registration":
             def reject_registration(*args, **kwargs):
                 raise ValueError("exact owner identity rejected")

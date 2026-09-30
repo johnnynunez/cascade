@@ -1113,7 +1113,7 @@ cat <<EOF
          headless:  $OC_HINT agent --session-id cascade-demo -m "describe the scene"
          try:       "what do you see?"  "pick and place the red object"  "did it actually move?"
 $( [[ "$CAMERAS" == *scene_two* ]] && echo '         memory:    "put both cubes in the drop zone, one at a time; call task_memory before each action; then tell me how many you moved and how you know"' )
-         reset:     "reset the scene"  (between visitors: props back on spawn, memory cleared)
+         reset:     "reset the scene"  (between visitors: props restored, scene beliefs cleared)
 $( [[ "$SIM" == "mujoco" ]] && echo "         viewer:    $VIEWER_NOTE" )
 $( [[ -n "${JUDGE_NOTE:-}" ]] && echo "         judge:     $JUDGE_NOTE" )
 $( [[ "$SIM" == "isaac"  ]] && echo "         isaac:     bridge :$BRIDGE_PORT, log $STATE_DIR/isaac_bridge.log" )

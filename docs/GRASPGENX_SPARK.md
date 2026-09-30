@@ -12,7 +12,7 @@ From the checkout containing PR #23:
 ```sh
 bash scripts/install_graspgenx.sh
 bash scripts/install_graspgenx.sh --check
-./run.sh isaac --engine physx --no-judge
+python3 scripts/desktop.py launch --repo "$PWD" --gui
 ```
 
 The normal Spark installer performs the first step automatically. It creates
@@ -31,9 +31,10 @@ creating the robot runtime. The check is retained during quick restart:
 ./run.sh isaac --engine physx --no-robot-turn --no-judge
 ```
 
-That command skips the physical startup proof and prints **STARTED
+The quick command expects Qwen to be running (the desktop start manages it).
+It skips the physical startup proof and prints **STARTED
 (UNVERIFIED: robot proof skipped)**. Use it after rehearsing the normal READY
-startup. Omit `--headless` to show Isaac. See the
+startup. The desktop `--gui` option shows Isaac. See the
 [presenter card](PRESENTER_QUICKSTART.md) for scene reset and the demo script.
 
 ## What was broken

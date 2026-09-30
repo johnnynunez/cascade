@@ -111,7 +111,8 @@ def test_installer_runs_existing_pipeline_and_keeps_progress_log(tmp_path, monke
 
 
 @pytest.mark.parametrize("recorded_brain", ["qwen", "cosmos"])
-@pytest.mark.parametrize("options", [[], ["--headless"], ["--no-open"], ["--headless", "--no-open"]])
+@pytest.mark.parametrize("options", [[], ["--headless"], ["--no-open"], ["--headless", "--no-open"],
+                                     ["--gui"], ["--gui", "--no-open"]])
 def test_launch_uses_installer_supervisor_with_pinned_source_and_profile(tmp_path, recorded_brain, options):
     module = controller()
     repo = tmp_path / "repo"
@@ -132,7 +133,8 @@ def test_launch_uses_installer_supervisor_with_pinned_source_and_profile(tmp_pat
     assert result.returncode == 0, result.stdout + result.stderr
     latest = json.loads((repo / "runs/.install/desktop-latest.json").read_text())
     output = [json.loads(s) for s in Path(latest["log"]).read_text().splitlines() if s.startswith('{')][0]
-    assert output["args"] == ["launch", "--repo", str(repo), "--profile", "spark", "--brain", "qwen", "--headless",
+    assert output["args"] == ["launch", "--repo", str(repo), "--profile", "spark", "--brain", "qwen",
+                              *([] if "--gui" in options else ["--headless"]),
                               *(["--no-open"] if "--no-open" in options else [])]
     assert output["source"] == "/selected/source"
     assert output["profile"] == "cascade-demo"

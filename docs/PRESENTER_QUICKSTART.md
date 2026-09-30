@@ -1,19 +1,22 @@
 # Build-a-Claw presenter card
 
 **Use PhysX with the real GraspGen-X server on the presentation Spark.**
-GraspGen-X deployment and physical acceptance are being validated in PR #23.
+All five kitchen objects passed a GB10 physical round with learned grasps.
+Full stack acceptance and CI are tracked in PR #23.
 Run these commands from the installed Cascade folder on the presentation
-machine. This card assumes the Spark installation profile; installation is
+machine. The desktop entry starts Qwen as well as the robot stack; `run.sh`
+expects Qwen to be running already. This card assumes the Spark installation profile; installation is
 covered in [DGX Spark setup](DGX_SPARK_SETUP.md).
 
 ## 1. Start before the audience arrives
 
 ```sh
-./run.sh isaac --engine physx --graspgenx local --no-judge
+python3 scripts/desktop.py launch --repo "$PWD" --gui
 ```
 
-1. Leave out `--headless` to show the Isaac Sim window. A running headless
-   bridge is reused; stop that demo with `./run.sh down` before changing mode.
+1. `--gui` shows Isaac alongside the chat. The desktop launcher otherwise
+   defaults to headless. A running bridge is reused; stop that demo with
+   `./run.sh down` before changing display mode.
 2. Wait for **READY**. The startup proof moves the green cube and orange,
    checks their placement, and resets the scene.
 3. Check the camera views and the runtime's `grasp_planner=graspgenx (learned 6-DoF)` banner.
@@ -45,7 +48,8 @@ failure or an unverified placement, show that result as reported.
 | --- | --- |
 | Stack works; objects need restoring | Click **Start over** in the Spark chat, **Reset** in PAAI OpenClaw, or send **"Reset the scene."** |
 | An order is still running | Wait for its result before resetting; the reset buttons are disabled while busy. |
-| Stack crashed | Run the quick restart below, preserving any custom scene flags. |
+| Isaac/robot stack crashed; Qwen still runs | Run the quick restart below, preserving any custom scene flags. |
+| Qwen also stopped | Use the desktop start above, or start Qwen separately as described below before quick restart. |
 | Reset fails or placement is unverified | Check the cameras and the reported error before issuing another movement. |
 
 ```sh
@@ -56,6 +60,13 @@ Quick restart skips the startup manipulation proof and optional image judge.
 Service startup, scene identity, model and tool checks still run. Expect
 **STARTED (UNVERIFIED: robot proof skipped)**, not a new READY certificate.
 There is no fixed restart time: simulator initialization can still take minutes.
+
+If the model server also stopped, the desktop start restores the whole stack
+and runs its full proof. To skip that proof, run
+`bash scripts/serve_qwen_llamacpp.sh` in a separate terminal, wait for its server
+to report ready, then use the quick command above. Leave that terminal open;
+stop this manually started model with Ctrl-C before returning to the supervised
+desktop start. Do not start a second model on an occupied port 8080.
 
 The in-session reset restores props, returns the arm home, clears object
 beliefs and task images, and obtains a fresh observation. Learned grasp history,
@@ -69,7 +80,7 @@ Use scene reset between visitors. See [memory and recovery details](SPARK_DELIVE
 | --- | --- | --- |
 | Physics | **PhysX**, the Spark default | Newton is an explicit opt-in under separate validation; do not switch engines during the event. |
 | Grasps | **GraspGen-X**, learned inference on the Spark | A protocol stub or an analytic fallback does not validate this setup. |
-| Isaac window | **Visible**; omit `--headless` | Headless runs still produce camera images but do not show the editor. |
+| Isaac window | **Visible**; use desktop `--gui` | Headless runs still produce camera images but do not show the editor. |
 
 **Why did GraspGen-X fall back to OBB?** The previous Spark launcher omitted
 the learned-model server. A failed startup probe or inference also selected

@@ -1,0 +1,211 @@
+{
+  "scope": "Actual idle Isaac kitchen RGB-D captures; no motion commanded. Ground truth is used only to evaluate mapping.",
+  "identity": {
+    "ok": true,
+    "engine": "physx",
+    "dofs": [
+      "joint1",
+      "joint2",
+      "joint3",
+      "joint4",
+      "joint5",
+      "joint6",
+      "joint_left",
+      "joint_right"
+    ],
+    "scene_name": "paai-cocina-asier-v1",
+    "scene_config": "/home/spark/Projects/cascade-codex-graspgenx/demo/scene/kitchen_config.json",
+    "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+    "scene_assets_sha256": "270dfdf182b7a1cd3831395103d5e42ecd38ef3833bceff32af871695abb18b1",
+    "scene_content_sha256": "84a35e632c5977112e104cbf63e26b7593d2dc5fe63b3a1b6a170aa148353413",
+    "physics_dt_s": 0.008333333333333333,
+    "physics_dt_source": "SimulationManager.get_physics_dt",
+    "physics_dt_scene_count": 1,
+    "physics_device": "cuda:0",
+    "physics_tensor_device": "cuda:0",
+    "physics_gpu": true,
+    "gpu_attestation": {
+      "required": true,
+      "backend": "physx",
+      "device": "cuda:0",
+      "tensor_device": "cuda:0",
+      "tensor_device_ordinal": 0,
+      "cuda_context_present": true,
+      "gpu_dynamics": true,
+      "broadphase": "GPU",
+      "cpu_fallback_allowed": false,
+      "fallback_log_count": 0
+    }
+  },
+  "cameras": {
+    "cam0": {
+      "sha256": "64312111d31fc76bd39f83c38696918b5ee66e4c5c046b01e854ee4ebda97982",
+      "capture": {
+        "backend": "isaac",
+        "source": [
+          "127.0.0.1",
+          18611
+        ],
+        "camera": "cam0",
+        "t": 36424.858724596,
+        "proprioception": {
+          "version": 1,
+          "backend": "isaac",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "joint_convention": "asset",
+          "q": [
+            0.00012836461246479303,
+            -1.20229971408844,
+            -1.1986638307571411,
+            0.0002232659317087382,
+            -1.2515762648490636e-07,
+            -2.7961587534264254e-07
+          ],
+          "t": 36424.858724596,
+          "time_source": "physics_loop_monotonic"
+        },
+        "contact_paths": []
+      },
+      "shape": [
+        720,
+        1280
+      ],
+      "masked_pixels": 36781
+    },
+    "side": {
+      "sha256": "7a1fb2be3d9e785d0d488d6d7cce82b0a403b034389e72fec338d06e60f8da3b",
+      "capture": {
+        "backend": "isaac",
+        "source": [
+          "127.0.0.1",
+          18611
+        ],
+        "camera": "side",
+        "t": 36425.010903723,
+        "proprioception": {
+          "version": 1,
+          "backend": "isaac",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "joint_convention": "asset",
+          "q": [
+            0.0001283629098907113,
+            -1.2022995948791504,
+            -1.1986638307571411,
+            0.00022326558246277273,
+            -1.2542805905013665e-07,
+            -2.7956841108789376e-07
+          ],
+          "t": 36425.010903723,
+          "time_source": "physics_loop_monotonic"
+        },
+        "contact_paths": []
+      },
+      "shape": [
+        720,
+        1280
+      ],
+      "masked_pixels": 48063
+    },
+    "proof": {
+      "sha256": "9b9151191e87fd5182a4ec383b398fc97f0b1e2c99ca127ec76d833f1f7ad708",
+      "capture": {
+        "backend": "isaac",
+        "source": [
+          "127.0.0.1",
+          18611
+        ],
+        "camera": "proof",
+        "t": 36425.364252257,
+        "proprioception": {
+          "version": 1,
+          "backend": "isaac",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "joint_convention": "asset",
+          "q": [
+            0.00012836411769967526,
+            -1.20229971408844,
+            -1.1986638307571411,
+            0.0002232659753644839,
+            -1.2651875636038312e-07,
+            -2.7952893333349493e-07
+          ],
+          "t": 36425.364252257,
+          "time_source": "physics_loop_monotonic"
+        },
+        "contact_paths": []
+      },
+      "shape": [
+        720,
+        1280
+      ],
+      "masked_pixels": 29728
+    }
+  },
+  "truth": {
+    "green_cube": {
+      "position_m": [
+        0.24000000953674316,
+        0.010000010952353477,
+        0.02999999934039739
+      ],
+      "quaternion_wxyz": [
+        0.9999999403953552,
+        -5.101770739202038e-07,
+        -6.022792149451561e-07,
+        2.4318216773622225e-08
+      ]
+    },
+    "pink_cube": {
+      "position_m": [
+        0.27000001072883606,
+        0.11000000685453415,
+        0.02999999934039739
+      ],
+      "quaternion_wxyz": [
+        0.9999999403953552,
+        -3.989223955613852e-07,
+        -4.0919871935329866e-07,
+        -1.59974334223989e-07
+      ]
+    },
+    "orange": {
+      "position_m": [
+        0.18000000715255737,
+        0.11999999731779099,
+        0.02638023161492971
+      ],
+      "quaternion_wxyz": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "lemon": {
+      "position_m": [
+        0.3199999928474426,
+        0.004999999888241291,
+        0.021600000571233305
+      ],
+      "quaternion_wxyz": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "tomato_can": {
+      "position_m": [
+        0.22500000894069672,
+        0.2149999886751175,
+        0.04125001282594827
+      ],
+      "quaternion_wxyz": [
+        0.9999999403953552,
+        2.695109913020133e-09,
+        -1.1183653469970523e-07,
+        1.3787177977064857e-07
+      ]
+    }
+  }
+}

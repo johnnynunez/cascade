@@ -8,9 +8,8 @@ Three backends behind ONE interface, chosen by `make_backend(name)`:
           linux x86_64 wheel from the GitHub release; Jetson builds from
           source). Verified against the nvblox_torch public API at
           nvidia-isaac/nvblox `public` (Mapper.add_depth_frame /
-          update_esdf / query_layer(QueryType.ESDF)); UNVERIFIED at runtime
-          on this dev machine (no NVIDIA GPU here) -- the class is exercised
-          only where CUDA exists.
+          update_esdf / query_layer(QueryType.ESDF)). CUDA integration has
+          not been validated for the Spark delivery; see docs/NVBLOX.md.
 
   warp    Hardware-agnostic default. ~200 lines of NVIDIA Warp kernels owned
           by this repo: a DENSE projective TSDF over the workspace AABB
@@ -278,12 +277,11 @@ class NvbloxBackend:
         Sensor.from_camera(fu, fv, cu, cv, width, height)
         mapper.add_depth_frame(depth_HxW_float32_cuda, t_w_c_4x4_CPU, sensor)
         mapper.update_esdf()
-        mapper.query_layer(QueryType.ESDF, points_Nx3_cuda) -> (N,1) distance;
+        mapper.query_layer(QueryType.ESDF, spheres_Nx4_cuda) -> (N,1) distance;
             unknown == constants.esdf_unknown_distance()
-    UNVERIFIED on this dev machine (no CUDA). Any API drift raises at
-    construction/first call and the bridge reports it -- never a silent
-    fallback to another backend, because the client displays the backend
-    name as evidence of what checked the motion.
+    CUDA mapping is validated on RTX Blackwell and Spark GB10 (see docs/NVBLOX.md).
+    With explicit backend selection, API errors propagate to the bridge;
+    `auto` may choose a different backend. The probe reports the actual name.
     """
 
     name = "nvblox"
@@ -300,6 +298,7 @@ class NvbloxBackend:
         if not _torch.cuda.is_available():
             raise RuntimeError("nvblox backend needs a CUDA device (nvblox_torch is GPU-only)")
         self._torch = _torch
+        self.device = f"cuda:{_torch.cuda.current_device()}"
         self._QueryType = QueryType
         self._unknown = float(constants.esdf_unknown_distance())
         pip = ProjectiveIntegratorParams()
@@ -325,6 +324,10 @@ class NvbloxBackend:
     def integrate_points(self, points: np.ndarray) -> None:
         raise RuntimeError("nvblox integrates DEPTH FRAMES (ray casting); use integrate_depth")
 
+    def clear(self) -> None:
+        self.mapper.clear()
+        self._torch.cuda.synchronize()
+
     def integrate_depth(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray) -> None:
         torch = self._torch
         t0 = time.perf_counter()
@@ -341,12 +344,17 @@ class NvbloxBackend:
         torch = self._torch
         t0 = time.perf_counter()
         spec = GridSpec(region_min, region_max, self.voxel)
-        centres = torch.as_tensor(spec.centres().reshape(-1, 3)).cuda()
-        sdf = self.mapper.query_layer(self._QueryType.ESDF, centres).reshape(-1).cpu().numpy()
+        centres = spec.centres().reshape(-1, 3)
+        # nvblox 0.0.10's ESDF kernel requires (x, y, z, radius), despite
+        # query_layer's Nx3 docstring. Zero radius asks for point clearance.
+        spheres = np.zeros((len(centres), 4), dtype=np.float32)
+        spheres[:, :3] = centres
+        query = torch.as_tensor(spheres).cuda()
+        sdf = self.mapper.query_layer(self._QueryType.ESDF, query).reshape(-1).cpu().numpy()
         grid = sdf.reshape(spec.shape).astype(np.float32)
         unknown = grid == self._unknown
-        grid = np.abs(grid)          # clearance is unsigned; inside -> 0
-        grid[sdf <= 0.0] = 0.0
+        # Keep the 3-D layout: a flat SDF mask cannot index this grid.
+        grid = np.maximum(grid, 0.0)  # clearance is unsigned; inside -> 0
         grid[unknown] = np.inf        # unobserved reads as "no obstacle known" (kFree policy)
         occ = np.argwhere(grid <= 0.0)
         pts = (occ * self.voxel + spec.origin).astype(np.float32)

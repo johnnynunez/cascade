@@ -1,13 +1,14 @@
 {
   "schema": 1,
   "layout": "cascade-own-kitchen-v2",
-  "description": "Required separately supplied robot and perception assets, at paths relative to the asset root. The original kitchen is included in the source checkout. No downloads are performed.",
+  "description": "Required separately supplied robot and perception assets, at paths relative to the asset root. The Cocina Asier room is fetched and verified separately by scripts/kitchen_assets.py before offline bundle assembly. The assembly itself performs no downloads.",
   "licenses": {
     "source": "Preserve the CASCADE MIT license and authorship.",
-    "procedural_props": "Original kitchen and props: retain demo/scene/NOTICE.md and the scoped CC0-1.0 dedication in demo/scene/props/LICENSE.txt.",
+    "procedural_props": "Original orange, platter and task props: retain demo/scene/NOTICE.md and the scoped CC0-1.0 dedication in demo/scene/props/LICENSE.txt.",
     "robot": "Retain assets/REBOT_UPSTREAM_LICENSE.txt and assets/REBOT_PROVENANCE.md, including the legacy metadata distinction.",
     "native_ui": "OpenClaw 2026.9.3 MIT; retain web/openclaw-ui/OPENCLAW-LICENSE.txt.",
-    "perception": "Supply the pinned weights under their upstream terms; these files are not redistributed in this checkout."
+    "perception": "Supply the pinned weights under their upstream terms; these files are not redistributed in this checkout.",
+    "kitchen": "Cocina Asier owner-authorized room geometry, original replacement surfaces and verified ambientCG CC0 wood maps; retain the release NOTICE.md and sources.json."
   },
   "files": {
     "assets/REBOT_PROVENANCE.md": {

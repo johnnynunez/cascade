@@ -17,12 +17,18 @@ BUILD_INPUTS = {
     "clip": {"sha256": "a6612386ce34f6e08591c603e67855e93abf3b7b418dc81e68b28d891ac5bcd8",
              "size_bytes": 4339014},
 }
-LAYOUT = "cascade-own-kitchen-v2"
-SCENE_NAME = "paai-own-kitchen-v1"
+LAYOUT = "cascade-cocina-asier-v1"
+SCENE_NAME = "paai-cocina-asier-v1"
+BUNDLE_MANIFEST = "demo/scene/cocina_asier_bundle.json"
+BUNDLE_ROOT = "demo/scene/cocina_asier"
+BUNDLE_URL = "https://github.com/johnnynunez/cascade/releases/download/kitchen-asier-v1/cocina-asier-v1.zip"
+BUNDLE_REQUIRED_FILES = frozenset({"cocina_asier.usdc", "geometry-audit.json", "NOTICE.md", "sources.json"})
 ASSET_MANIFEST = Path(__file__).with_name("bundle_assets.json")
 KITCHEN_SOURCE_FILES = (
     "scripts/isaac_bridge.py",
     "demo/isaac_scene.py", "demo/own_kitchen.py", "demo/own_kitchen_props.py",
+    "demo/cocina_asier.py", "scripts/build_cocina_asier.py",
+    "demo/scene/cocina_asier_sources.json", "demo/scene/cocina_asier_audit.json", BUNDLE_MANIFEST,
     "demo/scene_identity.py", "demo/scene/NOTICE.md", "demo/scene/props/LICENSE.txt",
     "demo/scene/props/lemon.usda", "demo/scene/props/tomato_can.usda",
 )
@@ -126,6 +132,41 @@ def asset_inventory():
     return json.loads(ASSET_MANIFEST.read_text())
 
 
+def kitchen_asset_inventory(source):
+    """Read the release receipt as data, without executing supplied source."""
+    record = json.loads(member(source, BUNDLE_MANIFEST).read_text())
+    if not isinstance(record, dict):
+        raise ValueError("The bundle needs the complete Cocina Asier release inventory")
+    files = record.get("files")
+    if (record.get("schema") != 1 or record.get("scene_name") != SCENE_NAME
+            or record.get("root") != BUNDLE_ROOT or not isinstance(files, dict)
+            or not len(BUNDLE_REQUIRED_FILES) <= len(files) <= 4096
+            or not BUNDLE_REQUIRED_FILES <= files.keys()):
+        raise ValueError("The bundle needs the complete Cocina Asier release inventory")
+    archive = record.get("archive")
+    if (not isinstance(archive, dict) or archive.get("url") != BUNDLE_URL
+            or type(archive.get("size_bytes")) is not int
+            or not 0 < archive["size_bytes"] <= 256 * 1024 * 1024
+            or not re.fullmatch(r"[0-9a-f]{64}", str(archive.get("sha256", "")))):
+        raise ValueError("The bundle needs the pinned Cocina Asier release archive receipt")
+    admitted = {}
+    for name, entry in files.items():
+        path = PurePosixPath(name)
+        if (path.is_absolute() or str(path) != name or ".." in path.parts
+                or any(c in name for c in "\\:\r\n\0")
+                or (name not in BUNDLE_REQUIRED_FILES
+                    and (len(path.parts) != 2 or path.parts[0] != "textures"))
+                or not isinstance(entry, dict) or type(entry.get("size_bytes")) is not int
+                or entry["size_bytes"] <= 0
+                or not re.fullmatch(r"[0-9a-f]{64}", str(entry.get("sha256", "")))):
+            raise ValueError("The bundle has an invalid Cocina Asier release member")
+        admitted[f"{BUNDLE_ROOT}/{name}"] = {
+            **entry, "provenance": "Cocina Asier kitchen-asier-v1 release; see demo/scene/NOTICE.md"}
+    if sum(entry["size_bytes"] for entry in admitted.values()) > 512 * 1024 * 1024:
+        raise ValueError("The Cocina Asier release exceeds its byte budget")
+    return admitted
+
+
 def runtime_inventory(source, record):
     """Require authored scene sources and separately licensed robot/model inputs."""
     if record.get("layout") != LAYOUT:
@@ -133,6 +174,11 @@ def runtime_inventory(source, record):
     files = record["files"]
     missing = set(RUNTIME_FILES) - files.keys()
     assets = asset_inventory()
+    room = kitchen_asset_inventory(source)
+    assets["files"].update(room)
+    actual_room = {name for name in files if name.startswith(BUNDLE_ROOT + "/")}
+    if actual_room - room.keys():
+        raise ValueError("The bundle contains unmanifested Cocina Asier release files")
     missing.update(assets["files"].keys() - files.keys())
     if missing:
         raise ValueError("The runtime bundle is incomplete: " + ", ".join(sorted(missing)))

@@ -29,6 +29,16 @@ def distribution(tmp_path, monkeypatch):
         path.write_text("Source fixture\n")
     (checkout / "demo/scene/kitchen_config.json").write_text(json.dumps({
         "scene_name": bundle.SCENE_NAME, "props": [{"asset": "props/lemon.usda"}, {"visual": "procedural_orange"}]}))
+    room = {"cocina_asier.usdc": b"reviewed room fixture", "geometry-audit.json": b"{}",
+            "NOTICE.md": b"Owner authorization and CC0 notices", "sources.json": b"{}"}
+    for name, raw in room.items():
+        path = checkout / bundle.BUNDLE_ROOT / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    (checkout / bundle.BUNDLE_MANIFEST).write_text(json.dumps({
+        "schema": 1, "scene_name": bundle.SCENE_NAME, "root": bundle.BUNDLE_ROOT,
+        "archive": {"url": bundle.BUNDLE_URL, **expected(b"archive fixture")},
+        "files": {name: expected(raw) for name, raw in room.items()}}))
     (checkout / "demo/scene/own_assets.json").write_text(json.dumps({
         "schema": 1, "scene_name": bundle.SCENE_NAME,
         "files": {name: expected((checkout / name).read_bytes()) for name in bundle.KITCHEN_SOURCE_FILES}}))
@@ -68,7 +78,8 @@ def test_assembled_runtime_is_admitted_by_existing_prepare(distribution, tmp_pat
     assert result["downloads"] == admitted["downloads"] == 0
     assert (output / "source/assets/REBOT_UPSTREAM_LICENSE.txt").read_bytes() == b"robot license fixture"
     assert (output / "source/demo/scene/props/lemon.usda").read_bytes() == b"Source fixture\n"
-    assert record["layout"] == "cascade-own-kitchen-v2"
+    assert record["layout"] == "cascade-cocina-asier-v1"
+    assert (output / "source" / bundle.BUNDLE_ROOT / "cocina_asier.usdc").read_bytes() == b"reviewed room fixture"
     assert not (output / "source/kitchen").exists()
 
 
@@ -79,7 +90,7 @@ def test_repeat_assembly_reuses_certified_asset_bytes(distribution, monkeypatch)
 
     def guarded_open(path, *args, **kwargs):
         if path.is_relative_to(assets) or path.is_relative_to(output / "source"):
-            if path.name not in ("kitchen_config.json", "own_assets.json"):
+            if path.name not in ("kitchen_config.json", "own_assets.json", "cocina_asier_bundle.json"):
                 pytest.fail("Unchanged certified asset or output was read again")
         return old_open(path, *args, **kwargs)
 
@@ -141,6 +152,26 @@ def test_authored_source_change_requires_matching_scene_manifest(distribution):
     assert not (output / "PORTABLE_BUNDLE.json").exists()
 
 
+def test_kitchen_release_asset_change_prevents_offline_assembly(distribution):
+    checkout, _, output, _ = distribution
+    (checkout / bundle.BUNDLE_ROOT / "cocina_asier.usdc").write_bytes(b"tampered room")
+    with pytest.raises(ValueError, match="unexpected size|checksum differs"):
+        assemble(distribution)
+    assert not (output / "PORTABLE_BUNDLE.json").exists()
+
+
+def test_portable_source_contract_matches_runtime_identity():
+    root = Path(__file__).resolve().parents[3]
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("portable_scene_identity", root / "demo/scene_identity.py")
+    identity = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(identity)
+    assert set(bundle.KITCHEN_SOURCE_FILES) == set(identity.SOURCE_FILES)
+    assert bundle.SCENE_NAME == identity.SCENE_NAME
+    assert bundle.BUNDLE_URL == identity.BUNDLE_URL
+    assert bundle.BUNDLE_REQUIRED_FILES == identity.BUNDLE_REQUIRED_FILES
+
+
 def test_stop_before_manifest_preserves_inputs_without_admission(distribution, monkeypatch):
     _, _, output, _ = distribution
     stopped = False
@@ -183,6 +214,7 @@ def test_assembled_extension_loads_manifest_worker_and_contains_page_modules(dis
     assemble(distribution)
     extension = output / "source/extensions/chrome"
     manifest = json.loads((extension / "manifest.json").read_text())
+    assert manifest["background"]["type"] == "module"
     pending = [manifest["background"]["service_worker"], manifest["action"]["default_popup"],
                manifest["side_panel"]["default_path"].split("?", 1)[0]]
     visited = set()
@@ -210,7 +242,11 @@ globalThis.chrome = {
 await import(pathToFileURL(process.argv[2]).href);
 if (!registered.includes('message') || !registered.includes('history')) process.exit(1);
 """
-    result = subprocess.run(["node", "--experimental-default-type=module", "--input-type=module", "-",
+    # Chromium selects ESM via the extension manifest. Give Node the same
+    # explicit semantics using stable package metadata; older CI Node versions
+    # do not implement the experimental default-type command-line flag.
+    (extension / "package.json").write_text('{"type":"module"}\n')
+    result = subprocess.run(["node", "--input-type=module", "-",
                              str(extension / manifest["background"]["service_worker"])],
                             input=javascript, text=True, capture_output=True, timeout=15)
     assert result.returncode == 0, result.stderr

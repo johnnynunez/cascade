@@ -93,7 +93,7 @@ def _sphere_topology(segments, rings):
     return faces
 
 
-def orange_surface(dimensions=ORANGE_DIMENSIONS, *, seed=29, segments=192, rings=96):
+def orange_surface(dimensions=ORANGE_DIMENSIONS, *, seed=29, segments=256, rings=128):
     """Closed, slightly oblate fruit within the unchanged grasp proxy bounds.
 
     The bottom touches -height/2. A 2.7% compression and matching downward
@@ -124,19 +124,19 @@ def orange_surface(dimensions=ORANGE_DIMENSIONS, *, seed=29, segments=192, rings
         broad = _noise(sample, .0065 * size, seed + 7)
         # Bounded, inward dimples preserve the proxy silhouette. The poles
         # are welded and never receive a seam-dependent displacement.
-        pore = max(0.0, (fine - .28) / .72) ** 2
-        depression = (.011 * pore + .002 * broad) * (1 - nz * nz)
+        pore = max(0.0, (fine - .45) / .45) ** 1.4
+        depression = (.012 * pore + .001 * broad) * (1 - nz * nz)
         recess = .00025 * size * max(0.0, (nz - .91) / .09) ** 2
         points.append((a * nx * (1 - depression), b * ny * (1 - depression),
                        center_z + c * nz * (1 - depression) - recess))
         # Broad ripening patches and smaller peel pigment are deliberately
         # independent of the displacement: pores should not resemble painted
         # polka dots. Contrast survives the kitchen's soft ceiling lighting.
-        pigment = (.92 + .16 * (2 * broad - 1) + .09 * (2 * medium - 1)
-                   + .055 * (2 * fine - 1))
-        colors.append((min(.98, .94 * pigment), .255 * pigment + .047 * broad - .015 * pore,
-                       .009 + .010 * broad))
-        roughness.append(.49 + .08 * fine + .02 * medium)
+        pigment = (.97 + .065 * (2 * broad - 1) + .07 * (2 * medium - 1)
+                   + .10 * (2 * fine - 1))
+        colors.append((min(.98, .96 * pigment), .278 * pigment + .025 * broad - .014 * pore,
+                       .014 + .012 * broad))
+        roughness.append(.40 + .06 * fine + .025 * medium)
     return _surface(points, _sphere_topology(segments, rings), colors, roughness)
 
 
@@ -177,6 +177,9 @@ _BOWL_PROFILE = (
     (.100, .0110), (.085, .0080), (.070, .0065), (.050, .0055),
     (.030, .0050), (0.0, .0050),
 )
+# Keep the annular foot on the table while giving the original platter its
+# reference depth. Fruit support is recomputed against this inner profile.
+_BOWL_PROFILE = tuple((radius, height * 2.055) for radius, height in _BOWL_PROFILE)
 
 
 def bowl_surface(*, diameter=.30, segments=128):
@@ -253,7 +256,7 @@ def _root(stage, path, description):
 
 
 def author_orange(stage, root_path, dimensions=ORANGE_DIMENSIONS, *, seed=29,
-                  segments=192, rings=96):
+                  segments=256, rings=128):
     """Author an original orange centered on its existing dynamic body origin.
 
     Do not apply the previous imported asset's scale or offset to this root.
@@ -303,26 +306,29 @@ def orange_half_surface(dimensions=ORANGE_DIMENSIONS, *, seed=29, segments=96, r
     return _surface(points, faces, full.colors[:count], full.roughness[:count])
 
 
-def _pulp_segment(a, b, cut_z, index, seed, *, divisions=20, arc_divisions=14):
+def _pulp_segment(a, b, cut_z, index, seed, *, divisions=28, arc_divisions=20):
     """A thin closed juice segment; pith is visible between neighboring wedges."""
-    angle0 = index * 2 * math.pi / 10 + .016 * math.sin(index * .6 * math.pi + seed) + .006
+    angle0 = index * 2 * math.pi / 10 + .016 * math.sin(index * .6 * math.pi + seed) + .010
     angle1 = ((index + 1) * 2 * math.pi / 10
-              + .016 * math.sin((index + 1) * .6 * math.pi + seed) - .006)
+              + .016 * math.sin((index + 1) * .6 * math.pi + seed) - .010)
     points, colors, faces, roughness = [], [], [], []
     for upper in (False, True):
         for row in range(divisions + 1):
-            radius = .040 + .902 * row / divisions
+            radius = .065 + .860 * row / divisions
             for column in range(arc_divisions + 1):
                 theta = angle0 + (angle1 - angle0) * column / arc_divisions
+                # Slightly meandering membranes, with no repeating straight
+                # spokes. The same boundary is used by both closed layers.
+                theta += .014 * math.sin(row * .72 + index * 1.9 + seed)
                 grain = _hash(row, column, index, seed)
                 height = cut_z + (.000055 + .000060 * (.15 + .85 * grain * grain) if upper else 0)
                 points.append((a * radius * math.cos(theta), b * radius * math.sin(theta), height))
                 # Small pigment variation reads as juice vesicles. The
                 # perimeter lightens into the surrounding pith membrane.
                 edge = .025 if row in (0, divisions) or column in (0, arc_divisions) else 0.0
-                glint = max(0.0, (grain - .84) / .16)
-                colors.append((.91 + .075 * grain, .235 + .105 * grain + .09 * glint + edge,
-                               .009 + .018 * grain + .045 * glint + edge))
+                glint = max(0.0, (grain - .65) / .35)
+                colors.append((.91 + .075 * grain, .28 + .15 * grain + .16 * glint + edge,
+                               .009 + .018 * grain + .10 * glint + edge))
                 roughness.append(.34 + .16 * grain)
     width = arc_divisions + 1
     layer = (divisions + 1) * width
@@ -358,7 +364,7 @@ def author_orange_half(stage, root_path, dimensions=ORANGE_DIMENSIONS, *, seed=2
     disk = _lathe([(0, cut_z - .000025), (.992, cut_z - .000025),
                    (.992, cut_z), (0, cut_z)], segments=segments)
     disk = _surface([(x * a, y * b, z) for x, y, z in disk.points], disk.faces)
-    pith = _material(stage, path + "/Looks/Pith", (.94, .83, .49), roughness=.62)
+    pith = _material(stage, path + "/Looks/Pith", (.98, .91, .72), roughness=.62)
     _mesh(stage, path + "/Pith", disk, pith)
     pulp = _material(stage, path + "/Looks/Pulp", (.95, .29, .025), roughness=.42, skin=True)
     for index in range(10):
@@ -402,14 +408,14 @@ def bowl_fruit_layout(*, diameter=.30):
         factor = 1.32 * (1.0, .973, 1.013, .985, 1.005, .99)[index]
         dimensions = tuple(value * factor for value in ORANGE_DIMENSIONS)
         angles = ((12, -19, 17), (-24, 10, 62), (17, 21, 130),
-                  (8, -28, 193), (32, -12, 12), (38, 15, -10))[index]
+                  (8, -28, 193), (-7, -12, 12), (-10, 15, -10))[index]
         half = index >= 4
         make_surface = orange_half_surface if half else orange_surface
         points = tuple(_rotate(point, angles) for point in make_surface(
             dimensions, seed=seed, segments=64, rings=32).points)
         x, y = positions[index]
         z = max(_inner_height(math.hypot(px + x, py + y)) - pz
-                for px, py, pz in points) + .00004
+                for px, py, pz in points) + .00006
         rows.append({"position": tuple(value * scale for value in (x, y, z)),
                      "rotation": angles, "dimensions": tuple(value * scale for value in dimensions),
                      "seed": seed, "half": half})
@@ -432,12 +438,12 @@ def author_bowl_of_oranges(stage, root_path, *, position=(0.0, 0.0, 0.0), diamet
     root = _root(stage, root_path, "Original pale mustard platter with four whole oranges and two cut halves")
     root.AddTranslateOp().Set(Gf.Vec3d(*position))
     path = str(root.GetPath())
-    ceramic = _material(stage, path + "/Looks/GlazedCeramic", (.80, .625, .175), roughness=.30)
+    ceramic = _material(stage, path + "/Looks/GlazedCeramic", (.90, .62, .22), roughness=.23)
     _mesh(stage, path + "/Bowl", bowl, ceramic)
     for index, item in enumerate(layout):
         author = author_orange_half if item["half"] else author_orange
         fruit = author(stage, path + f"/Orange_{index + 1:02d}", item["dimensions"],
-                       seed=item["seed"], segments=128, rings=64)
+                       seed=item["seed"], segments=256, rings=128)
         # Bake rotations for exact local extents as well as native Hydra
         # geometry. Rotating a hemisphere's box would otherwise report a
         # fictitious corner below the tabletop, outside the actual mesh.

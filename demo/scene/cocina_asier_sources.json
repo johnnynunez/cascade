@@ -1,0 +1,46 @@
+{
+  "geometry": {
+    "file": "Cocina_Asier_01.usd",
+    "sha256": "607ea10b6edea30e066ad82cd1df64604b2877e166487ac74b96bc84ff522bb7",
+    "source": "Supplied to Asier by a friend; owner authorized demo adaptation and release distribution on 2026-09-30.",
+    "license": "Owner-authorized; not represented as CC0."
+  },
+  "textures": {
+    "Wood044_2K-JPG_Color.jpg": {
+      "sha256": "d4063b53baf806eada501feb7d0763c181bce44ffbc980d3508f158cc57edfe5",
+      "source": "https://ambientcg.com/view?id=Wood044",
+      "license": "CC0-1.0",
+      "license_url": "https://docs.ambientcg.com/license/"
+    },
+    "Wood044_2K-JPG_NormalDX.jpg": {
+      "sha256": "b9ca32d6a21d2b6d786763d59ea1b2be8c86ffbee4b9a4caaacf88f98fc8573a",
+      "source": "https://ambientcg.com/view?id=Wood044",
+      "license": "CC0-1.0",
+      "license_url": "https://docs.ambientcg.com/license/"
+    },
+    "Wood044_2K-JPG_Roughness.jpg": {
+      "sha256": "ccd2764bcf715df2ea309da85e0862a7a6f3f8b2a07f09a59cd9af075b7fc11c",
+      "source": "https://ambientcg.com/view?id=Wood044",
+      "license": "CC0-1.0",
+      "license_url": "https://docs.ambientcg.com/license/"
+    },
+    "WoodFloor051_2K-JPG_Color.jpg": {
+      "sha256": "cd20f4039f62ca2b2430b8a4521774572a31ee586babac058a3afe178ed9ef5f",
+      "source": "https://ambientcg.com/view?id=WoodFloor051",
+      "license": "CC0-1.0",
+      "license_url": "https://docs.ambientcg.com/license/"
+    },
+    "WoodFloor051_2K-JPG_NormalGL.jpg": {
+      "sha256": "4c49e6dad811b850ddf496cbab5c247292d4df61f25ba3108ba43d83aa242780",
+      "source": "https://ambientcg.com/view?id=WoodFloor051",
+      "license": "CC0-1.0",
+      "license_url": "https://docs.ambientcg.com/license/"
+    },
+    "WoodFloor051_2K-JPG_Roughness.jpg": {
+      "sha256": "136fafdf901678e5959d4690b812ad4ef654c53db05295eb07e1efa24337cd61",
+      "source": "https://ambientcg.com/view?id=WoodFloor051",
+      "license": "CC0-1.0",
+      "license_url": "https://docs.ambientcg.com/license/"
+    }
+  }
+}

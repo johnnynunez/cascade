@@ -300,7 +300,7 @@ def prepare_scene(stage, config, *, cube, bind_pmat, base_z, is_playing):
     if not stage.GetPrimAtPath(config["robot_prim"]):
         raise ValueError("Expected shipped reBot articulation root is missing")
 
-    from own_kitchen import author_kitchen
+    from cocina_asier import author_kitchen
     background = author_kitchen(stage, counter=config["counter"])
     # The visual room must never add a second simulation or collision body.
     for prim in Usd.PrimRange(background):

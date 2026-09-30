@@ -37,7 +37,11 @@ jobs:
       # client cannot even be built. The heavy extras (perception/arm) stay
       # hardware-only.
       - run: uv sync --extra dev --extra kinematics --extra arm-feetech --extra sim --extra sim-warp --extra grasping
+      - name: install and verify pinned kitchen release without a simulator
+        run: uv run python scripts/kitchen_assets.py
       - run: uv run pytest tests/ deploy/brev/tests/test_public_visitor.py deploy/brev/tests/test_visitor_video.py -q
+      - name: verify offline kitchen packaging and portable bundle admission
+        run: uv run pytest deploy/brev/tests/test_build_bundle.py deploy/brev/tests/test_prepare_bundle.py -q
 
   booth-ui:
     name: booth pages and camera extension

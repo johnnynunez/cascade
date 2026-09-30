@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "scene_name": "paai-cocina-asier-v1",
+  "root": "demo/scene/cocina_asier",
+  "archive": {
+    "url": "https://github.com/johnnynunez/cascade/releases/download/kitchen-asier-v1/cocina-asier-v1.zip",
+    "sha256": "43185828cd0b90e426ca6135f9d1da286b994e67a39a492c6f2024896d78c0e4",
+    "size_bytes": 29770081
+  },
+  "files": {
+    "NOTICE.md": {
+      "sha256": "afae350de8e942115d3f906d4ce08f1df5b722eeeb389e1303eef2095ca38d1e",
+      "size_bytes": 3893
+    },
+    "cocina_asier.usdc": {
+      "sha256": "7cf14a77293aeae53b1f07a4f06d8f5d10b09494425e15ed7b2c8cd19331eca2",
+      "size_bytes": 37740835
+    },
+    "geometry-audit.json": {
+      "sha256": "c66cbfd7b1acb87badce8bc246c758c26bc4af78bc2e16233915e4a4b5c8414e",
+      "size_bytes": 74295
+    },
+    "sources.json": {
+      "sha256": "c7c51f4d606cff2aab8984856512d65799a16e4172e69671b63b615f8ce0eae9",
+      "size_bytes": 1999
+    },
+    "textures/Wood044_2K-JPG_Color.jpg": {
+      "sha256": "d4063b53baf806eada501feb7d0763c181bce44ffbc980d3508f158cc57edfe5",
+      "size_bytes": 4107217
+    },
+    "textures/Wood044_2K-JPG_Roughness.jpg": {
+      "sha256": "ccd2764bcf715df2ea309da85e0862a7a6f3f8b2a07f09a59cd9af075b7fc11c",
+      "size_bytes": 1901851
+    },
+    "textures/WoodFloor051_2K-JPG_Color.jpg": {
+      "sha256": "cd20f4039f62ca2b2430b8a4521774572a31ee586babac058a3afe178ed9ef5f",
+      "size_bytes": 4243864
+    },
+    "textures/WoodFloor051_2K-JPG_Roughness.jpg": {
+      "sha256": "136fafdf901678e5959d4690b812ad4ef654c53db05295eb07e1efa24337cd61",
+      "size_bytes": 1667762
+    }
+  }
+}

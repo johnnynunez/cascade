@@ -10,6 +10,7 @@ from pathlib import Path
 import socketserver
 import sys
 import threading
+import time
 from types import SimpleNamespace
 from urllib.error import HTTPError
 from urllib.request import urlopen
@@ -151,18 +152,18 @@ def test_repeat_launch_attaches_without_restarting_or_invalidating_proof(tmp_pat
 
 
 def test_surface_failure_stops_only_components_created_by_this_start(tmp_path, monkeypatch):
-    import subprocess
+    from conftest import start_sleeping_process
     from test_spark_install import launch_fixture
     from cascade.apps.process_owner import load_owner, register_process
     helper, repo = launch_fixture(tmp_path, monkeypatch)
     state = repo / "runs/.launch/profile-cascade-demo"
     owner = load_owner(state, repo, "cascade-demo", create=True)
-    prior = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(60)"])
+    prior = start_sleeping_process()
     new = []
     register_process(state, owner, prior.pid, "preserved")
 
     def broken_surfaces(repo, env):
-        process = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(60)"])
+        process = start_sleeping_process()
         new.append(process)
         register_process(state, owner, process.pid, "cameras")
         raise RuntimeError("camera startup boundary failure")
@@ -182,3 +183,116 @@ def test_surface_failure_stops_only_components_created_by_this_start(tmp_path, m
             if process.poll() is None:
                 process.terminate()
                 process.wait(timeout=5)
+
+
+def test_surface_interpreter_ack_preserves_pid_arguments_imports_and_registration(tmp_path):
+    from cascade.apps.process_owner import is_live, load_owner, register_process
+    browser = load("spark_browser")
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "sibling.py").write_text("VALUE = 'script-local import'\n")
+    script = scripts / "surface.py"
+    result = tmp_path / "child.json"
+    script.write_text("import json,os,sys,time\nfrom pathlib import Path\nimport sibling\n"
+                      "target=Path(sys.argv[1]); pending=target.with_suffix('.tmp')\n"
+                      "pending.write_text(json.dumps({'pid':os.getpid(), 'argv':sys.argv, "
+                      "'cwd':os.getcwd(), 'sibling':sibling.VALUE}))\npending.replace(target)\ntime.sleep(120)\n")
+    state = tmp_path / "state"
+    owner = load_owner(state, tmp_path, "cascade-demo", create=True)
+    with (tmp_path / "surface.log").open("ab") as log:
+        process = browser._spawn_surface([sys.executable, str(script), str(result), "--value", "with spaces"],
+                                         tmp_path, os.environ.copy(), log)
+    try:
+        receipt = register_process(state, owner, process.pid, "cameras")
+        deadline = time.monotonic() + 10
+        while not result.exists() and time.monotonic() < deadline:
+            assert process.poll() is None
+            time.sleep(.01)
+        assert json.loads(result.read_text()) == {
+            "pid": process.pid, "argv": [str(script), str(result), "--value", "with spaces"],
+            "cwd": str(tmp_path), "sibling": "script-local import"}
+        assert is_live(receipt, owner)
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+
+
+@pytest.mark.parametrize("mode", ["timeout", "eof", "invalid_ack"])
+def test_surface_interpreter_failure_reaps_its_exact_child_and_closes_pipes(tmp_path, monkeypatch, mode):
+    browser = load("spark_browser")
+    children, descriptors = [], []
+    original_popen, original_pipe = browser.subprocess.Popen, browser.os.pipe
+    def capture(command, **kwargs):
+        child = original_popen(command, **kwargs)
+        children.append(child)
+        return child
+    def pipe():
+        pair = original_pipe()
+        descriptors.extend(pair)
+        return pair
+    monkeypatch.setattr(browser, "subprocess", SimpleNamespace(**{**vars(browser.subprocess), "Popen": capture}))
+    monkeypatch.setattr(browser.os, "pipe", pipe)
+    code = {"timeout": "import time; time.sleep(120)",
+            "eof": "raise SystemExit(23)",
+            "invalid_ack": "import os,sys,time; os.write(int(sys.argv[1]), b'X'); time.sleep(120)"}[mode]
+    monkeypatch.setattr(browser, "_SURFACE_BOOTSTRAP", code)
+    pattern = {"timeout": "readiness timed out", "eof": "before interpreter readiness",
+               "invalid_ack": "Invalid surface interpreter"}[mode]
+    with (tmp_path / "surface.log").open("ab") as log, pytest.raises(RuntimeError, match=pattern):
+        browser._spawn_surface([sys.executable, str(tmp_path / "unused.py")], tmp_path,
+                               os.environ.copy(), log, startup_timeout_s=.2 if mode == "timeout" else 10)
+    assert len(children) == 1 and children[0].poll() is not None
+    for descriptor in descriptors:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+
+
+@pytest.mark.parametrize("failure", ["registration", "readiness"])
+@pytest.mark.parametrize("identity_probe", ["native", "subprocess"])
+def test_surface_startup_preserves_prior_owned_child_when_new_start_fails(tmp_path, monkeypatch, failure, identity_probe):
+    from conftest import start_sleeping_process
+    import cascade.apps.process_owner as owners
+    browser = load("spark_browser")
+    if identity_probe == "subprocess":
+        original_identity = owners.process_identity
+        def identity_with_subprocess(pid):
+            # Darwin obtains the command via ps. Its read-only helper process
+            # must not be mistaken for a newly created camera/chat surface.
+            owners.subprocess.run(["ps", "-p", str(pid), "-o", "pid="],
+                                  capture_output=True, text=True, timeout=5)
+            return original_identity(pid)
+        monkeypatch.setattr(owners, "process_identity", identity_with_subprocess)
+    state = tmp_path / "state"
+    owner = owners.load_owner(state, tmp_path, "cascade-demo", create=True)
+    prior = start_sleeping_process()
+    try:
+        prior_receipt = owners.register_process(state, owner, prior.pid, "visitor")
+        script = tmp_path / "scripts/spark_cameras.py"
+        script.parent.mkdir()
+        script.write_text("import time\ntime.sleep(120)\n")
+        monkeypatch.setattr(browser, "ownership", lambda repo: (state, owner))
+        def unused_port(*args, **kwargs):
+            raise ConnectionRefusedError()
+        monkeypatch.setattr(browser.socket, "create_connection", unused_port)
+        original_popen = browser.subprocess.Popen
+        created = []
+        def capture(command, **kwargs):
+            child = original_popen(command, **kwargs)
+            created.append(child)
+            return child
+        monkeypatch.setattr(browser, "subprocess", SimpleNamespace(**{**vars(browser.subprocess), "Popen": capture}))
+        assert owners.subprocess.Popen is original_popen
+        if failure == "registration":
+            def reject_registration(*args, **kwargs):
+                raise ValueError("exact owner identity rejected")
+            monkeypatch.setattr(owners, "register_process", reject_registration)
+        def fail_readiness(repo):
+            raise RuntimeError("surface readiness rejected")
+        monkeypatch.setattr(browser, "ready", fail_readiness)
+        with pytest.raises((ValueError, RuntimeError), match="rejected"):
+            browser.start_surfaces(tmp_path, os.environ.copy())
+        assert len(created) == 1 and created[0].poll() is not None
+        assert prior.poll() is None and owners.is_live(prior_receipt, owner)
+    finally:
+        prior.terminate()
+        prior.wait(timeout=5)

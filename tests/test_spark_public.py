@@ -156,7 +156,8 @@ def test_private_json_refuses_symlinks_without_touching_the_target(tmp_path, lin
     assert link.is_symlink()
 
 
-def test_enable_writes_real_private_configuration_and_units(tmp_path, monkeypatch):
+@pytest.fixture
+def public_enable(tmp_path, monkeypatch):
     repo = tmp_path / "checkout"
     repo.mkdir()
     auth_file, token_file, executable = (tmp_path / name for name in ("auth.json", "token", "ngrok"))
@@ -170,16 +171,37 @@ def test_enable_writes_real_private_configuration_and_units(tmp_path, monkeypatc
     monkeypatch.setattr(public, "unit_directory", lambda: unit_directory)
     monkeypatch.setattr(public, "runtime_home", lambda root: str(tmp_path))
     commands = []
+    fixture = SimpleNamespace(repo=repo, unit_directory=unit_directory, commands=commands,
+        before="inactive", after="inactive", reset_error=False, reloaded=False,
+        args=SimpleNamespace(domain="visitor.example.invalid", auth_file=auth_file,
+            ngrok=executable, token_file=token_file, ngrok_config=None))
     def external(command, **kwargs):
         commands.append(command)
         if command[0] == "loginctl":
             return "yes\n"
         if command[:3] == ["systemctl", "--user", "show"]:
+            if "--value" in command:
+                assert fixture.reloaded, "Failure state must be read after daemon-reload"
+                return fixture.after + "\n"
+            path = unit_directory / command[3]
+            if path.exists():
+                return f"LoadState=loaded\nActiveState={fixture.before}\nFragmentPath={path}\nDropInPaths=\n"
             return "LoadState=not-found\nActiveState=inactive\nFragmentPath=\nDropInPaths=\n"
+        if command == ["systemctl", "--user", "daemon-reload"]:
+            fixture.reloaded = True
+        if command[:3] == ["systemctl", "--user", "reset-failed"]:
+            assert fixture.after == "failed", "Fresh or inactive units must not be reset"
+            if fixture.reset_error:
+                raise RuntimeError("Required reset failed")
         return ""
     monkeypatch.setattr(public, "run", external)
-    result = public.enable(repo, SimpleNamespace(domain="visitor.example.invalid", auth_file=auth_file,
-        ngrok=executable, token_file=token_file, ngrok_config=None))
+    return fixture
+
+
+def test_enable_writes_real_private_configuration_and_units(public_enable):
+    fixture = public_enable
+    repo, unit_directory, commands = fixture.repo, fixture.unit_directory, fixture.commands
+    result = public.enable(repo, fixture.args)
     assert result["enabled"] is True
     private = repo / "runs/.install/public"
     for name in ("auth.json", "ngrok.json", "settings.json"):
@@ -189,10 +211,35 @@ def test_enable_writes_real_private_configuration_and_units(tmp_path, monkeypatc
     assert {path.stem for path in unit_directory.glob("*.service")} == set(public.SERVICES)
     assert all("fixture-password" not in path.read_text() and "fixture-ngrok-token" not in path.read_text()
                for path in unit_directory.glob("*.service"))
-    assert ["systemctl", "--user", "reset-failed", "paai-spark-demo.service"] in commands
-    assert (commands.index(["systemctl", "--user", "reset-failed", "paai-spark-demo.service"])
-            < commands.index(["systemctl", "--user", "enable", "--now", *[name + ".service" for name in public.SERVICES]]))
+    assert not any(command[2:3] == ["reset-failed"] for command in commands)
     assert ["systemctl", "--user", "enable", "--now", *[name + ".service" for name in public.SERVICES]] in commands
+
+
+@pytest.mark.parametrize("before,after", [
+    ("inactive", "inactive"), ("active", "active"), ("failed", "inactive"),
+    ("failed", "failed"), ("active", "failed"),
+])
+def test_matching_enable_resets_only_current_failed_or_start_limited_unit(public_enable, before, after):
+    fixture = public_enable
+    fixture.before, fixture.after = before, after
+    fixture.unit_directory.mkdir()
+    for name, contents in public.units(fixture.repo, {"runtime_home": str(fixture.repo.parent)}).items():
+        (fixture.unit_directory / (name + ".service")).write_text(contents)
+    assert public.enable(fixture.repo, fixture.args)["enabled"]
+    reset = ["systemctl", "--user", "reset-failed", "paai-spark-demo.service"]
+    enable = ["systemctl", "--user", "enable", "--now", *[name + ".service" for name in public.SERVICES]]
+    assert (reset in fixture.commands) == (after == "failed")
+    if after == "failed":
+        assert fixture.commands.index(reset) < fixture.commands.index(enable)
+
+
+def test_required_failure_reset_error_prevents_starting_any_service(public_enable):
+    fixture = public_enable
+    fixture.after, fixture.reset_error = "failed", True
+    with pytest.raises(RuntimeError, match="Required reset failed"):
+        public.enable(fixture.repo, fixture.args)
+    assert ["systemctl", "--user", "reset-failed", "paai-spark-demo.service"] in fixture.commands
+    assert not any(command[2:3] in (["enable"], ["restart"]) for command in fixture.commands)
 
 
 def test_disable_checks_ownership_then_stops_only_new_units(tmp_path, monkeypatch):

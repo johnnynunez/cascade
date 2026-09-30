@@ -63,8 +63,12 @@ tested machine. A separate Docker daemon uses
 `unix:///run/paai-demo-docker.sock`, leaving the system daemon's data alone.
 
 The deployment requires a source and asset bundle with a relative checksum
-manifest, plus the pinned OpenClaw and CLIP archives. The original kitchen,
-orange and bowl are included in the source checkout and verified offline.
+manifest, plus the pinned OpenClaw and CLIP archives. Fetch the audited
+`Cocina_Asier_01` room release once with `python3 scripts/kitchen_assets.py`.
+The installer verifies the pinned archive and every unpacked file before
+replacing the asset directory. `python3 scripts/kitchen_assets.py --check`
+verifies the installed room and its source identity without network access.
+The original orange and bowl are generated from the source checkout.
 Robot assets, perception weights and pinned runtime archives remain separately
 supplied inputs. Supply the external files at the relative paths listed in
 [`bundle_assets.json`](../deploy/brev/bundle_assets.json), preserving their
@@ -73,15 +77,17 @@ license notices.
 CASCADE's source license remains MIT. The runtime installs
 [Ultralytics](https://www.ultralytics.com/license) and its pinned
 [CLIP fork](https://github.com/ultralytics/CLIP/blob/a13192f8cb767260d7dfd98c843b0716593169e7/LICENSE)
-under AGPL-3.0 terms; separate vendor licensing may apply. The original scene's
-[provenance notice](../demo/scene/NOTICE.md) records its authored assets and
-materials. Preserve each dependency's notices and source obligations when
+under AGPL-3.0 terms; separate vendor licensing may apply. The scene's
+[provenance notice](../demo/scene/NOTICE.md) records the owner-authorized
+room geometry, CC0 replacement textures, and original props. Preserve each
+dependency's notices and source obligations when
 distributing a runtime.
 
 Assemble the distribution once outside the checkout, then import it;
 valid receipts let subsequent operations reuse the bytes:
 
 ```bash
+python3 scripts/kitchen_assets.py
 python3 deploy/brev/build_bundle.py --assets /srv/cascade/assets \
   --output /srv/cascade/distribution --profile /srv/cascade/site.json
 ./deploy/brev/deploy.sh prepare --profile /srv/cascade/site.json \
@@ -91,6 +97,11 @@ python3 deploy/brev/build_bundle.py --assets /srv/cascade/assets \
   --clip /srv/cascade/clip-source.tar.gz
 ./deploy/brev/deploy.sh install --profile /srv/cascade/site.json
 ```
+
+The assembly step includes the installed, verified room release from the
+checkout in the portable bundle. Assembly and admission remain offline; for
+an offline source machine, supply the pinned ZIP with
+`python3 scripts/kitchen_assets.py --archive /srv/cascade/cocina-asier-v1.zip`.
 
 The normal entry point after preparation is:
 

@@ -251,10 +251,11 @@ Start with the [DGX Spark setup guide](docs/DGX_SPARK_SETUP.md) for host
 checks, installation, startup and recovery.
 
 The Spark installer prepares **Isaac Sim 6.1, Qwen Q4 with vision,
-OpenClaw and the kitchen assets**. The current source includes the original
-kitchen and verifies it offline; model downloads remain automatic. The
-[Spark setup guide](docs/DGX_SPARK_SETUP.md#2-install) still pins the earlier
-scene pending a new Spark proof. After preparing the selected checkout, start with:
+OpenClaw and the kitchen assets**. The current source downloads the pinned
+Cocina Asier room, verifies its asset hashes, and authors the original orange
+and fruit platter. Model downloads remain automatic. The
+[Spark setup guide](docs/DGX_SPARK_SETUP.md#2-install) pins the room and
+implementation revision. After preparing the selected checkout, start with:
 
 ```bash
 python3 scripts/desktop.py launch --repo "$PWD"

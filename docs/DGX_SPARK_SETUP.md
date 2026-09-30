@@ -4,13 +4,18 @@ PAAI means Physical Agentic AI. This installs the Build a Claw kitchen demo:
 Isaac Sim, local Qwen Q4, OpenClaw and the PAAI camera extension in Chromium.
 No model API key is needed.
 
-The commands below remain pinned to the previously verified revision and install
-its earlier kitchen. The original kitchen now included in this repository needs
-a fresh Spark installation and physical proof before this guide can be re-pinned.
+The commands below install Cocina_Asier_01 with owner-authorized geometry,
+verified CC0 wood materials, and an original orange and fruit platter. The
+installer checks the release archive and every extracted asset against pinned
+SHA-256 hashes. See the [scene notice](../demo/scene/NOTICE.md).
 
 ## Quick path
 
-Use a normal account on the Spark. Start with a new `$HOME/paai-spark` folder.
+Use a normal account on the Spark. The default install folder is
+`$HOME/paai-spark`. To keep an existing installation, first run
+`export PAAI_INSTALL_DIR="$HOME/paai-spark-new"` in your terminal and use a new,
+empty folder. The commands below use that choice for the installation and logs;
+keep the variable exported for the later steps. They never change your HOME.
 Run each numbered block once. Wait for its success line and exit code 0
 before continuing. For diagnostics, use the read-only commands below. Never
 repeat Start just to see more output. If a command fails, stop and read
@@ -28,7 +33,7 @@ system package, use the [administrator command](#system-prerequisites)
 before continuing.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/fac5332416f688fd5d035e0b0a8088d52ef4d469/scripts/spark_prerequisites.py | python3 -'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/spark_prerequisites.py | python3 -'
 ```
 
 Success: `PREREQUISITES_OK`.
@@ -42,14 +47,14 @@ An agent must have the operator's explicit consent. If that consent is
 already supplied, proceed to the install command; do not fetch the license
 page or ask for consent again. `OMNI_KIT_ACCEPT_EULA=YES` alone does not grant consent.
 
-The source URL and `--ref` select the same tested commit. This downloads the
+The source URL and `--ref` select the same fixed commit. This downloads the
 runtime, model and assets, then builds the local CUDA model server. Allow
 space for at least 150 GiB. A fresh installation from public download sites
 took about 25 minutes. Plan for 30–90 minutes; slower connections take longer.
 The progress log shows each stage.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/fac5332416f688fd5d035e0b0a8088d52ef4d469/scripts/bootstrap.sh | bash -s -- --ref fac5332416f688fd5d035e0b0a8088d52ef4d469 --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark" 2>&1 | tee "$HOME/paai-spark-install.log"'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/bootstrap.sh | bash -s -- --ref 57ecd62dfec3fb361c6db8ee3c096293aec77ca8 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
 ```
 
 Success: `PREPARED`. No demo services have started yet.
@@ -60,7 +65,7 @@ This is read-only. It starts no services and accepts no license. The check
 took about five seconds in the measured installation.
 
 ```bash
-cd "$HOME/paai-spark" && bash scripts/install.sh --profile spark --dir "$PWD" --check && printf 'CHECKED\n'
+cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" && bash scripts/install.sh --profile spark --dir "$PWD" --check && printf 'CHECKED\n'
 ```
 
 Success: `CHECKED`. The receipt is `runs/.install/install.json`.
@@ -77,15 +82,15 @@ is 30 minutes and the Isaac startup timeout is 20 minutes.
 ```bash
 (
   set -o pipefail
-  cd "$HOME/paai-spark" || exit
+  cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" || exit
   python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open 2>&1 |
-    tee "$HOME/paai-spark-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
-) && python3 "$HOME/paai-spark/scripts/spark_verify.py" --repo "$HOME/paai-spark" --expected-ref fac5332416f688fd5d035e0b0a8088d52ef4d469
+    tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
+) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref 57ecd62dfec3fb361c6db8ee3c096293aec77ca8
 ```
 
 Success: one `READY` summary with both placements, cameras and resets passing.
 The command checks the [current proof](#verify-the-result), health and live
-process ownership. Full output stays in `$HOME/paai-spark-launch.log`; the
+process ownership. Full output stays in `${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log`; the
 terminal shows only progress and the compact result. Do not repeat this
 block to obtain more output.
 
@@ -105,7 +110,7 @@ computer, see [Open OpenClaw](#open-openclaw).
 The same registered launcher can be opened from a graphical terminal:
 
 ```bash
-gio launch "$HOME/paai-spark/runs/.install/paai-spark.desktop"
+gio launch "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/runs/.install/paai-spark.desktop"
 ```
 
 Success: the connected chat and advancing Worktop (`cam0`), Side (`side`)
@@ -137,7 +142,7 @@ The second command checks that no owned process remains. Allow up to a minute.
 
 ```bash
 bash -e <<'BASH'
-cd "$HOME/paai-spark"
+cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}"
 ./run.sh down
 remaining=$(./run.sh down --dry-run)
 printf '%s\n' "$remaining"
@@ -173,7 +178,8 @@ require **Allow Launching** for an untrusted icon; use the app-grid entry.
 Keep at least 150 GiB free in the home volume, with room for later evidence
 and shader caches. Also check another cache volume if you override
 `XDG_CACHE_HOME` or `UV_CACHE_DIR`. The model and projector use 18.85 GB;
-the compressed kitchen archive adds 0.71 GB before extraction.
+the Cocina Asier kitchen archive adds about 30 MB before extraction and
+about 50 MB after extraction.
 
 Outbound HTTPS must reach GitHub and Git LFS, Hugging Face and its file
 hosts, PyPI, `pypi.nvidia.com`, `download.pytorch.org`, `astral.sh`,
@@ -196,7 +202,7 @@ Paths are relative to `$HOME/paai-spark`.
 | Pinned Qwen Q4 model and BF16 vision projector | `models/qwen3.8-27b/` |
 | Pinned llama.cpp CUDA build and receipt | `.llama.cpp/build/` |
 | Robot Git LFS files and perception weights | `assets/`, `models/` |
-| Earlier kitchen from this guide's pinned revision | `demo/scene/` |
+| Verified Cocina Asier room and original task props | `demo/scene/cocina_asier/`, `demo/scene/props/` |
 | Source, package and consent receipt; reusable environment | `runs/.install/install.json`, `runs/.install/env.sh` |
 
 The installer also uses `$HOME/.local/bin/uv`, `$HOME/.cache/uv` and
@@ -280,7 +286,7 @@ To open the native OpenClaw Control UI on port 18790 with the current token,
 run this in the Spark's desktop session:
 
 ```bash
-cd "$HOME/paai-spark" && ./run.sh dashboard
+cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" && ./run.sh dashboard
 ```
 
 On the Spark desktop, this opens OpenClaw in the PAAI Chromium profile, where
@@ -312,15 +318,15 @@ For a failed launch or stalled camera, inspect the log path printed by the
 launcher. From a terminal, stop this checkout and retry once:
 
 ```bash
-cd "$HOME/paai-spark" && ./run.sh down && python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open
+cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" && ./run.sh down && python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open
 ```
 
 To inspect the current launch without starting it again, use these read-only
 commands. The first prints the short desktop receipt and its full log path:
 
 ```bash
-python3 -m json.tool "$HOME/paai-spark/runs/.install/desktop-latest.json"
-python3 "$HOME/paai-spark/scripts/spark_browser.py" --repo "$HOME/paai-spark" --check
+python3 -m json.tool "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/runs/.install/desktop-latest.json"
+python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_browser.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --check
 ```
 
 Full logs are in `runs/.install/desktop-*/progress.log` and
@@ -370,20 +376,20 @@ ask the administrator to enable it before using this optional track.
 Enable:
 
 ```bash
-python3 "$HOME/paai-spark/scripts/spark_public.py" enable --repo "$HOME/paai-spark" --domain '<your-domain>.ngrok.dev' --auth-file '<private-visitor-auth.json>' --ngrok '<path-to-ngrok>' --ngrok-config '<existing-ngrok.yml>'
+python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_public.py" enable --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --domain '<your-domain>.ngrok.dev' --auth-file '<private-visitor-auth.json>' --ngrok '<path-to-ngrok>' --ngrok-config '<existing-ngrok.yml>'
 ```
 
 Success: `PUBLIC ENABLED`. This registers the services. A stopped demo
 still needs its normal startup time. Check after it reaches `READY`:
 
 ```bash
-python3 "$HOME/paai-spark/scripts/spark_public.py" check --repo "$HOME/paai-spark"
+python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_public.py" check --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}"
 ```
 
 Success: `PUBLIC READY`. Disable the public endpoint and its demo stack:
 
 ```bash
-python3 "$HOME/paai-spark/scripts/spark_public.py" disable --repo "$HOME/paai-spark"
+python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_public.py" disable --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}"
 ```
 
 Success: `PUBLIC STOPPED`.

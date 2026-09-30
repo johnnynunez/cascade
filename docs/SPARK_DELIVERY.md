@@ -3,10 +3,35 @@
 Presenting the demo? Start with the [presenter card](PRESENTER_QUICKSTART.md).
 
 Use [DGX Spark setup](DGX_SPARK_SETUP.md) for the install and start commands.
-That guide names the current release candidate and distinguishes pending clean
-installation/native-agent acceptance from earlier hardware measurements.
+That guide pins the tested runtime source and reports the measured installation,
+native-agent proof and browser scope.
 The default event flow installs Isaac Sim, GraspGen-X, Qwen Q4, the vision projector,
 llama.cpp, OpenClaw and the verified kitchen. Cosmos is not installed.
+
+## Validated delivery, 30 September 2026
+
+Source `9cf540279f09df8197eda6541311b41edb455243` completed installation and
+the read-only check with exit 0 on an aarch64 NVIDIA GB10 Spark. Its first
+desktop launch also exited 0, and `spark_verify.py` reported READY. The green
+cube and orange both passed the independent placement, contact, camera and
+reset audits. Installation took **12 min 21 s**; startup and proof took
+**732.42 s**. These are single-run timings.
+
+The checkout, Python environments, model source and model-file destinations
+were newly created directories, with no symlinks to prior installations.
+Host prerequisites already existed; the run used the normal user HOME and
+shared download/uv caches. It is a fresh-destination installation, not an
+empty-cache or fresh-OS measurement.
+
+Real Chromium on the Spark loaded the shipped extension on an Xvfb virtual
+display. Kitchen, Worktop and Side decoded at **1280 × 720**, with frame IDs
+advancing from 10 to 13; chat was connected and Send/Start over were enabled.
+This validates the real browser and extension, but not GNOME app-grid interaction
+or a visible Isaac editor. The
+[release receipt](../benchmark/results/spark_clean_delivery_20260930.json) and
+[UI screenshot](../benchmark/results/images/spark_clean_three_cameras_20260930.png)
+retain the measured scope. Neither this two-object proof nor earlier diagnostic
+campaigns establish a success rate for arbitrary future requests.
 
 ## Installation identity
 
@@ -99,20 +124,15 @@ screenshots and reset readbacks. A failed native placement or reset, refuted
 placement or failed audit prevents READY. `--no-robot-turn` remains
 STARTED / UNVERIFIED.
 
-The previous scene's installation acceptance needed two orange grasp attempts. Its placement passed the
-independent audit, but the return-home substep reported `did not settle at home`.
-The following native reset and final inspection passed. Reset and inspect
-before another order if this warning appears. The native tool's center-only
-postcondition remains unverified; the independent audit establishes containment,
-release and support.
-
-The previous scene's natural-language acceptance also passed inspection, green cube placement,
-orange placement and same-world resets with native request/response traces.
-An initial orange attempt failed at the pre-grasp pose and was reported plainly.
-After a natural reset and cleanup of completed test sessions, a retry passed
-the unchanged physical audit. This does not establish the cause of the first
-failure. No controller or physics setting was changed for that retry.
-These historical results do not establish acceptance of the original kitchen on Spark.
+The tested first launch recorded zero tool failures for both placement orders.
+Qwen still said **"Placement unverified"** because the skill's own postcondition
+checks only the object's center. The independent physics audit separately
+confirmed full containment, release and support for both objects, with final
+center errors of **9.61 mm** for the green cube and **6.69 mm** for the orange.
+READY comes from those independent checks; it does not rewrite the native
+tool verdict or the chat response. Preserve that distinction when presenting
+the result. Earlier diagnostic campaigns remain documented in
+[GraspGen-X on Spark](GRASPGENX_SPARK.md).
 
 ## Quick recovery during the demo
 

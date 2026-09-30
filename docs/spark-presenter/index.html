@@ -182,7 +182,7 @@
         <div class="reference-config" aria-label="Published reference configuration, not live status">
           <span>Presenter configuration</span><span class="tag">PhysX CUDA</span><span class="tag">Local Qwen Q4</span><span class="tag">GraspGen-X</span>
         </div>
-        <p class="small">The published source candidate includes real learned grasps. Clean installation and full native-agent acceptance of the final release are pending; this guide does not certify that candidate. Occupancy/nvblox and JEv are separate experiments, disabled or absent from the presenter path.</p>
+        <p class="small">The pinned source passed a fresh installation and its first desktop <strong>READY</strong> proof on GB10: green cube, orange, independent physical checks, resets and three cameras. Real Chromium and the shipped extension also passed on an Xvfb virtual display. GNOME app-grid interaction and visible Isaac were not tested. Occupancy/nvblox and JEv remain separate experiments.</p>
         <a class="primary-link" href="#install">Install on a new Spark <span aria-hidden="true">↓</span></a>
         <p class="small" style="margin-top: 16px">Already installed? <a href="#start">Skip installation and open the demo.</a></p>
       </div>
@@ -224,7 +224,7 @@
           <li>
             <h3>Install the complete demo</h3>
             <p><strong>License consent:</strong> the <a href="https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html" target="_blank" rel="noopener noreferrer">NVIDIA Isaac Sim / Omniverse licenses</a> require your <strong>explicit acceptance</strong>. The <code>--accept-eula</code> flag records that consent for this checkout. If you already accepted this Isaac version for the task, proceed without another confirmation; a coding agent records your authorization rather than inventing consent.</p>
-            <p class="small">Allow 30–90 minutes plus cold CUDA builds as a planning estimate, not a measured time for this candidate. Downloads can take longer. The installer downloads dependencies and builds the CUDA model server. Keep the progress log.</p>
+            <p class="small">The measured installation took <strong>12 min 21 s</strong> with new runtime/model destinations and reused download/uv caches. For an uncached machine, allow 30–90 minutes plus cold CUDA builds as a planning estimate. Keep the progress log.</p>
             <div class="command"><div class="command-head"><span>Spark terminal · after explicit EULA acceptance</span><button type="button" data-copy="install-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · after explicit EULA acceptance">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · after explicit EULA acceptance"><code id="install-command">bash -o pipefail -c &#x27;curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/bootstrap.sh | bash -s -- --ref 9cf540279f09df8197eda6541311b41edb455243 --profile spark --accept-eula --prepare-only --dir &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; 2&gt;&amp;1 | tee &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log&quot;&#x27;</code></pre></div>
             <p class="check"><strong>Check</strong> <code>PREPARED</code>. Files are prepared; no demo services or startup manipulation tests have run.</p>
             <details id="installed-components"><summary>What that one command installs</summary><div class="detail-body"><ul>
@@ -252,7 +252,7 @@
     tee &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log&quot; | awk &#x27;/^\[desktop\]/ { print; fflush() }&#x27;
 ) &amp;&amp; python3 &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py&quot; --repo &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; --expected-ref 9cf540279f09df8197eda6541311b41edb455243</code></pre></div>
             <p class="check"><strong>Check</strong> One <code>READY</code> summary: both placements, camera evidence and resets pass, with current health and process ownership verified.</p>
-            <p class="small">An earlier revision’s measured start and proof took about 14 minutes; this is not a timing guarantee for the candidate. A cold start may take longer. The checks can be quiet for several minutes. Keep waiting; do not run a second launch just to obtain more output. Full output stays in <code>${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log</code>.</p>
+            <p class="small">The tested first launch and proof took <strong>12 min 12 s</strong>; other starts can take longer. The checks can be quiet for several minutes. Keep waiting; do not run a second launch just to obtain more output. Full output stays in <code>${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log</code>.</p>
             <p><strong>Next:</strong> <a href="#start">open the desktop interface and check the three live cameras</a>. Opening the launcher attaches to this accepted running stack instead of repeating the proof.</p>
           </li>
         </ol>
@@ -380,7 +380,7 @@ PY</code></pre></div>
         <details id="configuration">
           <summary>PhysX, learned grasps, optional experiments and visible Isaac</summary>
           <div class="detail-body">
-            <p>The candidate Spark launcher selects <strong>PhysX CUDA, local Qwen Q4 and real GraspGen-X</strong>. It starts the private model server and checks actual diffusion inference. An absent server, stub or failed required inference must be reported; OBB does not validate the learned-grasp setup.<sup><a href="#source-6" aria-label="Source 6">[6]</a></sup></p>
+            <p>The tested Spark launcher selects <strong>PhysX CUDA, local Qwen Q4 and real GraspGen-X</strong>. It starts the private model server and checks actual diffusion inference. An absent server, stub or failed required inference must be reported; OBB does not validate the learned-grasp setup.<sup><a href="#source-6" aria-label="Source 6">[6]</a></sup></p>
             <p>The desktop command defaults to headless Isaac. To show the editor, run <code>python3 scripts/desktop.py launch --repo "$PWD" --gui</code> from the installed folder. Stop this checkout’s stack before changing the display mode of an already running bridge. Rehearse the same display setting used at the event.<sup><a href="#source-7" aria-label="Source 7">[7]</a></sup></p>
             <p>Newton is an explicit engine option under separate validation. Occupancy/nvblox is disabled in the presenter profile; JEv is not installed or active. These experiments and arbitrary object rearrangement need their own rehearsal and do not belong in the first-install path.</p>
           </div>
@@ -388,7 +388,7 @@ PY</code></pre></div>
         <details id="older-installs">
           <summary>Older installs: “unknown mode 'dashboard'”</summary>
           <div class="detail-body">
-            <p>The former guide pinned <code class="hash">57ecd62dfec3fb361c6db8ee3c096293aec77ca8</code>, which predates the real GraspGen-X launcher. Do not combine its install command with this candidate’s component assumptions.</p>
+            <p>The former guide pinned <code class="hash">57ecd62dfec3fb361c6db8ee3c096293aec77ca8</code>, which predates the real GraspGen-X launcher. Do not combine its install command with this release’s component assumptions.</p>
             <p>The older <code class="hash">fac5332416f688fd5d035e0b0a8088d52ef4d469</code> install does not include <code>./run.sh dashboard</code>. Its documented native-UI fallback, on the Spark desktop, is:</p>
             <div class="command"><div class="command-head"><span>Older-install fallback</span><button type="button" data-copy="legacy-command" data-kind="command" data-enhance hidden aria-label="Copy the older installation dashboard command">Copy command</button></div><pre tabindex="0" aria-label="Older installation dashboard command"><code id="legacy-command">cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" &amp;&amp; \
 OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" \
@@ -470,9 +470,10 @@ BASH</code></pre></div>
 
       <section id="sources" aria-labelledby="sources-title">
         <p class="section-label">Reference / Sources &amp; scope</p>
-        <h2 id="sources-title">Instructions, not a readiness certificate.</h2>
-        <p class="small">The instructions follow the published candidate’s installer and launcher. A fresh installation, full native-agent placement proof and intended desktop interface still need release receipts. Earlier five-object GraspGen-X measurements do not establish that clean-install acceptance.</p>
-        <p class="small">Source review: <time datetime="2026-09-30">30 September 2026</time>. Published candidate: <code class="hash">9cf540279f09df8197eda6541311b41edb455243</code>. Historical behavior is labelled separately. Confirm the installed receipt before applying revision-specific instructions.</p>
+        <h2 id="sources-title">Evidence for the tested release.</h2>
+        <p class="small">The <a href="../../benchmark/results/spark_clean_delivery_20260930.json">release receipt</a> records new component and model directories, a successful install/check and the first native-agent desktop READY proof. Normal user HOME, host prerequisites and download/uv caches were reused. In real Chromium under Xvfb, the shipped extension decoded all three cameras at 1280 × 720 with advancing frame IDs, and chat was connected with enabled controls. See the <a href="../../benchmark/results/images/spark_clean_three_cameras_20260930.png">actual browser screenshot</a>. GNOME app-grid interaction and a visible Isaac editor remain outside that result.</p>
+        <p class="small">The chat still reports “Placement unverified” when its tool checks only center position. READY requires the separate physical audit of containment, release and support; it does not rewrite that native tool result. Successful recorded runs do not guarantee every future request.</p>
+        <p class="small">Validation: <time datetime="2026-09-30">30 September 2026</time>. Tested runtime source: <code class="hash">9cf540279f09df8197eda6541311b41edb455243</code>. Historical behavior is labelled separately. Confirm the installed receipt before applying revision-specific instructions.</p>
         <details id="operating-sources"><summary>Operating documentation</summary><div class="detail-body"><ul class="references">
           <li id="source-1"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/4f1a2483fe796788431d5d9853b9b0e6f3ca3f82/docs/DGX_SPARK_SETUP.md" target="_blank" rel="noopener noreferrer">[1] Historical Spark setup guide</a></li>
           <li id="source-2"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/main/docs/DGX_SPARK_SETUP.md" target="_blank" rel="noopener noreferrer">[2] Spark setup and native OpenClaw access</a></li>

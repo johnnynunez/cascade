@@ -266,6 +266,15 @@ then orange to open box, with a verified reset after each. Live simulation
 state and advancing cameras verify both cases. Logs and screenshots remain
 under `runs/.install/` and `runs/.launch/profile-cascade-demo/`.
 
+The [pinned Spark release](docs/DGX_SPARK_SETUP.md#validated-release-and-scope)
+passed a fresh installation and its first desktop READY proof on GB10:
+**12 min 21 s** to install with reused download caches and **12 min 12 s**
+for startup and both placement/reset checks. Real Chromium with the shipped
+extension showed three advancing cameras and connected chat on an Xvfb display.
+GNOME app-grid interaction and the visible Isaac editor were not tested.
+See the [receipt](benchmark/results/spark_clean_delivery_20260930.json)
+and [UI screenshot](benchmark/results/images/spark_clean_three_cameras_20260930.png).
+
 The presenter profile uses **PhysX on CUDA**, the three kitchen cameras and
 learned GraspGen-X grasps. Occupancy/nvblox and JEv are separate experiments;
 neither is required or enabled by this installation. Newton is an explicit

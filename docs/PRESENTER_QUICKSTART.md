@@ -1,11 +1,13 @@
 # Build-a-Claw presenter card
 
 **Use PhysX with the real GraspGen-X server on the presentation Spark.**
-All five kitchen objects passed one recorded GB10 physical round with learned
-grasps. A separate native-agent run passed green cube, orange and resets.
-Those runs reused parts of the stack; they do not establish a fresh installation
-or guarantee every future pick. The [setup guide](DGX_SPARK_SETUP.md#release-candidate-and-scope)
-records the current install candidate and release-validation status.
+The [pinned build](DGX_SPARK_SETUP.md#validated-release-and-scope) passed a fresh
+GB10 installation and its first desktop READY proof: green cube and orange,
+independent physical checks, resets and three cameras. Real Chromium and the
+camera extension also passed with a virtual display. GNOME app-grid interaction
+and the visible Isaac editor remain untested in this run. The
+[release receipt](../benchmark/results/spark_clean_delivery_20260930.json)
+records the scope; individual successful runs do not guarantee every future pick.
 Run these commands from the installed Cascade folder on the presentation
 machine. The desktop entry starts Qwen as well as the robot stack; `run.sh`
 expects Qwen to be running already. This card assumes the Spark installation profile; installation is
@@ -14,12 +16,13 @@ covered in [DGX Spark setup](DGX_SPARK_SETUP.md).
 ## 1. Start before the audience arrives
 
 ```sh
-python3 scripts/desktop.py launch --repo "$PWD" --gui
+python3 scripts/desktop.py launch --repo "$PWD"
 ```
 
-1. `--gui` shows Isaac alongside the chat. The desktop launcher otherwise
-   defaults to headless. A running bridge is reused; stop that demo with
-   `./run.sh down` before changing display mode.
+1. Isaac defaults to headless and still provides the three cameras. Optional
+   `--gui` shows the editor but needs a separate rehearsal on the presentation
+   machine. A running bridge is reused; stop that demo with `./run.sh down`
+   before changing display mode.
 2. Wait for **READY**. The startup proof moves the green cube and orange,
    checks their placement, and resets the scene.
 3. Check the camera views and the runtime's `grasp_planner=graspgenx (learned 6-DoF)` banner.
@@ -86,7 +89,7 @@ Use scene reset between visitors. See [memory and recovery details](SPARK_DELIVE
 | --- | --- | --- |
 | Physics | **PhysX**, the Spark default | Newton is an explicit opt-in under separate validation; do not switch engines during the event. |
 | Grasps | **GraspGen-X**, learned inference on the Spark | A protocol stub or an analytic fallback does not validate this setup. |
-| Isaac window | **Visible**; use desktop `--gui` | Headless runs still produce camera images but do not show the editor. |
+| Isaac window | **Headless**, as validated | Optional desktop `--gui` shows the editor; rehearse that setting separately. |
 | Occupancy/nvblox | **Disabled** in the Spark presenter profile | CUDA mapping and payload experiments have separate acceptance; see [nvblox status](NVBLOX.md). |
 | JEv | **Not installed or active** in the presenter path | [Joint-embedding decision experiments](JEV_DECISIONS.md) are separate research. |
 

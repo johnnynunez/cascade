@@ -9,14 +9,28 @@ verified CC0 wood materials, and an original orange and fruit platter. The
 installer checks the release archive and every extracted asset against pinned
 SHA-256 hashes. See the [scene notice](../demo/scene/NOTICE.md).
 
-## Release candidate and scope
+## Validated release and scope
 
-The command below selects the published candidate
-`9cf540279f09df8197eda6541311b41edb455243`, which includes the real GraspGen-X
-installer and launcher. A clean installation and complete native-agent proof
-for the final release are being validated; the existing GB10 five-object
-GraspGen-X campaign does not certify a fresh installation of this candidate.
-The final tested source pin and receipts must be recorded before event handover.
+The commands pin `9cf540279f09df8197eda6541311b41edb455243`. On 30 September
+2026, this source completed a fresh installation, a read-only installation
+check and its first desktop launch on an NVIDIA GB10 Spark. The launcher
+reached **READY** with green-cube and orange placements, independent physics
+audits, resets and all three cameras passing. See the
+[release receipt](../benchmark/results/spark_clean_delivery_20260930.json).
+
+| Stage | Measured result |
+| --- | --- |
+| Install and read-only check | `PREPARED`, both exit 0; install **12 min 21 s** |
+| First headless desktop launch | Exit 0 and `spark_verify.py` READY; **12 min 12 s** |
+| Real Chromium and shipped extension | Connected chat, enabled controls and three advancing **1280 × 720** camera views |
+
+Component and model destinations were new directories, not symlinks to another
+installation. The run used the normal user HOME, existing host prerequisites
+and reused download/uv caches. These timings are individual measurements,
+not guarantees for an uncached machine. Chromium ran on the Spark with an
+Xvfb virtual display; GNOME app-grid interaction and a visible Isaac editor
+were not exercised. The [UI screenshot](../benchmark/results/images/spark_clean_three_cameras_20260930.png)
+shows the actual extension and chat.
 
 Use the same checkout for installation, checks and startup. The Spark defaults
 are PhysX, Qwen Q4, learned GraspGen-X and three camera views. Occupancy/nvblox
@@ -69,10 +83,10 @@ page or ask for consent again. `OMNI_KIT_ACCEPT_EULA=YES` alone does not grant c
 
 The source URL and `--ref` select the same fixed commit. This downloads the
 runtime, model and assets, then builds the local CUDA model server. Allow
-space for at least 150 GiB. An earlier installation from public download sites
-took about 25 minutes, before the current GraspGen-X path. Plan for 30–90
-minutes plus any cold CUDA builds; this is a planning allowance, not a measured
-duration for the release candidate. Slower connections take longer.
+space for at least 150 GiB. The measured installation took **12 min 21 s**
+with reused download and uv caches but new runtime and model destinations.
+For an uncached machine, allow 30–90 minutes plus cold CUDA builds as a
+planning estimate; slower connections can take longer.
 The progress log shows each stage.
 
 ```bash
@@ -84,8 +98,7 @@ Success: `PREPARED`. No demo services or startup manipulation tests have run.
 
 ### 3. Check the installation
 
-This is read-only. It starts no services and accepts no license. The check
-took about five seconds in the measured installation.
+This is read-only. It starts no services and accepts no license.
 
 ```bash
 cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" && bash scripts/install.sh --profile spark --dir "$PWD" --check && printf 'CHECKED\n'
@@ -96,10 +109,9 @@ Success: `CHECKED`. The receipt is `runs/.install/install.json`.
 ### 4. Start and prove the demo
 
 This starts the dedicated `cascade-demo` OpenClaw agent and moves the
-simulated robot through two placement checks and resets. An earlier revision's
-start and proof took about 14 minutes; that is not a timing guarantee for the
-current candidate. Cold shader and collision preparation can
-take longer. The physical checks can be quiet for several minutes. Wait for
+simulated robot through two placement checks and resets. The tested first
+launch took **12 min 12 s**. Cold shader and collision preparation can take
+longer. The physical checks can be quiet for several minutes. Wait for
 the command to finish even when no new log lines appear; do not start another copy. The model health timeout
 is 30 minutes and the Isaac startup timeout is 20 minutes.
 
@@ -201,8 +213,8 @@ sudo apt-get update && sudo apt-get install -y git git-lfs curl python3 ca-certi
 Use Chromium for the automatic extension. Branded Google Chrome 137 and
 newer [does not support this loading flag](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY/m/S0ET5wPjCAAJ).
 The launcher handles the Chromium snap's profile and file access paths.
-In GNOME, the app-grid entry works immediately. A desktop-file manager may
-require **Allow Launching** for an untrusted icon; use the app-grid entry.
+In a GNOME session, use the app-grid entry. A desktop-file manager may
+require **Allow Launching** for an untrusted icon.
 
 Keep at least 150 GiB free in the home volume, with room for later evidence
 and shader caches. Also check another cache volume if you override

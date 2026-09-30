@@ -102,10 +102,18 @@ The run used independently installed GraspGen-X with existing Isaac/app packages
 and a separately started Qwen server; it does not establish a fresh full desktop
 installation. The [local Newton launcher proof](NEWTON_ENGINE.md) also reached READY.
 
-Quick restart was then exercised on the same Spark with Qwen and the bridges
+Quick restart was exercised on that reused stack with Qwen and the bridges
 still running. `--no-robot-turn --no-judge` skipped the physical proof and printed
 the expected UNVERIFIED status; this was a warm reuse test, not a timed crash
 recovery measurement. [nvblox remained disabled](NVBLOX.md) in these runs.
+
+The pinned [fresh Spark installation](DGX_SPARK_SETUP.md#validated-release-and-scope)
+now independently passed its first complete desktop launch with PhysX, real
+GraspGen-X and Qwen, including both native placement/reset cases. The
+[release receipt](../benchmark/results/spark_clean_delivery_20260930.json)
+distinguishes new component/model destinations from reused download caches and
+records the real Chromium/extension check under Xvfb. That two-object startup
+proof is separate from the five-object campaign above.
 
 For an already running server use `--graspgenx external`. Set
 `CASCADE_GRASPGENX_PORT` for a different local port; it is propagated to the

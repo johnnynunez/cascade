@@ -180,8 +180,9 @@
         <p class="lede">Install once. Open PAAI (Spark). Keep the same installation for the whole event.</p>
         <p class="small">The whole setup is below. You do not need a coding agent, a model API key or a personal coding-service login. This offline page only shows and copies instructions; installation requires internet access.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p>
         <div class="reference-config" aria-label="Published reference configuration, not live status">
-          <span>Published reference</span><span class="tag">PhysX</span><span class="tag">Local Qwen</span><span class="tag">OBB grasps</span>
+          <span>Presenter configuration</span><span class="tag">PhysX CUDA</span><span class="tag">Local Qwen Q4</span><span class="tag">GraspGen-X</span>
         </div>
+        <p class="small">The pinned source passed a fresh installation and its first desktop <strong>READY</strong> proof on GB10: green cube, orange, independent physical checks, resets and three cameras. Real Chromium and the shipped extension also passed on an Xvfb virtual display. GNOME app-grid interaction and visible Isaac were not tested. Occupancy/nvblox and JEv remain separate experiments.</p>
         <a class="primary-link" href="#install">Install on a new Spark <span aria-hidden="true">↓</span></a>
         <p class="small" style="margin-top: 16px">Already installed? <a href="#start">Skip installation and open the demo.</a></p>
       </div>
@@ -211,7 +212,7 @@
           </li>
           <li>
             <h3>Check the host prerequisites</h3>
-            <div class="command"><div class="command-head"><span>Spark terminal · read-only host check</span><button type="button" data-copy="prerequisites-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · read-only host check">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · read-only host check"><code id="prerequisites-command">bash -o pipefail -c &#x27;curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/spark_prerequisites.py | python3 -&#x27;</code></pre></div>
+            <div class="command"><div class="command-head"><span>Spark terminal · read-only host check</span><button type="button" data-copy="prerequisites-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · read-only host check">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · read-only host check"><code id="prerequisites-command">bash -o pipefail -c &#x27;curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/spark_prerequisites.py | python3 -&#x27;</code></pre></div>
             <p class="check"><strong>Check</strong> <code>PREREQUISITES_OK</code>.</p>
             <details id="system-packages"><summary>Missing packages, curl or python3? Administrator step</summary><div class="detail-body">
               <p>Skip this when prerequisites already pass. If the check reports missing system packages, an administrator runs:</p>
@@ -222,17 +223,18 @@
           </li>
           <li>
             <h3>Install the complete demo</h3>
-            <p><strong>License consent:</strong> first read the <a href="https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html" target="_blank" rel="noopener noreferrer">NVIDIA Isaac Sim / Omniverse licenses</a>. Run this block only after your <strong>explicit acceptance</strong>. The <code>--accept-eula</code> flag records that consent for this checkout; a coding agent cannot accept it on your behalf.</p>
-            <p class="small">Budget 30–90 minutes for a fresh installation; downloads can take longer. The installer downloads dependencies and builds the CUDA model server. Keep the progress log.</p>
-            <div class="command"><div class="command-head"><span>Spark terminal · after explicit EULA acceptance</span><button type="button" data-copy="install-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · after explicit EULA acceptance">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · after explicit EULA acceptance"><code id="install-command">bash -o pipefail -c &#x27;curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/bootstrap.sh | bash -s -- --ref 57ecd62dfec3fb361c6db8ee3c096293aec77ca8 --profile spark --accept-eula --prepare-only --dir &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; 2&gt;&amp;1 | tee &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log&quot;&#x27;</code></pre></div>
-            <p class="check"><strong>Check</strong> <code>PREPARED</code>. Everything is installed; no demo services have started yet.</p>
+            <p><strong>License consent:</strong> the <a href="https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html" target="_blank" rel="noopener noreferrer">NVIDIA Isaac Sim / Omniverse licenses</a> require your <strong>explicit acceptance</strong>. The <code>--accept-eula</code> flag records that consent for this checkout. If you already accepted this Isaac version for the task, proceed without another confirmation; a coding agent records your authorization rather than inventing consent.</p>
+            <p class="small">The measured installation took <strong>12 min 21 s</strong> with new runtime/model destinations and reused download/uv caches. For an uncached machine, allow 30–90 minutes plus cold CUDA builds as a planning estimate. Keep the progress log.</p>
+            <div class="command"><div class="command-head"><span>Spark terminal · after explicit EULA acceptance</span><button type="button" data-copy="install-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · after explicit EULA acceptance">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · after explicit EULA acceptance"><code id="install-command">bash -o pipefail -c &#x27;curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/bootstrap.sh | env -u ISAACSIM_PATH -u ISAACSIM_PYTHON_EXE -u CASCADE_QWEN_MODEL -u CASCADE_QWEN_MMPROJ -u LLAMA_SERVER -u LLAMA_DIR bash -s -- --ref 9cf540279f09df8197eda6541311b41edb455243 --profile spark --accept-eula --prepare-only --dir &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; 2&gt;&amp;1 | tee &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log&quot;&#x27;</code></pre></div>
+            <p class="check"><strong>Check</strong> <code>PREPARED</code>. Files are prepared; no demo services or startup manipulation tests have run.</p>
             <details id="installed-components"><summary>What that one command installs</summary><div class="detail-body"><ul>
               <li><strong>App and simulator:</strong> Python 3.12, cascade and CUDA perception packages in <code>.venv/</code>; Isaac Sim <code>6.1.0.0</code> with its extension cache in <code>.isaacsim/</code>.</li>
+              <li><strong>Learned grasps:</strong> the private CUDA GraspGen-X environment in <code>.graspgenx/</code>, pinned model source and full generator/discriminator checkpoints in <code>.graspgenx-src/</code>. Live inference is checked during launch.</li>
               <li><strong>Local brain:</strong> the pinned Qwen3.8-27B Q4 model and BF16 vision projector in <code>models/qwen3.8-27b/</code>, plus the pinned <code>llama.cpp</code> CUDA server in <code>.llama.cpp/build/</code>. No model API key.</li>
               <li><strong>Agent:</strong> OpenClaw <code>2026.9.3</code> and private Node.js in <code>.openclaw-cli/</code>. The demo uses its own <code>cascade-demo</code> profile, not your personal OpenClaw gateway.</li>
               <li><strong>Robot and scene:</strong> Git LFS robot assets, perception weights, verified Cocina Asier kitchen geometry and task props. The installer verifies the downloaded scene archive and extracted asset hashes.</li>
               <li><strong>Desktop integration:</strong> the PAAI camera extension and registered launcher. Chromium itself comes from the administrator’s system-packages step, not the bootstrap. Private runtimes and consent are recorded in <code>runs/.install/install.json</code>.</li>
-            </ul><p>The installer obtains <code>uv</code> and Python when needed and reuses verified downloads. Do not install a second standalone Isaac, OpenClaw or Qwen instance for this path. Moving the checkout invalidates its path-specific consent; do not edit the receipt.</p></div></details>
+            </ul><p>The installer obtains <code>uv</code> and Python when needed and reuses verified downloads. No separate standalone Isaac, GraspGen-X, OpenClaw or Qwen install is needed. Moving the checkout requires installation to record the existing authorized consent at its new path; do not edit the receipt.</p></div></details>
           </li>
           <li>
             <h3>Verify the installation without starting it</h3>
@@ -248,9 +250,9 @@
   cd &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; || exit
   python3 scripts/desktop.py launch --repo &quot;$PWD&quot; --headless --no-open 2&gt;&amp;1 |
     tee &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log&quot; | awk &#x27;/^\[desktop\]/ { print; fflush() }&#x27;
-) &amp;&amp; python3 &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py&quot; --repo &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; --expected-ref 57ecd62dfec3fb361c6db8ee3c096293aec77ca8</code></pre></div>
+) &amp;&amp; python3 &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py&quot; --repo &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; --expected-ref 9cf540279f09df8197eda6541311b41edb455243</code></pre></div>
             <p class="check"><strong>Check</strong> One <code>READY</code> summary: both placements, camera evidence and resets pass, with current health and process ownership verified.</p>
-            <p class="small">The published measured start and proof took about 14 minutes; a cold start may take longer. The checks can be quiet for several minutes. Keep waiting; do not run a second launch just to obtain more output. Full output stays in <code>${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log</code>.</p>
+            <p class="small">The tested first launch and proof took <strong>12 min 12 s</strong>; other starts can take longer. The checks can be quiet for several minutes. Keep waiting; do not run a second launch just to obtain more output. Full output stays in <code>${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log</code>.</p>
             <p><strong>Next:</strong> <a href="#start">open the desktop interface and check the three live cameras</a>. Opening the launcher attaches to this accepted running stack instead of repeating the proof.</p>
           </li>
         </ol>
@@ -269,7 +271,7 @@
             <p>For a single installation, click <strong>PAAI (Spark)</strong> in the app grid. With several installations, use the <a href="#desktop-command">exact launcher command</a> for your chosen folder: their app-grid names can be identical. If startup is already running, wait. Do not start a second copy.</p>
             <details id="desktop-terminal"><summary>Open the same launcher from a graphical terminal</summary><div class="detail-body"><p>Use this for the folder selected during installation. Keep its <code>PAAI_INSTALL_DIR</code> exported in this terminal.</p><div class="command"><div class="command-head"><span>Spark desktop terminal · opens the selected installation</span><button type="button" data-copy="desktop-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark desktop terminal · opens the selected installation">Copy command</button></div><pre tabindex="0" aria-label="Spark desktop terminal · opens the selected installation"><code id="desktop-command">gio launch &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}/runs/.install/paai-spark.desktop&quot;</code></pre></div><p>The launcher opens a dedicated Chromium profile with the PAAI extension already loaded. No manual extension install or token paste is needed on this supported desktop path.</p></div></details>
             <p class="check"><strong>Check</strong> Startup reports <strong>READY</strong> and the three camera views advance.</p>
-            <p class="small">A fresh start runs placement tests and resets. The published guide reports about 14 minutes for one measured start and proof; cold starts can take longer.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p>
+            <p class="small">A fresh start runs placement tests and resets. Reopening an accepted running stack attaches without repeating them. Use scene reset between visitors; it keeps services running.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p>
           </li>
           <li>
             <h3>Open native OpenClaw</h3>
@@ -319,7 +321,7 @@
         <p class="muted">Keep the last tool result. A lost reply does not prove that the action never happened.</p>
         <details id="scene-recovery">
           <summary>The scene needs a reset</summary>
-          <div class="detail-body"><p>If the stack still responds, wait for the current action to finish and send <strong>“Reset the scene.”</strong> Keep this chat open until the result arrives.</p><p>Do not restart Isaac or delete memory files just to put the objects back.<sup><a href="#source-3" aria-label="Source 3">[3]</a></sup></p></div>
+          <div class="detail-body"><p>If the stack still responds, wait for the current action to finish and click <strong>Start over</strong> in the Spark chat, or send <strong>“Reset the scene.”</strong> Keep this chat open until the result arrives.</p><p>This restores props, returns the arm home, clears object beliefs and task images, and obtains a fresh observation. It does not repeat startup tests or erase learned grasps, recent text memory or chat history. A failed reset is not a restored scene.</p><p>Do not restart Isaac or delete memory files just to put the objects back.<sup><a href="#source-3" aria-label="Source 3">[3]</a></sup></p></div>
         </details>
         <details id="camera-recovery">
           <summary>A camera says “unavailable”</summary>
@@ -348,9 +350,10 @@ python3 scripts/spark_browser.py --repo "$PWD" --check</code></pre></div>
           <div class="detail-body"><p>Keep the script and the failing log. Do not run the cleanup again until the operator has reviewed it.</p><p>Resetting objects, starting a new chat and deleting learned memory are different operations. The cause of the reported startup failure is not established.</p><p><strong>Never delete the installation or launch-state folders as a shortcut.</strong></p></div>
         </details>
         <aside class="notice" id="fast-restart" aria-labelledby="fast-restart-title">
-          <h3 id="fast-restart-title">Fast desktop recovery is not established for this revision</h3>
-          <p><code>--no-robot-turn --no-judge</code> skips manipulation proof in the lower-level <code>run.sh</code> launcher. The reviewed desktop entry rejects those flags, and camera/chat attachment requires a verified proof.</p>
-          <p>These flags are <strong>not a complete fast-restart recipe</strong> for the PAAI desktop icon. A desktop presenter mode needs its own implementation and rehearsal.</p>
+          <h3 id="fast-restart-title">Skip manipulation proof only in the lower-level launcher</h3>
+          <p>If Qwen is still running, this restarts missing robot services and checks learned inference, tools and scene identity while skipping startup manipulation and the optional image judge:</p>
+          <div class="command"><div class="command-head"><span>Spark terminal · lower-level restart, Qwen already running</span><button type="button" data-copy="quick-restart-command" data-kind="command" data-enhance hidden aria-label="Copy lower-level restart command">Copy command</button></div><pre tabindex="0" aria-label="Lower-level restart"><code id="quick-restart-command">cd &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; &amp;&amp; ./run.sh isaac --engine physx --graspgenx local --no-robot-turn --no-judge</code></pre></div>
+          <p>Keep any scene and display options used for this installation. The desktop entry rejects the skip flags, and camera/chat attachment requires a verified proof. This is <strong>not a complete fast-restart recipe</strong> for the PAAI desktop icon. Use the normal desktop start if Qwen or those surfaces also need recovery.</p>
           <p>Skipped proof means <code>STARTED (UNVERIFIED: robot proof skipped)</code>, not <code>READY</code>. Do not edit proof receipts to bypass this.<sup><a href="#source-6" aria-label="Source 6">[6]</a><a href="#source-7" aria-label="Source 7">[7]</a><a href="#source-8" aria-label="Source 8">[8]</a></sup></p>
         </aside>
       </section>
@@ -375,17 +378,17 @@ PY</code></pre></div>
           </div>
         </details>
         <details id="configuration">
-          <summary>PhysX, OBB, Newton and the visible Isaac window</summary>
+          <summary>PhysX, learned grasps, optional experiments and visible Isaac</summary>
           <div class="detail-body">
-            <p>The reviewed published Spark launcher selects <strong>PhysX, local Qwen and analytic OBB grasps</strong>. It does not start GraspGen-X by default and rejects Newton for that delivery profile.</p>
-            <p>Seeing OBB there is expected; it does not establish the cause of a fallback on a modified setup.<sup><a href="#source-6" aria-label="Source 6">[6]</a></sup></p>
-            <p>The desktop command forces <code>--headless</code>. If you use a visible-Isaac variant, record and rehearse that modified configuration.<sup><a href="#source-7" aria-label="Source 7">[7]</a></sup></p>
-            <p>Treat <code>/goal</code>, arbitrary object rearrangement, Newton and learned-grasp experiments as separate capabilities to rehearse.</p>
+            <p>The tested Spark launcher selects <strong>PhysX CUDA, local Qwen Q4 and real GraspGen-X</strong>. It starts the private model server and checks actual diffusion inference. An absent server, stub or failed required inference must be reported; OBB does not validate the learned-grasp setup.<sup><a href="#source-6" aria-label="Source 6">[6]</a></sup></p>
+            <p>The desktop command defaults to headless Isaac. To show the editor, run <code>python3 scripts/desktop.py launch --repo "$PWD" --gui</code> from the installed folder. Stop this checkout’s stack before changing the display mode of an already running bridge. Rehearse the same display setting used at the event.<sup><a href="#source-7" aria-label="Source 7">[7]</a></sup></p>
+            <p>Newton is an explicit engine option under separate validation. Occupancy/nvblox is disabled in the presenter profile; JEv is not installed or active. These experiments and arbitrary object rearrangement need their own rehearsal and do not belong in the first-install path.</p>
           </div>
         </details>
         <details id="older-installs">
           <summary>Older installs: “unknown mode 'dashboard'”</summary>
           <div class="detail-body">
+            <p>The former guide pinned <code class="hash">57ecd62dfec3fb361c6db8ee3c096293aec77ca8</code>, which predates the real GraspGen-X launcher. Do not combine its install command with this release’s component assumptions.</p>
             <p>The older <code class="hash">fac5332416f688fd5d035e0b0a8088d52ef4d469</code> install does not include <code>./run.sh dashboard</code>. Its documented native-UI fallback, on the Spark desktop, is:</p>
             <div class="command"><div class="command-head"><span>Older-install fallback</span><button type="button" data-copy="legacy-command" data-kind="command" data-enhance hidden aria-label="Copy the older installation dashboard command">Copy command</button></div><pre tabindex="0" aria-label="Older installation dashboard command"><code id="legacy-command">cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" &amp;&amp; \
 OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" \
@@ -459,7 +462,7 @@ BASH</code></pre></div>
           <div class="detail-body">
             <p>Use the <strong>actual Spark and intended interface</strong>:</p>
             <ol><li>Start native OpenClaw with all three cameras live.</li><li>Place the green cube inside its square, then reset.</li><li>Place the orange inside the box, then reset.</li><li>Recover from a deliberate service restart using the agreed procedure.</li><li>Repeat with the exact GUI/headless setting and local edits that will ship.</li></ol>
-            <p>These are acceptance requirements, <strong>not results claimed by this guide</strong>.</p>
+            <p>Repeat these acceptance checks on the presentation machine. The <a href="#sources">recorded release validation</a> covers two full headless launches and recovery of the real browser under Xvfb; rehearse any different display setting separately.</p>
           </div>
         </details>
         <p class="check"><strong>If it still fails</strong> Send one diagnostic bundle: installed revision, exact action, first error, log path and local changes. Include the cleanup script if used. Remove passwords, authentication links and tokens before sharing logs.</p>
@@ -467,21 +470,24 @@ BASH</code></pre></div>
 
       <section id="sources" aria-labelledby="sources-title">
         <p class="section-label">Reference / Sources &amp; scope</p>
-        <h2 id="sources-title">Instructions, not a readiness certificate.</h2>
-        <p class="small">The commands and limitations were checked against published source and isolated local tests. This is not a new live acceptance of the event Spark, a fix for the reported camera error or a released fast-restart feature.</p>
-        <p class="small">Source review: <time datetime="2026-09-30">30 September 2026</time>. Published code baseline: <code class="hash">57ecd62dfec3fb361c6db8ee3c096293aec77ca8</code>. Historical behavior is labelled separately. Confirm the installed receipt before applying revision-specific instructions.</p>
+        <h2 id="sources-title">Evidence for the tested release.</h2>
+        <p class="small">The <a href="../../benchmark/results/spark_clean_delivery_20260930.json">release receipt</a> records new component and model directories, a successful install/check and two full native-agent desktop READY proofs. Normal user HOME, host prerequisites and download/uv caches were reused. In real Chromium under Xvfb, the shipped extension decoded all three cameras at 1280 × 720 with advancing frame IDs, and chat was connected with enabled controls. See the <a href="../../benchmark/results/images/spark_clean_three_cameras_20260930.png">actual browser screenshot</a>. GNOME app-grid interaction and a visible Isaac editor remain outside that result.</p>
+        <p class="small">The same installed stack subsequently passed all five kitchen objects through native visitor chat, with independent physical placement checks, three cameras and a reset after each object. The complete campaign is retained in the release receipt.</p>
+        <p class="small">After a full stop, the second launch reached READY in <strong>9 min 10 s</strong> with a new session and processes. The open browser recovered connected chat and all three advancing cameras without a reload; see the <a href="../../benchmark/results/images/spark_clean_three_cameras_after_restart_20260930.png">post-restart screenshot</a>. Shutdown escalated to SIGKILL for the owned Qwen process after its timeout. The personal OpenClaw gateway stayed unchanged, and the verified demo services were left running.</p>
+        <p class="small">The chat still reports “Placement unverified” when its tool checks only center position. READY requires the separate physical audit of containment, release and support; it does not rewrite that native tool result. Successful recorded runs do not guarantee every future request.</p>
+        <p class="small">Validation: <time datetime="2026-09-30">30 September 2026</time>. Tested runtime source: <code class="hash">9cf540279f09df8197eda6541311b41edb455243</code>. Historical behavior is labelled separately. Confirm the installed receipt before applying revision-specific instructions.</p>
         <details id="operating-sources"><summary>Operating documentation</summary><div class="detail-body"><ul class="references">
           <li id="source-1"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/4f1a2483fe796788431d5d9853b9b0e6f3ca3f82/docs/DGX_SPARK_SETUP.md" target="_blank" rel="noopener noreferrer">[1] Historical Spark setup guide</a></li>
           <li id="source-2"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/main/docs/DGX_SPARK_SETUP.md" target="_blank" rel="noopener noreferrer">[2] Spark setup and native OpenClaw access</a></li>
           <li id="source-3"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/main/docs/BOOTH_GUIDE.md" target="_blank" rel="noopener noreferrer">[3] Booth tasks and reset workflow</a></li>
-          <li id="source-4"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/docs/CHROME_EXTENSION.md" target="_blank" rel="noopener noreferrer">[4] Manual camera extension installation (use the Spark connection path above, not Brev’s /guide/ route)</a></li>
+          <li id="source-4"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/docs/CHROME_EXTENSION.md" target="_blank" rel="noopener noreferrer">[4] Manual camera extension installation (use the Spark connection path above, not Brev’s /guide/ route)</a></li>
         </ul></div></details>
         <details id="code-sources"><summary>Code and compatibility</summary><div class="detail-body"><ul class="references">
-          <li id="source-6"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/launch.sh" target="_blank" rel="noopener noreferrer">[6] Published launch defaults and proof flags</a></li>
-          <li id="source-7"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/desktop.py" target="_blank" rel="noopener noreferrer">[7] Desktop arguments and headless behavior</a></li>
-          <li id="source-8"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/spark_browser.py" target="_blank" rel="noopener noreferrer">[8] Camera readiness and Chromium profile</a></li>
+          <li id="source-6"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/launch.sh" target="_blank" rel="noopener noreferrer">[6] Published launch defaults and proof flags</a></li>
+          <li id="source-7"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/desktop.py" target="_blank" rel="noopener noreferrer">[7] Desktop arguments and headless behavior</a></li>
+          <li id="source-8"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/spark_browser.py" target="_blank" rel="noopener noreferrer">[8] Camera readiness and Chromium profile</a></li>
           <li id="source-10"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/fac5332416f688fd5d035e0b0a8088d52ef4d469/run.sh" target="_blank" rel="noopener noreferrer">[10] Older installation command dispatcher</a></li>
-          <li id="source-11"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/extensions/chrome/discovery.mjs" target="_blank" rel="noopener noreferrer">[11] Native Spark camera discovery</a></li>
+          <li id="source-11"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/extensions/chrome/discovery.mjs" target="_blank" rel="noopener noreferrer">[11] Native Spark camera discovery</a></li>
         </ul></div></details>
         <p class="review">Start with the operator-approved installation. Keep development experiments separate from the version used for the event.</p>
       </section>

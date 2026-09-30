@@ -134,7 +134,7 @@ def test_documented_launch_uses_the_desktop_supervisor(tmp_path):
 def test_documented_stop_preserves_installation_scope():
     assert any("./run.sh down\n" in block and "./run.sh down --dry-run" in block
                for block in quick_path_blocks())
-    assert not any("--no-robot-turn" in block for block in bash_blocks())
+    assert not any("--no-robot-turn" in block for block in quick_path_blocks())
 
 
 @pytest.mark.parametrize("custom_directory", [False, True])

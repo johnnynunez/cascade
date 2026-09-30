@@ -164,8 +164,8 @@ commands bypass geometric gating (e-stop check only).
 localize ─▶ ObjectFix (base-frame OBB; de-biased centre, verified on 2 engines)
    ├─▶ GraspGen-X candidates (ZMQ :5556, learned 6-DoF; gripper passed as a
    │    swept volume -- the arm profile owns `grasp.graspgenx.sweep`)
-   └─▶ OBB candidates (analytic, always computed)     any server error → OBB only,
-                                                      probed ONCE at startup, banner says which
+   └─▶ OBB candidates (optional profiles only)       optional server error → reported OBB fallback
+                                                      learned inference retried after cooldown
    grasp-outcome memory re-rank + z-nudge (~/.cascade/grasp_memory.json)
    select_grasp: jaw-width filter ▸ IK pregrasp → grasp (seeded from home_q, on
    purpose) ▸ harness pre-vet incl. 7 samples along the descent
@@ -175,6 +175,12 @@ localize ─▶ ObjectFix (base-frame OBB; de-biased centre, verified on 2 engin
    the TCP) and raises instead of lowering an empty gripper; pick_and_place
    re-grasps until `grasp.persist_seconds` / `max_pick_attempts` run out
 ```
+
+The Spark presenter profile requires real GraspGen-X candidates and checks
+diffusion inference during startup. A missing server, protocol stub or failed
+required inference raises an error instead of substituting OBB. The five-second
+fallback cooldown applies to optional profiles; required profiles retry on the
+next request.
 
 Single-hinge jaws (SO-101) close toward the fixed tip, so the profile
 declares the jaw datum (`jaw_fixed_tip_m`, `jaw_close_dir`) and the selector
@@ -368,13 +374,16 @@ G1/H1 in Isaac Sim first -- is written up in
 
 Spark distribution starts at `scripts/bootstrap.sh` → `scripts/install.sh`:
 Linux DGX Spark is the default, with explicit EULA acceptance, pinned Isaac
-Sim **6.1.0.0**, Cosmos3-Edge and a checkout-local OpenClaw 2026.9.3 CLI.
-`.venv`, `.isaacsim` and `.cosmos` isolate incompatible dependencies;
-`cascade-demo` isolates the attendee host profile. The installer does not
-replace drivers or hide unavailable Cosmos behind a cloud fallback.
+Sim **6.1.0.0**, PhysX CUDA, real GraspGen-X, Qwen3.8-27B Q4 with vision,
+and a checkout-local OpenClaw 2026.9.3 CLI.
+`.venv`, `.isaacsim` and `.graspgenx` isolate incompatible Python dependencies;
+`.llama.cpp` runs the local brain, and `cascade-demo` isolates the attendee
+host profile. The installer does not replace drivers. Required learned grasps
+fail visibly if inference is unavailable. Occupancy/nvblox is disabled; JEv
+and Cosmos are not part of the presenter installation.
 `--prepare-only` stops after dependencies/assets; it cannot print READY.
 The package/model resolution and CPU contract tests are not GPU rehearsal:
-see `docs/SPARK_DELIVERY.md` for that still-pending acceptance gate.
+see `docs/DGX_SPARK_SETUP.md` for the release pin and its acceptance status.
 
 `run.sh` → `scripts/launch.sh` is the one-click entry: `--sim auto|isaac|
 mujoco|none`, `--setup` (venv, extras, assets, OpenClaw CLI, provider
@@ -416,7 +425,8 @@ openai|local_*`) cascade runs its own loop with all three tiers.
   qpos/ctrl vectors) so a device runtime does not pay a host↔device
   round-trip per joint. Measured single-arm: C ~4.9 µs/step, Warp on CPU
   ~3.2 ms/step -- the C engine is the laptop MuJoCo default. The Spark
-  delivery uses Isaac's Newton experience; standalone Newton CPU tests
+  presenter delivery uses Isaac PhysX CUDA; Isaac Newton is an explicit,
+  separately validated option. Standalone Newton CPU tests
   are a separate validation path, not an additional CASCADE arm backend.
 - **Feedback, not sleep.** Every backend reports real joint positions;
   settling is `max|q − q*| < tol` with a per-profile tolerance and timeout,

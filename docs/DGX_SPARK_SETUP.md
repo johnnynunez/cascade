@@ -4,9 +4,10 @@ PAAI means Physical Agentic AI. This installs the Build a Claw kitchen demo:
 Isaac Sim, local Qwen Q4, OpenClaw and the PAAI camera extension in Chromium.
 No model API key is needed.
 
-The commands below remain pinned to the previously verified revision and install
-its earlier kitchen. The original kitchen now included in this repository needs
-a fresh Spark installation and physical proof before this guide can be re-pinned.
+The commands below install Cocina_Asier_01 with owner-authorized geometry,
+verified CC0 wood materials, and an original orange and fruit platter. The
+installer checks the release archive and every extracted asset against pinned
+SHA-256 hashes. See the [scene notice](../demo/scene/NOTICE.md).
 
 ## Quick path
 
@@ -28,7 +29,7 @@ system package, use the [administrator command](#system-prerequisites)
 before continuing.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/fac5332416f688fd5d035e0b0a8088d52ef4d469/scripts/spark_prerequisites.py | python3 -'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/8fd493957f286710a536ff47520cdaaa67cf6f89/scripts/spark_prerequisites.py | python3 -'
 ```
 
 Success: `PREREQUISITES_OK`.
@@ -42,14 +43,14 @@ An agent must have the operator's explicit consent. If that consent is
 already supplied, proceed to the install command; do not fetch the license
 page or ask for consent again. `OMNI_KIT_ACCEPT_EULA=YES` alone does not grant consent.
 
-The source URL and `--ref` select the same tested commit. This downloads the
+The source URL and `--ref` select the same fixed commit. This downloads the
 runtime, model and assets, then builds the local CUDA model server. Allow
 space for at least 150 GiB. A fresh installation from public download sites
 took about 25 minutes. Plan for 30–90 minutes; slower connections take longer.
 The progress log shows each stage.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/fac5332416f688fd5d035e0b0a8088d52ef4d469/scripts/bootstrap.sh | bash -s -- --ref fac5332416f688fd5d035e0b0a8088d52ef4d469 --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark" 2>&1 | tee "$HOME/paai-spark-install.log"'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/8fd493957f286710a536ff47520cdaaa67cf6f89/scripts/bootstrap.sh | bash -s -- --ref 8fd493957f286710a536ff47520cdaaa67cf6f89 --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark" 2>&1 | tee "$HOME/paai-spark-install.log"'
 ```
 
 Success: `PREPARED`. No demo services have started yet.
@@ -80,7 +81,7 @@ is 30 minutes and the Isaac startup timeout is 20 minutes.
   cd "$HOME/paai-spark" || exit
   python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open 2>&1 |
     tee "$HOME/paai-spark-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
-) && python3 "$HOME/paai-spark/scripts/spark_verify.py" --repo "$HOME/paai-spark" --expected-ref fac5332416f688fd5d035e0b0a8088d52ef4d469
+) && python3 "$HOME/paai-spark/scripts/spark_verify.py" --repo "$HOME/paai-spark" --expected-ref 8fd493957f286710a536ff47520cdaaa67cf6f89
 ```
 
 Success: one `READY` summary with both placements, cameras and resets passing.
@@ -173,7 +174,8 @@ require **Allow Launching** for an untrusted icon; use the app-grid entry.
 Keep at least 150 GiB free in the home volume, with room for later evidence
 and shader caches. Also check another cache volume if you override
 `XDG_CACHE_HOME` or `UV_CACHE_DIR`. The model and projector use 18.85 GB;
-the compressed kitchen archive adds 0.71 GB before extraction.
+the Cocina Asier kitchen archive adds about 30 MB before extraction and
+about 50 MB after extraction.
 
 Outbound HTTPS must reach GitHub and Git LFS, Hugging Face and its file
 hosts, PyPI, `pypi.nvidia.com`, `download.pytorch.org`, `astral.sh`,
@@ -196,7 +198,7 @@ Paths are relative to `$HOME/paai-spark`.
 | Pinned Qwen Q4 model and BF16 vision projector | `models/qwen3.8-27b/` |
 | Pinned llama.cpp CUDA build and receipt | `.llama.cpp/build/` |
 | Robot Git LFS files and perception weights | `assets/`, `models/` |
-| Earlier kitchen from this guide's pinned revision | `demo/scene/` |
+| Verified Cocina Asier room and original task props | `demo/scene/cocina_asier/`, `demo/scene/props/` |
 | Source, package and consent receipt; reusable environment | `runs/.install/install.json`, `runs/.install/env.sh` |
 
 The installer also uses `$HOME/.local/bin/uv`, `$HOME/.cache/uv` and

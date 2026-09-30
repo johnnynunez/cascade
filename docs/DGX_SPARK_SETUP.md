@@ -33,7 +33,7 @@ system package, use the [administrator command](#system-prerequisites)
 before continuing.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/ba7db7d6a0006bf35782d397474c66d632c2313d/scripts/spark_prerequisites.py | python3 -'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/spark_prerequisites.py | python3 -'
 ```
 
 Success: `PREREQUISITES_OK`.
@@ -54,7 +54,7 @@ took about 25 minutes. Plan for 30–90 minutes; slower connections take longer.
 The progress log shows each stage.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/ba7db7d6a0006bf35782d397474c66d632c2313d/scripts/bootstrap.sh | bash -s -- --ref ba7db7d6a0006bf35782d397474c66d632c2313d --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/bootstrap.sh | bash -s -- --ref 57ecd62dfec3fb361c6db8ee3c096293aec77ca8 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
 ```
 
 Success: `PREPARED`. No demo services have started yet.
@@ -85,12 +85,12 @@ is 30 minutes and the Isaac startup timeout is 20 minutes.
   cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" || exit
   python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open 2>&1 |
     tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
-) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref ba7db7d6a0006bf35782d397474c66d632c2313d
+) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref 57ecd62dfec3fb361c6db8ee3c096293aec77ca8
 ```
 
 Success: one `READY` summary with both placements, cameras and resets passing.
 The command checks the [current proof](#verify-the-result), health and live
-process ownership. Full output stays in `$HOME/paai-spark-launch.log`; the
+process ownership. Full output stays in `${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log`; the
 terminal shows only progress and the compact result. Do not repeat this
 block to obtain more output.
 

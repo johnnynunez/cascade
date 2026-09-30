@@ -236,9 +236,14 @@ def enable(repo, args):
             path.chmod(0o600)
             changed_units.add(name)
     run(["systemctl", "--user", "daemon-reload"])
-    # An explicit enable is the operator's retry after a failed launch, so it
-    # clears the demo's start-limit/failed state before starting it again.
-    run(["systemctl", "--user", "reset-failed", "paai-spark-demo.service"])
+    # Read the current state after reload: a fresh/inactive unit has no failed
+    # state to clear, and reset-failed can reject an unloaded new unit. Explicit
+    # retries of failed/start-limited launches must still clear their state;
+    # propagate a reset error rather than starting without that required reset.
+    demo_state = run(["systemctl", "--user", "show", "paai-spark-demo.service",
+                      "--property=ActiveState", "--value"]).strip()
+    if demo_state == "failed":
+        run(["systemctl", "--user", "reset-failed", "paai-spark-demo.service"])
     run(["systemctl", "--user", "enable", "--now", *[name + ".service" for name in SERVICES]], timeout=45)
     for name in SERVICES:
         if name not in changed_units:

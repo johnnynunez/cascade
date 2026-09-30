@@ -41,12 +41,14 @@ def test_setup_shell_examples_are_valid_bash():
         assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.parametrize("custom_directory", [False, True])
 @pytest.mark.parametrize("download_exit,install_exit", [(0, 0), (22, 0), (0, 2), (0, 17)])
 def test_bootstrap_preserves_failures_and_explicit_preparation(
-    tmp_path, download_exit, install_exit
+    tmp_path, download_exit, install_exit, custom_directory
 ):
     """Run the exact public pipeline with only its network boundary replaced."""
     command = bootstrap_command()
+    install_dir = tmp_path / ("chosen kitchen" if custom_directory else "paai-spark")
     match = re.search(
         r"https://raw\.githubusercontent\.com/johnnynunez/cascade/"
         r"([0-9a-f]{40})/scripts/bootstrap\.sh",
@@ -74,6 +76,7 @@ def test_bootstrap_preserves_failures_and_explicit_preparation(
             "HOME": str(tmp_path), "PATH": str(bins) + os.pathsep + os.defpath,
             "DOC_DOWNLOAD_EXIT": str(download_exit),
             "DOC_INSTALL_EXIT": str(install_exit),
+            "PAAI_INSTALL_DIR": str(install_dir) if custom_directory else "",
         },
         text=True, capture_output=True, timeout=10,
     )
@@ -82,9 +85,9 @@ def test_bootstrap_preserves_failures_and_explicit_preparation(
     if not download_exit:
         assert (tmp_path / "bootstrap.args").read_text().splitlines() == [
             "--ref", match[1], "--profile", "spark", "--accept-eula",
-            "--prepare-only", "--dir", str(tmp_path / "paai-spark"),
+            "--prepare-only", "--dir", str(install_dir),
         ]
-        log = (tmp_path / "paai-spark-install.log").read_text()
+        log = Path(str(install_dir) + "-install.log").read_text()
         assert "installer stdout" in log
         assert "installer diagnostic" in log
 
@@ -134,11 +137,12 @@ def test_documented_stop_preserves_installation_scope():
     assert not any("--no-robot-turn" in block for block in bash_blocks())
 
 
+@pytest.mark.parametrize("custom_directory", [False, True])
 @pytest.mark.parametrize("launch_exit,verify_exit", [(0, 0), (17, 0), (0, 3)])
 def test_exact_start_block_bounds_output_and_preserves_launch_and_verification_failures(
-    tmp_path, launch_exit, verify_exit
+    tmp_path, launch_exit, verify_exit, custom_directory
 ):
-    repo = tmp_path / "paai-spark"
+    repo = tmp_path / ("chosen kitchen" if custom_directory else "paai-spark")
     scripts = repo / "scripts"
     scripts.mkdir(parents=True)
     (scripts / "desktop.py").write_text(
@@ -159,11 +163,11 @@ def test_exact_start_block_bounds_output_and_preserves_launch_and_verification_f
     assert len(block.splitlines()) <= 9, "the quick-path block must stay short"
     result = subprocess.run(["bash", "-c", block], cwd=tmp_path,
         env={"HOME": str(tmp_path), "PATH": os.defpath, "DOC_LAUNCH_EXIT": str(launch_exit),
-             "DOC_VERIFY_EXIT": str(verify_exit)}, capture_output=True, text=True, timeout=10)
+             "DOC_VERIFY_EXIT": str(verify_exit), "PAAI_INSTALL_DIR": str(repo) if custom_directory else ""}, capture_output=True, text=True, timeout=10)
     assert result.returncode == (launch_exit or verify_exit), result.stderr
     assert len(result.stdout) < 1000
     assert "large-launch-detail" not in result.stdout
-    assert "large-launch-detail" in (tmp_path / "paai-spark-launch.log").read_text()
+    assert "large-launch-detail" in Path(str(repo) + "-launch.log").read_text()
     assert len((repo / "launch.calls").read_text().splitlines()) == 1
     if launch_exit:
         assert not (scripts / "verify.args").exists()
@@ -173,12 +177,13 @@ def test_exact_start_block_bounds_output_and_preserves_launch_and_verification_f
     assert ("READY " in result.stdout) == (launch_exit == verify_exit == 0)
 
 
+@pytest.mark.parametrize("custom_directory", [False, True])
 @pytest.mark.parametrize("stop_exit,dry_exit,leftover", [(0, 0, False), (1, 0, False),
                                                        (0, 3, False), (0, 0, True)])
 def test_documented_stop_cannot_report_success_with_remaining_processes(
-    tmp_path, stop_exit, dry_exit, leftover
+    tmp_path, stop_exit, dry_exit, leftover, custom_directory
 ):
-    repo = tmp_path / "paai-spark"
+    repo = tmp_path / ("chosen kitchen" if custom_directory else "paai-spark")
     repo.mkdir()
     script = repo / "run.sh"
     script.write_text(
@@ -193,7 +198,8 @@ def test_documented_stop_cannot_report_success_with_remaining_processes(
     result = subprocess.run(
         ["bash", "-c", command], cwd=tmp_path,
         env={"HOME": str(tmp_path), "PATH": os.defpath, "DOC_STOP_EXIT": str(stop_exit),
-             "DOC_DRY_EXIT": str(dry_exit), "DOC_LEFTOVER": str(int(leftover))},
+             "DOC_DRY_EXIT": str(dry_exit), "DOC_LEFTOVER": str(int(leftover)),
+             "PAAI_INSTALL_DIR": str(repo) if custom_directory else ""},
         text=True, capture_output=True, timeout=10,
     )
     if stop_exit or dry_exit or leftover:
@@ -236,7 +242,7 @@ def test_documented_prerequisite_check_uses_install_pin_and_preserves_failure(
 def test_quick_path_registers_one_click_and_bonus_stays_optional_and_last():
     guide = GUIDE.read_text()
     assert len(quick_path_blocks()) == 6
-    assert 'gio launch "$HOME/paai-spark/runs/.install/paai-spark.desktop"' in quick_path_blocks()
+    assert 'gio launch "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/runs/.install/paai-spark.desktop"' in quick_path_blocks()
     assert "PAAI (Spark)" in guide
     assert "chromium-browser" in guide
     assert "Skip it when Step 1 already passes" in guide

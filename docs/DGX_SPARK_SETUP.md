@@ -29,7 +29,7 @@ system package, use the [administrator command](#system-prerequisites)
 before continuing.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/8fd493957f286710a536ff47520cdaaa67cf6f89/scripts/spark_prerequisites.py | python3 -'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/41c68478c9db1cbea7edb35428a1521d08e7df57/scripts/spark_prerequisites.py | python3 -'
 ```
 
 Success: `PREREQUISITES_OK`.
@@ -50,7 +50,7 @@ took about 25 minutes. Plan for 30–90 minutes; slower connections take longer.
 The progress log shows each stage.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/8fd493957f286710a536ff47520cdaaa67cf6f89/scripts/bootstrap.sh | bash -s -- --ref 8fd493957f286710a536ff47520cdaaa67cf6f89 --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark" 2>&1 | tee "$HOME/paai-spark-install.log"'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/41c68478c9db1cbea7edb35428a1521d08e7df57/scripts/bootstrap.sh | bash -s -- --ref 41c68478c9db1cbea7edb35428a1521d08e7df57 --profile spark --accept-eula --prepare-only --dir "$HOME/paai-spark" 2>&1 | tee "$HOME/paai-spark-install.log"'
 ```
 
 Success: `PREPARED`. No demo services have started yet.
@@ -81,7 +81,7 @@ is 30 minutes and the Isaac startup timeout is 20 minutes.
   cd "$HOME/paai-spark" || exit
   python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open 2>&1 |
     tee "$HOME/paai-spark-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
-) && python3 "$HOME/paai-spark/scripts/spark_verify.py" --repo "$HOME/paai-spark" --expected-ref 8fd493957f286710a536ff47520cdaaa67cf6f89
+) && python3 "$HOME/paai-spark/scripts/spark_verify.py" --repo "$HOME/paai-spark" --expected-ref 41c68478c9db1cbea7edb35428a1521d08e7df57
 ```
 
 Success: one `READY` summary with both placements, cameras and resets passing.

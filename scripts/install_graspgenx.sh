@@ -36,9 +36,35 @@ checkout() {
         mkdir -p "$(dirname "$path")"
         STAGING="$(mktemp -d "$(dirname "$path")/.graspgenx-clone.XXXXXX")"
         git -C "$STAGING" init -q
+        git -C "$STAGING" lfs install --local --skip-smudge
         git -C "$STAGING" remote add origin "$url"
         GIT_LFS_SKIP_SMUDGE=1 retry git -C "$STAGING" fetch --depth 1 origin "$ref"
         GIT_LFS_SKIP_SMUDGE=1 git -C "$STAGING" checkout --detach FETCH_HEAD
+        # Some upstream pointers (notably gripper .obj/.stl/.dae meshes) lack
+        # matching .gitattributes. Without a local filter, LFS hydration stages
+        # full blobs in place of the committed pointers and dirties the index.
+        # Bind only HEAD's exact LFS paths, before hydration in this NEW clone.
+        # Tracked upstream files stay untouched; existing source edits still fail.
+        python3 -B - "$STAGING" <<'PY'
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+root = Path(sys.argv[1])
+files = json.loads(subprocess.check_output(
+    ["git", "-C", str(root), "lfs", "ls-files", "--json", "HEAD"], text=True,
+))["files"]
+if files:
+    with (root / ".git/info/attributes").open("a") as stream:
+        stream.write("\n# CASCADE: exact committed LFS paths; upstream source is unchanged.\n")
+        for item in files:
+            name = item["name"]
+            # Literal root-relative wildmatch pattern, then Git's C quoting.
+            pattern = "/" + "".join("\\" + char if char in "\\*?[]" else char for char in name)
+            stream.write(json.dumps(pattern, ensure_ascii=False)
+                         + " filter=lfs diff=lfs merge=lfs -text\n")
+PY
         retry git -C "$STAGING" lfs pull
         [[ ! -e "$path" ]] || die "destination appeared while downloading: $path"
         mv -- "$STAGING" "$path"

@@ -1,0 +1,302 @@
+{
+  "scope": "Actual idle Isaac depth replay. Two cube surface-distance/coverage metrics; not grasp placement accuracy or live motion safety certification.",
+  "torch": "2.14.1+cu132",
+  "torch_cuda": "13.2",
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "capability": [
+    12,
+    0
+  ],
+  "nvblox": "0.0.10.dev1+cu13ubuntu26",
+  "nvblox_source": "c457c3fc01003bec6eba3ec1c61e6bf84bc3f51f",
+  "voxel_m": 0.005,
+  "depth_stride": 2,
+  "input_metadata_sha256": "0fd1fef6ed81ee4e2d9249d43f98cefdaf1e08b404b36d67e7f9b60280ef56ab",
+  "variants": [
+    {
+      "cameras": [
+        "cam0"
+      ],
+      "integrations": 5,
+      "cold_first_integrate_ms": 82.55623000150081,
+      "warm_integrate_median_ms": 6.605714999750489,
+      "cubes": {
+        "pink_cube": {
+          "surface_samples": 245,
+          "observed_samples": 186,
+          "within_one_voxel": 180,
+          "abs_distance_mean_m": 0.0017473117889015264,
+          "faces": {
+            "0:-1": {
+              "samples": 49,
+              "observed": 18,
+              "within_one_voxel": 14,
+              "abs_distance_mean_m": 0.005833333358168602
+            },
+            "0:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0
+            },
+            "1:-1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0
+            },
+            "1:1": {
+              "samples": 49,
+              "observed": 21,
+              "within_one_voxel": 19,
+              "abs_distance_mean_m": 0.0038095240015536547
+            },
+            "2:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0028571425937116146
+            }
+          }
+        },
+        "green_cube": {
+          "surface_samples": 245,
+          "observed_samples": 197,
+          "within_one_voxel": 180,
+          "abs_distance_mean_m": 0.0021827410679632034,
+          "faces": {
+            "0:-1": {
+              "samples": 49,
+              "observed": 21,
+              "within_one_voxel": 15,
+              "abs_distance_mean_m": 0.0059523810632526875
+            },
+            "0:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0
+            },
+            "1:-1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0
+            },
+            "1:1": {
+              "samples": 49,
+              "observed": 29,
+              "within_one_voxel": 18,
+              "abs_distance_mean_m": 0.005862067919224501
+            },
+            "2:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0027551017701625824
+            }
+          }
+        }
+      },
+      "production_grid_query_ms": 32.57865700288676,
+      "grid_shape": [
+        81,
+        121,
+        114
+      ],
+      "finite_grid_cells": 561880,
+      "occupied_cells": 20448
+    },
+    {
+      "cameras": [
+        "cam0",
+        "side"
+      ],
+      "integrations": 10,
+      "cold_first_integrate_ms": 82.04492300137645,
+      "warm_integrate_median_ms": 18.416126502415864,
+      "cubes": {
+        "pink_cube": {
+          "surface_samples": 245,
+          "observed_samples": 228,
+          "within_one_voxel": 215,
+          "abs_distance_mean_m": 0.002168848522399601,
+          "faces": {
+            "0:-1": {
+              "samples": 49,
+              "observed": 32,
+              "within_one_voxel": 23,
+              "abs_distance_mean_m": 0.005350412335246801
+            },
+            "0:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0
+            },
+            "1:-1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.001734693767502904
+            },
+            "1:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0014285714132711291
+            },
+            "2:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 45,
+              "abs_distance_mean_m": 0.0034343726001679897
+            }
+          }
+        },
+        "green_cube": {
+          "surface_samples": 245,
+          "observed_samples": 230,
+          "within_one_voxel": 213,
+          "abs_distance_mean_m": 0.002456998035473668,
+          "faces": {
+            "0:-1": {
+              "samples": 49,
+              "observed": 34,
+              "within_one_voxel": 21,
+              "abs_distance_mean_m": 0.005936037749052048
+            },
+            "0:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0001020408162730746
+            },
+            "1:-1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0017346938839182258
+            },
+            "1:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 48,
+              "abs_distance_mean_m": 0.0023892056196928024
+            },
+            "2:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 46,
+              "abs_distance_mean_m": 0.0031880242750048637
+            }
+          }
+        }
+      },
+      "production_grid_query_ms": 26.127901997824665,
+      "grid_shape": [
+        81,
+        121,
+        114
+      ],
+      "finite_grid_cells": 796898,
+      "occupied_cells": 23216
+    },
+    {
+      "cameras": [
+        "cam0",
+        "side",
+        "proof"
+      ],
+      "integrations": 15,
+      "cold_first_integrate_ms": 104.82966500421753,
+      "warm_integrate_median_ms": 29.989437502081273,
+      "cubes": {
+        "pink_cube": {
+          "surface_samples": 245,
+          "observed_samples": 234,
+          "within_one_voxel": 214,
+          "abs_distance_mean_m": 0.0022829551862664204,
+          "faces": {
+            "0:-1": {
+              "samples": 49,
+              "observed": 38,
+              "within_one_voxel": 21,
+              "abs_distance_mean_m": 0.006131533533334732
+            },
+            "0:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0
+            },
+            "1:-1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0016326530603691936
+            },
+            "1:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0014285714132711291
+            },
+            "2:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 46,
+              "abs_distance_mean_m": 0.0030859834514558315
+            }
+          }
+        },
+        "green_cube": {
+          "surface_samples": 245,
+          "observed_samples": 235,
+          "within_one_voxel": 212,
+          "abs_distance_mean_m": 0.0026269943988386623,
+          "faces": {
+            "0:-1": {
+              "samples": 49,
+              "observed": 39,
+              "within_one_voxel": 19,
+              "abs_distance_mean_m": 0.006439242511987686
+            },
+            "0:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0001020408162730746
+            },
+            "1:-1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 49,
+              "abs_distance_mean_m": 0.0017346938839182258
+            },
+            "1:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 48,
+              "abs_distance_mean_m": 0.0023892056196928024
+            },
+            "2:1": {
+              "samples": 49,
+              "observed": 49,
+              "within_one_voxel": 47,
+              "abs_distance_mean_m": 0.0032477984204888344
+            }
+          }
+        }
+      },
+      "production_grid_query_ms": 19.865303998813033,
+      "grid_shape": [
+        81,
+        121,
+        114
+      ],
+      "finite_grid_cells": 1002564,
+      "occupied_cells": 24101
+    }
+  ]
+}

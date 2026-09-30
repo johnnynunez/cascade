@@ -457,7 +457,9 @@ python scripts/serve_graspgenx_stub.py
 # Warp kernels -- CPU on this Mac, CUDA on Jetson/x86), `voxel` (numpy). The
 # demo PROBES it at startup and prints which backend answered; a bridge nobody
 # started shows as "occupancy=none (...)" in the banner and the run summary.
-# scripts/launch.sh starts it for you; by hand:
+# Generic scripts/launch.sh profiles can start it; the Spark presenter profile
+# explicitly disables occupancy. See docs/NVBLOX.md for camera fusion/status.
+# By hand:
 ./scripts/serve_occupancy.sh            # auto: nvblox > warp > voxel
 
 # real SO-101 over USB serial. CHECK THE JOINT SIGNS FIRST -- read-only scan,

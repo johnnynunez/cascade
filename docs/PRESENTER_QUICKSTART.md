@@ -2,7 +2,8 @@
 
 **Use PhysX with the real GraspGen-X server on the presentation Spark.**
 All five kitchen objects passed a GB10 physical round with learned grasps.
-Full stack acceptance and CI are tracked in PR #23.
+The native Spark launcher also reached READY for green cube, orange and resets;
+receipts and CI are tracked in PR #23.
 Run these commands from the installed Cascade folder on the presentation
 machine. The desktop entry starts Qwen as well as the robot stack; `run.sh`
 expects Qwen to be running already. This card assumes the Spark installation profile; installation is
@@ -81,12 +82,13 @@ Use scene reset between visitors. See [memory and recovery details](SPARK_DELIVE
 | Physics | **PhysX**, the Spark default | Newton is an explicit opt-in under separate validation; do not switch engines during the event. |
 | Grasps | **GraspGen-X**, learned inference on the Spark | A protocol stub or an analytic fallback does not validate this setup. |
 | Isaac window | **Visible**; use desktop `--gui` | Headless runs still produce camera images but do not show the editor. |
+| Occupancy / nvblox | **Disabled** in the validated Spark profile | Two cameras are configured for fusion and the third for viewing; see [nvblox status and limits](NVBLOX.md). |
 
 **Why did GraspGen-X fall back to OBB?** The previous Spark launcher omitted
 the learned-model server. A failed startup probe or inference also selected
 OBB for the rest of the runtime. The corrected installation and launch must
 start and verify real inference; a GraspGen-X **stub** is only an analytic
-protocol stand-in. Hardware validation results will be recorded with the PR.
+protocol stand-in. Hardware receipts are linked in [GraspGen-X on Spark](GRASPGENX_SPARK.md).
 
 **Should Newton work by default?** The Spark launcher defaults to PhysX.
 Newton requires `--engine newton` and a validated Isaac/Cascade combination.

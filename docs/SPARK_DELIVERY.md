@@ -1,5 +1,7 @@
 # Spark delivery details
 
+Presenting the demo? Start with the [presenter card](PRESENTER_QUICKSTART.md).
+
 Use [DGX Spark setup](DGX_SPARK_SETUP.md) for the install and start commands.
 That guide remains pinned to the earlier scene. Re-pinning it for the original
 kitchen requires a fresh installation and physical acceptance on Spark.
@@ -123,8 +125,9 @@ If the stack is running and you only need to put the objects back, use
 **Start over** in the Spark demo chat, **Reset** in the PAAI OpenClaw interface,
 or send **"Reset the scene."** in the current conversation.
 This keeps Isaac, the model and OpenClaw running;
-it returns the arm home, restores the props, clears task state and captures
-a fresh observation. It does not rerun the startup pick-and-place tests.
+it returns the arm home, restores the props, clears object beliefs and task
+images, and captures a fresh observation. Learned grasp history, recent text
+memory and chat history remain. It does not rerun the startup pick-and-place tests.
 These buttons are unavailable while another order is running. Wait for the
 reset result and check the camera views before the next order.
 

@@ -220,6 +220,8 @@ __marimo__/
 # Private delivery environments and generated model exports, not source manifests.
 /.openclaw-cli/
 /.isaacsim/
+/.graspgenx/
+/.graspgenx-src/
 /.cosmos/
 /.cosmos-omni/
 /.llama.cpp/

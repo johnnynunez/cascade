@@ -1,5 +1,7 @@
 # Opening the demo
 
+For a live Build-a-Claw presentation, use the [presenter card](PRESENTER_QUICKSTART.md).
+
 The PAAI event profile uses **DGX Spark/Linux + Isaac Sim 6.1 + PhysX CUDA +
 Qwen Q4 + OpenClaw**. Use the [DGX Spark setup guide](DGX_SPARK_SETUP.md)
 for the tested install, startup, READY checks and recovery commands.

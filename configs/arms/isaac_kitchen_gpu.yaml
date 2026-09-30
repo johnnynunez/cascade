@@ -4,6 +4,17 @@ overrides:
   detector:
     device: auto
   grasp:
+    backend: graspgenx
+    graspgenx:
+      # Spark starts and warms the real CUDA model before the robot runtime.
+      required: true
+      planner: diffusion
+      num_grasps: 400
+      min_score: 0.25
+      # The countertop requires an approach within 18 degrees of vertical.
+      approach_z_max: -0.95
+      timeout_ms: 45000
+      probe_timeout_ms: 5000
     # Reach clearance vertically before horizontal transport. Keep it
     # independent of the lower release heights at the destination.
     carry_height_m: 0.14

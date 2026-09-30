@@ -3,6 +3,23 @@
 `scripts/isaac_bridge.py` defaults to `--engine newton`. The Spark launcher
 defaults to PhysX; select Newton explicitly with `./run.sh isaac --engine newton`.
 
+The kitchen currently uses Newton's ordinary convex contact path. Hydroelastic
+contact is a separate opt-in: both colliders need volumetric SDF data and
+`newton:hydroelasticEnabled`, plus the runtime `HydroelasticConfig` switch.
+It is not enabled by changing `contact_ke` or `impratio`. The
+[Isaac Sim 6.1 contact reference](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/physics/hydroelastic_contact.html)
+and [nut-and-bolt walkthrough](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/physics/hydroelastic_contact_walkthrough.html)
+describe that additional setup. The acceptance receipts below do not validate
+hydroelastic contact.
+
+Runtime resets and verification read/write engine state, rather than assuming
+that editing USD updates a running Newton scene. This follows the documented
+[USD/Fabric/Tensors data flow](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/physics/new_physics_engine.html).
+Also keep simulation time separate from wall time: the
+[simulation fundamentals](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/physics/simulation_fundamentals.html)
+explain why rendering can make a fixed wall-clock delay insufficient for jaw
+motion, even when the physics timestep is unchanged.
+
 Historical result from 2026-07-31 (before strict whole-object acceptance): `pick_and_place` succeeds in 25.6 s with the
 cube physics-confirmed inside the bin (31.9 cm displacement), postcondition
 `confirmed via physics`, articulation finite afterwards, 260 tests green.
@@ -36,8 +53,7 @@ cloud can miss the bottom by several millimeters: using its lowest visible
 point pressed the lemon against the box floor and made it jump when released.
 At placement the runtime adds the measured offset to the destination support
 height and 15 mm clearance. A 6 mm margin still pressed a lemon into the floor
-after its orientation changed during carry; the 15 mm candidate passed three
-isolated lemon trials with three substeps, but needs the full matrix.
+after its orientation changed during carry; the 15 mm configuration subsequently passed the full matrix below.
 The box floor is 4 mm above the counter. This vertical calculation uses
 proprioception and calibration. Profiles without a
 calibrated pickup plane retain the observed point-cloud bound.
@@ -64,13 +80,12 @@ whole-object containment. PhysX passed five cases before lemon round two
 failed the unchanged 0.2 rad/s angular-speed bound (measured 0.262 rad/s).
 Increasing clearance alone did not fix PhysX. These receipts are retained in
 `runs/acceptance-calibrated-{nw3,nw5,physx}-120`; they do not establish
-acceptance of the current 15 mm candidate. The complete matrix and launcher
-proof remain pending. No acceptance bounds have been relaxed.
+acceptance of the current 15 mm configuration by themselves. No acceptance bounds have been relaxed.
 
 A controlled replay of the failed PhysX resting pose measured 0.260 rad/s
 with 16 and 32 position iterations, 0.044 with 64, and 0.260 again after
 restoring 16. The bridge now authors 64 position iterations for the kitchen
-props before play; clean-start acceptance of this change is pending.
+props before play; all 25 PhysX cases passed with that configuration.
 
 The final harness requires CUDA perception, matching the Spark launcher.
 Earlier CPU-perception diagnostics are not counted as that profile: its
@@ -85,8 +100,37 @@ The complete local regression suite passes **2250 tests**, with 46 skips and
 2 deselected tests (255.83 s). It includes launcher delivery and failure
 propagation when jaw opening cannot be confirmed. The motion-recorder fixture
 reports its recorded gripper state; conservative fallback heights remain in
-place for unknown held geometry. Full physical campaign and launcher results
-must still be recorded before declaring acceptance.
+place for unknown held geometry. These numbers precede the GraspGen-X follow-up. Launcher acceptance is
+recorded separately from the diagnostic campaigns.
+
+
+The completed 15 mm / 64-iteration baseline has **75/75 passing cases**:
+
+| Engine at 120 Hz | Substeps | Cases | Resets |
+| --- | --- | --- | --- |
+| Newton / CUDA graph | 3 | 25/25 | 25/25 |
+| Newton / CUDA graph | 5 | 25/25 | 25/25 |
+| PhysX / CUDA | n/a | 25/25 | 25/25 |
+
+Each engine ran five rounds of green cube, orange, pink cube, lemon and tomato
+can. All source guards passed. These runs used the **analytic OBB fallback**;
+they validate the physics corrections, not learned GraspGen-X. Compact
+receipts are in [the final baseline](../benchmark/results/newton_kitchen_20260930_final.json).
+Two initial cold-start cases passed placement but failed the unchanged
+2-second camera-age bound; their [failed receipts](../benchmark/results/newton_kitchen_20260930_cold_start.json)
+remain archived. Warmed repeats used identical source and acceptance bounds.
+The Spark learned-planner follow-up is documented [separately](GRASPGENX_SPARK.md).
+
+The subsequent full Newton launcher run reached **READY** with Qwen issuing
+native OpenClaw tools and the real diffusion-only GraspGen-X server. Green
+cube and orange both passed the full contact, placement, camera and reset
+audit. Final center errors were 2.3 mm and 5.6 mm. See the
+[launcher receipt](../benchmark/results/newton_graspgenx_launch_20260930.json).
+The [three-camera replay](../benchmark/results/videos/newton_graspgenx_ready_20260930.mp4)
+shows the actual frames at 4× speed. The original recording is
+`runs/video-newton-graspgenx-02/cameras.mp4` (289 seconds, with source timestamps
+and repeated-frame markers alongside).
+This run used the local x86_64 workstation; it is separate from GB10 validation.
 
 Run a campaign from this checkout against a matching clean bridge:
 
@@ -102,7 +146,7 @@ square, orange into the open box) has a Newton path using the same skills,
 launcher and physical acceptance criteria as PhysX. PhysX stays the Spark
 default; `launch.sh --engine newton` is an explicit opt-in. Contact and servo
 settings are Newton-specific; the perception and grasp fixes affect both
-engines. Full physical acceptance of the combined changes is still pending.
+engines. The later acceptance results above supersede these early diagnostics.
 Historical `ok=True` skill results and center distances below are diagnostics,
 not proof of complete containment, support, release or a successful reset.
 

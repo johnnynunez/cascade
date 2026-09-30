@@ -1,0 +1,188 @@
+{
+  "scope": "Native Qwen/OpenClaw launch proof on local x86_64 workstation; learned GraspGen-X, Newton, CUDA physics and perception",
+  "verified": true,
+  "model": "custom-127-0-0-1-8080/Qwen/Qwen3.8-27B",
+  "session_id": "cascade-proof-ac0b2c1f7d59435aa355244adfbffac0",
+  "receipt_sha256": "0542b014547c5cf563812f4380d7eb88e7be0b549352bef9bafe8d672c2539fc",
+  "source_head": "0a0c31fab02002e7654965e59f3d6f486e81c034",
+  "source_dirty": true,
+  "cases": [
+    {
+      "object": "green cube",
+      "destination": "green square",
+      "pass": true,
+      "checks": {
+        "complete_observation": true,
+        "all_phase_boundaries": true,
+        "live_prop_names_match_expected": true,
+        "spawn_prop_names_match_expected": true,
+        "spawn_positions_finite_and_unchanged": true,
+        "all_props_physically_reset_and_settled": true,
+        "scene_config_sha256_matches": true,
+        "prop_dimensions_match": true,
+        "cube_collider_geometry_matches": true,
+        "green_square_geometry_matches": true,
+        "scene_name_matches": true,
+        "scene_assets_sha256_matches": true,
+        "scene_content_sha256_matches": true,
+        "open_box_geometry_matches": true,
+        "ordered_phases": true,
+        "strict_pick_place_and_cameras": true,
+        "whole_cube_inside_green_square_throughout_settle": true,
+        "all_physics_tensors_cuda": true,
+        "single_supported_engine": true,
+        "gpu_backend_no_fallback": true,
+        "contact_sensor_and_actual_jaws_bound": true,
+        "two_jaw_contacts_during_real_lift": true,
+        "reset_settle_window": true,
+        "whole_footprint_enters_destination_with_bilateral_support": true,
+        "all_event_cameras_advance": true
+      },
+      "pick_metrics": {
+        "samples": 258,
+        "final_samples": 14,
+        "simulation_elapsed_s": 10.708333333323594,
+        "final_window_sim_s": 0.541666666666174,
+        "lift_m": 0.10546724125742911,
+        "xy_displacement_m": 0.2993737109999302,
+        "final_xy_error_m": 0.002343874394415072,
+        "max_final_xy_error_m": 0.002343874394415072,
+        "max_final_support_z_error_m": 0.0001079350227889686,
+        "max_final_linear_speed_m_s": 2.1155948073273841e-07,
+        "max_final_angular_speed_rad_s": 1.731097549749127e-06,
+        "max_final_position_spread_m": 0.0,
+        "max_final_tilt_deg": 3.6222548091772e-06,
+        "min_final_actual_open_fraction": 0.9999982863664882,
+        "max_frame_age_s": 1.2956544520056923,
+        "unique_jpeg_hashes": 129
+      },
+      "errors": []
+    },
+    {
+      "object": "orange",
+      "destination": "open box",
+      "pass": true,
+      "checks": {
+        "complete_observation": true,
+        "all_phase_boundaries": true,
+        "live_prop_names_match_expected": true,
+        "spawn_prop_names_match_expected": true,
+        "spawn_positions_finite_and_unchanged": true,
+        "all_props_physically_reset_and_settled": true,
+        "scene_config_sha256_matches": true,
+        "prop_dimensions_match": true,
+        "cube_collider_geometry_matches": true,
+        "green_square_geometry_matches": true,
+        "scene_name_matches": true,
+        "scene_assets_sha256_matches": true,
+        "scene_content_sha256_matches": true,
+        "open_box_geometry_matches": true,
+        "convex_body_identity": true,
+        "authored_convex_vertices_match": true,
+        "convex_topology_matches": true,
+        "convex_body_and_collider_enabled": true,
+        "convex_body_and_child_transforms_match": true,
+        "convex_tensor_mass_and_com_match": true,
+        "convex_tensor_inertia_valid": true,
+        "physx_support_live_identity": true,
+        "physx_support_source_matches": true,
+        "physx_support_solid_subset": true,
+        "physx_support_geometry_unchanged": true,
+        "ordered_phases": true,
+        "strict_pick_place_and_cameras": true,
+        "whole_convex_collider_inside_open_box_and_supported": true,
+        "all_physics_tensors_cuda": true,
+        "single_supported_engine": true,
+        "gpu_backend_no_fallback": true,
+        "contact_sensor_and_actual_jaws_bound": true,
+        "two_jaw_contacts_during_real_lift": true,
+        "reset_settle_window": true,
+        "whole_footprint_enters_destination_with_bilateral_support": true,
+        "all_event_cameras_advance": true
+      },
+      "pick_metrics": {
+        "samples": 266,
+        "final_samples": 14,
+        "simulation_elapsed_s": 11.041666666656624,
+        "final_window_sim_s": 0.541666666666174,
+        "lift_m": 0.1296648494899273,
+        "xy_displacement_m": 0.2776479817553575,
+        "final_xy_error_m": 0.005551001582046546,
+        "max_final_xy_error_m": 0.0055515574083745715,
+        "max_final_support_z_error_m": 0.00014850857874181,
+        "max_final_linear_speed_m_s": 0.0016046556124752333,
+        "max_final_angular_speed_rad_s": 0.06078297458901549,
+        "max_final_position_spread_m": 1.1056571862122926e-05,
+        "max_final_tilt_deg": 16.272481959794455,
+        "min_final_actual_open_fraction": 0.999999478459366,
+        "max_frame_age_s": 0.47338150999712525,
+        "unique_jpeg_hashes": 133
+      },
+      "errors": []
+    }
+  ],
+  "graspgenx_readiness": {
+    "ok": true,
+    "learned": true,
+    "health": {
+      "status": "ok",
+      "learned": true,
+      "device": "cuda:0",
+      "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+      "capability": [
+        12,
+        0
+      ],
+      "torch": "2.7.0+cu128",
+      "cuda": "12.8",
+      "architecture": "x86_64"
+    },
+    "metadata": {
+      "default_gripper": null,
+      "loaded_grippers": [
+        "sweep:f87384e076dd6c6b4c7ea3256880a39e6cca4065"
+      ],
+      "model": {
+        "generator_backbone": "ptv3vanilla",
+        "discriminator_backbone": "ptv3vanilla",
+        "grasp_repr": "r3_so3",
+        "num_diffusion_iters_eval": 20
+      },
+      "actions": [
+        "health",
+        "metadata",
+        "infer",
+        "infer_object",
+        "infer_scene_depth",
+        "infer_scene_pc"
+      ],
+      "precision": {
+        "weights": "fp32",
+        "tensorrt": false,
+        "tensorrt_precision": null
+      }
+    },
+    "diffusion_grasps": 100,
+    "score_max": 0.8850144743919373,
+    "wall_seconds": 0.735,
+    "timing": {
+      "infer_ms": 734.5405439991737
+    }
+  },
+  "video": {
+    "path": "runs/video-newton-graspgenx-02/cameras.mp4",
+    "scope": "Real cam0, side and proof frames with source timestamps; repeat frames marked in frames.jsonl",
+    "review_path": "benchmark/results/videos/newton_graspgenx_ready_20260930.mp4",
+    "replay_speed": 4,
+    "review_sha256": "176430fd869e2a817d17d004dcb25526fc89fca6fe3a2116e315ee8c1f19e26b",
+    "original_sha256": "7a2fd959d78dfda5402ba1ce210f7287bbfc407fcb90c5220dae4109e3359c37"
+  },
+  "source_files_sha256": {
+    "configs/demo.yaml": "06cba8688a3f52a092d7736d10077db1f27ab01105a1986f49a7f7fafbb0d9f9",
+    "configs/arms/isaac_kitchen_gpu.yaml": "3274e46b33305a6b0fb90a0a2417a754c9935e4a3662d7e06c0dacbef193b62c",
+    "src/cascade/grasping/graspgenx_backend.py": "f9575978c84ff6478b07cb981291719413c8a025780afb1ff0f337b2b25776fc",
+    "src/cascade/skills/runtime.py": "082848e25c4a5c972de986a9cd85214f08e8eb719e544f4873f380964b9ad4b9",
+    "scripts/isaac_bridge.py": "362f8cac7712ec72f7e9014e6a908c7fda89ee184ef2617db3d473bc685dfcef",
+    "scripts/launch.sh": "46bfb8379a5bdfd11a43961d17e5c5fa872a956f3183b9177659b8492690b02a"
+  }
+}

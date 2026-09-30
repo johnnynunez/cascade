@@ -165,6 +165,14 @@ def run_case(args, proof, case_dir, object_name):
             receipt["observer_errors"] = list(observer.errors)
     finally:
         if runtime is not None:
+            receipt["backends"] = runtime.backends()
+            planner = getattr(runtime, "_graspgenx", None)
+            receipt["graspgenx"] = {
+                "required": bool(cfg.grasp.graspgenx.get("required", False)),
+                "status": getattr(planner, "status", None),
+                "branch_counts": getattr(planner, "last_branch_counts", {}),
+                "last_latency_s": getattr(planner, "last_latency_s", None),
+            }
             shutdown_runtime(runtime, getattr(runtime, "arm", None))
         write_json(case_dir / "receipt.json", receipt)
     return receipt
@@ -207,6 +215,8 @@ def main(argv=None):
         sources = ("benchmark/diagnostics/kitchen_acceptance.py",
                    "scripts/isaac_bridge.py", "scripts/isaac_materials.py", "scripts/isaac_runtime.py",
                    "src/cascade/skills/runtime.py", "src/cascade/grasping/obb_grasp.py",
+                   "src/cascade/grasping/graspgenx_backend.py", "src/cascade/config.py",
+                   "src/cascade/apps/demo.py",
                    "src/cascade/perception/grounding.py", "src/cascade/perception/cuda_math.py",
                    "src/cascade/agent/effects.py", "src/cascade/sim/truth.py",
                    "demo/kitchen/physics/gpu_proof_audit.py", "demo/kitchen/physics/convex_geometry.py",

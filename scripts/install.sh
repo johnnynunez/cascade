@@ -60,6 +60,7 @@ log "CASCADE: Python 3.12 in $DIR/.venv; source changes are preserved"
 if [[ "$PROFILE" == spark ]]; then
     log "Isaac Sim 6.1.0: isaacsim[all,extscache]==6.1.0.0 in $DIR/.isaacsim (Python 3.12); explicit ISAACSIM_PATH is honored"
     log "YOLOE: CUDA aarch64 cu130 torch + torchvision, promptable/prompt-free weights + mobileclip_blt.ts"
+    log "GraspGen-X: pinned upstream model + CUDA 13 in private .graspgenx environment"
     log "Qwen Q4 + vision projector: pinned downloads in $DIR/models/qwen3.8-27b; verified CUDA llama.cpp in $DIR/.llama.cpp, loopback :8080"
     log 'Kitchen: fetch and verify the pinned Cocina Asier release and original prop sources.'
 fi
@@ -195,6 +196,7 @@ assert torchvision.__version__ == "0.29.0+cu130", torchvision.__version__
 assert torch.version.cuda == "13.0", torch.version.cuda
 assert torch.cuda.is_available(), "CUDA unavailable: repair the NVIDIA driver with administrator approval; no CPU fallback"
 print("[cascade-install] Detector CUDA wheel imports checked; no model inference or physics proof performed.")'
+    bash "$DIR/scripts/install_graspgenx.sh"
     bash "$DIR/scripts/install_isaac.sh" --dir "$DIR" --accept-eula
     "$PY" "$DIR/scripts/install_support.py" assets --repo "$DIR"
 else

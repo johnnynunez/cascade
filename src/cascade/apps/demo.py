@@ -523,11 +523,14 @@ def _probe_grasp_backend(runtime) -> None:
         planner.probe()
         runtime._graspgenx = planner
         runtime.grasp_planner_used = planner.describe()
-    except Exception as e:  # noqa: BLE001 -- booth rule, but LOUD
+    except Exception as e:  # noqa: BLE001 -- optional profiles may fall back, visibly
+        if bool(gcfg.graspgenx.get("required", False)):
+            raise RuntimeError(f"GraspGen-X required at startup: {e}") from e
         runtime._graspgenx_down = True
+        runtime._graspgenx_retry_after = time.monotonic() + 5.0
         runtime.grasp_planner_used = "obb (graspgenx down)"
         print(f"[cascade] WARNING: grasp.backend=graspgenx but no server answered "
-              f"({str(e)[:100]}); analytic OBB planner for this run", file=sys.stderr)
+              f"({str(e)[:100]}); analytic OBB fallback; will retry the server", file=sys.stderr)
 
 
 def _runtime_state(runtime) -> dict:

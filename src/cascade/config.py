@@ -14,6 +14,7 @@ dict-backed so new keys never require code changes here.
 from __future__ import annotations
 
 import copy
+import os
 from pathlib import Path
 from typing import Any
 
@@ -243,6 +244,16 @@ def load_demo_config(
             # just the manipulation camera.
             prof["mj_cameras"] = list(view_cams) if view_cams else [base.get("camera")]
     main["arms"] = arm_profiles
+
+    # Explicit launcher selection reaches every arm, including rig runtimes.
+    # "--graspgenx none" is an intentional analytic mode, never an implicit
+    # downgrade after a failed learned-model request.
+    backend = os.environ.get("CASCADE_GRASP_BACKEND")
+    if backend:
+        if backend not in {"obb", "graspgenx"}:
+            raise ValueError(f"invalid CASCADE_GRASP_BACKEND: {backend}")
+        for view in [main, *(prof["resolved"] for prof in arm_profiles)]:
+            view.setdefault("grasp", {})["backend"] = backend
 
     # Rendered sim cameras look INTO a MuJoCo arm's world; tell each which.
     # Only the primary arm can own the scene (a two-arm MuJoCo rig would need

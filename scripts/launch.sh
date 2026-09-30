@@ -72,7 +72,7 @@ ROBOT_TURN=1          # --no-robot-turn: skip the real pick_and_place proof (sim
 NO_JUDGE=0            # --no-judge: skip scoring the proof turn with eval.judge
 CHECK=0               # --check: preflight report only
 OCCUPANCY="auto"      # auto | nvblox | warp | voxel | none   (bridge backend, or skip)
-GRASPGENX="auto"      # auto | stub | external | none  (auto = stub in sim, external otherwise)
+GRASPGENX="auto"      # auto | local | stub | external | none (Spark auto = local CUDA model)
 OCC_PORT="${CASCADE_OCCUPANCY_PORT:-5557}"
 GGX_PORT="${CASCADE_GRASPGENX_PORT:-5556}"
 DRY=0
@@ -124,7 +124,7 @@ fi
 case "$BRAIN" in auto|keep|cosmos|cosmos-sglang|qwen) ;; *) printf 'unknown --brain %s\n' "$BRAIN" >&2; exit 2 ;; esac
 case "$SIM" in auto|isaac|mujoco|none) ;; *) printf 'unknown --sim %s\n' "$SIM" >&2; exit 2 ;; esac
 case "$OCCUPANCY" in auto|nvblox|warp|voxel|none) ;; *) printf 'unknown --occupancy %s\n' "$OCCUPANCY" >&2; exit 2 ;; esac
-case "$GRASPGENX" in auto|stub|external|none) ;; *) printf 'unknown --graspgenx %s\n' "$GRASPGENX" >&2; exit 2 ;; esac
+case "$GRASPGENX" in auto|local|stub|external|none) ;; *) printf 'unknown --graspgenx %s\n' "$GRASPGENX" >&2; exit 2 ;; esac
 case "$ISAAC_ENGINE" in ""|newton|physx) ;; *) printf 'unknown --engine %s (newton|physx)\n' "$ISAAC_ENGINE" >&2; exit 2 ;; esac
 if [[ -n "$ISAAC_ENGINE$SCENE_CONFIG" && "$SIM" != isaac && "$SIM" != auto ]]; then
     printf '[launch] ERROR: --engine and --scene-config apply only to Isaac Sim (--sim isaac)\n' >&2
@@ -147,10 +147,11 @@ if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark && $DOWN == 0 ]]; then
     ARM="${ARM:-isaac_kitchen_gpu}"
     [[ "$ARM" == isaac_kitchen_gpu ]] || { printf '[launch] ERROR: Spark event delivery requires --arm isaac_kitchen_gpu\n' >&2; exit 2; }
     CAMERAS="${CAMERAS:-isaac,isaac_side,isaac_proof}"
-    # Match the event booth's published OBB grasp path and disabled occupancy.
+    # Start the real learned planner; occupancy remains separately disabled.
     [[ "$OCCUPANCY" != auto ]] || OCCUPANCY=none
     [[ "$OCCUPANCY" == none ]] || { printf '[launch] ERROR: Spark event delivery requires --occupancy none\n' >&2; exit 2; }
-    [[ "$GRASPGENX" != auto ]] || GRASPGENX=none
+    [[ "$GRASPGENX" != auto ]] || GRASPGENX=local
+    [[ "$GRASPGENX" != stub ]] || { printf '[launch] ERROR: Spark requires real GraspGen-X; a protocol stub is not supported\n' >&2; exit 2; }
     export CASCADE_QWEN_BASE_URL=http://127.0.0.1:8080/v1
     export CASCADE_PROOF_CAMERA="${CASCADE_PROOF_CAMERA:-1}"
     export CASCADE_ISAAC_PIXEL_MASK="${CASCADE_ISAAC_PIXEL_MASK:-1}"
@@ -160,6 +161,9 @@ if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark && $DOWN == 0 ]]; then
 fi
 
 [[ "$OCCUPANCY" != none ]] || export CASCADE_OCCUPANCY=0
+[[ "$GRASPGENX" != none ]] || export CASCADE_GRASP_BACKEND=obb
+[[ "$GRASPGENX" != local && "$GRASPGENX" != external ]] || export CASCADE_GRASP_BACKEND=graspgenx
+export CASCADE_GRASPGENX_PORT="$GGX_PORT"
 
 log()  { printf '[launch] %s\n' "$*"; }
 warn() { printf '[launch] WARNING: %s\n' "$*" >&2; }
@@ -514,6 +518,10 @@ if [[ $CHECK == 1 ]]; then
         command -v nvidia-smi >/dev/null 2>&1 && ok "NVIDIA GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)" || bad "nvidia-smi (Isaac Sim needs an NVIDIA GPU)"
         [[ -n "${DISPLAY:-}" || "$(uname -s)" == "Darwin" || $ISAAC_GUI == 0 ]] && ok "display for the editor window (or --headless)" || bad "no DISPLAY: pass --headless or run from the desktop session"
     fi
+    if [[ "$GRASPGENX" == local ]]; then
+        if GGX_CHECK="$(bash "$REPO/scripts/install_graspgenx.sh" --check 2>&1)"; then ok "GraspGen-X: installed CUDA environment"
+        else bad "GraspGen-X: $GGX_CHECK"; fi
+    fi
     [[ -f "$DETECTOR_PT" ]] && ok "detector weights" || bad "detector weights $DETECTOR_PT"
     if BRAIN_CHECK="$("$PY" "$REPO/scripts/demo_proof.py" --check-brain "$BRAIN" 2>&1)"; then
         ok "brain: $BRAIN_CHECK"
@@ -695,16 +703,26 @@ case "$GRASPGENX" in
     auto) [[ "$SIM" == "none" ]] && GRASPGENX="external" || GRASPGENX="stub" ;;
 esac
 case "$GRASPGENX" in
+    local)
+        start_sidecar graspgenx "$GGX_PORT" 180 \
+            bash "$REPO/scripts/serve_graspgenx.sh" "" "$GGX_PORT" ;;
     stub)
         start_sidecar graspgenx_stub "$GGX_PORT" 30 \
             "$PY" "$REPO/scripts/serve_graspgenx_stub.py" --port "$GGX_PORT" --quiet
-        log "grasp planner: GraspGen-X PROTOCOL STUB on :$GGX_PORT (analytic grasps; the learned model needs a CUDA sidecar)" ;;
+        log "grasp planner: GraspGen-X PROTOCOL STUB (analytic protocol double)" ;;
     external)
-        if port_open "$GGX_PORT"; then log "grasp planner: GraspGen-X server answering on :$GGX_PORT"
-        else warn "no GraspGen-X server on :$GGX_PORT -- grasps will use the analytic OBB planner (the demo banner will say so). Start scripts/serve_graspgenx.sh on a CUDA box, or pass --graspgenx stub"; fi ;;
-    none) log "GraspGen-X skipped (--graspgenx none): analytic OBB planner" ;;
-    *) die "--graspgenx must be auto|stub|external|none" ;;
+        [[ $DRY == 1 ]] || port_open "$GGX_PORT" || die "no GraspGen-X server on :$GGX_PORT" ;;
+    none) log "GraspGen-X explicitly disabled (--graspgenx none): analytic OBB planner" ;;
+    *) die "--graspgenx must be auto|local|stub|external|none" ;;
 esac
+if [[ "$GRASPGENX" == local || "$GRASPGENX" == external ]]; then
+    if [[ $DRY == 0 ]]; then
+        "$PY" "$REPO/scripts/check_graspgenx.py" --port "$GGX_PORT" \
+            --output "$STATE_DIR/graspgenx-readiness.json" \
+            || die "GraspGen-X learned inference failed; see $STATE_DIR/graspgenx.log"
+    fi
+    log "grasp planner: GraspGen-X CUDA model; diffusion inference checked before robot startup"
+fi
 
 # ── 4. openclaw ─────────────────────────────────────────────────────────────
 if ! command -v openclaw >/dev/null 2>&1; then
@@ -799,7 +817,8 @@ env = {
 }
 if classes:
     env["CASCADE_DETECT_CLASSES"] = classes  # explicit operator vocabulary only
-for key in ("CASCADE_GRASP_MEMORY_PATH", "CASCADE_ENVELOPE_PATH", "CASCADE_BELIEFS_PATH", "CASCADE_BELIEFS"):
+for key in ("CASCADE_GRASP_MEMORY_PATH", "CASCADE_ENVELOPE_PATH", "CASCADE_BELIEFS_PATH", "CASCADE_BELIEFS",
+            "CASCADE_GRASP_BACKEND", "CASCADE_GRASPGENX_PORT", "CASCADE_GRASPGENX_HOST"):
     if key in os.environ:
         env[key] = os.environ[key]
 if sys.argv[11] == "none":

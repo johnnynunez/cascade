@@ -184,9 +184,8 @@ class SkillRuntime:
         #: retries even after every re-scan failed to see the object.
         self._last_reobserve_t: float | None = None
         self._graspgenx = None  # lazy GraspGenXPlanner (grasp.backend)
-        #: latched once the GraspGen-X server failed to answer: later grasps
-        #: go straight to the analytic planner instead of waiting out the
-        #: inference timeout each time
+        #: Optional profiles use a short retry cooldown after a server error.
+        #: Required profiles fail visibly and retry on the next command.
         self._graspgenx_down = False
         #: which grasp planner actually produced the last candidate list:
         #: "obb" | "graspgenx (learned 6-DoF)" | "graspgenx-stub (...)" |
@@ -986,8 +985,8 @@ class SkillRuntime:
 
     def _plan_grasps(self, fix, label: str | None = None) -> list:
         """Grasp candidates: learned 6-DoF (GraspGen-X server) when
-        configured, ALWAYS backstopped by the analytic OBB planner --
-        a dead grasp server must degrade, never fail the grasp.
+        configured. The Spark profile requires the real model; other profiles
+        can use an explicit, visible analytic fallback.
 
         Fake-RL layer: past-attempt memory re-ranks the candidates so grasp
         geometry that historically WORKED for this object profile goes first
@@ -1011,10 +1010,8 @@ class SkillRuntime:
         if str(gcfg.get("backend", "obb")) != "graspgenx":
             grasps = obb
             self.grasp_planner_used = "obb"
-        elif self._graspgenx_down:
-            # Probed dead at startup (or on a previous grasp): do not pay the
-            # inference timeout again on every grasp. `grasp_planner_used`
-            # says so out loud -- the dashboard/summary show it.
+        elif self._graspgenx_down and time.monotonic() < getattr(self, "_graspgenx_retry_after", 0.0) and not bool(gcfg.graspgenx.get("required", False)):
+            # Optional mode: bound repeated connection costs during outages.
             grasps = obb
             self.grasp_planner_used = "obb (graspgenx down)"
         else:
@@ -1023,19 +1020,29 @@ class SkillRuntime:
                     from ..grasping.graspgenx_backend import GraspGenXPlanner
 
                     self._graspgenx = GraspGenXPlanner(gcfg)
-                    self._graspgenx.probe()   # 300 ms, raises if nothing answers
+                if self._graspgenx.status is None or self._graspgenx_down:
+                    self._graspgenx.probe()
                 learned = self._graspgenx.plan(fix, max_width_m=self._max_width)
+                if not learned:
+                    raise RuntimeError("GraspGen-X returned no usable candidates")
                 self.memory.add(
                     "note",
                     f"graspgenx: {len(learned)} grasps in {self._graspgenx.last_latency_s}s "
                     f"(top {learned[0].quality:.2f})",
                 )
-                grasps = learned + obb  # learned first; OBB stays as IK fallback
+                self._graspgenx_down = False
+                grasps = learned if bool(gcfg.graspgenx.get("required", False)) else learned + obb
                 self.grasp_planner_used = self._graspgenx.describe()
             except Exception as e:
-                self.memory.add("note", f"graspgenx unavailable ({str(e)[:90]}); OBB fallback")
-                logger.warning("graspgenx unavailable (%s); analytic OBB planner from here on", str(e)[:160])
                 self._graspgenx_down = True
+                self._graspgenx_retry_after = time.monotonic() + 5.0
+                if self._graspgenx is not None:
+                    self._graspgenx.status = None
+                if bool(gcfg.graspgenx.get("required", False)):
+                    self.grasp_planner_used = "graspgenx (unavailable)"
+                    raise SkillError(f"GraspGen-X required but unavailable: {e}") from e
+                self.memory.add("note", f"graspgenx unavailable ({str(e)[:90]}); OBB fallback")
+                logger.warning("graspgenx unavailable (%s); analytic fallback; retry after 5s", str(e)[:160])
                 grasps = obb
                 self.grasp_planner_used = "obb (graspgenx down)"
 
@@ -1674,6 +1681,22 @@ class SkillRuntime:
                 )
                 if reason:
                     return f"descent unsafe: {reason}"
+            if bool(gcfg.get("pre_carry_lift", False)) and gcfg.get("carry_height_m") is not None:
+                # A learned tilted grasp can solve at pickup height yet have
+                # no IK at the carry height. Reject it before closing on the
+                # object, while another model candidate can still be chosen.
+                pose = self.kin.fk(q_pre).copy()
+                height = float(gcfg.get("carry_height_m"))
+                if pose[2, 3] < height:
+                    pose[2, 3] = height
+                    lifted = self.kin.ik(pose, q_pre)
+                    if (not lifted.success
+                            or np.max(np.abs(lifted.q - q_pre)) > np.pi):
+                        return "grasp cannot reach the configured carry height"
+                    for fraction in (.15, .3, .45, .6, .75, .9, 1.):
+                        reason = harness.vet_pose(q_pre + fraction * (lifted.q - q_pre))
+                        if reason:
+                            return f"grasp carry lift unsafe: {reason}"
             return None
 
         state = self.arm.get_state()

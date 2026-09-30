@@ -82,7 +82,7 @@ def test_spark_default_passes_brev_engine_profile_and_cuda_to_bridge(tmp_path, a
     assert result.returncode == 0, result.stdout + result.stderr
     selected, child = map(json.loads, result.stdout.splitlines())
     assert selected == {
-        "selection": ["isaac_kitchen_gpu", "isaac,isaac_side,isaac_proof", "qwen", "none", "none",
+        "selection": ["isaac_kitchen_gpu", "isaac,isaac_side,isaac_proof", "qwen", "none", "local",
                       str(repo / "demo/scene/kitchen_config.json")],
         "occupancy": "0",
     }

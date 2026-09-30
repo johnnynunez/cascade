@@ -219,6 +219,7 @@ def main(argv=None):
                    "src/cascade/apps/demo.py",
                    "src/cascade/perception/grounding.py", "src/cascade/perception/cuda_math.py",
                    "src/cascade/agent/effects.py", "src/cascade/sim/truth.py",
+                   "src/cascade/sim/placement.py", "demo/kitchen/physics/placement_verdict.py",
                    "demo/kitchen/physics/gpu_proof_audit.py", "demo/kitchen/physics/convex_geometry.py",
                    "demo/kitchen/physics/destination_entry.py", "demo/kitchen/physics/spark_proof.py",
                    "assets/newton/rebot_gripper_hulls.usda",

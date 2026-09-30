@@ -294,9 +294,28 @@ contents. It checks these facts while the demo is running:
 proof. `STARTED (UNVERIFIED: robot proof skipped)` is not an accepted result.
 An old receipt or an English success message is not proof.
 
-OpenClaw may report "Placement unverified" when a tool checks only the
-object's center. Inspect the placement and the physical audit before
-calling the result successful.
+At the pinned 30 September source
+`9cf540279f09df8197eda6541311b41edb455243`, OpenClaw reported
+"Placement unverified" because the tool checked only the object's center.
+The separate physical audit established containment, release and support.
+Keep that historical tool result distinct from the READY receipt.
+
+### Development follow-up, 1 October 2026
+
+A separate direct-runtime campaign on the real Spark completed all five
+kitchen objects with **5/5 `confirmed` placement verdicts** and passing
+external physical audits and resets. See the
+[placement-verdict receipt](../benchmark/results/spark_placement_verdict_20261001.json)
+and [delivery scope](SPARK_DELIVERY.md#development-placement-verdict-1-october-2026).
+This is evidence for the new single-arm kitchen verifier: fresh physics checks
+the final object's full containment, release, support and settling in the
+configured green square or open box. Its verdict does not establish lift,
+transport, camera evidence or reset. Unavailable evidence stays `unverified`.
+
+This follow-up used direct runtime calls; it does not establish a new native
+chat/UI acceptance, full READY launch or deployment of the final source.
+The clean installed pin and all installation commands in this guide remain
+unchanged.
 
 ## Ports and coexistence
 

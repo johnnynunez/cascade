@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "date_local": "2026-10-01",
+  "timezone": "Europe/Madrid",
+  "scope": "Captured post-tool outcome reporting replay:10 records from5 dependent episodes, agent-authored report-and-stop requests; no robot actions; not a holdout or full-planner benchmark.",
+  "review": "Independent root agent reviewed all10 expected outcomes before inference; candidate home corrected to actual move_home before freezing. No human review claimed.",
+  "frozen_fixture": {
+    "path": "benchmark/diagnostics/fixtures/cascade_captured_outcomes_v1.json",
+    "sha256": "e73e6e42ede215f1d95723510c07218eb55f8b850a6782d0cae553c7b341d4cc",
+    "model_inference_revision": "e41f99e351567b9e70f3ae0c17dca605bd42952f"
+  },
+  "code": {
+    "model_adapter_revision": "e41f99e351567b9e70f3ae0c17dca605bd42952f",
+    "rules_baseline_revision": "3fb813b234a6e8f1bd4b6ed50fe95cdacbc757d3",
+    "rules_added_after_model_run": true,
+    "note": "Rules baseline uses captured statuses and independent reset flags; no expected labels. It was added after observing both models correct, so is an explicitly post-hoc reporting baseline, not a preregistered hypothesis."
+  },
+  "models": {
+    "kev4": {
+      "model_id": "kev-latest",
+      "checkpoint": "jaredpalmer/kev-4b",
+      "checkpoint_revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+      "source_revision": "67117d85a99989787db22224a98784db9a6f2794",
+      "base": "Qwen/Qwen3.5-4B-Base",
+      "precision": "bfloat16",
+      "torch": "2.14.1+cu132",
+      "transformers": "5.18.0",
+      "cuda_graphs": false,
+      "gpu": 0,
+      "command": "CUDA_VISIBLE_DEVICES=0 KEV_CUDA_GRAPHS=0 HF_HUB_OFFLINE=1 jev-venv/bin/python -m kev.serve --run jaredpalmer/kev-4b@139fdd94f1b6a6ad80cc15e08fcb99cac885a101 --port 28009",
+      "stopped_after_run": true
+    },
+    "qwen": {
+      "model_id": "Qwen/Qwen3.8-27B",
+      "weights": "Qwen3.8-27B-UD-Q4_K_XL.gguf",
+      "weights_sha256": "bee238bbeb3dc0a34bde4d0dedbaee1f98c009e8bb4226f03070054c12fb1372",
+      "llama_cpp_source_revision": "4695f001fece1660d8bb1b3748f50726ddcc100b",
+      "llama_server_binary_sha256": "c9d4fe587370a3db425447722e9b015b388d07d892079b4408390a68b915a29d",
+      "server_models_endpoint_id_verified": "Qwen/Qwen3.8-27B",
+      "client": "cascade.agent.llm.OpenAICompatClient",
+      "openai_package": "3.19.2",
+      "temperature": 0,
+      "max_tokens": 256,
+      "transport_retries": 0,
+      "server_options": {
+        "ctx_size": 65536,
+        "n_gpu_layers": 999,
+        "flash_attn": "on",
+        "parallel": 1,
+        "jinja": true,
+        "reasoning": "off",
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
+      },
+      "image_input": false,
+      "server_reused_and_left_running": true
+    }
+  },
+  "artifacts": {
+    "kev4b_captured_outcomes_20261001.json": {
+      "sha256": "f494f9b0d7d85b455dc0a64aad0a576dfc4df1d403caf11719fdd236cf22fa39",
+      "summary": {
+        "cases": 10,
+        "request_errors": 0,
+        "correct_choices": 10,
+        "completion_correct": 10,
+        "motion_choices": 0,
+        "false_success_reports": 0,
+        "median_latency_ms": 116.73318949760869,
+        "p95_latency_ms": 806.5569289534315
+      },
+      "first_request_ms": 1162.8188460017554,
+      "remaining_n": 9,
+      "remaining_median_ms": 99.29390099568991,
+      "remaining_p95_ms": 290.4309014018508,
+      "source_revision": "e41f99e351567b9e70f3ae0c17dca605bd42952f"
+    },
+    "qwen27b_captured_outcomes_20261001.json": {
+      "sha256": "14df9272867b1f3f7b1bc9d11656dd73aa3bd229f7cfa9abbc8dabe68e784da5",
+      "summary": {
+        "cases": 10,
+        "request_errors": 0,
+        "correct_choices": 10,
+        "completion_correct": 10,
+        "motion_choices": 0,
+        "false_success_reports": 0,
+        "median_latency_ms": 1370.024186999217,
+        "p95_latency_ms": 1662.5315984987537
+      },
+      "first_request_ms": 1663.6179929992068,
+      "remaining_n": 9,
+      "remaining_median_ms": 1301.7661920021055,
+      "remaining_p95_ms": 1656.2065794001683,
+      "source_revision": "e41f99e351567b9e70f3ae0c17dca605bd42952f"
+    },
+    "rules_captured_outcomes_20261001.json": {
+      "sha256": "4f9c62a9eb7bac34525b042502d2f58e01be153a4238c89ac8cc7a2ee8b337f6",
+      "summary": {
+        "cases": 10,
+        "request_errors": 0,
+        "correct_choices": 10,
+        "completion_correct": 10,
+        "motion_choices": 0,
+        "false_success_reports": 0,
+        "median_latency_ms": 0.0038760008465033025,
+        "p95_latency_ms": 0.012910696750623164
+      },
+      "first_request_ms": 0.007941998774185777,
+      "remaining_n": 9,
+      "remaining_median_ms": 0.003374996595084667,
+      "remaining_p95_ms": 0.013037996541243043,
+      "source_revision": "3fb813b234a6e8f1bd4b6ed50fe95cdacbc757d3"
+    }
+  },
+  "paired_inputs_verified": true,
+  "latency_scope": {
+    "gpu": "RTX PRO 6000 Blackwell",
+    "gpu_exclusive": false,
+    "other_work": "Existing Qwen and Isaac services active; isolated nvblox Isaac startup overlapped part of Kev window. No simultaneous robot motion initiated by this replay.",
+    "first_request": "First request of each replay separately reported; Kev weights loaded before the request and prior compiled kernels may be cached. Qwen server was already warm. Not fresh-install cold-start measurements.",
+    "remaining_requests": "Nine subsequent distinct cases; no exact-fixture repeat. Small unequal state lengths, no randomized crossover or isolated serving comparison.",
+    "rules": "CPU branch selection only; includes neither sensor/geometry computation nor report I/O. Model timings include HTTP serving. No speedup or full-demo latency claim."
+  },
+  "conclusions": {
+    "class_counts": {
+      "success": 3,
+      "unverified": 2,
+      "failed": 5
+    },
+    "always_failed_accuracy": 0.5,
+    "always_incomplete_accuracy": 0.7,
+    "both_models_and_rules_correct": 10,
+    "official_jev_tested": false,
+    "kev27_rerun": false,
+    "quality_advantage_over_rules_established": false,
+    "runtime_changed": false,
+    "next": "Keep post-tool reporting deterministic. Future decision-model study should use actual fast-path misses with ambiguous but independently reviewed prepared actions, human review, and held-out evaluation."
+  }
+}

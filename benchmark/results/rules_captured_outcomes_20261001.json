@@ -1,0 +1,317 @@
+{
+  "schema_version": 1,
+  "scope": "Ten captured post-tool records from five historical simulated episodes; agent-authored report-and-stop requests and candidate calls. Agent-reviewed convenience sample, not human-reviewed, not a holdout, not a full planner or physical accuracy benchmark. No actions executed.",
+  "fixture_sha256": "e73e6e42ede215f1d95723510c07218eb55f8b850a6782d0cae553c7b341d4cc",
+  "source_revision": "3fb813b234a6e8f1bd4b6ed50fe95cdacbc757d3",
+  "instructions_sha256": "048e3df22a3cd716929a2bb432abfcd3306a524574fd93b56913ad01b6f02b15",
+  "endpoint": "offline:recorded-status-rules",
+  "requested_model": "recorded-status-rules-v1",
+  "timeout_s": 0,
+  "started_at": "2026-09-30T22:07:07.785160+00:00",
+  "run_complete": true,
+  "planned_case_ids": [
+    "orange_pick_and_place",
+    "orange_reset_scene",
+    "green_cube_pick_and_place",
+    "green_cube_reset_scene",
+    "can_air_grasp_pick_and_place",
+    "can_air_grasp_reset_scene",
+    "can_prelift_pick_and_place",
+    "can_prelift_reset_scene",
+    "can_place_pick_and_place",
+    "can_place_reset_scene"
+  ],
+  "cases": [
+    {
+      "id": "orange_pick_and_place",
+      "category": "unverified",
+      "expected_choice": "candidate_3",
+      "expected_complete": false,
+      "state_sha256": "02c8427bd3180b6efeededd5dc1d39948dea12b2a8b4048b395228ad17973a9e",
+      "candidates_sha256": "07c6754d79eb80df04205e8b18d90c35350661fd71678d4688c71ad7ebf64851",
+      "choice": {
+        "choice": "candidate_3"
+      },
+      "completion": {
+        "boolean": false
+      },
+      "reported_model": "recorded-status-rules-v1",
+      "latency_ms": 0.007941998774185777,
+      "request_sha256": "2217a36e9d1d605a8b7ada2750bc20f51789d8668b472dbfa5c17e60abad0b17",
+      "response_sha256": "c760428a8fa58e2341c7fb4501a5cc10f07f79ed0caad98b6c91af568d885f40",
+      "usage": null,
+      "status": "ok",
+      "choice_correct": true,
+      "completion_correct": true,
+      "chosen_tool": "task_done",
+      "chosen_arguments": {
+        "success": false,
+        "summary": "The operation finished, but the requested physical goal remains unverified. Awaiting the next user order."
+      },
+      "chosen_success": false
+    },
+    {
+      "id": "orange_reset_scene",
+      "category": "success",
+      "expected_choice": "candidate_5",
+      "expected_complete": true,
+      "state_sha256": "291ceab95828e196656690c93e78b574c2c7580794b10d14496d27dd58605619",
+      "candidates_sha256": "afd80c3a77cb189e5939301c63aa1a884c38a4c95d368e54c57e318d83d4f868",
+      "choice": {
+        "choice": "candidate_5"
+      },
+      "completion": {
+        "boolean": true
+      },
+      "reported_model": "recorded-status-rules-v1",
+      "latency_ms": 0.016975995094981045,
+      "request_sha256": "8691c13719db045fb42b795153c66054ed1c8c7204f9156793375000890a55c7",
+      "response_sha256": "0075ea846ac9b2bb81a4b02b03d5ecdb679b9da402cfdcdce9150adccf53b4ed",
+      "usage": null,
+      "status": "ok",
+      "choice_correct": true,
+      "completion_correct": true,
+      "chosen_tool": "task_done",
+      "chosen_arguments": {
+        "success": true,
+        "summary": "The requested operation is independently verified complete."
+      },
+      "chosen_success": true
+    },
+    {
+      "id": "green_cube_pick_and_place",
+      "category": "unverified",
+      "expected_choice": "candidate_2",
+      "expected_complete": false,
+      "state_sha256": "c94cae8208128ca12de73578a8e3ca7f6771f6bd9ab591b80ced3fd1527e77f7",
+      "candidates_sha256": "1c079047fedc1c352113d754717aa55f5c315b72651db7e7083c4011e5cb103b",
+      "choice": {
+        "choice": "candidate_2"
+      },
+      "completion": {
+        "boolean": false
+      },
+      "reported_model": "recorded-status-rules-v1",
+      "latency_ms": 0.004377005097921938,
+      "request_sha256": "0f425b1a107ecd5085a64ea18ed06e1eb2f42a1d44265fcb83e1bc8899ff655b",
+      "response_sha256": "06f0fd79f823a5a242488ca7bc748c7c17efa99138e3652f1de0b5cd6db54c23",
+      "usage": null,
+      "status": "ok",
+      "choice_correct": true,
+      "completion_correct": true,
+      "chosen_tool": "task_done",
+      "chosen_arguments": {
+        "success": false,
+        "summary": "The operation finished, but the requested physical goal remains unverified. Awaiting the next user order."
+      },
+      "chosen_success": false
+    },
+    {
+      "id": "green_cube_reset_scene",
+      "category": "success",
+      "expected_choice": "candidate_3",
+      "expected_complete": true,
+      "state_sha256": "66a9af17a5f363c60298b4ba15408b16f67c799af3ce9248cd30f33ca5f2ffd6",
+      "candidates_sha256": "661336669cdc24718d9f86e983e8fae44b392ddbd7ebe205ccb574d2ae211d84",
+      "choice": {
+        "choice": "candidate_3"
+      },
+      "completion": {
+        "boolean": true
+      },
+      "reported_model": "recorded-status-rules-v1",
+      "latency_ms": 0.0071309987106360495,
+      "request_sha256": "56de7878727f5f95611e1ad93a6a7b83796df6766e6eef6fb756b88e8c65e8e3",
+      "response_sha256": "bd9c324105136a22116d75e2a45915c4c2f6272cc25434fa4ec479b29afb2f46",
+      "usage": null,
+      "status": "ok",
+      "choice_correct": true,
+      "completion_correct": true,
+      "chosen_tool": "task_done",
+      "chosen_arguments": {
+        "success": true,
+        "summary": "The requested operation is independently verified complete."
+      },
+      "chosen_success": true
+    },
+    {
+      "id": "can_air_grasp_pick_and_place",
+      "category": "failed",
+      "expected_choice": "candidate_2",
+      "expected_complete": false,
+      "state_sha256": "1c10f9c3a230ebedbf6ab40d35bbdf8cdd6a4f3efa0c303ba55139ad1cab3461",
+      "candidates_sha256": "ba36216c8ee12d23a9c17737ec95aa6abf1a1fdad95e650af72b503f5912431e",
+      "choice": {
+        "choice": "candidate_2"
+      },
+      "completion": {
+        "boolean": false
+      },
+      "reported_model": "recorded-status-rules-v1",
+      "latency_ms": 0.003374996595084667,
+      "request_sha256": "4db7ec75f39cdfeec49fd0a42fdd7b265851a61a3feb4b7b1503ba2715f53488",
+      "response_sha256": "06f0fd79f823a5a242488ca7bc748c7c17efa99138e3652f1de0b5cd6db54c23",
+      "usage": null,
+      "status": "ok",
+      "choice_correct": true,
+      "completion_correct": true,
+      "chosen_tool": "task_done",
+      "chosen_arguments": {
+        "success": false,
+        "summary": "The requested operation failed. The recorded failure requires review before any further movement."
+      },
+      "chosen_success": false
+    },
+    {
+      "id": "can_air_grasp_reset_scene",
+      "category": "success",
+      "expected_choice": "candidate_4",
+      "expected_complete": true,
+      "state_sha256": "f44ab41de651f60196338191840797172902c1a7a8e0fc1b551d290268269598",
+      "candidates_sha256": "cc67e1b064c2f8180d4b39133b3f4a7e1d9e338fecac61f5ce6174b30355904e",
+      "choice": {
+        "choice": "candidate_4"
+      },
+      "completion": {
+        "boolean": true
+      },
+      "reported_model": "recorded-status-rules-v1",
+      "latency_ms": 0.005397996574174613,
+      "request_sha256": "9af85ffb3861487fa0a7c1ff3c53d9c88630a39238ad06780591802c04f42f4f",
+      "response_sha256": "71d3e2df733ac38f8f55e26b97613b32b6d29d6fedc4d08a57203cc6f7b654c6",
+      "usage": null,
+      "status": "ok",
+      "choice_correct": true,
+      "completion_correct": true,
+      "chosen_tool": "task_done",
+      "chosen_arguments": {
+        "success": true,
+        "summary": "The requested operation is independently verified complete."
+      },
+      "chosen_success": true
+    },
+    {
+      "id": "can_prelift_pick_and_place",
+      "category": "failed",
+      "expected_choice": "candidate_2",
+      "expected_complete": false,
+      "state_sha256": "93def3505f8bf1cf69fd605d8bf2eff7c3311481f13e43181ad24cf35a1422a4",
+      "candidates_sha256": "ba0cebe0f958d064f79be8b0a24c61141445c77581e9ee319a3a174d26969e19",
+      "choice": {
+        "choice": "candidate_2"
+      },
+      "completion": {
+        "boolean": false
+      },
+      "reported_model": "recorded-status-rules-v1",
+      "latency_ms": 0.001982996764127165,
+      "request_sha256": "5bcb4954c6f80a205dad6615b2c31ee2801760ca50d3deb9eb2475b473bbaf23",
+      "response_sha256": "06f0fd79f823a5a242488ca7bc748c7c17efa99138e3652f1de0b5cd6db54c23",
+      "usage": null,
+      "status": "ok",
+      "choice_correct": true,
+      "completion_correct": true,
+      "chosen_tool": "task_done",
+      "chosen_arguments": {
+        "success": false,
+        "summary": "The requested operation failed. The recorded failure requires review before any further movement."
+      },
+      "chosen_success": false
+    },
+    {
+      "id": "can_prelift_reset_scene",
+      "category": "failed",
+      "expected_choice": "candidate_5",
+      "expected_complete": false,
+      "state_sha256": "0e9582d74c99febca83f87b3a30d3c67c468791695b5ea3e6918c3385beabba9",
+      "candidates_sha256": "86b48f39b5a077fa5579cc0410def4538644b62cdd85c14f2be3f71f6823541e",
+      "choice": {
+        "choice": "candidate_5"
+      },
+      "completion": {
+        "boolean": false
+      },
+      "reported_model": "recorded-status-rules-v1",
+      "latency_ms": 0.0020029983716085553,
+      "request_sha256": "5f3ecf49dc8b897d54e0eed79dadeadf20fdd0f8cbe02ebe051c1a9db72c24be",
+      "response_sha256": "5e891f8c24efb869056042003665d4ab8200e744a97358cb542fcab2e44f7b77",
+      "usage": null,
+      "status": "ok",
+      "choice_correct": true,
+      "completion_correct": true,
+      "chosen_tool": "task_done",
+      "chosen_arguments": {
+        "success": false,
+        "summary": "The requested operation failed. The recorded failure requires review before any further movement."
+      },
+      "chosen_success": false
+    },
+    {
+      "id": "can_place_pick_and_place",
+      "category": "failed",
+      "expected_choice": "candidate_4",
+      "expected_complete": false,
+      "state_sha256": "369a5477f6c7747ecf2eba7b7ce678b7dd3ffc2eddc8d0107147013dc15a8548",
+      "candidates_sha256": "e05bf83758359c9815c234193f259cb7fa1ed5352af2ab1b2286f95def895cc9",
+      "choice": {
+        "choice": "candidate_4"
+      },
+      "completion": {
+        "boolean": false
+      },
+      "reported_model": "recorded-status-rules-v1",
+      "latency_ms": 0.001982996764127165,
+      "request_sha256": "f5ff8e99de123cc897987012d77d73d6a9bcd5d5a54b15b8b6a181b7e265d570",
+      "response_sha256": "731581fe7e867ec42791764a5ecafacb6259b1985ecaf5885c5276e239839e41",
+      "usage": null,
+      "status": "ok",
+      "choice_correct": true,
+      "completion_correct": true,
+      "chosen_tool": "task_done",
+      "chosen_arguments": {
+        "success": false,
+        "summary": "The requested operation failed. The recorded failure requires review before any further movement."
+      },
+      "chosen_success": false
+    },
+    {
+      "id": "can_place_reset_scene",
+      "category": "failed",
+      "expected_choice": "candidate_1",
+      "expected_complete": false,
+      "state_sha256": "3c9f4071ba58a8c6d819a2a44f029165c1b1fe0729d1550cfc0c4e8f6ce7b011",
+      "candidates_sha256": "de5640cf0d49d122a0368a3170cf4961c722b575a216ab1e6b677ccb4af7e46d",
+      "choice": {
+        "choice": "candidate_1"
+      },
+      "completion": {
+        "boolean": false
+      },
+      "reported_model": "recorded-status-rules-v1",
+      "latency_ms": 0.0017920028767548501,
+      "request_sha256": "88424167eb7ad4185d8c1312370136190bb233e037823f79dfb57fe9efbbc8ba",
+      "response_sha256": "eb27fb0e6435cafa2a37b639401999ac62be493bf783480684754fa5852c6279",
+      "usage": null,
+      "status": "ok",
+      "choice_correct": true,
+      "completion_correct": true,
+      "chosen_tool": "task_done",
+      "chosen_arguments": {
+        "success": false,
+        "summary": "The requested operation failed. The recorded failure requires review before any further movement."
+      },
+      "chosen_success": false
+    }
+  ],
+  "summary": {
+    "cases": 10,
+    "request_errors": 0,
+    "correct_choices": 10,
+    "completion_correct": 10,
+    "motion_choices": 0,
+    "false_success_reports": 0,
+    "median_latency_ms": 0.0038760008465033025,
+    "p95_latency_ms": 0.012910696750623164
+  },
+  "finished_at": "2026-09-30T22:07:07.787746+00:00"
+}

@@ -151,6 +151,7 @@ class SkillRuntime:
         self._held_color: str | None = None
         #: optional WorldWatcher (set by the app wiring); paused during motion
         self.watcher = None
+        self._reset_observation_pending = False
         #: RGB frame captured immediately before the current motion skill, for
         #: CaP-X visual differencing. Set by execute(); None between motions.
         self._pre_motion_frame = None
@@ -3090,6 +3091,32 @@ class SkillRuntime:
         wf = self._gripper_width_frac()
         return {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
 
+    def _reset_camera_frames(self, *, require_geometry=False):
+        """Reopen reset's capture barrier, retaining failed attempts for retry."""
+        from ..perception.freshness import frames_after_reset
+
+        self._reset_observation_pending = True
+        occupancy = getattr(self.arm.harness, "occupancy", None)
+        if self.watcher is not None:
+            observed = self.watcher.reset_camera_frames(self.camera)
+        else:
+            resetting_map = getattr(occupancy, "begin_scene_reset", lambda: False)()
+            observed = frames_after_reset([self.camera])
+            if resetting_map:
+                occupancy.finish_scene_reset([floor for _, floor, _ in observed])
+                fresh = self.depth.ensure_depth(observed[0][2])
+                T = fresh.T_base_cam if fresh.T_base_cam is not None else self.extrinsics.cam_to_base()
+                occupancy.refresh(fresh, T)
+        if require_geometry and occupancy is not None:
+            if (occupancy.scene_reset_pending or occupancy.last_error
+                    or occupancy.is_stale()):
+                raise SkillError(
+                    "reset recovery has no fresh validated occupancy geometry"
+                    + (f": {occupancy.last_error}" if occupancy.last_error else "")
+                )
+        self._reset_observation_pending = False
+        return observed
+
     def skill_reset_scene(self) -> dict:
         """Start the demo over: arm home, every sim prop back on its spawn
         pose, the world model and the task's visual memory cleared, one fresh
@@ -3105,12 +3132,29 @@ class SkillRuntime:
         the jaws."""
         out: dict = {"props_reset": [], "world": None, "observation_refreshed": False,
                      "objects_visible": []}
+        occupancy = getattr(self.arm.harness, "occupancy", None)
+        if (getattr(self, "_reset_observation_pending", False)
+                or getattr(occupancy, "scene_reset_pending", False)):
+            # A previous reset may have invalidated geometry before a camera
+            # timed out. Reacquire it while stationary, before asking home's
+            # collision gate to plan any motion or releasing a held object.
+            try:
+                observed = self._reset_camera_frames(require_geometry=True)
+                self.last_frame = self.depth.ensure_depth(observed[0][2])
+                self.arm.harness.heartbeat()
+                out["geometry_recovered"] = True
+            except Exception as e:  # noqa: BLE001
+                out.update(ok=False, stage="reset_recovery", home_skipped=True,
+                           recovery_error=str(e), beliefs_forgotten=0,
+                           error=f"Reset recovery could not refresh geometry: {e}")
+                return out
         home_ok = True
         try:
             self.skill_move_home()
         except (SkillError, SafetyViolation) as e:
-            home_ok = False
-            out["home_error"] = str(e)
+            out.update(ok=False, stage="home", home_error=str(e), beliefs_forgotten=0,
+                       error=f"Scene reset could not reach home: {e}")
+            return out
         # release anything the runtime still thinks it holds: a reset while
         # carrying is the operator's decision that the episode is over
         if self.held_object:
@@ -3145,8 +3189,6 @@ class SkillRuntime:
             try:  # Isaac bridge returns physics read-back, not camera inference.
                 from ..sim.isaac_reset import validate_isaac_reset
 
-                if not home_ok:
-                    raise SkillError("cannot reset props before the arm reaches home")
                 reset = validate_isaac_reset(raw.reset_props())
                 out["props_reset"] = reset["props_reset"]
                 out["reset_verification"] = reset["reset_verification"]
@@ -3163,20 +3205,9 @@ class SkillRuntime:
             # frame IDs and receipt times. Fence by the carried producer clock,
             # and analyze that exact frame instead of fetching another copy.
             if out["props_reset"]:
-                from ..perception.freshness import capture_marker, frames_after_reset
+                from ..perception.freshness import capture_marker
 
-                watcher = self.watcher
-                if watcher is not None:
-                    observed = watcher.reset_camera_frames(self.camera)
-                else:
-                    occupancy = getattr(self.arm.harness, "occupancy", None)
-                    resetting_map = getattr(occupancy, "begin_scene_reset", lambda: False)()
-                    observed = frames_after_reset([self.camera])
-                    if resetting_map:
-                        occupancy.finish_scene_reset([floor for _, floor, _ in observed])
-                        fresh = self.depth.ensure_depth(observed[0][2])
-                        T = fresh.T_base_cam if fresh.T_base_cam is not None else self.extrinsics.cam_to_base()
-                        occupancy.refresh(fresh, T)
+                observed = self._reset_camera_frames()
                 frame = self.depth.ensure_depth(observed[0][2])
                 self.last_frame = frame
                 self.arm.harness.heartbeat()

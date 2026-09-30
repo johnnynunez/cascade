@@ -21,7 +21,10 @@ centres) still ride along for consumers that want a cloud.
 
 `refresh()` ships the DEPTH FRAME + K + T_base_cam (`integrate_depth`) so
 the backend can ray-cast: that is what lets a removed object disappear from
-the map (carving). It runs off the motion hot path (WorldWatcher._tick, at
+the map (carving). Negotiated nvblox `integrate_masked_depth` keeps measured
+robot/payload rays with an inactive surface mask: front free space survives,
+while the excluded surface and space behind it receive no observations.
+Other backends receive zero depth for excluded pixels. It runs off the motion hot path (WorldWatcher._tick, at
 the perception rate); SafetyHarness.approve() at 50 Hz only ever reads the
 cache. Past `max_age_s` the cache is treated as absent (skip the check),
 the same fallback shape as the perception watchdog.
@@ -53,6 +56,10 @@ logger = logging.getLogger(__name__)
 
 class OccupancyError(RuntimeError):
     pass
+
+
+class _MaskedDepthError(OccupancyError):
+    """A negotiated native-mask operation must never downgrade to an old wire."""
 
 
 class OccupancyClient:
@@ -197,6 +204,12 @@ class OccupancyMap:
     @staticmethod
     def _capture_key(marker):
         return (tuple(marker["source"]), marker["camera"], marker["robot_id"], marker["clock"])
+
+    @property
+    def scene_reset_pending(self) -> bool:
+        """A reset still needs its capture barrier or valid captured geometry."""
+        with self._refresh_lock:
+            return self._reset_pending or bool(self._reset_floors and self._body_error)
 
     def begin_scene_reset(self):
         """Invalidate attached geometry/history before draining pre-reset captures."""
@@ -430,7 +443,7 @@ class OccupancyMap:
                     try:
                         self._integrate_depth(frame, T_base_cam)
                     except OccupancyError as e:
-                        if self._payload_pose_fn is not None:
+                        if self._payload_pose_fn is not None or isinstance(e, _MaskedDepthError):
                             raise  # payload transitions require the depth + clear contract
                         if "unknown action" in str(e):
                             # an old bridge: fall back to the cloud protocol
@@ -471,15 +484,41 @@ class OccupancyMap:
         depth = np.ascontiguousarray(frame.depth_m[::s, ::s], dtype=np.float32)
         K = np.asarray(frame.K, dtype=np.float64).copy()
         K[:2, :] /= s
-        depth = self._mask_robot(depth, K, T_base_cam, frame=frame)
+        excluded = self._robot_depth_mask(depth, K, T_base_cam, frame=frame)
         if self._payload_pose_fn is not None:
             self._prepare_payload(frame, T_base_cam)
-        self._client.request({
-            "action": "integrate_depth", "depth": depth,
-            "K": K.astype(np.float32), "T_base_cam": np.asarray(T_base_cam, dtype=np.float32),
-        })
+        self._send_depth(depth, K, T_base_cam, excluded)
         if self._payload_pose_fn is not None:
             self._remember_depth(frame, T_base_cam)
+
+    def _send_depth(self, depth, K, T_base_cam, excluded):
+        # Raw self/payload depth may only go to an explicitly negotiated
+        # native masking operation. An older bridge rejects this action;
+        # it cannot silently ignore an extra mask on integrate_depth.
+        if self.status is None:
+            self.probe()
+        native_mask = (self.status is not None
+                       and self.status.get("backend") == "nvblox"
+                       and self.status.get("masked_depth") is True)
+        packet = {
+            "action": "integrate_masked_depth" if native_mask else "integrate_depth",
+            "depth": np.ascontiguousarray(depth if native_mask else np.where(excluded, 0., depth),
+                                          dtype=np.float32),
+            "K": np.asarray(K, dtype=np.float32),
+            "T_base_cam": np.asarray(T_base_cam, dtype=np.float32),
+        }
+        if native_mask:
+            # nvblox's inactive rays integrate observed free space only
+            # before the positive TSDF truncation band. They add neither
+            # the excluded surface nor invented geometry behind it.
+            packet["active_mask"] = np.ascontiguousarray(~excluded, dtype=np.uint8)
+        try:
+            self._client.request(packet)
+        except OccupancyError as exc:
+            if native_mask:
+                self._body_error = f"native depth masking unavailable: {exc}"
+                raise _MaskedDepthError(self._body_error) from exc
+            raise
 
     def _remember_depth(self, frame, T_base_cam):
         capture = frame.capture
@@ -516,11 +555,10 @@ class OccupancyMap:
                 if path in paths or old["t"] < floors.get(path, -np.inf):
                     mask |= pixels
             s = self.depth_stride
-            depth = np.where(mask, 0., old["depth"])[::s, ::s].astype(np.float32)
+            depth = old["depth"][::s, ::s]
             K = old["K"].copy()
             K[:2, :] /= s
-            self._client.request({"action": "integrate_depth", "depth": depth,
-                                  "K": K.astype(np.float32), "T_base_cam": old["T"].astype(np.float32)})
+            self._send_depth(depth, K, old["T"], mask[::s, ::s])
             self.last_replayed_frames += 1
         self._prop_history_floor = floors
 
@@ -585,9 +623,8 @@ class OccupancyMap:
             raise OccupancyError(self._body_error)
         return mask
 
-    def _mask_robot(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray, *, frame=None) -> np.ndarray:
-        """Zero the depth pixels on the robot's own body (no measurement:
-        neither free nor occupied for the ray-casting backends)."""
+    def _robot_depth_mask(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray, *, frame=None) -> np.ndarray:
+        """Identify excluded measured surfaces before choosing backend semantics."""
         bodies = self._robot_bodies(frame)
         from .robot_mask import robot_mask
 
@@ -599,10 +636,7 @@ class OccupancyMap:
             for lp, r in bodies:
                 total |= robot_mask(depth, K, T_base_cam, lp, radius_m=r)
         self.last_masked_px = int(total.sum())
-        if self.last_masked_px:
-            depth = depth.copy()
-            depth[total] = 0.0
-        return depth
+        return total
 
     def _integrate_points(self, frame, T_base_cam: np.ndarray) -> None:
         bodies = self._robot_bodies(frame)

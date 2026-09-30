@@ -425,7 +425,8 @@ openai|local_*`) cascade runs its own loop with all three tiers.
   qpos/ctrl vectors) so a device runtime does not pay a host↔device
   round-trip per joint. Measured single-arm: C ~4.9 µs/step, Warp on CPU
   ~3.2 ms/step -- the C engine is the laptop MuJoCo default. The Spark
-  delivery uses Isaac's Newton experience; standalone Newton CPU tests
+  presenter delivery uses Isaac PhysX CUDA; Isaac Newton is an explicit,
+  separately validated option. Standalone Newton CPU tests
   are a separate validation path, not an additional CASCADE arm backend.
 - **Feedback, not sleep.** Every backend reports real joint positions;
   settling is `max|q − q*| < tol` with a per-profile tolerance and timeout,

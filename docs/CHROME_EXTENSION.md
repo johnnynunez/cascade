@@ -42,6 +42,12 @@ See the [release receipt](../benchmark/results/spark_clean_delivery_20260930.jso
 and [actual browser screenshot](../benchmark/results/images/spark_clean_three_cameras_20260930.png).
 This checked the Spark's real browser and extension; GNOME app-grid interaction
 and the visible Isaac editor were not exercised.
+After a full demo stop and second READY launch, the same open page recovered
+connected chat and all three cameras without a reload. Frames advanced from
+51 to 55 at the same resolution; the
+[post-restart capture](../benchmark/results/images/spark_clean_three_cameras_after_restart_20260930.png)
+records that check. During a native robot order, Send and Start over were
+both disabled while the visitor API reported the session busy.
 
 On 15 September 2026, the extension was loaded in Chrome for Testing 151 on
 the controller, connected to the running Brev demo. All three cameras enlarged

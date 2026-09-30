@@ -6,6 +6,10 @@ AI** at Build a Claw on Brev, use the [staff guide](BOOTH_GUIDE.md) and
 objects and OpenClaw on the booth computer; its public visitor page shows
 cameras only. The physical staging, throw and hardware-stop procedures below
 do not describe the Brev kitchen.
+For the simulated kitchen on DGX Spark, use the
+[presenter card](PRESENTER_QUICKSTART.md) and [Spark setup](DGX_SPARK_SETUP.md).
+That profile requires real GraspGen-X inference and does not use the optional
+analytic fallback described for the physical rig below.
 
 A hands-on booth session for this rig, designed around hard constraints:
 
@@ -104,11 +108,13 @@ scripts/serve_qwen_llamacpp.sh      # offline brain   (terminal 2)
 scripts/booth_up.sh                 # pre-flight: red/green every silent killer
 ```
 
-`booth_up.sh` exists because the worst failure modes here are **silent**:
-GraspGen-X down degrades to the analytic OBB planner without an error
-("booth rule"), a wrong launch directory makes every detection vanish
+`booth_up.sh` checks failures that can otherwise change the demo's behavior:
+optional GraspGen-X profiles report analytic OBB fallback when inference is
+unavailable, then retry the learned server after a five-second cooldown.
+The Spark presenter profile requires the real model and reports an error instead.
+A wrong launch directory makes every detection vanish
 (YOLOE's text encoder resolves relative to the CWD), and online ultralytics
-stalls the watcher. The script checks all of it, snapshots the morning
+can stall the watcher. The script checks all of it, snapshots the morning
 grasp-memory baseline, and prints the dashboard URL for the big screen —
 use *that* URL, not `live_view_url`'s best-effort LAN probe, on an
 air-gapped booth LAN.

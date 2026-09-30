@@ -3,9 +3,9 @@
 Presenting the demo? Start with the [presenter card](PRESENTER_QUICKSTART.md).
 
 Use [DGX Spark setup](DGX_SPARK_SETUP.md) for the install and start commands.
-That guide remains pinned to the earlier scene. Re-pinning it for the original
-kitchen requires a fresh installation and physical acceptance on Spark.
-The default event flow installs Isaac Sim, Qwen Q4, the vision projector,
+That guide names the current release candidate and distinguishes pending clean
+installation/native-agent acceptance from earlier hardware measurements.
+The default event flow installs Isaac Sim, GraspGen-X, Qwen Q4, the vision projector,
 llama.cpp, OpenClaw and the verified kitchen. Cosmos is not installed.
 
 ## Installation identity
@@ -14,11 +14,12 @@ llama.cpp, OpenClaw and the verified kitchen. Cosmos is not installed.
 | --- | --- |
 | App | `.venv`, Python 3.12; Spark torch 2.14.0+cu130 and torchvision 0.29.0+cu130 |
 | Isaac Sim | `.isaacsim`; `isaacsim[all,extscache]==6.1.0.0`, torch 2.11.0+cu130 and tinyobjloader 2.0.0rc13 |
+| GraspGen-X | `.graspgenx`, Python 3.12 and torch 2.14.0+cu130; `.graspgenx-src` with pinned source, full generator/discriminator checkpoints and gripper assets |
 | Qwen | `models/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_XL.gguf` |
 | Vision | `models/qwen3.8-27b/mmproj-BF16.gguf` |
 | llama.cpp | `.llama.cpp`, pinned source and local CUDA build receipt |
 | OpenClaw | `.openclaw-cli/bin/openclaw`, version 2026.9.3; profile `cascade-demo` |
-| Original kitchen | `demo/own_kitchen.py`, `demo/own_kitchen_props.py` and `demo/scene/props/`; verified by `demo/scene/own_assets.json` |
+| Kitchen and props | `demo/cocina_asier.py`, verified room bundle in `demo/scene/cocina_asier/`, `demo/own_kitchen_props.py` and `demo/scene/props/`; source and bundle manifests verify their bytes |
 
 The model manifest is
 [`deploy/brev/profiles/qwen3.8-27b-q4.json`](../deploy/brev/profiles/qwen3.8-27b-q4.json).
@@ -27,10 +28,10 @@ The model alias is `Qwen/Qwen3.8-27B`; reasoning is off.
 The installer fetches the model and projector into the project and builds
 its own aarch64 llama.cpp. It does not need a preinstalled model server.
 
-The current checkout contains the kitchen geometry, procedural materials,
-orange and bowl generators, and the small text prop layers. The installer
-verifies these source files against [`own_assets.json`](../demo/scene/own_assets.json)
-without downloading a kitchen archive. See the
+The installer downloads the pinned owner-authorized Cocina Asier room archive
+and verifies every extracted asset. The checkout supplies the original orange,
+platter and task prop authoring code. It verifies those source files against
+[`own_assets.json`](../demo/scene/own_assets.json). See the
 [scene provenance notice](../demo/scene/NOTICE.md) and
 [original prop dedication](../demo/scene/props/LICENSE.txt).
 
@@ -42,7 +43,9 @@ Live acceptance is a separate step.
 
 Spark uses the working Brev path: PhysX on CUDA, the `isaac_kitchen_gpu`
 arm profile, the shipped kitchen scene and a 1/120 second physics step.
-Occupancy is disabled. Startup checks the live engine, CUDA context,
+GraspGen-X runs its real CUDA diffusion model; startup checks an actual
+inference before enabling robot tools. Occupancy/nvblox is disabled, and JEv
+is outside the presenter installation and runtime. Startup checks the live engine, CUDA context,
 scene hash and timestep before the OpenClaw proof.
 
 The app, Isaac and model runtime stay separate. A selected complete Isaac
@@ -137,24 +140,34 @@ the engine, scene and other flags used for the demo:
 
 | Engine | Quick launch command |
 | --- | --- |
-| PhysX (default) | `./run.sh isaac --no-robot-turn --no-judge` |
-| Newton | `./run.sh isaac --engine newton --no-robot-turn --no-judge` |
+| PhysX presenter | `./run.sh isaac --engine physx --graspgenx local --no-robot-turn --no-judge` |
+| Newton, separately rehearsed | `./run.sh isaac --engine newton --graspgenx local --no-robot-turn --no-judge` |
 
 The launcher reuses matching services that are still running and starts
 missing ones. Simulator initialization, connection, scene identity, robot
 tool and model checks still run. The resulting banner is
 `STARTED (UNVERIFIED: robot proof skipped)`; a fast restart does not create
-a new physical acceptance result. Use the normal launch command without
-these skip flags when a complete `READY` proof is needed.
+a new physical acceptance result. Qwen must already be running: this lower-level
+command does not start or supervise it. The desktop entry does not accept these
+skip flags, and its camera/chat surfaces require a verified proof to attach.
+For the complete supervised interface, use
+`python3 scripts/desktop.py launch --repo "$PWD"` (add `--gui` for visible Isaac).
+That path starts Qwen and runs the normal READY proof when needed.
 
-## Clean-room acceptance
+## Fresh-install acceptance
 
-A release receipt must record a fresh source root, private HOME/cache tree,
-empty dependency/model destinations and the exact installer command.
-No inherited app environment or global model path counts as a fresh install.
+A release receipt must record the fresh source root, initially empty
+dependency/model destinations, exact installer command, normal user HOME and
+any reused download or package caches. A fresh installation may reuse the
+user's uv cache; that does not make it a cache-free or private-HOME experiment.
+Do not reuse an existing application/model environment or substitute a global
+model path for the new checkout's destinations.
 The install and a later read-only check must exit 0 before live acceptance.
 Record actual Isaac build, physics engine/device, model files and kitchen
 identity. Keep the unrelated-service inventory before and after the run.
+The GraspGen-X check must validate pinned source, package versions and full
+checkpoint bytes rather than just the presence of filenames or Git LFS pointers.
+The live launch must then verify actual learned inference.
 
 For a bandwidth-saving rehearsal, `CASCADE_MODEL_MIRROR_URL` can point the
 model download code at a local HTTP mirror of the exact verified Q4 file.
@@ -162,5 +175,5 @@ The destination must start empty. The normal manifest still supplies the
 public revision, size and checksum. The receipt must identify the mirror
 and separately record a public metadata/ranged-download check.
 
-Publish only after both clean-room cases and resets pass. Store the release's
+Accept the release only after both native placement cases and resets pass. Store its
 clean-install and acceptance receipts with the deployment evidence.

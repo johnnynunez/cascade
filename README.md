@@ -250,8 +250,8 @@ CPU otherwise — the same profile runs on both.
 Start with the [DGX Spark setup guide](docs/DGX_SPARK_SETUP.md) for host
 checks, installation, startup and recovery.
 
-The Spark installer prepares **Isaac Sim 6.1, Qwen Q4 with vision,
-OpenClaw and the kitchen assets**. The current source downloads the pinned
+The Spark installer prepares **Isaac Sim 6.1, real GraspGen-X CUDA inference,
+Qwen Q4 with vision, OpenClaw and the kitchen assets**. The current source downloads the pinned
 Cocina Asier room, verifies its asset hashes, and authors the original orange
 and fruit platter. Model downloads remain automatic. The
 [Spark setup guide](docs/DGX_SPARK_SETUP.md#2-install) pins the room and
@@ -265,6 +265,14 @@ READY requires two native OpenClaw orders: green cube to green square,
 then orange to open box, with a verified reset after each. Live simulation
 state and advancing cameras verify both cases. Logs and screenshots remain
 under `runs/.install/` and `runs/.launch/profile-cascade-demo/`.
+
+The presenter profile uses **PhysX on CUDA**, the three kitchen cameras and
+learned GraspGen-X grasps. Occupancy/nvblox and JEv are separate experiments;
+neither is required or enabled by this installation. Newton is an explicit
+engine option, with separate validation. Use the
+[presenter card](docs/PRESENTER_QUICKSTART.md) for the demo and recovery.
+Scene reset keeps services running and does not repeat the startup tests.
+Skipping startup proof reports `STARTED / UNVERIFIED`; it does not establish READY.
 
 For development without Isaac or a local model:
 
@@ -521,10 +529,11 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
   plus an ASPIRE-style multimodal trace (`trace.jsonl` + before/after
   keyframes) on every skill call.
 - **[Grasping](src/cascade/grasping/)** uses learned 6-DoF grasps from a
-  GraspGen-X ZMQ server, probed once at startup (300 ms): when no server
-  answers, the banner and `summary.txt` say `grasp_planner=obb (graspgenx
-  down)` and the analytic 3D OBB planner runs -- no per-grasp timeout, no
-  silent substitution. Candidates are re-ranked by a persisted grasp-outcome
+  GraspGen-X ZMQ server. The Spark presenter profile starts the real CUDA
+  server, checks diffusion inference and requires learned candidates; an
+  unavailable model produces an error. Optional profiles report analytic
+  OBB fallback and retry learned inference after a five-second cooldown.
+  Candidates are re-ranked by a persisted grasp-outcome
   memory, then vetted against IK *and* the safety-harness geometry.
   The model is conditioned on the gripper as a **swept volume**, so an arm
   whose gripper differs from `demo.yaml`'s reBot default (90 mm jaw) must

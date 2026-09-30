@@ -1,21 +1,28 @@
 # PAAI on NVIDIA DGX Spark
 
 PAAI means Physical Agentic AI. This installs the Build a Claw kitchen demo:
-Isaac Sim, local Qwen Q4, OpenClaw and the PAAI camera extension in Chromium.
-No model API key is needed.
+Isaac Sim 6.1 with PhysX CUDA, real GraspGen-X inference, local Qwen Q4,
+OpenClaw and the PAAI camera extension in Chromium. No model API key is needed.
 
 The commands below install Cocina_Asier_01 with owner-authorized geometry,
 verified CC0 wood materials, and an original orange and fruit platter. The
 installer checks the release archive and every extracted asset against pinned
 SHA-256 hashes. See the [scene notice](../demo/scene/NOTICE.md).
 
-## GraspGen-X update in PR #23
+## Release candidate and scope
 
-The pinned installation below predates PR #23. For an existing checkout of
-that PR, run `bash scripts/install_graspgenx.sh` once to add the private CUDA
-model environment. The corrected launcher defaults to the real local server;
-see the [presenter card](PRESENTER_QUICKSTART.md) for startup and fast restart.
-Do not assume the older pinned commit includes this change.
+The command below selects the published candidate
+`9cf540279f09df8197eda6541311b41edb455243`, which includes the real GraspGen-X
+installer and launcher. A clean installation and complete native-agent proof
+for the final release are being validated; the existing GB10 five-object
+GraspGen-X campaign does not certify a fresh installation of this candidate.
+The final tested source pin and receipts must be recorded before event handover.
+
+Use the same checkout for installation, checks and startup. The Spark defaults
+are PhysX, Qwen Q4, learned GraspGen-X and three camera views. Occupancy/nvblox
+is disabled, and JEv is not part of the installer or presenter runtime.
+Newton remains an explicit engine option under separate validation.
+See the [presenter card](PRESENTER_QUICKSTART.md) for the short demo and recovery.
 
 ## Quick path
 
@@ -45,7 +52,7 @@ system package, use the [administrator command](#system-prerequisites)
 before continuing.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/spark_prerequisites.py | python3 -'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/spark_prerequisites.py | python3 -'
 ```
 
 Success: `PREREQUISITES_OK`.
@@ -55,21 +62,25 @@ Success: `PREREQUISITES_OK`.
 Before your first installation, review the [NVIDIA Isaac Sim / Omniverse
 licenses](https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html).
 **`--accept-eula` records your explicit acceptance for this checkout.**
-An agent must have the operator's explicit consent. If that consent is
+An agent must have the operator's explicit consent for this Isaac version.
+Previous explicit acceptance in the current task remains valid. If that consent is
 already supplied, proceed to the install command; do not fetch the license
 page or ask for consent again. `OMNI_KIT_ACCEPT_EULA=YES` alone does not grant consent.
 
 The source URL and `--ref` select the same fixed commit. This downloads the
 runtime, model and assets, then builds the local CUDA model server. Allow
-space for at least 150 GiB. A fresh installation from public download sites
-took about 25 minutes. Plan for 30–90 minutes; slower connections take longer.
+space for at least 150 GiB. An earlier installation from public download sites
+took about 25 minutes, before the current GraspGen-X path. Plan for 30–90
+minutes plus any cold CUDA builds; this is a planning allowance, not a measured
+duration for the release candidate. Slower connections take longer.
 The progress log shows each stage.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/bootstrap.sh | bash -s -- --ref 57ecd62dfec3fb361c6db8ee3c096293aec77ca8 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
+bash -o pipefail -c 'curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/bootstrap.sh | bash -s -- --ref 9cf540279f09df8197eda6541311b41edb455243 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
 ```
 
-Success: `PREPARED`. No demo services have started yet.
+Success: `PREPARED`. No demo services or startup manipulation tests have run.
+`--prepare-only` installs and checks files; it does not certify a grasp or placement.
 
 ### 3. Check the installation
 
@@ -85,8 +96,9 @@ Success: `CHECKED`. The receipt is `runs/.install/install.json`.
 ### 4. Start and prove the demo
 
 This starts the dedicated `cascade-demo` OpenClaw agent and moves the
-simulated robot through two placement checks and resets. The measured start
-and proof took about 14 minutes. Cold shader and collision preparation can
+simulated robot through two placement checks and resets. An earlier revision's
+start and proof took about 14 minutes; that is not a timing guarantee for the
+current candidate. Cold shader and collision preparation can
 take longer. The physical checks can be quiet for several minutes. Wait for
 the command to finish even when no new log lines appear; do not start another copy. The model health timeout
 is 30 minutes and the Isaac startup timeout is 20 minutes.
@@ -97,7 +109,7 @@ is 30 minutes and the Isaac startup timeout is 20 minutes.
   cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" || exit
   python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open 2>&1 |
     tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
-) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref 57ecd62dfec3fb361c6db8ee3c096293aec77ca8
+) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref 9cf540279f09df8197eda6541311b41edb455243
 ```
 
 Success: one `READY` summary with both placements, cameras and resets passing.
@@ -215,6 +227,7 @@ Paths are relative to `$HOME/paai-spark`.
 | --- | --- |
 | App, Python 3.12 and CUDA perception packages | `.venv/` |
 | Isaac Sim `isaacsim[all,extscache]==6.1.0.0`, Python 3.12 | `.isaacsim/` |
+| GraspGen-X CUDA model, pinned source and full checkpoints | `.graspgenx/`, `.graspgenx-src/` |
 | OpenClaw 2026.9.3 and private Node.js | `.openclaw-cli/` |
 | Pinned Qwen Q4 model and BF16 vision projector | `models/qwen3.8-27b/` |
 | Pinned llama.cpp CUDA build and receipt | `.llama.cpp/build/` |
@@ -226,8 +239,10 @@ The installer also uses `$HOME/.local/bin/uv`, `$HOME/.cache/uv` and
 `$HOME/.cache/cascade/installers`. It obtains Python 3.12 when needed.
 Preparation registers the desktop launcher. A rerun reuses verified files.
 
-Consent belongs to the absolute checkout path recorded in `install.json`.
-Moving the checkout requires installation with explicit consent again.
+The consent receipt belongs to the absolute checkout path recorded in `install.json`.
+Moving the checkout requires installation to record the operator's acceptance
+at the new path; prior explicit authorization for this Isaac version need not
+be requested again.
 Do not edit consent receipts. `--dry-run` and `--check` grant no consent.
 
 ## Verify the result
@@ -359,8 +374,33 @@ log path. Keep incomplete environments and failed evidence for diagnosis.
 Do not extend timeouts repeatedly, skip the robot proof, edit receipts or
 change the model or physics settings to obtain `READY`.
 
-For a missed grasp or `did not settle at home`, reset and inspect before
-another order. Send only one order at a time.
+For a missed grasp or `did not settle at home`, inspect the reported failure
+and cameras, then request a scene reset. A failed reset is not a restored scene.
+Send only one order at a time.
+
+### Reset or restart without startup manipulation tests
+
+For another visitor, use **Start over** in the Spark chat or send
+**"Reset the scene."** in the current conversation. This returns the arm home,
+restores simulated props, clears object beliefs and task images, and requires
+a fresh observation. It keeps Isaac, Qwen and OpenClaw running; it does not
+repeat the startup placement proof or erase learned grasp history.
+
+If the robot stack needs restarting while Qwen is still healthy, the lower-level
+launcher can skip that proof:
+
+```bash
+cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" && ./run.sh isaac --engine physx --graspgenx local --no-robot-turn --no-judge
+```
+
+Keep the installation's existing scene and display choices. This command still
+checks services, the model, learned grasp inference, tools and scene identity.
+It reports **STARTED (UNVERIFIED: robot proof skipped)**. It does not start Qwen
+or create a fresh READY receipt, and it is not a complete desktop restart:
+the current desktop camera/chat attachment requires a verified proof.
+Use the normal desktop launch when Qwen or those surfaces also need recovery.
+The desktop command does not accept the two skip flags. See
+[recovery details](SPARK_DELIVERY.md#quick-recovery-during-the-demo).
 
 ## Agent checklist
 

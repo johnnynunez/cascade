@@ -1,9 +1,11 @@
 # Build-a-Claw presenter card
 
 **Use PhysX with the real GraspGen-X server on the presentation Spark.**
-All five kitchen objects passed a GB10 physical round with learned grasps.
-The native Spark launcher also reached READY for green cube, orange and resets;
-receipts and CI are tracked in PR #23.
+All five kitchen objects passed one recorded GB10 physical round with learned
+grasps. A separate native-agent run passed green cube, orange and resets.
+Those runs reused parts of the stack; they do not establish a fresh installation
+or guarantee every future pick. The [setup guide](DGX_SPARK_SETUP.md#release-candidate-and-scope)
+records the current install candidate and release-validation status.
 Run these commands from the installed Cascade folder on the presentation
 machine. The desktop entry starts Qwen as well as the robot stack; `run.sh`
 expects Qwen to be running already. This card assumes the Spark installation profile; installation is
@@ -49,7 +51,7 @@ failure or an unverified placement, show that result as reported.
 | --- | --- |
 | Stack works; objects need restoring | Click **Start over** in the Spark chat, **Reset** in PAAI OpenClaw, or send **"Reset the scene."** |
 | An order is still running | Wait for its result before resetting; the reset buttons are disabled while busy. |
-| Isaac/robot stack crashed; Qwen still runs | Run the quick restart below, preserving any custom scene flags. |
+| Isaac/robot stack crashed; Qwen still runs | Use the normal desktop launch for the complete UI; the lower-level restart below skips proof but has UI limits. |
 | Qwen also stopped | Use the desktop start above, or start Qwen separately as described below before quick restart. |
 | Reset fails or placement is unverified | Check the cameras and the reported error before issuing another movement. |
 
@@ -61,6 +63,9 @@ Quick restart skips the startup manipulation proof and optional image judge.
 Service startup, scene identity, model and tool checks still run. Expect
 **STARTED (UNVERIFIED: robot proof skipped)**, not a new READY certificate.
 There is no fixed restart time: simulator initialization can still take minutes.
+This is not a complete restart of the desktop interface: its camera/chat
+attachment requires a verified proof, and the desktop command does not accept
+these skip flags. Use the normal desktop launch to restore the complete UI.
 
 If the model server also stopped, the desktop start restores the whole stack
 and runs its full proof. To skip that proof, run
@@ -82,17 +87,21 @@ Use scene reset between visitors. See [memory and recovery details](SPARK_DELIVE
 | Physics | **PhysX**, the Spark default | Newton is an explicit opt-in under separate validation; do not switch engines during the event. |
 | Grasps | **GraspGen-X**, learned inference on the Spark | A protocol stub or an analytic fallback does not validate this setup. |
 | Isaac window | **Visible**; use desktop `--gui` | Headless runs still produce camera images but do not show the editor. |
-| Occupancy / nvblox | **Disabled** in the validated Spark profile | Two cameras are configured for fusion and the third for viewing; see [nvblox status and limits](NVBLOX.md). |
+| Occupancy/nvblox | **Disabled** in the Spark presenter profile | CUDA mapping and payload experiments have separate acceptance; see [nvblox status](NVBLOX.md). |
+| JEv | **Not installed or active** in the presenter path | [Joint-embedding decision experiments](JEV_DECISIONS.md) are separate research. |
 
 **Why did GraspGen-X fall back to OBB?** The previous Spark launcher omitted
 the learned-model server. A failed startup probe or inference also selected
 OBB for the rest of the runtime. The corrected installation and launch must
 start and verify real inference; a GraspGen-X **stub** is only an analytic
-protocol stand-in. Hardware receipts are linked in [GraspGen-X on Spark](GRASPGENX_SPARK.md).
+protocol stand-in. The required Spark profile now reports inference failure;
+it does not replace learned candidates with OBB. See the
+[GraspGen-X evidence](GRASPGENX_SPARK.md#evidence-and-diagnostics).
 
 **Should Newton work by default?** The Spark launcher defaults to PhysX.
 Newton requires `--engine newton` and a validated Isaac/Cascade combination.
 Its state-buffer compatibility handling and current acceptance results are
 documented in [Newton validation](NEWTON_ENGINE.md).
 
-**Next: run the normal startup command on the presentation machine and check READY.**
+Rehearse the normal startup, two placements, resets and recovery on the
+presentation machine with the exact version and display setting used at the event.

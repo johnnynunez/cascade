@@ -478,6 +478,24 @@ class LazyTruthPoseFn:
         reader = self._resolve()
         return reader.all_poses() if reader is not None else {}
 
+    def placement(self, label: str, destination: str, *, evidence_dir=None):
+        """Read a fresh bounded placement window without activating an arm.
+
+        This optional kitchen channel needs its configured robot identity and
+        repository audit resources. Other simulators keep their usual checks.
+        """
+        reader = self._resolve()
+        cfg = self._arm_cfg
+        if not isinstance(reader, TruthPoseReader) or cfg is None or cfg.get("type") != "isaac":
+            return None
+        robot_id = cfg.get("bridge_robot_id")
+        endpoint = (str(cfg.get("bridge_host", "127.0.0.1")), int(cfg.get("bridge_port", 8611)))
+        if not robot_id or getattr(reader._client, "_addr", None) != endpoint:
+            return None
+        from .placement import read_placement
+
+        return read_placement(endpoint, robot_id, label, destination, evidence_dir=evidence_dir)
+
     @property
     def bound(self) -> bool:
         return self._resolve() is not None

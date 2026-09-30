@@ -61,6 +61,28 @@ degrades to the belief store automatically — same code path.
 
 Verified live: `pink cube moved 30.8 cm to (0.178, -0.157)`, `channel: physics`.
 
+**Kitchen destination postconditions (2026-10-01).** For a completed
+`pick_and_place` targeting the configured green square or open box, the Isaac
+runtime with a single configured arm can collect a fresh passive physics window
+through a separate bridge connection. The requested object and configured destination are bound
+independently of the motion result. The adapter reuses the external proof's
+scene and collider checks, full footprint containment, measured support,
+actual open jaws and settling thresholds: at least 0.5 simulation seconds and
+four distinct physics steps, with gaps no larger than 0.25 simulation seconds.
+Open-box support retains its at-most-1-mm floor tolerance.
+
+The reader has a 20-second observation budget and preserves the sampled
+records, expected scene geometry and verdict under the run's `placement/`
+directory; the tool result and trace identify the receipt and its SHA-256.
+`confirmed` here establishes the observed final placement only. It does not
+establish a witnessed pick, lift, transport, camera sequence or reset.
+A measured placement failure is `refuted`; missing, malformed or mismatched
+evidence is `unverified`. The optional checkout-local auditors and verified
+kitchen assets must be present; an installation without them remains
+`unverified`. Multi-arm runtimes skip this adapter because their current truth
+reader is bound to the primary arm. These semantics and their synthetic
+regression tests are not a new live acceptance claim.
+
 ### 2. Milestone progress (Agentic-VLA)
 
 The orchestrator already decomposed tasks and already shipped a `VERIFY_USER`

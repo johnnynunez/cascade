@@ -141,6 +141,34 @@ tier or host. In order:
 6. Trace row (`trace.jsonl`, with `tier`), and the Vesta memory tuple:
    AFTER frame + action text + independent verdict.
 
+For single-arm Isaac kitchen `pick_and_place` calls that report a completed
+motion to the configured green square or open box, `sim/placement.py` adds a fresh
+passive observation on a private bridge connection. `LazyTruthPoseFn` binds
+that reader to the configured endpoint and robot without materializing the
+arm. Runtime aliases resolve the requested destination; the motion result
+cannot supply its own object identity or placement verdict.
+Multi-arm runtimes skip this adapter: the existing truth reader is bound to
+the primary arm and cannot verify another arm's world.
+
+`demo/kitchen/physics/placement_verdict.py` reuses the external proof's scene,
+collider and settling auditors. It requires full footprint containment,
+measured support, actual jaw release and an advancing window of at least
+0.5 simulation seconds across four distinct steps, with sample gaps at most
+0.25 simulation seconds. Contact observations must belong to the same object,
+jaws, engine and physics step. A confirmation covers this final placement;
+lift, transport, camera and reset evidence remain outside its scope.
+Valid measured failures refute the placement; unavailable or inconsistent
+evidence leaves it unverified and never repairs an original motion failure.
+
+Acquisition has a 20-second observation budget and a separate socket so a
+timeout cannot corrupt the motion or camera streams. Per-call JSON receipts
+in `<run>/placement/` retain the raw observations and expected geometry;
+their paths and SHA-256 hashes accompany the verdict in the tool result and
+trace. Checkout-local audit modules and verified kitchen assets are optional
+resources: if absent, including in a package-only installation, this check
+returns `unverified`. Synthetic integration tests cover this contract; live
+delivery acceptance remains the separate boundary documented above.
+
 ### Motion safety path
 
 Skills only ever hold a `SafeArm`. `SafeArm.move_joints()` stretches the

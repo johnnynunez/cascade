@@ -163,15 +163,47 @@ screenshots and reset readbacks. A failed native placement or reset, refuted
 placement or failed audit prevents READY. `--no-robot-turn` remains
 STARTED / UNVERIFIED.
 
-The tested first launch recorded zero tool failures for both placement orders.
-Qwen still said **"Placement unverified"** because the skill's own postcondition
-checks only the object's center. The independent physics audit separately
+At the tested 30 September pin `9cf540279f09df8197eda6541311b41edb455243`,
+the first launch recorded zero tool failures for both placement orders.
+Qwen still said **"Placement unverified"** because that revision's skill
+postcondition checked only the object's center. The independent physics audit separately
 confirmed full containment, release and support for both objects, with final
 center errors of **9.61 mm** for the green cube and **6.69 mm** for the orange.
 READY comes from those independent checks; it does not rewrite the native
 tool verdict or the chat response. Preserve that distinction when presenting
 the result. Earlier diagnostic campaigns remain documented in
 [GraspGen-X on Spark](GRASPGENX_SPARK.md).
+
+## Development placement verdict, 1 October 2026
+
+A separate direct-runtime campaign on the real GB10 Spark completed all five
+kitchen objects: **5/5 placement verdicts were `confirmed`**, and every
+external physical audit and reset passed. The
+[placement-verdict receipt](../benchmark/results/spark_placement_verdict_20261001.json)
+records this follow-up separately from the September release. This was one
+five-object round, not a success-rate estimate for future requests.
+
+Green cube and orange also passed a second direct-runtime campaign with the
+final object/destination and multi-arm guards, again with external audits and
+resets. All eight retained placement windows (seven successful calls and the
+idle-cube negative control) reproduce their verdicts offline from the published
+replay bundle. The final local suite passed 2,473 tests, plus 34 portable-bundle
+tests; these software checks do not extend the live acceptance scope.
+
+The new verifier applies to single-arm kitchen calls targeting the configured
+green square or open box. After the motion, it collects fresh independent
+physics readings and checks full collider containment, actual jaw release,
+measured support and settling. A `confirmed` tool verdict covers that observed
+final placement. It does not prove the preceding lift or transport, camera
+evidence or reset; those remain separate checks in the external campaign.
+Missing or inconsistent evidence remains `unverified`, and measured placement
+failures are `refuted`. See the [runtime contract](ARCHITECTURE.md#the-execute-choke-point)
+for the bounded observation window and per-call receipts.
+
+This direct-runtime campaign does not establish a new native-chat or UI
+acceptance, full desktop READY proof, fresh installation or deployment of the
+final source. The clean September installation and its pin remain unchanged;
+the install commands in the setup guide still select that tested release.
 
 ## Quick recovery during the demo
 

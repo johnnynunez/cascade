@@ -254,6 +254,59 @@ def test_backend_without_preflight_contract_is_not_retried_unchecked():
     assert not entered and not raw.commands
 
 
+def test_settling_feedback_is_rebound_and_every_new_start_is_vetted():
+    safe, raw, _ = case()
+    checked = []
+    drift = iter((.02, .004, 0.))
+    def settles(start, duration):
+        checked.append(start.copy())
+        raw._q[0] += next(drift)
+    assert safe.move_joints([.4, 0., .4], _preflight=settles)
+    assert [q[0] for q in checked] == pytest.approx([.3, .32, .324])
+    assert raw.commands and raw.commands[0][0] >= .324
+
+
+def test_feedback_rebind_never_exceeds_eight_checks_or_sends_a_target():
+    safe, raw, _ = case()
+    checked = []
+    def moves(start, duration):
+        checked.append(start.copy())
+        raw._q[0] += .002
+    with pytest.raises(SafetyViolation, match="joint feedback changed"):
+        safe.move_joints([.4, 0., .4], _preflight=moves)
+    assert len(checked) == 8 and not raw.commands
+
+
+def test_feedback_budget_includes_last_check_even_when_it_becomes_stable(monkeypatch):
+    from cascade.control import arm_base
+    safe, raw, _ = case()
+    clock, checked = [0.], []
+    monkeypatch.setattr(arm_base, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    def late(start, duration):
+        checked.append(start.copy())
+        clock[0] += 2.
+        if len(checked) < 3:
+            raw._q[0] += .002
+    with pytest.raises(SafetyViolation, match="exhausted its feedback budget"):
+        safe.move_joints([.4, 0., .4], _preflight=late)
+    assert len(checked) == 3 and not raw.commands
+
+
+@pytest.mark.parametrize("stop", ["halt", "estop"])
+def test_stop_during_feedback_rebind_is_never_cleared(stop):
+    safe, raw, harness = case()
+    checked = []
+    def moves(start, duration):
+        checked.append(start.copy())
+        if len(checked) == 1:
+            raw._q[0] += .002
+        else:
+            getattr(harness, stop)("operator during rebind")
+    with pytest.raises(SafetyViolation):
+        safe.move_joints([.4, 0., .4], _preflight=moves)
+    assert len(checked) == 2 and not raw.commands
+
+
 @pytest.mark.parametrize("backend", ["mock", "base"])
 @pytest.mark.parametrize("change", ["feedback", "watchdog", "halt", "estop"])
 def test_changes_during_preflight_refuse_before_first_target(backend, change):

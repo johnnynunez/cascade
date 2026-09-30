@@ -221,6 +221,7 @@ def run_case(args, proof, case_dir, object_name):
         checks["requested_engine_matches_every_sample"] = bool(observer.records) and all(
             r["physics"].get("engine") == args.engine for r in observer.records)
         checks["pick_skill_completed"] = receipt.get("pick_result", {}).get("ok") is True
+        checks["home_after_place_completed"] = receipt.get("pick_result", {}).get("return_home", {}).get("ok") is True
         checks["reset_skill_completed"] = receipt.get("reset_result", {}).get("ok") is True
         checks["harness_has_no_errors"] = not receipt["errors"]
         if args.occupancy == "nvblox":

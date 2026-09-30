@@ -21,6 +21,8 @@ from ..config import Cfg
 from ..types import RobotState, SafetyViolation
 
 PREFLIGHT_MAX_DRIFT_RAD = 1e-3
+PREFLIGHT_REBIND_BUDGET_S = 5.0
+PREFLIGHT_MAX_CHECKS = 8
 
 
 def min_jerk(s: float) -> float:
@@ -33,11 +35,28 @@ def prepare_stream(arm, q_target, duration_s, preflight=None, before_stream=None
     start = np.asarray(arm.get_state().q, dtype=float).copy()
     target = np.asarray(q_target, dtype=float).reshape(-1)
     if preflight is not None:
-        preflight(start, duration_s)
-        observed = np.asarray(arm.get_state().q, dtype=float)
-        if (observed.shape != start.shape or not np.isfinite(observed).all()
-                or np.max(np.abs(observed - start)) > PREFLIGHT_MAX_DRIFT_RAD):
-            raise SafetyViolation("joint feedback changed during route preflight; no motion sent")
+        deadline = time.monotonic() + PREFLIGHT_REBIND_BUDGET_S
+        for attempt in range(PREFLIGHT_MAX_CHECKS):
+            if before_stream is not None:
+                before_stream()
+            if time.monotonic() >= deadline:
+                raise SafetyViolation("route preflight exhausted its feedback budget; no motion sent")
+            preflight(start, duration_s)
+            observed = np.asarray(arm.get_state().q, dtype=float)
+            if observed.shape != start.shape or not np.isfinite(observed).all():
+                raise SafetyViolation("invalid joint feedback during route preflight; no motion sent")
+            if before_stream is not None:
+                before_stream()
+            if time.monotonic() >= deadline:
+                raise SafetyViolation("route preflight exhausted its feedback budget; no motion sent")
+            if np.max(np.abs(observed - start)) <= PREFLIGHT_MAX_DRIFT_RAD:
+                break
+            if attempt + 1 == PREFLIGHT_MAX_CHECKS:
+                raise SafetyViolation("joint feedback changed during route preflight; no motion sent")
+            # A preceding move may still be settling within its ordinary
+            # endpoint tolerance. Re-vet from this new measurement; never
+            # authorize the earlier path by widening the 1 mrad drift limit.
+            start = observed.copy()
     if before_stream is not None:
         before_stream()
     return start, target

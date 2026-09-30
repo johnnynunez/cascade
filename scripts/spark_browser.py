@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import select
 import shutil
 import socket
 import subprocess
@@ -17,6 +18,20 @@ from urllib.request import build_opener, ProxyHandler
 
 CHAT_URL = "http://127.0.0.1:8092/"
 CAMERA_URL = "http://127.0.0.1:8091"
+
+# The final interpreter acknowledges its own startup over a private inherited
+# pipe. Popen may return while /proc/<pid>/cmdline is still empty during exec.
+# run_path keeps this interpreter/PID; argv and the script import directory
+# match direct `python script.py ...` execution before the application starts.
+_SURFACE_BOOTSTRAP = """import os, runpy, sys
+ready_fd = int(sys.argv[1])
+script = sys.argv[2]
+sys.argv = sys.argv[2:]
+sys.path[0] = os.path.dirname(os.path.abspath(script))
+os.write(ready_fd, b'R')
+os.close(ready_fd)
+runpy.run_path(script, run_name='__main__')
+"""
 
 
 def runtime_home(repo):
@@ -63,6 +78,44 @@ def ready(repo, *, surfaces=True):
         return False
 
 
+def _spawn_surface(command, repo, env, log, *, startup_timeout_s=10):
+    """Wait for this child interpreter before admitting its process identity."""
+    reader, writer = os.pipe()
+    process = None
+    try:
+        process = subprocess.Popen([command[0], "-c", _SURFACE_BOOTSTRAP, str(writer), *command[1:]],
+                                   cwd=repo, env=env, stdin=subprocess.DEVNULL,
+                                   stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+                                   pass_fds=(writer,))
+        os.close(writer)
+        writer = None
+        readable, _, _ = select.select([reader], [], [], startup_timeout_s)
+        if not readable:
+            raise RuntimeError(f"Surface interpreter readiness timed out; see {log.name}")
+        acknowledgment = os.read(reader, 1)
+        if not acknowledgment:
+            raise RuntimeError(f"Surface process exited before interpreter readiness; see {log.name}")
+        if acknowledgment != b"R":
+            raise RuntimeError(f"Invalid surface interpreter readiness acknowledgment; see {log.name}")
+        if process.poll() is not None:
+            raise RuntimeError(f"Surface process exited before ownership registration; see {log.name}")
+        return process
+    except BaseException:
+        if process is not None:
+            if process.poll() is None:
+                process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+        raise
+    finally:
+        os.close(reader)
+        if writer is not None:
+            os.close(writer)
+
+
 def start_surfaces(repo, env):
     from cascade.apps.process_owner import live_records, register_process
     repo = Path(repo).resolve()
@@ -84,8 +137,7 @@ def start_surfaces(repo, env):
             except (ConnectionRefusedError, TimeoutError):
                 pass
             with (state / (role + ".log")).open("ab") as log:
-                process = subprocess.Popen(command, cwd=repo, env=env, stdin=subprocess.DEVNULL,
-                                           stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                process = _spawn_surface(command, repo, env, log)
             created.append(process)
             register_process(state, owner, process.pid, role)
         deadline = time.monotonic() + 90

@@ -22,6 +22,7 @@ import fcntl
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -118,6 +119,15 @@ def run_case(args, proof, case_dir, object_name):
             receipt["occupancy_camera_count"] = args.map_cameras
         if args.pregrasp_offset is not None:
             cfg._data["grasp"]["pregrasp_offset_m"] = args.pregrasp_offset
+        if args.place_support_clearance is not None:
+            ceiling = float(cfg.grasp.get("topdown_carry_z_max", cfg.grasp.get("topdown_z_max", .15))) - .005
+            if args.place_support_clearance > ceiling - float(cfg.safety.get("table_z", 0.)):
+                raise ValueError("requested support clearance exceeds the configured TCP release ceiling")
+            cfg._data["grasp"]["place_support_clearance_m"] = args.place_support_clearance
+            receipt["release_gap_scope"] = (
+                "place_support_clearance_m is requested controller configuration, not measured release height. "
+                "The held support offset and TCP ceiling can limit the effective gap; placed_at records "
+                "the commanded TCP pose, and the independent physical audit judges release and settling.")
         receipt["placement_configuration"] = {
             key: cfg.grasp.get(key) for key in (
                 "pregrasp_offset_m", "release_height_m", "release_clearance_m", "place_support_clearance_m",
@@ -215,6 +225,8 @@ def main(argv=None):
     parser.add_argument("--occupancy", choices=("none", "nvblox"), default="none")
     parser.add_argument("--occupancy-port", type=int, default=5557)
     parser.add_argument("--pregrasp-offset", type=float, help="Diagnostic lift/approach distance, recorded in every receipt")
+    parser.add_argument("--place-support-clearance", type=float,
+                        help="Requested diagnostic support gap in metres; runtime TCP ceiling still applies")
     parser.add_argument("--map-cameras", type=int, choices=(2, 3), default=2)
     parser.add_argument("--rounds", type=int, default=5)
     parser.add_argument("--fail-fast", action="store_true", help="stop after the first failed case and its reset")
@@ -226,6 +238,9 @@ def main(argv=None):
     args.scene_config = args.scene_config.resolve()
     if not 1 <= args.rounds <= 100 or not 1 <= args.port <= 65535:
         parser.error("rounds must be 1..100 and port 1..65535")
+    if args.place_support_clearance is not None and (
+            not math.isfinite(args.place_support_clearance) or args.place_support_clearance < 0):
+        parser.error("place-support-clearance must be finite and nonnegative")
     if not args.output.is_relative_to(ROOT) or args.output.exists():
         parser.error("output must be a NEW directory inside this checkout")
     if len(set(args.objects)) != len(args.objects):

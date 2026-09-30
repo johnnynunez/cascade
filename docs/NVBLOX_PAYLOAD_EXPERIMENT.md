@@ -184,6 +184,48 @@ the effect of retaining measured rays. It does not test every carried sample,
 the swept motion, or physical acceptance at 5 mm. Trial 10 demonstrates that
 those resolved replay positions were insufficient for a complete live task.
 
+A follow-up [complete visible-surface replay](../benchmark/results/nvblox-rtx-payload-surface-replay-20261001.json)
+queries 2,860 measured can surface cells from the same archived trial-09
+captures. It bins one real point per 3 mm cell in the base frame, per camera;
+the live runtime bins in captured TCP coordinates, so its sample indices and
+counts differ. Both the original depth stride of two and full image resolution
+are tested against identical anchor and held captures, using native masking:
+
+| Voxel size | Depth stride | Unknown at captured pose | Unknown with +20 mm vertical translation | Unknown with +30 mm translation |
+| --- | --- | --- | --- | --- |
+| 10 mm | 2 | 383 / 2,860 | 43 / 2,860 | 0 / 2,860 |
+| 10 mm | 1 | 383 / 2,860 | 43 / 2,860 | 0 / 2,860 |
+| 5 mm | 2 | 300 / 2,860 | 0 / 2,860 | 0 / 2,860 |
+| 5 mm | 1 | 290 / 2,860 | 0 / 2,860 | 0 / 2,860 |
+
+At 5 mm, the unobserved points occupy the can's lower band, from about
+77.8 to 92.5 mm above the table. Full-resolution depth does not close that
+gap. The +20 mm candidate has at least 80.3 mm observed clearance, while
+the +30 mm candidate at 10 mm voxels has at least 87.9 mm. These translations
+move only the query geometry; they add no map observations. They support
+testing a higher initial lift but do not establish its reachability, swept
+clearance, grasp retention or physical acceptance. The recorded surface is
+still only the visible portion of the can.
+
+To reproduce this coverage check with contact-mask captures:
+
+```bash
+# Capture once before pickup and once while the held object is stationary.
+# The simulator must have CASCADE_ISAAC_CONTACT_MASK=1 for exact prop masks.
+.venv/bin/python benchmark/diagnostics/capture_nvblox_scene.py \
+  --port 8611 --output runs/can-anchor
+.venv/bin/python benchmark/diagnostics/capture_nvblox_scene.py \
+  --port 8611 --output runs/can-held
+.nvblox/venv/bin/python benchmark/diagnostics/nvblox_payload_replay.py \
+  --anchor runs/can-anchor --held runs/can-held --output runs/can-surface-replay.json
+```
+
+The capture tool never moves the robot. A real grasp must separate the two
+captures; the replay rejects a held capture without confirmed contact. Its
+receipt records input checksums, mapping source hashes, native backend identity
+and every candidate's unknown count and minimum observed clearance. Original
+trial-09 captures, rather than a newly captured pair, produced the table above.
+
 The [native mask CUDA probe](../benchmark/results/nvblox-rtx-native-mask-proof-20260930.json)
 uses an analytic depth image with an excluded foreground object. Native
 masking observes the front query at 0.2 m; the object surface at 0.4 m and the

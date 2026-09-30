@@ -1,0 +1,1072 @@
+{
+  "scope": "Frozen real depth, exact prop masks and complete visible surface-cell coverage. Vertical translations are candidate geometry only; no motion, reachability, swept path or physical acceptance is established.",
+  "sampling": "One measured point per 3mm base-frame cell per camera. Live runtime bins in captured TCP coordinates, so these are not its exact sample indices.",
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "torch": "2.14.1+cu132",
+  "cuda": "13.2",
+  "nvblox": "0.0.10.dev1+cu13ubuntu26",
+  "nvblox_source": "c457c3fc01003bec6eba3ec1c61e6bf84bc3f51f",
+  "prop": "/World_Props/tomato_can",
+  "capture": {
+    "anchor": {
+      "directory": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox-captures/can-idle-centres",
+      "metadata_sha256": "2996305c1b998304dca448cb73867aabef73b9f3fdc8a1f4c399f132d60be4a7",
+      "cameras": {
+        "cam0": {
+          "props": {
+            "prop_0": "/World_Props/pink_cube",
+            "prop_1": "/World_Props/green_cube",
+            "prop_2": "/World_Props/tomato_can",
+            "prop_3": "/World_Props/lemon",
+            "prop_4": "/World_Props/orange"
+          },
+          "capture": {
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              18611
+            ],
+            "camera": "cam0",
+            "t": 42522.745049718,
+            "proprioception": {
+              "version": 1,
+              "backend": "isaac",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "joint_convention": "asset",
+              "q": [
+                0.00012836467067245394,
+                -1.2022998332977295,
+                -1.198663592338562,
+                0.00022326532052829862,
+                -1.2244603908584395e-07,
+                -2.7982781602986506e-07
+              ],
+              "t": 42522.745049718,
+              "time_source": "physics_loop_monotonic"
+            },
+            "contact_paths": []
+          },
+          "sha256": "0c870985b23d1e2e1120433627e3901c706d3bdd6af23d2b5f9dedda9cade4f4"
+        },
+        "side": {
+          "props": {
+            "prop_0": "/World_Props/pink_cube",
+            "prop_1": "/World_Props/green_cube",
+            "prop_2": "/World_Props/tomato_can",
+            "prop_3": "/World_Props/lemon",
+            "prop_4": "/World_Props/orange"
+          },
+          "capture": {
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              18611
+            ],
+            "camera": "side",
+            "t": 42522.952521389,
+            "proprioception": {
+              "version": 1,
+              "backend": "isaac",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "joint_convention": "asset",
+              "q": [
+                0.00012836059613619,
+                -1.2022995948791504,
+                -1.198663592338562,
+                0.00022326513135340065,
+                -1.1190780213610196e-07,
+                -2.8061396051271004e-07
+              ],
+              "t": 42522.952521389,
+              "time_source": "physics_loop_monotonic"
+            },
+            "contact_paths": []
+          },
+          "sha256": "dc5c7ed433f89d304b1f6fb314a1fc9eeafaa8bfdaed5c4bdd5030505ce6e44a"
+        },
+        "proof": {
+          "props": {
+            "prop_0": "/World_Props/pink_cube",
+            "prop_1": "/World_Props/green_cube",
+            "prop_2": "/World_Props/tomato_can",
+            "prop_3": "/World_Props/lemon",
+            "prop_4": "/World_Props/orange"
+          },
+          "capture": {
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              18611
+            ],
+            "camera": "proof",
+            "t": 42523.374946997,
+            "proprioception": {
+              "version": 1,
+              "backend": "isaac",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "joint_convention": "asset",
+              "q": [
+                0.00012836497626267374,
+                -1.2022995948791504,
+                -1.198663592338562,
+                0.0002232647530036047,
+                -1.238617386434271e-07,
+                -2.798541913762165e-07
+              ],
+              "t": 42523.374946997,
+              "time_source": "physics_loop_monotonic"
+            },
+            "contact_paths": []
+          },
+          "sha256": "86ee27968c5201245cb6a4585e6be240439c51c1370e21334a813f609bd48c60"
+        }
+      }
+    },
+    "held": {
+      "directory": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox-captures/can-held-09",
+      "metadata_sha256": "6a36c48644946931e03f0acf48bfcbc86a3066280401af9579e17bf09169347a",
+      "cameras": {
+        "cam0": {
+          "props": {
+            "prop_0": "/World_Props/pink_cube",
+            "prop_1": "/World_Props/green_cube",
+            "prop_2": "/World_Props/tomato_can",
+            "prop_3": "/World_Props/lemon",
+            "prop_4": "/World_Props/orange"
+          },
+          "capture": {
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              18611
+            ],
+            "camera": "cam0",
+            "t": 42760.55678982,
+            "proprioception": {
+              "version": 1,
+              "backend": "isaac",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "joint_convention": "asset",
+              "q": [
+                0.8816816210746765,
+                -1.6352734565734863,
+                -1.5294853448867798,
+                1.3641411066055298,
+                0.14609117805957794,
+                -0.637273371219635
+              ],
+              "t": 42760.55678982,
+              "time_source": "physics_loop_monotonic"
+            },
+            "contact_paths": [
+              "/World_Props/tomato_can"
+            ]
+          },
+          "sha256": "e05c9b5f8d0e49836ad1524bf926056de2f247a30f0427493d22762ba03d00f6"
+        },
+        "side": {
+          "props": {
+            "prop_0": "/World_Props/pink_cube",
+            "prop_1": "/World_Props/green_cube",
+            "prop_2": "/World_Props/tomato_can",
+            "prop_3": "/World_Props/lemon",
+            "prop_4": "/World_Props/orange"
+          },
+          "capture": {
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              18611
+            ],
+            "camera": "side",
+            "t": 42760.791374041,
+            "proprioception": {
+              "version": 1,
+              "backend": "isaac",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "joint_convention": "asset",
+              "q": [
+                0.8816815614700317,
+                -1.6352732181549072,
+                -1.5294854640960693,
+                1.3641411066055298,
+                0.14609119296073914,
+                -0.637273371219635
+              ],
+              "t": 42760.791374041,
+              "time_source": "physics_loop_monotonic"
+            },
+            "contact_paths": [
+              "/World_Props/tomato_can"
+            ]
+          },
+          "sha256": "7a4b0b0bd6e8c67c7f9b1a8e78ba0ebc6feea1ea47f1eadd68f0243af495080e"
+        },
+        "proof": {
+          "props": {
+            "prop_0": "/World_Props/pink_cube",
+            "prop_1": "/World_Props/green_cube",
+            "prop_2": "/World_Props/tomato_can",
+            "prop_3": "/World_Props/lemon",
+            "prop_4": "/World_Props/orange"
+          },
+          "capture": {
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              18611
+            ],
+            "camera": "proof",
+            "t": 42761.013916106,
+            "proprioception": {
+              "version": 1,
+              "backend": "isaac",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "joint_convention": "asset",
+              "q": [
+                0.8816815614700317,
+                -1.6352734565734863,
+                -1.5294854640960693,
+                1.3641411066055298,
+                0.14609117805957794,
+                -0.637273371219635
+              ],
+              "t": 42761.013916106,
+              "time_source": "physics_loop_monotonic"
+            },
+            "contact_paths": [
+              "/World_Props/tomato_can"
+            ]
+          },
+          "sha256": "4e7e620488f2ab21a9cd2ea8870ff96c0f32be8d49d203124b9bb48ca5c816b7"
+        }
+      }
+    }
+  },
+  "source_sha256": {
+    "benchmark/diagnostics/nvblox_payload_replay.py": "0cec770390c7631d360535a4b46e608619c2b268d04cb77405a10732e1ce2b3f",
+    "src/cascade/perception/occupancy.py": "55a1e0f631a8077e0c4ed3c0b56e0e2c8b28e430d961b23c27ed648da0c80d61",
+    "src/cascade/perception/occupancy_backends.py": "443f0252b8b4f988a89dcd9bde619bf2badbe6945f567772f47d1258baa4e5d4"
+  },
+  "surface_samples": 2860,
+  "surfaces_by_camera": {
+    "cam0": 1015,
+    "side": 1068,
+    "proof": 777
+  },
+  "surface_bounds_m": [
+    [
+      0.18325007525272674,
+      0.19116799581060961,
+      0.07757391422028248
+    ],
+    [
+      0.23877167626198226,
+      0.2466749761997893,
+      0.16102667245613633
+    ]
+  ],
+  "surface_points_sha256": "0ef69a46310a49b12e3eb72b1c34e2c532296d8b2c593a3555047fb0b499b40a",
+  "variants": [
+    {
+      "voxel_m": 0.01,
+      "depth_stride": 2,
+      "native_mask": true,
+      "stages": [
+        {
+          "episode": "anchor",
+          "z_offsets_m": {
+            "0.0": {
+              "samples": 2860,
+              "unobserved_samples": 430,
+              "minimum_observed_clearance_m": 0.06969511046127921,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.19562347695950488,
+                  0.19195230922382933,
+                  0.0777892200795528
+                ],
+                [
+                  0.23877167626198226,
+                  0.2455841298316117,
+                  0.10498297618517421
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.19562347695950488,
+                0.19745391384273758,
+                0.07937548766265956
+              ]
+            },
+            "0.01": {
+              "samples": 2860,
+              "unobserved_samples": 209,
+              "minimum_observed_clearance_m": 0.07393640355638051,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.2163161682768141,
+                  0.19269274581706886,
+                  0.0877892200795528
+                ],
+                [
+                  0.23877167626198226,
+                  0.24492920103684424,
+                  0.10473053611686432
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.21700948545119414,
+                0.19269274581706886,
+                0.08799775928427743
+              ]
+            },
+            "0.02": {
+              "samples": 2860,
+              "unobserved_samples": 43,
+              "minimum_observed_clearance_m": 0.0810723762424597,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.2341400234926586,
+                  0.20551953958433444,
+                  0.09938831114775425
+                ],
+                [
+                  0.23869859766986856,
+                  0.2246163609595243,
+                  0.10399675732476026
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.23434154665489704,
+                0.20576759023956614,
+                0.10056117814456166
+              ]
+            },
+            "0.03": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08792348582780872,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.04": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.0953334387576239,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.06": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.11137604945390434,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            }
+          }
+        },
+        {
+          "episode": "held",
+          "z_offsets_m": {
+            "0.0": {
+              "samples": 2860,
+              "unobserved_samples": 383,
+              "minimum_observed_clearance_m": 0.0669576872404456,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.19562347695950488,
+                  0.19503607008516632,
+                  0.0777892200795528
+                ],
+                [
+                  0.23877167626198226,
+                  0.24492920103684424,
+                  0.10498297618517421
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.19562347695950488,
+                0.19745391384273758,
+                0.07937548766265956
+              ]
+            },
+            "0.01": {
+              "samples": 2860,
+              "unobserved_samples": 197,
+              "minimum_observed_clearance_m": 0.07377618639273038,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.21878257202139506,
+                  0.1951088726220559,
+                  0.0877892200795528
+                ],
+                [
+                  0.23877167626198226,
+                  0.24492920103684424,
+                  0.10473053611686432
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.22277471787423553,
+                0.1951088726220559,
+                0.09025320984507
+              ]
+            },
+            "0.02": {
+              "samples": 2860,
+              "unobserved_samples": 43,
+              "minimum_observed_clearance_m": 0.0810723762424597,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.2341400234926586,
+                  0.20551953958433444,
+                  0.09938831114775425
+                ],
+                [
+                  0.23869859766986856,
+                  0.2246163609595243,
+                  0.10399675732476026
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.23434154665489704,
+                0.20576759023956614,
+                0.10056117814456166
+              ]
+            },
+            "0.03": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08792348582780872,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.04": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.0953334387576239,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.06": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.11137604945390434,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "voxel_m": 0.01,
+      "depth_stride": 1,
+      "native_mask": true,
+      "stages": [
+        {
+          "episode": "anchor",
+          "z_offsets_m": {
+            "0.0": {
+              "samples": 2860,
+              "unobserved_samples": 430,
+              "minimum_observed_clearance_m": 0.06969511046127921,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.19562347695950488,
+                  0.19195230922382933,
+                  0.0777892200795528
+                ],
+                [
+                  0.23877167626198226,
+                  0.2455841298316117,
+                  0.10498297618517421
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.19562347695950488,
+                0.19745391384273758,
+                0.07937548766265956
+              ]
+            },
+            "0.01": {
+              "samples": 2860,
+              "unobserved_samples": 209,
+              "minimum_observed_clearance_m": 0.07493351084205027,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.2163161682768141,
+                  0.19269274581706886,
+                  0.0877892200795528
+                ],
+                [
+                  0.23877167626198226,
+                  0.24492920103684424,
+                  0.10473053611686432
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.21700948545119414,
+                0.19269274581706886,
+                0.08799775928427743
+              ]
+            },
+            "0.02": {
+              "samples": 2860,
+              "unobserved_samples": 43,
+              "minimum_observed_clearance_m": 0.0810723762424597,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.2341400234926586,
+                  0.20551953958433444,
+                  0.09938831114775425
+                ],
+                [
+                  0.23869859766986856,
+                  0.2246163609595243,
+                  0.10399675732476026
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.23434154665489704,
+                0.20576759023956614,
+                0.10056117814456166
+              ]
+            },
+            "0.03": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08792348582780872,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.04": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.0953334387576239,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.06": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.11137604945390434,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            }
+          }
+        },
+        {
+          "episode": "held",
+          "z_offsets_m": {
+            "0.0": {
+              "samples": 2860,
+              "unobserved_samples": 383,
+              "minimum_observed_clearance_m": 0.06969511046127921,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.19562347695950488,
+                  0.19503607008516632,
+                  0.0777892200795528
+                ],
+                [
+                  0.23877167626198226,
+                  0.24492920103684424,
+                  0.10498297618517421
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.19562347695950488,
+                0.19745391384273758,
+                0.07937548766265956
+              ]
+            },
+            "0.01": {
+              "samples": 2860,
+              "unobserved_samples": 197,
+              "minimum_observed_clearance_m": 0.07493351084205027,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.21878257202139506,
+                  0.1951088726220559,
+                  0.0877892200795528
+                ],
+                [
+                  0.23877167626198226,
+                  0.24492920103684424,
+                  0.10473053611686432
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.22277471787423553,
+                0.1951088726220559,
+                0.09025320984507
+              ]
+            },
+            "0.02": {
+              "samples": 2860,
+              "unobserved_samples": 43,
+              "minimum_observed_clearance_m": 0.0810723762424597,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.2341400234926586,
+                  0.20551953958433444,
+                  0.09938831114775425
+                ],
+                [
+                  0.23869859766986856,
+                  0.2246163609595243,
+                  0.10399675732476026
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.23434154665489704,
+                0.20576759023956614,
+                0.10056117814456166
+              ]
+            },
+            "0.03": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08792348582780872,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.04": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.0953334387576239,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.06": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.11137604945390434,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "voxel_m": 0.005,
+      "depth_stride": 2,
+      "native_mask": true,
+      "stages": [
+        {
+          "episode": "anchor",
+          "z_offsets_m": {
+            "0.0": {
+              "samples": 2860,
+              "unobserved_samples": 300,
+              "minimum_observed_clearance_m": 0.06804904052055988,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.20419121050954359,
+                  0.19195230922382933,
+                  0.07768305889659866
+                ],
+                [
+                  0.23877167626198226,
+                  0.24616786486020037,
+                  0.09247581256409132
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.20419121050954359,
+                0.1934134683438361,
+                0.08058273323026321
+              ]
+            },
+            "0.01": {
+              "samples": 2860,
+              "unobserved_samples": 58,
+              "minimum_observed_clearance_m": 0.07375354485097463,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.2278672701837321,
+                  0.1975417869776649,
+                  0.08798506302025354
+                ],
+                [
+                  0.23869859766986856,
+                  0.23640018856912848,
+                  0.09238151694994011
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.2278672701837321,
+                0.1982620153524428,
+                0.09086754508609717
+              ]
+            },
+            "0.02": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08030238540463029,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.03": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08750612953694276,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.04": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.09518509043122893,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.06": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.10951301934689084,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            }
+          }
+        },
+        {
+          "episode": "held",
+          "z_offsets_m": {
+            "0.0": {
+              "samples": 2860,
+              "unobserved_samples": 300,
+              "minimum_observed_clearance_m": 0.06804904052055988,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.20419121050954359,
+                  0.19195230922382933,
+                  0.07768305889659866
+                ],
+                [
+                  0.23877167626198226,
+                  0.24616786486020037,
+                  0.09247581256409132
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.20419121050954359,
+                0.1934134683438361,
+                0.08058273323026321
+              ]
+            },
+            "0.01": {
+              "samples": 2860,
+              "unobserved_samples": 57,
+              "minimum_observed_clearance_m": 0.07375354485097463,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.2278672701837321,
+                  0.1975417869776649,
+                  0.08798506302025354
+                ],
+                [
+                  0.23869859766986856,
+                  0.23640018856912848,
+                  0.09238151694994011
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.2278672701837321,
+                0.1982620153524428,
+                0.09086754508609717
+              ]
+            },
+            "0.02": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08030238540463029,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.03": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08750612953694276,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.04": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.09518509043122893,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.06": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.10951301934689084,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "voxel_m": 0.005,
+      "depth_stride": 1,
+      "native_mask": true,
+      "stages": [
+        {
+          "episode": "anchor",
+          "z_offsets_m": {
+            "0.0": {
+              "samples": 2860,
+              "unobserved_samples": 296,
+              "minimum_observed_clearance_m": 0.06804904052055988,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.20419121050954359,
+                  0.19195230922382933,
+                  0.0777892200795528
+                ],
+                [
+                  0.23877167626198226,
+                  0.2455621986025952,
+                  0.09247581256409132
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.20419121050954359,
+                0.1934134683438361,
+                0.08058273323026321
+              ]
+            },
+            "0.01": {
+              "samples": 2860,
+              "unobserved_samples": 64,
+              "minimum_observed_clearance_m": 0.07375354485097463,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.22277471787423553,
+                  0.19485656398434292,
+                  0.08798506302025354
+                ],
+                [
+                  0.23869859766986856,
+                  0.23640018856912848,
+                  0.09238151694994011
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.22277471787423553,
+                0.1951088726220559,
+                0.09025320984507
+              ]
+            },
+            "0.02": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08030238540463029,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.03": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08750612953694276,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.04": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.09518509043122893,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.06": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.10951301934689084,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            }
+          }
+        },
+        {
+          "episode": "held",
+          "z_offsets_m": {
+            "0.0": {
+              "samples": 2860,
+              "unobserved_samples": 290,
+              "minimum_observed_clearance_m": 0.06804904052055988,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.20419121050954359,
+                  0.19195230922382933,
+                  0.0777892200795528
+                ],
+                [
+                  0.23877167626198226,
+                  0.2455621986025952,
+                  0.09247581256409132
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.20419121050954359,
+                0.1934134683438361,
+                0.08058273323026321
+              ]
+            },
+            "0.01": {
+              "samples": 2860,
+              "unobserved_samples": 58,
+              "minimum_observed_clearance_m": 0.07375354485097463,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": [
+                [
+                  0.2278672701837321,
+                  0.1975417869776649,
+                  0.08798506302025354
+                ],
+                [
+                  0.23869859766986856,
+                  0.23640018856912848,
+                  0.09238151694994011
+                ]
+              ],
+              "first_unobserved_point_m": [
+                0.2278672701837321,
+                0.1982620153524428,
+                0.09086754508609717
+              ]
+            },
+            "0.02": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08030238540463029,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.03": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.08750612953694276,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.04": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.09518509043122893,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            },
+            "0.06": {
+              "samples": 2860,
+              "unobserved_samples": 0,
+              "minimum_observed_clearance_m": 0.10951301934689084,
+              "surfaces_by_camera": {},
+              "below_30mm_samples": 0,
+              "unobserved_bounds_m": null,
+              "first_unobserved_point_m": null
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

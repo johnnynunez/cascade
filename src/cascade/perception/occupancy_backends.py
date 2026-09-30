@@ -8,9 +8,8 @@ Three backends behind ONE interface, chosen by `make_backend(name)`:
           linux x86_64 wheel from the GitHub release; Jetson builds from
           source). Verified against the nvblox_torch public API at
           nvidia-isaac/nvblox `public` (Mapper.add_depth_frame /
-          update_esdf / query_layer(QueryType.ESDF)); UNVERIFIED at runtime
-          on this dev machine (no NVIDIA GPU here) -- the class is exercised
-          only where CUDA exists.
+          update_esdf / query_layer(QueryType.ESDF)). CUDA integration has
+          not been validated for the Spark delivery; see docs/NVBLOX.md.
 
   warp    Hardware-agnostic default. ~200 lines of NVIDIA Warp kernels owned
           by this repo: a DENSE projective TSDF over the workspace AABB
@@ -280,10 +279,9 @@ class NvbloxBackend:
         mapper.update_esdf()
         mapper.query_layer(QueryType.ESDF, points_Nx3_cuda) -> (N,1) distance;
             unknown == constants.esdf_unknown_distance()
-    UNVERIFIED on this dev machine (no CUDA). Any API drift raises at
-    construction/first call and the bridge reports it -- never a silent
-    fallback to another backend, because the client displays the backend
-    name as evidence of what checked the motion.
+    CUDA integration is unverified for the Spark delivery. With explicit
+    backend selection, API errors propagate to the bridge; `auto` may choose
+    a different backend at construction. The probe reports the actual name.
     """
 
     name = "nvblox"
@@ -345,8 +343,8 @@ class NvbloxBackend:
         sdf = self.mapper.query_layer(self._QueryType.ESDF, centres).reshape(-1).cpu().numpy()
         grid = sdf.reshape(spec.shape).astype(np.float32)
         unknown = grid == self._unknown
-        grid = np.abs(grid)          # clearance is unsigned; inside -> 0
-        grid[sdf <= 0.0] = 0.0
+        # Keep the 3-D layout: a flat SDF mask cannot index this grid.
+        grid = np.maximum(grid, 0.0)  # clearance is unsigned; inside -> 0
         grid[unknown] = np.inf        # unobserved reads as "no obstacle known" (kFree policy)
         occ = np.argwhere(grid <= 0.0)
         pts = (occ * self.voxel + spec.origin).astype(np.float32)

@@ -89,8 +89,20 @@ PhysX (orange, green cube, lemon, pink cube and tomato can), each on its first
 physical attempt, with 400 diffusion candidates and all reset audits passing.
 Source hashes stayed unchanged. The [receipt](../benchmark/results/graspgenx_spark_20260930.json)
 contains per-object metrics and hardware provenance. This is one round, not
-a statistical reliability guarantee. Full GB10 launcher validation is still
-pending; the [local Newton launcher proof](NEWTON_ENGINE.md) already reached READY.
+a statistical reliability guarantee. The full native Qwen/OpenClaw launcher
+also reached **READY** on GB10 with PhysX and real GraspGen-X: green cube and
+orange passed physical placement, contact, camera and reset checks. The orange
+needed a second physical attempt in this chat run. See the
+[launcher receipt](../benchmark/results/graspgenx_spark_launch_20260930.json)
+and [actual three-camera recording, replayed at 4×](../benchmark/results/videos/graspgenx_spark_ready_20260930.mp4).
+The run used independently installed GraspGen-X with existing Isaac/app packages
+and a separately started Qwen server; it does not establish a fresh full desktop
+installation. The [local Newton launcher proof](NEWTON_ENGINE.md) also reached READY.
+
+Quick restart was then exercised on the same Spark with Qwen and the bridges
+still running. `--no-robot-turn --no-judge` skipped the physical proof and printed
+the expected UNVERIFIED status; this was a warm reuse test, not a timed crash
+recovery measurement. [nvblox remained disabled](NVBLOX.md) in these runs.
 
 For an already running server use `--graspgenx external`. Set
 `CASCADE_GRASPGENX_PORT` for a different local port; it is propagated to the

@@ -4,6 +4,7 @@ overrides:
   detector:
     device: auto
   grasp:
-    # Reach the existing carry height vertically before crossing the low
-    # platform. The140mm target/145mm ceiling, speeds and forces are unchanged.
+    # Reach clearance vertically before horizontal transport. Keep it
+    # independent of the lower release heights at the destination.
+    carry_height_m: 0.14
     pre_carry_lift: true

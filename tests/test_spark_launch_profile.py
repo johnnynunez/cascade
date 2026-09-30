@@ -96,8 +96,19 @@ def test_spark_default_passes_brev_engine_profile_and_cuda_to_bridge(tmp_path, a
     assert not (tmp_path / "state").exists()
 
 
+def test_spark_newton_is_an_explicit_opt_in_with_the_same_cuda_contract(tmp_path):
+    repo, entry, environment = launch_boundary(tmp_path)
+    result = subprocess.run(["bash", str(entry), "--engine", "newton", "--headless", "--no-open"],
+                            env=environment, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stdout + result.stderr
+    _, child = map(json.loads, result.stdout.splitlines())
+    assert child["argv"] == ["--port", "8611", "--usd", str(repo / "robot.usda"),
+                             "--engine", "newton", "--scene-config", str(repo / "demo/scene/kitchen_config.json")]
+    assert child["environment"]["CASCADE_REQUIRE_CUDA"] == "1"
+
+
 @pytest.mark.parametrize("arguments", [
-    ["--engine", "newton"], ["--arm", "isaac"], ["--occupancy", "warp"],
+    ["--arm", "isaac"], ["--occupancy", "warp"],
 ])
 def test_spark_rejects_conflicting_event_options_before_mutation(tmp_path, arguments):
     _, entry, environment = launch_boundary(tmp_path)
@@ -122,6 +133,72 @@ def runtime_identity():
             "broadphase": "GPU", "cpu_fallback_allowed": False,
         },
     }
+
+
+def newton_identity():
+    pong = runtime_identity()
+    pong["engine"] = "newton"
+    pong["gpu_attestation"].update(backend="newton", gpu_dynamics=None, broadphase=[], newton={
+        "device": "cuda:0", "cuda": True, "ordinal": 0, "cuda_context_present": True,
+        "array_devices": ["cuda:0"], "solver": "SolverMuJoCo", "mujoco_cpu": False, "cuda_graph": True})
+    return pong
+
+
+def _run_probe(monkeypatch, pong, requested_engine):
+    requests = []
+
+    class Bridge(socketserver.StreamRequestHandler):
+        def handle(self):
+            for line in self.rfile:
+                op = json.loads(line)["op"]
+                requests.append(op)
+                reply = pong if op == "ping" else {"ok": True, "q": [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]}
+                self.wfile.write(json.dumps(reply).encode() + b"\n")
+                self.wfile.flush()
+
+    with socketserver.ThreadingTCPServer((loopback_host(), 0), Bridge) as server:
+        server.daemon_threads = True
+        worker = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": .01}, daemon=True)
+        worker.start()
+        try:
+            blocks = re.findall(r"<<'PYEOF'[^\n]*\n(.*?)\nPYEOF", LAUNCH.read_text(), flags=re.DOTALL)
+            [probe] = [block for block in blocks if "Isaac bridge answers:" in block]
+            monkeypatch.setenv("CASCADE_INSTALL_PROFILE", "spark")
+            monkeypatch.setenv("CASCADE_ISAAC_DT", "0.008333333333333333")
+            monkeypatch.setattr(sys, "argv", ["-", str(server.server_address[1]), requested_engine,
+                                               "/fixture/kitchen_config.json", "a" * 64, "2", "", "c" * 64])
+            from cascade.sim import bridge_client
+            real_client = bridge_client.BridgeClient
+            monkeypatch.setattr(bridge_client, "BridgeClient",
+                                lambda **kwargs: real_client(host=loopback_host(), **kwargs))
+            exec(compile(probe, str(LAUNCH), "exec"), {})
+        finally:
+            server.shutdown()
+            worker.join(timeout=2)
+    return requests
+
+
+@pytest.mark.parametrize("fault", [None, "mujoco_cpu", "arrays_elsewhere", "no_newton_block", "physx_requested",
+                                   "no_context"])
+def test_spark_probe_attests_newton_from_its_own_stage(monkeypatch, fault, capsys):
+    pong = newton_identity()
+    requested = "newton"
+    if fault == "mujoco_cpu":
+        pong["gpu_attestation"]["newton"]["mujoco_cpu"] = True
+    elif fault == "arrays_elsewhere":
+        pong["gpu_attestation"]["newton"]["array_devices"] = ["cpu"]
+    elif fault == "no_newton_block":
+        pong["gpu_attestation"].pop("newton")
+    elif fault == "physx_requested":
+        requested = "physx"
+    elif fault == "no_context":
+        pong["gpu_attestation"]["cuda_context_present"] = False
+    if fault is None:
+        assert _run_probe(monkeypatch, pong, requested) == ["ping", "state"]
+        assert "engine=newton" in capsys.readouterr().out
+    else:
+        with pytest.raises(AssertionError):
+            _run_probe(monkeypatch, pong, requested)
 
 
 @pytest.mark.parametrize("fault", [

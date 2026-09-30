@@ -135,8 +135,13 @@ if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark && $DOWN == 0 ]]; then
     [[ "$SIM" != auto ]] || SIM=isaac
     [[ "$BRAIN" != auto ]] || BRAIN=qwen
     [[ "$SIM" == isaac && "$BRAIN" == qwen ]] || { printf '[launch] ERROR: Spark delivery requires Isaac + the pinned local model\n' >&2; exit 2; }
-    [[ "${ISAAC_ENGINE:-physx}" == physx ]] || { printf '[launch] ERROR: Spark event delivery uses the working booth PhysX engine\n' >&2; exit 2; }
-    ISAAC_ENGINE=physx
+    # PhysX stays the booth default. Newton (MJWarp) is an explicit opt-in: the
+    # same kitchen, both cases and their resets pass on it, and it is attested
+    # on CUDA from the Newton stage itself (isaac_runtime.newton_cuda_evidence).
+    case "${ISAAC_ENGINE:-physx}" in
+        physx|newton) ISAAC_ENGINE="${ISAAC_ENGINE:-physx}" ;;
+        *) printf '[launch] ERROR: Spark event delivery supports --engine physx (default) or newton\n' >&2; exit 2 ;;
+    esac
     # Match the published kitchen's calibrated arm, event cameras and timestep.
     SCENE_CONFIG="${SCENE_CONFIG:-$REPO/demo/scene/kitchen_config.json}"
     ARM="${ARM:-isaac_kitchen_gpu}"
@@ -608,11 +613,17 @@ while True:
             assert math.isclose(actual_dt, expected_dt, rel_tol=1e-6, abs_tol=1e-12), (
                 f"requested Isaac timestep {expected_dt:.12g}s, received {actual_dt:.12g}s; restart that bridge explicitly")
         if os.environ.get('CASCADE_INSTALL_PROFILE') == 'spark':
-            assert pong.get('engine') == 'physx', f"Spark event delivery requires PhysX, received {pong.get('engine')!r}"
+            engine = expected_engine or 'physx'
+            assert engine in ('physx', 'newton') and pong.get('engine') == engine, f"Spark event delivery requested {engine!r}, received {pong.get('engine')!r}"
             attestation = pong.get('gpu_attestation') or {}
             assert pong.get('physics_gpu') is True and attestation.get('required') is True, 'Spark requires live CUDA physics attestation'
-            assert attestation.get('backend') == 'physx' and attestation.get('cuda_context_present') is True, 'Spark requires the PhysX CUDA context'
-            assert attestation.get('gpu_dynamics') is True and attestation.get('broadphase') == 'GPU', 'Spark requires GPU dynamics and broadphase'
+            assert attestation.get('backend') == engine and attestation.get('cuda_context_present') is True, f'Spark requires the {engine} CUDA context'
+            if engine == 'physx':
+                assert attestation.get('gpu_dynamics') is True and attestation.get('broadphase') == 'GPU', 'Spark requires GPU dynamics and broadphase'
+            else:
+                newton = attestation.get('newton') or {}
+                assert newton.get('cuda') is True and newton.get('mujoco_cpu') is False and newton.get('solver') == 'SolverMuJoCo', 'Spark Newton requires MJWarp on CUDA, not the MuJoCo CPU backend'
+                assert newton.get('array_devices') == [attestation.get('tensor_device')], 'Spark Newton state/contact arrays are not on the attested CUDA device'
             device = pong.get('physics_device')
             assert isinstance(device, str) and device.startswith('cuda:') and device == pong.get('physics_tensor_device') == attestation.get('device') == attestation.get('tensor_device'), 'Spark physics and tensor CUDA devices differ'
             ordinal = attestation.get('tensor_device_ordinal')

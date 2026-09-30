@@ -11,7 +11,10 @@ frame, so the plan is done where it is physically meaningful:
   and each yaw is emitted twice, 180 degrees apart, since the jaw axis is a
   line and the flip is free reach on a roll-limited wrist;
 - grasp height: object top minus a fraction of its height, clamped above the
-  table so the jaws wrap the object instead of pinching its rim.
+  table so the jaws wrap the object instead of pinching its rim. An object
+  that narrows toward its top (a fruit, a ball, a can lying on its side) is
+  grasped at its widest horizontal section instead -- see
+  `_widest_section_z`.
 
 Width feasibility against the gripper's max opening is annotated, not
 silently dropped: the agent should know an object is too wide to pinch (and
@@ -185,6 +188,99 @@ def _rim_grasp_width(points: np.ndarray, obj_top_z: float,
     return wall, grasp_z, r_out, r_in, centre
 
 
+# How far the widest section of a rounded object sits inside the fingertips
+# (the TCP is the fingertip plane). Pinched exactly at the tips, the kitchen
+# orange was held in 12/15 jaw/lateral offsets (+-12 mm along the jaw, +-6 mm
+# across it) in plain MuJoCo and lost under Newton at a 3.5 mm lateral error;
+# with the equator 6, 10 or 14 mm inside the tips it was held in 15/15.
+ROUND_GRASP_INSET_M = 0.010
+
+
+def _widest_section_z(points: np.ndarray, axis: np.ndarray, grasp_z: float,
+                       bottom_z: float, top_z: float, floor_z: float,
+                       slice_m: float = 0.004,
+                       inset_m: float = ROUND_GRASP_INSET_M) -> float:
+    """Grasp height for a rounded object: its widest section along the jaw axis.
+
+    The top-biased height suits anything with vertical sides (boxes, upright
+    cans): the cross-section there is as wide as anywhere. On an object that
+    narrows toward its top the jaws close on surface whose normals tilt
+    upward, and the squeeze pushes the object down and out. Measured on the
+    kitchen's 52 mm orange with the reBot jaws in plain MuJoCo (vendor
+    MJCF, pad friction 1.0-2.0, condim 3/4/6): pinched 18 mm above its centre
+    it is lost on lift, within 5 mm of the centre it is held; Newton agreed
+    (lost at +11..+16 mm, held at -1 mm).
+
+    The jaw-axis width of the observed points is measured in overlapping
+    horizontal slices, anchored to the bottom rather than the highest point.
+    A noisy point at the top must not move every slice through the cloud.
+    The height changes only when the object is visibly rounded: the
+    topmost slice is under 80% of the widest one AND the slice at the planned
+    height is under 90% of it. The new height is the centre of the slices
+    within 5% of the widest, weighted by their width above that threshold.
+    Weights taper to zero so a slice crossing the threshold cannot move the
+    target by a whole slice. A long uniform body (a bottle under its neck)
+    is grasped mid-body rather than at a noisy argmax, and the TCP goes
+    `inset_m` below it so the pads, not the fingertip edges, hold that
+    section (never below `floor_z`). Sparse clouds (fewer than five populated,
+    non-overlapping slices) keep the planned height.
+    """
+    import os
+
+    a = np.asarray(axis, dtype=float)[:2]
+    if len(points) < 40 or top_z - bottom_z < 3 * slice_m or not np.linalg.norm(a):
+        return grasp_z
+    centers, widths = [], []
+    # Four samples per slice retain the physical width-estimation scale
+    # while avoiding 4 mm jumps as points cross a disjoint slice boundary.
+    step = slice_m / 4
+    sample_centers = np.arange(bottom_z + slice_m / 2,
+                                top_z - slice_m / 2 + 1e-9, step)
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1" or getattr(points, "is_cuda", False):
+        from ..perception.cuda_math import horizontal_width_profile
+        centers, widths, top_width = horizontal_width_profile(points, a, sample_centers, top_z, slice_m)
+    else:
+        pts = np.asarray(points, dtype=float)
+        proj = pts[:, :2] @ (a / np.linalg.norm(a))
+        z = pts[:, 2]
+        for center in sample_centers:
+            sel = np.abs(z - center) <= slice_m / 2
+            if int(sel.sum()) >= 8:
+                p2, p98 = np.percentile(proj[sel], [2, 98])
+                centers.append(center)
+                widths.append(float(p98 - p2))
+        top_slice = (z >= top_z - slice_m) & (z <= top_z)
+        top_width = float(np.diff(np.percentile(proj[top_slice], [2, 98]))[0]) if int(top_slice.sum()) >= 8 else None
+    independent_slices = 0
+    next_independent = bottom_z + slice_m / 2
+    for center in centers:
+        if center >= next_independent - 1e-9:
+            independent_slices += 1
+            next_independent = center + slice_m
+    if independent_slices < 5:
+        return grasp_z
+    c, w = np.asarray(centers), np.asarray(widths)
+    # Smooth the densely sampled profile before comparing widths. A single
+    # noisy edge band (for example at the support plane) must not compete
+    # with a broad, consistently wide section of the object.
+    w = np.convolve(np.pad(w, (1, 1), mode="edge"), [0.25, 0.5, 0.25], mode="valid")
+    w_max = float(w.max())
+    if w_max <= 0.0:
+        return grasp_z
+    # Include the actual top surface, which may fall beyond the last full
+    # bottom-anchored slice. Missing a can's lid can make a partial view of
+    # its sides look rounded even though the lid spans the full width.
+    w_top = top_width if top_width is not None else float(w[-1])
+    w_here = float(np.interp(grasp_z, c, w))
+    if w_top >= 0.8 * w_max or w_here >= 0.9 * w_max:
+        return grasp_z
+    weights = np.maximum(w / w_max - 0.95, 0.0)
+    target = float(np.average(c, weights=weights)) - inset_m
+    if target >= grasp_z:
+        return grasp_z
+    return max(target, floor_z)
+
+
 def plan_grasps_from_fix(
     fix: ObjectFix,
     table_z: float,
@@ -231,7 +327,8 @@ def plan_grasps_from_fix(
         required = width + width_pad_m
         feasible = required <= max_width_m
         pos = fix.position.copy()
-        pos[2] = grasp_z
+        pos[2] = _widest_section_z(fix.points, axis, grasp_z, obj_bottom_z, obj_top_z,
+                                   table_z + min_grasp_z_above_table)
         # Both yaw and yaw+pi describe the SAME physical grasp: the jaw axis is
         # a line, so flipping it swaps which jaw is on which side and nothing
         # else. Emitting the flip costs nothing and buys reach on arms whose

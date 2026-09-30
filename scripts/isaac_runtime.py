@@ -16,7 +16,32 @@ def setup_physics(simulation_manager, *, dt: float, device: str, require_cuda: b
     simulation_manager.setup_simulation(dt=dt, device=device)
 
 
-def physics_device_identity(simulation_manager, *, require_cuda: bool = False) -> dict:
+def newton_cuda_evidence(newton_stage) -> dict:
+    """Where Newton's live model, state, contacts and solver actually run.
+
+    Newton's SimulationView exposes no CUDA context handle (`cuda_context`
+    reads 0 even on a GPU run), so the PhysX-style check alone can never pass.
+    Read the evidence from the Newton stage instead: the Warp device holding
+    the model/state/contact arrays, its CUDA context, and whether the MuJoCo
+    solver runs MJWarp on it (not the MuJoCo CPU backend).
+    """
+    import warp as wp
+
+    model = newton_stage.model
+    dev = wp.get_device(model.device)
+    arrays = {"body_q": newton_stage.state_0.body_q, "joint_q": newton_stage.state_0.joint_q,
+              "rigid_contact_count": newton_stage.contacts.rigid_contact_count}
+    solver = getattr(newton_stage, "solver", None)
+    return {"device": str(dev.alias), "cuda": bool(dev.is_cuda), "ordinal": int(dev.ordinal) if dev.is_cuda else -1,
+            "cuda_context_present": bool(dev.is_cuda and dev.context),
+            "pci_bus_id": getattr(dev, "pci_bus_id", None), "uuid": getattr(dev, "uuid", None),
+            "array_devices": sorted({str(a.device) for a in arrays.values()}),
+            "solver": type(solver).__name__ if solver is not None else None,
+            "mujoco_cpu": bool(getattr(solver, "use_mujoco_cpu", False)),
+            "cuda_graph": getattr(newton_stage, "graph", None) is not None}
+
+
+def physics_device_identity(simulation_manager, *, require_cuda: bool = False, newton_stage=None) -> dict:
     """Attest actual backend data allocation, independently of requested env values."""
     engine = str(simulation_manager.get_active_physics_engine()).lower()
     device = str(simulation_manager.get_device())
@@ -27,12 +52,29 @@ def physics_device_identity(simulation_manager, *, require_cuda: bool = False) -
     tensor_device = str(view.device)
     ordinal = int(view.device_ordinal)
     cuda_context_present = bool(view.cuda_context)
+    newton = None
+    if engine == "newton":
+        if newton_stage is None:
+            try:
+                import isaacsim.physics.newton.impl.extension as _newton_ext
+                newton_stage = _newton_ext._newton_stage
+            except Exception:  # noqa: BLE001 - attested below as missing evidence
+                newton_stage = None
+        if newton_stage is not None and getattr(newton_stage, "model", None) is not None:
+            newton = newton_cuda_evidence(newton_stage)
+            cuda_context_present = newton["cuda_context_present"]
+            newton_ok = (newton["cuda"] and not newton["mujoco_cpu"] and newton["solver"] is not None
+                         and newton["array_devices"] == [tensor_device] and newton["device"] == tensor_device)
+        else:
+            newton_ok = False
+            cuda_context_present = False
     dynamics = all(scene.get_enabled_gpu_dynamics() for scene in scenes) if engine == "physx" else None
     broadphases = [str(scene.get_broadphase_type()) for scene in scenes] if engine == "physx" else []
     gpu = (engine in ("physx", "newton") and device.startswith("cuda:")
            and tensor_device.startswith("cuda:") and ordinal >= 0 and cuda_context_present
            and device == tensor_device == f"cuda:{ordinal}"
-           and (engine != "physx" or (dynamics and all(b == "GPU" for b in broadphases))))
+           and (engine != "physx" or (dynamics and all(b == "GPU" for b in broadphases)))
+           and (engine != "newton" or newton_ok))
     if require_cuda and not gpu:
         raise RuntimeError(f"GPU physics required; CUDA readback mismatch: engine={engine}, "
                            f"device={device}, tensor={tensor_device}, ordinal={ordinal}, "
@@ -42,6 +84,8 @@ def physics_device_identity(simulation_manager, *, require_cuda: bool = False) -
                    "cuda_context_present": cuda_context_present, "gpu_dynamics": dynamics,
                    "broadphase": broadphases[0] if len(set(broadphases)) == 1 else broadphases,
                    "cpu_fallback_allowed": False}
+    if engine == "newton":
+        attestation["newton"] = newton
     return {"physics_device": device, "physics_tensor_device": tensor_device,
             "physics_gpu": bool(gpu), "gpu_attestation": attestation}
 

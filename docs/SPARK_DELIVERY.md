@@ -109,6 +109,41 @@ the unchanged physical audit. This does not establish the cause of the first
 failure. No controller or physics setting was changed for that retry.
 These historical results do not establish acceptance of the original kitchen on Spark.
 
+## Quick recovery during the demo
+
+Use the in-session reset for scene/task state. `scripts/booth_reset.sh
+--wipe-brain` is an older booth workflow: it deletes the default grasp-memory
+file, while a running MCP server retains its in-memory copy and can save it
+again. Spark profiles use their own memory paths. Deleting a file therefore
+does not establish that a live session has reset, or explain a failed startup
+proof without the failing trace. Restarting with the flags below does not
+require deleting memory files.
+
+If the stack is running and you only need to put the objects back, use
+**Start over** in the Spark demo chat, **Reset** in the PAAI OpenClaw interface,
+or send **"Reset the scene."** in the current conversation.
+This keeps Isaac, the model and OpenClaw running;
+it returns the arm home, restores the props, clears task state and captures
+a fresh observation. It does not rerun the startup pick-and-place tests.
+These buttons are unavailable while another order is running. Wait for the
+reset result and check the camera views before the next order.
+
+After a crash, add `--no-robot-turn --no-judge` to the usual launch command
+to skip the startup manipulation tests and optional image judge. Preserve
+the engine, scene and other flags used for the demo:
+
+| Engine | Quick launch command |
+| --- | --- |
+| PhysX (default) | `./run.sh isaac --no-robot-turn --no-judge` |
+| Newton | `./run.sh isaac --engine newton --no-robot-turn --no-judge` |
+
+The launcher reuses matching services that are still running and starts
+missing ones. Simulator initialization, connection, scene identity, robot
+tool and model checks still run. The resulting banner is
+`STARTED (UNVERIFIED: robot proof skipped)`; a fast restart does not create
+a new physical acceptance result. Use the normal launch command without
+these skip flags when a complete `READY` proof is needed.
+
 ## Clean-room acceptance
 
 A release receipt must record a fresh source root, private HOME/cache tree,

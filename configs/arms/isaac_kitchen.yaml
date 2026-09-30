@@ -16,10 +16,25 @@ overrides:
     drop_zone_name: green square
     open_box:
       center_xy_m: [0.30, -0.14]
+      support_top_z_m: 0.004
+      # Keep the conservative fixed-height fallback for unknown held geometry.
+      # Measured grasps use the support plane and held support offset below.
       release_height_m: 0.104
+    # Use the observed grasp-to-bottom distance for the final descent.
+    # These fixed heights remain fallbacks when no grasp geometry is known.
+    # Allow for a change in the fruit's orientation during the carry: a 6 mm
+    # margin pressed a tilted lemon into the floor before the jaws opened.
+    place_support_clearance_m: 0.015
+    # Kitchen props are picked up from the calibrated countertop. The lowest
+    # visible depth point overestimates their bottom and causes over-descent.
+    source_support_top_z_m: 0.0
+    # Wait for measured open jaws before retracting; rendering load changes
+    # how much simulated motion fits into a fixed wall-clock delay.
+    release_open_timeout_s: 8.0
+    close_feedback_timeout_s: 8.0
     # Wall-clock motion must allow enough simulated steps under rendering load.
     move_duration_s: 7.5
-    release_height_m: 0.10
+    release_height_m: 0.08
     release_clearance_m: 0.115
     # Clear the released object before the empty gripper returns home.
     post_place_retreat_offset_m: 0.025

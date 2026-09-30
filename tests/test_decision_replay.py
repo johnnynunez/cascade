@@ -1,6 +1,7 @@
 """Captured evidence integrity and read-only replay protocol checks."""
 
 import ast
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -125,3 +126,19 @@ def test_rules_baseline_uses_status_and_complete_reset_evidence():
     response = backend.evaluate(case)
     assert response["completion"]["boolean"] is False
     assert response["choice"]["choice"] != case["expected_choice"]
+
+
+def test_frozen_results_are_complete_and_paired_with_captured_evidence():
+    manifest = json.loads((ROOT / "benchmark/results/captured_outcomes_manifest_20261001.json").read_text())
+    fixture_hash = hashlib.sha256(replay.DEFAULT_FIXTURE.read_bytes()).hexdigest()
+    assert manifest["frozen_fixture"]["sha256"] == fixture_hash
+    inputs = []
+    for name, artifact in manifest["artifacts"].items():
+        path = ROOT / "benchmark/results" / name
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == artifact["sha256"]
+        report = json.loads(path.read_text())
+        assert report["run_complete"] and len(report["cases"]) == 10
+        assert report["fixture_sha256"] == fixture_hash
+        assert report["source_revision"] == artifact["source_revision"]
+        inputs.append([(r["id"], r["state_sha256"], r["candidates_sha256"]) for r in report["cases"]])
+    assert inputs[0] == inputs[1] == inputs[2]

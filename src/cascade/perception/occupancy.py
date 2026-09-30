@@ -181,6 +181,99 @@ class OccupancyMap:
         self.last_masked_px: int = 0
         self._body_error: str | None = None
         self.allowed_contact_paths: set[str] = set()
+        self._refresh_lock = threading.RLock()
+        self._payload_pose_fn = None
+        self._payload_samples = {}
+        self._contact_paths = None
+        self._contact_floor = -np.inf
+        self._latest_contact_stamp = -np.inf
+        self._depth_history = {}
+        self._prop_history_floor = {}
+        self.last_replayed_frames = 0
+        self._reset_pending = False
+        self._reset_floors = {}
+        self.last_payload_query = None
+
+    @staticmethod
+    def _capture_key(marker):
+        return (tuple(marker["source"]), marker["camera"], marker["robot_id"], marker["clock"])
+
+    def begin_scene_reset(self):
+        """Invalidate attached geometry/history before draining pre-reset captures."""
+        if self._payload_pose_fn is None:
+            return False
+        with self._refresh_lock:
+            self._reset_pending = True
+            self._body_error = "waiting for post-reset captured geometry"
+            self._grid = self._occupied = None
+            self._last_refresh = None
+            self._depth_history.clear()
+            self._prop_history_floor.clear()
+            self._payload_samples.clear()
+            self._contact_paths = None
+            self._contact_floor = self._latest_contact_stamp = -np.inf
+            self._reset_floors.clear()
+            self._client.request({"action": "clear"})
+            return True
+
+    def finish_scene_reset(self, floor_frames):
+        from .freshness import capture_marker
+
+        with self._refresh_lock:
+            floors = {}
+            for frame in floor_frames:
+                marker = capture_marker(frame)
+                floors[self._capture_key(marker)] = marker["t"]
+            if not floors:
+                raise OccupancyError("reset requires captured camera floors")
+            self._reset_floors = floors
+            self._reset_pending = False
+
+    def track_payload(self, frame_tcp_pose_fn) -> None:
+        """Use captured depth of attached props as robot geometry, not world obstacles."""
+        if self._payload_pose_fn is not None:
+            raise ValueError("payload tracking currently requires a single arm")
+        self._payload_pose_fn = frame_tcp_pose_fn
+        self._body_error = "payload segmentation not yet validated"
+
+    def payload_points(self, T_base_tcp: np.ndarray) -> np.ndarray:
+        """Transform measured attached surfaces with a candidate TCP pose."""
+        with self._refresh_lock:
+            if not self._payload_samples:
+                return np.empty((0, 3))
+            points = np.concatenate(list(self._payload_samples.values()))
+            return points @ T_base_tcp[:3, :3].T + T_base_tcp[:3, 3]
+
+    def payload_clearance(self, points: np.ndarray) -> np.ndarray | None:
+        """A carried surface needs observed ESDF support; unknown is not free."""
+        with self._refresh_lock:
+            distance = self._clearance(points)
+            if distance is None or self._grid is None:
+                return None
+            fractional = (np.asarray(points) - self._grid_origin) / self._grid_voxel
+            shape = np.asarray(self._grid.shape)
+            inside = ((fractional >= 0) & (fractional <= shape - 1)).all(axis=1)
+            low = np.floor(np.clip(fractional, 0, shape - 1)).astype(int)
+            high = np.minimum(low + 1, shape - 1)
+            blend = np.clip(fractional, 0, shape - 1) - low
+            known = inside.copy()
+            for dx in (0, 1):
+                for dy in (0, 1):
+                    for dz in (0, 1):
+                        index = np.column_stack((
+                            (low if dx == 0 else high)[:, 0],
+                            (low if dy == 0 else high)[:, 1],
+                            (low if dz == 0 else high)[:, 2]))
+                        weight = ((blend[:, 0] if dx else 1-blend[:, 0])
+                                  * (blend[:, 1] if dy else 1-blend[:, 1])
+                                  * (blend[:, 2] if dz else 1-blend[:, 2]))
+                        known &= np.isfinite(self._grid[tuple(index.T)]) | (weight <= 1e-9)
+            self.last_payload_query = {
+                "samples": len(points), "unobserved_samples": int((~known).sum()),
+                "minimum_observed_clearance_m": float(distance[known].min()) if known.any() else None,
+                "surfaces_by_camera": {name: len(p) for name, p in self._payload_samples.items()},
+            }
+            return np.where(known, distance, np.nan)
 
     def add_robot_body(self, link_points_fn, radius_m: float = 0.06, *, frame_link_points_fn=None) -> None:
         """Register an arm to mask out of the depth before integration.
@@ -304,14 +397,41 @@ class OccupancyMap:
         Best-effort: any failure records `last_error` and leaves the
         existing cache in place (it simply ages toward `max_age_s`).
         """
+        with self._refresh_lock:
+            self._refresh(frame, T_base_cam)
+
+    def _refresh(self, frame, T_base_cam: np.ndarray) -> None:
         if self._client is None:
             return
+        if self._reset_pending:
+            return
+        if self._reset_floors:
+            from .freshness import capture_marker
+
+            marker = capture_marker(frame)
+            key = self._capture_key(marker)
+            if key not in self._reset_floors:
+                self._body_error = "camera identity changed after reset"
+                raise OccupancyError(self._body_error)
+            if marker["t"] <= self._reset_floors[key]:
+                return
+        if self._payload_pose_fn is not None:
+            capture = getattr(frame, "capture", None) or {}
+            stamp = capture.get("t")
+            if isinstance(stamp, (int, float)) and stamp < self._contact_floor:
+                return  # an older camera must not undo an attachment transition
+            paths = tuple(sorted(capture.get("contact_paths", [])))
+            if (isinstance(stamp, (int, float)) and stamp < self._latest_contact_stamp
+                    and paths != self._contact_paths):
+                return  # newer evidence of the SAME state also supersedes an old transition
         try:
             if frame.has_depth:
                 if self._depth_supported is not False:
                     try:
                         self._integrate_depth(frame, T_base_cam)
                     except OccupancyError as e:
+                        if self._payload_pose_fn is not None:
+                            raise  # payload transitions require the depth + clear contract
                         if "unknown action" in str(e):
                             # an old bridge: fall back to the cloud protocol
                             self._depth_supported = False
@@ -352,10 +472,102 @@ class OccupancyMap:
         K = np.asarray(frame.K, dtype=np.float64).copy()
         K[:2, :] /= s
         depth = self._mask_robot(depth, K, T_base_cam, frame=frame)
+        if self._payload_pose_fn is not None:
+            self._prepare_payload(frame, T_base_cam)
         self._client.request({
             "action": "integrate_depth", "depth": depth,
             "K": K.astype(np.float32), "T_base_cam": np.asarray(T_base_cam, dtype=np.float32),
         })
+        if self._payload_pose_fn is not None:
+            self._remember_depth(frame, T_base_cam)
+
+    def _remember_depth(self, frame, T_base_cam):
+        capture = frame.capture
+        camera, stamp = capture.get("camera", "primary"), float(capture["t"])
+        history = self._depth_history.setdefault(camera, [])
+        if history and history[-1]["t"] == stamp:
+            return
+        history.append({"t": stamp, "depth": frame.depth_m.copy(), "K": frame.K.copy(),
+                        "T": np.asarray(T_base_cam).copy(),
+                        "robot": frame.robot_mask & ~frame.payload_mask,
+                        "props": {path: mask.copy() for path, mask in frame.prop_masks.items()}})
+        # Keep an anchor from before the gripper occludes the scene plus the
+        # newest view. Exact prop masks prevent old object poses resurfacing.
+        if len(history) > 2:
+            del history[1:-1]
+
+    def _replay_background(self, paths, stamp):
+        # Reconstruct from actual prior views, removing only exact pixels of
+        # this payload. A world-map clear must not erase every other camera's
+        # recent observation while the gripper occludes the current view.
+        # Old poses of released props remain filtered from historical frames.
+        floors = self._prop_history_floor.copy()
+        for path in set(paths) | set(self._contact_paths or ()):
+            floors[path] = stamp
+        self._client.request({"action": "clear"})
+        self._grid = self._occupied = None
+        self._last_refresh = None
+        self.last_replayed_frames = 0
+        history = sorted((f for frames in self._depth_history.values() for f in frames),
+                         key=lambda f: f["t"])
+        for old in history:
+            mask = old["robot"].copy()
+            for path, pixels in old["props"].items():
+                if path in paths or old["t"] < floors.get(path, -np.inf):
+                    mask |= pixels
+            s = self.depth_stride
+            depth = np.where(mask, 0., old["depth"])[::s, ::s].astype(np.float32)
+            K = old["K"].copy()
+            K[:2, :] /= s
+            self._client.request({"action": "integrate_depth", "depth": depth,
+                                  "K": K.astype(np.float32), "T_base_cam": old["T"].astype(np.float32)})
+            self.last_replayed_frames += 1
+        self._prop_history_floor = floors
+
+    def _prepare_payload(self, frame, T_base_cam) -> None:
+        try:
+            mask = getattr(frame, "payload_mask", None)
+            capture = frame.capture or {}
+            stamp = float(capture["t"])
+            paths = tuple(sorted(capture.get("contact_paths", [])))
+            props = getattr(frame, "prop_masks", None)
+            if (props is None or set(props) != self.allowed_contact_paths
+                    or any(m.dtype != np.bool_ or m.shape != frame.depth_m.shape for m in props.values())):
+                raise ValueError("missing or invalid captured per-prop masks")
+            if (mask is None or mask.dtype != np.bool_ or mask.shape != frame.depth_m.shape
+                    or not np.isfinite(stamp) or (mask.any() and not paths)
+                    or np.any(mask & ~frame.robot_mask)):
+                raise ValueError("missing or invalid captured payload mask")
+            expected = np.zeros(mask.shape, dtype=bool)
+            for path in paths:
+                expected |= props[path]
+            if not np.array_equal(expected, mask):
+                raise ValueError("payload mask does not match captured prop identities")
+            T_tcp = np.asarray(self._payload_pose_fn(frame), dtype=float)
+            if T_tcp.shape != (4, 4) or not np.isfinite(T_tcp).all():
+                raise ValueError("invalid captured TCP pose")
+            self._latest_contact_stamp = max(self._latest_contact_stamp, stamp)
+            if paths != self._contact_paths:
+                self._replay_background(paths, stamp)
+                self._payload_samples.clear()
+                self._contact_paths = paths
+                self._contact_floor = stamp
+            valid = mask & np.isfinite(frame.depth_m) & (frame.depth_m > 0)
+            y, x = np.nonzero(valid)
+            if len(x):
+                z = frame.depth_m[y, x]
+                K = frame.K
+                camera = np.column_stack(((x-K[0, 2])*z/K[0, 0], (y-K[1, 2])*z/K[1, 1], z))
+                base = camera @ T_base_cam[:3, :3].T + T_base_cam[:3, 3]
+                local = (base - T_tcp[:3, 3]) @ T_tcp[:3, :3]
+                # Keep spatial coverage with one measured point per 3 mm cell.
+                _, index = np.unique(np.floor(local/.003).astype(np.int64), axis=0, return_index=True)
+                self._payload_samples[capture.get("camera", "primary")] = local[index]
+            if paths and not self._payload_samples:
+                raise ValueError("attached object has no measured depth surface")
+        except Exception as exc:
+            self._body_error = f"payload tracking unavailable: {exc}"
+            raise OccupancyError(self._body_error) from exc
 
     def _render_robot_mask(self, frame):
         mask = getattr(frame, "robot_mask", None)
@@ -452,6 +664,10 @@ class OccupancyMap:
         A pending/failed robot-body mask raises SafetyViolation even when
         the cache has aged out; this known fault must never become a bypass.
         """
+        with self._refresh_lock:
+            return self._clearance(points)
+
+    def _clearance(self, points: np.ndarray) -> np.ndarray | None:
         if self._body_error is not None:
             from ..types import SafetyViolation
 

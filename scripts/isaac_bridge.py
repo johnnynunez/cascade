@@ -807,7 +807,9 @@ if _PIXEL_MASK_ENABLED:
     import runpy as _mask_runpy
     from pathlib import Path as _MaskPath
 
-    _encode_robot_mask = _mask_runpy.run_path(str(_MaskPath(__file__).with_name("isaac_self_mask.py")))["encode_robot_mask"]
+    _mask_helpers = _mask_runpy.run_path(str(_MaskPath(__file__).with_name("isaac_self_mask.py")))
+    _encode_robot_mask = _mask_helpers["encode_robot_mask"]
+    _bilateral_contact_paths = _mask_helpers["bilateral_contact_paths"]
 
     for _sensor, _K in _annotators.values():
         _sensor.attach_annotators("instance_id_segmentation")
@@ -1425,6 +1427,13 @@ def _refresh_frames():
         # Preserve viewing during stale-view transitions, but make this frame
         # explicitly unmaskable. Never reuse prior q or kill the Kit loop.
         snapshot = None
+    contact_tracking = os.environ.get("CASCADE_ISAAC_CONTACT_MASK", "0") == "1"
+    contact_paths, contact_error = [], None
+    if contact_tracking:
+        try:
+            contact_paths = _bilateral_contact_paths({name: _gpu_contact_snapshot(name) for name in _PROP_SPAWNS})
+        except Exception as exc:
+            contact_error = str(exc)
     for cam_name, (sensor, K) in _annotators.items():
         rgb_data, _ = sensor.get_data("rgb")
         if rgb_data is None:
@@ -1454,7 +1463,12 @@ def _refresh_frames():
             try:
                 _ids, _info = sensor.get_data("instance_id_segmentation")
                 _ids = _ids.numpy() if hasattr(_ids, "numpy") else np.asarray(_ids)
-                entry["robot_pixel_mask"] = _encode_robot_mask(_ids, _info, args.prim, t)
+                if contact_error is not None:
+                    raise RuntimeError(f"payload contact evidence unavailable: {contact_error}")
+                entry["robot_pixel_mask"] = _encode_robot_mask(
+                    _ids, _info, args.prim, t, contact_paths=contact_paths,
+                    payload_tracking=contact_tracking,
+                    scene_prop_paths=["/World_Props/" + name for name in _PROP_SPAWNS] if contact_tracking else ())
             except Exception as _e:
                 # View remains available; required-mask consumers refuse motion.
                 entry["robot_pixel_mask_error"] = str(_e)

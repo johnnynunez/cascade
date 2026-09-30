@@ -5,8 +5,8 @@ Example (from the checkout):
   .venv/bin/python benchmark/diagnostics/kitchen_acceptance.py --port 8681 \
       --engine newton --rounds 1 --output runs/acceptance-nw5
 
-This is a skill-path diagnostic, not the launch/LLM acceptance. Occupancy and
-belief persistence are disabled, as in the isolated engine comparison. The
+This is a skill-path diagnostic, not the launch/LLM acceptance. Occupancy is
+disabled unless --occupancy nvblox is selected; belief persistence is disabled. The
 configured grasp planner is preserved, including its logged OBB fallback.
 The passive witness does not feed the controller. The production runtime's
 existing truth-assisted held-object XY/slip compensation is retained; this
@@ -75,6 +75,9 @@ def phase(observer, runtime, skill, arguments, phase_name, receipt):
     started = time.monotonic()
     try:
         receipt[phase_name + "_result"] = runtime.execute(skill, arguments)
+        occupancy = runtime.arm.harness.occupancy
+        if occupancy is not None:
+            receipt[phase_name + "_payload_query"] = occupancy.last_payload_query
         observer.settle(simulation_seconds=.65, wall_timeout=40)
         observer.capture_frames("placed" if phase_name == "pick" else "reset")
     except Exception:
@@ -92,7 +95,7 @@ def run_case(args, proof, case_dir, object_name):
     receipt = {"object": object_name, "destination": destination,
                "requested_engine": args.engine, "port": args.port,
                "pass": False, "errors": [], "diagnostic_profile": {
-                   "llm": "mock", "occupancy": False, "belief_persistence": False,
+                   "llm": "mock", "occupancy": args.occupancy, "belief_persistence": False,
                    "fresh_grasp_memory": True,
                    "held_xy_slip_feedback": "production truth lookup with perception fallback",
                    "release_height_feedback": "FK and configured support plane",
@@ -106,13 +109,28 @@ def run_case(args, proof, case_dir, object_name):
                                arm="isaac_kitchen_gpu", llm="mock")
         if not retarget_ports(cfg._data, args.port):
             raise RuntimeError("No bridge_port found in resolved runtime configuration")
+        if args.occupancy == "nvblox":
+            cfg._data["occupancy"]["port"] = args.occupancy_port
+            cfg._data["occupancy"]["track_payload"] = True
+            cfg._data["occupancy"]["allowed_contact_paths"] = ["/World_Props/" + name for name in CASES]
+            for index, camera_cfg in enumerate(cfg._data["cameras"]):
+                camera_cfg["map_depth"] = index < args.map_cameras
+            receipt["occupancy_camera_count"] = args.map_cameras
+        if args.pregrasp_offset is not None:
+            cfg._data["grasp"]["pregrasp_offset_m"] = args.pregrasp_offset
         receipt["placement_configuration"] = {
             key: cfg.grasp.get(key) for key in (
-                "release_height_m", "release_clearance_m", "place_support_clearance_m",
+                "pregrasp_offset_m", "release_height_m", "release_clearance_m", "place_support_clearance_m",
                 "source_support_top_z_m",
                 "carry_height_m", "pre_carry_lift", "open_box",
                 "release_open_timeout_s", "close_feedback_timeout_s")}
         runtime, _ = build_runtime(cfg, case_dir / "runtime", lazy_arm=True)
+        if args.occupancy == "nvblox":
+            occ = runtime.arm.harness.occupancy
+            status = occ.probe(timeout_ms=2000) if occ is not None else None
+            if not status or status.get("backend") != "nvblox" or not str(status.get("device", "")).startswith("cuda:"):
+                raise RuntimeError(f"Expected a real CUDA nvblox bridge, got {status}")
+            receipt["occupancy_probe"] = status
 
         # Generalize only the witness's two-order constructor. Its snapshot,
         # camera, contact, geometry, release, reset and audit code are inherited
@@ -145,6 +163,10 @@ def run_case(args, proof, case_dir, object_name):
         checks["pick_skill_completed"] = receipt.get("pick_result", {}).get("ok") is True
         checks["reset_skill_completed"] = receipt.get("reset_result", {}).get("ok") is True
         checks["harness_has_no_errors"] = not receipt["errors"]
+        if args.occupancy == "nvblox":
+            occ = runtime.arm.harness.occupancy
+            checks["nvblox_has_fresh_distance_grid"] = occ._grid is not None and not occ.is_stale()
+            checks["nvblox_has_no_mapping_error"] = occ.last_error is None and occ._body_error is None
         receipt["pass"] = bool(receipt["physical_audit"]["pass"] and all(checks.values()))
         receipt["physical_audit"]["pass"] = receipt["pass"]
         receipt["failed_checks"] = [key for key, passed in checks.items() if not passed]
@@ -166,6 +188,14 @@ def run_case(args, proof, case_dir, object_name):
     finally:
         if runtime is not None:
             receipt["backends"] = runtime.backends()
+            occ = runtime.arm.harness.occupancy
+            if args.occupancy == "nvblox" and occ is not None:
+                receipt["occupancy_final"] = {
+                    "stale": occ.is_stale(), "last_error": occ.last_error,
+                    "last_masked_pixels": occ.last_masked_px,
+                    "has_distance_grid": occ._grid is not None,
+                    "replayed_frames_on_last_transition": occ.last_replayed_frames,
+                }
             planner = getattr(runtime, "_graspgenx", None)
             receipt["graspgenx"] = {
                 "required": bool(cfg.grasp.graspgenx.get("required", False)),
@@ -182,6 +212,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--engine", choices=("newton", "physx"), required=True)
+    parser.add_argument("--occupancy", choices=("none", "nvblox"), default="none")
+    parser.add_argument("--occupancy-port", type=int, default=5557)
+    parser.add_argument("--pregrasp-offset", type=float, help="Diagnostic lift/approach distance, recorded in every receipt")
+    parser.add_argument("--map-cameras", type=int, choices=(2, 3), default=2)
     parser.add_argument("--rounds", type=int, default=5)
     parser.add_argument("--fail-fast", action="store_true", help="stop after the first failed case and its reset")
     parser.add_argument("--output", type=Path, required=True)
@@ -197,7 +231,7 @@ def main(argv=None):
     if len(set(args.objects)) != len(args.objects):
         parser.error("objects must not contain duplicates")
     sys.path.insert(0, str(ROOT / "src"))
-    os.environ.update(CASCADE_BRIDGE_PORT=str(args.port), CASCADE_OCCUPANCY="0",
+    os.environ.update(CASCADE_BRIDGE_PORT=str(args.port), CASCADE_OCCUPANCY="1" if args.occupancy == "nvblox" else "0",
                       CASCADE_ISAAC_PIXEL_MASK="1", CASCADE_PROOF_CAMERA="1",
                       CASCADE_INSTALL_PROFILE="spark", CASCADE_BELIEFS="0",
                       CASCADE_REQUIRE_CUDA="1",
@@ -214,10 +248,14 @@ def main(argv=None):
         os.chdir(ROOT / "models")
         sources = ("benchmark/diagnostics/kitchen_acceptance.py",
                    "scripts/isaac_bridge.py", "scripts/isaac_materials.py", "scripts/isaac_runtime.py",
+                   "scripts/isaac_self_mask.py", "src/cascade/sim/bridge_client.py",
+                   "src/cascade/safety/harness.py", "src/cascade/types.py",
                    "src/cascade/skills/runtime.py", "src/cascade/grasping/obb_grasp.py",
                    "src/cascade/grasping/graspgenx_backend.py", "src/cascade/config.py",
                    "src/cascade/apps/demo.py",
                    "src/cascade/perception/grounding.py", "src/cascade/perception/cuda_math.py",
+                   "src/cascade/perception/occupancy.py", "src/cascade/perception/occupancy_backends.py",
+                   "src/cascade/perception/world.py",
                    "src/cascade/agent/effects.py", "src/cascade/sim/truth.py",
                    "demo/kitchen/physics/gpu_proof_audit.py", "demo/kitchen/physics/convex_geometry.py",
                    "demo/kitchen/physics/destination_entry.py", "demo/kitchen/physics/spark_proof.py",

@@ -399,6 +399,10 @@ class SafetyHarness:
             if reason is not None:
                 self._reject(reason)
 
+            reason = self._payload_occupancy_violation(q_next, self._grasp_exempt)
+            if reason is not None:
+                self._reject(reason)
+
         # Inter-arm proximity, LAST because it is the only check that reads
         # another robot's live state. No neighbours registered = no cost, so
         # a single-arm rig runs the identical code path it always did.
@@ -469,12 +473,28 @@ class SafetyHarness:
             reason = self._occupancy_violation(np.vstack([tcp[None, :], links[1:]]), exempt)
             if reason is not None:
                 return reason
+            reason = self._payload_occupancy_violation(q, exempt)
+            if reason is not None:
+                return reason
         # Same inter-arm gate approve() applies per waypoint, so a grasp
         # candidate that would abort against the neighbour is discarded at
         # ranking time instead of failing mid-descent.
         return self._neighbor_violation(q)
 
-    def _occupancy_violation(self, points: np.ndarray, exempt: tuple | None) -> str | None:
+    def _payload_occupancy_violation(self, q, exempt):
+        points_fn = getattr(self.occupancy, "payload_points", None)
+        if points_fn is None:
+            return None
+        pose = self.kin.fk(q)
+        if self.base_pose is not None:
+            pose = self.base_pose @ pose
+        points = points_fn(pose)
+        if not len(points):
+            return None
+        reason = self._occupancy_violation(points, exempt, attached=True)
+        return f"attached object {reason}" if reason else None
+
+    def _occupancy_violation(self, points: np.ndarray, exempt: tuple | None, *, attached=False) -> str | None:
         """Occupancy-map check: any query point closer than min_clearance_m
         to a cached obstacle, outside the active grasp exemption.
 
@@ -484,13 +504,18 @@ class SafetyHarness:
         occupancy bridge must degrade the same way a missing one does, never
         freeze the arm.
         """
-        dist = self.occupancy.clearance(points)
+        query = self.occupancy.payload_clearance if attached else self.occupancy.clearance
+        dist = query(points)
         if dist is None:
-            return None
+            return "clearance unavailable (fresh observed distance grid required)" if attached else None
         min_c = self.limits.min_clearance_m
         for i, (p, d) in enumerate(zip(points, dist)):
+            if not np.isfinite(d) and attached and not self._in_cylinder(p, exempt):
+                return (f"point {i} has unobserved clearance (occupancy map)"
+                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
             if d < min_c and not self._in_cylinder(p, exempt):
-                return f"point {i} clearance {d:.3f} m below {min_c:.3f} m (occupancy map)"
+                return (f"point {i} clearance {d:.3f} m below {min_c:.3f} m (occupancy map)"
+                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
         return None
 
     def _in_grasp_cylinder(self, p: np.ndarray) -> bool:

@@ -8,6 +8,7 @@ from __future__ import annotations
 import ast
 import base64
 import json
+import os
 import socketserver
 import threading
 import time
@@ -34,7 +35,7 @@ def capture_bridge(loopback):
     wrist_T = np.eye(4).tolist()
     sensor = SimpleNamespace(get_data=lambda name: (
         rgba if name == "rgb" else depth, {}))
-    env = dict(np=np, time=time, cv2=cv2, base64=base64, zlib=zlib, json=json,
+    env = dict(np=np, time=time, cv2=cv2, base64=base64, zlib=zlib, json=json, os=os,
                threading=threading,
                socketserver=socketserver, _frames={}, _wrist_T=wrist_T,
                _annotators={n: (sensor, np.eye(3).tolist()) for n in ("cam0", "side", "wrist")},

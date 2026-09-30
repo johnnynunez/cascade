@@ -65,6 +65,11 @@ class WatchedCamera:
     fusion_floor: Frame | None = None
     reset_pending: bool = False
     last_capture: dict | None = None
+    map_depth: bool | None = None  # None follows fuse; explicitly independent of semantic beliefs
+
+    @property
+    def maps_depth(self):
+        return self.fuse if self.map_depth is None else self.map_depth
 
 
 class WorldWatcher:
@@ -177,7 +182,7 @@ class WorldWatcher:
         A camera that times out remains fenced. If it later recovers, its
         first delivery establishes a floor and only a newer capture can fuse.
         """
-        watched = [cam for cam in self._cams if cam.fuse or cam.stream is primary]
+        watched = [cam for cam in self._cams if cam.fuse or cam.maps_depth or cam.stream is primary]
         cameras = [primary] + [cam.stream for cam in watched if cam.stream is not primary]
         with self._pause_lock:
             if not self._pause_count:
@@ -192,7 +197,16 @@ class WorldWatcher:
                     if cam.stream is stream:
                         cam.fusion_floor = frame
 
+        resetting_map = getattr(self._occupancy, "begin_scene_reset", lambda: False)()
         observed = frames_after_reset(cameras, timeout_s=timeout_s, on_floor=floor_ready)
+        if resetting_map:
+            self._occupancy.finish_scene_reset([floor for _, floor, _ in observed])
+            for stream, _, fresh in observed:
+                cam = next((c for c in watched if c.stream is stream and c.maps_depth), None)
+                if cam is not None:
+                    fresh = cam.depth.ensure_depth(fresh)
+                    T = fresh.T_base_cam if fresh.T_base_cam is not None else cam.extrinsics.cam_to_base()
+                    self._occupancy.refresh(fresh, T)
         with self._pause_lock:
             for cam in watched:
                 cam.reset_pending = False
@@ -252,13 +266,13 @@ class WorldWatcher:
             cam.last_capture = None
         frame = cam.depth.ensure_depth(frame)
         T = None
-        if frame.has_depth and cam.fuse:
+        if frame.has_depth and (cam.fuse or cam.maps_depth):
             # Mask geometry before waiting for semantic inference/its lock.
             # Otherwise the robot can move during detection and a current
             # joint pose masks an OLD image, permanently fusing self ghosts.
             T = (frame.T_base_cam if frame.T_base_cam is not None
                  else cam.extrinsics.cam_to_base())
-            if self._occupancy is not None:
+            if self._occupancy is not None and cam.maps_depth:
                 # Keep geometry fresh during motion; only beliefs are paused.
                 self._occupancy.refresh(frame, T)
         dets = self._detector.detect(frame, classes=self._classes)
@@ -270,7 +284,7 @@ class WorldWatcher:
         # watchdog window and rely on this).
         if self._harness is not None:
             self._harness.heartbeat()
-        if T is None:
+        if T is None or not cam.fuse:
             return
         with self._pause_lock:
             if not self._fusion_allowed(cam, frame, epoch):

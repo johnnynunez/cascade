@@ -3166,8 +3166,17 @@ class SkillRuntime:
                 from ..perception.freshness import capture_marker, frames_after_reset
 
                 watcher = self.watcher
-                observed = (watcher.reset_camera_frames(self.camera) if watcher is not None
-                            else frames_after_reset([self.camera]))
+                if watcher is not None:
+                    observed = watcher.reset_camera_frames(self.camera)
+                else:
+                    occupancy = getattr(self.arm.harness, "occupancy", None)
+                    resetting_map = getattr(occupancy, "begin_scene_reset", lambda: False)()
+                    observed = frames_after_reset([self.camera])
+                    if resetting_map:
+                        occupancy.finish_scene_reset([floor for _, floor, _ in observed])
+                        fresh = self.depth.ensure_depth(observed[0][2])
+                        T = fresh.T_base_cam if fresh.T_base_cam is not None else self.extrinsics.cam_to_base()
+                        occupancy.refresh(fresh, T)
                 frame = self.depth.ensure_depth(observed[0][2])
                 self.last_frame = frame
                 self.arm.harness.heartbeat()

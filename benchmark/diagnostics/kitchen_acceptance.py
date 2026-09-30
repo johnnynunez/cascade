@@ -26,6 +26,7 @@ import math
 import os
 from pathlib import Path
 import sys
+import threading
 import time
 import traceback
 
@@ -79,6 +80,9 @@ def phase(observer, runtime, skill, arguments, phase_name, receipt):
         occupancy = runtime.arm.harness.occupancy
         if occupancy is not None:
             receipt[phase_name + "_payload_query"] = occupancy.last_payload_query
+            receipt[phase_name + "_payload_query_scope"] = (
+                "Last map query, including hypothetical route preflight; not necessarily the last "
+                "executed pose. commands.jsonl and the passive witness establish actual motion.")
         observer.settle(simulation_seconds=.65, wall_timeout=40)
         observer.capture_frames("placed" if phase_name == "pick" else "reset")
     except Exception:
@@ -86,6 +90,51 @@ def phase(observer, runtime, skill, arguments, phase_name, receipt):
     finally:
         receipt[phase_name + "_wall_seconds"] = time.monotonic() - started
         observer.mark(phase_name + "_end")
+
+
+def install_command_trace(runtime, path):
+    """Keep every first failure/recovery call; no extra reads or commands.
+
+    The skill-level trace retains only the final retry error. This diagnostic
+    records the existing actuator calls and contact-exemption transitions so
+    a later recovery refusal cannot hide the original failed stage.
+    """
+    lock = threading.Lock()
+    def record(event):
+        event.update(monotonic=time.monotonic(), held=runtime.held_object,
+                     provisional=getattr(runtime, "_held_provisional", None),
+                     exemption=runtime.arm.harness._grasp_exempt)
+        def encode(value):
+            if hasattr(value, "tolist"):
+                return value.tolist()
+            raise TypeError(type(value).__name__)
+        with lock, path.open("a") as output:
+            output.write(json.dumps(event, default=encode, allow_nan=False) + "\n")
+    def wrap(owner, name):
+        original = getattr(owner, name)
+        def call(*args, **kwargs):
+            call_id = time.monotonic_ns()
+            public_kwargs = {k: v for k, v in kwargs.items() if not k.startswith("_")}
+            record({"event": "begin", "call": name, "id": call_id,
+                    "args": args, "kwargs": public_kwargs})
+            try:
+                result = original(*args, **kwargs)
+            except Exception:
+                record({"event": "exception", "call": name, "id": call_id,
+                        "traceback": traceback.format_exc()})
+                raise
+            record({"event": "end", "call": name, "id": call_id, "result": result})
+            return result
+        setattr(owner, name, call)
+    for name in ("move_joints", "set_gripper"):
+        wrap(runtime.arm, name)
+    for name in ("allow_grasp_descent", "clear_grasp_exemption"):
+        wrap(runtime.arm.harness, name)
+    original_add = runtime.memory.add
+    def add(kind, text, *args, **kwargs):
+        record({"event": "memory", "kind": kind, "text": text})
+        return original_add(kind, text, *args, **kwargs)
+    runtime.memory.add = add
 
 
 def run_case(args, proof, case_dir, object_name):
@@ -135,6 +184,7 @@ def run_case(args, proof, case_dir, object_name):
                 "carry_height_m", "pre_carry_lift", "open_box",
                 "release_open_timeout_s", "close_feedback_timeout_s")}
         runtime, _ = build_runtime(cfg, case_dir / "runtime", lazy_arm=True)
+        install_command_trace(runtime, case_dir / "commands.jsonl")
         if args.occupancy == "nvblox":
             occ = runtime.arm.harness.occupancy
             status = occ.probe(timeout_ms=2000) if occ is not None else None
@@ -265,6 +315,8 @@ def main(argv=None):
                    "scripts/isaac_bridge.py", "scripts/isaac_materials.py", "scripts/isaac_runtime.py",
                    "scripts/isaac_self_mask.py", "src/cascade/sim/bridge_client.py",
                    "src/cascade/safety/harness.py", "src/cascade/types.py",
+                   "src/cascade/safety/trajectory.py",
+                   "src/cascade/control/arm_base.py", "src/cascade/control/mock_arm.py",
                    "src/cascade/skills/runtime.py", "src/cascade/grasping/obb_grasp.py",
                    "src/cascade/grasping/graspgenx_backend.py", "src/cascade/config.py",
                    "src/cascade/apps/demo.py",

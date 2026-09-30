@@ -1647,6 +1647,8 @@ class SkillRuntime:
         # loses the ranking up front instead of aborting mid-motion.
         harness = self.arm.harness
         exempt_r = float(gcfg.get("exempt_radius_m", 0.07))
+        from ..safety.trajectory import PLAN_BUDGET_S, geometry_guard, vet_segment
+        approach_deadline = time.monotonic() + PLAN_BUDGET_S
 
         def _vet(g, q_pre, q_grasp):
             # The approach leg executes BEFORE allow_grasp_descent opens the
@@ -1660,6 +1662,14 @@ class SkillRuntime:
             reason = harness.vet_pose(q_pre)
             if reason:
                 return f"pregrasp unsafe: {reason}"
+            with geometry_guard(harness, deadline=approach_deadline):
+                reason = vet_segment(
+                    harness, _seed, q_pre,
+                    float(gcfg.get("move_duration_s", 2.5)),
+                    deadline=approach_deadline,
+                )
+            if reason:
+                return f"approach unsafe: {reason}"
             # Exemption floor a bit BELOW the table: the reBot RS gripper's
             # finger/wrist links extend ~5 cm below the TCP, so a top-down
             # grasp of a low object legitimately dips a link to z ~ -0.018
@@ -1744,12 +1754,11 @@ class SkillRuntime:
         self.arm.set_gripper(self._grip_open, effort=0.8)
         _home = self.cfg.arm.get("home_q")
         if _home is not None:
-            try:
-                self.arm.move_joints(np.asarray(_home, dtype=float),
-                                     duration_s=1.5)
-            except Exception:
-                pass  # best-effort re-home; pregrasp move is the real gate
-        if not self.arm.move_joints(q_pre, duration_s=float(gcfg.get("move_duration_s", 2.5))):
+            if not self.arm.move_planned(np.asarray(_home, dtype=float), duration_s=1.5):
+                raise SkillError("did not settle at home before grasp approach")
+        # Re-plan from the measured pose: a failed re-home must never silently
+        # change the starting point assumed by candidate vetting.
+        if not self.arm.move_planned(q_pre, duration_s=float(gcfg.get("move_duration_s", 2.5))):
             raise SkillError("did not settle at pregrasp pose")
 
         # 2. descend inside the exemption cylinder (slow)
@@ -1790,6 +1799,23 @@ class SkillRuntime:
             # 4. lift back to pregrasp (speed scaled by profile)
             lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
             self.arm.move_joints(q_pre, duration_s=lift_dur)
+        except (SkillError, SafetyViolation) as exc:
+            # A failed descent can leave the open tool intentionally close to
+            # the target. Finish the same contact episode by withdrawing to
+            # its vetted pregrasp before removing its original exemption.
+            # After close, a possible payload needs its own observed geometry;
+            # do not invent an empty-tool recovery or open the jaws here.
+            if (getattr(self, "_held_provisional", None) is None and not harness.estopped
+                    and getattr(harness, "_halt", None) is None):
+                try:
+                    settled = self.arm.move_planned(
+                        q_pre, duration_s=float(gcfg.get("descend_duration_s", 2.0)))
+                    recovery = "completed" if settled else "did not settle"
+                except (SkillError, SafetyViolation) as retreat_error:
+                    recovery = f"refused: {retreat_error}"
+                self.memory.add("outcome", f"grasp descent failed: {exc}; pre-close retreat {recovery}")
+                raise type(exc)(f"{exc}; pre-close retreat {recovery}") from exc
+            raise
         finally:
             self.arm.harness.clear_grasp_exemption()
 
@@ -3230,7 +3256,11 @@ class SkillRuntime:
 
     def skill_move_home(self) -> dict:
         home = self._profile_q("home_q", "move home")
-        if not self.arm.move_joints(home, duration_s=3.0):
+        # SafeArm plans the complete return before motion and re-vets against
+        # actual feedback/map state at every segment. Legacy test doubles may
+        # expose only move_joints; all real runtime arms are SafeArms.
+        move = getattr(self.arm, "move_planned", self.arm.move_joints)
+        if not move(home, duration_s=3.0):
             raise SkillError("did not settle at home")
         return {"at": "home"}
 

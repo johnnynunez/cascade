@@ -61,7 +61,9 @@ def test_grasp_selection_rejects_an_unliftable_candidate_before_closing(monkeypa
                          "pregrasp_offset_m": .04}, "arm": {"home_q": [0, 0, 0]}})
     arm = SimpleNamespace(get_state=lambda: SimpleNamespace(q=np.zeros(3)),
                           harness=SimpleNamespace(
-                              limits=SimpleNamespace(workspace_min=np.array([0, -.3, 0]), table_z=0),
+                              limits=SimpleNamespace(workspace_min=np.array([0, -.3, 0]), table_z=0,
+                                                     max_joint_vel=2.),
+                              vet_step=lambda *args, **kwargs: None,
                               vet_pose=lambda *args, **kwargs: None))
     rt = SimpleNamespace(cfg=cfg, arm=arm, kin=Kin(), _max_width=.09,
                          held_object=None, _reconcile_held=lambda: None,

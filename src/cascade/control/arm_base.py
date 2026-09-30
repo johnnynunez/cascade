@@ -18,12 +18,29 @@ import time
 import numpy as np
 
 from ..config import Cfg
-from ..types import RobotState
+from ..types import RobotState, SafetyViolation
+
+PREFLIGHT_MAX_DRIFT_RAD = 1e-3
 
 
 def min_jerk(s: float) -> float:
     """Min-jerk time scaling on s in [0, 1]."""
     return 10 * s**3 - 15 * s**4 + 6 * s**5
+
+
+def prepare_stream(arm, q_target, duration_s, preflight=None, before_stream=None):
+    """Bind preflight to feedback before starting the streaming clock."""
+    start = np.asarray(arm.get_state().q, dtype=float).copy()
+    target = np.asarray(q_target, dtype=float).reshape(-1)
+    if preflight is not None:
+        preflight(start, duration_s)
+        observed = np.asarray(arm.get_state().q, dtype=float)
+        if (observed.shape != start.shape or not np.isfinite(observed).all()
+                or np.max(np.abs(observed - start)) > PREFLIGHT_MAX_DRIFT_RAD):
+            raise SafetyViolation("joint feedback changed during route preflight; no motion sent")
+    if before_stream is not None:
+        before_stream()
+    return start, target
 
 
 class ArmBase(abc.ABC):
@@ -79,6 +96,8 @@ class ArmBase(abc.ABC):
         approve=None,
         settle_tol: float | None = None,
         settle_timeout_s: float | None = None,
+        preflight=None,
+        before_stream=None,
     ) -> bool:
         """Min-jerk interpolate current->target, vetting each waypoint.
 
@@ -89,8 +108,7 @@ class ArmBase(abc.ABC):
             settle_tol = self.settle_tol
         if settle_timeout_s is None:
             settle_timeout_s = self.settle_timeout_s
-        q_start = self.get_state().q.copy()
-        q_target = np.asarray(q_target, dtype=float).reshape(-1)
+        q_start, q_target = prepare_stream(self, q_target, duration_s, preflight, before_stream)
         steps = max(2, int(duration_s * rate_hz))
         dt = duration_s / steps
         q_prev = q_start

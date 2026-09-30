@@ -303,3 +303,116 @@ def test_the_runtime_falls_back_to_obb_when_graspgenx_is_down(monkeypatch):
         assert grasps, "no grasps at all: the OBB fallback did not run"
     finally:
         shutdown_runtime(runtime, arm)
+
+
+@needs_wire
+def test_required_model_rejects_the_analytic_stub(stub_server):
+    from cascade.grasping.graspgenx_backend import GraspGenXError
+    with pytest.raises(GraspGenXError, match="stub rejected"):
+        _planner(stub_server, required=True).probe()
+
+
+@needs_wire
+@pytest.mark.parametrize("tags", [[], ["obb"], ["diff", "diff"]])
+def test_required_diffusion_rejects_missing_or_analytic_provenance(tags):
+    from cascade.grasping.graspgenx_backend import GraspGenXError
+    planner = _planner(5602, required=True, planner="diffusion", sweep={
+        "extents_open": [.09, .02, .045], "extents_mid": [.045, .02, .045]})
+    planner._client.request = lambda request: {
+        "grasps": np.eye(4)[None], "confidences": np.array([.9]), "branch_tags": tags}
+    with pytest.raises(GraspGenXError, match="provenance"):
+        planner.plan(_cube_fix())
+
+
+@needs_wire
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_tensor_cloud_crosses_wire_and_width_stays_on_its_device(stub_server, device):
+    torch = pytest.importorskip("torch")
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA hardware required for the original Spark failure")
+    fix = _cube_fix()
+    expected = _planner(stub_server).plan(fix)
+    fix.points = torch.as_tensor(fix.points, device=device)
+    actual = _planner(stub_server).plan(fix)
+    assert len(actual) == len(expected)
+    np.testing.assert_allclose([g.width_m for g in actual], [g.width_m for g in expected], atol=1e-6)
+    np.testing.assert_allclose([g.position for g in actual], [g.position for g in expected], atol=1e-6)
+    assert fix.points.device.type == device
+
+
+@pytest.mark.parametrize("required", [False, True])
+def test_runtime_recovers_after_one_failed_inference_without_sticky_obb(required):
+    from types import SimpleNamespace
+    from cascade.config import load_demo_config
+    from cascade.skills.runtime import SkillRuntime
+    from cascade.types import Grasp, SkillError
+
+    cfg = load_demo_config()
+    cfg._data["grasp"]["graspgenx"]["required"] = required
+    learned = Grasp(np.array([.2, 0, .03]), np.eye(3), .05, np.array([0, 0, -1]))
+
+    class FlakyModel:
+        status = {"status": "ok"}
+        last_latency_s = .5
+        calls = 0
+        def probe(self):
+            self.status = {"status": "ok"}
+        def plan(self, *args, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("temporary timeout")
+            return [learned]
+        def describe(self):
+            return "graspgenx (learned 6-DoF)"
+
+    runtime = SimpleNamespace(cfg=cfg, _max_width=.09, _tool_axis_order="down_open",
+                              _graspgenx=FlakyModel(), _graspgenx_down=False,
+                              memory=SimpleNamespace(add=lambda *args: None),
+                              grasp_memory=SimpleNamespace(prior=lambda *args: None))
+    if required:
+        with pytest.raises(SkillError, match="required but unavailable"):
+            SkillRuntime._plan_grasps(runtime, _cube_fix())
+    else:
+        assert SkillRuntime._plan_grasps(runtime, _cube_fix())
+        assert runtime.grasp_planner_used == "obb (graspgenx down)"
+    runtime._graspgenx_retry_after = 0
+    result = SkillRuntime._plan_grasps(runtime, _cube_fix())
+    assert result[0] is learned
+    if required:
+        assert len(result) == 1  # no analytic candidates mixed into required mode
+    assert runtime._graspgenx.calls == 2
+    assert not runtime._graspgenx_down
+    assert runtime.grasp_planner_used == "graspgenx (learned 6-DoF)"
+
+
+@pytest.mark.parametrize("backend", ["obb", "graspgenx"])
+def test_explicit_launcher_backend_reaches_every_arm(monkeypatch, backend):
+    from cascade.config import load_demo_config
+    monkeypatch.setenv("CASCADE_GRASP_BACKEND", backend)
+    cfg = load_demo_config(arms=["isaac_kitchen_gpu", "mock"])
+    assert cfg.grasp.backend == backend
+    assert all(arm["resolved"]["grasp"]["backend"] == backend for arm in cfg.arms)
+
+
+@needs_wire
+@pytest.mark.parametrize("tip", [0.0, 0.05, 0.098])
+def test_sweep_conditioning_and_returned_pose_use_the_same_gripper_frame(tip):
+    planner = _planner(5602, tip_offset_m=tip, sweep={
+        "extents_open": [.09, .02, .045], "extents_mid": [.045, .02, .045],
+        "offset_open": [0, 0, 0], "offset_mid": [0, 0, 0],
+        "fingertip_depth": .0225})
+    fix = _cube_fix()
+
+    def model(request):
+        sweep = request["sweep_volume_params"]
+        np.testing.assert_allclose(sweep["offset_mid"], sweep["offset_open"])
+        assert sweep["fingertip_depth"] == pytest.approx(tip + .0225)
+        pose = np.eye(4)
+        pose[:3, :3] = np.diag([1, -1, -1])
+        # The model positions the conditioned open volume at the object.
+        pose[:3, 3] = fix.position - pose[:3, :3] @ np.array(sweep["offset_open"])
+        return {"grasps": pose[None], "confidences": np.array([.9]), "branch_tags": ["diff"]}
+
+    planner._client.request = model
+    grasp = planner.plan(fix)[0]
+    np.testing.assert_allclose(grasp.position, fix.position, atol=1e-7)

@@ -14,6 +14,10 @@ from __future__ import annotations
 
 import numpy as np
 
+# Engine -> the only contact channel accepted from it: PhysX's GPU contact
+# tensor, or the MJWarp constraint forces Newton exposes after each step.
+CONTACT_CHANNELS = {"physx": "physx_gpu_contact_tensor", "newton": "newton_mjwarp_contact_force"}
+
 
 def audit_supported_destination_entry(samples, *, object_name, vertices_body_m,
                                       inner_bounds_xy_m, destination_name="green square"):
@@ -66,8 +70,8 @@ def audit_supported_destination_entry(samples, *, object_name, vertices_body_m,
         counts = contact['jaw_contact_counts']
         jaw_root = robot+'/link1/link2/link3/link4/link5/link6/gripper_end'
         if (p['robot_id'] != robot or p.get('channel') != 'physics_tensor'
-                or p.get('engine') != 'physx' or prop.get('tensor_device') != 'cuda:0'
-                or contact.get('channel') != 'physx_gpu_contact_tensor'
+                or p.get('engine') not in CONTACT_CHANNELS or prop.get('tensor_device') != 'cuda:0'
+                or contact.get('channel') != CONTACT_CHANNELS[p['engine']]
                 or contact.get('device') != 'cuda:0'
                 or contact.get('sensor_paths') != ['/World_Props/'+object_name]
                 or contact.get('filter_paths') != [[jaw_root+'/gripper_left', jaw_root+'/gripper_right']]

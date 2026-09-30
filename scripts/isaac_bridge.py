@@ -61,6 +61,13 @@ p.add_argument("--usd", default=DEFAULT_USD, help="reBot RS scene USD (gain-tune
 p.add_argument("--scene-config", help="optional local kitchen scene JSON (pre-play)")
 p.add_argument("--prim", default=DEFAULT_PRIM, help="articulation root prim path")
 p.add_argument("--engine", default="newton", choices=["newton", "physx"])
+# Diagnostic only: which collision detector feeds MJWarp under --engine newton.
+# "newton" (Isaac's default) runs Newton's CollisionPipeline; "mujoco" lets
+# MJWarp detect its own contacts, as plain MuJoCo does.
+p.add_argument("--newton-contacts", default="newton", choices=["newton", "mujoco"])
+# Physics substeps per frame under --engine newton. Must be ODD while Isaac's
+# CUDA-graph stepping is on: see _configure_newton_before_play.
+p.add_argument("--newton-substeps", type=int, default=5)
 # Newton is the default engine. Both historical blockers were re-tested on
 # 2026-07-31 against the current build and neither survived:
 #  - "offscreen render products return garbage under the newton kit
@@ -126,7 +133,13 @@ if args.engine == "newton":
     _kwargs["experience"] = str(find_experience("newton"))
 app = SimulationApp(
     {"headless": not args.gui, "renderer": "RayTracedLighting",
-     "width": args.width, "height": args.height},
+     "width": args.width, "height": args.height,
+     # Headless clients use our TCP bridge. Kit's unused HTTP service otherwise
+     # races other simulator instances for port 8011 during parallel startup.
+     "extra_args": ([] if args.gui else [
+         "--/exts/omni.services.transport.server.http/http/enabled=false",
+         "--/exts/omni.services.transport.server.http/https/enabled=false",
+     ])},
     **_kwargs,
 )
 
@@ -209,7 +222,37 @@ def _configure_newton_before_play() -> None:
     cfg.solver_cfg.nconmax = 32768
     cfg.solver_cfg.njmax = 4 * 32768 + 1200
     cfg.collision_cfg.rigid_contact_max = 32768
-    cfg.num_substeps = 4  # Preserve baseline integration substeps.
+    # Isaac's NewtonStage.simulate() (isaacsim.physics.newton; identical in
+    # 6.1.0 GA, 7.0.0a1 and internal develop of 2026-09-29) swaps state_0 and
+    # state_1 after every substep and, with the CUDA graph on, copies back
+    # only on the LAST substep. The captured graph always reads the buffer
+    # that was state_0 at capture, so the loop is only correct for an ODD
+    # substep count with the graph on (an even one with it off). Otherwise
+    # every frame replays one substep, physics runs at (N-1)/N speed (0.75x
+    # at the old N=4), and every supported-API write (RigidPrim teleports,
+    # prop resets) is overwritten on the next frame. Measured on a free-fall
+    # cube, docs/NEWTON_ENGINE.md "Isaac's Newton stepping bug".
+    _graph = bool(getattr(cfg, "use_cuda_graph", True))
+    _n = int(args.newton_substeps)
+    if _n < 1 or (_n % 2 == 1) != _graph:
+        raise SystemExit(
+            f"[bridge] --newton-substeps {_n} with CUDA graph {'on' if _graph else 'off'} hits Isaac's "
+            f"NewtonStage.simulate buffer bug (physics at (N-1)/N speed, writes lost); use an "
+            f"{'odd' if _graph else 'even'} count")
+    cfg.num_substeps = _n
+    print(f"[bridge] newton substeps={_n} cuda_graph={_graph} (parity safe for Isaac's "
+          f"NewtonStage.simulate)", flush=True)
+    # Default contact of every collider without an authored material (see
+    # isaac_materials.NEWTON_DEFAULT_CONTACT): Isaac's under-damped default
+    # tips the released green cube onto its side.
+    from isaac_materials import NEWTON_DEFAULT_CONTACT  # noqa: E402
+
+    for _k, _v in NEWTON_DEFAULT_CONTACT.items():
+        setattr(cfg, _k, float(_v))
+    print(f"[bridge] newton default contact {NEWTON_DEFAULT_CONTACT}", flush=True)
+    cfg.solver_cfg.use_mujoco_contacts = args.newton_contacts == "mujoco"
+    if cfg.solver_cfg.use_mujoco_contacts:
+        print("[bridge] DIAGNOSTIC: MJWarp detects its own contacts (--newton-contacts mujoco)", flush=True)
     configure_newton(cfg)
     print("[bridge] pre-play Newton contacts=32768, constraint rows=132272", flush=True)
 
@@ -228,8 +271,23 @@ def _verify_newton_contact_buffers() -> None:
         )
     if mjw.njmax < 132272:
         raise RuntimeError(f"Live constraint buffer remained too small: {mjw.njmax}")
+    _n, _graph = int(ns.cfg.num_substeps), bool(ns.cfg.use_cuda_graph)
+    if (_n % 2 == 1) != _graph:
+        raise RuntimeError(f"Live Newton stepping hits Isaac's state-buffer bug: "
+                           f"num_substeps={_n}, use_cuda_graph={_graph}")
     print(f"[bridge] live Newton contacts={ns.contacts.rigid_contact_max}, "
-          f"MJWarp contacts={mjw.naconmax}, constraint rows={mjw.njmax}", flush=True)
+          f"MJWarp contacts={mjw.naconmax}, constraint rows={mjw.njmax}, "
+          f"substeps={_n}, cuda_graph={_graph}", flush=True)
+    # What the solver actually got: contact gains per shape and the friction
+    # impedance ratio (authored on the PhysicsScene as mjc:option:impratio).
+    from collections import Counter
+
+    _ke = ns.model.shape_material_ke.numpy()
+    _kd = ns.model.shape_material_kd.numpy()
+    _hist = Counter((round(float(a)), round(float(b))) for a, b in zip(_ke, _kd))
+    _inv = ns.solver.mjw_model.opt.impratio_invsqrt.numpy().reshape(-1)
+    print(f"[bridge] live Newton shape contact (ke, kd): {dict(_hist.most_common())}; "
+          f"impratio={1.0 / float(_inv[0]) ** 2:.1f}", flush=True)
 
 
 for _ in range(30):
@@ -470,6 +528,16 @@ for name, pos, rgb, width, height in PROPS:
 
 # Custom bodies already exist; register them without creating duplicate boxes.
 PROPS.extend(spec.bridge_tuple() for spec in _SCENE_PROP_SPECS)
+if args.scene_config and args.engine == "physx":
+    # Small convex fruit can look stationary while contact resolution leaves
+    # residual angular velocity. Replaying the same resting lemon pose gave
+    # 0.260 rad/s at 16/32 position iterations and 0.044 at 64; restoring 16
+    # reproduced 0.260. Spend more solver iterations on the kitchen props,
+    # keeping the physical stability limits and velocity readback unchanged.
+    for _name, *_ in PROPS:
+        _body_api = PhysxSchema.PhysxRigidBodyAPI.Apply(stage.GetPrimAtPath(f"/World_Props/{_name}"))
+        _body_api.CreateSolverPositionIterationCountAttr(64)
+    print("[bridge] PhysX kitchen props: 64 position iterations", flush=True)
 _PROP_DIMENSIONS = {name: (width, width, height) for name, _, _, width, height in PROPS}
 _PROP_DIMENSIONS.update({spec.name: spec.dimensions for spec in _SCENE_PROP_SPECS})
 _PROP_VISUAL_DIMENSIONS = dict(_PROP_DIMENSIONS)
@@ -804,6 +872,33 @@ for _binding in bind_gripper_physics_material(stage, args.prim, _gmat):
     print(f"[bridge] gripper pad material -> {_binding['body']} "
           f"({len(_binding['colliders'])} directly bound colliders; "
           f"{len(_binding['deinstanced_collision_branches'])} collision branches made editable)", flush=True)
+if args.engine == "newton":
+    # Newton would CoACD the gripper's convexDecomposition meshes into ~6450
+    # hulls and overflow its contact buffer. Collide against the vendor model's
+    # reviewed 28-hull decomposition instead (assets/newton/, built by
+    # scripts/build_newton_gripper_hulls.py) with grasp-tuned pad contact
+    # and solver cone (isaac_materials.GRIPPER_CONTACT, SCENE_MJC_OPTIONS).
+    # CASCADE_NEWTON_GRIPPER=sdf keeps the shipped meshes as SDF colliders.
+    from isaac_materials import (GRIPPER_CONTACT, GRIPPER_SDF, SCENE_MJC_OPTIONS,  # noqa: E402
+                                 apply_newton_gripper_hulls, apply_newton_gripper_sdf,
+                                 apply_newton_scene_options)
+
+    if os.environ.get("CASCADE_NEWTON_GRIPPER", "hulls") == "sdf":
+        for _sdf in apply_newton_gripper_sdf(stage, args.prim):
+            print(f"[bridge] newton gripper SDF collider -> {_sdf['body']} "
+                  f"({len(_sdf['colliders'])} colliders) {GRIPPER_SDF} {GRIPPER_CONTACT}", flush=True)
+    else:
+        _hulls_usda = os.path.join(_REPO_ROOT, "assets", "newton", "rebot_gripper_hulls.usda")
+        for _h in apply_newton_gripper_hulls(stage, args.prim, _hulls_usda, material=_gmat):
+            print(f"[bridge] newton gripper hulls -> {_h['body'].split('/')[-1]}: {_h['hulls']} "
+                  f"vendor hulls, {len(_h['disabled'])} shipped collider(s) disabled; "
+                  f"pad material {_gmat.GetPath()}; {GRIPPER_CONTACT}", flush=True)
+    print(f"[bridge] newton solver options {SCENE_MJC_OPTIONS} on "
+          f"{apply_newton_scene_options(stage)}", flush=True)
+    from isaac_materials import apply_newton_arm_gains  # noqa: E402
+
+    print(f"[bridge] newton arm servo gains (vendor MJCF, USD per-degree) "
+          f"{apply_newton_arm_gains(stage, args.prim)}", flush=True)
 
 # ── arm visual materials ─────────────────────────────────────────────────
 # The reBot palette now lives in the asset itself (payloads/materials.usda +
@@ -892,6 +987,19 @@ _init_wrist_cam()
 ARM_IDX = [names.index(f"joint{i}") for i in range(1, 7)]
 GRIP_IDX = [names.index(n) for n in ("joint_left", "joint_right") if n in names]
 lower, upper = [x.numpy()[0].astype(float) for x in art.get_dof_limits()]
+_FINGER_STEP = None
+if args.engine == "newton":
+    # Per-physics-step finger travel at the joint's authored velocity limit.
+    from pxr import Usd as _Usd  # noqa: E402
+
+    _vmax = [float(p.GetAttribute("physxJoint:maxJointVelocity").Get())
+             for p in _Usd.PrimRange(stage.GetPrimAtPath("/"))
+             if p.GetName() in ("joint_left", "joint_right")
+             and p.HasAttribute("physxJoint:maxJointVelocity")]
+    if _vmax:
+        _FINGER_STEP = min(_vmax) * args.dt
+    print(f"[bridge] newton finger target ramp: {min(_vmax) if _vmax else None} m/s "
+          f"({_FINGER_STEP} m per {args.dt:.6f} s step)", flush=True)
 print(f"[bridge] arm idx {ARM_IDX} grip idx {GRIP_IDX} "
       f"grip range {[(round(lower[i], 4), round(upper[i], 4)) for i in GRIP_IDX]}",
       flush=True)
@@ -943,12 +1051,76 @@ def _camera_video_status() -> dict:
     return {"enabled": False, "state": "disabled", "live_verified": False}
 
 
+NEWTON_CONTACT_CHANNEL = "newton_mjwarp_contact_force"
+
+
+def _newton_contact_snapshot(name: str) -> dict:
+    """Newton twin of the PhysX contact sensor: forces on a prop from each actual jaw.
+
+    Reads the contact buffer SolverMuJoCo.update_contacts fills after every
+    step from MJWarp's own constraint forces (efc.force): per contact, the
+    world-frame force on shape0's body from shape1's body. Nothing is
+    authored, stepped or re-queried; the arrays must already live on the
+    attested CUDA device, and a full buffer is refused as possibly truncated.
+    """
+    from isaacsim.physics.newton import acquire_stage as _acquire_newton
+
+    ns = _acquire_newton()
+    solver = getattr(ns, "solver", None)
+    contacts = getattr(ns, "contacts", None)
+    if (solver is None or getattr(solver, "use_mujoco_cpu", False) or contacts is None
+            or getattr(contacts, "force", None) is None):
+        raise RuntimeError("Newton contact forces need MJWarp contacts with the force attribute")
+    model = ns.model
+    labels = list(model.body_label)
+    prop = "/World_Props/" + name
+    jaw_root = args.prim + "/link1/link2/link3/link4/link5/link6/gripper_end"
+    jaws = [jaw_root + "/gripper_left", jaw_root + "/gripper_right"]
+    if labels.count(prop) != 1 or any(labels.count(j) != 1 for j in jaws):
+        raise RuntimeError("Newton contact sensor could not bind the prop and both actual jaws")
+    arrays = (contacts.rigid_contact_count, contacts.rigid_contact_shape0, contacts.rigid_contact_shape1,
+              contacts.force, model.shape_body)
+    if any(str(a.device) != _phys_dev or not str(a.device).startswith("cuda:") for a in arrays):
+        raise RuntimeError("Newton contact arrays are not on the attested CUDA device")
+    count = int(contacts.rigid_contact_count.numpy()[0])
+    if count >= int(contacts.rigid_contact_max):
+        raise RuntimeError("Newton contact buffer may be truncated")
+    s0 = contacts.rigid_contact_shape0.numpy()[:count]
+    s1 = contacts.rigid_contact_shape1.numpy()[:count]
+    force = contacts.force.numpy()[:count, :3]
+    shape_body = model.shape_body.numpy()
+    valid = (s0 >= 0) & (s1 >= 0)
+    b0 = np.where(valid, shape_body[np.clip(s0, 0, None)], -1)
+    b1 = np.where(valid, shape_body[np.clip(s1, 0, None)], -1)
+    pi = labels.index(prop)
+    on_prop = np.zeros((count, 3))
+    on_prop[b0 == pi] = force[b0 == pi]
+    on_prop[b1 == pi] = -force[b1 == pi]
+    other = np.where(b0 == pi, b1, b0)
+    involved = ((b0 == pi) | (b1 == pi)) & (other != pi)
+    jaw_forces, jaw_counts = [], []
+    for jaw in jaws:
+        sel = involved & (other == labels.index(jaw))
+        jaw_forces.append(on_prop[sel].sum(axis=0).tolist())
+        jaw_counts.append(int(sel.sum()))
+    net = on_prop[involved].sum(axis=0)
+    if not (np.isfinite(net).all() and np.isfinite(jaw_forces).all()):
+        raise RuntimeError("Non-finite Newton contact force")
+    return {"channel": NEWTON_CONTACT_CHANNEL, "device": str(contacts.force.device),
+            "sensor_paths": [prop], "filter_paths": [jaws],
+            "net_force_n": net.tolist(), "jaw_forces_n": jaw_forces, "jaw_contact_counts": jaw_counts,
+            "physics_dt_s": args.dt, "physics_step": int(ns.simulation_step_count),
+            "force_source": "MJWarp efc.force via SolverMuJoCo.update_contacts"}
+
+
 def _gpu_contact_snapshot(name="pink_cube") -> dict:
     """Read GPU force tensors for an existing prop against both actual jaws.
 
     Contact tracking was enabled before play. Creating/readback of this sensor
     view changes no body transform, contact material, drive or force.
     """
+    if name in _PROP_SPAWNS and engine == "newton":
+        return _newton_contact_snapshot(name)
     if name not in _PROP_SPAWNS or engine != "physx":
         raise RuntimeError("GPU contact snapshot requires a named PhysX demo prop")
     view = _gpu_contact_views.get(name)
@@ -1112,11 +1284,9 @@ class Handler(socketserver.StreamRequestHandler):
             # Put ONE prop at an arbitrary pose. Benchmarks need this: a sweep
             # over initial states is only a sweep if the states differ.
             #
-            # This exists because a bare `RigidPrim.set_world_poses` is a
-            # silent NO-OP for a resting body under Newton (MuJoCo is
-            # reduced-coordinate -- see _newton_teleport). A harness that used
-            # RigidPrim directly ran its six "different" start states at the
-            # SAME position and reported them as six independent episodes.
+            # Keep both buffers consistent on Isaac versions affected by
+            # the NewtonStage buffer bug. Lost tensor writes once caused a
+            # six-position sweep to repeat the spawn position in every case.
             _name = str(req.get("name", "pink_cube"))
             _pos = [float(v) for v in req["pos"][:3]]
             holder: dict = {}
@@ -1328,77 +1498,94 @@ def _zero_prop_velocity(_rp) -> bool:
 
 
 def _newton_teleport(name, pos) -> bool:
-    """Teleport a prop under Newton by writing `state.joint_q`.
+    """Reset one world-root free body, identified by its model topology.
 
-    Newton's MuJoCo solver is REDUCED-COORDINATE. From its own source
-    (newton/_src/solvers/mujoco/solver_mujoco.py, reset_state docstring):
+    Fixed joints legitimately repeat ``joint_q_start`` / ``joint_qd_start``:
+    they have no coordinates. Resolve the prop's free joint through
+    ``body_label`` and ``joint_child`` and use each array's own offset. A
+    position search can select another prop or fail after a bad simulation
+    step; body identity remains usable even when the old pose contains NaNs.
 
-        "Because MuJoCo is a reduced-coordinate solver, state.body_q /
-         state.body_qd are DERIVED from the joint coordinates by forward
-         kinematics on the next step; the corresponding BODY_Q / BODY_QD
-         flags are not actionable here and are ignored."
-
-    and `step()` calls `_update_mjc_data(..., state_in)` every step, pushing
-    the joint coordinates into `mjw_data.qpos`. Every other write target is
-    downstream of that and gets overwritten within one step. Measured:
-
-        RigidPrim.set_world_poses  -> reverted after 1 step
-        state.body_q (one buffer)  -> reverted after 1 step
-        state.body_q (both)        -> body ejected at 72 m/s
-        mjw_data.qpos              -> reverted after 1 step
-        state.joint_q              -> STICKS, |vel| 0.000, stable at 40 steps
-
-    A free body occupies 7 coordinates (3 pos + 4 quat) in joint_q but 6 dofs
-    in joint_qd -- the layouts differ, so the dof slice must be derived from
-    the joint ordering rather than reused from the coordinate index. Zeroing
-    the wrong dofs leaves the body's velocity intact and it flies off (that
-    failure looked like [12.5, -22.7] after 40 steps).
-
-    `model.joint_q_start` is unreliable on this build (its entries repeat), so
-    the slice is located by matching the prop's current position instead.
+    Write both state buffers for Isaac releases affected by the NewtonStage
+    substep-buffer bug. The tensor API itself supports reduced-coordinate
+    resets; that bug, rather than MuJoCo's coordinate system, lost its writes.
     """
     import isaacsim.physics.newton.impl.extension as _ne
+    import newton as _nw
 
     _ns = getattr(_ne, "_newton_stage", None)
-    if _ns is None or getattr(_ns, "state_0", None) is None:
+    if _ns is None or getattr(_ns, "model", None) is None:
         return False
 
     def _arr(x):
         return x.numpy() if hasattr(x, "numpy") else np.asarray(x)
 
-    from isaacsim.core.experimental.prims import RigidPrim as _XRP
+    try:
+        _target = np.asarray(pos, dtype=np.float32).copy()
+        if _target.shape != (3,):
+            return False
+        _target[2] += BASE_Z
+        if not np.all(np.isfinite(_target)):
+            return False
 
-    _cur = _arr(_XRP(f"/World_Props/{name}").get_world_poses()[0]).reshape(-1)[:3]
-    if not np.all(np.isfinite(_cur)):
-        return False
+        _model = _ns.model
+        _path = f"/World_Props/{name}"
+        _labels = list(_model.body_label)
+        if _labels.count(_path) != 1:
+            return False
+        _body = _labels.index(_path)
+        _children = _arr(_model.joint_child)
+        _types = _arr(_model.joint_type)
+        _joints = np.flatnonzero((_children == _body) & (_types == int(_nw.JointType.FREE)))
+        if len(_joints) != 1:
+            return False
+        _joint = int(_joints[0])
+        _qs = _arr(_model.joint_q_start)
+        _qds = _arr(_model.joint_qd_start)
+        _idx, _dof = int(_qs[_joint]), int(_qds[_joint])
+        if (_idx < 0 or _dof < 0 or int(_qs[_joint + 1]) - _idx != 7
+                or int(_qds[_joint + 1]) - _dof != 6):
+            return False
 
-    _jq = _arr(_ns.state_0.joint_q)
-    _qd = _arr(_ns.state_0.joint_qd)
+        # These props are free roots whose joint frames coincide with world
+        # and body frames. Reject another layout before writing world poses
+        # directly into joint coordinates.
+        _identity = np.array([0., 0., 0., 0., 0., 0., 1.], dtype=np.float32)
+        if int(_arr(_model.joint_parent)[_joint]) != -1:
+            return False
+        for _frames in (_model.joint_X_p, _model.joint_X_c):
+            _frame = _arr(_frames)[_joint]
+            if not np.allclose(_frame, _identity, atol=1e-6, rtol=0):
+                return False
 
-    _idx = None
-    for _i in range(len(_jq) - 6):
-        if np.allclose(_jq[_i:_i + 3], _cur, atol=3e-3):
-            _idx = _i
-            break
-    if _idx is None:
-        return False
-
-    _n_after = (len(_jq) - _idx) // 7
-    _dof = len(_qd) - 6 * _n_after
-    _target = [pos[0], pos[1], pos[2] + BASE_Z]
-
-    for _nm in ("state_0", "state_1"):
-        _st = getattr(_ns, _nm, None)
-        if _st is None or getattr(_st, "joint_q", None) is None:
-            continue
-        _q = _arr(_st.joint_q).copy()
-        _q[_idx:_idx + 3] = _target
-        _q[_idx + 3:_idx + 7] = [1.0, 0.0, 0.0, 0.0]
-        _st.joint_q.assign(_q)
-        if getattr(_st, "joint_qd", None) is not None:
+        # Validate and prepare both buffers before mutating either one. Old
+        # values need not be finite: resetting a fallen prop must recover it.
+        _updates = []
+        for _nm in ("state_0", "state_1"):
+            _st = getattr(_ns, _nm, None)
+            if _st is None:
+                return False
+            _q = _arr(_st.joint_q).copy()
             _v = _arr(_st.joint_qd).copy()
+            _bq = _arr(_st.body_q).copy()
+            _bqd = _arr(_st.body_qd).copy()
+            if (_q.ndim != 1 or _v.ndim != 1 or _idx + 7 > len(_q) or _dof + 6 > len(_v)
+                    or _bq.ndim != 2 or _bq.shape[1] != 7 or _body >= len(_bq)
+                    or _bqd.ndim != 2 or _bqd.shape[1] != 6 or _body >= len(_bqd)):
+                return False
+            _q[_idx:_idx + 7] = np.concatenate((_target, _identity[3:]))
             _v[_dof:_dof + 6] = 0.0
-            _st.joint_qd.assign(_v)
+            _bq[_body] = _q[_idx:_idx + 7]
+            _bqd[_body] = 0.0
+            _updates.append((_st, _q, _v, _bq, _bqd))
+    except (AttributeError, IndexError, TypeError, ValueError):
+        return False
+
+    for _st, _q, _v, _bq, _bqd in _updates:
+        _st.joint_q.assign(_q)
+        _st.joint_qd.assign(_v)
+        _st.body_q.assign(_bq)
+        _st.body_qd.assign(_bqd)
     return True
 
 
@@ -1450,16 +1637,12 @@ def _settle_props() -> None:
             np.array([[1.0, 0.0, 0.0, 0.0]]),
         )
         _zero_vel(_rp)
-        # Under Newton the RigidPrim write above is a no-op for a RESTING body
-        # (MuJoCo is reduced-coordinate; body_q is derived from joint_q by FK
-        # and is overwritten within one step). Write the authoritative
-        # coordinate too -- see _newton_teleport for the measurements.
+        # Keep both buffers consistent on Isaac builds affected by the
+        # NewtonStage state-buffer bug. The tensor API already writes joint
+        # coordinates; reduced-coordinate dynamics do not invalidate it.
         if args.engine == "newton":
-            try:
-                _newton_teleport(_n, (_pos[0], _pos[1], _pos[2] + dz))
-            except Exception as _e:
-                print(f"[bridge] newton teleport failed for {_n}: {_e}",
-                      flush=True)
+            if not _newton_teleport(_n, (_pos[0], _pos[1], _pos[2] + dz)):
+                raise RuntimeError(f"Newton reset rejected incompatible prop {_n}")
         return _rp
 
     def _escaped(_rp, _pos):
@@ -1528,11 +1711,16 @@ def _reset_props_verified() -> dict:
     missing = [n for n in _PROP_SPAWNS if not stage.GetPrimAtPath(f"/World_Props/{n}")]
     if missing:
         raise RuntimeError(f"reset missing required props: {missing}")
-    _settle_props()
+    errors = []
+    try:
+        _settle_props()
+    except Exception as exc:
+        # Preserve measured evidence even when a compatibility teleport is
+        # rejected. A failed settle must never become a successful reset.
+        errors.append(f"settle failed: {type(exc).__name__}: {exc}")
     if not _tl.is_playing():
         raise RuntimeError("physics timeline stopped during reset; read-back is unverified")
     checks = {}
-    errors = []
     tolerance_m = 0.02
     for name, spawn in _PROP_SPAWNS.items():
         positions = RigidPrim(f"/World_Props/{name}").get_world_poses()[0]
@@ -1696,7 +1884,14 @@ try:
                         tgt[i] = q6[k]
                 if gf is not None:
                     for i in GRIP_IDX:
-                        tgt[i] = lower[i] + gf * (upper[i] - lower[i])
+                        want = lower[i] + gf * (upper[i] - lower[i])
+                        if _FINGER_STEP is not None:
+                            # Newton's MuJoCo solver ignores joint velocity
+                            # limits; PhysX enforces the URDF's 0.243 m/s. Ramp
+                            # the finger target at that limit so the jaws
+                            # close as fast as under PhysX, not at ~3 m/s.
+                            want = float(np.clip(want, tgt[i] - _FINGER_STEP, tgt[i] + _FINGER_STEP))
+                        tgt[i] = want
                 art.set_dof_position_targets(tgt.reshape(1, -1))
             except Exception:
                 pass  # stale view during a Stop/Play transition

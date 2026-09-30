@@ -24,6 +24,55 @@ def test_gpu_kitchen_enables_the_measured_clearance_phase():
     assert load_demo_config(arm='isaac_kitchen_gpu').grasp.get('pre_carry_lift') is True
 
 
+def test_grasp_selection_rejects_an_unliftable_candidate_before_closing(monkeypatch):
+    from cascade.config import Cfg
+    from cascade.types import Grasp
+    from cascade.skills import runtime as module
+    from cascade.grasping.selector import select_grasp
+
+    class Selected(Exception):
+        pass
+
+    class Kin:
+        def fk(self, q):
+            result = np.eye(4)
+            result[:3, 3] = q
+            return result
+        def ik(self, pose, q):
+            target = pose[:3, 3]
+            # Pickup/pregrasp are reachable for both. Only the second model
+            # proposal admits the vertical carry phase.
+            ok = not (target[0] < .22 and target[2] > .13)
+            return SimpleNamespace(success=ok, q=target.copy(), error=0 if ok else 1)
+
+    candidates = [
+        Grasp(np.array([x, 0, .03]), _yaw_rotation(0), .05,
+              np.array([0, 0, -1]), quality=quality)
+        for x, quality in ((.20, .95), (.25, .80))
+    ]
+    checked = []
+    def choose(*args, **kwargs):
+        selected, *_ = select_grasp(*args, **kwargs)
+        checked.append(selected.position.copy())
+        raise Selected
+
+    monkeypatch.setattr(module, "select_grasp", choose)
+    cfg = Cfg({"grasp": {"pre_carry_lift": True, "carry_height_m": .14,
+                         "pregrasp_offset_m": .04}, "arm": {"home_q": [0, 0, 0]}})
+    arm = SimpleNamespace(get_state=lambda: SimpleNamespace(q=np.zeros(3)),
+                          harness=SimpleNamespace(
+                              limits=SimpleNamespace(workspace_min=np.array([0, -.3, 0]), table_z=0),
+                              vet_pose=lambda *args, **kwargs: None))
+    rt = SimpleNamespace(cfg=cfg, arm=arm, kin=Kin(), _max_width=.09,
+                         held_object=None, _reconcile_held=lambda: None,
+                         _plan_grasps=lambda *args, **kwargs: candidates)
+    with pytest.raises(Selected):
+        module.SkillRuntime.skill_grasp_object(
+            rt, "orange", _fix=SimpleNamespace(detection=SimpleNamespace(label="orange")),
+            _frame=object())
+    np.testing.assert_allclose(checked, [[.25, 0, .03]])
+
+
 def test_vertical_clearance_precedes_xy_transport_and_all_poses_are_preplanned():
     rt, moves, opens, _ = enabled()
     initial = rt.kin.fk(LIFTED_Q)

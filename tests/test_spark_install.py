@@ -128,6 +128,8 @@ if a != ["--setup-only"]: sys.exit(77)
 v=pathlib.Path(os.environ["MODEL_ROOT"]) / ".llama.cpp"; (v/"build/bin").mkdir(parents=True,exist_ok=True); (v/"build/bin/llama-server").touch()
 """,
     )
+    executable(source / "scripts/install_graspgenx.sh",
+               "#!/bin/bash\nprintf '[\"install_graspgenx.sh\"]\\n' >> \"$BOUNDARY_LOG\"\n")
     executable(source / "scripts/launch.sh", wrapper + "sys.exit(79)\n")
     subprocess.run(["/usr/bin/git", "-C", str(source), "add", "."], check=True)
     subprocess.run(

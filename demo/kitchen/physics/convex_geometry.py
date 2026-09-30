@@ -130,51 +130,75 @@ def support_snapshot_code():
     """Query the exact live stage/prim; never author physics or read saved proof."""
     return '''
 def _convex_support_snapshot(prim, vertices, counts, indices):
-    import omni.physx as _support_physx
-    from omni.physx.bindings._physx import PhysxCollisionRepresentationResult as _support_result
     from pxr import UsdUtils as _support_utils, PhysicsSchemaTools as _support_paths
-    if str(engine).lower() != "physx" or not _tl.is_playing():
-        raise RuntimeError("Convex support requires live PhysX")
+    _support_engine = str(engine).lower()
+    if _support_engine not in ("physx", "newton") or not _tl.is_playing():
+        raise RuntimeError("Convex support requires live PhysX or Newton")
     stage_id = int(_support_utils.StageCache.Get().GetId(stage).ToLongInt())
     path = str(prim.GetPath())
     if stage_id <= 0 or stage.GetPrimAtPath(path) != prim:
         raise RuntimeError("Convex support stage/prim binding failed")
-    replies = []
-    def received(result, convexes):
-        replies.append((result, convexes))
-    task = _support_physx.get_physx_cooking_interface().request_convex_collision_representation(
-        stage_id, _support_paths.sdfPathToInt(path), False, received)
-    if (len(replies) != 1 or replies[0][0] != _support_result.RESULT_VALID
-            or len(replies[0][1]) != 1):
-        raise RuntimeError("PhysX did not return one valid synchronous convex representation")
-    returned = _obs_np.asarray([list(v) for v in replies[0][1][0].vertices], dtype=float)
+    if _support_engine == "newton":
+        # The hull Newton actually collides with: the live model's shape source
+        # for this exact collider (MJWarp receives these vertices).
+        from isaacsim.physics.newton import acquire_stage as _support_newton
+        _support_ns = _support_newton()
+        _support_labels = list(_support_ns.model.shape_label)
+        if _support_labels.count(path) != 1:
+            raise RuntimeError("Newton model has no single shape for the convex collider")
+        _support_i = _support_labels.index(path)
+        _support_src = _support_ns.model.shape_source[_support_i]
+        if (_support_src is None or not _obs_np.allclose(_support_ns.model.shape_scale.numpy()[_support_i], 1.0, atol=0, rtol=0)
+                or not _obs_np.allclose(_support_ns.model.shape_transform.numpy()[_support_i],
+                                        [0, 0, 0, 0, 0, 0, 1], atol=1e-9, rtol=0)):
+            raise RuntimeError("Newton convex shape is not the unscaled body-local collider")
+        returned = _obs_np.asarray(_support_src.vertices, dtype=float)
+        _support_method, _support_step = "newton_model_shape_source", int(_support_ns.simulation_step_count)
+    else:
+        import omni.physx as _support_physx
+        from omni.physx.bindings._physx import PhysxCollisionRepresentationResult as _support_result
+        replies = []
+        def received(result, convexes):
+            replies.append((result, convexes))
+        task = _support_physx.get_physx_cooking_interface().request_convex_collision_representation(
+            stage_id, _support_paths.sdfPathToInt(path), False, received)
+        if (len(replies) != 1 or replies[0][0] != _support_result.RESULT_VALID
+                or len(replies[0][1]) != 1):
+            raise RuntimeError("PhysX did not return one valid synchronous convex representation")
+        returned = _obs_np.asarray([list(v) for v in replies[0][1][0].vertices], dtype=float)
+        _support_method, _support_step = "physx_collision_representation", int(_obs_SM.get_num_physics_steps())
     if (returned.ndim != 2 or returned.shape[1:] != (3,)
             or not 4 <= len(returned) <= len(vertices)
             or not _obs_np.isfinite(returned).all()
             or _obs_np.linalg.matrix_rank(returned-returned[0]) != 3):
-        raise RuntimeError("PhysX returned invalid solid convex support geometry")
+        raise RuntimeError("Live engine returned invalid solid convex support geometry")
     # Retain exact returned coordinates as indices into the independently bound
     # authored array. This is lossless and stays within the bridge's wire limit.
     lookup = {tuple(v): i for i, v in enumerate(vertices)}
     if len(lookup) != len(vertices) or any(tuple(v) not in lookup for v in returned):
-        raise RuntimeError("Unsupported PhysX representation outside authored vertices")
+        raise RuntimeError("Unsupported collision representation outside authored vertices")
     selected = [lookup[tuple(v)] for v in returned]
     if (len(set(selected)) != len(selected)
             or not _obs_np.array_equal(returned.min(axis=0), vertices.min(axis=0))
             or not _obs_np.array_equal(returned.max(axis=0), vertices.max(axis=0))):
-        raise RuntimeError("PhysX support representation has repeated vertices or changed bounds")
+        raise RuntimeError("Support representation has repeated vertices or changed bounds")
     def digest(points):
         return _obs_hash.sha256(_obs_np.ascontiguousarray(points, dtype="<f4").tobytes()).hexdigest()
     topology = _obs_json.dumps([counts, indices], separators=(",", ":")).encode()
-    return {"method": "physx_collision_representation", "engine": "physx",
+    return {"method": _support_method, "engine": _support_engine,
         "stage_id": stage_id, "collider_path": path,
-        "physics_step": int(_obs_SM.get_num_physics_steps()),
+        "physics_step": _support_step,
         "result": "RESULT_VALID", "convex_count": 1, "frame": "body_local", "units": "m",
         "source_vertices_f32_sha256": digest(vertices),
         "source_topology_sha256": _obs_hash.sha256(topology).hexdigest(),
         "vertex_count": len(returned), "vertices_f32_sha256": digest(returned),
         "authored_vertex_indices": selected}
 '''
+
+
+# Engine -> how its live collision hull is read. The check names below keep
+# their historical `physx_support_*` keys so existing receipts stay comparable.
+SUPPORT_METHODS = {"physx": "physx_collision_representation", "newton": "newton_model_shape_source"}
 
 
 def audit_support_binding(samples, *, object_name):
@@ -190,8 +214,8 @@ def audit_support_binding(samples, *, object_name):
         try:
             stage_id = item.get('stage_id')
             checks['physx_support_live_identity'] &= bool(
-                sample.get('engine') == support.get('engine') == 'physx'
-                and support.get('method') == 'physx_collision_representation'
+                sample.get('engine') == support.get('engine')
+                and SUPPORT_METHODS.get(support.get('engine')) == support.get('method')
                 and type(stage_id) is int and stage_id > 0
                 and type(support.get('stage_id')) is int and support.get('stage_id') == stage_id
                 and item.get('collider_path') == support.get('collider_path')
@@ -231,7 +255,7 @@ def audit_support_binding(samples, *, object_name):
         except (AttributeError, KeyError, TypeError, ValueError, IndexError, np.linalg.LinAlgError):
             checks['physx_support_solid_subset'] = False
     return {'pass': bool(all(checks.values())), 'checks': checks, 'samples': len(samples),
-            'source': 'live PhysX collision representation for support only; authored footprint retained',
+            'source': 'live engine collision representation for support only; authored footprint retained',
             'binding': reference, 'vertices_m': first_vertices.tolist() if first_vertices is not None else None}
 
 

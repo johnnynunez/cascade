@@ -35,6 +35,7 @@ rather than blocking when a channel is unavailable.
 
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -202,6 +203,34 @@ class PostconditionChecker:
                 return [float(v) for v in pose[:3]], channel
         return None, ""
 
+    def _refute_if_lost(self, pc, label: str) -> bool:
+        """REFUTE when the physics channel measures ``label`` outside the scene.
+
+        The truth readers withhold such a reading from ``object_pose`` (it says
+        nothing about where the body rests), so without this the check fell
+        back to the belief the skill itself wrote and came back UNVERIFIED,
+        which callers report as success. Measured on Newton: an orange at
+        z = -198 m, through the counter, returned by pick_and_place as ok=True.
+        A body physics can no longer place in the scene is a failed effect.
+        """
+        fn = getattr(self._object_pose, "lost", None) if label else None
+        if fn is None:
+            return False
+        try:
+            gone = fn(label)
+        except Exception:
+            return False
+        if gone is None:
+            return False
+        shown = [round(float(v), 3) if math.isfinite(float(v)) else str(float(v)) for v in gone[:3]]
+        pc.status, pc.channel = REFUTED, "physics"
+        pc.measured = {"final": shown, "outside_scene": True}
+        pc.evidence = (
+            f"physics has {label} outside the scene at {shown}: it fell through a "
+            "surface or the solver lost it, so the effect did not happen"
+        )
+        return True
+
     def _visual_evidence(self, source_xyz=None, target_xyz=None):
         """CaP-X visual differencing: pixels as an actuator-independent channel.
 
@@ -280,6 +309,8 @@ class PostconditionChecker:
             pc.status, pc.channel = REFUTED, "gripper"
             pc.evidence = f"jaw closed to {frac:.3f} (<= air-grasp threshold): nothing between the fingers"
             pc.measured = {"gripper_frac": frac}
+            return
+        if self._refute_if_lost(pc, label):
             return
         pose, channel = self._best_pose(label) if label else (None, "")
         if pose is None:
@@ -360,6 +391,8 @@ class PostconditionChecker:
         if (dest_label and str(dest_label) != str(label)
                 and result.get("destination_kind") != "configured_point"):
             dest_pose, _ = self._best_pose(str(dest_label))
+        if self._refute_if_lost(pc, label):
+            return
         pose, channel = self._best_pose(label) if label else (None, "")
         if pose is None:
             pc.status, pc.evidence = UNVERIFIED, f"{label or 'object'} not re-located after the move"
@@ -459,6 +492,8 @@ class PostconditionChecker:
     def _check_released_at(self, pc, args, result, before) -> None:
         label = str(before.get("label") or result.get("object") or "")
         want = [args.get("x"), args.get("y")]
+        if self._refute_if_lost(pc, label):
+            return
         pose, channel = self._best_pose(label) if label else (None, "")
         frac = self._frac()
         if pose is None:
@@ -502,6 +537,8 @@ class PostconditionChecker:
                 "cannot tell which object was released, so 'on target' is unverifiable"
             )
             return
+        if self._refute_if_lost(pc, held):
+            return
         hp, channel = self._best_pose(held)
         tp, _ = self._best_pose(target) if target else (None, "")
         if hp is None or tp is None:
@@ -522,6 +559,8 @@ class PostconditionChecker:
     def _check_moved(self, pc, args, result, before) -> None:
         label = str(args.get("label") or before.get("label") or "")
         want = float(args.get("distance_m", 0.08) or 0.0)
+        if self._refute_if_lost(pc, label):
+            return
         pose, channel = self._best_pose(label) if label else (None, "")
         start = before.get("pose")
         if pose is None or start is None:

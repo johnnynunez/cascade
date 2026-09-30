@@ -1,0 +1,688 @@
+{
+  "scope": "Real skill-path diagnostic with mock LLM; separate launch proof required",
+  "acceptance": "Existing passive geometry/contact/stability/camera/reset audit, unchanged tolerances",
+  "campaigns": [
+    {
+      "engine": "physx",
+      "rounds": 1,
+      "objects": [
+        "orange",
+        "green_cube",
+        "lemon",
+        "pink_cube",
+        "tomato_can"
+      ],
+      "pass": true,
+      "source_sha256": {
+        "benchmark/diagnostics/kitchen_acceptance.py": "1e9e9826cb8a47735c5611585b79985487cb70ba83dcd2b58f90875cfa8be975",
+        "scripts/isaac_bridge.py": "362f8cac7712ec72f7e9014e6a908c7fda89ee184ef2617db3d473bc685dfcef",
+        "scripts/isaac_materials.py": "54fafa297d2e150df5f4a066d76e27e63055acf0a6bfcdb502dc02b3373350fd",
+        "scripts/isaac_runtime.py": "2644d2339d4c5402f04085ddbef863e5ca983a27777d59d656f65c7fd60785ca",
+        "src/cascade/skills/runtime.py": "082848e25c4a5c972de986a9cd85214f08e8eb719e544f4873f380964b9ad4b9",
+        "src/cascade/grasping/obb_grasp.py": "5c38fb8c54ce30deebe29cddc6ac3daa562e5b2903287a60d315f1250b01a9cb",
+        "src/cascade/grasping/graspgenx_backend.py": "f9575978c84ff6478b07cb981291719413c8a025780afb1ff0f337b2b25776fc",
+        "src/cascade/config.py": "984cf4e2aa276ce54f8b24e78a5fd863699a5109e8c522dc00d072bb6c6d82d7",
+        "src/cascade/apps/demo.py": "8e533a101ba4c1db94fa32eda6976af28cbe0345cb9638fc30a01d47d5ebd8bf",
+        "src/cascade/perception/grounding.py": "e93ce3d7388d35a53ff4c0b61af541f0c065e4a65d3b8cd7c0573b50963a4458",
+        "src/cascade/perception/cuda_math.py": "d148ef4481868d3247b37710548dc87fdb7a5d08700fb6135b41fb6fd3900e33",
+        "src/cascade/agent/effects.py": "b452f1a30552a9969d472314d4ec8c22b4f9f46a4c954780fbbca5589f915fcf",
+        "src/cascade/sim/truth.py": "172aa74560a7b55059edfe65738b1ea9f683f2ce760e7ebc825717788ef195cd",
+        "demo/kitchen/physics/gpu_proof_audit.py": "f85392450376bf6a320138198612530d26f08ab4a95962a20047f3f3ceb26fb2",
+        "demo/kitchen/physics/convex_geometry.py": "f1e3c87aed4b2343f2818564048ee42e002c588b97f87007f55c83a158d0de65",
+        "demo/kitchen/physics/destination_entry.py": "263a9fb383af509f435118deed536d19afca9d43701487edf7999dad92f1b441",
+        "demo/kitchen/physics/spark_proof.py": "675434aab150a74fefe1ab637a6d1d740c24e7f11c319f5bd50cd4a1426c78d4",
+        "assets/newton/rebot_gripper_hulls.usda": "46fd39d7f4ad948a9a7e6d67f2f7fde5a92333972e1f4ff2014dcba1449462de",
+        "configs/arms/isaac_kitchen.yaml": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+        "configs/arms/isaac_kitchen_gpu.yaml": "3274e46b33305a6b0fb90a0a2417a754c9935e4a3662d7e06c0dacbef193b62c"
+      },
+      "source_unchanged": true,
+      "evidence_directory": "runs/graspgenx-spark/physical-smoke-05",
+      "cases": [
+        {
+          "object": "orange",
+          "round": 1,
+          "pass": true,
+          "failed_checks": [],
+          "backends": {
+            "grasp_planner": "graspgenx (learned 6-DoF)",
+            "occupancy": "disabled",
+            "occupancy_live": false
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.405
+          },
+          "diagnostic_profile": {
+            "llm": "mock",
+            "occupancy": false,
+            "belief_persistence": false,
+            "fresh_grasp_memory": true,
+            "held_xy_slip_feedback": "production truth lookup with perception fallback",
+            "release_height_feedback": "FK and configured support plane",
+            "cuda_perception_required": true,
+            "acceptance": "independent passive physics proof; skill ok alone is insufficient"
+          },
+          "receipt_sha256": "231560b981a33ff7ade8b03311fbd8101b78b888e62d986ea9464fd93f7577b4",
+          "checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "convex_body_identity": true,
+            "authored_convex_vertices_match": true,
+            "convex_topology_matches": true,
+            "convex_body_and_collider_enabled": true,
+            "convex_body_and_child_transforms_match": true,
+            "convex_tensor_mass_and_com_match": true,
+            "convex_tensor_inertia_valid": true,
+            "physx_support_live_identity": true,
+            "physx_support_source_matches": true,
+            "physx_support_solid_subset": true,
+            "physx_support_geometry_unchanged": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_convex_collider_inside_open_box_and_supported": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "pick_metrics": {
+            "samples": 344,
+            "final_samples": 29,
+            "simulation_elapsed_s": 5.933333333333337,
+            "final_window_sim_s": 0.5,
+            "lift_m": 0.1163178477436304,
+            "xy_displacement_m": 0.2901223763557936,
+            "final_xy_error_m": 0.0041432965537134565,
+            "max_final_xy_error_m": 0.004143565029157683,
+            "max_final_support_z_error_m": 1.3548324680201507e-07,
+            "max_final_linear_speed_m_s": 0.0003354689626170616,
+            "max_final_angular_speed_rad_s": 0.014202091499922445,
+            "max_final_position_spread_m": 2.8610253745369265e-07,
+            "max_final_tilt_deg": 24.66669710605187,
+            "min_final_actual_open_fraction": 0.9999901652337586,
+            "max_frame_age_s": 0.3784641759993974,
+            "unique_jpeg_hashes": 176
+          },
+          "pick_skill": {
+            "grasp_attempts": 1,
+            "place_attempts": 1,
+            "duration_s": 56.44,
+            "return_home": {
+              "attempted": true,
+              "ok": true,
+              "at": "home"
+            }
+          },
+          "phase_including_witness_wall_s": {
+            "pick": 63.82077641200158,
+            "reset": 24.105441821004206
+          },
+          "reset": {
+            "ok": true,
+            "props_reset": [
+              "pink_cube",
+              "green_cube",
+              "tomato_can",
+              "lemon",
+              "orange"
+            ],
+            "observation_refreshed": true
+          },
+          "errors": []
+        },
+        {
+          "object": "green_cube",
+          "round": 1,
+          "pass": true,
+          "failed_checks": [],
+          "backends": {
+            "grasp_planner": "graspgenx (learned 6-DoF)",
+            "occupancy": "disabled",
+            "occupancy_live": false
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.47
+          },
+          "diagnostic_profile": {
+            "llm": "mock",
+            "occupancy": false,
+            "belief_persistence": false,
+            "fresh_grasp_memory": true,
+            "held_xy_slip_feedback": "production truth lookup with perception fallback",
+            "release_height_feedback": "FK and configured support plane",
+            "cuda_perception_required": true,
+            "acceptance": "independent passive physics proof; skill ok alone is insufficient"
+          },
+          "receipt_sha256": "936ae48ee9732a19cf11fb908d31035bdc8c12cb5a86ef449834d959eac720f7",
+          "checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_cube_inside_green_square_throughout_settle": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "pick_metrics": {
+            "samples": 359,
+            "final_samples": 31,
+            "simulation_elapsed_s": 6.0166666666666515,
+            "final_window_sim_s": 0.5,
+            "lift_m": 0.12050204165279864,
+            "xy_displacement_m": 0.2893043857516379,
+            "final_xy_error_m": 0.009040793608602236,
+            "max_final_xy_error_m": 0.009040793608602236,
+            "max_final_support_z_error_m": 2.186971631568113e-09,
+            "max_final_linear_speed_m_s": 2.4575358348940505e-05,
+            "max_final_angular_speed_rad_s": 0.00040569520226625965,
+            "max_final_position_spread_m": 3.332000937312528e-08,
+            "max_final_tilt_deg": 8.726468844605458e-05,
+            "min_final_actual_open_fraction": 0.999950304628159,
+            "max_frame_age_s": 0.3748149029997876,
+            "unique_jpeg_hashes": 181
+          },
+          "pick_skill": {
+            "grasp_attempts": 1,
+            "place_attempts": 1,
+            "duration_s": 58.82,
+            "return_home": {
+              "attempted": true,
+              "ok": true,
+              "at": "home"
+            }
+          },
+          "phase_including_witness_wall_s": {
+            "pick": 66.1326002870046,
+            "reset": 23.650640432002547
+          },
+          "reset": {
+            "ok": true,
+            "props_reset": [
+              "pink_cube",
+              "green_cube",
+              "tomato_can",
+              "lemon",
+              "orange"
+            ],
+            "observation_refreshed": true
+          },
+          "errors": []
+        },
+        {
+          "object": "lemon",
+          "round": 1,
+          "pass": true,
+          "failed_checks": [],
+          "backends": {
+            "grasp_planner": "graspgenx (learned 6-DoF)",
+            "occupancy": "disabled",
+            "occupancy_live": false
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.36
+          },
+          "diagnostic_profile": {
+            "llm": "mock",
+            "occupancy": false,
+            "belief_persistence": false,
+            "fresh_grasp_memory": true,
+            "held_xy_slip_feedback": "production truth lookup with perception fallback",
+            "release_height_feedback": "FK and configured support plane",
+            "cuda_perception_required": true,
+            "acceptance": "independent passive physics proof; skill ok alone is insufficient"
+          },
+          "receipt_sha256": "bb3bb66e9f05c7529aec310664c72d190c68ff1ee48fe41d30e739c099468bb9",
+          "checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "convex_body_identity": true,
+            "authored_convex_vertices_match": true,
+            "convex_topology_matches": true,
+            "convex_body_and_collider_enabled": true,
+            "convex_body_and_child_transforms_match": true,
+            "convex_tensor_mass_and_com_match": true,
+            "convex_tensor_inertia_valid": true,
+            "physx_support_live_identity": true,
+            "physx_support_source_matches": true,
+            "physx_support_solid_subset": true,
+            "physx_support_geometry_unchanged": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_convex_collider_inside_open_box_and_supported": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "pick_metrics": {
+            "samples": 341,
+            "final_samples": 31,
+            "simulation_elapsed_s": 5.7666666666666515,
+            "final_window_sim_s": 0.5,
+            "lift_m": 0.1130472496151924,
+            "xy_displacement_m": 0.13863045274483302,
+            "final_xy_error_m": 0.009639620578267744,
+            "max_final_xy_error_m": 0.009639696517246138,
+            "max_final_support_z_error_m": 5.0603403665278046e-08,
+            "max_final_linear_speed_m_s": 0.00015703285991234376,
+            "max_final_angular_speed_rad_s": 0.010685604334400849,
+            "max_final_position_spread_m": 1.0956407464930968e-07,
+            "max_final_tilt_deg": 24.203573419996673,
+            "min_final_actual_open_fraction": 0.9999912828208315,
+            "max_frame_age_s": 0.540701434998482,
+            "unique_jpeg_hashes": 172
+          },
+          "pick_skill": {
+            "grasp_attempts": 1,
+            "place_attempts": 1,
+            "duration_s": 53.56,
+            "return_home": {
+              "attempted": true,
+              "ok": true,
+              "at": "home"
+            }
+          },
+          "phase_including_witness_wall_s": {
+            "pick": 60.65288255699852,
+            "reset": 24.301391876993875
+          },
+          "reset": {
+            "ok": true,
+            "props_reset": [
+              "pink_cube",
+              "green_cube",
+              "tomato_can",
+              "lemon",
+              "orange"
+            ],
+            "observation_refreshed": true
+          },
+          "errors": []
+        },
+        {
+          "object": "pink_cube",
+          "round": 1,
+          "pass": true,
+          "failed_checks": [],
+          "backends": {
+            "grasp_planner": "graspgenx (learned 6-DoF)",
+            "occupancy": "disabled",
+            "occupancy_live": false
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.637
+          },
+          "diagnostic_profile": {
+            "llm": "mock",
+            "occupancy": false,
+            "belief_persistence": false,
+            "fresh_grasp_memory": true,
+            "held_xy_slip_feedback": "production truth lookup with perception fallback",
+            "release_height_feedback": "FK and configured support plane",
+            "cuda_perception_required": true,
+            "acceptance": "independent passive physics proof; skill ok alone is insufficient"
+          },
+          "receipt_sha256": "27ec47bdedac35eea685e8f48cb1811ab1789f607ae0098786eabce0c7bf6aa7",
+          "checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_cube_inside_green_square_throughout_settle": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "pick_metrics": {
+            "samples": 356,
+            "final_samples": 31,
+            "simulation_elapsed_s": 5.916666666666686,
+            "final_window_sim_s": 0.5,
+            "lift_m": 0.09162656404078007,
+            "xy_displacement_m": 0.39806180238705147,
+            "final_xy_error_m": 0.008657595847053839,
+            "max_final_xy_error_m": 0.008657616448246147,
+            "max_final_support_z_error_m": 3.243264823371561e-10,
+            "max_final_linear_speed_m_s": 1.3974326729307513e-05,
+            "max_final_angular_speed_rad_s": 0.00041415990671848474,
+            "max_final_position_spread_m": 2.9802322387695312e-08,
+            "max_final_tilt_deg": 7.6877564293404e-05,
+            "min_final_actual_open_fraction": 0.9999406188735274,
+            "max_frame_age_s": 0.47244898899953114,
+            "unique_jpeg_hashes": 178
+          },
+          "pick_skill": {
+            "grasp_attempts": 1,
+            "place_attempts": 1,
+            "duration_s": 53.99,
+            "return_home": {
+              "attempted": true,
+              "ok": true,
+              "at": "home"
+            }
+          },
+          "phase_including_witness_wall_s": {
+            "pick": 61.43536134799797,
+            "reset": 24.244390179999755
+          },
+          "reset": {
+            "ok": true,
+            "props_reset": [
+              "pink_cube",
+              "green_cube",
+              "tomato_can",
+              "lemon",
+              "orange"
+            ],
+            "observation_refreshed": true
+          },
+          "errors": []
+        },
+        {
+          "object": "tomato_can",
+          "round": 1,
+          "pass": true,
+          "failed_checks": [],
+          "backends": {
+            "grasp_planner": "graspgenx (learned 6-DoF)",
+            "occupancy": "disabled",
+            "occupancy_live": false
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.451
+          },
+          "diagnostic_profile": {
+            "llm": "mock",
+            "occupancy": false,
+            "belief_persistence": false,
+            "fresh_grasp_memory": true,
+            "held_xy_slip_feedback": "production truth lookup with perception fallback",
+            "release_height_feedback": "FK and configured support plane",
+            "cuda_perception_required": true,
+            "acceptance": "independent passive physics proof; skill ok alone is insufficient"
+          },
+          "receipt_sha256": "73e64aa2ae2235d2cb69dc54bf59d87fa3026186c4677a2f94b3b3d2cc632a37",
+          "checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "convex_body_identity": true,
+            "authored_convex_vertices_match": true,
+            "convex_topology_matches": true,
+            "convex_body_and_collider_enabled": true,
+            "convex_body_and_child_transforms_match": true,
+            "convex_tensor_mass_and_com_match": true,
+            "convex_tensor_inertia_valid": true,
+            "physx_support_live_identity": true,
+            "physx_support_source_matches": true,
+            "physx_support_solid_subset": true,
+            "physx_support_geometry_unchanged": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_convex_collider_inside_green_square_and_supported": true,
+            "tomato_can_settles_upright": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "pick_metrics": {
+            "samples": 359,
+            "final_samples": 31,
+            "simulation_elapsed_s": 6.03333333333336,
+            "final_window_sim_s": 0.5,
+            "lift_m": 0.07288118451833725,
+            "xy_displacement_m": 0.4804442172940369,
+            "final_xy_error_m": 0.014667492759692466,
+            "max_final_xy_error_m": 0.014667492759692466,
+            "max_final_support_z_error_m": 5.980344989359176e-08,
+            "max_final_linear_speed_m_s": 0.00017084544114924385,
+            "max_final_angular_speed_rad_s": 0.0017922099552698343,
+            "max_final_position_spread_m": 1.0854603562007446e-07,
+            "max_final_tilt_deg": 0.00012350537413904705,
+            "min_final_actual_open_fraction": 0.9999446421869898,
+            "max_frame_age_s": 0.33135417199810036,
+            "unique_jpeg_hashes": 181
+          },
+          "pick_skill": {
+            "grasp_attempts": 1,
+            "place_attempts": 1,
+            "duration_s": 57.07,
+            "return_home": {
+              "attempted": true,
+              "ok": true,
+              "at": "home"
+            }
+          },
+          "phase_including_witness_wall_s": {
+            "pick": 64.32776600299985,
+            "reset": 24.56779909099714
+          },
+          "reset": {
+            "ok": true,
+            "props_reset": [
+              "pink_cube",
+              "green_cube",
+              "tomato_can",
+              "lemon",
+              "orange"
+            ],
+            "observation_refreshed": true
+          },
+          "errors": []
+        }
+      ],
+      "bridge_identity": {
+        "engine": "physx",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_device": "cuda:0",
+        "physics_gpu": true,
+        "gpu_attestation": {
+          "required": true,
+          "backend": "physx",
+          "device": "cuda:0",
+          "tensor_device": "cuda:0",
+          "tensor_device_ordinal": 0,
+          "cuda_context_present": true,
+          "gpu_dynamics": true,
+          "broadphase": "GPU",
+          "cpu_fallback_allowed": false,
+          "fallback_log_count": 0
+        },
+        "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+        "scene_content_sha256": "84a35e632c5977112e104cbf63e26b7593d2dc5fe63b3a1b6a170aa148353413"
+      },
+      "passed_cases": 5
+    }
+  ],
+  "total_cases": 5,
+  "passed_cases": 5,
+  "all_campaigns_pass": true,
+  "source_matches_across_campaigns": true
+}

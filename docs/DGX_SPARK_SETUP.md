@@ -9,6 +9,14 @@ verified CC0 wood materials, and an original orange and fruit platter. The
 installer checks the release archive and every extracted asset against pinned
 SHA-256 hashes. See the [scene notice](../demo/scene/NOTICE.md).
 
+## GraspGen-X update in PR #23
+
+The pinned installation below predates PR #23. For an existing checkout of
+that PR, run `bash scripts/install_graspgenx.sh` once to add the private CUDA
+model environment. The corrected launcher defaults to the real local server;
+see the [presenter card](PRESENTER_QUICKSTART.md) for startup and fast restart.
+Do not assume the older pinned commit includes this change.
+
 ## Quick path
 
 Use a normal account on the Spark. The default install folder is
@@ -265,13 +273,15 @@ calling the result successful.
 | 8091 | This checkout's read-only camera surface |
 | 8092 | This checkout's local chat and camera extension |
 | 8093 | Optional authenticated visitor surface |
+| 5556 | GraspGen-X CUDA inference server |
 | 8611 | Isaac bridge |
 | 18790 | This checkout's OpenClaw gateway, profile `cascade-demo` |
 | 4043 | Optional dedicated ngrok agent API |
 
 The demo does not use port 8090. The separate personal OpenClaw gateway
-on 18789 stays untouched. Spark does not start occupancy or GraspGen-X
-sidecars on 5557/5556. OpenClaw state stays under
+on 18789 stays untouched. Spark starts the real GraspGen-X model on loopback 5556 and verifies a
+diffusion inference before connecting the robot tools. Occupancy on 5557 stays
+disabled. See [GraspGen-X on Spark](GRASPGENX_SPARK.md). OpenClaw state stays under
 `runs/.launch/profile-cascade-demo/openclaw/`.
 
 Run one Spark stack at a time. Before the first start, `ss -ltnp` shows

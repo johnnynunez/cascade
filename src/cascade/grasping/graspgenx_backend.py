@@ -2,7 +2,7 @@
 
 Talks to a GraspGen-X ZMQ server (NVlabs/GraspGenX client-server mode) with a
 self-contained msgpack wire client -- the heavy model stack lives in its own
-venv/process (~/Projects/demo/.graspgenx), cascade only needs pyzmq +
+venv/process (.graspgenx inside this checkout), cascade only needs pyzmq +
 msgpack-numpy. Launch the server with scripts/serve_graspgenx.sh.
 
 Flow: the segmented object points from an ObjectFix (already in the BASE
@@ -19,15 +19,15 @@ so R_wrc = [R[:,2], R[:,0], R[:,1]] (even permutation) and the position
 shifts along the approach axis by `tip_offset_m` (gripper-base -> jaw-center
 distance for the gripper the server was asked to emulate; calibrate in sim).
 
-The OBB planner stays as the always-available fallback: any server error
-degrades to the analytic path instead of failing the grasp (booth rule).
-GraspGen-X's own default planner (GraspMoE) is itself diffusion + OBB
-heuristics rescored by a learned discriminator, so this wiring mirrors the
-paper's intended usage.
+The Spark profile requires a real CUDA server and diffusion-only candidates.
+Other profiles may explicitly allow an analytic fallback. GraspMoE remains
+available as an upstream planner choice, with its own diffusion/OBB provenance.
+
 """
 
 from __future__ import annotations
 
+import os
 import time
 
 import numpy as np
@@ -123,8 +123,8 @@ class GraspGenXPlanner:
         g = cfg.get("graspgenx", None)
         get = (lambda k, d: g.get(k, d)) if g is not None else (lambda k, d: d)
         self._client = GraspGenXClient(
-            host=str(get("host", "127.0.0.1")),
-            port=int(get("port", 5556)),
+            host=os.environ.get("CASCADE_GRASPGENX_HOST", str(get("host", "127.0.0.1"))),
+            port=int(os.environ.get("CASCADE_GRASPGENX_PORT", get("port", 5556))),
             timeout_ms=int(get("timeout_ms", 8000)),
         )
         self.gripper = str(get("gripper", "franka_panda"))
@@ -132,13 +132,22 @@ class GraspGenXPlanner:
         self.num_grasps = int(get("num_grasps", 100))
         self.topk = int(get("topk", 32))
         self.min_score = float(get("min_score", 0.0))
+        self.approach_z_max = float(get("approach_z_max", 0.2))
+        self.required = bool(get("required", False))
+        self.planner = str(get("planner", "graspmoe"))
+        if self.planner not in {"diffusion", "graspmoe"}:
+            raise ValueError(f"unknown GraspGen-X planner: {self.planner}")
+        self.probe_timeout_ms = int(get("probe_timeout_ms", 300))
+        self.last_branch_counts: dict[str, int] = {}
         self.last_latency_s: float | None = None
         #: what the startup probe saw: {"ok": True, "stub": bool, ...} or None
         self.status: dict | None = None
         # Cross-embodiment mode: a `sweep` block describes OUR gripper by
         # its swept volume (12 numbers) -- no name lookup, no borrowed
-        # Franka. Convention: origin at the JAW CENTER (tip_offset then 0),
-        # +Z = approach, +X = closing direction.
+        # Franka. Config volumes use the JAW CENTER; the wire uses the model's
+        # GRIPPER BASE. Translate conditioning by the same tip offset used
+        # to translate returned poses back. Applying only the return offset
+        # describes a different gripper to the generator/discriminator.
         sweep = get("sweep", None)
         self.sweep_params = None
         if sweep is not None:
@@ -151,9 +160,15 @@ class GraspGenXPlanner:
                 "fingertip_depth": float(sweep.get("fingertip_depth", 0.0)),
             }
             self.tip_offset_m = float(get("tip_offset_m", 0.0))
+            for key in ("offset_open", "offset_mid"):
+                self.sweep_params[key][2] += self.tip_offset_m
+            self.sweep_params["fingertip_depth"] += self.tip_offset_m
 
-    def probe(self, timeout_ms: int = 300) -> dict:
-        self.status = self._client.probe(timeout_ms=timeout_ms)
+    def probe(self, timeout_ms: int | None = None) -> dict:
+        self.status = self._client.probe(timeout_ms=self.probe_timeout_ms if timeout_ms is None else timeout_ms)
+        if self.required and self.status.get("stub"):
+            self.status = None
+            raise GraspGenXError("real GraspGen-X required; analytic protocol stub rejected")
         return self.status
 
     def describe(self) -> str:
@@ -163,7 +178,13 @@ class GraspGenXPlanner:
 
     def plan(self, fix: ObjectFix, max_width_m: float = 0.09) -> list[Grasp]:
         """Segmented base-frame object points -> ranked wrc Grasps."""
-        pts = np.asarray(fix.points, dtype=np.float32)
+        source_points = fix.points
+        tensor_points = hasattr(source_points, "detach")
+        # ZMQ/msgpack is a host-memory transport between independent Python
+        # processes. Perception stays on CUDA; explicitly copy only the
+        # segmented request cloud at this serialization boundary.
+        pts = np.asarray(source_points.detach().cpu().numpy() if tensor_points
+                         else source_points, dtype=np.float32)
         if pts.shape[0] < 50:
             raise GraspGenXError(f"only {pts.shape[0]} object points (<50)")
         t0 = time.monotonic()
@@ -173,7 +194,7 @@ class GraspGenXPlanner:
                 "point_cloud": pts,
                 "sweep_volume_params": self.sweep_params,
                 "num_grasps": self.num_grasps,
-                "planner": "graspmoe",
+                "planner": self.planner,
             }
         else:
             payload = {
@@ -194,6 +215,13 @@ class GraspGenXPlanner:
             resp = self._client.request(payload)
             poses = np.asarray(resp["grasps"], dtype=np.float32).reshape(-1, 4, 4)
             scores = np.asarray(resp["confidences"], dtype=np.float32).reshape(-1)
+            if len(scores) != len(poses) or not np.all(np.isfinite(poses)) or not np.all(np.isfinite(scores)):
+                raise GraspGenXError("invalid/non-finite GraspGen-X poses or scores")
+            tags = resp.get("branch_tags", [])
+            if self.required and self.sweep_params is not None:
+                if len(tags) != len(poses) or (self.planner == "diffusion" and any(t != "diff" for t in tags)):
+                    raise GraspGenXError("missing or incorrect learned grasp provenance")
+            self.last_branch_counts = {tag: tags.count(tag) for tag in set(tags)}
             if poses.shape[0]:
                 break
         self.last_latency_s = round(time.monotonic() - t0, 3)
@@ -213,22 +241,35 @@ class GraspGenXPlanner:
         grasps: list[Grasp] = []
         order = np.argsort(-scores)
         for i in order:
+            if scores[i] < self.min_score:
+                continue
             T = poses[i].astype(float)
             R, p = T[:3, :3], T[:3, 3]
             approach = R[:, 2] / np.linalg.norm(R[:, 2])
             # Tabletop sanity: the model sees a floating cloud (no table), so
             # it happily proposes approaches from below. Those are physically
             # unreachable here -- drop them before wasting IK attempts.
-            if approach[2] > 0.2:
+            if approach[2] > self.approach_z_max:
                 continue
             open_axis = R[:, 0] / np.linalg.norm(R[:, 0])
             R_wrc = np.column_stack([approach, open_axis, np.cross(approach, open_axis)])
             tcp = p + approach * self.tip_offset_m
-            span = (fix.points - fix.position) @ open_axis
-            width = float(
-                min(np.quantile(span, 0.95) - np.quantile(span, 0.05) + 0.015,
-                    max_width_m)
-            )
+            if tensor_points:
+                import torch
+
+                device, dtype = source_points.device, source_points.dtype
+                center = torch.as_tensor(fix.position, device=device, dtype=dtype)
+                axis = torch.as_tensor(open_axis, device=device, dtype=dtype)
+                span = (source_points - center) @ axis
+                bounds = torch.quantile(span, torch.tensor([.05, .95], device=device, dtype=dtype))
+                width = min(float((bounds[1] - bounds[0]).item()) + .015, max_width_m)
+                if device.type == "cuda":
+                    from ..perception.cuda_math import record
+                    record("graspgenx_width", source_points, span)
+            else:
+                span = (pts - fix.position) @ open_axis
+                width = float(min(np.quantile(span, .95) - np.quantile(span, .05) + .015,
+                                  max_width_m))
             grasps.append(
                 Grasp(
                     position=tcp,
@@ -239,4 +280,8 @@ class GraspGenXPlanner:
                     label=fix.label,
                 )
             )
+            if len(grasps) >= self.topk:
+                break
+        if not grasps:
+            raise GraspGenXError("no GraspGen-X candidates satisfy the tabletop/score constraints")
         return grasps

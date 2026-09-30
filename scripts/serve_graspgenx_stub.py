@@ -149,17 +149,14 @@ def serve(port: int, gripper: str, verbose: bool = True) -> None:
             pts = np.asarray(req["point_cloud"], dtype=np.float64).reshape(-1, 3)
             if pts.shape[0] < 3:
                 raise ValueError(f"point cloud has {pts.shape[0]} points")
-            # BOTH actions return a GRIPPER-BASE pose. The real server keeps
-            # its base-frame convention even when given a centred sweep box --
-            # that is precisely why `tip_offset_m: 0.098` in configs/demo.yaml
-            # is annotated "even with centered sweep boxes", and why the client
-            # applies the offset unconditionally. An earlier version of this
-            # stub returned a jaw-centre pose for `infer_object`, which made
-            # the client's (correct) offset push every grasp 9.8 cm BELOW the
-            # table. Match the real server, not what seems tidier.
+            # Match the frame contract: infer_object sweep boxes are already
+            # expressed at the model's base, while legacy named inference
+            # uses the fixture's fixed base-to-jaw distance.
+            sweep = req.get("sweep_volume_params", {})
+            tip_offset = float(sweep.get("offset_open", [0, 0, .098])[2])
             poses, confs = plan_grasps(
                 pts, num_grasps=int(req.get("num_grasps", 32)),
-                tip_offset_m=0.098,
+                tip_offset_m=tip_offset,
             )
             if verbose:
                 print(f"[graspgenx-stub] {action}: {pts.shape[0]} pts -> "

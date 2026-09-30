@@ -45,9 +45,9 @@ grasp:
   # Grasp planner: "obb" (analytic, always available) or "graspgenx"
   # (learned 6-DoF via the ZMQ server -- scripts/serve_graspgenx.sh on a CUDA
   # box, or scripts/serve_graspgenx_stub.py as a protocol double). The server
-  # is PROBED at startup (300 ms): if nothing answers, the run says so in the
-  # banner and the summary ("grasp_planner=obb (graspgenx down)") and uses
-  # OBB -- no per-grasp 8 s timeout, no silent substitution.
+  # is probed at startup. Optional profiles report an analytic fallback and
+  # retry after a short cooldown. The Spark profile requires the real model:
+  # failed startup/inference is an error, with no analytic substitution.
   backend: graspgenx
   graspgenx:
     host: 127.0.0.1
@@ -57,10 +57,10 @@ grasp:
     topk: 32
     min_score: 0.0
     timeout_ms: 8000
-    tip_offset_m: 0.098     # empirical: model keeps its base-frame convention ~10 cm behind the jaw center even with centered sweep boxes
+    tip_offset_m: 0.098     # virtual model base -> TCP; applied to BOTH sweep conditioning and returned poses
     # DEFAULT GRIPPER GEOMETRY = the reBot RS parallel jaw, because demo.yaml
     # describes the reference rig. This is a swept volume for cross-embodiment
-    # conditioning (frame: origin at jaw center, +Z approach, +X closing),
+    # conditioning (frame: origin at the TCP, +Z approach, +X closing),
     # derived from the RS URDF finger geometry (max open 0.09 m, pad
     # ~0.02 x 0.045 m).
     #
@@ -72,11 +72,15 @@ grasp:
     # See configs/arms/so101.yaml.
     sweep:
       extents_open: [0.090, 0.020, 0.045]
-      offset_open: [0.0, 0.0, 0.0]
+      # gripper_end lies at the distal fingertip, not halfway up the pad.
+      # The URDF finger mesh extends behind it along the approach axis.
+      # Centering this volume at zero invents 22.5 mm of finger beyond the
+      # real tip and makes the model plan shallow, often empty grasps.
+      offset_open: [0.0, 0.0, -0.0225]
       extents_mid: [0.045, 0.020, 0.045]
-      offset_mid: [0.0, 0.0, 0.0]
+      offset_mid: [0.0, 0.0, -0.0225]
       gripper_type: 0
-      fingertip_depth: 0.0225
+      fingertip_depth: 0.0
   # NOTE: strict top-down tool poses are only IK-reachable below z~0.15 on
   # the B601-RS (wrist limits); keep grasp_z + offset under that.
   pregrasp_offset_m: 0.04   # hover height above the grasp along -approach.

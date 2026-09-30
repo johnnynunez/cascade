@@ -135,6 +135,28 @@ def _is_sane(xyz) -> bool:
     return all(math.isfinite(v) and abs(v) <= _SANE_RADIUS_M for v in vals)
 
 
+def _lost_reading(xyz) -> list[float] | None:
+    """The reading itself when physics says the body is NOT in the scene.
+
+    A pose rejected by ``_is_sane`` is not a measurement of WHERE the body is,
+    but it is a measurement that it is not resting anywhere a skill could have
+    put it: it fell through a surface and kept falling (measured on Newton: an
+    orange at z = -198 m that ``pick_and_place`` reported in the open box), or
+    the solver has no finite position for it. Dropping it silently let the
+    checker fall back to the belief the skill itself wrote and return
+    UNVERIFIED, which the caller reported as ``ok=True``. Returns None for
+    well-formed sane poses and for malformed readings (wrong arity, not
+    numbers), which prove nothing either way.
+    """
+    try:
+        vals = [float(v) for v in xyz]
+    except (TypeError, ValueError):
+        return None
+    if len(vals) != 3 or _is_sane(vals):
+        return None
+    return vals
+
+
 class TruthPoseReader:
     """Reads world-space prop positions from the running sim.
 
@@ -149,6 +171,8 @@ class TruthPoseReader:
         self._roots = tuple(roots)
         self._cache: dict[str, list[float]] = {}
         self._cache_t = 0.0
+        #: readings rejected by the sanity gate, from the same probe as _cache
+        self._lost: dict[str, list[float]] = {}
         #: count of poses rejected as physically impossible (diagnostic: a
         #: non-zero value means PhysX handed us a body mid-explosion)
         self.rejected = 0
@@ -167,6 +191,17 @@ class TruthPoseReader:
             return None
         return _match_label(label, poses)
 
+    def lost(self, label: str):
+        """Physics reading of ``label`` if it is outside the scene, else None.
+
+        See ``_lost_reading``: ``pose()`` stays silent for such a body, but the
+        checker must be able to tell "not measured" from "measured gone".
+        """
+        if not label:
+            return None
+        self._poses()
+        return _lost_match(label, self._cache, self._lost)
+
     def all_poses(self) -> dict:
         return dict(self._poses())
 
@@ -181,20 +216,25 @@ class TruthPoseReader:
             # The TTL-valid cache already returned above. A failed fresh probe
             # cannot extend an expired pose's lifetime as current physics.
             self._cache = {}
+            self._lost = {}
             self._cache_t = 0.0
             return {}
         # Drop insane poses INSTEAD of caching them: a body caught mid-solver
         # reports things like [-11.8, -10.6, -122.1], and passing that to the
         # checker converts a numerical fault into a confident verdict about a
-        # 123 m "displacement". Silence is the correct answer here -- the
-        # checker already degrades to the next channel when a pose is missing.
-        clean = {}
+        # 123 m "displacement". Silence is the correct answer for WHERE the
+        # body is; `lost()` still reports THAT physics has it outside the scene.
+        clean, lost = {}, {}
         for k, v in raw.items():
             if _is_sane(v):
                 clean[_normalize(k)] = v
             else:
                 self.rejected += 1
+                gone = _lost_reading(v)
+                if gone is not None:
+                    lost[_normalize(k)] = gone
         self._cache = clean
+        self._lost = lost
         self._cache_t = now
         return self._cache
 
@@ -235,6 +275,7 @@ class MujocoTruthReader:
         self.ttl_s = float(ttl_s)
         self.rejected = 0
         self._cache: dict[str, list[float]] = {}
+        self._lost: dict[str, list[float]] = {}
         self._cache_t = 0.0
 
     def __call__(self, label: str):
@@ -247,6 +288,13 @@ class MujocoTruthReader:
         if not poses:
             return None
         return _match_label(label, poses)
+
+    def lost(self, label: str):
+        """Same contract as ``TruthPoseReader.lost``."""
+        if not label:
+            return None
+        self._poses()
+        return _lost_match(label, self._cache, self._lost)
 
     def all_poses(self) -> dict:
         return dict(self._poses())
@@ -265,8 +313,9 @@ class MujocoTruthReader:
             return self._cache
         world = mujoco_world.peek(self._scene)
         if world is None:
+            self._lost = {}
             return {}
-        clean = {}
+        clean, lost = {}, {}
         for name in world.free_body_names():
             xyz = world.body_pos(name)
             if xyz is None:
@@ -275,7 +324,10 @@ class MujocoTruthReader:
                 clean[_normalize(name)] = xyz
             else:
                 self.rejected += 1
-        self._cache, self._cache_t = clean, now
+                gone = _lost_reading(xyz)
+                if gone is not None:
+                    lost[_normalize(name)] = gone
+        self._cache, self._lost, self._cache_t = clean, lost, now
         return clean
 
 
@@ -349,6 +401,26 @@ def _match_label(label: str, poses: dict):
     return None
 
 
+class _Lost(list):
+    """Marks a reading in the union of clean and lost poses as lost."""
+
+
+def _lost_match(label: str, clean: dict, lost: dict):
+    """The lost reading ``label`` resolves to, else None.
+
+    Resolution runs over clean AND lost bodies together with the same rules as
+    ``_match_label``, so a lost body is reported only when the label names it
+    unambiguously: "tomato tin" against {tomato_can: sane, red_tomato_can:
+    lost} stays ambiguous and proves nothing about either.
+    """
+    if not lost:
+        return None
+    union = dict(clean)
+    union.update({k: _Lost(v) for k, v in lost.items()})
+    hit = _match_label(label, union)
+    return list(hit) if isinstance(hit, _Lost) else None
+
+
 class LazyTruthPoseFn:
     """A truth channel that binds to the sim on FIRST USE, not at startup.
 
@@ -395,6 +467,12 @@ class LazyTruthPoseFn:
     def __call__(self, label: str):
         reader = self._resolve()
         return reader(label) if reader is not None else None
+
+    def lost(self, label: str):
+        """The bound reader's ``lost()``; None when no physics channel is bound."""
+        reader = self._resolve()
+        fn = getattr(reader, "lost", None) if reader is not None else None
+        return fn(label) if fn is not None else None
 
     def all_poses(self) -> dict:
         reader = self._resolve()

@@ -144,6 +144,7 @@ class SkillRuntime:
         # (3,) base-frame vector from TCP to the held object, or None. Set at
         # grasp, refreshed by re-observation before a place.
         self._held_offset = None
+        self._held_support_offset_m = None
         #: optional external pose lookup, set by attach_verifier
         self._object_pose = None
         self._held_det_label: str | None = None
@@ -183,9 +184,8 @@ class SkillRuntime:
         #: retries even after every re-scan failed to see the object.
         self._last_reobserve_t: float | None = None
         self._graspgenx = None  # lazy GraspGenXPlanner (grasp.backend)
-        #: latched once the GraspGen-X server failed to answer: later grasps
-        #: go straight to the analytic planner instead of waiting out the
-        #: inference timeout each time
+        #: Optional profiles use a short retry cooldown after a server error.
+        #: Required profiles fail visibly and retry on the next command.
         self._graspgenx_down = False
         #: which grasp planner actually produced the last candidate list:
         #: "obb" | "graspgenx (learned 6-DoF)" | "graspgenx-stub (...)" |
@@ -985,8 +985,8 @@ class SkillRuntime:
 
     def _plan_grasps(self, fix, label: str | None = None) -> list:
         """Grasp candidates: learned 6-DoF (GraspGen-X server) when
-        configured, ALWAYS backstopped by the analytic OBB planner --
-        a dead grasp server must degrade, never fail the grasp.
+        configured. The Spark profile requires the real model; other profiles
+        can use an explicit, visible analytic fallback.
 
         Fake-RL layer: past-attempt memory re-ranks the candidates so grasp
         geometry that historically WORKED for this object profile goes first
@@ -1010,10 +1010,8 @@ class SkillRuntime:
         if str(gcfg.get("backend", "obb")) != "graspgenx":
             grasps = obb
             self.grasp_planner_used = "obb"
-        elif self._graspgenx_down:
-            # Probed dead at startup (or on a previous grasp): do not pay the
-            # inference timeout again on every grasp. `grasp_planner_used`
-            # says so out loud -- the dashboard/summary show it.
+        elif self._graspgenx_down and time.monotonic() < getattr(self, "_graspgenx_retry_after", 0.0) and not bool(gcfg.graspgenx.get("required", False)):
+            # Optional mode: bound repeated connection costs during outages.
             grasps = obb
             self.grasp_planner_used = "obb (graspgenx down)"
         else:
@@ -1022,19 +1020,29 @@ class SkillRuntime:
                     from ..grasping.graspgenx_backend import GraspGenXPlanner
 
                     self._graspgenx = GraspGenXPlanner(gcfg)
-                    self._graspgenx.probe()   # 300 ms, raises if nothing answers
+                if self._graspgenx.status is None or self._graspgenx_down:
+                    self._graspgenx.probe()
                 learned = self._graspgenx.plan(fix, max_width_m=self._max_width)
+                if not learned:
+                    raise RuntimeError("GraspGen-X returned no usable candidates")
                 self.memory.add(
                     "note",
                     f"graspgenx: {len(learned)} grasps in {self._graspgenx.last_latency_s}s "
                     f"(top {learned[0].quality:.2f})",
                 )
-                grasps = learned + obb  # learned first; OBB stays as IK fallback
+                self._graspgenx_down = False
+                grasps = learned if bool(gcfg.graspgenx.get("required", False)) else learned + obb
                 self.grasp_planner_used = self._graspgenx.describe()
             except Exception as e:
-                self.memory.add("note", f"graspgenx unavailable ({str(e)[:90]}); OBB fallback")
-                logger.warning("graspgenx unavailable (%s); analytic OBB planner from here on", str(e)[:160])
                 self._graspgenx_down = True
+                self._graspgenx_retry_after = time.monotonic() + 5.0
+                if self._graspgenx is not None:
+                    self._graspgenx.status = None
+                if bool(gcfg.graspgenx.get("required", False)):
+                    self.grasp_planner_used = "graspgenx (unavailable)"
+                    raise SkillError(f"GraspGen-X required but unavailable: {e}") from e
+                self.memory.add("note", f"graspgenx unavailable ({str(e)[:90]}); OBB fallback")
+                logger.warning("graspgenx unavailable (%s); analytic fallback; retry after 5s", str(e)[:160])
                 grasps = obb
                 self.grasp_planner_used = "obb (graspgenx down)"
 
@@ -1610,6 +1618,7 @@ class SkillRuntime:
         self._reconcile_held()
         if self.held_object:
             raise SkillError(f"already holding {self.held_object!r}; place it first")
+        self._held_support_offset_m = None
         gcfg = self.cfg.grasp
         if _fix is not None and _frame is not None:
             frame, fix = _frame, _fix
@@ -1672,6 +1681,22 @@ class SkillRuntime:
                 )
                 if reason:
                     return f"descent unsafe: {reason}"
+            if bool(gcfg.get("pre_carry_lift", False)) and gcfg.get("carry_height_m") is not None:
+                # A learned tilted grasp can solve at pickup height yet have
+                # no IK at the carry height. Reject it before closing on the
+                # object, while another model candidate can still be chosen.
+                pose = self.kin.fk(q_pre).copy()
+                height = float(gcfg.get("carry_height_m"))
+                if pose[2, 3] < height:
+                    pose[2, 3] = height
+                    lifted = self.kin.ik(pose, q_pre)
+                    if (not lifted.success
+                            or np.max(np.abs(lifted.q - q_pre)) > np.pi):
+                        return "grasp cannot reach the configured carry height"
+                    for fraction in (.15, .3, .45, .6, .75, .9, 1.):
+                        reason = harness.vet_pose(q_pre + fraction * (lifted.q - q_pre))
+                        if reason:
+                            return f"grasp carry lift unsafe: {reason}"
             return None
 
         state = self.arm.get_state()
@@ -1750,6 +1775,16 @@ class SkillRuntime:
             self._held_provisional = (label, fix.detection.label,
                                       detection_color(frame.rgb, fix.detection))
             self._close_two_stage(profile)
+            self._held_support_offset_m = None
+            if gcfg.get("place_support_clearance_m") is not None and float(-grasp.approach[2]) > .95:
+                # A partial cloud's lowest visible point can be several mm
+                # above the object's bottom. When the pickup support plane
+                # is calibrated, use it; otherwise retain the observed bound.
+                tcp_close = self.kin.fk(self.arm.get_state().q)[:3, 3]
+                bottom = self._grasp_support_height(fix.points)
+                offset = float(tcp_close[2]) - bottom
+                if np.isfinite(offset) and 0 < offset < .15:
+                    self._held_support_offset_m = offset
 
             # 4. lift back to pregrasp (speed scaled by profile)
             lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
@@ -1800,6 +1835,7 @@ class SkillRuntime:
             self._held_offset = np.asarray(fix.position, float) - tcp_at_grasp
         except Exception:
             self._held_offset = None
+            self._held_support_offset_m = None
         self.beliefs.mark_removed(self._held_det_label or label, near=fix.position)
         try:
             self.grasp_memory.record(
@@ -1823,6 +1859,15 @@ class SkillRuntime:
             "grasp_width_m": round(grasp.width_m, 3),
         }
 
+    def _grasp_support_height(self, points) -> float:
+        support = self.cfg.grasp.get("source_support_top_z_m")
+        if support is not None:
+            support = float(support)
+            if not np.isfinite(support):
+                raise SkillError("source_support_top_z_m must be finite")
+            return support
+        return max(float(self.cfg.safety.get("table_z", 0.0)), float(points[:, 2].min()))
+
     def _close_two_stage(self, profile) -> None:
         raw = self.arm.raw
         if hasattr(raw, "close_gripper_two_stage"):
@@ -1832,6 +1877,11 @@ class SkillRuntime:
                 effort=profile.effort,
             )
             return
+        timeout = self.cfg.grasp.get("close_feedback_timeout_s")
+        if timeout is not None:
+            timeout = float(timeout)
+            if not np.isfinite(timeout) or timeout <= 0:
+                raise SkillError("close_feedback_timeout_s must be finite and positive")
         span = self._grip_closed - self._grip_open
         for frac, eff in (
             (profile.close_frac_stage1, profile.effort * 0.7),
@@ -1839,6 +1889,34 @@ class SkillRuntime:
         ):
             self.arm.set_gripper(self._grip_open + span * frac, effort=eff)
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
+            if timeout is not None:
+                self._wait_gripper_closed(1.0 - frac, timeout)
+
+    def _wait_gripper_closed(self, target_open: float, timeout_s: float) -> None:
+        """Wait for commanded travel or a measured stall before lifting.
+
+        A fixed dwell expires while rate-limited sim jaws are still closing
+        when physics runs slower than wall time. A stall is only a completion
+        signal here; the existing post-lift check still adjudicates the grip.
+        """
+        deadline = time.monotonic() + timeout_s
+        anchor = None
+        stable_since = time.monotonic()
+        while True:
+            width = self._gripper_width_frac()
+            now = time.monotonic()
+            if width is not None and np.isfinite(width):
+                if width <= target_open + .01:
+                    return
+                if anchor is None or abs(width - anchor) > .002:
+                    anchor, stable_since = width, now
+                elif width < .95 and now - stable_since >= .5:
+                    return
+            else:
+                anchor, stable_since = None, now
+            if now >= deadline:
+                raise SkillError("gripper closure did not settle; refusing to lift")
+            time.sleep(.05)
 
     def _adopt_unknown_held(self) -> None:
         """'save it in the box' must work even when the held object was
@@ -1925,13 +2003,24 @@ class SkillRuntime:
             pass
         return getattr(self, "_held_offset", None)
 
+    def _supported_release_height(self, support_z: float, fallback: float) -> float:
+        clearance = self.cfg.grasp.get("place_support_clearance_m")
+        offset = getattr(self, "_held_support_offset_m", None)
+        if clearance is None or offset is None:
+            return fallback
+        clearance = float(clearance)
+        if not np.isfinite(clearance) or clearance < 0:
+            raise SkillError("placement support clearance must be finite and nonnegative")
+        return float(support_z) + float(offset) + clearance
+
     def skill_place_at(self, x: float, y: float, z: float | None = None) -> dict:
         self._adopt_unknown_held()
         if not self.held_object:
             raise SkillError("not holding anything")
         gcfg = self.cfg.grasp
         table_z = float(self.cfg.safety.get("table_z", 0.0))
-        release_z = float(z) if z is not None else table_z + float(gcfg.get("release_height_m", 0.05))
+        release_z = (float(z) if z is not None else self._supported_release_height(
+            table_z, table_z + float(gcfg.get("release_height_m", 0.05))))
         # Strict top-down poses only solve below ~0.15 m on this wrist: a
         # tall destination (the bin walls) must become "release from the
         # ceiling and let it drop", not an unreachable-pose failure.
@@ -1976,6 +2065,7 @@ class SkillRuntime:
                 self._held_det_label = None
                 self._held_color = None
                 self._held_offset = None
+                self._held_support_offset_m = None
                 raise SkillError(f"{slipped!r} slipped out of the gripper during the carry")
             target[0] -= float(held_offset[0])
             target[1] -= float(held_offset[1])
@@ -1996,6 +2086,14 @@ class SkillRuntime:
         # other props while it is still crossing to that target.
         hover[2] = max(hover[2], float(tcp_now[2, 3]))
         hover[2] = min(hover[2], z_cap)  # same wrist ceiling as the release
+        carry_height = gcfg.get("carry_height_m")
+        if carry_height is not None:
+            carry_height = float(carry_height)
+            if not np.isfinite(carry_height) or not table_z < carry_height <= z_cap:
+                raise _PreCarryLiftError("carry height must be above the table and within the wrist ceiling")
+            # Release height controls the final descent, independently of
+            # the clearance needed while crossing other objects.
+            hover[2] = max(hover[2], carry_height)
         lift = None
         carry_start = q_now
         if (bool(gcfg.get("pre_carry_lift", False))
@@ -2067,6 +2165,12 @@ class SkillRuntime:
             )
 
         retreat_error = None
+        release_error = None
+        release_timeout = gcfg.get("release_open_timeout_s")
+        if release_timeout is not None:
+            release_timeout = float(release_timeout)
+            if not np.isfinite(release_timeout) or release_timeout < 0:
+                raise _PostPlaceRetreatPlanError("release opening timeout must be finite and nonnegative")
         if lift is not None:
             try:
                 lifted = self.arm.move_joints(
@@ -2085,6 +2189,20 @@ class SkillRuntime:
                 raise SkillError("did not settle at place pose")
             self.arm.set_gripper(self._grip_open, effort=0.6)
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
+            if release_timeout is not None:
+                # In simulation, a wall-clock dwell does not guarantee the
+                # rate-limited fingers have opened. Retracting while they
+                # still touch the payload can tip a successfully placed can.
+                deadline = time.monotonic() + float(release_timeout)
+                while True:
+                    width = self._gripper_width_frac()
+                    if width is not None and width >= .98:
+                        break
+                    if time.monotonic() >= deadline:
+                        release_error = "actual jaws did not confirm full opening before retraction"
+                        retreat_error = release_error
+                        break
+                    time.sleep(.05)
             # From here the object IS placed: reconcile the held state BEFORE
             # the ascent, or an ascent abort leaves held_object latched and a
             # retry descends onto the object we just released.
@@ -2103,14 +2221,15 @@ class SkillRuntime:
             self.held_object = None
             self._held_det_label = None
             self._held_offset = None
+            self._held_support_offset_m = None
             self._held_color = None
             self.memory.add("action", f"placed {placed!r} at {target.round(3).tolist()}")
             try:
-                ascended = self.arm.move_joints(
+                ascended = release_error is None and self.arm.move_joints(
                     retreat.q if retreat is not None else pre.q,
                     duration_s=float(gcfg.get("descend_duration_s", 2.0)),
                 )
-                if retreat is not None and not ascended:
+                if retreat is not None and not ascended and release_error is None:
                     retreat_error = "did not settle at the post-place retreat pose"
             except (SkillError, SafetyViolation) as e:
                 if retreat is not None:
@@ -2124,6 +2243,8 @@ class SkillRuntime:
         # so returning the offset-compensated TCP point would grade the place
         # against the wrong thing and quietly forgive the compensation error.
         result = {}
+        if release_error is not None:
+            result.update(ok=False, stage="release", error=release_error, home_skipped=True)
         if retreat_target is not None:
             result["post_place_retreat"] = {
                 "ok": retreat_error is None,
@@ -2132,7 +2253,7 @@ class SkillRuntime:
             if retreat_error is not None:
                 # Release already happened. Do not retry this grasp/place or
                 # take the unsafe home sweep after a failed clearance motion.
-                result.update(ok=False, stage="retreat", error=retreat_error,
+                result.update(ok=False, stage="release" if release_error else "retreat", error=retreat_error,
                               home_skipped=True)
         return {"placed": placed,
                 "at": [round(float(x), 3), round(float(y), 3),
@@ -2195,6 +2316,11 @@ class SkillRuntime:
             if (center.shape != (2,) or not np.isfinite(center).all()
                     or not np.isfinite(release) or release <= 0):
                 raise SkillError("configured open box requires finite XY and a positive release height")
+            if box.get("support_top_z_m") is not None:
+                support_z = float(box.get("support_top_z_m"))
+                if not np.isfinite(support_z):
+                    raise SkillError("configured open box requires a finite support height")
+                release = self._supported_release_height(support_z, release)
             result = self.skill_place_at(float(center[0]), float(center[1]), release)
             return {**result, "destination": "open box", "destination_kind": "configured_point"}
         # Re-check the destination immediately before committing to a drop
@@ -2220,7 +2346,8 @@ class SkillRuntime:
             pos = belief.position
             top = (belief.top_z if belief.top_z is not None
                    else float(belief.position[2]))
-        drop = top + float(self.cfg.grasp.get("release_clearance_m", 0.06))
+        drop = self._supported_release_height(
+            top, top + float(self.cfg.grasp.get("release_clearance_m", 0.06)))
         return self.skill_place_at(float(pos[0]), float(pos[1]), drop)
 
     def skill_push_object(self, label: str, direction: str, distance_m: float = 0.08) -> dict:
@@ -2432,7 +2559,8 @@ class SkillRuntime:
                         dz = gcfg.get("drop_zone", [0.30, -0.20])
                         res = self.skill_place_at(float(dz[0]), float(dz[1]))
                     if (res.get("placed") and not self.held_object
-                            and res.get("post_place_retreat", {}).get("ok") is False):
+                            and (res.get("home_skipped") is True
+                                 or res.get("post_place_retreat", {}).get("ok") is False)):
                         # The object was released, so another pick/place retry
                         # could strike it. Preserve the failure and stop here.
                         placed = res
@@ -2488,7 +2616,7 @@ class SkillRuntime:
 
         return_home = {"attempted": False, "reason": "disabled_by_profile"}
         if placed.get("home_skipped", False):
-            return_home["reason"] = "retreat_failed"
+            return_home["reason"] = f"{placed.get('stage', 'retreat')}_failed"
         if (not placed.get("home_skipped", False)
                 and bool(self.cfg.grasp.get("home_after_place", True))):
             try:  # clear the camera view for the next command; best effort
@@ -2522,9 +2650,10 @@ class SkillRuntime:
             result["destination_kind"] = "configured_point"
         if "post_place_retreat" in placed:
             result["post_place_retreat"] = placed["post_place_retreat"]
-            if not placed["post_place_retreat"]["ok"]:
-                result.update(ok=False, stage="retreat", error=placed["error"],
-                              home_skipped=True)
+        if placed.get("ok") is False:
+            result.update(ok=False, stage=placed.get("stage", "place"),
+                          error=placed.get("error", "place failed"),
+                          home_skipped=placed.get("home_skipped", False))
         return result
 
     # ── social / audience skills (deterministic, harness-gated) ─────────
@@ -2993,6 +3122,7 @@ class SkillRuntime:
             self._held_det_label = None
             self._held_color = None
             self._held_offset = None
+            self._held_support_offset_m = None
         world = None
         raw = getattr(self.arm, "raw", None)
         # MujocoArm exposes its shared world; a LazyArm that never

@@ -99,14 +99,16 @@ def _write_status(path: Path, report: dict) -> None:
 
 
 def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: bool = False,
-            headless: bool = False, no_open: bool = False) -> int:
+            headless: bool = False, no_open: bool = False, gui: bool = False) -> int:
     repo = repo.resolve()
     if action not in ("install", "launch"):
         raise ValueError(f"unknown desktop action: {action}")
     if prepare_only and action != "install":
         raise ValueError("--prepare-only belongs to install, not launch")
-    if (headless or no_open) and action != "launch":
-        raise ValueError("--headless and --no-open belong to launch")
+    if (headless or no_open or gui) and action != "launch":
+        raise ValueError("--headless, --gui and --no-open belong to launch")
+    if headless and gui:
+        raise ValueError("--headless and --gui are mutually exclusive")
     env = os.environ.copy()
     env.update(CASCADE_INSTALL_PROFILE="spark", CASCADE_OPENCLAW_PROFILE="cascade-demo",
                PYTHONUNBUFFERED="1", PYTHONDONTWRITEBYTECODE="1")
@@ -119,7 +121,8 @@ def perform(repo: Path, action: str, *, prepare_only: bool = False, dry_run: boo
                    "launch", "--repo", str(repo), "--profile", "spark", "--brain", "qwen"]
         # The desktop window is Chromium. The simulator's editor is unnecessary
         # for the three live cameras and would consume extra shared GPU memory.
-        command.append("--headless")
+        if not gui:
+            command.append("--headless")
         if no_open:
             command.append("--no-open")
     if dry_run:
@@ -221,11 +224,13 @@ def main() -> int:
     parser.add_argument("--desktop-dir", type=Path)
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--headless", action="store_true", help="launch Isaac without an editor window")
+    display = parser.add_mutually_exclusive_group()
+    display.add_argument("--headless", action="store_true", help="launch Isaac without an editor window (default)")
+    display.add_argument("--gui", action="store_true", help="show the Isaac editor during the demo")
     parser.add_argument("--no-open", action="store_true", help="do not open the chat browser")
     args = parser.parse_args()
-    if (args.headless or args.no_open) and args.action != "launch":
-        parser.error("--headless and --no-open belong to launch")
+    if (args.headless or args.no_open or args.gui) and args.action != "launch":
+        parser.error("--headless, --gui and --no-open belong to launch")
 
     def interrupted(_signum, _frame):
         # Terminal close and service-manager termination must use the same
@@ -244,7 +249,7 @@ def main() -> int:
                 print(json.dumps({"entries": [str(p) for p in register(args.repo, desktop_dir=args.desktop_dir)], "services_started": False}))
             return 0
         code = perform(args.repo, args.action, prepare_only=args.prepare_only, dry_run=args.dry_run,
-                       headless=args.headless, no_open=args.no_open)
+                       headless=args.headless, no_open=args.no_open, gui=args.gui)
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
         print(f"[desktop] ERROR: {exc}", file=sys.stderr, flush=True)
     except KeyboardInterrupt:

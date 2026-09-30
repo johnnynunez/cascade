@@ -97,3 +97,72 @@ def test_hover_settle_failure_still_keeps_the_jaws_closed():
     assert len(goals) == 1
     assert gripper == []
     assert rt.held_object == "test object"
+
+
+def test_lower_release_keeps_configured_clearance_before_crossing():
+    rt, goals, gripper = runtime([-0.756133, 1.849315, 1.701903, -1.439553, 0., 1.660184])
+    rt.cfg.grasp.update(carry_height_m=.14, pre_carry_lift=True)
+    rt.arm.harness.vet_pose = lambda q: None
+    start = rt.kin.fk(rt.arm.get_state().q)
+    rt.skill_place_at(.30, -.14, .04)
+    poses = [rt.kin.fk(q) for q in goals]
+    assert len(poses) == 4 and len(gripper) == 1
+    np.testing.assert_allclose(poses[0][:2, 3], start[:2, 3], atol=.0002)
+    assert poses[0][2, 3] == pytest.approx(.14, abs=.0002)
+    assert poses[1][2, 3] == pytest.approx(.14, abs=.0002)
+    assert poses[2][2, 3] == pytest.approx(.04, abs=.0002)
+    assert poses[3][2, 3] == pytest.approx(.14, abs=.0002)
+
+
+@pytest.mark.parametrize("height", [0., -.1, .2, float('nan')])
+def test_invalid_carry_clearance_fails_before_motion(height):
+    rt, goals, gripper = runtime([-0.756, 1.849, 1.702, -1.440, 0., 1.660])
+    rt.cfg.grasp['carry_height_m'] = height
+    with pytest.raises(SkillError, match="carry height"):
+        rt.skill_place_at(.30, -.14, .04)
+    assert not goals and not gripper
+
+
+@pytest.mark.parametrize("offset", [.020, .048, .065])
+def test_release_tracks_observed_payload_bottom_without_lowering_carry(offset):
+    rt, goals, _ = runtime([-0.756133, 1.849315, 1.701903, -1.439553, 0., 1.660184])
+    rt.cfg.grasp.update(place_support_clearance_m=.006, carry_height_m=.14)
+    rt._held_support_offset_m = offset
+    rt.skill_place_at(.14, -.27)
+    poses = [rt.kin.fk(q) for q in goals]
+    assert poses[0][2, 3] == pytest.approx(.14, abs=.0002)
+    assert poses[1][2, 3] == pytest.approx(offset + .006, abs=.0002)
+    assert rt._held_support_offset_m is None
+
+
+def test_explicit_place_height_is_preserved_with_payload_geometry():
+    rt, goals, _ = runtime([-0.756133, 1.849315, 1.701903, -1.439553, 0., 1.660184])
+    rt.cfg.grasp['place_support_clearance_m'] = .006
+    rt._held_support_offset_m = .020
+    rt.skill_place_at(.14, -.27, .080)
+    assert rt.kin.fk(goals[1])[2, 3] == pytest.approx(.080, abs=.0002)
+
+
+@pytest.mark.parametrize("support_z", [0.0, .7])
+def test_calibrated_pickup_plane_handles_occluded_object_bottom(support_z):
+    rt, _, _ = runtime([-0.756, 1.849, 1.702, -1.440, 0., 1.660])
+    rt.cfg.grasp['source_support_top_z_m'] = support_z
+    # A camera sees the side and top, but misses the lowest contact surface.
+    partial_cloud = np.array([[.2, .1, support_z + .009],
+                              [.2, .1, support_z + .041]])
+    assert rt._grasp_support_height(partial_cloud) == pytest.approx(support_z)
+
+
+@pytest.mark.parametrize("lowest_visible_z, expected", [(.009, .009), (-.003, 0.)])
+def test_uncalibrated_pickup_uses_observed_bound_above_table(lowest_visible_z, expected):
+    rt, _, _ = runtime([-0.756, 1.849, 1.702, -1.440, 0., 1.660])
+    points = np.array([[.2, .1, lowest_visible_z], [.2, .1, .041]])
+    assert rt._grasp_support_height(points) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("support_z", [float('nan'), float('inf'), float('-inf')])
+def test_nonfinite_pickup_calibration_is_rejected(support_z):
+    rt, _, _ = runtime([-0.756, 1.849, 1.702, -1.440, 0., 1.660])
+    rt.cfg.grasp['source_support_top_z_m'] = support_z
+    with pytest.raises(SkillError, match="source_support_top_z_m must be finite"):
+        rt._grasp_support_height(np.array([[.2, .1, .01]]))

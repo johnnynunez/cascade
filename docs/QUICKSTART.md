@@ -1,5 +1,7 @@
 # Opening the demo
 
+For a live Build-a-Claw presentation, use the [presenter card](PRESENTER_QUICKSTART.md).
+
 The PAAI event profile uses **DGX Spark/Linux + Isaac Sim 6.1 + PhysX CUDA +
 Qwen Q4 + OpenClaw**. Use the [DGX Spark setup guide](DGX_SPARK_SETUP.md)
 for the tested install, startup, READY checks and recovery commands.
@@ -44,6 +46,16 @@ the physical result and restoration of the manipulated object. An open
 port, a model response, or another session's trace is insufficient.
 With `--no-robot-turn`, the status is STARTED / UNVERIFIED, never READY.
 Subsequent runs reuse downloaded packages and assets.
+
+For a quick restart during the demo, append `--no-robot-turn --no-judge`
+to your usual command, keeping the same engine and scene flags. For example,
+`./run.sh isaac --engine newton --no-robot-turn --no-judge`. This skips the
+startup manipulation tests; connection and model checks still run, and the
+banner says `STARTED (UNVERIFIED: robot proof skipped)`.
+If the stack is already running, use **Start over** in the Spark demo chat,
+**Reset** in the PAAI OpenClaw interface, or send **"Reset the scene."** to
+restore the scene without restarting the services. See
+[quick recovery](SPARK_DELIVERY.md#quick-recovery-during-the-demo).
 
 The READY banner reports the actual occupancy backend, grasp planner
 (stub or model), tool count, chat URL, and whether the MuJoCo window is

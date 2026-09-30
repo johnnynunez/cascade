@@ -187,6 +187,75 @@ def _recentre_by_size(center, pts_base, extents, cam_pos):
     return near + d * (size / 2.0)
 
 
+# Sphere refinement gates (see refine_sphere_center).
+SPHERE_MIN_POINTS = 200
+SPHERE_RADIUS_M = (0.015, 0.06)
+SPHERE_SKIRT_M = 0.004
+SPHERE_MIN_ARC = np.pi / 2
+
+
+def refine_sphere_center(center, pts_base):
+    """Horizontal centre of a visibly spherical object from its own surface.
+
+    `_recentre_by_size` steps half the smallest box extent along the view
+    ray. For a ball seen from above-and-to-the-side the visible cap is thin
+    along that ray, so the step is short and the centre stays on the near
+    side: measured on the kitchen orange (52 mm), 13.4 mm off under PhysX and
+    13.5 mm under Newton -- enough that the jaw pinched the fruit's near
+    shoulder and lost it. A least-squares sphere through the observed surface
+    recovers the centre regardless of how much of it is visible: 0.7 / 0.5 mm
+    on the same clouds.
+
+    Only the x/y centre changes, and only when the cloud is unmistakably a
+    sphere; otherwise the prior centre is returned unchanged:
+      - at least 200 surface points above the table skirt (the lowest 4 mm);
+      - radius 15-60 mm;
+      - fit residual RMS <= min(1.5 mm, 4% r) and p95 <= 2.5x that (the
+        orange measured 0.07 / 0.14 mm; the kitchen cubes, lemon and can all
+        exceed 1.9 mm RMS and are rejected);
+      - the surface seen around the centre spans at least 90 degrees;
+      - the correction moves the centre by at most one radius.
+    Returns (center, report).
+    """
+    if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
+        from .cuda_math import refine_sphere
+        return refine_sphere(center, pts_base)
+    report = {"accepted": False}
+    pts = np.asarray(pts_base, dtype=float)
+    if pts.ndim != 2 or pts.shape[1] != 3 or len(pts) < SPHERE_MIN_POINTS:
+        return center, {**report, "reason": "insufficient_points"}
+    pts = pts[pts[:, 2] > pts[:, 2].min() + SPHERE_SKIRT_M]
+    if len(pts) < SPHERE_MIN_POINTS or not np.isfinite(pts).all():
+        return center, {**report, "reason": "insufficient_points"}
+    A = np.c_[2.0 * pts, np.ones(len(pts))]
+    sol, *_ = np.linalg.lstsq(A, (pts ** 2).sum(axis=1), rcond=None)
+    c = sol[:3]
+    r2 = float(sol[3] + c @ c)
+    if not np.isfinite(r2) or r2 <= 0.0:
+        return center, {**report, "reason": "invalid_sphere"}
+    r = float(np.sqrt(r2))
+    res = np.linalg.norm(pts - c, axis=1) - r
+    rms = float(np.sqrt(np.mean(res ** 2)))
+    p95 = float(np.percentile(np.abs(res), 95))
+    report.update(radius_m=r, rms_m=rms, p95_m=p95)
+    if not SPHERE_RADIUS_M[0] <= r <= SPHERE_RADIUS_M[1]:
+        return center, {**report, "reason": "unsupported_radius"}
+    tol = min(0.0015, 0.04 * r)
+    if rms > tol or p95 > 2.5 * tol:
+        return center, {**report, "reason": "not_spherical"}
+    ang = np.sort(np.arctan2(pts[:, 1] - c[1], pts[:, 0] - c[0]))
+    arc = 2.0 * np.pi - float(np.max(np.diff(np.r_[ang, ang[0] + 2.0 * np.pi])))
+    report["visible_arc_deg"] = float(np.degrees(arc))
+    if arc < SPHERE_MIN_ARC:
+        return center, {**report, "reason": "insufficient_visible_arc"}
+    out = np.asarray(center, dtype=float).copy()
+    if float(np.linalg.norm(c[:2] - out[:2])) > r:
+        return center, {**report, "reason": "unsupported_center_correction"}
+    out[:2] = c[:2]
+    report["accepted"] = True
+    return out, report
+
+
 def _bbox_mask(frame: Frame, det: Detection) -> np.ndarray:
     h, w = frame.rgb.shape[:2]
     if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
@@ -288,6 +357,10 @@ def localize_object(
                 # cylinders and all other objects retain the prior centre.
                 from .cuda_math import refine_upright_cylinder
                 center, _ = refine_upright_cylinder(center, pts_base)
+            else:
+                # Shape evidence only (no label): a ball's visible cap defeats
+                # the view-ray step above. Non-spherical clouds are untouched.
+                center, _ = refine_sphere_center(center, pts_base)
             # Rank only actionable measured candidates. A high-confidence
             # background fruit must not hide a lower-confidence countertop
             # prop, nor prevent the caller trying another camera/prompt.

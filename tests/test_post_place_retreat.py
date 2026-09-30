@@ -46,9 +46,10 @@ def runtime(q=CAN_Q, *, offset=.025, retreat_failure=None):
     rt._held_object_offset = lambda: rt._held_offset
     rt._reconcile_held = lambda: None
     rt._grip_open = 1.
+    rt._grip_closed = 0.
     rt.memory = SimpleNamespace(add=lambda *a, **kw: None)
     rt.beliefs = SimpleNamespace(update=lambda *a, **kw: None)
-    state = SimpleNamespace(q=np.array(q))
+    state = SimpleNamespace(q=np.array(q), gripper_pos=.5, gripper_valid=True)
     moves, opens, cleared = [], [], []
 
     def move(goal, **kw):
@@ -60,9 +61,15 @@ def runtime(q=CAN_Q, *, offset=.025, retreat_failure=None):
         state.q = np.asarray(goal).copy()
         return True
 
+    def set_gripper(position, **kw):
+        opens.append(((position,), kw))
+        # Ideal measured feedback for this kinematic recorder. Delayed and
+        # missing opening feedback have separate regression cases below.
+        state.gripper_pos = position
+
     rt.arm = SimpleNamespace(
         get_state=lambda: state, move_joints=move,
-        set_gripper=lambda *a, **kw: opens.append((a, kw)),
+        set_gripper=set_gripper,
         harness=SimpleNamespace(
             estopped=False, allow_grasp_descent=lambda *a, **kw: None,
             clear_grasp_exemption=lambda: cleared.append(True)),
@@ -101,6 +108,52 @@ def test_unreachable_retreat_refuses_before_motion_or_release():
         rt.skill_place_at(.255, -.18, .1375)
     assert not moves and not opens
     assert rt.held_object == 'tomato can'
+
+
+def test_retreat_waits_for_measured_open_jaws(monkeypatch):
+    rt, moves, opens, _ = runtime()
+    rt.cfg.grasp['release_open_timeout_s'] = 8.
+    widths = iter([.45, .7, 1.])
+    observed = []
+
+    def width():
+        assert len(moves) == 2 and len(opens) == 1
+        value = next(widths)
+        observed.append(value)
+        return value
+
+    rt._gripper_width_frac = width
+    monkeypatch.setattr('cascade.skills.runtime.time.sleep', lambda s: None)
+    result = rt.skill_place_at(.14, -.27, .075)
+    assert result['post_place_retreat']['ok']
+    assert observed == [.45, .7, 1.]
+    assert len(moves) == 3
+
+
+def test_unconfirmed_opening_skips_retreat_and_home():
+    rt, moves, opens, _ = runtime()
+    rt.cfg.grasp['release_open_timeout_s'] = 0.
+    rt._gripper_width_frac = lambda: .6
+    result = rt.skill_place_at(.14, -.27, .075)
+    assert result['ok'] is False and result['stage'] == 'release'
+    assert result['home_skipped'] and not result['post_place_retreat']['ok']
+    assert len(moves) == 2 and len(opens) == 1
+    assert rt.held_object is None
+
+
+@pytest.mark.parametrize('offset', [None, .025])
+def test_pick_and_place_preserves_release_failure_without_optional_retreat(offset):
+    rt, moves, opens, _ = runtime(offset=offset)
+    rt.cfg.grasp['release_open_timeout_s'] = 0.
+    rt._gripper_width_frac = lambda: .6
+    rt.skill_place_on_object = lambda label: rt.skill_place_at(.14, -.27, .075)
+    rt.skill_move_home = lambda: pytest.fail('home after unconfirmed jaw opening')
+    rt.skill_grasp_object = lambda *a, **kw: pytest.fail('regrasp after unconfirmed jaw opening')
+    result = rt.skill_pick_and_place('tomato can', destination='shelf')
+    assert result['ok'] is False and result['stage'] == 'release'
+    assert result['home_skipped']
+    assert result['return_home'] == {'attempted': False, 'reason': 'release_failed'}
+    assert len(moves) == 2 and len(opens) == 1
 
 
 def test_unreachable_retreat_does_not_enter_home_recovery_loop():

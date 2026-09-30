@@ -308,6 +308,82 @@ def refine_upright_cylinder(center, points):
     return numpy_result(result), report
 
 
+def horizontal_width_profile(points, axis, sample_centers, top_z, slice_m):
+    """Reduce the dense CUDA cloud to compact horizontal section geometry.
+
+    Only section centers, widths and the lid width cross to the host planner;
+    projection, slicing and percentiles keep the point cloud on CUDA.
+    """
+    torch, _ = context()
+    cloud, direction = tensor(points), tensor(axis)[:2]
+    projected = cloud[:, :2] @ (direction / torch.linalg.vector_norm(direction))
+    z = cloud[:, 2]
+    quantiles = tensor([.02, .98])
+    centers, widths = [], []
+    for center in sample_centers:
+        selected = (z - float(center)).abs() <= slice_m / 2
+        if int(selected.sum()) >= 8:
+            bounds = torch.quantile(projected[selected], quantiles)
+            centers.append(float(center))
+            widths.append(bounds[1] - bounds[0])
+    top = (z >= top_z - slice_m) & (z <= top_z)
+    top_width = None
+    if int(top.sum()) >= 8:
+        bounds = torch.quantile(projected[top], quantiles)
+        top_width = float(bounds[1] - bounds[0])
+    widths = torch.stack(widths) if widths else tensor([])
+    record("horizontal_width_profile", cloud, projected, widths)
+    return centers, numpy_result(widths), top_width
+
+
+def refine_sphere(center, points):
+    """CUDA twin of grounding.refine_sphere_center (same gates, same result)."""
+    from .grounding import SPHERE_MIN_ARC, SPHERE_MIN_POINTS, SPHERE_RADIUS_M, SPHERE_SKIRT_M
+
+    torch, _ = context()
+    cloud = tensor(points)
+    report = {"accepted": False, "device": str(cloud.device)}
+
+    def reject(reason):
+        return center, {**report, "reason": reason}
+
+    if cloud.ndim != 2 or cloud.shape[1] != 3 or cloud.shape[0] < SPHERE_MIN_POINTS:
+        return reject("insufficient_points")
+    cloud = cloud[cloud[:, 2] > cloud[:, 2].min() + SPHERE_SKIRT_M]
+    if cloud.shape[0] < SPHERE_MIN_POINTS or not bool(torch.isfinite(cloud).all()):
+        return reject("insufficient_points")
+    matrix = torch.cat((2 * cloud, torch.ones_like(cloud[:, :1])), dim=1)
+    target = cloud.square().sum(dim=1, keepdim=True)
+    fitted = torch.linalg.lstsq(matrix, target, driver="gels").solution[:, 0]
+    sphere_center = fitted[:3]
+    radius_squared = fitted[3] + sphere_center.square().sum()
+    if not bool(torch.isfinite(fitted).all()) or float(radius_squared) <= 0:
+        return reject("invalid_sphere")
+    radius = radius_squared.sqrt()
+    residual = torch.linalg.vector_norm(cloud - sphere_center, dim=1) - radius
+    rms = residual.square().mean().sqrt()
+    p95 = torch.quantile(residual.abs(), .95)
+    angles = torch.sort(torch.atan2(cloud[:, 1] - sphere_center[1], cloud[:, 0] - sphere_center[0])).values
+    gaps = torch.diff(torch.cat((angles, angles[:1] + 2 * torch.pi)))
+    arc = 2 * torch.pi - gaps.amax()
+    record("sphere_surface_fit", cloud, matrix, fitted, residual, angles)
+    report.update(radius_m=float(radius), rms_m=float(rms), p95_m=float(p95),
+                  visible_arc_deg=float(arc * (180 / torch.pi)))
+    if not SPHERE_RADIUS_M[0] <= float(radius) <= SPHERE_RADIUS_M[1]:
+        return reject("unsupported_radius")
+    tolerance = min(.0015, .04 * float(radius))
+    if float(rms) > tolerance or float(p95) > 2.5 * tolerance:
+        return reject("not_spherical")
+    if float(arc) < SPHERE_MIN_ARC:
+        return reject("insufficient_visible_arc")
+    result = tensor(center).clone()
+    if float(torch.linalg.vector_norm(sphere_center[:2] - result[:2])) > float(radius):
+        return reject("unsupported_center_correction")
+    result[:2] = sphere_center[:2]
+    report["accepted"] = True
+    return numpy_result(result), report
+
+
 def hsv8(bgr):
     """OpenCV's 8-bit HSV integer equations evaluated entirely on CUDA."""
     torch,device=context();pixels=tensor(bgr,dtype=torch.int64)

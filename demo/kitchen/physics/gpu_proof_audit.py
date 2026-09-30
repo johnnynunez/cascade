@@ -33,6 +33,7 @@ original = _load("cascade_gpu_existing_observer", ROOT / "demo/kitchen/observer/
 strict = _load("cascade_gpu_existing_audit", ROOT / "demo/kitchen/observer/audit.py")
 convex = _load("cascade_convex_geometry", Path(__file__).with_name("convex_geometry.py"))
 convex_settle = _load("cascade_convex_settle", Path(__file__).with_name("convex_settle.py"))
+CONTACT_CHANNELS = {"physx": "physx_gpu_contact_tensor", "newton": "newton_mjwarp_contact_force"}
 codec = _load("cascade_physics_codec", Path(__file__).with_name("snapshot_codec.py"))
 destination_entry = _load("cascade_destination_entry", Path(__file__).with_name("destination_entry.py"))
 
@@ -670,6 +671,7 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
         return result
     try:
         all_samples = [r["physics"] for r in records]
+        engine_name = all_samples[0].get("engine") if all_samples else None
         support_top_z = 0
         expected = (validate_expected_scene_geometry(expected_scene_geometry)
                     if expected_scene_geometry is not None else None)
@@ -756,7 +758,7 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
             **({"collider_geometry": support_geometry} if support_geometry is not None else {}))
         if support_geometry is not None:
             result["pick"]["limitations"][0] = (
-                "Support uses the live PhysX collision representation in body-local coordinates. "
+                f"Support uses the live {'Newton' if engine_name == 'newton' else 'PhysX'} collision representation in body-local coordinates. "
                 "The complete authored hull separately bounds the horizontal footprint.")
         checks["strict_pick_place_and_cameras"] = result["pick"]["pass"]
         if expected is not None and collider_geometry is not None:
@@ -826,10 +828,23 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
                 checks["cube_bottom_supported_on_open_box_floor_throughout_settle"] = supported
         checks["all_physics_tensors_cuda"] = all(all(str(sample["props"][name]["tensor_device"]).startswith("cuda:")
             for name in expected_props) for sample in all_samples)
-        checks["gpu_backend_no_fallback"] = all(
+        engines = {sample.get("engine") for sample in all_samples}
+        checks["single_supported_engine"] = len(engines) == 1 and engines <= set(CONTACT_CHANNELS)
+        engine = next(iter(engines)) if checks["single_supported_engine"] else None
+
+        def backend_on_gpu(a, sample_engine):
+            if sample_engine == "physx":
+                return a.get("gpu_dynamics") is True and a.get("broadphase") == "GPU"
+            n = a.get("newton") or {}
+            # MJWarp on the attested device; never the MuJoCo CPU backend.
+            return (n.get("cuda") is True and n.get("mujoco_cpu") is False
+                    and n.get("solver") == "SolverMuJoCo"
+                    and n.get("array_devices") == [a.get("tensor_device")])
+
+        checks["gpu_backend_no_fallback"] = engine is not None and all(
             (a := sample["gpu_attestation"]).get("required") is True
-            and a.get("backend") == "physx" and a.get("gpu_dynamics") is True
-            and a.get("broadphase") == "GPU" and a.get("cuda_context_present") is True
+            and a.get("backend") == engine and backend_on_gpu(a, engine)
+            and a.get("cuda_context_present") is True
             and a.get("tensor_device_ordinal", -1) >= 0
             and a.get("device") == a.get("tensor_device") == f"cuda:{a.get('tensor_device_ordinal')}"
             and a.get("cpu_fallback_allowed") is False and a.get("fallback_log_count") == 0
@@ -847,7 +862,8 @@ def audit_records(records, *, marks, complete, errors=(), target_xy=None, object
             sample = row["physics"]; contact = sample["contacts"]
             forces = np.asarray(contact["jaw_forces_n"], float)
             counts = np.asarray(contact["jaw_contact_counts"], int)
-            if (contact_binding_matches(sample) and contact.get("channel") == "physx_gpu_contact_tensor"
+            if (contact_binding_matches(sample) and engine is not None
+                and contact.get("channel") == CONTACT_CHANNELS[engine]
                 and str(contact.get("device", "")).startswith("cuda:")
                 and forces.shape == (2, 3) and counts.shape == (2,) and np.isfinite(forces).all()
                 and (np.linalg.norm(forces, axis=1) > .01).all() and (counts > 0).all()

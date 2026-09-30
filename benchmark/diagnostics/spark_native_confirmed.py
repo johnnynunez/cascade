@@ -278,6 +278,14 @@ def native_outcome(rows, times, obj, destination, *, case_interval=None):
     require(result.get("ok") is True and result.get("verified") is True
             and postcondition.get("status") == "confirmed" and postcondition.get("channel") == "physics",
             "native placement requires ok=true, verified=true, confirmed physics")
+    measured = mapping(postcondition.get("measured"), "postcondition measured")
+    require(postcondition.get("skill") == "pick_and_place" and postcondition.get("kind") == "relocated"
+            and normalize(measured.get("object")) == normalize(obj)
+            and normalize(measured.get("destination")) == destination,
+            "native postcondition belongs to another action/object/destination")
+    home = mapping(result.get("return_home"), "native return_home")
+    require(home.get("attempted") is True and home.get("ok") is True and home.get("at") == "home",
+            "native return home did not complete")
     require(normalize(result.get("picked")) == normalize(obj)
             and normalize(result.get("destination")) == destination, "native result identity mismatch")
     reset = select_action(rows, times[2], times[3], "reset_scene")

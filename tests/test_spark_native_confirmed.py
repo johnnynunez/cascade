@@ -72,7 +72,10 @@ def evidence(tmp_path):
                 "props_reset": sorted(gate.PROPS), "evidence_dir": str(path)}
         for skill, offset in (("pick_and_place", 5), ("reset_scene", 25)):
             result = ({"ok": True, "verified": True, "picked": obj, "destination": destination,
-                       "postcondition": {"status": "confirmed", "channel": "physics"}}
+                       "return_home": {"attempted": True, "ok": True, "at": "home"},
+                       "postcondition": {"status": "confirmed", "channel": "physics",
+                                         "skill": "pick_and_place", "kind": "relocated",
+                                         "measured": {"object": obj, "destination": destination}}}
                       if skill == "pick_and_place" else
                       {"ok": True, "world": "isaac", "props_reset": sorted(gate.PROPS)})
             rows.append({"step": len(rows), "t": start + offset, "skill": skill,
@@ -161,6 +164,10 @@ def test_full_gate_requires_seven_native_results_and_never_mutates_receipts(evid
     (lambda rows: rows[0]["result"].update(verified=False), "verified=true"),
     (lambda rows: rows[0]["result"]["postcondition"].update(status="unverified"), "confirmed physics"),
     (lambda rows: rows[0]["result"]["postcondition"].update(channel="vision"), "confirmed physics"),
+    (lambda rows: rows[0]["result"]["postcondition"].update(kind="holding"), "another action"),
+    (lambda rows: rows[0]["result"]["postcondition"]["measured"].update(object="lemon"), "another action"),
+    (lambda rows: rows[0]["result"]["return_home"].update(ok=False), "return home did not complete"),
+    (lambda rows: rows[0]["result"].pop("return_home"), "return_home must be an object"),
     (lambda rows: rows[0]["result"].update(ok=1), "ok=true"),
     (lambda rows: rows[0]["args"].update(destination="open box"), "arguments mismatch"),
     (lambda rows: rows[0]["result"].update(destination="open box"), "result identity"),

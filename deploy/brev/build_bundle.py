@@ -18,7 +18,9 @@ SOURCE_PATTERNS = (
     "scripts/isaac_materials.py", "scripts/isaac_self_mask.py", "scripts/isaac_launch.py",
     "scripts/newton_mesh_compat.py",
     "scripts/demo_proof.py", "scripts/judge_run.py", "scripts/install_support.py", "scripts/kitchen_assets.py",
+    "scripts/build_cocina_asier.py",
     "demo/**/*.py", "demo/scene/kitchen_config.json", "demo/scene/own_assets.json",
+    "demo/scene/cocina_asier_*.json",
     "demo/scene/NOTICE.md", "demo/scene/props/LICENSE.txt", "demo/scene/props/*.usda",
     "demo/kitchen/visitor-instructions.md", "demo/kitchen/dashboard/*.js",
     "deploy/runtime/*.py", "deploy/runtime/*.mjs", "deploy/runtime/brain_qwen.json",
@@ -83,6 +85,9 @@ def assemble(checkout, assets, output, profile, *, boundary):
         raise ValueError("Bundle output must be separate from the checkout and supplied assets")
     boundary()
     pinned = bundle.asset_inventory()
+    kitchen_assets = bundle.kitchen_asset_inventory(checkout)
+    pinned["files"].update(kitchen_assets)
+    pinned.setdefault("licenses", {})["cocina_asier"] = "See demo/scene/NOTICE.md and cocina_asier_sources.json"
     entries = {name: {**fingerprint(bundle.member(checkout, name), boundary),
                       "provenance": "CASCADE source checkout"} for name in source_files(checkout)}
     if entries.keys() & pinned["files"].keys():
@@ -95,7 +100,7 @@ def assemble(checkout, assets, output, profile, *, boundary):
     for name, expected in sorted(entries.items()):
         boundary()
         external = name in pinned["files"]
-        path = bundle.member(assets if external else checkout, name)
+        path = bundle.member(assets if external and name not in kitchen_assets else checkout, name)
         receipt, _ = bundle.verify(path, expected, saved_inputs.get(name, {}) if external else {}, boundary)
         inputs[name] = receipt
         destination = output / "source" / name

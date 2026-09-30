@@ -92,8 +92,8 @@ def validate_expected_scene_geometry(value):
     result = {"scene_config_sha256": digest, "prop_dimensions_m": dimensions,
               "target_pad": normalized_pad}
     if "scene_name" in value:
-        if value["scene_name"] != "paai-own-kitchen-v1":
-            raise ValueError("Expected the original kitchen scene identity")
+        if value["scene_name"] != "paai-cocina-asier-v1":
+            raise ValueError("Expected the Cocina Asier kitchen scene identity")
         result["scene_name"] = value["scene_name"]
         for key in ("scene_assets_sha256", "scene_content_sha256"):
             content_digest = value.get(key)
@@ -141,7 +141,7 @@ def load_expected_scene_geometry(path):
     expected = {
         "scene_config_sha256": hashlib.sha256(raw).hexdigest(),
         "prop_dimensions_m": dimensions, "target_pad": config.get("target_pad")}
-    if config.get("scene_name") == "paai-own-kitchen-v1":
+    if "scene_name" in config:
         identity_module = _load("cascade_expected_kitchen_identity", ROOT / "demo/scene_identity.py")
         identity = identity_module.scene_identity(path)
         expected.update({key: identity[key] for key in

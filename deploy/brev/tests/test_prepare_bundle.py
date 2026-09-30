@@ -30,6 +30,13 @@ def distribution(tmp_path, monkeypatch):
                   "assets/REBOT_UPSTREAM_LICENSE.txt": b"robot license fixture"})
     files["demo/scene/kitchen_config.json"] = json.dumps({
         "scene_name": bundle.SCENE_NAME, "props": [{"asset": "props/lemon.usda"}]}).encode()
+    room = {"cocina_asier.usdc": b"reviewed room fixture", "geometry-audit.json": b"{}",
+            "NOTICE.md": b"Owner authorization and CC0 notices", "sources.json": b"{}"}
+    files.update({f"{bundle.BUNDLE_ROOT}/{name}": raw for name, raw in room.items()})
+    files[bundle.BUNDLE_MANIFEST] = json.dumps({
+        "schema": 1, "scene_name": bundle.SCENE_NAME, "root": bundle.BUNDLE_ROOT,
+        "archive": {"url": bundle.BUNDLE_URL, **expected(b"archive fixture")},
+        "files": {name: expected(raw) for name, raw in room.items()}}).encode()
     files["demo/scene/own_assets.json"] = json.dumps({
         "schema": 1, "scene_name": bundle.SCENE_NAME,
         "files": {name: expected(files[name]) for name in bundle.KITCHEN_SOURCE_FILES}}).encode()

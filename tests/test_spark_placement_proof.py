@@ -196,7 +196,7 @@ def test_snapshot_is_read_only_and_keeps_exact_convex_codec(object_name, destina
 
 @pytest.mark.parametrize("key", ["scene_name", "scene_assets_sha256", "scene_content_sha256"])
 @pytest.mark.parametrize("fault", ["missing", "stale"])
-def test_original_kitchen_proof_rejects_missing_or_stale_artwork_identity(key, fault):
+def test_cocina_asier_proof_rejects_missing_or_stale_artwork_identity(key, fault):
     rows, expected = trajectory()
     assert key in expected
     for row in rows:
@@ -208,3 +208,20 @@ def test_original_kitchen_proof_rejects_missing_or_stale_artwork_identity(key, f
     result = audit(rows, expected)
     assert not result["pass"]
     assert not result["checks"][key + "_matches"]
+
+
+def test_unknown_named_scene_cannot_downgrade_to_config_only_proof(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    config = json.loads((ROOT / "demo/scene/kitchen_config.json").read_text())
+    config["scene_name"] = "paai-own-kitchen-v1"
+    path = tmp_path / "kitchen_config.json"
+    path.write_text(json.dumps(config))
+    monkeypatch.setattr(gpu, "ROOT", tmp_path)
+    checked = []
+    def verify(scene):
+        checked.append(scene)
+        raise ValueError("Expected the reviewed Cocina Asier kitchen identity")
+    monkeypatch.setattr(gpu, "_load", lambda *args: SimpleNamespace(scene_identity=verify))
+    with pytest.raises(ValueError, match="Cocina Asier kitchen identity"):
+        gpu.load_expected_scene_geometry(path)
+    assert checked == [path]

@@ -65,7 +65,9 @@ def test_platter_has_real_thickness_and_a_flat_support_foot():
     surface = props.bowl_surface()
     _assert_closed(surface)
     assert min(point[2] for point in surface.points) == 0
-    assert max(point[2] for point in surface.points) == pytest.approx(.0275)
+    # The deeper profile matches the reference silhouette without lifting
+    # the support foot off the worktop.
+    assert max(point[2] for point in surface.points) == pytest.approx(.0565125)
     assert min(point[0] for point in surface.points) == pytest.approx(-.15)
     assert max(point[0] for point in surface.points) == pytest.approx(.15)
     foot = [point for point in surface.points if point[2] == 0]
@@ -91,7 +93,7 @@ def test_decorative_fruit_rests_on_bowl_without_intersection():
         x, y, z = row["position"]
         clearance = [pz + z - props._inner_height(math.hypot(px + x, py + y))
                      for px, py, pz in points]
-        assert min(clearance) == pytest.approx(.00004, abs=1e-10)
+        assert min(clearance) == pytest.approx(.00006, abs=1e-10)
         world_points.append([(p[0] + x, p[1] + y, p[2] + z) for p in points])
     # Independent separating-plane check on each pair. Slightly separated
     # shells look natural and cannot geometrically intersect one another.

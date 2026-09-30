@@ -114,7 +114,7 @@ def runtime_identity():
     return {
         "ok": True, "engine": "physx", "scene_config": "/fixture/kitchen_config.json",
         "scene_config_sha256": "a" * 64, "physics_dt_s": 1 / 120,
-        "scene_name": "paai-own-kitchen-v1", "scene_content_sha256": "c" * 64,
+        "scene_name": "paai-cocina-asier-v1", "scene_content_sha256": "c" * 64,
         "physics_gpu": True, "physics_device": "cuda:0", "physics_tensor_device": "cuda:0",
         "gpu_attestation": {
             "required": True, "backend": "physx", "device": "cuda:0", "tensor_device": "cuda:0",

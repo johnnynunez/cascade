@@ -1,30 +1,50 @@
 {
   "schema": 1,
-  "scene_name": "paai-own-kitchen-v1",
+  "scene_name": "paai-cocina-asier-v1",
   "files": {
     "scripts/isaac_bridge.py": {
       "sha256": "b328775fb308d545ca050dca844b82291416434a6c3e7e3ca4ce0a0e1da31bc6",
       "size_bytes": 83588
     },
     "demo/isaac_scene.py": {
-      "sha256": "d2a70095efb546080aeecd28325f5f1c3a3682739e62142c45fedfc8b0f0a40b",
-      "size_bytes": 30546
+      "sha256": "5af82d9c5a2e19dc5b687e620c6e09c7c4db2aef861be4909f5110b1fe4ff481",
+      "size_bytes": 30547
     },
     "demo/own_kitchen.py": {
       "sha256": "5a0f72575604b04737ed9dbec5f54fa9dc6400d6d8cc694303563a9890791f13",
       "size_bytes": 32323
     },
     "demo/own_kitchen_props.py": {
-      "sha256": "68351c3787af0e5aadf789f162341c6b997294b9e1d4b201aa112b85f05fcb0f",
-      "size_bytes": 22992
+      "sha256": "aae47de489a26616d3c4e8d335fea24095477d58494380d6ff41f9a4ffcdbba1",
+      "size_bytes": 23452
+    },
+    "demo/cocina_asier.py": {
+      "sha256": "dcb338cf4044c4be520ef69113c21a84a5945870f7663eb36c5b91596839db34",
+      "size_bytes": 3390
+    },
+    "scripts/build_cocina_asier.py": {
+      "sha256": "a42b261390909b5fa658dd4e0b81ea85f3ec6795ba62c8a2f312cf09d2a1936f",
+      "size_bytes": 12797
     },
     "demo/scene_identity.py": {
-      "sha256": "b925f7ef5d4b8494c8731c6568689b0c594a98d1bdff26064f955bb86d1413eb",
-      "size_bytes": 5482
+      "sha256": "5b3e7c791134262399ce8355d9ada2b79f4e833146867df365dc4a4d63e7f7a4",
+      "size_bytes": 9875
+    },
+    "demo/scene/cocina_asier_sources.json": {
+      "sha256": "c7c51f4d606cff2aab8984856512d65799a16e4172e69671b63b615f8ce0eae9",
+      "size_bytes": 1999
+    },
+    "demo/scene/cocina_asier_audit.json": {
+      "sha256": "2bc5f6ddd61609c28ea8966c2d4381a7c266df9761dad9e445c6b11204c728c6",
+      "size_bytes": 408936
+    },
+    "demo/scene/cocina_asier_bundle.json": {
+      "sha256": "789852535b6741cd3cbb6de61921bfe2c97e32acf5bba7b215b91055e74daa0c",
+      "size_bytes": 1581
     },
     "demo/scene/NOTICE.md": {
-      "sha256": "f528f5cf50e0219179d78bcb765c91cde1840dae9103a132c7da97ccd14e0619",
-      "size_bytes": 2068
+      "sha256": "afae350de8e942115d3f906d4ce08f1df5b722eeeb389e1303eef2095ca38d1e",
+      "size_bytes": 3893
     },
     "demo/scene/props/LICENSE.txt": {
       "sha256": "e00c86b567f134534dd961c545ced96de5843db95fc04a3240ad84adf89fe23f",

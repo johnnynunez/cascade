@@ -61,7 +61,7 @@ if [[ "$PROFILE" == spark ]]; then
     log "Isaac Sim 6.1.0: isaacsim[all,extscache]==6.1.0.0 in $DIR/.isaacsim (Python 3.12); explicit ISAACSIM_PATH is honored"
     log "YOLOE: CUDA aarch64 cu130 torch + torchvision, promptable/prompt-free weights + mobileclip_blt.ts"
     log "Qwen Q4 + vision projector: pinned downloads in $DIR/models/qwen3.8-27b; verified CUDA llama.cpp in $DIR/.llama.cpp, loopback :8080"
-    log 'Kitchen: verify original source assets included in the checkout; no kitchen download.'
+    log 'Kitchen: fetch and verify the pinned Cocina Asier release and original prop sources.'
 fi
 [[ "$PROFILE" == ci ]] || log "OpenClaw 2026.9.3: rootless private install, profile cascade-demo on Spark"
 log 'No driver/OS changes. GPU rehearsal remains required; installation is not physical proof.'

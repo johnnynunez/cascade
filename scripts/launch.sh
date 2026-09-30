@@ -330,7 +330,7 @@ try:
     if not isinstance(config, dict):
         raise ValueError('scene configuration must be a JSON object')
     content = '-'
-    if config.get('scene_name') == 'paai-own-kitchen-v1':
+    if config.get('scene_name') == 'paai-cocina-asier-v1':
         sys.path.insert(0, str(pathlib.Path(sys.argv[2]) / 'demo'))
         from scene_identity import scene_identity
         content = scene_identity(path)['scene_content_sha256']
@@ -386,7 +386,7 @@ fi
 
 if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark ]]; then
     "$PY" "$REPO/scripts/kitchen_assets.py" --repo "$REPO" --check \
-        || die "Original kitchen sources are missing or invalid; restore the matching source checkout and run python3 scripts/kitchen_assets.py --repo \"$REPO\" --check"
+        || die "Cocina Asier assets are missing or invalid; run python3 scripts/kitchen_assets.py --repo \"$REPO\""
 fi
 
 # ── 1. deps ─────────────────────────────────────────────────────────────────
@@ -600,7 +600,7 @@ while True:
             assert pong.get('scene_config_sha256') == expected_sha, 'running Isaac scene config differs from requested bytes; restart that scene explicitly'
             expected_content = sys.argv[7] if len(sys.argv) > 7 else '-'
             if expected_content != '-':
-                assert pong.get('scene_name') == 'paai-own-kitchen-v1', 'running Isaac kitchen identity differs'
+                assert pong.get('scene_name') == 'paai-cocina-asier-v1', 'running Isaac kitchen identity differs'
                 assert pong.get('scene_content_sha256') == expected_content, 'running Isaac kitchen artwork differs from verified source bytes; restart that scene explicitly'
         if expected_dt is not None:
             actual_dt = pong.get('physics_dt_s')

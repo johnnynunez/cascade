@@ -292,3 +292,6 @@ MUJOCO_LOG.TXT
 /extensions/firefox/build/
 /extensions/firefox/*.xpi
 /extensions/firefox/*.xpi.sha256
+
+# Audited Cocina Asier release bundle; installed by scripts/kitchen_assets.py.
+/demo/scene/cocina_asier/

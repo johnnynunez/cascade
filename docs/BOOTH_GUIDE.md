@@ -54,6 +54,7 @@ either. Use the reset result and cameras to check readiness.
 [Chrome extension](CHROME_EXTENSION.md) · [Brev](BREV.md) ·
 [DGX Spark](DGX_SPARK_SETUP.md)
 
-PAAI was built by Johnny Núñez and Asier Arranz. Its original kitchen, orange
-and bowl are authored in this repository. See the
+PAAI was built by Johnny Núñez and Asier Arranz. Its Cocina Asier room uses
+owner-authorized geometry and verified CC0 wood. The orange and bowl are
+original artwork authored in this repository. See the
 [scene provenance notice](../demo/scene/NOTICE.md).

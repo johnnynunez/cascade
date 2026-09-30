@@ -107,8 +107,12 @@ def test_graspgenx_check_preserves_existing_sources_and_downloads_nothing(instal
 
 def test_upstream_pointer_without_attributes_hydrates_without_staging_changes(installer):
     repo, env, log = installer
-    if shutil.which("git-lfs") is None:
+    real_lfs = shutil.which("git-lfs")
+    if real_lfs is None:
         pytest.skip("real Git LFS is required for the upstream packaging regression")
+    # The fixture isolates PATH; Homebrew's git-lfs is outside /usr/bin on macOS.
+    # Expose only this real dependency while retaining the fake git/uv commands.
+    (Path(env["PATH"].split(os.pathsep)[0]) / "git-lfs").symlink_to(real_lfs)
     upstream = Path(env["GGX_UPSTREAM"])
     payload = b"real upstream mesh payload\n"
     oid = hashlib.sha256(payload).hexdigest()

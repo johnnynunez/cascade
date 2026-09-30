@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..config import Cfg
+from ..grasping import evidence as grasp_evidence
 from ..sim.bridge_client import BridgeClient, BridgeError
 from ..sim.isaac_reset import validate_isaac_reset
 from ..types import RobotState
@@ -50,7 +51,10 @@ class IsaacArm(ArmBase):
         self._client.close()
 
     def get_state(self) -> RobotState:
-        return self._decode_state(self._client.state())
+        sample = self._client.state()
+        state = self._decode_state(sample)
+        grasp_evidence.event("isaac_feedback", state=state, bridge_t=sample.get("t"))
+        return state
 
     def _decode_state(self, s: dict) -> RobotState:
         # asset -> local convention
@@ -98,11 +102,13 @@ class IsaacArm(ArmBase):
         # local -> asset convention for the bridge's raw DOF targets
         q_asset = np.asarray(q, dtype=float)[: self.n_joints] * self._signs
         self._client.set_joints(q_asset)
+        grasp_evidence.event("isaac_joint_target_sent", q_local=q, q_asset=q_asset)
 
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
         if self._stopped:
             raise BridgeError("soft-stopped; call resume()")
         self._client.gripper(pos, effort)
+        grasp_evidence.event("isaac_gripper_target_sent", position=pos, effort=effort)
 
     def stop(self) -> None:
         self._stopped = True

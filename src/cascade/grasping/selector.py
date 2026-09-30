@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..types import Grasp, SkillError, make_transform
+from . import evidence
 
 
 def _flip_twin(g: Grasp) -> Grasp:
@@ -81,6 +82,8 @@ def select_grasp(
         if n > 1e-9:
             close_dir = close_dir / n
     q_ref = np.asarray(q_current, dtype=float).reshape(-1)
+    evidence.event("jaw_datum", fixed_tip_m=fixed_tip, close_dir=close_dir,
+                   max_width_m=max_width_m, pregrasp_offset_m=pregrasp_offset_m)
 
     def _solve(g: Grasp):
         """-> (q_pre, q_grasp) or a failure reason string."""
@@ -92,14 +95,18 @@ def select_grasp(
         T_pre = make_transform(
             g.rotation, p_grasp - g.approach * pregrasp_offset_m
         )
+        evidence.event("ik_targets", grasp=g, T_grasp=T_grasp, T_pre=T_pre, seed_q=q_current)
         pre = kin.ik(T_pre, q_current)
+        evidence.ik_result("pregrasp_ik", pre)
         if not pre.success:
             return f"pregrasp IK failed (err {pre.error:.4f})"
         grasp = kin.ik(T_grasp, pre.q)
+        evidence.ik_result("grasp_ik", grasp)
         if not grasp.success:
             return f"grasp IK failed (err {grasp.error:.4f})"
         if validate is not None:
             reason = validate(g, pre.q, grasp.q)
+            evidence.event("candidate_validation", reason=reason)
             if reason:
                 return f"{g.label}: {reason}"
         return pre.q, grasp.q

@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-30",
+  "scope": "Synthetic offline development pilot, not a held-out robotics benchmark. No robot actions executed.",
+  "cascade_base_revision": "c93b03017fb09c79539b33193e5592aeb68cf303",
+  "kev_source_revision": "67117d85a99989787db22224a98784db9a6f2794",
+  "runtime": {
+    "python": "3.12.13",
+    "cuda": "13.2",
+    "packages": {
+      "torch": "2.14.1+cu132",
+      "transformers": "5.18.0",
+      "peft": "0.21.1",
+      "accelerate": "1.15.0",
+      "flash-linear-attention": "0.5.2",
+      "fla-core": "0.5.2",
+      "triton": "3.8.0",
+      "numpy": "2.5.3"
+    },
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 615.71.09",
+    "precision": "bfloat16",
+    "cuda_graphs": false,
+    "gpu_exclusive": false,
+    "note": "Other Isaac/Hermes workloads were active; latency is observed, not an isolated throughput benchmark. Kev metadata torch<2.9 was bypassed using --no-deps for this explicit compatibility experiment with torch2.14.1cu132."
+  },
+  "frozen_inputs": {
+    "benchmark/diagnostics/decision_probe.py": "f508d95f8054b41ef1eb63480b896e3b8fbc0e9b8c41eff111a8518bf34efc15",
+    "benchmark/diagnostics/fixtures/cascade_decision_v1.json": "085c70c0b41872ce5a9c51c2fef0289b6afb1fa0daf3459685b5f71caf7a4d15"
+  },
+  "source_note": "Client error handling for truncated HTTP and oversized invalid probabilities was hardened after inference. Questions, fixture, scoring and valid response parsing were unchanged.",
+  "models": {
+    "kev4": {
+      "checkpoint_revision": "139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+      "server_models": {
+        "models": [
+          {
+            "name": "kev-latest",
+            "description": "Kev pointer head on Qwen/Qwen3.5-4B-Base, serving jaredpalmer/kev-4b@139fdd94f1b6a6ad80cc15e08fcb99cac885a101 at temperature 2.41",
+            "release_date": "2026-09-24",
+            "run": "jaredpalmer/kev-4b@139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+            "base": "Qwen/Qwen3.5-4B-Base",
+            "lora": 16,
+            "device": "cuda",
+            "backend": "torch",
+            "dtype": "bfloat16",
+            "temperature": 2.406050072164233,
+            "cuda_graphs": null,
+            "prefix_cache": {
+              "size": 4,
+              "min_state_tokens": 0,
+              "max_tokens": 65536,
+              "hits": 0,
+              "misses": 0,
+              "cached_states": 0,
+              "oom_retries": 0
+            },
+            "batches": {
+              "count": 0,
+              "requests": 0,
+              "queued": 0
+            }
+          },
+          {
+            "name": "jev-latest",
+            "description": "Kev pointer head on Qwen/Qwen3.5-4B-Base, serving jaredpalmer/kev-4b@139fdd94f1b6a6ad80cc15e08fcb99cac885a101 at temperature 2.41",
+            "release_date": "2026-09-24",
+            "run": "jaredpalmer/kev-4b@139fdd94f1b6a6ad80cc15e08fcb99cac885a101",
+            "base": "Qwen/Qwen3.5-4B-Base",
+            "lora": 16,
+            "device": "cuda",
+            "backend": "torch",
+            "dtype": "bfloat16",
+            "temperature": 2.406050072164233,
+            "cuda_graphs": null,
+            "prefix_cache": {
+              "size": 4,
+              "min_state_tokens": 0,
+              "max_tokens": 65536,
+              "hits": 0,
+              "misses": 0,
+              "cached_states": 0,
+              "oom_retries": 0
+            },
+            "batches": {
+              "count": 0,
+              "requests": 0,
+              "queued": 0
+            }
+          }
+        ]
+      }
+    },
+    "kev27": {
+      "checkpoint_revision": "28be62e9c5ae0471bda2b7c636a55224b4f4b887",
+      "server_models": {
+        "models": [
+          {
+            "name": "kev-latest",
+            "description": "Kev pointer head on Qwen/Qwen3.8-27B, serving jaredpalmer/kev-27b@28be62e9c5ae0471bda2b7c636a55224b4f4b887 at temperature 1.32",
+            "release_date": "2026-09-30",
+            "run": "jaredpalmer/kev-27b@28be62e9c5ae0471bda2b7c636a55224b4f4b887",
+            "base": "Qwen/Qwen3.8-27B",
+            "lora": 0,
+            "device": "cuda",
+            "backend": "torch",
+            "dtype": "bfloat16",
+            "temperature": 1.319507910772894,
+            "cuda_graphs": null,
+            "prefix_cache": {
+              "size": 4,
+              "min_state_tokens": 0,
+              "max_tokens": 65536,
+              "hits": 0,
+              "misses": 0,
+              "cached_states": 0,
+              "oom_retries": 0
+            },
+            "batches": {
+              "count": 0,
+              "requests": 0,
+              "queued": 0
+            }
+          },
+          {
+            "name": "jev-latest",
+            "description": "Kev pointer head on Qwen/Qwen3.8-27B, serving jaredpalmer/kev-27b@28be62e9c5ae0471bda2b7c636a55224b4f4b887 at temperature 1.32",
+            "release_date": "2026-09-30",
+            "run": "jaredpalmer/kev-27b@28be62e9c5ae0471bda2b7c636a55224b4f4b887",
+            "base": "Qwen/Qwen3.8-27B",
+            "lora": 0,
+            "device": "cuda",
+            "backend": "torch",
+            "dtype": "bfloat16",
+            "temperature": 1.319507910772894,
+            "cuda_graphs": null,
+            "prefix_cache": {
+              "size": 4,
+              "min_state_tokens": 0,
+              "max_tokens": 65536,
+              "hits": 0,
+              "misses": 0,
+              "cached_states": 0,
+              "oom_retries": 0
+            },
+            "batches": {
+              "count": 0,
+              "requests": 0,
+              "queued": 0
+            }
+          }
+        ]
+      }
+    }
+  },
+  "artifacts": {
+    "kev4b_decision_pilot.json": {
+      "sha256": "e2b5d8c5d4084df1d9846af7f88a36acc4d8f7c79a3b32664c9d054a1fa2ce33",
+      "completion_confusion_at_0_5": {
+        "tp": 2,
+        "tn": 24,
+        "fp": 6,
+        "fn": 0
+      },
+      "first_case_latency_ms": 368.65069499617675
+    },
+    "kev4b_decision_repeat.json": {
+      "sha256": "4a79171bc3dde0f51ee6a3522ac1cd5e91b0e94a688363cfef91347cf645071b",
+      "completion_confusion_at_0_5": {
+        "tp": 2,
+        "tn": 24,
+        "fp": 6,
+        "fn": 0
+      },
+      "first_case_latency_ms": 77.02954599517398
+    },
+    "kev27b_decision_pilot.json": {
+      "sha256": "c913705fdb5abc255bc93b6d8c5e4d382eccb3dde963aaa2945f88be819537cd",
+      "completion_confusion_at_0_5": {
+        "tp": 2,
+        "tn": 30,
+        "fp": 0,
+        "fn": 0
+      },
+      "first_case_latency_ms": 57962.55238699814
+    },
+    "kev27b_decision_repeat.json": {
+      "sha256": "a71c7fcdb0132cc800e4df75d93e57e0d88af518dc1a8158f3d66ffcc20fd63d",
+      "completion_confusion_at_0_5": {
+        "tp": 2,
+        "tn": 30,
+        "fp": 0,
+        "fn": 0
+      },
+      "first_case_latency_ms": 290.2913380021346
+    }
+  },
+  "kev4_first_unrelated_cold_request": {
+    "elapsed_s": 79.11469020000368,
+    "response": {
+      "model": "kev-latest",
+      "answers": {
+        "route": {
+          "type": "choice",
+          "choice": "billing",
+          "confidence": 0.8947,
+          "probabilities": {
+            "billing": 0.9298,
+            "technical": 0.0392,
+            "sales": 0.031
+          }
+        },
+        "refund": {
+          "type": "noul",
+          "noul": 0.9779
+        }
+      },
+      "usage": {
+        "input_tokens": 56,
+        "output_tokens": 84
+      },
+      "latency_ms": 79098.7
+    }
+  },
+  "analysis": {
+    "completion_class_counts": {
+      "positive": 2,
+      "negative": 30
+    },
+    "always_incomplete_accuracy": 0.9375,
+    "always_incomplete_brier": 0.0625,
+    "thresholds_tuned_after_results": false,
+    "official_typesafe_jev_tested": false,
+    "official_jev_reason": "No API credential available. Local Kev results are not official Jev results.",
+    "warm_repeat": "Exact same32cases repeated; not additional independent examples. Prefixcache capacity4, sequential whole-fixture repeat.",
+    "known_limits": [
+      "Manual synthetic states, no argument generation or actuation.",
+      "No direct Qwen chat or deterministic fast-path timing baseline.",
+      "No calibration conclusion or confidence-based deployment policy from32cases."
+    ]
+  },
+  "reviewed_client_sha256": "9c3539a903b1a1b0a11b5a5bb37c9a1cfcbf3eba72234f1c0e7b5a5e6b1965c0"
+}

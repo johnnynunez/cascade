@@ -1,0 +1,1404 @@
+{
+  "schema_version": 1,
+  "scope": "Handwritten offline routing pilot; no skills executed, no robot or grasp accuracy measured.",
+  "endpoint": "http://127.0.0.1:28009/v1/systemone",
+  "requested_model": "kev-latest",
+  "source_revision": "c93b03017fb09c79539b33193e5592aeb68cf303",
+  "fixture_sha256": "085c70c0b41872ce5a9c51c2fef0289b6afb1fa0daf3459685b5f71caf7a4d15",
+  "questions_sha256": "b92e93547d84ab47f18347228bd4a3af7c5b3b37853b4ff039818b6a50e7b5a5",
+  "started_at": "2026-09-30T18:31:59.134264+00:00",
+  "timeout_s": 180.0,
+  "attempts_per_case": 1,
+  "cases": [
+    {
+      "id": "en_01",
+      "language": "en",
+      "category": "stale_observation",
+      "expected_choice": "get_observation",
+      "expected_complete": false,
+      "state_sha256": "04e3b21b7cf260610d112fad347acce62ad19b5e94ac4d92afd68d67fa09ee7f",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 57962.55238699814,
+      "request_sha256": "c73f5cc043fe0ab7511f6ccca7ac479944f5f9f6b62852a1f81a3d0b9af68fb5",
+      "response_sha256": "bf1965cfc25612534dc2a505fa6eab35335fd70bca4c260701d08e2ff2b9b9ad",
+      "choice": {
+        "choice": "get_observation",
+        "probabilities": {
+          "defer_to_planner": 0.0101,
+          "get_observation": 0.9695,
+          "grasp_object": 0.0021,
+          "halt_motion": 0.0001,
+          "localize_object": 0.0108,
+          "move_home": 0.0003,
+          "pick_and_place": 0.0051,
+          "place_at": 0.0006,
+          "preview_grasp": 0.0009,
+          "reset_scene": 0.0003,
+          "task_done": 0.0002
+        },
+        "confidence": 0.9664
+      },
+      "completion": {
+        "noul": 0.0112
+      },
+      "usage": {
+        "input_tokens": 576,
+        "output_tokens": 195
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.00012544
+    },
+    {
+      "id": "es_01",
+      "language": "es",
+      "category": "stale_observation",
+      "expected_choice": "get_observation",
+      "expected_complete": false,
+      "state_sha256": "7a66e71261f044cf13d53a462ab901c21dce664e1790924232fdb0c8b693c6ab",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 301.98167599883163,
+      "request_sha256": "bdf4400a2d544cb55fca032ea588f479e8b59c5f5071c0f6cbc59101b123c9db",
+      "response_sha256": "ec35b2c86515016ccd61f64ed266877f04d3e8e8710e75401921fdfb7cb21e78",
+      "choice": {
+        "choice": "get_observation",
+        "probabilities": {
+          "defer_to_planner": 0.0834,
+          "get_observation": 0.3756,
+          "grasp_object": 0.0418,
+          "halt_motion": 0.0004,
+          "localize_object": 0.2375,
+          "move_home": 0.0023,
+          "pick_and_place": 0.2367,
+          "place_at": 0.0082,
+          "preview_grasp": 0.0077,
+          "reset_scene": 0.003,
+          "task_done": 0.0034
+        },
+        "confidence": 0.3132
+      },
+      "completion": {
+        "noul": 0.0287
+      },
+      "usage": {
+        "input_tokens": 578,
+        "output_tokens": 194
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.00082369
+    },
+    {
+      "id": "en_02",
+      "language": "en",
+      "category": "missing_geometry",
+      "expected_choice": "localize_object",
+      "expected_complete": false,
+      "state_sha256": "5e7709b761d755175a1d34305c222374c43e4159048b8ff5677f1aa97f54d95a",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 310.83559499529656,
+      "request_sha256": "00a8f0a01f262689f9614918fac4f8db734a228fb3a5b29b5de0a354fe0ed5ae",
+      "response_sha256": "873e2ff79e2a7eeda76e4b46781479d86689efffa829918bee3ac25061354e69",
+      "choice": {
+        "choice": "localize_object",
+        "probabilities": {
+          "defer_to_planner": 0.0014,
+          "get_observation": 0.0095,
+          "grasp_object": 0.0,
+          "halt_motion": 0.0,
+          "localize_object": 0.9848,
+          "move_home": 0.0001,
+          "pick_and_place": 0.0002,
+          "place_at": 0.0001,
+          "preview_grasp": 0.0029,
+          "reset_scene": 0.0001,
+          "task_done": 0.0007
+        },
+        "confidence": 0.9833
+      },
+      "completion": {
+        "noul": 0.101
+      },
+      "usage": {
+        "input_tokens": 585,
+        "output_tokens": 188
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.010201000000000002
+    },
+    {
+      "id": "es_02",
+      "language": "es",
+      "category": "missing_geometry",
+      "expected_choice": "localize_object",
+      "expected_complete": false,
+      "state_sha256": "b4d523e90567ec5a8120883c54737b3b511506658d4dcfbb3a60031f4e0b1adb",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 298.9043689958635,
+      "request_sha256": "3b1db6e7095ac72220b2cb062f29c89a0f8f6ec354a62dc42c8cbbe55f620be6",
+      "response_sha256": "86263576eb0291b9f89dedb0173a89fe3db3aee501dd44f57c6f06450e19569f",
+      "choice": {
+        "choice": "localize_object",
+        "probabilities": {
+          "defer_to_planner": 0.0009,
+          "get_observation": 0.0068,
+          "grasp_object": 0.0001,
+          "halt_motion": 0.0,
+          "localize_object": 0.9889,
+          "move_home": 0.0001,
+          "pick_and_place": 0.0001,
+          "place_at": 0.0001,
+          "preview_grasp": 0.0024,
+          "reset_scene": 0.0001,
+          "task_done": 0.0005
+        },
+        "confidence": 0.9878
+      },
+      "completion": {
+        "noul": 0.0666
+      },
+      "usage": {
+        "input_tokens": 588,
+        "output_tokens": 192
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.004435560000000001
+    },
+    {
+      "id": "en_03",
+      "language": "en",
+      "category": "preview_only",
+      "expected_choice": "preview_grasp",
+      "expected_complete": false,
+      "state_sha256": "c9cd1d98a6dc2f91f1eebd7808f9f6f71901f1a75e85a7bc922c06166c683281",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 264.02627400239,
+      "request_sha256": "1907bc38946afce78d7a664a4af44b7ccddff8ba9581a64ba998835664f2d954",
+      "response_sha256": "03bb6ab88ef608f33fb8bf66dc76d19044d2f80191fb8097415bc8e2a1716f5f",
+      "choice": {
+        "choice": "preview_grasp",
+        "probabilities": {
+          "defer_to_planner": 0.0005,
+          "get_observation": 0.0014,
+          "grasp_object": 0.0012,
+          "halt_motion": 0.0,
+          "localize_object": 0.0004,
+          "move_home": 0.0,
+          "pick_and_place": 0.0,
+          "place_at": 0.0,
+          "preview_grasp": 0.9951,
+          "reset_scene": 0.0004,
+          "task_done": 0.001
+        },
+        "confidence": 0.9946
+      },
+      "completion": {
+        "noul": 0.0943
+      },
+      "usage": {
+        "input_tokens": 608,
+        "output_tokens": 182
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.00889249
+    },
+    {
+      "id": "es_03",
+      "language": "es",
+      "category": "preview_only",
+      "expected_choice": "preview_grasp",
+      "expected_complete": false,
+      "state_sha256": "eb84ad4f019ea6c4ced7266a3c3d88ea74e212389bb6622a7f71e1b63b7cd17b",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 298.1189349957276,
+      "request_sha256": "11f6a19cbe502dcea9c8f0d62fe19d1f38969b46233b287d0c29353975a64cff",
+      "response_sha256": "5cc997853f8f94fd04a7680aab16babc891468d40ddd3949adfbe2433f58c9ab",
+      "choice": {
+        "choice": "preview_grasp",
+        "probabilities": {
+          "defer_to_planner": 0.0013,
+          "get_observation": 0.0024,
+          "grasp_object": 0.0039,
+          "halt_motion": 0.0,
+          "localize_object": 0.0006,
+          "move_home": 0.0,
+          "pick_and_place": 0.0001,
+          "place_at": 0.0,
+          "preview_grasp": 0.9896,
+          "reset_scene": 0.0008,
+          "task_done": 0.0013
+        },
+        "confidence": 0.9886
+      },
+      "completion": {
+        "noul": 0.0839
+      },
+      "usage": {
+        "input_tokens": 612,
+        "output_tokens": 186
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.007039210000000001
+    },
+    {
+      "id": "en_04",
+      "language": "en",
+      "category": "grasp_only",
+      "expected_choice": "grasp_object",
+      "expected_complete": false,
+      "state_sha256": "f038da944a74dc92b6bbfdf445f36027089873cb65a627cd5e7ad3077f9c9e0c",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 439.9711629957892,
+      "request_sha256": "f92e761b0c44b6513ae76bc0cc66af35da8e0da8332228daf594747bd3d23a4f",
+      "response_sha256": "604921329fe0e76837374650dcc566afad55260f1787424be4a6b2db8acef5c1",
+      "choice": {
+        "choice": "grasp_object",
+        "probabilities": {
+          "defer_to_planner": 0.0064,
+          "get_observation": 0.0333,
+          "grasp_object": 0.9418,
+          "halt_motion": 0.0002,
+          "localize_object": 0.0074,
+          "move_home": 0.0004,
+          "pick_and_place": 0.0053,
+          "place_at": 0.0005,
+          "preview_grasp": 0.0027,
+          "reset_scene": 0.0005,
+          "task_done": 0.0015
+        },
+        "confidence": 0.9359
+      },
+      "completion": {
+        "noul": 0.0036
+      },
+      "usage": {
+        "input_tokens": 614,
+        "output_tokens": 195
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 1.296e-05
+    },
+    {
+      "id": "es_04",
+      "language": "es",
+      "category": "grasp_only",
+      "expected_choice": "grasp_object",
+      "expected_complete": false,
+      "state_sha256": "7269895516f6b4de48d0a22c7cdb17b4b22171fd40aa606c46ca53b2bc8de58f",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 310.5720240055234,
+      "request_sha256": "d3a499d9f452577d9f34249dccfbc3f2a4809e5f5d608e638f94a920eda8fcf6",
+      "response_sha256": "96af27c506d83aaab58b2251773c0769dab7cf3784a9be3d1089452c67c40e62",
+      "choice": {
+        "choice": "grasp_object",
+        "probabilities": {
+          "defer_to_planner": 0.0035,
+          "get_observation": 0.0375,
+          "grasp_object": 0.9471,
+          "halt_motion": 0.0002,
+          "localize_object": 0.0043,
+          "move_home": 0.0004,
+          "pick_and_place": 0.0013,
+          "place_at": 0.0005,
+          "preview_grasp": 0.0033,
+          "reset_scene": 0.0005,
+          "task_done": 0.0014
+        },
+        "confidence": 0.9418
+      },
+      "completion": {
+        "noul": 0.0053
+      },
+      "usage": {
+        "input_tokens": 619,
+        "output_tokens": 195
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 2.809e-05
+    },
+    {
+      "id": "en_05",
+      "language": "en",
+      "category": "pick_and_place",
+      "expected_choice": "pick_and_place",
+      "expected_complete": false,
+      "state_sha256": "8773ab52b80bc6a4d1d9c99b819ec076075cf129e388d7f0b84675abdb9f1a5a",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 318.9226780013996,
+      "request_sha256": "b13b8334a451d93a0023fa336c6503b6e316cfa559e281f468839bbc19aadd35",
+      "response_sha256": "f0cdf50fa9c33baac3bfdba736832b410f014e07f9937de394d6c078a58fcdd9",
+      "choice": {
+        "choice": "pick_and_place",
+        "probabilities": {
+          "defer_to_planner": 0.0045,
+          "get_observation": 0.0158,
+          "grasp_object": 0.019,
+          "halt_motion": 0.0001,
+          "localize_object": 0.0023,
+          "move_home": 0.0002,
+          "pick_and_place": 0.9494,
+          "place_at": 0.0049,
+          "preview_grasp": 0.0024,
+          "reset_scene": 0.0004,
+          "task_done": 0.0008
+        },
+        "confidence": 0.9444
+      },
+      "completion": {
+        "noul": 0.009
+      },
+      "usage": {
+        "input_tokens": 658,
+        "output_tokens": 193
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 8.099999999999999e-05
+    },
+    {
+      "id": "es_05",
+      "language": "es",
+      "category": "pick_and_place",
+      "expected_choice": "pick_and_place",
+      "expected_complete": false,
+      "state_sha256": "9cc87225fdb9e4b318f94c8e929d835992894f04f407d01bab0cbc8c9ebe3619",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 303.6338980018627,
+      "request_sha256": "8c701e3d33d1ec17bde40688a53e89834b9537754c80a945113543bbcbfd1f41",
+      "response_sha256": "0a684c2f9bf677bb9aab048dfbd9dee332809d5f7a0d53cb0d29d84b7aa6f85e",
+      "choice": {
+        "choice": "pick_and_place",
+        "probabilities": {
+          "defer_to_planner": 0.0029,
+          "get_observation": 0.0131,
+          "grasp_object": 0.0162,
+          "halt_motion": 0.0001,
+          "localize_object": 0.0015,
+          "move_home": 0.0001,
+          "pick_and_place": 0.9603,
+          "place_at": 0.0027,
+          "preview_grasp": 0.0023,
+          "reset_scene": 0.0003,
+          "task_done": 0.0005
+        },
+        "confidence": 0.9564
+      },
+      "completion": {
+        "noul": 0.0081
+      },
+      "usage": {
+        "input_tokens": 659,
+        "output_tokens": 195
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 6.560999999999999e-05
+    },
+    {
+      "id": "en_06",
+      "language": "en",
+      "category": "already_holding",
+      "expected_choice": "place_at",
+      "expected_complete": false,
+      "state_sha256": "a9e1774f217377195cf87bdf79ee6496152e721dac019a7383f736aba77181c5",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 298.65110399987316,
+      "request_sha256": "575b2f2cd103644fce07616101f84e80073309e2a6808e1cbc518977b819a7dc",
+      "response_sha256": "8316b722773004b1375783f0d4131862f1afc7145e203dfee6c7801419e9d639",
+      "choice": {
+        "choice": "place_at",
+        "probabilities": {
+          "defer_to_planner": 0.0024,
+          "get_observation": 0.0184,
+          "grasp_object": 0.0001,
+          "halt_motion": 0.0001,
+          "localize_object": 0.0018,
+          "move_home": 0.0002,
+          "pick_and_place": 0.0184,
+          "place_at": 0.9571,
+          "preview_grasp": 0.0002,
+          "reset_scene": 0.0003,
+          "task_done": 0.001
+        },
+        "confidence": 0.9528
+      },
+      "completion": {
+        "noul": 0.0179
+      },
+      "usage": {
+        "input_tokens": 601,
+        "output_tokens": 193
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.00032041
+    },
+    {
+      "id": "es_06",
+      "language": "es",
+      "category": "already_holding",
+      "expected_choice": "place_at",
+      "expected_complete": false,
+      "state_sha256": "06c9c75dd1e27de4febc036457e130d93e803629bb61feab39253f6f93042de7",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 307.0251430035569,
+      "request_sha256": "2af672055e01feaa5dba014bb5536d997986218ccbe08d1cf161c5874b9e9e84",
+      "response_sha256": "53920f1bf4327fd333519683257c4d67a6c7e9eb85633e44514849120b279660",
+      "choice": {
+        "choice": "place_at",
+        "probabilities": {
+          "defer_to_planner": 0.0022,
+          "get_observation": 0.0198,
+          "grasp_object": 0.0001,
+          "halt_motion": 0.0,
+          "localize_object": 0.0016,
+          "move_home": 0.0002,
+          "pick_and_place": 0.0134,
+          "place_at": 0.961,
+          "preview_grasp": 0.0003,
+          "reset_scene": 0.0003,
+          "task_done": 0.0011
+        },
+        "confidence": 0.9571
+      },
+      "completion": {
+        "noul": 0.0232
+      },
+      "usage": {
+        "input_tokens": 607,
+        "output_tokens": 190
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.0005382399999999999
+    },
+    {
+      "id": "en_07",
+      "language": "en",
+      "category": "cancel_active_motion",
+      "expected_choice": "halt_motion",
+      "expected_complete": false,
+      "state_sha256": "21e953000985982113e5f654d43bf3f3c9c4e1a3dc8f8a6baea1c96415ee9c02",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 299.2802309963736,
+      "request_sha256": "63f573079748b4231a1a36332c950d5357f6e1059c5913520e2bf650baf9d58a",
+      "response_sha256": "a10d7d53a1e3ba7257494c4a9c311eeb6104fc298a6a7a32c7521e38510eeade",
+      "choice": {
+        "choice": "halt_motion",
+        "probabilities": {
+          "defer_to_planner": 0.0004,
+          "get_observation": 0.0009,
+          "grasp_object": 0.0,
+          "halt_motion": 0.9964,
+          "localize_object": 0.0002,
+          "move_home": 0.0003,
+          "pick_and_place": 0.0003,
+          "place_at": 0.0003,
+          "preview_grasp": 0.0002,
+          "reset_scene": 0.0001,
+          "task_done": 0.0009
+        },
+        "confidence": 0.9961
+      },
+      "completion": {
+        "noul": 0.0292
+      },
+      "usage": {
+        "input_tokens": 564,
+        "output_tokens": 191
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.00085264
+    },
+    {
+      "id": "es_07",
+      "language": "es",
+      "category": "cancel_active_motion",
+      "expected_choice": "halt_motion",
+      "expected_complete": false,
+      "state_sha256": "c12cfdc923db6784451d8bac84f602f776678413d1084a12e06eaa3c7fe0b79c",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 293.905241000175,
+      "request_sha256": "987cb28b71bba4a66b2d35fc3ce0b869b3bed0af9555f548d6fe94dd6fc8cb0f",
+      "response_sha256": "62bb8a6490c294cf2d2df6f32bd3ee8b343a5e72d934df91ab9538898ad2f308",
+      "choice": {
+        "choice": "halt_motion",
+        "probabilities": {
+          "defer_to_planner": 0.0012,
+          "get_observation": 0.0028,
+          "grasp_object": 0.0001,
+          "halt_motion": 0.9939,
+          "localize_object": 0.0004,
+          "move_home": 0.0006,
+          "pick_and_place": 0.0002,
+          "place_at": 0.0002,
+          "preview_grasp": 0.0001,
+          "reset_scene": 0.0001,
+          "task_done": 0.0004
+        },
+        "confidence": 0.9933
+      },
+      "completion": {
+        "noul": 0.0171
+      },
+      "usage": {
+        "input_tokens": 578,
+        "output_tokens": 194
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.00029241
+    },
+    {
+      "id": "en_08",
+      "language": "en",
+      "category": "home_requested",
+      "expected_choice": "move_home",
+      "expected_complete": false,
+      "state_sha256": "4bc5eb32e6144a448af759860f9fb15e57008fc6baf189baffb8532230206329",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 301.8627759956871,
+      "request_sha256": "877f154d132fdcdd7beb1b5b11aad3f084870a31e209f74ed69d5a78d359d759",
+      "response_sha256": "598a5ede377fe5ed8328b914b7895ffeb3b20c4a83bf9894eb1346bc38ed16fd",
+      "choice": {
+        "choice": "move_home",
+        "probabilities": {
+          "defer_to_planner": 0.0022,
+          "get_observation": 0.0185,
+          "grasp_object": 0.0,
+          "halt_motion": 0.0001,
+          "localize_object": 0.0001,
+          "move_home": 0.9763,
+          "pick_and_place": 0.0006,
+          "place_at": 0.0005,
+          "preview_grasp": 0.0003,
+          "reset_scene": 0.0004,
+          "task_done": 0.001
+        },
+        "confidence": 0.9739
+      },
+      "completion": {
+        "noul": 0.0052
+      },
+      "usage": {
+        "input_tokens": 584,
+        "output_tokens": 190
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 2.704e-05
+    },
+    {
+      "id": "es_08",
+      "language": "es",
+      "category": "home_requested",
+      "expected_choice": "move_home",
+      "expected_complete": false,
+      "state_sha256": "eedc9da6486dbd810ba2e06cac91728c997171ee9e50e4c6e64bf34c818933a1",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 298.161209000682,
+      "request_sha256": "6d857225be907f6aa61af7c1141d431c4d08bc94c42bfdde099a45e46a9a7e45",
+      "response_sha256": "ce574881f57e305658964ee4c2a8613d558cfb25a2fe1b3937e6e279bc95c184",
+      "choice": {
+        "choice": "move_home",
+        "probabilities": {
+          "defer_to_planner": 0.0016,
+          "get_observation": 0.0118,
+          "grasp_object": 0.0,
+          "halt_motion": 0.0001,
+          "localize_object": 0.0001,
+          "move_home": 0.9831,
+          "pick_and_place": 0.0006,
+          "place_at": 0.0005,
+          "preview_grasp": 0.0002,
+          "reset_scene": 0.0004,
+          "task_done": 0.0015
+        },
+        "confidence": 0.9814
+      },
+      "completion": {
+        "noul": 0.012
+      },
+      "usage": {
+        "input_tokens": 586,
+        "output_tokens": 190
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.000144
+    },
+    {
+      "id": "en_09",
+      "language": "en",
+      "category": "scene_reset",
+      "expected_choice": "reset_scene",
+      "expected_complete": false,
+      "state_sha256": "6d150b67651372884653a2104677d9b0b6c28864732e36392951e2ce1b5cb92c",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 302.39598600019235,
+      "request_sha256": "4b2a924d1fcd1c85fb70a94a3356d81ab751d77b829083a78c37cf3cd49e4172",
+      "response_sha256": "e03cb7b7d842111ecb6466dddddbb0cd8d6e16da94cf103d57221362ff619f5e",
+      "choice": {
+        "choice": "reset_scene",
+        "probabilities": {
+          "defer_to_planner": 0.0013,
+          "get_observation": 0.0049,
+          "grasp_object": 0.0,
+          "halt_motion": 0.0,
+          "localize_object": 0.0,
+          "move_home": 0.0002,
+          "pick_and_place": 0.0,
+          "place_at": 0.0,
+          "preview_grasp": 0.0,
+          "reset_scene": 0.9925,
+          "task_done": 0.0011
+        },
+        "confidence": 0.9917
+      },
+      "completion": {
+        "noul": 0.2924
+      },
+      "usage": {
+        "input_tokens": 591,
+        "output_tokens": 176
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.08549775999999999
+    },
+    {
+      "id": "es_09",
+      "language": "es",
+      "category": "scene_reset",
+      "expected_choice": "reset_scene",
+      "expected_complete": false,
+      "state_sha256": "460879e29f5555a6880e9d15b2b61c957b2668ce1a82e131f0c7f7c6930a4dd0",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 308.04953999904683,
+      "request_sha256": "34d90ffb24db33c3d4c94f5d93136a4841b5a375bb8976bbecd44e8d429d4b6c",
+      "response_sha256": "6a7436475ec9c94736570826df38fc9abee34357d98790584aea812ca1a69eb6",
+      "choice": {
+        "choice": "reset_scene",
+        "probabilities": {
+          "defer_to_planner": 0.0005,
+          "get_observation": 0.0016,
+          "grasp_object": 0.0,
+          "halt_motion": 0.0,
+          "localize_object": 0.0,
+          "move_home": 0.0001,
+          "pick_and_place": 0.0,
+          "place_at": 0.0,
+          "preview_grasp": 0.0,
+          "reset_scene": 0.9962,
+          "task_done": 0.0015
+        },
+        "confidence": 0.9958
+      },
+      "completion": {
+        "noul": 0.201
+      },
+      "usage": {
+        "input_tokens": 594,
+        "output_tokens": 175
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.040401000000000006
+    },
+    {
+      "id": "en_10",
+      "language": "en",
+      "category": "verified_completion",
+      "expected_choice": "task_done",
+      "expected_complete": true,
+      "state_sha256": "eeb6fae4e6c87a71b5e41cdae3738249db0a92ed4ad536a212f4aa3fe45bc120",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 309.03924500307767,
+      "request_sha256": "a7f3fb1645e545401a09193c05b98965efb882901dfac61863ed2695daf397ed",
+      "response_sha256": "622efa21959d19fe24a95aa13846099c21ac17e68473232e555a8e5b305cf152",
+      "choice": {
+        "choice": "task_done",
+        "probabilities": {
+          "defer_to_planner": 0.0011,
+          "get_observation": 0.0081,
+          "grasp_object": 0.0001,
+          "halt_motion": 0.0001,
+          "localize_object": 0.0006,
+          "move_home": 0.0004,
+          "pick_and_place": 0.0006,
+          "place_at": 0.0003,
+          "preview_grasp": 0.0002,
+          "reset_scene": 0.0002,
+          "task_done": 0.9884
+        },
+        "confidence": 0.9873
+      },
+      "completion": {
+        "noul": 0.993
+      },
+      "usage": {
+        "input_tokens": 597,
+        "output_tokens": 193
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 4.9000000000000087e-05
+    },
+    {
+      "id": "es_10",
+      "language": "es",
+      "category": "verified_completion",
+      "expected_choice": "task_done",
+      "expected_complete": true,
+      "state_sha256": "fa0ee15a5d8361dbe06016fd581fc43fc357a515df583b80d078ee4465474259",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 291.4057620000676,
+      "request_sha256": "7b8c680a3fb4bf63f9085008465ee21af79e002700da7f538ff468f73837d406",
+      "response_sha256": "ac505d4c7ab97ac38e58147e76cc931d33f0b3071e10350dbaed9ad0b87a202d",
+      "choice": {
+        "choice": "task_done",
+        "probabilities": {
+          "defer_to_planner": 0.0011,
+          "get_observation": 0.0065,
+          "grasp_object": 0.0001,
+          "halt_motion": 0.0001,
+          "localize_object": 0.0006,
+          "move_home": 0.0006,
+          "pick_and_place": 0.0007,
+          "place_at": 0.0003,
+          "preview_grasp": 0.0002,
+          "reset_scene": 0.0002,
+          "task_done": 0.9897
+        },
+        "confidence": 0.9886
+      },
+      "completion": {
+        "noul": 0.9919
+      },
+      "usage": {
+        "input_tokens": 588,
+        "output_tokens": 194
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 6.560999999999994e-05
+    },
+    {
+      "id": "en_11",
+      "language": "en",
+      "category": "unverified_tool_success",
+      "expected_choice": "get_observation",
+      "expected_complete": false,
+      "state_sha256": "b5490731ce1d4d4317109fd9e1cf72f96feeccf2dbe70cd7ceecdcdf84343ecb",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 301.57016099838074,
+      "request_sha256": "6c4c6dfc58495fc5bcc5169096b8b9ea7f83bb9c90d4b1e8ec156930435b1f02",
+      "response_sha256": "b8782b8ef72992aba795b2592e0d5dfa6dfa33e5ed4c3fa481716a331d75643a",
+      "choice": {
+        "choice": "get_observation",
+        "probabilities": {
+          "defer_to_planner": 0.044,
+          "get_observation": 0.7072,
+          "grasp_object": 0.0025,
+          "halt_motion": 0.0006,
+          "localize_object": 0.0192,
+          "move_home": 0.003,
+          "pick_and_place": 0.0418,
+          "place_at": 0.006,
+          "preview_grasp": 0.0018,
+          "reset_scene": 0.0015,
+          "task_done": 0.1723
+        },
+        "confidence": 0.6779
+      },
+      "completion": {
+        "noul": 0.3983
+      },
+      "usage": {
+        "input_tokens": 585,
+        "output_tokens": 192
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.15864288999999998
+    },
+    {
+      "id": "es_11",
+      "language": "es",
+      "category": "unverified_tool_success",
+      "expected_choice": "get_observation",
+      "expected_complete": false,
+      "state_sha256": "a03574e08a8e13d6f2b533bf0c68c76141a2d91c1f36004334e65f66c0e3a739",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 311.9909310044022,
+      "request_sha256": "74b32de4cf1f06bed83d7e2b4bdb034ccdc62d6defe339436fcfa2bed6e89550",
+      "response_sha256": "e0e95e4f6c74e4e92b697b1cc557d24c8a06a7301e51e5ef06699d06ec120294",
+      "choice": {
+        "choice": "get_observation",
+        "probabilities": {
+          "defer_to_planner": 0.047,
+          "get_observation": 0.6739,
+          "grasp_object": 0.0034,
+          "halt_motion": 0.0006,
+          "localize_object": 0.0254,
+          "move_home": 0.0036,
+          "pick_and_place": 0.0554,
+          "place_at": 0.0068,
+          "preview_grasp": 0.0021,
+          "reset_scene": 0.0016,
+          "task_done": 0.1802
+        },
+        "confidence": 0.6413
+      },
+      "completion": {
+        "noul": 0.4042
+      },
+      "usage": {
+        "input_tokens": 584,
+        "output_tokens": 194
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.16337764
+    },
+    {
+      "id": "en_12",
+      "language": "en",
+      "category": "ambiguous_identity",
+      "expected_choice": "defer_to_planner",
+      "expected_complete": false,
+      "state_sha256": "829fe7b36a21ba517a636d2b2117d30f22dce8d1752ccfe4d36326c62ff7bc45",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 288.5801559968968,
+      "request_sha256": "3f7547912f7c2f6c4de4c99e2f6d274c1444e6c7f435a62200c96e3c1560e4a4",
+      "response_sha256": "e4257aedaceaa84aaa598c3545db42c87523db7f9204ed7265beee7ee19a2aa1",
+      "choice": {
+        "choice": "defer_to_planner",
+        "probabilities": {
+          "defer_to_planner": 0.649,
+          "get_observation": 0.0924,
+          "grasp_object": 0.0524,
+          "halt_motion": 0.0002,
+          "localize_object": 0.1772,
+          "move_home": 0.0009,
+          "pick_and_place": 0.0126,
+          "place_at": 0.0016,
+          "preview_grasp": 0.011,
+          "reset_scene": 0.0012,
+          "task_done": 0.0015
+        },
+        "confidence": 0.614
+      },
+      "completion": {
+        "noul": 0.0059
+      },
+      "usage": {
+        "input_tokens": 593,
+        "output_tokens": 193
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 3.481e-05
+    },
+    {
+      "id": "es_12",
+      "language": "es",
+      "category": "ambiguous_identity",
+      "expected_choice": "defer_to_planner",
+      "expected_complete": false,
+      "state_sha256": "1512d45f4eaca193fa1e07979ff6945cf02362f066ebc0a3ea0b804f8b60c57a",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 299.58849900140194,
+      "request_sha256": "7557b8c6c6f0c51631b90c115922994420adab6cc25bf4bd88004d809e93bca5",
+      "response_sha256": "30b12b027273f24aa96303a147135bf5c1b50a49b550174ea5406c1bc9a71a83",
+      "choice": {
+        "choice": "defer_to_planner",
+        "probabilities": {
+          "defer_to_planner": 0.55,
+          "get_observation": 0.1311,
+          "grasp_object": 0.1307,
+          "halt_motion": 0.0003,
+          "localize_object": 0.1669,
+          "move_home": 0.0011,
+          "pick_and_place": 0.004,
+          "place_at": 0.0012,
+          "preview_grasp": 0.0112,
+          "reset_scene": 0.0013,
+          "task_done": 0.0022
+        },
+        "confidence": 0.5049
+      },
+      "completion": {
+        "noul": 0.01
+      },
+      "usage": {
+        "input_tokens": 598,
+        "output_tokens": 191
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.0001
+    },
+    {
+      "id": "en_13",
+      "language": "en",
+      "category": "missing_destination",
+      "expected_choice": "defer_to_planner",
+      "expected_complete": false,
+      "state_sha256": "902d3d46eae07c6c87aeecccbb7a84f4887d701ff51b2347a4e15daa74f6d1b0",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 312.70029000006616,
+      "request_sha256": "77907fd920943ead1631c67ceb5256fe4a478b9407ca3d167b391e14899d9e3a",
+      "response_sha256": "5e4886b9c034453dfa864a9a8b6f4b39158815cfdf8bf7f76fb128f77e6ff7de",
+      "choice": {
+        "choice": "pick_and_place",
+        "probabilities": {
+          "defer_to_planner": 0.1736,
+          "get_observation": 0.3178,
+          "grasp_object": 0.04,
+          "halt_motion": 0.0004,
+          "localize_object": 0.0599,
+          "move_home": 0.0016,
+          "pick_and_place": 0.3706,
+          "place_at": 0.0231,
+          "preview_grasp": 0.0065,
+          "reset_scene": 0.0028,
+          "task_done": 0.0037
+        },
+        "confidence": 0.3077
+      },
+      "completion": {
+        "noul": 0.0448
+      },
+      "usage": {
+        "input_tokens": 622,
+        "output_tokens": 193
+      },
+      "choice_correct": false,
+      "completion_correct": true,
+      "completion_squared_error": 0.00200704
+    },
+    {
+      "id": "es_13",
+      "language": "es",
+      "category": "missing_destination",
+      "expected_choice": "defer_to_planner",
+      "expected_complete": false,
+      "state_sha256": "d8e8f0225ba920cf3762e056426613d6ee326be93f1d619d81d8edfde3b864c1",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 289.6597369981464,
+      "request_sha256": "e9237fe831437100c24c68ced1db22fbabebaf098a71048edcf202e3c667f2d8",
+      "response_sha256": "74791c896acb12be550aec65ca06d937fed1418cc8567f85ce5399cce50d63a6",
+      "choice": {
+        "choice": "pick_and_place",
+        "probabilities": {
+          "defer_to_planner": 0.2361,
+          "get_observation": 0.2736,
+          "grasp_object": 0.0433,
+          "halt_motion": 0.0005,
+          "localize_object": 0.0365,
+          "move_home": 0.0024,
+          "pick_and_place": 0.3677,
+          "place_at": 0.0273,
+          "preview_grasp": 0.0048,
+          "reset_scene": 0.0034,
+          "task_done": 0.0044
+        },
+        "confidence": 0.3045
+      },
+      "completion": {
+        "noul": 0.0421
+      },
+      "usage": {
+        "input_tokens": 623,
+        "output_tokens": 195
+      },
+      "choice_correct": false,
+      "completion_correct": true,
+      "completion_squared_error": 0.0017724099999999999
+    },
+    {
+      "id": "en_14",
+      "language": "en",
+      "category": "failed_motion_no_recovery",
+      "expected_choice": "defer_to_planner",
+      "expected_complete": false,
+      "state_sha256": "16694ee8106b62ceaa003cf12b1886e9a790f01926c4b42524d36b6f9e5b284c",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 302.94648299604887,
+      "request_sha256": "e911cddee924028fc8d26129669c25523762810d0f373b787ebef46b585cad91",
+      "response_sha256": "e4607d3bca97fccbea6f88d9e653c722d6ba75599a9829c9949797b3769b8714",
+      "choice": {
+        "choice": "defer_to_planner",
+        "probabilities": {
+          "defer_to_planner": 0.5303,
+          "get_observation": 0.44,
+          "grasp_object": 0.0003,
+          "halt_motion": 0.0059,
+          "localize_object": 0.0123,
+          "move_home": 0.0005,
+          "pick_and_place": 0.0034,
+          "place_at": 0.0057,
+          "preview_grasp": 0.0005,
+          "reset_scene": 0.0006,
+          "task_done": 0.0005
+        },
+        "confidence": 0.4833
+      },
+      "completion": {
+        "noul": 0.0018
+      },
+      "usage": {
+        "input_tokens": 610,
+        "output_tokens": 194
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 3.24e-06
+    },
+    {
+      "id": "es_14",
+      "language": "es",
+      "category": "failed_motion_no_recovery",
+      "expected_choice": "defer_to_planner",
+      "expected_complete": false,
+      "state_sha256": "3bae0ca35392d8351a0c1de0317a3fef2fe64e6dd61adf0b2d2274880e086003",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 310.40783500066027,
+      "request_sha256": "5ad67b25ab05b4a40e274c5e44d34f64c1b936e8088d48081928cb9eb9573c72",
+      "response_sha256": "b74e670653115ded729b45a0f0f1b08f9e1d101f64454040fd14fc2d409378ad",
+      "choice": {
+        "choice": "get_observation",
+        "probabilities": {
+          "defer_to_planner": 0.4577,
+          "get_observation": 0.4922,
+          "grasp_object": 0.0003,
+          "halt_motion": 0.0088,
+          "localize_object": 0.021,
+          "move_home": 0.0008,
+          "pick_and_place": 0.0067,
+          "place_at": 0.0107,
+          "preview_grasp": 0.0005,
+          "reset_scene": 0.0006,
+          "task_done": 0.0006
+        },
+        "confidence": 0.4415
+      },
+      "completion": {
+        "noul": 0.0021
+      },
+      "usage": {
+        "input_tokens": 613,
+        "output_tokens": 194
+      },
+      "choice_correct": false,
+      "completion_correct": true,
+      "completion_squared_error": 4.409999999999999e-06
+    },
+    {
+      "id": "en_15",
+      "language": "en",
+      "category": "untrusted_scene_text",
+      "expected_choice": "preview_grasp",
+      "expected_complete": false,
+      "state_sha256": "819d79f07e1709b3dc7ddab6a4e2e3fab4ad7994ab3ef6bd9272863f85587417",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 289.5561400000588,
+      "request_sha256": "78e6c84d6474b79351ef57993ea0f0376cb43c1e75ad5450f7853c2676182a27",
+      "response_sha256": "d8b1e94bb49985e7143c1b86ba794ca444f1428a1c6a3efa852be19cf307439b",
+      "choice": {
+        "choice": "preview_grasp",
+        "probabilities": {
+          "defer_to_planner": 0.0004,
+          "get_observation": 0.0026,
+          "grasp_object": 0.0016,
+          "halt_motion": 0.0,
+          "localize_object": 0.0009,
+          "move_home": 0.0,
+          "pick_and_place": 0.0,
+          "place_at": 0.0,
+          "preview_grasp": 0.9924,
+          "reset_scene": 0.0005,
+          "task_done": 0.0015
+        },
+        "confidence": 0.9916
+      },
+      "completion": {
+        "noul": 0.0716
+      },
+      "usage": {
+        "input_tokens": 618,
+        "output_tokens": 183
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 0.00512656
+    },
+    {
+      "id": "es_15",
+      "language": "es",
+      "category": "untrusted_scene_text",
+      "expected_choice": "halt_motion",
+      "expected_complete": false,
+      "state_sha256": "96ebf4c13df19bd7780caea4a6f554bfc33f60f0b99264826ea2561a1530798b",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 303.54787700343877,
+      "request_sha256": "e999399939d06f6e55fc84b7f4b0733c03b8d5701d158dc326b10d94dbc260ed",
+      "response_sha256": "638f9b8babca436aabc879cec5883073adc69aeaac926bcb70a988214e6b50cd",
+      "choice": {
+        "choice": "halt_motion",
+        "probabilities": {
+          "defer_to_planner": 0.0013,
+          "get_observation": 0.0047,
+          "grasp_object": 0.0001,
+          "halt_motion": 0.9885,
+          "localize_object": 0.0006,
+          "move_home": 0.0008,
+          "pick_and_place": 0.0004,
+          "place_at": 0.0007,
+          "preview_grasp": 0.0003,
+          "reset_scene": 0.0003,
+          "task_done": 0.0022
+        },
+        "confidence": 0.9873
+      },
+      "completion": {
+        "noul": 0.0099
+      },
+      "usage": {
+        "input_tokens": 574,
+        "output_tokens": 194
+      },
+      "choice_correct": true,
+      "completion_correct": true,
+      "completion_squared_error": 9.801000000000002e-05
+    },
+    {
+      "id": "en_16",
+      "language": "en",
+      "category": "contradictory_completion",
+      "expected_choice": "defer_to_planner",
+      "expected_complete": false,
+      "state_sha256": "e2a409a7c93be3028481606beb8acbf33b0f6230c21b85a3a7bd315e35f6361f",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 307.659246995172,
+      "request_sha256": "70abc1ea3fd024bfe9038f015f6d7f80c81754aee91d02458a385510f02f4b81",
+      "response_sha256": "50e0ceb54894f11b78e31143f8d5f8b8eae65c767e644841c97659829d9cce33",
+      "choice": {
+        "choice": "pick_and_place",
+        "probabilities": {
+          "defer_to_planner": 0.186,
+          "get_observation": 0.1726,
+          "grasp_object": 0.0113,
+          "halt_motion": 0.0006,
+          "localize_object": 0.0205,
+          "move_home": 0.0012,
+          "pick_and_place": 0.5954,
+          "place_at": 0.0045,
+          "preview_grasp": 0.0036,
+          "reset_scene": 0.0018,
+          "task_done": 0.0025
+        },
+        "confidence": 0.5549
+      },
+      "completion": {
+        "noul": 0.0026
+      },
+      "usage": {
+        "input_tokens": 629,
+        "output_tokens": 194
+      },
+      "choice_correct": false,
+      "completion_correct": true,
+      "completion_squared_error": 6.76e-06
+    },
+    {
+      "id": "es_16",
+      "language": "es",
+      "category": "contradictory_completion",
+      "expected_choice": "defer_to_planner",
+      "expected_complete": false,
+      "state_sha256": "84de8079a2d0672a58542c85b1ee143eea2a87b2a26efd1d479f56b90dd103d0",
+      "status": "ok",
+      "reported_model": "kev-latest",
+      "latency_ms": 268.57063100032974,
+      "request_sha256": "74ca0e555d1d7ea435660c7fe418504f1a636440aba97bba14700bada1a85091",
+      "response_sha256": "9210d81ca1597e4e5102c542d4aa4aac2a9179bdb2b6422020f93f1dad6548eb",
+      "choice": {
+        "choice": "pick_and_place",
+        "probabilities": {
+          "defer_to_planner": 0.167,
+          "get_observation": 0.1713,
+          "grasp_object": 0.0193,
+          "halt_motion": 0.0009,
+          "localize_object": 0.0256,
+          "move_home": 0.0037,
+          "pick_and_place": 0.595,
+          "place_at": 0.0062,
+          "preview_grasp": 0.0047,
+          "reset_scene": 0.0026,
+          "task_done": 0.0035
+        },
+        "confidence": 0.5545
+      },
+      "completion": {
+        "noul": 0.0018
+      },
+      "usage": {
+        "input_tokens": 637,
+        "output_tokens": 193
+      },
+      "choice_correct": false,
+      "completion_correct": true,
+      "completion_squared_error": 3.24e-06
+    }
+  ],
+  "summary": {
+    "cases": 32,
+    "valid_responses": 32,
+    "request_errors": 0,
+    "correct_choices": 27,
+    "choice_accuracy_all_cases": 0.84375,
+    "completion_correct_at_0_5": 32,
+    "completion_brier_valid_cases": 0.0153459428125,
+    "median_latency_ms_valid": 302.188830999512,
+    "p95_latency_ms_valid": 373.3944962488748,
+    "reported_models": [
+      "kev-latest"
+    ],
+    "groups": {
+      "language": {
+        "en": {
+          "cases": 16,
+          "valid_responses": 16,
+          "correct_choices": 14
+        },
+        "es": {
+          "cases": 16,
+          "valid_responses": 16,
+          "correct_choices": 13
+        }
+      },
+      "category": {
+        "already_holding": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "ambiguous_identity": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "cancel_active_motion": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "contradictory_completion": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 0
+        },
+        "failed_motion_no_recovery": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 1
+        },
+        "grasp_only": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "home_requested": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "missing_destination": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 0
+        },
+        "missing_geometry": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "pick_and_place": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "preview_only": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "scene_reset": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "stale_observation": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "untrusted_scene_text": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "unverified_tool_success": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        },
+        "verified_completion": {
+          "cases": 2,
+          "valid_responses": 2,
+          "correct_choices": 2
+        }
+      }
+    }
+  }
+}

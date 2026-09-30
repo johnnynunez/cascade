@@ -791,6 +791,8 @@ silently vanishes.
   pitfalls each one cost
 - [docs/DREAM_RSI_ADAPTATION.md](docs/DREAM_RSI_ADAPTATION.md) — scoped retry
   admission, trace context, offline learning commands and verification limits
+- [docs/JEV_DECISIONS.md](docs/JEV_DECISIONS.md) — Jev and Qwen-based decision
+  models, an offline routing pilot, and measured local Kev results
 - [docs/MOBILITY_AND_NAVIGATION_DESIGN.md](docs/MOBILITY_AND_NAVIGATION_DESIGN.md)
   — design for mobile bases, humanoid locomotion and navigation (`MobileBase`,
   Vesta's nav verbs, Nav2 / Warp planner backends, G1 in Isaac first); not code yet

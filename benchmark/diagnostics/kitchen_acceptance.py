@@ -138,7 +138,7 @@ def install_command_trace(runtime, path):
 
 
 def run_case(args, proof, case_dir, object_name):
-    from cascade.apps.demo import build_runtime, shutdown_runtime
+    from cascade.apps.demo import build_runtime
     from cascade.config import load_demo_config
 
     destination = CASES[object_name]
@@ -264,7 +264,18 @@ def run_case(args, proof, case_dir, object_name):
                 "branch_counts": getattr(planner, "last_branch_counts", {}),
                 "last_latency_s": getattr(planner, "last_latency_s", None),
             }
-            shutdown_runtime(runtime, getattr(runtime, "arm", None))
+            # Observer coverage ends above. Teardown must not park the arm
+            # or open/reset a retained payload outside that recorded phase.
+            from nvblox_camera_recovery import close_without_motion
+            cleanup_errors = close_without_motion(runtime)
+            receipt["cleanup_errors"] = cleanup_errors
+            if cleanup_errors:
+                receipt["errors"].extend(str(e) for e in cleanup_errors)
+                receipt["pass"] = False
+                if "physical_audit" in receipt:
+                    receipt["physical_audit"]["pass"] = False
+                    receipt["physical_audit"]["checks"]["diagnostic_cleanup_completed"] = False
+                    write_json(observer.out / "gpu-physical-audit.json", receipt["physical_audit"])
         write_json(case_dir / "receipt.json", receipt)
     return receipt
 
@@ -313,12 +324,14 @@ def main(argv=None):
         args.output.mkdir(parents=True)
         os.chdir(ROOT / "models")
         sources = ("benchmark/diagnostics/kitchen_acceptance.py",
+                   "benchmark/diagnostics/nvblox_camera_recovery.py",
                    "scripts/isaac_bridge.py", "scripts/isaac_materials.py", "scripts/isaac_runtime.py",
                    "scripts/isaac_self_mask.py", "src/cascade/sim/bridge_client.py",
                    "src/cascade/safety/harness.py", "src/cascade/types.py",
                    "src/cascade/safety/trajectory.py",
                    "src/cascade/control/arm_base.py", "src/cascade/control/mock_arm.py",
                    "src/cascade/skills/runtime.py", "src/cascade/grasping/obb_grasp.py",
+                   "src/cascade/skills/contact_episode.py",
                    "src/cascade/grasping/graspgenx_backend.py", "src/cascade/config.py",
                    "src/cascade/apps/demo.py",
                    "src/cascade/perception/grounding.py", "src/cascade/perception/cuda_math.py",

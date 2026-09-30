@@ -799,6 +799,8 @@ class SkillRuntime:
         real held state so the next skill does not open the jaws on it.
         Jaws closed on air -> drop the marker.
         """
+        if getattr(self, "_contact_episode", None) is not None:
+            return  # only explicit contact recovery may finish this failed close
         prov = getattr(self, "_held_provisional", None)
         if prov is not None and not self.held_object:
             wf = self._gripper_width_frac()
@@ -845,6 +847,8 @@ class SkillRuntime:
         agree on what a retry cannot cure: an e-stop, an object the world
         model has never seen after re-scans (a typo, or not on the table),
         and an object wider than the jaws (re-scanning cannot shrink it)."""
+        if getattr(self, "_contact_episode", None) is not None:
+            return "unfinished contact episode; explicit reset_scene recovery required"
         if self.arm.harness.estopped:
             return "e-stop latched; not retrying"
         if attempt >= 2 and "no detections" in last_err and self.beliefs.find(object) is None:
@@ -1787,6 +1791,9 @@ class SkillRuntime:
             radius_m=float(gcfg.get("exempt_radius_m", 0.07)),
             z_min=float(self.arm.harness.limits.table_z) - 0.06,
         )
+        from . import contact_episode
+        episode = None
+        contact_completed = False
         try:
             if not self.arm.move_joints(q_grasp,
                                         duration_s=float(gcfg.get("descend_duration_s", 2.0)),
@@ -1802,9 +1809,11 @@ class SkillRuntime:
             # the jaws on it as "not holding anything". Record a provisional
             # marker first; `_reconcile_held` promotes it (jaws stalled on
             # something) or clears it (jaws closed on air) on the next call.
+            episode = contact_episode.begin(self, q_pre)
             self._held_provisional = (label, fix.detection.label,
                                       detection_color(frame.rgb, fix.detection))
             self._close_two_stage(profile)
+            contact_episode.wait_geometry(self, episode)
             self._held_support_offset_m = None
             if gcfg.get("place_support_clearance_m") is not None and float(-grasp.approach[2]) > .95:
                 # A partial cloud's lowest visible point can be several mm
@@ -1818,7 +1827,9 @@ class SkillRuntime:
 
             # 4. lift back to pregrasp (speed scaled by profile)
             lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
-            self.arm.move_joints(q_pre, duration_s=lift_dur)
+            if not self.arm.move_joints(q_pre, duration_s=lift_dur):
+                raise SkillError("did not settle at grasp lift pose")
+            contact_completed = True
         except (SkillError, SafetyViolation) as exc:
             # A failed descent can leave the open tool intentionally close to
             # the target. Finish the same contact episode by withdrawing to
@@ -1838,6 +1849,7 @@ class SkillRuntime:
             raise
         finally:
             self.arm.harness.clear_grasp_exemption()
+            contact_episode.finish(self, episode, completed=contact_completed)
 
         # 5. verify: ASPIRE heuristic on jaw travel after close. An object in
         # the jaws stalls them ABOVE the commanded close; if they reached the
@@ -3193,6 +3205,16 @@ class SkillRuntime:
                 out.update(ok=False, stage="reset_recovery", home_skipped=True,
                            recovery_error=str(e), beliefs_forgotten=0,
                            error=f"Reset recovery could not refresh geometry: {e}")
+                return out
+        if getattr(self, "_contact_episode", None) is not None:
+            from .contact_episode import recover
+            try:
+                out["contact_recovery"] = recover(self)
+                self._reconcile_held()
+            except (SkillError, SafetyViolation) as e:
+                out.update(ok=False, stage="contact_recovery", home_skipped=True,
+                           recovery_error=str(e), beliefs_forgotten=0,
+                           error=f"Reset could not withdraw the retained contact episode: {e}")
                 return out
         home_ok = True
         try:

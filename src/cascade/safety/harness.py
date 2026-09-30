@@ -28,6 +28,7 @@ escape vertically.
 from __future__ import annotations
 
 import time
+import threading
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -104,6 +105,8 @@ class SafetyHarness:
         self._estopped = False
         self._halt: str | None = None
         self._halt_generation = 0
+        self._pending_contact_episode = None
+        self._contact_scope = threading.local()
         self._grasp_exempt: tuple[np.ndarray, float, float] | None = None
         self._last_heartbeat = time.monotonic()
         self._motion_active = False
@@ -259,10 +262,25 @@ class SafetyHarness:
         if expected is not None and expected != self._halt_generation:
             raise MotionHalted("halt received during route planning or execution")
 
+    def check_contact_episode(self, *, gripper=False) -> None:
+        """A failed close remains stationary until its explicit reset retreat.
+
+        Authority belongs to the initiating thread and the exact retained
+        episode. A concurrent skill cannot borrow the recovery exemption.
+        """
+        pending = self._pending_contact_episode
+        scope = getattr(self._contact_scope, "value", None)
+        if pending is not None and (scope is None or scope[0] is not pending
+                                    or (gripper and not scope[1])):
+            raise SafetyViolation("unfinished contact episode; explicit reset_scene recovery required")
+        if pending is not None:
+            self._check_halt_generation(pending["halt_generation"])
+
     def begin_motion(self, *, halt_generation: int | None = None) -> None:
         """Check perception freshness once, then suspend the watchdog for the
         duration of this motion (grasp sequences legitimately run > watchdog_s
         without a new observation)."""
+        self.check_contact_episode()
         if self._estopped:
             raise SafetyViolation("e-stop latched")
         # A halt before the caller started is recoverable; a new halt during
@@ -283,6 +301,7 @@ class SafetyHarness:
 
     def check_stream_start(self, *, halt_generation: int | None = None) -> None:
         """Recheck live guards after planning without clearing a new halt."""
+        self.check_contact_episode()
         if self._estopped:
             raise SafetyViolation("e-stop latched")
         self._check_halt_generation(halt_generation)
@@ -323,6 +342,7 @@ class SafetyHarness:
         return None
 
     def _approve_step(self, q_prev, q_next, dt, joint_margin, reject, live_checks):
+        self.check_contact_episode()
         if self._estopped:
             raise SafetyViolation("e-stop latched")
         if live_checks and self._halt is not None:
@@ -684,6 +704,7 @@ class SafeArm:
         return True
 
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
+        self.harness.check_contact_episode(gripper=True)
         if self.harness.estopped:
             raise SafetyViolation("e-stop latched")
         self._arm.set_gripper(pos, effort)

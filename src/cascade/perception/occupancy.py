@@ -200,6 +200,11 @@ class OccupancyMap:
         self._reset_pending = False
         self._reset_floors = {}
         self.last_payload_query = None
+        # Captures admitted to the CURRENT successful depth + ESDF query.
+        # Camera delivery and an attempted RPC are not map evidence.
+        self._integrated_captures = {}
+        self._payload_identity = None
+        self._transition_pending = None
 
     @staticmethod
     def _capture_key(marker):
@@ -223,6 +228,9 @@ class OccupancyMap:
             self._depth_history.clear()
             self._prop_history_floor.clear()
             self._payload_samples.clear()
+            self._integrated_captures.clear()
+            self._payload_identity = None
+            self._transition_pending = None
             self._contact_paths = None
             self._contact_floor = self._latest_contact_stamp = -np.inf
             self._reset_floors.clear()
@@ -248,6 +256,58 @@ class OccupancyMap:
             raise ValueError("payload tracking currently requires a single arm")
         self._payload_pose_fn = frame_tcp_pose_fn
         self._body_error = "payload segmentation not yet validated"
+
+    @property
+    def tracks_payload(self) -> bool:
+        return self._payload_pose_fn is not None
+
+    def wait_payload_ready(self, floors, *, deadline, guard, expected_paths=None):
+        """Wait for every post-close source to enter one coherent attached map.
+
+        Floors are collected AFTER close, before calling this method. All
+        cameras must progress beyond the latest floor on their shared producer
+        clock. Waiting never holds the refresh lock or changes an RPC timeout.
+        """
+        from .freshness import capture_marker
+
+        markers = [capture_marker(frame) for frame in floors]
+        if not markers or any(m.get("backend") != "isaac" for m in markers):
+            raise OccupancyError("payload barrier requires Isaac capture floors")
+        identities = {(tuple(m["source"]), m["robot_id"], m["clock"]) for m in markers}
+        keys = {self._capture_key(m) for m in markers}
+        if len(identities) != 1 or len(keys) != len(markers):
+            raise OccupancyError("payload barrier camera/robot/clock identity mismatch")
+        floor = max(m["t"] for m in markers)
+        expected = None if expected_paths is None else tuple(sorted(expected_paths))
+        reason = "waiting for all post-close map captures"
+        while True:
+            guard()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise OccupancyError(f"post-close payload geometry deadline: {reason}")
+            if not self._refresh_lock.acquire(timeout=min(.05, remaining)):
+                continue
+            try:
+                entries = [self._integrated_captures.get(key) for key in keys]
+                ready = (all(e is not None and e["marker"]["t"] > floor for e in entries)
+                         and bool(self._contact_paths)
+                         and all(e["paths"] == self._contact_paths for e in entries if e)
+                         and (expected is None or self._contact_paths == expected))
+                if ready and not self._body_error and not self.last_error and not self.is_stale():
+                    if (self._grid is not None and self._grid.size
+                            and np.isfinite(self._grid).any()
+                            and sum(len(v) for v in self._payload_samples.values()) > 0):
+                        guard()
+                        if time.monotonic() >= deadline:
+                            raise OccupancyError("post-close payload geometry deadline expired")
+                        return {"floors": markers, "shared_floor": floor,
+                                "integrated": [dict(e["marker"]) for e in entries],
+                                "contact_paths": list(self._contact_paths),
+                                "surfaces_by_camera": {k: len(v) for k, v in self._payload_samples.items()}}
+                reason = self._body_error or self.last_error or "missing coherent fresh captures or observed surface"
+            finally:
+                self._refresh_lock.release()
+            time.sleep(min(.01, max(0., deadline - time.monotonic())))
 
     def payload_points(self, T_base_tcp: np.ndarray) -> np.ndarray:
         """Transform measured attached surfaces with a candidate TCP pose."""
@@ -431,6 +491,9 @@ class OccupancyMap:
         if self._payload_pose_fn is not None:
             capture = getattr(frame, "capture", None) or {}
             stamp = capture.get("t")
+            if (self._transition_pending is not None and isinstance(stamp, (int, float))
+                    and stamp < self._transition_pending[1]):
+                return  # an interrupted clear cannot be undone by delayed old-state evidence
             if isinstance(stamp, (int, float)) and stamp < self._contact_floor:
                 return  # an older camera must not undo an attachment transition
             paths = tuple(sorted(capture.get("contact_paths", [])))
@@ -438,10 +501,11 @@ class OccupancyMap:
                     and paths != self._contact_paths):
                 return  # newer evidence of the SAME state also supersedes an old transition
         try:
+            prepared = None
             if frame.has_depth:
                 if self._depth_supported is not False:
                     try:
-                        self._integrate_depth(frame, T_base_cam)
+                        prepared = self._integrate_depth(frame, T_base_cam)
                     except OccupancyError as e:
                         if self._payload_pose_fn is not None or isinstance(e, _MaskedDepthError):
                             raise  # payload transitions require the depth + clear contract
@@ -462,22 +526,52 @@ class OccupancyMap:
                 "region_min": np.asarray(region_min, dtype=np.float32),
                 "region_max": np.asarray(region_max, dtype=np.float32),
             })
-            self._occupied = np.asarray(resp["points"], dtype=np.float32).reshape(-1, 3)
+            occupied = np.asarray(resp["points"], dtype=np.float32).reshape(-1, 3)
+            if not np.isfinite(occupied).all():
+                raise ValueError("nonfinite occupied points")
             if "grid" in resp:
-                self._grid = np.asarray(resp["grid"], dtype=np.float32)
-                self._grid_origin = np.asarray(resp["origin"], dtype=np.float32)
-                self._grid_voxel = float(resp["voxel"])
+                grid = np.asarray(resp["grid"], dtype=np.float32)
+                origin = np.asarray(resp["origin"], dtype=np.float32)
+                voxel = float(resp["voxel"])
+                if (grid.ndim != 3 or min(grid.shape) < 1 or np.isnan(grid).any()
+                        or origin.shape != (3,) or not np.isfinite(origin).all()
+                        or not np.isfinite(voxel) or voxel <= 0):
+                    raise ValueError("invalid ESDF query geometry")
             else:
-                self._grid = None
+                grid, origin, voxel = None, None, 0.
+            self._occupied, self._grid = occupied, grid
+            self._grid_origin, self._grid_voxel = origin, voxel
             self._last_refresh = time.monotonic()
             self.last_error = None
             if frame.has_depth:
                 self._body_error = None
+            if prepared is not None:
+                paths, stamp, camera, points, floors, marker = prepared
+                if paths != self._contact_paths:
+                    self._payload_samples.clear()
+                    self._contact_floor = stamp
+                self._contact_paths = paths
+                self._transition_pending = None
+                self._payload_identity = (tuple(marker["source"]), marker["robot_id"], marker["clock"])
+                self._latest_contact_stamp = max(self._latest_contact_stamp, stamp)
+                self._prop_history_floor = floors
+                if paths and len(points):
+                    self._payload_samples[camera] = points
+                self._remember_depth(frame, T_base_cam)
+                self._integrated_captures[self._capture_key(marker)] = {"marker": marker, "paths": paths}
+                if paths and not any(len(p) for p in self._payload_samples.values()):
+                    self._body_error = "attached object has no measured depth surface"
+                    self.last_error = self._body_error
             if self.status is None:
                 # the bridge came up after startup: name it now
                 self.probe()
-        except OccupancyError as e:
+        except (OccupancyError, KeyError, TypeError, ValueError) as e:
             self.last_error = str(e)
+            if self.tracks_payload:
+                self._body_error = f"payload tracking unavailable: {e}"
+                camera = (getattr(frame, "capture", None) or {}).get("camera")
+                self._integrated_captures = {k: v for k, v in self._integrated_captures.items()
+                                             if k[1] != camera}
 
     def _integrate_depth(self, frame, T_base_cam: np.ndarray) -> None:
         s = self.depth_stride
@@ -485,11 +579,9 @@ class OccupancyMap:
         K = np.asarray(frame.K, dtype=np.float64).copy()
         K[:2, :] /= s
         excluded = self._robot_depth_mask(depth, K, T_base_cam, frame=frame)
-        if self._payload_pose_fn is not None:
-            self._prepare_payload(frame, T_base_cam)
+        prepared = self._prepare_payload(frame, T_base_cam) if self.tracks_payload else None
         self._send_depth(depth, K, T_base_cam, excluded)
-        if self._payload_pose_fn is not None:
-            self._remember_depth(frame, T_base_cam)
+        return prepared
 
     def _send_depth(self, depth, K, T_base_cam, excluded):
         # Raw self/payload depth may only go to an explicitly negotiated
@@ -543,9 +635,11 @@ class OccupancyMap:
         floors = self._prop_history_floor.copy()
         for path in set(paths) | set(self._contact_paths or ()):
             floors[path] = stamp
-        self._client.request({"action": "clear"})
         self._grid = self._occupied = None
         self._last_refresh = None
+        self._integrated_captures.clear()
+        self._payload_samples.clear()
+        self._client.request({"action": "clear"})
         self.last_replayed_frames = 0
         history = sorted((f for frames in self._depth_history.values() for f in frames),
                          key=lambda f: f["t"])
@@ -560,10 +654,17 @@ class OccupancyMap:
             K[:2, :] /= s
             self._send_depth(depth, K, old["T"], mask[::s, ::s])
             self.last_replayed_frames += 1
-        self._prop_history_floor = floors
+        return floors
 
     def _prepare_payload(self, frame, T_base_cam) -> None:
         try:
+            from .freshness import capture_marker
+            marker = capture_marker(frame)
+            if marker.get("backend") != "isaac":
+                raise ValueError("payload requires an Isaac producer capture")
+            identity = (tuple(marker["source"]), marker["robot_id"], marker["clock"])
+            if self._payload_identity is not None and identity != self._payload_identity:
+                raise ValueError("payload capture source/robot/clock identity changed")
             mask = getattr(frame, "payload_mask", None)
             capture = frame.capture or {}
             stamp = float(capture["t"])
@@ -584,14 +685,9 @@ class OccupancyMap:
             T_tcp = np.asarray(self._payload_pose_fn(frame), dtype=float)
             if T_tcp.shape != (4, 4) or not np.isfinite(T_tcp).all():
                 raise ValueError("invalid captured TCP pose")
-            self._latest_contact_stamp = max(self._latest_contact_stamp, stamp)
-            if paths != self._contact_paths:
-                self._replay_background(paths, stamp)
-                self._payload_samples.clear()
-                self._contact_paths = paths
-                self._contact_floor = stamp
             valid = mask & np.isfinite(frame.depth_m) & (frame.depth_m > 0)
             y, x = np.nonzero(valid)
+            points = np.empty((0, 3))
             if len(x):
                 z = frame.depth_m[y, x]
                 K = frame.K
@@ -600,9 +696,13 @@ class OccupancyMap:
                 local = (base - T_tcp[:3, 3]) @ T_tcp[:3, :3]
                 # Keep spatial coverage with one measured point per 3 mm cell.
                 _, index = np.unique(np.floor(local/.003).astype(np.int64), axis=0, return_index=True)
-                self._payload_samples[capture.get("camera", "primary")] = local[index]
-            if paths and not self._payload_samples:
-                raise ValueError("attached object has no measured depth surface")
+                points = local[index]
+            if paths != self._contact_paths or self._transition_pending is not None:
+                self._transition_pending = (paths, stamp)
+                floors = self._replay_background(paths, stamp)
+            else:
+                floors = self._prop_history_floor.copy()
+            return paths, stamp, capture["camera"], points, floors, marker
         except Exception as exc:
             self._body_error = f"payload tracking unavailable: {exc}"
             raise OccupancyError(self._body_error) from exc

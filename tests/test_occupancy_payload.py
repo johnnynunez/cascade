@@ -155,6 +155,29 @@ def test_missing_payload_evidence_fails_closed_until_valid_refresh():
     assert m.clearance(np.zeros((1, 3))) is not None
 
 
+@pytest.mark.parametrize("failed_action", ["clear", "integrate_depth"])
+def test_interrupted_attachment_replay_remains_uncommitted_and_retries(failed_action):
+    from cascade.perception.occupancy import OccupancyError
+    m = mapping()
+    m.refresh(frame(attached=False, stamp=1.), np.eye(4))
+    old_paths, old_floors = m._contact_paths, m._prop_history_floor.copy()
+    original = m._client.request
+    failed = []
+    def interrupted(packet, **kwargs):
+        if packet["action"] == failed_action and not failed:
+            failed.append(packet["action"])
+            raise OccupancyError("injected transition RPC timeout")
+        return original(packet, **kwargs)
+    m._client.request = interrupted
+    m.refresh(frame(stamp=2.), np.eye(4))
+    assert failed and m._contact_paths == old_paths and m._prop_history_floor == old_floors
+    with pytest.raises(SafetyViolation, match="payload tracking unavailable"):
+        m.clearance(np.zeros((1, 3)))
+    m.refresh(frame(stamp=3.), np.eye(4))
+    assert m._contact_paths == (PROP,) and m._contact_floor == 3.
+    assert m._body_error is None and m.last_error is None and m._grid is not None
+
+
 def test_carried_surface_collision_rejects_motion_with_clear_tcp():
     m = mapping()
     m.refresh(frame(), np.eye(4))

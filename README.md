@@ -250,8 +250,8 @@ CPU otherwise — the same profile runs on both.
 Start with the [DGX Spark setup guide](docs/DGX_SPARK_SETUP.md) for host
 checks, installation, startup and recovery.
 
-The Spark installer prepares **Isaac Sim 6.1, Qwen Q4 with vision,
-OpenClaw and the kitchen assets**. The current source downloads the pinned
+The Spark installer prepares **Isaac Sim 6.1, real GraspGen-X CUDA inference,
+Qwen Q4 with vision, OpenClaw and the kitchen assets**. The current source downloads the pinned
 Cocina Asier room, verifies its asset hashes, and authors the original orange
 and fruit platter. Model downloads remain automatic. The
 [Spark setup guide](docs/DGX_SPARK_SETUP.md#2-install) pins the room and
@@ -265,6 +265,27 @@ READY requires two native OpenClaw orders: green cube to green square,
 then orange to open box, with a verified reset after each. Live simulation
 state and advancing cameras verify both cases. Logs and screenshots remain
 under `runs/.install/` and `runs/.launch/profile-cascade-demo/`.
+
+The [pinned Spark release](docs/DGX_SPARK_SETUP.md#validated-release-and-scope)
+passed a fresh installation and its first desktop READY proof on GB10:
+**12 min 21 s** to install with reused download caches and **12 min 12 s**
+for startup and both placement/reset checks. Real Chromium with the shipped
+extension showed three advancing cameras and connected chat on an Xvfb display.
+GNOME app-grid interaction and the visible Isaac editor were not tested.
+The same installed stack then passed **5/5 kitchen objects through native
+visitor chat**, with independent physical placement checks and resets.
+A full stop and second launch reached READY again in **9 min 10 s**, with
+the open browser recovering connected chat and all three cameras.
+See the [receipt](benchmark/results/spark_clean_delivery_20260930.json)
+and [UI screenshot](benchmark/results/images/spark_clean_three_cameras_20260930.png).
+
+The presenter profile uses **PhysX on CUDA**, the three kitchen cameras and
+learned GraspGen-X grasps. Occupancy/nvblox and JEv are separate experiments;
+neither is required or enabled by this installation. Newton is an explicit
+engine option, with separate validation. Use the
+[presenter card](docs/PRESENTER_QUICKSTART.md) for the demo and recovery.
+Scene reset keeps services running and does not repeat the startup tests.
+Skipping startup proof reports `STARTED / UNVERIFIED`; it does not establish READY.
 
 For development without Isaac or a local model:
 
@@ -457,7 +478,9 @@ python scripts/serve_graspgenx_stub.py
 # Warp kernels -- CPU on this Mac, CUDA on Jetson/x86), `voxel` (numpy). The
 # demo PROBES it at startup and prints which backend answered; a bridge nobody
 # started shows as "occupancy=none (...)" in the banner and the run summary.
-# scripts/launch.sh starts it for you; by hand:
+# Generic scripts/launch.sh profiles can start it; the Spark presenter profile
+# explicitly disables occupancy. See docs/NVBLOX.md for camera fusion/status.
+# By hand:
 ./scripts/serve_occupancy.sh            # auto: nvblox > warp > voxel
 
 # real SO-101 over USB serial. CHECK THE JOINT SIGNS FIRST -- read-only scan,
@@ -519,10 +542,11 @@ command. Name a profile explicitly (`--llm mock`) to pin it, or set
   plus an ASPIRE-style multimodal trace (`trace.jsonl` + before/after
   keyframes) on every skill call.
 - **[Grasping](src/cascade/grasping/)** uses learned 6-DoF grasps from a
-  GraspGen-X ZMQ server, probed once at startup (300 ms): when no server
-  answers, the banner and `summary.txt` say `grasp_planner=obb (graspgenx
-  down)` and the analytic 3D OBB planner runs -- no per-grasp timeout, no
-  silent substitution. Candidates are re-ranked by a persisted grasp-outcome
+  GraspGen-X ZMQ server. The Spark presenter profile starts the real CUDA
+  server, checks diffusion inference and requires learned candidates; an
+  unavailable model produces an error. Optional profiles report analytic
+  OBB fallback and retry learned inference after a five-second cooldown.
+  Candidates are re-ranked by a persisted grasp-outcome
   memory, then vetted against IK *and* the safety-harness geometry.
   The model is conditioned on the gripper as a **swept volume**, so an arm
   whose gripper differs from `demo.yaml`'s reBot default (90 mm jaw) must

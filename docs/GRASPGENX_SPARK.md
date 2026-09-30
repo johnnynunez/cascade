@@ -7,7 +7,9 @@ as an error. Analytic OBB is available only when explicitly selected.
 
 ## Install and start
 
-From the checkout containing PR #23:
+For a new Spark, use the complete pinned installer in
+[DGX Spark setup](DGX_SPARK_SETUP.md). It installs the model automatically.
+To prepare or check only GraspGen-X in an existing current checkout:
 
 ```sh
 bash scripts/install_graspgenx.sh
@@ -34,7 +36,8 @@ creating the robot runtime. The check is retained during quick restart:
 The quick command expects Qwen to be running (the desktop start manages it).
 It skips the physical startup proof and prints **STARTED
 (UNVERIFIED: robot proof skipped)**. Use it after rehearsing the normal READY
-startup. The desktop `--gui` option shows Isaac. See the
+startup. It is a lower-level stack restart, not a replacement for the desktop's
+verified camera/chat attachment. The desktop `--gui` option shows Isaac. See the
 [presenter card](PRESENTER_QUICKSTART.md) for scene reset and the demo script.
 
 ## What was broken
@@ -89,8 +92,28 @@ PhysX (orange, green cube, lemon, pink cube and tomato can), each on its first
 physical attempt, with 400 diffusion candidates and all reset audits passing.
 Source hashes stayed unchanged. The [receipt](../benchmark/results/graspgenx_spark_20260930.json)
 contains per-object metrics and hardware provenance. This is one round, not
-a statistical reliability guarantee. Full GB10 launcher validation is still
-pending; the [local Newton launcher proof](NEWTON_ENGINE.md) already reached READY.
+a statistical reliability guarantee. The full native Qwen/OpenClaw launcher
+also reached **READY** on GB10 with PhysX and real GraspGen-X: green cube and
+orange passed physical placement, contact, camera and reset checks. The orange
+needed a second physical attempt in this chat run. See the
+[launcher receipt](../benchmark/results/graspgenx_spark_launch_20260930.json)
+and [actual three-camera recording, replayed at 4×](../benchmark/results/videos/graspgenx_spark_ready_20260930.mp4).
+The run used independently installed GraspGen-X with existing Isaac/app packages
+and a separately started Qwen server; it does not establish a fresh full desktop
+installation. The [local Newton launcher proof](NEWTON_ENGINE.md) also reached READY.
+
+Quick restart was exercised on that reused stack with Qwen and the bridges
+still running. `--no-robot-turn --no-judge` skipped the physical proof and printed
+the expected UNVERIFIED status; this was a warm reuse test, not a timed crash
+recovery measurement. [nvblox remained disabled](NVBLOX.md) in these runs.
+
+The pinned [fresh Spark installation](DGX_SPARK_SETUP.md#validated-release-and-scope)
+now independently passed its first complete desktop launch with PhysX, real
+GraspGen-X and Qwen, including both native placement/reset cases. The
+[release receipt](../benchmark/results/spark_clean_delivery_20260930.json)
+distinguishes new component/model destinations from reused download caches and
+records the real Chromium/extension check under Xvfb. That two-object startup
+proof is separate from the five-object campaign above.
 
 For an already running server use `--graspgenx external`. Set
 `CASCADE_GRASPGENX_PORT` for a different local port; it is propagated to the

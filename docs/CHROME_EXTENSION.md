@@ -34,6 +34,21 @@ companion.
 
 ## Verification status
 
+On 30 September 2026, actual Chromium on the fresh DGX Spark installation
+loaded the shipped extension under an Xvfb virtual display. Kitchen, Worktop
+and Side each decoded **1280 × 720** images and advanced from frame 10 to 13.
+The PAAI chat reported its OpenClaw connection, with Send and Start over enabled.
+See the [release receipt](../benchmark/results/spark_clean_delivery_20260930.json)
+and [actual browser screenshot](../benchmark/results/images/spark_clean_three_cameras_20260930.png).
+This checked the Spark's real browser and extension; GNOME app-grid interaction
+and the visible Isaac editor were not exercised.
+After a full demo stop and second READY launch, the same open page recovered
+connected chat and all three cameras without a reload. Frames advanced from
+51 to 55 at the same resolution; the
+[post-restart capture](../benchmark/results/images/spark_clean_three_cameras_after_restart_20260930.png)
+records that check. During a native robot order, Send and Start over were
+both disabled while the visitor API reported the session busy.
+
 On 15 September 2026, the extension was loaded in Chrome for Testing 151 on
 the controller, connected to the running Brev demo. All three cameras enlarged
 and returned with live 960 × 540 images. Mouse, Enter, Space, Escape and closing

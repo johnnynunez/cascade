@@ -3,10 +3,74 @@
 Presenting the demo? Start with the [presenter card](PRESENTER_QUICKSTART.md).
 
 Use [DGX Spark setup](DGX_SPARK_SETUP.md) for the install and start commands.
-That guide remains pinned to the earlier scene. Re-pinning it for the original
-kitchen requires a fresh installation and physical acceptance on Spark.
-The default event flow installs Isaac Sim, Qwen Q4, the vision projector,
+That guide pins the tested runtime source and reports the measured installation,
+native-agent proof and browser scope.
+The default event flow installs Isaac Sim, GraspGen-X, Qwen Q4, the vision projector,
 llama.cpp, OpenClaw and the verified kitchen. Cosmos is not installed.
+
+## Validated delivery, 30 September 2026
+
+Source `9cf540279f09df8197eda6541311b41edb455243` completed installation and
+the read-only check with exit 0 on an aarch64 NVIDIA GB10 Spark. Its first
+desktop launch also exited 0, and `spark_verify.py` reported READY. The green
+cube and orange both passed the independent placement, contact, camera and
+reset audits. Installation took **12 min 21 s**; startup and proof took
+**732.42 s**. These are single-run timings.
+
+The checkout, Python environments, model source and model-file destinations
+were newly created directories, with no symlinks to prior installations.
+Host prerequisites already existed; the run used the normal user HOME and
+shared download/uv caches. It is a fresh-destination installation, not an
+empty-cache or fresh-OS measurement.
+
+Real Chromium on the Spark loaded the shipped extension on an Xvfb virtual
+display. Kitchen, Worktop and Side decoded at **1280 × 720**, with frame IDs
+advancing from 10 to 13; chat was connected and Send/Start over were enabled.
+This validates the real browser and extension, but not GNOME app-grid interaction
+or a visible Isaac editor. The
+[release receipt](../benchmark/results/spark_clean_delivery_20260930.json) and
+[UI screenshot](../benchmark/results/images/spark_clean_three_cameras_20260930.png)
+retain the measured scope. Neither this two-object proof nor earlier diagnostic
+campaigns establish a success rate for arbitrary future requests.
+
+After READY, the same installed stack passed a complete five-object round
+through the visitor chat API. Every case used native Qwen tool selection,
+the unchanged passive physics auditor, all three cameras and a native reset.
+Installation and READY receipts remained unchanged throughout the campaign.
+
+| Object | Destination | Physical placement and reset | Final center error |
+| --- | --- | --- | --- |
+| Green cube | Green square | PASS | 6.26 mm |
+| Orange | Open box | PASS | 14.84 mm |
+| Pink cube | Green square | PASS | 8.86 mm |
+| Lemon | Open box | PASS | 21.02 mm |
+| Tomato can | Green square | PASS | 14.28 mm |
+
+The campaign took 20 min 6 s, including inspections, settling and resets.
+Its [diagnostic](../benchmark/diagnostics/spark_native_campaign.py) submits
+requests to the existing visitor session; it does not start another robot
+controller. An earlier incomplete attempt is retained in the release receipt:
+the diagnostic passed a string to a validator requiring `Path` and stopped
+after a completed green-cube request and reset. That attempt is not counted
+as accepted. The corrected campaign passed all five cases without changing
+the installed runtime, model, physics or acceptance thresholds.
+
+The stack was then stopped with `./run.sh down` and launched again using the
+same desktop command. This second full launch reached **READY in 9 min 10 s**
+with a new native session and MCP process. Both placement/reset audits passed;
+final center errors were **8.31 mm** for the green cube and **10.22 mm** for
+the orange. The Chromium page stayed open through the stop/start and recovered
+connected chat, enabled controls and all three live cameras without a reload.
+Frame IDs advanced from 51 to 55 in the
+[post-restart screenshot check](../benchmark/results/images/spark_clean_three_cameras_after_restart_20260930.png).
+
+Shutdown required SIGKILL for the owned Qwen process after its SIGTERM timeout.
+All demo ports were released before the second launch; the personal OpenClaw
+gateway on 18789 retained its PID and start time. After acceptance, only the
+test Chromium and virtual display were closed, releasing the browser profile
+for a desktop session. The clean installed demo remained running and its final
+read-only check still reported READY. Both launches, the stop log and the final
+service identities are retained in the release receipt.
 
 ## Installation identity
 
@@ -14,11 +78,12 @@ llama.cpp, OpenClaw and the verified kitchen. Cosmos is not installed.
 | --- | --- |
 | App | `.venv`, Python 3.12; Spark torch 2.14.0+cu130 and torchvision 0.29.0+cu130 |
 | Isaac Sim | `.isaacsim`; `isaacsim[all,extscache]==6.1.0.0`, torch 2.11.0+cu130 and tinyobjloader 2.0.0rc13 |
+| GraspGen-X | `.graspgenx`, Python 3.12 and torch 2.14.0+cu130; `.graspgenx-src` with pinned source, full generator/discriminator checkpoints and gripper assets |
 | Qwen | `models/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_XL.gguf` |
 | Vision | `models/qwen3.8-27b/mmproj-BF16.gguf` |
 | llama.cpp | `.llama.cpp`, pinned source and local CUDA build receipt |
 | OpenClaw | `.openclaw-cli/bin/openclaw`, version 2026.9.3; profile `cascade-demo` |
-| Original kitchen | `demo/own_kitchen.py`, `demo/own_kitchen_props.py` and `demo/scene/props/`; verified by `demo/scene/own_assets.json` |
+| Kitchen and props | `demo/cocina_asier.py`, verified room bundle in `demo/scene/cocina_asier/`, `demo/own_kitchen_props.py` and `demo/scene/props/`; source and bundle manifests verify their bytes |
 
 The model manifest is
 [`deploy/brev/profiles/qwen3.8-27b-q4.json`](../deploy/brev/profiles/qwen3.8-27b-q4.json).
@@ -27,10 +92,10 @@ The model alias is `Qwen/Qwen3.8-27B`; reasoning is off.
 The installer fetches the model and projector into the project and builds
 its own aarch64 llama.cpp. It does not need a preinstalled model server.
 
-The current checkout contains the kitchen geometry, procedural materials,
-orange and bowl generators, and the small text prop layers. The installer
-verifies these source files against [`own_assets.json`](../demo/scene/own_assets.json)
-without downloading a kitchen archive. See the
+The installer downloads the pinned owner-authorized Cocina Asier room archive
+and verifies every extracted asset. The checkout supplies the original orange,
+platter and task prop authoring code. It verifies those source files against
+[`own_assets.json`](../demo/scene/own_assets.json). See the
 [scene provenance notice](../demo/scene/NOTICE.md) and
 [original prop dedication](../demo/scene/props/LICENSE.txt).
 
@@ -42,7 +107,9 @@ Live acceptance is a separate step.
 
 Spark uses the working Brev path: PhysX on CUDA, the `isaac_kitchen_gpu`
 arm profile, the shipped kitchen scene and a 1/120 second physics step.
-Occupancy is disabled. Startup checks the live engine, CUDA context,
+GraspGen-X runs its real CUDA diffusion model; startup checks an actual
+inference before enabling robot tools. Occupancy/nvblox is disabled, and JEv
+is outside the presenter installation and runtime. Startup checks the live engine, CUDA context,
 scene hash and timestep before the OpenClaw proof.
 
 The app, Isaac and model runtime stay separate. A selected complete Isaac
@@ -96,20 +163,15 @@ screenshots and reset readbacks. A failed native placement or reset, refuted
 placement or failed audit prevents READY. `--no-robot-turn` remains
 STARTED / UNVERIFIED.
 
-The previous scene's installation acceptance needed two orange grasp attempts. Its placement passed the
-independent audit, but the return-home substep reported `did not settle at home`.
-The following native reset and final inspection passed. Reset and inspect
-before another order if this warning appears. The native tool's center-only
-postcondition remains unverified; the independent audit establishes containment,
-release and support.
-
-The previous scene's natural-language acceptance also passed inspection, green cube placement,
-orange placement and same-world resets with native request/response traces.
-An initial orange attempt failed at the pre-grasp pose and was reported plainly.
-After a natural reset and cleanup of completed test sessions, a retry passed
-the unchanged physical audit. This does not establish the cause of the first
-failure. No controller or physics setting was changed for that retry.
-These historical results do not establish acceptance of the original kitchen on Spark.
+The tested first launch recorded zero tool failures for both placement orders.
+Qwen still said **"Placement unverified"** because the skill's own postcondition
+checks only the object's center. The independent physics audit separately
+confirmed full containment, release and support for both objects, with final
+center errors of **9.61 mm** for the green cube and **6.69 mm** for the orange.
+READY comes from those independent checks; it does not rewrite the native
+tool verdict or the chat response. Preserve that distinction when presenting
+the result. Earlier diagnostic campaigns remain documented in
+[GraspGen-X on Spark](GRASPGENX_SPARK.md).
 
 ## Quick recovery during the demo
 
@@ -137,24 +199,34 @@ the engine, scene and other flags used for the demo:
 
 | Engine | Quick launch command |
 | --- | --- |
-| PhysX (default) | `./run.sh isaac --no-robot-turn --no-judge` |
-| Newton | `./run.sh isaac --engine newton --no-robot-turn --no-judge` |
+| PhysX presenter | `./run.sh isaac --engine physx --graspgenx local --no-robot-turn --no-judge` |
+| Newton, separately rehearsed | `./run.sh isaac --engine newton --graspgenx local --no-robot-turn --no-judge` |
 
 The launcher reuses matching services that are still running and starts
 missing ones. Simulator initialization, connection, scene identity, robot
 tool and model checks still run. The resulting banner is
 `STARTED (UNVERIFIED: robot proof skipped)`; a fast restart does not create
-a new physical acceptance result. Use the normal launch command without
-these skip flags when a complete `READY` proof is needed.
+a new physical acceptance result. Qwen must already be running: this lower-level
+command does not start or supervise it. The desktop entry does not accept these
+skip flags, and its camera/chat surfaces require a verified proof to attach.
+For the complete supervised interface, use
+`python3 scripts/desktop.py launch --repo "$PWD"` (add `--gui` for visible Isaac).
+That path starts Qwen and runs the normal READY proof when needed.
 
-## Clean-room acceptance
+## Fresh-install acceptance
 
-A release receipt must record a fresh source root, private HOME/cache tree,
-empty dependency/model destinations and the exact installer command.
-No inherited app environment or global model path counts as a fresh install.
+A release receipt must record the fresh source root, initially empty
+dependency/model destinations, exact installer command, normal user HOME and
+any reused download or package caches. A fresh installation may reuse the
+user's uv cache; that does not make it a cache-free or private-HOME experiment.
+Do not reuse an existing application/model environment or substitute a global
+model path for the new checkout's destinations.
 The install and a later read-only check must exit 0 before live acceptance.
 Record actual Isaac build, physics engine/device, model files and kitchen
 identity. Keep the unrelated-service inventory before and after the run.
+The GraspGen-X check must validate pinned source, package versions and full
+checkpoint bytes rather than just the presence of filenames or Git LFS pointers.
+The live launch must then verify actual learned inference.
 
 For a bandwidth-saving rehearsal, `CASCADE_MODEL_MIRROR_URL` can point the
 model download code at a local HTTP mirror of the exact verified Q4 file.
@@ -162,5 +234,5 @@ The destination must start empty. The normal manifest still supplies the
 public revision, size and checksum. The receipt must identify the mirror
 and separately record a public metadata/ranged-download check.
 
-Publish only after both clean-room cases and resets pass. Store the release's
+Accept the release only after both native placement cases and resets pass. Store its
 clean-install and acceptance receipts with the deployment evidence.

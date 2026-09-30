@@ -1,0 +1,74 @@
+{
+  "scope": "Synthetic metric depth through real Cascade ZMQ bridge, CUDA TSDF/ESDF and OccupancyMap; fixed box, known clearances, removal carving. Not a robot manipulation test.",
+  "passed": true,
+  "probe": {
+    "ok": true,
+    "backend": "nvblox",
+    "describe": "nvblox (nvblox_torch TSDF+ESDF on NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 1.0 cm)",
+    "voxel": 0.01,
+    "device": "cuda:0",
+    "esdf": true,
+    "carving": true
+  },
+  "query_points_m": [
+    [
+      0.3,
+      0.0,
+      0.03
+    ],
+    [
+      0.3,
+      0.0,
+      0.08
+    ],
+    [
+      0.3,
+      0.0,
+      0.15
+    ],
+    [
+      0.3,
+      0.15,
+      0.1
+    ],
+    [
+      0.45,
+      -0.15,
+      0.05
+    ]
+  ],
+  "expected_before_m": [
+    0.0,
+    0.03,
+    0.1,
+    0.1,
+    0.05
+  ],
+  "measured_before_m": [
+    0.0,
+    0.0399999986588955,
+    0.10999999895691848,
+    0.10999999895691848,
+    0.05999999821186058
+  ],
+  "max_abs_error_m": 0.009999998956918471,
+  "measured_after_removal_m": [
+    0.0399999986588955,
+    0.08999999567866335,
+    0.15999999597668624,
+    0.10999999895691848,
+    0.05999999821186058
+  ],
+  "initial_integrations": 6,
+  "removal_integrations": 20,
+  "refresh_round_trip_ms": [
+    41.49220499675721,
+    4.967289998603519,
+    3.2962600016617216,
+    3.1696380028733984,
+    3.192080999724567,
+    6.234555999981239
+  ],
+  "cold_first_ms": 41.49220499675721,
+  "warm_refresh_median_ms": 3.2962600016617216
+}

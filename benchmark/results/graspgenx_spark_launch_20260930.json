@@ -1,0 +1,192 @@
+{
+  "scope": "Native Qwen/OpenClaw + PhysX + learned GraspGen-X on DGX Spark GB10; independently installed GraspGen-X with existing Isaac Sim and app packages.",
+  "verified": true,
+  "model": "custom-127-0-0-1-8080/Qwen/Qwen3.8-27B",
+  "session_id": "cascade-proof-07f077de9be245e3944935be4f727508",
+  "receipt_sha256": "7b98128861865f371e7e20aea1baad8e1a8b7896c9cb6f3d773d62c8fd3054a6",
+  "cases": [
+    {
+      "object": "green cube",
+      "destination": "green square",
+      "pass": true,
+      "checks": {
+        "complete_observation": true,
+        "all_phase_boundaries": true,
+        "live_prop_names_match_expected": true,
+        "spawn_prop_names_match_expected": true,
+        "spawn_positions_finite_and_unchanged": true,
+        "all_props_physically_reset_and_settled": true,
+        "scene_config_sha256_matches": true,
+        "prop_dimensions_match": true,
+        "cube_collider_geometry_matches": true,
+        "green_square_geometry_matches": true,
+        "scene_name_matches": true,
+        "scene_assets_sha256_matches": true,
+        "scene_content_sha256_matches": true,
+        "open_box_geometry_matches": true,
+        "ordered_phases": true,
+        "strict_pick_place_and_cameras": true,
+        "whole_cube_inside_green_square_throughout_settle": true,
+        "all_physics_tensors_cuda": true,
+        "single_supported_engine": true,
+        "gpu_backend_no_fallback": true,
+        "contact_sensor_and_actual_jaws_bound": true,
+        "two_jaw_contacts_during_real_lift": true,
+        "reset_settle_window": true,
+        "whole_footprint_enters_destination_with_bilateral_support": true,
+        "all_event_cameras_advance": true
+      },
+      "pick_metrics": {
+        "samples": 408,
+        "final_samples": 31,
+        "simulation_elapsed_s": 6.783333333333331,
+        "final_window_sim_s": 0.5,
+        "lift_m": 0.10395364649593829,
+        "xy_displacement_m": 0.28408401142195544,
+        "final_xy_error_m": 0.01414524563013651,
+        "max_final_xy_error_m": 0.014145275431326005,
+        "max_final_support_z_error_m": 2.186971631568113e-09,
+        "max_final_linear_speed_m_s": 1.5024517004658838e-05,
+        "max_final_angular_speed_rad_s": 0.0004497963737344649,
+        "max_final_position_spread_m": 2.9802322387695312e-08,
+        "max_final_tilt_deg": 9.543188362014906e-05,
+        "min_final_actual_open_fraction": 0.9999970942736105,
+        "max_frame_age_s": 0.48764875999768265,
+        "unique_jpeg_hashes": 204
+      },
+      "errors": []
+    },
+    {
+      "object": "orange",
+      "destination": "open box",
+      "pass": true,
+      "checks": {
+        "complete_observation": true,
+        "all_phase_boundaries": true,
+        "live_prop_names_match_expected": true,
+        "spawn_prop_names_match_expected": true,
+        "spawn_positions_finite_and_unchanged": true,
+        "all_props_physically_reset_and_settled": true,
+        "scene_config_sha256_matches": true,
+        "prop_dimensions_match": true,
+        "cube_collider_geometry_matches": true,
+        "green_square_geometry_matches": true,
+        "scene_name_matches": true,
+        "scene_assets_sha256_matches": true,
+        "scene_content_sha256_matches": true,
+        "open_box_geometry_matches": true,
+        "convex_body_identity": true,
+        "authored_convex_vertices_match": true,
+        "convex_topology_matches": true,
+        "convex_body_and_collider_enabled": true,
+        "convex_body_and_child_transforms_match": true,
+        "convex_tensor_mass_and_com_match": true,
+        "convex_tensor_inertia_valid": true,
+        "physx_support_live_identity": true,
+        "physx_support_source_matches": true,
+        "physx_support_solid_subset": true,
+        "physx_support_geometry_unchanged": true,
+        "ordered_phases": true,
+        "strict_pick_place_and_cameras": true,
+        "whole_convex_collider_inside_open_box_and_supported": true,
+        "all_physics_tensors_cuda": true,
+        "single_supported_engine": true,
+        "gpu_backend_no_fallback": true,
+        "contact_sensor_and_actual_jaws_bound": true,
+        "two_jaw_contacts_during_real_lift": true,
+        "reset_settle_window": true,
+        "whole_footprint_enters_destination_with_bilateral_support": true,
+        "all_event_cameras_advance": true
+      },
+      "pick_metrics": {
+        "samples": 607,
+        "final_samples": 31,
+        "simulation_elapsed_s": 10.13333333333334,
+        "final_window_sim_s": 0.5,
+        "lift_m": 0.14423626102507114,
+        "xy_displacement_m": 0.306986188462585,
+        "final_xy_error_m": 0.021360881946186037,
+        "max_final_xy_error_m": 0.021360881946186037,
+        "max_final_support_z_error_m": 9.140982845309842e-08,
+        "max_final_linear_speed_m_s": 0.0009953296286125566,
+        "max_final_angular_speed_rad_s": 0.035167364357147596,
+        "max_final_position_spread_m": 1.7572159193561605e-08,
+        "max_final_tilt_deg": 24.38354835420885,
+        "min_final_actual_open_fraction": 0.9999991804361466,
+        "max_frame_age_s": 0.4875079999983427,
+        "unique_jpeg_hashes": 305
+      },
+      "errors": []
+    }
+  ],
+  "graspgenx_readiness": {
+    "ok": true,
+    "learned": true,
+    "health": {
+      "status": "ok",
+      "learned": true,
+      "device": "cuda:0",
+      "gpu": "NVIDIA GB10",
+      "capability": [
+        12,
+        1
+      ],
+      "torch": "2.14.0+cu130",
+      "cuda": "13.0",
+      "architecture": "aarch64"
+    },
+    "metadata": {
+      "default_gripper": null,
+      "loaded_grippers": [
+        "sweep:5402cf24e83fb4fca288a991a58edbbcebc83e1f"
+      ],
+      "model": {
+        "generator_backbone": "ptv3vanilla",
+        "discriminator_backbone": "ptv3vanilla",
+        "grasp_repr": "r3_so3",
+        "num_diffusion_iters_eval": 20
+      },
+      "actions": [
+        "health",
+        "metadata",
+        "infer",
+        "infer_object",
+        "infer_scene_depth",
+        "infer_scene_pc"
+      ],
+      "precision": {
+        "weights": "fp32",
+        "tensorrt": false,
+        "tensorrt_precision": null
+      }
+    },
+    "diffusion_grasps": 100,
+    "score_max": 0.9537369608879089,
+    "wall_seconds": 0.559,
+    "timing": {
+      "infer_ms": 556.8514469996444
+    }
+  },
+  "source_files_sha256": {
+    "configs/demo.yaml": "06cba8688a3f52a092d7736d10077db1f27ab01105a1986f49a7f7fafbb0d9f9",
+    "configs/arms/isaac_kitchen_gpu.yaml": "3274e46b33305a6b0fb90a0a2417a754c9935e4a3662d7e06c0dacbef193b62c",
+    "src/cascade/grasping/graspgenx_backend.py": "f9575978c84ff6478b07cb981291719413c8a025780afb1ff0f337b2b25776fc",
+    "src/cascade/skills/runtime.py": "082848e25c4a5c972de986a9cd85214f08e8eb719e544f4873f380964b9ad4b9",
+    "scripts/isaac_bridge.py": "362f8cac7712ec72f7e9014e6a908c7fda89ee184ef2617db3d473bc685dfcef",
+    "scripts/launch.sh": "46bfb8379a5bdfd11a43961d17e5c5fa872a956f3183b9177659b8492690b02a"
+  },
+  "video": {
+    "review_path": "benchmark/results/videos/graspgenx_spark_ready_20260930.mp4",
+    "review_sha256": "5b3cca264423372a865787ebb2de6e9937e751105460ed271e1031046ff62a62",
+    "original_sha256": "87230147948c4d829cbea72c5519b9f5c2f6c1f77851557e5637d8854098034e",
+    "original_duration_s": 964.666667,
+    "playback_speed": 4,
+    "scope": "Actual bridge camera frames; recording includes idle startup and the full Spark native proof, with repeated-frame metadata retained locally."
+  },
+  "limitations": [
+    "One full launcher run; orange required two physical attempts.",
+    "Existing Isaac/app packages and a separately started Qwen server; not a fresh complete desktop installation.",
+    "Production truth-assisted held-object XY/slip compensation remains enabled.",
+    "Occupancy/nvblox disabled; no nvblox hardware claim."
+  ]
+}

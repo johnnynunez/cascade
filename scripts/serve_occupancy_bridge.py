@@ -86,6 +86,9 @@ def main() -> None:
             action = req.get("action")
             if action == "probe":
                 resp = probe
+            elif action == "clear":
+                grid.clear()
+                resp = {"cleared": True}
             elif action == "integrate_depth":
                 t1 = time.perf_counter()
                 grid.integrate_depth(np.asarray(req["depth"], dtype=np.float32),

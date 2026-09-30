@@ -43,6 +43,7 @@ that works; the status line is what makes the difference visible.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 
 import numpy as np
@@ -69,6 +70,7 @@ class OccupancyClient:
         msgpack_numpy.patch()
         self._host, self._port, self._timeout = host, int(port), int(timeout_ms)
         self._sock = None
+        self._wire_lock = threading.RLock()
 
     def _connect(self):
         import zmq
@@ -82,6 +84,12 @@ class OccupancyClient:
         self._sock = sock
 
     def request(self, payload: dict, timeout_ms: int | None = None) -> dict:
+        # Startup probe and the perception watcher can run concurrently.
+        # A REQ socket must complete send/recv before another request starts.
+        with self._wire_lock:
+            return self._request(payload, timeout_ms)
+
+    def _request(self, payload: dict, timeout_ms: int | None = None) -> dict:
         import msgpack
         import zmq
 
@@ -119,9 +127,10 @@ class OccupancyClient:
         return resp
 
     def close(self):
-        if self._sock is not None:
-            self._sock.close()
-            self._sock = None
+        with self._wire_lock:
+            if self._sock is not None:
+                self._sock.close()
+                self._sock = None
 
 
 class OccupancyMap:

@@ -1,0 +1,52 @@
+{
+  "passed": true,
+  "backend": "nvblox",
+  "device": "cuda:0",
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "capability": [
+    12,
+    0
+  ],
+  "torch": "2.14.1+cu132",
+  "torch_cuda": "13.2",
+  "nvblox": "0.0.10.dev1+cu13ubuntu26",
+  "source_sha": "c457c3fc01003bec6eba3ec1c61e6bf84bc3f51f",
+  "numpy": "2.5.3",
+  "voxel_m": 0.01,
+  "grid_shape": [
+    2,
+    2,
+    21
+  ],
+  "plane_clearance_m": [
+    0.19999998807907104,
+    0.1899999976158142,
+    0.17999999225139618,
+    0.17000000178813934,
+    0.1599999964237213,
+    0.14999999105930328,
+    0.14000000059604645,
+    0.12999999523162842,
+    0.11999999731779099,
+    0.10999999940395355,
+    0.09999999403953552,
+    0.08999999612569809,
+    0.08999999612569809,
+    0.07000000029802322,
+    0.05999999865889549,
+    0.04999999701976776,
+    0.03999999910593033,
+    0.029999999329447746,
+    0.029999999329447746,
+    0.009999999776482582,
+    0.0
+  ],
+  "map_clear_removed_previous_geometry": true,
+  "last_integration_ms": 0.41973799670813605,
+  "query_ms": 0.25827199715422466,
+  "scope": "Real CUDA mapping and ESDF query; separate camera and manipulation acceptance required.",
+  "installation": "New venv, source checkout, toolkit extraction and native source build; reused only previously SHA256-verified CUDA download archives.",
+  "configure_cmake": "3.31.10",
+  "cuda_toolkit": "13.2.2 (nvcc13.2.86)",
+  "patch_sha256": "bcbdc7f3a50136f5749aee70f3c39a6dda8af7f9b60a247a6d0d3a680779928b"
+}

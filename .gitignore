@@ -222,6 +222,7 @@ __marimo__/
 /.isaacsim/
 /.graspgenx/
 /.graspgenx-src/
+/.nvblox/
 /.cosmos/
 /.cosmos-omni/
 /.llama.cpp/

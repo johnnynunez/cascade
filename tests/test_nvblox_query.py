@@ -28,9 +28,10 @@ def test_nvblox_query_preserves_3d_clearance_and_unknown_policy(unknown):
 
     def query_layer(kind, centres):
         assert kind is esdf_query
-        assert centres.shape == (8, 3)
-        np.testing.assert_allclose(centres[0], [0, 0, 0])
-        np.testing.assert_allclose(centres[-1], [0.01, 0.01, 0.01])
+        assert centres.shape == (8, 4)
+        np.testing.assert_array_equal(centres[:, 3], 0)
+        np.testing.assert_allclose(centres[0, :3], [0, 0, 0])
+        np.testing.assert_allclose(centres[-1, :3], [0.01, 0.01, 0.01])
         return signed.reshape(-1, 1).view(HostTensor)
 
     backend = object.__new__(NvbloxBackend)

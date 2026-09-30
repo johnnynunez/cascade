@@ -277,11 +277,11 @@ class NvbloxBackend:
         Sensor.from_camera(fu, fv, cu, cv, width, height)
         mapper.add_depth_frame(depth_HxW_float32_cuda, t_w_c_4x4_CPU, sensor)
         mapper.update_esdf()
-        mapper.query_layer(QueryType.ESDF, points_Nx3_cuda) -> (N,1) distance;
+        mapper.query_layer(QueryType.ESDF, spheres_Nx4_cuda) -> (N,1) distance;
             unknown == constants.esdf_unknown_distance()
-    CUDA integration is unverified for the Spark delivery. With explicit
-    backend selection, API errors propagate to the bridge; `auto` may choose
-    a different backend at construction. The probe reports the actual name.
+    CUDA mapping is validated on RTX Blackwell and Spark GB10 (see docs/NVBLOX.md).
+    With explicit backend selection, API errors propagate to the bridge;
+    `auto` may choose a different backend. The probe reports the actual name.
     """
 
     name = "nvblox"
@@ -298,6 +298,7 @@ class NvbloxBackend:
         if not _torch.cuda.is_available():
             raise RuntimeError("nvblox backend needs a CUDA device (nvblox_torch is GPU-only)")
         self._torch = _torch
+        self.device = f"cuda:{_torch.cuda.current_device()}"
         self._QueryType = QueryType
         self._unknown = float(constants.esdf_unknown_distance())
         pip = ProjectiveIntegratorParams()
@@ -323,6 +324,10 @@ class NvbloxBackend:
     def integrate_points(self, points: np.ndarray) -> None:
         raise RuntimeError("nvblox integrates DEPTH FRAMES (ray casting); use integrate_depth")
 
+    def clear(self) -> None:
+        self.mapper.clear()
+        self._torch.cuda.synchronize()
+
     def integrate_depth(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray) -> None:
         torch = self._torch
         t0 = time.perf_counter()
@@ -339,8 +344,13 @@ class NvbloxBackend:
         torch = self._torch
         t0 = time.perf_counter()
         spec = GridSpec(region_min, region_max, self.voxel)
-        centres = torch.as_tensor(spec.centres().reshape(-1, 3)).cuda()
-        sdf = self.mapper.query_layer(self._QueryType.ESDF, centres).reshape(-1).cpu().numpy()
+        centres = spec.centres().reshape(-1, 3)
+        # nvblox 0.0.10's ESDF kernel requires (x, y, z, radius), despite
+        # query_layer's Nx3 docstring. Zero radius asks for point clearance.
+        spheres = np.zeros((len(centres), 4), dtype=np.float32)
+        spheres[:, :3] = centres
+        query = torch.as_tensor(spheres).cuda()
+        sdf = self.mapper.query_layer(self._QueryType.ESDF, query).reshape(-1).cpu().numpy()
         grid = sdf.reshape(spec.shape).astype(np.float32)
         unknown = grid == self._unknown
         # Keep the 3-D layout: a flat SDF mask cannot index this grid.

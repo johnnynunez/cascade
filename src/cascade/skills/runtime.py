@@ -19,6 +19,7 @@ import numpy as np
 
 from ..agent.trace import TraceLogger
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
+from ..grasping import evidence as grasp_evidence
 from ..memory import BeliefStore, EpisodicMemory
 from ..perception.colors import detection_color, parse_color_query
 from ..perception.reference import ReferenceResolutionError, parse_reference
@@ -1066,12 +1067,16 @@ class SkillRuntime:
                 grasps = obb
                 self.grasp_planner_used = "obb (graspgenx down)"
 
+        grasp_evidence.event("backend_candidates", grasps=grasps, backend=self.grasp_planner_used)
+
         # ---- fake-RL memory prior: re-rank + z-nudge -----------------------
         lbl = label or getattr(fix, "label", None) or "object"
         try:
             prior = self.grasp_memory.prior(lbl, fix)
+            grasp_evidence.event("memory_prior", label=lbl, prior=prior)
             if prior:
                 grasps = self.grasp_memory.rerank(grasps, lbl, fix)
+                grasp_evidence.event("memory_reranked_candidates", grasps=grasps)
                 dz = float(prior["nudges"].get("grasp_z_delta", 0.0))
                 if abs(dz) > 1e-4:
                     for g in grasps:
@@ -1618,6 +1623,7 @@ class SkillRuntime:
                         f"conf {out['planned_grasp']['confidence']}")
         return out
 
+    @grasp_evidence.record_attempt
     def skill_grasp_object(
         self,
         label: str,
@@ -1644,8 +1650,14 @@ class SkillRuntime:
             frame, fix = _frame, _fix
         else:
             frame, fix = self._localize(label, spatial_hint=spatial_hint)
+        grasp_evidence.localized(frame, fix)
         profile = select_profile(fix.detection.label or label, material)
+        grasp_evidence.event("material_profile", profile=profile)
+        grasp_evidence.phase("planning")
         grasps = self._plan_grasps(fix, label=label)
+        grasp_evidence.event("planned_candidates", grasps=grasps,
+                             backend=getattr(self, "grasp_planner_used", None),
+                             z_nudge_m=getattr(self, "_last_grasp_z_nudge", None))
 
         # Learned grasp z can overshoot below the table by a few mm (the
         # tip-offset conversion is empirical): a millimeter under the
@@ -1660,6 +1672,8 @@ class SkillRuntime:
             if 0.0 < dz <= 0.03:  # bigger misses are garbage; let vetting drop them
                 g.position = np.asarray(g.position, dtype=float).copy()
                 g.position[2] = z_floor
+
+        grasp_evidence.event("floor_adjusted_candidates", grasps=grasps, z_floor_m=z_floor)
 
         # Pre-vet every candidate against the harness geometry (with the
         # exemption cylinder the descent will open) so a doomed candidate
@@ -1725,6 +1739,7 @@ class SkillRuntime:
         # branch whose approach path dips a link under the table.
         _home = self.cfg.arm.get("home_q")
         _seed = np.asarray(_home, dtype=float) if _home is not None else state.q
+        grasp_evidence.event("selection_input", state=state, seed_q=_seed)
         try:
             grasp, q_pre, q_grasp = select_grasp(
                 grasps,
@@ -1754,20 +1769,28 @@ class SkillRuntime:
                 pass
             raise
 
+        grasp_evidence.event("selected", grasp=grasp, q_pre=q_pre, q_grasp=q_grasp)
+
         # 1. open, go to pregrasp (normal speed). Re-home first so the
         # pregrasp IK seeds from a known elbow-up posture: seeding from an
         # arbitrary current pose can converge to an elbow/wrist-down IK
         # solution whose approach path dips a link below the table near the
         # base (observed: link7 at xy~(0.05,0.04) z=-0.023, far from the
         # target so no grasp-exemption cylinder can cover it).
+        grasp_evidence.phase("open")
         self.arm.set_gripper(self._grip_open, effort=0.8)
         _home = self.cfg.arm.get("home_q")
         if _home is not None:
+            grasp_evidence.phase("home")
+            grasp_evidence.event("move_target", q=_home, duration_s=1.5)
             try:
                 self.arm.move_joints(np.asarray(_home, dtype=float),
                                      duration_s=1.5)
-            except Exception:
+            except Exception as exc:
+                grasp_evidence.exception("ignored_home_exception", exc)
                 pass  # best-effort re-home; pregrasp move is the real gate
+        grasp_evidence.phase("pregrasp")
+        grasp_evidence.event("move_target", q=q_pre, duration_s=gcfg.get("move_duration_s", 2.5))
         if not self.arm.move_joints(q_pre, duration_s=float(gcfg.get("move_duration_s", 2.5))):
             raise SkillError("did not settle at pregrasp pose")
 
@@ -1777,6 +1800,9 @@ class SkillRuntime:
             radius_m=float(gcfg.get("exempt_radius_m", 0.07)),
             z_min=float(self.arm.harness.limits.table_z) - 0.06,
         )
+        grasp_evidence.phase("descent")
+        grasp_evidence.event("move_target", q=q_grasp,
+                             duration_s=gcfg.get("descend_duration_s", 2.0), bias_compensate=True)
         try:
             if not self.arm.move_joints(q_grasp,
                                         duration_s=float(gcfg.get("descend_duration_s", 2.0)),
@@ -1794,6 +1820,7 @@ class SkillRuntime:
             # something) or clears it (jaws closed on air) on the next call.
             self._held_provisional = (label, fix.detection.label,
                                       detection_color(frame.rgb, fix.detection))
+            grasp_evidence.phase("close")
             self._close_two_stage(profile)
             self._held_support_offset_m = None
             if gcfg.get("place_support_clearance_m") is not None and float(-grasp.approach[2]) > .95:
@@ -1808,6 +1835,8 @@ class SkillRuntime:
 
             # 4. lift back to pregrasp (speed scaled by profile)
             lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
+            grasp_evidence.phase("lift")
+            grasp_evidence.event("move_target", q=q_pre, duration_s=lift_dur)
             self.arm.move_joints(q_pre, duration_s=lift_dur)
         finally:
             self.arm.harness.clear_grasp_exemption()
@@ -1817,7 +1846,9 @@ class SkillRuntime:
         # commanded stage-2 fraction even though the object should be much
         # wider, nothing resisted: air grasp. Unknown feedback -> report the
         # grasp as unverified rather than dropping a possibly-held object.
+        grasp_evidence.phase("verify")
         width_after_lift = self._gripper_width_frac()
+        grasp_evidence.event("grip_verification", width_after_lift=width_after_lift)
         verified = width_after_lift is not None
         if verified:
             commanded_open = max(1.0 - profile.close_frac_stage2, 0.0)
@@ -1907,6 +1938,8 @@ class SkillRuntime:
             (profile.close_frac_stage1, profile.effort * 0.7),
             (profile.close_frac_stage2, profile.effort),
         ):
+            grasp_evidence.event("close_stage", closed_frac=frac, effort=eff,
+                                 target_pos=self._grip_open + span * frac)
             self.arm.set_gripper(self._grip_open + span * frac, effort=eff)
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if timeout is not None:

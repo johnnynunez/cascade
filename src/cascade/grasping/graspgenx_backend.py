@@ -33,6 +33,7 @@ import time
 import numpy as np
 
 from ..types import Grasp, ObjectFix
+from . import evidence
 
 
 class GraspGenXError(RuntimeError):
@@ -185,6 +186,11 @@ class GraspGenXPlanner:
         # segmented request cloud at this serialization boundary.
         pts = np.asarray(source_points.detach().cpu().numpy() if tensor_points
                          else source_points, dtype=np.float32)
+        evidence.array("ggx_request_points_base_m", pts)
+        evidence.event("ggx_configuration", gripper=self.gripper, tip_offset_m=self.tip_offset_m,
+                       num_grasps=self.num_grasps, topk=self.topk, min_score=self.min_score,
+                       approach_z_max=self.approach_z_max, planner=self.planner,
+                       sweep_params=self.sweep_params, status=self.status)
         if pts.shape[0] < 50:
             raise GraspGenXError(f"only {pts.shape[0]} object points (<50)")
         t0 = time.monotonic()
@@ -213,6 +219,7 @@ class GraspGenXPlanner:
         poses = scores = None
         for _attempt in range(2):
             resp = self._client.request(payload)
+            evidence.ggx_response(resp, _attempt)
             poses = np.asarray(resp["grasps"], dtype=np.float32).reshape(-1, 4, 4)
             scores = np.asarray(resp["confidences"], dtype=np.float32).reshape(-1)
             if len(scores) != len(poses) or not np.all(np.isfinite(poses)) or not np.all(np.isfinite(scores)):

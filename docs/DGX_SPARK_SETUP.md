@@ -13,7 +13,7 @@ SHA-256 hashes. See the [scene notice](../demo/scene/NOTICE.md).
 
 The commands pin `9cf540279f09df8197eda6541311b41edb455243`. On 30 September
 2026, this source completed a fresh installation, a read-only installation
-check and its first desktop launch on an NVIDIA GB10 Spark. The launcher
+check and two complete desktop launches on an NVIDIA GB10 Spark. The launcher
 reached **READY** with green-cube and orange placements, independent physics
 audits, resets and all three cameras passing. See the
 [release receipt](../benchmark/results/spark_clean_delivery_20260930.json).
@@ -22,7 +22,9 @@ audits, resets and all three cameras passing. See the
 | --- | --- |
 | Install and read-only check | `PREPARED`, both exit 0; install **12 min 21 s** |
 | First headless desktop launch | Exit 0 and `spark_verify.py` READY; **12 min 12 s** |
+| Native visitor chat campaign | **5/5** objects passed independent physical placement and reset checks |
 | Real Chromium and shipped extension | Connected chat, enabled controls and three advancing **1280 × 720** camera views |
+| Full stop and second headless launch | New session and processes, READY again in **9 min 10 s**; the open browser recovered chat and all three cameras |
 
 Component and model destinations were new directories, not symlinks to another
 installation. The run used the normal user HOME, existing host prerequisites
@@ -31,6 +33,10 @@ not guarantees for an uncached machine. Chromium ran on the Spark with an
 Xvfb virtual display; GNOME app-grid interaction and a visible Isaac editor
 were not exercised. The [UI screenshot](../benchmark/results/images/spark_clean_three_cameras_20260930.png)
 shows the actual extension and chat.
+The demo services remained running after verification. The unrelated personal
+OpenClaw gateway retained its original PID and process start time. Shutdown
+before the second launch needed SIGKILL for the owned Qwen process after its
+SIGTERM timeout; the launcher released all demo ports before restarting.
 
 Use the same checkout for installation, checks and startup. The Spark defaults
 are PhysX, Qwen Q4, learned GraspGen-X and three camera views. Occupancy/nvblox

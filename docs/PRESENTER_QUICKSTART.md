@@ -8,6 +8,10 @@ camera extension also passed with a virtual display. GNOME app-grid interaction
 and the visible Isaac editor remain untested in this run. The
 [release receipt](../benchmark/results/spark_clean_delivery_20260930.json)
 records the scope; individual successful runs do not guarantee every future pick.
+The same stack subsequently passed all five kitchen objects through native
+visitor chat, with independent physical placement checks and resets.
+A full stop and second launch also reached READY in **9 min 10 s**; the
+already-open browser recovered chat and all three cameras automatically.
 Run these commands from the installed Cascade folder on the presentation
 machine. The desktop entry starts Qwen as well as the robot stack; `run.sh`
 expects Qwen to be running already. This card assumes the Spark installation profile; installation is

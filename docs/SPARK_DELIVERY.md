@@ -33,6 +33,45 @@ or a visible Isaac editor. The
 retain the measured scope. Neither this two-object proof nor earlier diagnostic
 campaigns establish a success rate for arbitrary future requests.
 
+After READY, the same installed stack passed a complete five-object round
+through the visitor chat API. Every case used native Qwen tool selection,
+the unchanged passive physics auditor, all three cameras and a native reset.
+Installation and READY receipts remained unchanged throughout the campaign.
+
+| Object | Destination | Physical placement and reset | Final center error |
+| --- | --- | --- | --- |
+| Green cube | Green square | PASS | 6.26 mm |
+| Orange | Open box | PASS | 14.84 mm |
+| Pink cube | Green square | PASS | 8.86 mm |
+| Lemon | Open box | PASS | 21.02 mm |
+| Tomato can | Green square | PASS | 14.28 mm |
+
+The campaign took 20 min 6 s, including inspections, settling and resets.
+Its [diagnostic](../benchmark/diagnostics/spark_native_campaign.py) submits
+requests to the existing visitor session; it does not start another robot
+controller. An earlier incomplete attempt is retained in the release receipt:
+the diagnostic passed a string to a validator requiring `Path` and stopped
+after a completed green-cube request and reset. That attempt is not counted
+as accepted. The corrected campaign passed all five cases without changing
+the installed runtime, model, physics or acceptance thresholds.
+
+The stack was then stopped with `./run.sh down` and launched again using the
+same desktop command. This second full launch reached **READY in 9 min 10 s**
+with a new native session and MCP process. Both placement/reset audits passed;
+final center errors were **8.31 mm** for the green cube and **10.22 mm** for
+the orange. The Chromium page stayed open through the stop/start and recovered
+connected chat, enabled controls and all three live cameras without a reload.
+Frame IDs advanced from 51 to 55 in the
+[post-restart screenshot check](../benchmark/results/images/spark_clean_three_cameras_after_restart_20260930.png).
+
+Shutdown required SIGKILL for the owned Qwen process after its SIGTERM timeout.
+All demo ports were released before the second launch; the personal OpenClaw
+gateway on 18789 retained its PID and start time. After acceptance, only the
+test Chromium and virtual display were closed, releasing the browser profile
+for a desktop session. The clean installed demo remained running and its final
+read-only check still reported READY. Both launches, the stop log and the final
+service identities are retained in the release receipt.
+
 ## Installation identity
 
 | Component | Project-owned location and identity |

@@ -272,6 +272,10 @@ passed a fresh installation and its first desktop READY proof on GB10:
 for startup and both placement/reset checks. Real Chromium with the shipped
 extension showed three advancing cameras and connected chat on an Xvfb display.
 GNOME app-grid interaction and the visible Isaac editor were not tested.
+The same installed stack then passed **5/5 kitchen objects through native
+visitor chat**, with independent physical placement checks and resets.
+A full stop and second launch reached READY again in **9 min 10 s**, with
+the open browser recovering connected chat and all three cameras.
 See the [receipt](benchmark/results/spark_clean_delivery_20260930.json)
 and [UI screenshot](benchmark/results/images/spark_clean_three_cameras_20260930.png).
 

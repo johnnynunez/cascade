@@ -472,6 +472,20 @@
       "finished_at": 1790798634.522645,
       "wall_seconds": 732.4215652942657,
       "model": "custom-127-0-0-1-8080/Qwen/Qwen3.8-27B",
+      "process": {
+        "repo": "/home/spark/Projects/cascade-clean-20260930-02",
+        "profile": "cascade-demo",
+        "state_dir": "/home/spark/Projects/cascade-clean-20260930-02/runs/.launch/profile-cascade-demo",
+        "owner": "79b8177c74324370966338d543efb325",
+        "schema": 1,
+        "pid": 431927,
+        "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:4406323",
+        "command": "/home/spark/Projects/cascade-clean-20260930-02/.venv/bin/python -m cascade.apps.mcp_server --launch-owner 79b8177c74324370966338d543efb325 --launch-state-dir /home/spark/Projects/cascade-clean-20260930-02/runs/.launch/profile-cascade-demo",
+        "role": "mcp",
+        "instance_id": "f0e0cd82cbc54f659e348a95c20bc413",
+        "registered_at": 1790798169.463206,
+        "run_dir": "/home/spark/Projects/cascade-clean-20260930-02/runs/mcp_431927_aff37735c9b944068a6eda405870c59f"
+      },
       "cases": [
         {
           "object": "green cube",
@@ -924,6 +938,483 @@
         "native-proof/proof.json": "6811fcf8c3d5821d4b26b28162c9ac60d38b436276a9140fb726b9ec456e90c7",
         "proof.json": "6811fcf8c3d5821d4b26b28162c9ac60d38b436276a9140fb726b9ec456e90c7"
       }
+    },
+    {
+      "name": "launch-02",
+      "verified": true,
+      "session_id": "cascade-proof-dff2ed968a6c449c87f88f1a073b4ecf",
+      "desktop_exit_code": 0,
+      "attached": false,
+      "started_at": 1790800405.0440423,
+      "finished_at": 1790800955.327801,
+      "wall_seconds": 550.2837586402893,
+      "model": "custom-127-0-0-1-8080/Qwen/Qwen3.8-27B",
+      "process": {
+        "repo": "/home/spark/Projects/cascade-clean-20260930-02",
+        "profile": "cascade-demo",
+        "state_dir": "/home/spark/Projects/cascade-clean-20260930-02/runs/.launch/profile-cascade-demo",
+        "owner": "79b8177c74324370966338d543efb325",
+        "schema": 1,
+        "pid": 453469,
+        "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:4640998",
+        "command": "/home/spark/Projects/cascade-clean-20260930-02/.venv/bin/python -m cascade.apps.mcp_server --launch-owner 79b8177c74324370966338d543efb325 --launch-state-dir /home/spark/Projects/cascade-clean-20260930-02/runs/.launch/profile-cascade-demo",
+        "role": "mcp",
+        "instance_id": "6b4179942ec4478ca6c30309dbb28176",
+        "registered_at": 1790800516.2335072,
+        "run_dir": "/home/spark/Projects/cascade-clean-20260930-02/runs/mcp_453469_74ade7a2e57847fd83c1ab5e90e2db5e"
+      },
+      "cases": [
+        {
+          "object": "green cube",
+          "destination": "green square",
+          "physics": {
+            "pass": true,
+            "object_name": "green_cube",
+            "destination_name": "green square",
+            "checks": {
+              "complete_observation": true,
+              "all_phase_boundaries": true,
+              "live_prop_names_match_expected": true,
+              "spawn_prop_names_match_expected": true,
+              "spawn_positions_finite_and_unchanged": true,
+              "all_props_physically_reset_and_settled": true,
+              "scene_config_sha256_matches": true,
+              "prop_dimensions_match": true,
+              "cube_collider_geometry_matches": true,
+              "green_square_geometry_matches": true,
+              "scene_name_matches": true,
+              "scene_assets_sha256_matches": true,
+              "scene_content_sha256_matches": true,
+              "open_box_geometry_matches": true,
+              "ordered_phases": true,
+              "strict_pick_place_and_cameras": true,
+              "whole_cube_inside_green_square_throughout_settle": true,
+              "all_physics_tensors_cuda": true,
+              "single_supported_engine": true,
+              "gpu_backend_no_fallback": true,
+              "contact_sensor_and_actual_jaws_bound": true,
+              "two_jaw_contacts_during_real_lift": true,
+              "reset_settle_window": true,
+              "whole_footprint_enters_destination_with_bilateral_support": true,
+              "all_event_cameras_advance": true
+            },
+            "errors": [],
+            "event_cameras": {
+              "pass": true,
+              "cameras": {
+                "cam0": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 364
+                },
+                "side": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 364
+                },
+                "proof": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 364
+                }
+              }
+            },
+            "pick_checks": {
+              "physics_channel": true,
+              "same_robot_and_engine": true,
+              "same_observed_prop_set": true,
+              "physics_clock_advances": true,
+              "finite_all_observed_state": true,
+              "actual_joints_within_limits": true,
+              "final_window_long_enough": true,
+              "valid_final_orientations": true,
+              "upright_support_geometry": true,
+              "gripper_readback_matches_actual_q": true,
+              "released_actual_jaws": true,
+              "destination_xy": true,
+              "supported_z": true,
+              "settled_linear_speed": true,
+              "settled_angular_speed": true,
+              "stable_final_position": true,
+              "observed_lift": true,
+              "observed_xy_displacement": true
+            },
+            "pick_metrics": {
+              "samples": 402,
+              "final_samples": 30,
+              "simulation_elapsed_s": 6.966666666666669,
+              "final_window_sim_s": 0.5,
+              "lift_m": 0.10377979464828967,
+              "xy_displacement_m": 0.29533886247286145,
+              "final_xy_error_m": 0.008305442189523338,
+              "max_final_xy_error_m": 0.008305442189523338,
+              "max_final_support_z_error_m": 2.186971631568113e-09,
+              "max_final_linear_speed_m_s": 2.5232805873101955e-05,
+              "max_final_angular_speed_rad_s": 0.00033455145248239914,
+              "max_final_position_spread_m": 2.9802322387695312e-08,
+              "max_final_tilt_deg": 5.050993007932461e-05,
+              "min_final_actual_open_fraction": 0.9999951571226842,
+              "max_frame_age_s": 0.47669800899893744,
+              "unique_jpeg_hashes": 210
+            },
+            "pick_criteria": {
+              "xy_tolerance_m": 0.04,
+              "z_tolerance_m": 0.005,
+              "settle_sim_s": 0.5,
+              "min_final_samples": 4,
+              "max_linear_speed_m_s": 0.02,
+              "max_angular_speed_rad_s": 0.2,
+              "max_position_spread_m": 0.005,
+              "min_open_fraction": 0.9,
+              "max_tilt_deg": 5,
+              "min_lift_m": 0.015,
+              "min_xy_displacement_m": 0.02,
+              "max_frame_age_s": 2
+            },
+            "props_reset": {
+              "pink_cube": {
+                "max_spawn_error_m": 4.298658147750007e-08,
+                "max_speed_m_s": 2.6747337391831717e-05,
+                "max_spin_rad_s": 0.0004489147922772475,
+                "max_spread_m": 3.332000937312528e-08,
+                "pass": true
+              },
+              "green_cube": {
+                "max_spawn_error_m": 1.4537489213722366e-08,
+                "max_speed_m_s": 1.5252776189920039e-05,
+                "max_spin_rad_s": 0.00045185157188530855,
+                "max_spread_m": 1.5160833109263057e-08,
+                "pass": true
+              },
+              "tomato_can": {
+                "max_spawn_error_m": 6.134972386964697e-08,
+                "max_speed_m_s": 0.0001476510591899102,
+                "max_spin_rad_s": 0.0016493627847566352,
+                "max_spread_m": 7.459888009168501e-08,
+                "pass": true
+              },
+              "lemon": {
+                "max_spawn_error_m": 7.176201959695758e-09,
+                "max_speed_m_s": 2.641669105685196e-10,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              },
+              "orange": {
+                "max_spawn_error_m": 7.638942475269053e-09,
+                "max_speed_m_s": 1.2222169942788241e-09,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              }
+            }
+          },
+          "props_reset": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "native_tool_summary": {
+            "calls": 1,
+            "tools": [
+              "cascade__pick_and_place"
+            ],
+            "failures": 0
+          },
+          "native_reply": [
+            "Placement unverified. The motion routine finished and the green cube ended up about 0.8 cm from the green square's center, but full containment and release aren't confirmed by that center position alone. The arm did return home successfully."
+          ],
+          "native_pick_receipt_sha256": "a22503833d8f461dac85aaef0d3d1e8fe08bbc7232418794a80b301b8366b422"
+        },
+        {
+          "object": "orange",
+          "destination": "open box",
+          "physics": {
+            "pass": true,
+            "object_name": "orange",
+            "destination_name": "open box",
+            "checks": {
+              "complete_observation": true,
+              "all_phase_boundaries": true,
+              "live_prop_names_match_expected": true,
+              "spawn_prop_names_match_expected": true,
+              "spawn_positions_finite_and_unchanged": true,
+              "all_props_physically_reset_and_settled": true,
+              "scene_config_sha256_matches": true,
+              "prop_dimensions_match": true,
+              "cube_collider_geometry_matches": true,
+              "green_square_geometry_matches": true,
+              "scene_name_matches": true,
+              "scene_assets_sha256_matches": true,
+              "scene_content_sha256_matches": true,
+              "open_box_geometry_matches": true,
+              "convex_body_identity": true,
+              "authored_convex_vertices_match": true,
+              "convex_topology_matches": true,
+              "convex_body_and_collider_enabled": true,
+              "convex_body_and_child_transforms_match": true,
+              "convex_tensor_mass_and_com_match": true,
+              "convex_tensor_inertia_valid": true,
+              "physx_support_live_identity": true,
+              "physx_support_source_matches": true,
+              "physx_support_solid_subset": true,
+              "physx_support_geometry_unchanged": true,
+              "ordered_phases": true,
+              "strict_pick_place_and_cameras": true,
+              "whole_convex_collider_inside_open_box_and_supported": true,
+              "all_physics_tensors_cuda": true,
+              "single_supported_engine": true,
+              "gpu_backend_no_fallback": true,
+              "contact_sensor_and_actual_jaws_bound": true,
+              "two_jaw_contacts_during_real_lift": true,
+              "reset_settle_window": true,
+              "whole_footprint_enters_destination_with_bilateral_support": true,
+              "all_event_cameras_advance": true
+            },
+            "errors": [],
+            "event_cameras": {
+              "pass": true,
+              "cameras": {
+                "cam0": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 413
+                },
+                "side": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 413
+                },
+                "proof": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 413
+                }
+              }
+            },
+            "pick_checks": {
+              "physics_channel": true,
+              "same_robot_and_engine": true,
+              "same_observed_prop_set": true,
+              "physics_clock_advances": true,
+              "finite_all_observed_state": true,
+              "actual_joints_within_limits": true,
+              "final_window_long_enough": true,
+              "valid_final_orientations": true,
+              "projected_support_geometry": true,
+              "gripper_readback_matches_actual_q": true,
+              "released_actual_jaws": true,
+              "destination_xy": true,
+              "supported_z": true,
+              "settled_linear_speed": true,
+              "settled_angular_speed": true,
+              "stable_final_position": true,
+              "observed_lift": true,
+              "observed_xy_displacement": true
+            },
+            "pick_metrics": {
+              "samples": 413,
+              "final_samples": 31,
+              "simulation_elapsed_s": 6.866666666666667,
+              "final_window_sim_s": 0.5,
+              "lift_m": 0.11049995757639407,
+              "xy_displacement_m": 0.27697000544411193,
+              "final_xy_error_m": 0.010223083179158909,
+              "max_final_xy_error_m": 0.010223180206535181,
+              "max_final_support_z_error_m": 1.2189008118806965e-07,
+              "max_final_linear_speed_m_s": 0.0003360161720171295,
+              "max_final_angular_speed_rad_s": 0.017820180708115026,
+              "max_final_position_spread_m": 2.6238846261710425e-07,
+              "max_final_tilt_deg": 24.66671954667507,
+              "min_final_actual_open_fraction": 0.9999959766865376,
+              "max_frame_age_s": 0.5209170620000805,
+              "unique_jpeg_hashes": 207
+            },
+            "pick_criteria": {
+              "xy_tolerance_m": 0.04,
+              "z_tolerance_m": 0.005,
+              "settle_sim_s": 0.5,
+              "min_final_samples": 4,
+              "max_linear_speed_m_s": 0.02,
+              "max_angular_speed_rad_s": 0.2,
+              "max_position_spread_m": 0.005,
+              "min_open_fraction": 0.9,
+              "max_tilt_deg": 5,
+              "min_lift_m": 0.015,
+              "min_xy_displacement_m": 0.02,
+              "max_frame_age_s": 2
+            },
+            "props_reset": {
+              "pink_cube": {
+                "max_spawn_error_m": 4.305546243245479e-08,
+                "max_speed_m_s": 2.709880105038558e-05,
+                "max_spin_rad_s": 0.00045005578759210307,
+                "max_spread_m": 3.077594869184923e-08,
+                "pass": true
+              },
+              "green_cube": {
+                "max_spawn_error_m": 2.6420963377472673e-08,
+                "max_speed_m_s": 1.5253532101828422e-05,
+                "max_spin_rad_s": 0.00045175513364563376,
+                "max_spread_m": 1.4930236657970956e-08,
+                "pass": true
+              },
+              "tomato_can": {
+                "max_spawn_error_m": 4.896339901746981e-08,
+                "max_speed_m_s": 0.00015858189337025907,
+                "max_spin_rad_s": 0.0011123392540062496,
+                "max_spread_m": 9.541398640621973e-08,
+                "pass": true
+              },
+              "lemon": {
+                "max_spawn_error_m": 7.176201959695758e-09,
+                "max_speed_m_s": 2.641669105685196e-10,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              },
+              "orange": {
+                "max_spawn_error_m": 7.638942475269053e-09,
+                "max_speed_m_s": 1.2222169942788241e-09,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              }
+            }
+          },
+          "props_reset": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "native_tool_summary": {
+            "calls": 1,
+            "tools": [
+              "cascade__pick_and_place"
+            ],
+            "failures": 0
+          },
+          "native_reply": [
+            "Placement unverified. The motion routine finished and the orange ended up about 1.0 cm from the open box's center, but full containment and release aren't confirmed by that center position alone. The arm did return home successfully."
+          ],
+          "native_pick_receipt_sha256": "4e96e60494080e40894d4bf74196427288a26a41758f14c7852bfede2bdcc74f"
+        }
+      ],
+      "graspgenx_readiness": {
+        "ok": true,
+        "learned": true,
+        "health": {
+          "status": "ok",
+          "learned": true,
+          "device": "cuda:0",
+          "gpu": "NVIDIA GB10",
+          "capability": [
+            12,
+            1
+          ],
+          "torch": "2.14.0+cu130",
+          "cuda": "13.0",
+          "architecture": "aarch64"
+        },
+        "metadata": {
+          "default_gripper": null,
+          "loaded_grippers": [],
+          "model": {
+            "generator_backbone": "ptv3vanilla",
+            "discriminator_backbone": "ptv3vanilla",
+            "grasp_repr": "r3_so3",
+            "num_diffusion_iters_eval": 20
+          },
+          "assets_dir": "/home/spark/Projects/cascade-clean-20260930-02/.graspgenx-src/ext/gripper_descriptions",
+          "actions": [
+            "health",
+            "metadata",
+            "infer",
+            "infer_object",
+            "infer_scene_depth",
+            "infer_scene_pc"
+          ],
+          "precision": {
+            "weights": "fp32",
+            "tensorrt": false,
+            "tensorrt_precision": null
+          }
+        },
+        "diffusion_grasps": 100,
+        "score_max": 0.9571309685707092,
+        "wall_seconds": 1.797,
+        "timing": {
+          "infer_ms": 1795.499096995627
+        }
+      },
+      "files_sha256": {
+        "desktop-latest.json": "1e6cac7f0a9792fedade66fe9069dc4ebfb1c7a34f3d524d5afd60c4e4327b16",
+        "graspgenx-readiness.json": "8382e8b548e027a80627ecf9161d89f8d87de086658fb5e1f7caa62f09c3b094",
+        "install.json": "1be2bd24e3706b339974e17c75c07cf3cdb21f27ee6ece69d3c09d5765dad161",
+        "native-proof/01-scene.json": "9a2faad223accb2e34a9e997d99f14614d554de7eabba5495a279838f41b4f2d",
+        "native-proof/case-1/02-pick.json": "a22503833d8f461dac85aaef0d3d1e8fe08bbc7232418794a80b301b8366b422",
+        "native-proof/case-1/03-reset.json": "a111046041952c70fd9174115007142ed08bd3a548f00b42f9fc5ab111c341b5",
+        "native-proof/case-1/04-world-reset.json": "f6059ff6ad3e2fc4c9c1355d37dfea85fc112f43aeb62d8f4f4e8673f30beae2",
+        "native-proof/case-1/05-inspect-reset.json": "680b17631f507f9e5b36bc7dcad61aa8511f2b298b62d5c32e9e5928b22782b5",
+        "native-proof/case-1/physics/first-scene-geometry.json": "65dba77d3629126989799f94b0120ac445339ed7c714f437db4fb896f3f6e0db",
+        "native-proof/case-1/physics/gpu-physical-audit.json": "989f1c8790aeb14c17865205334325bccb0aadbaef228fbaf31880b51eaca96a",
+        "native-proof/case-1/physics/metadata.json": "b74c96d570ff3bfd812aadb5aed0de057ffe274bbbb4871b6bab0ed99d35f16d",
+        "native-proof/case-1/physics/phases.json": "4f7589e3d89b6af636ac1173dd092e679298e9e690e76ebf9424406aa0166726",
+        "native-proof/case-1/physics/ping-after.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+        "native-proof/case-1/physics/ping-before.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+        "native-proof/case-1/physics/placed-cam0.jpg": "adadfe53f141320f2b9e9b39cff3d9f8f3ab71c7143058b6062bf826b334136c",
+        "native-proof/case-1/physics/placed-frames.json": "ccd284fe33663ca6d59cb867eb083bd095779d80ea7eb5b410125e8c4826c5dd",
+        "native-proof/case-1/physics/placed-proof.jpg": "74d93d2a61730be96ab99f3876104c8b908a1a4a08e0dbe54b9bdeadbf793d49",
+        "native-proof/case-1/physics/placed-side.jpg": "dc7d8af4247c5ed7cb1d77df812a144e656bcedbeee0f7f04d4afa44be95cf22",
+        "native-proof/case-1/physics/reset-cam0.jpg": "1428c98d2f1e568f686cd495b14909a951a470a367c0781daa472f692e160b04",
+        "native-proof/case-1/physics/reset-frames.json": "9f1581f53a6fa2e091aec0fe35e2ca72bdfbe5a0dbb7506f251d60e976e10e9d",
+        "native-proof/case-1/physics/reset-proof.jpg": "6c05ca78ebac83f8247dec638e865e85f8062d59ba57b64b7580c5d9627c7d71",
+        "native-proof/case-1/physics/reset-side.jpg": "af5e0c25505793bf01ba93b434744e289e4d90b528630e543dcd74900910fce1",
+        "native-proof/case-1/physics/snapshot-code.py": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+        "native-proof/case-2/02-pick.json": "4e96e60494080e40894d4bf74196427288a26a41758f14c7852bfede2bdcc74f",
+        "native-proof/case-2/03-reset.json": "f8d6b2de0d7a0b03e88307023b7fd7e28314b04bb80febc9ab20c2954c2b1c6d",
+        "native-proof/case-2/04-world-reset.json": "d744b5cc338684f539c97f10b8bd35ba1e2b9b7776a2442d68c7eb0abe44f09f",
+        "native-proof/case-2/05-inspect-reset.json": "4f9ad6c76759365d83c97e871af68230a22fb2b309a7a3a24a2e803630781b4a",
+        "native-proof/case-2/physics/first-scene-geometry.json": "65dba77d3629126989799f94b0120ac445339ed7c714f437db4fb896f3f6e0db",
+        "native-proof/case-2/physics/gpu-physical-audit.json": "41764eb723efd38864a625b74847f7d58e127981961ae46b895973323c4a0da2",
+        "native-proof/case-2/physics/metadata.json": "ada7585af1ef89525ff166726fa06c658fef689241697cd9b9c013082088602e",
+        "native-proof/case-2/physics/phases.json": "106caf0bdccb77162965ec2aa9125d24cbf3813088ccfb650c37fd9b30b2c37b",
+        "native-proof/case-2/physics/ping-after.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+        "native-proof/case-2/physics/ping-before.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+        "native-proof/case-2/physics/placed-cam0.jpg": "b340867f3b93f8c1ba2e0858a1f2486b46afd38aba7dac08b543466e55466453",
+        "native-proof/case-2/physics/placed-frames.json": "aeb415781f8e9217182cc34e84d271346001d0b3c8b375a971cffa1db2e8f75c",
+        "native-proof/case-2/physics/placed-proof.jpg": "88d907d26b16265f5c4398593bd7a14deff0d0d09e8a6f5463a69d0ed808b161",
+        "native-proof/case-2/physics/placed-side.jpg": "6d63b3bc6f26423c51943679530d98cf62aec21f76519be4c2b3324642b0fa9b",
+        "native-proof/case-2/physics/reset-cam0.jpg": "2d2b77d6d05bc924dc07efedd559cdf50ca3fc889a1ee2ac91a05a715d54dbc4",
+        "native-proof/case-2/physics/reset-frames.json": "5fde30c049173c57cc96c5637590b55f5082e0eac929e66d6bd341ccc1941e4b",
+        "native-proof/case-2/physics/reset-proof.jpg": "1eb1584b3977498c54323b6c40696cad9b5ec9c2a22dcb8391d837552ce92eef",
+        "native-proof/case-2/physics/reset-side.jpg": "03b64882f894db885973e13749f5c5f7449be3d599565e3336484b1e635251e3",
+        "native-proof/case-2/physics/snapshot-code.py": "43a0031e46cd0a1a07db43f44a9db9b26a132824590dcf551f41ce38e489972a",
+        "native-proof/proof.json": "3be4ceabb85b27bc9a96bf28542088fad582438c380b7a2013951d1fe659ce0e",
+        "proof.json": "3be4ceabb85b27bc9a96bf28542088fad582438c380b7a2013951d1fe659ce0e"
+      }
     }
   ],
   "native_visitor_campaigns": [
@@ -1059,6 +1550,1378 @@
         }
       ],
       "failure_classification": "External validation harness passed a str to the reset validator that requires Path. The native pick and reset completed; missing end markers leave this campaign unaccepted. Original evidence is retained."
+    },
+    {
+      "scope": "External native visitor campaign; not product code or a new READY receipt",
+      "source_commit": "9cf540279f09df8197eda6541311b41edb455243",
+      "harness_sha256": "324fb0ca9896d089d8e3e0e4c89444a745784e5acec9ce0a64cf4c11e40cc02d",
+      "protected_receipts_sha256": {
+        "runs/.install/install.json": "1be2bd24e3706b339974e17c75c07cf3cdb21f27ee6ece69d3c09d5765dad161",
+        "runs/.install/desktop-latest.json": "459841d3487a8be56b248b2e7651e4a3b0caf7d19b603a35ddb37d5008a9015e",
+        "runs/.launch/profile-cascade-demo/proof.json": "6811fcf8c3d5821d4b26b28162c9ac60d38b436276a9140fb726b9ec456e90c7"
+      },
+      "planned_cases": [
+        [
+          "green_cube",
+          "green square"
+        ],
+        [
+          "orange",
+          "open box"
+        ],
+        [
+          "pink_cube",
+          "green square"
+        ],
+        [
+          "lemon",
+          "open box"
+        ],
+        [
+          "tomato_can",
+          "green square"
+        ]
+      ],
+      "started_at": 1790799037.8712778,
+      "finished_at": 1790800244.313313,
+      "run_complete": true,
+      "pass": true,
+      "errors": [],
+      "protected_receipts_unchanged": true,
+      "source_unchanged": true,
+      "name": "native-ui-five-props-02",
+      "campaign_sha256": "ac654628fe30b2701f64d2f7872bfb73ddaeaef6416f772a9eca210074c0c88c",
+      "cases": [
+        {
+          "object": "green_cube",
+          "destination": "green square",
+          "pass": true,
+          "started_at": 1790799083.3835256,
+          "finished_at": 1790799302.3946931,
+          "errors": [],
+          "reset_confirmed": true,
+          "props_reset": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "pick_trace_confirmed": true,
+          "engine_matches_every_sample": true,
+          "uncertain_order": false,
+          "observer_errors": [],
+          "samples": 813,
+          "physics": {
+            "pass": true,
+            "object_name": "green_cube",
+            "destination_name": "green square",
+            "checks": {
+              "complete_observation": true,
+              "all_phase_boundaries": true,
+              "live_prop_names_match_expected": true,
+              "spawn_prop_names_match_expected": true,
+              "spawn_positions_finite_and_unchanged": true,
+              "all_props_physically_reset_and_settled": true,
+              "scene_config_sha256_matches": true,
+              "prop_dimensions_match": true,
+              "cube_collider_geometry_matches": true,
+              "green_square_geometry_matches": true,
+              "scene_name_matches": true,
+              "scene_assets_sha256_matches": true,
+              "scene_content_sha256_matches": true,
+              "open_box_geometry_matches": true,
+              "ordered_phases": true,
+              "strict_pick_place_and_cameras": true,
+              "whole_cube_inside_green_square_throughout_settle": true,
+              "all_physics_tensors_cuda": true,
+              "single_supported_engine": true,
+              "gpu_backend_no_fallback": true,
+              "contact_sensor_and_actual_jaws_bound": true,
+              "two_jaw_contacts_during_real_lift": true,
+              "reset_settle_window": true,
+              "whole_footprint_enters_destination_with_bilateral_support": true,
+              "all_event_cameras_advance": true
+            },
+            "errors": [],
+            "event_cameras": {
+              "pass": true,
+              "cameras": {
+                "cam0": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 408
+                },
+                "side": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 408
+                },
+                "proof": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 408
+                }
+              }
+            },
+            "pick_checks": {
+              "physics_channel": true,
+              "same_robot_and_engine": true,
+              "same_observed_prop_set": true,
+              "physics_clock_advances": true,
+              "finite_all_observed_state": true,
+              "actual_joints_within_limits": true,
+              "final_window_long_enough": true,
+              "valid_final_orientations": true,
+              "upright_support_geometry": true,
+              "gripper_readback_matches_actual_q": true,
+              "released_actual_jaws": true,
+              "destination_xy": true,
+              "supported_z": true,
+              "settled_linear_speed": true,
+              "settled_angular_speed": true,
+              "stable_final_position": true,
+              "observed_lift": true,
+              "observed_xy_displacement": true
+            },
+            "pick_metrics": {
+              "samples": 397,
+              "final_samples": 31,
+              "simulation_elapsed_s": 6.6000000000000085,
+              "final_window_sim_s": 0.5000000000000142,
+              "lift_m": 0.09894980676472186,
+              "xy_displacement_m": 0.3032968977150597,
+              "final_xy_error_m": 0.006264603963718384,
+              "max_final_xy_error_m": 0.006264627668103602,
+              "max_final_support_z_error_m": 3.243264823371561e-10,
+              "max_final_linear_speed_m_s": 1.3914871705231887e-05,
+              "max_final_angular_speed_rad_s": 0.0004496233854073006,
+              "max_final_position_spread_m": 3.332000937312528e-08,
+              "max_final_tilt_deg": 0.00010271219874551499,
+              "min_final_actual_open_fraction": 0.9999971687794154,
+              "max_frame_age_s": 0.7133977379999124,
+              "unique_jpeg_hashes": 199
+            },
+            "pick_criteria": {
+              "xy_tolerance_m": 0.04,
+              "z_tolerance_m": 0.005,
+              "settle_sim_s": 0.5,
+              "min_final_samples": 4,
+              "max_linear_speed_m_s": 0.02,
+              "max_angular_speed_rad_s": 0.2,
+              "max_position_spread_m": 0.005,
+              "min_open_fraction": 0.9,
+              "max_tilt_deg": 5,
+              "min_lift_m": 0.015,
+              "min_xy_displacement_m": 0.02,
+              "max_frame_age_s": 2
+            },
+            "props_reset": {
+              "pink_cube": {
+                "max_spawn_error_m": 4.305546243245479e-08,
+                "max_speed_m_s": 2.709880105038558e-05,
+                "max_spin_rad_s": 0.00045005578759210307,
+                "max_spread_m": 3.7299440045842505e-08,
+                "pass": true
+              },
+              "green_cube": {
+                "max_spawn_error_m": 2.6420963377472673e-08,
+                "max_speed_m_s": 1.5253532101828422e-05,
+                "max_spin_rad_s": 0.0004517260480775721,
+                "max_spread_m": 1.501712528671799e-08,
+                "pass": true
+              },
+              "tomato_can": {
+                "max_spawn_error_m": 6.070645066279679e-08,
+                "max_speed_m_s": 0.00015858189337025907,
+                "max_spin_rad_s": 0.0011123392540062496,
+                "max_spread_m": 8.560065398421926e-08,
+                "pass": true
+              },
+              "lemon": {
+                "max_spawn_error_m": 7.176201959695758e-09,
+                "max_speed_m_s": 2.641669105685196e-10,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              },
+              "orange": {
+                "max_spawn_error_m": 7.638942475269053e-09,
+                "max_speed_m_s": 1.2222169942788241e-09,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              }
+            }
+          },
+          "files_sha256": {
+            "01-pick.json": "7a212139e513c9511be42aab2dece4d2c4bb95b8e24d8c83643e238af745cf46",
+            "02-reset.json": "ee81756e77dbc837bb7b08b649050364069cade36082ef6e31ea5b47bb661ed3",
+            "03-world.json": "be04d6ac38cc4f3d417851562cd16c6d7ed367de25370040a72536dac6f41c7b",
+            "04-inspect.json": "00e886643abbcb3065f6ede4aceaa94ca1b9184ae6efcbf5a31f3d7960d362f6",
+            "physics/first-scene-geometry.json": "65dba77d3629126989799f94b0120ac445339ed7c714f437db4fb896f3f6e0db",
+            "physics/gpu-physical-audit.json": "9a167b186f83e56bc8414c60f26b6344c5cf9d31102ee862f95988b5b7e11ca1",
+            "physics/metadata.json": "929f1cd9aa4631e75d0cfbc7db497fa488806c3cf3a7acb2adb92db443e332d7",
+            "physics/phases.json": "3a619fb2e0799a8776987078f1e7995c4e60701a3056f1e2509db038606cf4db",
+            "physics/ping-after.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+            "physics/ping-before.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+            "physics/placed-cam0.jpg": "aa7ce75c8c221338f9494e42b280e644077e6ad04ddec34a743441812810d8a2",
+            "physics/placed-frames.json": "81381a045adb8fb75a01023a5d17452b07804846de46700781dad79eb1ef82fe",
+            "physics/placed-proof.jpg": "b1ac65214eec85725cc9ce45a78a0e7d7f5e2dbb4eb9608a2e8c6c689bcb2f3d",
+            "physics/placed-side.jpg": "3ff288edb29947e22f32748eb9ee2e16b3401880589284f0d600fd6233b52ffd",
+            "physics/reset-cam0.jpg": "b6c11d7092bf3974d57cfbd474c70360a0c0ed13211f29bd7ea5ea6776f9c780",
+            "physics/reset-frames.json": "18b83b19e1fdf6aabf5aaaaac2cfff7f02b15fcb1c678d3647c82b0e8bf0d719",
+            "physics/reset-proof.jpg": "734a1b53946205774b5ce80b581187ea0016965e67b666aa2185419710f8afb5",
+            "physics/reset-side.jpg": "27d864dd5503fdedf4b300aaab83540cd38e06d416c57ea3c85a56bd7530b800",
+            "physics/snapshot-code.py": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+            "receipt.json": "4efccd3f5e66fec7ca2e96da40a3453550a12c9ae3430ac95a38cb65a3bdaddf",
+            "trace-evidence.json": "488d1bc309173e1830d9535fb8864fdcbb6cabdb0c6b12fe74cb0d993e64d00e"
+          },
+          "pick": {
+            "message": "Please put the green cube in the green square.",
+            "status": "done",
+            "started_at": 1790799083.6361036,
+            "finished_at": 1790799159.258591,
+            "order": {
+              "id": "2df37a947a204d818180606ca99b0836",
+              "status": "done",
+              "message": "Placement unverified. The motion routine finished and the green cube ended up 0.6 cm from the green square's center, but full containment and release aren't confirmed by that center position alone. The arm returned home successfully.",
+              "tools": [
+                "pick_and_place"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799158.5857887
+            }
+          },
+          "reset": {
+            "message": "Let's start over.",
+            "status": "done",
+            "started_at": 1790799166.251372,
+            "finished_at": 1790799214.7670863,
+            "order": {
+              "id": "9afff482841d45758b046732db1ea7fb",
+              "status": "done",
+              "message": "Scene reset complete. All props are back at their starting positions:\n\n- **Green cube** \u2014 center of the table\n- **Pink Rubik's cube** \u2014 to the right\n- **Orange** \u2014 behind the cubes\n- **Red tomato can** \u2014 in the back\n- **Yellow lemon** \u2014 in front of the cubes\n- **Yellow plate** with an orange and a sliced orange \u2014 bottom right\n- **Green square** and **open wooden box** \u2014 on the left\n\nReady for your next instruction.",
+              "tools": [
+                "reset_scene"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799214.327417
+            }
+          },
+          "world": {
+            "message": "What is the session status?",
+            "status": "done",
+            "started_at": 1790799214.782684,
+            "finished_at": 1790799255.1784816,
+            "order": {
+              "id": "61fffa5692e34223b19892a0aa88b420",
+              "status": "done",
+              "message": "Here's the current session status:\n\n- **Last action:** Scene reset \u2014 completed successfully\n- **Arm:** Connected\n- **Perception:** Running (6,806 ticks, not paused), last update 0.5 s ago\n- **Cameras:** All three online \u2014 `isaac` (Worktop), `isaac_side` (Side), `kitchen` (Kitchen), each at ~1.5 FPS with depth enabled and no errors\n- **Gripper contents:** Not measured\n- **Home pose:** Not verified\n- **Tracked objects:** 13 visible, including the green cube, pink cube, orange, lemon, tomato can, plate, and the green square area\n\nReady for your next instruction.",
+              "tools": [
+                "world_state"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799254.1883876
+            }
+          },
+          "inspection": {
+            "message": "What can you see on the table?",
+            "status": "done",
+            "started_at": 1790799255.193072,
+            "finished_at": 1790799294.61272,
+            "order": {
+              "id": "2058c3bb67b3499abb6a00a9fd3991a1",
+              "status": "done",
+              "message": "Here's what I can see on the table:\n\n- **Green square** (marked delivery area) on the left\n- **Open wooden box** (empty) next to it\n- **Green cube** in the middle\n- **Pink Rubik's cube** to its right\n- **Orange** behind the cubes\n- **Red tomato can** in the back\n- **Yellow lemon** in front of the cubes\n- **Yellow plate** in the bottom right with an orange and a sliced orange on it\n- The **CASCADE robot arm** base in the upper left\n\nEverything is at its starting positions. What would you like to do?",
+              "tools": [
+                "describe_scene"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799294.2644901
+            }
+          }
+        },
+        {
+          "object": "orange",
+          "destination": "open box",
+          "pass": true,
+          "started_at": 1790799302.4114716,
+          "finished_at": 1790799535.7463632,
+          "errors": [],
+          "reset_confirmed": true,
+          "props_reset": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "pick_trace_confirmed": true,
+          "engine_matches_every_sample": true,
+          "uncertain_order": false,
+          "observer_errors": [],
+          "samples": 851,
+          "physics": {
+            "pass": true,
+            "object_name": "orange",
+            "destination_name": "open box",
+            "checks": {
+              "complete_observation": true,
+              "all_phase_boundaries": true,
+              "live_prop_names_match_expected": true,
+              "spawn_prop_names_match_expected": true,
+              "spawn_positions_finite_and_unchanged": true,
+              "all_props_physically_reset_and_settled": true,
+              "scene_config_sha256_matches": true,
+              "prop_dimensions_match": true,
+              "cube_collider_geometry_matches": true,
+              "green_square_geometry_matches": true,
+              "scene_name_matches": true,
+              "scene_assets_sha256_matches": true,
+              "scene_content_sha256_matches": true,
+              "open_box_geometry_matches": true,
+              "convex_body_identity": true,
+              "authored_convex_vertices_match": true,
+              "convex_topology_matches": true,
+              "convex_body_and_collider_enabled": true,
+              "convex_body_and_child_transforms_match": true,
+              "convex_tensor_mass_and_com_match": true,
+              "convex_tensor_inertia_valid": true,
+              "physx_support_live_identity": true,
+              "physx_support_source_matches": true,
+              "physx_support_solid_subset": true,
+              "physx_support_geometry_unchanged": true,
+              "ordered_phases": true,
+              "strict_pick_place_and_cameras": true,
+              "whole_convex_collider_inside_open_box_and_supported": true,
+              "all_physics_tensors_cuda": true,
+              "single_supported_engine": true,
+              "gpu_backend_no_fallback": true,
+              "contact_sensor_and_actual_jaws_bound": true,
+              "two_jaw_contacts_during_real_lift": true,
+              "reset_settle_window": true,
+              "whole_footprint_enters_destination_with_bilateral_support": true,
+              "all_event_cameras_advance": true
+            },
+            "errors": [],
+            "event_cameras": {
+              "pass": true,
+              "cameras": {
+                "cam0": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 427
+                },
+                "side": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 427
+                },
+                "proof": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 427
+                }
+              }
+            },
+            "pick_checks": {
+              "physics_channel": true,
+              "same_robot_and_engine": true,
+              "same_observed_prop_set": true,
+              "physics_clock_advances": true,
+              "finite_all_observed_state": true,
+              "actual_joints_within_limits": true,
+              "final_window_long_enough": true,
+              "valid_final_orientations": true,
+              "projected_support_geometry": true,
+              "gripper_readback_matches_actual_q": true,
+              "released_actual_jaws": true,
+              "destination_xy": true,
+              "supported_z": true,
+              "settled_linear_speed": true,
+              "settled_angular_speed": true,
+              "stable_final_position": true,
+              "observed_lift": true,
+              "observed_xy_displacement": true
+            },
+            "pick_metrics": {
+              "samples": 428,
+              "final_samples": 31,
+              "simulation_elapsed_s": 7.116666666666674,
+              "final_window_sim_s": 0.5,
+              "lift_m": 0.12723852135241032,
+              "xy_displacement_m": 0.27373343426425306,
+              "final_xy_error_m": 0.014835664784537022,
+              "max_final_xy_error_m": 0.014835679600451806,
+              "max_final_support_z_error_m": 8.762199395564996e-08,
+              "max_final_linear_speed_m_s": 0.0009362637766036588,
+              "max_final_angular_speed_rad_s": 0.03480434418244245,
+              "max_final_position_spread_m": 1.7572159193561605e-08,
+              "max_final_tilt_deg": 24.383516695363845,
+              "min_final_actual_open_fraction": 0.9999962002039522,
+              "max_frame_age_s": 0.5055980120014283,
+              "unique_jpeg_hashes": 214
+            },
+            "pick_criteria": {
+              "xy_tolerance_m": 0.04,
+              "z_tolerance_m": 0.005,
+              "settle_sim_s": 0.5,
+              "min_final_samples": 4,
+              "max_linear_speed_m_s": 0.02,
+              "max_angular_speed_rad_s": 0.2,
+              "max_position_spread_m": 0.005,
+              "min_open_fraction": 0.9,
+              "max_tilt_deg": 5,
+              "min_lift_m": 0.015,
+              "min_xy_displacement_m": 0.02,
+              "max_frame_age_s": 2
+            },
+            "props_reset": {
+              "pink_cube": {
+                "max_spawn_error_m": 4.305546243245479e-08,
+                "max_speed_m_s": 2.709880105038558e-05,
+                "max_spin_rad_s": 0.00045005578759210307,
+                "max_spread_m": 3.7299440045842505e-08,
+                "pass": true
+              },
+              "green_cube": {
+                "max_spawn_error_m": 2.6420963377472673e-08,
+                "max_speed_m_s": 1.5253532101828422e-05,
+                "max_spin_rad_s": 0.0004517260480775721,
+                "max_spread_m": 1.501712528671799e-08,
+                "pass": true
+              },
+              "tomato_can": {
+                "max_spawn_error_m": 6.070645066279679e-08,
+                "max_speed_m_s": 0.00015858189337025907,
+                "max_spin_rad_s": 0.0011123392540062496,
+                "max_spread_m": 8.560065398421926e-08,
+                "pass": true
+              },
+              "lemon": {
+                "max_spawn_error_m": 7.176201959695758e-09,
+                "max_speed_m_s": 2.641669105685196e-10,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              },
+              "orange": {
+                "max_spawn_error_m": 7.638942475269053e-09,
+                "max_speed_m_s": 1.2222169942788241e-09,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              }
+            }
+          },
+          "files_sha256": {
+            "01-pick.json": "a42e0b822bbab5d62def0b7122ea7848e0ef90deb0732792da2e998362ce33d3",
+            "02-reset.json": "a0e2e7a0a0165e25eec275c79803784ba23f5038fe9ac6e46419e98c70e07b4e",
+            "03-world.json": "a06aade5d63c667cde66c4d18611b6767d918ff8541cb0dcb29885845b50f954",
+            "04-inspect.json": "8570e85d7059a4ff4814dbcfb80c34816bcd1484cff23cb03e94ad25a9615df7",
+            "physics/first-scene-geometry.json": "65dba77d3629126989799f94b0120ac445339ed7c714f437db4fb896f3f6e0db",
+            "physics/gpu-physical-audit.json": "cc80ea9e8612c6d0a7876613e6c2e8911905305f8300a3c39a682a98cd8eb1cd",
+            "physics/metadata.json": "f7d2b0f058b04db98215722109c41853ef1493ef3c4766f25fe731611485ba87",
+            "physics/phases.json": "8c4e172bff50257e182d9896c5bb0fb91f704fb608265af67f6ac734ee783d61",
+            "physics/ping-after.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+            "physics/ping-before.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+            "physics/placed-cam0.jpg": "c8f7f269bddc5c5751b6f4de6d88b62da369ba0e9678625cd7e0a41143e8eea8",
+            "physics/placed-frames.json": "43077a44b52e80ca3d043c1846a3b78b2507522adb4cf971dd71e57355887ad9",
+            "physics/placed-proof.jpg": "e55262fdf26691d29cf5a57f38886685c77c1b5a9e598bbed0dd68e840496327",
+            "physics/placed-side.jpg": "33c6d397b94745a2e0b82c6b4423c7fb28d4460da510da9beefad77f007296d3",
+            "physics/reset-cam0.jpg": "9fbcfa8368e01c9ebe522fc4beb357bc3df91eea182cf76c4127137fa790bc38",
+            "physics/reset-frames.json": "257f3ed1a1ddaea0a74b38c154df79f4310cdfd67b15395c4733d914b83e47b4",
+            "physics/reset-proof.jpg": "bf981fdec8762d670413fe096eea4d9205ac192d9921e204c387a5413ee6ef9e",
+            "physics/reset-side.jpg": "0ace9a858982e4a02a77d5ddcb82d1ea2da52d9e6573911bdc3f754f0995221f",
+            "physics/snapshot-code.py": "43a0031e46cd0a1a07db43f44a9db9b26a132824590dcf551f41ce38e489972a",
+            "receipt.json": "c4d4da1bdf865e7b69bbaf1499604518a0aaf039cce32b1546e1da669440f789",
+            "trace-evidence.json": "58aa92431b24da1cf076c2dfbf851abfe47598f441e3da55ce01dde0e1afdc0e"
+          },
+          "pick": {
+            "message": "Please put the orange in the open box.",
+            "status": "done",
+            "started_at": 1790799302.580481,
+            "finished_at": 1790799386.3021467,
+            "order": {
+              "id": "ae4ebe6cfa144944a58ef192dbfeca4b",
+              "status": "done",
+              "message": "Placement unverified. The motion routine finished and the orange ended up 1.5 cm from the open box's center, but full containment and release aren't confirmed by that center position alone. The arm returned home successfully.",
+              "tools": [
+                "pick_and_place"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799386.2691238
+            }
+          },
+          "reset": {
+            "message": "Let's start over.",
+            "status": "done",
+            "started_at": 1790799393.7545838,
+            "finished_at": 1790799444.2608504,
+            "order": {
+              "id": "19bf6b0ddd734479a5b60d6ddea372bf",
+              "status": "done",
+              "message": "Scene reset complete. All props are back at their starting positions:\n\n- **Green cube** \u2014 center of the table\n- **Pink Rubik's cube** \u2014 to the right\n- **Orange** \u2014 behind the cubes\n- **Red tomato can** \u2014 in the back\n- **Yellow lemon** \u2014 in front of the cubes\n- **Yellow plate** with an orange and a sliced orange \u2014 bottom right\n- **Green square** and **open wooden box** \u2014 on the left\n\nReady for your next instruction.",
+              "tools": [
+                "reset_scene"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799443.676171
+            }
+          },
+          "world": {
+            "message": "What is the session status?",
+            "status": "done",
+            "started_at": 1790799444.2793217,
+            "finished_at": 1790799485.6950734,
+            "order": {
+              "id": "dcb2c32c5a814034947a9c764c082865",
+              "status": "done",
+              "message": "Here's the current session status:\n\n- **Last action:** Scene reset \u2014 completed successfully\n- **Arm:** Connected\n- **Perception:** Running (8,086 ticks, not paused), last update just now\n- **Cameras:** All three online \u2014 `isaac` (Worktop), `isaac_side` (Side), `kitchen` (Kitchen), each at ~1.5 FPS with depth enabled and no errors\n- **Gripper contents:** Not measured\n- **Home pose:** Not verified\n- **Tracked objects:** 13 visible, including the green cube, pink cube, orange, lemon, tomato can, plate, and the green square area\n\nReady for your next instruction.",
+              "tools": [
+                "world_state"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799485.183345
+            }
+          },
+          "inspection": {
+            "message": "What can you see on the table?",
+            "status": "done",
+            "started_at": 1790799485.709276,
+            "finished_at": 1790799528.1503994,
+            "order": {
+              "id": "db10e3f55d974e1ea15e23f9032e527f",
+              "status": "done",
+              "message": "Here's what I can see on the table:\n\n- **Green square** (marked delivery area) on the left\n- **Open wooden box** (empty) next to it\n- **Green cube** in the middle\n- **Pink Rubik's cube** to its right\n- **Orange** behind the cubes\n- **Red tomato can** in the back\n- **Yellow lemon** in front of the cubes\n- **Yellow plate** in the bottom right with an orange and a sliced orange on it\n- The **CASCADE robot arm** base in the upper left\n\nEverything is at its starting positions. What would you like to do?",
+              "tools": [
+                "describe_scene"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799527.8977633
+            }
+          }
+        },
+        {
+          "object": "pink_cube",
+          "destination": "green square",
+          "pass": true,
+          "started_at": 1790799535.775017,
+          "finished_at": 1790799771.6172602,
+          "errors": [],
+          "reset_confirmed": true,
+          "props_reset": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "pick_trace_confirmed": true,
+          "engine_matches_every_sample": true,
+          "uncertain_order": false,
+          "observer_errors": [],
+          "samples": 877,
+          "physics": {
+            "pass": true,
+            "object_name": "pink_cube",
+            "destination_name": "green square",
+            "checks": {
+              "complete_observation": true,
+              "all_phase_boundaries": true,
+              "live_prop_names_match_expected": true,
+              "spawn_prop_names_match_expected": true,
+              "spawn_positions_finite_and_unchanged": true,
+              "all_props_physically_reset_and_settled": true,
+              "scene_config_sha256_matches": true,
+              "prop_dimensions_match": true,
+              "cube_collider_geometry_matches": true,
+              "green_square_geometry_matches": true,
+              "scene_name_matches": true,
+              "scene_assets_sha256_matches": true,
+              "scene_content_sha256_matches": true,
+              "open_box_geometry_matches": true,
+              "ordered_phases": true,
+              "strict_pick_place_and_cameras": true,
+              "whole_cube_inside_green_square_throughout_settle": true,
+              "all_physics_tensors_cuda": true,
+              "single_supported_engine": true,
+              "gpu_backend_no_fallback": true,
+              "contact_sensor_and_actual_jaws_bound": true,
+              "two_jaw_contacts_during_real_lift": true,
+              "reset_settle_window": true,
+              "whole_footprint_enters_destination_with_bilateral_support": true,
+              "all_event_cameras_advance": true
+            },
+            "errors": [],
+            "event_cameras": {
+              "pass": true,
+              "cameras": {
+                "cam0": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 442
+                },
+                "side": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 442
+                },
+                "proof": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 442
+                }
+              }
+            },
+            "pick_checks": {
+              "physics_channel": true,
+              "same_robot_and_engine": true,
+              "same_observed_prop_set": true,
+              "physics_clock_advances": true,
+              "finite_all_observed_state": true,
+              "actual_joints_within_limits": true,
+              "final_window_long_enough": true,
+              "valid_final_orientations": true,
+              "upright_support_geometry": true,
+              "gripper_readback_matches_actual_q": true,
+              "released_actual_jaws": true,
+              "destination_xy": true,
+              "supported_z": true,
+              "settled_linear_speed": true,
+              "settled_angular_speed": true,
+              "stable_final_position": true,
+              "observed_lift": true,
+              "observed_xy_displacement": true
+            },
+            "pick_metrics": {
+              "samples": 438,
+              "final_samples": 31,
+              "simulation_elapsed_s": 7.349999999999994,
+              "final_window_sim_s": 0.5,
+              "lift_m": 0.095187921077013,
+              "xy_displacement_m": 0.3928187112224655,
+              "final_xy_error_m": 0.008858841280464278,
+              "max_final_xy_error_m": 0.008858844511247764,
+              "max_final_support_z_error_m": 2.186971631568113e-09,
+              "max_final_linear_speed_m_s": 2.55050873953752e-05,
+              "max_final_angular_speed_rad_s": 0.00032732026158756625,
+              "max_final_position_spread_m": 3.332000937312528e-08,
+              "max_final_tilt_deg": 7.117113650804041e-05,
+              "min_final_actual_open_fraction": 0.9999968707561959,
+              "max_frame_age_s": 0.507770859003358,
+              "unique_jpeg_hashes": 221
+            },
+            "pick_criteria": {
+              "xy_tolerance_m": 0.04,
+              "z_tolerance_m": 0.005,
+              "settle_sim_s": 0.5,
+              "min_final_samples": 4,
+              "max_linear_speed_m_s": 0.02,
+              "max_angular_speed_rad_s": 0.2,
+              "max_position_spread_m": 0.005,
+              "min_open_fraction": 0.9,
+              "max_tilt_deg": 5,
+              "min_lift_m": 0.015,
+              "min_xy_displacement_m": 0.02,
+              "max_frame_age_s": 2
+            },
+            "props_reset": {
+              "pink_cube": {
+                "max_spawn_error_m": 4.305546243245479e-08,
+                "max_speed_m_s": 2.709880105038558e-05,
+                "max_spin_rad_s": 0.00044983060889559266,
+                "max_spread_m": 3.077594869184923e-08,
+                "pass": true
+              },
+              "green_cube": {
+                "max_spawn_error_m": 1.5251436078421664e-08,
+                "max_speed_m_s": 1.52151322311533e-05,
+                "max_spin_rad_s": 0.0004507500118059831,
+                "max_spread_m": 1.4901161193847656e-08,
+                "pass": true
+              },
+              "tomato_can": {
+                "max_spawn_error_m": 6.070645066279679e-08,
+                "max_speed_m_s": 0.00015858189337025907,
+                "max_spin_rad_s": 0.0011123392540062496,
+                "max_spread_m": 9.657056180250437e-08,
+                "pass": true
+              },
+              "lemon": {
+                "max_spawn_error_m": 7.176201959695758e-09,
+                "max_speed_m_s": 2.641669105685196e-10,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              },
+              "orange": {
+                "max_spawn_error_m": 7.638942475269053e-09,
+                "max_speed_m_s": 1.2222169942788241e-09,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              }
+            }
+          },
+          "files_sha256": {
+            "01-pick.json": "a134f9fa25eb70cfdc14fb09eeadcb9369137e3826977179fa3e4a417214c4c0",
+            "02-reset.json": "9081865684487d7197bbc3984d25581314a99dc4a1911694e11f0c42e72f3d7e",
+            "03-world.json": "40385a5c010b1d10778f89d132a230171cee41e32006d52a3110871210b39378",
+            "04-inspect.json": "1971a54892074f4e44c4dd5a3a3edd696c0eb33261367f30468eb17b8de5573d",
+            "physics/first-scene-geometry.json": "65dba77d3629126989799f94b0120ac445339ed7c714f437db4fb896f3f6e0db",
+            "physics/gpu-physical-audit.json": "a0dc998665cbd83e58e36e4fe48cdda5d834163fb34519fda39167f7bced8be0",
+            "physics/metadata.json": "c42e5b50f8a7470a094bc2883fdf3e1d227e1f8bac8b8a0e9576e237b018cc76",
+            "physics/phases.json": "515d3d5397998466ed3f6528970d24efbb6293d2d756fdd4f762cd4065ae50ad",
+            "physics/ping-after.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+            "physics/ping-before.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+            "physics/placed-cam0.jpg": "d7ecefc4cb6751a56d4182c4dc582f78ef192624ffba2d3fbf9769664f6e4cb4",
+            "physics/placed-frames.json": "6a8329e851f6e8a4cd6397f181610c9f9f3627af5400108e778cc4f8901ebbb2",
+            "physics/placed-proof.jpg": "36987c47913a30c7a0b44930ac5db9d5f612fabca3a1493f4d754437921812d9",
+            "physics/placed-side.jpg": "2e8978157863c29b94b8ad0e4a8f93ef2268c04a580f82d0cc90e07fe7f57872",
+            "physics/reset-cam0.jpg": "2f1f2d6f1e123223cfacdc78125357b3d29417d6880b4ee220739af5c146db01",
+            "physics/reset-frames.json": "57adba76c5c28924017079071ee2a7ed7d15fbd5280440b4612a823bd9043a1a",
+            "physics/reset-proof.jpg": "801cb7f1151ddde95fb6ea651a39f05617fd5f0bba5a715faeb5d140f3b726e9",
+            "physics/reset-side.jpg": "df7ea0c1c981af57b9f1f2bc2f6747a48b881b7d77cef170517c6244c2b0baf1",
+            "physics/snapshot-code.py": "23c3c6c9b38c105d91f0d46ba6e6e028655f60526ab32646d1e09015a18326b4",
+            "receipt.json": "ebd44684cfc74a4b06336343e051c30385f865b57c55c0bba3bc3618e8810636",
+            "trace-evidence.json": "efd732499e74700a4fd80d768f835b86369fe0a36c775e3f90eae0a60275af50"
+          },
+          "pick": {
+            "message": "Please put the pink cube in the green square.",
+            "status": "done",
+            "started_at": 1790799536.0609112,
+            "finished_at": 1790799619.7411845,
+            "order": {
+              "id": "2386af459fdf43d08366e37b620159d3",
+              "status": "done",
+              "message": "Placement unverified. The motion routine finished and the pink cube ended up 0.9 cm from the green square's center, but full containment and release aren't confirmed by that center position alone. The arm returned home successfully.",
+              "tools": [
+                "pick_and_place"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799618.9648721
+            }
+          },
+          "reset": {
+            "message": "Let's start over.",
+            "status": "done",
+            "started_at": 1790799626.747728,
+            "finished_at": 1790799679.2733552,
+            "order": {
+              "id": "326c8d2f7c174513b9ce507bdc3cd71e",
+              "status": "done",
+              "message": "Scene reset complete. All props are back at their starting positions:\n\n- **Green cube** \u2014 center of the table\n- **Pink Rubik's cube** \u2014 to the right\n- **Orange** \u2014 behind the cubes\n- **Red tomato can** \u2014 in the back\n- **Yellow lemon** \u2014 in front of the cubes\n- **Yellow plate** with an orange and a sliced orange \u2014 bottom right\n- **Green square** and **open wooden box** \u2014 on the left\n\nReady for your next instruction.",
+              "tools": [
+                "reset_scene"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799678.2852683
+            }
+          },
+          "world": {
+            "message": "What is the session status?",
+            "status": "done",
+            "started_at": 1790799679.2896652,
+            "finished_at": 1790799721.7247403,
+            "order": {
+              "id": "df28fe9f8ab94e459a7e42e1cd3ceb7f",
+              "status": "done",
+              "message": "Here's the current session status:\n\n- **Last action:** Scene reset \u2014 completed successfully\n- **Arm:** Connected\n- **Perception:** Running (9,390 ticks, not paused), last update 0.2 s ago\n- **Cameras:** All three online \u2014 `isaac` (Worktop), `isaac_side` (Side), `kitchen` (Kitchen), each at ~1.5 FPS with depth enabled and no errors\n- **Gripper contents:** Not measured\n- **Home pose:** Not verified\n- **Tracked objects:** 13 visible, including the green cube, pink cube, orange, lemon, tomato can, plate, and the green square area\n\nReady for your next instruction.",
+              "tools": [
+                "world_state"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799721.3769557
+            }
+          },
+          "inspection": {
+            "message": "What can you see on the table?",
+            "status": "done",
+            "started_at": 1790799721.7292216,
+            "finished_at": 1790799764.1719823,
+            "order": {
+              "id": "85f7c975c24e48a691e10ed65fe41812",
+              "status": "done",
+              "message": "Here's what I can see on the table:\n\n- **Green square** (marked delivery area) on the left\n- **Open wooden box** (empty) next to it\n- **Green cube** in the middle\n- **Pink Rubik's cube** to its right\n- **Orange** behind the cubes\n- **Red tomato can** in the back\n- **Yellow lemon** in front of the cubes\n- **Yellow plate** in the bottom right with an orange and a sliced orange on it\n- The **CASCADE robot arm** base in the upper left\n\nEverything is at its starting positions. What would you like to do?",
+              "tools": [
+                "describe_scene"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799763.5009277
+            }
+          }
+        },
+        {
+          "object": "lemon",
+          "destination": "open box",
+          "pass": true,
+          "started_at": 1790799771.631063,
+          "finished_at": 1790800002.939193,
+          "errors": [],
+          "reset_confirmed": true,
+          "props_reset": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "pick_trace_confirmed": true,
+          "engine_matches_every_sample": true,
+          "uncertain_order": false,
+          "observer_errors": [],
+          "samples": 826,
+          "physics": {
+            "pass": true,
+            "object_name": "lemon",
+            "destination_name": "open box",
+            "checks": {
+              "complete_observation": true,
+              "all_phase_boundaries": true,
+              "live_prop_names_match_expected": true,
+              "spawn_prop_names_match_expected": true,
+              "spawn_positions_finite_and_unchanged": true,
+              "all_props_physically_reset_and_settled": true,
+              "scene_config_sha256_matches": true,
+              "prop_dimensions_match": true,
+              "cube_collider_geometry_matches": true,
+              "green_square_geometry_matches": true,
+              "scene_name_matches": true,
+              "scene_assets_sha256_matches": true,
+              "scene_content_sha256_matches": true,
+              "open_box_geometry_matches": true,
+              "convex_body_identity": true,
+              "authored_convex_vertices_match": true,
+              "convex_topology_matches": true,
+              "convex_body_and_collider_enabled": true,
+              "convex_body_and_child_transforms_match": true,
+              "convex_tensor_mass_and_com_match": true,
+              "convex_tensor_inertia_valid": true,
+              "physx_support_live_identity": true,
+              "physx_support_source_matches": true,
+              "physx_support_solid_subset": true,
+              "physx_support_geometry_unchanged": true,
+              "ordered_phases": true,
+              "strict_pick_place_and_cameras": true,
+              "whole_convex_collider_inside_open_box_and_supported": true,
+              "all_physics_tensors_cuda": true,
+              "single_supported_engine": true,
+              "gpu_backend_no_fallback": true,
+              "contact_sensor_and_actual_jaws_bound": true,
+              "two_jaw_contacts_during_real_lift": true,
+              "reset_settle_window": true,
+              "whole_footprint_enters_destination_with_bilateral_support": true,
+              "all_event_cameras_advance": true
+            },
+            "errors": [],
+            "event_cameras": {
+              "pass": true,
+              "cameras": {
+                "cam0": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 414
+                },
+                "side": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 414
+                },
+                "proof": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 414
+                }
+              }
+            },
+            "pick_checks": {
+              "physics_channel": true,
+              "same_robot_and_engine": true,
+              "same_observed_prop_set": true,
+              "physics_clock_advances": true,
+              "finite_all_observed_state": true,
+              "actual_joints_within_limits": true,
+              "final_window_long_enough": true,
+              "valid_final_orientations": true,
+              "projected_support_geometry": true,
+              "gripper_readback_matches_actual_q": true,
+              "released_actual_jaws": true,
+              "destination_xy": true,
+              "supported_z": true,
+              "settled_linear_speed": true,
+              "settled_angular_speed": true,
+              "stable_final_position": true,
+              "observed_lift": true,
+              "observed_xy_displacement": true
+            },
+            "pick_metrics": {
+              "samples": 408,
+              "final_samples": 31,
+              "simulation_elapsed_s": 6.783333333333331,
+              "final_window_sim_s": 0.5,
+              "lift_m": 0.10773400217294692,
+              "xy_displacement_m": 0.13204031850182632,
+              "final_xy_error_m": 0.02102252628820038,
+              "max_final_xy_error_m": 0.02102252628820038,
+              "max_final_support_z_error_m": 6.278778008975139e-08,
+              "max_final_linear_speed_m_s": 0.0002175104105243161,
+              "max_final_angular_speed_rad_s": 0.009282867018547594,
+              "max_final_position_spread_m": 2.2445453702101554e-07,
+              "max_final_tilt_deg": 20.754312505594324,
+              "min_final_actual_open_fraction": 0.9999959766865376,
+              "max_frame_age_s": 0.785399378000875,
+              "unique_jpeg_hashes": 205
+            },
+            "pick_criteria": {
+              "xy_tolerance_m": 0.04,
+              "z_tolerance_m": 0.005,
+              "settle_sim_s": 0.5,
+              "min_final_samples": 4,
+              "max_linear_speed_m_s": 0.02,
+              "max_angular_speed_rad_s": 0.2,
+              "max_position_spread_m": 0.005,
+              "min_open_fraction": 0.9,
+              "max_tilt_deg": 5,
+              "min_lift_m": 0.015,
+              "min_xy_displacement_m": 0.02,
+              "max_frame_age_s": 2
+            },
+            "props_reset": {
+              "pink_cube": {
+                "max_spawn_error_m": 4.305546243245479e-08,
+                "max_speed_m_s": 2.709880105038558e-05,
+                "max_spin_rad_s": 0.00045005578759210307,
+                "max_spread_m": 3.7299440045842505e-08,
+                "pass": true
+              },
+              "green_cube": {
+                "max_spawn_error_m": 2.6420963377472673e-08,
+                "max_speed_m_s": 1.5253532101828422e-05,
+                "max_spin_rad_s": 0.0004517260480775721,
+                "max_spread_m": 1.501712528671799e-08,
+                "pass": true
+              },
+              "tomato_can": {
+                "max_spawn_error_m": 6.070645066279679e-08,
+                "max_speed_m_s": 0.00015858189337025907,
+                "max_spin_rad_s": 0.0011123392540062496,
+                "max_spread_m": 6.757064591056501e-08,
+                "pass": true
+              },
+              "lemon": {
+                "max_spawn_error_m": 7.176201959695758e-09,
+                "max_speed_m_s": 2.641669105685196e-10,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              },
+              "orange": {
+                "max_spawn_error_m": 7.638942475269053e-09,
+                "max_speed_m_s": 1.2222169942788241e-09,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              }
+            }
+          },
+          "files_sha256": {
+            "01-pick.json": "51557cb7f934710b738bc3211820ee32a54e9af75ce509c553eee9ccc3b8520e",
+            "02-reset.json": "ca7f57d621b9509abb18c267acc992b78f6258c8778cc16c1ddbe049f7398eaa",
+            "03-world.json": "630dd90b942903efc9452a024a2a471d76a0818a3d8efb25fc390ca25ede7d22",
+            "04-inspect.json": "54862415e9b9e459dbfb924fc280c3d7f6e2695f98150eb995a050cb031c8fc3",
+            "physics/first-scene-geometry.json": "65dba77d3629126989799f94b0120ac445339ed7c714f437db4fb896f3f6e0db",
+            "physics/gpu-physical-audit.json": "606f0abd279e6ff6446f6556c5ed82c3dda05c8fac54f1728415c98de81a1907",
+            "physics/metadata.json": "500e84ce574729676b1fd7f11e19d2d7dfffe82a0f2ca12a9763648f8d7e309e",
+            "physics/phases.json": "6e4ee458de7512cd15af43f8380e03c3f9a9969a28cf4c2a7db986b9fad19fcb",
+            "physics/ping-after.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+            "physics/ping-before.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+            "physics/placed-cam0.jpg": "9ef13bee0f276dc66bb01f645c32df42a73e6876909ffdbca313363a47a3f812",
+            "physics/placed-frames.json": "799b31c848700fe9503a05adad877d6abcf9b65bde4fb41dd6efe51544bd8f19",
+            "physics/placed-proof.jpg": "d5b782d63a5a59ae267d78cf895989c12c23d9ea1b3f3ead791344ba59288020",
+            "physics/placed-side.jpg": "0ae977c4d5dbaf092206f2ae0f6611cb236ed9182f54c41899a96c2806951149",
+            "physics/reset-cam0.jpg": "bc29e05022647cad7b9c4f97e0c7c426528e7ccf137e6dd3e91f6cf6840d35cd",
+            "physics/reset-frames.json": "1c692f1490298945bf0692121c30233a620b28f67362e82f3d2fb2792784c337",
+            "physics/reset-proof.jpg": "f378cd15bb51837992c96134491e217a2fdf25c69479d38514e72d8b8aacfaaa",
+            "physics/reset-side.jpg": "2d4887cdfafedf95a39271e6e731c1d3674832dbc756a1924c7e2cd0068f4fc5",
+            "physics/snapshot-code.py": "64b45c9789b09849ba45612f516bbc4a716244825ead8bae4a6e3b54c8fee239",
+            "receipt.json": "2f45a0e8f5fe30173224df0a869dde0edc7f8fae44265225136f6caf37025115",
+            "trace-evidence.json": "1b22bc3cf8c5f302b87e89adc9b6fef39cf7e17d010713b36e4f508aceb42f6b"
+          },
+          "pick": {
+            "message": "Please put the lemon in the open box.",
+            "status": "done",
+            "started_at": 1790799771.908341,
+            "finished_at": 1790799852.6195283,
+            "order": {
+              "id": "2c4a3d7f8a9648948ac44f88c704d3ec",
+              "status": "done",
+              "message": "Placement unverified. The motion routine finished and the lemon ended up 2.1 cm from the open box's center, but full containment and release aren't confirmed by that center position alone. The arm returned home successfully.",
+              "tools": [
+                "pick_and_place"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799852.0486484
+            }
+          },
+          "reset": {
+            "message": "Let's start over.",
+            "status": "done",
+            "started_at": 1790799859.7514086,
+            "finished_at": 1790799911.2503376,
+            "order": {
+              "id": "1deba86f39454d4d86e86d001bbf2a2e",
+              "status": "done",
+              "message": "Scene reset complete. All props are back at their starting positions:\n\n- **Green cube** \u2014 center of the table\n- **Pink Rubik's cube** \u2014 to the right\n- **Orange** \u2014 behind the cubes\n- **Red tomato can** \u2014 in the back\n- **Yellow lemon** \u2014 in front of the cubes\n- **Yellow plate** with an orange and a sliced orange \u2014 bottom right\n- **Green square** and **open wooden box** \u2014 on the left\n\nReady for your next instruction.",
+              "tools": [
+                "reset_scene"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799910.7950912
+            }
+          },
+          "world": {
+            "message": "What is the session status?",
+            "status": "done",
+            "started_at": 1790799911.2592702,
+            "finished_at": 1790799953.7632835,
+            "order": {
+              "id": "694a75fba5884801933fd84164c2e501",
+              "status": "done",
+              "message": "Here's the current session status:\n\n- **Last action:** Scene reset \u2014 completed successfully\n- **Arm:** Connected\n- **Perception:** Running (10,646 ticks, not paused), last update 0.1 s ago\n- **Cameras:** All three online \u2014 `isaac` (Worktop), `isaac_side` (Side), `kitchen` (Kitchen), each at ~1.5 FPS with depth enabled and no errors\n- **Gripper contents:** Not measured\n- **Home pose:** Not verified\n- **Tracked objects:** 13 visible, including the green cube, pink cube, orange, lemon, tomato can, plate, and the green square area\n\nReady for your next instruction.",
+              "tools": [
+                "world_state"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799952.8180547
+            }
+          },
+          "inspection": {
+            "message": "What can you see on the table?",
+            "status": "done",
+            "started_at": 1790799953.7710063,
+            "finished_at": 1790799995.2296784,
+            "order": {
+              "id": "d8f9511f08bf4ce2acb55d27e40451ae",
+              "status": "done",
+              "message": "Here's what I can see on the table:\n\n- **Green square** (marked delivery area) on the left\n- **Open wooden box** (empty) next to it\n- **Green cube** in the middle\n- **Pink Rubik's cube** to its right\n- **Orange** behind the cubes\n- **Red tomato can** in the back\n- **Yellow lemon** in front of the cubes\n- **Yellow plate** in the bottom right with an orange and a sliced orange on it\n- The **CASCADE robot arm** base in the upper left\n\nEverything is at its starting positions. What would you like to do?",
+              "tools": [
+                "describe_scene"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790799994.5194376
+            }
+          }
+        },
+        {
+          "object": "tomato_can",
+          "destination": "green square",
+          "pass": true,
+          "started_at": 1790800002.9705234,
+          "finished_at": 1790800244.2533896,
+          "errors": [],
+          "reset_confirmed": true,
+          "props_reset": [
+            "pink_cube",
+            "green_cube",
+            "tomato_can",
+            "lemon",
+            "orange"
+          ],
+          "pick_trace_confirmed": true,
+          "engine_matches_every_sample": true,
+          "uncertain_order": false,
+          "observer_errors": [],
+          "samples": 867,
+          "physics": {
+            "pass": true,
+            "object_name": "tomato_can",
+            "destination_name": "green square",
+            "checks": {
+              "complete_observation": true,
+              "all_phase_boundaries": true,
+              "live_prop_names_match_expected": true,
+              "spawn_prop_names_match_expected": true,
+              "spawn_positions_finite_and_unchanged": true,
+              "all_props_physically_reset_and_settled": true,
+              "scene_config_sha256_matches": true,
+              "prop_dimensions_match": true,
+              "cube_collider_geometry_matches": true,
+              "green_square_geometry_matches": true,
+              "scene_name_matches": true,
+              "scene_assets_sha256_matches": true,
+              "scene_content_sha256_matches": true,
+              "open_box_geometry_matches": true,
+              "convex_body_identity": true,
+              "authored_convex_vertices_match": true,
+              "convex_topology_matches": true,
+              "convex_body_and_collider_enabled": true,
+              "convex_body_and_child_transforms_match": true,
+              "convex_tensor_mass_and_com_match": true,
+              "convex_tensor_inertia_valid": true,
+              "physx_support_live_identity": true,
+              "physx_support_source_matches": true,
+              "physx_support_solid_subset": true,
+              "physx_support_geometry_unchanged": true,
+              "ordered_phases": true,
+              "strict_pick_place_and_cameras": true,
+              "whole_convex_collider_inside_green_square_and_supported": true,
+              "tomato_can_settles_upright": true,
+              "all_physics_tensors_cuda": true,
+              "single_supported_engine": true,
+              "gpu_backend_no_fallback": true,
+              "contact_sensor_and_actual_jaws_bound": true,
+              "two_jaw_contacts_during_real_lift": true,
+              "reset_settle_window": true,
+              "whole_footprint_enters_destination_with_bilateral_support": true,
+              "all_event_cameras_advance": true
+            },
+            "errors": [],
+            "event_cameras": {
+              "pass": true,
+              "cameras": {
+                "cam0": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 435
+                },
+                "side": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 435
+                },
+                "proof": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 435
+                }
+              }
+            },
+            "pick_checks": {
+              "physics_channel": true,
+              "same_robot_and_engine": true,
+              "same_observed_prop_set": true,
+              "physics_clock_advances": true,
+              "finite_all_observed_state": true,
+              "actual_joints_within_limits": true,
+              "final_window_long_enough": true,
+              "valid_final_orientations": true,
+              "projected_support_geometry": true,
+              "gripper_readback_matches_actual_q": true,
+              "released_actual_jaws": true,
+              "destination_xy": true,
+              "supported_z": true,
+              "settled_linear_speed": true,
+              "settled_angular_speed": true,
+              "stable_final_position": true,
+              "observed_lift": true,
+              "observed_xy_displacement": true
+            },
+            "pick_metrics": {
+              "samples": 429,
+              "final_samples": 30,
+              "simulation_elapsed_s": 7.150000000000006,
+              "final_window_sim_s": 0.5,
+              "lift_m": 0.07906294241547585,
+              "xy_displacement_m": 0.48516115022136663,
+              "final_xy_error_m": 0.014278416684983418,
+              "max_final_xy_error_m": 0.014278455856528077,
+              "max_final_support_z_error_m": 9.934814430845318e-08,
+              "max_final_linear_speed_m_s": 8.456509447138785e-05,
+              "max_final_angular_speed_rad_s": 0.0011796498511857233,
+              "max_final_position_spread_m": 6.674406255472048e-08,
+              "max_final_tilt_deg": 0.00013468532963839102,
+              "min_final_actual_open_fraction": 0.9999944120646356,
+              "max_frame_age_s": 0.8982180910024908,
+              "unique_jpeg_hashes": 215
+            },
+            "pick_criteria": {
+              "xy_tolerance_m": 0.04,
+              "z_tolerance_m": 0.005,
+              "settle_sim_s": 0.5,
+              "min_final_samples": 4,
+              "max_linear_speed_m_s": 0.02,
+              "max_angular_speed_rad_s": 0.2,
+              "max_position_spread_m": 0.005,
+              "min_open_fraction": 0.9,
+              "max_tilt_deg": 5,
+              "min_lift_m": 0.015,
+              "min_xy_displacement_m": 0.02,
+              "max_frame_age_s": 2
+            },
+            "props_reset": {
+              "pink_cube": {
+                "max_spawn_error_m": 4.305546243245479e-08,
+                "max_speed_m_s": 2.707930329501804e-05,
+                "max_spin_rad_s": 0.00044983060889559266,
+                "max_spread_m": 3.077594869184923e-08,
+                "pass": true
+              },
+              "green_cube": {
+                "max_spawn_error_m": 1.5251436078421664e-08,
+                "max_speed_m_s": 1.52151322311533e-05,
+                "max_spin_rad_s": 0.0004507500118059831,
+                "max_spread_m": 1.4901161193847656e-08,
+                "pass": true
+              },
+              "tomato_can": {
+                "max_spawn_error_m": 6.070645066279679e-08,
+                "max_speed_m_s": 0.00015858189337025907,
+                "max_spin_rad_s": 0.0011123392540062496,
+                "max_spread_m": 1.1354499052560457e-07,
+                "pass": true
+              },
+              "lemon": {
+                "max_spawn_error_m": 7.176201959695758e-09,
+                "max_speed_m_s": 2.641669105685196e-10,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              },
+              "orange": {
+                "max_spawn_error_m": 7.638942475269053e-09,
+                "max_speed_m_s": 1.2222169942788241e-09,
+                "max_spin_rad_s": 0.0,
+                "max_spread_m": 0.0,
+                "pass": true
+              }
+            }
+          },
+          "files_sha256": {
+            "01-pick.json": "530a2783a3a8bc4285a6a31598a6b228b14fa1daa0e48b7b37fb1e304f480031",
+            "02-reset.json": "979a5b92634dd8fe563e70f3a92834cad96653e180eacdd6d3d670aad217396b",
+            "03-world.json": "64622859743ce80f74ce59a7176f870eee98e7ed3f9b6a202aa6a5af2735a3a5",
+            "04-inspect.json": "7c1556e6194987a3094443d97271c9a73f8c285720a0a634b74c0cc36991bf26",
+            "physics/first-scene-geometry.json": "65dba77d3629126989799f94b0120ac445339ed7c714f437db4fb896f3f6e0db",
+            "physics/gpu-physical-audit.json": "955dc4ea8643a042774c6bb744424f0af86138f50471543bd6c60f2638ce0f9a",
+            "physics/metadata.json": "99682c4639ab7daf05c1b6b9534d8fc4e98136f09d7392c5ecca8f8c754c5511",
+            "physics/phases.json": "883531e0a73c8111f90f777dc8c97f75cecfefe389f68097f1e72d20c4018224",
+            "physics/ping-after.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+            "physics/ping-before.json": "820db2274df0cecaf5f15093f90a66ddfa1f4f66f71930514c86d718c15f366d",
+            "physics/placed-cam0.jpg": "25926edfcdf860a8a1435206d135a4452844968b8200d65cb683378ece6eaf89",
+            "physics/placed-frames.json": "ecdaaa52191b34b94c44b2f5d0027365419d9c33008810f6912db5a5d1ea9f42",
+            "physics/placed-proof.jpg": "607ff46914fc31645a800c64353aa180c3905ec6d41de4588d51833e8f5886e9",
+            "physics/placed-side.jpg": "c2d172bda40a5194e9ea8dd16337ca7bde9b674af47fcadc9fd3ee4ddc420ae1",
+            "physics/reset-cam0.jpg": "655babf9db07f33cfdefb1de55c7c67395921ff506f9d44d57b332b7501504ad",
+            "physics/reset-frames.json": "a495865bd6952927f694b4afac0d2572f4587a1c7cd82986b983fdc2f879f6e0",
+            "physics/reset-proof.jpg": "48ca4247fbcf2a075c95caf2d0f7a9938c5883b71dbe4507139353158fbfc58d",
+            "physics/reset-side.jpg": "3bc5fe81ed6d6ce78d63631dfa042d119c1d2659c5e10f42a1cd6d29f9c654ac",
+            "physics/snapshot-code.py": "402e4fbd6c93e640375636141177a087d64998a837047fbcc3c3ffc1cf0abe70",
+            "receipt.json": "b68f165ef7a8c9ad6ee58d1ccc2b2193f6f60e2bff49c5f81a858d9632cfe39b",
+            "trace-evidence.json": "068974c78c191c7921434dc9c56eb0b5132a5622d3c9ce977d8deb1418c8225a"
+          },
+          "pick": {
+            "message": "Please put the tomato can in the green square.",
+            "status": "done",
+            "started_at": 1790800003.3107774,
+            "finished_at": 1790800087.002358,
+            "order": {
+              "id": "e1a3735289c04937b8ec98d210b0fb75",
+              "status": "done",
+              "message": "Placement unverified. The motion routine finished and the tomato can ended up 1.4 cm from the green square's center, but full containment and release aren't confirmed by that center position alone. The arm returned home successfully.",
+              "tools": [
+                "pick_and_place"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790800086.5995429
+            }
+          },
+          "reset": {
+            "message": "Let's start over.",
+            "status": "done",
+            "started_at": 1790800093.9263847,
+            "finished_at": 1790800145.4316819,
+            "order": {
+              "id": "e71d0553d5ef4e74b48576838100c9cd",
+              "status": "done",
+              "message": "Scene reset complete. All props are back at their starting positions:\n\n- **Green cube** \u2014 center of the table\n- **Pink Rubik's cube** \u2014 to the right\n- **Orange** \u2014 behind the cubes\n- **Red tomato can** \u2014 in the back\n- **Yellow lemon** \u2014 in front of the cubes\n- **Yellow plate** with an orange and a sliced orange \u2014 bottom right\n- **Green square** and **open wooden box** \u2014 on the left\n\nReady for your next instruction.",
+              "tools": [
+                "reset_scene"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790800144.848945
+            }
+          },
+          "world": {
+            "message": "What is the session status?",
+            "status": "done",
+            "started_at": 1790800145.4509227,
+            "finished_at": 1790800188.8713288,
+            "order": {
+              "id": "8ec75bee0db14c9ca59ce3e4c84837db",
+              "status": "done",
+              "message": "Here's the current session status:\n\n- **Last action:** Scene reset \u2014 completed successfully\n- **Arm:** Connected\n- **Perception:** Running (11,916 ticks, not paused), last update 0.3 s ago\n- **Cameras:** All three online \u2014 `isaac` (Worktop), `isaac_side` (Side), `kitchen` (Kitchen), each at ~1.5 FPS with depth enabled and no errors\n- **Gripper contents:** Not measured\n- **Home pose:** Not verified\n- **Tracked objects:** 13 visible, including the green cube, pink cube, orange, lemon, tomato can, plate, and the green square area\n\nReady for your next instruction.",
+              "tools": [
+                "world_state"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790800188.234241
+            }
+          },
+          "inspection": {
+            "message": "What can you see on the table?",
+            "status": "done",
+            "started_at": 1790800188.8867998,
+            "finished_at": 1790800231.313685,
+            "order": {
+              "id": "891b6e3bcaf54ae9b644a784f32811bb",
+              "status": "done",
+              "message": "Here's what I can see on the table:\n\n- **Green square** (marked delivery area) on the left\n- **Open wooden box** (empty) next to it\n- **Green cube** in the middle\n- **Pink Rubik's cube** to its right\n- **Orange** behind the cubes\n- **Red tomato can** in the back\n- **Yellow lemon** in front of the cubes\n- **Yellow plate** in the bottom right with an orange and a sliced orange on it\n- The **CASCADE robot arm** base in the upper left\n\nEverything is at its starting positions. What would you like to do?",
+              "tools": [
+                "describe_scene"
+              ],
+              "tool_failures": 0,
+              "finished_at": 1790800230.8010347
+            }
+          }
+        }
+      ]
     }
   ],
   "browser": {
@@ -1136,6 +2999,104 @@
       "reset_disabled": true
     },
     "scope": "Read-only UI inspection during native visitor campaign; no extra movement request"
+  },
+  "browser_after_restart": {
+    "pass": true,
+    "scope": "Actual Spark Chromium and shipped extension on an Xvfb virtual display; no GNOME login or visible Isaac editor validation",
+    "page": {
+      "title": "PAAI, Physical Agentic AI \u00b7 Build a Claw",
+      "extension": "chkdkobnmmbbjdlociefnoocmggahida",
+      "frame": "chrome-extension://chkdkobnmmbbjdlociefnoocmggahida/local.html",
+      "status": "OpenClaw connected \u00b7 cascade-demo",
+      "send_disabled": false,
+      "reset_disabled": false
+    },
+    "before": {
+      "status": "Three cameras live",
+      "cameras": [
+        {
+          "name": "kitchen",
+          "frame_id": 51,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "worktop",
+          "frame_id": 51,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "side",
+          "frame_id": 51,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        }
+      ]
+    },
+    "after": {
+      "status": "Three cameras live",
+      "cameras": [
+        {
+          "name": "kitchen",
+          "frame_id": 55,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "worktop",
+          "frame_id": 55,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "side",
+          "frame_id": 55,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        }
+      ]
+    },
+    "screenshot": "chromium-three-cameras.png",
+    "screenshot_sha256": "30e3ec1f172a53f54375360aa71f90746cdd6883cba6bfe63521fae86d4bc882"
+  },
+  "shutdown_before_restart": {
+    "exit_code": 0,
+    "log": "qwen pid=430068 did not exit after SIGTERM; sent SIGKILL to the owned PID\n{\"stopped\": [450687, 431927, 450605, 432544, 432543, 430178, 430068, 431068, 431533]}\n[launch] down.\n",
+    "log_sha256": "31bbda8420582c53712f4f001d5f479edd690fca4cb6cff93ab591fe3ccd8c75",
+    "qwen_required_owned_pid_sigkill": true
+  },
+  "final_state": {
+    "captured_at": 1790801060.7696335,
+    "browser_profile_closed": "/home/spark/snap/chromium/common/paai/34120a400419/profile",
+    "remaining_browser_pids": [],
+    "xvfb_pid": 432202,
+    "xvfb_stopped": true,
+    "personal_gateway": {
+      "pid": 2823,
+      "identity": "2823 Wed Sep 30 09:41:53 2026 node-MainThread",
+      "unchanged_from_preinstall": true
+    },
+    "services": [
+      "LISTEN 0      511          127.0.0.1:18790      0.0.0.0:*    users:((\"openclaw-gatewa\",pid=453034,fd=34))",
+      "LISTEN 0      511          127.0.0.1:18789      0.0.0.0:*    users:((\"node-MainThread\",pid=2823,fd=34))  ",
+      "LISTEN 0      512          127.0.0.1:8080       0.0.0.0:*    users:((\"llama-server\",pid=452042,fd=32))   ",
+      "LISTEN 0      5            127.0.0.1:8091       0.0.0.0:*    users:((\"python3\",pid=473025,fd=3))         ",
+      "LISTEN 0      16           127.0.0.1:8092       0.0.0.0:*    users:((\"python3\",pid=473039,fd=3))         ",
+      "LISTEN 0      100          127.0.0.1:5556       0.0.0.0:*    users:((\"python\",pid=452592,fd=55))         ",
+      "LISTEN 0      5            127.0.0.1:8611       0.0.0.0:*    users:((\"python\",pid=452154,fd=534))        "
+    ],
+    "backend_verify_exit_code": 0,
+    "backend_verify": "READY {\"repo\": \"/home/spark/Projects/cascade-clean-20260930-02\", \"source_commit\": \"9cf540279f09df8197eda6541311b41edb455243\", \"source_dirty\": false, \"profile\": \"spark\", \"brain\": \"qwen\", \"eula_accepted\": true, \"health\": true, \"live_binding\": true, \"attached\": false, \"verified\": true, \"sim\": \"isaac\", \"model\": \"custom-127-0-0-1-8080/Qwen/Qwen3.8-27B\", \"cases\": [{\"object\": \"green cube\", \"destination\": \"green square\", \"physics\": true, \"event_cameras\": true, \"reset\": true}, {\"object\": \"orange\", \"destination\": \"open box\", \"physics\": true, \"event_cameras\": true, \"reset\": true}]}",
+    "source_commit": "9cf540279f09df8197eda6541311b41edb455243",
+    "source_dirty": false,
+    "demo_services_left_running": true
   },
   "limitations": [
     "Existing host prerequisites and download/package caches were reused; this is a fresh software destination, not a reinstalled operating system.",
@@ -1404,5 +3365,19 @@
     "src/cascade/skills/runtime.py": "082848e25c4a5c972de986a9cd85214f08e8eb719e544f4873f380964b9ad4b9",
     "src/cascade/types.py": "38b329bd980cc793b30df0ea754118b81607d193fc70a6a8a4a8dd1cf196bf40"
   },
-  "delivery_checks_complete": false
+  "delivery_checks": {
+    "fresh_install_and_check": true,
+    "two_complete_ready_launches": true,
+    "distinct_sessions_and_processes": true,
+    "complete_five_object_native_campaign": true,
+    "live_browser_before_and_after_restart": true,
+    "clean_live_runtime_left_running": true,
+    "personal_gateway_preserved": true,
+    "test_display_and_browser_closed": true
+  },
+  "delivery_checks_complete": true,
+  "verification_logs_sha256": {
+    "verify-02.log": "504639b2cdaa34aa9e472cc7694a3517a07a064d5cca8d168aaf615a633e2127",
+    "verify-final.log": "504639b2cdaa34aa9e472cc7694a3517a07a064d5cca8d168aaf615a633e2127"
+  }
 }

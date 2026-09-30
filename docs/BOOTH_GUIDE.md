@@ -22,6 +22,11 @@ relays each order to OpenClaw, with the three cameras beside it. For the
 normal OpenClaw chat, run `./run.sh dashboard`; see
 [Open OpenClaw](DGX_SPARK_SETUP.md#open-openclaw).
 
+For the complete installation and presenter steps in one page, download the
+[standalone Spark HTML guide](spark-presenter/index.html) and open it in a
+browser. It works offline, has copy controls and prints the expanded reference
+sections. It is documentation, not a live control panel.
+
 ## One task
 
 Ask “what are you seeing?” and compare the reply with Worktop. Then give one

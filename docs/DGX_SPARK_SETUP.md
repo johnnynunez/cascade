@@ -12,10 +12,14 @@ SHA-256 hashes. See the [scene notice](../demo/scene/NOTICE.md).
 ## Quick path
 
 Use a normal account on the Spark. The default install folder is
-`$HOME/paai-spark`. To keep an existing installation, first run
-`export PAAI_INSTALL_DIR="$HOME/paai-spark-new"` in your terminal and use a new,
-empty folder. The commands below use that choice for the installation and logs;
-keep the variable exported for the later steps. They never change your HOME.
+`$HOME/paai-spark`. For a fresh install, the destination **must not exist**;
+the installer creates it. Do not create an empty folder first.
+To keep an existing installation, first run
+`export PAAI_INSTALL_DIR="$HOME/paai-spark-new"` in your terminal and choose a
+path that does not yet exist. An intentional retry may reuse the checkout
+created by an earlier installation attempt. The commands below use your choice
+for the installation and logs; keep the variable exported for the later steps.
+They never change your HOME.
 Run each numbered block once. Wait for its success line and exit code 0
 before continuing. For diagnostics, use the read-only commands below. Never
 repeat Start just to see more output. If a command fails, stop and read
@@ -106,6 +110,11 @@ No extension setup, token paste or permission prompt is needed.
 That page, `http://127.0.0.1:8092`, is the demo's own web UI, not the
 OpenClaw interface. For the native OpenClaw dashboard or access from another
 computer, see [Open OpenClaw](#open-openclaw).
+
+If several installations coexist, their app-grid entries can all be named
+**PAAI (Spark)**. Use the exact registered launcher below with the chosen
+`PAAI_INSTALL_DIR`, rather than selecting an ambiguous icon. This also applies
+after stopping and restarting that installation.
 
 The same registered launcher can be opened from a graphical terminal:
 

@@ -728,11 +728,16 @@ sys.exit(bool(errors))
         except (OSError, ValueError):
             problems.append(f"OpenClaw 2026.9.3 package metadata: {package}")
     if profile == "spark":
-        for relative in (".graspgenx/bin/python", ".graspgenx-src/graspgenx/serving/zmq_server.py",
-                         ".graspgenx-src/ext/graspgenx_checkpoints/release/gen/epoch_736.pth",
-                         ".graspgenx-src/ext/graspgenx_checkpoints/release/dis/epoch_1056.pth"):
-            if not (repo / relative).is_file():
-                problems.append(f"GraspGen-X missing {relative}; run scripts/install_graspgenx.sh")
+        # File existence also accepts LFS placeholders and the wrong package
+        # stack. Use the installer's read-only source/package/payload checks.
+        result = subprocess.run(
+            ["bash", str(repo / "scripts/install_graspgenx.sh"), "--check"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode:
+            problems.append("GraspGen-X preflight: " + result.stdout.strip()
+                            + " " + result.stderr.strip())
         problems.extend(scene_problems(repo))
         problems.extend(kitchen_problems(repo))
         for name, size in MODEL_ASSETS.items():

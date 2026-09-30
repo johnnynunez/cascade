@@ -3,8 +3,8 @@
 For a live Build-a-Claw presentation, use the [presenter card](PRESENTER_QUICKSTART.md).
 
 The PAAI event profile uses **DGX Spark/Linux + Isaac Sim 6.1 + PhysX CUDA +
-Qwen Q4 + OpenClaw**. Use the [DGX Spark setup guide](DGX_SPARK_SETUP.md)
-for the tested install, startup, READY checks and recovery commands.
+real GraspGen-X + Qwen Q4 + OpenClaw**. Use the [DGX Spark setup guide](DGX_SPARK_SETUP.md)
+for the tested source pin, measured scope, startup and recovery commands.
 The Mac is a development platform; its results do not certify Spark execution.
 
 For the **Brev RTX PRO 6000 profile with PhysX and Qwen3.8-27B Q8_0**, see
@@ -20,9 +20,22 @@ not a Spark or Brev certification.
 ### DGX Spark
 
 Run the single install command in [DGX Spark setup](DGX_SPARK_SETUP.md#2-install).
-It pins the source commit and installs the runtime, Qwen Q4, OpenClaw and
+It pins the source commit and installs the runtime, GraspGen-X, Qwen Q4, OpenClaw and
 verified kitchen assets. Follow that guide to start and check the demo.
 The event flow uses the dedicated `cascade-demo` profile and installs no Cosmos.
+Occupancy/nvblox is disabled; JEv is a separate research experiment.
+Use **Start over** or **"Reset the scene."** between visitors to reset props
+without restarting services or repeating startup manipulation tests. For a
+complete first start, use the desktop launcher, which also starts Qwen:
+
+```bash
+python3 scripts/desktop.py launch --repo "$PWD"
+```
+
+Run this from the prepared Spark checkout. Isaac is headless by default;
+optional `--gui` requires a separate rehearsal. The pinned source passed a fresh
+installation and its first READY proof on GB10, with Chromium and the extension
+checked on a virtual display. Wait for this machine's READY and advancing cameras.
 See [Spark delivery](SPARK_DELIVERY.md) for file identities and acceptance details.
 
 ### Development on a Mac or an installed rig
@@ -47,11 +60,14 @@ port, a model response, or another session's trace is insufficient.
 With `--no-robot-turn`, the status is STARTED / UNVERIFIED, never READY.
 Subsequent runs reuse downloaded packages and assets.
 
-For a quick restart during the demo, append `--no-robot-turn --no-judge`
-to your usual command, keeping the same engine and scene flags. For example,
-`./run.sh isaac --engine newton --no-robot-turn --no-judge`. This skips the
+For a lower-level restart, append `--no-robot-turn --no-judge`
+to your usual command, keeping the same engine and scene flags. On the installed
+Spark profile, use `./run.sh isaac --engine physx --graspgenx local --no-robot-turn --no-judge`
+only while Qwen is running. This skips the
 startup manipulation tests; connection and model checks still run, and the
 banner says `STARTED (UNVERIFIED: robot proof skipped)`.
+These flags do not provide the desktop launcher's model supervision or a new
+verified camera/chat attachment; see the [presenter recovery limits](PRESENTER_QUICKSTART.md#3-recover-during-the-presentation).
 If the stack is already running, use **Start over** in the Spark demo chat,
 **Reset** in the PAAI OpenClaw interface, or send **"Reset the scene."** to
 restore the scene without restarting the services. See
@@ -124,7 +140,7 @@ the demo.
 
 Start each required component once, in its own terminal. Choose one of the
 two brain servers shown below. These commands retain the original local
-server profiles; use the Brev guide for the Qwen3.8 production profile.
+server profiles; use the Spark or Brev guide for the complete Qwen3.8 profile.
 
 ```bash
 export ISAACSIM_PATH=~/Projects/isaac/IsaacSim/_build/linux-x86_64/release

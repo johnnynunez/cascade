@@ -330,7 +330,27 @@ class SkillRuntime:
             visual_diff=self._visual_diff,
             table_z=float(self.cfg.safety.get("table_z", 0.0)),
             air_grasp_frac=float(self.cfg.grasp.get("air_grasp_frac", 0.04)),
+            placement_check=self._verify_configured_placement,
         )
+
+    def _verify_configured_placement(self, label, destination):
+        """Resolve the requested area in configuration, then read physics only."""
+        # The current truth reader is bound to the first configured arm. It
+        # cannot adjudicate another arm's world in a multi-arm runtime.
+        if self.arm_rig is not None and len(self.arm_rig.arms) > 1:
+            return None
+        reader = getattr(self._object_pose, "placement", None)
+        if reader is None:
+            return None
+        if not destination or _names_drop_zone(destination):
+            canonical = self.cfg.grasp.get("drop_zone_name", "drop zone")
+        elif str(destination).strip().lower() in _OPEN_BOX_WORDS:
+            canonical = "open box"
+        else:
+            return None
+        if canonical not in {"green square", "open box"}:
+            return None
+        return reader(label, canonical, evidence_dir=self.trace.run_dir / "placement")
 
     @property
     def _tool_axis_order(self) -> str:

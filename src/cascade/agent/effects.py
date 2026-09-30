@@ -143,6 +143,7 @@ class PostconditionChecker:
         visual_diff: Callable[..., Any] | None = None,
         table_z: float = 0.0,
         air_grasp_frac: float = 0.04,
+        placement_check: Callable[[str, str | None], dict | None] | None = None,
     ):
         self._object_pose = object_pose
         self._belief_pose = belief_pose
@@ -153,6 +154,7 @@ class PostconditionChecker:
         self._visual_diff = visual_diff
         self.table_z = float(table_z)
         self.air_grasp_frac = float(air_grasp_frac)
+        self._placement_check = placement_check
         self.history: list[Postcondition] = []
 
     # ── snapshots ────────────────────────────────────────────────────────
@@ -340,6 +342,27 @@ class PostconditionChecker:
             )
 
     def _check_relocated(self, pc, args, result, before) -> None:
+        # Bounded kitchen destinations need the complete collider, support,
+        # actual release and a settling window. Query after motion; never
+        # accept a verdict or geometry returned by the motion routine itself.
+        # This is a destination postcondition, not proof of a lift trajectory.
+        if result.get("ok") is True and self._placement_check is not None:
+            subject = str(args.get("object") or before.get("label") or "")
+            report = self._placement_check(subject, args.get("destination"))
+            if report is not None:
+                if (not isinstance(report, dict)
+                        or report.get("status") not in {CONFIRMED, REFUTED, UNVERIFIED}
+                        or not isinstance(report.get("measured"), dict)
+                        or not isinstance(report.get("evidence"), str)):
+                    raise ValueError("malformed independent placement verdict")
+                pc.channel = "physics"
+                pc.status, pc.evidence, pc.measured = (
+                    report["status"], report["evidence"], report["measured"])
+                if (pc.status == CONFIRMED
+                        and pc.measured.get("destination") != result.get("destination")):
+                    pc.status = UNVERIFIED
+                    pc.evidence = "requested and reported placement destinations differ"
+                return
         # pick_and_place names its subject `object`; the resolved label comes
         # back in the result, which is the most reliable source (the request
         # may have been a colour query like "pink object").

@@ -164,8 +164,89 @@ credential only for the official HTTPS origin. Local endpoints do not receive
 it. Credentials and complete untrusted response bodies are excluded from error
 messages. An HTTP timeout is not a real-time control deadline.
 
-The next useful experiment is a separate set of captured Cascade task states,
-with human-reviewed candidate actions and arguments, compared against the
-existing planner. Evaluate decision quality and latency before considering an
-opt-in runtime integration. Geometric grasp refinement and nvblox mapping remain
-separate perception and motion work.
+New diagnostic reports record `planned_case_ids` and start with
+`run_complete: false` before the first request, so an interrupted cold start
+cannot leave an older report masquerading as the new result. Each finished
+case is saved atomically. `run_complete: true` and `finished_at` mean all
+selected cases were attempted; consult `summary.request_errors` for failed
+requests. Summary accuracy uses only the cases attempted so far, so an
+incomplete report must not be presented as a full run. Fixtures are checked
+for non-finite state values and nested expected-label fields before inference.
+The original pilot artifacts and their manifest remain unchanged.
+
+## Captured outcome replay: 1 October 2026
+
+The next experiment used [ten actual post-tool records](../benchmark/diagnostics/fixtures/cascade_captured_outcomes_v1.json)
+from five simulated episodes: two placements with unverified goals, three
+explicit manipulation failures, three verified resets and two failed resets.
+Each record retains the original evidence and hashes of its source file, line
+and canonical JSON. Requests were reconstructed from recorded arguments and
+explicitly ask for an outcome report followed by no further movement. They are
+authored replay requests, not preserved historical user wording.
+
+Two agents reviewed the expected answers and exact candidate arguments before
+inference. **There was no human review.** These are a small convenience sample,
+with correlated placement/reset pairs, not a held-out evaluation. Runtime-written
+`next_action`, `note` and `suggestion` hints are removed from model input. The
+before-call context remains explicitly labelled; it does not establish what the
+arm held after a call. The supplied postcondition and reset-verification fields
+are evidence inputs, so this tests interpreting reported outcomes rather than
+perceiving or independently verifying physical geometry.
+
+[The replay runner](../benchmark/diagnostics/decision_replay.py) compares native
+Kev choices with Cascade's existing `OpenAICompatClient` selecting among the
+same prepared calls. Candidate IDs, arguments and projected state hashes match
+across every paired case. Qwen runs a constrained text selection task, without
+the orchestrator, images, decomposition or tool execution. Native Noul
+probabilities and Qwen boolean completion answers are kept distinct.
+
+| Backend | Correct prepared reports | Completion answers correct | False success / motion choices | First request | Next 9 median / p95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Kev 4B, bf16 | 10/10 | 10/10 | 0 / 0 | 1,163 ms | 99 / 290 ms |
+| Qwen3.8 27B, UD-Q4_K_XL | 10/10 | 10/10 | 0 / 0 | 1,664 ms | 1,302 / 1,656 ms |
+| Recorded-status rules | 10/10 | 10/10 | 0 / 0 | <1 ms | <1 / <1 ms |
+
+All three completed without request errors. The rule baseline was added **after**
+the model runs and is explicitly specific to this reporting fixture: an explicit
+failure/refutation means failed; a successful reset with complete independent
+per-prop physics checks and refreshed observations means success; otherwise the
+goal remains unverified. It does not read expected answers or compute geometry.
+Always reporting failure would match 5/10 outcomes; always answering incomplete
+would match 7/10 completion labels.
+
+The first request is separated from the remaining cases. Kev had loaded weights
+and could reuse previously compiled kernels; Qwen was already running. These
+are not fresh-install cold-start measurements. Other GPU services were active,
+including an isolated Isaac startup during the Kev window. There was no
+randomized crossover or isolated serving comparison. Rule timing covers CPU
+selection alone, while model timings include HTTP inference; none includes the
+cost of producing the captured evidence. The timings do not establish an
+end-to-end demo speedup. No repeated fixture runs were added as new examples.
+
+The [manifest](../benchmark/results/captured_outcomes_manifest_20261001.json)
+links all three reports, their SHA256s, source revisions, the pinned Kev
+checkpoint, and the Qwen GGUF and llama-server binary hashes. Kev used the same
+Torch 2.14.1+cu132 environment as the earlier pilot and was stopped afterwards;
+the existing Qwen service was left running. Kev 27B and official TypeSafe Jev
+were not evaluated in this follow-up. The original 32-case artifacts are unchanged.
+
+Reproduce from Cascade's environment with the already running local servers:
+
+```bash
+PYTHONPATH=src python benchmark/diagnostics/decision_replay.py \
+  --backend native --base-url http://127.0.0.1:28009 --model kev-latest \
+  --output runs/kev-captured.json
+PYTHONPATH=src python benchmark/diagnostics/decision_replay.py \
+  --backend planner --base-url http://127.0.0.1:8080 --model Qwen/Qwen3.8-27B \
+  --output runs/qwen-captured.json
+PYTHONPATH=src python benchmark/diagnostics/decision_replay.py \
+  --backend rules --output runs/rules-captured.json
+```
+
+This replay found **no decision-quality benefit over recorded-status rules**.
+Keep this reporting path deterministic. A useful later model experiment should
+instead capture genuine fast-path misses, with ambiguous alternatives that need
+judgment, human-reviewed actions and arguments, and a held-out comparison.
+There is no runtime integration or motion authorization from this work.
+Geometric grasp refinement and nvblox mapping remain separate perception and
+motion work.

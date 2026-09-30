@@ -21,6 +21,11 @@ grid: it opens the PAAI demo page at `http://127.0.0.1:8092`, a chat box that
 relays each order to OpenClaw, with the three cameras beside it. For the
 normal OpenClaw chat, run `./run.sh dashboard`; see
 [Open OpenClaw](DGX_SPARK_SETUP.md#open-openclaw).
+With several installations, select the intended checkout using the
+[exact desktop launcher command](DGX_SPARK_SETUP.md#5-open-the-demo-in-one-click)
+instead of relying on identical app-grid names. The
+[validated release](DGX_SPARK_SETUP.md#validated-release-and-scope) records
+the fresh install, five-object round and complete stop/start recovery.
 
 For the complete installation and presenter steps in one page, download the
 [standalone Spark HTML guide](spark-presenter/index.html) and open it in a

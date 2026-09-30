@@ -1,0 +1,1626 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-01",
+  "scope": "Fresh single-arm kitchen placement postconditions in direct SkillRuntime calls on the real GB10 Spark. Separate passive full-motion audits and reset for each case. No new native-chat, UI, desktop READY, fresh install or deployment claim.",
+  "installed_demo_unchanged": {
+    "repo": "/home/spark/Projects/cascade-clean-20260930-02",
+    "runtime_commit": "9cf540279f09df8197eda6541311b41edb455243",
+    "post_campaign_read_only_check": {
+      "date": "2026-10-01",
+      "spark_verify": "READY",
+      "spark_browser_check": "READY",
+      "source_dirty": false,
+      "scope": "Health and binding to existing accepted proof; not a fresh desktop proof."
+    }
+  },
+  "experimental_checkout": "/home/spark/Projects/cascade-placement-20261001",
+  "execution": {
+    "engine": "physx",
+    "bridge_port": 8611,
+    "occupancy": "disabled",
+    "hardware": "NVIDIA GB10",
+    "grasp_backend": "real GraspGen-X CUDA",
+    "shared_services": "Existing accepted clean Isaac, GraspGen-X and Python environment; visitor order.lock held throughout each campaign; all props reset after each case."
+  },
+  "campaigns": [
+    {
+      "id": "placement-five-props-01",
+      "pass": true,
+      "rounds": 1,
+      "source_unchanged_during_campaign": true,
+      "source_sha256": {
+        "benchmark/diagnostics/kitchen_acceptance.py": "1e9e9826cb8a47735c5611585b79985487cb70ba83dcd2b58f90875cfa8be975",
+        "scripts/isaac_bridge.py": "362f8cac7712ec72f7e9014e6a908c7fda89ee184ef2617db3d473bc685dfcef",
+        "scripts/isaac_materials.py": "54fafa297d2e150df5f4a066d76e27e63055acf0a6bfcdb502dc02b3373350fd",
+        "scripts/isaac_runtime.py": "2644d2339d4c5402f04085ddbef863e5ca983a27777d59d656f65c7fd60785ca",
+        "src/cascade/skills/runtime.py": "a1ce54f7cca8f0ce2efcab573bb7c54d97e831ec2d2091596adb22c11592134c",
+        "src/cascade/grasping/obb_grasp.py": "5c38fb8c54ce30deebe29cddc6ac3daa562e5b2903287a60d315f1250b01a9cb",
+        "src/cascade/grasping/graspgenx_backend.py": "f9575978c84ff6478b07cb981291719413c8a025780afb1ff0f337b2b25776fc",
+        "src/cascade/config.py": "984cf4e2aa276ce54f8b24e78a5fd863699a5109e8c522dc00d072bb6c6d82d7",
+        "src/cascade/apps/demo.py": "8e533a101ba4c1db94fa32eda6976af28cbe0345cb9638fc30a01d47d5ebd8bf",
+        "src/cascade/perception/grounding.py": "e93ce3d7388d35a53ff4c0b61af541f0c065e4a65d3b8cd7c0573b50963a4458",
+        "src/cascade/perception/cuda_math.py": "d148ef4481868d3247b37710548dc87fdb7a5d08700fb6135b41fb6fd3900e33",
+        "src/cascade/agent/effects.py": "86387d39b8ea290b1df26a01154dfe92d7eb03427df83b6f7aa3e888c9e77759",
+        "src/cascade/sim/truth.py": "5088b778ad400d8020293a88cebdeef2299a448e0052e2bae37f7dddb7cfb00b",
+        "demo/kitchen/physics/gpu_proof_audit.py": "f85392450376bf6a320138198612530d26f08ab4a95962a20047f3f3ceb26fb2",
+        "demo/kitchen/physics/convex_geometry.py": "f1e3c87aed4b2343f2818564048ee42e002c588b97f87007f55c83a158d0de65",
+        "demo/kitchen/physics/destination_entry.py": "263a9fb383af509f435118deed536d19afca9d43701487edf7999dad92f1b441",
+        "demo/kitchen/physics/spark_proof.py": "675434aab150a74fefe1ab637a6d1d740c24e7f11c319f5bd50cd4a1426c78d4",
+        "assets/newton/rebot_gripper_hulls.usda": "46fd39d7f4ad948a9a7e6d67f2f7fde5a92333972e1f4ff2014dcba1449462de",
+        "configs/arms/isaac_kitchen.yaml": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+        "configs/arms/isaac_kitchen_gpu.yaml": "3274e46b33305a6b0fb90a0a2417a754c9935e4a3662d7e06c0dacbef193b62c",
+        "src/cascade/sim/placement.py": "aae283b13280de1aa7ee578bde5566f77ffa085cd988e1154b52c9310835ec4e",
+        "demo/kitchen/physics/placement_verdict.py": "8bfd029bf129fd1c7906c111941c2bda9dda9ff029d494d24ee8e21294e8a810"
+      },
+      "cases": [
+        {
+          "object": "green_cube",
+          "destination": "green square",
+          "pass": true,
+          "tool_verified": true,
+          "postcondition": {
+            "skill": "pick_and_place",
+            "kind": "relocated",
+            "status": "confirmed",
+            "evidence": "green_cube is fully contained in green square, supported, released by the actual jaws and settled across the observed window; the pick/lift was not observed",
+            "channel": "physics",
+            "measured": {
+              "scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+              "object": "green_cube",
+              "destination": "green square",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "engine": "physx",
+              "final_samples": 22,
+              "final_window_sim_s": 0.5166666666668789,
+              "max_sample_gap_sim_s": 0.03333333333353039,
+              "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+              "max_final_xy_error_m": 0.0034158942556820862,
+              "max_final_support_z_error_m": 3.243264823371561e-10,
+              "max_final_linear_speed_m_s": 1.3939407423225336e-05,
+              "max_final_angular_speed_rad_s": 0.0004454441822861962,
+              "max_final_position_spread_m": 0.0,
+              "min_final_actual_open_fraction": 0.9998981505647577,
+              "min_inside_clearance_m": 0.04783133153021257,
+              "max_abs_support_gap_m": 5.173219678675234e-08,
+              "support_tolerance_m": 0.005,
+              "boundary_outward_tolerance_m": 0.0,
+              "checks": {
+                "actual_joints_within_limits": true,
+                "released_actual_jaws": true,
+                "destination_xy": true,
+                "supported_z": true,
+                "settled_linear_speed": true,
+                "settled_angular_speed": true,
+                "stable_final_position": true,
+                "support_geometry": true,
+                "whole_collider_contained": true,
+                "lowest_collider_point_supported": true
+              },
+              "failed_checks": [],
+              "observed_samples": 26,
+              "observation_wall_s": 7.89,
+              "evidence_path": "/home/spark/Projects/cascade-placement-20261001/runs/placement-five-props-01/green_cube_r1/runtime/placement/783f2962fedc4ef78a28857867f0d661.json",
+              "evidence_sha256": "62227c69087785e63b00694967bdcc5fee8a2a9d47b70c822f31634c4f9bfce1"
+            }
+          },
+          "pick_wall_seconds": 76.97767401900637,
+          "external_audit_checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_cube_inside_green_square_throughout_settle": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "external_audit_pass": true,
+          "reset_ok": true,
+          "reset_verification": {
+            "channel": "physics",
+            "frame": "robot_base",
+            "tolerance_m": 0.02,
+            "props": {
+              "pink_cube": {
+                "spawn_position_m": [
+                  0.27,
+                  0.11,
+                  0.03
+                ],
+                "position_m": [
+                  0.27000001072883606,
+                  0.11000001430511475,
+                  0.02999999934039739
+                ],
+                "error_m": 1.7893554881474162e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "green_cube": {
+                "spawn_position_m": [
+                  0.24,
+                  0.01,
+                  0.03
+                ],
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000009089708328,
+                  0.02999999934039739
+                ],
+                "error_m": 1.3191184307591516e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "tomato_can": {
+                "spawn_position_m": [
+                  0.225,
+                  0.215,
+                  0.04125
+                ],
+                "position_m": [
+                  0.22499999403953552,
+                  0.2149999886751175,
+                  0.04125001282594827
+                ],
+                "error_m": 1.811863818215142e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "lemon": {
+                "spawn_position_m": [
+                  0.32,
+                  0.005,
+                  0.0216
+                ],
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "error_m": 7.176201959695758e-09,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "orange": {
+                "spawn_position_m": [
+                  0.18,
+                  0.12,
+                  0.026380231603980064
+                ],
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "error_m": 7.638942475269053e-09,
+                "finite": true,
+                "within_tolerance": true
+              }
+            }
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.458
+          },
+          "receipt": {
+            "path": "runs/placement-five-props-01/green_cube_r1/receipt.json",
+            "sha256": "c8029d5b856b7f0f9e99a6ed8d9942ab33e96cd8e75a9e61d41ef01cefe6bb74"
+          },
+          "placement_readings": {
+            "path": "runs/placement-five-props-01/green_cube_r1/runtime/placement/783f2962fedc4ef78a28857867f0d661.json",
+            "sha256": "62227c69087785e63b00694967bdcc5fee8a2a9d47b70c822f31634c4f9bfce1"
+          },
+          "external_audit": {
+            "path": "runs/placement-five-props-01/green_cube_r1/witness/gpu-physical-audit.json",
+            "sha256": "493dea37cb7225983b8276ff08b1417dd37ca36f01d4b0fecbfc9aa707a22c92"
+          }
+        },
+        {
+          "object": "orange",
+          "destination": "open box",
+          "pass": true,
+          "tool_verified": true,
+          "postcondition": {
+            "skill": "pick_and_place",
+            "kind": "relocated",
+            "status": "confirmed",
+            "evidence": "orange is fully contained in open box, supported, released by the actual jaws and settled across the observed window; the pick/lift was not observed",
+            "channel": "physics",
+            "measured": {
+              "scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+              "object": "orange",
+              "destination": "open box",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "engine": "physx",
+              "final_samples": 19,
+              "final_window_sim_s": 0.5,
+              "max_sample_gap_sim_s": 0.03333333333353039,
+              "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+              "max_final_xy_error_m": 0.004835803696251579,
+              "max_final_support_z_error_m": 1.333595559468992e-07,
+              "max_final_linear_speed_m_s": 0.0003372486661367173,
+              "max_final_angular_speed_rad_s": 0.020997263679803733,
+              "max_final_position_spread_m": 3.4819011227929364e-07,
+              "min_final_actual_open_fraction": 0.9999509751804028,
+              "min_inside_clearance_m": 0.03353523456863783,
+              "max_abs_support_gap_m": 1.333595559468992e-07,
+              "support_tolerance_m": 0.001,
+              "boundary_outward_tolerance_m": 0.0,
+              "checks": {
+                "actual_joints_within_limits": true,
+                "released_actual_jaws": true,
+                "destination_xy": true,
+                "supported_z": true,
+                "settled_linear_speed": true,
+                "settled_angular_speed": true,
+                "stable_final_position": true,
+                "support_geometry": true,
+                "whole_collider_contained_and_supported": true
+              },
+              "failed_checks": [],
+              "observed_samples": 24,
+              "observation_wall_s": 7.505,
+              "evidence_path": "/home/spark/Projects/cascade-placement-20261001/runs/placement-five-props-01/orange_r1/runtime/placement/adc198538e224abb8f7fdd9144ba8ff2.json",
+              "evidence_sha256": "f55d0cab8466123b3d2af9d5afb2737e979d2fdb5ddf86ce053e54e409cc2594"
+            }
+          },
+          "pick_wall_seconds": 105.7872972289988,
+          "external_audit_checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "convex_body_identity": true,
+            "authored_convex_vertices_match": true,
+            "convex_topology_matches": true,
+            "convex_body_and_collider_enabled": true,
+            "convex_body_and_child_transforms_match": true,
+            "convex_tensor_mass_and_com_match": true,
+            "convex_tensor_inertia_valid": true,
+            "physx_support_live_identity": true,
+            "physx_support_source_matches": true,
+            "physx_support_solid_subset": true,
+            "physx_support_geometry_unchanged": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_convex_collider_inside_open_box_and_supported": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "external_audit_pass": true,
+          "reset_ok": true,
+          "reset_verification": {
+            "channel": "physics",
+            "frame": "robot_base",
+            "tolerance_m": 0.02,
+            "props": {
+              "pink_cube": {
+                "spawn_position_m": [
+                  0.27,
+                  0.11,
+                  0.03
+                ],
+                "position_m": [
+                  0.27000001072883606,
+                  0.11000001430511475,
+                  0.02999999934039739
+                ],
+                "error_m": 1.7893554881474162e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "green_cube": {
+                "spawn_position_m": [
+                  0.24,
+                  0.01,
+                  0.03
+                ],
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000009089708328,
+                  0.02999999934039739
+                ],
+                "error_m": 1.3191184307591516e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "tomato_can": {
+                "spawn_position_m": [
+                  0.225,
+                  0.215,
+                  0.04125
+                ],
+                "position_m": [
+                  0.22499999403953552,
+                  0.2149999886751175,
+                  0.04125001282594827
+                ],
+                "error_m": 1.811863818215142e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "lemon": {
+                "spawn_position_m": [
+                  0.32,
+                  0.005,
+                  0.0216
+                ],
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "error_m": 7.176201959695758e-09,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "orange": {
+                "spawn_position_m": [
+                  0.18,
+                  0.12,
+                  0.026380231603980064
+                ],
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "error_m": 7.638942475269053e-09,
+                "finite": true,
+                "within_tolerance": true
+              }
+            }
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.485
+          },
+          "receipt": {
+            "path": "runs/placement-five-props-01/orange_r1/receipt.json",
+            "sha256": "a6db54de641afb35064d755ed5d2699225d276417a93f708c93cdb3705d3f05d"
+          },
+          "placement_readings": {
+            "path": "runs/placement-five-props-01/orange_r1/runtime/placement/adc198538e224abb8f7fdd9144ba8ff2.json",
+            "sha256": "f55d0cab8466123b3d2af9d5afb2737e979d2fdb5ddf86ce053e54e409cc2594"
+          },
+          "external_audit": {
+            "path": "runs/placement-five-props-01/orange_r1/witness/gpu-physical-audit.json",
+            "sha256": "a6d69d30089ff38b0249606ea1120f5824eab57ce2b2612377ba017b42fd2d42"
+          }
+        },
+        {
+          "object": "pink_cube",
+          "destination": "green square",
+          "pass": true,
+          "tool_verified": true,
+          "postcondition": {
+            "skill": "pick_and_place",
+            "kind": "relocated",
+            "status": "confirmed",
+            "evidence": "pink_cube is fully contained in green square, supported, released by the actual jaws and settled across the observed window; the pick/lift was not observed",
+            "channel": "physics",
+            "measured": {
+              "scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+              "object": "pink_cube",
+              "destination": "green square",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "engine": "physx",
+              "final_samples": 22,
+              "final_window_sim_s": 0.5,
+              "max_sample_gap_sim_s": 0.03333333333353039,
+              "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+              "max_final_xy_error_m": 0.017097796560570682,
+              "max_final_support_z_error_m": 3.243264823371561e-10,
+              "max_final_linear_speed_m_s": 2.292544680428966e-05,
+              "max_final_angular_speed_rad_s": 0.00043928183926538643,
+              "max_final_position_spread_m": 0.0,
+              "min_final_actual_open_fraction": 0.9999146163476316,
+              "min_inside_clearance_m": 0.03332831031830413,
+              "max_abs_support_gap_m": 2.5285440789779567e-08,
+              "support_tolerance_m": 0.005,
+              "boundary_outward_tolerance_m": 0.0,
+              "checks": {
+                "actual_joints_within_limits": true,
+                "released_actual_jaws": true,
+                "destination_xy": true,
+                "supported_z": true,
+                "settled_linear_speed": true,
+                "settled_angular_speed": true,
+                "stable_final_position": true,
+                "support_geometry": true,
+                "whole_collider_contained": true,
+                "lowest_collider_point_supported": true
+              },
+              "failed_checks": [],
+              "observed_samples": 27,
+              "observation_wall_s": 8.011,
+              "evidence_path": "/home/spark/Projects/cascade-placement-20261001/runs/placement-five-props-01/pink_cube_r1/runtime/placement/8c5da69742bd423cb6e40d9459d2206b.json",
+              "evidence_sha256": "71cc5c728c421a49325a6d3f4b99986d1558dc9f5ab1b094e1927ba995dea55a"
+            }
+          },
+          "pick_wall_seconds": 75.64075237900397,
+          "external_audit_checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_cube_inside_green_square_throughout_settle": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "external_audit_pass": true,
+          "reset_ok": true,
+          "reset_verification": {
+            "channel": "physics",
+            "frame": "robot_base",
+            "tolerance_m": 0.02,
+            "props": {
+              "pink_cube": {
+                "spawn_position_m": [
+                  0.27,
+                  0.11,
+                  0.03
+                ],
+                "position_m": [
+                  0.27000001072883606,
+                  0.11000001430511475,
+                  0.02999999934039739
+                ],
+                "error_m": 1.7893554881474162e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "green_cube": {
+                "spawn_position_m": [
+                  0.24,
+                  0.01,
+                  0.03
+                ],
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000009089708328,
+                  0.02999999934039739
+                ],
+                "error_m": 1.3191184307591516e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "tomato_can": {
+                "spawn_position_m": [
+                  0.225,
+                  0.215,
+                  0.04125
+                ],
+                "position_m": [
+                  0.22499999403953552,
+                  0.2149999886751175,
+                  0.04125001282594827
+                ],
+                "error_m": 1.811863818215142e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "lemon": {
+                "spawn_position_m": [
+                  0.32,
+                  0.005,
+                  0.0216
+                ],
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "error_m": 7.176201959695758e-09,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "orange": {
+                "spawn_position_m": [
+                  0.18,
+                  0.12,
+                  0.026380231603980064
+                ],
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "error_m": 7.638942475269053e-09,
+                "finite": true,
+                "within_tolerance": true
+              }
+            }
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.533
+          },
+          "receipt": {
+            "path": "runs/placement-five-props-01/pink_cube_r1/receipt.json",
+            "sha256": "fa92417cebf62d18c0b976d2217a39bed3e3c32b866e54989ca6549e23aab898"
+          },
+          "placement_readings": {
+            "path": "runs/placement-five-props-01/pink_cube_r1/runtime/placement/8c5da69742bd423cb6e40d9459d2206b.json",
+            "sha256": "71cc5c728c421a49325a6d3f4b99986d1558dc9f5ab1b094e1927ba995dea55a"
+          },
+          "external_audit": {
+            "path": "runs/placement-five-props-01/pink_cube_r1/witness/gpu-physical-audit.json",
+            "sha256": "69f7225ab34d989f41a6f0c178ca69dd2954b49652c7eca1fc72f77524f887ba"
+          }
+        },
+        {
+          "object": "lemon",
+          "destination": "open box",
+          "pass": true,
+          "tool_verified": true,
+          "postcondition": {
+            "skill": "pick_and_place",
+            "kind": "relocated",
+            "status": "confirmed",
+            "evidence": "lemon is fully contained in open box, supported, released by the actual jaws and settled across the observed window; the pick/lift was not observed",
+            "channel": "physics",
+            "measured": {
+              "scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+              "object": "lemon",
+              "destination": "open box",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "engine": "physx",
+              "final_samples": 18,
+              "final_window_sim_s": 0.5,
+              "max_sample_gap_sim_s": 0.03333333333353039,
+              "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+              "max_final_xy_error_m": 0.013732602921259973,
+              "max_final_support_z_error_m": 1.9782593067146914e-08,
+              "max_final_linear_speed_m_s": 0.0003272084142363198,
+              "max_final_angular_speed_rad_s": 0.01579103016610167,
+              "max_final_position_spread_m": 2.551823854446411e-07,
+              "min_final_actual_open_fraction": 0.9999403208503079,
+              "min_inside_clearance_m": 0.01626907937609534,
+              "max_abs_support_gap_m": 1.9782593067146914e-08,
+              "support_tolerance_m": 0.001,
+              "boundary_outward_tolerance_m": 0.0,
+              "checks": {
+                "actual_joints_within_limits": true,
+                "released_actual_jaws": true,
+                "destination_xy": true,
+                "supported_z": true,
+                "settled_linear_speed": true,
+                "settled_angular_speed": true,
+                "stable_final_position": true,
+                "support_geometry": true,
+                "whole_collider_contained_and_supported": true
+              },
+              "failed_checks": [],
+              "observed_samples": 23,
+              "observation_wall_s": 7.452,
+              "evidence_path": "/home/spark/Projects/cascade-placement-20261001/runs/placement-five-props-01/lemon_r1/runtime/placement/f0c8563d3e98480fabd37f6040486212.json",
+              "evidence_sha256": "dac466c010a5ae53c6ac64b616a1a5c186bb131fec590ffe62eae07d27dd2330"
+            }
+          },
+          "pick_wall_seconds": 69.98015346300235,
+          "external_audit_checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "convex_body_identity": true,
+            "authored_convex_vertices_match": true,
+            "convex_topology_matches": true,
+            "convex_body_and_collider_enabled": true,
+            "convex_body_and_child_transforms_match": true,
+            "convex_tensor_mass_and_com_match": true,
+            "convex_tensor_inertia_valid": true,
+            "physx_support_live_identity": true,
+            "physx_support_source_matches": true,
+            "physx_support_solid_subset": true,
+            "physx_support_geometry_unchanged": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_convex_collider_inside_open_box_and_supported": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "external_audit_pass": true,
+          "reset_ok": true,
+          "reset_verification": {
+            "channel": "physics",
+            "frame": "robot_base",
+            "tolerance_m": 0.02,
+            "props": {
+              "pink_cube": {
+                "spawn_position_m": [
+                  0.27,
+                  0.11,
+                  0.03
+                ],
+                "position_m": [
+                  0.27000001072883606,
+                  0.11000001430511475,
+                  0.02999999934039739
+                ],
+                "error_m": 1.7893554881474162e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "green_cube": {
+                "spawn_position_m": [
+                  0.24,
+                  0.01,
+                  0.03
+                ],
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000009089708328,
+                  0.02999999934039739
+                ],
+                "error_m": 1.3191184307591516e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "tomato_can": {
+                "spawn_position_m": [
+                  0.225,
+                  0.215,
+                  0.04125
+                ],
+                "position_m": [
+                  0.22499999403953552,
+                  0.2149999886751175,
+                  0.04125001282594827
+                ],
+                "error_m": 1.811863818215142e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "lemon": {
+                "spawn_position_m": [
+                  0.32,
+                  0.005,
+                  0.0216
+                ],
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "error_m": 7.176201959695758e-09,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "orange": {
+                "spawn_position_m": [
+                  0.18,
+                  0.12,
+                  0.026380231603980064
+                ],
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "error_m": 7.638942475269053e-09,
+                "finite": true,
+                "within_tolerance": true
+              }
+            }
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.487
+          },
+          "receipt": {
+            "path": "runs/placement-five-props-01/lemon_r1/receipt.json",
+            "sha256": "7e09e59745ea8db0eb24c9e32587a95d9954125ba2a0b57f0a9570269ce70272"
+          },
+          "placement_readings": {
+            "path": "runs/placement-five-props-01/lemon_r1/runtime/placement/f0c8563d3e98480fabd37f6040486212.json",
+            "sha256": "dac466c010a5ae53c6ac64b616a1a5c186bb131fec590ffe62eae07d27dd2330"
+          },
+          "external_audit": {
+            "path": "runs/placement-five-props-01/lemon_r1/witness/gpu-physical-audit.json",
+            "sha256": "08c0b8c2083bea02ccef4da16bb5dc6587cc64a18eb0ebadb6ed1c3440ab2f05"
+          }
+        },
+        {
+          "object": "tomato_can",
+          "destination": "green square",
+          "pass": true,
+          "tool_verified": true,
+          "postcondition": {
+            "skill": "pick_and_place",
+            "kind": "relocated",
+            "status": "confirmed",
+            "evidence": "tomato_can is fully contained in green square, supported, released by the actual jaws and settled across the observed window; the pick/lift was not observed",
+            "channel": "physics",
+            "measured": {
+              "scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+              "object": "tomato_can",
+              "destination": "green square",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "engine": "physx",
+              "final_samples": 22,
+              "final_window_sim_s": 0.5,
+              "max_sample_gap_sim_s": 0.03333333333353039,
+              "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+              "max_final_xy_error_m": 0.011996368190058476,
+              "max_final_support_z_error_m": 3.587679695687962e-08,
+              "max_final_linear_speed_m_s": 0.0001704646606491949,
+              "max_final_angular_speed_rad_s": 0.0008158819518235549,
+              "max_final_position_spread_m": 5.487695285177318e-08,
+              "min_final_actual_open_fraction": 0.9999036639943173,
+              "min_inside_clearance_m": 0.03307455476051696,
+              "max_abs_support_gap_m": 3.587679695687962e-08,
+              "support_tolerance_m": 0.005,
+              "boundary_outward_tolerance_m": 0.0,
+              "checks": {
+                "actual_joints_within_limits": true,
+                "released_actual_jaws": true,
+                "destination_xy": true,
+                "supported_z": true,
+                "settled_linear_speed": true,
+                "settled_angular_speed": true,
+                "stable_final_position": true,
+                "support_geometry": true,
+                "whole_collider_contained_and_supported": true,
+                "tomato_can_settles_upright": true
+              },
+              "failed_checks": [],
+              "observed_samples": 26,
+              "observation_wall_s": 7.771,
+              "evidence_path": "/home/spark/Projects/cascade-placement-20261001/runs/placement-five-props-01/tomato_can_r1/runtime/placement/38794cd31a284dea81d7177396f7c1eb.json",
+              "evidence_sha256": "3e0eaa03f39b458ff35b96d5209f671cd4fc1e9c7ba81f9cde60936bbc83fe45"
+            }
+          },
+          "pick_wall_seconds": 74.62741460400139,
+          "external_audit_checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "convex_body_identity": true,
+            "authored_convex_vertices_match": true,
+            "convex_topology_matches": true,
+            "convex_body_and_collider_enabled": true,
+            "convex_body_and_child_transforms_match": true,
+            "convex_tensor_mass_and_com_match": true,
+            "convex_tensor_inertia_valid": true,
+            "physx_support_live_identity": true,
+            "physx_support_source_matches": true,
+            "physx_support_solid_subset": true,
+            "physx_support_geometry_unchanged": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_convex_collider_inside_green_square_and_supported": true,
+            "tomato_can_settles_upright": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "external_audit_pass": true,
+          "reset_ok": true,
+          "reset_verification": {
+            "channel": "physics",
+            "frame": "robot_base",
+            "tolerance_m": 0.02,
+            "props": {
+              "pink_cube": {
+                "spawn_position_m": [
+                  0.27,
+                  0.11,
+                  0.03
+                ],
+                "position_m": [
+                  0.27000001072883606,
+                  0.11000001430511475,
+                  0.02999999934039739
+                ],
+                "error_m": 1.7893554881474162e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "green_cube": {
+                "spawn_position_m": [
+                  0.24,
+                  0.01,
+                  0.03
+                ],
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000009089708328,
+                  0.02999999934039739
+                ],
+                "error_m": 1.3191184307591516e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "tomato_can": {
+                "spawn_position_m": [
+                  0.225,
+                  0.215,
+                  0.04125
+                ],
+                "position_m": [
+                  0.22499999403953552,
+                  0.2149999886751175,
+                  0.04125001282594827
+                ],
+                "error_m": 1.811863818215142e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "lemon": {
+                "spawn_position_m": [
+                  0.32,
+                  0.005,
+                  0.0216
+                ],
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "error_m": 7.176201959695758e-09,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "orange": {
+                "spawn_position_m": [
+                  0.18,
+                  0.12,
+                  0.026380231603980064
+                ],
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "error_m": 7.638942475269053e-09,
+                "finite": true,
+                "within_tolerance": true
+              }
+            }
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.574
+          },
+          "receipt": {
+            "path": "runs/placement-five-props-01/tomato_can_r1/receipt.json",
+            "sha256": "8faa86dc1879f0c668c2562a89b1863bc591ebc8fc25a1e752b9d6352460202c"
+          },
+          "placement_readings": {
+            "path": "runs/placement-five-props-01/tomato_can_r1/runtime/placement/38794cd31a284dea81d7177396f7c1eb.json",
+            "sha256": "3e0eaa03f39b458ff35b96d5209f671cd4fc1e9c7ba81f9cde60936bbc83fe45"
+          },
+          "external_audit": {
+            "path": "runs/placement-five-props-01/tomato_can_r1/witness/gpu-physical-audit.json",
+            "sha256": "5add5060bcf31cdb9b195420a522afdb9128404a3750d1e7a40924927b213a3d"
+          }
+        }
+      ],
+      "campaign_receipt": {
+        "path": "runs/placement-five-props-01/campaign.json",
+        "sha256": "5748536cde08839e7ab31073e268f60bfe2c701d2028479e60219f8023c6ce5e"
+      }
+    },
+    {
+      "id": "placement-final-source-02",
+      "pass": true,
+      "rounds": 1,
+      "source_unchanged_during_campaign": true,
+      "source_sha256": {
+        "benchmark/diagnostics/kitchen_acceptance.py": "195f9500f26dabfd59d4cfe85761d3b1679cbdfb9e2469612392523ddc7b05f5",
+        "scripts/isaac_bridge.py": "362f8cac7712ec72f7e9014e6a908c7fda89ee184ef2617db3d473bc685dfcef",
+        "scripts/isaac_materials.py": "54fafa297d2e150df5f4a066d76e27e63055acf0a6bfcdb502dc02b3373350fd",
+        "scripts/isaac_runtime.py": "2644d2339d4c5402f04085ddbef863e5ca983a27777d59d656f65c7fd60785ca",
+        "src/cascade/skills/runtime.py": "f37310093dddc4f8c85a188168135b34d8d6970cce62a78ee260e7b0fe077de8",
+        "src/cascade/grasping/obb_grasp.py": "5c38fb8c54ce30deebe29cddc6ac3daa562e5b2903287a60d315f1250b01a9cb",
+        "src/cascade/grasping/graspgenx_backend.py": "f9575978c84ff6478b07cb981291719413c8a025780afb1ff0f337b2b25776fc",
+        "src/cascade/config.py": "984cf4e2aa276ce54f8b24e78a5fd863699a5109e8c522dc00d072bb6c6d82d7",
+        "src/cascade/apps/demo.py": "8e533a101ba4c1db94fa32eda6976af28cbe0345cb9638fc30a01d47d5ebd8bf",
+        "src/cascade/perception/grounding.py": "e93ce3d7388d35a53ff4c0b61af541f0c065e4a65d3b8cd7c0573b50963a4458",
+        "src/cascade/perception/cuda_math.py": "d148ef4481868d3247b37710548dc87fdb7a5d08700fb6135b41fb6fd3900e33",
+        "src/cascade/agent/effects.py": "8d6eb766848bec8cbb53f5faabbd22996e82ecb171c40a911f80854d89bf88bb",
+        "src/cascade/sim/truth.py": "5088b778ad400d8020293a88cebdeef2299a448e0052e2bae37f7dddb7cfb00b",
+        "src/cascade/sim/placement.py": "aae283b13280de1aa7ee578bde5566f77ffa085cd988e1154b52c9310835ec4e",
+        "demo/kitchen/physics/placement_verdict.py": "8bfd029bf129fd1c7906c111941c2bda9dda9ff029d494d24ee8e21294e8a810",
+        "demo/kitchen/physics/gpu_proof_audit.py": "f85392450376bf6a320138198612530d26f08ab4a95962a20047f3f3ceb26fb2",
+        "demo/kitchen/physics/convex_geometry.py": "f1e3c87aed4b2343f2818564048ee42e002c588b97f87007f55c83a158d0de65",
+        "demo/kitchen/physics/destination_entry.py": "263a9fb383af509f435118deed536d19afca9d43701487edf7999dad92f1b441",
+        "demo/kitchen/physics/spark_proof.py": "675434aab150a74fefe1ab637a6d1d740c24e7f11c319f5bd50cd4a1426c78d4",
+        "assets/newton/rebot_gripper_hulls.usda": "46fd39d7f4ad948a9a7e6d67f2f7fde5a92333972e1f4ff2014dcba1449462de",
+        "configs/arms/isaac_kitchen.yaml": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+        "configs/arms/isaac_kitchen_gpu.yaml": "3274e46b33305a6b0fb90a0a2417a754c9935e4a3662d7e06c0dacbef193b62c"
+      },
+      "cases": [
+        {
+          "object": "green_cube",
+          "destination": "green square",
+          "pass": true,
+          "tool_verified": true,
+          "postcondition": {
+            "skill": "pick_and_place",
+            "kind": "relocated",
+            "status": "confirmed",
+            "evidence": "green_cube is fully contained in green square, supported, released by the actual jaws and settled across the observed window; the pick/lift was not observed",
+            "channel": "physics",
+            "measured": {
+              "scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+              "object": "green_cube",
+              "destination": "green square",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "engine": "physx",
+              "final_samples": 21,
+              "final_window_sim_s": 0.5,
+              "max_sample_gap_sim_s": 0.03333333333353039,
+              "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+              "max_final_xy_error_m": 0.009607610499471684,
+              "max_final_support_z_error_m": 4.04961678079907e-09,
+              "max_final_linear_speed_m_s": 3.369680990105654e-05,
+              "max_final_angular_speed_rad_s": 0.0004170805432844706,
+              "max_final_position_spread_m": 2.986047331594191e-08,
+              "min_final_actual_open_fraction": 0.999927058817043,
+              "min_inside_clearance_m": 0.04389778889380522,
+              "max_abs_support_gap_m": 5.2381600914447324e-08,
+              "support_tolerance_m": 0.005,
+              "boundary_outward_tolerance_m": 0.0,
+              "checks": {
+                "actual_joints_within_limits": true,
+                "released_actual_jaws": true,
+                "destination_xy": true,
+                "supported_z": true,
+                "settled_linear_speed": true,
+                "settled_angular_speed": true,
+                "stable_final_position": true,
+                "support_geometry": true,
+                "whole_collider_contained": true,
+                "lowest_collider_point_supported": true
+              },
+              "failed_checks": [],
+              "observed_samples": 26,
+              "observation_wall_s": 7.936,
+              "evidence_path": "/home/spark/Projects/cascade-placement-20261001/runs/placement-final-source-02/green_cube_r1/runtime/placement/260d8a5a9202489c87da5d46a6ab3617.json",
+              "evidence_sha256": "b7ca0b7e6c32422c2dc2442d6dcc69ac7b19f3ecc9634068ed32be5bf8c4cc59"
+            }
+          },
+          "pick_wall_seconds": 76.57794616700266,
+          "external_audit_checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_cube_inside_green_square_throughout_settle": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "external_audit_pass": true,
+          "reset_ok": true,
+          "reset_verification": {
+            "channel": "physics",
+            "frame": "robot_base",
+            "tolerance_m": 0.02,
+            "props": {
+              "pink_cube": {
+                "spawn_position_m": [
+                  0.27,
+                  0.11,
+                  0.03
+                ],
+                "position_m": [
+                  0.27000001072883606,
+                  0.11000001430511475,
+                  0.02999999934039739
+                ],
+                "error_m": 1.7893554881474162e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "green_cube": {
+                "spawn_position_m": [
+                  0.24,
+                  0.01,
+                  0.03
+                ],
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000009089708328,
+                  0.02999999934039739
+                ],
+                "error_m": 1.3191184307591516e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "tomato_can": {
+                "spawn_position_m": [
+                  0.225,
+                  0.215,
+                  0.04125
+                ],
+                "position_m": [
+                  0.22499999403953552,
+                  0.2149999886751175,
+                  0.04125001282594827
+                ],
+                "error_m": 1.811863818215142e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "lemon": {
+                "spawn_position_m": [
+                  0.32,
+                  0.005,
+                  0.0216
+                ],
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "error_m": 7.176201959695758e-09,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "orange": {
+                "spawn_position_m": [
+                  0.18,
+                  0.12,
+                  0.026380231603980064
+                ],
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "error_m": 7.638942475269053e-09,
+                "finite": true,
+                "within_tolerance": true
+              }
+            }
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.507
+          },
+          "receipt": {
+            "path": "runs/placement-final-source-02/green_cube_r1/receipt.json",
+            "sha256": "a35f71e147fcb302c421a6878caab16056f36bc8a09c51964f97fcf3848338a9"
+          },
+          "placement_readings": {
+            "path": "runs/placement-final-source-02/green_cube_r1/runtime/placement/260d8a5a9202489c87da5d46a6ab3617.json",
+            "sha256": "b7ca0b7e6c32422c2dc2442d6dcc69ac7b19f3ecc9634068ed32be5bf8c4cc59"
+          },
+          "external_audit": {
+            "path": "runs/placement-final-source-02/green_cube_r1/witness/gpu-physical-audit.json",
+            "sha256": "94d7d8630d7310bf38ffa0ed9546e6fbcd84e4ec836c891852fc1b16493bf44d"
+          }
+        },
+        {
+          "object": "orange",
+          "destination": "open box",
+          "pass": true,
+          "tool_verified": true,
+          "postcondition": {
+            "skill": "pick_and_place",
+            "kind": "relocated",
+            "status": "confirmed",
+            "evidence": "orange is fully contained in open box, supported, released by the actual jaws and settled across the observed window; the pick/lift was not observed",
+            "channel": "physics",
+            "measured": {
+              "scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+              "object": "orange",
+              "destination": "open box",
+              "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+              "engine": "physx",
+              "final_samples": 21,
+              "final_window_sim_s": 0.5,
+              "max_sample_gap_sim_s": 0.03333333333353039,
+              "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+              "max_final_xy_error_m": 0.009166052815695833,
+              "max_final_support_z_error_m": 1.1845431517262806e-07,
+              "max_final_linear_speed_m_s": 0.0003385998620040648,
+              "max_final_angular_speed_rad_s": 0.014733956082263678,
+              "max_final_position_spread_m": 2.7628120165862074e-07,
+              "min_final_actual_open_fraction": 0.9999443441637703,
+              "min_inside_clearance_m": 0.03042057397974246,
+              "max_abs_support_gap_m": 1.1845431517262806e-07,
+              "support_tolerance_m": 0.001,
+              "boundary_outward_tolerance_m": 0.0,
+              "checks": {
+                "actual_joints_within_limits": true,
+                "released_actual_jaws": true,
+                "destination_xy": true,
+                "supported_z": true,
+                "settled_linear_speed": true,
+                "settled_angular_speed": true,
+                "stable_final_position": true,
+                "support_geometry": true,
+                "whole_collider_contained_and_supported": true
+              },
+              "failed_checks": [],
+              "observed_samples": 25,
+              "observation_wall_s": 7.755,
+              "evidence_path": "/home/spark/Projects/cascade-placement-20261001/runs/placement-final-source-02/orange_r1/runtime/placement/1992a8fe3c7341a488fb271967111136.json",
+              "evidence_sha256": "b23e20f91da1354b44b3e60ba3fae0eacc75edf402f59ee94921199394592257"
+            }
+          },
+          "pick_wall_seconds": 75.40504047700233,
+          "external_audit_checks": {
+            "complete_observation": true,
+            "all_phase_boundaries": true,
+            "live_prop_names_match_expected": true,
+            "spawn_prop_names_match_expected": true,
+            "spawn_positions_finite_and_unchanged": true,
+            "all_props_physically_reset_and_settled": true,
+            "scene_config_sha256_matches": true,
+            "prop_dimensions_match": true,
+            "cube_collider_geometry_matches": true,
+            "green_square_geometry_matches": true,
+            "scene_name_matches": true,
+            "scene_assets_sha256_matches": true,
+            "scene_content_sha256_matches": true,
+            "open_box_geometry_matches": true,
+            "convex_body_identity": true,
+            "authored_convex_vertices_match": true,
+            "convex_topology_matches": true,
+            "convex_body_and_collider_enabled": true,
+            "convex_body_and_child_transforms_match": true,
+            "convex_tensor_mass_and_com_match": true,
+            "convex_tensor_inertia_valid": true,
+            "physx_support_live_identity": true,
+            "physx_support_source_matches": true,
+            "physx_support_solid_subset": true,
+            "physx_support_geometry_unchanged": true,
+            "ordered_phases": true,
+            "strict_pick_place_and_cameras": true,
+            "whole_convex_collider_inside_open_box_and_supported": true,
+            "all_physics_tensors_cuda": true,
+            "single_supported_engine": true,
+            "gpu_backend_no_fallback": true,
+            "contact_sensor_and_actual_jaws_bound": true,
+            "two_jaw_contacts_during_real_lift": true,
+            "reset_settle_window": true,
+            "whole_footprint_enters_destination_with_bilateral_support": true,
+            "all_event_cameras_advance": true,
+            "requested_engine_matches_every_sample": true,
+            "pick_skill_completed": true,
+            "reset_skill_completed": true,
+            "harness_has_no_errors": true
+          },
+          "external_audit_pass": true,
+          "reset_ok": true,
+          "reset_verification": {
+            "channel": "physics",
+            "frame": "robot_base",
+            "tolerance_m": 0.02,
+            "props": {
+              "pink_cube": {
+                "spawn_position_m": [
+                  0.27,
+                  0.11,
+                  0.03
+                ],
+                "position_m": [
+                  0.27000001072883606,
+                  0.11000001430511475,
+                  0.02999999934039739
+                ],
+                "error_m": 1.7893554881474162e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "green_cube": {
+                "spawn_position_m": [
+                  0.24,
+                  0.01,
+                  0.03
+                ],
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000009089708328,
+                  0.02999999934039739
+                ],
+                "error_m": 1.3191184307591516e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "tomato_can": {
+                "spawn_position_m": [
+                  0.225,
+                  0.215,
+                  0.04125
+                ],
+                "position_m": [
+                  0.22499999403953552,
+                  0.2149999886751175,
+                  0.04125001282594827
+                ],
+                "error_m": 1.811863818215142e-08,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "lemon": {
+                "spawn_position_m": [
+                  0.32,
+                  0.005,
+                  0.0216
+                ],
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "error_m": 7.176201959695758e-09,
+                "finite": true,
+                "within_tolerance": true
+              },
+              "orange": {
+                "spawn_position_m": [
+                  0.18,
+                  0.12,
+                  0.026380231603980064
+                ],
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "error_m": 7.638942475269053e-09,
+                "finite": true,
+                "within_tolerance": true
+              }
+            }
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA GB10",
+              "capability": [
+                12,
+                1
+              ],
+              "torch": "2.14.0+cu130",
+              "cuda": "13.0",
+              "architecture": "aarch64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.463
+          },
+          "receipt": {
+            "path": "runs/placement-final-source-02/orange_r1/receipt.json",
+            "sha256": "641740051d251a6c784d2466df26bdf5053103148c48a488660bd15ca8cec8c2"
+          },
+          "placement_readings": {
+            "path": "runs/placement-final-source-02/orange_r1/runtime/placement/1992a8fe3c7341a488fb271967111136.json",
+            "sha256": "b23e20f91da1354b44b3e60ba3fae0eacc75edf402f59ee94921199394592257"
+          },
+          "external_audit": {
+            "path": "runs/placement-final-source-02/orange_r1/witness/gpu-physical-audit.json",
+            "sha256": "75eaea5fd9af0cea6c73f67d1bcfc6f36fd7919a26882fb26ba5a2560c25f302"
+          }
+        }
+      ],
+      "campaign_receipt": {
+        "path": "runs/placement-final-source-02/campaign.json",
+        "sha256": "721c05a72844e2f20efc21ddddc0397d4988e34c70b4a9c1c75d4cefae89f0de"
+      }
+    }
+  ],
+  "read_only_negative_control": {
+    "scope": "Read-only idle green cube still at spawn, requested green square",
+    "verdict": {
+      "status": "refuted",
+      "evidence": "measured placement failed: destination_xy, whole_collider_contained",
+      "measured": {
+        "scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+        "object": "green_cube",
+        "destination": "green square",
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "engine": "physx",
+        "final_samples": 16,
+        "final_window_sim_s": 0.5,
+        "max_sample_gap_sim_s": 0.03333333333353039,
+        "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+        "max_final_xy_error_m": 0.2973213884682143,
+        "max_final_support_z_error_m": 3.243264823371561e-10,
+        "max_final_linear_speed_m_s": 1.5251352236559483e-05,
+        "max_final_angular_speed_rad_s": 0.0004518360160947057,
+        "max_final_position_spread_m": 1.5160833109263057e-08,
+        "min_final_actual_open_fraction": 0.9999993294477563,
+        "min_inside_clearance_m": -0.22875004940901836,
+        "max_abs_support_gap_m": 4.6838107572999554e-08,
+        "support_tolerance_m": 0.005,
+        "boundary_outward_tolerance_m": 0.0,
+        "checks": {
+          "actual_joints_within_limits": true,
+          "released_actual_jaws": true,
+          "destination_xy": false,
+          "supported_z": true,
+          "settled_linear_speed": true,
+          "settled_angular_speed": true,
+          "stable_final_position": true,
+          "support_geometry": true,
+          "whole_collider_contained": false,
+          "lowest_collider_point_supported": true
+        },
+        "failed_checks": [
+          "destination_xy",
+          "whole_collider_contained"
+        ],
+        "observed_samples": 20,
+        "observation_wall_s": 4.976
+      }
+    },
+    "receipt": {
+      "path": "runs/placement-idle-01/4b243bc45b264f938b84f9ce590ca685.json",
+      "sha256": "db12a93ec850f98fbdba4abf3e0468f4564820580f525349cae6b9e695660039"
+    }
+  },
+  "source_progression": {
+    "changed_between_campaigns": [
+      "src/cascade/agent/effects.py",
+      "src/cascade/skills/runtime.py",
+      "benchmark/diagnostics/kitchen_acceptance.py"
+    ],
+    "changes": [
+      "Reject multi-arm hook because the truth reader belongs to the first configured arm.",
+      "Run independent placement verification regardless of motion-reported destination_kind.",
+      "Include both new placement modules in acceptance source hashes."
+    ],
+    "final_source_case_count": 2,
+    "first_campaign_case_count": 5,
+    "limitation": "Five objects passed the initial implementation; green cube and orange reran with all final source guards. One round per campaign does not establish a reliability rate."
+  },
+  "validation": {
+    "full_suite": {
+      "passed": 2473,
+      "skipped": 43,
+      "deselected": 2,
+      "log": "/tmp/cascade-placement-final-tests.log"
+    },
+    "portable_bundle_tests_passed": 34,
+    "placement_focused_tests_passed": 103,
+    "raw_receipts_replayed_offline": 8
+  },
+  "replay_bundle": {
+    "path": "benchmark/results/spark_placement_replay_20261001.json.gz",
+    "sha256": "218a4cc3b1db85b24075ea7ff0a3c7ffd14df46e93b19414f54b501915ef5923",
+    "size_bytes": 615536,
+    "encoding": "gzip JSON; files[path].utf8 preserves original bytes encoded as UTF-8; verify SHA-256 then json.loads for receipt replay"
+  },
+  "full_first_campaign_archive": {
+    "local_path": "/tmp/cascade-placement-evidence-20261001.tar.gz",
+    "sha256": "0277152dd4ba280c8800c1f125dfaf0d3f8d5e04cfa826e7a35fc6c1a2ea53d8",
+    "remote_path": "/tmp/cascade-placement-evidence-20261001.tar.gz"
+  },
+  "full_final_campaign_archive": {
+    "local_path": "/tmp/cascade-placement-final-evidence-20261001.tar.gz",
+    "remote_path": "/tmp/cascade-placement-final-evidence-20261001.tar.gz",
+    "sha256": "b4eae8b2c33fa7c59a9b9bec7f18b13025ec8a1b5cb4ed8ef2c3e4ef628786aa"
+  }
+}

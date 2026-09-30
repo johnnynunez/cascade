@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="The PAAI DGX Spark installation and presenter guide: prepare the complete stack, open OpenClaw, check cameras, run one task, reset, and recover. Offline instructions, not a live control panel.">
+  <meta name="referrer" content="no-referrer">
+  <title>Spark presenter guide · PAAI</title>
+  <style>
+    /* Paper palette and typography follow deploy/brev/staff.css. */
+    :root { color-scheme: light; --paper: #f7f6f2; --surface: #fdfcf8; --ink: #252923; --muted: #596153; --line: #d4d8c9; --green: #3f6024; --lime: #b4e35a; --soft: #ecefe5; --warning: #725315; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", sans-serif; color: var(--ink); background: var(--paper); font-synthesis: none; }
+    * { box-sizing: border-box; }
+    html { scroll-padding-top: 28px; }
+    body { margin: 0; font-size: 17px; line-height: 1.65; -webkit-font-smoothing: antialiased; }
+    [hidden] { display: none !important; }
+    a { color: var(--green); text-underline-offset: 4px; }
+    a:hover { text-decoration-thickness: 2px; }
+    a:focus-visible, button:focus-visible, summary:focus-visible, pre:focus-visible { outline: 3px solid #648e22; outline-offset: 5px; }
+    button { font: inherit; font-size: 14px; font-weight: 650; min-height: 44px; padding: 9px 15px; color: var(--ink); background: var(--surface); border: 1px solid #aeb9a0; border-radius: 7px; cursor: pointer; touch-action: manipulation; }
+    button:hover { background: var(--soft); }
+    button:disabled { cursor: wait; opacity: .6; }
+    .skip { position: fixed; left: 20px; top: -100px; z-index: 10; padding: 12px 18px; background: var(--lime); border-radius: 6px; }
+    .skip:focus { top: 12px; }
+    .topbar { max-width: 1360px; margin: auto; padding: 25px 44px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); }
+    .brand { color: var(--ink); text-decoration: none; font-size: 25px; letter-spacing: -.7px; font-weight: 750; line-height: 1.2; }
+    .brand small { display: block; margin-top: 5px; font-weight: 450; font-size: 12px; letter-spacing: 0; color: var(--muted); }
+    .top-label { margin-left: auto; font-size: 13px; color: var(--muted); }
+    .layout { max-width: 1280px; margin: auto; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 66px; padding: 46px 44px 80px; }
+    .sidebar { align-self: start; position: sticky; top: 28px; }
+    .eyebrow { margin: 0 0 14px; font-size: 11px; line-height: 1.5; letter-spacing: 1.8px; text-transform: uppercase; font-weight: 700; color: var(--muted); }
+    .sidebar nav { display: grid; gap: 5px; }
+    .sidebar nav a { display: flex; align-items: baseline; gap: 12px; min-height: 46px; padding: 10px 11px; margin-left: -11px; color: var(--ink); text-decoration: none; font-size: 15px; border-radius: 6px; }
+    .sidebar nav a:hover { background: var(--soft); }
+    .sidebar nav span { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .sidebar-note { border-top: 1px solid var(--line); margin-top: 25px; padding-top: 20px; font-size: 12px; line-height: 1.7; color: var(--muted); }
+    main { min-width: 0; max-width: 810px; }
+    h1 { font-size: clamp(38px, 4.5vw, 60px); line-height: 1.07; letter-spacing: -.045em; font-weight: 680; margin: 0 0 22px; text-wrap: balance; }
+    h2 { font-size: clamp(27px, 3vw, 34px); line-height: 1.25; letter-spacing: -.025em; font-weight: 650; margin: 0 0 16px; text-wrap: balance; }
+    h3 { font-size: 22px; line-height: 1.3; letter-spacing: -.015em; font-weight: 650; margin: 0 0 12px; }
+    p { margin: 0 0 15px; }
+    .lede { font-size: 21px; line-height: 1.5; max-width: 36ch; }
+    .muted, .small { color: var(--muted); }
+    .small { font-size: 14px; line-height: 1.65; }
+    .intro { padding-bottom: 32px; }
+    .reference-config { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; margin: 24px 0 18px; }
+    .reference-config > span:first-child { margin-right: 7px; color: var(--muted); }
+    .reference-config .tag { border: 1px solid var(--line); border-radius: 5px; padding: 4px 9px; background: var(--surface); }
+    .primary-link { display: inline-flex; gap: 28px; align-items: center; min-height: 46px; padding: 11px 18px; margin-top: 7px; color: var(--ink); background: var(--lime); border-radius: 7px; text-decoration: none; font-size: 15px; font-weight: 650; }
+    section { padding-top: 37px; border-top: 1px solid var(--line); margin-top: 32px; scroll-margin-top: 24px; }
+    .section-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 10px; }
+    .steps { list-style: none; padding: 0; margin: 28px 0 0; counter-reset: step; }
+    .steps > li { counter-increment: step; position: relative; padding: 0 0 29px 57px; margin-bottom: 25px; border-bottom: 1px solid var(--line); }
+    .steps > li:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+    .steps > li::before { content: counter(step, decimal-leading-zero); position: absolute; left: 0; top: 0; font-size: 14px; font-weight: 650; line-height: 31px; color: var(--green); font-variant-numeric: tabular-nums; }
+    .check { background: var(--soft); padding: 12px 15px; border-radius: 6px; font-size: 15px; margin: 16px 0 12px; }
+    .check strong { margin-right: 5px; }
+    code, kbd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .87em; }
+    p code, li > code, summary code { overflow-wrap: anywhere; }
+    kbd { border: 1px solid #c9cfbf; border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; white-space: nowrap; background: var(--surface); }
+    .command { margin: 17px 0; border: 1px solid #ced5c3; border-radius: 8px; background: #f0f1e9; overflow: hidden; }
+    .command-head { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 7px 12px 7px 16px; border-bottom: 1px solid #d9decf; }
+    .command-head span { color: var(--muted); font-size: 11px; letter-spacing: .8px; text-transform: uppercase; font-weight: 650; }
+    .command button { min-height: 44px; padding: 7px 12px; font-size: 12px; background: transparent; }
+    .command pre { margin: 0; padding: 17px; overflow-x: auto; font-size: 14px; line-height: 1.7; tab-size: 4; }
+    .command pre code { font-size: inherit; white-space: pre; }
+    .prompt { display: flex; align-items: center; gap: 16px; justify-content: space-between; border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 13px 15px; margin: 12px 0; }
+    .prompt code { font: inherit; font-size: 17px; color: var(--ink); }
+    .prompt button { flex: 0 0 auto; }
+    .prompt-label { margin: 19px 0 6px; color: var(--muted); font-size: 12px; font-weight: 650; }
+    .notice { padding: 18px 20px; border: 1px solid #d6cba9; border-radius: 8px; background: #f5f0e3; color: #634d22; margin: 23px 0; font-size: 15px; }
+    .notice h3 { font-size: 18px; color: #59431a; }
+    .notice p:last-child { margin-bottom: 0; }
+    details { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin: 12px 0; padding: 0 20px; scroll-margin-top: 28px; }
+    summary { position: relative; cursor: pointer; padding: 17px 28px 17px 0; min-height: 58px; font-weight: 650; font-size: 16px; line-height: 1.5; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: '+'; position: absolute; right: 2px; top: 15px; color: var(--green); font-size: 22px; font-weight: 450; }
+    details[open] > summary::after { content: '−'; }
+    details[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+    .detail-body { padding-bottom: 8px; font-size: 15px; }
+    .detail-body h3 { font-size: 18px; margin-top: 22px; }
+    .detail-body ol, .detail-body ul { padding-left: 23px; margin: 15px 0; }
+    .detail-body li { padding-left: 4px; margin: 10px 0; }
+    .detail-body .command pre { font-size: 12px; }
+    .hash { overflow-wrap: anywhere; }
+    .references { font-size: 14px; padding-left: 23px; }
+    .references li { margin-bottom: 10px; padding-left: 4px; }
+    sup { line-height: 0; }
+    sup a { font-size: 10px; text-decoration: none; margin-left: 2px; }
+    .review { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 21px; margin-top: 30px; }
+    footer { max-width: 1192px; margin: 0 auto; padding: 25px 0 32px; border-top: 1px solid var(--line); display: flex; gap: 22px; justify-content: space-between; font-size: 12px; color: var(--muted); }
+    .feedback { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); max-width: min(620px, calc(100vw - 32px)); width: max-content; padding: 13px 18px; border: 1px solid #aeb9a0; border-radius: 7px; background: var(--surface); color: var(--ink); box-shadow: 0 5px 25px #25292318; font-size: 14px; z-index: 20; pointer-events: none; }
+    .feedback:empty { display: none; }
+    @media (max-width: 950px) {
+      .layout { grid-template-columns: 174px minmax(0, 1fr); gap: 30px; padding-inline: 28px; }
+      .topbar { padding-inline: 28px; }
+      .sidebar nav a { font-size: 14px; }
+      footer { margin-inline: 28px; }
+    }
+    @media (max-width: 720px) {
+      .topbar { padding: 21px 20px; flex-wrap: wrap; gap: 12px; }
+      .top-label { display: none; }
+      .topbar button { margin-left: auto; }
+      .layout { display: block; padding: 22px 20px 45px; }
+      .sidebar { position: static; margin-bottom: 34px; }
+      .sidebar > .eyebrow, .sidebar-note { display: none; }
+      .sidebar nav { display: flex; gap: 5px; flex-wrap: wrap; }
+      .sidebar nav a { margin: 0; padding: 9px 10px; min-height: 44px; border: 1px solid var(--line); font-size: 12px; gap: 7px; }
+      .sidebar nav span { font-size: 10px; }
+      h1 { font-size: clamp(36px, 10vw, 49px); }
+      h3 { font-size: 21px; }
+      .lede { font-size: 19px; }
+      body { font-size: 16px; }
+      .steps > li { padding-left: 39px; }
+      .steps > li::before { font-size: 12px; }
+      .command pre { font-size: 12px; padding: 13px; }
+      .prompt { align-items: flex-start; flex-wrap: wrap; padding: 13px; }
+      .prompt code { flex-basis: 100%; font-size: 16px; }
+      .prompt button { margin-left: auto; }
+      details { padding-inline: 15px; }
+      .notice { padding: 16px; }
+      footer { margin-inline: 20px; flex-direction: column; gap: 8px; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation: none !important; transition: none !important; } }
+    @media print {
+      @page { size: A4; margin: 15mm; }
+      :root, body { background: white; color: black; font-size: 12pt; }
+      .topbar { padding: 0 0 12pt; }
+      .top-label, .sidebar, .skip, button, .primary-link, .feedback, footer { display: none !important; }
+      .layout { display: block; padding: 14pt 0 0; max-width: none; }
+      main { max-width: none; }
+      .intro { padding-bottom: 0; }
+      h1 { font-size: 29pt; } h2 { font-size: 22pt; } h3 { font-size: 15pt; }
+      p, .small, .detail-body, .check, .notice, .references, .review { font-size: 12pt; line-height: 1.5; }
+      .command { margin: 10pt 0; }
+      .command-head { padding: 5pt 10pt; }
+      .command pre, .detail-body .command pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12pt; line-height: 1.4; padding: 10pt; }
+      .command pre code { white-space: pre-wrap; }
+      .command, .prompt { break-inside: avoid; }
+      .prompt { padding: 8pt 10pt; margin: 8pt 0; }
+      .prompt code { font-size: 12pt; }
+      .check, .notice { padding: 8pt 10pt; margin: 10pt 0; }
+      h2, h3, summary { break-after: avoid; }
+      section { break-before: auto; padding-top: 12pt; margin-top: 16pt; }
+      details { background: white; padding: 0; border: 0; }
+      details > summary { min-height: auto; border-bottom: 1px solid #ccc; padding: 8pt 0 5pt; }
+      details[open] > summary { margin-bottom: 8pt; }
+      details > summary::after { display: none; }
+      details > .detail-body { display: block !important; }
+      .steps { margin-top: 14pt; }
+      .steps > li { padding-left: 33pt; padding-bottom: 12pt; margin-bottom: 10pt; }
+      a { color: black; }
+    }
+  </style>
+</head>
+<body id="top">
+  <a class="skip" href="#main">Skip to the guide</a>
+  <header class="topbar">
+    <a class="brand" href="#top">PAAI<small>Physical Agentic AI</small></a>
+    <span class="top-label">Build a Claw / Presenter guide</span>
+    <button type="button" id="print-guide" data-enhance hidden>Print guide</button>
+  </header>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Guide navigation">
+      <p class="eyebrow">On this page</p>
+      <nav aria-label="Guide sections">
+        <a href="#install"><span>01</span> Install once</a>
+        <a href="#start"><span>02</span> Start &amp; connect</a>
+        <a href="#present"><span>03</span> Present &amp; reset</a>
+        <a href="#recover"><span>04</span> Recover</a>
+        <a href="#handover"><span>05</span> Operator notes</a>
+      </nav>
+      <p class="sidebar-note">New Spark? Install once.<br>Already installed? Start &amp; connect.<br>Each command names where to run it.</p>
+      <p class="sidebar-note">This is an offline guide.<br>It does not connect to or control the robot.</p>
+    </aside>
+    <main id="main">
+      <div class="intro">
+        <p class="eyebrow">DGX Spark · Staff &amp; presenters</p>
+        <h1>Set up the Spark.<br>Run the demo.</h1>
+        <p class="lede">Install once. Open PAAI (Spark). Keep the same installation for the whole event.</p>
+        <p class="small">The whole setup is below. You do not need a coding agent, a model API key or a personal coding-service login. This offline page only shows and copies instructions; installation requires internet access.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p>
+        <div class="reference-config" aria-label="Published reference configuration, not live status">
+          <span>Published reference</span><span class="tag">PhysX</span><span class="tag">Local Qwen</span><span class="tag">OBB grasps</span>
+        </div>
+        <a class="primary-link" href="#install">Install on a new Spark <span aria-hidden="true">↓</span></a>
+        <p class="small" style="margin-top: 16px">Already installed? <a href="#start">Skip installation and open the demo.</a></p>
+      </div>
+
+      <section id="install" aria-labelledby="install-title">
+        <p class="section-label">01 / Install once</p>
+        <h2 id="install-title">Prepare a new Spark from start to finish.</h2>
+        <p>Open a terminal <strong>on the Spark</strong>, as your normal user, not root. Use the same terminal for these steps. Run each block once; wait for its success message and exit code 0 before continuing.</p>
+        <details id="host-requirements">
+          <summary>Before you start: hardware, disk and network</summary>
+          <div class="detail-body"><ul>
+            <li><strong>Host:</strong> a DGX Spark running Linux <code>aarch64</code>, glibc 2.35 or newer, a working NVIDIA driver compatible with CUDA 13 and a CUDA toolkit with <code>nvcc</code>. DGX OS supplies the driver and toolkit; this installer does not replace either or upgrade the OS.</li>
+            <li><strong>Space:</strong> at least <strong>150 GiB</strong> free on the home volume, plus room for later recordings and shader caches. Check any separate cache volume too.</li>
+            <li><strong>Desktop:</strong> use the Spark’s graphical session for Chromium and the app-grid launcher. SSH can prepare and verify the installation, but cannot open a browser on your laptop automatically.</li>
+            <li><strong>Downloads:</strong> outbound HTTPS to GitHub and Git LFS, Hugging Face and its file hosts, PyPI, NVIDIA and PyTorch package indexes, <code>astral.sh</code>, <code>openclaw.ai</code>, Node.js and npm, including redirects.</li>
+            <li><strong>One stack:</strong> resolve occupied ports before starting. Do not stop somebody else’s process to free a port; see <a href="#network">ports and remote access</a>.</li>
+          </ul><p>Use a clean shell without overrides from another installation: <code>ISAACSIM_PATH</code>, <code>ISAACSIM_PYTHON_EXE</code>, <code>CASCADE_QWEN_MODEL</code>, <code>CASCADE_QWEN_MMPROJ</code>, <code>LLAMA_DIR</code> or <code>LLAMA_SERVER</code>.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p></div>
+        </details>
+        <ol class="steps">
+          <li>
+            <h3>Choose the installation folder</h3>
+            <p>The default is <code>$HOME/paai-spark</code>. For a fresh install, the destination <strong>must not exist</strong>; the installer creates it. Do not create an empty folder first.</p>
+            <p><strong>Keep an existing installation unchanged.</strong> If the demo is already installed and you only want to run it, <a href="#start">skip to Start &amp; connect</a>. For a separate installation, choose a path that does not yet exist:</p>
+            <div class="command"><div class="command-head"><span>Optional separate installation folder</span><button type="button" data-copy="directory-command" data-kind="command" data-enhance hidden aria-label="Copy: Optional separate installation folder">Copy command</button></div><pre tabindex="0" aria-label="Optional separate installation folder"><code id="directory-command">export PAAI_INSTALL_DIR=&quot;$HOME/paai-spark-new&quot;</code></pre></div>
+            <p class="check"><strong>Check</strong> Your chosen destination does not exist and is not the working event installation. An intentional retry may reuse the checkout created by an earlier installation attempt.</p>
+            <p class="small">Keep <code>PAAI_INSTALL_DIR</code> exported for the remaining steps. In a new terminal, export the same path again. Use the exact launcher path below for that installation; these commands never change <code>HOME</code>.</p>
+          </li>
+          <li>
+            <h3>Check the host prerequisites</h3>
+            <div class="command"><div class="command-head"><span>Spark terminal · read-only host check</span><button type="button" data-copy="prerequisites-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · read-only host check">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · read-only host check"><code id="prerequisites-command">bash -o pipefail -c &#x27;curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/spark_prerequisites.py | python3 -&#x27;</code></pre></div>
+            <p class="check"><strong>Check</strong> <code>PREREQUISITES_OK</code>.</p>
+            <details id="system-packages"><summary>Missing packages, curl or python3? Administrator step</summary><div class="detail-body">
+              <p>Skip this when prerequisites already pass. If the check reports missing system packages, an administrator runs:</p>
+              <div class="command"><div class="command-head"><span>Administrator · only for missing packages</span><button type="button" data-copy="packages-command" data-kind="command" data-enhance hidden aria-label="Copy: Administrator · only for missing packages">Copy command</button></div><pre tabindex="0" aria-label="Administrator · only for missing packages"><code id="packages-command">sudo apt-get update &amp;&amp; sudo apt-get install -y git git-lfs curl python3 ca-certificates build-essential libgomp1 libglib2.0-bin gnome-terminal chromium-browser &amp;&amp; printf &#x27;PACKAGES_READY\n&#x27;</code></pre></div>
+              <p><strong>Check:</strong> <code>PACKAGES_READY</code>. Repeat the prerequisite check once. Driver or CUDA toolkit failures need the Spark administrator; this command does not install those.</p>
+              <p>Use <strong>Chromium</strong> for automatic extension loading. Branded Chrome 137 and newer does not accept the automatic loading flag. Over SSH, missing desktop tools may be warnings; the graphical launcher still needs them.</p>
+            </div></details>
+          </li>
+          <li>
+            <h3>Install the complete demo</h3>
+            <p><strong>License consent:</strong> first read the <a href="https://docs.isaacsim.omniverse.nvidia.com/6.1.0/common/legal.html" target="_blank" rel="noopener noreferrer">NVIDIA Isaac Sim / Omniverse licenses</a>. Run this block only after your <strong>explicit acceptance</strong>. The <code>--accept-eula</code> flag records that consent for this checkout; a coding agent cannot accept it on your behalf.</p>
+            <p class="small">Budget 30–90 minutes for a fresh installation; downloads can take longer. The installer downloads dependencies and builds the CUDA model server. Keep the progress log.</p>
+            <div class="command"><div class="command-head"><span>Spark terminal · after explicit EULA acceptance</span><button type="button" data-copy="install-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · after explicit EULA acceptance">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · after explicit EULA acceptance"><code id="install-command">bash -o pipefail -c &#x27;curl -fsSL https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/bootstrap.sh | bash -s -- --ref 57ecd62dfec3fb361c6db8ee3c096293aec77ca8 --profile spark --accept-eula --prepare-only --dir &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; 2&gt;&amp;1 | tee &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log&quot;&#x27;</code></pre></div>
+            <p class="check"><strong>Check</strong> <code>PREPARED</code>. Everything is installed; no demo services have started yet.</p>
+            <details id="installed-components"><summary>What that one command installs</summary><div class="detail-body"><ul>
+              <li><strong>App and simulator:</strong> Python 3.12, cascade and CUDA perception packages in <code>.venv/</code>; Isaac Sim <code>6.1.0.0</code> with its extension cache in <code>.isaacsim/</code>.</li>
+              <li><strong>Local brain:</strong> the pinned Qwen3.8-27B Q4 model and BF16 vision projector in <code>models/qwen3.8-27b/</code>, plus the pinned <code>llama.cpp</code> CUDA server in <code>.llama.cpp/build/</code>. No model API key.</li>
+              <li><strong>Agent:</strong> OpenClaw <code>2026.9.3</code> and private Node.js in <code>.openclaw-cli/</code>. The demo uses its own <code>cascade-demo</code> profile, not your personal OpenClaw gateway.</li>
+              <li><strong>Robot and scene:</strong> Git LFS robot assets, perception weights, verified Cocina Asier kitchen geometry and task props. The installer verifies the downloaded scene archive and extracted asset hashes.</li>
+              <li><strong>Desktop integration:</strong> the PAAI camera extension and registered launcher. Chromium itself comes from the administrator’s system-packages step, not the bootstrap. Private runtimes and consent are recorded in <code>runs/.install/install.json</code>.</li>
+            </ul><p>The installer obtains <code>uv</code> and Python when needed and reuses verified downloads. Do not install a second standalone Isaac, OpenClaw or Qwen instance for this path. Moving the checkout invalidates its path-specific consent; do not edit the receipt.</p></div></details>
+          </li>
+          <li>
+            <h3>Verify the installation without starting it</h3>
+            <div class="command"><div class="command-head"><span>Spark terminal · read-only install check</span><button type="button" data-copy="install-check-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · read-only install check">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · read-only install check"><code id="install-check-command">cd &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; &amp;&amp; bash scripts/install.sh --profile spark --dir &quot;$PWD&quot; --check &amp;&amp; printf &#x27;CHECKED\n&#x27;</code></pre></div>
+            <p class="check"><strong>Check</strong> <code>CHECKED</code>. This is read-only: it starts no services and accepts no license.</p>
+            <p class="small">The receipt is <code>runs/.install/install.json</code>. <code>CHECKED</code> proves preparation, not robot or camera readiness.</p>
+          </li>
+          <li>
+            <h3>Start once and wait for the physical proof</h3>
+            <p>This starts the local model, simulator and OpenClaw, then moves the <strong>simulated robot</strong> through green-cube and orange placements and resets. It does not connect to a real robot.</p>
+            <div class="command"><div class="command-head"><span>Spark terminal · starts and proves the simulated demo</span><button type="button" data-copy="first-launch-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · starts and proves the simulated demo">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · starts and proves the simulated demo"><code id="first-launch-command">(
+  set -o pipefail
+  cd &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; || exit
+  python3 scripts/desktop.py launch --repo &quot;$PWD&quot; --headless --no-open 2&gt;&amp;1 |
+    tee &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log&quot; | awk &#x27;/^\[desktop\]/ { print; fflush() }&#x27;
+) &amp;&amp; python3 &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py&quot; --repo &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; --expected-ref 57ecd62dfec3fb361c6db8ee3c096293aec77ca8</code></pre></div>
+            <p class="check"><strong>Check</strong> One <code>READY</code> summary: both placements, camera evidence and resets pass, with current health and process ownership verified.</p>
+            <p class="small">The published measured start and proof took about 14 minutes; a cold start may take longer. The checks can be quiet for several minutes. Keep waiting; do not run a second launch just to obtain more output. Full output stays in <code>${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log</code>.</p>
+            <p><strong>Next:</strong> <a href="#start">open the desktop interface and check the three live cameras</a>. Opening the launcher attaches to this accepted running stack instead of repeating the proof.</p>
+          </li>
+        </ol>
+        <details id="install-recovery"><summary>Installation or first launch failed</summary><div class="detail-body">
+          <ol><li>Stop at the failed step. Preserve <code>${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log</code> or the launch log.</li><li>For installation, correct only the reported package, network or disk problem. Repeat the same pinned install block once; it reuses verified files.</li><li>For startup, use <a href="#crash-recovery">service recovery</a>. If the failure returns, send the first error and log path to the operator.</li></ol>
+          <p>Do not delete environments, edit receipts, change the model or physics, or skip proof to obtain <code>READY</code>. <code>PREPARED</code> and <code>CHECKED</code> are not <code>READY</code>. Exit 2 means rejected arguments, consent or prerequisites; a read-only check exiting 3 reports missing components.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p>
+        </div></details>
+      </section>
+
+      <section id="start" aria-labelledby="start-title">
+        <p class="section-label">02 / Start &amp; connect</p>
+        <h2 id="start-title">Open the right interface.</h2>
+        <ol class="steps">
+          <li>
+            <h3>Start once</h3>
+            <p>For a single installation, click <strong>PAAI (Spark)</strong> in the app grid. With several installations, use the <a href="#desktop-command">exact launcher command</a> for your chosen folder: their app-grid names can be identical. If startup is already running, wait. Do not start a second copy.</p>
+            <details id="desktop-terminal"><summary>Open the same launcher from a graphical terminal</summary><div class="detail-body"><p>Use this for the folder selected during installation. Keep its <code>PAAI_INSTALL_DIR</code> exported in this terminal.</p><div class="command"><div class="command-head"><span>Spark desktop terminal · opens the selected installation</span><button type="button" data-copy="desktop-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark desktop terminal · opens the selected installation">Copy command</button></div><pre tabindex="0" aria-label="Spark desktop terminal · opens the selected installation"><code id="desktop-command">gio launch &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}/runs/.install/paai-spark.desktop&quot;</code></pre></div><p>The launcher opens a dedicated Chromium profile with the PAAI extension already loaded. No manual extension install or token paste is needed on this supported desktop path.</p></div></details>
+            <p class="check"><strong>Check</strong> Startup reports <strong>READY</strong> and the three camera views advance.</p>
+            <p class="small">A fresh start runs placement tests and resets. The published guide reports about 14 minutes for one measured start and proof; cold starts can take longer.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p>
+          </li>
+          <li>
+            <h3>Open native OpenClaw</h3>
+            <p>Open a terminal <strong>on the Spark desktop</strong>. Copy and run:</p>
+            <div class="command">
+              <div class="command-head"><span>Spark terminal</span><button type="button" data-copy="dashboard-command" data-kind="command" data-enhance hidden aria-label="Copy the OpenClaw dashboard command">Copy command</button></div>
+              <pre tabindex="0" aria-label="OpenClaw dashboard command"><code id="dashboard-command">cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" &amp;&amp; ./run.sh dashboard</code></pre>
+            </div>
+            <p class="check"><strong>Check</strong> Native OpenClaw opens, normally on port <code>18790</code>. The command handles the current sign-in link.</p>
+            <p class="small">The page at <code>http://127.0.0.1:8092</code> is PAAI’s own WebUI, not native OpenClaw. Do not copy tokens from <code>openclaw.json</code>. If the command says <code>unknown mode 'dashboard'</code>, use <a href="#older-installs">Older installs</a>.<sup><a href="#source-2" aria-label="Source 2">[2]</a><a href="#source-10" aria-label="Source 10">[10]</a></sup></p>
+          </li>
+          <li>
+            <h3>Check all three cameras</h3>
+            <p>In that OpenClaw window, click the PAAI camera extension or press <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Y</kbd>. Reconnect if prompted.</p>
+            <p class="check"><strong>Check</strong> Kitchen, Worktop and Side show changing live images.</p>
+            <p>If any view is unavailable, <a href="#camera-recovery">stop here and recover the cameras</a>. Use one operator chat; every chat controls the same kitchen.<sup><a href="#source-3" aria-label="Source 3">[3]</a></sup></p>
+          </li>
+        </ol>
+      </section>
+
+      <section id="present" aria-labelledby="present-title">
+        <p class="section-label">03 / Present &amp; reset</p>
+        <h2 id="present-title">One order. Watch. Reset.</h2>
+        <p>Copy a prompt into the connected OpenClaw chat. These buttons only copy text; they never send an order.</p>
+        <p class="prompt-label">First, inspect the scene</p>
+        <div class="prompt"><code id="inspect-prompt">What can you see on the table?</code><button type="button" data-copy="inspect-prompt" data-kind="prompt" data-enhance hidden aria-label="Copy the scene inspection prompt">Copy</button></div>
+        <p class="small">Compare the answer with Worktop. If it is wrong, ask for a fresh observation before moving.</p>
+        <p class="prompt-label">Then, move the green cube</p>
+        <div class="prompt"><code id="cube-prompt">Could you put the green cube in the green square?</code><button type="button" data-copy="cube-prompt" data-kind="prompt" data-enhance hidden aria-label="Copy the green cube prompt">Copy</button></div>
+        <p class="check"><strong>Check</strong> Wait for the tool result and the arm to finish. The cube must be released inside the square, not merely nearby.</p>
+        <p class="prompt-label">After the action finishes, reset</p>
+        <div class="prompt"><code id="reset-prompt">Reset the scene.</code><button type="button" data-copy="reset-prompt" data-kind="prompt" data-enhance hidden aria-label="Copy the scene reset prompt">Copy</button></div>
+        <p>You can also use <strong>Reset</strong> in the PAAI OpenClaw interface or <strong>Start over</strong> in the Spark WebUI where available.</p>
+        <p class="check"><strong>Check</strong> The reset tool succeeds, the arm is home, the gripper is empty, the props are back and all camera views advance.</p>
+        <p class="prompt-label">After reset, try the orange</p>
+        <div class="prompt"><code id="orange-prompt">Please put the orange in the open box.</code><button type="button" data-copy="orange-prompt" data-kind="prompt" data-enhance hidden aria-label="Copy the orange placement prompt">Copy</button></div>
+        <p class="small">Check release inside the box. Reset again before the next visitor.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p>
+        <aside class="notice" aria-label="Verification and session reminder">
+          <p><strong>A new chat does not reset the kitchen.</strong> Reset first; then open a new chat for the next attendee.</p>
+          <p>Keep an <strong>unverified</strong> result unverified. A confident chat reply does not prove success.<sup><a href="#source-3" aria-label="Source 3">[3]</a></sup></p>
+        </aside>
+      </section>
+
+      <section id="recover" aria-labelledby="recover-title">
+        <p class="section-label">04 / Recover</p>
+        <h2 id="recover-title">Stop new orders. Pick the symptom.</h2>
+        <p class="muted">Keep the last tool result. A lost reply does not prove that the action never happened.</p>
+        <details id="scene-recovery">
+          <summary>The scene needs a reset</summary>
+          <div class="detail-body"><p>If the stack still responds, wait for the current action to finish and send <strong>“Reset the scene.”</strong> Keep this chat open until the result arrives.</p><p>Do not restart Isaac or delete memory files just to put the objects back.<sup><a href="#source-3" aria-label="Source 3">[3]</a></sup></p></div>
+        </details>
+        <details id="camera-recovery">
+          <summary>A camera says “unavailable”</summary>
+          <div class="detail-body">
+            <ol><li>Keep movement requests paused.</li><li>Reopen native OpenClaw with <code>./run.sh dashboard</code> from the installation folder. Supported revisions use the dedicated PAAI Chromium profile.</li><li>Open the extension and choose <strong>Reconnect</strong>. Check all three views.</li><li>If it still fails, run this read-only check on the Spark.</li></ol>
+            <div class="command"><div class="command-head"><span>Read-only check</span><button type="button" data-copy="camera-command" data-kind="command" data-enhance hidden aria-label="Copy the camera and chat readiness check">Copy command</button></div><pre tabindex="0" aria-label="Camera and chat readiness check"><code id="camera-command">cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" &amp;&amp; \
+python3 scripts/spark_browser.py --repo "$PWD" --check</code></pre></div>
+            <p><strong>Check:</strong> it prints <code>READY</code> or <code>NOT READY</code>. This checks the accepted stack, cameras and chat together; <code>NOT READY</code> does not identify the camera fault by itself. Save the result for the operator.<sup><a href="#source-8" aria-label="Source 8">[8]</a></sup></p>
+            <p>An older extension may lack Spark-native camera discovery. <a href="#receipt">Record the installed revision</a> before changing browsers or reinstalling anything.<sup><a href="#source-11" aria-label="Source 11">[11]</a></sup></p>
+          </div>
+        </details>
+        <details id="chat-recovery">
+          <summary>The chat disconnected</summary>
+          <div class="detail-body"><p>Run the <a href="#dashboard-command">dashboard command</a> again. It reads the current sign-in information. Do not paste authentication URLs or gateway tokens into Slack.</p><p><strong>Check:</strong> the chat is connected and accepts input. Read the last tool result before repeating an order.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p></div>
+        </details>
+        <details id="crash-recovery">
+          <summary>A service crashed</summary>
+          <div class="detail-body">
+            <ol><li>Stop new orders and record the first error shown by the launcher.</li><li>From the installation folder, stop this checkout’s stack.</li></ol>
+            <div class="command"><div class="command-head"><span>Stops this checkout’s stack</span><button type="button" data-copy="stop-command" data-kind="command" data-enhance hidden aria-label="Copy the command to stop this checkout">Copy command</button></div><pre tabindex="0" aria-label="Stop this checkout"><code id="stop-command">cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" &amp;&amp; ./run.sh down</code></pre></div>
+            <ol start="3"><li>Open the <a href="#desktop-command">exact launcher for the same installation</a> once. Do not choose between identically named app-grid entries.</li><li>Wait for the result, then <a href="#start">return to the start checklist</a>. If it fails again, stop retrying and send the operator the error and log path.</li></ol>
+          </div>
+        </details>
+        <details id="memory-recovery">
+          <summary>Startup failed after a memory-cleanup script</summary>
+          <div class="detail-body"><p>Keep the script and the failing log. Do not run the cleanup again until the operator has reviewed it.</p><p>Resetting objects, starting a new chat and deleting learned memory are different operations. The cause of the reported startup failure is not established.</p><p><strong>Never delete the installation or launch-state folders as a shortcut.</strong></p></div>
+        </details>
+        <aside class="notice" id="fast-restart" aria-labelledby="fast-restart-title">
+          <h3 id="fast-restart-title">Fast desktop recovery is not established for this revision</h3>
+          <p><code>--no-robot-turn --no-judge</code> skips manipulation proof in the lower-level <code>run.sh</code> launcher. The reviewed desktop entry rejects those flags, and camera/chat attachment requires a verified proof.</p>
+          <p>These flags are <strong>not a complete fast-restart recipe</strong> for the PAAI desktop icon. A desktop presenter mode needs its own implementation and rehearsal.</p>
+          <p>Skipped proof means <code>STARTED (UNVERIFIED: robot proof skipped)</code>, not <code>READY</code>. Do not edit proof receipts to bypass this.<sup><a href="#source-6" aria-label="Source 6">[6]</a><a href="#source-7" aria-label="Source 7">[7]</a><a href="#source-8" aria-label="Source 8">[8]</a></sup></p>
+        </aside>
+      </section>
+
+      <section id="handover" aria-labelledby="handover-title">
+        <p class="section-label">05 / Operator notes</p>
+        <h2 id="handover-title">Keep the event version fixed.</h2>
+        <p>Record the installed revision and local edits before changing the event machine. A documentation update on <code>main</code> does not update an installed checkout.</p>
+        <details id="receipt">
+          <summary>Read the installation receipt without printing tokens</summary>
+          <div class="detail-body">
+            <p>Run this on the Spark. It prints only the source revision, recorded dirty state, profile and brain.</p>
+            <div class="command"><div class="command-head"><span>Read-only receipt</span><button type="button" data-copy="receipt-command" data-kind="command" data-enhance hidden aria-label="Copy the safe installation receipt command">Copy command</button></div><pre tabindex="0" aria-label="Read selected installation receipt fields"><code id="receipt-command">cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" &amp;&amp; python3 - &lt;&lt;'PY'
+import json
+from pathlib import Path
+p = Path("runs/.install/install.json")
+d = json.loads(p.read_text())
+for key in ("source_commit", "source_dirty", "profile", "brain"):
+    print(f"{key}: {d.get(key, 'not recorded')}")
+PY</code></pre></div>
+            <p>This is an <strong>installation receipt</strong>, not proof that files are unchanged now. Also record local edits, including visible-Isaac and cleanup changes.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p>
+          </div>
+        </details>
+        <details id="configuration">
+          <summary>PhysX, OBB, Newton and the visible Isaac window</summary>
+          <div class="detail-body">
+            <p>The reviewed published Spark launcher selects <strong>PhysX, local Qwen and analytic OBB grasps</strong>. It does not start GraspGen-X by default and rejects Newton for that delivery profile.</p>
+            <p>Seeing OBB there is expected; it does not establish the cause of a fallback on a modified setup.<sup><a href="#source-6" aria-label="Source 6">[6]</a></sup></p>
+            <p>The desktop command forces <code>--headless</code>. If you use a visible-Isaac variant, record and rehearse that modified configuration.<sup><a href="#source-7" aria-label="Source 7">[7]</a></sup></p>
+            <p>Treat <code>/goal</code>, arbitrary object rearrangement, Newton and learned-grasp experiments as separate capabilities to rehearse.</p>
+          </div>
+        </details>
+        <details id="older-installs">
+          <summary>Older installs: “unknown mode 'dashboard'”</summary>
+          <div class="detail-body">
+            <p>The older <code class="hash">fac5332416f688fd5d035e0b0a8088d52ef4d469</code> install does not include <code>./run.sh dashboard</code>. Its documented native-UI fallback, on the Spark desktop, is:</p>
+            <div class="command"><div class="command-head"><span>Older-install fallback</span><button type="button" data-copy="legacy-command" data-kind="command" data-enhance hidden aria-label="Copy the older installation dashboard command">Copy command</button></div><pre tabindex="0" aria-label="Older installation dashboard command"><code id="legacy-command">cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" &amp;&amp; \
+OPENCLAW_STATE_DIR="$PWD/runs/.launch/profile-cascade-demo/openclaw" \
+.openclaw-cli/bin/openclaw --profile cascade-demo dashboard</code></pre></div>
+            <p>This older path may open the default browser. It does not provide the newer dedicated-browser or Spark camera-discovery fixes.</p>
+            <p>Ask the operator for an approved update rather than pulling <code>main</code> during the event.<sup><a href="#source-1" aria-label="Source 1">[1]</a><a href="#source-10" aria-label="Source 10">[10]</a><a href="#source-11" aria-label="Source 11">[11]</a></sup></p>
+          </div>
+        </details>
+        <details id="network">
+          <summary>Local Spark, laptop access and Brev are different paths</summary>
+          <div class="detail-body">
+            <p>On the Spark, use <code>127.0.0.1</code>. Spark does <strong>not</strong> provide Brev’s <code>/guide/</code> or <code>/openclaw/</code> routes.</p>
+            <p>A Tailscale address shared for another deployment is not a public link. For remote use, first arrange SSH access with the Spark’s operator. The stack must already be accepted and running.</p>
+            <h3>Connect from your laptop</h3>
+            <p>Replace <code>user@spark-host</code> below with your own Spark login and address. Run this <strong>on your laptop</strong>; keep this terminal open:</p>
+            <div class="command"><div class="command-head"><span>Laptop terminal · replace the SSH login first</span><button type="button" data-copy="tunnel-command" data-kind="command" data-destination="laptop" data-enhance hidden aria-label="Copy: Laptop terminal · replace the SSH login first">Copy command</button></div><pre tabindex="0" aria-label="Laptop terminal · replace the SSH login first"><code id="tunnel-command">ssh -N -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:8091:127.0.0.1:8091 \
+  -L 127.0.0.1:8092:127.0.0.1:8092 \
+  -L 127.0.0.1:18790:127.0.0.1:18790 user@spark-host</code></pre></div>
+            <p>Open <code>http://127.0.0.1:8092</code> on the laptop for the PAAI WebUI. For native OpenClaw, use a second terminal to SSH into the Spark and run the <a href="#dashboard-command">dashboard command</a>. Without a desktop session it prints the current sign-in link; open that link in your laptop browser. Do not share the link or its token.</p>
+            <h3>Install the camera extension in the laptop browser</h3>
+            <ol>
+              <li>Copy <code>extensions/chrome</code> from the <strong>same installed revision</strong> on the Spark. You only need that directory, not another simulator, model or OpenClaw installation.</li>
+              <li>In Chrome or Chromium, open <code>chrome://extensions</code>, enable <strong>Developer mode</strong>, click <strong>Load unpacked</strong> and select the copied folder containing <code>manifest.json</code>.</li>
+              <li>Open the connected native OpenClaw tab. Click the PAAI extension or press <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Y</kbd> (<kbd>Command</kbd> + <kbd>Shift</kbd> + <kbd>Y</kbd> on macOS).</li>
+              <li>Choose <strong>Connect cameras</strong> and allow access to the forwarded local host. Select <strong>Side panel</strong> or <strong>Show in chat</strong>.</li>
+              <li>Check that Kitchen, Worktop and Side all advance. If not, use <strong>Reconnect</strong> and <a href="#camera-recovery">camera recovery</a>. A working chat alone is not camera acceptance.</li>
+            </ol>
+            <p class="small">Optional copy template, run on the laptop. Replace the login and, for a custom installation, the remote <code>paai-spark</code> folder. Use a new local destination folder:</p>
+            <div class="command"><div class="command-head"><span>Laptop terminal · replace remote login and folder first</span><button type="button" data-copy="extension-copy-command" data-kind="command" data-destination="laptop" data-enhance hidden aria-label="Copy: Laptop terminal · replace remote login and folder first">Copy command</button></div><pre tabindex="0" aria-label="Laptop terminal · replace remote login and folder first"><code id="extension-copy-command">test ! -e &quot;$HOME/paai-camera-extension&quot; &amp;&amp; \
+scp -r user@spark-host:paai-spark/extensions/chrome &quot;$HOME/paai-camera-extension&quot;</code></pre></div>
+            <p class="small">Manual <strong>Load unpacked</strong> works independently of Chromium’s automatic launcher flag. On the Spark’s supported desktop path, the launcher loads the extension for you; do not repeat this manual setup there.<sup><a href="#source-4" aria-label="Source 4">[4]</a><a href="#source-11" aria-label="Source 11">[11]</a></sup></p>
+            <h3>Ports to keep private</h3>
+            <ul><li><code>8080</code>: local Qwen API.</li><li><code>8091</code>: cameras; <code>8092</code>: local WebUI.</li><li><code>8611</code>: Isaac bridge.</li><li><code>18790</code>: demo OpenClaw gateway. Your personal <code>18789</code> gateway stays separate.</li><li><code>8093</code> and <code>4043</code>: optional visitor surface and dedicated ngrok agent API.</li></ul>
+            <p>On the Spark, <code>ss -ltnp</code> shows listeners before launch. Resolve conflicts without killing unrelated services. The SSH command binds forwarded ports to laptop loopback only. Never forward raw backend ports to the public internet; use the <a href="#public-access">authenticated visitor option</a> for a shareable URL.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p>
+          </div>
+        </details>
+        <details id="public-access"><summary>Optional: install and enable authenticated ngrok access</summary><div class="detail-body">
+          <p>This is a separate testing option, <strong>not required for the local event demo</strong>. Rehearse the normal Spark path first.</p>
+          <ol>
+            <li>Install the <strong>Linux arm64</strong> executable from <a href="https://ngrok.com/download/linux" target="_blank" rel="noopener noreferrer">ngrok’s official download page</a>. Use your own account and a stable domain.</li>
+            <li>Save the ngrok token in a private ngrok configuration file. In a text editor, create a separate visitor-auth JSON file outside the repository containing <code>{&quot;username&quot;:&quot;&lt;visitor-name&gt;&quot;,&quot;password&quot;:&quot;&lt;visitor-password&gt;&quot;}</code>. Choose a password of at least 12 characters.</li>
+            <li>Set both private files to mode <code>0600</code> (owner read/write only). Never put credentials in URLs, shell commands, chat or commits. Replace every placeholder in the enable command with your actual paths and domain.</li>
+            <li>On the Spark, check <code>loginctl show-user "$USER" -p Linger</code>. It must report <code>Linger=yes</code> to survive logout. Otherwise ask the administrator to enable linger.</li>
+          </ol>
+          <h3>Enable the dedicated services</h3>
+          <div class="command"><div class="command-head"><span>Spark terminal · replace placeholders before use</span><button type="button" data-copy="public-enable-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · replace placeholders before use">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · replace placeholders before use"><code id="public-enable-command">python3 &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_public.py&quot; enable --repo &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot; --domain &#x27;&lt;your-domain&gt;.ngrok.dev&#x27; --auth-file &#x27;&lt;private-visitor-auth.json&gt;&#x27; --ngrok &#x27;&lt;path-to-ngrok&gt;&#x27; --ngrok-config &#x27;&lt;existing-ngrok.yml&gt;&#x27;</code></pre></div>
+          <p class="check"><strong>Check</strong> <code>PUBLIC ENABLED</code> means registered, not yet ready. A stopped demo still needs its normal startup and proof.</p>
+          <h3>Check after the demo reaches READY</h3>
+          <div class="command"><div class="command-head"><span>Spark terminal · read-only public readiness check</span><button type="button" data-copy="public-check-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · read-only public readiness check">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · read-only public readiness check"><code id="public-check-command">python3 &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_public.py&quot; check --repo &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot;</code></pre></div>
+          <p class="check"><strong>Check</strong> <code>PUBLIC READY</code>. Authenticated visitors get cameras and the restricted demo chat, not native OpenClaw administration.</p>
+          <h3>Disable public access when finished</h3>
+          <div class="command"><div class="command-head"><span>Spark terminal · stops the public services and their demo</span><button type="button" data-copy="public-disable-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · stops the public services and their demo">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · stops the public services and their demo"><code id="public-disable-command">python3 &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_public.py&quot; disable --repo &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot;</code></pre></div>
+          <p class="check"><strong>Check</strong> <code>PUBLIC STOPPED</code>. This stops the dedicated public services <strong>and their demo stack</strong>, but keeps the installation files.</p>
+          <p>The supervised demo has bounded crash recovery, not an unlimited restart loop. A launch that never reaches <code>READY</code> needs diagnosis. Never expose the gateway, model API, Isaac bridge or MCP ports directly.<sup><a href="#source-2" aria-label="Source 2">[2]</a></sup></p>
+        </div></details>
+        <details id="shutdown"><summary>End the session: stop and verify only this checkout’s stack</summary><div class="detail-body">
+          <p>Wait for the last order to finish. Run:</p>
+          <div class="command"><div class="command-head"><span>Spark terminal · clean stop and ownership check</span><button type="button" data-copy="stop-check-command" data-kind="command" data-enhance hidden aria-label="Copy: Spark terminal · clean stop and ownership check">Copy command</button></div><pre tabindex="0" aria-label="Spark terminal · clean stop and ownership check"><code id="stop-check-command">bash -e &lt;&lt;&#x27;BASH&#x27;
+cd &quot;${PAAI_INSTALL_DIR:-$HOME/paai-spark}&quot;
+./run.sh down
+remaining=$(./run.sh down --dry-run)
+printf &#x27;%s\n&#x27; &quot;$remaining&quot;
+case &quot;$remaining&quot; in *&#x27;would stop&#x27;*) exit 1 ;; esac
+printf &#x27;STOPPED\n&#x27;
+BASH</code></pre></div>
+          <p class="check"><strong>Check</strong> <code>STOPPED</code>, with no <code>would stop</code> lines. Installed files remain; the next cold launch will run its startup proof again.</p>
+        </div></details>
+        <details id="acceptance">
+          <summary>Rehearse before calling the setup accepted</summary>
+          <div class="detail-body">
+            <p>Use the <strong>actual Spark and intended interface</strong>:</p>
+            <ol><li>Start native OpenClaw with all three cameras live.</li><li>Place the green cube inside its square, then reset.</li><li>Place the orange inside the box, then reset.</li><li>Recover from a deliberate service restart using the agreed procedure.</li><li>Repeat with the exact GUI/headless setting and local edits that will ship.</li></ol>
+            <p>These are acceptance requirements, <strong>not results claimed by this guide</strong>.</p>
+          </div>
+        </details>
+        <p class="check"><strong>If it still fails</strong> Send one diagnostic bundle: installed revision, exact action, first error, log path and local changes. Include the cleanup script if used. Remove passwords, authentication links and tokens before sharing logs.</p>
+      </section>
+
+      <section id="sources" aria-labelledby="sources-title">
+        <p class="section-label">Reference / Sources &amp; scope</p>
+        <h2 id="sources-title">Instructions, not a readiness certificate.</h2>
+        <p class="small">The commands and limitations were checked against published source and isolated local tests. This is not a new live acceptance of the event Spark, a fix for the reported camera error or a released fast-restart feature.</p>
+        <p class="small">Source review: <time datetime="2026-09-30">30 September 2026</time>. Published code baseline: <code class="hash">57ecd62dfec3fb361c6db8ee3c096293aec77ca8</code>. Historical behavior is labelled separately. Confirm the installed receipt before applying revision-specific instructions.</p>
+        <details id="operating-sources"><summary>Operating documentation</summary><div class="detail-body"><ul class="references">
+          <li id="source-1"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/4f1a2483fe796788431d5d9853b9b0e6f3ca3f82/docs/DGX_SPARK_SETUP.md" target="_blank" rel="noopener noreferrer">[1] Historical Spark setup guide</a></li>
+          <li id="source-2"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/main/docs/DGX_SPARK_SETUP.md" target="_blank" rel="noopener noreferrer">[2] Spark setup and native OpenClaw access</a></li>
+          <li id="source-3"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/main/docs/BOOTH_GUIDE.md" target="_blank" rel="noopener noreferrer">[3] Booth tasks and reset workflow</a></li>
+          <li id="source-4"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/docs/CHROME_EXTENSION.md" target="_blank" rel="noopener noreferrer">[4] Manual camera extension installation (use the Spark connection path above, not Brev’s /guide/ route)</a></li>
+        </ul></div></details>
+        <details id="code-sources"><summary>Code and compatibility</summary><div class="detail-body"><ul class="references">
+          <li id="source-6"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/launch.sh" target="_blank" rel="noopener noreferrer">[6] Published launch defaults and proof flags</a></li>
+          <li id="source-7"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/desktop.py" target="_blank" rel="noopener noreferrer">[7] Desktop arguments and headless behavior</a></li>
+          <li id="source-8"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/scripts/spark_browser.py" target="_blank" rel="noopener noreferrer">[8] Camera readiness and Chromium profile</a></li>
+          <li id="source-10"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/fac5332416f688fd5d035e0b0a8088d52ef4d469/run.sh" target="_blank" rel="noopener noreferrer">[10] Older installation command dispatcher</a></li>
+          <li id="source-11"><a href="https://raw.githubusercontent.com/johnnynunez/cascade/57ecd62dfec3fb361c6db8ee3c096293aec77ca8/extensions/chrome/discovery.mjs" target="_blank" rel="noopener noreferrer">[11] Native Spark camera discovery</a></li>
+        </ul></div></details>
+        <p class="review">Start with the operator-approved installation. Keep development experiments separate from the version used for the event.</p>
+      </section>
+    </main>
+  </div>
+  <footer><span>PAAI · Build a Claw · DGX Spark presenter guide</span><a href="#sources">Sources &amp; scope</a><a href="#top">Back to the start ↑</a></footer>
+  <div id="copy-feedback" class="feedback" role="status" aria-live="polite" aria-atomic="true"></div>
+  <noscript><p style="padding: 20px; text-align: center">All instructions and expandable sections work without JavaScript. Select command text to copy it; use your browser’s Print menu.</p></noscript>
+  <script>
+    (() => {
+      'use strict';
+      const feedback = document.getElementById('copy-feedback');
+      let feedbackTimer;
+      const announce = message => {
+        clearTimeout(feedbackTimer);
+        feedback.textContent = message;
+        feedbackTimer = setTimeout(() => { feedback.textContent = ''; }, 7000);
+      };
+      for (const button of document.querySelectorAll('[data-copy]')) {
+        const original = button.textContent;
+        button.addEventListener('click', async () => {
+          const source = document.getElementById(button.dataset.copy);
+          button.disabled = true;
+          try {
+            if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+            await navigator.clipboard.writeText(source.textContent);
+            button.textContent = 'Copied';
+            const terminalName = button.dataset.destination === 'laptop' ? 'your laptop' : 'the Spark';
+            announce(button.dataset.kind === 'prompt'
+              ? 'Prompt copied. Paste it into the connected OpenClaw chat.'
+              : `Command copied. Paste it into a terminal on ${terminalName}.`);
+          } catch {
+            const range = document.createRange();
+            range.selectNodeContents(source);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            announce('Clipboard unavailable. Text selected: use Ctrl+C or Command+C.');
+          } finally {
+            button.disabled = false;
+            setTimeout(() => { button.textContent = original; }, 2200);
+          }
+        });
+      }
+      function revealTarget(hash) {
+        let id;
+        try { id = decodeURIComponent(hash.replace(/^#/, '')); } catch { return; }
+        const target = document.getElementById(id);
+        if (!target) return;
+        let node = target;
+        while (node && node !== document.body) {
+          if (node.tagName === 'DETAILS') node.open = true;
+          node = node.parentElement;
+        }
+      }
+      document.addEventListener('click', event => {
+        const link = event.target.closest('a[href^="#"]');
+        if (link) revealTarget(link.hash);
+      });
+      window.addEventListener('hashchange', () => revealTarget(location.hash));
+      revealTarget(location.hash);
+      let printState = null;
+      window.addEventListener('beforeprint', () => {
+        if (printState) return;
+        printState = [...document.querySelectorAll('details')].map(detail => [detail, detail.open]);
+        for (const [detail] of printState) detail.open = true;
+      });
+      window.addEventListener('afterprint', () => {
+        if (!printState) return;
+        for (const [detail, wasOpen] of printState) detail.open = wasOpen;
+        printState = null;
+      });
+      document.getElementById('print-guide').addEventListener('click', () => window.print());
+      for (const control of document.querySelectorAll('[data-enhance]')) control.hidden = false;
+    })();
+  </script>
+</body>
+</html>

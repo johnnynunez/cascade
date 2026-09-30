@@ -214,6 +214,7 @@ def test_assembled_extension_loads_manifest_worker_and_contains_page_modules(dis
     assemble(distribution)
     extension = output / "source/extensions/chrome"
     manifest = json.loads((extension / "manifest.json").read_text())
+    assert manifest["background"]["type"] == "module"
     pending = [manifest["background"]["service_worker"], manifest["action"]["default_popup"],
                manifest["side_panel"]["default_path"].split("?", 1)[0]]
     visited = set()
@@ -241,7 +242,11 @@ globalThis.chrome = {
 await import(pathToFileURL(process.argv[2]).href);
 if (!registered.includes('message') || !registered.includes('history')) process.exit(1);
 """
-    result = subprocess.run(["node", "--experimental-default-type=module", "--input-type=module", "-",
+    # Chromium selects ESM via the extension manifest. Give Node the same
+    # explicit semantics using stable package metadata; older CI Node versions
+    # do not implement the experimental default-type command-line flag.
+    (extension / "package.json").write_text('{"type":"module"}\n')
+    result = subprocess.run(["node", "--input-type=module", "-",
                              str(extension / manifest["background"]["service_worker"])],
                             input=javascript, text=True, capture_output=True, timeout=15)
     assert result.returncode == 0, result.stderr

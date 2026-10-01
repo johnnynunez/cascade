@@ -1,5 +1,10 @@
 # OpenClaw 2.0 Integration Brief (for `scripts/openclaw_demo.sh`)
 
+This brief preserves its September research snapshot. Current Spark installation
+uses a checkout-local pinned OpenClaw and the [Spark setup guide](DGX_SPARK_SETUP.md);
+do not apply these older global-upgrade examples to an active presenter checkout.
+Current visitor/proof cancellation limits are in [native turn budgets](native-visitor-turn-budget.md).
+
 Researched 2026-09-03 against docs.openclaw.ai, the openclaw/openclaw GitHub repo (source diffed at tags `v2026.7.1-2` vs `v2026.8.1`/`v2026.8.2`), npm registry metadata, and the NVIDIA NemoClaw docs (docs.nvidia.com/nemoclaw). Every claim carries its source. Facts that could not be confirmed are marked **UNCONFIRMED**.
 
 ---

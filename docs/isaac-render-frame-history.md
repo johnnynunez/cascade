@@ -89,8 +89,8 @@ The candidate also includes the separately reviewed truth-reader correction:
 constructing a classic `RigidPrim` for observation sets
 `reset_xform_properties=False` and `prepare_contact_sensors=False`, avoiding USD
 authoring during observation. Camera history does not change motion, placement,
-retry, or safety thresholds. Kitchen validation, five-object acceptance and an
-acceptance restart are still pending for this candidate.
+retry, or safety thresholds. Kitchen validation, five-object acceptance and restart are separate stages;
+[current project status](PROJECT_STATUS_20261001.md) records their source pins.
 
 ## nvblox payload masks
 
@@ -134,3 +134,19 @@ synthetic control rows remain bound. The receipt in
 `docs/evidence/isaac-render-time-encoding.json` links the failed runs and replay.
 This offline result does not itself establish corrected ARM availability or
 native campaign acceptance; those remain separate candidate validations.
+
+## Subsequent ARM admission and integration
+
+The retained 09d passive admission on `aedfba1` exercised both exact SDK encodings
+on all three cameras: 551 samples per camera, six alias observations each,
+367 duplicate packets and 183 advances. Maximum delivered age was 0.431 seconds.
+This was a read-only camera admission, not a manipulation campaign. The earlier
+09c run retained its aggregate coverage failure despite 600 valid packets;
+no failure was relabeled as success.
+
+The combined MAIN producer uses the same resolver/readback contract and adds
+historical nvblox contact-mask state when that mode is enabled. Later passive
+admission may combine source-identical alias coverage with a current-source
+whole-packet observation; each component and its limitations must remain
+explicit. [Project status](PROJECT_STATUS_20261001.md) identifies the accepted
+source and distinguishes passive admission from native physical results.

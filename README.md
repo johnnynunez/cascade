@@ -1,5 +1,10 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
+Validated runtime baseline: **`477c88f` (1 October 2026)**. The integrated suite passes
+3,205 tests; current Spark and nvblox physical acceptance remains separately
+tracked in the [project status](docs/PROJECT_STATUS_20261001.md). Historical
+installation, campaign and restart results below apply only to their stated pins.
+
 <p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python 3.10+"></a>
@@ -18,13 +23,15 @@ reflex or a learned habit tier and never touch the LLM, which only gets
 called when both fail — behavior, safety and tracing stay identical
 regardless of which tier (or which hardware) acted.
 
-**Nothing above the driver layer knows which robot is attached.** An arm
-contributes six methods and a [profile](configs/arms/); its joint count,
+The common skill API selects an arm through its driver and a
+[profile](configs/arms/); its joint count,
 home poses, tool-frame convention, reach and gripper travel come from that
-profile, and the skills, safety harness and grasp planner read them. The
-same is true of compute: no module names an accelerator, and every model
-routes through [`resolve_device()`](src/cascade/device.py), which probes the
-host and degrades instead of failing.
+profile, and the skills, safety harness and grasp planner read them. Backend
+capabilities remain explicit: Isaac motion requires a physical clock, and its
+observed-finger and held-object guards require bound capture metadata. Model
+device selection uses [`resolve_device()`](src/cascade/device.py), which probes the
+host; required CUDA or learned-inference profiles fail when that capability
+is unavailable rather than silently accepting a fallback.
 
 The reference deployment drives a Seeed reBot DevArm B601 (RobStride build)
 from an NVIDIA DGX Spark — that is *a* configuration this framework runs on,
@@ -54,7 +61,7 @@ service-oriented/composable spirit as [RPent](https://github.com/RLinf/RPent).
    perception       grasping         control          safety           memory          sim / eval
 ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
 │ RS/UVC/Isaac/│ │ GraspGen-X   │ │ FK/IK (pin)  │ │ per-arm gate │ │ beliefs      │ │ MuJoCo world │
-│ MuJoCo cams  │ │ + OBB fallbk │ │ min-jerk to  │ │ every 50 Hz  │ │ (persisted)  │ │ arm+cams+    │
+│ MuJoCo cams  │ │ + OBB fallbk │ │ min-jerk to  │ │ sampled edge │ │ (persisted)  │ │ arm+cams+    │
 │ YOLOE, HSV   │ │ outcome mem  │ │ any N-DoF arm│ │ waypoint     │ │ frames K=4   │ │ truth share  │
 │ occupancy    │ │ jaw datum    │ │ mjc | warp   │ │ +occupancy   │ │ habits, env. │ │ Isaac bridge │
 │ device: auto │ │              │ │ ros2 | serial│ │ +neighbours  │ │ grasp prior  │ │ judge (GRM)  │
@@ -82,16 +89,19 @@ explains the prompts, result checks and recovery steps. See the
 
 ## Roadmap
 
-We are working on two things next.
+The immediate delivery work is source-bound Spark and nvblox acceptance of
+the merged fixes, followed by the five-object campaign and same-version restart.
+See the [current status](docs/PROJECT_STATUS_20261001.md); future work includes:
 
-**Newton parity.** The current event path uses CUDA PhysX because it is the
-repeatable setup today. We are closing the cross-engine reproducibility gap in
-contact, grasp and placement behavior, then we can move the full demo to
-Newton.
+**Newton parity.** The installed Spark event path defaults to CUDA PhysX.
+Newton remains explicit and has a separate engine/asset validation matrix; its
+results are not a substitute for the current Spark acceptance.
 
 **Cosmos 3 Edge.** We will add it when native tool calling through OpenClaw is
 consistent enough for normal attendee requests. Until then, Qwen remains the
-working event path.
+event path. An optional **ovrtx** camera backend is being implemented separately;
+it is not included in this validated runtime baseline.
+[Jev/Kev](docs/JEV_DECISIONS.md) remains offline decision research.
 
 ## Brev deployment
 
@@ -206,8 +216,8 @@ last define the envelope for both.
 > **Inter-arm collision** is gated geometrically, not with meshes: an arm
 > profile may declare `base_pose` (where the robot is bolted, in a shared
 > TABLE frame — [`so101_left.yaml`](configs/arms/so101_left.yaml) documents the
-> convention), and with it set on both arms each harness gates every 50 Hz
-> waypoint on the measured segment-to-segment distance between link
+> convention), and with it set on both arms each harness gates each sampled
+> motion edge on the measured segment-to-segment distance between link
 > centrelines (`safety.neighbor_clearance_m`, default 0.05 m, standing in for
 > unmodelled link *shape*). Two caveats, both in that profile's header: an
 > unreadable neighbour (a standby LazyArm) degrades to SKIP, not to block, and
@@ -266,11 +276,12 @@ then orange to open box, with a verified reset after each. Live simulation
 state and advancing cameras verify both cases. Logs and screenshots remain
 under `runs/.install/` and `runs/.launch/profile-cascade-demo/`.
 
-The [pinned Spark release](docs/DGX_SPARK_SETUP.md#validated-release-and-scope)
-passed a fresh installation and its first desktop READY proof on GB10:
+The historical September source `9cf5402`
+passed a fresh-destination installation and its first desktop READY proof on GB10:
 **12 min 21 s** to install with reused download caches and **12 min 12 s**
 for startup and both placement/reset checks. Real Chromium with the shipped
-extension showed three advancing cameras and connected chat on an Xvfb display.
+extension showed three advancing cameras and connected chat on an Xvfb display. These timings and successes do not
+certify the current MAIN pin; see [current acceptance](docs/PROJECT_STATUS_20261001.md).
 GNOME app-grid interaction and the visible Isaac editor were not tested.
 The same installed stack then passed **5/5 kitchen objects through native
 visitor chat**, with independent physical placement checks and resets.
@@ -795,6 +806,11 @@ silently vanishes.
 
 ## Docs
 
+Browse the [documentation index](docs/README.md) for all operating guides,
+runtime contracts, historical measurements and research notes.
+
+- [Current source and acceptance](docs/PROJECT_STATUS_20261001.md) — merged
+  changes, per-profile defaults, historical failures and current physical stages
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the runtime end to end
   (tiers, the `execute()` choke point, verification channels, sim as an
   instrument, memory stores), module map, decisions, verification status

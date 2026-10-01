@@ -1,7 +1,12 @@
 # Build-a-Claw presenter card
 
+Use the [current source and acceptance status](PROJECT_STATUS_20261001.md)
+before rehearsal. The setup guide pins runtime baseline `477c88f`; its software suite
+passes, while its new physical campaign and restart must earn their own receipts.
+The historical successes below do not mark a new checkout READY.
+
 **Use PhysX with the real GraspGen-X server on the presentation Spark.**
-The [pinned build](DGX_SPARK_SETUP.md#validated-release-and-scope) passed a fresh
+The historical September build `9cf5402` passed a fresh-destination
 GB10 installation and its first desktop READY proof: green cube and orange,
 independent physical checks, resets and three cameras. Real Chromium and the
 camera extension also passed with a virtual display. GNOME app-grid interaction
@@ -95,10 +100,10 @@ Use scene reset between visitors. See [memory and recovery details](SPARK_DELIVE
 | Grasps | **GraspGen-X**, learned inference on the Spark | A protocol stub or an analytic fallback does not validate this setup. |
 | Isaac window | **Headless**, as validated | Optional desktop `--gui` shows the editor; rehearse that setting separately. |
 | Occupancy/nvblox | **Disabled** in the Spark presenter profile | CUDA mapping and payload experiments have separate acceptance; see [nvblox status](NVBLOX.md). |
-| JEv | **Not installed or active** in the presenter path | [Joint-embedding decision experiments](JEV_DECISIONS.md) are separate research. |
+| Jev/Kev | **Evaluation code merged; not an active presenter backend** | [Ten-outcome replay](JEV_DECISIONS.md): Kev, Qwen and rules each 10/10; no advantage over rules demonstrated. Official TypeSafe Jev was not evaluated. |
 
 **Why did GraspGen-X fall back to OBB?** The previous Spark launcher omitted
-the learned-model server. A failed startup probe or inference also selected
+the learned-model server. An older failed startup probe or inference also selected
 OBB for the rest of the runtime. The corrected installation and launch must
 start and verify real inference; a GraspGen-X **stub** is only an analytic
 protocol stand-in. The required Spark profile now reports inference failure;

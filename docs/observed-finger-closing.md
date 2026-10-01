@@ -1,5 +1,11 @@
 # Check the observed closing stroke before commanding it
 
+This closing preflight and the earlier approach gate are merged and enabled
+by default in the installed Spark profile. The reports below are source-bound
+historical evidence. [Project status](PROJECT_STATUS_20261001.md) distinguishes
+software validation from the current native proof, five-object campaign and
+restart acceptance.
+
 Native launch05 completed both audited pick/place/reset cases, but the pink
 cube moved about 19.8 mm during the orange grasp's closing phase. The existing
 gate covered the open approach. The target-only contact sensor cannot directly

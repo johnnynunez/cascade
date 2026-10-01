@@ -1,5 +1,9 @@
 # Build a Claw with PAAI
 
+Check [current source and acceptance](PROJECT_STATUS_20261001.md) before
+presenting. A dated successful run does not certify a newly installed revision;
+use the intended checkout and require its current READY and camera checks.
+
 PAAI means Physical Agentic AI. At the booth, staff teach an attendee to use
 the normal OpenClaw chat with the Chrome camera extension beside it. The
 attendee asks about the scene, gives one order, and watches the simulated arm.
@@ -24,8 +28,8 @@ normal OpenClaw chat, run `./run.sh dashboard`; see
 With several installations, select the intended checkout using the
 [exact desktop launcher command](DGX_SPARK_SETUP.md#5-open-the-demo-in-one-click)
 instead of relying on identical app-grid names. The
-[validated release](DGX_SPARK_SETUP.md#validated-release-and-scope) records
-the fresh install, five-object round and complete stop/start recovery.
+[setup guide](DGX_SPARK_SETUP.md#validated-release-and-scope) separates the
+current source pin from historical installation, five-object and restart results.
 
 For the complete installation and presenter steps in one page, download the
 [standalone Spark HTML guide](spark-presenter/index.html) and open it in a

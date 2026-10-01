@@ -1,5 +1,10 @@
 # Retained withdrawal after release
 
+This contract is merged through PR #27. The retained NV06 camera failure below
+and NV08 pre-release false-slip failure are separate historical results; the
+latter never reached a release episode. See [held observations](HELD_OBJECT_OBSERVATION.md)
+and [current acceptance](PROJECT_STATUS_20261001.md).
+
 The first normal five-object trial on `1efa8e9` physically placed the orange,
 then aborted its withdrawal on a 500 ms masked-depth mapper timeout. The one
 explicit reset refused home at 27 mm clearance against the unchanged 30 mm gate.

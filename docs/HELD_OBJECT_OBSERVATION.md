@@ -1,5 +1,10 @@
 # Held-object observation after the NV08 failure
 
+Merged in PR #42 on MAIN `477c88f`, together with preserved grasp-memory
+ranking. The combined immutable suite passed 3,205 tests. New physical results
+are tracked separately in [project status](PROJECT_STATUS_20261001.md); the NV08
+failure analyzed here remains a failure.
+
 The MAIN `6b5dad64eaa35b0ea6c0a0430a4098818626cfee` NV08 trial failed before
 its planned post-release fault injection. The runtime reported that the orange
 was 10 cm below the gripper and opened it. The passive witness instead observed

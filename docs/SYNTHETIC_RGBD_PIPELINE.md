@@ -1,5 +1,10 @@
 # Synthetic-Augmented RGB-D → 3D Object Localization
 
+This pipeline proposal is separate from the current Isaac producer. The
+implemented [render-bound frame contract](isaac-render-frame-history.md) and
+[letterbox mask correction](detector-mask-letterbox.md) govern current captured
+RGB-D evidence. Synthetic data plans and ovrtx remain separate work.
+
 Analysis of the proposed pipeline (diagram dated 2026-07-31) against what this
 repository already provides, using **measurements from the rig**.
 

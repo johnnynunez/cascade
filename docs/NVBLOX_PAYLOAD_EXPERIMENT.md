@@ -1,5 +1,10 @@
 # Experimental nvblox manipulation
 
+This is a historical experiment log, including retained failures and limited
+recovery successes. Its settings and source pins describe each recorded run,
+not universal current defaults. [Project status](PROJECT_STATUS_20261001.md)
+tracks the merged implementation and current isolated acceptance.
+
 This follow-up is separate from the validated CUDA backend/build change in
 PR #26. It is opt-in, supports one Isaac arm, and does not change presenter
 defaults. The hardware mapping measurements remain in [NVBLOX.md](NVBLOX.md).

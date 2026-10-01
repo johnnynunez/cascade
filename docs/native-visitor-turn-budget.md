@@ -38,6 +38,8 @@ the CLI watchdog at 330 seconds and checks the durable uncertain state. These
 are deterministic boundary tests, not a real-time OpenClaw or physical replay.
 The existing stdio cancellation test checks JSON-RPC cancellation routing.
 
-The correction still requires a new native campaign and restart acceptance.
+The correction is merged. Subsequent native tools exceeded 240 seconds without
+the old premature cancellation; complete campaign and restart results remain
+separate, source-bound stages in [project status](PROJECT_STATUS_20261001.md).
 The original native07 proof passes and the failed campaign remain separate
 evidence; this change does not upgrade the failed campaign to a pass.

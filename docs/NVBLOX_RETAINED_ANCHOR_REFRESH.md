@@ -1,5 +1,10 @@
 # Retained-payload capture refresh
 
+The implementation is merged through PR #27. The source-specific trials below
+remain historical; later release and held-observation changes do not upgrade
+any failed trial. Use [project status](PROJECT_STATUS_20261001.md) for the current
+MAIN recovery/campaign stage.
+
 This recovery contract has passed offline tests and passive validation in a new
 owned environment. A later single held-camera recovery passed as recorded below; the five-object
 normal campaign remains pending. The original scene on port 8691 remains unchanged; the

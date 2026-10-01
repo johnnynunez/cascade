@@ -1,5 +1,9 @@
 # Firefox camera companion
 
+The dated browser checks below are separate from current robot acceptance.
+Use the [current source and acceptance index](PROJECT_STATUS_20261001.md) with
+[Spark setup](DGX_SPARK_SETUP.md); a Live camera widget is not a physical proof.
+
 The camera companion also runs in Firefox 140 or later. It uses the same
 JavaScript, HTML and CSS as the [Chrome companion](CHROME_EXTENSION.md); only
 the manifest differs. Robot orders still go through OpenClaw.

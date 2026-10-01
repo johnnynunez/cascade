@@ -144,7 +144,9 @@ phase lag via sin/cos correlation, skip first period) → 0.5 rad step on joint1
 
 For the full statistical report + standard 5-figure set (tracking/error/diff/step/
 Bland-Altman) and parity acceptance thresholds, see
-[`references/engine-ab-statistics.md`](references/engine-ab-statistics.md).
+`references/engine-ab-statistics.md` in the original validation package. That
+reference is not included in this vendored snapshot; do not infer unrecorded
+acceptance thresholds from this link.
 
 ## Newton-specific findings (2026-07-07 session)
 
@@ -232,7 +234,8 @@ Bland-Altman) and parity acceptance thresholds, see
 ## Recording evidence videos
 
 To capture the robot moving (e.g. gripper close/open) as a real-frames MP4, see
-[`references/headless-recording.md`](references/headless-recording.md) — camera aiming
+`references/headless-recording.md` in the original validation package (not
+included in this vendored snapshot) — camera aiming
 from stage data, RTX warmup, and the blank-gray-frames pitfall (camera inside geometry;
 always luminance-check sample frames before accepting a recording).
 

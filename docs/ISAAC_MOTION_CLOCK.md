@@ -2,8 +2,10 @@
 
 Isaac arm trajectories and settling use authoritative simulation seconds. Wall
 clock slowdowns must not compress a multi-second joint profile into a fraction
-of a physics second. This change has offline regression coverage; physical
-acceptance is still pending. It does not establish collision-free grasps.
+of a physics second. The motion contract is merged and has offline regression coverage and bounded
+physical exercises. Current-source end-to-end acceptance is tracked separately
+in [project status](PROJECT_STATUS_20261001.md). It does not establish
+collision-free grasps.
 
 The bridge reads q, dq and `physics_clock` together on the simulation thread.
 Version 1 names the robot prim, engine, clock (`SimulationManager` for PhysX or
@@ -59,8 +61,9 @@ and after execution; their own implementations must remain bounded. A callback
 that overruns cannot authorize a subsequent target. A timed-out command may
 already have reached the bridge; reconnecting never retries it automatically.
 
-Existing grasp durations, target tolerances, MCP budgets, geometry and GGX
-selection are unchanged. At low real-time factors, correct physical pacing can
+The clock change itself preserves grasp durations, target tolerances, MCP
+budgets, geometry and GGX selection. Later changes have separate contracts for
+[planning](grasp-planning-search.md) and [ranking](grasp-memory-ranking.md). At low real-time factors, correct physical pacing can
 exceed the wall budget. Rendering performance and end-to-end launch budgets
 require separate measured validation; increasing timeouts is not part of this
 change.

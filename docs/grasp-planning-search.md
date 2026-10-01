@@ -14,4 +14,5 @@ Send and receive share one deadline; polling checks cancellation without robot r
 
 The planning deadline ends immediately before the first authorized open command. Physical motion keeps its existing clock, duration, velocity, settling and deadline contracts. Exhaustion preserves the failure and the gate's prohibition on automatic recovery. Telemetry records batch numbers, filtered counts, every raw response, rejection reasons and the selected batch. Seeds are explicitly unrecorded for the production server; the retained raw responses support replay.
 
-Physical acceptance of this change is pending. Rebinding feedback does not refresh the observed scene, certify occluded space or provide continuous braking during gripper closure.
+This contract is merged; source-bound physical results and current acceptance
+are listed in [project status](PROJECT_STATUS_20261001.md). Rebinding feedback does not refresh the observed scene, certify occluded space or provide continuous braking during gripper closure.

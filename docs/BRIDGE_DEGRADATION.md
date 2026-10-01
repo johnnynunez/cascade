@@ -1,5 +1,11 @@
 # Bridge degradation under sustained verification polling
 
+The experiments below are a historical diagnosis, not the current producer
+contract. [Render-bound frame history](isaac-render-frame-history.md) now binds
+pixels to recorded articulation/contact state. [Read-only truth construction](NVBLOX_TRUTH_READONLY.md)
+disables two mutating constructor defaults; that independently justified fix
+does not retroactively prove the cause of an earlier teleport or degradation.
+
 Found while chasing three false success claims in the cascade ablation
 (2026-07-31). Two independent defects came out of it; one is fixed in code,
 the other is an operational hazard that needs a guard.

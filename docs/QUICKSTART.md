@@ -4,7 +4,9 @@ For a live Build-a-Claw presentation, use the [presenter card](PRESENTER_QUICKST
 
 The PAAI event profile uses **DGX Spark/Linux + Isaac Sim 6.1 + PhysX CUDA +
 real GraspGen-X + Qwen Q4 + OpenClaw**. Use the [DGX Spark setup guide](DGX_SPARK_SETUP.md)
-for the tested source pin, measured scope, startup and recovery commands.
+for the current source pin, measured scope, startup and recovery commands.
+[Project status](PROJECT_STATUS_20261001.md) distinguishes current software
+validation, current physical acceptance and the historical September delivery.
 The Mac is a development platform; its results do not certify Spark execution.
 
 For the **Brev RTX PRO 6000 profile with PhysX and Qwen3.8-27B Q8_0**, see
@@ -33,9 +35,10 @@ python3 scripts/desktop.py launch --repo "$PWD"
 ```
 
 Run this from the prepared Spark checkout. Isaac is headless by default;
-optional `--gui` requires a separate rehearsal. The pinned source passed a fresh
-installation and its first READY proof on GB10, with Chromium and the extension
-checked on a virtual display. Wait for this machine's READY and advancing cameras.
+optional `--gui` requires a separate rehearsal. The earlier September pin passed
+a fresh-destination installation and READY proof on GB10, with Chromium and the
+extension checked on a virtual display. That result does not certify a later
+checkout. Wait for this machine's READY and advancing cameras.
 See [Spark delivery](SPARK_DELIVERY.md) for file identities and acceptance details.
 
 ### Development on a Mac or an installed rig

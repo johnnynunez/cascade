@@ -1,10 +1,12 @@
 # Observed-surface finger veto (experimental)
 
 `CASCADE_OBSERVED_FINGER_GATE=1` enables this gate for the calibrated Isaac
-reBot grasp path. The normal MCP launcher forwards it explicitly. It is off
-by default and requires the `grasp-safety` extra (SciPy; also present with the
+reBot grasp path. The normal MCP launcher forwards it explicitly. Direct runtime use defaults to off; the installed Spark profile defaults to
+`1`, while preserving explicit overrides. The gate requires the `grasp-safety` extra (SciPy; also present with the
 occupancy extra). Other backends fail closed if this option is requested.
-This change has offline evidence; it does **not** have physical acceptance.
+Offline evidence and subsequent physical cases are source-bound; see the
+[current acceptance index](PROJECT_STATUS_20261001.md). A successful case does
+not establish collision-free behavior in general.
 
 The native04 orange attempt localized the object within about 1 mm, but the
 selected descent pushed the orange and its neighbor before closing. An offline
@@ -30,8 +32,9 @@ read immediately before the first opening command, after selection.
 
 The artifact covers **only the complete collision meshes of the two finger
 links**, `gripper_left` and `gripper_right`. It does not cover `gripper_end`
-(palm), the rest of the arm, carried objects or the closing/lift/place phases.
-The ordinary safety harness remains in force for those motions.
+(palm), the rest of the arm or carried objects. This approach check ends at
+closure; the separate [closing preflight](observed-finger-closing.md) vets each
+close stage. Lift/place retain their ordinary harness and payload contracts.
 
 `scripts/build_gripper_scene_geometry.py` consumes the hashed URDF and both
 collision STLs. It applies mesh scale, collision origin and joint origin, and

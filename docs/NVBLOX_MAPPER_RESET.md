@@ -1,5 +1,9 @@
 # nvblox map reset and allocation history
 
+Merged through PR #27. Hardware/RPC measurements in this report certify their
+stated clear/replay cases, not the complete manipulation campaign. Current
+source and physical stages are tracked in [project status](PROJECT_STATUS_20261001.md).
+
 Repeated map clears made a saved-frame workload exceed the existing 500 ms
 mapper RPC deadline. Candidate `7bdaf5aacc581652cbb1c7704702170fe09d6bdc`
 replaces the native mapper on clear, using the same voxel size and integration

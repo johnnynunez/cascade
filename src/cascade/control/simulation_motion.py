@@ -13,7 +13,8 @@ import time
 import numpy as np
 
 from ..types import SafetyViolation
-from .arm_base import PREFLIGHT_MAX_DRIFT_RAD, min_jerk, prepare_stream
+from .arm_base import PREFLIGHT_MAX_DRIFT_RAD, prepare_stream
+from .motion_profile import nominal_profile, profile_counts
 
 
 def positive(value, name):
@@ -82,7 +83,7 @@ class SimulationMotion:
         self.clock = PhysicsClock(arm._client._addr, arm._cfg.get("bridge_robot_id"))
         self.last_state = None
         self.q_previous = None
-        self.approval_edge = None
+        self.approval_edges = ()
         self.dt = .02
 
     def remaining(self):
@@ -99,8 +100,12 @@ class SimulationMotion:
         # simulation is paused. Re-vet the pending/last nominal edge, not an
         # artificial q->q hold: a hold could reject an authorized escape
         # from a joint limit. This sends no actuator data.
-        if self.approve is not None and self.approval_edge is not None:
-            self.approve(*self.approval_edge, self.dt)
+        if self.approve is not None:
+            for previous, target, dt in self.approval_edges:
+                self.remaining()
+                if self.arm._stopped:
+                    raise SafetyViolation("simulation motion stopped")
+                self.approve(previous, target, dt)
         self.remaining()
 
     def check_start(self):
@@ -140,19 +145,16 @@ class SimulationMotion:
             raise SafetyViolation("invalid simulation joint target") from exc
         if target.shape != (self.arm.n_joints,) or not np.isfinite(target).all():
             raise SafetyViolation("invalid simulation joint target")
-        count = duration_s * rate_hz
-        if not np.isfinite(count) or count > 100000:
-            raise SafetyViolation("simulation motion exceeds waypoint budget")
-        steps = max(2, int(count))
+        steps, _ = profile_counts(duration_s, rate_hz)
         self.dt = duration_s / steps
         # Same bounded feedback rebind and callback ordering as planned NV
         # routes; get_state here additionally applies the total wall budget.
         start, target = prepare_stream(self, target, duration_s, preflight, self.check_start)
         self.q_previous = start
         last_command_time = self.clock.time
-        for index in range(1, steps + 1):
-            command = start + (target - start) * min_jerk(index / steps)
-            self.approval_edge = (self.q_previous, command)
+        for waypoint in nominal_profile(start, target, duration_s, rate_hz):
+            command = waypoint.q
+            self.approval_edges = waypoint.checks
             while True:
                 self.get_state()
                 if self.fresh and self.clock.time - last_command_time >= self.dt - 1e-9:

@@ -14,6 +14,7 @@ import prepare_bundle as bundle
 HERE = Path(__file__).resolve().parent
 SOURCE_PATTERNS = (
     "LICENSE", "pyproject.toml", "uv.lock", "src/cascade/**/*.py", "configs/**/*.yaml",
+    "assets/grasp_geometry/*.json",
     "scripts/isaac_bridge.py", "scripts/isaac_runtime.py", "scripts/isaac_camera_readback.py", "scripts/isaac_frame_history.py",
     "scripts/isaac_materials.py", "scripts/isaac_self_mask.py", "scripts/isaac_launch.py",
     "scripts/newton_mesh_compat.py",

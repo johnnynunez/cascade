@@ -35,6 +35,9 @@ KITCHEN_SOURCE_FILES = (
 RUNTIME_FILES = (
     "LICENSE", "pyproject.toml", "src/cascade/__init__.py",
     "src/cascade/skills/held_observation.py", "src/cascade/sim/truth.py",
+    "assets/grasp_geometry/rebot_rs_fingers.json",
+    "assets/grasp_geometry/rebot_rs_fingers_physx.json",
+    "assets/grasp_geometry/physx_finger_cooking_source.json",
     "scripts/isaac_bridge.py", "scripts/isaac_runtime.py", "scripts/isaac_frame_history.py",
     *KITCHEN_SOURCE_FILES, "demo/serve_isaac_view.py", "demo/scene/kitchen_config.json",
     "demo/scene/own_assets.json", "deploy/runtime/runtime.py", "deploy/runtime/brain.py",

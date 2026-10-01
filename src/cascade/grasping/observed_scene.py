@@ -19,6 +19,7 @@ from ..types import SafetyViolation
 
 ROOT = Path(__file__).resolve().parents[3]
 GEOMETRY = ROOT / "assets/grasp_geometry/rebot_rs_fingers.json"
+PHYSX_GEOMETRY = ROOT / "assets/grasp_geometry/rebot_rs_fingers_physx.json"
 # Fixed empirical tracking envelope, including both fingers separately.
 # See docs/evidence/observed-finger-gate/open-jaw-tracking.json. Not a universal
 # actuator-noise bound; departures abort, never expand it adaptively.
@@ -33,14 +34,26 @@ def _array(value, shape, name):
 
 
 class FingerGeometry:
-    def __init__(self, path=GEOMETRY):
+    def __init__(self, path=GEOMETRY, *, expected_engine=None):
         path = Path(path)
-        self.sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
-        doc = json.loads(path.read_text())
+        try:
+            payload = path.read_bytes()
+            doc = json.loads(payload)
+        except (OSError, ValueError) as exc:
+            raise SafetyViolation("calibrated observed-finger geometry unavailable or invalid") from exc
+        self.sha256 = hashlib.sha256(payload).hexdigest()
         if doc.get("version") != 1 or doc.get("units") != "m" or doc.get("frame") != "gripper_end":
             raise SafetyViolation("unsupported observed-finger geometry")
+        self.physics_engine = doc.get("physics_engine")
+        if expected_engine is not None and self.physics_engine != expected_engine:
+            raise SafetyViolation("observed-finger collision geometry engine mismatch")
+        self.collision_representation = doc.get("collision_representation")
         for relative, expected in doc["sources"].items():
-            if hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() != expected:
+            try:
+                source_sha = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+            except OSError as exc:
+                raise SafetyViolation("observed-finger geometry source unavailable") from exc
+            if source_sha != expected:
                 raise SafetyViolation("observed-finger geometry source hash mismatch")
         self.sources = doc["sources"]
         self.fingers = doc["fingers"]
@@ -303,7 +316,15 @@ def for_runtime(runtime, frame, fix, state):
         raw = raw._arm  # existing runtime get_state already materialized it
     if not isinstance(raw, IsaacArm):
         raise SafetyViolation("observed-finger gate currently requires calibrated Isaac reBot")
-    geometry = FingerGeometry()
+    # Select the calibrated collision representation only after the existing
+    # clock contract identifies its engine, source, robot and producer epoch.
+    # PhysX convex decomposition can protrude beyond the nominal STL mesh.
+    # Its envelope retains the nominal mesh and adds requested derived hulls;
+    # it does not change solver colliders, contact offsets or tracking limits.
+    clock = PhysicsClock(raw._client._addr, raw._cfg.get("bridge_robot_id"))
+    clock.observe(state.physics_clock)
+    geometry = (FingerGeometry(PHYSX_GEOMETRY, expected_engine="physx")
+                if state.physics_clock["engine"] == "physx" else FingerGeometry())
     model = Path(runtime.cfg.arm.model)
     expected = geometry.sources.get("assets/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf")
     if (runtime.cfg.arm.ee_frame != "gripper_end" or runtime.kin.ee_frame != "gripper_end"
@@ -312,8 +333,6 @@ def for_runtime(runtime, frame, fix, state):
     # Capture decoder validates q, robot, endpoint and capture timestamp without
     # transport IO. The producer epoch is then matched to current physics.
     raw.state_from_frame(frame)
-    clock = PhysicsClock(raw._client._addr, raw._cfg.get("bridge_robot_id"))
-    clock.observe(state.physics_clock)
     T = frame.T_base_cam
     if T is None:
         # Only the identified primary camera may borrow its static calibration.
@@ -329,6 +348,8 @@ def for_runtime(runtime, frame, fix, state):
                               uncertainty_m=OPEN_TRACKING_ENVELOPE_M)
     from . import evidence
     evidence.event("observed_finger_gate", scene=scene.receipt, geometry_sha256=geometry.sha256,
+                   physics_engine=state.physics_clock["engine"],
+                   collision_representation=geometry.collision_representation,
                    stroke_lower_m=gate.lower, stroke_upper_m=gate.upper,
                    closing_stroke_lower_m=gate.closing_lower,
                    closing_stroke_upper_m=gate.closing_upper,

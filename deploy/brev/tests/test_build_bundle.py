@@ -128,6 +128,34 @@ def test_repeat_assembly_reuses_certified_asset_bytes(distribution, monkeypatch)
     assert result["reused"] == first["files"]
 
 
+def test_finger_geometry_is_distributed_with_all_calibration_dependencies(distribution):
+    checkout, _, output, _ = distribution
+    source = builder.HERE.parents[1]
+    calibrations = ('rebot_rs_fingers.json', 'rebot_rs_fingers_physx.json',
+                    'physx_finger_cooking_source.json')
+    for name in calibrations:
+        relative = 'assets/grasp_geometry/' + name
+        shutil.copy2(source / relative, checkout / relative)
+    assemble(distribution)
+    manifest = json.loads((output / 'PORTABLE_BUNDLE.json').read_text())
+    available = set(builder.source_files(source)) | set(
+        json.loads((source / 'deploy/brev/bundle_assets.json').read_text())['files'])
+    for name in calibrations:
+        relative = 'assets/grasp_geometry/' + name
+        assert (output / 'source' / relative).read_bytes() == (source / relative).read_bytes()
+        assert manifest['files'][relative]['sha256'] == hashlib.sha256(
+            (source / relative).read_bytes()).hexdigest()
+        assert set(json.loads((source / relative).read_text()).get('sources', {})) <= available
+
+
+def test_missing_physx_calibration_prevents_bundle_publication(distribution):
+    checkout, _, output, _ = distribution
+    (checkout / 'assets/grasp_geometry/rebot_rs_fingers_physx.json').unlink()
+    with pytest.raises(ValueError, match='incomplete'):
+        assemble(distribution)
+    assert not (output / 'PORTABLE_BUNDLE.json').exists()
+
+
 def test_missing_licensed_asset_prevents_manifest(distribution):
     checkout, assets, output, _ = distribution
     (assets / "assets/REBOT_UPSTREAM_LICENSE.txt").rename(assets / "held-license.txt")

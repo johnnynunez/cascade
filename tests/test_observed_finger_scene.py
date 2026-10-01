@@ -1,5 +1,6 @@
 """Observed surfaces and calibrated fingers; no bridge, truth poses or robot IO."""
 import copy
+import hashlib
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
@@ -240,10 +241,9 @@ def test_recorded_observed_neighbor_point_is_clear_open_but_vetoes_closure(geome
     with pytest.raises(SafetyViolation, match='closing fingers'): gate.require_closing(state)
 
 
-def test_runtime_factory_binds_source_without_transport_reads():
+def runtime_factory_inputs(engine='physx', clock_name='SimulationManager'):
     from cascade.config import load_demo_config
     from cascade.control.isaac_arm import IsaacArm
-    from cascade.grasping.observed_scene import for_runtime
     cfg = load_demo_config(arm='isaac_kitchen_gpu', camera='isaac', llm='mock')
     raw = IsaacArm(cfg.arm)
     raw._client = SimpleNamespace(_addr=('fake', 1))  # no state method: IO would fail
@@ -251,14 +251,56 @@ def test_runtime_factory_binds_source_without_transport_reads():
     frame.T_base_cam = T
     robot = cfg.arm.bridge_robot_id
     frame.capture['proprioception'].update(q=[0.] * 6, robot_id=robot, gripper_joints=snapshot())
-    state = RobotState(np.zeros(6), physics_clock=dict(version=1, engine='physx', clock='SimulationManager',
+    state = RobotState(np.zeros(6), physics_clock=dict(version=1, engine=engine, clock=clock_name,
                       source=('fake', 1), robot_id=robot, epoch='epoch', sim_time=0., physics_step=0,
                       physics_dt_s=.01), gripper_joints=snapshot())
     runtime = SimpleNamespace(arm=SimpleNamespace(raw=raw), cfg=cfg,
                               kin=SimpleNamespace(ee_frame='gripper_end', fk=lambda q: np.eye(4)))
     fix = SimpleNamespace(detection=SimpleNamespace(mask=mask))
+    return runtime, frame, fix, state
+
+
+@pytest.mark.parametrize('engine,clock_name,artifact', [
+    ('physx', 'SimulationManager', 'rebot_rs_fingers_physx.json'),
+    ('newton', 'newton_stage', 'rebot_rs_fingers.json'),
+])
+def test_runtime_factory_binds_source_without_transport_reads(engine, clock_name, artifact):
+    from cascade.grasping.observed_scene import for_runtime
+    runtime, frame, fix, state = runtime_factory_inputs(engine, clock_name)
     gate = for_runtime(runtime, frame, fix, state)
-    assert gate.scene.identity == (('fake', 1), robot, 'epoch')
+    assert gate.scene.identity == (('fake', 1), runtime.cfg.arm.bridge_robot_id, 'epoch')
+    assert gate.geometry.sha256 == hashlib.sha256(
+        (ROOT / 'assets/grasp_geometry' / artifact).read_bytes()).hexdigest()
     frame.capture['proprioception']['producer_epoch'] = 'other'
     with pytest.raises(SafetyViolation, match='epoch'):
         for_runtime(runtime, frame, fix, state)
+
+
+def test_physx_geometry_cannot_silently_use_nominal_calibration():
+    from cascade.grasping.observed_scene import GEOMETRY
+    with pytest.raises(SafetyViolation, match='engine mismatch'):
+        FingerGeometry(GEOMETRY, expected_engine='physx')
+
+
+def test_missing_physx_geometry_is_a_terminal_safety_failure(tmp_path):
+    with pytest.raises(SafetyViolation, match='geometry unavailable'):
+        FingerGeometry(tmp_path / 'missing-physx.json', expected_engine='physx')
+
+
+def test_factory_missing_physx_geometry_never_falls_back(monkeypatch, tmp_path):
+    from cascade.grasping import observed_scene
+    monkeypatch.setattr(observed_scene, 'PHYSX_GEOMETRY', tmp_path / 'missing.json')
+    with pytest.raises(SafetyViolation, match='geometry unavailable'):
+        observed_scene.for_runtime(*runtime_factory_inputs())
+
+
+@pytest.mark.parametrize('engine,clock_name', [
+    ('unknown', 'SimulationManager'), ('physx', 'newton_stage'),
+])
+def test_factory_rejects_invalid_clock_before_loading_geometry(monkeypatch, engine, clock_name):
+    from cascade.grasping import observed_scene
+    def forbidden(*args, **kwargs):
+        pytest.fail('invalid clock must not select or load geometry')
+    monkeypatch.setattr(observed_scene, 'FingerGeometry', forbidden)
+    with pytest.raises(SafetyViolation):
+        observed_scene.for_runtime(*runtime_factory_inputs(engine, clock_name))

@@ -362,3 +362,8 @@ def test_existing_memory_prior_and_nudge_are_captured_before_candidate_mutation(
     assert doc['source']['git_head']
     assert doc['source']['sha256']['src/cascade/skills/runtime.py'] == hashlib.sha256(
         (Path(__file__).parents[1] / 'src/cascade/skills/runtime.py').read_bytes()).hexdigest()
+    for name in ('rebot_rs_fingers.json', 'rebot_rs_fingers_physx.json',
+                 'physx_finger_cooking_source.json'):
+        relative = 'assets/grasp_geometry/' + name
+        assert doc['source']['sha256'][relative] == hashlib.sha256(
+            (Path(__file__).parents[1] / relative).read_bytes()).hexdigest()

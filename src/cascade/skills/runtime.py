@@ -2659,8 +2659,9 @@ class SkillRuntime:
                         pass
                     self._reobserve()
                 try:
-                    occupancy = getattr(self.arm.harness, "occupancy", None)
-                    place_generation = (self.arm.harness._halt_generation
+                    place_harness = getattr(self.arm, "harness", None)
+                    occupancy = getattr(place_harness, "occupancy", None)
+                    place_generation = (place_harness._halt_generation
                                         if getattr(occupancy, "tracks_payload", False) else None)
                     if destination and not _names_drop_zone(destination):
                         res = self.skill_place_on_object(destination)

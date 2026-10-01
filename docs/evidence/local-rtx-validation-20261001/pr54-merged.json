@@ -1,0 +1,19 @@
+{
+  "pass": true,
+  "scope": "Merged tree equals reviewed ed29a59; parent3556 full and comment-only followup remain separately bound. No physical acceptance inferred.",
+  "pr": {
+    "headRefOid": "ed29a59eece5af6abd804c03aeb90de47ff88c74",
+    "mergeCommit": {
+      "oid": "f9cb6b8e93e1ef720507e8b3e904b6aa5bfed67a"
+    },
+    "mergedAt": "2026-10-01T17:03:52Z",
+    "state": "MERGED",
+    "url": "https://github.com/johnnynunez/cascade/pull/54"
+  },
+  "merged_tree": "99c5740d135112a8e739dd6f6315ac83ac9b7233",
+  "reviewed_tree": "99c5740d135112a8e739dd6f6315ac83ac9b7233",
+  "tree_identical": true,
+  "ci_run": 36894690587,
+  "ci_sha256": "408a96716305624c769eb45f82ac25adabd21b70be9ab1d8a12ea419ed842db4",
+  "reviewed_at": 1790874262.8985054
+}

@@ -1,0 +1,106 @@
+{
+  "pass": true,
+  "scope": "Read-only semantic review of dirty docs against ed29a59; no source/runtime mutations, tests, CI queries or simulator actions.",
+  "base": "ed29a59eece5af6abd804c03aeb90de47ff88c74",
+  "tracked_doc_changes": [
+    "AGENTS.md",
+    "README.md",
+    "docs/ARCHITECTURE.md",
+    "docs/DGX_SPARK_SETUP.md",
+    "docs/NVBLOX.md",
+    "docs/NVBLOX_RELEASE_RETREAT.md",
+    "docs/PRESENTER_QUICKSTART.md",
+    "docs/PROJECT_STATUS_20261001.md",
+    "docs/README.md",
+    "docs/ROADMAP.md",
+    "docs/SPARK_DELIVERY.md",
+    "docs/spark-presenter/index.html"
+  ],
+  "new_doc": "docs/LOCAL_RTX_VALIDATION.md",
+  "doc_sha256": {
+    "AGENTS.md": "6c8599decc829eab4d56e7afadddac2831ab779aa867ef196d0215f49634f2c4",
+    "README.md": "a1f1f6f23f9f3519268339cd10de0c824bbf05a1344049735492cf9ec734069d",
+    "docs/ARCHITECTURE.md": "35a780b2d4c9927d493facdf008509033ebd5133a55144b692fa9066cf648c84",
+    "docs/DGX_SPARK_SETUP.md": "3ec641a70510a91ce9e97d23112bbd1f87ff16eee1239fd1ab9ea87f5ccc1abb",
+    "docs/NVBLOX.md": "8706a3beb5548ee569ff88d18e4ac257bbf370d6b623d16d71ed21a9e6429fe7",
+    "docs/NVBLOX_RELEASE_RETREAT.md": "dd29365fa265128daac0820d7e10cabbeaa260889e0aa5c7b4f59e0abcc88143",
+    "docs/PRESENTER_QUICKSTART.md": "8f3e014c30cc100b103b8d915007a431ee9571b99d783fd010a26a06af1425c0",
+    "docs/PROJECT_STATUS_20261001.md": "b4c6815fa52a9391a4e2653f2d1f41bbfbdd6754beeb0e19e5a98c8462d1e3fb",
+    "docs/README.md": "43d99121c23f97f6a7cefe335f459582f3190d42d2fe2dbebcda3f27fd0b922e",
+    "docs/ROADMAP.md": "7d8273a54bc411c8f78ca5a01912f54cf461bc40d522701390f7247c904f1f1a",
+    "docs/SPARK_DELIVERY.md": "be7ee7fae954a0d6b3db47257e74165e08e878df9833b4b4c1dc32d117a20757",
+    "docs/spark-presenter/index.html": "0df30cd34390384ec0931e6579b720acb956224f9cb1eda88e73283be9ade45a",
+    "docs/LOCAL_RTX_VALIDATION.md": "2e48f19f4339f55b9eec907ade08915a61122de31dfda9976dc6065928e6aeb3"
+  },
+  "retained_json_count": 31,
+  "retained_manifest_sha256": "080359cd846b01f5845c6d9652b44c96663c1024fc6e1a1f95fe55f422b6f723",
+  "retained_json_sha256": {
+    "carry-full.json": "b1c1870457852ce565ff49a1fc6b7adf18839f64afcb616d66e910391df281da",
+    "carry-peer.json": "a098941511ca127cd9d6954ebfa9309db7f36b4e66c4e1b02ca7949eb0b19153",
+    "carry-root.json": "4aa018e9c8863e1ce4ec8145a90d28d551eff9e6dd887d6725c202493804038e",
+    "carry-full-root.json": "b485c6e8e5518ace40a7c98afa0c892dd7d1d101c57dce251dbae00ed9b5e752",
+    "cuda-environment-peer.json": "da9a9cac57eb6878507438d4a8f0f0c494e7f42ff0093bb562a345d514008771",
+    "cuda-environment-root.json": "14288d6d243ad77713f1124cd0849bf4fb6d20f130c1c62246d545efb2c490fb",
+    "nv12-administrative-shutdown.json": "e029c80f54f0f304d0dd68cae81a60ebe9f33cb6ac4cbce339b768dbcc3711d9",
+    "x86-01-gpu-admission.json": "842a8052ceab7e41a252b999753ad20cfb42ee8bcfb4ef6c96e85fcd253e70f1",
+    "x86-01-close.json": "6e6a942c9eb7057851a703fb64db976cc3327aada6af2cc32bca821f16855c76",
+    "x86-01-close-settled.json": "26cb1217e70804db888aca30c40df55d2d5c73229cec1721e7ea1f509c163660",
+    "x86-01-retention.json": "42b41753236007ba280068fcb37c8286297d2b0b5a96fa9b68ecbb0220664b23",
+    "nv12-orientation-review.json": "37dbd8bc2087bfbc1489bf65624b78e25d100584ff9673064a48a71e08af817d",
+    "main52-ci.json": "5e0aa16819570ce20f156e901f7117e24b49b117900c6673300a1c631933c552",
+    "cuda-environment-full.json": "44f8f44a9c59a4932c9200d78576cb8d0d9ea2761abf60f4fe6a5e498f591012",
+    "cuda-environment-full-root.json": "1669967160179fec8d020d2d17a704ae0a912c6941b7147da4b6f3f593412977",
+    "x86-02-retention.json": "299ca28a402096516a70a32665a17116eeaca5a5f026a56556147b7c10f916d3",
+    "x86-02-admission.json": "db8c401a402ef28056686163b6e136344046299f8660f6ba2152b62fc034024c",
+    "x86-02-proof.json": "10c11caa69ef9281080a697027799689cdd5c47634828cca3875afe0b1892135",
+    "x86-02-strict.json": "23d599a944d064f0150599bdbed829cf912329c43a8602ba5a158f8046bf4cbf",
+    "x86-02-timeout.json": "03226a77c9b77856894afea45227a7d44e9d952dfa5c4dc330c6bb132f69ce9e",
+    "x86-02-gpu-binding.json": "8a785341a839ee1f56e96fd00422e788694e9fcd729f9a65eb8ff46d26071fef",
+    "x86-02-costs.json": "4b228ef3dbae87a74fb92f8bb6d9d68409f1ac43de998c9369c49866104069f5",
+    "cuda-bash-comment.json": "43cf1b5e9b98e238a2fe65316135b4ba3060ececdc6f545ce02376960802be07",
+    "cuda-bash-comment-pin.json": "48e1c47e281a6ee4285e8ff87ab16dabd7d11e652f8d1b41da678657cd381611",
+    "local-followup-root.json": "9540e8674e8726505768bf42b93287a2951094d56cad9bb1f3d759a3c8eb5a3e",
+    "pr53-ci.json": "280313dc3e881f0a8ba05d6d54068a67027fa34cd8c30a3d677d4cae5c942c16",
+    "pr53-merged.json": "a540170a97365e669f1cbb880947a5e27f181ea264909f9ded7dc339f98d7092",
+    "pr54-ci-failed.json": "b606a1a9566f309e46bd4676e0f82e389f565d30a75b417cf36a11955767f9c7",
+    "main53-ci.json": "a828018ea76d5644519557049c747062cef6af36382a2ee6f759530e97d908be",
+    "cuda-bash-comment-peer.json": "04352a197fb5dae4b48477eeb2884f64bba1ff191f4104d1c5058408fcc33624",
+    "x86-02-physical-peer.json": "39dc0e90b39662f90d32aaf2d52c129f128afdf25dbbd96c42dcb098ed2c4a7b"
+  },
+  "ci_records": {
+    "pr53-ci.json": {
+      "head": "da0255bd80562bc9714da3f62372bf60b5e5314a",
+      "jobs_success": 5
+    },
+    "main53-ci.json": {
+      "head": "41deced8e2c31d11f3ba6ca4c63694a85ba90885",
+      "jobs_success": 5
+    },
+    "main52-ci.json": {
+      "head": "6af34a8e67499d3905f8a470c6e084e305431fa2",
+      "jobs_success": 5
+    },
+    "pr54-ci-failed.json": {
+      "head": "dc566892cd76dd6a2c6fd9fb0854d19e54d70036",
+      "jobs": {
+        "booth pages and camera extension": "success",
+        "ubuntu-24.04-arm / py3.12": "success",
+        "minimal install, no accelerator": "success",
+        "macos-latest / py3.12": "failure",
+        "ubuntu-latest / py3.12": "success"
+      }
+    }
+  },
+  "AGENTS_changed_lines": [
+    133
+  ],
+  "AGENTS_scope": "Only factual current-runtime paragraph replaced; operational/authorization instructions identical.",
+  "resolved_finding": "Admission0.241\u20130.444 s corrected to client-delivery age; witness2.268394 s remains server age.",
+  "semantic_checks": [
+    "3556 full tied to parent dc; ed is comment-only and latest PR54 all-CI success is not claimed",
+    "x8602 remains FAIL timeout + independent stale; source/GPU admission not physical completion",
+    "NV12 historical recovery PASS and normal-campaign FAIL remain separate; carry guard not mechanical cure",
+    "No fresh ARM, visitor UI, campaign or restart acceptance inferred; earlier source anchors retain historical scope"
+  ],
+  "tests": "No repeat tests; author focal49/linkaudit retained separately."
+}

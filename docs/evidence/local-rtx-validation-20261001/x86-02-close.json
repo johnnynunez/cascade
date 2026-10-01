@@ -1,0 +1,204 @@
+{
+  "pass": true,
+  "scope": "Administrative close of failed partial pick; no robot RPC/actuator/reset/home. Preserves source, grasp memory and protected identities. Does not assert successful task or restart.",
+  "started_at": 1790874173.020127,
+  "script_sha256": "7631629190f212e5c85e687a74bd8258839a8b77124cdd481295bbbeefbad493",
+  "errors": [],
+  "owner": {
+    "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02",
+    "profile": "cascade-demo",
+    "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+    "owner": "6edefe9a90f74b3c8f26ebc3132b42f8",
+    "schema": 1
+  },
+  "owned_records": [
+    {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+      "owner": "6edefe9a90f74b3c8f26ebc3132b42f8",
+      "schema": 1,
+      "pid": 2787753,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11786382",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/x86-spark-profile-02/python/bin/python -m cascade.apps.mcp_server --launch-owner 6edefe9a90f74b3c8f26ebc3132b42f8 --launch-state-dir /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+      "role": "mcp",
+      "instance_id": "c5cb3c0db5a84815a09495798c6487e7",
+      "registered_at": 1790872761.5806372,
+      "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/mcp_2787753_c60f289796914dd9a6b71651d0518faf"
+    },
+    {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+      "owner": "6edefe9a90f74b3c8f26ebc3132b42f8",
+      "schema": 1,
+      "pid": 2786491,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11775333",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/x86-spark-profile-02/python/bin/python -m cascade.apps.mcp_server --launch-owner 6edefe9a90f74b3c8f26ebc3132b42f8 --launch-state-dir /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+      "role": "mcp",
+      "instance_id": "3a87f91a948c4775bd9b37d77e8ac279",
+      "registered_at": 1790872651.094577,
+      "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/mcp_2786491_6671ff2b85f143199e44e7e3e539b0af"
+    },
+    {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+      "owner": "6edefe9a90f74b3c8f26ebc3132b42f8",
+      "schema": 1,
+      "pid": 2784311,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11768707",
+      "command": "/home/johnny/Projects/demo/.graspgenx/bin/python /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/scripts/graspgenx_server.py --config /home/johnny/Projects/demo/GraspGenX/ext/graspgenx_checkpoints/release --assets-dir /home/johnny/Projects/demo/GraspGenX/ext/gripper_descriptions --port 25572",
+      "role": "graspgenx",
+      "instance_id": "de7a478447614e9f99b5392d1aa65f29",
+      "registered_at": 1790872589.936345
+    },
+    {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+      "owner": "6edefe9a90f74b3c8f26ebc3132b42f8",
+      "schema": 1,
+      "pid": 2785306,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11772413",
+      "command": "openclaw-gateway",
+      "role": "gateway_child",
+      "instance_id": "7cd8d2dc9d834265a44768b8fce9f5f7",
+      "registered_at": 1790872625.5318549,
+      "process_group": 2785306
+    },
+    {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+      "owner": "6edefe9a90f74b3c8f26ebc3132b42f8",
+      "schema": 1,
+      "pid": 2783221,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764731",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/x86-spark-profile-02/python/bin/python /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/scripts/isaac_launch.py --python /home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh --ready-file /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo/isaac-startup.xuJoMEDO/interpreter.json -- /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/scripts/isaac_bridge.py --port 8611 --usd /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda --engine physx --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/demo/scene/kitchen_config.json",
+      "role": "isaac_bridge",
+      "instance_id": "14d040f224c9447a9470be72bbab3010",
+      "registered_at": 1790872578.6690342
+    }
+  ],
+  "owned_processes": [
+    {
+      "pid": 2783221,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764731",
+      "command_sha256": "08f2967590994a85f388174b31930b2742ed44ecb9f0841e1875db8365383b39",
+      "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+      "require_stopped": false
+    },
+    {
+      "pid": 2783223,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764733",
+      "command_sha256": "c83174444dd85dfb3a6012907d744ac79747d470bc76c35ccc802ff14e394439",
+      "executable": "/usr/bin/bash",
+      "require_stopped": false
+    },
+    {
+      "pid": 2783231,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764734",
+      "command_sha256": "f7c7c393dfc1d73d3f7dc221e11f89b7503ba001dae0258358e30b67eafd303b",
+      "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.3.0+feature.manylinux_2_35_x86_64.release/python/bin/python3.12",
+      "require_stopped": false
+    },
+    {
+      "pid": 2784311,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11768707",
+      "command_sha256": "ddc17558ad815a0a72021a7a7a6b1abfc5659994fffe03ebace7fa6f88754c74",
+      "executable": "/home/johnny/.local/share/uv/python/cpython-3.11.15-linux-x86_64-gnu/bin/python3.11",
+      "require_stopped": false
+    },
+    {
+      "pid": 2785306,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11772413",
+      "command_sha256": "c297097f8bdc22a117a704e21e847a802708f29cb0b18d40562efa556ddc8132",
+      "executable": "/home/johnny/Projects/demo/cascade/.openclaw-cli/tools/node-v24.21.0/bin/node",
+      "require_stopped": false
+    },
+    {
+      "pid": 2786491,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11775333",
+      "command_sha256": "bd858de90e0b8c508d5bf9ff737b72eaa3c8ac0c72919ff4858f88017f2a5b4f",
+      "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+      "require_stopped": false
+    },
+    {
+      "pid": 2787753,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11786382",
+      "command_sha256": "bd858de90e0b8c508d5bf9ff737b72eaa3c8ac0c72919ff4858f88017f2a5b4f",
+      "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+      "require_stopped": false
+    }
+  ],
+  "bridge_binding": {
+    "adapter_record": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+      "owner": "6edefe9a90f74b3c8f26ebc3132b42f8",
+      "schema": 1,
+      "pid": 2783221,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764731",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/x86-spark-profile-02/python/bin/python /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/scripts/isaac_launch.py --python /home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh --ready-file /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo/isaac-startup.xuJoMEDO/interpreter.json -- /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/scripts/isaac_bridge.py --port 8611 --usd /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda --engine physx --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/demo/scene/kitchen_config.json",
+      "role": "isaac_bridge",
+      "instance_id": "14d040f224c9447a9470be72bbab3010",
+      "registered_at": 1790872578.6690342
+    },
+    "marker_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo/isaac-startup.xuJoMEDO/interpreter.json",
+    "marker_sha256": "30de79430d6d3841ab8cbe27cb33162ec9d1246e0363e8b932e4c3757554eebb",
+    "marker": {
+      "launcher_pid": 2783221,
+      "launcher_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764731",
+      "bridge_pid": 2783231,
+      "bridge_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764734"
+    },
+    "interpreter": {
+      "pid": 2783231,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764734",
+      "command_sha256": "f7c7c393dfc1d73d3f7dc221e11f89b7503ba001dae0258358e30b67eafd303b",
+      "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.3.0+feature.manylinux_2_35_x86_64.release/python/bin/python3.12",
+      "require_stopped": false
+    },
+    "ancestry": [
+      {
+        "pid": 2783231,
+        "ppid": 2783223,
+        "birth_ticks": "11764734"
+      },
+      {
+        "pid": 2783223,
+        "ppid": 2783221,
+        "birth_ticks": "11764733"
+      }
+    ]
+  },
+  "negative_inputs_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/x86-spark-profile-02/proof/receipt.json": "10c11caa69ef9281080a697027799689cdd5c47634828cca3875afe0b1892135",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/x86-spark-profile-02/strict-proof2.json": "23d599a944d064f0150599bdbed829cf912329c43a8602ba5a158f8046bf4cbf",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile02-negative-retained/retention.json": "299ca28a402096516a70a32665a17116eeaca5a5f026a56556147b7c10f916d3",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile02-negative-retained.tar.gz": "6d3f399fb3ee947ee7b663764ef9eea7e49911e827573d5bf439ed9bbb63b2bd",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/x86-spark-profile-02/grasp-memory.json": "81853d5ace14bdd8299a72972813b0c2fc1211f6f1f327c808574e4e621afab1"
+  },
+  "terminal_before_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo/proof.json": "2ff743f564d2f32df1a405a9f6975c9a08f3108c6965ed853e1fd2ad0ef5bbdc",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/x86-spark-profile-02/grasp-memory.json": "81853d5ace14bdd8299a72972813b0c2fc1211f6f1f327c808574e4e621afab1",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/mcp_2787753_c60f289796914dd9a6b71651d0518faf/trace.jsonl": "f568fa4d697f75d75f5b56092c1304b11297660c2aade4c2d6c3d041065f4d71"
+  },
+  "command": [
+    "bash",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/scripts/launch.sh",
+    "--down"
+  ],
+  "exit_code": 0,
+  "owned_processes_closed": true,
+  "owned_ports_closed": [
+    8611,
+    25572,
+    18792
+  ],
+  "terminal_unchanged": true,
+  "source_and_protected_after": true,
+  "finished_at": 1790874175.8441646
+}

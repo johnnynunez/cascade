@@ -1,0 +1,24 @@
+{
+  "head": "dc566892cd76dd6a2c6fd9fb0854d19e54d70036",
+  "argv": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests",
+    "deploy/brev/tests/test_public_visitor.py",
+    "deploy/brev/tests/test_visitor_video.py",
+    "deploy/brev/tests/test_build_bundle.py",
+    "deploy/brev/tests/test_prepare_bundle.py"
+  ],
+  "pythonpath": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-mcp-cuda-environment/src",
+  "started_unix_s": 1790871897.9485915,
+  "finished_unix_s": 1790872248.9345753,
+  "exit_code": 0,
+  "log_sha256": "ca34f9d68f378d4282faf469c721f43e9f2e44f5ba29d73bb92f6d02d4c28bd5",
+  "source_manifest_sha256": "ee9bc0e49ecb6608d19a5662bb62e6d157189651335294b0683e26ef15fc2f82",
+  "files_verified": 1125,
+  "tracked_clean": true,
+  "source_unchanged": true,
+  "pass": true
+}

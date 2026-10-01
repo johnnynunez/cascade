@@ -5,6 +5,12 @@ and NV08 pre-release false-slip failure are separate historical results; the
 latter never reached a release episode. See [held observations](HELD_OBJECT_OBSERVATION.md)
 and [current acceptance](PROJECT_STATUS_20261001.md).
 
+Before intentional release, the [carry attachment guard](NVBLOX_CARRY_ATTACHMENT.md)
+retains the original NV attachment through lift and transport. A latched loss or
+unavailable attachment blocks reset before movement. The explicit recovery
+described here applies to an existing valid release episode; it cannot clear
+that separate carry failure or infer that opening is safe.
+
 The first normal five-object trial on `1efa8e9` physically placed the orange,
 then aborted its withdrawal on a 500 ms masked-depth mapper timeout. The one
 explicit reset refused home at 27 mm clearance against the unchanged 30 mm gate.

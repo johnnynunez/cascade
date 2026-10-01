@@ -1,0 +1,8 @@
+{
+  "head": "dc566892cd76dd6a2c6fd9fb0854d19e54d70036",
+  "pass": true,
+  "full_result_sha256": "44f8f44a9c59a4932c9200d78576cb8d0d9ea2761abf60f4fe6a5e498f591012",
+  "source_files_independently_rehashed": 1125,
+  "tests": "3556 passed, 43 skipped, 4 deselected in 349.27s",
+  "physical_validation": "pending native x86 profile02 startup and GPU admission; no inherited physical pass"
+}

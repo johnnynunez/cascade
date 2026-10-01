@@ -1,0 +1,8 @@
+{
+  "head": "da0255bd80562bc9714da3f62372bf60b5e5314a",
+  "pass": true,
+  "full_result_sha256": "b1c1870457852ce565ff49a1fc6b7adf18839f64afcb616d66e910391df281da",
+  "source_files_independently_rehashed": 1124,
+  "tests": "3525 passed, 43 skipped, 4 deselected in 350.18s",
+  "physical_validation": "pending; x86 profile01 stopped before motion for MCP GPU binding defect; separate launch fix in progress"
+}

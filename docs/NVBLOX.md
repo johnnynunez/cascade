@@ -20,6 +20,14 @@ any release command. The mechanical cause remains unresolved. The [campaign rece
 retains the failure, reset and camera measurements. Neither run establishes
 five-object or presenter acceptance.
 
+The [retained carry attachment guard](NVBLOX_CARRY_ATTACHMENT.md) checks the
+original post-close attachment in existing Isaac state feedback. Lost or
+unavailable evidence stops further transport and preserves a terminal failure;
+it does not authorize an automatic open, reset, retry or return home. This
+guard does not correct mechanical slip and is not enabled by occupancy-off
+presenter runs. [Local RTX validation](LOCAL_RTX_VALIDATION.md) records the
+subsequent software checks, administrative closure and separate PC diagnostics.
+
 ## Status (2026-09-30)
 
 **Real nvblox CUDA mapping now runs on both RTX PRO 6000 Blackwell and DGX

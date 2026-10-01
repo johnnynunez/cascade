@@ -1,0 +1,30 @@
+{
+  "review_pass": true,
+  "source": "da0255bd80562bc9714da3f62372bf60b5e5314a",
+  "source_tree": "6e6d3b22d33e0a6b97cc7cf463003b290e851cb4",
+  "focal_receipt_sha256": "4d9adec9b76e281b5113e3ee9612f7f27c19d97fda7a73024d169bb96c2590a3",
+  "independent_focal": "66 passed in 1.09s; carry_attachment, isaac_attachment_state, motion_callback_integration",
+  "source_unchanged": true,
+  "files_verified": 19,
+  "closed_findings": [
+    "Retain terminal token before malformed binding or post-close state timeout; subsequent call cannot rearm",
+    "Unknown post-lift jaw/state feedback and air-grasp contradiction are terminal in armed NV scope",
+    "Existing duration-stretch state is checked before begin_motion; TypeError cannot fall back or retry",
+    "Existing release preparation state is checked before native opening; carry scope ends at intentional native ACK",
+    "Reject overwritten safety callbacks/cancellation token and malformed individual jaw identity",
+    "Producer uses unambiguous FrameHistory.resolve, exact step/time/epoch/q/jaws and explicit sensor channel; no extra sensor read or RPC"
+  ],
+  "behavior": "Bound NV original postclose attachment through initial lift, precarry, transfer, lower and settle; loss/unknown suppresses automatic retry/open/home/reset. Original marker remains precautionary, not a verified hold.",
+  "limits": [
+    "No new physical acceptance result",
+    "Does not explain or fix mechanical grip instability",
+    "Isaac occupancy-none presenter has no new sensor requirement or attachment detection",
+    "Feedback samples bound detection; no claim of instantaneous detection between state reads",
+    "Separate operator/evidence-based recovery for a latched attachment failure remains outside scope"
+  ],
+  "evidence_of_original_failure": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox12-normal-five-independent-peer-20261001/receipt.json",
+    "sha256": "4285f85d3dd4ecad2b5cc7be034e0499d74124267a9de2305de7eee723b45a08"
+  },
+  "docs_reviewed": "docs/NVBLOX_CARRY_ATTACHMENT.md accurately preserves original campaign FAIL vs earlier recovery PASS and describes NV-only scope."
+}

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "pass": true,
+  "scope": "One comment spelling correction; local CPU validation only. macOS Bash parser regression is retained from CI; no local Bash 3.2 reproduction claimed. No runtime, RPC, GPU or active-source changes.",
+  "parent": "dc566892cd76dd6a2c6fd9fb0854d19e54d70036",
+  "worktree": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-mcp-cuda-bash32",
+  "changed_files": [
+    "scripts/launch.sh"
+  ],
+  "exact_change": {
+    "before": "CUDA's local ordinal mapping",
+    "after": "CUDA local ordinal mapping"
+  },
+  "embedded_python_blocks": 16,
+  "embedded_python_ast_identical": true,
+  "launch_before_sha256": "6106da5730d31f4477e5a36a30aa4b79bd7409bc7a3b078aa5e2142b473a33e1",
+  "launch_after_sha256": "a1e7b8889a4e9c9881bb65a3337bcb61f207d4da0157eda7978a619707666893",
+  "local_bash": "GNU bash, version 5.3.9(1)-release (x86_64-pc-linux-gnu)",
+  "tests": {
+    "argv": [
+      "pytest",
+      "-q",
+      "tests/test_mcp_device_environment.py",
+      "tests/test_setup_agents.py"
+    ],
+    "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-mcp-cuda-bash32",
+    "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-mcp-cuda-bash32/src",
+    "result": "36 passed in 0.42s",
+    "log": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/mcp-cuda-bash32-validation-20261001/pytest.log",
+    "log_sha256": "9049ba1b93045fdcb2921a4789aef6914604f02ba46dddf61c308ae2c4470aca"
+  },
+  "ci_failure": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr54-macos-failed.log",
+    "sha256": "0e32410a34e1e63e6f5fe3808139d038e15c82b144f25b23e827a4cacf1d0bba",
+    "observation": "macOS launch delivery/evidence tests report unexpected EOF while looking for matching ')' at launch.sh line 808"
+  },
+  "active_source": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-mcp-cuda-environment",
+    "head": "dc566892cd76dd6a2c6fd9fb0854d19e54d70036",
+    "tracked_clean": true,
+    "launch_equals_parent": true
+  }
+}

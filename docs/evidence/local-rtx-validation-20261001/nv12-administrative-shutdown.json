@@ -1,0 +1,100 @@
+{
+  "scope": "Administrative NV12 shutdown after a fresh home/open/reset-state capture. Preserve recovery PASS and normal-campaign FAIL separately. No actuator commands or physical-acceptance claim.",
+  "pass": true,
+  "errors": [],
+  "signals": [
+    {
+      "role": "bridge",
+      "pid": 2682058,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11027248",
+      "signal": "SIGTERM",
+      "attempted_monotonic": 115968.612617625,
+      "sent": true
+    },
+    {
+      "role": "mapper",
+      "pid": 2681986,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11027245",
+      "signal": "SIGTERM",
+      "attempted_monotonic": 115969.159458552,
+      "sent": true
+    }
+  ],
+  "actuator_commands": [],
+  "normal_campaign_still_failed": true,
+  "administrative_close_adds_motion": false,
+  "administrative_action_adds_home_or_reset": false,
+  "plan_sha256": "02acd98c5c0e6ebc718702772cddeb070b03e94bdff29969c9de745fd3d680e8",
+  "script_sha256": "453acfb29570140b4deaea2011736c35f5e0c20f63217aee93d3a047d0062a38",
+  "sources_before": 286,
+  "protected_before": true,
+  "owned": {
+    "isaac": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical",
+      "profile": "nvblox-clock-12",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/runs/nvblox-rtx/isolated-clock-12/ownership",
+      "owner": "cf37b16093fe40d9a3323514497de6b7",
+      "schema": 1,
+      "pid": 2681985,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11027245",
+      "command": "/usr/bin/python3 /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/scripts/isaac_launch.py --python /home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh --ready-file /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/runs/nvblox-rtx/isolated-clock-12/isaac.ready.json -- /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/scripts/isaac_bridge.py --port 8701 --engine physx --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/demo/scene/kitchen_config.json --width 960 --height 540 --cam-every 6 --dt 0.008333333333333333",
+      "role": "isaac",
+      "instance_id": "479521078f17459ea5366be2aa535712",
+      "registered_at": 1790865170.182788,
+      "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/runs/nvblox-rtx/isolated-clock-12",
+      "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical",
+      "process_group": 2681985
+    },
+    "mapper": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical",
+      "profile": "nvblox-clock-12",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/runs/nvblox-rtx/isolated-clock-12/ownership",
+      "owner": "cf37b16093fe40d9a3323514497de6b7",
+      "schema": 1,
+      "pid": 2681986,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11027245",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox-venv/bin/python /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/scripts/serve_occupancy_bridge.py --backend nvblox --port 25570 --voxel-size 0.005",
+      "role": "occupancy",
+      "instance_id": "2f660363ea3e4f14a990b1711a835cae",
+      "registered_at": 1790865170.183792,
+      "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/runs/nvblox-rtx/isolated-clock-12",
+      "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical",
+      "process_group": 2681986
+    },
+    "bridge": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical",
+      "profile": "nvblox-clock-12",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/runs/nvblox-rtx/isolated-clock-12/ownership",
+      "owner": "cf37b16093fe40d9a3323514497de6b7",
+      "schema": 1,
+      "pid": 2682058,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11027248",
+      "command": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/kit/python/bin/python3 /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/scripts/isaac_bridge.py --port 8701 --engine physx --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/demo/scene/kitchen_config.json --width 960 --height 540 --cam-every 6 --dt 0.008333333333333333",
+      "role": "isaac_bridge",
+      "instance_id": "47d2d79869e8424bb8fdce0fbefbc71e",
+      "registered_at": 1790865170.2675517,
+      "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/runs/nvblox-rtx/isolated-clock-12",
+      "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical",
+      "process_group": 2682050
+    }
+  },
+  "listeners_before": "LISTEN 0      5      127.0.0.1:8701  0.0.0.0:* users:((\"python3\",pid=2682058,fd=426))\nLISTEN 0      100      0.0.0.0:25570 0.0.0.0:* users:((\"python\",pid=2681986,fd=45))  \n",
+  "still_live": {
+    "isaac": false,
+    "mapper": false,
+    "bridge": false
+  },
+  "listeners_after": "",
+  "protected_after": true,
+  "sources_after": 286,
+  "protected_final": true,
+  "sources_final": 286,
+  "owned_final": {
+    "isaac": false,
+    "mapper": false,
+    "bridge": false
+  },
+  "listeners_final": "",
+  "script_final_sha256": "453acfb29570140b4deaea2011736c35f5e0c20f63217aee93d3a047d0062a38",
+  "finished_monotonic": 115971.105235893
+}

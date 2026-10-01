@@ -8,7 +8,31 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
-Current runtime **`27f2b0d7ab76f1c4e3bf246d1b23c636e570496f`** merges
+The reviewed command pin is **`ed29a59eece5af6abd804c03aeb90de47ff88c74`**,
+from [PR #54](https://github.com/johnnynunez/cascade/pull/54), merged as `f9cb6b8e`
+with an identical tree after all five PR CI jobs passed. It preserves literal
+GPU selection in the actual MCP environment. Parent `dc566892` passed the full
+**3,556-test suite**, with 43 skipped and four deselected in 349.27 seconds;
+all 1,125 source and release files remained unchanged. The follow-up changes
+only an apostrophe in a Python comment embedded in a shell heredoc, after
+macOS CI rejected the original launch syntax. Its 36 focused tests pass and
+all 16 embedded Python ASTs are identical. The original macOS failure and
+follow-up checks are retained in [local validation](LOCAL_RTX_VALIDATION.md).
+The full-suite count belongs to the parent, not a new local measurement of
+the follow-up. Physical acceptance is separate and currently incomplete.
+
+[PR #53](https://github.com/johnnynunez/cascade/pull/53) merged as `41deced8`.
+Its tree equals candidate `da0255b`, whose complete suite passed **3,525 tests**,
+43 skipped and four deselected in 350.18 seconds. All five PR and all five
+merged-source CI jobs passed. The [retained carry contract](NVBLOX_CARRY_ATTACHMENT.md)
+rejects further transport after lost or unavailable attachment feedback, without
+automatically opening, resetting or retrying. It does not cure mechanical slip.
+[PR #52](https://github.com/johnnynunez/cascade/pull/52) previously merged the
+source-bound acceptance documentation as `6af34a8`; both CI runs passed all five
+jobs. [Retained receipts](evidence/local-rtx-validation-20261001/retained-inputs.json)
+bind these reviews, full-suite records and CI results.
+
+Earlier runtime **`27f2b0d7ab76f1c4e3bf246d1b23c636e570496f`** merges
 [PR #51](https://github.com/johnnynunez/cascade/pull/51). Its tree
 `6ceed3ab9c9e894daf9f427f004c404cd63c8c3c` exactly matches tested candidate
 `eb90272`: **3,467 tests passed**, 43 skipped and four deselected, in 340.66 seconds.
@@ -131,6 +155,9 @@ in the validation history.
 | [PR #49](https://github.com/johnnynunez/cascade/pull/49) | Wait for both actual jaws and newer release captures within the existing deadlines; partial opening cannot authorize withdrawal. |
 | [PR #50](https://github.com/johnnynunez/cascade/pull/50) | Keep incomplete camera publications pending across existing updates; retain duplicate packets and original timestamps until a new bound render is available. |
 | [PR #51](https://github.com/johnnynunez/cascade/pull/51) | [Endpoint depth occlusion checks](observed-finger-occlusion.md) and independently vetted symmetric wrist alternatives, with unchanged planning and physical limits. |
+| [PR #52](https://github.com/johnnynunez/cascade/pull/52) | Source-bound software, Spark and nvblox acceptance documentation; disconnected Sparks recorded separately from local validation. |
+| [PR #53](https://github.com/johnnynunez/cascade/pull/53) | [Retained carry attachment](NVBLOX_CARRY_ATTACHMENT.md): terminal failure on lost or unavailable feedback, without automatic opening or recovery. |
+| [PR #54](https://github.com/johnnynunez/cascade/pull/54) | Explicit GPU variables survive MCP registration; existing literal selections and explicit setup overrides are preserved. A comment-only follow-up corrects macOS shell parsing. [Validation](LOCAL_RTX_VALIDATION.md). |
 
 ## Merged renderer and geometry integration
 
@@ -167,12 +194,22 @@ failures below. Documentation PR #43 preserved that earlier source distinction.
 
 ## Current physical acceptance
 
+**Local dual-RTX Pro attempt 02 on `dc566892` failed during green-cube
+placement.** Startup and camera/GPU admission passed; grasp completed in
+208.508 seconds, but the unchanged 300-second MCP call limit cancelled placement
+and latched the emergency stop. No reset, orange case, five-object campaign or
+acceptance restart followed. The sampled real-time factor was 0.105; planning
+the grasp took 1.699 seconds. An independent camera failure also occurred before
+motion: one sample per camera aged to 2.268394 seconds at the server.
+The [local validation report](LOCAL_RTX_VALIDATION.md)
+records the timings, source, retained failure and software corrections.
+
 The endpoint-occlusion correction in [PR #51](https://github.com/johnnynunez/cascade/pull/51)
 passed 3,467 software tests on candidate `eb90272`. Its new Spark run has not
 started: Tailscale reported the host offline from 15:24 UTC and SSH timed out
 before source transfer. The owner subsequently confirmed the Sparks were
 intentionally disconnected and requested local validation on the dual-RTX Pro
-PC. That x86 validation is being prepared and will not certify ARM delivery. The [candidate receipt](evidence/finger-depth-occlusion-integration/validation.json)
+PC. The local result above does not certify ARM delivery. The [candidate receipt](evidence/finger-depth-occlusion-integration/validation.json)
 records the full suite, equality check and blocked deployment. The separate
 environment 12 five-object campaign on `7e02de7` failed its first orange case
 before release because the observed attachment could not be confirmed. Its
@@ -222,6 +259,7 @@ new result. The earlier final-MAIN-03 campaign failure remains in the history be
 
 | Source/run | Measured result and boundary |
 | --- | --- |
+| Candidate `dc566892`, local dual-RTX Pro attempt 02 | Camera/GPU admission passed. Green grasp was verified, but the MCP request timed out during placement and latched e-stop. No reset or further cases followed; native proof and strict confirmation remain FAIL. [Local evidence](LOCAL_RTX_VALIDATION.md#local-attempt-02-native-timeout-during-placement). |
 | MAIN `7e02de7`, Spark correction-MAIN-07 | Green placement/home/reset and independent audit passed. Orange aborted before closure when the right jaw reached 49.8942 mm against a 49.9 mm checked lower bound; withdrawal was also refused. No orange target contact or lift was observed. Sampled server camera ages peaked at 1.669 s for green and 1.259 s for orange. Overall proof, strict confirmation and READY remain FAIL; no campaign or restart followed. [Evidence](evidence/spark-correction-main-07/proof.json). |
 | MAIN `7e02de7`, nvblox environment 12 | Passive admission and one native release/recovery diagnostic passed. After the labeled post-open mapper refusal, no actuator commands occurred until the explicitly requested original withdrawal. Endpoint error was 0.004094 rad, orange displacement during withdrawal 1.86 nm; home/reset and three newer map commits passed. Sampled camera server/delivery maxima were 0.8332/0.8749 s. [Admission](evidence/nvblox-environment-12/admission.json) and [release](evidence/nvblox-environment-12/release.json). This is direct native skill execution, not visitor-host or five-object acceptance. |
 | MAIN `7e02de7`, nvblox environment 12 normal campaign | Orange pickup/lift passed, but placement rejected the missing observed attachment before release. Planned native reset passed; the other four objects were not attempted. Sampled camera server/delivery maxima were 1.0133/1.0433 s. Final non-target displacement was 17.85 mm for lemon and 0.315 mm for green; this measurement alone does not identify the contact mechanism. Overall FAIL, with no restart acceptance. [Campaign](evidence/nvblox-environment-12/campaign.json). |

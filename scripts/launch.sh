@@ -819,7 +819,10 @@ if classes:
     env["CASCADE_DETECT_CLASSES"] = classes  # explicit operator vocabulary only
 for key in ("CASCADE_GRASP_MEMORY_PATH", "CASCADE_ENVELOPE_PATH", "CASCADE_BELIEFS_PATH", "CASCADE_BELIEFS",
             "CASCADE_GRASP_BACKEND", "CASCADE_GRASPGENX_PORT", "CASCADE_GRASPGENX_HOST",
-            "CASCADE_GRASP_EVIDENCE_DIR", "CASCADE_OBSERVED_FINGER_GATE"):
+            "CASCADE_GRASP_EVIDENCE_DIR", "CASCADE_OBSERVED_FINGER_GATE",
+            "CUDA_VISIBLE_DEVICES", "CUDA_DEVICE_ORDER", "CASCADE_DEVICE", "CASCADE_REQUIRE_CUDA"):
+    # OpenClaw need not inherit these from its gateway. Keep operator values
+    # verbatim, including empty visibility and CUDA's local ordinal mapping.
     if key in os.environ:
         env[key] = os.environ[key]
 if sys.argv[11] == "none":

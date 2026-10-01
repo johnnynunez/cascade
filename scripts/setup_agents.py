@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -53,6 +54,12 @@ def server_env(
         "CASCADE_ARM": arm,
         "DISPLAY": display,
     }
+    # Stdio hosts may discard their inherited environment. Preserve explicit
+    # device selection literally: empty visibility disables CUDA, while UUIDs
+    # and ordinal lists must not be rewritten into a different device space.
+    for key in ("CUDA_VISIBLE_DEVICES", "CUDA_DEVICE_ORDER", "CASCADE_DEVICE", "CASCADE_REQUIRE_CUDA"):
+        if key in os.environ:
+            env[key] = os.environ[key]
     if offline:
         # without these, ultralytics phones GitHub on class re-embeds and
         # stalls the perception watcher for seconds -- never at a venue

@@ -155,3 +155,43 @@ and 257 startup source entries were checked unchanged. The
 [held-recovery receipt](../benchmark/results/nvblox-held-camera-anchor-refresh-20261001.json)
 links the complete physical evidence and these scope limits. No normal
 five-object result is claimed.
+
+
+## First normal five-object campaign: stopped after orange
+
+The next ordinary campaign used the same frozen `1efa8e9` runtime, nominal
+30 Hz target sampling, retained 50 Hz safety checks, three cameras and unchanged
+30 mm clearance, 500 ms mapper RPC, 5 s capture barrier and 120 s motion budget.
+The normal five-object acceptance has **not passed**: one orange case was attempted
+and failed; green cube, pink cube, lemon and tomato can were not attempted because
+`--fail-fast` stopped after the first case and its one explicit reset.
+
+The physical witness independently passed the orange pickup and placement: two
+jaw contacts during the lift, full convex footprint inside the box, actual jaws
+open, settled support at the destination. The object rose 122.64 mm and moved
+280.06 mm horizontally. This placement result does not make the whole skill pass.
+The post-release withdrawal aborted after a native masked-depth mapper request
+timed out at 500 ms. The subsequent reset refused home during planning because
+its starting TCP had 27 mm clearance, below the unchanged 30 mm minimum. The
+nearest obstacle has not been attributed from that error alone. The recorded
+payload query was inherited from an earlier phase and is not the reset clearance.
+
+All three camera age series passed: 1,544 samples per camera, maximum age
+0.759687 s, no samples above 2 s, 560 distinct sampled captures and maximum
+observed capture gap 0.830530 s. All 261 frozen source and model hashes, including
+MobileCLIP, matched after completion. Seven motion requests completed; the
+longest took 73.808 s. The failing retreat request lasted 0.567 s. This trace
+records SafeArm requests, so it does not establish the exact number of backend
+targets sent during that failing request. Cleanup closed resources without
+movement; no external retry, opening, prop reset or parking was added.
+
+The scene remains at the post-release failed-retreat pose for diagnosis. A later
+read-only capture saved three RGBD frames and three identical current ESDF
+queries, costing 35.74/36.36/29.36 ms for the existing map. Those later queries do
+not establish the cause of the earlier integration timeout or the freshness of
+all fused geometry. Recovery implementation and validation remain pending.
+
+Evidence: `benchmark/results/nvblox-normal-five-first-failure-20261001.json`;
+full local receipt SHA256 `45c0c91dab7a13d3e3a380004bfac57e92ef1dc7603cbf45ce88311ce5a2ceab`
+binds 34 artifacts and the 261 source/model files. The later read-only receipt is
+`5a3490f63cba03e4b86f58afbcc627adb0d4a3d417744f18a25e74b7032b44d2`.

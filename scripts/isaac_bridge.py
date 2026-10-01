@@ -132,7 +132,8 @@ _kwargs = {}
 if args.engine == "newton":
     _kwargs["experience"] = str(find_experience("newton"))
 app = SimulationApp(
-    {"headless": not args.gui, "renderer": "RayTracedLighting",
+    {"headless": not args.gui, "disable_viewport_updates": not args.gui,
+     "renderer": "RayTracedLighting",
      "width": args.width, "height": args.height,
      # Headless clients use our TCP bridge. Kit's unused HTTP service otherwise
      # races other simulator instances for port 8011 during parallel startup.

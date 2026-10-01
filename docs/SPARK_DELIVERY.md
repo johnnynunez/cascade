@@ -2,8 +2,8 @@
 
 Current source and acceptance are indexed in
 [project status, 1 October](PROJECT_STATUS_20261001.md). Reviewed runtime pin
-`93af4f6` includes the carry guard, explicit MCP GPU selection, verifier startup
-readiness and localization freshness checks.
+`ff8d58b` includes the carry guard, explicit MCP GPU selection, verifier startup
+readiness, localization freshness checks and [detector model reuse](DETECTOR_MODEL_REUSE.md).
 [Local RTX validation](LOCAL_RTX_VALIDATION.md) records the software checks,
 native timeouts and outstanding acceptance. The dated results
 below retain their original pins and verdicts; they are not current-source
@@ -273,7 +273,7 @@ for the bounded observation window and per-call receipts.
 This direct-runtime campaign does not establish a new native-chat or UI
 acceptance, full desktop READY proof, fresh installation or deployment of the
 final source. The September installation result remains historical. The setup guide now
-selects reviewed runtime pin `93af4f6`; its current acceptance is recorded separately in the
+selects reviewed runtime pin `ff8d58b`; its current acceptance is recorded separately in the
 [status index](PROJECT_STATUS_20261001.md).
 
 ## Native confirmation gate and failed follow-up, 1 October 2026

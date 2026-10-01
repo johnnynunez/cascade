@@ -7,9 +7,9 @@ Read top-down for status; the dated sections are history.
 ## Current delivery work (2026-10-01)
 
 [The source and acceptance index](PROJECT_STATUS_20261001.md) supersedes the
-historical status lists below. Reviewed runtime pin `93af4f6` includes the
+historical status lists below. Reviewed runtime pin `ff8d58b` includes the
 retained NV carry guard, explicit MCP GPU registration, verifier startup
-readiness and localization freshness checks. Source-bound software results are
+readiness, localization freshness checks and [detector model reuse](DETECTOR_MODEL_REUSE.md). Source-bound software results are
 recorded in that index. Spark uses the
 installed PhysX/Qwen/real-GGX profile, physical-time joint motion, render-bound
 camera state, observed-finger approach/closing preflight, bounded planning,

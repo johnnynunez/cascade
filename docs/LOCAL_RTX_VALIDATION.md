@@ -121,6 +121,63 @@ also passed. New native acceptance is separate. The six historical negative pose
 still reject in the [offline replay](evidence/local-rtx-validation-20261001/nv13-veto-early-closure.json).
 Its timings do not measure native speed or identify a valid route.
 
+## Detector reuse and nvblox environment 14
+
+[PR #60](https://github.com/johnnynunez/cascade/pull/60) merged candidate
+`ff8d58b` as `c9147db8` with the exact tested tree. Its full suite passed
+3,643 tests with 43 skipped and four deselected; all five PR and all five
+merged-source CI jobs passed.
+The [detector GPU comparison](DETECTOR_MODEL_REUSE.md) matched 182 detections
+across all 15 saved-image comparisons. This is a detector result, not new
+physical acceptance. [Retained inputs](evidence/detector-reuse/retained-inputs.json)
+include the original reporting failure, the separate offline comparison and
+root verification.
+
+Environment 14 used source `0a27bda2`, equal to tested `93af4f6`, with both
+MobileCLIP locations populated before source freeze. There was no model
+download during the case. Passive admission and the single native read-only
+truth readiness call passed. Mapping warmup and temporarily old commits are
+retained separately; only the final passive map ages passed that barrier.
+
+The first native orange case then failed before any actuator command:
+localization analysis lasted about 9.5 seconds and correctly raised
+`SlowPerceptionError`. Total pick time was 10.301 seconds. All 93 witness samples
+per camera stayed within the two-second server-age bound (maximum 0.725 s),
+but those fresh camera witnesses did not make the analyzed image fresh.
+There was no home, reset, retry or contact; the orange remained unchanged.
+The postcondition was refuted and the complete task remains **FAIL**.
+
+[Failure analysis](evidence/detector-reuse/nv14-failure-analysis.json) and the
+[original native receipt](evidence/detector-reuse/nv14-native.json) preserve
+that result. Final read-only preservation confirmed the initial open/home
+state. Administrative closure terminated only the owned simulator/mapper;
+three owned processes were absent, both ports closed and all 289 frozen
+sources plus protected processes remained intact. The
+[closure receipt](evidence/detector-reuse/nv14-shutdown.json) does not change
+the physical verdict. These observations motivated detector preparation work;
+the saved-image benchmark cannot isolate the entire historical delay.
+
+## Profiling attempt 07: startup port mismatch
+
+Diagnostic attempt 07 used the unchanged `ff8d58b` product source with an
+external launcher enabling Kit's Tracy profiler. It did not reach proof or
+manipulation: the diagnostic bridge was assigned port 8612 while the shipped
+Isaac camera and arm profiles still selected 8611. The normal runtime check
+rejected the unreachable camera. Changing `CASCADE_BRIDGE_PORT` in that launcher
+changed the producer; it did not override those profile fields.
+
+The [startup failure](evidence/detector-reuse/profile07-startup-failed.json),
+[strict failure](evidence/detector-reuse/profile07-strict-failed.json) and
+[cancelled capture waiter](evidence/detector-reuse/profile07-capture-failed.json)
+are retained. No loaded-motion trace or physical result came from this attempt.
+Normal owned shutdown closed the adapter, simulator and GraspGen-X, preserving
+source files, prior outcome memory and protected processes. The
+[administrative closure](evidence/detector-reuse/profile07-close.json) and
+[root verification](evidence/detector-reuse/profile07-close-root.json) are
+separate from its failed startup. A future diagnostic must verify the effective
+producer and consumer endpoints before starting services; it must not modify
+frozen product files to hide this failed attempt.
+
 ## Retained local attempt 01
 
 Source `27f2b0d` completed native startup, including real GraspGen-X inference

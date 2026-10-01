@@ -1,0 +1,20 @@
+{
+  "pass": true,
+  "at_unix_s": 1790883354.5099695,
+  "capture_sha256": "cb3b4eab8fdecaa329de65e4c64128dc5f209f07b63b6f9b1a841b0441179a8b",
+  "shutdown_sha256": "495ad19e2a50c75651853ef37c88bcd48b27a95b65146a612bec03a09507a179",
+  "fresh_capture_artifacts_verified": 7,
+  "source_files_verified": 289,
+  "owned_pids_absent": [
+    2894958,
+    2894959,
+    2895031,
+    2902227
+  ],
+  "ports_closed": [
+    8703,
+    25573
+  ],
+  "native_case_still_failed": true,
+  "scope": "Root reviewed actual admin closure; no physical success/recovery claim; only two planned owned pidfd SIGTERM."
+}

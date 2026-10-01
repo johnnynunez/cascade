@@ -1,0 +1,1273 @@
+{
+  "pass": false,
+  "errors": [
+    "Traceback (most recent call last):\n  File \"/tmp/cascade-detector-reuse-benchmark.py\", line 471, in supervisor\n    results[stage + '/' + x['image']] = match_detections(x, y, plan['tolerances'])\n                                        ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/cascade-detector-reuse-benchmark.py\", line 275, in match_detections\n    import numpy as np\nModuleNotFoundError: No module named 'numpy'\n"
+  ],
+  "children": {
+    "baseline": {
+      "argv": [
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+        "/tmp/cascade-detector-reuse-benchmark.py",
+        "--child",
+        "baseline",
+        "--plan",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-root-review-20261002/authorized-plan.json",
+        "--output",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline",
+        "--nonce",
+        "485a4d4980e543bfb6c86def50795623"
+      ],
+      "identity": {
+        "pid": 2924887,
+        "start_ticks": "12976196",
+        "command_hex": "2f686f6d652f6a6f686e6e792f50726f6a656374732f64656d6f2f636173636164652d6c61622f434f4445585f4e4557544f4e2f636173636164652f2e76656e762f62696e2f707974686f6e002f746d702f636173636164652d6465746563746f722d72657573652d62656e63686d61726b2e7079002d2d6368696c6400626173656c696e65002d2d706c616e002f686f6d652f6a6f686e6e792f50726f6a656374732f64656d6f2f636173636164652d6c61622f434f4445585f4e4557544f4e2f6465746563746f722d72657573652d62656e63686d61726b2d726f6f742d7265766965772d32303236313030322f617574686f72697a65642d706c616e2e6a736f6e002d2d6f7574707574002f686f6d652f6a6f686e6e792f50726f6a656374732f64656d6f2f636173636164652d6c61622f434f4445585f4e4557544f4e2f6465746563746f722d72657573652d62656e63686d61726b2d30312d32303236313030322f626173656c696e65002d2d6e6f6e636500343835613464343938306535343362666236633836646566353037393536323300"
+      },
+      "started_monotonic": 129761.96547622,
+      "gpu_samples": [
+        {
+          "monotonic": 129761.994507575,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 21012480,
+            "VmRSS_bytes": 21012480
+          }
+        },
+        {
+          "monotonic": 129762.523082431,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 29679616,
+            "VmRSS_bytes": 29679616
+          }
+        },
+        {
+          "monotonic": 129763.054718122,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 27561984,
+            "VmRSS_bytes": 21577728
+          }
+        },
+        {
+          "monotonic": 129763.584770666,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 498458624,
+            "VmRSS_bytes": 498458624
+          }
+        },
+        {
+          "monotonic": 129764.113915669,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 618721280,
+            "VmRSS_bytes": 618721280
+          }
+        },
+        {
+          "monotonic": 129764.644457326,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 704823296,
+            "VmRSS_bytes": 704823296
+          }
+        },
+        {
+          "monotonic": 129765.174176733,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "662"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 996372480,
+            "VmRSS_bytes": 996372480
+          }
+        },
+        {
+          "monotonic": 129765.703417503,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "804"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1015324672,
+            "VmRSS_bytes": 1015324672
+          }
+        },
+        {
+          "monotonic": 129766.232651281,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "804"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1042333696,
+            "VmRSS_bytes": 1042333696
+          }
+        },
+        {
+          "monotonic": 129766.763225097,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "804"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1042411520,
+            "VmRSS_bytes": 1042411520
+          }
+        },
+        {
+          "monotonic": 129767.292426116,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "804"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1070477312,
+            "VmRSS_bytes": 1070477312
+          }
+        },
+        {
+          "monotonic": 129767.820184262,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1117089792,
+            "VmRSS_bytes": 1117089792
+          }
+        },
+        {
+          "monotonic": 129768.349488167,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1139142656,
+            "VmRSS_bytes": 1139142656
+          }
+        },
+        {
+          "monotonic": 129768.878872344,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1146277888,
+            "VmRSS_bytes": 1146277888
+          }
+        },
+        {
+          "monotonic": 129769.407315351,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1152565248,
+            "VmRSS_bytes": 1152565248
+          }
+        },
+        {
+          "monotonic": 129769.936866352,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1147375616,
+            "VmRSS_bytes": 1147375616
+          }
+        },
+        {
+          "monotonic": 129770.467319504,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1192595456,
+            "VmRSS_bytes": 1192595456
+          }
+        },
+        {
+          "monotonic": 129770.996283162,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1275838464,
+            "VmRSS_bytes": 1275838464
+          }
+        },
+        {
+          "monotonic": 129771.526428787,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1463504896,
+            "VmRSS_bytes": 1463504896
+          }
+        },
+        {
+          "monotonic": 129772.053835448,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1501466624,
+            "VmRSS_bytes": 1501466624
+          }
+        },
+        {
+          "monotonic": 129772.581785385,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1503088640,
+            "VmRSS_bytes": 1503088640
+          }
+        },
+        {
+          "monotonic": 129773.111486645,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1546682368,
+            "VmRSS_bytes": 1546682368
+          }
+        },
+        {
+          "monotonic": 129773.641325984,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1546682368,
+            "VmRSS_bytes": 1546682368
+          }
+        },
+        {
+          "monotonic": 129774.170564259,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1558753280,
+            "VmRSS_bytes": 1558753280
+          }
+        },
+        {
+          "monotonic": 129774.698900123,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1596911616,
+            "VmRSS_bytes": 1596911616
+          }
+        },
+        {
+          "monotonic": 129775.227043684,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1596911616,
+            "VmRSS_bytes": 1596911616
+          }
+        },
+        {
+          "monotonic": 129775.758419279,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "916"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1655091200,
+            "VmRSS_bytes": 1655091200
+          }
+        },
+        {
+          "monotonic": 129776.286642722,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "916"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1672208384,
+            "VmRSS_bytes": 1672208384
+          }
+        },
+        {
+          "monotonic": 129776.815933467,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "918"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1707909120,
+            "VmRSS_bytes": 1707909120
+          }
+        },
+        {
+          "monotonic": 129777.345292056,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "918"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1729925120,
+            "VmRSS_bytes": 1729925120
+          }
+        },
+        {
+          "monotonic": 129777.875421035,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "918"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1742909440,
+            "VmRSS_bytes": 1742909440
+          }
+        },
+        {
+          "monotonic": 129778.405346786,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "958"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1804632064,
+            "VmRSS_bytes": 1804632064
+          }
+        },
+        {
+          "monotonic": 129778.934517218,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "958"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1805139968,
+            "VmRSS_bytes": 1805139968
+          }
+        },
+        {
+          "monotonic": 129779.467805952,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "970"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1995407360,
+            "VmRSS_bytes": 1995407360
+          }
+        },
+        {
+          "monotonic": 129780.000916714,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "970"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2016546816,
+            "VmRSS_bytes": 2016546816
+          }
+        },
+        {
+          "monotonic": 129780.532854143,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1566"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2182402048,
+            "VmRSS_bytes": 2129833984
+          }
+        },
+        {
+          "monotonic": 129781.062042202,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1572"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2255122432,
+            "VmRSS_bytes": 2255122432
+          }
+        },
+        {
+          "monotonic": 129781.591934052,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1590"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2311524352,
+            "VmRSS_bytes": 2311524352
+          }
+        },
+        {
+          "monotonic": 129782.120969339,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1670"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2366189568,
+            "VmRSS_bytes": 2311868416
+          }
+        },
+        {
+          "monotonic": 129782.6505997,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1750"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2366853120,
+            "VmRSS_bytes": 2312851456
+          }
+        },
+        {
+          "monotonic": 129783.179795391,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1764"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2366853120,
+            "VmRSS_bytes": 2313129984
+          }
+        },
+        {
+          "monotonic": 129783.70838447,
+          "rows": [
+            {
+              "pid": 2924887,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1764"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2366853120,
+            "VmRSS_bytes": 2313146368
+          }
+        },
+        {
+          "monotonic": 129784.237410232,
+          "rows": [],
+          "rss": {}
+        }
+      ],
+      "exit_code": 0,
+      "finished_monotonic": 129784.73770743,
+      "absent": true
+    },
+    "candidate": {
+      "argv": [
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+        "/tmp/cascade-detector-reuse-benchmark.py",
+        "--child",
+        "candidate",
+        "--plan",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-root-review-20261002/authorized-plan.json",
+        "--output",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate",
+        "--nonce",
+        "485a4d4980e543bfb6c86def50795623"
+      ],
+      "identity": {
+        "pid": 2926297,
+        "start_ticks": "12978578",
+        "command_hex": "2f686f6d652f6a6f686e6e792f50726f6a656374732f64656d6f2f636173636164652d6c61622f434f4445585f4e4557544f4e2f636173636164652f2e76656e762f62696e2f707974686f6e002f746d702f636173636164652d6465746563746f722d72657573652d62656e63686d61726b2e7079002d2d6368696c640063616e646964617465002d2d706c616e002f686f6d652f6a6f686e6e792f50726f6a656374732f64656d6f2f636173636164652d6c61622f434f4445585f4e4557544f4e2f6465746563746f722d72657573652d62656e63686d61726b2d726f6f742d7265766965772d32303236313030322f617574686f72697a65642d706c616e2e6a736f6e002d2d6f7574707574002f686f6d652f6a6f686e6e792f50726f6a656374732f64656d6f2f636173636164652d6c61622f434f4445585f4e4557544f4e2f6465746563746f722d72657573652d62656e63686d61726b2d30312d32303236313030322f63616e646964617465002d2d6e6f6e636500343835613464343938306535343362666236633836646566353037393536323300"
+      },
+      "started_monotonic": 129785.786789439,
+      "gpu_samples": [
+        {
+          "monotonic": 129785.814918141,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 21008384,
+            "VmRSS_bytes": 21008384
+          }
+        },
+        {
+          "monotonic": 129786.345448652,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 29675520,
+            "VmRSS_bytes": 29675520
+          }
+        },
+        {
+          "monotonic": 129786.877356225,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 35348480,
+            "VmRSS_bytes": 35348480
+          }
+        },
+        {
+          "monotonic": 129787.407051415,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 504446976,
+            "VmRSS_bytes": 504446976
+          }
+        },
+        {
+          "monotonic": 129787.93802589,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 669118464,
+            "VmRSS_bytes": 669118464
+          }
+        },
+        {
+          "monotonic": 129788.465712297,
+          "rows": [],
+          "rss": {
+            "VmHWM_bytes": 723406848,
+            "VmRSS_bytes": 723406848
+          }
+        },
+        {
+          "monotonic": 129788.995772822,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "662"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 996155392,
+            "VmRSS_bytes": 996155392
+          }
+        },
+        {
+          "monotonic": 129789.524068104,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "804"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1015062528,
+            "VmRSS_bytes": 1015062528
+          }
+        },
+        {
+          "monotonic": 129790.052344017,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "804"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1042141184,
+            "VmRSS_bytes": 1042141184
+          }
+        },
+        {
+          "monotonic": 129790.581931743,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "804"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1042284544,
+            "VmRSS_bytes": 1042284544
+          }
+        },
+        {
+          "monotonic": 129791.108764852,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "804"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1073135616,
+            "VmRSS_bytes": 1073135616
+          }
+        },
+        {
+          "monotonic": 129791.637731535,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1135964160,
+            "VmRSS_bytes": 1135964160
+          }
+        },
+        {
+          "monotonic": 129792.167176945,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1141690368,
+            "VmRSS_bytes": 1141690368
+          }
+        },
+        {
+          "monotonic": 129792.6984013,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1147248640,
+            "VmRSS_bytes": 1147248640
+          }
+        },
+        {
+          "monotonic": 129793.228296895,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1153310720,
+            "VmRSS_bytes": 1153310720
+          }
+        },
+        {
+          "monotonic": 129793.756145118,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1148125184,
+            "VmRSS_bytes": 1148125184
+          }
+        },
+        {
+          "monotonic": 129794.286448462,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "828"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1195094016,
+            "VmRSS_bytes": 1195094016
+          }
+        },
+        {
+          "monotonic": 129794.814705887,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "838"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1405284352,
+            "VmRSS_bytes": 1405284352
+          }
+        },
+        {
+          "monotonic": 129795.343631837,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1501290496,
+            "VmRSS_bytes": 1501290496
+          }
+        },
+        {
+          "monotonic": 129795.872661456,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1502302208,
+            "VmRSS_bytes": 1502302208
+          }
+        },
+        {
+          "monotonic": 129796.401296454,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1546506240,
+            "VmRSS_bytes": 1546506240
+          }
+        },
+        {
+          "monotonic": 129796.92919338,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1546506240,
+            "VmRSS_bytes": 1546506240
+          }
+        },
+        {
+          "monotonic": 129797.458554002,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1596739584,
+            "VmRSS_bytes": 1596739584
+          }
+        },
+        {
+          "monotonic": 129797.986336284,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "850"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1596739584,
+            "VmRSS_bytes": 1596739584
+          }
+        },
+        {
+          "monotonic": 129798.514807744,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "852"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1624506368,
+            "VmRSS_bytes": 1624506368
+          }
+        },
+        {
+          "monotonic": 129799.043186783,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "916"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1654906880,
+            "VmRSS_bytes": 1654906880
+          }
+        },
+        {
+          "monotonic": 129799.572237393,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "918"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1688735744,
+            "VmRSS_bytes": 1688735744
+          }
+        },
+        {
+          "monotonic": 129800.102408146,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "918"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1729748992,
+            "VmRSS_bytes": 1729748992
+          }
+        },
+        {
+          "monotonic": 129800.630958917,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "946"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1748946944,
+            "VmRSS_bytes": 1748946944
+          }
+        },
+        {
+          "monotonic": 129801.159753878,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "958"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1804980224,
+            "VmRSS_bytes": 1804980224
+          }
+        },
+        {
+          "monotonic": 129801.688060678,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "970"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 1976049664,
+            "VmRSS_bytes": 1976049664
+          }
+        },
+        {
+          "monotonic": 129802.218414659,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "970"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2003943424,
+            "VmRSS_bytes": 2003943424
+          }
+        },
+        {
+          "monotonic": 129802.748163471,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1034"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2050289664,
+            "VmRSS_bytes": 2050289664
+          }
+        },
+        {
+          "monotonic": 129803.277497232,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1360"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2131329024,
+            "VmRSS_bytes": 2131329024
+          }
+        },
+        {
+          "monotonic": 129803.804997435,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1632"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2177994752,
+            "VmRSS_bytes": 2126147584
+          }
+        },
+        {
+          "monotonic": 129804.332596899,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1654"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2257403904,
+            "VmRSS_bytes": 2257403904
+          }
+        },
+        {
+          "monotonic": 129804.863672728,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1700"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2342604800,
+            "VmRSS_bytes": 2287013888
+          }
+        },
+        {
+          "monotonic": 129805.393142886,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1758"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2343501824,
+            "VmRSS_bytes": 2287984640
+          }
+        },
+        {
+          "monotonic": 129805.92224809,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1758"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2343501824,
+            "VmRSS_bytes": 2287984640
+          }
+        },
+        {
+          "monotonic": 129806.451211207,
+          "rows": [
+            {
+              "pid": 2926297,
+              "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+              "memory_mib": "1694"
+            }
+          ],
+          "rss": {
+            "VmHWM_bytes": 2343501824,
+            "VmRSS_bytes": 2304733184
+          }
+        }
+      ],
+      "exit_code": 0,
+      "finished_monotonic": 129806.951487693,
+      "absent": true
+    }
+  },
+  "signals": [],
+  "scope": "Offline detector comparison. Inert unless all reviewed execution guards are true.\n\nEach version gets a fresh, bounded process and its own identical model copies.\nNo robot, camera service, bridge, new image capture, SDK/vendor or venv changes.\nHost spans are nested, not additive. CUDA readbacks for evidence are explicit;\nthis is a diagnostic comparison, not a measurement of native frame freshness.\n",
+  "plan_sha256": "b43fd8d80172be744f36f4c053d5375343ba800ab403465e9896a76ef2a7c147",
+  "script_sha256": "2d38c9b05d9e73fd2a5680b09df1fb83ebabb7f18e99a068cad2d481755316e4",
+  "sources_and_models_final": true,
+  "artifacts_sha256": {
+    "supervisor-partial.json": "a03cdd5a4d579acbaa0e497d8458e7195aca16dd304780b0753fa2b708c5444e",
+    "plan.json": "b43fd8d80172be744f36f4c053d5375343ba800ab403465e9896a76ef2a7c147",
+    "candidate/orange-1-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "candidate/pf-2-cam0.npz": "52525b8090fcb805c53db03194bd608995efee8f9a3dc64ae1cb3314dc31251f",
+    "candidate/orange-2-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "candidate/pf-1-proof.npz": "1cb92dd842157f7f56796f13ac2a3d4b97aeda6bd0905e50c3cf95e76f91562c",
+    "candidate/orange-2-proof.npz": "f41fcf67e9817c264107e34c1265d51826839c7e20f23283ae905fe6de386c33",
+    "candidate/orange-1-proof.npz": "f41fcf67e9817c264107e34c1265d51826839c7e20f23283ae905fe6de386c33",
+    "candidate/stdout.log": "260a931305fd3e083fb42bba7bcb539bb2e0a746a84b5d2941e7e4a077cb7c79",
+    "candidate/pf-1-cam0.npz": "52525b8090fcb805c53db03194bd608995efee8f9a3dc64ae1cb3314dc31251f",
+    "candidate/orange-2-side.npz": "c780f266820d69b5e417e13098d8b6935650dc1cb712e9731c6b2a552abec1ea",
+    "candidate/orange-1-side.npz": "c780f266820d69b5e417e13098d8b6935650dc1cb712e9731c6b2a552abec1ea",
+    "candidate/extra-2-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "candidate/pf-2-proof.npz": "1cb92dd842157f7f56796f13ac2a3d4b97aeda6bd0905e50c3cf95e76f91562c",
+    "candidate/extra-1-cam0.npz": "084d3c6662182e87c190f3dcf6b26ab49f47acfbdd3666927e7fe2374d8ae428",
+    "candidate/extra-0-cam0.npz": "9c8cb13c3397f78b3f5a330708a29493517e80b88b31da1e3ed54a4ef915085a",
+    "candidate/receipt.json": "1a0ee8da3aba9d3759370f9df605a11b4c6cfc48d47d348939800faa6561d05b",
+    "candidate/pf-1-side.npz": "685eaa6359b6b3df16f9b311b50cae51212e11a826811c0fab1e88da686376f1",
+    "candidate/partial.json": "2daa5ad241324dfd90500bf0282964dc4fb9b473c9744e4bcbac57840eb2f1ce",
+    "candidate/pf-2-side.npz": "685eaa6359b6b3df16f9b311b50cae51212e11a826811c0fab1e88da686376f1",
+    "baseline/orange-1-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "baseline/pf-2-cam0.npz": "52525b8090fcb805c53db03194bd608995efee8f9a3dc64ae1cb3314dc31251f",
+    "baseline/orange-2-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "baseline/pf-1-proof.npz": "1cb92dd842157f7f56796f13ac2a3d4b97aeda6bd0905e50c3cf95e76f91562c",
+    "baseline/orange-2-proof.npz": "f41fcf67e9817c264107e34c1265d51826839c7e20f23283ae905fe6de386c33",
+    "baseline/orange-1-proof.npz": "f41fcf67e9817c264107e34c1265d51826839c7e20f23283ae905fe6de386c33",
+    "baseline/stdout.log": "716de570fd21109e79338d353384c208365fd1f1293047ac5bd43d9d723eb99a",
+    "baseline/pf-1-cam0.npz": "52525b8090fcb805c53db03194bd608995efee8f9a3dc64ae1cb3314dc31251f",
+    "baseline/orange-2-side.npz": "c780f266820d69b5e417e13098d8b6935650dc1cb712e9731c6b2a552abec1ea",
+    "baseline/orange-1-side.npz": "c780f266820d69b5e417e13098d8b6935650dc1cb712e9731c6b2a552abec1ea",
+    "baseline/extra-2-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "baseline/pf-2-proof.npz": "1cb92dd842157f7f56796f13ac2a3d4b97aeda6bd0905e50c3cf95e76f91562c",
+    "baseline/extra-1-cam0.npz": "084d3c6662182e87c190f3dcf6b26ab49f47acfbdd3666927e7fe2374d8ae428",
+    "baseline/extra-0-cam0.npz": "9c8cb13c3397f78b3f5a330708a29493517e80b88b31da1e3ed54a4ef915085a",
+    "baseline/receipt.json": "3c8b6f15b56d52429897070c781c63aee97e5416090d92ded05ce08f098128b0",
+    "baseline/pf-1-side.npz": "685eaa6359b6b3df16f9b311b50cae51212e11a826811c0fab1e88da686376f1",
+    "baseline/partial.json": "af588107d481c537b0fd05a869c56e1d4e655ab24f5325097d8297990ca2755c",
+    "baseline/pf-2-side.npz": "685eaa6359b6b3df16f9b311b50cae51212e11a826811c0fab1e88da686376f1",
+    "baseline/cache/index": "7f633dd640b39cced69e18d5000f2a10b89b465740e82893a4788c8e55b2aaa4",
+    "baseline/cache/0/d/23f5fbb37474b9": "32efb8266dbf57eb8318a05f2f3ad63473150099b107c20b58cf2ec24de409d1",
+    "baseline/cache/0/a/b11ac682b598ae": "b8176fd1f70d224d449fe7f5145b4bdb20ce097b1148b9e85c0fa626f382e527",
+    "baseline/cache/7/2/5ca7a0fa28e922": "8b55b51ed41c8e26d5c773f5ec9216e43a5ad9de28b6889a9988970c9b6f78ec",
+    "baseline/cache/7/4/7095fe91a33e0a": "97552612fc6e23195e51ad2116b1f2d6620ed9979f883444517c6d1f78b84ae0",
+    "baseline/cache/4/8/c3bd5cd91db42d": "9923715a0fe9320d918aae803514e531e953b14ac6886777f21f5312e0c0f6e0",
+    "baseline/cache/4/1/e15a007484c9dc": "584168a20b36fb9e5380d14ceb0afcdd8ea4c779ad13e9edc632e1433652afef",
+    "baseline/cache/4/a/2b54918911ccfe": "3d4098a02b7c09f02a105aba4e164209e180ff2bec8a1bf851599f6ed3cea094",
+    "baseline/cache/b/4/59e48582215d1a": "afc8e9e3c627f23a4c091a60fab8b144fd8ff393b4ffd2c7fd263f940b011e7e",
+    "baseline/cache/6/d/e254f23d148cd3": "d42bdb891c57229906951ff3daf9fb6ec1f1ad631a73ab76326edfc730240c7a",
+    "baseline/cache/6/9/565487e210fe03": "5513ecc062b040e9a9d591a234dbc09ef2720dd36d6ad9c90906a5ba0577ed39",
+    "baseline/cache/6/7/65302346daa589": "c53667429a025def5f31d80970b44f67ae8bf25b0d4a23c98e79f98f3181acdf",
+    "baseline/cache/9/f/6fa48ef4a182d7": "ec0ef3f51e2505100c0732c6c27600aa7d8afa78f140c4c203d7536f3c676ac2",
+    "baseline/cache/9/1/b2820e02f611a1": "238deaf0f844233a42ca0b0aec604509cd8d6e1a3b278eafd96f03396e0ba8de",
+    "baseline/cache/9/0/0b994e541df43a": "2236315c64491731a4f92107c74348354625dbbacf6e2c11c74c7ae43d66efa1",
+    "baseline/cache/a/d/bd8ddbf184d8d7": "f2a5e7ba23853897a7cc764f9a83381801f3419d6e2564d398a3922ddf19e848",
+    "baseline/cache/a/3/3e7c6f9eb2854a": "304e81d0506c62a3ba6d737a9d48db3bab21eb77c77825f1afca34cca861216c",
+    "baseline/cache/a/3/2e57ef65a686ec": "146bdb9e45dfdd65de464948e54fff3c93bc9a9cd5632f43d5916ab1be5b7614",
+    "baseline/cache/3/c/abce9785ec465b": "dd267417d6b3b6407a7f1e6a986b42275933ac0c53ecb160de32cb9cc08322ac",
+    "baseline/cache/3/7/e8f8eb26f1b132": "294ab7a7ef97d81d753e402e57c1b914bdfc76607da3cadc6603da78a2724cab",
+    "baseline/cache/d/8/93e21f5d6bbb16": "bd882599df3ce23e708874a4afce2a08e9c9629a7bb9d8edcd019d0c69a9cbea",
+    "baseline/cache/d/0/a2e433736d28b9": "be40481e2f398d066cac7fc1f4d4732df475b84828346d1ae70e77e10bd1dea8",
+    "baseline/cache/2/3/976a4b4445ec27": "97132d815c3422429bc93c370f4e7031ad5b07051bdc87ed998505cb9576bef8",
+    "baseline/cache/2/0/624ccc790c2fa9": "f5a73e214d658a8ca0590e3f42cd8f6767b6592dda3db8d00c06c80df59db5d6",
+    "baseline/cache/1/1/d783fff380058b": "efcf5cf788655bd7679eca3895cec2436318591a615255c577439fedfcb21fbd",
+    "baseline/cache/1/1/4f33ca3da6e7ce": "7b9853d41237b4128b0baba7dd2b87b18a0421c25def90669cbeccd1a9c3ad2b",
+    "baseline/cache/1/4/4d73b77d7fbda9": "e7b934860fc00a9bd05c2d86c0c46697e3fb0345ec444f31778809083a1660fa",
+    "baseline/cache/1/0/8b195ae2837354": "096f70c3630a97baba230e475f10cbfb23fb3c36729c381ed64c19af3a5139fd",
+    "baseline/cache/e/5/297acb67595307": "27c44dbbc47c1f25a2f1024b31949f4b41b887352e0efa0389a66a4e0b454f9c",
+    "baseline/cache/e/f/e1d459297e516b": "03586f5f675570ceeae665050d329f587a369f8104f93c207d2b8e875c44732b",
+    "baseline/cache/f/1/d73aaacc0b5c09": "6aad1f2b4d4418c510d566e8490dccec34ad44c59125c408445bd9dfbc741b0d",
+    "baseline/cache/f/2/a7b1194eb45ca9": "9acfc17b6b2cf41dfdecb5fe856effe2413acf55191ad37317d658e779d1842e",
+    "baseline/cache/f/d/4062b48ab07449": "1011acbef662e919ab8c91db0675cc2482d6e1fbbfe4f5dc2723ffc9408aa54b",
+    "baseline/cache/f/a/9a5497c5b6202b": "0d76c0cbd64922d6f67af7b2c810c2172f4aaf6857b84fc9f33976087168c465",
+    "baseline/cache/f/4/955db5de7e1787": "cb7867b4d58248f3ca7ab50dffaa659b863a517cfbfdd3a4830911a92873c7f7",
+    "baseline/cache/5/c/7846438fdac847": "ba08622b5ac336f8fdc43063ab95b4dcd5feb401bda5efef8487a74c50e5bb4d",
+    "baseline/cache/5/d/291a437a36037f": "edd315d9617c50ba1bd7f3b98a08089a8257c7e9a63427d25a2b1f638363a9cc",
+    "baseline/cache/8/c/9bc9b749b2dbec": "475e9610fafb96d0d246e82a5ab313ad80a792e1ad11df5528a30124e496090a",
+    "baseline/cache/8/1/26fce6194c9544": "77bd71d7f74979ceef772ba1b83648021c1b732f728a1541f43f3e5723695310",
+    "baseline/cache/c/8/cb8c88c0bb3cdf": "abc8d0946f507c06ac338209b3a76d66d5cd1c904c09b8fcd55335d8d6e65976",
+    "baseline/cache/c/f/8e19bd4b90c8a1": "934dda5c8a54d0719cdd0d59d7a9be0cf3ddfb2086e9c32f3aa79f3c3ee01d9b",
+    "baseline/cache/c/a/a1e44eb7784051": "94fc89a51aa56e30f163a0dfe4fd8ea5813195655d30b3ed2f215efc2b0e2589",
+    "baseline/config/Ultralytics/settings.json": "b898666f4478cf051785bcc2b7809eb86985d71c13a2fe3984a551a76dcd4678",
+    "candidate/cache/index": "70176bce2bc6e094a55b90b81e68ff0abd6d22642ccd4c551243c501540e044a",
+    "candidate/cache/0/d/23f5fbb37474b9": "32efb8266dbf57eb8318a05f2f3ad63473150099b107c20b58cf2ec24de409d1",
+    "candidate/cache/0/a/b11ac682b598ae": "b8176fd1f70d224d449fe7f5145b4bdb20ce097b1148b9e85c0fa626f382e527",
+    "candidate/cache/7/2/5ca7a0fa28e922": "8b55b51ed41c8e26d5c773f5ec9216e43a5ad9de28b6889a9988970c9b6f78ec",
+    "candidate/cache/7/4/7095fe91a33e0a": "97552612fc6e23195e51ad2116b1f2d6620ed9979f883444517c6d1f78b84ae0",
+    "candidate/cache/4/8/c3bd5cd91db42d": "9923715a0fe9320d918aae803514e531e953b14ac6886777f21f5312e0c0f6e0",
+    "candidate/cache/4/1/e15a007484c9dc": "584168a20b36fb9e5380d14ceb0afcdd8ea4c779ad13e9edc632e1433652afef",
+    "candidate/cache/4/a/2b54918911ccfe": "3d4098a02b7c09f02a105aba4e164209e180ff2bec8a1bf851599f6ed3cea094",
+    "candidate/cache/b/4/59e48582215d1a": "afc8e9e3c627f23a4c091a60fab8b144fd8ff393b4ffd2c7fd263f940b011e7e",
+    "candidate/cache/6/d/e254f23d148cd3": "d42bdb891c57229906951ff3daf9fb6ec1f1ad631a73ab76326edfc730240c7a",
+    "candidate/cache/6/9/565487e210fe03": "5513ecc062b040e9a9d591a234dbc09ef2720dd36d6ad9c90906a5ba0577ed39",
+    "candidate/cache/6/7/65302346daa589": "c53667429a025def5f31d80970b44f67ae8bf25b0d4a23c98e79f98f3181acdf",
+    "candidate/cache/9/f/6fa48ef4a182d7": "ec0ef3f51e2505100c0732c6c27600aa7d8afa78f140c4c203d7536f3c676ac2",
+    "candidate/cache/9/1/b2820e02f611a1": "238deaf0f844233a42ca0b0aec604509cd8d6e1a3b278eafd96f03396e0ba8de",
+    "candidate/cache/9/0/0b994e541df43a": "2236315c64491731a4f92107c74348354625dbbacf6e2c11c74c7ae43d66efa1",
+    "candidate/cache/a/d/bd8ddbf184d8d7": "f2a5e7ba23853897a7cc764f9a83381801f3419d6e2564d398a3922ddf19e848",
+    "candidate/cache/a/3/3e7c6f9eb2854a": "304e81d0506c62a3ba6d737a9d48db3bab21eb77c77825f1afca34cca861216c",
+    "candidate/cache/a/3/2e57ef65a686ec": "146bdb9e45dfdd65de464948e54fff3c93bc9a9cd5632f43d5916ab1be5b7614",
+    "candidate/cache/a/a/93f05e72630c57": "6d17d7169100a8b329f9872432672229a0666ca97065cdd0f5a48cd08059e2ce",
+    "candidate/cache/3/c/abce9785ec465b": "dd267417d6b3b6407a7f1e6a986b42275933ac0c53ecb160de32cb9cc08322ac",
+    "candidate/cache/3/7/e8f8eb26f1b132": "294ab7a7ef97d81d753e402e57c1b914bdfc76607da3cadc6603da78a2724cab",
+    "candidate/cache/d/8/93e21f5d6bbb16": "bd882599df3ce23e708874a4afce2a08e9c9629a7bb9d8edcd019d0c69a9cbea",
+    "candidate/cache/d/0/a2e433736d28b9": "be40481e2f398d066cac7fc1f4d4732df475b84828346d1ae70e77e10bd1dea8",
+    "candidate/cache/2/3/976a4b4445ec27": "97132d815c3422429bc93c370f4e7031ad5b07051bdc87ed998505cb9576bef8",
+    "candidate/cache/2/0/624ccc790c2fa9": "f5a73e214d658a8ca0590e3f42cd8f6767b6592dda3db8d00c06c80df59db5d6",
+    "candidate/cache/1/1/d783fff380058b": "efcf5cf788655bd7679eca3895cec2436318591a615255c577439fedfcb21fbd",
+    "candidate/cache/1/1/4f33ca3da6e7ce": "7b9853d41237b4128b0baba7dd2b87b18a0421c25def90669cbeccd1a9c3ad2b",
+    "candidate/cache/1/4/4d73b77d7fbda9": "e7b934860fc00a9bd05c2d86c0c46697e3fb0345ec444f31778809083a1660fa",
+    "candidate/cache/1/0/8b195ae2837354": "096f70c3630a97baba230e475f10cbfb23fb3c36729c381ed64c19af3a5139fd",
+    "candidate/cache/e/5/297acb67595307": "27c44dbbc47c1f25a2f1024b31949f4b41b887352e0efa0389a66a4e0b454f9c",
+    "candidate/cache/e/f/e1d459297e516b": "03586f5f675570ceeae665050d329f587a369f8104f93c207d2b8e875c44732b",
+    "candidate/cache/f/1/d73aaacc0b5c09": "6aad1f2b4d4418c510d566e8490dccec34ad44c59125c408445bd9dfbc741b0d",
+    "candidate/cache/f/2/a7b1194eb45ca9": "9acfc17b6b2cf41dfdecb5fe856effe2413acf55191ad37317d658e779d1842e",
+    "candidate/cache/f/d/4062b48ab07449": "1011acbef662e919ab8c91db0675cc2482d6e1fbbfe4f5dc2723ffc9408aa54b",
+    "candidate/cache/f/a/9a5497c5b6202b": "0d76c0cbd64922d6f67af7b2c810c2172f4aaf6857b84fc9f33976087168c465",
+    "candidate/cache/f/4/955db5de7e1787": "cb7867b4d58248f3ca7ab50dffaa659b863a517cfbfdd3a4830911a92873c7f7",
+    "candidate/cache/5/c/7846438fdac847": "ba08622b5ac336f8fdc43063ab95b4dcd5feb401bda5efef8487a74c50e5bb4d",
+    "candidate/cache/5/d/291a437a36037f": "edd315d9617c50ba1bd7f3b98a08089a8257c7e9a63427d25a2b1f638363a9cc",
+    "candidate/cache/8/c/9bc9b749b2dbec": "475e9610fafb96d0d246e82a5ab313ad80a792e1ad11df5528a30124e496090a",
+    "candidate/cache/8/1/26fce6194c9544": "77bd71d7f74979ceef772ba1b83648021c1b732f728a1541f43f3e5723695310",
+    "candidate/cache/c/8/cb8c88c0bb3cdf": "abc8d0946f507c06ac338209b3a76d66d5cd1c904c09b8fcd55335d8d6e65976",
+    "candidate/cache/c/f/8e19bd4b90c8a1": "934dda5c8a54d0719cdd0d59d7a9be0cf3ddfb2086e9c32f3aa79f3c3ee01d9b",
+    "candidate/cache/c/2/fa24aa92017815": "7a91c76af6071818ca90b07e67c71c70c1ab44275c5b976bbf111c69cfe4acb9",
+    "candidate/cache/c/a/a1e44eb7784051": "94fc89a51aa56e30f163a0dfe4fd8ea5813195655d30b3ed2f215efc2b0e2589",
+    "candidate/cache/c/0/6777c39ed7c07d": "6ac4c9a69ae6fd142727672d9168f314f9471eafbeb2b2942fa06e073ab1d23d",
+    "candidate/config/Ultralytics/settings.json": "ac931f963d498f199798d607ca1a19a26a159f0cc19a6bcad451c415645851d2"
+  }
+}

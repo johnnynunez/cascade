@@ -8,7 +8,27 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
-The reviewed command pin is **`93af4f6e70c9db2319f14e24b9f24fd30c1f074c`**,
+The reviewed command pin is **`ff8d58be1ae8e000bbecb19cd8db1551ac54be73`**,
+from [PR #60](https://github.com/johnnynunez/cascade/pull/60), merged as
+`c9147db84356de32d6a98c7a70a1aca3ecefe084` with the exact tested tree.
+[Detector model reuse](DETECTOR_MODEL_REUSE.md) keeps two detector modes and up
+to eight query vocabularies resident, and prepares localization queries before
+selecting their image. Image freshness and physical gates remain unchanged.
+Its full suite passed **3,643 tests**, 43 skipped and four deselected in
+342.90 seconds; all 1,229 source/release files stayed unchanged. All five PR CI
+jobs passed. A local RTX Pro comparison matched all 182 detections across
+15 comparisons, with identical labels, confidences, boxes and masks. The first
+GPU supervisor's CPU reporting error is retained alongside the successful
+offline comparison; no inference was repeated. See the
+[validation records](evidence/detector-reuse/retained-inputs.json).
+All five [merged-source CI jobs](evidence/detector-reuse/main60-ci.json) also
+passed. New physical acceptance is tracked separately.
+
+Documentation [PR #59](https://github.com/johnnynunez/cascade/pull/59) merged as
+`70e4f5fe` after all five PR checks passed; all five merged-source checks passed.
+It records the failed native attempt 06 and the prior source-bound results.
+
+The earlier reviewed command pin was **`93af4f6e70c9db2319f14e24b9f24fd30c1f074c`**,
 from [PR #58](https://github.com/johnnynunez/cascade/pull/58). It checks the same
 [observed closing conflict](observed-finger-closing.md#reject-closing-conflicts-before-candidate-route-sampling)
 before expensive candidate route sampling, after the initial harness/map
@@ -230,6 +250,18 @@ Neither addition retroactively changes the physical source `477c88f` or the
 failures below. Documentation PR #43 preserved that earlier source distinction.
 
 ## Current physical acceptance
+
+Diagnostic [profiling attempt 07](LOCAL_RTX_VALIDATION.md#profiling-attempt-07-startup-port-mismatch)
+on `ff8d58b` stopped during startup because its diagnostic bridge port differed
+from the unchanged camera profiles. It produced no manipulation result or
+loaded-motion trace; its administrative closure passed.
+
+**nvblox environment 14 on `0a27bda2` failed before actuation.** Models were
+present locally and readiness passed, but 9.5-second localization analysis
+expired its image. Sampled camera ages passed; no home, retry or reset followed.
+Its separate administrative closure passed. [NV14 and detector follow-up](LOCAL_RTX_VALIDATION.md#detector-reuse-and-nvblox-environment-14)
+preserve this negative result; the later detector comparison is not physical
+acceptance.
 
 **Local dual-RTX Pro attempt 06 on `93af4f6` failed during post-place retreat.**
 Grasp completed in 137.410 seconds, but the 300-second MCP deadline cancelled

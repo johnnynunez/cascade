@@ -37,6 +37,14 @@ budget began after grasp generation. See the
 [separate NV result](LOCAL_RTX_VALIDATION.md#separate-nv-result) for the retained
 failure, timing limits and independent review.
 
+Environment 14 on `0a27bda2` passed passive admission and native read-only
+readiness with local model files already present. Its first orange localization
+then exceeded the five-second image lifetime (9.5 seconds of analysis) and
+stopped before actuation, without home or reset. Witness cameras remained
+fresh; this did not validate the expired analysis image. The environment was
+closed administratively with its failure retained. See the
+[NV14 result and detector follow-up](LOCAL_RTX_VALIDATION.md#detector-reuse-and-nvblox-environment-14).
+
 ## Status (2026-09-30)
 
 **Real nvblox CUDA mapping now runs on both RTX PRO 6000 Blackwell and DGX

@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "capture_completed": false,
+  "profile_validated": false,
+  "status": "FAILED",
+  "plan_sha256": "b1715a6cb58d6805e69472bde3a6e14275d47150d2e9e7fc60e6c8a02bbf74c9",
+  "scope": "normal-native-kit-config-only",
+  "errors": [
+    "InterruptedError: Capture supervisor interrupted: 2"
+  ],
+  "signals": [],
+  "kit_or_mcp_signals": [],
+  "actuator_commands": [],
+  "last_wait_condition": "Expected exactly one adapter and one persistent MCP",
+  "protected_final": true,
+  "source_final": true,
+  "ended_monotonic": 130889.646646321,
+  "artifacts_sha256": {}
+}

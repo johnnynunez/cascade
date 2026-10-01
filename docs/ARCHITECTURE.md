@@ -4,8 +4,8 @@ Runtime contracts updated on 1 October 2026, including the merged optional OVRTX
 renderer, cuMotion candidate planning, PhysX finger envelope, native host reserve,
 release-opening synchronization, pending-camera publication, retained NV carry
 attachment, explicit MCP GPU selection, Isaac verifier startup readiness and
-localization analysis freshness.
-The reviewed runtime pin is `93af4f6`; see the
+localization analysis freshness and bounded detector model/vocabulary reuse.
+The reviewed runtime pin is `ff8d58b`; see the
 [source and acceptance index](PROJECT_STATUS_20261001.md) for merged changes,
 software validation and the current physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.

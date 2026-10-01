@@ -1,13 +1,13 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
-The reviewed runtime pin is **`93af4f6` (1 October 2026)**. It includes
+The reviewed runtime pin is **`ff8d58b` (1 October 2026)**. It includes
 render-bound cameras, release and carry guards, endpoint occlusion checks,
 explicit MCP GPU selection, Isaac verifier startup readiness, localization
-freshness checks and optional OVRTX/cuMotion adapters.
+freshness checks, [detector model reuse](docs/DETECTOR_MODEL_REUSE.md) and optional OVRTX/cuMotion adapters.
 [Project status](docs/PROJECT_STATUS_20261001.md) records the
 source-specific software checks. [Local dual-RTX Pro validation](docs/LOCAL_RTX_VALIDATION.md)
-retains three native timeouts and a separate NV preflight failure. The latest
-native attempt passed camera freshness but timed out during retreat; current
+retains three native timeouts and separate NV preflight/localization failures.
+The latest local profile proof (attempt 06) passed camera freshness but timed out during retreat; current
 physical proof, campaign and restart acceptance remain incomplete.
 
 <p align="center">
@@ -826,6 +826,8 @@ working directory** and auto-downloads it there on first use — launch from
 silently vanishes.
 
 ## Docs
+
+- [Detector preparation and GPU comparison](docs/DETECTOR_MODEL_REUSE.md) — bounded model/vocabulary reuse, unchanged image expiry and retained comparison results.
 
 Browse the [documentation index](docs/README.md) for all operating guides,
 runtime contracts, historical measurements and research notes.

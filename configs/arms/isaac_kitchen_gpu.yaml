@@ -15,6 +15,9 @@ overrides:
       approach_z_max: -0.95
       timeout_ms: 45000
       probe_timeout_ms: 5000
+      # Same observed scene; only feasibility exhaustion permits another batch.
+      feasibility_max_batches: 3
+      feasibility_timeout_s: 8.0
     # Reach clearance vertically before horizontal transport. Keep it
     # independent of the lower release heights at the destination.
     carry_height_m: 0.14

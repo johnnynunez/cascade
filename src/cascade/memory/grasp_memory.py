@@ -164,7 +164,11 @@ class GraspOutcomeMemory:
 
         Non-destructive: returns a new list. Unseen profile -> unchanged order.
         """
-        prior = self.prior(label, fix)
+        return self.rerank_with_prior(grasps, fix, self.prior(label, fix))
+
+    @staticmethod
+    def rerank_with_prior(grasps: list, fix, prior: dict | None) -> list:
+        """Apply one captured prior without rereading mutable outcome memory."""
         if not prior or not prior["win_features"] or not grasps:
             return grasps
         wf = prior["win_features"]

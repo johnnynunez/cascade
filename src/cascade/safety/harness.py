@@ -550,8 +550,8 @@ class SafeArm:
         caller must have parked the arm first (see move_home)."""
         self._arm.disconnect()
 
-    def get_state(self):
-        return self._arm.get_state()
+    def get_state(self, **kwargs):
+        return self._arm.get_state(**kwargs)
 
     def move_joints(self, q_target: np.ndarray, duration_s: float = 2.0,
                     joint_margin: float | None = None, _halt_generation=None, **backend_kw) -> bool:

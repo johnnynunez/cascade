@@ -183,3 +183,17 @@ def test_finite_clock_values_with_overflowing_difference_fail_serializably():
     assert not report['pass']
     assert 'overflow' in report['cameras']['side']['first_invalid_sample']['error']
     json.dumps(report, allow_nan=False)
+
+
+@pytest.mark.parametrize('field', ['capture_monotonic', 'server_monotonic'])
+def test_unrepresentable_integer_clock_fails_serializably(field):
+    import json
+    rows = records()
+    if field == 'server_monotonic':
+        rows[1]['physics'][field] = 10**400
+    else:
+        rows[1]['physics']['cameras']['side'][field] = 10**400
+    report = summary(rows)
+    assert not report['pass']
+    assert report['cameras']['side']['first_invalid_sample']['sequence'] == 1
+    json.dumps(report, allow_nan=False)

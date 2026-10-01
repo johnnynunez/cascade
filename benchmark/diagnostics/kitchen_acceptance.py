@@ -140,7 +140,7 @@ def camera_age_summary(records, *, host, port, robot_id, complete, errors):
                 captures.append(capture)
                 if not -.01 <= age <= 2 or capture < previous or not math.isfinite(capture - previous):
                     raise ValueError("stale, future or regressed capture")
-            except (KeyError, TypeError, ValueError) as exc:
+            except (KeyError, TypeError, ValueError, OverflowError) as exc:
                 failures.append(json_evidence({
                     "sequence": row.get("sequence") if isinstance(row, dict) else None,
                     "error": str(exc), "frame": frame,

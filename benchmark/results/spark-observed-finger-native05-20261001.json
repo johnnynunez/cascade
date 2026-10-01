@@ -1,0 +1,487 @@
+{
+  "schema": 1,
+  "scope": "Native launch05 with explicit observed-finger gate and camera cadence6; two native cases and Chromium UI only. Five-object campaign and restart acceptance remain pending. The open-approach gate does not cover closing: a neighboring pink cube moved during the orange close.",
+  "source": "c5baad5881848ec1d44cc9565c6e9df77084d194",
+  "full_suite_source": "014f01699800bb9da7b3127e2517047f55890bdf",
+  "full_suite": {
+    "passed": 2617,
+    "skipped": 43,
+    "deselected": 2,
+    "seconds": 311.05
+  },
+  "session_id": "cascade-proof-caac17aa826a4ee98f256504774bacb4",
+  "native_proof_verified": true,
+  "proof_sha256": "171ff2efc302acc3f220766dd2bfc0933f381b006d4c45dc6dd8dd52e088d5f5",
+  "trace_sha256": "e73fe8cf88b6bde0ef1e8ae702573226be8196de7791ad4832d3985307aa0f21",
+  "native_tools": [
+    {
+      "step": 0,
+      "skill": "describe_scene",
+      "args": {},
+      "duration_ms": 401.5
+    },
+    {
+      "step": 1,
+      "skill": "pick_and_place",
+      "args": {
+        "object": "green cube",
+        "destination": "green square"
+      },
+      "duration_ms": 238528.2
+    },
+    {
+      "step": 2,
+      "skill": "reset_scene",
+      "args": {},
+      "duration_ms": 28565.2
+    },
+    {
+      "step": 3,
+      "skill": "describe_scene",
+      "args": {},
+      "duration_ms": 561.0
+    },
+    {
+      "step": 4,
+      "skill": "pick_and_place",
+      "args": {
+        "object": "orange",
+        "destination": "open box"
+      },
+      "duration_ms": 250410.3
+    },
+    {
+      "step": 5,
+      "skill": "reset_scene",
+      "args": {},
+      "duration_ms": 29242.6
+    },
+    {
+      "step": 6,
+      "skill": "describe_scene",
+      "args": {},
+      "duration_ms": 487.3
+    }
+  ],
+  "archive": {
+    "name": "launch-05-retained.tar.gz",
+    "bytes": 41509551,
+    "sha256": "b898660f36695e7688b8ed64e63411f1cc8118e87a5dc1b0b2baed308f7a89c0",
+    "verified_files": 99
+  },
+  "cases": [
+    {
+      "object": "green cube",
+      "destination": "green square",
+      "physics_pass": true,
+      "checks": {
+        "complete_observation": true,
+        "all_phase_boundaries": true,
+        "live_prop_names_match_expected": true,
+        "spawn_prop_names_match_expected": true,
+        "spawn_positions_finite_and_unchanged": true,
+        "all_props_physically_reset_and_settled": true,
+        "scene_config_sha256_matches": true,
+        "prop_dimensions_match": true,
+        "cube_collider_geometry_matches": true,
+        "green_square_geometry_matches": true,
+        "scene_name_matches": true,
+        "scene_assets_sha256_matches": true,
+        "scene_content_sha256_matches": true,
+        "open_box_geometry_matches": true,
+        "ordered_phases": true,
+        "strict_pick_place_and_cameras": true,
+        "whole_cube_inside_green_square_throughout_settle": true,
+        "all_physics_tensors_cuda": true,
+        "single_supported_engine": true,
+        "gpu_backend_no_fallback": true,
+        "contact_sensor_and_actual_jaws_bound": true,
+        "two_jaw_contacts_during_real_lift": true,
+        "reset_settle_window": true,
+        "whole_footprint_enters_destination_with_bilateral_support": true,
+        "all_event_cameras_advance": true
+      },
+      "errors": [],
+      "pick_metrics": {
+        "samples": 1518,
+        "final_samples": 15,
+        "simulation_elapsed_s": 52.43333333333333,
+        "final_window_sim_s": 0.5333333333333314,
+        "lift_m": 0.10739465244114398,
+        "xy_displacement_m": 0.2929211805253661,
+        "final_xy_error_m": 0.007026713340961331,
+        "max_final_xy_error_m": 0.007026738874417917,
+        "max_final_support_z_error_m": 3.243264823371561e-10,
+        "max_final_linear_speed_m_s": 1.4399870681034622e-05,
+        "max_final_angular_speed_rad_s": 0.00045110563172555054,
+        "max_final_position_spread_m": 2.9802322387695312e-08,
+        "max_final_tilt_deg": 0.00010215001184420283,
+        "min_final_actual_open_fraction": 0.9999994039535611,
+        "max_frame_age_s": 1.228073525999207,
+        "unique_jpeg_hashes": 525
+      },
+      "event_cameras": {
+        "pass": true,
+        "cameras": {
+          "cam0": {
+            "pass": true,
+            "phase_advancement": {
+              "pick": true,
+              "reset": true
+            },
+            "unique_jpeg_hashes": 635
+          },
+          "side": {
+            "pass": true,
+            "phase_advancement": {
+              "pick": true,
+              "reset": true
+            },
+            "unique_jpeg_hashes": 635
+          },
+          "proof": {
+            "pass": true,
+            "phase_advancement": {
+              "pick": true,
+              "reset": true
+            },
+            "unique_jpeg_hashes": 635
+          }
+        }
+      },
+      "three_camera_delivery_ages": {
+        "cam0": {
+          "samples": 1945,
+          "max_snapshot_age_s": 1.7845922849955969,
+          "snapshot_age_over_two_seconds": 0,
+          "max_delivery_age_s": 2.002038785998593,
+          "delivery_age_over_two_seconds": 1
+        },
+        "side": {
+          "samples": 1945,
+          "max_snapshot_age_s": 1.7845922849955969,
+          "snapshot_age_over_two_seconds": 0,
+          "max_delivery_age_s": 2.002038785998593,
+          "delivery_age_over_two_seconds": 1
+        },
+        "proof": {
+          "samples": 1945,
+          "max_snapshot_age_s": 1.7845922849955969,
+          "snapshot_age_over_two_seconds": 0,
+          "max_delivery_age_s": 2.002038785998593,
+          "delivery_age_over_two_seconds": 1
+        }
+      },
+      "age_scope": "client_finished_monotonic minus capture_monotonic on the same host, across the complete sampled case; not a continuous-time guarantee",
+      "witness_sha256": "af4e3b76be4657f18547800178af2a25950a6289536f2930f29ae51433c1e383"
+    },
+    {
+      "object": "orange",
+      "destination": "open box",
+      "physics_pass": true,
+      "checks": {
+        "complete_observation": true,
+        "all_phase_boundaries": true,
+        "live_prop_names_match_expected": true,
+        "spawn_prop_names_match_expected": true,
+        "spawn_positions_finite_and_unchanged": true,
+        "all_props_physically_reset_and_settled": true,
+        "scene_config_sha256_matches": true,
+        "prop_dimensions_match": true,
+        "cube_collider_geometry_matches": true,
+        "green_square_geometry_matches": true,
+        "scene_name_matches": true,
+        "scene_assets_sha256_matches": true,
+        "scene_content_sha256_matches": true,
+        "open_box_geometry_matches": true,
+        "convex_body_identity": true,
+        "authored_convex_vertices_match": true,
+        "convex_topology_matches": true,
+        "convex_body_and_collider_enabled": true,
+        "convex_body_and_child_transforms_match": true,
+        "convex_tensor_mass_and_com_match": true,
+        "convex_tensor_inertia_valid": true,
+        "physx_support_live_identity": true,
+        "physx_support_source_matches": true,
+        "physx_support_solid_subset": true,
+        "physx_support_geometry_unchanged": true,
+        "ordered_phases": true,
+        "strict_pick_place_and_cameras": true,
+        "whole_convex_collider_inside_open_box_and_supported": true,
+        "all_physics_tensors_cuda": true,
+        "single_supported_engine": true,
+        "gpu_backend_no_fallback": true,
+        "contact_sensor_and_actual_jaws_bound": true,
+        "two_jaw_contacts_during_real_lift": true,
+        "reset_settle_window": true,
+        "whole_footprint_enters_destination_with_bilateral_support": true,
+        "all_event_cameras_advance": true
+      },
+      "errors": [],
+      "pick_metrics": {
+        "samples": 1573,
+        "final_samples": 14,
+        "simulation_elapsed_s": 53.016666666666666,
+        "final_window_sim_s": 0.5,
+        "lift_m": 0.11604239977896212,
+        "xy_displacement_m": 0.2779134810356288,
+        "final_xy_error_m": 0.011100671159334457,
+        "max_final_xy_error_m": 0.011100671159334457,
+        "max_final_support_z_error_m": 1.2156879020466804e-07,
+        "max_final_linear_speed_m_s": 0.00033729676563280813,
+        "max_final_angular_speed_rad_s": 0.01659477370586113,
+        "max_final_position_spread_m": 2.4168493722839046e-07,
+        "max_final_tilt_deg": 24.66661545622242,
+        "min_final_actual_open_fraction": 0.9999993294477563,
+        "max_frame_age_s": 1.944318365000072,
+        "unique_jpeg_hashes": 531
+      },
+      "event_cameras": {
+        "pass": true,
+        "cameras": {
+          "cam0": {
+            "pass": true,
+            "phase_advancement": {
+              "pick": true,
+              "reset": true
+            },
+            "unique_jpeg_hashes": 664
+          },
+          "side": {
+            "pass": true,
+            "phase_advancement": {
+              "pick": true,
+              "reset": true
+            },
+            "unique_jpeg_hashes": 664
+          },
+          "proof": {
+            "pass": true,
+            "phase_advancement": {
+              "pick": true,
+              "reset": true
+            },
+            "unique_jpeg_hashes": 664
+          }
+        }
+      },
+      "three_camera_delivery_ages": {
+        "cam0": {
+          "samples": 2144,
+          "max_snapshot_age_s": 1.944318365000072,
+          "snapshot_age_over_two_seconds": 0,
+          "max_delivery_age_s": 2.069384786998853,
+          "delivery_age_over_two_seconds": 2
+        },
+        "side": {
+          "samples": 2144,
+          "max_snapshot_age_s": 1.944318365000072,
+          "snapshot_age_over_two_seconds": 0,
+          "max_delivery_age_s": 2.069384786998853,
+          "delivery_age_over_two_seconds": 2
+        },
+        "proof": {
+          "samples": 2144,
+          "max_snapshot_age_s": 1.944318365000072,
+          "snapshot_age_over_two_seconds": 0,
+          "max_delivery_age_s": 2.069384786998853,
+          "delivery_age_over_two_seconds": 2
+        }
+      },
+      "age_scope": "client_finished_monotonic minus capture_monotonic on the same host, across the complete sampled case; not a continuous-time guarantee",
+      "witness_sha256": "e67265232d920eb874103ab7d89c5213cbb4c29dfa18132daceb234c06be19c9"
+    }
+  ],
+  "files_sha256": {
+    "runs/.launch/profile-cascade-demo/owner.json": "58e7065d362aaf86547a83673b45c8ee0db1c49e1bc456d941fca0ea060e7753",
+    "runs/.launch/profile-cascade-demo/processes/mcp_eca179fe4bab4504ab58a89b92dd9ab3.json": "7756946532b451479983ec9e0f1e4a5813ddb830acff94a123f0648eb4ba81fd",
+    "runs/.launch/profile-cascade-demo/proof.json": "171ff2efc302acc3f220766dd2bfc0933f381b006d4c45dc6dd8dd52e088d5f5",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/01-scene.json": "1a166df7f0ce249f36f16975bd46e3b481bc4cc5dabb9f9b9256d8086e4f73be",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/01-scene.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/02-pick.json": "0b7b458ce345bd1126c8d7a7eb79a47abba0f2fe8f7cb1412229555a4e231e6a",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/02-pick.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/03-reset.json": "f79816481ecb0f2bc7521503e6e71be843f0e97e881e4a47793d3afe68c73a5f",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/03-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/04-world-reset.json": "63caea5d8c3d7153bdb103bae316f42ab3ea57dc162c4573efb918d330af655e",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/04-world-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/05-inspect-reset.json": "34de2954ad8b09ebf94e652cf50542931baaa2e9e0ecde732a37690347a3ff37",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/05-inspect-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/first-scene-geometry.json": "12acf10d34fa84496aceedcaa0b7910eaa7422de0d9e1f6638e3753768b5c603",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/gpu-physical-audit.json": "6d772c315b4ec91351befc6445d1e5cbb220e24714781b1444a577b50328f998",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/metadata.json": "a6e4524c881812422ef36d9953b6bb59b18131e0f3814d6ec32a5aff713dea69",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/phases.json": "c0a219d6cb968deb9bcb6dd00b21166030ecd137075268943c9180cd6473c99e",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/ping-after.json": "db9a3fb5806ac982db0c5eee78029f443158a453ca43a6b280da9b566eef4416",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/ping-before.json": "db9a3fb5806ac982db0c5eee78029f443158a453ca43a6b280da9b566eef4416",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/placed-cam0.jpg": "350d7de67d856ee47e6038a76b153ba7e4af7c3224275cc824641245c33ecc9c",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/placed-frames.json": "6ddf04b8bacb2eadcb520acc52b792df6ee5c57604cc2e7f4c1640d1ec62d618",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/placed-proof.jpg": "028fb6e8d29eec80f868957fb3e667e7c600c18c4f9921b4a8cf3558abe632ee",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/placed-side.jpg": "a47c660f2ebddf9842669a9ef52a2932062cd9f6b2d03e3a733e0d19c5986fec",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/reset-cam0.jpg": "9a1a8005161d6ad77181e42abf05b34f232ab4f7e2e69933a72071913c61d991",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/reset-frames.json": "94d8d86c11055a051e725e7496d8643adba25bda43449647eeafd11100ba6347",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/reset-proof.jpg": "949bd00065e0244d316f8333a3ec4c610c91b454066d0481db5337b0aab88ca9",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/reset-side.jpg": "21bbc96ba20f6b58d8980b2ea5c0cd7f63c30780cbae6b95da54c1c257fa56a5",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/samples.jsonl": "af4e3b76be4657f18547800178af2a25950a6289536f2930f29ae51433c1e383",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/snapshot-code.py": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-1/physics/wire.jsonl": "26e2d3c5e3ae714886c8b1c6d7046c11efe3e5ec21b1a36b03e4c053cdec7d2c",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/02-pick.json": "c90f720cda19256c732e8bae922b163b2b594acfa25d8da9ea21970cb9b952b6",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/02-pick.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/03-reset.json": "eaf0f759d046c200127570ab7dc3b0708fb9a2f61b45aef569fa63c034c03575",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/03-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/04-world-reset.json": "5fdb1b3fdbabbbc12528cee8a05e8a5cacd60888f1b83529a89b8dfcc4b98a8b",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/04-world-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/05-inspect-reset.json": "2ff51919bd692d2bfee305b71297816d2d7d43ac0db3e38f038d85f17f278a4e",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/05-inspect-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/first-scene-geometry.json": "12acf10d34fa84496aceedcaa0b7910eaa7422de0d9e1f6638e3753768b5c603",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/gpu-physical-audit.json": "8b12f18da25fdae681faf6b88597b9596af1ad2c6079fe4a4f18df9079fed3eb",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/metadata.json": "83a94111e8b44a44199d6ad6684c01fae5e7d9f8cbda71d7cff669f2babde1a6",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/phases.json": "5c056c221f5589d84299b6a984cfbae298c4050821af4fea1f798997d14cd74f",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/ping-after.json": "db9a3fb5806ac982db0c5eee78029f443158a453ca43a6b280da9b566eef4416",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/ping-before.json": "db9a3fb5806ac982db0c5eee78029f443158a453ca43a6b280da9b566eef4416",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/placed-cam0.jpg": "48e899d59cdc2ffaac717e43f5844f1d34bd030c924c0b1297686921a76c9267",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/placed-frames.json": "13fe1aa9b8d0e4edca29a50068f5cc5c1acbe40346f8173eeefa618a022b3139",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/placed-proof.jpg": "adaf2ac7d0cc3e8ece1504339d9bf52acc4d8b409b040cab74a435126caad4e5",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/placed-side.jpg": "e78d3ce1016ad1b8840ec3a37dad77a70415ee76708a83a9f60edf44bd7adc98",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/reset-cam0.jpg": "692f333a5b3eff9a70431d1813bafdba8def840c53656fd4d78e99021963a968",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/reset-frames.json": "84fab91e02f0c37f5fe72f61a4eb2bfb12e7a20ccd3a0c8c6061d02e41c33edc",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/reset-proof.jpg": "9b3f328a85f400ee89f4ade4604c5bba65acda92aebf3a6e62686fa4fb1397f4",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/reset-side.jpg": "f4cdff391e64b70c377850087ac63633d041ad4b74aa6e6d626440acbc705a57",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/samples.jsonl": "e67265232d920eb874103ab7d89c5213cbb4c29dfa18132daceb234c06be19c9",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/snapshot-code.py": "43a0031e46cd0a1a07db43f44a9db9b26a132824590dcf551f41ce38e489972a",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/case-2/physics/wire.jsonl": "ba4e6e7374bfb52ed496872ab9c44044e5eb84ced7ddc6a9e912c789f70757b0",
+    "runs/.launch/profile-cascade-demo/cascade-proof-caac17aa826a4ee98f256504774bacb4/proof.json": "171ff2efc302acc3f220766dd2bfc0933f381b006d4c45dc6dd8dd52e088d5f5",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0000_describe_scene_after.jpg": "6a47257bb387324f63c5f373c1042ee115f556dd3027f63af329e308dddfc67f",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0000_describe_scene_before.jpg": "d1b3c3476889048c137bd38d1d96fbabba352a5001c097c2c2e3e1bb5386eb4b",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0001_pick_and_place_after.jpg": "acfcab22164d515a49c47e9193a68abb83330fa8650348d403598560aacaaec6",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0001_pick_and_place_before.jpg": "6a47257bb387324f63c5f373c1042ee115f556dd3027f63af329e308dddfc67f",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0002_reset_scene_after.jpg": "8ff26e387c0199ffc5650197231936dfe76d49fc10d958a5bfbd71ae5a58286d",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0002_reset_scene_before.jpg": "acfcab22164d515a49c47e9193a68abb83330fa8650348d403598560aacaaec6",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0003_describe_scene_after.jpg": "8f1b5d29a1cf7fc91bb1e30d02d6e4397b61228a8a98fb035c66b07186a3cf11",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0003_describe_scene_before.jpg": "8ff26e387c0199ffc5650197231936dfe76d49fc10d958a5bfbd71ae5a58286d",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0004_pick_and_place_after.jpg": "7efcd67fb4ed4cbee61cfc772253ec26887be72215f6162dbbaa4201af5a1d97",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0004_pick_and_place_before.jpg": "8f1b5d29a1cf7fc91bb1e30d02d6e4397b61228a8a98fb035c66b07186a3cf11",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0005_reset_scene_after.jpg": "1880f4ec8d3ca678547b96f4ae23e33ada8b7e387f658c5c85684529df653805",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0005_reset_scene_before.jpg": "7efcd67fb4ed4cbee61cfc772253ec26887be72215f6162dbbaa4201af5a1d97",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0006_describe_scene_after.jpg": "5de61297ec8d9f4c31dcdb3d458133e71e0217ea7a67f0b79b42c482bc8c480f",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/keyframes/0006_describe_scene_before.jpg": "1880f4ec8d3ca678547b96f4ae23e33ada8b7e387f658c5c85684529df653805",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/placement/3f09e761840b438e88a73f1a67ddb563.json": "d87e1026afd8613b167cf9ed72a95d0aac717774cf6953158b1bc9dd4fd90f56",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/placement/7a543fd407df445996965544b277ec46.json": "1a54a3c97ec0ed45900cbb5b3a0fb18788e18a70fede09e0213fb02e36414935",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/server.log": "e79ec8aab6bd9dac547ed7647790fe9b6c7c69f4f49a7a9aa059680f98886ca9",
+    "runs/mcp_668398_41ffceba0537498e8ef0af58edeacd31/trace.jsonl": "e73fe8cf88b6bde0ef1e8ae702573226be8196de7791ad4832d3985307aa0f21",
+    "runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "6b3b63d57681f4e40e69519d945c5857f29e3f0f24cfc10cbc5b962dec9a01f2",
+    "runs/.install/desktop-latest.json": "59e25d7ae68cfcb3ab3bb6fbdef9dbc74b830cbbf6d09bbf51c17b4deb5dc9bc",
+    "runs/.install/install.json": "b51b9d6931ed10964f3086455731807e670283fedb81ac989bc40b3b62691429",
+    "runs/native-acceptance-20261001/grasp-evidence-05/1790822959462082939-668398-63b8cc8aa1634b6f821a600bc9786e4c.json": "8a587cde39466036982ab50ae197538b078457dcd27b81afd07001a126e9ed52",
+    "runs/native-acceptance-20261001/grasp-evidence-05/1790822959462082939-668398-63b8cc8aa1634b6f821a600bc9786e4c.npz": "0611cc0959822c6ff0bd8c16edd48a6c76dd91dac9a5df049cda316d85c1dbb3",
+    "runs/native-acceptance-20261001/grasp-evidence-05/1790823320152029821-668398-ebd53591d04f4b579b16bbcb3b46c410.json": "7f3e3548473dc9f13b4fe7d432a7f6906acb3b4974e3a248e739b7a8425c48e7",
+    "runs/native-acceptance-20261001/grasp-evidence-05/1790823320152029821-668398-ebd53591d04f4b579b16bbcb3b46c410.npz": "1bb74e814cc9423b8d518003b21ea0bc224aac82c47ddc19d04bddf6940eae8e",
+    "runs/native-acceptance-20261001/finger-preparation-05/assets.log": "2cc39f675cca4e85e03106bd407a6f3a34c9bbf732ec62bd1aab52b29c11b6c0",
+    "runs/native-acceptance-20261001/finger-preparation-05/before/runs/.install/desktop-latest.json": "7597b6c4e34a01cb5112e76b698416b2f048f84f053ebde9b02c6305564260a6",
+    "runs/native-acceptance-20261001/finger-preparation-05/before/runs/.install/install.json": "5ddd28b4c41f3561feb1df2ef5f8401959491533fdabb113349ea49d18eee3da",
+    "runs/native-acceptance-20261001/finger-preparation-05/before/runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "63852092b5b76b74cefefef72701167ef589500d2b92e5f93ea7285327c5079d",
+    "runs/native-acceptance-20261001/finger-preparation-05/before/runs/.launch/profile-cascade-demo/proof.json": "9b570e838636226a307460776298bb1575966d39e1c3ca1314996e5f3f6eab5c",
+    "runs/native-acceptance-20261001/finger-preparation-05/check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/native-acceptance-20261001/finger-preparation-05/receipt.json": "4ef270b2af12c057a7fb5193fff12ef865b782de8690254afd8607d24ce0595a",
+    "runs/native-acceptance-20261001/finger-preparation-05/record.log": "96edbe8b0294f6d552283adfa269d7e621d9f22443ef96e9f08a1cd68f317e51",
+    "runs/native-acceptance-20261001/prelaunch-05/runs/.install/desktop-latest.json": "7597b6c4e34a01cb5112e76b698416b2f048f84f053ebde9b02c6305564260a6",
+    "runs/native-acceptance-20261001/prelaunch-05/runs/.install/install.json": "b51b9d6931ed10964f3086455731807e670283fedb81ac989bc40b3b62691429",
+    "runs/native-acceptance-20261001/prelaunch-05/runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "63852092b5b76b74cefefef72701167ef589500d2b92e5f93ea7285327c5079d",
+    "runs/native-acceptance-20261001/prelaunch-05/runs/.launch/profile-cascade-demo/proof.json": "9b570e838636226a307460776298bb1575966d39e1c3ca1314996e5f3f6eab5c",
+    "runs/native-acceptance-20261001/prelaunch-05/snapshots.json": "28bba6e55e61d9e75c1de65b46eefad79e8b607abb1375fb88bbd477d9d5e7aa",
+    "runs/native-acceptance-20261001/launch-05.log": "b6027549cf15b4c45d98bd44395eb8936d89ff55a7e9db63e33982f1db682b49",
+    "runs/native-acceptance-20261001/launch-05-driver.json": "063333599244f811a127b7da3ed8bac4fd9844732fb93056c8f37c2d94145b31",
+    "runs/native-acceptance-20261001/system-observer-05/receipt.json": "0693ccb22a99a7e72455d08712d682071715fd2c3cfabdd202d3310d5ce027c6",
+    "runs/native-acceptance-20261001/system-observer-05/samples.jsonl": "a80ae9eca5341f28e9e01d4152c2add7f21b690dcc1ea9afee2987df09771aa7",
+    "runs/.install/desktop-20261001-044722-22f3c4a7/progress.log": "36946da7cb436e2986f7efe27f041439a7c53186692e4e4e0ceb7bfba754dabc"
+  },
+  "strict_checker": {
+    "pass": true,
+    "report_sha256": "3243c566e1fe19d8251dd6d78460a2c91bb9fde86ab373ec1d4230f027800ab5",
+    "checker_sha256": "fead2ac46bb0a3e4b3ca6821a7419220ea456ba278d9c41a69331998a4fbc7ee",
+    "proof_cases": 2,
+    "campaign_cases": 0
+  },
+  "ui": {
+    "pass": true,
+    "scope": "Actual Spark Chromium and shipped extension on an Xvfb virtual display; no GNOME login or visible Isaac editor validation",
+    "script_sha256": "f7e05109d5f00e3b5212f44064e32f836adfe5e61c458f35a29c5f0a65933c3c",
+    "main_target_id": "29EB1CCFA099C67EBA1107CCB78D0346",
+    "camera_target_id": "3B96587809802D0272E29D56EBF6039E",
+    "page": {
+      "time_origin_ms": 1790823895332.8,
+      "navigation": [
+        {
+          "type": "navigate",
+          "start": 0
+        }
+      ],
+      "title": "PAAI, Physical Agentic AI \u00b7 Build a Claw",
+      "extension": "dcpoiijagmhceoefclmkgoehiimaeihe",
+      "frame": "chrome-extension://dcpoiijagmhceoefclmkgoehiimaeihe/local.html",
+      "status": "OpenClaw connected \u00b7 cascade-demo",
+      "send_disabled": false,
+      "reset_disabled": false
+    },
+    "before": {
+      "status": "Three cameras live",
+      "cameras": [
+        {
+          "name": "kitchen",
+          "frame_id": 76,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "worktop",
+          "frame_id": 76,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "side",
+          "frame_id": 76,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        }
+      ]
+    },
+    "after": {
+      "status": "Three cameras live",
+      "cameras": [
+        {
+          "name": "kitchen",
+          "frame_id": 80,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "worktop",
+          "frame_id": 80,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "side",
+          "frame_id": 80,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        }
+      ]
+    },
+    "screenshot_sha256": "59426fd87433c353bc0056bc32471ede643977beef17f6f643684caf150510dc",
+    "report_sha256": "2c3f80cef4610970477f89c86d98524361ce8a274c0950e05c1d535a6c413eb1",
+    "observer_dependency": "Standalone uv environment with websockets15.0.1; application venv unchanged. First helper invocation failed at import before any CDP connection."
+  },
+  "known_close_limitation": {
+    "status": "confirmed neighboring-object displacement; causal geometry analysis ongoing",
+    "neighbor": "pink_cube",
+    "approximate_displacement_m": 0.0198,
+    "phase": "orange gripper closing, after the protected open approach",
+    "audit_scope": "The current native placement audit passed but does not assert absence of neighboring-object displacement during closing. This run does not establish whole-gripper collision freedom."
+  }
+}

@@ -8,8 +8,8 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
-The validated runtime baseline `477c88fe40092fdaad99c0f777a6f1c3b9a41224`
-merges the reviewed integration
+The latest physical-run baseline,
+`477c88fe40092fdaad99c0f777a6f1c3b9a41224`, merges the reviewed integration
 `391436063c5dd98b0686202db02cefc9bdf294d1` with the same product tree
 `ff43ff758ddf39dac8e9661fe083fb5ac7943bcd`. The final suite passed **3,205 tests**,
 with 43 skipped and four deselected, in 331.79 seconds. The 1,056 tracked files
@@ -38,10 +38,38 @@ in the validation history.
 | [PR #41](https://github.com/johnnynunez/cascade/pull/41) | A deterministic recorder-clock test replaces an assumption about host scheduling overhead; recorder production is unchanged. |
 | [PR #42](https://github.com/johnnynunez/cascade/pull/42) | [Preserved grasp-memory ranking](grasp-memory-ranking.md) and [coherent held-object observations](HELD_OBJECT_OBSERVATION.md); a cached aiming estimate cannot authorize slip release. |
 
+## Subsequent renderer and geometry integration
+
+The [PhysX finger envelope](physx-finger-envelope.md) retains all eight nominal
+components and adds sixteen derived cooking components per finger. It changes
+observed-surface vetting geometry, not the physical colliders, opening interval,
+masks, contact offsets or configured occupancy clearance. The NV09 request is
+a derived cooking representation, not a direct dump of active `PxShape` vertices.
+The saved Spark replay is therefore conditional on local ARM admission.
+
+Geometry candidate `26b68266e5dce52e33706ea14cdd57c36024322b` passed **3,238 tests**,
+with 43 skipped and four deselected, in 326.74 seconds. Tracked source and eight
+release assets were unchanged. The first run failed because those ignored
+kitchen assets were missing; its failure is retained, and the successful rerun
+used the same code. ARM geometry admission and new physical acceptance remain
+pending. The joint renderer/geometry tree's software results are bound to its
+exact SHA in the integration PR and CI, rather than inherited from this count.
+
+The optional [OVRTX adapter](OVRTX_RENDERER.md) has real analytic RGBD execution
+on Linux x86_64 and Spark aarch64, plus a public static-camera factory capture
+on x86. Four packets per analytic run matched the projected object bounds with
+zero pixel error and metric Z-depth within 2.50 micrometres. The factory capture
+was within 0.5 micrometres. These are synthetic scene measurements, not kitchen,
+robot, mapping or manipulation acceptance. Failed startup/calibration attempts
+remain in the [renderer receipt](../benchmark/results/ovrtx-renderer-20261001.json).
+
+Neither addition retroactively changes the physical source `477c88f` or the
+failures below. Documentation PR #43 preserved that earlier source distinction.
+
 ## Current physical acceptance
 
-**The new MAIN acceptance is incomplete.** Spark final-MAIN-02 and the isolated
-RTX nvblox environment 09 are separate runs. Neither a completed five-object
+**Physical acceptance of the corrections is incomplete.** Spark final-MAIN-02
+and the isolated RTX nvblox environment 09 are separate runs. Neither a completed five-object
 campaign nor same-version restart acceptance is claimed here until its own
 bound receipts pass. Preparation, software tests and passive observations do
 not replace those stages.
@@ -51,8 +79,8 @@ not replace those stages.
 | September `9cf5402` delivery | A fresh-destination GB10 installation, two desktop proofs, a five-object visitor round and restart passed on that source. Download caches were reused. [Historical receipt](../benchmark/results/spark_clean_delivery_20260930.json). Later orange failures remain recorded; this is not the acceptance result for current MAIN. |
 | MAIN `6b5dad6`, Spark final-MAIN-01 | Green completed placement, return home and reset under the existing server-camera-age audit. Orange failed with an air grasp and no observed lift. The overall native proof failed; no five-object campaign or restart followed. [Ranking diagnosis](grasp-memory-ranking.md). |
 | MAIN `6b5dad6`, nvblox environment 08 | A slip verdict opened the gripper although the last measured sample still showed bilateral contact and a lifted orange. The intended post-release fault was never reached. The exact legacy offset branch was not logged. [Retained failure](HELD_OBJECT_OBSERVATION.md). |
-| MAIN `477c88f`, Spark final-MAIN-02 | Green completed placement, return home and reset. Orange stopped during descent when finger feedback left its checked opening interval, before any close command. The overall proof failed; no five-object campaign or restart followed. Offline diagnosis is in progress. Outcome memory is preserved. |
-| MAIN `477c88f`, nvblox environment 09 | Passive admission passed: three cameras, no actuator writes; mapping warmup is reported separately. The subsequent release diagnostic stopped during descent, retreated and returned home before any close, fault injection or release episode. Aggregate failure is retained; no five-object campaign followed. Diagnosis is in progress. |
+| MAIN `477c88f`, Spark final-MAIN-02 | Green completed placement, return home and reset. Orange stopped during descent when finger feedback left its checked opening interval, before any close command. The overall proof failed; no five-object campaign or restart followed. The [geometry diagnosis](physx-finger-envelope.md) and revised observed-surface envelope are separate from this failed run. Outcome memory is preserved. |
+| MAIN `477c88f`, nvblox environment 09 | Passive admission passed: three cameras, no actuator writes; mapping warmup is reported separately. The subsequent release diagnostic stopped during descent, retreated and returned home before any close, fault injection or release episode. Aggregate failure is retained; no five-object campaign followed. Subsequent guarded metadata and derived-geometry queries informed the new envelope; they do not change this result. |
 
 The camera auditor requires each sampled camera's **server snapshot age ≤2 s**
 and advancing, correctly bound captures. Client delivery age is also recorded
@@ -75,6 +103,7 @@ row universally.
 | --- | --- |
 | Installed Spark desktop/profile | PhysX CUDA; `isaac_kitchen_gpu`; required real GraspGen-X; Qwen Q4 with vision; three cameras; physics `dt=1/120`; camera cadence six bridge iterations; observed-finger gate enabled. Explicit supported environment overrides take precedence. Occupancy is disabled. |
 | Isaac arm driver/profile | `motion_rate_hz=30` nominal targets; an explicit call rate overrides the profile. The safety profile retains complete legacy 50 Hz edges and checks actual command edges. Physical pacing and acknowledgements can lower observed target throughput. |
+| Optional OVRTX camera | Explicit `ovrtx` extra and camera profile; static USD with `static_scene: true`, or an independently supplied `SceneSnapshot` through the renderer API. Square-pixel centered calibration, metric Z-depth, no simulator steps or default demo switch. |
 | Base hardware arm API | Existing 50 Hz default. Isaac timing is not imposed on serial, CAN or ROS2 drivers. |
 | Raw `scripts/isaac_bridge.py` | Engine default Newton, timestep `1/60`, camera cadence two bridge iterations unless overridden. The installed Spark launcher deliberately selects different defaults. |
 | Isolated RTX nvblox diagnostics | Explicit PhysX/CUDA and mapper configuration, independent ports/ownership, three real camera sources and unchanged clearance/unknown-space rules. These runs do not enable nvblox in the presenter profile. |
@@ -99,13 +128,13 @@ rules, with no demonstrated decision-quality benefit over the rule baseline.
 That comparison has no motion authority and is not integrated into presenter
 startup. Official TypeSafe Jev was not evaluated without its API credential.
 
-[NVIDIA ovrtx](ROADMAP.md#optional-sensor-backend-nvidia-ovrtx-2026-10-01) is being
-implemented in a separate branch as an optional camera and rendering backend.
-No ovrtx dependency or acceptance is included in runtime baseline `477c88f`.
-Available x86_64 and aarch64 SDK packages do not by themselves establish Cascade
-execution on either host. Cosmos, mobile-base navigation and new hardware validation retain their
-separate roadmap scopes. Locally installed development skills are authoring
-tools, not runtime dependencies or substitutes for source-bound physical tests.
+[NVIDIA ovrtx](OVRTX_RENDERER.md) is now an optional camera and scene renderer,
+with execution evidence on both Linux architectures as described above. It was
+not included in physical baseline `477c88f`. No automatic Isaac/Newton snapshot
+producer, robot/target masks or manipulation authority is supplied; those
+connections require their own implementation and acceptance. Cosmos,
+mobile-base navigation and new hardware validation retain separate roadmap
+scopes. Locally installed development skills are authoring tools, not runtime dependencies or substitutes for source-bound physical tests.
 
 ## Operator evidence sequence
 

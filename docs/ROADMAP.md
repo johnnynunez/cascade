@@ -22,12 +22,24 @@ or design scopes. The offline [Jev/Kev pilot](JEV_DECISIONS.md) has not demonstr
 a decision-quality advantage over the recorded-status rule baseline and is not
 part of presenter startup.
 
+## PhysX finger envelope (2026-10-01)
+
+The [observed-scene envelope](physx-finger-envelope.md) now combines the complete
+nominal finger components with a bounded derived PhysX cooking representation.
+It preserves the opening feedback bound and observed target/non-target rules;
+it does not modify colliders or invent a contact margin. Candidate `26b6826`
+passed 3,238 software tests. Local ARM representation admission and new physical
+acceptance remain pending; the earlier orange failures stay recorded. Joint
+integration validation is attributed to the exact tree in its PR/CI.
+
 ## Optional sensor backend: NVIDIA ovrtx (2026-10-01)
 
 An opt-in static `CameraBase` profile and scene-snapshot API now render real
-RGB-D through OVRTX 0.5 and `ovstage`. The x86 analytic smoke verifies metric
-Z-depth, integer-index pinhole calibration, local scene transforms, camera
-poses and whole-packet duplicate retention. Square pixels are required;
+RGB-D through OVRTX 0.5 and `ovstage`. Real analytic smokes on Linux x86_64
+and Spark aarch64 verify metric Z-depth, integer-index pinhole calibration,
+local scene transforms, camera poses and whole-packet duplicate retention.
+The public `make_camera(load_profile("cameras", "ovrtx"))` entry point also passed
+on x86 with the static example profile. Square pixels are required;
 unequal focal lengths are explicitly rejected after the measured SDK path
 ignored that request. See [OVRTX_RENDERER.md](OVRTX_RENDERER.md) for exact
 versions, platform evidence, installation and limits.

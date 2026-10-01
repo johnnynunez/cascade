@@ -3,7 +3,10 @@
 This pipeline proposal is separate from the current Isaac producer. The
 implemented [render-bound frame contract](isaac-render-frame-history.md) and
 [letterbox mask correction](detector-mask-letterbox.md) govern current captured
-RGB-D evidence. Synthetic data plans and ovrtx remain separate work.
+RGB-D evidence. The optional [OVRTX renderer](OVRTX_RENDERER.md) now supplies
+static or explicitly captured scene RGBD with x86/ARM execution evidence;
+it does not implement this proposed synthetic training pipeline or an automatic
+Isaac/Newton state producer.
 
 Analysis of the proposed pipeline (diagram dated 2026-07-31) against what this
 repository already provides, using **measurements from the rig**.

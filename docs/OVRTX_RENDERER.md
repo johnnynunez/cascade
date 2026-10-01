@@ -139,7 +139,7 @@ capture time and can correctly be considered stale by downstream consumers.
 
 The [dated evidence receipt](../benchmark/results/ovrtx-renderer-20261001.json)
 records exact SDK versions, source hashes and failed attempts as well as the
-successful x86 smoke. Python-only contract tests use a synthetic SDK and are
+successful x86 and ARM analytic smokes and the x86 public-profile capture. Python-only contract tests use a synthetic SDK and are
 reported separately from actual GPU rendering.
 
 | Platform | Package availability | Execution evidence |

@@ -1,6 +1,8 @@
 # Architecture
 
-Runtime contracts updated for baseline `477c88f` on 1 October 2026. See the
+Runtime contracts updated on 1 October 2026, including the later optional OVRTX
+renderer and PhysX finger envelope. The latest physical runs remain pinned to
+`477c88f`; see the
 [source and acceptance index](PROJECT_STATUS_20261001.md) for merged changes,
 software validation and the current physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.
@@ -169,6 +171,24 @@ resources: if absent, including in a package-only installation, this check
 returns `unverified`. Synthetic integration tests cover this contract; live
 delivery acceptance remains the separate boundary documented above.
 
+### Optional rendering without a physics driver
+
+`OvrtxCamera` implements `CameraBase` for an explicitly static USD profile;
+`static_scene: true` prevents its images from serving as live robot-effect
+verification. The separate `OvrtxRenderer` API accepts complete caller-owned
+scene snapshots and calibrated camera poses. It does not step physics, read
+current joints or connect Isaac/Newton automatically. SDK imports and GPU
+resources are acquired only on the optional path, and closed with its owner.
+
+Each render transaction seals local prim transforms and camera calibration
+before the SDK step. RGB and image-plane depth belong to that fixed snapshot;
+whole-packet repeats retain the original timestamp. Depth is metric Z, RGB uses
+Cascade's BGR convention, and calibration supports centered square pixels only.
+Capture-start monotonic time, producer/snapshot identity and SDK render time
+are distinct metadata. No robot/target masks or physical attachment authority
+are fabricated. The USD source hash covers the root file, not its dependency
+closure. See [OVRTX rendering and platform evidence](OVRTX_RENDERER.md).
+
 ### Motion safety path
 
 Skills hold a `SafeArm`. Its motion path enforces the configured peak velocity,
@@ -198,7 +218,12 @@ observed-finger path, each close stage also has an actual-pose, full-stroke
 preflight against non-target observed surfaces. That check does not continuously
 brake an already submitted gripper command. The [approach gate](observed-finger-gate.md)
 keeps target points in the scene and covers the two calibrated finger links,
-not the palm, whole arm or unobserved space.
+not the palm, whole arm or unobserved space. For a validated PhysX clock,
+[the finger envelope](physx-finger-envelope.md) retains eight nominal components
+and adds sixteen derived cooking components per finger. Source hashes and
+kinematic metadata bind that choice. This changes the checked geometric envelope,
+not the physical colliders, 0.1 mm opening interval or occupancy clearance.
+Local representation admission and physical acceptance are separate evidence.
 
 ### Grasp pipeline
 
@@ -313,6 +338,7 @@ src/cascade/
 │   ├── mock_camera.py        synthetic tabletop / npz replay
 │   ├── mujoco_camera.py      RGB-D RENDERED from the shared MuJoCo world (type: mujoco)
 │   ├── isaac_camera.py       Isaac bridge frames (RGB-D + per-frame T_base_cam)
+│   ├── ovrtx_camera.py       optional static USD RGB-D; no live robot-effect authority
 │   ├── depth_provider.py     sensor → mono plugin → table-plane ray-cast
 │   ├── detector.py           YOLOE / YOLO-World + MockDetector (open world by default)
 │   ├── vlm_detector.py       VLM as detector      vlm_ground.py  second-chance grounder
@@ -372,6 +398,7 @@ src/cascade/
 │   ├── held_observation.py aiming estimates vs coherent release authority
 │   └── library.py      markdown repair notes; written by aspire.py, retrieved per task
 ├── sim/
+│   ├── ovrtx_renderer.py     optional owned RTX renderer for explicit scene snapshots
 │   ├── mujoco_world.py shared MjModel/MjData registry (arm + cameras + truth, one lock)
 │   ├── demo_scene.py   deterministic scene writer: arm MJCF + table + N props
 │   ├── truth.py        physics-truth channel (MuJoCo + Isaac), LazyTruthPoseFn

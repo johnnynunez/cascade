@@ -19,11 +19,18 @@ bounding-box exemption, mask dilation or point-count threshold is used by the
 new veto. Every observed point outside the exact target mask remains an obstacle.
 Target points also remain obstacles throughout home, pregrasp and descent.
 
-The gate now rejects a candidate if either complete finger mesh, extruded over
+The gate rejects a candidate if either complete finger envelope, extruded over
 its full mechanical stroke, intersects those non-target points at the grasp
 pose. Each finger's interval is independent, so asynchronous closing is included.
 The same fixed 0.1 mm geometric expansion extends the checked volume; it is not
 a new assertion that closing under contact tracks within that amount.
+
+The validated PhysX path uses the [nominal-plus-derived envelope](physx-finger-envelope.md)
+for both approach and closing checks. It preserves the exact target-mask
+exemption only during closure; target points remain checked during approach.
+The added components are a geometric correction, not a new 30 mm finger-distance
+rule, contact margin or relaxation of the existing opening feedback bound.
+The historical results below are not reruns with this later artifact.
 
 Before **each** closing-stage command, the runtime reads current joint and
 individual-finger feedback, validates the source/robot/epoch/physical-clock

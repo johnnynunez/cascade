@@ -123,3 +123,41 @@ The runtime source is frozen at `014f01699800bb9da7b3127e2517047f55890bdf`:
 identical before/after and the checkout remained clean. The log SHA-256 is
 `89eee92cb7080373d2d8483c46f6693c799619dc27c02f04d3d54a939cd41453`.
 This final evidence update changes documentation only.
+
+## Native launch05: two cases pass; closing remains outside this gate
+
+On Spark, source `c5baad5` completed the normal native OpenClaw launch with the
+explicit gate enabled and camera cadence six. Green cube → green square and
+orange → open box both passed the existing physical placement, bilateral lift,
+release, home and reset audits. The independent source/owner/trace checker also
+passed both cases. Their native `pick_and_place` calls took approximately
+239 and 250 seconds respectively; the tool and motion deadlines were unchanged.
+The orange selection rejected four candidates before motion.
+
+This is **not complete acceptance**. During the orange closing phase, after the
+protected open approach, the neighboring pink cube moved approximately 19.8 mm.
+The placement audit does not check this condition. The open approach had left
+that neighbor stationary; attribution of the later displacement and a closing
+veto are under investigation. No claim of whole-gripper collision freedom follows
+from the passing placement audit. The five-object campaign, persistent default
+configuration and restart acceptance remain pending.
+
+All three cameras advanced during each case. Across the complete sampled cases,
+maximum age at the physics snapshot was 1.785 s for green and 1.944 s for orange.
+Transport-inclusive age is a different measurement: one green sample and two
+orange samples exceeded two seconds, with maxima 2.002 s and 2.069 s. These
+numbers do not change the recorded audit result, but prevent a claim that every
+delivered sample was younger than two seconds.
+
+The shipped Chromium page and extension on Xvfb displayed all three live
+1280×720 cameras with advancing frame IDs and enabled send/reset controls.
+This checks the actual browser, not a GNOME login or a visible Isaac editor.
+The normal owned stack was stopped after evidence retention; the browser window
+was preserved for a future reconnect check. No reconnect pass is claimed yet.
+
+The [compact native receipt](../benchmark/results/spark-observed-finger-native05-20261001.json)
+contains the source, exact trace and proof hashes, per-case checks, both camera
+age definitions, UI observations, known closing limitation, and hashes of all
+99 retained files. The original passing proof remains unchanged; its archive is
+41,509,551 bytes with SHA-256
+`b898660f36695e7688b8ed64e63411f1cc8118e87a5dc1b0b2baed308f7a89c0`.

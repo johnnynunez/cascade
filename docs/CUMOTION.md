@@ -42,6 +42,12 @@ joint names. The XRDF must include world and self collision spheres. Both files
 are read once and their actual contents are hashed before passing them to
 `load_robot_from_memory`.
 
+The 1.1.0 CUDA 13.0 Linux x86_64 release's bundled `franka.urdf` and
+`franka.xrdf` report `base_link` and `panda_leftfingertip`. The example profile
+uses those measured frame names; verify the names again for another model or
+SDK archive. Some upstream tutorial examples still name `right_gripper`, which
+is not a declared tool frame in this bundled XRDF.
+
 For the upstream Franka example, a small joint-space request looks like:
 
 ```bash

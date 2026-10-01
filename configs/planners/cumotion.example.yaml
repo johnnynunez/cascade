@@ -4,8 +4,8 @@
 type: cumotion
 urdf: /absolute/path/to/cumotion/content/third_party/franka/franka.urdf
 xrdf: /absolute/path/to/cumotion/content/nvidia/shared/franka.xrdf
-base_frame: panda_link0
-tool_frame: right_gripper
+base_frame: base_link
+tool_frame: panda_leftfingertip
 joint_names: [panda_joint1, panda_joint2, panda_joint3, panda_joint4, panda_joint5, panda_joint6, panda_joint7]
 joint_signs: [1, 1, 1, 1, 1, 1, 1]
 sample_dt_s: 0.02

@@ -58,7 +58,10 @@ def runtime(monkeypatch, fail=False):
     harness = SimpleNamespace(
         limits=SimpleNamespace(workspace_min=[0, -.3, 0], table_z=0., max_joint_vel=10.),
         estopped=False, vet_pose=lambda *args, **kwargs: None,
-        begin_motion=lambda: None, end_motion=lambda: None,
+        vet_step=lambda *args, **kwargs: None, _halt_generation=0,
+        check_stream_start=lambda **kwargs: None,
+        check_contact_episode=lambda **kwargs: None,
+        begin_motion=lambda **kwargs: None, end_motion=lambda: None,
         approve=lambda *args, **kwargs: None,
         allow_grasp_descent=lambda *args, **kwargs: None,
         clear_grasp_exemption=lambda: None,
@@ -119,17 +122,20 @@ def test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result(
 
 def test_failed_attempt_preserves_original_exception_and_exact_command_read_trace(monkeypatch, tmp_path):
     runs = []
+    failures = []
     for enabled in (False, True):
         monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path) if enabled else '')
         rt, calls, fix, frame = runtime(monkeypatch, fail=True)
-        with pytest.raises(SkillError, match='original descent transport failure'):
+        with pytest.raises(SkillError, match='original descent transport failure') as failure:
             rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
         runs.append(calls)
+        failures.append(str(failure.value))
     assert runs[0] == runs[1]
+    assert failures[0] == failures[1]
     doc = receipt(tmp_path)
     failure = doc['events'][-1]
     assert failure['kind'] == 'attempt_exception' and failure['phase'] == 'descent'
-    assert failure['data']['message'] == 'original descent transport failure'
+    assert failure['data']['message'] == failures[0]
     assert 'set_joints' in failure['data']['traceback']
     assert not any(e['phase'] == 'close' for e in doc['events'])
 

@@ -48,7 +48,8 @@ def test_planned_rate_survives_lazy_backend_preflight_rebind_and_stream(monkeypa
     seen=[];original=harness.vet_step
     def vet(a,b,dt):seen.append((a.copy(),b.copy(),dt));return original(a,b,dt)
     monkeypatch.setattr(harness,'vet_step',vet)
-    assert safe.move_planned(GOAL,duration_s=1.17,rate_hz=explicit)
+    assert safe.move_planned(GOAL,duration_s=1.17,rate_hz=explicit,
+                             _halt_generation=harness._halt_generation)
     profile=list(nominal_profile(START,GOAL,1.17,expected))
     assert len(raw.commands)==len(profile)
     for command,w in zip(raw.commands,profile):np.testing.assert_array_equal(command,w.q)

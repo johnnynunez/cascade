@@ -204,7 +204,8 @@ def test_epoch_change_after_success_still_blocks_payload_clearance():
 
 
 @pytest.mark.parametrize('when', ['before', 'feedback'])
-def test_recovery_home_retains_earlier_halt_generation(when):
+@pytest.mark.parametrize('rate_hz', [30., 50.])
+def test_recovery_home_retains_earlier_halt_generation(when, rate_hz):
     safe, raw, harness = home_case()
     generation = harness._halt_generation
     if when == 'before':
@@ -217,7 +218,7 @@ def test_recovery_home_retains_earlier_halt_generation(when):
             return result
         safe.get_state = state
     with pytest.raises(SafetyViolation, match='halt'):
-        safe.move_planned([.4, 0, .4], _halt_generation=generation)
+        safe.move_planned([.4, 0, .4], _halt_generation=generation, rate_hz=rate_hz)
     assert not raw.commands
 
 

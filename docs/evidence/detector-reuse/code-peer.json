@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "pass": true,
+  "root": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-model-reuse",
+  "base_head": "ff8d58be1ae8e000bbecb19cd8db1551ac54be73",
+  "scope": "Independent static review and CPU fake-model tests only; no model load, inference, GPU, RPC, motion, or shared runtime changes. WIP hashes, not a full-suite claim.",
+  "source_before": {
+    "src/cascade/perception/detector.py": "616593514a296a920bc2d8fe55fd88b523edb7052769bbd9f6fc80302e732aca",
+    "src/cascade/perception/world.py": "33a972d99ecbcb9d980350048305814b20f9a1f5da5a0ea8f1e89db7b36c3af2",
+    "src/cascade/skills/runtime.py": "ffa03bc4445f63293efbccfa81af88dfd8de4cbfe1152fea77e2fd2941fcd138",
+    "tests/test_detector_preparation.py": "7f7e24b9a91fc2b453edc5bead11d79f88cbb3882decec18e7f1b2755612d8c5",
+    "tests/test_localization_analysis_freshness.py": "83d4202656d22181974101eccbf8a08cfd1756e4d56acc55614d69eac4d927f6",
+    "docs/ARCHITECTURE.md": "60bdafedadb46551f1ac8982f1c032dab356243ad721af11ef486bb594317dae"
+  },
+  "source_after": {
+    "src/cascade/perception/detector.py": "616593514a296a920bc2d8fe55fd88b523edb7052769bbd9f6fc80302e732aca",
+    "src/cascade/perception/world.py": "33a972d99ecbcb9d980350048305814b20f9a1f5da5a0ea8f1e89db7b36c3af2",
+    "src/cascade/skills/runtime.py": "ffa03bc4445f63293efbccfa81af88dfd8de4cbfe1152fea77e2fd2941fcd138",
+    "tests/test_detector_preparation.py": "7f7e24b9a91fc2b453edc5bead11d79f88cbb3882decec18e7f1b2755612d8c5",
+    "tests/test_localization_analysis_freshness.py": "83d4202656d22181974101eccbf8a08cfd1756e4d56acc55614d69eac4d927f6",
+    "docs/ARCHITECTURE.md": "60bdafedadb46551f1ac8982f1c032dab356243ad721af11ef486bb594317dae"
+  },
+  "sdk_source_hashes": {
+    "/home/johnny/Projects/demo/cascade/.venv/lib/python3.12/site-packages/ultralytics/models/yolo/model.py": "0dc91e91bc1d6b983bd2efc73a78d0f9e00582e56310166caf04874dcb67f44d",
+    "/home/johnny/Projects/demo/cascade/.venv/lib/python3.12/site-packages/ultralytics/nn/tasks.py": "4f54fd2fd743d364e25124597dbfd74746e1edf62ab7bf85f27251c5334a4880",
+    "/home/johnny/Projects/demo/cascade/.venv/lib/python3.12/site-packages/ultralytics/nn/backends/pytorch.py": "aabae215c5474913be5887ce64c1d832f5f60b0e3c49c89a058fd3dfc91e03b3",
+    "/home/johnny/Projects/demo/cascade/.venv/lib/python3.12/site-packages/ultralytics/cfg/default.yaml": "285fa6ff485cb5d556ed216b966f0952a391c89a651901c49b246fda18cf0108"
+  },
+  "command": [
+    "/home/johnny/Projects/demo/cascade/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_detector_preparation.py",
+    "tests/test_detector_query_scope.py",
+    "tests/test_localization_analysis_freshness.py"
+  ],
+  "cuda_visible_devices": "",
+  "elapsed_wall_s": 0.825824499130249,
+  "exit_code": 0,
+  "pytest_log_sha256": "aff0c8a025a06dc7da7db9df162fcc5e62e48fae6705bd5febd2bd43ed867ba5",
+  "findings": [],
+  "review": [
+    "Separate fixed-path PF and promptable instances retain their independent predictor and classes; ordered vocabulary key and 8-entry LRU do not reuse image detections.",
+    "One LockedDetector lock covers preparation and actual detection; watcher still detects and heartbeats normally.",
+    "Preparation occurs before selecting the image, errors are terminal SlowPerceptionError; image-age/analysis checks remain unchanged.",
+    "Installed YOLOE set_classes resets predictor; skip for restored identical prompt avoids this reset. Standard fusion is idempotent; no new precision/half override.",
+    "Model residency increases to at most two detector checkpoints plus bounded successful prompt tensors. Hardware latency, memory and output-equivalence require a separate bounded benchmark; not demonstrated by fake tests."
+  ]
+}

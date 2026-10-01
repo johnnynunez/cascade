@@ -1,0 +1,174 @@
+{
+  "pass": true,
+  "native_case_pass": false,
+  "scope": "Offline preservation/analysis of already recorded failure only. Guard refusal is not task success; no new RPC, action, retry or recovery.",
+  "native_receipt_sha256": "889544453f65a5b3181299e3d4d835b528347e38dc3c09011320496d4009cc21",
+  "launcher_receipt_sha256": "32c17f1dddfe16e7ffaf4618e3536633ad763401a5b7b96af5a1237a5ce3bf2f",
+  "primary_result": {
+    "destination": "open box",
+    "destination_kind": "configured_point",
+    "target": [
+      0.3,
+      -0.14
+    ],
+    "ok": false,
+    "stage": "grasp",
+    "error": "Perception took 9.5s on a frame that was fresh at capture, so the result is 9.5s old; the camera is live -- retry the observation",
+    "home_skipped": true,
+    "grasp_attempts": 1,
+    "note": "localization analysis expired; no automatic motion recovery",
+    "postcondition": {
+      "skill": "pick_and_place",
+      "kind": "relocated",
+      "status": "refuted",
+      "evidence": "orange is still within 0.0 cm of where it started",
+      "channel": "physics",
+      "measured": {
+        "moved_m": 0.0,
+        "final": [
+          0.18,
+          0.12,
+          0.0264
+        ]
+      }
+    },
+    "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+  },
+  "native_elapsed_s": 10.301137090005795,
+  "attempt_duration_s": 9.590950411002268,
+  "attempt_exception": [
+    {
+      "kind": "attempt_exception",
+      "phase": "entry",
+      "elapsed_s": 9.590915998996934,
+      "data": {
+        "exception_type": "SlowPerceptionError",
+        "message": "Perception took 9.5s on a frame that was fresh at capture, so the result is 9.5s old; the camera is live -- retry the observation",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/src/cascade/grasping/evidence.py\", line 288, in wrapped\n    result = function(self, *args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/src/cascade/skills/runtime.py\", line 1738, in skill_grasp_object\n    frame, fix = self._localize(label, spatial_hint=spatial_hint)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/src/cascade/skills/runtime.py\", line 1199, in _localize\n    fix = analyze(frame, self.extrinsics)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/src/cascade/skills/runtime.py\", line 1193, in analyze\n    _analyzed_frame_age_s(cframe, time.monotonic() - started)\n  File \"/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/src/cascade/skills/runtime.py\", line 85, in _analyzed_frame_age_s\n    raise SlowPerceptionError(\ncascade.skills.runtime.SlowPerceptionError: Perception took 9.5s on a frame that was fresh at capture, so the result is 9.5s old; the camera is live -- retry the observation\n"
+      }
+    }
+  ],
+  "event_kinds": [
+    "request",
+    "configuration",
+    "attempt_exception"
+  ],
+  "actuator_event_count": 0,
+  "existing_state_feedback_count": 1,
+  "reset_attempted": false,
+  "actual_phase_marks": {
+    "pick_begin": {
+      "monotonic": 127619.266418584,
+      "unix": 1790882516.99613
+    },
+    "pick_end": {
+      "monotonic": 127629.567555444,
+      "unix": 1790882527.2972665
+    }
+  },
+  "retained_attachment_final": {
+    "present": false
+  },
+  "primary_phase": "localization analysis before generation/planning; no localized event or NPZ emitted",
+  "fresh_truth_preflight_s": 0.04380853100155946,
+  "startup_map": {
+    "pass": true,
+    "elapsed_s": null,
+    "timeout_s": 30.0,
+    "final": null
+  },
+  "camera_age_summary": {
+    "pass": true,
+    "complete": true,
+    "observer_errors": [],
+    "source": [
+      "127.0.0.1",
+      8703
+    ],
+    "cameras": {
+      "cam0": {
+        "pass": true,
+        "samples": 93,
+        "valid_clock_samples": 93,
+        "maximum_age_s": 0.7246735319931759,
+        "samples_over_2s": 0,
+        "distinct_captures": 40,
+        "maximum_observed_capture_gap_s": 0.7595896639977582,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      },
+      "side": {
+        "pass": true,
+        "samples": 93,
+        "valid_clock_samples": 93,
+        "maximum_age_s": 0.7246735319931759,
+        "samples_over_2s": 0,
+        "distinct_captures": 40,
+        "maximum_observed_capture_gap_s": 0.7595896639977582,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      },
+      "proof": {
+        "pass": true,
+        "samples": 93,
+        "valid_clock_samples": 93,
+        "maximum_age_s": 0.7246735319931759,
+        "samples_over_2s": 0,
+        "distinct_captures": 40,
+        "maximum_observed_capture_gap_s": 0.7595896639977582,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      }
+    },
+    "scope": "Server monotonic minus capture in the same physical snapshot; observed capture gaps are sample gaps, not all producer frames."
+  },
+  "physical_observed_target_max_delta_m": 0.0,
+  "jaw_contacts_observed": [
+    [
+      0,
+      0
+    ]
+  ],
+  "source_files_verified": 289,
+  "artifacts_verified": 13,
+  "source_unchanged": true,
+  "model_provenance": {
+    "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical",
+    "effective_encoder": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/mobileclip_blt.ts",
+      "sha256": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54",
+      "size_bytes": 599764649
+    },
+    "stored_encoder": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/models/mobileclip_blt.ts",
+      "sha256": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54",
+      "size_bytes": 599764649
+    },
+    "scope": "Both paths must be copied and verified before startup source freeze. No model acquisition is performed by this helper."
+  },
+  "limitations": [
+    "Freshness guard rejected the9.5s-old analysis result. Current witness cameras remained fresh; detector-held frame timing is a separate issue.",
+    "No download appeared in case log; both actualCWD and stored encoders were fixed before startup and unchanged afterwards. Internal detector-stage spans were not recorded, so9.5s cannot be attributed exclusively to encoder load, inference, NMS or contention.",
+    "Approach3s and closing-first geometry were never reached; this run is not their physical performance validation."
+  ],
+  "inputs_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/native-orange-01/receipt.json": "889544453f65a5b3181299e3d4d835b528347e38dc3c09011320496d4009cc21",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/native-case-launch.json": "32c17f1dddfe16e7ffaf4618e3536633ad763401a5b7b96af5a1237a5ce3bf2f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/native-orange-01/commands.jsonl": "5960b05675eac4a8388d50847192416db19fbe1feb812b62658fdea9e5cabad4",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/native-orange-01/witness/samples.jsonl": "c6a1d9c220056b77ba3b1a874bdcc0f898be811480e0daebd374465ed87daad8",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/native-orange-01.log": "586ea48a373c5a0807a7c8b17e7fcd19ead372fc34cfa9098500d1ae0c306abb",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/native-case-evidence-01/1790882517431456619-2902227-79818437fd56445cb9fde32df65d83fd.json": "9445f60b0bbbf8edf698d92675c5bc1e5dd59fab45bf66f4e7f547512975b81f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/scripts/isaac_bridge.py": "7437f6ebdf4a24262061d7178dec9cbc00b8ab7599634d5218830cf8e3897ee2",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/source.json": "4956e1f40ab37a86f1bb103e3011d09a4c560368e9dcfb43fe183019385c2980",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/ownership.json": "cc7e5c6636021654cf2f9c059161441a2d134c0282d1d42e1fe1bab078018ed8",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/passive-01/receipt.json": "36512e5461c807111178f4aba72e579edf31b14483faad13bf125f62185a2f08",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/passive-01/witness/samples.jsonl": "8ee6a92e23f35005632ddc4744762ab3a9c5aa1c4636111bcee8ee29c1a711aa"
+  },
+  "render_timing_sha256": "135d68fcff74b19c221d8a2bc7fb3229d7fa9e1d4c96fc23803f1233e35d8a3e"
+}

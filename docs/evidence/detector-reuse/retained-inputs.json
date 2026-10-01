@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "scope": "Unmodified retained receipts. Archived-image benchmark and failed physical case remain separate. Raw model files, CUDA caches and binary arrays remain in the bound local archive, not duplicated in documentation.",
+  "inputs": [
+    {
+      "file": "full.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-model-reuse-full-validation-20261001/result.json",
+      "sha256": "b797e511af856ca57f73c3f01de9c81f3c7ca565bba92fcdcd39ecd57ba6ef8e",
+      "bytes": 871
+    },
+    {
+      "file": "code-peer.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-model-reuse-grasp-peer-20261002/receipt.json",
+      "sha256": "9e8de4c6ab32098f4e01a5fd8e8a1f2c8d22837ca75da392812b395d43c251aa",
+      "bytes": 3733
+    },
+    {
+      "file": "pr60-ci.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr60-ci-complete.json",
+      "sha256": "f4d015a14e4ce2c632d99692e84dcf6168366f0eb9ced940d66bc20f622ce192",
+      "bytes": 11068
+    },
+    {
+      "file": "pr60-merged.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr60-merged-review.json",
+      "sha256": "ec58a6b07100c8dad1a84ad544642cfeb6dddc381d19e19bdc5f8ef6fdfaf82b",
+      "bytes": 715
+    },
+    {
+      "file": "comparison.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-offline-analysis-20261002/receipt.json",
+      "sha256": "d6f79389be5f91d1568102aec52f1b637e08956c89e023aa8400bdee4caff2b6",
+      "bytes": 97127
+    },
+    {
+      "file": "comparison-root.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-root-review-20261002/result.json",
+      "sha256": "c34752474d8d3ac9b44f970bbcf6df3b07e41a0ccd1ab5a8aaf35acfc969fec8",
+      "bytes": 17354
+    },
+    {
+      "file": "supervisor-failed.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/receipt.json",
+      "sha256": "1e0bb8320bc22f9638a97fac3909ad9372e7671bf0059313e233d31a5e5a0fb6",
+      "bytes": 45967
+    },
+    {
+      "file": "nv14-failure-analysis.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox14-native-failure-analysis-20261001/receipt.json",
+      "sha256": "f0b7e19e98392a22933be6ba703292c99b33b439e67c13742d0cc88b81878b07",
+      "bytes": 9751
+    },
+    {
+      "file": "nv14-native.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/native-orange-01/receipt.json",
+      "sha256": "889544453f65a5b3181299e3d4d835b528347e38dc3c09011320496d4009cc21",
+      "bytes": 215188
+    },
+    {
+      "file": "nv14-shutdown.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/final-preservation-01/shutdown.json",
+      "sha256": "495ad19e2a50c75651853ef37c88bcd48b27a95b65146a612bec03a09507a179",
+      "bytes": 5732
+    },
+    {
+      "file": "nv14-close-root.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox14-root-review-20261001/administrative-close-result.json",
+      "sha256": "818483ebf291fc71a4c96cae17419d494d6926123fac2744127faf2616e38c38",
+      "bytes": 590
+    },
+    {
+      "file": "pr59-ci.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr59-ci-complete.json",
+      "sha256": "6acdc7341d0cb44bff7d11e61c35cf3a12ae9a95676e4669bf142a676680efe8",
+      "bytes": 13250
+    },
+    {
+      "file": "main59-ci.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/main59-ci-complete.json",
+      "sha256": "66347291f3b4b91e2fdaa45a021f7f9cbcee4835b37ccc33043deca6e388f4b0",
+      "bytes": 10011
+    },
+    {
+      "file": "main60-ci.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/main60-ci-complete.json",
+      "sha256": "71caad70d5304cb73d43843fe58531b02ea942b9f311bef9c7ca316e067fa55e",
+      "bytes": 10869
+    },
+    {
+      "file": "profile07-startup-failed.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/runs/x86-spark-profile-07/proof/receipt.json",
+      "sha256": "6658f267618e23ba59095f3cf458368d9fba0a9cae569f2f8b049f5266c2bae8",
+      "bytes": 4620
+    },
+    {
+      "file": "profile07-strict-failed.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/runs/x86-spark-profile-07/strict-proof2.json",
+      "sha256": "50531b57d7a10e44a5933d86476ad87831ce83bd4333164b2522a7b91661ccd5",
+      "bytes": 1243
+    },
+    {
+      "file": "profile07-capture-failed.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/runs/x86-spark-profile-07/tracy-capture/receipt.json",
+      "sha256": "266b2603e81ab30d0f3bcb12b3c1dc5fecbe40a72e43c619c373377dcfa62d84",
+      "bytes": 574
+    },
+    {
+      "file": "profile07-close.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/runs/x86-spark-profile-07/administrative-close07/receipt.json",
+      "sha256": "8576c3880821dc06569c3d9c07aa251da6e75c104fba48c30afbdeba681137fd",
+      "bytes": 9308
+    },
+    {
+      "file": "profile07-close-root.json",
+      "original": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile07-root-review-20261002/administrative-close-result.json",
+      "sha256": "4190bbce781d435dae2cdaf0153441047a18808e0da94baba6b175d88b4f222a",
+      "bytes": 543
+    }
+  ]
+}

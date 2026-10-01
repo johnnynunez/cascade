@@ -1,0 +1,3591 @@
+{
+  "pass": true,
+  "errors": [],
+  "scope": "CPU-only comparison of completed benchmark children; preserve supervisor FAIL.",
+  "supervisor_original_pass": false,
+  "supervisor_sha256": "1e0bb8320bc22f9638a97fac3909ad9372e7671bf0059313e233d31a5e5a0fb6",
+  "helper_sha256": "2d38c9b05d9e73fd2a5680b09df1fb83ebabb7f18e99a068cad2d481755316e4",
+  "plan_sha256": "b43fd8d80172be744f36f4c053d5375343ba800ab403465e9896a76ef2a7c147",
+  "python": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+  "gpu_inference_repeated": false,
+  "new_rpc_or_signals": false,
+  "started_monotonic": 129919.058155316,
+  "inputs_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/supervisor-partial.json": "a03cdd5a4d579acbaa0e497d8458e7195aca16dd304780b0753fa2b708c5444e",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/plan.json": "b43fd8d80172be744f36f4c053d5375343ba800ab403465e9896a76ef2a7c147",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/orange-1-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/pf-2-cam0.npz": "52525b8090fcb805c53db03194bd608995efee8f9a3dc64ae1cb3314dc31251f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/orange-2-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/pf-1-proof.npz": "1cb92dd842157f7f56796f13ac2a3d4b97aeda6bd0905e50c3cf95e76f91562c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/orange-2-proof.npz": "f41fcf67e9817c264107e34c1265d51826839c7e20f23283ae905fe6de386c33",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/orange-1-proof.npz": "f41fcf67e9817c264107e34c1265d51826839c7e20f23283ae905fe6de386c33",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/stdout.log": "260a931305fd3e083fb42bba7bcb539bb2e0a746a84b5d2941e7e4a077cb7c79",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/pf-1-cam0.npz": "52525b8090fcb805c53db03194bd608995efee8f9a3dc64ae1cb3314dc31251f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/orange-2-side.npz": "c780f266820d69b5e417e13098d8b6935650dc1cb712e9731c6b2a552abec1ea",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/orange-1-side.npz": "c780f266820d69b5e417e13098d8b6935650dc1cb712e9731c6b2a552abec1ea",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/extra-2-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/pf-2-proof.npz": "1cb92dd842157f7f56796f13ac2a3d4b97aeda6bd0905e50c3cf95e76f91562c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/extra-1-cam0.npz": "084d3c6662182e87c190f3dcf6b26ab49f47acfbdd3666927e7fe2374d8ae428",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/extra-0-cam0.npz": "9c8cb13c3397f78b3f5a330708a29493517e80b88b31da1e3ed54a4ef915085a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/receipt.json": "1a0ee8da3aba9d3759370f9df605a11b4c6cfc48d47d348939800faa6561d05b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/pf-1-side.npz": "685eaa6359b6b3df16f9b311b50cae51212e11a826811c0fab1e88da686376f1",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/partial.json": "2daa5ad241324dfd90500bf0282964dc4fb9b473c9744e4bcbac57840eb2f1ce",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/pf-2-side.npz": "685eaa6359b6b3df16f9b311b50cae51212e11a826811c0fab1e88da686376f1",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/orange-1-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/pf-2-cam0.npz": "52525b8090fcb805c53db03194bd608995efee8f9a3dc64ae1cb3314dc31251f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/orange-2-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/pf-1-proof.npz": "1cb92dd842157f7f56796f13ac2a3d4b97aeda6bd0905e50c3cf95e76f91562c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/orange-2-proof.npz": "f41fcf67e9817c264107e34c1265d51826839c7e20f23283ae905fe6de386c33",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/orange-1-proof.npz": "f41fcf67e9817c264107e34c1265d51826839c7e20f23283ae905fe6de386c33",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/stdout.log": "716de570fd21109e79338d353384c208365fd1f1293047ac5bd43d9d723eb99a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/pf-1-cam0.npz": "52525b8090fcb805c53db03194bd608995efee8f9a3dc64ae1cb3314dc31251f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/orange-2-side.npz": "c780f266820d69b5e417e13098d8b6935650dc1cb712e9731c6b2a552abec1ea",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/orange-1-side.npz": "c780f266820d69b5e417e13098d8b6935650dc1cb712e9731c6b2a552abec1ea",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/extra-2-cam0.npz": "4366bb648cde038e15ec2082d8ccced7a8399d08bc77e1ad5dbc59ed81f28799",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/pf-2-proof.npz": "1cb92dd842157f7f56796f13ac2a3d4b97aeda6bd0905e50c3cf95e76f91562c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/extra-1-cam0.npz": "084d3c6662182e87c190f3dcf6b26ab49f47acfbdd3666927e7fe2374d8ae428",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/extra-0-cam0.npz": "9c8cb13c3397f78b3f5a330708a29493517e80b88b31da1e3ed54a4ef915085a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/receipt.json": "3c8b6f15b56d52429897070c781c63aee97e5416090d92ded05ce08f098128b0",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/pf-1-side.npz": "685eaa6359b6b3df16f9b311b50cae51212e11a826811c0fab1e88da686376f1",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/partial.json": "af588107d481c537b0fd05a869c56e1d4e655ab24f5325097d8297990ca2755c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/pf-2-side.npz": "685eaa6359b6b3df16f9b311b50cae51212e11a826811c0fab1e88da686376f1",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/index": "7f633dd640b39cced69e18d5000f2a10b89b465740e82893a4788c8e55b2aaa4",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/0/d/23f5fbb37474b9": "32efb8266dbf57eb8318a05f2f3ad63473150099b107c20b58cf2ec24de409d1",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/0/a/b11ac682b598ae": "b8176fd1f70d224d449fe7f5145b4bdb20ce097b1148b9e85c0fa626f382e527",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/7/2/5ca7a0fa28e922": "8b55b51ed41c8e26d5c773f5ec9216e43a5ad9de28b6889a9988970c9b6f78ec",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/7/4/7095fe91a33e0a": "97552612fc6e23195e51ad2116b1f2d6620ed9979f883444517c6d1f78b84ae0",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/4/8/c3bd5cd91db42d": "9923715a0fe9320d918aae803514e531e953b14ac6886777f21f5312e0c0f6e0",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/4/1/e15a007484c9dc": "584168a20b36fb9e5380d14ceb0afcdd8ea4c779ad13e9edc632e1433652afef",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/4/a/2b54918911ccfe": "3d4098a02b7c09f02a105aba4e164209e180ff2bec8a1bf851599f6ed3cea094",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/b/4/59e48582215d1a": "afc8e9e3c627f23a4c091a60fab8b144fd8ff393b4ffd2c7fd263f940b011e7e",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/6/d/e254f23d148cd3": "d42bdb891c57229906951ff3daf9fb6ec1f1ad631a73ab76326edfc730240c7a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/6/9/565487e210fe03": "5513ecc062b040e9a9d591a234dbc09ef2720dd36d6ad9c90906a5ba0577ed39",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/6/7/65302346daa589": "c53667429a025def5f31d80970b44f67ae8bf25b0d4a23c98e79f98f3181acdf",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/9/f/6fa48ef4a182d7": "ec0ef3f51e2505100c0732c6c27600aa7d8afa78f140c4c203d7536f3c676ac2",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/9/1/b2820e02f611a1": "238deaf0f844233a42ca0b0aec604509cd8d6e1a3b278eafd96f03396e0ba8de",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/9/0/0b994e541df43a": "2236315c64491731a4f92107c74348354625dbbacf6e2c11c74c7ae43d66efa1",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/a/d/bd8ddbf184d8d7": "f2a5e7ba23853897a7cc764f9a83381801f3419d6e2564d398a3922ddf19e848",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/a/3/3e7c6f9eb2854a": "304e81d0506c62a3ba6d737a9d48db3bab21eb77c77825f1afca34cca861216c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/a/3/2e57ef65a686ec": "146bdb9e45dfdd65de464948e54fff3c93bc9a9cd5632f43d5916ab1be5b7614",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/3/c/abce9785ec465b": "dd267417d6b3b6407a7f1e6a986b42275933ac0c53ecb160de32cb9cc08322ac",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/3/7/e8f8eb26f1b132": "294ab7a7ef97d81d753e402e57c1b914bdfc76607da3cadc6603da78a2724cab",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/d/8/93e21f5d6bbb16": "bd882599df3ce23e708874a4afce2a08e9c9629a7bb9d8edcd019d0c69a9cbea",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/d/0/a2e433736d28b9": "be40481e2f398d066cac7fc1f4d4732df475b84828346d1ae70e77e10bd1dea8",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/2/3/976a4b4445ec27": "97132d815c3422429bc93c370f4e7031ad5b07051bdc87ed998505cb9576bef8",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/2/0/624ccc790c2fa9": "f5a73e214d658a8ca0590e3f42cd8f6767b6592dda3db8d00c06c80df59db5d6",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/1/1/d783fff380058b": "efcf5cf788655bd7679eca3895cec2436318591a615255c577439fedfcb21fbd",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/1/1/4f33ca3da6e7ce": "7b9853d41237b4128b0baba7dd2b87b18a0421c25def90669cbeccd1a9c3ad2b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/1/4/4d73b77d7fbda9": "e7b934860fc00a9bd05c2d86c0c46697e3fb0345ec444f31778809083a1660fa",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/1/0/8b195ae2837354": "096f70c3630a97baba230e475f10cbfb23fb3c36729c381ed64c19af3a5139fd",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/e/5/297acb67595307": "27c44dbbc47c1f25a2f1024b31949f4b41b887352e0efa0389a66a4e0b454f9c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/e/f/e1d459297e516b": "03586f5f675570ceeae665050d329f587a369f8104f93c207d2b8e875c44732b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/f/1/d73aaacc0b5c09": "6aad1f2b4d4418c510d566e8490dccec34ad44c59125c408445bd9dfbc741b0d",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/f/2/a7b1194eb45ca9": "9acfc17b6b2cf41dfdecb5fe856effe2413acf55191ad37317d658e779d1842e",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/f/d/4062b48ab07449": "1011acbef662e919ab8c91db0675cc2482d6e1fbbfe4f5dc2723ffc9408aa54b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/f/a/9a5497c5b6202b": "0d76c0cbd64922d6f67af7b2c810c2172f4aaf6857b84fc9f33976087168c465",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/f/4/955db5de7e1787": "cb7867b4d58248f3ca7ab50dffaa659b863a517cfbfdd3a4830911a92873c7f7",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/5/c/7846438fdac847": "ba08622b5ac336f8fdc43063ab95b4dcd5feb401bda5efef8487a74c50e5bb4d",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/5/d/291a437a36037f": "edd315d9617c50ba1bd7f3b98a08089a8257c7e9a63427d25a2b1f638363a9cc",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/8/c/9bc9b749b2dbec": "475e9610fafb96d0d246e82a5ab313ad80a792e1ad11df5528a30124e496090a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/8/1/26fce6194c9544": "77bd71d7f74979ceef772ba1b83648021c1b732f728a1541f43f3e5723695310",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/c/8/cb8c88c0bb3cdf": "abc8d0946f507c06ac338209b3a76d66d5cd1c904c09b8fcd55335d8d6e65976",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/c/f/8e19bd4b90c8a1": "934dda5c8a54d0719cdd0d59d7a9be0cf3ddfb2086e9c32f3aa79f3c3ee01d9b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/cache/c/a/a1e44eb7784051": "94fc89a51aa56e30f163a0dfe4fd8ea5813195655d30b3ed2f215efc2b0e2589",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/baseline/config/Ultralytics/settings.json": "b898666f4478cf051785bcc2b7809eb86985d71c13a2fe3984a551a76dcd4678",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/index": "70176bce2bc6e094a55b90b81e68ff0abd6d22642ccd4c551243c501540e044a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/0/d/23f5fbb37474b9": "32efb8266dbf57eb8318a05f2f3ad63473150099b107c20b58cf2ec24de409d1",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/0/a/b11ac682b598ae": "b8176fd1f70d224d449fe7f5145b4bdb20ce097b1148b9e85c0fa626f382e527",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/7/2/5ca7a0fa28e922": "8b55b51ed41c8e26d5c773f5ec9216e43a5ad9de28b6889a9988970c9b6f78ec",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/7/4/7095fe91a33e0a": "97552612fc6e23195e51ad2116b1f2d6620ed9979f883444517c6d1f78b84ae0",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/4/8/c3bd5cd91db42d": "9923715a0fe9320d918aae803514e531e953b14ac6886777f21f5312e0c0f6e0",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/4/1/e15a007484c9dc": "584168a20b36fb9e5380d14ceb0afcdd8ea4c779ad13e9edc632e1433652afef",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/4/a/2b54918911ccfe": "3d4098a02b7c09f02a105aba4e164209e180ff2bec8a1bf851599f6ed3cea094",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/b/4/59e48582215d1a": "afc8e9e3c627f23a4c091a60fab8b144fd8ff393b4ffd2c7fd263f940b011e7e",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/6/d/e254f23d148cd3": "d42bdb891c57229906951ff3daf9fb6ec1f1ad631a73ab76326edfc730240c7a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/6/9/565487e210fe03": "5513ecc062b040e9a9d591a234dbc09ef2720dd36d6ad9c90906a5ba0577ed39",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/6/7/65302346daa589": "c53667429a025def5f31d80970b44f67ae8bf25b0d4a23c98e79f98f3181acdf",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/9/f/6fa48ef4a182d7": "ec0ef3f51e2505100c0732c6c27600aa7d8afa78f140c4c203d7536f3c676ac2",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/9/1/b2820e02f611a1": "238deaf0f844233a42ca0b0aec604509cd8d6e1a3b278eafd96f03396e0ba8de",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/9/0/0b994e541df43a": "2236315c64491731a4f92107c74348354625dbbacf6e2c11c74c7ae43d66efa1",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/a/d/bd8ddbf184d8d7": "f2a5e7ba23853897a7cc764f9a83381801f3419d6e2564d398a3922ddf19e848",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/a/3/3e7c6f9eb2854a": "304e81d0506c62a3ba6d737a9d48db3bab21eb77c77825f1afca34cca861216c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/a/3/2e57ef65a686ec": "146bdb9e45dfdd65de464948e54fff3c93bc9a9cd5632f43d5916ab1be5b7614",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/a/a/93f05e72630c57": "6d17d7169100a8b329f9872432672229a0666ca97065cdd0f5a48cd08059e2ce",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/3/c/abce9785ec465b": "dd267417d6b3b6407a7f1e6a986b42275933ac0c53ecb160de32cb9cc08322ac",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/3/7/e8f8eb26f1b132": "294ab7a7ef97d81d753e402e57c1b914bdfc76607da3cadc6603da78a2724cab",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/d/8/93e21f5d6bbb16": "bd882599df3ce23e708874a4afce2a08e9c9629a7bb9d8edcd019d0c69a9cbea",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/d/0/a2e433736d28b9": "be40481e2f398d066cac7fc1f4d4732df475b84828346d1ae70e77e10bd1dea8",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/2/3/976a4b4445ec27": "97132d815c3422429bc93c370f4e7031ad5b07051bdc87ed998505cb9576bef8",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/2/0/624ccc790c2fa9": "f5a73e214d658a8ca0590e3f42cd8f6767b6592dda3db8d00c06c80df59db5d6",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/1/1/d783fff380058b": "efcf5cf788655bd7679eca3895cec2436318591a615255c577439fedfcb21fbd",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/1/1/4f33ca3da6e7ce": "7b9853d41237b4128b0baba7dd2b87b18a0421c25def90669cbeccd1a9c3ad2b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/1/4/4d73b77d7fbda9": "e7b934860fc00a9bd05c2d86c0c46697e3fb0345ec444f31778809083a1660fa",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/1/0/8b195ae2837354": "096f70c3630a97baba230e475f10cbfb23fb3c36729c381ed64c19af3a5139fd",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/e/5/297acb67595307": "27c44dbbc47c1f25a2f1024b31949f4b41b887352e0efa0389a66a4e0b454f9c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/e/f/e1d459297e516b": "03586f5f675570ceeae665050d329f587a369f8104f93c207d2b8e875c44732b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/f/1/d73aaacc0b5c09": "6aad1f2b4d4418c510d566e8490dccec34ad44c59125c408445bd9dfbc741b0d",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/f/2/a7b1194eb45ca9": "9acfc17b6b2cf41dfdecb5fe856effe2413acf55191ad37317d658e779d1842e",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/f/d/4062b48ab07449": "1011acbef662e919ab8c91db0675cc2482d6e1fbbfe4f5dc2723ffc9408aa54b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/f/a/9a5497c5b6202b": "0d76c0cbd64922d6f67af7b2c810c2172f4aaf6857b84fc9f33976087168c465",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/f/4/955db5de7e1787": "cb7867b4d58248f3ca7ab50dffaa659b863a517cfbfdd3a4830911a92873c7f7",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/5/c/7846438fdac847": "ba08622b5ac336f8fdc43063ab95b4dcd5feb401bda5efef8487a74c50e5bb4d",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/5/d/291a437a36037f": "edd315d9617c50ba1bd7f3b98a08089a8257c7e9a63427d25a2b1f638363a9cc",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/8/c/9bc9b749b2dbec": "475e9610fafb96d0d246e82a5ab313ad80a792e1ad11df5528a30124e496090a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/8/1/26fce6194c9544": "77bd71d7f74979ceef772ba1b83648021c1b732f728a1541f43f3e5723695310",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/c/8/cb8c88c0bb3cdf": "abc8d0946f507c06ac338209b3a76d66d5cd1c904c09b8fcd55335d8d6e65976",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/c/f/8e19bd4b90c8a1": "934dda5c8a54d0719cdd0d59d7a9be0cf3ddfb2086e9c32f3aa79f3c3ee01d9b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/c/2/fa24aa92017815": "7a91c76af6071818ca90b07e67c71c70c1ab44275c5b976bbf111c69cfe4acb9",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/c/a/a1e44eb7784051": "94fc89a51aa56e30f163a0dfe4fd8ea5813195655d30b3ed2f215efc2b0e2589",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/cache/c/0/6777c39ed7c07d": "6ac4c9a69ae6fd142727672d9168f314f9471eafbeb2b2942fa06e073ab1d23d",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/candidate/config/Ultralytics/settings.json": "ac931f963d498f199798d607ca1a19a26a159f0cc19a6bcad451c415645851d2",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/detector-reuse-benchmark-01-20261002/receipt.json": "1e0bb8320bc22f9638a97fac3909ad9372e7671bf0059313e233d31a5e5a0fb6"
+  },
+  "children": {
+    "baseline": {
+      "receipt_sha256": "3c8b6f15b56d52429897070c781c63aee97e5416090d92ded05ce08f098128b0",
+      "pid": 2924887,
+      "absent_now": true,
+      "child_total_s": 19.661796615997446,
+      "supervisor_child_lifetime_s": 22.772231210008613,
+      "imports_s": 1.727611264999723,
+      "constructor_s": 0.173599904999719,
+      "yolo_constructed": 4,
+      "text_models_constructed": 5,
+      "mandatory_orange_detections": {
+        "orange-1": 11,
+        "orange-2": 11
+      },
+      "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+      "max_process_gpu_memory_mib": 1764,
+      "max_sampled_rss_bytes": 2313146368,
+      "stages": [
+        {
+          "stage": "pf-1",
+          "classes": null,
+          "prepare_host_s": 8.593007805757225e-06,
+          "model_token": 1,
+          "network_token": 2,
+          "memory": {
+            "VmHWM_bytes": 2095296512,
+            "VmRSS_bytes": 2095296512,
+            "cuda_allocated_bytes": 175359488,
+            "cuda_reserved_bytes": 465567744,
+            "cuda_peak_allocated_bytes": 282433536
+          },
+          "resident_model_count": 1,
+          "text_cache_keys": [],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 15.101432012001169,
+              "predictor_token": 4,
+              "count": 16
+            },
+            {
+              "image": "side",
+              "detect_host_s": 0.010482084995601326,
+              "predictor_token": 4,
+              "count": 21
+            },
+            {
+              "image": "proof",
+              "detect_host_s": 0.019651896000141278,
+              "predictor_token": 4,
+              "count": 40
+            }
+          ]
+        },
+        {
+          "stage": "orange-1",
+          "classes": [
+            "orange fruit"
+          ],
+          "prepare_host_s": 0.5157379709999077,
+          "model_token": 5,
+          "network_token": 6,
+          "memory": {
+            "VmHWM_bytes": 2258837504,
+            "VmRSS_bytes": 2258837504,
+            "cuda_allocated_bytes": 148403200,
+            "cuda_reserved_bytes": 807403520,
+            "cuda_peak_allocated_bytes": 761291264
+          },
+          "resident_model_count": 1,
+          "text_cache_keys": [],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.39198192101321183,
+              "predictor_token": 9,
+              "count": 2
+            },
+            {
+              "image": "side",
+              "detect_host_s": 0.007142697999370284,
+              "predictor_token": 9,
+              "count": 5
+            },
+            {
+              "image": "proof",
+              "detect_host_s": 0.014288613005192019,
+              "predictor_token": 9,
+              "count": 4
+            }
+          ]
+        },
+        {
+          "stage": "pf-2",
+          "classes": null,
+          "prepare_host_s": 0.046471619003568776,
+          "model_token": 10,
+          "network_token": 11,
+          "memory": {
+            "VmHWM_bytes": 2310934528,
+            "VmRSS_bytes": 2310934528,
+            "cuda_allocated_bytes": 224086016,
+            "cuda_reserved_bytes": 826277888,
+            "cuda_peak_allocated_bytes": 761291264
+          },
+          "resident_model_count": 1,
+          "text_cache_keys": [],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.08371811200049706,
+              "predictor_token": 12,
+              "count": 16
+            },
+            {
+              "image": "side",
+              "detect_host_s": 0.009151692996965721,
+              "predictor_token": 12,
+              "count": 21
+            },
+            {
+              "image": "proof",
+              "detect_host_s": 0.018201840997789986,
+              "predictor_token": 12,
+              "count": 40
+            }
+          ]
+        },
+        {
+          "stage": "orange-2",
+          "classes": [
+            "orange fruit"
+          ],
+          "prepare_host_s": 0.2939810160023626,
+          "model_token": 13,
+          "network_token": 14,
+          "memory": {
+            "VmHWM_bytes": 2366181376,
+            "VmRSS_bytes": 2311544832,
+            "cuda_allocated_bytes": 244248064,
+            "cuda_reserved_bytes": 868220928,
+            "cuda_peak_allocated_bytes": 807229952
+          },
+          "resident_model_count": 1,
+          "text_cache_keys": [],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.06551881501218304,
+              "predictor_token": 17,
+              "count": 2
+            },
+            {
+              "image": "side",
+              "detect_host_s": 0.016496890006237663,
+              "predictor_token": 17,
+              "count": 5
+            },
+            {
+              "image": "proof",
+              "detect_host_s": 0.006620314001338556,
+              "predictor_token": 17,
+              "count": 4
+            }
+          ]
+        },
+        {
+          "stage": "extra-0",
+          "classes": [
+            "yellow object"
+          ],
+          "prepare_host_s": 0.2422247330105165,
+          "model_token": 13,
+          "network_token": 14,
+          "memory": {
+            "VmHWM_bytes": 2366189568,
+            "VmRSS_bytes": 2311868416,
+            "cuda_allocated_bytes": 292401152,
+            "cuda_reserved_bytes": 916455424,
+            "cuda_peak_allocated_bytes": 847427072
+          },
+          "resident_model_count": 1,
+          "text_cache_keys": [],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.06422151198785286,
+              "predictor_token": 20,
+              "count": 3
+            }
+          ]
+        },
+        {
+          "stage": "extra-1",
+          "classes": [
+            "green cup"
+          ],
+          "prepare_host_s": 0.20245089699164964,
+          "model_token": 13,
+          "network_token": 14,
+          "memory": {
+            "VmHWM_bytes": 2366189568,
+            "VmRSS_bytes": 2312372224,
+            "cuda_allocated_bytes": 339151360,
+            "cuda_reserved_bytes": 962592768,
+            "cuda_peak_allocated_bytes": 894269440
+          },
+          "resident_model_count": 1,
+          "text_cache_keys": [],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.06825710799603257,
+              "predictor_token": 23,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "stage": "extra-2",
+          "classes": [
+            "orange fruit"
+          ],
+          "prepare_host_s": 0.21990004400140606,
+          "model_token": 13,
+          "network_token": 14,
+          "memory": {
+            "VmHWM_bytes": 2366853120,
+            "VmRSS_bytes": 2312863744,
+            "cuda_allocated_bytes": 388606976,
+            "cuda_reserved_bytes": 1008730112,
+            "cuda_peak_allocated_bytes": 942330368
+          },
+          "resident_model_count": 1,
+          "text_cache_keys": [],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.06213177600875497,
+              "predictor_token": 26,
+              "count": 2
+            }
+          ]
+        }
+      ],
+      "nested_spans_not_additive": {
+        "cuda_model_preparation": {
+          "count": 4,
+          "host_s": [
+            0.135694960001274,
+            0.012220638993312605,
+            0.01384248401154764,
+            0.049190643010661006
+          ],
+          "observer_overhead_s": 0
+        },
+        "get_text_pe": {
+          "count": 5,
+          "host_s": [
+            0.4748833319899859,
+            0.21248502099479083,
+            0.24177425800007768,
+            0.20210055400093552,
+            0.21942224699887447
+          ],
+          "observer_overhead_s": 0
+        },
+        "mobileclip_constructor": {
+          "count": 5,
+          "host_s": [
+            0.15523636899888515,
+            0.15364414699433837,
+            0.1773773379973136,
+            0.14827827099361457,
+            0.15439851398696192
+          ],
+          "observer_overhead_s": 6.18839985691011e-05
+        },
+        "sdk_predict": {
+          "count": 15,
+          "host_s": [
+            15.02520941500552,
+            0.008503677003318444,
+            0.017147839011158794,
+            0.39010820200201124,
+            0.006739525008015335,
+            0.012087646013242193,
+            0.0826385609980207,
+            0.007150521007133648,
+            0.013449296995531768,
+            0.06520356600231025,
+            0.011392399013857357,
+            0.006288730000960641,
+            0.06388070499815512,
+            0.0680364930012729,
+            0.06187806099478621
+          ],
+          "observer_overhead_s": 0
+        },
+        "set_classes": {
+          "count": 22,
+          "host_s": [
+            5.608002538792789e-06,
+            1.672000507824123e-06,
+            4.337009158916771e-06,
+            4.346002242527902e-06,
+            0.5157339249999495,
+            9.355004294775426e-06,
+            8.513001375831664e-06,
+            4.226007149554789e-06,
+            0.04646830400452018,
+            3.4050026442855597e-06,
+            4.696994437836111e-06,
+            4.006011295132339e-06,
+            0.29397790000075474,
+            3.8059952203184366e-06,
+            3.995999577455223e-06,
+            3.736000508069992e-06,
+            0.24222080600156914,
+            4.0660088416188955e-06,
+            0.2024479919928126,
+            4.196001100353897e-06,
+            0.21989646801375784,
+            5.5380078265443444e-06
+          ],
+          "observer_overhead_s": 0
+        },
+        "text_tokenize": {
+          "count": 5,
+          "host_s": [
+            0.0017610869981581345,
+            0.00042140099685639143,
+            0.0004363430052762851,
+            0.0003713449987117201,
+            0.0015529299998888746
+          ],
+          "observer_overhead_s": 0.000245360002736561
+        },
+        "yolo_constructor": {
+          "count": 4,
+          "host_s": [
+            0.03760875501029659,
+            0.026983250994817354,
+            0.03105834699817933,
+            0.030166009993990883
+          ],
+          "observer_overhead_s": 2.655897696968168e-05
+        }
+      }
+    },
+    "candidate": {
+      "receipt_sha256": "1a0ee8da3aba9d3759370f9df605a11b4c6cfc48d47d348939800faa6561d05b",
+      "pid": 2926297,
+      "absent_now": true,
+      "child_total_s": 18.337270821997663,
+      "supervisor_child_lifetime_s": 21.164698254011455,
+      "imports_s": 1.6879033180011902,
+      "constructor_s": 0.17505451699253172,
+      "yolo_constructed": 2,
+      "text_models_constructed": 3,
+      "mandatory_orange_detections": {
+        "orange-1": 11,
+        "orange-2": 11
+      },
+      "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+      "max_process_gpu_memory_mib": 1758,
+      "max_sampled_rss_bytes": 2304733184,
+      "stages": [
+        {
+          "stage": "pf-1",
+          "classes": null,
+          "prepare_host_s": 9.975003194995224e-06,
+          "model_token": 1,
+          "network_token": 2,
+          "memory": {
+            "VmHWM_bytes": 2091405312,
+            "VmRSS_bytes": 2091405312,
+            "cuda_allocated_bytes": 175359488,
+            "cuda_reserved_bytes": 465567744,
+            "cuda_peak_allocated_bytes": 282433536
+          },
+          "resident_model_count": 1,
+          "text_cache_keys": [],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 14.310966514996835,
+              "predictor_token": 4,
+              "count": 16
+            },
+            {
+              "image": "side",
+              "detect_host_s": 0.008317854997585528,
+              "predictor_token": 4,
+              "count": 21
+            },
+            {
+              "image": "proof",
+              "detect_host_s": 0.012379619991406798,
+              "predictor_token": 4,
+              "count": 40
+            }
+          ]
+        },
+        {
+          "stage": "orange-1",
+          "classes": [
+            "orange fruit"
+          ],
+          "prepare_host_s": 0.9018442899978254,
+          "model_token": 5,
+          "network_token": 6,
+          "memory": {
+            "VmHWM_bytes": 2259984384,
+            "VmRSS_bytes": 2259984384,
+            "cuda_allocated_bytes": 269890560,
+            "cuda_reserved_bytes": 893386752,
+            "cuda_peak_allocated_bytes": 835887104
+          },
+          "resident_model_count": 2,
+          "text_cache_keys": [
+            [
+              "orange fruit"
+            ]
+          ],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.3237060149986064,
+              "predictor_token": 9,
+              "count": 2
+            },
+            {
+              "image": "side",
+              "detect_host_s": 0.011175959996762685,
+              "predictor_token": 9,
+              "count": 5
+            },
+            {
+              "image": "proof",
+              "detect_host_s": 0.005731343000661582,
+              "predictor_token": 9,
+              "count": 4
+            }
+          ]
+        },
+        {
+          "stage": "pf-2",
+          "classes": null,
+          "prepare_host_s": 1.2167991371825337e-05,
+          "model_token": 1,
+          "network_token": 2,
+          "memory": {
+            "VmHWM_bytes": 2286370816,
+            "VmRSS_bytes": 2286370816,
+            "cuda_allocated_bytes": 287775744,
+            "cuda_reserved_bytes": 897581056,
+            "cuda_peak_allocated_bytes": 835887104
+          },
+          "resident_model_count": 2,
+          "text_cache_keys": [
+            [
+              "orange fruit"
+            ]
+          ],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.00573558900214266,
+              "predictor_token": 4,
+              "count": 16
+            },
+            {
+              "image": "side",
+              "detect_host_s": 0.010067625000374392,
+              "predictor_token": 4,
+              "count": 21
+            },
+            {
+              "image": "proof",
+              "detect_host_s": 0.012214799993671477,
+              "predictor_token": 4,
+              "count": 40
+            }
+          ]
+        },
+        {
+          "stage": "orange-2",
+          "classes": [
+            "orange fruit"
+          ],
+          "prepare_host_s": 1.0545991244725883e-05,
+          "model_token": 5,
+          "network_token": 6,
+          "memory": {
+            "VmHWM_bytes": 2286440448,
+            "VmRSS_bytes": 2286440448,
+            "cuda_allocated_bytes": 269104128,
+            "cuda_reserved_bytes": 897581056,
+            "cuda_peak_allocated_bytes": 835887104
+          },
+          "resident_model_count": 2,
+          "text_cache_keys": [
+            [
+              "orange fruit"
+            ]
+          ],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.006273516992223449,
+              "predictor_token": 9,
+              "count": 2
+            },
+            {
+              "image": "side",
+              "detect_host_s": 0.01906562500516884,
+              "predictor_token": 9,
+              "count": 5
+            },
+            {
+              "image": "proof",
+              "detect_host_s": 0.005077338995761238,
+              "predictor_token": 9,
+              "count": 4
+            }
+          ]
+        },
+        {
+          "stage": "extra-0",
+          "classes": [
+            "yellow object"
+          ],
+          "prepare_host_s": 0.18415510198974516,
+          "model_token": 5,
+          "network_token": 6,
+          "memory": {
+            "VmHWM_bytes": 2342604800,
+            "VmRSS_bytes": 2286768128,
+            "cuda_allocated_bytes": 315590656,
+            "cuda_reserved_bytes": 941621248,
+            "cuda_peak_allocated_bytes": 873200640
+          },
+          "resident_model_count": 2,
+          "text_cache_keys": [
+            [
+              "orange fruit"
+            ],
+            [
+              "yellow object"
+            ]
+          ],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.06168704001174774,
+              "predictor_token": 12,
+              "count": 3
+            }
+          ]
+        },
+        {
+          "stage": "extra-1",
+          "classes": [
+            "green cup"
+          ],
+          "prepare_host_s": 0.20962014599354006,
+          "model_token": 5,
+          "network_token": 6,
+          "memory": {
+            "VmHWM_bytes": 2343501824,
+            "VmRSS_bytes": 2287386624,
+            "cuda_allocated_bytes": 361575424,
+            "cuda_reserved_bytes": 987758592,
+            "cuda_peak_allocated_bytes": 917196800
+          },
+          "resident_model_count": 2,
+          "text_cache_keys": [
+            [
+              "orange fruit"
+            ],
+            [
+              "yellow object"
+            ],
+            [
+              "green cup"
+            ]
+          ],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.057357568002771586,
+              "predictor_token": 15,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "stage": "extra-2",
+          "classes": [
+            "orange fruit"
+          ],
+          "prepare_host_s": 0.0001719209976727143,
+          "model_token": 5,
+          "network_token": 6,
+          "memory": {
+            "VmHWM_bytes": 2343501824,
+            "VmRSS_bytes": 2287665152,
+            "cuda_allocated_bytes": 395675648,
+            "cuda_reserved_bytes": 1002438656,
+            "cuda_peak_allocated_bytes": 917196800
+          },
+          "resident_model_count": 2,
+          "text_cache_keys": [
+            [
+              "yellow object"
+            ],
+            [
+              "green cup"
+            ],
+            [
+              "orange fruit"
+            ]
+          ],
+          "outputs": [
+            {
+              "image": "cam0",
+              "detect_host_s": 0.06381378299556673,
+              "predictor_token": 16,
+              "count": 2
+            }
+          ]
+        }
+      ],
+      "nested_spans_not_additive": {
+        "cuda_model_preparation": {
+          "count": 2,
+          "host_s": [
+            0.13729210800374858,
+            0.017458942005760036
+          ],
+          "observer_overhead_s": 0
+        },
+        "get_text_pe": {
+          "count": 3,
+          "host_s": [
+            0.8612361260020407,
+            0.18382212599681225,
+            0.20935686500160955
+          ],
+          "observer_overhead_s": 0
+        },
+        "mobileclip_constructor": {
+          "count": 3,
+          "host_s": [
+            0.16191328900458757,
+            0.1340276749979239,
+            0.15715727899805643
+          ],
+          "observer_overhead_s": 3.251999441999942e-05
+        },
+        "sdk_predict": {
+          "count": 15,
+          "host_s": [
+            13.522527118009748,
+            0.007074745008139871,
+            0.010042087000329047,
+            0.32333330799883697,
+            0.005803001986350864,
+            0.0054538109980057925,
+            0.004971747999661602,
+            0.008793307992164046,
+            0.005039061012212187,
+            0.0059975379990646616,
+            0.016285217003314756,
+            0.004829501995118335,
+            0.06132411799626425,
+            0.057193859000108205,
+            0.06356416300695855
+          ],
+          "observer_overhead_s": 0
+        },
+        "set_classes": {
+          "count": 22,
+          "host_s": [
+            5.829002475365996e-06,
+            2.2129970602691174e-06,
+            4.105997504666448e-06,
+            3.96599352825433e-06,
+            0.9018403040099656,
+            8.443006663583219e-06,
+            5.417998181656003e-06,
+            4.036002792418003e-06,
+            9.715004125609994e-06,
+            1.7830025171861053e-06,
+            2.654007403180003e-06,
+            2.764994860626757e-06,
+            7.601003744639456e-06,
+            1.9330036593601108e-06,
+            2.5240005925297737e-06,
+            3.325010766275227e-06,
+            0.18415230799291749,
+            3.716006176546216e-06,
+            0.20961618900764734,
+            3.235007170587778e-06,
+            0.00016905699158087373,
+            2.152999513782561e-06
+          ],
+          "observer_overhead_s": 0
+        },
+        "text_tokenize": {
+          "count": 3,
+          "host_s": [
+            0.0004661979910451919,
+            0.0004367139918031171,
+            0.0003541890037013218
+          ],
+          "observer_overhead_s": 0.00014187500346451998
+        },
+        "yolo_constructor": {
+          "count": 2,
+          "host_s": [
+            0.03745291799714323,
+            0.02300425300200004
+          ],
+          "observer_overhead_s": 1.1836993508040905e-05
+        }
+      }
+    }
+  },
+  "comparison": {
+    "extra-0/cam0": {
+      "pass": true,
+      "count": 3,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "yellow object",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "yellow object",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "yellow object",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "extra-1/cam0": {
+      "pass": true,
+      "count": 1,
+      "matching": [
+        [
+          0,
+          0
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "green cup",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "extra-2/cam0": {
+      "pass": true,
+      "count": 2,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "orange-1/cam0": {
+      "pass": true,
+      "count": 2,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "orange-1/side": {
+      "pass": true,
+      "count": 5,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          4
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ],
+        [
+          4
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "orange-1/proof": {
+      "pass": true,
+      "count": 4,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "orange-2/cam0": {
+      "pass": true,
+      "count": 2,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "orange-2/side": {
+      "pass": true,
+      "count": 5,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          4
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ],
+        [
+          4
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "orange-2/proof": {
+      "pass": true,
+      "count": 4,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange fruit",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "pf-1/cam0": {
+      "pass": true,
+      "count": 16,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          6,
+          6
+        ],
+        [
+          7,
+          7
+        ],
+        [
+          8,
+          8
+        ],
+        [
+          9,
+          9
+        ],
+        [
+          10,
+          10
+        ],
+        [
+          11,
+          11
+        ],
+        [
+          12,
+          12
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          14,
+          14
+        ],
+        [
+          15,
+          15
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          6
+        ],
+        [
+          7
+        ],
+        [
+          8
+        ],
+        [
+          9
+        ],
+        [
+          10
+        ],
+        [
+          11
+        ],
+        [
+          12
+        ],
+        [
+          13
+        ],
+        [
+          14
+        ],
+        [
+          15
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "plate",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "insulated cup",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "sponge",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "lime",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "storage box",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "table",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "carpet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "toy",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "shelf",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "water purifier",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "side cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "shelf",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "rubik's cube",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "pf-1/side": {
+      "pass": true,
+      "count": 21,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          6,
+          6
+        ],
+        [
+          7,
+          7
+        ],
+        [
+          8,
+          8
+        ],
+        [
+          9,
+          9
+        ],
+        [
+          10,
+          10
+        ],
+        [
+          11,
+          11
+        ],
+        [
+          12,
+          12
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          14,
+          14
+        ],
+        [
+          15,
+          15
+        ],
+        [
+          16,
+          16
+        ],
+        [
+          17,
+          17
+        ],
+        [
+          18,
+          18
+        ],
+        [
+          19,
+          19
+        ],
+        [
+          20,
+          20
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          6
+        ],
+        [
+          7
+        ],
+        [
+          8
+        ],
+        [
+          9
+        ],
+        [
+          10
+        ],
+        [
+          11
+        ],
+        [
+          12
+        ],
+        [
+          13
+        ],
+        [
+          14
+        ],
+        [
+          15
+        ],
+        [
+          16
+        ],
+        [
+          17
+        ],
+        [
+          18
+        ],
+        [
+          19
+        ],
+        [
+          20
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "plate",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cup",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "table",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "mixer",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "lemon",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "sponge",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "coaster",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "thimble",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "storage box",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "sponge",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "underdrawers",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "wall",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "pf-1/proof": {
+      "pass": true,
+      "count": 40,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          6,
+          6
+        ],
+        [
+          7,
+          7
+        ],
+        [
+          8,
+          8
+        ],
+        [
+          9,
+          9
+        ],
+        [
+          10,
+          10
+        ],
+        [
+          11,
+          11
+        ],
+        [
+          12,
+          12
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          14,
+          14
+        ],
+        [
+          15,
+          15
+        ],
+        [
+          16,
+          16
+        ],
+        [
+          17,
+          17
+        ],
+        [
+          18,
+          18
+        ],
+        [
+          19,
+          19
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          21,
+          21
+        ],
+        [
+          22,
+          22
+        ],
+        [
+          23,
+          23
+        ],
+        [
+          24,
+          24
+        ],
+        [
+          25,
+          25
+        ],
+        [
+          26,
+          26
+        ],
+        [
+          27,
+          27
+        ],
+        [
+          28,
+          28
+        ],
+        [
+          29,
+          29
+        ],
+        [
+          30,
+          30
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          32,
+          32
+        ],
+        [
+          33,
+          33
+        ],
+        [
+          34,
+          34
+        ],
+        [
+          35,
+          35
+        ],
+        [
+          36,
+          36
+        ],
+        [
+          37,
+          37
+        ],
+        [
+          38,
+          38
+        ],
+        [
+          39,
+          39
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          6
+        ],
+        [
+          7
+        ],
+        [
+          8
+        ],
+        [
+          9
+        ],
+        [
+          10
+        ],
+        [
+          11
+        ],
+        [
+          12
+        ],
+        [
+          13
+        ],
+        [
+          14
+        ],
+        [
+          15
+        ],
+        [
+          16
+        ],
+        [
+          17
+        ],
+        [
+          18
+        ],
+        [
+          19
+        ],
+        [
+          20
+        ],
+        [
+          21
+        ],
+        [
+          22
+        ],
+        [
+          23
+        ],
+        [
+          24
+        ],
+        [
+          25
+        ],
+        [
+          26
+        ],
+        [
+          27
+        ],
+        [
+          28
+        ],
+        [
+          29
+        ],
+        [
+          30
+        ],
+        [
+          31
+        ],
+        [
+          32
+        ],
+        [
+          33
+        ],
+        [
+          34
+        ],
+        [
+          35
+        ],
+        [
+          36
+        ],
+        [
+          37
+        ],
+        [
+          38
+        ],
+        [
+          39
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "plate",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "faucet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "hotplate",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "shelf",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "shelf",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cream pitcher",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "sink",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cigar box",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "sink",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "egg",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "kitchen table",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "egg",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cup",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "notepad",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "dishsoap",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "lemon",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "paper towel",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "lime",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "coffee machine",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "mixing bowl",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "coaster",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bowl",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "plate",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "handkerchief",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "handkerchief",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bathroom cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "pf-2/cam0": {
+      "pass": true,
+      "count": 16,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          6,
+          6
+        ],
+        [
+          7,
+          7
+        ],
+        [
+          8,
+          8
+        ],
+        [
+          9,
+          9
+        ],
+        [
+          10,
+          10
+        ],
+        [
+          11,
+          11
+        ],
+        [
+          12,
+          12
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          14,
+          14
+        ],
+        [
+          15,
+          15
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          6
+        ],
+        [
+          7
+        ],
+        [
+          8
+        ],
+        [
+          9
+        ],
+        [
+          10
+        ],
+        [
+          11
+        ],
+        [
+          12
+        ],
+        [
+          13
+        ],
+        [
+          14
+        ],
+        [
+          15
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "plate",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "insulated cup",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "sponge",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "lime",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "storage box",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "table",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "carpet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "toy",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "shelf",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "water purifier",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "side cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "shelf",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "rubik's cube",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "pf-2/side": {
+      "pass": true,
+      "count": 21,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          6,
+          6
+        ],
+        [
+          7,
+          7
+        ],
+        [
+          8,
+          8
+        ],
+        [
+          9,
+          9
+        ],
+        [
+          10,
+          10
+        ],
+        [
+          11,
+          11
+        ],
+        [
+          12,
+          12
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          14,
+          14
+        ],
+        [
+          15,
+          15
+        ],
+        [
+          16,
+          16
+        ],
+        [
+          17,
+          17
+        ],
+        [
+          18,
+          18
+        ],
+        [
+          19,
+          19
+        ],
+        [
+          20,
+          20
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          6
+        ],
+        [
+          7
+        ],
+        [
+          8
+        ],
+        [
+          9
+        ],
+        [
+          10
+        ],
+        [
+          11
+        ],
+        [
+          12
+        ],
+        [
+          13
+        ],
+        [
+          14
+        ],
+        [
+          15
+        ],
+        [
+          16
+        ],
+        [
+          17
+        ],
+        [
+          18
+        ],
+        [
+          19
+        ],
+        [
+          20
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "plate",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cup",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "table",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "mixer",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "lemon",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "sponge",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "coaster",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "thimble",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "storage box",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "sponge",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "underdrawers",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "wall",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    },
+    "pf-2/proof": {
+      "pass": true,
+      "count": 40,
+      "matching": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          6,
+          6
+        ],
+        [
+          7,
+          7
+        ],
+        [
+          8,
+          8
+        ],
+        [
+          9,
+          9
+        ],
+        [
+          10,
+          10
+        ],
+        [
+          11,
+          11
+        ],
+        [
+          12,
+          12
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          14,
+          14
+        ],
+        [
+          15,
+          15
+        ],
+        [
+          16,
+          16
+        ],
+        [
+          17,
+          17
+        ],
+        [
+          18,
+          18
+        ],
+        [
+          19,
+          19
+        ],
+        [
+          20,
+          20
+        ],
+        [
+          21,
+          21
+        ],
+        [
+          22,
+          22
+        ],
+        [
+          23,
+          23
+        ],
+        [
+          24,
+          24
+        ],
+        [
+          25,
+          25
+        ],
+        [
+          26,
+          26
+        ],
+        [
+          27,
+          27
+        ],
+        [
+          28,
+          28
+        ],
+        [
+          29,
+          29
+        ],
+        [
+          30,
+          30
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          32,
+          32
+        ],
+        [
+          33,
+          33
+        ],
+        [
+          34,
+          34
+        ],
+        [
+          35,
+          35
+        ],
+        [
+          36,
+          36
+        ],
+        [
+          37,
+          37
+        ],
+        [
+          38,
+          38
+        ],
+        [
+          39,
+          39
+        ]
+      ],
+      "compatible_candidates": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          6
+        ],
+        [
+          7
+        ],
+        [
+          8
+        ],
+        [
+          9
+        ],
+        [
+          10
+        ],
+        [
+          11
+        ],
+        [
+          12
+        ],
+        [
+          13
+        ],
+        [
+          14
+        ],
+        [
+          15
+        ],
+        [
+          16
+        ],
+        [
+          17
+        ],
+        [
+          18
+        ],
+        [
+          19
+        ],
+        [
+          20
+        ],
+        [
+          21
+        ],
+        [
+          22
+        ],
+        [
+          23
+        ],
+        [
+          24
+        ],
+        [
+          25
+        ],
+        [
+          26
+        ],
+        [
+          27
+        ],
+        [
+          28
+        ],
+        [
+          29
+        ],
+        [
+          30
+        ],
+        [
+          31
+        ],
+        [
+          32
+        ],
+        [
+          33
+        ],
+        [
+          34
+        ],
+        [
+          35
+        ],
+        [
+          36
+        ],
+        [
+          37
+        ],
+        [
+          38
+        ],
+        [
+          39
+        ]
+      ],
+      "metrics": [
+        {
+          "label": "plate",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "faucet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "hotplate",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "shelf",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "shelf",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cream pitcher",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "sink",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cigar box",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "sink",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "egg",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "kitchen table",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "egg",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cup",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "notepad",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "dishsoap",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "lemon",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "paper towel",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "lime",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "coffee machine",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "mixing bowl",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "coaster",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bottle",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bowl",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "plate",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "orange",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "handkerchief",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "handkerchief",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        },
+        {
+          "label": "bathroom cabinet",
+          "confidence_abs": 0.0,
+          "bbox_max_abs_px": 0.0,
+          "mask_xor_pixels": 0,
+          "mask_iou": 1.0
+        }
+      ]
+    }
+  },
+  "tolerances": {
+    "confidence_abs": 0.0001,
+    "bbox_abs_px": 0.05,
+    "mask_iou_min": 0.999,
+    "mask_xor_fraction_max": 1e-05
+  },
+  "finished_monotonic": 129922.931714673,
+  "limitations": [
+    "Original supervisor receipt remains FAIL due to its system Python missing NumPy.",
+    "This addendum only compares already-produced artifacts with the exact reviewed function; no new inference.",
+    "Baseline explicit set_classes preparation is instrumentation, not native ordering relative to image capture.",
+    "Nested host spans include SDK work and are not additive or CUDA-kernel timing; token readbacks have recorded overhead.",
+    "Fresh processes share OS/driver caches; no claim of identical cold-start environment or isolated historical cause.",
+    "Three archived passive images are not the exact detector-held image from the NV14 failed case.",
+    "A first cold prompt-free prediction remains slow; this is not physical acceptance or a native freshness PASS."
+  ],
+  "script_sha256": "b325e33bc5c19c7235f829519b5196ccd8fbdbe52b050329764840be854da82a"
+}

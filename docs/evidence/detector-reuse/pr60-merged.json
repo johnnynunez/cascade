@@ -1,0 +1,19 @@
+{
+  "pass": true,
+  "time_unix": 1790884960.8838646,
+  "pr": {
+    "headRefOid": "ff8d58be1ae8e000bbecb19cd8db1551ac54be73",
+    "mergeCommit": {
+      "oid": "c9147db84356de32d6a98c7a70a1aca3ecefe084"
+    },
+    "mergedAt": "2026-10-01T20:02:05Z",
+    "number": 60,
+    "state": "MERGED",
+    "url": "https://github.com/johnnynunez/cascade/pull/60"
+  },
+  "tested_tree": "24abe92ddb82a496bd484eb5a530fdb551870034",
+  "merge_tree": "24abe92ddb82a496bd484eb5a530fdb551870034",
+  "ci_before_merge": "pr60-ci-complete.json",
+  "full_result_sha256": "b797e511af856ca57f73c3f01de9c81f3c7ca565bba92fcdcd39ecd57ba6ef8e",
+  "gpu_comparison_root_sha256": "c34752474d8d3ac9b44f970bbcf6df3b07e41a0ccd1ab5a8aaf35acfc969fec8"
+}

@@ -1,0 +1,77 @@
+{
+  "pass": false,
+  "phase": "proof",
+  "scope": "Diagnostic x86 normal native proof2 under explicit Kit Tracy configuration. Native safety/300s budget unchanged. No campaign, restart, visitor UI or ARM authority. No inherited physical acceptance.",
+  "source": "ff8d58be1ae8e000bbecb19cd8db1551ac54be73",
+  "plan_sha256": "cb7e635f92293d28cdfad2c04e76d9d9f8a898812eb8780b204ee04a08c0b3c3",
+  "script_sha256": "258cffd310d3404ef334bd15fc790fad3a3a772d761d698f06310c6128f96b73",
+  "started_at": 1790885590.2270334,
+  "errors": [
+    "Traceback (most recent call last):\n  File \"/tmp/cascade-x86-spark07-driver.py\", line 234, in main\n    assert report['exit_code']==0\n           ^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+    "Traceback (most recent call last):\n  File \"/tmp/cascade-x86-spark07-driver.py\", line 244, in main\n    owner,rows,roles,gpu=bound()\n                         ^^^^^^^\n  File \"/tmp/cascade-x86-spark07-driver.py\", line 131, in bound\n    assert {'isaac_bridge','gateway_child','graspgenx'}<=set(roles),set(roles)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'isaac_bridge', 'graspgenx'}\n"
+  ],
+  "nv14_close_admission": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/final-preservation-01/shutdown.json",
+    "sha256": "495ad19e2a50c75651853ef37c88bcd48b27a95b65146a612bec03a09507a179",
+    "owner": "452b72d36e0c4337bfe1c077d62a9c86",
+    "owned_processes_absent": true,
+    "ports_closed": [
+      8703,
+      25573
+    ]
+  },
+  "memory_before_sha256": "381a859499ca96d002aacd152a7c3fefdb35c3306ee9862b823b933b4979f6cc",
+  "device_registration_preflight": {
+    "pass": true,
+    "source": "ff8d58be1ae8e000bbecb19cd8db1551ac54be73",
+    "launch_sha256": "3ffc66dac031197b97934e2418f14d68f4a726ad0b73fa2d70637ee785c30d25",
+    "registration_block_sha256": "83b7766b2c0ee5d19018b4297f1fffab3f92e110b6dced2e2aed5385cd9f0573",
+    "explicit_gpu_environment": {
+      "CUDA_VISIBLE_DEVICES": "1",
+      "CASCADE_REQUIRE_CUDA": "1"
+    },
+    "inherited_home": "/home/johnny",
+    "isolated_state_paths": {
+      "CASCADE_LAUNCH_STATE": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/runs/.launch",
+      "OPENCLAW_STATE_DIR": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/runs/.launch/profile-cascade-demo/openclaw",
+      "OPENCLAW_CONFIG_PATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/runs/.launch/profile-cascade-demo/openclaw/openclaw.json",
+      "NODE_COMPILE_CACHE": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/runs/.launch/profile-cascade-demo/openclaw/cache/node-compile",
+      "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/runs/x86-spark-profile-07/grasp-memory.json",
+      "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/runs/.launch/profile-cascade-demo/memory/envelope.json",
+      "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/runs/.launch/profile-cascade-demo/memory/beliefs.json"
+    },
+    "mcp_cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-07/models",
+    "clean_stdlib_child_environment": {
+      "CUDA_VISIBLE_DEVICES": "1",
+      "CASCADE_REQUIRE_CUDA": "1"
+    },
+    "scope": "CPU-only production registration and stdlib child; no MCP/CUDA/robot startup. Does not claim observation before real MCP model initialization."
+  },
+  "command": [
+    "bash",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile07-concrete-preparation-20261002/authorization/launch-diagnostic-authorized.sh",
+    "--sim",
+    "isaac",
+    "--brain",
+    "qwen",
+    "--occupancy",
+    "none",
+    "--graspgenx",
+    "local",
+    "--headless",
+    "--no-open",
+    "--no-judge"
+  ],
+  "child": {
+    "pid": 2933742,
+    "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13069327",
+    "command_sha256": "1581d59e6ef3068b3085b4575d27565ef0633d0b82f257bc1ac54cea694b0a81",
+    "executable": "/usr/bin/bash",
+    "require_stopped": false
+  },
+  "exit_code": 1,
+  "protected_and_source_after": true,
+  "finished_at": 1790885680.104345,
+  "memory_sha256": "381a859499ca96d002aacd152a7c3fefdb35c3306ee9862b823b933b4979f6cc",
+  "cleanup": "No automatic signal/reset/recovery; any failed phase requires retained-state review. Own normal down is a separate reviewed action."
+}

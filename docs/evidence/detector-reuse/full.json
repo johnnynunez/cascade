@@ -1,0 +1,24 @@
+{
+  "head": "ff8d58be1ae8e000bbecb19cd8db1551ac54be73",
+  "argv": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests",
+    "deploy/brev/tests/test_public_visitor.py",
+    "deploy/brev/tests/test_visitor_video.py",
+    "deploy/brev/tests/test_build_bundle.py",
+    "deploy/brev/tests/test_prepare_bundle.py"
+  ],
+  "pythonpath": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-model-reuse/src",
+  "started_unix_s": 1790883466.9703956,
+  "finished_unix_s": 1790883811.6396606,
+  "exit_code": 0,
+  "log_sha256": "b827501fa27bdac45326aa38eff9b790528b6dda6b946a85bf4fd2a00902608f",
+  "source_manifest_sha256": "fe952788ccc5de4059fa7a71ed331c3e357ab90584fb74f88d36137fa968be36",
+  "files_verified": 1229,
+  "tracked_clean": true,
+  "source_unchanged": true,
+  "pass": true
+}

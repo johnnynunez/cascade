@@ -5,6 +5,11 @@ before and after analysis. This uses the camera client's local monotonic receipt
 time; it does not compare a remote capture clock with the client clock. The
 separate Isaac camera capture contract remains two seconds.
 
+Query preparation now occurs before image selection under the same detector
+lock. [Bounded model and vocabulary reuse](DETECTOR_MODEL_REUSE.md) reduces
+repeated preparation; it does not retimestamp frames, extend the age limit or
+remove the cold-start cost of first inference.
+
 The primary detector, secondary-camera detector and VLM fallback all reject an
 analysis that outlives its image. A slow miss is also rejected: another view or a
 remembered object cannot conceal that expiration. Several individually short

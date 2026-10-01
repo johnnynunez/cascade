@@ -1,0 +1,18 @@
+{
+  "pass": true,
+  "time_unix": 1790885928.2733076,
+  "scope": "Read-only root verification of owned administrative closure; original startup/proof/capture failures unchanged.",
+  "close_receipt_sha256": "8576c3880821dc06569c3d9c07aa251da6e75c104fba48c30afbdeba681137fd",
+  "owned_processes_absent": 4,
+  "launch_shell_and_capture_waiter_absent": true,
+  "ports_closed": [
+    8612,
+    25574,
+    18793,
+    19086
+  ],
+  "terminal_files_unchanged": 5,
+  "source_files_verified": 1229,
+  "protected_verified": 12,
+  "actuator_commands": []
+}

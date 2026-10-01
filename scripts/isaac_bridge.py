@@ -38,6 +38,7 @@ import os
 import signal
 import socketserver
 import sys
+import uuid
 import threading
 import time
 import zlib
@@ -1010,6 +1011,7 @@ print(f"[bridge] arm idx {ARM_IDX} grip idx {GRIP_IDX} "
 _PROP_SPAWNS = {name: tuple(pos) for name, pos, *_ in PROPS}
 
 _state_lock = threading.Lock()
+_motion_clock_epoch = uuid.uuid4().hex
 # Hold the elbow-raised, forward-facing ready pose in raw asset DOFs.
 # CASCADE_BRIDGE_NO_TARGETS=1: asset-inspection mode -- apply NO runtime targets
 # so the asset's own authored joint state/drive targets are what you see
@@ -1190,6 +1192,26 @@ def _grip_frac_now(q_full: np.ndarray) -> float:
     return float(np.clip(np.mean(fr), 0.0, 1.0))
 
 
+def _motion_clock_snapshot() -> dict:
+    """Authoritative clock, read beside q/dq between physics updates."""
+    if engine == "newton":
+        from isaacsim.physics.newton import acquire_stage
+        current = acquire_stage()
+        if current is None or not current.initialized:
+            raise RuntimeError("Newton motion clock unavailable")
+        sim_time, step = float(current.sim_time), int(current.simulation_step_count)
+        clock = "newton_stage"
+    elif engine == "physx":
+        sim_time = float(SimulationManager.get_simulation_time())
+        step = int(SimulationManager.get_num_physics_steps())
+        clock = "SimulationManager"
+    else:
+        raise RuntimeError("unsupported motion clock engine")
+    return {"version": 1, "engine": engine, "clock": clock,
+            "epoch": _motion_clock_epoch, "robot_id": args.prim,
+            "sim_time": sim_time, "physics_step": step, "physics_dt_s": args.dt}
+
+
 class Handler(socketserver.StreamRequestHandler):
     # Optional startup metadata is attached before serving. Keep protocol
     # handlers usable independently of the Kit scene-authoring lifecycle.
@@ -1254,6 +1276,7 @@ class Handler(socketserver.StreamRequestHandler):
                     "q": [float(q[i]) for i in ARM_IDX],
                     "dq": [float(dq[i]) for i in ARM_IDX],
                     "gripper_pos": _grip_frac_now(q),
+                    "physics_clock": _motion_clock_snapshot(),
                 }
             return self._on_main(read_state)
         if op == "set_joints":

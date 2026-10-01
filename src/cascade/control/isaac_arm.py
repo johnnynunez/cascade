@@ -7,6 +7,8 @@ here transfers to hardware by swapping the profile back.
 
 from __future__ import annotations
 
+import copy
+
 import numpy as np
 
 from ..config import Cfg
@@ -27,6 +29,12 @@ class IsaacArm(ArmBase):
         # settle_tol on this rig, so the 2.0 s base default reported "did not
         # settle" on poses the arm was reaching correctly.
         self.settle_timeout_s = float(cfg.get("settle_timeout_s", 5.0))
+        # All stream/settle durations below are PHYSICS seconds. This
+        # independent wall budget includes state/target RPC and lock waits.
+        self.motion_wall_timeout_s = float(cfg.get("motion_wall_timeout_s", 120.0))
+        self.motion_rpc_timeout_s = float(cfg.get("motion_rpc_timeout_s", 1.0))
+        self.settle_hold_s = float(cfg.get("settle_hold_s", .1))
+        self.motion_rate_hz = cfg.get("motion_rate_hz", 30.0)
         # joint_signs map the bridge's ASSET joint convention to the client's
         # LOCAL convention that the kinematics/harness use. The bridge reports
         # and accepts raw DOF (asset) values; the planner/IK work in local.
@@ -50,21 +58,32 @@ class IsaacArm(ArmBase):
     def disconnect(self) -> None:
         self._client.close()
 
-    def get_state(self) -> RobotState:
-        sample = self._client.state()
+    def get_state(self, *, timeout_s: float | None = None) -> RobotState:
+        sample = self._client.state() if timeout_s is None else self._client.state(timeout_s=timeout_s)
         state = self._decode_state(sample)
         grasp_evidence.event("isaac_feedback", state=state, bridge_t=sample.get("t"))
         return state
 
     def _decode_state(self, s: dict) -> RobotState:
-        # asset -> local convention
-        q = np.asarray(s["q"], dtype=float)[: self.n_joints] * self._signs
-        dq = np.asarray(s.get("dq", []), dtype=float)
+        # Validate WIRE dimensions before signs can broadcast a scalar or
+        # slicing can hide surplus DOFs. Asset -> local only after validation.
+        q = np.asarray(s.get("q"))
+        if (q.shape != (self.n_joints,) or q.dtype.kind not in "fiu"
+                or not np.isfinite(q).all()):
+            raise BridgeError("Isaac feedback requires finite, exact-DOF asset q")
+        dq = None if "dq" not in s else np.asarray(s["dq"])
+        if dq is not None and (dq.shape != q.shape or dq.dtype.kind not in "fiu"
+                               or not np.isfinite(dq).all()):
+            raise BridgeError("Isaac feedback requires finite, exact-DOF asset dq")
+        clock = copy.deepcopy(s.get("physics_clock"))
+        if isinstance(clock, dict):
+            clock["source"] = self._client._addr  # bind locally, never trust a wire endpoint
         return RobotState(
-            q=q,
-            dq=(dq[: self.n_joints] * self._signs) if dq.size else None,
+            q=q.astype(float) * self._signs,
+            dq=dq.astype(float) * self._signs if dq is not None else None,
             gripper_pos=float(s.get("gripper_pos", 0.0)),
             gripper_valid="gripper_pos" in s,
+            physics_clock=clock,
         )
 
     def state_from_frame(self, frame) -> RobotState:
@@ -96,13 +115,49 @@ class IsaacArm(ArmBase):
             raise BridgeError("Isaac render robot pixel mask required")
         return self._decode_state(s)
 
-    def send_joint_target(self, q: np.ndarray) -> None:
+    def send_joint_target(self, q: np.ndarray, *, timeout_s: float | None = None) -> None:
         if self._stopped:
             raise BridgeError("soft-stopped; call resume()")
         # local -> asset convention for the bridge's raw DOF targets
         q_asset = np.asarray(q, dtype=float)[: self.n_joints] * self._signs
-        self._client.set_joints(q_asset)
+        if timeout_s is None:
+            self._client.set_joints(q_asset)
+        else:
+            self._client.set_joints(q_asset, timeout_s=timeout_s)
         grasp_evidence.event("isaac_joint_target_sent", q_local=q, q_asset=q_asset)
+
+    def stream_to(self, q_target, duration_s, rate_hz=None, approve=None,
+                  settle_tol=None, settle_timeout_s=None, preflight=None,
+                  before_stream=None, bias_compensate=False) -> bool:
+        """Stream in simulator time; `bias_compensate` remains unsupported.
+
+        Accept the existing advisory keyword explicitly so TypeError cannot
+        trigger SafeArm's legacy retry after any command has been sent.
+        """
+        from .simulation_motion import SimulationMotion
+        from .motion_profile import resolve_motion_rate
+
+        motion = SimulationMotion(self, approve=approve, before_stream=before_stream)
+        return motion.stream(q_target, duration_s, resolve_motion_rate(self, rate_hz),
+                             self.settle_tol if settle_tol is None else settle_tol,
+                             self.settle_timeout_s if settle_timeout_s is None else settle_timeout_s,
+                             preflight)
+
+    def wait_settled(self, q_target, tol, timeout_s) -> bool:
+        from .simulation_motion import SimulationMotion
+
+        return SimulationMotion(self).settle(q_target, tol, timeout_s)
+
+    def validate_simulation_clock(self) -> dict:
+        """Read-only capability check using the motion executor's validator.
+
+        Diagnostics call this before resetting or moving the scene. It proves
+        the source/schema at this read; stream_to still validates every step.
+        """
+        from .simulation_motion import SimulationMotion
+
+        state = SimulationMotion(self).get_state()
+        return copy.deepcopy(state.physics_clock)
 
     def set_gripper(self, pos: float, effort: float = 1.0) -> None:
         if self._stopped:

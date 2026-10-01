@@ -41,18 +41,22 @@ in the validation history.
 ## Subsequent renderer and geometry integration
 
 The [PhysX finger envelope](physx-finger-envelope.md) retains all eight nominal
-components and adds sixteen derived cooking components per finger. It changes
+components and adds sixteen derived cooking components from each of the x86
+and ARM exports: forty components per finger. It changes
 observed-surface vetting geometry, not the physical colliders, opening interval,
-masks, contact offsets or configured occupancy clearance. The NV09 request is
-a derived cooking representation, not a direct dump of active `PxShape` vertices.
-The saved Spark replay is therefore conditional on local ARM admission.
+masks, contact offsets or configured occupancy clearance. Both requests produce
+derived cooking representations, not direct dumps of active `PxShape` vertices.
+Independent audits admit both complete exports against the final artifact.
+The earlier x86-only artifact failed ARM coverage; that negative result remains
+in the [geometry review](evidence/physx-finger-envelope/multiexport-review.json).
 
 Geometry candidate `26b68266e5dce52e33706ea14cdd57c36024322b` passed **3,238 tests**,
 with 43 skipped and four deselected, in 326.74 seconds. Tracked source and eight
 release assets were unchanged. The first run failed because those ignored
 kitchen assets were missing; its failure is retained, and the successful rerun
-used the same code. ARM geometry admission and new physical acceptance remain
-pending. The joint renderer/geometry tree's software results are bound to its
+used the same code. The subsequent cross-platform geometry revision `d14b0c1`
+passed 74 focused tests and both representation audits. New physical acceptance
+remains pending. The joint renderer/geometry tree's software results are bound to its
 exact SHA in the integration PR and CI, rather than inherited from this count.
 
 The optional [OVRTX adapter](OVRTX_RENDERER.md) has real analytic RGBD execution

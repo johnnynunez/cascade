@@ -25,11 +25,14 @@ part of presenter startup.
 ## PhysX finger envelope (2026-10-01)
 
 The [observed-scene envelope](physx-finger-envelope.md) now combines the complete
-nominal finger components with a bounded derived PhysX cooking representation.
+nominal finger components with both retained x86 and ARM derived PhysX cooking
+representations, giving forty components per finger.
 It preserves the opening feedback bound and observed target/non-target rules;
 it does not modify colliders or invent a contact margin. Candidate `26b6826`
-passed 3,238 software tests. Local ARM representation admission and new physical
-acceptance remain pending; the earlier orange failures stay recorded. Joint
+passed 3,238 software tests before the cross-platform extension. The final
+geometry passes both representation audits and 74 focused tests. New physical
+acceptance remains pending; the earlier orange failures and failed ARM coverage
+of the first artifact stay recorded. Joint
 integration validation is attributed to the exact tree in its PR/CI.
 
 ## Optional sensor backend: NVIDIA ovrtx (2026-10-01)

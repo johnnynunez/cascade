@@ -48,7 +48,8 @@ source/asset manifest and deployment checks.
 
 For a validated PhysX clock, the runtime selects the
 [PhysX envelope artifact](physx-finger-envelope.md): all eight nominal components
-plus sixteen derived cooking components per finger. The nominal artifact remains
+plus sixteen derived cooking components from each of the x86 and ARM exports,
+giving forty components per finger. The nominal artifact remains
 the path for other consumers. The union covers the audited derived convexes;
 it does not modify simulator colliders, add contact offsets or establish active
 shape identity on another host. Local representation admission and subsequent

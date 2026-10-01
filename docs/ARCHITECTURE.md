@@ -220,7 +220,8 @@ brake an already submitted gripper command. The [approach gate](observed-finger-
 keeps target points in the scene and covers the two calibrated finger links,
 not the palm, whole arm or unobserved space. For a validated PhysX clock,
 [the finger envelope](physx-finger-envelope.md) retains eight nominal components
-and adds sixteen derived cooking components per finger. Source hashes and
+and adds sixteen derived cooking components from each of the x86 and ARM
+exports, giving forty components per finger. Source hashes and
 kinematic metadata bind that choice. This changes the checked geometric envelope,
 not the physical colliders, 0.1 mm opening interval or occupancy clearance.
 Local representation admission and physical acceptance are separate evidence.

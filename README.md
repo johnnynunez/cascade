@@ -1,11 +1,13 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
-The current tested runtime is **`27f2b0d` (1 October 2026)**. It includes
-render-bound camera publication, release-opening synchronization, the PhysX
-finger envelope, endpoint occlusion checks and optional OVRTX/cuMotion adapters. Its identical integration
-tree passed 3,467 tests and all five PR CI jobs. [Project status](docs/PROJECT_STATUS_20261001.md)
-records the separate Spark and nvblox physical stages; installation, campaign
-and restart measurements apply only to their stated pins.
+The reviewed runtime pin is **`ed29a59` (1 October 2026)**. It includes
+render-bound cameras, release and carry guards, endpoint occlusion checks,
+explicit MCP GPU selection and optional OVRTX/cuMotion adapters. The full suite
+passed **3,556 tests on parent `dc56689`**; the follow-up changes one shell
+heredoc comment. [Project status](docs/PROJECT_STATUS_20261001.md) records the
+source-specific software checks. [Local dual-RTX Pro validation](docs/LOCAL_RTX_VALIDATION.md)
+passed startup and camera/GPU admission but timed out during placement; current
+physical proof, campaign and restart acceptance remain incomplete.
 
 <p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
@@ -106,8 +108,9 @@ explains the prompts, result checks and recovery steps. See the
 
 ## Roadmap
 
-Source-bound Spark and nvblox acceptance continues, followed by the five-object
-campaign and same-version restart. See [current status](docs/PROJECT_STATUS_20261001.md).
+With the Sparks disconnected, source-bound validation continues on the local
+dual-RTX Pro PC. Native proof and nvblox normal-campaign failures remain to be
+resolved before five-object acceptance and the same-version restart. See [current status](docs/PROJECT_STATUS_20261001.md).
 
 **Newton parity.** Installed Spark defaults to CUDA PhysX. Newton remains
 explicit, with separate engine/asset validation.

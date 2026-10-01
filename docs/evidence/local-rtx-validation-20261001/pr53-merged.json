@@ -1,0 +1,15 @@
+{
+  "checked_at": 1790872616.556503,
+  "pr": {
+    "headRefOid": "da0255bd80562bc9714da3f62372bf60b5e5314a",
+    "mergeCommit": {
+      "oid": "41deced8e2c31d11f3ba6ca4c63694a85ba90885"
+    },
+    "mergedAt": "2026-10-01T16:36:21Z",
+    "state": "MERGED",
+    "url": "https://github.com/johnnynunez/cascade/pull/53"
+  },
+  "remote_main": "41deced8e2c31d11f3ba6ca4c63694a85ba90885",
+  "tree": "6e6d3b22d33e0a6b97cc7cf463003b290e851cb4",
+  "tested_tree_equals_merge": true
+}

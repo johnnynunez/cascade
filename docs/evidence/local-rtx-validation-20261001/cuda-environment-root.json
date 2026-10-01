@@ -1,0 +1,20 @@
+{
+  "pass": true,
+  "reviewed_at": 1790871966.9524846,
+  "head": "dc566892cd76dd6a2c6fd9fb0854d19e54d70036",
+  "scope": "Source review; complete suite running separately. Native GPU admission pending.",
+  "peer_sha256": "da9a9cac57eb6878507438d4a8f0f0c494e7f42ff0093bb562a345d514008771",
+  "source_files_sha256": {
+    "docs/QUICKSTART.md": "ba9eff6338e2b67d3039fc926405d1d2d3db21be5841a02a35f00cb49fb8e2ec",
+    "scripts/launch.sh": "6106da5730d31f4477e5a36a30aa4b79bd7409bc7a3b078aa5e2142b473a33e1",
+    "scripts/setup_agents.py": "c395d685c28632567177f7b0aaa55be1cd40c83cf8efe8e6cd5cf23dea7b6253",
+    "tests/test_mcp_device_environment.py": "38b79fc4e2c6f33a6bf854f99d49240c1145711092b81912e2eab15b94c43e15"
+  },
+  "review": [
+    "Actual prior MCP environment omitted device selection and bound GPU0 while bridge/GGX bound GPU1.",
+    "Launch MCP config and setup_agents explicitly copy only four present device variables verbatim; no defaults or device probing.",
+    "Absent, empty, ordinal-list, UUID, MIG, CUDA_DEVICE_ORDER, CPU and require-CUDA preserved; explicit extra env overrides inherited.",
+    "Regression executes real registration heredoc then isolated stdlib child with explicit environment only; no GPU context/robot RPC.",
+    "Quickstart describes registration and limits; native acceptance not yet claimed."
+  ]
+}

@@ -1,8 +1,9 @@
 # PAAI on NVIDIA DGX Spark
 
-**Source pin for these commands: runtime baseline `27f2b0d`, 1 October 2026.** Software
-validation is complete; current native proof, five-object campaign and restart
-results are tracked separately in [project status](PROJECT_STATUS_20261001.md).
+**Source pin for these commands: reviewed runtime `ed29a59`, 1 October 2026.**
+The full suite passed on parent `dc56689`; the follow-up changes one heredoc
+comment. Native proof, five-object campaign and restart results are tracked
+separately in [project status](PROJECT_STATUS_20261001.md).
 The September installation measurements below remain historical.
 
 PAAI means Physical Agentic AI. This installs the Build a Claw kitchen demo:
@@ -16,8 +17,10 @@ SHA-256 hashes. See the [scene notice](../demo/scene/NOTICE.md).
 
 ## Validated release and scope
 
-The commands now pin `27f2b0d7ab76f1c4e3bf246d1b23c636e570496f`. Its identical
-integration tree passed 3,467 tests; all five PR CI jobs passed. This does not establish a fresh installation. Current physical stages
+The commands pin `ed29a59eece5af6abd804c03aeb90de47ff88c74`. The full suite on
+parent `dc56689` passed 3,556 tests. The single follow-up comment correction and
+its source-bound CI are recorded in [local validation](LOCAL_RTX_VALIDATION.md).
+This does not establish a fresh installation. Current physical stages
 are recorded in the status index above. On 30 September 2026, the earlier source
 `9cf540279f09df8197eda6541311b41edb455243` completed a fresh installation, a read-only installation
 check and two complete desktop launches on an NVIDIA GB10 Spark. The launcher
@@ -89,7 +92,7 @@ system package, use the [administrator command](#system-prerequisites)
 before continuing.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/27f2b0d7ab76f1c4e3bf246d1b23c636e570496f/scripts/spark_prerequisites.py | python3 -'
+bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/ed29a59eece5af6abd804c03aeb90de47ff88c74/scripts/spark_prerequisites.py | python3 -'
 ```
 
 Success: `PREREQUISITES_OK`.
@@ -113,7 +116,7 @@ planning estimate; slower connections can take longer.
 The progress log shows each stage.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/27f2b0d7ab76f1c4e3bf246d1b23c636e570496f/scripts/bootstrap.sh | env -u ISAACSIM_PATH -u ISAACSIM_PYTHON_EXE -u CASCADE_QWEN_MODEL -u CASCADE_QWEN_MMPROJ -u LLAMA_SERVER -u LLAMA_DIR bash -s -- --ref 27f2b0d7ab76f1c4e3bf246d1b23c636e570496f --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
+bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/ed29a59eece5af6abd804c03aeb90de47ff88c74/scripts/bootstrap.sh | env -u ISAACSIM_PATH -u ISAACSIM_PYTHON_EXE -u CASCADE_QWEN_MODEL -u CASCADE_QWEN_MMPROJ -u LLAMA_SERVER -u LLAMA_DIR bash -s -- --ref ed29a59eece5af6abd804c03aeb90de47ff88c74 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
 ```
 
 Success: `PREPARED`. No demo services or startup manipulation tests have run.
@@ -145,7 +148,7 @@ is 30 minutes and the Isaac startup timeout is 20 minutes.
   cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" || exit
   python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open 2>&1 |
     tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
-) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref 27f2b0d7ab76f1c4e3bf246d1b23c636e570496f
+) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref ed29a59eece5af6abd804c03aeb90de47ff88c74
 ```
 
 Success: one `READY` summary with both placements, cameras and resets passing.

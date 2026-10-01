@@ -1,0 +1,23 @@
+{
+  "pass": true,
+  "checked_at": 1790871714.2806501,
+  "scope": "Read-only follow-up after native down returned before Kit finished shutting down. Original immediate port-check FAIL preserved; no additional signals or actuator calls.",
+  "original_receipt_sha256": "6e6a942c9eb7057851a703fb64db976cc3327aada6af2cc32bca821f16855c76",
+  "owned_adapter_interpreter_shell_and_services_absent": [
+    2758584,
+    2756248,
+    2757136,
+    2754891,
+    2754901,
+    2754901,
+    2754893
+  ],
+  "closed_ports": [
+    8611,
+    25572,
+    18792
+  ],
+  "source_1108_and_protected_unchanged": true,
+  "proof_unchanged": true,
+  "memory_absent": true
+}

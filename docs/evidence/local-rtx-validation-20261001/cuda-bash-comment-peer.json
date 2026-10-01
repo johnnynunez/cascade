@@ -1,0 +1,19 @@
+{
+  "pass": true,
+  "head": "ed29a59eece5af6abd804c03aeb90de47ff88c74",
+  "parent": "dc566892cd76dd6a2c6fd9fb0854d19e54d70036",
+  "scope": "Independent one-comment diff and 16 embedded Python AST comparison; no full, GPU, SDK, services or RPC. No local Bash3.2 available/reproduction claimed. New macOS CI remains evidence for parser compatibility.",
+  "launch_before_sha256": "6106da5730d31f4477e5a36a30aa4b79bd7409bc7a3b078aa5e2142b473a33e1",
+  "launch_after_sha256": "a1e7b8889a4e9c9881bb65a3337bcb61f207d4da0157eda7978a619707666893",
+  "embedded_python_count": 16,
+  "all_python_asts_identical": true,
+  "author_receipt_sha256": "43cf1b5e9b98e238a2fe65316135b4ba3060ececdc6f545ce02376960802be07",
+  "author_cpu_tests_log_verified": true,
+  "previous_mac_ci_log_sha256": "0e32410a34e1e63e6f5fe3808139d038e15c82b144f25b23e827a4cacf1d0bba",
+  "previous_mac_error_examples": [
+    "2026-10-01T16:39:17.5000540Z E         /private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/pytest-of-runner/pytest-0/test_launch_and_check_share_br0/repo/scripts/launch.sh: line 808: unexpected EOF while looking for matching `)'",
+    "2026-10-01T16:39:17.5005110Z E        +  where 2 = CompletedProcess(args=['bash', '/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/pytest-of-runner/pytest-0/tes...t-0/test_launch_and_check_share_br0/repo/scripts/launch.sh: line 808: unexpected EOF while looking for matching `)'\\n\").returncode"
+  ],
+  "source_clean": true,
+  "reviewed_at": 1790873428.3356476
+}

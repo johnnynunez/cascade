@@ -1,0 +1,8 @@
+{
+  "head": "ed29a59eece5af6abd804c03aeb90de47ff88c74",
+  "parent": "dc566892cd76dd6a2c6fd9fb0854d19e54d70036",
+  "tracked_clean": true,
+  "validation_sha256": "43cf1b5e9b98e238a2fe65316135b4ba3060ececdc6f545ce02376960802be07",
+  "diff": "diff --git a/scripts/launch.sh b/scripts/launch.sh\nindex 729ef59..6762519 100755\n--- a/scripts/launch.sh\n+++ b/scripts/launch.sh\n@@ -822,7 +822,7 @@ for key in (\"CASCADE_GRASP_MEMORY_PATH\", \"CASCADE_ENVELOPE_PATH\", \"CASCADE_BELIE\n             \"CASCADE_GRASP_EVIDENCE_DIR\", \"CASCADE_OBSERVED_FINGER_GATE\",\n             \"CUDA_VISIBLE_DEVICES\", \"CUDA_DEVICE_ORDER\", \"CASCADE_DEVICE\", \"CASCADE_REQUIRE_CUDA\"):\n     # OpenClaw need not inherit these from its gateway. Keep operator values\n-    # verbatim, including empty visibility and CUDA's local ordinal mapping.\n+    # verbatim, including empty visibility and CUDA local ordinal mapping.\n     if key in os.environ:\n         env[key] = os.environ[key]\n if sys.argv[11] == \"none\":\n",
+  "pushed_to": "origin/fix/mcp-cuda-environment"
+}

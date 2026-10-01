@@ -1,0 +1,24 @@
+{
+  "head": "da0255bd80562bc9714da3f62372bf60b5e5314a",
+  "argv": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests",
+    "deploy/brev/tests/test_public_visitor.py",
+    "deploy/brev/tests/test_visitor_video.py",
+    "deploy/brev/tests/test_build_bundle.py",
+    "deploy/brev/tests/test_prepare_bundle.py"
+  ],
+  "pythonpath": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-attachment/src",
+  "started_unix_s": 1790871199.4422355,
+  "finished_unix_s": 1790871551.2790577,
+  "exit_code": 0,
+  "log_sha256": "e6f14eea6421bcef4dab167ac6e5d588ce97e9afbc24384464c2c64702d8cabe",
+  "source_manifest_sha256": "c988e5124aaa6daf43ec51a4b83d5fa49c0641c386e3c1e2acace018646f068d",
+  "files_verified": 1124,
+  "tracked_clean": true,
+  "source_unchanged": true,
+  "pass": true
+}

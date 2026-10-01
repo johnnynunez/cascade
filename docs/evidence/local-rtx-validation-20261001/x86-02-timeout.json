@@ -1,0 +1,31 @@
+{
+  "scope": "Exact allowlisted error lines only. Full gateway/config/auth files not copied.",
+  "records": [
+    {
+      "original_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo/openclaw-gateway.log",
+      "sha256_at_read": "c471295a0c8261494bb6e0a15b4572bd999533f56a80cb420d1aa618e04b9930",
+      "bytes_at_read": 10428,
+      "allowlisted_lines": [
+        {
+          "line": 53,
+          "text": "2026-10-01T18:44:35.530+02:00 [tools] cascade__pick_and_place failed: MCP error -32001: Request timed out raw_params={\"object\":\"green cube\",\"destination\":\"green square\"}"
+        }
+      ]
+    },
+    {
+      "original_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/mcp_2787753_c60f289796914dd9a6b71651d0518faf/server.log",
+      "sha256_at_read": "0b45f9b718d93e2e5d234a000024bc582a1954584cb620026fd24c139e9e1b9b",
+      "bytes_at_read": 1941,
+      "allowlisted_lines": [
+        {
+          "line": 8,
+          "text": "[cascade-mcp] client cancelled 'pick_and_place' mid-motion -> e-stop. If this arrived at a round number of seconds the HOST's per-call budget expired (OpenClaw requestTimeoutMs, default 60 s) -- a persistent pick legitimately runs longer; raise it in the server entry (launch.sh sets 300000)."
+        },
+        {
+          "line": 10,
+          "text": "[cascade-mcp] tools/call pick_and_place(object=green cube, destination=green square) -> ERROR in 300.8s: {\"destination\": \"green square\", \"destination_kind\": \"configured_point\", \"target\": [0.14, -0.27], \"ok\": false, \"stage\": \"place\", \"error\": \"place failed after 1 attempts: SafetyViolation: simulation mot"
+        }
+      ]
+    }
+  ]
+}

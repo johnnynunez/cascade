@@ -1,0 +1,194 @@
+{
+  "scope": "Offline costs from this shared-PC run; source dc566892. Per-call host timeout confirmed by retained exact log extracts. This is not a unique attribution of low RTF to CPU/GPU contention or a proposal to increase budgets.",
+  "inputs_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile02-negative-retained/run/grasp-evidence/1790872777177095543-2787753-caac77bb1c3f42b2b5dabdad76ccba1d.json": "e6632d6fab3f4721a9819eb7f71cdefb838fa6ba8b9dc3caf3ba37e570d79d4e",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile02-negative-retained/proof-evidence/case-1/physics/samples.jsonl": "f7054f44c7f3fcb5385d1fdab9764cebe813bc4edcc1ae979a9de2ff3cbe51ba",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile02-negative-retained/runtime/trace.jsonl": "f568fa4d697f75d75f5b56092c1304b11297660c2aade4c2d6c3d041065f4d71",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile02-negative-retained/proof-evidence/case-1/02-pick.json": "49fbb1c74b06df4720e79827c8ce639638b663831f046a2d7e98a5fb78213833",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile02-negative-retained/run/observer-proof/samples.jsonl": "0916718a96eeea2dc02e4be8aafd5d04c99cc81f2a3ab6c582f087e4148848fc",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile02-negative-retained/diagnostic/timeout-extracts.json": "03226a77c9b77856894afea45227a7d44e9d952dfa5c4dc330c6bb132f69ce9e"
+  },
+  "grasp_duration_s": 208.50777311899583,
+  "grip_verified": true,
+  "planning_batch": 1,
+  "grasp_phases": [
+    {
+      "phase": "planning",
+      "start_elapsed_s": 11.40007360499294,
+      "end_elapsed_s": 13.098615169990808,
+      "wall_duration_s": 1.6985415649978677,
+      "requested_motion_duration_s": [],
+      "samples": 7,
+      "measured_sim_advance_s": 0.1666666666666714,
+      "measured_wall_span_s": 1.4470617679908173,
+      "observed_rtf": 0.1151759174026696,
+      "first_sequence": 70,
+      "last_sequence": 76
+    },
+    {
+      "phase": "open",
+      "start_elapsed_s": 13.098615169990808,
+      "end_elapsed_s": 13.172620999001083,
+      "wall_duration_s": 0.07400582901027519,
+      "requested_motion_duration_s": [],
+      "samples": 1
+    },
+    {
+      "phase": "home",
+      "start_elapsed_s": 13.172620999001083,
+      "end_elapsed_s": 31.6169690789975,
+      "wall_duration_s": 18.444348079996416,
+      "requested_motion_duration_s": [
+        1.5
+      ],
+      "samples": 85,
+      "measured_sim_advance_s": 2.36666666666666,
+      "measured_wall_span_s": 18.295614443995873,
+      "observed_rtf": 0.12935704749961738,
+      "first_sequence": 78,
+      "last_sequence": 162
+    },
+    {
+      "phase": "pregrasp",
+      "start_elapsed_s": 31.6169690789975,
+      "end_elapsed_s": 141.48929980798857,
+      "wall_duration_s": 109.87233072899107,
+      "requested_motion_duration_s": [
+        7.5
+      ],
+      "samples": 449,
+      "measured_sim_advance_s": 11.366666666666674,
+      "measured_wall_span_s": 109.61977074899187,
+      "observed_rtf": 0.10369175732627783,
+      "first_sequence": 163,
+      "last_sequence": 611
+    },
+    {
+      "phase": "descent",
+      "start_elapsed_s": 141.48929980798857,
+      "end_elapsed_s": 173.6721891699999,
+      "wall_duration_s": 32.18288936201134,
+      "requested_motion_duration_s": [
+        2.0
+      ],
+      "samples": 129,
+      "measured_sim_advance_s": 3.1666666666666714,
+      "measured_wall_span_s": 32.07994652100024,
+      "observed_rtf": 0.09871171900469665,
+      "first_sequence": 612,
+      "last_sequence": 740
+    },
+    {
+      "phase": "close",
+      "start_elapsed_s": 173.6721891699999,
+      "end_elapsed_s": 176.35540515799948,
+      "wall_duration_s": 2.6832159879995743,
+      "requested_motion_duration_s": [],
+      "samples": 10,
+      "measured_sim_advance_s": 0.21666666666666856,
+      "measured_wall_span_s": 2.3056424940004945,
+      "observed_rtf": 0.09397236008204059,
+      "first_sequence": 741,
+      "last_sequence": 750
+    },
+    {
+      "phase": "lift",
+      "start_elapsed_s": 176.35540515799948,
+      "end_elapsed_s": 208.12414131499827,
+      "wall_duration_s": 31.768736156998784,
+      "requested_motion_duration_s": [
+        2.0
+      ],
+      "samples": 134,
+      "measured_sim_advance_s": 3.11666666666666,
+      "measured_wall_span_s": 31.57611756400729,
+      "observed_rtf": 0.09870328929289454,
+      "first_sequence": 751,
+      "last_sequence": 884
+    },
+    {
+      "phase": "verify",
+      "start_elapsed_s": 208.12414131499827,
+      "end_elapsed_s": 208.50777311899583,
+      "wall_duration_s": 0.3836318039975595,
+      "requested_motion_duration_s": [],
+      "samples": 2,
+      "measured_sim_advance_s": 0.01666666666667993,
+      "measured_wall_span_s": 0.2911098260083236,
+      "observed_rtf": 0.057252161135238996,
+      "first_sequence": 885,
+      "last_sequence": 886
+    }
+  ],
+  "whole_witness": {
+    "samples": 1259,
+    "wall_span_s": 303.9584538749914,
+    "sim_advance_s": 31.78333333333333,
+    "rtf": 0.10456472892313376,
+    "first_step": 10748,
+    "last_step": 14562,
+    "last_target_pose": {
+      "position_m": [
+        0.23896920680999756,
+        -0.13435444235801697,
+        0.13089174033306267
+      ],
+      "orientation_wxyz": [
+        0.9998651146888733,
+        -0.00017859323997981846,
+        0.011396749876439571,
+        0.011823726817965508
+      ],
+      "linear_velocity_m_s": [
+        -0.036721762269735336,
+        0.005595138296484947,
+        0.04893777146935463
+      ],
+      "angular_velocity_rad_s": [
+        -0.9540830850601196,
+        -0.4047209620475769,
+        -8.406115531921387
+      ],
+      "tensor_device": "cuda:0"
+    },
+    "last_jaws_m": [
+      0.019849561154842377,
+      0.020022140815854073
+    ],
+    "last_contact_counts": [
+      12,
+      4
+    ]
+  },
+  "native_cli": {
+    "duration_ms": 303191,
+    "aborted": false,
+    "tool_summary": {
+      "calls": 1,
+      "tools": [
+        "cascade__pick_and_place"
+      ],
+      "failures": 1
+    }
+  },
+  "trace": {
+    "duration_ms": 298527.8,
+    "ok": false,
+    "error": "place failed after 1 attempts: SafetyViolation: simulation motion stopped (e-stop latched; not retrying)",
+    "terminal_unix_s": 1790873076.2980628
+  },
+  "phase_markers": {
+    "pick_begin": {
+      "monotonic": 117875.066832928,
+      "unix": 1790872772.796544
+    }
+  },
+  "observer_samples": 67,
+  "limitations": [
+    "Witness samples are discrete, not a continuous contact or camera guarantee.",
+    "Per-phase RTF uses actual first/last server samples strictly inside the event interval; no interpolation.",
+    "No reset occurred and placement was not confirmed.",
+    "Observer covers owned processes and borrowed Qwen only; no causal claim about other protected workloads."
+  ],
+  "script_sha256": "d6fcbe88c45175a2c048f2080fc7e702607ebbc1ec4b11ec7709113b09b2531f"
+}

@@ -1,0 +1,7 @@
+{
+  "scope": "Independent offline mechanical-cause assessment; no production or physical actions",
+  "orientation_receipt_sha256": "5b9d29fa6dc463ff4c641c690cfd819c68ba51c5c1b144e1322432ecb6d852a4",
+  "counterfactual_ik_sha256": "1c0ecc126379d43a6eb0dc87c0affdd591fe42d972132cf8ab744ed5ea3f2544",
+  "summary_sha256": "d176ef1c8a1fdefb5685d0ad982fea7162145abc2c840b2ccaf03a7fac142d38",
+  "conclusion": "Physical loss confirmed; mechanical trigger unresolved. Retaining full rotation is a viable kinematic candidate, not validated prevention."
+}

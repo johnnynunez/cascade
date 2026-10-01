@@ -1,0 +1,90 @@
+{
+  "pass": true,
+  "scope": "Failure-session provenance only; proof has no declared process because its native tool failed. MCP association uses new owner registry, exact grasp receipt PID, run trace and registration after proof start. Not physical acceptance.",
+  "source": "dc566892cd76dd6a2c6fd9fb0854d19e54d70036",
+  "session": "cascade-proof-cf668ad1d45141beabc8b1f6d6ce3937",
+  "owner": {
+    "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02",
+    "profile": "cascade-demo",
+    "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+    "owner": "6edefe9a90f74b3c8f26ebc3132b42f8",
+    "schema": 1
+  },
+  "failure_mcp": {
+    "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02",
+    "profile": "cascade-demo",
+    "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+    "owner": "6edefe9a90f74b3c8f26ebc3132b42f8",
+    "schema": 1,
+    "pid": 2787753,
+    "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11786382",
+    "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/x86-spark-profile-02/python/bin/python -m cascade.apps.mcp_server --launch-owner 6edefe9a90f74b3c8f26ebc3132b42f8 --launch-state-dir /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+    "role": "mcp",
+    "instance_id": "c5cb3c0db5a84815a09495798c6487e7",
+    "registered_at": 1790872761.5806372,
+    "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/mcp_2787753_c60f289796914dd9a6b71651d0518faf"
+  },
+  "mcp_environment": {
+    "process": {
+      "pid": 2787753,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11786382",
+      "command_sha256": "bd858de90e0b8c508d5bf9ff737b72eaa3c8ac0c72919ff4858f88017f2a5b4f",
+      "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+      "require_stopped": false
+    },
+    "environment": {
+      "CUDA_VISIBLE_DEVICES": "1",
+      "CASCADE_REQUIRE_CUDA": "1"
+    }
+  },
+  "gpu": [
+    {
+      "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+      "memory_mib": "1822"
+    }
+  ],
+  "bridge": {
+    "adapter_record": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+      "owner": "6edefe9a90f74b3c8f26ebc3132b42f8",
+      "schema": 1,
+      "pid": 2783221,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764731",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/x86-spark-profile-02/python/bin/python /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/scripts/isaac_launch.py --python /home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh --ready-file /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo/isaac-startup.xuJoMEDO/interpreter.json -- /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/scripts/isaac_bridge.py --port 8611 --usd /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda --engine physx --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/demo/scene/kitchen_config.json",
+      "role": "isaac_bridge",
+      "instance_id": "14d040f224c9447a9470be72bbab3010",
+      "registered_at": 1790872578.6690342
+    },
+    "marker_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo/isaac-startup.xuJoMEDO/interpreter.json",
+    "marker_sha256": "30de79430d6d3841ab8cbe27cb33162ec9d1246e0363e8b932e4c3757554eebb",
+    "marker": {
+      "launcher_pid": 2783221,
+      "launcher_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764731",
+      "bridge_pid": 2783231,
+      "bridge_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764734"
+    },
+    "interpreter": {
+      "pid": 2783231,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11764734",
+      "command_sha256": "f7c7c393dfc1d73d3f7dc221e11f89b7503ba001dae0258358e30b67eafd303b",
+      "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.3.0+feature.manylinux_2_35_x86_64.release/python/bin/python3.12",
+      "require_stopped": false
+    },
+    "ancestry": [
+      {
+        "pid": 2783231,
+        "ppid": 2783223,
+        "birth_ticks": "11764734"
+      },
+      {
+        "pid": 2783223,
+        "ppid": 2783221,
+        "birth_ticks": "11764733"
+      }
+    ]
+  },
+  "proof_has_process_field": false,
+  "checked_unix_s": 1790873230.2081053
+}

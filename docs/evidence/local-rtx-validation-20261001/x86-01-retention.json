@@ -1,0 +1,212 @@
+{
+  "pass": true,
+  "scope": "Retention integrity only. Local01 startup passed; admission1 adapter-identity NEG and admission2 MCP GPU0 NEG retained. Zero robot tools or physical validation. Administrative normal down original NEG race retained separately from later readonly complete closure PASS.",
+  "source": "27f2b0d7ab76f1c4e3bf246d1b23c636e570496f",
+  "tree": "6ceed3ab9c9e894daf9f427f004c404cd63c8c3c",
+  "files": {
+    "runs/.launch/profile-cascade-demo/cascade-proof-4967b758e3fd4efeafa6d0875f6a1ff5/01-brain.json": {
+      "sha256": "4c7692b576450b354f198d879d579384630730e407ff4ba7fa39d4bec2f1ea60",
+      "size_bytes": 8650
+    },
+    "runs/.launch/profile-cascade-demo/cascade-proof-4967b758e3fd4efeafa6d0875f6a1ff5/01-brain.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    "runs/.launch/profile-cascade-demo/cascade-proof-4967b758e3fd4efeafa6d0875f6a1ff5/proof.json": {
+      "sha256": "cb8a2e0097c1f8f9e5b1db753e70e20ec04f4b2616f51d3211937196809aab4d",
+      "size_bytes": 479
+    },
+    "runs/.launch/profile-cascade-demo/gateway_child.pid": {
+      "sha256": "1bf8a83cb498f5edd0bb154289b426ea3e22c6275a03af9dcd422356515b8e77",
+      "size_bytes": 547
+    },
+    "runs/.launch/profile-cascade-demo/graspgenx-readiness.json": {
+      "sha256": "0c7484bff78900ddc9b77ef19abf22a047eff620d9ad4e85138319c380ab78dd",
+      "size_bytes": 1039
+    },
+    "runs/.launch/profile-cascade-demo/graspgenx.log": {
+      "sha256": "c69e7be047fbbc3c71f1ae19151ce2968f4d9cd62dcbbfb77461e203f0dd5321",
+      "size_bytes": 4367
+    },
+    "runs/.launch/profile-cascade-demo/graspgenx.pid": {
+      "sha256": "3f985384dc03fbb83c05be82e1f57ca53c039420263d78c10d3ca082d192d1d7",
+      "size_bytes": 823
+    },
+    "runs/.launch/profile-cascade-demo/isaac-startup.fx1801kM/interpreter.json": {
+      "sha256": "14c1f2239192afc444bd9079f534bd83fc43c9175a569b565b1875e6fa073819",
+      "size_bytes": 180
+    },
+    "runs/.launch/profile-cascade-demo/isaac_bridge.log": {
+      "sha256": "39e723a4de77b4e189474b09e506f56d20fe707c7266d1ce0e7b4fac512d6d13",
+      "size_bytes": 43798
+    },
+    "runs/.launch/profile-cascade-demo/isaac_bridge.pid": {
+      "sha256": "dd62d19054eadbb5a2d370a3ac22c6e88e1c3e4d1d33abd731b76571276d1951",
+      "size_bytes": 1366
+    },
+    "runs/.launch/profile-cascade-demo/owner.json": {
+      "sha256": "a3d7beb7f9ddfb8f292857d9168065937d3a6901feede601ae97d9c8579efeb7",
+      "size_bytes": 303
+    },
+    "runs/.launch/profile-cascade-demo/processes/mcp_6ad36f1e4fa34b8099e11b4bf33b6836.json": {
+      "sha256": "9f91ad684bbb911b746095d2752814e823a731265ebec21660a025330c688e49",
+      "size_bytes": 964
+    },
+    "runs/.launch/profile-cascade-demo/processes/mcp_d1646b0dfb774e75a59947e8fd7b387c.json": {
+      "sha256": "6c6ac09ea451376ffbf7711dac1c992128d0a8904c55a1f9456ba8342946432c",
+      "size_bytes": 964
+    },
+    "runs/.launch/profile-cascade-demo/proof.json": {
+      "sha256": "cb8a2e0097c1f8f9e5b1db753e70e20ec04f4b2616f51d3211937196809aab4d",
+      "size_bytes": 479
+    },
+    "runs/.launch/profile-cascade-demo/runtime-check.log": {
+      "sha256": "315e82bb7633a084a40f572dff8be3e3dcc15bdd431f5145fda109e3c7278312",
+      "size_bytes": 798
+    },
+    "runs/mcp_2758121_86586f30fca74bd28567ba0b7fed79ed/server.log": {
+      "sha256": "fd1c21b7ca378cc876769b28cd00a5f98c6ae5bec2a904cbfe0ba601e67ca412",
+      "size_bytes": 559
+    },
+    "runs/mcp_2758584_3fe9f07a86714db9bb2e097a5094667c/server.log": {
+      "sha256": "9965c75837e024d3ab1d695fb9cc261fd8d3ff5547d0a4ed0ee0175ab4186037",
+      "size_bytes": 437
+    },
+    "runs/x86-spark-profile-01/administrative-close01/cascade-x86-spark01-driver02.py": {
+      "sha256": "45c640abb216e05817db8c3e0ad6aca76aaae4632e9c80047260a336e9a7cb14",
+      "size_bytes": 11935
+    },
+    "runs/x86-spark-profile-01/administrative-close01/cascade-x86-spark01-plan.json": {
+      "sha256": "1cfc7c75c203b48fed4eee1ccd0a7c3fdc0d42ae2554d16fdca2f735aa9948a6",
+      "size_bytes": 9131
+    },
+    "runs/x86-spark-profile-01/administrative-close01/gateway_child.pid": {
+      "sha256": "1bf8a83cb498f5edd0bb154289b426ea3e22c6275a03af9dcd422356515b8e77",
+      "size_bytes": 547
+    },
+    "runs/x86-spark-profile-01/administrative-close01/graspgenx.pid": {
+      "sha256": "3f985384dc03fbb83c05be82e1f57ca53c039420263d78c10d3ca082d192d1d7",
+      "size_bytes": 823
+    },
+    "runs/x86-spark-profile-01/administrative-close01/isaac_bridge.pid": {
+      "sha256": "dd62d19054eadbb5a2d370a3ac22c6e88e1c3e4d1d33abd731b76571276d1951",
+      "size_bytes": 1366
+    },
+    "runs/x86-spark-profile-01/administrative-close01/owner.json": {
+      "sha256": "a3d7beb7f9ddfb8f292857d9168065937d3a6901feede601ae97d9c8579efeb7",
+      "size_bytes": 303
+    },
+    "runs/x86-spark-profile-01/administrative-close01/proof.json": {
+      "sha256": "cb8a2e0097c1f8f9e5b1db753e70e20ec04f4b2616f51d3211937196809aab4d",
+      "size_bytes": 479
+    },
+    "runs/x86-spark-profile-01/administrative-close01/receipt.json": {
+      "sha256": "6e6a942c9eb7057851a703fb64db976cc3327aada6af2cc32bca821f16855c76",
+      "size_bytes": 8515
+    },
+    "runs/x86-spark-profile-01/administrative-close01/settled-readonly-review.json": {
+      "sha256": "26cb1217e70804db888aca30c40df55d2d5c73229cec1721e7ea1f509c163660",
+      "size_bytes": 644
+    },
+    "runs/x86-spark-profile-01/administrative-close01/stdout.log": {
+      "sha256": "0ee279eb2d23993148baa2119ae0e3c13c30ca6d216d8d3f1449ee0e23fc638f",
+      "size_bytes": 65
+    },
+    "runs/x86-spark-profile-01/admission/receipt.json": {
+      "sha256": "ecf115f5dd9595a2e73a1f983abc99fe18c9638abed2e75364bdf42de3b6e079",
+      "size_bytes": 1483
+    },
+    "runs/x86-spark-profile-01/admission02/receipt.json": {
+      "sha256": "842a8052ceab7e41a252b999753ad20cfb42ee8bcfb4ef6c96e85fcd253e70f1",
+      "size_bytes": 1454
+    },
+    "runs/x86-spark-profile-01/admission02-authorization.json": {
+      "sha256": "f10552c30cbe550ea3dd9dccd7599bb91e3e174dd55e9c856cce4a078ee4f596",
+      "size_bytes": 449
+    },
+    "runs/x86-spark-profile-01/device-binding-failure.json": {
+      "sha256": "3e6e30b64eeaf05ecf24d44637489c1a62f7c2f7b1740bd05eca71358a1bda8f",
+      "size_bytes": 2338
+    },
+    "runs/x86-spark-profile-01/helper-binding-delta02.json": {
+      "sha256": "8716c8a880f3723c1fd0e8f6ca74d45304db525bf0c1d9189768a0a2904053d4",
+      "size_bytes": 808
+    },
+    "runs/x86-spark-profile-01/helper-preflight.json": {
+      "sha256": "c8458ad28c585fbaf6ce3a56c017404b63d750d309681df6720a4aa58b57ac33",
+      "size_bytes": 443
+    },
+    "runs/x86-spark-profile-01/helpers.json": {
+      "sha256": "b68205fcc3785bb5fca5a1c1f8bd4107654387d0ed9a6014b016d9e3e51f17c7",
+      "size_bytes": 1140
+    },
+    "runs/x86-spark-profile-01/preparation.json": {
+      "sha256": "8b7b3a8f15e76d68b34675e4840006c885c981d2f8a791ae828aa5719688413c",
+      "size_bytes": 2386
+    },
+    "runs/x86-spark-profile-01/python-binding.json": {
+      "sha256": "22c7f7b121628382a7995c530f9b384533dcd7875b2595b96538d316015d395b",
+      "size_bytes": 1815
+    },
+    "runs/x86-spark-profile-01/startup/receipt.json": {
+      "sha256": "9799c514e48b6bfd560678157cc248b968ec7d779ef69e2370bb4fc775c01c01",
+      "size_bytes": 1404
+    },
+    "runs/x86-spark-profile-01/startup/stdout.log": {
+      "sha256": "7e1655aba9b38d7e2770e520e367d237ad17b175b0a6311b0e21fc3451d0452d",
+      "size_bytes": 7865
+    },
+    "runs/x86-spark-profile-01/startup-authorization.json": {
+      "sha256": "decf9fe3da8fab38522239235e77d0ec8dc26c17df4e08f760dd0dffe7dc490d",
+      "size_bytes": 845
+    },
+    "diagnostic-helpers/cascade-x86-spark01-plan.json": {
+      "sha256": "1cfc7c75c203b48fed4eee1ccd0a7c3fdc0d42ae2554d16fdca2f735aa9948a6",
+      "size_bytes": 9131
+    },
+    "diagnostic-helpers/cascade-x86-spark01-close.py": {
+      "sha256": "0f42451662d1e10b211c95fe2d1e6296ce41bd5397ee63a3fe9f0ffb9983f6dd",
+      "size_bytes": 3891
+    },
+    "diagnostic-helpers/cascade-x86-spark01-observer.py": {
+      "sha256": "bc1ceb664975d25469328304bc7b77a9d48f851be534961698f6398d516913c5",
+      "size_bytes": 2873
+    },
+    "diagnostic-helpers/cascade-x86-spark01-strict02.py": {
+      "sha256": "6123c80c623a37007ab1f92e01007b75d86d26a5c30c58899796405094d520f3",
+      "size_bytes": 5099
+    },
+    "diagnostic-helpers/cascade-x86-spark01-campaign02.py": {
+      "sha256": "09b125f8e36b40f41d8f4edba14496fedd757532df99119b57c241f076761bce",
+      "size_bytes": 4413
+    },
+    "diagnostic-helpers/cascade-x86-spark01-driver02.py": {
+      "sha256": "45c640abb216e05817db8c3e0ad6aca76aaae4632e9c80047260a336e9a7cb14",
+      "size_bytes": 11935
+    },
+    "diagnostic-helpers/cascade-x86-spark01-bind-delta.py": {
+      "sha256": "3f5c579c1c87ad3e8b8cf0ca5f906ee95ed29fa92e2bab820486469c4484fa4b",
+      "size_bytes": 3752
+    },
+    "diagnostic-helpers/cascade-x86-spark01-strict.py": {
+      "sha256": "55d993fe6ee12ec46454906ab87679f62ff5f87a11abe7d33e92beabcc496efa",
+      "size_bytes": 5095
+    },
+    "diagnostic-helpers/cascade-x86-spark01-campaign.py": {
+      "sha256": "55c5815873eee0aa81d9bf4a46168ad1a7dbcd9bd8282704be4503981285942a",
+      "size_bytes": 4411
+    },
+    "diagnostic-helpers/cascade-x86-spark01-driver.py": {
+      "sha256": "b9a40def6ea8a78dfc11ac7289fc28514fe04a8571c9b5b9a201bc50e8bc0402",
+      "size_bytes": 9847
+    },
+    "diagnostic-helpers/cascade-x86-spark01-prepare.py": {
+      "sha256": "f68c6d9fcb0aba9272cd3c203f083cc9d79b5ba3e955e06d7f6b1141976132ab",
+      "size_bytes": 4279
+    }
+  },
+  "count": 50,
+  "memory_absent": true,
+  "auth_config_excluded": "Private OpenClaw config/auth/database and private HOME/venv are excluded. Gateway full logs not copied.",
+  "written_unix_s": 1790871832.7170067
+}

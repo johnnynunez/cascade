@@ -42,3 +42,34 @@ for green and orange while keeping all unassigned boundary pixels as obstacles.
 Those candidates were produced from historical localization, so this establishes
 neither the result of new GGX requests nor physical acceptance. Full runtime
 validation and a new physical campaign are required before deployment.
+
+## Native launch06: green passes, orange planning rejected
+
+The normal Spark installation of `b28ebc3` passed its asset, dependency and
+installation checks. The runtime passed 2,658 tests (43 skipped, two deselected)
+and 242 independent focused tests. The installed defaults supplied camera
+cadence 6, physics step 1/120 s and the observed-finger gate; the driver removed
+inherited overrides for those settings. Existing grasp memory was preserved.
+
+The [retained launch06 receipt](../benchmark/results/spark-observed-finger-native06-20261001.json)
+records a complete green-cube native placement and reset, passing external
+physics audit and strict native confirmation. Both closing preflights ran.
+Sampled neighboring props moved less than 0.000101 mm during home, pregrasp,
+descent, close and lift. All three cameras had 1,858 samples with server ages
+below two seconds; two deliveries per camera exceeded two seconds during reset
+(maximum 2.046437 s). These sampled measurements do not establish continuously
+fresh delivery or collision-free motion between observations.
+
+Orange did not complete. GGX returned 400 learned poses: 167 passed the existing
+score threshold, ten passed the vertical-approach filter, and only one passed
+both. The observed-surface gate rejected its pregrasp path in 1.50 s, before
+that grasp attempt sent any joint or gripper targets. Saved-input replay
+reproduces the rejection. The symmetric orientation also fails; a historical
+candidate passes on this observation but was not used for actuation. Preserved
+memory adjusted ranking and offsets rather than supplying a cached pose.
+
+The launcher withheld READY and closed its owned services. The strict checker
+accepts green and rejects the incomplete orange proof. The retained Chromium
+window stayed disconnected with controls disabled, without reloading; this is
+an offline-state check, not successful UI or restart acceptance. The archive
+contains 82 hash-verified files. Five-object native acceptance remains pending.

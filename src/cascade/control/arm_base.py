@@ -19,16 +19,12 @@ import numpy as np
 
 from ..config import Cfg
 from ..types import RobotState, SafetyViolation
+from .motion_profile import min_jerk
 
 
 PREFLIGHT_MAX_DRIFT_RAD = 1e-3
 PREFLIGHT_REBIND_BUDGET_S = 5.0
 PREFLIGHT_MAX_CHECKS = 8
-
-
-def min_jerk(s: float) -> float:
-    """Min-jerk time scaling on s in [0, 1]."""
-    return 10 * s**3 - 15 * s**4 + 6 * s**5
 
 
 def prepare_stream(arm, q_target, duration_s, preflight=None, before_stream=None):
@@ -72,6 +68,8 @@ class ArmBase(abc.ABC):
     #: `n_joints`, because a wrong value silently truncates or broadcasts each
     #: commanded pose instead of failing.
     n_joints = 6
+    # Planner-visible nominal rate. Hardware streaming keeps its 50 Hz default.
+    motion_rate_hz = 50.0
     #: settle tolerance (rad). Real arms hold with pure PD (no gravity
     #: feedforward), so steady-state droop under payload needs headroom;
     #: backends override from config.

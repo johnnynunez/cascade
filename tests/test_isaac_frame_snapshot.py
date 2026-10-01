@@ -582,3 +582,24 @@ def test_invalid_history_clock_clears_admitted_epoch(capture_bridge, bad):
     assert not b.env['_frames']
     assert b.env['_motion_clock_epoch'] != epoch
     assert b.env['Handler'].scene_identity['camera_history_error']
+
+
+def test_sdk_integer_scalars_are_normalized_only_at_render_boundary(capture_bridge):
+    b = capture_bridge
+    sensor = SimpleNamespace(render_product_id='/Synthetic/RP', get_render_times=lambda: {
+        'rpFabricTime': {'fabricFrameTimeNumerator': np.int64(1000),
+                         'fabricFrameTimeDenominator': np.uint64(1000000)},
+        'IsaacReadSimulationTime': {'simulationTime': np.float64(.001)}})
+    token, reference, simulation_time = b.env['_render_token'](sensor)
+    assert reference == (1000, 1000000) and all(type(v) is int for v in reference)
+    assert type(simulation_time) is float and simulation_time == .001
+    assert token[0] == '/Synthetic/RP'
+
+
+@pytest.mark.parametrize('bad', [True, np.bool_(True), 1000., np.float64(1000.), '1000', np.array([1000])])
+def test_render_boundary_does_not_coerce_malformed_reference(capture_bridge, bad):
+    sensor = SimpleNamespace(render_product_id='/Synthetic/RP', get_render_times=lambda: {
+        'rpFabricTime': {'fabricFrameTimeNumerator': bad, 'fabricFrameTimeDenominator': 1000000},
+        'IsaacReadSimulationTime': {'simulationTime': .001}})
+    with pytest.raises(ValueError, match='integer scalars'):
+        capture_bridge.env['_render_token'](sensor)

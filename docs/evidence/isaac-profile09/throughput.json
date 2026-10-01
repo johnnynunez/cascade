@@ -1,0 +1,53 @@
+{
+  "scope": "Offline statistics from passive physics witnesses; sampled camera freshness only, no new RPC or task acceptance. Includes profiler/shared-host load; not a controlled speedup comparison.",
+  "source": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+  "samples": 1341,
+  "first_sequence": 0,
+  "last_sequence": 1340,
+  "server_wall_interval_s": 304.21744171500904,
+  "simulated_interval_s": 36.550000000000004,
+  "observed_real_time_factor": 0.12014432766889169,
+  "cameras": {
+    "cam0": {
+      "samples": 1341,
+      "distinct_captures": 639,
+      "max_server_age_s": 1.1546173890237696,
+      "max_delivery_age_s": 1.2533586510107853,
+      "server_age_over_2s": 0,
+      "delivery_age_over_2s": 0
+    },
+    "side": {
+      "samples": 1341,
+      "distinct_captures": 639,
+      "max_server_age_s": 1.1546173890237696,
+      "max_delivery_age_s": 1.2533586510107853,
+      "server_age_over_2s": 0,
+      "delivery_age_over_2s": 0
+    },
+    "proof": {
+      "samples": 1341,
+      "distinct_captures": 639,
+      "max_server_age_s": 1.1546173890237696,
+      "max_delivery_age_s": 1.2533586510107853,
+      "server_age_over_2s": 0,
+      "delivery_age_over_2s": 0
+    }
+  },
+  "age_formulas": {
+    "server": "physics.server_monotonic - camera.capture_monotonic",
+    "delivery": "client_finished_monotonic - camera.capture_monotonic"
+  },
+  "sampled_camera_age_limit_s": 2.0,
+  "all_sampled_camera_ages_within_limit": true,
+  "inputs": {
+    "physics_samples": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/cascade-proof-91bb7398ce27435bb63b89fd4e382455/case-1/physics/samples.jsonl",
+      "sha256": "d00823e59d1e5e1378a95355ec054f62bbd0dea58ed57e6a3763ae7c96cbcae2",
+      "size_bytes": 11200492
+    },
+    "metadata": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/cascade-proof-91bb7398ce27435bb63b89fd4e382455/case-1/physics/metadata.json",
+      "sha256": "7048f270a2ec2af786295f69b5325dba2d477127aeef95460c519bb8ecebfc6b"
+    }
+  }
+}

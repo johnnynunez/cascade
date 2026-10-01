@@ -5,7 +5,8 @@ renderer, cuMotion candidate planning, PhysX finger envelope, native host reserv
 release-opening synchronization, pending-camera publication, retained NV carry
 attachment, explicit MCP GPU selection, Isaac verifier startup readiness and
 localization analysis freshness and bounded detector model/vocabulary reuse.
-The reviewed runtime pin is `ff8d58b`; see the
+The previous command baseline for physical validation is `ff8d58b`; current main `c5b2fd5`
+also includes optional bridge profiling from PR #62. See the
 [source and acceptance index](PROJECT_STATUS_20261001.md) for merged changes,
 software validation and the current physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.
@@ -213,9 +214,10 @@ closure. See [OVRTX rendering and platform evidence](OVRTX_RENDERER.md).
 The Isaac bridge has disabled-by-default [Python profiling zones](ISAAC_BRIDGE_PROFILING.md)
 around its existing target, update, frame-history, camera and execution-queue
 operations. The standard-library helper imports Carbonite only when enabled
-after application creation. Its one clock anchor binds a captured zone to a
-bounded monotonic interval; profiler logs and timings never authorize motion
-or renew camera freshness. Profiler errors invalidate diagnostics while the
+after application creation. Its initial clock anchor and periodic main-thread
+samples bind captured CPU event order to bounded monotonic intervals;
+profiler logs and timings never authorize motion or renew camera freshness.
+Profiler errors invalidate diagnostics while the
 original operation and safety behavior remain intact.
 
 ### Motion safety path

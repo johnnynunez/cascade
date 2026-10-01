@@ -1,0 +1,184 @@
+{
+  "schema": 1,
+  "capture_completed": true,
+  "profile_validated": false,
+  "status": "CAPTURED_PENDING_ZONE_REVIEW",
+  "plan_sha256": "b88d2001e958744475a9dd4cfcb66f37d9a62a79722268234adb98bf52b83f02",
+  "scope": "normal-native-kit-python-spans",
+  "errors": [],
+  "signals": [],
+  "kit_or_mcp_signals": [],
+  "actuator_commands": [],
+  "last_wait_condition": "[Errno 2] No such file or directory: '/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/cascade-proof-91bb7398ce27435bb63b89fd4e382455/case-1/physics/phases.json'",
+  "binding": {
+    "owner": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo",
+      "owner": "6cf5cf038b694de3bdc45a0898da6bdd",
+      "schema": 1
+    },
+    "adapter": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo",
+      "owner": "6cf5cf038b694de3bdc45a0898da6bdd",
+      "schema": 1,
+      "pid": 3058143,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13725450",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/python/bin/python /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/scripts/isaac_launch.py --python /home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh --ready-file /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/isaac-startup.9cpwl8Vz/interpreter.json -- /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile09-order-contract-20261002/tracy/tracy_bridge_wrapper.py --plan /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile09-concrete-preparation-20261002/authorization/tracy-plan-authorized.json --plan-sha256 b88d2001e958744475a9dd4cfcb66f37d9a62a79722268234adb98bf52b83f02 -- --port 8611 --usd /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda --engine physx --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/demo/scene/kitchen_config.json",
+      "role": "isaac_bridge",
+      "instance_id": "2323d93b39bf43d8b2be6717c7dee18b",
+      "registered_at": 1790892184.7019594
+    },
+    "kit": {
+      "pid": 3058153,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13725453",
+      "command_sha256": "8616ec9e803af17ad5abe453b683ef9bde0391102d0bc591992648d8e01e593c",
+      "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.3.0+feature.manylinux_2_35_x86_64.release/python/bin/python3.12",
+      "stopped": false
+    },
+    "mcp": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo",
+      "owner": "6cf5cf038b694de3bdc45a0898da6bdd",
+      "schema": 1,
+      "pid": 3061629,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13736021",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/python/bin/python -m cascade.apps.mcp_server --launch-owner 6cf5cf038b694de3bdc45a0898da6bdd --launch-state-dir /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo",
+      "role": "mcp",
+      "instance_id": "1a1479fa93fd455297693bd0910a233a",
+      "registered_at": 1790892257.9684618,
+      "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/mcp_3061629_ee186edcec26444db1bc03adceb1bc27"
+    },
+    "mcp_identity": {
+      "pid": 3061629,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13736021",
+      "command_sha256": "d98eff16e82b05ea12c5945f88aa971b483c9e6a4dc3114234ec5a1ed966d34f",
+      "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+      "stopped": false
+    },
+    "marker_sha256": "2514a9fbedd8af925a40b594cc2d2b6774fec2f9827caecdb4e9e8c08f0ab9b4",
+    "ancestry": [
+      {
+        "pid": 3058153,
+        "ppid": 3058145,
+        "birth_ticks": "13725453"
+      },
+      {
+        "pid": 3058145,
+        "ppid": 3058143,
+        "birth_ticks": "13725452"
+      }
+    ]
+  },
+  "trigger": {
+    "session_id": "cascade-proof-91bb7398ce27435bb63b89fd4e382455",
+    "pick_begin": {
+      "monotonic": 137384.071754049,
+      "unix": 1790892281.8014653
+    },
+    "lag_s": 0.07453477202216163,
+    "scene_sha256": "5050269159bf4ceab3fb211ff6a77d5a19c7355ed74d46e424a876bd27703084",
+    "proof_at_capture": {
+      "verified": false,
+      "model": null,
+      "sim": "isaac",
+      "session_id": "cascade-proof-91bb7398ce27435bb63b89fd4e382455",
+      "started_at": 1790892255.6924038,
+      "evidence_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/cascade-proof-91bb7398ce27435bb63b89fd4e382455",
+      "profile": "cascade-demo"
+    },
+    "witness_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/cascade-proof-91bb7398ce27435bb63b89fd4e382455/case-1/physics/samples.jsonl"
+  },
+  "listener": {
+    "local": [
+      "127.0.0.1",
+      19088
+    ],
+    "remote": [
+      "0.0.0.0",
+      0
+    ],
+    "state": "0A",
+    "uid": 1000,
+    "inode": "14775455"
+  },
+  "command": [
+    "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/extscache/omni.kit.profiler.tracy-1.2.1+lx64/bin/capture",
+    "-a",
+    "127.0.0.1",
+    "-p",
+    "19088",
+    "-o",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/tracy-capture/profile.tracy",
+    "-s",
+    "120"
+  ],
+  "capture_process": {
+    "pid": 3062448,
+    "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13738415",
+    "command_sha256": "08567f9331e99d8567854c1dd0bc72f5642ff93af1990ef3b0c57086a80e847f",
+    "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+    "stopped": false
+  },
+  "capture_start_monotonic": 137384.159073937,
+  "connection": {
+    "server": {
+      "local": [
+        "127.0.0.1",
+        19088
+      ],
+      "remote": [
+        "127.0.0.1",
+        42274
+      ],
+      "state": "01",
+      "uid": 1000,
+      "inode": "14621471"
+    },
+    "client": {
+      "local": [
+        "127.0.0.1",
+        42274
+      ],
+      "remote": [
+        "127.0.0.1",
+        19088
+      ],
+      "state": "01",
+      "uid": 1000,
+      "inode": "14804303"
+    }
+  },
+  "exit_code": 0,
+  "capture_end_monotonic": 137504.619329668,
+  "trace": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/tracy-capture/profile.tracy",
+    "sha256": "d8f9b6b362271bbbd059526897d0c6239c2d52a44f9a5f6e06e645b545318fa1",
+    "bytes": 36395224
+  },
+  "witness_prefix": {
+    "sha256": "82fa6c6911c49a6314b24002b20796da23ec7bd599a8580965b4bf864062d67f",
+    "bytes": 4624122,
+    "samples_in_capture_window": 555,
+    "distinct_physics_steps_lower_bound": 555,
+    "scope": "Observed steps only; not a substitute for completed update/GPU zones in the trace."
+  },
+  "required_offline_validation": [
+    "Nonempty completed CPU update zones under this proof/MCP window",
+    "At least 100 completed updates (not estimated from wall time)",
+    "Nonempty GPU tracks verified in a Tracy-compatible reader/viewer",
+    "No attribution of missing MCP Python/detector spans to zero work"
+  ],
+  "protected_final": true,
+  "source_final": true,
+  "ended_monotonic": 137505.51484008,
+  "artifacts_sha256": {
+    "capture.log": "a0bec54fd63ebfd2b55b5ecb75861b3c7df0e8b8e2cf5c0214e231e17875d76f",
+    "connection.json": "305e3c2c182505a82bc5890bbd83d42fac69f8dd5db88e6e29c3d2b8f194586b",
+    "witness-prefix.jsonl": "82fa6c6911c49a6314b24002b20796da23ec7bd599a8580965b4bf864062d67f",
+    "profile.tracy": "d8f9b6b362271bbbd059526897d0c6239c2d52a44f9a5f6e06e645b545318fa1"
+  }
+}

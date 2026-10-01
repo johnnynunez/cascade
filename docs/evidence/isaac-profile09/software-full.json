@@ -1,0 +1,26 @@
+{
+  "head": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+  "tree": "bbc677e8a041898120c28d280909c69373b20f52",
+  "argv": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests",
+    "deploy/brev/tests/test_public_visitor.py",
+    "deploy/brev/tests/test_visitor_video.py",
+    "deploy/brev/tests/test_build_bundle.py",
+    "deploy/brev/tests/test_prepare_bundle.py"
+  ],
+  "pythonpath": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-isaac-python-spans/src",
+  "started_unix_s": 1790890747.89658,
+  "finished_unix_s": 1790891084.3970032,
+  "exit_code": 0,
+  "log_sha256": "0b284b5dd0a5d167cd11ee6b73cedca5ed18a7619ed2cf370f3f113b6c79859a",
+  "source_manifest_sha256": "b809fc78692ad391e3ed4ace5bfb2ab840a218c651f94e3e8f446ebf3514ad35",
+  "input_preparation_sha256": "531c050d00609725150b130bd801592258858e53dfe1b0425b39c3725ff0c47d",
+  "files_verified": 1276,
+  "tracked_clean": true,
+  "source_unchanged": true,
+  "pass": true
+}

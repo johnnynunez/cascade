@@ -1,0 +1,51 @@
+{
+  "pass": true,
+  "argv": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-offline-reader-preparation-20261002/build/tracy_offline_reader",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/tracy-capture/profile.tracy"
+  ],
+  "returncode": 0,
+  "wall_s": 14.284445927012712,
+  "trace_sha256": "d8f9b6b362271bbbd059526897d0c6239c2d52a44f9a5f6e06e645b545318fa1",
+  "capture_receipt_sha256": "bd35d4ac912ac2b0df667f7ef2b069a1751d358c048707a18512d56d79d07e50",
+  "reader_sha256": "7cfe9862630b69dc6341b776db0de55f5d411f5059ff7c5414f691bc2e067075",
+  "events_sha256": "4d677199d3413e943cdd35342af8c847eda2b0e552ff16a9d9650f3f08ef5908",
+  "event_bytes": 1035316266,
+  "event_inode": 128843830,
+  "event_mtime_ns": 1790892835864629586,
+  "affinity": [
+    0,
+    1
+  ],
+  "nice": 10,
+  "memory_limit_bytes": 8589934592,
+  "kit": {
+    "pid": 3058153,
+    "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13725453",
+    "command_sha256": "8616ec9e803af17ad5abe453b683ef9bde0391102d0bc591992648d8e01e593c",
+    "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.3.0+feature.manylinux_2_35_x86_64.release/python/bin/python3.12",
+    "stopped": false
+  },
+  "owner": {
+    "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09",
+    "profile": "cascade-demo",
+    "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo",
+    "owner": "6cf5cf038b694de3bdc45a0898da6bdd",
+    "schema": 1
+  },
+  "source": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+  "script_sha256": "6463cbec3e6312aeb21253399e19c4608095be4377c9c59604393511dd6a620c",
+  "profile_validated": false,
+  "cpu_window_qualified": false,
+  "gpu_absolute_alignment_qualified": false,
+  "actions": {
+    "sdk_imports": 0,
+    "gpu_work": 0,
+    "live_connections": 0,
+    "service_signals": 0,
+    "robot_rpc": 0,
+    "decode_count": 1,
+    "profile08_reparsed": false
+  },
+  "hash_method": "Incremental while writing stdout; no repeated full JSONL hash"
+}

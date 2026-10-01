@@ -47,6 +47,7 @@ does not change which code produced those measurements.
 - [Retained attachment during NV transport](NVBLOX_CARRY_ATTACHMENT.md)
 - [Local RTX Pro validation and retained diagnostics](LOCAL_RTX_VALIDATION.md)
 - [Optional Isaac bridge Python profiling](ISAAC_BRIDGE_PROFILING.md)
+- [Profile 09: failed placement, qualified CPU window and verified closure](LOCAL_RTX_VALIDATION.md#profiling-attempt-09-python-spans-and-placement-timeout)
 - [nvblox map reset and allocation history](NVBLOX_MAPPER_RESET.md)
 - [Read-only construction of truth-pose views](NVBLOX_TRUTH_READONLY.md)
 - [Optional OVRTX RGBD renderer: x86/ARM evidence and limits](OVRTX_RENDERER.md)

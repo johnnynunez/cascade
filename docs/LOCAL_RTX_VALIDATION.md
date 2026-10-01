@@ -1,4 +1,4 @@
-# Local RTX Pro validation — 1 October 2026
+# Local RTX Pro validation — updated 2 October 2026
 
 The owner disconnected the Sparks and requested validation on the Linux x86_64
 workstation with two RTX Pro GPUs. This continues the project validation on a
@@ -284,6 +284,94 @@ process identities stayed unchanged. [Root verification](evidence/isaac-profile0
 confirmed this separately. Closure adds no placement, home or recovery result.
 The [retained inputs](evidence/isaac-profile08/retained-inputs.json) bind these
 records and the local raw-trace archive.
+
+## Profiling attempt 09: Python spans and placement timeout
+
+Attempt 09 used profiling source `3ccdc2e8` with the bridge Python spans enabled.
+The normal runtime readiness check passed in 2.333 seconds. Arm, all three
+camera consumers and the producer used port 8611; the existing camera
+resolution, 120 Hz physics timestep and 300-second native request budget were
+unchanged. This was local x86_64 execution, with no new Spark result.
+
+The [native failure](evidence/isaac-profile09/native-failed.json) records a
+verified green-cube grasp taking 164.497 seconds. The host then cancelled
+`pick_and_place` during placement at its request deadline, and the MCP log
+records the cancellation and latched emergency stop. The skill trace measured
+299.735 seconds; the surrounding native turn took 303.428 seconds. Its final
+postcondition remained unverified: the cube center was near the target in x/y
+but 0.123 m above the support plane, with four observed contact points at each
+jaw. This did not establish containment or release. There was no second case,
+reset, campaign, restart or recovery. The [driver failure](evidence/isaac-profile09/driver-failed.json)
+also retains a later missing-gateway bookkeeping error, separately from the
+native timeout. The [strict check](evidence/isaac-profile09/strict-failed.json)
+failed because proof was incomplete and unverified.
+
+Offline [camera and throughput statistics](evidence/isaac-profile09/throughput.json)
+cover 1,341 physics witnesses and 639 distinct captures per camera. Over
+304.217 wall seconds, simulation advanced 36.550 seconds (RTF 0.120).
+Maximum sampled server age was 1.155 seconds and delivery age 1.253 seconds;
+none exceeded the unchanged two-second limit. These measurements include
+profiler and shared-machine load and do not demonstrate a speedup or regression.
+
+The [owned technical capture](evidence/isaac-profile09/capture.json) exited
+normally after 120.460 seconds and retained a 36,395,224-byte trace, SHA256
+`d8f9b6b362271bbbd059526897d0c6239c2d52a44f9a5f6e06e645b545318fa1`.
+It sampled the first part of the normal task rather than its eventual placement
+failure. The exact Kit process and owner were bound separately. The trace was
+[decoded once](evidence/isaac-profile09/decode.json), producing 1,035,316,266 bytes
+of local event data with SHA256
+`4d677199d3413e943cdd35342af8c847eda2b0e552ff16a9d9650f3f08ef5908`.
+Those large artifacts remain local; the repository retains their receipts.
+
+The [first offline analysis](evidence/isaac-profile09/analysis-first-failed.json)
+failed to match a sample name because the installed SDK appends ` (Python)`
+to the emitted zone name. That failure is retained. A separately reviewed
+[adapter](evidence/isaac-profile09/python-name-adapter.json), with 12 synthetic
+tests passing, normalizes only known bridge names with the exact source file
+and Kit main-thread identity. Analysis reused the existing decoded data.
+
+The subsequent [qualified analysis](evidence/isaac-profile09/analysis-qualified.json)
+and [root review](evidence/isaac-profile09/analysis-root-review.json) establish
+a closed same-main-thread CPU window between samples 90 and 197, with a
+bounded wall duration of 118.592627625–118.592655798 seconds and **968 complete
+`app_update` zones**. This subset lies within the observed task window; it
+does not cover the later placement failure. The
+[CPU record](evidence/isaac-profile09/cpu-window.json) retains causal event
+order, exact source identity and the unmatched log suffix. The final diagnostic
+status remains `pending` because no shutdown summary was recorded; this does
+not invalidate the earlier closed CPU window. Administrative process closure
+is evidenced independently below.
+
+The [zone statistics](evidence/isaac-profile09/window-stats.json) report
+Tracy-relative elapsed durations, including work called inside each zone:
+
+| Zone | Count | Inclusive total (s) | Self total (s) | Maximum inclusive (s) |
+|---|---:|---:|---:|---:|
+| `bridge.exec_job.code` | 548 | 75.398 | 73.802 | 0.536 |
+| `bridge.refresh.rgb` | 1,020 | 9.054 | 8.449 | 0.026 |
+| `bridge.refresh.mask` | 1,020 | 4.233 | 3.327 | 0.015 |
+| `bridge.targets.get` | 968 | 0.555 | 0.555 | 0.004 |
+| `bridge.targets.numpy` | 968 | 0.218 | 0.218 | 0.016 |
+
+Do not add nested inclusive durations. Self elapsed excludes recorded child
+zones but includes waiting, preemption and uninstrumented native work; it is
+neither CPU utilization nor pure Python execution time. Execution-job code
+dominates this measured interval. Its internal cause and possible observer
+overhead still need separate measurement; target retrieval plus conversion
+total only 0.774 seconds here. No optimization or speedup is established.
+GPU tracks provide relative context only: global `profile_validated` and
+`gpu_absolute_alignment_qualified` remain false.
+
+The [terminal archive](evidence/isaac-profile09/retention.json) retained 96 files,
+including the failed native evidence and updated grasp memory. Normal
+[administrative closure](evidence/isaac-profile09/administrative-close.json)
+then closed only the owned services and ports 8611, 25577, 18795 and 19088,
+without robot RPC, home, reset or recovery. The separate
+[root verification](evidence/isaac-profile09/close-root-review.json) retained
+seven final administrative files and verified unchanged source and all 12
+protected process identities. Neither closure nor retention changes the
+failed native and strict outcomes. The [input index](evidence/isaac-profile09/retained-inputs.json)
+binds original records and the compact offline derivatives.
 
 ## Retained local attempt 01
 

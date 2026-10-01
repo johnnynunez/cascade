@@ -53,9 +53,11 @@ JSON record carries `seq`, its monotonic bracket, process/thread/source
 identity, `diagnostic_valid` and `error_count`. The helper retains only its
 counter and last sample. Attempting a 2049th sample invalidates further
 diagnostics and emits `diagnostic_error`; other profiler failures do likewise.
-A shutdown record reports errors and the last sample. Absence of that final
-record leaves final diagnostic status pending even if a closed CPU window
-can already be qualified from a retained log prefix.
+A shutdown record reports errors and the last sample. Without that record,
+final status is pending only while the log contains no explicit failed sample
+or diagnostic error. A positive sticky error count establishes failure even
+if the first error's own log write was lost. A closed earlier CPU window may
+still qualify; later failure must remain visible in the final report.
 
 Retain the initial anchor's startup preflight. For the captured interval,
 require a contiguous, unique sequence of complete sample zones paired with
@@ -87,6 +89,34 @@ Kit's bridge zones also do not measure the separate MCP process's detector,
 watcher locks or camera decoding. Missing zones never mean zero work.
 
 ## Validation status
+
+Local [attempt 09](LOCAL_RTX_VALIDATION.md#profiling-attempt-09-python-spans-and-placement-timeout)
+ran source `3ccdc2e8` with these spans. Its technical capture succeeded for
+120.460 seconds, while the physical task later timed out during placement.
+The first offline matcher rejected the SDK's ` (Python)` suffix; that failure
+is preserved. A separately tested adapter accepts that suffix only for known
+bridge names on the exact source file and main-thread identity. Reusing the
+decoded events, it qualified a closed **118.593-second CPU window with 968
+complete updates**, bounded by samples 90 and 197.
+
+`bridge.exec_job.code` accounts for 75.398 seconds inclusive and 73.802 seconds
+self elapsed over 548 calls (maximum 0.536 seconds). RGB refresh self elapsed
+is 8.449 seconds and mask refresh 3.327 seconds; target retrieval and NumPy
+conversion total 0.774 seconds. The
+[per-zone statistics](evidence/isaac-profile09/window-stats.json) retain counts,
+inclusive/self totals, medians, nearest-rank p95, maxima and update gaps without
+adding nested parents and children. These are Tracy-reported durations, not
+pure Python execution time or CPU utilization. Execution-job subcomponents
+and possible observation overhead require further measurement before a cause
+or optimization can be claimed.
+
+The [CPU-window record](evidence/isaac-profile09/cpu-window.json) is qualified;
+global profile and GPU absolute alignment remain false. The final diagnostic
+status is `pending` because no shutdown summary was observed, despite separate
+successful administrative closure. No performance improvement or successful
+physical task follows from these timings. Exact source, trace, decode, failed
+analysis and closure records are
+[retained separately](evidence/isaac-profile09/retained-inputs.json).
 
 Attempt 08 used the previous bridge without these Python spans. Its successful
 capture, failed native task and incomplete clock mapping remain separate

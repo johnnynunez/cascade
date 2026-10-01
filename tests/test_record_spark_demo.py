@@ -132,8 +132,27 @@ def test_real_encoder_produces_h264_faststart_fully_decodable_mosaic(tmp_path):
     assert ("frame", "cam0") in bridge.calls
 
 
-def test_stop_file_finalizes_owned_encoder_and_records_early_wall_end(tmp_path):
+@pytest.mark.parametrize("encode_delay_s, wall_duration_s", [(0.0, 0.1), (0.08, 0.24)])
+def test_stop_file_finalizes_owned_encoder_and_records_early_wall_end(
+        tmp_path, monkeypatch, encode_delay_s, wall_duration_s):
     module = recorder_module()
+
+    class RecorderClock:
+        now_ns = 1_000_000_000
+
+        def monotonic_ns(self):
+            return self.now_ns
+
+        def time_ns(self):
+            return 1_700_000_000_000_000_000 + self.now_ns
+
+        def sleep(self, seconds):
+            self.now_ns += round(seconds * 1e9)
+
+    # Control only the recorder's clock. Host scheduling and image rendering
+    # can take arbitrarily long; neither is an early-stop timing contract.
+    clock = RecorderClock()
+    monkeypatch.setattr(module, "time", clock)
     stop = tmp_path / "stop"
     output = tmp_path / "fixture-stop.mp4"
     bridge = ReadOnlyBridgeFixture(delay=0.001)
@@ -141,6 +160,7 @@ def test_stop_file_finalizes_owned_encoder_and_records_early_wall_end(tmp_path):
 
     class StoppingEncoder(MemoryEncoder):
         def write(self, frame):
+            clock.sleep(encode_delay_s)
             super().write(frame)
             if len(self.frames) == 3:
                 stop.touch()
@@ -155,7 +175,8 @@ def test_stop_file_finalizes_owned_encoder_and_records_early_wall_end(tmp_path):
     assert summary["stop_reason"] == "stop_file"
     assert summary["frame_count"] == 3
     assert summary["wall_duration_s"] < cfg.duration
-    assert abs(summary["media_duration_s"] - summary["wall_duration_s"]) <= 1 / cfg.fps + 0.03
+    assert summary["media_duration_s"] == pytest.approx(3 / cfg.fps)
+    assert summary["wall_duration_s"] == pytest.approx(wall_duration_s)
     assert encoders[0].closed and bridge.closed
     assert rows(output)[-1]["stop_reason"] == "stop_file"
 

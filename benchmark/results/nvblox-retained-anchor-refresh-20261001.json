@@ -130,7 +130,7 @@
     "motion_limit_s": 120,
     "physical_attempt_authorized": false
   },
-  "state": "Original8691 unchanged; owned held8692 paused with one reviewed pidfd SIGSTOP and no automatic resume. New8693 received no motion/jaw/reset. Passive03 passed observation, but minimum3s historical scaling exceeded120s; physical held recovery and normalfiveobjectcampaign remain pending.",
+  "state": "Original8691 unchanged; owned held8692 remains paused without automatic resume. Observation-only8693/25561 closed normally after final home/open-jaw/empty-contact/at-spawn capture. No joint/jaw/prop commands sent in scene03. Rate30 work is separate; physical held recovery and normalfiveobjectcampaign remain pending.",
   "scope": "Experimental recovery contract plus offline and passive validation; held-camera physical recovery and five-object normal acceptance remain pending.",
   "integration": {
     "tested_source_pin": "8b6b865b1914a7928cde93fc92df6795a3aa4f75",
@@ -317,5 +317,48 @@
     "barrier_s": 5.0,
     "motion_wall_limit_s": 120.0,
     "unknown_rejection_scope": "Attached payload outside the existing original contact exemption; empty-arm unknown handling is unchanged."
+  },
+  "close_new_observation_scene": {
+    "close-01/capture.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-refresh/runs/nvblox-rtx/isolated-clock-03/close-01/capture.json",
+      "sha256": "70c7dfe8f3aeaee6f6f9a6c052352d40b2eb1b68b14ebbc13af804d2d734fdcf",
+      "pass": false,
+      "signals": [],
+      "actuator_commands": [],
+      "failure_summary": "Diagnostic source-binding used list instead of tuple; read-only capture stopped before any signal."
+    },
+    "close-02/capture.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-refresh/runs/nvblox-rtx/isolated-clock-03/close-02/capture.json",
+      "sha256": "8a08cc684ec41036c1ed7bd8ca059a2b82d5947eb82ffbe5a7d39f18b5f125fa",
+      "pass": true,
+      "signals": [],
+      "actuator_commands": [],
+      "failure_summary": null
+    },
+    "close-02/shutdown.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-refresh/runs/nvblox-rtx/isolated-clock-03/close-02/shutdown.json",
+      "sha256": "072d6ccaf31c26b0dd15a89b084cc9fe98557592108cc0bf388de79938ee89a8",
+      "pass": true,
+      "signals": [
+        {
+          "role": "bridge",
+          "pid": 1611790,
+          "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:6649508",
+          "signal": "SIGTERM",
+          "attempted_monotonic": 68813.625844541,
+          "sent": true
+        },
+        {
+          "role": "mapper",
+          "pid": 1611718,
+          "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:6649505",
+          "signal": "SIGTERM",
+          "attempted_monotonic": 68813.630011125,
+          "sent": true
+        }
+      ],
+      "actuator_commands": [],
+      "failure_summary": null
+    }
   }
 }

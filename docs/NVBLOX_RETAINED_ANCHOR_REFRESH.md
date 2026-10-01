@@ -85,8 +85,12 @@ peaked at 1.286 s and 1.273 s. Minimum RTF over three- and five-second windows
 was 0.1821 and 0.2021. Scaling the previous pregrasp gives 96.63 s at the global
 RTF, 110.23 s at the five-second minimum, and 122.35 s at the three-second
 minimum. The last estimate exceeds 120 s, so this result alone does not
-establish a conservative margin for the physical test. The environment remains
-observation only. All ten passive artifacts and 254 frozen source hashes were
+establish a conservative margin for the physical test. The environment received only observation commands. It was then closed
+normally, after a final snapshot confirmed home, both jaws open, all three
+camera contact lists empty, and all five props within 1 mm of their spawn
+positions. Exact bridge and mapper PIDs each received one SIGTERM through a
+pidfd; the launcher exited with its child. No parking, jaw, or prop-reset
+command was sent, and no stronger termination signal was needed. All ten passive artifacts and 254 frozen source hashes were
 verified. The [compact evidence receipt](../benchmark/results/nvblox-retained-anchor-refresh-20261001.json)
 retains the earlier failures, separate frame/commit measurements, and exact
 source and artifact references.

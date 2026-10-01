@@ -37,17 +37,38 @@ def construct(frame, mask, T):
     return ObservedScene(frame, mask, T, source=('fake', 1), robot_id='/robot', epoch='epoch')
 
 
-def test_artifact_covers_every_original_vertex_and_triangle(geometry):
+def test_artifact_covers_every_original_vertex_and_triangle(geometry, monkeypatch):
     spec = importlib.util.spec_from_file_location('geometry_builder', ROOT / 'scripts/build_gripper_scene_geometry.py')
     build = importlib.util.module_from_spec(spec); spec.loader.exec_module(build)
+    source_components = []
+    convex_hull = build.ConvexHull
+    def record_source_points(points):
+        source_components.append(points.copy())
+        return convex_hull(points)
+    monkeypatch.setattr(build, 'ConvexHull', record_source_points)
     rebuilt = build.build()
     assert [sum(c['triangles'] for c in f['components']) for f in rebuilt['fingers']] == [17246, 17246]
     assert [sum(c['vertices'] for c in f['components']) for f in rebuilt['fingers']] == [8649, 8649]
     assert [len(f['components']) for f in rebuilt['fingers']] == [8, 8]
+    assert [len(f['components']) for f in geometry.fingers] == [8, 8]
     assert max(c['coverage_error_m'] for f in rebuilt['fingers'] for c in f['components']) <= 1e-12
+    assert len(source_components) == 16
+    sources = iter(source_components)
     for finger, rebuilt_finger in zip(geometry.fingers, rebuilt['fingers']):
         for part, rebuilt_part in zip(finger['components'], rebuilt_finger['components']):
-            np.testing.assert_array_equal(part['planes'], rebuilt_part['planes'])
+            assert part['vertices'] == rebuilt_part['vertices']
+            assert part['triangles'] == rebuilt_part['triangles']
+            # Qhull facet order and roundoff vary by platform. Check the shipped
+            # halfspaces against every transformed original STL vertex instead
+            # of comparing two ordered floating-point serialization results.
+            points = next(sources)
+            planes = np.asarray(part['planes'])
+            np.testing.assert_allclose(np.linalg.norm(planes[:, :3], axis=1), 1., rtol=0, atol=1e-12)
+            support = np.max(points @ planes[:, :3].T + planes[:, 3], axis=0)
+            assert np.max(support) <= 1e-12  # Convexity also covers whole triangles.
+            assert np.min(support) >= -3e-12  # Every plane remains tight to its source.
+            for key in ('min_m', 'max_m'):
+                np.testing.assert_allclose(part[key], rebuilt_part[key], rtol=0, atol=1e-12)
 
 
 @pytest.mark.parametrize('target', [True, False])

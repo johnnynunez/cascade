@@ -1,0 +1,27 @@
+{
+  "scope": "Offline exact production AST _vet and selector on immutable recorded candidate batch(s), with real 3s selection and 8s PlanningBudget/check active. Excludes fresh model, transport and physical execution; each recorded batch replay is independent, no claim for native end-to-end8s.",
+  "source_recorded": "7e02de70a24cd5e89a6f774e95189d1225ea2cb5",
+  "receipt_sha256": "53cd73310fda703c1d1538ee5373c11d05f896b3f26e33b51ae54612601e690a",
+  "npz_sha256": "fc9939b0fa3eefff5cedbaaf454c6e630724c5f7b40adcce8f8474974e512c78",
+  "source_sha256": {
+    "src/cascade/skills/runtime.py": "9dee28c5c60fa0581a2cb849dee7b7b7dbdbf38c31516092c267b0ceb2d977ac",
+    "src/cascade/grasping/observed_scene.py": "4316b86e7e5e189ef72ef401d955204841d3a2cb80c1ca70e374a269c8ba16cd",
+    "src/cascade/grasping/selector.py": "49c089991bfecae12c79ac3a3ca7ff629aa6fb337db33606f01ed820378099a3"
+  },
+  "geometry_sha256": "fb58af87addb6f614ccb4e86146d398a762dbf791d89d0cd92ef9be9b65c52cc",
+  "script_sha256": "8bb164fa344990bf867caf44f63d1b62c43585d5fcf9ac9395bfaefbd4d75451",
+  "batches": [
+    {
+      "batch": 1,
+      "candidates": 32,
+      "individual": [],
+      "selected_index": 0,
+      "historical_q_error_rad": 6.661338147750939e-16,
+      "selection_wall_s": 0.5998670310073067
+    }
+  ],
+  "rejections": [],
+  "selection_timings_s": [
+    0.5998286729882238
+  ]
+}

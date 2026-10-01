@@ -24,8 +24,8 @@ def fake_gate(monkeypatch, *, conflict=None):
         require_profile=lambda *a, **kw: checks.append(('preflight', a[0].copy(), a[1].copy())),
         pose=lambda *args: conflict,
         feedback=lambda s: checks.append(('feedback', s.q.copy())),
-        closing_pose=lambda q: None,
-        require_closing=lambda s: checks.append(('close_preflight', s.q.copy())),
+        closing_pose=lambda q: None, occluded_pose=lambda q, **kw: None,
+        require_closing=lambda s, **kw: checks.append(('close_preflight', s.q.copy())),
         closing_lower=np.zeros(2), closing_upper=np.ones(2)*.05)
     monkeypatch.setenv('CASCADE_OBSERVED_FINGER_GATE', '1')
     monkeypatch.setattr('cascade.grasping.observed_scene.for_runtime', lambda *args: gate)
@@ -148,7 +148,7 @@ def test_actual_pose_is_checked_before_first_open_after_long_selection(monkeypat
         return result
     monkeypatch.setattr(module, 'select_grasp', selected)
     gate = SimpleNamespace(profile=lambda *a, **k: None,
-        feedback=lambda state: None, closing_pose=lambda q: None,
+        feedback=lambda state: None, closing_pose=lambda q: None, occluded_pose=lambda q, **kw: None,
         pose=lambda q: {'surface': 'neighbor'} if q[0] > .5 else None)
     monkeypatch.setattr('cascade.grasping.observed_scene.for_runtime', lambda *a: gate)
     with pytest.raises(SafetyViolation, match='opening fingers'):
@@ -171,6 +171,58 @@ def test_candidate_closure_conflict_prevents_all_actuation(monkeypatch):
     assert not [c for c in calls if c[0] != 'read']
 
 
+def test_endpoint_occlusion_rejects_before_any_actuation(monkeypatch):
+    fake_gate(monkeypatch)
+    rt, calls, fix, frame = runtime(monkeypatch)
+    from cascade.grasping import observed_scene
+    factory = observed_scene.for_runtime
+    def make(*args):
+        gate = factory(*args)
+        gate.occluded_pose = lambda *a, **kw: {'surface': 'occluded behind non-target depth'}
+        return gate
+    monkeypatch.setattr(observed_scene, 'for_runtime', make)
+    with pytest.raises(SkillError, match='endpoint occluded'):
+        rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
+    assert all(c[0] == 'read' for c in calls)
+
+
+@pytest.mark.parametrize('task_budget', [False, True])
+def test_preclose_occlusion_deadline_prevents_jaw_command(monkeypatch, task_budget):
+    fake_gate(monkeypatch)
+    rt, calls, fix, frame = runtime(monkeypatch)
+    from cascade.grasping import observed_scene
+    from cascade.skills import runtime as module
+    factory = observed_scene.for_runtime
+    clock_offset = [0.]
+    # Replace the module reference, not global time used by other threads.
+    original_time = module.time
+    monotonic = lambda: original_time.monotonic() + clock_offset[0]
+    monkeypatch.setattr(module, 'time', SimpleNamespace(monotonic=monotonic,
+                                                      sleep=original_time.sleep))
+    if task_budget:
+        move = rt.arm.move_joints
+        moves = []
+        def moved(*args, **kwargs):
+            result = move(*args, **kwargs); moves.append(1)
+            if len(moves) == 3: rt._task_deadline = monotonic() + .25
+            return result
+        monkeypatch.setattr(rt.arm, 'move_joints', moved)
+    def make(*args):
+        gate = factory(*args)
+        def close(state, *, check):
+            check()
+            from cascade.safety.trajectory import PLAN_BUDGET_S
+            clock_offset[0] += .3 if task_budget else PLAN_BUDGET_S + .1
+            check()
+        gate.require_closing = close
+        return gate
+    monkeypatch.setattr(observed_scene, 'for_runtime', make)
+    with pytest.raises(SafetyViolation, match='closing preflight exceeded'):
+        rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
+    assert [c for c in calls if c[0]=='gripper'] == [('gripper', 1., .8)]
+    assert getattr(rt, '_held_provisional', None) is None
+
+
 @pytest.mark.parametrize('fail_stage', [1, 2])
 @pytest.mark.parametrize('failure', ['collision', 'halt'])
 def test_each_close_stage_rebinds_and_cancels_before_its_command(monkeypatch, fail_stage, failure):
@@ -182,7 +234,7 @@ def test_each_close_stage_rebinds_and_cancels_before_its_command(monkeypatch, fa
     guarded = []
     def make(*args):
         gate = factory(*args)
-        def close(state):
+        def close(state, **kwargs):
             guarded.append(state)
             if len(guarded) == fail_stage:
                 if failure == 'halt':
@@ -221,7 +273,7 @@ def test_drift_after_descent_is_read_before_closing(monkeypatch):
     factory = observed_scene.for_runtime
     def make(*args):
         gate = factory(*args)
-        def close(state):
+        def close(state, **kwargs):
             assert state.q[0] == .6
             raise SafetyViolation('measured closing conflict')
         gate.require_closing = close

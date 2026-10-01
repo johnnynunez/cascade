@@ -1871,6 +1871,18 @@ class SkillRuntime:
                     grasp_evidence.event("observed_finger_candidate_rejected", phase_name="close",
                                          conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
                     return f"closing fingers intersects observed non-target surface: {conflict}"
+                def endpoint_check():
+                    _scene_cancel()
+                    if time.monotonic() > approach_deadline:
+                        raise SkillError("route preflight exceeded its time budget; no route authorized")
+                for endpoint, q, closing in (("pregrasp", q_pre, False),
+                                             ("grasp_open", q_grasp, False),
+                                             ("grasp_closing", q_grasp, True)):
+                    conflict = scene_gate.occluded_pose(q, closing=closing, check=endpoint_check)
+                    if conflict:
+                        grasp_evidence.event("observed_finger_candidate_rejected", phase_name=endpoint,
+                                             conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
+                        return f"{endpoint} finger endpoint occluded by non-target depth: {conflict}"
             if bool(gcfg.get("pre_carry_lift", False)) and gcfg.get("carry_height_m") is not None:
                 # A learned tilted grasp can solve at pickup height yet have
                 # no IK at the carry height. Reject it before closing on the
@@ -2046,13 +2058,22 @@ class SkillRuntime:
                 _scene_cancel()
                 def close_guard():
                     nonlocal episode
+                    close_deadline = time.monotonic() + PLAN_BUDGET_S
+                    task_deadline = getattr(self, "_task_deadline", None)
+                    if task_deadline is not None:
+                        close_deadline = min(close_deadline, task_deadline)
+                    def close_check():
+                        _scene_cancel()
+                        if time.monotonic() > close_deadline:
+                            raise SafetyViolation("closing preflight exceeded its time budget")
+                    close_check()
                     # Separate safety read: the measured pose can differ from
                     # selected IK after descent or between closing stages.
                     _scene_cancel()
                     close_state = self.arm.get_state()
                     _scene_cancel()
-                    scene_gate.require_closing(close_state)
-                    _scene_cancel()
+                    scene_gate.require_closing(close_state, check=close_check)
+                    close_check()
                     grasp_evidence.event("observed_finger_close_preflight",
                                          physics_clock=close_state.physics_clock,
                                          q=close_state.q, gripper_joints=close_state.gripper_joints,

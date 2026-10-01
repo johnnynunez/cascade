@@ -1,0 +1,128 @@
+{
+  "scope": "Offline exact production AST _vet and selector on immutable recorded candidate batch(s), with real 3s selection and 8s PlanningBudget/check active. Excludes fresh model, transport and physical execution; each recorded batch replay is independent, no claim for native end-to-end8s.",
+  "source_recorded": "7e02de70a24cd5e89a6f774e95189d1225ea2cb5",
+  "receipt_sha256": "169e44970570bed60171bf12b03f5e6f53605ba806e80f48349a7b304fc79341",
+  "npz_sha256": "feb7987132863e8c617384ee827470af080121997f2547e19329f9e308cb23fe",
+  "source_sha256": {
+    "src/cascade/skills/runtime.py": "9dee28c5c60fa0581a2cb849dee7b7b7dbdbf38c31516092c267b0ceb2d977ac",
+    "src/cascade/grasping/observed_scene.py": "4316b86e7e5e189ef72ef401d955204841d3a2cb80c1ca70e374a269c8ba16cd",
+    "src/cascade/grasping/selector.py": "49c089991bfecae12c79ac3a3ca7ff629aa6fb337db33606f01ed820378099a3"
+  },
+  "geometry_sha256": "fb58af87addb6f614ccb4e86146d398a762dbf791d89d0cd92ef9be9b65c52cc",
+  "script_sha256": "8bb164fa344990bf867caf44f63d1b62c43585d5fcf9ac9395bfaefbd4d75451",
+  "batches": [
+    {
+      "batch": 1,
+      "candidates": 3,
+      "individual": [],
+      "selected_index": 1,
+      "historical_q_error_rad": 0.30509717149579085,
+      "selection_wall_s": 1.1050585000048159
+    }
+  ],
+  "rejections": [
+    {
+      "kind": "observed_finger_candidate_rejected",
+      "phase_name": "grasp_open",
+      "conflict": {
+        "finger": "joint_right",
+        "component": 1,
+        "surface": "occluded behind observed non-target depth",
+        "pixel_rc": [
+          227,
+          740
+        ],
+        "observed_depth_z_m": 0.877926230430603,
+        "finger_ray_near_z_m": 0.8920102764301384,
+        "finger_ray_far_z_m": 0.8958451969615546
+      },
+      "q_pre": [
+        -0.6506459637199503,
+        1.0327490968720874,
+        0.7368322171693947,
+        -0.9992440246508151,
+        -0.07988949476393438,
+        -2.1309914598010162
+      ],
+      "q_grasp": [
+        -0.6322815355386006,
+        1.1035871783667484,
+        0.6129045938844222,
+        -0.8030760722003909,
+        -0.07484830844300035,
+        -2.1132851995679713
+      ]
+    },
+    {
+      "kind": "observed_finger_candidate_rejected",
+      "phase_name": "close",
+      "conflict": {
+        "finger": "joint_right",
+        "component": 8,
+        "surface": "other observed surface",
+        "pixel_rc": [
+          185,
+          687
+        ],
+        "point_base_m": [
+          0.16683177622870382,
+          0.12835653325533075,
+          0.04668664827228963
+        ]
+      },
+      "q_pre": [
+        -0.6506671254979609,
+        1.0327842150201005,
+        0.7368725947066446,
+        -0.9991634487613541,
+        -0.07984319188423646,
+        1.0105502448399541
+      ],
+      "q_grasp": [
+        -0.632274260838945,
+        1.1035815669887774,
+        0.612900639683943,
+        -0.8030732535902667,
+        -0.07483992440096028,
+        1.0283146924009336
+      ]
+    },
+    {
+      "kind": "observed_finger_candidate_rejected",
+      "phase_name": "close",
+      "conflict": {
+        "finger": "joint_right",
+        "component": 8,
+        "surface": "other observed surface",
+        "pixel_rc": [
+          185,
+          687
+        ],
+        "point_base_m": [
+          0.16683177622870382,
+          0.12835653325533075,
+          0.04668664827228963
+        ]
+      },
+      "q_pre": [
+        -0.7681178589693499,
+        1.2907049752443491,
+        0.9488541106715833,
+        -1.1579922814709769,
+        -0.17651878378521157,
+        0.7055074664167479
+      ],
+      "q_grasp": [
+        -0.7336525503859639,
+        1.3227261672730255,
+        0.8071854722348012,
+        -0.978271638060402,
+        -0.17396868239819388,
+        0.7404201820199133
+      ]
+    }
+  ],
+  "selection_timings_s": [
+    1.1050170859962236
+  ]
+}

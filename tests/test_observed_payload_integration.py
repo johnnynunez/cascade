@@ -64,7 +64,7 @@ def test_first_closing_veto_creates_no_payload_episode(monkeypatch):
 
     def make(*args):
         gate = factory(*args)
-        def veto(state):
+        def veto(state, **kwargs):
             raise SafetyViolation("neighbor blocks closure")
         gate.require_closing = veto
         return gate

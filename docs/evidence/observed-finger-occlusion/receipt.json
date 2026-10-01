@@ -1,0 +1,28 @@
+{
+  "scope": "Offline exact production selector and runtime _vet replays with endpoint occlusion veto and independent twin validation; no new physical acceptance. The bounded replay excludes model inference/transport and does not certify native total8s.",
+  "failed_source": "7e02de70a24cd5e89a6f774e95189d1225ea2cb5",
+  "failure_archive": {
+    "sha256": "a68b6e55c557950e54028cd833c56e82cbf426b24c1f21fab25eea6c10b32f62",
+    "bytes": 63087293,
+    "files": 186
+  },
+  "finger_geometry_sha256": "fb58af87addb6f614ccb4e86146d398a762dbf791d89d0cd92ef9be9b65c52cc",
+  "replays_sha256": {
+    "docs/evidence/observed-finger-occlusion/green07-depth-production-replay.json": "c0984edccbe2987a9361823335bc0e8804dbd6a693f16f8bec266f82c3105a1a",
+    "docs/evidence/observed-finger-occlusion/nv12-depth-production-replay.json": "85e786dd6400537c57026f7fa0a4f453e5f028226f5542fb4b9c7894357bd32e",
+    "docs/evidence/observed-finger-occlusion/orange05-depth-production-replay.json": "b2f94ad4a887da9a761a0f515d06a077077208a88c6e5d3c8e5ee387db8a35f4",
+    "docs/evidence/observed-finger-occlusion/orange07-depth-production-replay.json": "22971e52c5d6472cade6daf56c30a15bee6f4196888bbf4b2667f35674af240d"
+  },
+  "evidence_limits": [
+    "The union40 already includes the offending finger volume; the single captured camera does not observe the intersected pink side. Witness box geometry is forensic only, never used by the veto.",
+    "Endpoint depth check operates on discrete calibrated pixel rays behind observed non-target depth. No all-space, whole-trajectory, pixel-frustum or continuous-control claim.",
+    "Invalid/zero depth, robot masks, target masks and out-of-view locations make no new claim. Existing target-inclusive approach surface checks remain.",
+    "Physical candidates, memory, stochastic proposals and dynamic scene in a future run may differ."
+  ],
+  "validation": {
+    "author_focal": "128 passed in 2.31s",
+    "independent_focal": "84 passed in 0.60s",
+    "independent_focal_receipt_sha256": "bcba80f2ec552e5e345723c0fc9965864342002d6d98ad00b232367f0ecaf35c"
+  },
+  "planning_budget_note": "PLAN_BUDGET_S is the existing 3.0 seconds. Any historical replay prose describing it as 2s was a label error, not a runtime change; actual replays imported the existing constant."
+}

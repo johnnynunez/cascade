@@ -142,8 +142,12 @@ def test_late_results_are_not_used_even_if_the_last_native_call_returns_success(
 def test_parent_pick_and_task_deadlines_cap_the_same_planning_deadline(monkeypatch):
     rt, calls, fix, frame, _, _, opts, _, _, _, _ = setup(monkeypatch)
     rt._task_deadline = 3.
-    rt.skill_grasp_object('orange', _fix=fix, _frame=frame, _planning_deadline=2.)
+    # Planning completes inside its narrower deadline, but the mocked motion
+    # advances past the task budget before the new pre-command closing veto.
+    with pytest.raises(SafetyViolation, match='closing preflight exceeded'):
+        rt.skill_grasp_object('orange', _fix=fix, _frame=frame, _planning_deadline=2.)
     assert opts[0]['_deadline'] == 2.
+    assert [c for c in calls if c[0] == 'gripper'] == [('gripper', 1., .8)]
 
 
 @pytest.mark.parametrize('batches,seconds', [(0, 8), (True, 8), (3, float('nan')), (3, -1)])

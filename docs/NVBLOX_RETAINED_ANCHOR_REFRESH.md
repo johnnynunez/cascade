@@ -98,6 +98,6 @@ source and artifact references.
 During publication preparation, the retained-scenes checkout briefly changed
 on disk from `87c55bd` to `d1c6a68` between 04:49:42 and 04:53:13 on 2026-10-01
 (Europe/Madrid). It was restored to `87c55bd`, with the commits preserved in a
-separate publication worktree. We sent zero RPC or actuator commands during
-that interval; simulator physics continued advancing. The isolated environment
+separate publication worktree. This NV agent sent zero RPC or actuator commands to the retained scenes
+during that interval; simulator physics continued advancing. The isolated environment
 remained frozen at `8b6b865`.

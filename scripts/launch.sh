@@ -822,7 +822,7 @@ for key in ("CASCADE_GRASP_MEMORY_PATH", "CASCADE_ENVELOPE_PATH", "CASCADE_BELIE
             "CASCADE_GRASP_EVIDENCE_DIR", "CASCADE_OBSERVED_FINGER_GATE",
             "CUDA_VISIBLE_DEVICES", "CUDA_DEVICE_ORDER", "CASCADE_DEVICE", "CASCADE_REQUIRE_CUDA"):
     # OpenClaw need not inherit these from its gateway. Keep operator values
-    # verbatim, including empty visibility and CUDA's local ordinal mapping.
+    # verbatim, including empty visibility and CUDA local ordinal mapping.
     if key in os.environ:
         env[key] = os.environ[key]
 if sys.argv[11] == "none":

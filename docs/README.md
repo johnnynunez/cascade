@@ -23,6 +23,8 @@ does not change which code produced those measurements.
 
 - [Architecture](ARCHITECTURE.md)
 - [Isaac motion clock](ISAAC_MOTION_CLOCK.md)
+- [Prepare Isaac verification before native proof](ISAAC_STARTUP_READINESS.md)
+- [Reject localization results after their image expires](LOCALIZATION_FRESHNESS.md)
 - [Isaac camera frames bound to render history](isaac-render-frame-history.md)
 - [Observed-surface finger veto (experimental)](observed-finger-gate.md)
 - [PhysX finger envelope, provenance and local admission](physx-finger-envelope.md)

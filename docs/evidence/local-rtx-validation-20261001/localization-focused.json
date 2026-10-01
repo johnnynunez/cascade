@@ -1,0 +1,46 @@
+{
+  "pass": true,
+  "head": "727aaabc5dec7a72a43e112a7ba076d7c6e5aab3",
+  "previous_head": "0a8f9ad2e807a256b0df3f9af302a6a54544488c",
+  "previous_receipt": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/localization-analysis-freshness-validation-20261001/focal.json",
+  "previous_receipt_sha256": "53806748052fbab09245a39c21a9ff81364f662036e29c8708fd9a6f017a1dfe",
+  "source_files": {
+    "src/cascade/skills/runtime.py": "2bf2db85e5abbeb60aa2301a80e1ba9e2824e7ec8b156fc7828b2e245fb6ae4e",
+    "tests/test_localization_analysis_freshness.py": "dc09f4d7492b9367925ecbf0766eb6103898e51991e3f0713edc4adb58bf2e99",
+    "docs/LOCALIZATION_FRESHNESS.md": "88058a32ca1107a1fe798a3e0892f22690e98c2353f6c236e9e1867c7005bc6e"
+  },
+  "focal": {
+    "passed": 142,
+    "elapsed_s": 12.29,
+    "argv": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_localization_analysis_freshness.py",
+      "tests/test_configured_object_description.py",
+      "tests/test_reference_delivery.py",
+      "tests/test_scene_observation_mcp.py",
+      "tests/test_perception.py",
+      "tests/test_persistence_leftovers.py"
+    ],
+    "pythonpath": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-localization-analysis-freshness/src",
+    "log_sha256": "eda5cbc9ef7d3e3e294e8dc4bc3d6de4afa4d6287c75956016204243d99bf8bc",
+    "new_regression_cases": 28,
+    "executed_on_clean_pin": true
+  },
+  "baseline_vlm_negative": {
+    "pin": "0a8f9ad2e807a256b0df3f9af302a6a54544488c",
+    "expected_failures": 3,
+    "passed_fast_error": 1,
+    "deselected": 24,
+    "selection": "vlm_constructor_failure_is_fail_soft or vlm_slow_depth_miss_or_error",
+    "elapsed_s": 0.09,
+    "log_sha256": "3f442f16ce66298664f39c9bd91be0f18bf8518a8a93495d52c90df05865e11c",
+    "method": "Import source-bound runtime then execute git-show baseline runtime in the module namespace before pytest imports the new tests; source worktree remains unmodified."
+  },
+  "review_followup": "Whole VLM finally validates actual last analyzed frame on every return/error, including slow construction failure and an empty/invalid geometry result. No global age helper or deadline changed.",
+  "tracked_clean": true,
+  "sdk_rpc_gpu_or_actuation": false,
+  "full_pending": true
+}

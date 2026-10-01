@@ -1,0 +1,50 @@
+{
+  "pass": true,
+  "head": "7098375f0751bbdae4ab8792e5c0c16b36b93ba9",
+  "base": "f9cb6b8e93e1ef720507e8b3e904b6aa5bfed67a",
+  "scope": "CPU software validation; no Kit/GPU/RPC/actuator; no physical acceptance claim",
+  "argv": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/test_isaac_verification_readiness.py",
+    "tests/test_truth_isaac_initial.py",
+    "tests/test_truth_probe_readonly.py",
+    "tests/test_launch_runtime_cleanup.py",
+    "deploy/brev/tests/test_build_bundle.py",
+    "deploy/brev/tests/test_prepare_bundle.py",
+    "-q"
+  ],
+  "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-isaac-startup-readiness",
+  "pythonpath": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-isaac-startup-readiness/src",
+  "result": "96 passed in 3.02s",
+  "log_sha256": "d8be5bd439ec187bbd77b778d8f796af2a5d0a2cb68643cc33c4fe49a7c87dba",
+  "files": {
+    "deploy/brev/prepare_bundle.py": "086818eeb67ea99202ef90d7660a4ad4e3f1ca1ac1666e7fca5ee45db5410132",
+    "docs/ISAAC_STARTUP_READINESS.md": "b87afa7593ade8d9d4e3ad2877e785899c496785a2ffd29ed7466920ee054995",
+    "scripts/launch.sh": "3ffc66dac031197b97934e2418f14d68f4a726ad0b73fa2d70637ee785c30d25",
+    "src/cascade/grasping/evidence.py": "244b5804b19735caeee9a170736d0c257496c3ec0236ebabc739ab4d993deb93",
+    "src/cascade/sim/startup_readiness.py": "c12756e76fda3b794e95e5495de0943e1f48c00498b2714f8ea4662d83a98576",
+    "tests/test_isaac_verification_readiness.py": "c592c6ef0e16bd5c67674000120301dc601db62814686d20ef549d11b5912447"
+  },
+  "release_assets": {
+    "demo/scene/cocina_asier/NOTICE.md": "afae350de8e942115d3f906d4ce08f1df5b722eeeb389e1303eef2095ca38d1e",
+    "demo/scene/cocina_asier/cocina_asier.usdc": "7cf14a77293aeae53b1f07a4f06d8f5d10b09494425e15ed7b2c8cd19331eca2",
+    "demo/scene/cocina_asier/geometry-audit.json": "c66cbfd7b1acb87badce8bc246c758c26bc4af78bc2e16233915e4a4b5c8414e",
+    "demo/scene/cocina_asier/sources.json": "c7c51f4d606cff2aab8984856512d65799a16e4172e69671b63b615f8ce0eae9",
+    "demo/scene/cocina_asier/textures/Wood044_2K-JPG_Color.jpg": "d4063b53baf806eada501feb7d0763c181bce44ffbc980d3508f158cc57edfe5",
+    "demo/scene/cocina_asier/textures/Wood044_2K-JPG_Roughness.jpg": "ccd2764bcf715df2ea309da85e0862a7a6f3f8b2a07f09a59cd9af075b7fc11c",
+    "demo/scene/cocina_asier/textures/WoodFloor051_2K-JPG_Color.jpg": "cd20f4039f62ca2b2430b8a4521774572a31ee586babac058a3afe178ed9ef5f",
+    "demo/scene/cocina_asier/textures/WoodFloor051_2K-JPG_Roughness.jpg": "136fafdf901678e5959d4690b812ad4ef654c53db05295eb07e1efa24337cd61"
+  },
+  "tracked_clean": true,
+  "static_checks": [
+    "bash -n scripts/launch.sh",
+    "git diff --check"
+  ],
+  "limitations": [
+    "No exclusive causal isolation of cold SDK cost",
+    "No live startup or physical acceptance on new source",
+    "All configured native Isaac proof cameras must be same-bridge RGBD; nonempty physical inventory required"
+  ]
+}

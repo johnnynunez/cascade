@@ -1,0 +1,48 @@
+{
+  "pass": true,
+  "scope": "Independent static review and two CPU-only focal test files; no simulator/SDK/GPU/socket/robot or full-suite execution. No physical startup acceptance inferred.",
+  "head": "33b27382f092e1449446c89befc340cc74303788",
+  "reviewed_fix_commit": "7098375f0751bbdae4ab8792e5c0c16b36b93ba9",
+  "six_fix_files_identical_to_reviewed_commit": true,
+  "files_before_after_unchanged": true,
+  "tracked_clean": true,
+  "argv": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_isaac_verification_readiness.py",
+    "tests/test_truth_probe_readonly.py"
+  ],
+  "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-isaac-startup-readiness",
+  "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-isaac-startup-readiness/src",
+  "exit_code": 0,
+  "output": ".....................................                                    [100%]\n37 passed in 0.25s\n",
+  "source_sha256": {
+    "deploy/brev/prepare_bundle.py": "086818eeb67ea99202ef90d7660a4ad4e3f1ca1ac1666e7fca5ee45db5410132",
+    "docs/ISAAC_STARTUP_READINESS.md": "b87afa7593ade8d9d4e3ad2877e785899c496785a2ffd29ed7466920ee054995",
+    "scripts/launch.sh": "3ffc66dac031197b97934e2418f14d68f4a726ad0b73fa2d70637ee785c30d25",
+    "src/cascade/grasping/evidence.py": "244b5804b19735caeee9a170736d0c257496c3ec0236ebabc739ab4d993deb93",
+    "src/cascade/sim/startup_readiness.py": "c12756e76fda3b794e95e5495de0943e1f48c00498b2714f8ea4662d83a98576",
+    "tests/test_isaac_verification_readiness.py": "c592c6ef0e16bd5c67674000120301dc601db62814686d20ef549d11b5912447"
+  },
+  "review_checks": [
+    "One exact native read-only PROBE, shared existing view cache, no LazyArm materialization; later native truth reads stay fresh.",
+    "Bounded10s readiness budget covers dedicated connection/RPC, all stream condition locks, source/epoch/physical-clock validation and new RGBD packets.",
+    "Foreign/missing/duplicate/stale frames fail; no failed or uncertain PROBE retry; completed poses are not action authority.",
+    "Final camera age upper bound includes local clock RPC/delivery/validation interval, without subtracting clocks from different hosts.",
+    "Launch success marker follows readiness; existing shutdown finally retained, non-Isaac branch unchanged.",
+    "Packaging/evidence explicitly include new module; docs distinguish startup availability and unproven live acceptance."
+  ],
+  "artifacts_sha256": {
+    "pytest.log": "78bc8f9c2873a90415715b15784267c44da05cecdcd74986f274520565fa0675",
+    "pytest-final.log": "e283b39e1d7385449425408e32b74a2b66078ee160a14ce37c59c1f0fb41317f",
+    "first-attempt-note.json": "12bdd3c559870b051ab1b595aeeabe43f83fd7fc2dde14685db8c2880e97b575",
+    "before.json": "0e796054d85099175aa81bbb3a360914f1bfbb4576fdb0140d3926387b357d67",
+    "after.json": "0e796054d85099175aa81bbb3a360914f1bfbb4576fdb0140d3926387b357d67"
+  },
+  "limits": [
+    "Timing tests use deterministic clocks and transport doubles; exact production PROBE is additionally executed against SDK doubles, not live Isaac.",
+    "Initial precheck raced the docs merge and aborted; first passing focal log retained separately. Final rerun is bound before/after to33b and its six unchanged fix files."
+  ]
+}

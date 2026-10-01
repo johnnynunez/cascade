@@ -1,0 +1,212 @@
+{
+  "scope": "Read-only in-flight process/owner/GPU environment binding; no RPC and no claim of pre-initialization timing",
+  "captured_at": 1790874766.877375,
+  "source": "ed29a59eece5af6abd804c03aeb90de47ff88c74",
+  "owner": {
+    "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03",
+    "profile": "cascade-demo",
+    "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo",
+    "owner": "b47364ab2bed44b39e45811b672947f0",
+    "schema": 1
+  },
+  "owned_records": [
+    {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo",
+      "owner": "b47364ab2bed44b39e45811b672947f0",
+      "schema": 1,
+      "pid": 2808147,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11978609",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/x86-spark-profile-03/python/bin/python -m cascade.apps.mcp_server --launch-owner b47364ab2bed44b39e45811b672947f0 --launch-state-dir /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo",
+      "role": "mcp",
+      "instance_id": "d0b927cb744349d9a104851187206773",
+      "registered_at": 1790874683.8563602,
+      "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/mcp_2808147_2182042cedfe4b4abfda4c52b5ee61f3"
+    },
+    {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo",
+      "owner": "b47364ab2bed44b39e45811b672947f0",
+      "schema": 1,
+      "pid": 2805847,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11971961",
+      "command": "/home/johnny/Projects/demo/.graspgenx/bin/python /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/scripts/graspgenx_server.py --config /home/johnny/Projects/demo/GraspGenX/ext/graspgenx_checkpoints/release --assets-dir /home/johnny/Projects/demo/GraspGenX/ext/gripper_descriptions --port 25572",
+      "role": "graspgenx",
+      "instance_id": "d4a40688a8fe42d9b2ddb10e2ba5ff5a",
+      "registered_at": 1790874622.4864962
+    },
+    {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo",
+      "owner": "b47364ab2bed44b39e45811b672947f0",
+      "schema": 1,
+      "pid": 2806954,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11975698",
+      "command": "openclaw-gateway",
+      "role": "gateway_child",
+      "instance_id": "7da1c032235348e0b3835c59c562ddad",
+      "registered_at": 1790874658.3785815,
+      "process_group": 2806954
+    },
+    {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo",
+      "owner": "b47364ab2bed44b39e45811b672947f0",
+      "schema": 1,
+      "pid": 2804967,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11967680",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/x86-spark-profile-03/python/bin/python /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/scripts/isaac_launch.py --python /home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh --ready-file /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo/isaac-startup.eDQRE9bD/interpreter.json -- /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/scripts/isaac_bridge.py --port 8611 --usd /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda --engine physx --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/demo/scene/kitchen_config.json",
+      "role": "isaac_bridge",
+      "instance_id": "1ab8d99e557b4a3b8c2e3d15bedab71b",
+      "registered_at": 1790874611.2408097
+    }
+  ],
+  "bridge_interpreter_binding": {
+    "adapter_record": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo",
+      "owner": "b47364ab2bed44b39e45811b672947f0",
+      "schema": 1,
+      "pid": 2804967,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11967680",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/x86-spark-profile-03/python/bin/python /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/scripts/isaac_launch.py --python /home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh --ready-file /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo/isaac-startup.eDQRE9bD/interpreter.json -- /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/scripts/isaac_bridge.py --port 8611 --usd /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda --engine physx --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/demo/scene/kitchen_config.json",
+      "role": "isaac_bridge",
+      "instance_id": "1ab8d99e557b4a3b8c2e3d15bedab71b",
+      "registered_at": 1790874611.2408097
+    },
+    "marker_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo/isaac-startup.eDQRE9bD/interpreter.json",
+    "marker_sha256": "d0cb53396bc1524800fcf9c90fe3ce1ee6924500ac6a06c685fb242ba149dc90",
+    "marker": {
+      "launcher_pid": 2804967,
+      "launcher_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11967680",
+      "bridge_pid": 2804977,
+      "bridge_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11967683"
+    },
+    "interpreter": {
+      "pid": 2804977,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11967683",
+      "command_sha256": "afdd12a39d2a5013907956adcb113f0d344c4c35b8a899da3510de060616eb49",
+      "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.3.0+feature.manylinux_2_35_x86_64.release/python/bin/python3.12",
+      "require_stopped": false
+    },
+    "ancestry": [
+      {
+        "pid": 2804977,
+        "ppid": 2804969,
+        "birth_ticks": "11967683"
+      },
+      {
+        "pid": 2804969,
+        "ppid": 2804967,
+        "birth_ticks": "11967682"
+      }
+    ]
+  },
+  "gpu_bindings": {
+    "425250": [
+      {
+        "uuid": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+        "memory_mib": "1338"
+      }
+    ],
+    "439100": [
+      {
+        "uuid": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+        "memory_mib": "5446"
+      }
+    ],
+    "453631": [
+      {
+        "uuid": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+        "memory_mib": "1108"
+      }
+    ],
+    "1273489": [
+      {
+        "uuid": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+        "memory_mib": "7374"
+      }
+    ],
+    "1273621": [
+      {
+        "uuid": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+        "memory_mib": "1416"
+      }
+    ],
+    "1310552": [
+      {
+        "uuid": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+        "memory_mib": "4928"
+      }
+    ],
+    "6185": [
+      {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "memory_mib": "22466"
+      }
+    ],
+    "442681": [
+      {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "memory_mib": "4991"
+      }
+    ],
+    "453635": [
+      {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "memory_mib": "1054"
+      }
+    ],
+    "1470432": [
+      {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "memory_mib": "4597"
+      }
+    ],
+    "1470360": [
+      {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "memory_mib": "6216"
+      }
+    ],
+    "2804977": [
+      {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "memory_mib": "4373"
+      }
+    ],
+    "2805847": [
+      {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "memory_mib": "1402"
+      }
+    ],
+    "2808147": [
+      {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "memory_mib": "1816"
+      }
+    ]
+  },
+  "mcp_device_environments": [
+    {
+      "process": {
+        "pid": 2808147,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11978609",
+        "command_sha256": "1cb92b02bfb521346340962a397bd871c5ec254a566e3fd3fd620f9c06fdee29",
+        "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+        "require_stopped": false
+      },
+      "environment": {
+        "CUDA_VISIBLE_DEVICES": "1",
+        "CASCADE_REQUIRE_CUDA": "1"
+      }
+    }
+  ],
+  "pass": true
+}

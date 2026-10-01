@@ -1,0 +1,61 @@
+{
+  "headRefOid": "93af4f6e70c9db2319f14e24b9f24fd30c1f074c",
+  "isDraft": false,
+  "mergeable": "MERGEABLE",
+  "number": 58,
+  "state": "OPEN",
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-01T18:36:45Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/johnnynunez/cascade/actions/runs/36907306795/job/110520958916",
+      "name": "ubuntu-latest / py3.12",
+      "startedAt": "2026-10-01T18:30:18Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-01T18:36:26Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/johnnynunez/cascade/actions/runs/36907306795/job/110520958775",
+      "name": "ubuntu-24.04-arm / py3.12",
+      "startedAt": "2026-10-01T18:30:20Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-01T18:44:34Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/johnnynunez/cascade/actions/runs/36907306795/job/110520958881",
+      "name": "macos-latest / py3.12",
+      "startedAt": "2026-10-01T18:30:25Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-01T18:30:28Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/johnnynunez/cascade/actions/runs/36907306795/job/110520958893",
+      "name": "booth pages and camera extension",
+      "startedAt": "2026-10-01T18:30:19Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-01T18:30:41Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/johnnynunez/cascade/actions/runs/36907306795/job/110520958346",
+      "name": "minimal install, no accelerator",
+      "startedAt": "2026-10-01T18:30:18Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    }
+  ],
+  "reviewed_at": 1790880401.4008768,
+  "scope": "All five PR checks on exact reviewed head; physical acceptance separate"
+}

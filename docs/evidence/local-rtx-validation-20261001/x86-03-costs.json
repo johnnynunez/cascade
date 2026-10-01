@@ -1,0 +1,299 @@
+{
+  "scope": "Offline completed witness/observer and fresh read-only /proc/NVML. No RPC or control. A physical pose in destination is not a missing successful tool/postcondition receipt.",
+  "source": "ed29a59eece5af6abd804c03aeb90de47ff88c74",
+  "captured_at": 1790875211.775421,
+  "inputs_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo/cascade-proof-72ee4647a5f740ea9a5b9493f86d441e/case-1/physics/samples.jsonl": "3283f0ba676ad6e33108541c4d219264ac438de3fc34dd390fe422f7b1bfb23a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/x86-spark-profile-03/observer-proof/samples.jsonl": "cabeacc3e8f2cd696a973f7aa5e4cecdb3e935215ac0db14e7edeb2741a759d7",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/x86-spark-profile-03/proof/receipt.json": "49316fce48481df4cb3e6d4998e53f97c08dd4f2894601d54eb24cc50f13ec16"
+  },
+  "samples": 1489,
+  "wall_s": 303.7491628550051,
+  "sim_delta_s": 44.43333333333334,
+  "RTF": 0.1462829820358834,
+  "grasp_duration_s": 146.85628687900316,
+  "grasp_phase_elapsed_s": {
+    "entry": 6.119007593952119e-06,
+    "planning": 1.5671321990084834,
+    "open": 3.114564469011384,
+    "home": 3.185569305001991,
+    "pregrasp": 22.853472818009323,
+    "descent": 103.19171577300585,
+    "close": 122.2182402130129,
+    "lift": 126.11357542700716,
+    "verify": 146.68220666100387
+  },
+  "last_physics": {
+    "physics_step": 10854,
+    "sim_time": 90.45,
+    "server_monotonic": 120112.496729451,
+    "q": [
+      -0.8200239539146423,
+      -1.6406786441802979,
+      -1.5775598287582397,
+      1.1190454959869385,
+      -2.9392208489298355e-06,
+      0.06896558403968811,
+      0.04999256879091263,
+      0.04999999329447746
+    ],
+    "dq": [
+      0.28819403052330017,
+      0.20340240001678467,
+      0.11619959771633148,
+      -0.37682628631591797,
+      -0.0006650262512266636,
+      -0.023869719356298447,
+      0.0018750764429569244,
+      -2.8413069230737165e-06
+    ]
+  },
+  "last_green": {
+    "position_m": [
+      0.13700905442237854,
+      -0.2765643000602722,
+      0.02999999934039739
+    ],
+    "orientation_wxyz": [
+      0.9999986290931702,
+      -3.497319482903549e-07,
+      -2.5463143060733273e-07,
+      0.0016604216070845723
+    ],
+    "linear_velocity_m_s": [
+      -6.891707016620785e-06,
+      1.0368676157668233e-05,
+      -5.934853106737137e-06
+    ],
+    "angular_velocity_rad_s": [
+      -0.0003153082216158509,
+      0.00026041243108920753,
+      2.4770438358245883e-06
+    ],
+    "tensor_device": "cuda:0"
+  },
+  "last_jaws": {
+    "indices": [
+      6,
+      7
+    ],
+    "q": [
+      0.04999256879091263,
+      0.04999999329447746
+    ],
+    "qd": [
+      0.0018750764429569244,
+      -2.8413069230737165e-06
+    ],
+    "lower": [
+      0.0,
+      0.0
+    ],
+    "upper": [
+      0.05000000074505806,
+      0.05000000074505806
+    ],
+    "open_fractions": [
+      0.9998513609193063,
+      0.9999998509883903
+    ],
+    "open_fraction": 0.9999256059538483
+  },
+  "last_contacts": {
+    "channel": "physx_gpu_contact_tensor",
+    "device": "cuda:0",
+    "sensor_paths": [
+      "/World_Props/green_cube"
+    ],
+    "filter_paths": [
+      [
+        "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+        "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+      ]
+    ],
+    "net_force_n": [
+      0.0,
+      0.0,
+      0.4905097782611847
+    ],
+    "jaw_forces_n": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "jaw_contact_counts": [
+      0,
+      0
+    ],
+    "physics_dt_s": 0.008333333333333333,
+    "physics_step": 10854
+  },
+  "last_home_max_error_rad": 1.1190454959869385,
+  "marks": {
+    "pick_begin": {
+      "monotonic": 119808.887332376,
+      "unix": 1790874706.6170433
+    }
+  },
+  "current_nvml": [
+    {
+      "command": [
+        "nvidia-smi",
+        "--query-gpu=index,uuid,memory.used,utilization.gpu",
+        "--format=csv,noheader,nounits"
+      ],
+      "stdout": "0, GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3, 21908, 78\n1, GPU-4c811d02-a79b-2837-425e-5f62ac3c578a, 45789, 53\n"
+    },
+    {
+      "command": [
+        "nvidia-smi",
+        "--query-compute-apps=pid,gpu_uuid,used_memory",
+        "--format=csv,noheader,nounits"
+      ],
+      "stdout": "425250, GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3, 1338\n439100, GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3, 5446\n453631, GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3, 1108\n1273489, GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3, 7374\n1273621, GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3, 1416\n1310552, GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3, 4928\n6185, GPU-4c811d02-a79b-2837-425e-5f62ac3c578a, 22466\n442681, GPU-4c811d02-a79b-2837-425e-5f62ac3c578a, 4991\n453635, GPU-4c811d02-a79b-2837-425e-5f62ac3c578a, 1054\n1470432, GPU-4c811d02-a79b-2837-425e-5f62ac3c578a, 4597\n1470360, GPU-4c811d02-a79b-2837-425e-5f62ac3c578a, 6216\n2804977, GPU-4c811d02-a79b-2837-425e-5f62ac3c578a, 4373\n2805847, GPU-4c811d02-a79b-2837-425e-5f62ac3c578a, 1402\n"
+    },
+    {
+      "command": [
+        "nvidia-smi",
+        "pmon",
+        "-c",
+        "1",
+        "-s",
+        "um"
+      ],
+      "stdout": "# gpu         pid   type     sm    mem    enc    dec    jpg    ofa     fb   ccpm    command \n# Idx           #    C/G      %      %      %      %      %      %     MB     MB    name \n    0      16421     G      -      -      -      -      -      -     12      0    gnome-shell    \n    0     425250     C      -      -      -      -      -      -   1338      0    python         \n    0     439100   C+G     48     14      -      -      -      -   5418      0    python3        \n    0     453631     C      -      -      -      -      -      -   1108      0    python         \n    0    1273489     C      -      -      -      -      -      -   7374      0    python         \n    0    1273621     C      -      -      -      -      -      -   1416      0    python         \n    0    1310552   C+G     32      9      -      -      -      -   4928      0    python3        \n    0    1470432     G      -      -      -      -      -      -      8      0    python3        \n    0    2804977     G      -      -      -      -      -      -      8      0    python3        \n    1      16421     G      -      -      -      -      -      -    480      0    gnome-shell    \n    1    1470432   C+G      -      -      -      -      -      -   4597      0    python3        \n    1    2804977   C+G     42      9      -      -      -      -   4373      0    python3        \n    1       6185     C      -      -      -      -      -      -  22466      0    llama-server   \n    1      21364     G      -      -      -      -      -      -     14      0    Xwayland       \n    1     442681   C+G     28      5      -      -      -      -   4991      0    python3        \n    1     453635     C      -      -      -      -      -      -   1054      0    python         \n    1    1470360     C      -      -      -      -      -      -   6216      0    python         \n    1    2805847     C      -      -      -      -      -      -   1402      0    python         \n"
+    }
+  ],
+  "observer_samples": 90,
+  "observer_average_cpu_cores": [
+    {
+      "pid": 6185,
+      "birth_ticks": "798",
+      "wall_s": 445.0123155939946,
+      "cores": 0.02186456342677296
+    },
+    {
+      "pid": 2804977,
+      "birth_ticks": "11967683",
+      "wall_s": 440.0066592529911,
+      "cores": 2.8524113751614046
+    },
+    {
+      "pid": 2804967,
+      "birth_ticks": "11967680",
+      "wall_s": 440.0066592529911,
+      "cores": 0.0
+    },
+    {
+      "pid": 2805847,
+      "birth_ticks": "11971961",
+      "wall_s": 395.01224340699264,
+      "cores": 0.05822604332874419
+    },
+    {
+      "pid": 2806954,
+      "birth_ticks": "11975698",
+      "wall_s": 345.007457433996,
+      "cores": 0.012376544065911679
+    },
+    {
+      "pid": 2808147,
+      "birth_ticks": "11978609",
+      "wall_s": 320.0020720589964,
+      "cores": 2.585264509935669
+    }
+  ],
+  "protected_processes_current": {
+    "6185": {
+      "state": "S",
+      "birth_ticks": "798",
+      "user_ticks": 23123,
+      "system_ticks": 23832,
+      "threads": 136
+    },
+    "6100": {
+      "state": "S",
+      "birth_ticks": "796",
+      "user_ticks": 15406,
+      "system_ticks": 1084,
+      "threads": 11
+    },
+    "439100": {
+      "state": "R",
+      "birth_ticks": "2421790",
+      "user_ticks": 18657552,
+      "system_ticks": 6807980,
+      "threads": 641
+    },
+    "442681": {
+      "state": "S",
+      "birth_ticks": "2429704",
+      "user_ticks": 24946887,
+      "system_ticks": 11424444,
+      "threads": 498
+    },
+    "1310552": {
+      "state": "R",
+      "birth_ticks": "5563987",
+      "user_ticks": 12689552,
+      "system_ticks": 4753326,
+      "threads": 498
+    },
+    "1470432": {
+      "state": "T",
+      "birth_ticks": "6192071",
+      "user_ticks": 1601566,
+      "system_ticks": 852553,
+      "threads": 498
+    },
+    "425250": {
+      "state": "S",
+      "birth_ticks": "2397653",
+      "user_ticks": 54468,
+      "system_ticks": 17601,
+      "threads": 196
+    },
+    "1273621": {
+      "state": "S",
+      "birth_ticks": "5402304",
+      "user_ticks": 14475,
+      "system_ticks": 15030,
+      "threads": 196
+    },
+    "1273489": {
+      "state": "S",
+      "birth_ticks": "5402026",
+      "user_ticks": 20565,
+      "system_ticks": 14283,
+      "threads": 70
+    },
+    "1470360": {
+      "state": "S",
+      "birth_ticks": "6192068",
+      "user_ticks": 29893,
+      "system_ticks": 12212,
+      "threads": 70
+    },
+    "453635": {
+      "state": "S",
+      "birth_ticks": "2489792",
+      "user_ticks": 16307,
+      "system_ticks": 21345,
+      "threads": 70
+    },
+    "453631": {
+      "state": "S",
+      "birth_ticks": "2489791",
+      "user_ticks": 16921,
+      "system_ticks": 23059,
+      "threads": 70
+    }
+  }
+}

@@ -1,0 +1,756 @@
+{
+  "scope": "Offline descriptive comparison of two different source/cache contexts and uncontrolled host load. No causal attribution, no physical acceptance, no threshold change.",
+  "runs": [
+    {
+      "run": "03",
+      "source": "ed29a59eece5af6abd804c03aeb90de47ff88c74",
+      "archive_sha256": "41b8b5be5695981526d44bc427aa6b2cd422d6a63e438958b9db41a03be9b227",
+      "samples": 1489,
+      "phases_present": [
+        "pick_begin"
+      ],
+      "wall_observed_s": 303.7491628550051,
+      "sim_observed_s": 44.43333333333334,
+      "rtf": 0.1462829820358834,
+      "rtf_windows": [
+        {
+          "start_s": 0.0,
+          "observed_wall_s": 59.79078901500907,
+          "rtf": 0.12487988182916164
+        },
+        {
+          "start_s": 60.0,
+          "observed_wall_s": 59.75159296800848,
+          "rtf": 0.15034466676299474
+        },
+        {
+          "start_s": 120.0,
+          "observed_wall_s": 59.76077374399756,
+          "rtf": 0.15338935713809063
+        },
+        {
+          "start_s": 180.0,
+          "observed_wall_s": 59.86892808599805,
+          "rtf": 0.1391929603510356
+        },
+        {
+          "start_s": 240.0,
+          "observed_wall_s": 59.81892962699931,
+          "rtf": 0.16577806939211395
+        }
+      ],
+      "cameras": {
+        "cam0": {
+          "server_age_s": {
+            "count": 1489,
+            "min": 0.10607757599791512,
+            "median": 0.31753801100421697,
+            "mean": 0.32558963838210037,
+            "p95": 0.5888301149971085,
+            "max": 2.3952716359926853
+          },
+          "delivery_age_s": {
+            "count": 1489,
+            "min": 0.23742801300249994,
+            "median": 0.42824582499451935,
+            "mean": 0.44213301918328524,
+            "p95": 0.6423990039911587,
+            "max": 2.4317051349935355
+          },
+          "server_stale": [
+            {
+              "sequence": 14,
+              "step": 5566,
+              "server_age_s": 2.3246525369904703
+            },
+            {
+              "sequence": 15,
+              "step": 5568,
+              "server_age_s": 2.3952716359926853
+            }
+          ],
+          "missing": 0
+        },
+        "side": {
+          "server_age_s": {
+            "count": 1489,
+            "min": 0.10607757599791512,
+            "median": 0.31753801100421697,
+            "mean": 0.32558963838210037,
+            "p95": 0.5888301149971085,
+            "max": 2.3952716359926853
+          },
+          "delivery_age_s": {
+            "count": 1489,
+            "min": 0.23742801300249994,
+            "median": 0.42824582499451935,
+            "mean": 0.44213301918328524,
+            "p95": 0.6423990039911587,
+            "max": 2.4317051349935355
+          },
+          "server_stale": [
+            {
+              "sequence": 14,
+              "step": 5566,
+              "server_age_s": 2.3246525369904703
+            },
+            {
+              "sequence": 15,
+              "step": 5568,
+              "server_age_s": 2.3952716359926853
+            }
+          ],
+          "missing": 0
+        },
+        "proof": {
+          "server_age_s": {
+            "count": 1489,
+            "min": 0.10607757599791512,
+            "median": 0.31753801100421697,
+            "mean": 0.32558963838210037,
+            "p95": 0.5888301149971085,
+            "max": 2.3952716359926853
+          },
+          "delivery_age_s": {
+            "count": 1489,
+            "min": 0.23742801300249994,
+            "median": 0.42824582499451935,
+            "mean": 0.44213301918328524,
+            "p95": 0.6423990039911587,
+            "max": 2.4317051349935355
+          },
+          "server_stale": [
+            {
+              "sequence": 14,
+              "step": 5566,
+              "server_age_s": 2.3246525369904703
+            },
+            {
+              "sequence": 15,
+              "step": 5568,
+              "server_age_s": 2.3952716359926853
+            }
+          ],
+          "missing": 0
+        }
+      },
+      "observer_case_samples": 61,
+      "gpu_global": {
+        "0": {
+          "uuid": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+          "memory_mib": {
+            "count": 61,
+            "min": 21785.0,
+            "median": 21908.0,
+            "mean": 21901.590163934427,
+            "p95": 21908.0,
+            "max": 22035.0
+          },
+          "utilization_percent": {
+            "count": 61,
+            "min": 49.0,
+            "median": 78.0,
+            "mean": 76.78688524590164,
+            "p95": 90.0,
+            "max": 98.0
+          }
+        },
+        "1": {
+          "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+          "memory_mib": {
+            "count": 61,
+            "min": 45789.0,
+            "median": 47621.0,
+            "mean": 47582.770491803276,
+            "p95": 47621.0,
+            "max": 47621.0
+          },
+          "utilization_percent": {
+            "count": 61,
+            "min": 36.0,
+            "median": 52.0,
+            "mean": 51.9344262295082,
+            "p95": 73.0,
+            "max": 74.0
+          }
+        }
+      },
+      "host_load1": {
+        "count": 61,
+        "min": 9.27,
+        "median": 12.19,
+        "mean": 12.176065573770492,
+        "p95": 14.66,
+        "max": 16.14
+      },
+      "process_cpu_percent_one_core": {
+        "2804967": {
+          "count": 60,
+          "min": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "6185": {
+          "count": 60,
+          "min": 0.19969664167003906,
+          "median": 0.2001351650020038,
+          "mean": 0.5634938208544586,
+          "p95": 0.4002528156087405,
+          "max": 17.209838878648394
+        },
+        "2806954": {
+          "count": 59,
+          "min": 0.0,
+          "median": 0.19994058481585814,
+          "mean": 0.4134955001471489,
+          "p95": 0.8000009035212879,
+          "max": 7.997877189041508
+        },
+        "2804977": {
+          "count": 60,
+          "min": 197.60938601120384,
+          "median": 236.91272266630506,
+          "mean": 238.3641174278447,
+          "p95": 269.09828895719454,
+          "max": 281.9337276429847
+        },
+        "2808147": {
+          "count": 59,
+          "min": 219.0138994652759,
+          "median": 262.5658470393338,
+          "mean": 266.7937691983059,
+          "p95": 308.93347062106716,
+          "max": 360.0171000204119
+        },
+        "2805847": {
+          "count": 60,
+          "min": 0.0,
+          "median": 0.39967610826986355,
+          "mean": 0.7366784370378865,
+          "p95": 0.6000006776409659,
+          "max": 26.20124450148553
+        }
+      },
+      "grasp_phase_intervals": [
+        {
+          "phase": "planning",
+          "start_s": 1.5671321990084834,
+          "duration_to_next_phase_s": 1.5474322700029006
+        },
+        {
+          "phase": "open",
+          "start_s": 3.114564469011384,
+          "duration_to_next_phase_s": 0.07100483599060681
+        },
+        {
+          "phase": "home",
+          "start_s": 3.185569305001991,
+          "duration_to_next_phase_s": 19.66790351300733
+        },
+        {
+          "phase": "pregrasp",
+          "start_s": 22.853472818009323,
+          "duration_to_next_phase_s": 80.33824295499653
+        },
+        {
+          "phase": "descent",
+          "start_s": 103.19171577300585,
+          "duration_to_next_phase_s": 19.02652444000705
+        },
+        {
+          "phase": "close",
+          "start_s": 122.2182402130129,
+          "duration_to_next_phase_s": 3.895335213994258
+        },
+        {
+          "phase": "lift",
+          "start_s": 126.11357542700716,
+          "duration_to_next_phase_s": 20.56863123399671
+        },
+        {
+          "phase": "verify",
+          "start_s": 146.68220666100387,
+          "duration_to_next_phase_s": 0.17408021799928974
+        }
+      ],
+      "grasp_duration_s": 146.85628687900316,
+      "render_reference_app_update_duration_s": {
+        "count": 1,
+        "min": 0.040011687990045175,
+        "median": 0.040011687990045175,
+        "mean": 0.040011687990045175,
+        "p95": 0.040011687990045175,
+        "max": 0.040011687990045175
+      },
+      "render_reference_count": 1,
+      "render_reference_scope": "Only retained attempt image metadata; physics witness omits render_reference. Not a representative distribution of all update steps.",
+      "trace_outcomes": [],
+      "last_observed": {
+        "step": 10854,
+        "q": [
+          -0.8200239539146423,
+          -1.6406786441802979,
+          -1.5775598287582397,
+          1.1190454959869385,
+          -2.9392208489298355e-06,
+          0.06896558403968811,
+          0.04999256879091263,
+          0.04999999329447746
+        ],
+        "gripper": {
+          "indices": [
+            6,
+            7
+          ],
+          "q": [
+            0.04999256879091263,
+            0.04999999329447746
+          ],
+          "qd": [
+            0.0018750764429569244,
+            -2.8413069230737165e-06
+          ],
+          "lower": [
+            0.0,
+            0.0
+          ],
+          "upper": [
+            0.05000000074505806,
+            0.05000000074505806
+          ],
+          "open_fractions": [
+            0.9998513609193063,
+            0.9999998509883903
+          ],
+          "open_fraction": 0.9999256059538483
+        },
+        "green": {
+          "position_m": [
+            0.13700905442237854,
+            -0.2765643000602722,
+            0.02999999934039739
+          ],
+          "orientation_wxyz": [
+            0.9999986290931702,
+            -3.497319482903549e-07,
+            -2.5463143060733273e-07,
+            0.0016604216070845723
+          ],
+          "linear_velocity_m_s": [
+            -6.891707016620785e-06,
+            1.0368676157668233e-05,
+            -5.934853106737137e-06
+          ],
+          "angular_velocity_rad_s": [
+            -0.0003153082216158509,
+            0.00026041243108920753,
+            2.4770438358245883e-06
+          ],
+          "tensor_device": "cuda:0"
+        },
+        "contacts": [
+          0,
+          0
+        ]
+      },
+      "inputs": {
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile03-negative-retained/retention.json": "41b8b5be5695981526d44bc427aa6b2cd422d6a63e438958b9db41a03be9b227",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile03-negative-retained/proof-evidence/case-1/physics/samples.jsonl": "3283f0ba676ad6e33108541c4d219264ac438de3fc34dd390fe422f7b1bfb23a",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile03-negative-retained/proof-evidence/case-1/physics/phases.json": "7fde4f73669c980d60f9aa9dcc9b0a9711e8aec1ac10917b3e2926c8e7ec6280",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile03-negative-retained/run/observer-proof/samples.jsonl": "cabeacc3e8f2cd696a973f7aa5e4cecdb3e935215ac0db14e7edeb2741a759d7",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile03-negative-retained/runtime/trace.jsonl": "f5356bfd2d4bfad71b2a57f9a114c284053e6a8234e31dd9e62c692ecfd4d76a"
+      }
+    },
+    {
+      "run": "06",
+      "source": "93af4f6e70c9db2319f14e24b9f24fd30c1f074c",
+      "archive_sha256": "6c528a5550d9559fa1ce37b3f917d0a5edb7c62250b3311f3dff59c10fec3a5f",
+      "samples": 1391,
+      "phases_present": [
+        "pick_begin"
+      ],
+      "wall_observed_s": 304.14094371401006,
+      "sim_observed_s": 41.3,
+      "rtf": 0.13579230568454878,
+      "rtf_windows": [
+        {
+          "start_s": 0.0,
+          "observed_wall_s": 59.82013900500897,
+          "rtf": 0.16521749193036417
+        },
+        {
+          "start_s": 60.0,
+          "observed_wall_s": 59.67787849099841,
+          "rtf": 0.15555736175731508
+        },
+        {
+          "start_s": 120.0,
+          "observed_wall_s": 59.780150542006595,
+          "rtf": 0.1304780922978617
+        },
+        {
+          "start_s": 180.0,
+          "observed_wall_s": 59.84011091699358,
+          "rtf": 0.10973687324503004
+        },
+        {
+          "start_s": 240.0,
+          "observed_wall_s": 59.72285102200112,
+          "rtf": 0.11971966973522477
+        }
+      ],
+      "cameras": {
+        "cam0": {
+          "server_age_s": {
+            "count": 1391,
+            "min": 0.10249110299628228,
+            "median": 0.36267506099829916,
+            "mean": 0.32484428674252486,
+            "p95": 0.5679891519976081,
+            "max": 1.0184757289971458
+          },
+          "delivery_age_s": {
+            "count": 1391,
+            "min": 0.25012144999345765,
+            "median": 0.44305144299869426,
+            "mean": 0.45760667320329323,
+            "p95": 0.6261958710092586,
+            "max": 1.1028813869925216
+          },
+          "server_stale": [],
+          "missing": 0
+        },
+        "side": {
+          "server_age_s": {
+            "count": 1391,
+            "min": 0.10249110299628228,
+            "median": 0.36267506099829916,
+            "mean": 0.32484428674252486,
+            "p95": 0.5679891519976081,
+            "max": 1.0184757289971458
+          },
+          "delivery_age_s": {
+            "count": 1391,
+            "min": 0.25012144999345765,
+            "median": 0.44305144299869426,
+            "mean": 0.45760667320329323,
+            "p95": 0.6261958710092586,
+            "max": 1.1028813869925216
+          },
+          "server_stale": [],
+          "missing": 0
+        },
+        "proof": {
+          "server_age_s": {
+            "count": 1391,
+            "min": 0.10249110299628228,
+            "median": 0.36267506099829916,
+            "mean": 0.32484428674252486,
+            "p95": 0.5679891519976081,
+            "max": 1.0184757289971458
+          },
+          "delivery_age_s": {
+            "count": 1391,
+            "min": 0.25012144999345765,
+            "median": 0.44305144299869426,
+            "mean": 0.45760667320329323,
+            "p95": 0.6261958710092586,
+            "max": 1.1028813869925216
+          },
+          "server_stale": [],
+          "missing": 0
+        }
+      },
+      "observer_case_samples": 61,
+      "gpu_global": {
+        "0": {
+          "uuid": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+          "memory_mib": {
+            "count": 61,
+            "min": 21785.0,
+            "median": 21908.0,
+            "mean": 21894.245901639344,
+            "p95": 22035.0,
+            "max": 22035.0
+          },
+          "utilization_percent": {
+            "count": 61,
+            "min": 47.0,
+            "median": 76.0,
+            "mean": 75.95081967213115,
+            "p95": 88.0,
+            "max": 94.0
+          }
+        },
+        "1": {
+          "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+          "memory_mib": {
+            "count": 61,
+            "min": 45918.0,
+            "median": 47750.0,
+            "mean": 47715.70491803279,
+            "p95": 47750.0,
+            "max": 47750.0
+          },
+          "utilization_percent": {
+            "count": 61,
+            "min": 34.0,
+            "median": 45.0,
+            "mean": 53.73770491803279,
+            "p95": 83.0,
+            "max": 90.0
+          }
+        }
+      },
+      "host_load1": {
+        "count": 61,
+        "min": 9.61,
+        "median": 11.62,
+        "mean": 11.641803278688524,
+        "p95": 13.37,
+        "max": 14.16
+      },
+      "process_cpu_percent_one_core": {
+        "2882600": {
+          "count": 60,
+          "min": 179.78429778305642,
+          "median": 218.30104950395184,
+          "mean": 220.450259329134,
+          "p95": 257.97844397757245,
+          "max": 265.36954332568246
+        },
+        "6185": {
+          "count": 60,
+          "min": 0.1997168471263444,
+          "median": 0.20009775446010053,
+          "mean": 0.6201769438914506,
+          "p95": 0.4003039949358532,
+          "max": 21.41162370674501
+        },
+        "2884619": {
+          "count": 59,
+          "min": 0.0,
+          "median": 0.19992195086987163,
+          "mean": 0.41318646305761475,
+          "p95": 0.5999311454235474,
+          "max": 13.979431542313792
+        },
+        "2885803": {
+          "count": 59,
+          "min": 220.756629522128,
+          "median": 255.2563340778302,
+          "mean": 261.4623883082672,
+          "p95": 307.001687336929,
+          "max": 458.9247669176728
+        },
+        "2883764": {
+          "count": 60,
+          "min": 0.0,
+          "median": 0.3996843330381724,
+          "mean": 0.9856847239477856,
+          "p95": 0.6001943211931018,
+          "max": 40.3406453078198
+        },
+        "2882590": {
+          "count": 60,
+          "min": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        }
+      },
+      "grasp_phase_intervals": [
+        {
+          "phase": "planning",
+          "start_s": 2.455754355993122,
+          "duration_to_next_phase_s": 1.615117488996475
+        },
+        {
+          "phase": "open",
+          "start_s": 4.070871844989597,
+          "duration_to_next_phase_s": 0.22497999800543766
+        },
+        {
+          "phase": "home",
+          "start_s": 4.2958518429950345,
+          "duration_to_next_phase_s": 12.804323714997736
+        },
+        {
+          "phase": "pregrasp",
+          "start_s": 17.10017555799277,
+          "duration_to_next_phase_s": 68.63563600499765
+        },
+        {
+          "phase": "descent",
+          "start_s": 85.73581156299042,
+          "duration_to_next_phase_s": 21.814664379009628
+        },
+        {
+          "phase": "close",
+          "start_s": 107.55047594200005,
+          "duration_to_next_phase_s": 2.357949025987182
+        },
+        {
+          "phase": "lift",
+          "start_s": 109.90842496798723,
+          "duration_to_next_phase_s": 27.084119022008963
+        },
+        {
+          "phase": "verify",
+          "start_s": 136.9925439899962,
+          "duration_to_next_phase_s": 0.41768544100341387
+        }
+      ],
+      "grasp_duration_s": 137.4102294309996,
+      "render_reference_app_update_duration_s": {
+        "count": 1,
+        "min": 0.03458746199612506,
+        "median": 0.03458746199612506,
+        "mean": 0.03458746199612506,
+        "p95": 0.03458746199612506,
+        "max": 0.03458746199612506
+      },
+      "render_reference_count": 1,
+      "render_reference_scope": "Only retained attempt image metadata; physics witness omits render_reference. Not a representative distribution of all update steps.",
+      "trace_outcomes": [
+        {
+          "skill": "pick_and_place",
+          "t": 1790880818.6286848,
+          "duration_ms": 299953.8,
+          "result": {
+            "picked": "green cube",
+            "placed_at": [
+              0.14,
+              -0.27,
+              0.06
+            ],
+            "destination": "green square",
+            "grip_profile": "rigid",
+            "grip_verified": true,
+            "grasp_attempts": 1,
+            "place_attempts": 1,
+            "duration_s": 299.95,
+            "timings": {
+              "grasp_attempt1_s": 137.59,
+              "place_s": 162.36
+            },
+            "return_home": {
+              "attempted": false,
+              "reason": "retreat_failed"
+            },
+            "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates.",
+            "destination_kind": "configured_point",
+            "post_place_retreat": {
+              "ok": false,
+              "tcp_at": [
+                0.14,
+                -0.27,
+                0.14
+              ]
+            },
+            "ok": false,
+            "stage": "retreat",
+            "error": "post-place retreat aborted: simulation motion stopped",
+            "home_skipped": true,
+            "postcondition": {
+              "skill": "pick_and_place",
+              "kind": "relocated",
+              "status": "unverified",
+              "evidence": "green cube is 0.2 cm from the green square center (physics); full object containment and release are not established by a center position",
+              "channel": "physics",
+              "measured": {
+                "moved_m": 0.2956,
+                "final": [
+                  0.1389,
+                  -0.2677,
+                  0.03
+                ],
+                "target_err_m": 0.0025,
+                "destination": "green square"
+              }
+            }
+          }
+        }
+      ],
+      "last_observed": {
+        "step": 10114,
+        "q": [
+          -1.092702865600586,
+          -1.7794142961502075,
+          -1.5497181415557861,
+          1.3394320011138916,
+          -7.982966053532436e-06,
+          0.3948509097099304,
+          0.05000000819563866,
+          0.04999999701976776
+        ],
+        "gripper": {
+          "indices": [
+            6,
+            7
+          ],
+          "q": [
+            0.05000000819563866,
+            0.04999999701976776
+          ],
+          "qd": [
+            5.6645250879228115e-05,
+            2.38810753216967e-06
+          ],
+          "lower": [
+            0.0,
+            0.0
+          ],
+          "upper": [
+            0.05000000074505806,
+            0.05000000074505806
+          ],
+          "open_fractions": [
+            1.0000001490116097,
+            0.9999999254941951
+          ],
+          "open_fraction": 1.0000000372529025
+        },
+        "green": {
+          "position_m": [
+            0.13893699645996094,
+            -0.26775047183036804,
+            0.02999999934039739
+          ],
+          "orientation_wxyz": [
+            0.999999463558197,
+            -3.7683599884985597e-07,
+            -4.494423251344415e-07,
+            0.0009494969854131341
+          ],
+          "linear_velocity_m_s": [
+            -7.056951289996505e-06,
+            1.075505861081183e-05,
+            -6.084563210606575e-06
+          ],
+          "angular_velocity_rad_s": [
+            -0.00032371512497775257,
+            0.0002656653232406825,
+            2.674566985660931e-06
+          ],
+          "tensor_device": "cuda:0"
+        },
+        "contacts": [
+          0,
+          0
+        ]
+      },
+      "inputs": {
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile06-negative-retained/retention.json": "6c528a5550d9559fa1ce37b3f917d0a5edb7c62250b3311f3dff59c10fec3a5f",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile06-negative-retained/proof-evidence/case-1/physics/samples.jsonl": "8a866622d789e0fef09806047d7212bb280419f91f246c23af492acf4f84b57a",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile06-negative-retained/proof-evidence/case-1/physics/phases.json": "19445550f5bb541469021424e0ff155a687c90a4eecc4d332fa7b5800a3958c6",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile06-negative-retained/run/observer-proof/samples.jsonl": "49de79aaa1cb7c8c4572a31296b8cba3685e33b9d5566d190d834d6a04d2d286",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile06-negative-retained/runtime/trace.jsonl": "34b45d7059b4314f6260f513794aef796bffe772c43ca72f481da9d67c8f3eaa"
+      }
+    }
+  ],
+  "script_sha256": "55655723611f87fb68bd5a1024134218a46429bef5b514f11373a4566b8de46a"
+}

@@ -1,0 +1,10 @@
+{
+  "pass": true,
+  "head": "33b27382f092e1449446c89befc340cc74303788",
+  "files_verified": 1165,
+  "full_receipt_sha256": "24fd5d69554925fbf8be037822f44ace78057c26595753e3cf9b9b70fc4b544e",
+  "log_sha256": "fd22b2d3394fe6766ca911f493557e5d56957df2a611a0932780338f43b195e2",
+  "source_sha256": "7bb4fba3e541c254dd1c28f83a7e5c83f0a7cf05e2c65894e7605b815d1266ec",
+  "result": "3591 passed,43 skipped,4 deselected in338.61s",
+  "scope": "Complete software suite and independent source rehash; no live physical acceptance."
+}

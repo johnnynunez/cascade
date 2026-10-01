@@ -28,6 +28,15 @@ guard does not correct mechanical slip and is not enabled by occupancy-off
 presenter runs. [Local RTX validation](LOCAL_RTX_VALIDATION.md) records the
 subsequent software checks, administrative closure and separate PC diagnostics.
 
+Environment 13 on `f9cb6b8e` passed passive admission and read-only truth readiness,
+then failed its first orange route preflight before any actuator command. No
+reset or transport followed. Localization retained a roughly 104-second-old
+image while a missing model downloaded; independently fresh camera witnesses
+did not make that analyzed image fresh. The subsequent three-second route
+budget began after grasp generation. See the
+[separate NV result](LOCAL_RTX_VALIDATION.md#separate-nv-result) for the retained
+failure, timing limits and independent review.
+
 ## Status (2026-09-30)
 
 **Real nvblox CUDA mapping now runs on both RTX PRO 6000 Blackwell and DGX

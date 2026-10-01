@@ -1,0 +1,10 @@
+{
+  "pass": true,
+  "scope": "Root static close03 review and independent rehash of 56 retained negative files/tar; not execution or task success. Prior turn read complete delta from reviewed close02.",
+  "files_verified": 56,
+  "tar_sha256": "ed6199b5a1f82ae9a6ba0747cde59ec9fc0ab5a5cc031f6d9b8b6b47b493e96c",
+  "retention_sha256": "41b8b5be5695981526d44bc427aa6b2cd422d6a63e438958b9db41a03be9b227",
+  "helper_sha256": "ac735f5757b2ac0b70dee4dc4341ab4d356ebde2a71941f30c3b0035fcb3f89f",
+  "peer_sha256": "1c7367c9e307bf662f6da83c93f41b67bf37177be97c8dd2116621beaaa77c23",
+  "execution_scope": "One normal owned launch.sh --down after live identity/source/protected/terminal guards; no robot RPC, motion, reset or retry; exact terminal/memory immutable."
+}

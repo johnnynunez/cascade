@@ -63,6 +63,12 @@ port, a model response, or another session's trace is insufficient.
 With `--no-robot-turn`, the status is STARTED / UNVERIFIED, never READY.
 Subsequent runs reuse downloaded packages and assets.
 
+For Isaac, the runtime check also prepares the read-only physics verifier and
+requires new RGB-D captures from every configured camera before proof starts.
+A failure is recorded in `runtime-check.log` and stops startup. This
+[readiness check](ISAAC_STARTUP_READINESS.md) does not move the arm or establish
+that a later manipulation will succeed.
+
 For a lower-level restart, append `--no-robot-turn --no-judge`
 to your usual command, keeping the same engine and scene flags. On the installed
 Spark profile, use `./run.sh isaac --engine physx --graspgenx local --no-robot-turn --no-judge`

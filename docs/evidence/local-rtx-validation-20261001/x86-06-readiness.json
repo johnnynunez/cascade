@@ -1,0 +1,85 @@
+{
+  "pass": true,
+  "scope": "Root extraction of the unique native startup readiness report, not physical acceptance or evidence of uninterrupted camera freshness.",
+  "source": "93af4f6e70c9db2319f14e24b9f24fd30c1f074c",
+  "log_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/runtime-check.log",
+  "log_sha256": "3fbe64cae699d450460c889890cc6ac41185cea375329afecf145212cfc02971",
+  "readiness": {
+    "pass": true,
+    "source": [
+      "127.0.0.1",
+      8611
+    ],
+    "producer_epoch": "628a38e23b3545009907305e3f5e220c",
+    "physical_paths": [
+      "/World_Props/tomato_can",
+      "/World_Props/lemon",
+      "/World_Props/orange",
+      "/World_Props/pink_cube",
+      "/World_Props/green_cube"
+    ],
+    "probe_finished_server_monotonic": 125578.071896996,
+    "camera_packets": [
+      {
+        "camera": "cam0",
+        "capture_t": 125578.220483506,
+        "age_server_s": 0.4508972420007922,
+        "render_reference": {
+          "version": 1,
+          "source": "rpFabricTime",
+          "product": "/Render/OmniverseKit/HydraTextures/camera_sensor_8168319210059",
+          "numerator": 25550000000,
+          "denominator": 1000000000,
+          "producer_epoch": "628a38e23b3545009907305e3f5e220c",
+          "history_physics_step": 3066,
+          "history_simulation_time": 25.55,
+          "render_simulation_time": 25.55,
+          "snapshot_started_monotonic": 125578.220483506,
+          "snapshot_finished_monotonic": 125578.246582423
+        },
+        "age_upper_bound_s": 0.460684621008113
+      },
+      {
+        "camera": "side",
+        "capture_t": 125578.220483506,
+        "age_server_s": 0.4508972420007922,
+        "render_reference": {
+          "version": 1,
+          "source": "rpFabricTime",
+          "product": "/Render/OmniverseKit/HydraTextures/camera_sensor_8168414320017",
+          "numerator": 25550000000,
+          "denominator": 1000000000,
+          "producer_epoch": "628a38e23b3545009907305e3f5e220c",
+          "history_physics_step": 3066,
+          "history_simulation_time": 25.55,
+          "render_simulation_time": 25.55,
+          "snapshot_started_monotonic": 125578.220483506,
+          "snapshot_finished_monotonic": 125578.246582423
+        },
+        "age_upper_bound_s": 0.460684621008113
+      },
+      {
+        "camera": "proof",
+        "capture_t": 125578.220483506,
+        "age_server_s": 0.4508972420007922,
+        "render_reference": {
+          "version": 1,
+          "source": "rpFabricTime",
+          "product": "/Render/OmniverseKit/HydraTextures/camera_sensor_8168749418110",
+          "numerator": 25550000000,
+          "denominator": 1000000000,
+          "producer_epoch": "628a38e23b3545009907305e3f5e220c",
+          "history_physics_step": 3066,
+          "history_simulation_time": 25.55,
+          "render_simulation_time": 25.55,
+          "snapshot_started_monotonic": 125578.220483506,
+          "snapshot_finished_monotonic": 125578.246582423
+        },
+        "age_upper_bound_s": 0.460684621008113
+      }
+    ],
+    "elapsed_s": 2.337724850003724,
+    "scope": "startup availability only; later truth reads remain fresh"
+  },
+  "extracted_at": 1790881598.9773412
+}

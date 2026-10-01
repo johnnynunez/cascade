@@ -1,0 +1,18 @@
+{
+  "headRefOid": "727aaabc5dec7a72a43e112a7ba076d7c6e5aab3",
+  "mergeCommit": {
+    "oid": "6ee6375be460ad0b93b483699da6da7ef755b98e"
+  },
+  "mergedAt": "2026-10-01T18:32:11Z",
+  "number": 57,
+  "state": "MERGED",
+  "url": "https://github.com/johnnynunez/cascade/pull/57",
+  "pass": true,
+  "trees": {
+    "6ee6375be460ad0b93b483699da6da7ef755b98e": "dfc0044ca543ebef64d36d95b2d39b48cd9165da",
+    "727aaabc5dec7a72a43e112a7ba076d7c6e5aab3": "dfc0044ca543ebef64d36d95b2d39b48cd9165da"
+  },
+  "ci_receipt_sha256": "b1e2934a53525e9fcd8b84827846c37f0fc4c143b742c7a226daab129cf009b1",
+  "reviewed_full_receipt": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/localization-analysis-freshness-full-validation-20261001/result.json",
+  "scope": "Merge reviewed PR57 after five CI successes; merged tree equals frozen validated727. Physical acceptance remains pending."
+}

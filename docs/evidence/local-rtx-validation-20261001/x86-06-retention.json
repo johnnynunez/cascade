@@ -1,0 +1,330 @@
+{
+  "pass": true,
+  "scope": "Negative evidence retention integrity, not acceptance. No additional movement/reset/retry/shutdown by preservation; native launch performed its own failure cleanup; native per-call timeout and e-stop preserved.",
+  "source": "93af4f6e70c9db2319f14e24b9f24fd30c1f074c",
+  "tree": "3ec5f7110a61abe14fee8aa25fafe9f71461fa9b",
+  "files": {
+    "run/grasp-evidence/1790880518156514215-2885803-e356aab7768349a7822d811964386ade.json": {
+      "sha256": "54e2e3afb7b43647a454cf6dfb1069c33cac63f15898df29c6cbf7bbc1d0cd46",
+      "bytes": 4201806,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/grasp-evidence/1790880518156514215-2885803-e356aab7768349a7822d811964386ade.json"
+    },
+    "run/grasp-evidence/1790880518156514215-2885803-e356aab7768349a7822d811964386ade.npz": {
+      "sha256": "9c20afb595a6e93b5de47a6b21863afc4297a001e95ea7c09871ed2ac998d896",
+      "bytes": 8468556,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/grasp-evidence/1790880518156514215-2885803-e356aab7768349a7822d811964386ade.npz"
+    },
+    "run/grasp-memory.json": {
+      "sha256": "381a859499ca96d002aacd152a7c3fefdb35c3306ee9862b823b933b4979f6cc",
+      "bytes": 375,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/grasp-memory.json"
+    },
+    "run/launch-authorization/guard.json": {
+      "sha256": "808b75623045cfe79452bf477a5349962cff4e5b17b09c2c8159887d362976cd",
+      "bytes": 195,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/launch-authorization/guard.json"
+    },
+    "run/launch-authorization/guard.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/launch-authorization/guard.stderr"
+    },
+    "run/launch-authorization/guard.stdout": {
+      "sha256": "55f039546fe5040f7061c763917bd48e54ee96c8f6df2d997428f67c81abd4a6",
+      "bytes": 93,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/launch-authorization/guard.stdout"
+    },
+    "run/launch-authorization/peer-review.json": {
+      "sha256": "e80316765eeba1ad5941d0323b5682a05e37c2ba87120ee424d513e169b23621",
+      "bytes": 1678,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/launch-authorization/peer-review.json"
+    },
+    "run/launch-authorization/plan-before.json": {
+      "sha256": "722784234c1f49c62049dfb4e4faff357071263a3bf2523f55cd08d638f900a3",
+      "bytes": 14882,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/launch-authorization/plan-before.json"
+    },
+    "run/launch-authorization/plan-execution.json": {
+      "sha256": "fa82d4219e1e3063c423ec8e055b47453d3448f5d70e06889e1eceab5adf846a",
+      "bytes": 14881,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/launch-authorization/plan-execution.json"
+    },
+    "run/launch-authorization/receipt.json": {
+      "sha256": "2f9a025d4436958452a7896d56fe03a3baa4f2a3aea505a5c5d5fb6225b02076",
+      "bytes": 677,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/launch-authorization/receipt.json"
+    },
+    "run/launch-authorization/root-review.json": {
+      "sha256": "167bcaf60b0f097c31b8217eec34bb620d7ba7f361e63cb3ca9b68850b4784c8",
+      "bytes": 5056,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/launch-authorization/root-review.json"
+    },
+    "run/observer-proof/receipt.json": {
+      "sha256": "ed9b57051745077f072543745da221d3267ec726c730d71fa427651b86857ef6",
+      "bytes": 555,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/observer-proof/receipt.json"
+    },
+    "run/observer-proof/samples.jsonl": {
+      "sha256": "49de79aaa1cb7c8c4572a31296b8cba3685e33b9d5566d190d834d6a04d2d286",
+      "bytes": 129682,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/observer-proof/samples.jsonl"
+    },
+    "run/observer-proof/started.json": {
+      "sha256": "b2f76dd49ea9fdcdecf69f3a5f9c1b829e8898a3bb3a181bac3c1033f303260b",
+      "bytes": 439,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/observer-proof/started.json"
+    },
+    "run/preparation-plan.json": {
+      "sha256": "8732272d4cb933ef382996a0b1adecd61e33b194c30b73076a27db0ce85d089f",
+      "bytes": 14652,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/preparation-plan.json"
+    },
+    "run/preparation.json": {
+      "sha256": "fcea083637f1c982f82f710de95aad09ffe9df9898a6a361a043093334ea2500",
+      "bytes": 2410,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/preparation.json"
+    },
+    "run/proof/device-registration-preflight.json": {
+      "sha256": "0d5006a632c22ba3f517ddc24d26cd4c5c28ccb6ad1622609c16d08744610b61",
+      "bytes": 1914,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/proof/device-registration-preflight.json"
+    },
+    "run/proof/receipt.json": {
+      "sha256": "5e1388a595fcc8729ac3b1e7446fbfec717e98d79abc3a8598fb08d32f949944",
+      "bytes": 4571,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/proof/receipt.json"
+    },
+    "run/proof/stdout.log": {
+      "sha256": "0ddfbdc57111237f5cf2e1a7effd23ff7274a5523429f16d3730d3b712a1e4c3",
+      "bytes": 8527,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/proof/stdout.log"
+    },
+    "run/python-binding.json": {
+      "sha256": "16b42b6ef7294af3825a2caa2c38e689bf4adf36b8a54d5bb4cd61910088564b",
+      "bytes": 1734,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/python-binding.json"
+    },
+    "run/retention-attempt01-error.json": {
+      "sha256": "867e611fad827e0a2e9388b626e5bfa10ed411573b09e59a88109569dd37f209",
+      "bytes": 543,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/retention-attempt01-error.json"
+    },
+    "run/source-equivalence.json": {
+      "sha256": "b9c239142e4757cfa3154acdaf52f3d878d5ec8712ad37d1fda16d47ab5967a5",
+      "bytes": 1895,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/source-equivalence.json"
+    },
+    "run/source.json": {
+      "sha256": "bcd071e2bb874a1e22558f2f836b8fdd4f3f62320c662d4d7c81a3139f0fd2b6",
+      "bytes": 131429,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/source.json"
+    },
+    "run/strict-proof2.json": {
+      "sha256": "44813cfcd809c5987982ce84416d5631569ab7a4d471d5b72903013a88ff4d9f",
+      "bytes": 1238,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/strict-proof2.json"
+    },
+    "proof-evidence/01-scene.json": {
+      "sha256": "842653210da038ac6f62de4d818b7e785dff2652fa5b56ebf84fe80d745ea67d",
+      "bytes": 10327,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/01-scene.json"
+    },
+    "proof-evidence/01-scene.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/01-scene.stderr.txt"
+    },
+    "proof-evidence/case-1/02-pick.json": {
+      "sha256": "e65fe2e94dd7fa8165ced093685b0f3d7ffacd2020a88340fc1e61146b31ceb9",
+      "bytes": 9304,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/02-pick.json"
+    },
+    "proof-evidence/case-1/02-pick.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/02-pick.stderr.txt"
+    },
+    "proof-evidence/case-1/physics/first-scene-geometry.json": {
+      "sha256": "b741127cc91a5f7845ff13938a83e6aaeac944c265e9b63d4d13e09d6f636445",
+      "bytes": 2583,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/first-scene-geometry.json"
+    },
+    "proof-evidence/case-1/physics/metadata.json": {
+      "sha256": "fcf19caa15e5a595472d0e58f74f796f03700e70643e2628c659db189b292d4c",
+      "bytes": 2633,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/metadata.json"
+    },
+    "proof-evidence/case-1/physics/phases.json": {
+      "sha256": "19445550f5bb541469021424e0ff155a687c90a4eecc4d332fa7b5800a3958c6",
+      "bytes": 92,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/phases.json"
+    },
+    "proof-evidence/case-1/physics/ping-after.json": {
+      "sha256": "d17a06d7c7016f8ab56e0527c8f5d654f471e08b0ecca4d43ed2f5c97f0177ae",
+      "bytes": 1186,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/ping-after.json"
+    },
+    "proof-evidence/case-1/physics/ping-before.json": {
+      "sha256": "d17a06d7c7016f8ab56e0527c8f5d654f471e08b0ecca4d43ed2f5c97f0177ae",
+      "bytes": 1186,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/ping-before.json"
+    },
+    "proof-evidence/case-1/physics/samples.jsonl": {
+      "sha256": "8a866622d789e0fef09806047d7212bb280419f91f246c23af492acf4f84b57a",
+      "bytes": 11624865,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/samples.jsonl"
+    },
+    "proof-evidence/case-1/physics/snapshot-code.py": {
+      "sha256": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+      "bytes": 13955,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/snapshot-code.py"
+    },
+    "proof-evidence/case-1/physics/wire.jsonl": {
+      "sha256": "24e10e84f8308fdfd77b4937faacaadebcfa66999e8e675b0991f92ae8fe4ffc",
+      "bytes": 5279458,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/wire.jsonl"
+    },
+    "state/proof.json": {
+      "sha256": "c278fc5a32205a58c74e24eeea2f2bb3693d1e9eb5a77d5b672d61ce2584f436",
+      "bytes": 373,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/proof.json"
+    },
+    "state/owner.json": {
+      "sha256": "73737c2333aad96a5ab3b12cf151e6a1a7d12e51ad112048a41d37dce1ec7ffa",
+      "bytes": 309,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/owner.json"
+    },
+    "state/graspgenx.pid": {
+      "sha256": "a0c5b07d02669ec52d3fbc94dbabbbe6adadd9e0feb247c4a941dc4abe208a53",
+      "bytes": 831,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/graspgenx.pid"
+    },
+    "state/gateway_child.pid": {
+      "sha256": "8de91646a1b210f9b3e9ac0fe9a2499aad21a02455971dbeb7cc9e24cbc05f1c",
+      "bytes": 553,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/gateway_child.pid"
+    },
+    "state/isaac_bridge.pid": {
+      "sha256": "16dbcdd5a01adfc720e24beee516bef22745003cfe40ac38fcf16d15906f37a6",
+      "bytes": 1390,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/isaac_bridge.pid"
+    },
+    "state/processes/mcp_8929bee09c3c4d038d0495378a5df6e7.json": {
+      "sha256": "09ee05ffc75896bd471f124b2962a0e20cc67e99344245b0181ab215b2a2013a",
+      "bytes": 979,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/processes/mcp_8929bee09c3c4d038d0495378a5df6e7.json"
+    },
+    "state/processes/mcp_82fd8de1acbb42319660a5c80e25a758.json": {
+      "sha256": "1e537d7fa7a1b5c6eaa044d38c11353176c022c3edf8efeadda42482dc11302a",
+      "bytes": 979,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/processes/mcp_82fd8de1acbb42319660a5c80e25a758.json"
+    },
+    "state/isaac-startup.S1xg6Coi/interpreter.json": {
+      "sha256": "1fbcf4a2f072a049e5557b13fcdf6ce8861a9b1fa70455bd49dba1d9abf5b901",
+      "bytes": 180,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/isaac-startup.S1xg6Coi/interpreter.json"
+    },
+    "runtime/trace.jsonl": {
+      "sha256": "34b45d7059b4314f6260f513794aef796bffe772c43ca72f481da9d67c8f3eaa",
+      "bytes": 6688,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/mcp_2885803_b27afd74396c4c0d8b9d9c2fcace91c6/trace.jsonl"
+    },
+    "runtime/keyframes/0000_describe_scene_after.jpg": {
+      "sha256": "ee768bc3c2897d0a15406d82659845b42b8591ad9cbcb565b947b10d72fc250e",
+      "bytes": 242749,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/mcp_2885803_b27afd74396c4c0d8b9d9c2fcace91c6/keyframes/0000_describe_scene_after.jpg"
+    },
+    "runtime/keyframes/0000_describe_scene_before.jpg": {
+      "sha256": "5727327dd177f68d55128c8da8adb079e1877a77a6cbecbcbe7bf87195ab68a4",
+      "bytes": 243012,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/mcp_2885803_b27afd74396c4c0d8b9d9c2fcace91c6/keyframes/0000_describe_scene_before.jpg"
+    },
+    "runtime/keyframes/0001_pick_and_place_after.jpg": {
+      "sha256": "78b34c76f1a1167a4a677d08625434c37e58894267cc01bb7cdc9e59e41c1301",
+      "bytes": 245746,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/mcp_2885803_b27afd74396c4c0d8b9d9c2fcace91c6/keyframes/0001_pick_and_place_after.jpg"
+    },
+    "runtime/keyframes/0001_pick_and_place_before.jpg": {
+      "sha256": "ee768bc3c2897d0a15406d82659845b42b8591ad9cbcb565b947b10d72fc250e",
+      "bytes": 242749,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/mcp_2885803_b27afd74396c4c0d8b9d9c2fcace91c6/keyframes/0001_pick_and_place_before.jpg"
+    },
+    "diagnostic/process-binding.json": {
+      "sha256": "cf26e9dcb6f8f791f2a28554b94ad98b3ddffd28ce5466030863699bc24d5fc9",
+      "bytes": 9244,
+      "source": "generated read-only diagnostic"
+    },
+    "diagnostic/timeout-extracts.json": {
+      "sha256": "6b743bd9eeedfe427ae782fd6b8824bc2ca6e9f74e4d918780b7692344e02259",
+      "bytes": 1773,
+      "source": "generated read-only diagnostic"
+    },
+    "helpers/cascade-x86-spark06-bind-prepare.py": {
+      "sha256": "7327e1eaa0ca298b3304494bae57740249d33da42007c48362df7f391faad39c",
+      "bytes": 6039,
+      "source": "/tmp/cascade-x86-spark06-bind-prepare.py"
+    },
+    "helpers/cascade-x86-spark06-campaign.py": {
+      "sha256": "74ac1cf40585c665a939e191e8d417c43a397293da5d73ea4bb628aa1c04458e",
+      "bytes": 4411,
+      "source": "/tmp/cascade-x86-spark06-campaign.py"
+    },
+    "helpers/cascade-x86-spark06-driver.py": {
+      "sha256": "8318b9d7659ae6540b5a77707a3618e74ae56ad29adb3e09353b9a67e8418bd6",
+      "bytes": 17966,
+      "source": "/tmp/cascade-x86-spark06-driver.py"
+    },
+    "helpers/cascade-x86-spark06-failure-preserve.py": {
+      "sha256": "ea05e617e45403b957c8fe5ee80aafd8dd03f22122fa52b61d015817fdc289fc",
+      "bytes": 6045,
+      "source": "/tmp/cascade-x86-spark06-failure-preserve.py"
+    },
+    "helpers/cascade-x86-spark06-failure-preserve02.py": {
+      "sha256": "287fd650d51864b3426e2ce34bf11ecaf763a399bb837aeb52ad8dfcbaffb045",
+      "bytes": 6045,
+      "source": "/tmp/cascade-x86-spark06-failure-preserve02.py"
+    },
+    "helpers/cascade-x86-spark06-observer.py": {
+      "sha256": "e91d0fdde528a745a4c14883d9f122c8adcef357995636f9cd36e6f8d951281b",
+      "bytes": 3088,
+      "source": "/tmp/cascade-x86-spark06-observer.py"
+    },
+    "helpers/cascade-x86-spark06-plan.json": {
+      "sha256": "fa82d4219e1e3063c423ec8e055b47453d3448f5d70e06889e1eceab5adf846a",
+      "bytes": 14881,
+      "source": "/tmp/cascade-x86-spark06-plan.json"
+    },
+    "helpers/cascade-x86-spark06-prepare.py": {
+      "sha256": "ef5c7ca567eee4e79b052fbe49b9ebf774102ec62a7020fb699fe16d09cfca04",
+      "bytes": 5849,
+      "source": "/tmp/cascade-x86-spark06-prepare.py"
+    },
+    "helpers/cascade-x86-spark06-strict.py": {
+      "sha256": "bef6fc8c19d6fc94f07d25c06cc774922ca87a9206ee8b99443c4a0b71c75185",
+      "bytes": 5095,
+      "source": "/tmp/cascade-x86-spark06-strict.py"
+    },
+    "full/result.json": {
+      "sha256": "2b68163700f512501605e7f71edfb1f4f6697212b903685a5e6b3c5014154851",
+      "bytes": 873,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/observed-closure-first-full-validation-20261001/result.json"
+    },
+    "full/source.json": {
+      "sha256": "bcd071e2bb874a1e22558f2f836b8fdd4f3f62320c662d4d7c81a3139f0fd2b6",
+      "bytes": 131429,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/observed-closure-first-full-validation-20261001/source.json"
+    },
+    "full/pytest.log": {
+      "sha256": "264e34a574fa7695a5dfe1f218b2e8295f04eec6a21b05ece70755c5cf28f9e9",
+      "bytes": 4139,
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/observed-closure-first-full-validation-20261001/pytest.log"
+    }
+  },
+  "file_count": 63,
+  "strict_pass": false,
+  "proof_pass": false,
+  "campaign_attempted": false,
+  "restart_attempted": false,
+  "memory_sha256": "381a859499ca96d002aacd152a7c3fefdb35c3306ee9862b823b933b4979f6cc",
+  "finished_unix_s": 1790881102.4663072
+}

@@ -1,0 +1,61 @@
+{
+  "baseRefName": "main",
+  "headRefOid": "33b27382f092e1449446c89befc340cc74303788",
+  "isDraft": false,
+  "mergeStateStatus": "CLEAN",
+  "number": 56,
+  "state": "OPEN",
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-01T17:48:08Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/johnnynunez/cascade/actions/runs/36901297247/job/110500843970",
+      "name": "ubuntu-latest / py3.12",
+      "startedAt": "2026-10-01T17:42:04Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-01T17:48:13Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/johnnynunez/cascade/actions/runs/36901297247/job/110500843791",
+      "name": "ubuntu-24.04-arm / py3.12",
+      "startedAt": "2026-10-01T17:42:06Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-01T17:55:32Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/johnnynunez/cascade/actions/runs/36901297247/job/110500843897",
+      "name": "macos-latest / py3.12",
+      "startedAt": "2026-10-01T17:42:09Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-01T17:42:13Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/johnnynunez/cascade/actions/runs/36901297247/job/110500843322",
+      "name": "booth pages and camera extension",
+      "startedAt": "2026-10-01T17:42:04Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-01T17:42:23Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/johnnynunez/cascade/actions/runs/36901297247/job/110500843787",
+      "name": "minimal install, no accelerator",
+      "startedAt": "2026-10-01T17:42:04Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    }
+  ],
+  "url": "https://github.com/johnnynunez/cascade/pull/56"
+}

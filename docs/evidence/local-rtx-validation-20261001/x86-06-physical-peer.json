@@ -1,0 +1,549 @@
+{
+  "review_complete": true,
+  "case_pass": false,
+  "scope": "Offline terminal partial-case physics and evidence-chain review. No RPC, signals, simulator import, actuator or runtime changes.",
+  "source": "93af4f6e70c9db2319f14e24b9f24fd30c1f074c",
+  "proof_session": "cascade-proof-e84f2ed47f7544299796ef53028d281c",
+  "mcp_pid": 2885803,
+  "input_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/phases.json": "19445550f5bb541469021424e0ff155a687c90a4eecc4d332fa7b5800a3958c6",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/ping-before.json": "d17a06d7c7016f8ab56e0527c8f5d654f471e08b0ecca4d43ed2f5c97f0177ae",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/metadata.json": "fcf19caa15e5a595472d0e58f74f796f03700e70643e2628c659db189b292d4c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/first-scene-geometry.json": "b741127cc91a5f7845ff13938a83e6aaeac944c265e9b63d4d13e09d6f636445",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/wire.jsonl": "24e10e84f8308fdfd77b4937faacaadebcfa66999e8e675b0991f92ae8fe4ffc",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/snapshot-code.py": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/ping-after.json": "d17a06d7c7016f8ab56e0527c8f5d654f471e08b0ecca4d43ed2f5c97f0177ae",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/physics/samples.jsonl": "8a866622d789e0fef09806047d7212bb280419f91f246c23af492acf4f84b57a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/02-pick.json": "e65fe2e94dd7fa8165ced093685b0f3d7ffacd2020a88340fc1e61146b31ceb9",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/cascade-proof-e84f2ed47f7544299796ef53028d281c/case-1/02-pick.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/grasp-evidence/1790880518156514215-2885803-e356aab7768349a7822d811964386ade.json": "54e2e3afb7b43647a454cf6dfb1069c33cac63f15898df29c6cbf7bbc1d0cd46",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/grasp-evidence/1790880518156514215-2885803-e356aab7768349a7822d811964386ade.npz": "9c20afb595a6e93b5de47a6b21863afc4297a001e95ea7c09871ed2ac998d896",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/mcp_2885803_b27afd74396c4c0d8b9d9c2fcace91c6/trace.jsonl": "34b45d7059b4314f6260f513794aef796bffe772c43ca72f481da9d67c8f3eaa",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/proof/receipt.json": "5e1388a595fcc8729ac3b1e7446fbfec717e98d79abc3a8598fb08d32f949944",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/strict-proof2.json": "44813cfcd809c5987982ce84416d5631569ab7a4d471d5b72903013a88ff4d9f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/.launch/profile-cascade-demo/proof.json": "c278fc5a32205a58c74e24eeea2f2bb3693d1e9eb5a77d5b672d61ce2584f436",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/source.json": "bcd071e2bb874a1e22558f2f836b8fdd4f3f62320c662d4d7c81a3139f0fd2b6",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/source-equivalence.json": "b9c239142e4757cfa3154acdaf52f3d878d5ec8712ad37d1fda16d47ab5967a5"
+  },
+  "inputs_stable_before_after": true,
+  "attempt_source_hashes_verified": 28,
+  "witness_samples": 1391,
+  "raw_wire_decodes_identical": 1391,
+  "actual_phase_marks": {
+    "pick_begin": {
+      "monotonic": 125617.676907333,
+      "unix": 1790880515.4066186
+    }
+  },
+  "missing_case_marks": [
+    "pick_end",
+    "reset_begin",
+    "reset_end"
+  ],
+  "feedback_clock_identities": [
+    {
+      "epoch": "628a38e23b3545009907305e3f5e220c",
+      "source": [
+        "127.0.0.1",
+        8611
+      ],
+      "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link"
+    }
+  ],
+  "matching_feedback_witness_steps": 627,
+  "q_comparison_convention": "asset q multiplied by recorded joint_signs",
+  "maximum_same_step_q_error_rad": 0.0,
+  "maximum_same_step_jaw_error_m": 0.0,
+  "grasp_attempt_duration_s": 137.4102294309996,
+  "native_trace_duration_ms": 299953.8,
+  "native_trace_result": {
+    "picked": "green cube",
+    "placed_at": [
+      0.14,
+      -0.27,
+      0.06
+    ],
+    "destination": "green square",
+    "grip_profile": "rigid",
+    "grip_verified": true,
+    "grasp_attempts": 1,
+    "place_attempts": 1,
+    "duration_s": 299.95,
+    "timings": {
+      "grasp_attempt1_s": 137.59,
+      "place_s": 162.36
+    },
+    "return_home": {
+      "attempted": false,
+      "reason": "retreat_failed"
+    },
+    "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates.",
+    "destination_kind": "configured_point",
+    "post_place_retreat": {
+      "ok": false,
+      "tcp_at": [
+        0.14,
+        -0.27,
+        0.14
+      ]
+    },
+    "ok": false,
+    "stage": "retreat",
+    "error": "post-place retreat aborted: simulation motion stopped",
+    "home_skipped": true,
+    "postcondition": {
+      "skill": "pick_and_place",
+      "kind": "relocated",
+      "status": "unverified",
+      "evidence": "green cube is 0.2 cm from the green square center (physics); full object containment and release are not established by a center position",
+      "channel": "physics",
+      "measured": {
+        "moved_m": 0.2956,
+        "final": [
+          0.1389,
+          -0.2677,
+          0.03
+        ],
+        "target_err_m": 0.0025,
+        "destination": "green square"
+      }
+    }
+  },
+  "timeline": {
+    "first_bilateral": {
+      "sequence": 544,
+      "physics_step": 7352,
+      "server_monotonic": 125729.392064535,
+      "elapsed_from_pick_begin_s": 111.71515720199386,
+      "green_position_m": [
+        0.2399674355983734,
+        0.009992735460400581,
+        0.03002700955770639
+      ],
+      "green_velocity_m_s": [
+        -0.00409649359062314,
+        -0.021265260875225067,
+        0.028883319348096848
+      ],
+      "jaw_open_fractions": [
+        0.39732250724252305,
+        0.3919272066365599
+      ],
+      "target_jaw_contact_counts": [
+        4,
+        4
+      ],
+      "q_asset": [
+        0.06180437654256821,
+        -1.5158179998397827,
+        -1.0150357484817505,
+        1.0756661891937256,
+        0.023066887632012367,
+        1.5565569400787354,
+        0.019866125658154488,
+        0.019596360623836517
+      ],
+      "dq_asset": [
+        -0.004438658244907856,
+        0.06353995203971863,
+        0.021670065820217133,
+        -0.010551859624683857,
+        -0.00014963711146265268,
+        -0.23829835653305054,
+        0.027814282104372978,
+        -0.010784996673464775
+      ]
+    },
+    "last_bilateral": {
+      "sequence": 1319,
+      "physics_step": 9886,
+      "server_monotonic": 125906.297380951,
+      "elapsed_from_pick_begin_s": 288.6204736179934,
+      "green_position_m": [
+        0.13967850804328918,
+        -0.268932044506073,
+        0.04294858128927377
+      ],
+      "green_velocity_m_s": [
+        -0.020032426342368126,
+        0.009788505733013153,
+        -0.10600990802049637
+      ],
+      "jaw_open_fractions": [
+        0.4751090262068953,
+        0.4791397157439632
+      ],
+      "target_jaw_contact_counts": [
+        4,
+        4
+      ],
+      "q_asset": [
+        -1.0928473472595215,
+        -1.7663054466247559,
+        -1.3426073789596558,
+        1.1511808633804321,
+        -3.446845221333206e-05,
+        0.3882487416267395,
+        0.023755451664328575,
+        0.023956986144185066
+      ],
+      "dq_asset": [
+        0.0030498243868350983,
+        0.10117803514003754,
+        0.014445558190345764,
+        -0.005232841707766056,
+        0.0017087302403524518,
+        0.05339620262384415,
+        0.24311158061027527,
+        0.24418014287948608
+      ]
+    },
+    "first_after_grasp": {
+      "sequence": 667,
+      "physics_step": 7754,
+      "server_monotonic": 125757.925442908,
+      "elapsed_from_pick_begin_s": 140.2485355749959,
+      "green_position_m": [
+        0.24045342206954956,
+        0.010899873450398445,
+        0.06987530739210275
+      ],
+      "green_velocity_m_s": [
+        -0.01770831272006035,
+        0.011098050512373447,
+        0.04879945516586304
+      ],
+      "jaw_open_fractions": [
+        0.39304497997395726,
+        0.39590678519149447
+      ],
+      "target_jaw_contact_counts": [
+        4,
+        4
+      ],
+      "q_asset": [
+        0.06550983339548111,
+        -1.498842477798462,
+        -1.166790246963501,
+        1.244401216506958,
+        0.02312971092760563,
+        1.5546352863311768,
+        0.019652249291539192,
+        0.019795339554548264
+      ],
+      "dq_asset": [
+        -0.0011787600815296173,
+        0.07600957155227661,
+        0.011313322931528091,
+        -0.008960344828665257,
+        0.02291072905063629,
+        -0.141074076294899,
+        8.676853030920029e-05,
+        0.018297268077731133
+      ]
+    },
+    "first_zero_contacts_after_grasp": {
+      "sequence": 1320,
+      "physics_step": 9892,
+      "server_monotonic": 125906.468957271,
+      "elapsed_from_pick_begin_s": 288.79204993799794,
+      "green_position_m": [
+        0.13893702626228333,
+        -0.2674843370914459,
+        0.0301647968699756
+      ],
+      "green_velocity_m_s": [
+        0.0002027225127676502,
+        0.03257374465465546,
+        0.028583509847521782
+      ],
+      "jaw_open_fractions": [
+        0.7216655355443725,
+        0.7256444435470634
+      ],
+      "target_jaw_contact_counts": [
+        0,
+        0
+      ],
+      "q_asset": [
+        -1.0928493738174438,
+        -1.7662711143493652,
+        -1.3425787687301636,
+        1.1510597467422485,
+        -2.474066241120454e-05,
+        0.3905876576900482,
+        0.03608327731490135,
+        0.03628222271800041
+      ],
+      "dq_asset": [
+        0.004146904684603214,
+        0.10098567605018616,
+        0.01421408448368311,
+        -0.004366125911474228,
+        0.0009747837902978063,
+        0.038123004138469696,
+        0.24305546283721924,
+        0.24357227981090546
+      ]
+    },
+    "first_low_green_after_contact_loss": {
+      "sequence": 1321,
+      "physics_step": 9894,
+      "server_monotonic": 125906.781540429,
+      "elapsed_from_pick_begin_s": 289.10463309599436,
+      "green_position_m": [
+        0.13893680274486542,
+        -0.2676689624786377,
+        0.030050879355293783
+      ],
+      "green_velocity_m_s": [
+        4.053287557326257e-05,
+        -0.024685513228178024,
+        -0.015098966658115387
+      ],
+      "jaw_open_fractions": [
+        0.8033133178455634,
+        0.8072773246872824
+      ],
+      "target_jaw_contact_counts": [
+        0,
+        0
+      ],
+      "q_asset": [
+        -1.0928492546081543,
+        -1.7662633657455444,
+        -1.3425731658935547,
+        1.1510294675827026,
+        -2.22285289055435e-05,
+        0.3911989629268646,
+        0.04016566649079323,
+        0.040363866835832596
+      ],
+      "dq_asset": [
+        0.0040287598967552185,
+        0.1008327305316925,
+        0.014116818085312843,
+        -0.0041478597559034824,
+        0.0007417011074721813,
+        0.03411310538649559,
+        0.24303676187992096,
+        0.24337542057037354
+      ]
+    },
+    "final": {
+      "sequence": 1390,
+      "physics_step": 10114,
+      "server_monotonic": 125921.529184608,
+      "elapsed_from_pick_begin_s": 303.85227727500023,
+      "green_position_m": [
+        0.13893699645996094,
+        -0.26775047183036804,
+        0.02999999934039739
+      ],
+      "green_velocity_m_s": [
+        -7.056951289996505e-06,
+        1.075505861081183e-05,
+        -6.084563210606575e-06
+      ],
+      "jaw_open_fractions": [
+        1.0000001490116097,
+        0.9999999254941951
+      ],
+      "target_jaw_contact_counts": [
+        0,
+        0
+      ],
+      "q_asset": [
+        -1.092702865600586,
+        -1.7794142961502075,
+        -1.5497181415557861,
+        1.3394320011138916,
+        -7.982966053532436e-06,
+        0.3948509097099304,
+        0.05000000819563866,
+        0.04999999701976776
+      ],
+      "dq_asset": [
+        0.0040084002539515495,
+        0.08985975384712219,
+        -0.05934806540608406,
+        0.0990896224975586,
+        -0.0011014128103852272,
+        0.000860008702147752,
+        5.6645250879228115e-05,
+        2.38810753216967e-06
+      ]
+    }
+  },
+  "target_maximum_lift_from_initial_m": 0.09533605165779589,
+  "neighbor_max_displacement_m": {
+    "pink_cube": 3.337203127736024e-08,
+    "tomato_can": 6.828569911354542e-08,
+    "lemon": 0.0,
+    "orange": 0.0
+  },
+  "camera_ages": {
+    "cam0": {
+      "samples": 1391,
+      "missing_or_invalid_samples": 0,
+      "first_invalid": null,
+      "all_sampled_records_valid": true,
+      "distinct_captures": 640,
+      "maximum_observed_capture_gap_s": 0.9408004720025929,
+      "server_snapshot_age_s": {
+        "maximum": 1.0184757289971458,
+        "maximum_sample": {
+          "sample": {
+            "line": 1390,
+            "sequence": 1389,
+            "physics_step": 10112,
+            "sim_time": 84.26666666666667,
+            "server_monotonic": 125921.356402865,
+            "client_started_monotonic": 125921.305189988,
+            "client_finished_monotonic": 125921.440808523
+          },
+          "capture_monotonic": 125920.337927136,
+          "server_snapshot_age_s": 1.0184757289971458,
+          "client_delivery_age_s": 1.1028813869925216
+        },
+        "samples_over_2s": 0,
+        "first_over_2s": null
+      },
+      "client_delivery_age_s": {
+        "maximum": 1.1028813869925216,
+        "maximum_sample": {
+          "sample": {
+            "line": 1390,
+            "sequence": 1389,
+            "physics_step": 10112,
+            "sim_time": 84.26666666666667,
+            "server_monotonic": 125921.356402865,
+            "client_started_monotonic": 125921.305189988,
+            "client_finished_monotonic": 125921.440808523
+          },
+          "capture_monotonic": 125920.337927136,
+          "server_snapshot_age_s": 1.0184757289971458,
+          "client_delivery_age_s": 1.1028813869925216
+        },
+        "samples_over_2s": 0,
+        "first_over_2s": null
+      }
+    },
+    "side": {
+      "samples": 1391,
+      "missing_or_invalid_samples": 0,
+      "first_invalid": null,
+      "all_sampled_records_valid": true,
+      "distinct_captures": 640,
+      "maximum_observed_capture_gap_s": 0.9408004720025929,
+      "server_snapshot_age_s": {
+        "maximum": 1.0184757289971458,
+        "maximum_sample": {
+          "sample": {
+            "line": 1390,
+            "sequence": 1389,
+            "physics_step": 10112,
+            "sim_time": 84.26666666666667,
+            "server_monotonic": 125921.356402865,
+            "client_started_monotonic": 125921.305189988,
+            "client_finished_monotonic": 125921.440808523
+          },
+          "capture_monotonic": 125920.337927136,
+          "server_snapshot_age_s": 1.0184757289971458,
+          "client_delivery_age_s": 1.1028813869925216
+        },
+        "samples_over_2s": 0,
+        "first_over_2s": null
+      },
+      "client_delivery_age_s": {
+        "maximum": 1.1028813869925216,
+        "maximum_sample": {
+          "sample": {
+            "line": 1390,
+            "sequence": 1389,
+            "physics_step": 10112,
+            "sim_time": 84.26666666666667,
+            "server_monotonic": 125921.356402865,
+            "client_started_monotonic": 125921.305189988,
+            "client_finished_monotonic": 125921.440808523
+          },
+          "capture_monotonic": 125920.337927136,
+          "server_snapshot_age_s": 1.0184757289971458,
+          "client_delivery_age_s": 1.1028813869925216
+        },
+        "samples_over_2s": 0,
+        "first_over_2s": null
+      }
+    },
+    "proof": {
+      "samples": 1391,
+      "missing_or_invalid_samples": 0,
+      "first_invalid": null,
+      "all_sampled_records_valid": true,
+      "distinct_captures": 640,
+      "maximum_observed_capture_gap_s": 0.9408004720025929,
+      "server_snapshot_age_s": {
+        "maximum": 1.0184757289971458,
+        "maximum_sample": {
+          "sample": {
+            "line": 1390,
+            "sequence": 1389,
+            "physics_step": 10112,
+            "sim_time": 84.26666666666667,
+            "server_monotonic": 125921.356402865,
+            "client_started_monotonic": 125921.305189988,
+            "client_finished_monotonic": 125921.440808523
+          },
+          "capture_monotonic": 125920.337927136,
+          "server_snapshot_age_s": 1.0184757289971458,
+          "client_delivery_age_s": 1.1028813869925216
+        },
+        "samples_over_2s": 0,
+        "first_over_2s": null
+      },
+      "client_delivery_age_s": {
+        "maximum": 1.1028813869925216,
+        "maximum_sample": {
+          "sample": {
+            "line": 1390,
+            "sequence": 1389,
+            "physics_step": 10112,
+            "sim_time": 84.26666666666667,
+            "server_monotonic": 125921.356402865,
+            "client_started_monotonic": 125921.305189988,
+            "client_finished_monotonic": 125921.440808523
+          },
+          "capture_monotonic": 125920.337927136,
+          "server_snapshot_age_s": 1.0184757289971458,
+          "client_delivery_age_s": 1.1028813869925216
+        },
+        "samples_over_2s": 0,
+        "first_over_2s": null
+      }
+    }
+  },
+  "v2_sha256": "30acab32a00f4499bceeb274d1521ceeb794769932c45088c3b72c0eed72b753",
+  "home_final_max_error_rad": 1.3394320011138916,
+  "witness_interval_rtf": 0.13579230568454878,
+  "conclusions": [
+    "Native trace records failed post-place retreat, home not attempted and unverified postcondition. Whole case/strict remain FAIL.",
+    "Physical samples show bilateral grip, lift, later open jaws and green near pad; these do not substitute for complete native placement/home verification.",
+    "All1391 samples per camera satisfy server2s freshness. Delivery age is reported separately; sparse sampling does not prove continuous freshness.",
+    "No reset, second proof case, campaign or acceptance restart is present."
+  ],
+  "limitations": [
+    "Descriptive sampled displacement, not a physical acceptance or reliability verdict.",
+    "Witness and attempt monotonic clocks must originate on the same host/boot; hashes alone do not attest that fact.",
+    "Witness v1 omits producer epoch and endpoint. Attempt epoch/source are reported, but cannot independently bind witness epoch.",
+    "Phase baselines are the last measured sample strictly before each boundary; gaps and first/last brackets are retained without interpolation.",
+    "A phase with zero samples is unobserved, not a zero-motion or zero-contact result.",
+    "Contact counts describe only the recorded sensor/filter pair. Motion of an unsensed neighbor does not identify a contact link or force.",
+    "Same-step repeated snapshots remain in sample counts; distinct physics-step counts are also reported.",
+    "Reporting displacement thresholds are descriptive and do not change any runtime or acceptance tolerance.",
+    "Post-grasp remainder may include transport, release and home. No finer action boundaries are inferred from motion.",
+    "Camera server snapshot age and age upon client delivery are different; neither sparse series proves continuous freshness between samples.",
+    "No robot RPC, simulator import, subprocess, actuator command or source mutation is used."
+  ],
+  "script_sha256": "4733fecd8e0f68c67fc15f897ba09a014d940922c3f1a3d28c2464ff485c65b6",
+  "reviewed_unix_s": 1790881150.2085671
+}

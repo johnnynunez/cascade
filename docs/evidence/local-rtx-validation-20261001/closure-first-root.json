@@ -1,0 +1,16 @@
+{
+  "pass": true,
+  "head": "93af4f6e70c9db2319f14e24b9f24fd30c1f074c",
+  "at_unix_s": 1790879359.2775085,
+  "frozen_receipt_sha256": "775d411e34be0f767d70a4e9901da6fdd6ae918a8e284cee44cc26cb950dd0b1",
+  "reviewed_files_sha256": {
+    "src/cascade/skills/runtime.py": "70c4ccaca2b8c91b26fe682d70ea0d173a4bdc633971ea221b46f5bc3a2462a1",
+    "tests/test_observed_closure_first.py": "be5c3877296183a1162109f1a5bcfa91433543bd8c62da904b492ffeba9af28d",
+    "docs/observed-finger-closing.md": "8b3062618eb1cff0ea13d055c8de0b40d07e58cdeca3b94e4d11873cc417272c",
+    "docs/evidence/observed-closure-first-20261001.json": "4ebfdf3f6fa6024cc7d65fea794d9cd60107f67769d429aa6e0a16ba884626da"
+  },
+  "wrapper_sha256": "0db20fbdda7da76fe9b246f10b31bd9a72b04d0ce0e86333858ab35247864ec4",
+  "scope": "Root complete production diff, all9new tests, adjacent gating functions and both docs/evidence read. Rehashed four changed and six supporting artifacts. Closing first remains a negative veto only; initial harness/map admission, candidate rank/twins and all positive gates remain. Prior six negative historical poses still reject; replay CPU timings are not native acceptance.",
+  "full_authority": "After independent Safety peer accepts this frozen93af: one source-bound full suite using this exact wrapper. No physical work/GPU sessions while full; source immutable.",
+  "physical_authorized": false
+}

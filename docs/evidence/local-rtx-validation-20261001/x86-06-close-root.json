@@ -1,0 +1,19 @@
+{
+  "pass": true,
+  "closure_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-06/runs/x86-spark-profile-06/administrative-close06/receipt.json",
+  "closure_sha256": "f1525dfe43a431d1c733cf7eb70b44e84724eb8f9678fabd5293a2dc51c948a5",
+  "owned_pids_absent": [
+    2882590,
+    2882592,
+    2882600,
+    2883764
+  ],
+  "ports_closed": [
+    8611,
+    25572,
+    18792
+  ],
+  "negative_and_terminal_hashes_verified": 8,
+  "scope": "Root read-only confirmation of administrative closure only; original native/strict FAIL retained. No recovery or further commands. Own GPU window may now host the separately reviewed NV14 startup/passive phase.",
+  "checked_at": 1790881462.908439
+}

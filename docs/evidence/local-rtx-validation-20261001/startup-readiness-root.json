@@ -1,0 +1,18 @@
+{
+  "pass": true,
+  "head": "33b27382f092e1449446c89befc340cc74303788",
+  "scope": "Root read all six changed files and native truth/clock/stream dependencies. Single readonly probe, completion + post-probe fresh bound frames, no LazyArm materialization or future action authority. Explicit custom native Isaac contract retained. Software review, not live acceptance.",
+  "files": {
+    "deploy/brev/prepare_bundle.py": "086818eeb67ea99202ef90d7660a4ad4e3f1ca1ac1666e7fca5ee45db5410132",
+    "docs/ISAAC_STARTUP_READINESS.md": "b87afa7593ade8d9d4e3ad2877e785899c496785a2ffd29ed7466920ee054995",
+    "scripts/launch.sh": "3ffc66dac031197b97934e2418f14d68f4a726ad0b73fa2d70637ee785c30d25",
+    "src/cascade/grasping/evidence.py": "244b5804b19735caeee9a170736d0c257496c3ec0236ebabc739ab4d993deb93",
+    "src/cascade/sim/startup_readiness.py": "c12756e76fda3b794e95e5495de0943e1f48c00498b2714f8ea4662d83a98576",
+    "tests/test_isaac_verification_readiness.py": "c592c6ef0e16bd5c67674000120301dc601db62814686d20ef549d11b5912447"
+  },
+  "focused_sha256": "1793c65b3de7e9ffc661bf5b8c5226cf9ac401190f34ab6dd79c0c39256322ec",
+  "independent_sha256": "98588db4fdbe26884990cbe46cb06c77f9abdbd4d531b9131814624bbbc9f80a",
+  "full_wrapper_sha256": "fb98dcb76a3848f2b8713343d595c4081cee626afbe52b041ec24a7e41840940",
+  "full_authorized": true,
+  "physical_authorized": false
+}

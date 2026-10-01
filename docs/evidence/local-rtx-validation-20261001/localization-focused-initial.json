@@ -1,0 +1,79 @@
+{
+  "pass": true,
+  "head": "0a8f9ad2e807a256b0df3f9af302a6a54544488c",
+  "base": "ba8f2e8307ff8c77741e5e35b97b1895472edca8",
+  "source_files": {
+    "src/cascade/skills/runtime.py": "91d497549e56d51b7586036a58d8fa8fd6f2dcb04a77399d7d6c39f2f0655421",
+    "tests/test_localization_analysis_freshness.py": "6fb3ef8c394221c6aa139ab598e98eddfb5c4a4d0955408a3443add198b71834",
+    "docs/LOCALIZATION_FRESHNESS.md": "88058a32ca1107a1fe798a3e0892f22690e98c2353f6c236e9e1867c7005bc6e"
+  },
+  "focal": {
+    "passed": 137,
+    "elapsed_s": 12.3,
+    "log": "cascade-localization-focal-03.log",
+    "sha256": "534c087d78d3b88fe963a94555f856f2ca404acb186153b1afa5d2be3bec29ae",
+    "argv": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_localization_analysis_freshness.py",
+      "tests/test_configured_object_description.py",
+      "tests/test_reference_delivery.py",
+      "tests/test_scene_observation_mcp.py",
+      "tests/test_perception.py",
+      "tests/test_persistence_leftovers.py"
+    ],
+    "source_binding": "Final runtime and test bytes are those of focal03; only feature documentation and commit metadata were added afterward. No before/after whole-tree manifest was captured for this focal."
+  },
+  "baseline_negative": {
+    "expected_failures": 5,
+    "deselected": 18,
+    "elapsed_s": 0.25,
+    "baseline": "ba8f2e8307ff8c77741e5e35b97b1895472edca8",
+    "method": "Import source-bound runtime then execute git-show baseline runtime in the module namespace before pytest imports the new tests; source worktree remains unmodified.",
+    "selection": "cold_primary_analysis_or_miss or multiple_short_detector_passes or other_view_misses_cannot_attach",
+    "log_sha256": "dfb7c3dd1e2c25733944f7eeedcb9c903a12a170b1c4fe2cb43e15849050d7bc"
+  },
+  "earlier_results_retained": {
+    "focal01": "116 PASS before cumulative regressions",
+    "focal02": "2 FAIL/135 PASS: overly strict OBB float equality and real Cfg indexing defect, both corrected before focal03"
+  },
+  "release_assets_verified": {
+    "demo/scene/cocina_asier/NOTICE.md": {
+      "sha256": "afae350de8e942115d3f906d4ce08f1df5b722eeeb389e1303eef2095ca38d1e",
+      "size_bytes": 3893
+    },
+    "demo/scene/cocina_asier/cocina_asier.usdc": {
+      "sha256": "7cf14a77293aeae53b1f07a4f06d8f5d10b09494425e15ed7b2c8cd19331eca2",
+      "size_bytes": 37740835
+    },
+    "demo/scene/cocina_asier/geometry-audit.json": {
+      "sha256": "c66cbfd7b1acb87badce8bc246c758c26bc4af78bc2e16233915e4a4b5c8414e",
+      "size_bytes": 74295
+    },
+    "demo/scene/cocina_asier/sources.json": {
+      "sha256": "c7c51f4d606cff2aab8984856512d65799a16e4172e69671b63b615f8ce0eae9",
+      "size_bytes": 1999
+    },
+    "demo/scene/cocina_asier/textures/Wood044_2K-JPG_Color.jpg": {
+      "sha256": "d4063b53baf806eada501feb7d0763c181bce44ffbc980d3508f158cc57edfe5",
+      "size_bytes": 4107217
+    },
+    "demo/scene/cocina_asier/textures/Wood044_2K-JPG_Roughness.jpg": {
+      "sha256": "ccd2764bcf715df2ea309da85e0862a7a6f3f8b2a07f09a59cd9af075b7fc11c",
+      "size_bytes": 1901851
+    },
+    "demo/scene/cocina_asier/textures/WoodFloor051_2K-JPG_Color.jpg": {
+      "sha256": "cd20f4039f62ca2b2430b8a4521774572a31ee586babac058a3afe178ed9ef5f",
+      "size_bytes": 4243864
+    },
+    "demo/scene/cocina_asier/textures/WoodFloor051_2K-JPG_Roughness.jpg": {
+      "sha256": "136fafdf901678e5959d4690b812ad4ef654c53db05295eb07e1efa24337cd61",
+      "size_bytes": 1667762
+    }
+  },
+  "tracked_clean": true,
+  "sdk_rpc_gpu_or_actuation": false,
+  "full_pending": true
+}

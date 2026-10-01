@@ -1,0 +1,24 @@
+{
+  "head": "33b27382f092e1449446c89befc340cc74303788",
+  "argv": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests",
+    "deploy/brev/tests/test_public_visitor.py",
+    "deploy/brev/tests/test_visitor_video.py",
+    "deploy/brev/tests/test_build_bundle.py",
+    "deploy/brev/tests/test_prepare_bundle.py"
+  ],
+  "pythonpath": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-isaac-startup-readiness/src",
+  "started_unix_s": 1790876103.2289243,
+  "finished_unix_s": 1790876443.7344785,
+  "exit_code": 0,
+  "log_sha256": "fd22b2d3394fe6766ca911f493557e5d56957df2a611a0932780338f43b195e2",
+  "source_manifest_sha256": "7bb4fba3e541c254dd1c28f83a7e5c83f0a7cf05e2c65894e7605b815d1266ec",
+  "files_verified": 1165,
+  "tracked_clean": true,
+  "source_unchanged": true,
+  "pass": true
+}

@@ -1,12 +1,13 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
-The reviewed runtime pin is **`ed29a59` (1 October 2026)**. It includes
+The reviewed runtime pin is **`93af4f6` (1 October 2026)**. It includes
 render-bound cameras, release and carry guards, endpoint occlusion checks,
-explicit MCP GPU selection and optional OVRTX/cuMotion adapters. The full suite
-passed **3,556 tests on parent `dc56689`**; the follow-up changes one shell
-heredoc comment. [Project status](docs/PROJECT_STATUS_20261001.md) records the
+explicit MCP GPU selection, Isaac verifier startup readiness, localization
+freshness checks and optional OVRTX/cuMotion adapters.
+[Project status](docs/PROJECT_STATUS_20261001.md) records the
 source-specific software checks. [Local dual-RTX Pro validation](docs/LOCAL_RTX_VALIDATION.md)
-passed startup and camera/GPU admission but timed out during placement; current
+retains three native timeouts and a separate NV preflight failure. The latest
+native attempt passed camera freshness but timed out during retreat; current
 physical proof, campaign and restart acceptance remain incomplete.
 
 <p align="center">

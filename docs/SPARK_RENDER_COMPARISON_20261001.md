@@ -23,6 +23,11 @@ Disabling the viewport alone made little difference at the original camera
 rate. At the lower camera rate, removing the viewport also improved measured
 throughput. The lower rate uses the existing `CASCADE_ISAAC_CAM_EVERY=12`
 setting; this change does not alter the default camera rate or physics timestep.
+`cam_every` counts bridge loop iterations, not physics steps. The table gives
+the value passed to `RtxCamera.tick_rate`, not measured image delivery or cache
+frequency. In the subsequent loaded run, each bridge iteration advanced two
+physics steps, so `cam_every=12` refreshed the cache every 24 steps (0.2 physical
+seconds).
 
 All five completed runs returned three nonblank 720×1280 RGB images and valid
 depth at the beginning and end. Producer stamps advanced on all three cameras.
@@ -38,3 +43,7 @@ hashes of the raw records and drivers. The runs were sequential and only A was
 repeated. They establish neither statistical confidence nor loaded demo
 throughput. Correct physical pacing, dynamic grasp performance, camera freshness
 under load and normal restart acceptance require separate validation.
+
+The [subsequent native run](SPARK_LAUNCH03_FORENSICS_20261001.md) passed the green
+cube's physical pick, placement, home and reset checks but failed camera
+freshness. The lower-rate setting therefore did not pass native acceptance.

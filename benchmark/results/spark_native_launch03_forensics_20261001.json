@@ -1,0 +1,286 @@
+{
+  "schema": "cascade.native-launch03-forensics.v1",
+  "source": "7cb4b26cad6bbdb6ccddb8835b94b9e8ebec2068",
+  "outcome": "launch03 NOT READY; full green physics passes, camera freshness fails; orange not attempted",
+  "normal_launch_ready": false,
+  "orange_attempted": false,
+  "native_green": {
+    "ok": true,
+    "verified": true,
+    "grasp_attempts": 1,
+    "place_attempts": 1,
+    "duration_s": 254.74,
+    "return_home": {
+      "attempted": true,
+      "ok": true,
+      "at": "home"
+    },
+    "postcondition": {
+      "skill": "pick_and_place",
+      "kind": "relocated",
+      "status": "confirmed",
+      "evidence": "green_cube is fully contained in green square, supported, released by the actual jaws and settled across the observed window; the pick/lift was not observed",
+      "channel": "physics",
+      "measured": {
+        "scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+        "object": "green_cube",
+        "destination": "green square",
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "engine": "physx",
+        "final_samples": 10,
+        "final_window_sim_s": 0.5333333333333314,
+        "max_sample_gap_sim_s": 0.08333333333334281,
+        "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+        "max_final_xy_error_m": 0.011667089324681275,
+        "max_final_support_z_error_m": 2.186971631568113e-09,
+        "max_final_linear_speed_m_s": 2.5495285782945718e-05,
+        "max_final_angular_speed_rad_s": 0.0004446383541969842,
+        "max_final_position_spread_m": 3.337203127736024e-08,
+        "min_final_actual_open_fraction": 0.9999992549419514,
+        "min_inside_clearance_m": 0.03944840922825921,
+        "max_abs_support_gap_m": 4.8543281915003345e-08,
+        "support_tolerance_m": 0.005,
+        "boundary_outward_tolerance_m": 0.0,
+        "checks": {
+          "actual_joints_within_limits": true,
+          "released_actual_jaws": true,
+          "destination_xy": true,
+          "supported_z": true,
+          "settled_linear_speed": true,
+          "settled_angular_speed": true,
+          "stable_final_position": true,
+          "support_geometry": true,
+          "whole_collider_contained": true,
+          "lowest_collider_point_supported": true
+        },
+        "failed_checks": [],
+        "observed_samples": 11,
+        "observation_wall_s": 2.137,
+        "evidence_path": "/home/spark/Projects/cascade-native-0fee56f-20261001/runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/placement/6305e17c01754247bf1e5d11f4f8bb65.json",
+        "evidence_sha256": "a0e061ac9c058bd44662a97a6dd0bc14d9aa5ea3529a0a2a5536ba362b756aec"
+      }
+    }
+  },
+  "analysis": {
+    "schema": "cascade.native-clock-comparison.v1",
+    "outcome": "launch03 NOT READY; full green physics passes, camera freshness fails; orange not attempted",
+    "runtime_source_git_head": "7cb4b26cad6bbdb6ccddb8835b94b9e8ebec2068",
+    "physics_pass": true,
+    "camera_pass": false,
+    "failed_event_checks": [
+      "strict_pick_place_and_cameras",
+      "all_event_cameras_advance"
+    ],
+    "grasp_result": {
+      "result": {
+        "held": "green cube",
+        "grip_profile": "rigid",
+        "grip_verified": true,
+        "gripper_open_frac": 0.4,
+        "grasp_width_m": 0.047
+      }
+    },
+    "grasp_duration_wall_s": 105.92847536600311,
+    "full_pick_lift_m": 0.10338705964386462,
+    "bilateral_lift_samples": 730,
+    "full_pick_wall_ms": 254743.8,
+    "camera_observations": {
+      "cam0": {
+        "stale_samples": 38,
+        "total_samples": 2119,
+        "max_age_s": 2.906824500998482,
+        "max_age_sample": {
+          "line": 1921,
+          "sequence": 1920,
+          "server_monotonic": 62020.621362841,
+          "capture_monotonic": 62017.71453834,
+          "age_s": 2.906824500998482,
+          "sim_time": 124.96666666666667,
+          "physics_step": 14996,
+          "phase": "reset"
+        },
+        "unique_captures": 470,
+        "max_capture_gap_wall_s": 5.436062871995091,
+        "regressions": 0
+      },
+      "side": {
+        "stale_samples": 38,
+        "total_samples": 2119,
+        "max_age_s": 2.906824500998482,
+        "max_age_sample": {
+          "line": 1921,
+          "sequence": 1920,
+          "server_monotonic": 62020.621362841,
+          "capture_monotonic": 62017.71453834,
+          "age_s": 2.906824500998482,
+          "sim_time": 124.96666666666667,
+          "physics_step": 14996,
+          "phase": "reset"
+        },
+        "unique_captures": 470,
+        "max_capture_gap_wall_s": 5.436062871995091,
+        "regressions": 0
+      },
+      "proof": {
+        "stale_samples": 38,
+        "total_samples": 2119,
+        "max_age_s": 2.906824500998482,
+        "max_age_sample": {
+          "line": 1921,
+          "sequence": 1920,
+          "server_monotonic": 62020.621362841,
+          "capture_monotonic": 62017.71453834,
+          "age_s": 2.906824500998482,
+          "sim_time": 124.96666666666667,
+          "physics_step": 14996,
+          "phase": "reset"
+        },
+        "unique_captures": 470,
+        "max_capture_gap_wall_s": 5.436062871995091,
+        "regressions": 0
+      }
+    },
+    "limitations": [
+      "Different selected grasps and preserved memory priors; this is not an identical-grasp A/B.",
+      "ACK physical intervals are bounded by atomic feedback; witnesses name sampled bounds and do not establish continuous absence of contact.",
+      "Neighbor lemon displacement during green descent/close remains observed; exact contacting link unknown.",
+      "Only one launch03 grasp receipt exists; orange behavior remains unvalidated."
+    ],
+    "files": {
+      "analysis-console.json": {
+        "sha256": "fe9e7f01fbad6a8ce8bf194fbe4878d6d7a28e49634385dd80d1303cb6d1e2d5",
+        "size_bytes": 3878
+      },
+      "case-1/camera-freshness-analysis.json": {
+        "sha256": "6434b7a4fcbf8d26abebf74c9d32e2c2bc78bd9790deaf0fdaded3304f198e9a",
+        "size_bytes": 37286
+      },
+      "case-1/gpu-physical-audit.json": {
+        "sha256": "76ea23b73c4a654745116a9213f37eef19b2728b44165a7539a768f2438b2a12",
+        "size_bytes": 533517
+      },
+      "case-1/metadata.json": {
+        "sha256": "c533e841afe3aea53219f5183b7535f43a8dcaa8089b75d3ce1231fbfa3902ef",
+        "size_bytes": 2917
+      },
+      "case-1/phases.json": {
+        "sha256": "9c51b93a0922edb0a6c3d2f3d1836c6edb09094b33e263045a616ae718ace2e4",
+        "size_bytes": 352
+      },
+      "case-1/samples.jsonl": {
+        "sha256": "9a75524b2bfd04a118a26eab114cb0a798942c0f180c2882029d5ca7733b347b",
+        "size_bytes": 17850860
+      },
+      "compare-grasp-clocks.py": {
+        "sha256": "016484a016c0f90abcbb0837b3de7df9710b64aaf355fd663647e5a21555dae1",
+        "size_bytes": 10864
+      },
+      "grasp-evidence-03/1790815809738933449-606380-4a682fe1e1044f38bb6dc756a788e6a2.json": {
+        "sha256": "03a09e8b570642ce724eec66403af56a5ba33897592182ce164ebe4a95743339",
+        "size_bytes": 3044770
+      },
+      "grasp-evidence-03/1790815809738933449-606380-4a682fe1e1044f38bb6dc756a788e6a2.npz": {
+        "sha256": "cd7c185a80b99b2645affcf7cfcb1725e63293e689fb63bee43cb7f140391540",
+        "size_bytes": 172340
+      },
+      "launch-03.log": {
+        "sha256": "f5800f8c41f09d9548bc8d6af1e3414245e815e5ef711e1636f42211fa97fb2a",
+        "size_bytes": 5880
+      },
+      "launch02-baseline.json": {
+        "sha256": "b18aef7eda23d397e5bf8b7552f446c505d09c731a0adec91fc125b6ed70a6e4",
+        "size_bytes": 116366
+      },
+      "launch03-analysis.json": {
+        "sha256": "3893b6d47fc8fa2d12055f3b95d8b101b3e036550d69588bc18729f42d83f46f",
+        "size_bytes": 127756
+      },
+      "trace.jsonl": {
+        "sha256": "6fa9656a5adf5da97a93d7a4bf09979bdc61eafb62cc3454e6625c0d5ba6b592",
+        "size_bytes": 16825
+      }
+    }
+  },
+  "analysis_root": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-03-analysis",
+  "retained_evidence_root": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-03-20261001",
+  "archive": {
+    "path": "/tmp/cascade-native-failed-03-20261001.tar.gz",
+    "sha256": "9b59cf69a2abd6a93ce2a4f9b587e45130205a4e488f5e6950c989cabb284700"
+  },
+  "retention_receipt_sha256": "e3a233443347bf2fff416a7654d7888073e2569700647a6414a39599beacf2e9",
+  "retained_files_sha256": {
+    "runs/.launch/profile-cascade-demo/owner.json": "58e7065d362aaf86547a83673b45c8ee0db1c49e1bc456d941fca0ea060e7753",
+    "runs/.launch/profile-cascade-demo/processes/mcp_700daa99f4d94a03acaadffc684a7bb0.json": "eae4d09d784c0872c9738dad2b85363e44cfd91440aec2fd82e50be227d84e35",
+    "runs/.launch/profile-cascade-demo/proof.json": "a6db62fed7ec59dd5be4c982163264691226f8b7a7358102c22f9096bb5d920c",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/01-scene.json": "cefe88a83e66859b90fd752660506f871336a00bed3b91e0091adda08bc74ff5",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/01-scene.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/02-pick.json": "e7d8066e9df8454187c47eed2c27b4ca14e189fd8a69d036f7a287acaf156df2",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/02-pick.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/03-reset.json": "d61315a0dde20ea8fb5033edc99640bd00823a060e9565b39f066956d8adddb7",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/03-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/04-world-reset.json": "2b4475d771f7d8557fd8c9f4020e4a523b8574611a5e52d63d9ceaa5d288209e",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/04-world-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/05-inspect-reset.json": "551c5bd0bd0f4e6d64ab88ae1c3e1a393ccca8abb7c135e42ab2b3ede27484d0",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/05-inspect-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/first-scene-geometry.json": "6b49c9d7a41eff6a5bb911f88c00856e1a2c4af4b1c3a16d262fb7d2ebe0e144",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/gpu-physical-audit.json": "76ea23b73c4a654745116a9213f37eef19b2728b44165a7539a768f2438b2a12",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/metadata.json": "c533e841afe3aea53219f5183b7535f43a8dcaa8089b75d3ce1231fbfa3902ef",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/phases.json": "9c51b93a0922edb0a6c3d2f3d1836c6edb09094b33e263045a616ae718ace2e4",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/ping-after.json": "dc61ae6fee5770a3a33236cd72b7a10697a2406ebb8eacc27ce3cd2d8bdb7cdb",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/ping-before.json": "dc61ae6fee5770a3a33236cd72b7a10697a2406ebb8eacc27ce3cd2d8bdb7cdb",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/placed-cam0.jpg": "d8953d42c84cf0e3438da349881c396d60a237afa9c15ca1c6cba23941f1ee4c",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/placed-frames.json": "ff7e676768ac60cf4ab3aed4e008bea7ebb7937100135588410d11ea866b25ba",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/placed-proof.jpg": "a69ec6d50fddecb655f0eec4aa2d3b3923ba46d6262d77d19a863d6deea0994a",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/placed-side.jpg": "f606cca89c4707fcb177673a458b9a36ae38e057b98892468c40f4c3003ed9e8",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/reset-cam0.jpg": "b2ce8495cded9e8ae8889cb72af6775e23ca41b9f410a47fbdc11ea724cfd26a",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/reset-frames.json": "a6c14eae6922ce557d5475d514f36f7b3af01e67228aa5877da5ca1a535584c0",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/reset-proof.jpg": "591829b93883b45d3d5144bba72686a9ac13db0d74755712f221bb611eeeb87f",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/reset-side.jpg": "b129260a9bd8d02f2940d836387a9cf1731919d860efdfa319aee62293e61521",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/samples.jsonl": "9a75524b2bfd04a118a26eab114cb0a798942c0f180c2882029d5ca7733b347b",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/snapshot-code.py": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+    "runs/.launch/profile-cascade-demo/cascade-proof-1814f16aa49745219422ac18ee5297aa/case-1/physics/wire.jsonl": "00b41f64a093164ce08c83971163561ec7d45c1d4e5a881f5077345bb4f82009",
+    "runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/keyframes/0000_describe_scene_after.jpg": "0696b58c240a99d83258dcad7ee4013e9d951929474e50616e01126418ff4476",
+    "runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/keyframes/0000_describe_scene_before.jpg": "03f5fb20d322bc3f57c77ccf514f870ade9d34050ae94bf2b6caf3082c4f03b0",
+    "runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/keyframes/0001_pick_and_place_after.jpg": "e2ff6f5ea502aabc71e36ba8cd31b071ee8f158abe0574566795aac92efefebc",
+    "runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/keyframes/0001_pick_and_place_before.jpg": "0696b58c240a99d83258dcad7ee4013e9d951929474e50616e01126418ff4476",
+    "runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/keyframes/0002_reset_scene_after.jpg": "af948662cc639a00d8ef6eea03468508b498158e6b7d559ed79d37a1e786bb2a",
+    "runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/keyframes/0002_reset_scene_before.jpg": "e2ff6f5ea502aabc71e36ba8cd31b071ee8f158abe0574566795aac92efefebc",
+    "runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/keyframes/0003_describe_scene_after.jpg": "5aa7c188296e4eb5800460ab94f47b00b8d5e42059728ed08a5f0b4a323294d0",
+    "runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/keyframes/0003_describe_scene_before.jpg": "af948662cc639a00d8ef6eea03468508b498158e6b7d559ed79d37a1e786bb2a",
+    "runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/placement/6305e17c01754247bf1e5d11f4f8bb65.json": "a0e061ac9c058bd44662a97a6dd0bc14d9aa5ea3529a0a2a5536ba362b756aec",
+    "runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/server.log": "c693922db9ae49fd1200f1f484164bb59397a5990bff8a1a55fea0d024fdf742",
+    "runs/mcp_606380_07532ccdae394159979d25d5a020b1c5/trace.jsonl": "6fa9656a5adf5da97a93d7a4bf09979bdc61eafb62cc3454e6625c0d5ba6b592",
+    "runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "aef4ae8121a9e421839970b39a528a75820087ea6a6452dd147009a2615e4148",
+    "runs/native-acceptance-20261001/grasp-evidence-03/1790815809738933449-606380-4a682fe1e1044f38bb6dc756a788e6a2.json": "03a09e8b570642ce724eec66403af56a5ba33897592182ce164ebe4a95743339",
+    "runs/native-acceptance-20261001/grasp-evidence-03/1790815809738933449-606380-4a682fe1e1044f38bb6dc756a788e6a2.npz": "cd7c185a80b99b2645affcf7cfcb1725e63293e689fb63bee43cb7f140391540",
+    "runs/native-acceptance-20261001/clock-preparation-03/before/runs/.install/desktop-latest.json": "e6d1e896794a7f5e8a93c8c90f25b5d473bbbba9ee4ae65efa8c3322cd7b07a4",
+    "runs/native-acceptance-20261001/clock-preparation-03/before/runs/.install/install.json": "25c4a0733757f493954e0b3a30651cee332503ecde6df4dbd2b28986a5126a04",
+    "runs/native-acceptance-20261001/clock-preparation-03/before/runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "ff0c04a75e40e4267ea9dc2606eff0ce65aed317be3953f5fe129a09ba06f2d5",
+    "runs/native-acceptance-20261001/clock-preparation-03/before/runs/.launch/profile-cascade-demo/proof.json": "4745a440f3532ec876ad8a774d95836eab98e2b94c3496a420f0a62724d9feb9",
+    "runs/native-acceptance-20261001/clock-preparation-03/check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/native-acceptance-20261001/clock-preparation-03/preparation.json": "daa5a8ac4fb61ba5a8d1d031d536a0683ff36d4cbcf6d92fcf340ce473d59736",
+    "runs/native-acceptance-20261001/clock-preparation-03/record.log": "44201204fbcb1f09d357fa7d38946249bf22c52b883937ac6988252450314499",
+    "runs/native-acceptance-20261001/launch-03.log": "f5800f8c41f09d9548bc8d6af1e3414245e815e5ef711e1636f42211fa97fb2a",
+    "runs/.install/desktop-latest.json": "18e4db171d686036724762d540861ecef042103325ea0dd9df2ea1412c501daa",
+    "runs/.install/install.json": "a406afb4f78826fd236b78e71670616eb901aa0fb5981c3c14bafb306b92bd40",
+    "runs/native-acceptance-20261001/clock-render-preparation-03/before/runs/.install/desktop-latest.json": "e6d1e896794a7f5e8a93c8c90f25b5d473bbbba9ee4ae65efa8c3322cd7b07a4",
+    "runs/native-acceptance-20261001/clock-render-preparation-03/before/runs/.install/install.json": "6ba35ad2498282b08cf0ef00ce81f21ff544a4900993d9619e0baef18c4dfa9f",
+    "runs/native-acceptance-20261001/clock-render-preparation-03/before/runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "ff0c04a75e40e4267ea9dc2606eff0ce65aed317be3953f5fe129a09ba06f2d5",
+    "runs/native-acceptance-20261001/clock-render-preparation-03/before/runs/.launch/profile-cascade-demo/proof.json": "4745a440f3532ec876ad8a774d95836eab98e2b94c3496a420f0a62724d9feb9",
+    "runs/native-acceptance-20261001/clock-render-preparation-03/check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/native-acceptance-20261001/clock-render-preparation-03/preparation.json": "8d6bb6418f2f0f6b6c9abced7105bd264d79af7a30d47b4e0a049a4e03747e2e",
+    "runs/native-acceptance-20261001/clock-render-preparation-03/record.log": "f3fdbcf3af771c17feece18a7ebea863fc80e1c6bb0b697d6f7ce1e90ad4c5fb",
+    "runs/native-acceptance-20261001/clock-render-smoke-03/clock-and-render-smoke/bridge.log": "2b59ead4d861aeb01f88738cfce44faa917547fd5ad03d95a882998148701c12",
+    "runs/native-acceptance-20261001/clock-render-smoke-03/clock-and-render-smoke/clock.jsonl": "3ba4b05786dbb4016d925725877534243692f3d063fef2bdeb18dfd46a0fb464",
+    "runs/native-acceptance-20261001/clock-render-smoke-03/clock-and-render-smoke/final-cam0.png": "27043af04fa1c6d221621280cec253e4a3bfe07c0be8da2a9138246a46bc333f",
+    "runs/native-acceptance-20261001/clock-render-smoke-03/clock-and-render-smoke/final-proof.png": "fbe4c1481bdad538ce44e940730a91cd654d1c84cb35e666b23c9f517c007963",
+    "runs/native-acceptance-20261001/clock-render-smoke-03/clock-and-render-smoke/final-side.png": "1e081dcd4519ba46504817b388efb833143e46f45ab3a74cb194971ccb912038",
+    "runs/native-acceptance-20261001/clock-render-smoke-03/clock-and-render-smoke/initial-cam0.png": "505ea5bd1f557de9acb7d7325ef2912b2bb89d4c5b56f2ce6a87c54764e6ea3c",
+    "runs/native-acceptance-20261001/clock-render-smoke-03/clock-and-render-smoke/initial-proof.png": "1848d6505c0ac6b7b580b33428197d9b39ea2180bfcef2be06d756fbf296c5d2",
+    "runs/native-acceptance-20261001/clock-render-smoke-03/clock-and-render-smoke/initial-side.png": "f492f9da0d0808107ec74ef2387f69e533309616d2adeb03df48b042c77c6c3e",
+    "runs/native-acceptance-20261001/clock-render-smoke-03/clock-and-render-smoke/interpreter.json": "207c9b2acc7aeb987037a9d67b0fb8c953d8cda5221ce7d838c561ec26e39718",
+    "runs/native-acceptance-20261001/clock-render-smoke-03/clock-and-render-smoke/receipt.json": "c5df6f6cc09f7243702484b2754d1355f8f87ecb7559517bdc9ff154d99db3b4",
+    "runs/native-acceptance-20261001/launch-03-driver.json": "7d7a042fecc8e8f44bc430c38bdf118ea303e4cb9504731c5b1b1f7cc89a13b9"
+  },
+  "binding_scope": "Initial proof lacks process/model because case1 failed before checkpoint. Run directory identified by observed attempt PID606380, exact trace hash, and retained matching launch-owner process receipt; original proof is not rewritten."
+}

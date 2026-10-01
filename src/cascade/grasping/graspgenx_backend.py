@@ -33,10 +33,15 @@ import time
 import numpy as np
 
 from ..types import Grasp, ObjectFix
+from . import evidence
 
 
 class GraspGenXError(RuntimeError):
     pass
+
+
+class NoEligibleGrasps(GraspGenXError):
+    """A valid nonempty learned batch was removed by the unchanged filters."""
 
 
 class GraspGenXClient:
@@ -66,10 +71,13 @@ class GraspGenXClient:
         sock.connect(f"tcp://{self._host}:{self._port}")
         self._sock = sock
 
-    def request(self, payload: dict, timeout_ms: int | None = None) -> dict:
+    def request(self, payload: dict, timeout_ms: int | None = None, *,
+                deadline: float | None = None, check=None) -> dict:
         import msgpack
         import zmq
 
+        if deadline is not None:
+            return self._request_bounded(payload, timeout_ms, deadline, check)
         if self._sock is None:
             self._connect()
         sock = self._sock
@@ -95,7 +103,56 @@ class GraspGenXClient:
             raise GraspGenXError(f"graspgenx server error: {resp['error']}")
         return resp
 
-    def probe(self, timeout_ms: int = 300) -> dict:
+    def _request_bounded(self, payload, timeout_ms, deadline, check):
+        """Send/receive share one deadline; cancelled responses are discarded."""
+        import math
+        import msgpack
+        import zmq
+
+        if not isinstance(deadline, (int, float)) or isinstance(deadline, bool) or not math.isfinite(deadline):
+            raise GraspGenXError("invalid grasp planning deadline")
+        end = min(deadline, time.monotonic() + (self._timeout if timeout_ms is None else timeout_ms) / 1000.)
+
+        def remaining_ms():
+            if check is not None:
+                check()  # pure cancellation/deadline callback, never a robot RPC
+            left = end - time.monotonic()
+            if left <= 0:
+                raise GraspGenXError("graspgenx planning request timed out")
+            return max(1, min(50, math.ceil(left * 1000)))
+
+        try:
+            remaining_ms()
+            encoded = msgpack.packb(payload, use_bin_type=True)
+            remaining_ms()
+            if self._sock is None:
+                self._connect()
+            sock = self._sock
+            for event, operation in (
+                    (zmq.POLLOUT, lambda: sock.send(encoded, flags=zmq.NOBLOCK)),
+                    (zmq.POLLIN, lambda: sock.recv(flags=zmq.NOBLOCK))):
+                while True:
+                    ready = sock.poll(remaining_ms(), event)
+                    remaining_ms()
+                    if not ready:
+                        continue
+                    try:
+                        raw = operation()
+                        remaining_ms()
+                        break
+                    except zmq.error.Again:
+                        continue
+            response = msgpack.unpackb(raw, raw=False)
+            remaining_ms()
+            if isinstance(response, dict) and "error" in response:
+                raise GraspGenXError(f"graspgenx server error: {response['error']}")
+            return response
+        except BaseException:
+            # A late response cannot be matched to the next planning batch.
+            self.close()
+            raise
+
+    def probe(self, timeout_ms: int = 300, *, deadline=None, check=None) -> dict:
         """One SHORT round trip at startup: is a GraspGen-X server (or the
         protocol stub) answering? Raises GraspGenXError otherwise. Without
         this every grasp paid the full inference timeout (8 s) before
@@ -106,7 +163,8 @@ class GraspGenXClient:
         Wire: the real server (graspgenx/serving/zmq_server.py) answers
         `{"action": "health"}` with `{"status": "ok"}`; the repo's protocol
         stub answers the same (and marks itself `"stub": true`)."""
-        resp = self.request({"action": "health"}, timeout_ms=timeout_ms)
+        kwargs = {} if deadline is None else {"deadline": deadline, "check": check}
+        resp = self.request({"action": "health"}, timeout_ms=timeout_ms, **kwargs)
         ok = isinstance(resp, dict) and (resp.get("status") == "ok" or resp.get("ok") is True)
         if not ok:
             raise GraspGenXError(f"graspgenx health returned {resp!r}")
@@ -164,8 +222,9 @@ class GraspGenXPlanner:
                 self.sweep_params[key][2] += self.tip_offset_m
             self.sweep_params["fingertip_depth"] += self.tip_offset_m
 
-    def probe(self, timeout_ms: int | None = None) -> dict:
-        self.status = self._client.probe(timeout_ms=self.probe_timeout_ms if timeout_ms is None else timeout_ms)
+    def probe(self, timeout_ms: int | None = None, *, deadline=None, check=None) -> dict:
+        kwargs = {} if deadline is None else {"deadline": deadline, "check": check}
+        self.status = self._client.probe(timeout_ms=self.probe_timeout_ms if timeout_ms is None else timeout_ms, **kwargs)
         if self.required and self.status.get("stub"):
             self.status = None
             raise GraspGenXError("real GraspGen-X required; analytic protocol stub rejected")
@@ -176,8 +235,33 @@ class GraspGenXPlanner:
             return "graspgenx (unprobed)"
         return "graspgenx-stub (analytic protocol double)" if self.status.get("stub") else "graspgenx (learned 6-DoF)"
 
-    def plan(self, fix: ObjectFix, max_width_m: float = 0.09) -> list[Grasp]:
+    @staticmethod
+    def _validate_bounded_response(response):
+        """Malformed batches are terminal, even when every score is low."""
+        try:
+            if not isinstance(response, dict):
+                raise ValueError("expected a mapping")
+            poses = np.asarray(response["grasps"])
+            scores = np.asarray(response["confidences"])
+            if (poses.ndim != 3 or poses.shape[1:] != (4, 4)
+                    or scores.shape != (len(poses),)
+                    or poses.dtype.kind not in "fiu" or scores.dtype.kind not in "fiu"
+                    or not np.isfinite(poses).all() or not np.isfinite(scores).all()):
+                raise ValueError("expected finite numeric (N,4,4) poses and (N,) scores")
+            R = poses[:, :3, :3].astype(float)
+            # Float32 model output; the same rigid-transform tolerance as
+            # observed RGBD calibration, never a collision-margin adjustment.
+            if (not np.all(poses[:, 3, :] == [0, 0, 0, 1])
+                    or not np.all(np.linalg.det(R) > 0)
+                    or not np.allclose(R.transpose(0, 2, 1) @ R, np.eye(3), atol=3e-6, rtol=0)):
+                raise ValueError("non-rigid grasp transform")
+        except (KeyError, ValueError, TypeError) as exc:
+            raise GraspGenXError(f"malformed GraspGen-X batch: {exc}") from exc
+
+    def plan(self, fix: ObjectFix, max_width_m: float = 0.09, *, deadline=None, check=None) -> list[Grasp]:
         """Segmented base-frame object points -> ranked wrc Grasps."""
+        if check is not None:
+            check()
         source_points = fix.points
         tensor_points = hasattr(source_points, "detach")
         # ZMQ/msgpack is a host-memory transport between independent Python
@@ -185,6 +269,11 @@ class GraspGenXPlanner:
         # segmented request cloud at this serialization boundary.
         pts = np.asarray(source_points.detach().cpu().numpy() if tensor_points
                          else source_points, dtype=np.float32)
+        evidence.array("ggx_request_points_base_m", pts)
+        evidence.event("ggx_configuration", gripper=self.gripper, tip_offset_m=self.tip_offset_m,
+                       num_grasps=self.num_grasps, topk=self.topk, min_score=self.min_score,
+                       approach_z_max=self.approach_z_max, planner=self.planner,
+                       sweep_params=self.sweep_params, status=self.status)
         if pts.shape[0] < 50:
             raise GraspGenXError(f"only {pts.shape[0]} object points (<50)")
         t0 = time.monotonic()
@@ -211,8 +300,16 @@ class GraspGenXPlanner:
         # One retry is cheap; a repeat empty means the cloud itself is the
         # problem, so dump it for offline replay.
         poses = scores = None
-        for _attempt in range(2):
-            resp = self._client.request(payload)
+        for _attempt in range(2 if deadline is None else 1):
+            if check is not None:
+                check()
+            kwargs = {} if deadline is None else {"deadline": deadline, "check": check}
+            resp = self._client.request(payload, **kwargs)
+            if check is not None:
+                check()
+            evidence.ggx_response(resp, _attempt)
+            if deadline is not None:
+                self._validate_bounded_response(resp)
             poses = np.asarray(resp["grasps"], dtype=np.float32).reshape(-1, 4, 4)
             scores = np.asarray(resp["confidences"], dtype=np.float32).reshape(-1)
             if len(scores) != len(poses) or not np.all(np.isfinite(poses)) or not np.all(np.isfinite(scores)):
@@ -232,7 +329,8 @@ class GraspGenXPlanner:
             except OSError:
                 dump = "unsaved"
             raise GraspGenXError(
-                f"graspgenx returned no grasps twice (cloud dumped: {dump})"
+                (f"graspgenx returned no grasps twice (cloud dumped: {dump})" if deadline is None
+                 else f"graspgenx returned no grasps in bounded batch (cloud dumped: {dump})")
             )
 
         # Jaw-opening width from the object's span along each grasp's jaw
@@ -241,6 +339,8 @@ class GraspGenXPlanner:
         grasps: list[Grasp] = []
         order = np.argsort(-scores)
         for i in order:
+            if check is not None:
+                check()
             if scores[i] < self.min_score:
                 continue
             T = poses[i].astype(float)
@@ -282,6 +382,16 @@ class GraspGenXPlanner:
             )
             if len(grasps) >= self.topk:
                 break
+        if deadline is not None:
+            vertical = poses[:, 2, 2] / np.linalg.norm(poses[:, :3, 2], axis=1)
+            evidence.event("ggx_filtered_counts", raw=len(scores),
+                score_pass=int(np.count_nonzero(scores >= self.min_score)),
+                vertical_pass=int(np.count_nonzero(vertical <= self.approach_z_max)),
+                both_pass=int(np.count_nonzero((scores >= self.min_score) & (vertical <= self.approach_z_max))),
+                retained=len(grasps), min_score=self.min_score, approach_z_max=self.approach_z_max)
         if not grasps:
-            raise GraspGenXError("no GraspGen-X candidates satisfy the tabletop/score constraints")
+            error = GraspGenXError if deadline is None else NoEligibleGrasps
+            raise error("no GraspGen-X candidates satisfy the tabletop/score constraints")
+        if check is not None:
+            check()
         return grasps

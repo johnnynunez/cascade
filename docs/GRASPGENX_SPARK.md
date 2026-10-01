@@ -120,6 +120,27 @@ For an already running server use `--graspgenx external`. Set
 runtime and OpenClaw MCP process. `--graspgenx none` explicitly selects analytic
 OBB. Spark rejects `--graspgenx stub`; a stub cannot validate the model.
 
+For a diagnostic native launch, set `CASCADE_GRASP_EVIDENCE_DIR` to an absolute
+directory before starting the existing launcher. It passes this opt-in variable
+to the registered MCP process. Each physical grasp attempt, including retries,
+gets a JSON receipt and a hashed NPZ containing the localized point cloud and
+raw GGX poses/scores. The receipt retains localization/capture provenance,
+candidates before and after the existing memory prior, its z nudge, material
+profile, jaw datum, selected IK targets, and the original attempt exception.
+Isaac feedback and joint/gripper commands already used by the controller are
+tagged by stage; the diagnostic adds no robot or camera reads or commands.
+
+Events are buffered during execution and written after the attempt returns or
+raises. Enabling capture adds copying and post-attempt filesystem overhead; it
+does not certify unchanged timing or physical success. Keep and hash the prior
+memory before the run rather than resetting it to seek a passing trial. Source
+hashes and Git HEAD are explicitly observations of disk at receipt flush, not
+an attestation of already imported bytecode; use a clean pinned checkout for
+comparisons. `logging_ok: false`, `logging_errors`, and `dropped_events` expose
+incomplete evidence. If the directory itself is unwritable, stderr carries the
+failure receipt and terminal event; the original skill result/exception remains
+unchanged. With the variable absent, no evidence directory is created.
+
 The complete local regression after these changes passed **2,264 tests**
 (46 skipped, 2 deselected; 263.23 s), including the portable deployment
 packaging tests. The 130 focused model/launcher/carry-lift tests also passed.

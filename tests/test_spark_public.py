@@ -422,7 +422,8 @@ def test_authentication_waits_for_the_accepted_connection_owner(visitor_process,
         def getsockname(self): return ("127.0.0.1", 45678)
     monkeypatch.setattr(public.socket, "create_connection", lambda *a, **kw: Connection())
     ticks = iter((0, 3))
-    monkeypatch.setattr(public.time, "monotonic", lambda: next(ticks))
+    # Isolate this clock from background threads using the shared time module.
+    monkeypatch.setattr(public, "time", SimpleNamespace(monotonic=lambda: next(ticks)))
     monkeypatch.setattr(public.http.client, "HTTPConnection", lambda *a, **kw: pytest.fail("Credentials reached an unowned connection"))
     with pytest.raises(RuntimeError, match="accepted connection"):
         public.owned_visitor_get(repo, identity, "/api/chat", "Basic fixture-private")

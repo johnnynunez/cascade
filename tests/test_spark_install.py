@@ -560,6 +560,9 @@ def launch_fixture(tmp_path, monkeypatch):
     monkeypatch.delenv("CASCADE_OPENCLAW_PROFILE", raising=False)
     monkeypatch.delenv("ISAACSIM_PATH", raising=False)
     monkeypatch.delenv("ISAACSIM_PYTHON_EXE", raising=False)
+    monkeypatch.delenv("CASCADE_ISAAC_CAM_EVERY", raising=False)
+    monkeypatch.delenv("CASCADE_OBSERVED_FINGER_GATE", raising=False)
+    monkeypatch.delenv("CASCADE_ISAAC_DT", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     support = support_module()
     assert hasattr(support, "launch"), "installer launch supervision is missing"
@@ -596,7 +599,7 @@ time.sleep(60)
     monkeypatch.setattr(support, "model_health", lambda: fixture_model_health(repo))
     launcher = """
 import json,os,pathlib,sys
-pathlib.Path("launch-record.json").write_text(json.dumps({"args":sys.argv[1:], "env":{k:os.environ.get(k) for k in ("ISAACSIM_PYTHON_EXE","CASCADE_OPENCLAW_PROFILE","PY")}}))
+pathlib.Path("launch-record.json").write_text(json.dumps({"args":sys.argv[1:], "env":{k:os.environ.get(k) for k in ("ISAACSIM_PYTHON_EXE","CASCADE_OPENCLAW_PROFILE","CASCADE_ISAAC_CAM_EVERY","CASCADE_OBSERVED_FINGER_GATE","CASCADE_ISAAC_DT","PY")}}))
 sys.exit(int(os.environ.get("BOUNDARY_LAUNCH_FAIL","0")))
 """
     import shlex
@@ -652,6 +655,9 @@ def test_launch_hands_exact_env_to_launcher_and_records_owned_qwen(
         assert record["env"] == {
             "ISAACSIM_PYTHON_EXE": str(repo / ".isaacsim/bin/python"),
             "CASCADE_OPENCLAW_PROFILE": "cascade-demo",
+            "CASCADE_ISAAC_CAM_EVERY": "6",
+            "CASCADE_OBSERVED_FINGER_GATE": "1",
+            "CASCADE_ISAAC_DT": str(1.0 / 120.0),
             "PY": str(repo / ".venv/bin/python"),
         }
         assert (state / "qwen.pid").exists(), "installer did not use the launcher's profile state"
@@ -688,6 +694,34 @@ def _stop_fixture_qwen(support):
             process.wait(timeout=0.2)
         except subprocess.TimeoutExpired:
             support.stop_group(process)
+
+
+@pytest.mark.parametrize("profile", ["spark", "laptop"])
+@pytest.mark.parametrize("camera_override", [None, "12"])
+@pytest.mark.parametrize("gate_override", [None, "0"])
+def test_spark_defaults_reach_launcher_and_preserve_explicit_overrides(
+    tmp_path, monkeypatch, profile, camera_override, gate_override
+):
+    support, repo = launch_fixture(tmp_path, monkeypatch)
+    if camera_override is not None:
+        monkeypatch.setenv("CASCADE_ISAAC_CAM_EVERY", camera_override)
+        monkeypatch.setenv("CASCADE_ISAAC_DT", "0.016666666666666666")
+    if gate_override is not None:
+        monkeypatch.setenv("CASCADE_OBSERVED_FINGER_GATE", gate_override)
+    try:
+        brain = "qwen" if profile == "spark" else "mock"
+        assert support.launch(repo, profile, brain, no_open=True, headless=True) == 0
+        record = json.loads((repo / "launch-record.json").read_text())
+        expected = camera_override or ("6" if profile == "spark" else None)
+        assert record["env"]["CASCADE_ISAAC_CAM_EVERY"] == expected
+        assert record["env"]["CASCADE_ISAAC_DT"] == ("0.016666666666666666" if camera_override is not None else (str(1.0 / 120.0) if profile == "spark" else None))
+        assert record["env"]["CASCADE_OBSERVED_FINGER_GATE"] == (gate_override if gate_override is not None else ("1" if profile == "spark" else None))
+        # The supervisor changes only its child environment.
+        assert os.environ.get("CASCADE_ISAAC_CAM_EVERY") == camera_override
+        assert os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == gate_override
+        assert os.environ.get("CASCADE_ISAAC_DT") == ("0.016666666666666666" if camera_override is not None else None)
+    finally:
+        _stop_fixture_qwen(support)
 
 
 def test_launch_finds_bootstrapped_uv_without_a_shell_profile(tmp_path, monkeypatch):
@@ -986,7 +1020,8 @@ def test_installer_delegates_launch_without_falling_back_to_hosted_brain(tmp_pat
     assert "READY" not in result.stdout  # only the real proof launcher may emit it
 
 
-def test_install_record_preserves_source_identity_and_reusable_environment(tmp_path, monkeypatch):
+@pytest.mark.parametrize("runtime_overrides", [False, True])
+def test_install_record_preserves_source_identity_and_reusable_environment(tmp_path, monkeypatch, runtime_overrides):
     support = support_module()
     assert hasattr(support, "record_install"), "installation identity is not recorded"
     env, _ = boundary_env(tmp_path)
@@ -1012,11 +1047,11 @@ def test_install_record_preserves_source_identity_and_reusable_environment(tmp_p
         [
             "/bin/bash",
             "-c",
-            'source "$1"; printf "%s\\n" "$ISAACSIM_PYTHON_EXE" "$CASCADE_OPENCLAW_PROFILE" "$OMNI_KIT_ACCEPT_EULA" "$PY" "$PATH"',
+            'source "$1"; printf "%s\\n" "$ISAACSIM_PYTHON_EXE" "$CASCADE_OPENCLAW_PROFILE" "$OMNI_KIT_ACCEPT_EULA" "$PY" "$PATH" "$CASCADE_ISAAC_CAM_EVERY" "$CASCADE_OBSERVED_FINGER_GATE" "$CASCADE_ISAAC_DT"',
             "--",
             str(repo / "runs/.install/env.sh"),
         ],
-        env={"PATH": "/usr/bin:/bin"},
+        env={"PATH": "/usr/bin:/bin", **({"CASCADE_ISAAC_CAM_EVERY": "12", "CASCADE_OBSERVED_FINGER_GATE": "0", "CASCADE_ISAAC_DT": "0.016666666666666666"} if runtime_overrides else {})},
         capture_output=True,
         text=True,
         check=True,
@@ -1029,6 +1064,7 @@ def test_install_record_preserves_source_identity_and_reusable_environment(tmp_p
         str(repo / ".venv/bin/python"),
     ]
     assert values[4].startswith(str(repo / ".openclaw-cli/bin") + ":")
+    assert values[5:] == (["12", "0", "0.016666666666666666"] if runtime_overrides else ["6", "1", str(1.0 / 120.0)])
 
 
 def test_local_installer_defaults_to_its_checkout_not_home_clone(tmp_path):

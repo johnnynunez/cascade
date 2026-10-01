@@ -28,12 +28,24 @@ ROBOT = "/tn__00armrs_asmv3_hJ6D/Geometry/base_link"
 @pytest.fixture
 def capture_bridge(loopback):
     """Execute actual producer and Handler, without importing/booting Kit."""
-    q = np.array([[0., -1.2, -1.2, 0., -0.75, 0., 0.5]])
+    q = np.array([[0., -1.2, -1.2, 0., -0.75, 0., 0.02, 0.04]])
     rgba = np.full((12, 16, 4), 90, np.uint8)
     depth = np.full((12, 16, 1), 0.6, np.float32)
     wrist_T = np.eye(4).tolist()
+    physics_index, render_index = [0], [0]
+
+    def update():
+        physics_index[0] += 1
+        render_index[0] = physics_index[0]
+
+    def render_times():
+        return {"rpFabricTime": {"fabricFrameTimeNumerator": render_index[0] * 1000,
+                                  "fabricFrameTimeDenominator": 1000000},
+                "IsaacReadSimulationTime": {"simulationTime": render_index[0] / 1000}}
+
     sensor = SimpleNamespace(get_data=lambda name: (
-        rgba if name == "rgb" else depth, {}))
+        rgba if name == "rgb" else depth, {}), get_render_times=render_times,
+        render_product_id="/Synthetic/RP")
     env = dict(np=np, time=time, cv2=cv2, base64=base64, zlib=zlib, json=json,
                threading=threading,
                socketserver=socketserver, _frames={}, _wrist_T=wrist_T,
@@ -42,16 +54,30 @@ def capture_bridge(loopback):
                art=SimpleNamespace(get_dof_positions=lambda: SimpleNamespace(numpy=lambda: q),
                                    get_dof_velocities=lambda: SimpleNamespace(numpy=lambda: np.zeros_like(q))),
                _grip_frac_now=lambda q: 0.5,
-               ARM_IDX=list(range(6)), names=[f"joint{i}" for i in range(7)])
-    load_isaac_bridge_definitions({"_refresh_frames", "_LazyFrame", "Handler"}, env)
-    env["_refresh_frames"]()
+               ARM_IDX=list(range(6)), GRIP_IDX=[6, 7],
+               lower=np.zeros(8), upper=np.array([3.] * 6 + [.05, .05]),
+               names=[f"joint{i}" for i in range(1, 7)] + ['joint_left', 'joint_right'],
+               app=SimpleNamespace(update=update),
+               SimulationManager=SimpleNamespace(
+                   _simulation_manager_interface=SimpleNamespace(get_current_time=lambda: SimpleNamespace(
+                       numerator=physics_index[0] * 1000, denominator=1000000)),
+                   get_simulation_time=lambda: physics_index[0] / 1000,
+                   get_num_physics_steps=lambda: physics_index[0]))
+    load_isaac_bridge_definitions({"_refresh_frames", "_LazyFrame", "Handler", "_step_with_frame_history"}, env)
+
+    def publish():
+        env["_step_with_frame_history"]()
+        env["_refresh_frames"]()
+
+    publish()
     srv = socketserver.ThreadingTCPServer((loopback, 0), env["Handler"])
     srv.daemon_threads = True
     thread = threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": .01}, daemon=True)
     thread.start()
     try:
         yield SimpleNamespace(env=env, q=q, rgba=rgba, depth=depth, wrist_T=wrist_T,
-                              host=loopback, port=srv.server_address[1])
+                              host=loopback, port=srv.server_address[1], publish=publish,
+                              update=update, physics_index=physics_index, render_index=render_index)
     finally:
         srv.shutdown()
         srv.server_close()
@@ -83,7 +109,14 @@ def test_capture_snapshot_survives_real_tcp_camera_delayed_consumption(capture_b
         assert snapshot["robot_id"] == ROBOT
         assert snapshot["joint_convention"] == "asset"
         assert snapshot["time_source"] == "physics_loop_monotonic"
+        assert snapshot["producer_epoch"] == "test-bridge-epoch"
+        assert snapshot["gripper_joints"] == {
+            "version": 1, "names": ["joint_left", "joint_right"],
+            "position_m": [.02, .04], "lower_m": [0., 0.], "upper_m": [.05, .05]}
         assert snapshot["t"] == f.capture["t"]
+        assert f.capture["render_reference"]["source"] == "rpFabricTime"
+        assert f.capture["render_reference"]["history_physics_step"] == 1
+        assert f.capture["render_reference"]["snapshot_started_monotonic"] == f.capture["t"]
         assert np.isfinite(snapshot["t"])
         np.testing.assert_allclose(snapshot["q"], before)
         np.testing.assert_allclose(f.depth_m, 0.6)
@@ -98,6 +131,26 @@ def test_capture_snapshot_survives_real_tcp_camera_delayed_consumption(capture_b
         np.testing.assert_allclose(f.capture["proprioception"]["q"], before)
 
 
+def test_capture_epoch_and_individual_fingers_share_one_existing_q_read(capture_bridge):
+    b = capture_bridge
+    reads = []
+    old_read = b.env['art'].get_dof_positions
+    def read():
+        reads.append('q')
+        return old_read()
+    b.env['art'].get_dof_positions = read
+    b.env['_motion_clock_epoch'] = 'bridge-before-restart'
+    b.env['_frame_history'].clear()
+    b.publish()
+    b.env['_motion_clock_epoch'] = 'bridge-after-restart'
+    b.q[0, 6:] = [.04, .02]
+    assert reads == ['q']  # one existing q read serves all cameras
+    for name in ('cam0', 'side', 'wrist'):
+        snapshot = b.env['_frames'][name]['proprioception']
+        assert snapshot['producer_epoch'] == 'bridge-before-restart'
+        assert snapshot['gripper_joints']['position_m'] == [.02, .04]
+
+
 def test_producer_state_failure_publishes_unmaskable_frame_not_previous_q(capture_bridge):
     b = capture_bridge
 
@@ -107,7 +160,7 @@ def test_producer_state_failure_publishes_unmaskable_frame_not_previous_q(captur
     b.env["art"].get_dof_positions = unavailable
     # RGB-D remains usable for viewing, but never silently reuse the previous
     # q or tear down the entire simulator for an unavailable articulation view.
-    b.env["_refresh_frames"]()
+    b.publish()
     assert b.env["_frames"]["cam0"]["proprioception"] is None
 
 
@@ -182,7 +235,7 @@ def test_demo_masks_delayed_frame_with_captured_not_current_joints(capture_bridg
     T[:3, 3] = links[-2] - [0., 0., .6]
     b.env["_annotators"]["cam0"] = (b.env["_annotators"]["cam0"][0],
                                     [[100., 0., 8.], [0., 100., 6.], [0., 0., 1.]])
-    b.env["_refresh_frames"]()
+    b.publish()
     cam = IsaacCamera(Cfg(dict(bridge_host=b.host, bridge_port=b.port)))
     try:
         with cam:
@@ -227,6 +280,7 @@ def test_actual_main_loop_captures_before_jobs_and_keeps_rendered_wrist_pose(cap
 
     def update():
         events.append("update")
+        b.update()
         b.q[0, 0] += .2
         rendered_q.append(b.q[0, :6].copy())
         rendered_T.append(np.array(b.wrist_T))
@@ -396,3 +450,140 @@ def test_stream_and_depth_provider_preserve_capture(capture_bridge, depth):
         np.testing.assert_allclose(filled.capture["proprioception"]["q"], b.q[0, :6])
     finally:
         stream.close()
+
+
+def test_same_render_token_preserves_entire_packet_without_current_joint_read(capture_bridge):
+    b = capture_bridge
+    originals = dict(b.env['_frames'])
+    b.q[:] = 17.
+    b.wrist_T[0][3] = 2.
+    b.rgba[:] = 7
+    b.env['art'].get_dof_positions = lambda: pytest.fail('current q read during old render')
+    b.env['_refresh_frames']()
+    assert all(b.env['_frames'][name] is old for name, old in originals.items())
+
+
+def test_delayed_render_binds_old_q_jaws_and_authorized_wrist_not_current_state(capture_bridge):
+    b = capture_bridge
+    original = b.env['_frames']['wrist']
+    b.q[0, :6] += .4
+    b.q[0, 6:] = [.01, .03]
+    b.wrist_T[0][3] = .25
+    b.env['_step_with_frame_history']()
+    b.render_index[0] = 1  # Sensor retains an earlier completed render.
+    b.env['_frames'].clear()
+    b.env['_published_frame_tokens'].clear()
+    b.env['_refresh_frames']()
+    restored = b.env['_frames']['wrist']
+    assert restored['t'] == original['t']
+    assert restored['proprioception'] == original['proprioception']
+    assert restored['T_base_cam'] == original['T_base_cam']
+    assert restored['render_reference']['history_physics_step'] == 1
+
+
+def test_missing_history_does_not_fabricate_current_state_or_keep_accepted_packet(capture_bridge):
+    b = capture_bridge
+    b.env['_frame_history'].clear()
+    b.env['_refresh_frames']()
+    assert not b.env['_frames']
+    assert all('no unique matching' in message for message in b.env['_camera_frame_errors'].values())
+
+
+def test_contradictory_snapshot_same_clock_invalidates_even_same_cached_token(capture_bridge):
+    b = capture_bridge
+    b.q[0, 6] = .001
+    b.env['app'].update = lambda: None
+    b.env['_step_with_frame_history']()  # Same step/key, different jaw.
+    b.env['_refresh_frames']()
+    assert not b.env['_frames']
+    assert all('no unique matching' in message for message in b.env['_camera_frame_errors'].values())
+
+
+def test_token_change_during_readback_cannot_publish_mixed_packet(capture_bridge):
+    b = capture_bridge
+    original = b.env['_frames']['cam0']
+    b.env['_step_with_frame_history']()
+    sensor, K = b.env['_annotators']['cam0']
+    def get_data(name):
+        result = sensor.get_data(name)
+        if name == 'distance_to_image_plane':
+            b.render_index[0] += 1
+        return result
+    b.env['_annotators'] = {'cam0': (SimpleNamespace(get_data=get_data,
+        get_render_times=sensor.get_render_times, render_product_id=sensor.render_product_id), K)}
+    b.env['_refresh_frames']()
+    assert b.env['_frames']['cam0'] is original
+    assert 'changed during' in b.env['_camera_frame_errors']['cam0']
+
+
+def test_one_camera_missing_token_does_not_prevent_other_camera_publication(capture_bridge):
+    b = capture_bridge
+    originals = dict(b.env['_frames'])
+    sensor, K = b.env['_annotators']['cam0']
+    b.env['_annotators']['cam0'] = (SimpleNamespace(get_data=sensor.get_data,
+        get_render_times=lambda: {}, render_product_id=sensor.render_product_id), K)
+    b.publish()
+    assert b.env['_frames']['cam0'] is originals['cam0']
+    assert b.env['_frames']['side'] is not originals['side']
+    assert 'cam0' in b.env['_camera_frame_errors']
+    assert 'side' not in b.env['_camera_frame_errors']
+
+
+def test_slow_update_uses_before_update_anchor_not_readback_or_completion(capture_bridge):
+    b = capture_bridge
+    b.env['_frame_history'].clear()
+    b.env['_published_frame_tokens'].clear()
+    b.env['_frames'].clear()
+    clock = [1000.]
+    b.env['time'] = SimpleNamespace(monotonic=lambda: clock[0])
+    def update():
+        b.update()
+        clock[0] += 2.5
+    b.env['app'].update = update
+    b.publish()
+    frame = b.env['_frames']['cam0']
+    assert frame['t'] == frame['proprioception']['t'] == 1000.
+    assert frame['render_reference']['snapshot_finished_monotonic'] == 1002.5
+    assert clock[0] - frame['t'] == 2.5  # Retains stale evidence; no rejuvenation.
+
+
+def test_clock_regression_invalidates_camera_epoch_and_cached_packets(capture_bridge):
+    b = capture_bridge
+    epoch = b.env['_motion_clock_epoch']
+    b.physics_index[0] = -1
+    b.env['_step_with_frame_history']()
+    assert not b.env['_frames']
+    assert not b.env['_published_frame_tokens']
+    assert b.env['_motion_clock_epoch'] != epoch
+
+
+@pytest.mark.parametrize('bad', [float('nan'), -1., float('inf')])
+def test_invalid_history_clock_clears_admitted_epoch(capture_bridge, bad):
+    b = capture_bridge
+    epoch = b.env['_motion_clock_epoch']
+    b.env['SimulationManager'].get_simulation_time = lambda: bad
+    b.env['_step_with_frame_history']()
+    assert not b.env['_frames']
+    assert b.env['_motion_clock_epoch'] != epoch
+    assert b.env['Handler'].scene_identity['camera_history_error']
+
+
+def test_sdk_integer_scalars_are_normalized_only_at_render_boundary(capture_bridge):
+    b = capture_bridge
+    sensor = SimpleNamespace(render_product_id='/Synthetic/RP', get_render_times=lambda: {
+        'rpFabricTime': {'fabricFrameTimeNumerator': np.int64(1000),
+                         'fabricFrameTimeDenominator': np.uint64(1000000)},
+        'IsaacReadSimulationTime': {'simulationTime': np.float64(.001)}})
+    token, reference, simulation_time = b.env['_render_token'](sensor)
+    assert reference == (1000, 1000000) and all(type(v) is int for v in reference)
+    assert type(simulation_time) is float and simulation_time == .001
+    assert token[0] == '/Synthetic/RP'
+
+
+@pytest.mark.parametrize('bad', [True, np.bool_(True), 1000., np.float64(1000.), '1000', np.array([1000])])
+def test_render_boundary_does_not_coerce_malformed_reference(capture_bridge, bad):
+    sensor = SimpleNamespace(render_product_id='/Synthetic/RP', get_render_times=lambda: {
+        'rpFabricTime': {'fabricFrameTimeNumerator': bad, 'fabricFrameTimeDenominator': 1000000},
+        'IsaacReadSimulationTime': {'simulationTime': .001}})
+    with pytest.raises(ValueError, match='integer scalars'):
+        capture_bridge.env['_render_token'](sensor)

@@ -1,0 +1,124 @@
+{
+  "scope": "Four predeclared independent seeds on exact native06 cloud with unchanged diffusion/sweep/num_grasps. No sockets opened, bridge, Runtime or actuators. Offline diversity/cost only; does not reproduce unrecorded native RNG.",
+  "script_sha256": "c2b12dc703481513e026a7fe5113aa8564037885c625cf19c3514a25e0138a97",
+  "native_source": "b28ebc3459199c961764e57e16bc33329ede00bc",
+  "receipt_sha256": "a0688445c5538b617b72f5ad1985e9ed1fc44ebf7a80d417d03374433a418881",
+  "npz_sha256": "c04954817c51fab335493796069ad0102a7173326bd7bc135f8066eb0b4dda84",
+  "points_sha256": "66c3c76d4ad14f9244a489241a48d5015e26e8b5eafc1dcaa67738414cbdc2d1",
+  "load_wall_s": 3.2310839659912745,
+  "device": "cuda:0",
+  "gpu": "NVIDIA GB10",
+  "torch": "2.14.0+cu130",
+  "configuration": {
+    "action": "infer_object",
+    "sweep_volume_params": {
+      "extents_open": [
+        0.09,
+        0.02,
+        0.045
+      ],
+      "offset_open": [
+        0.0,
+        0.0,
+        0.07550000000000001
+      ],
+      "extents_mid": [
+        0.045,
+        0.02,
+        0.045
+      ],
+      "offset_mid": [
+        0.0,
+        0.0,
+        0.07550000000000001
+      ],
+      "gripper_type": 0,
+      "fingertip_depth": 0.098
+    },
+    "num_grasps": 400,
+    "planner": "diffusion"
+  },
+  "rows": [
+    {
+      "seed": 60601,
+      "raw_count": 400,
+      "score_count": 189,
+      "vertical_count": 13,
+      "both_count": 4,
+      "wall_s": 1.0716222880000714,
+      "upstream_timing": {
+        "infer_ms": 1070.8996269968338
+      },
+      "path": "seed-60601.npz",
+      "sha256": "a3eb2d60c9da9a5f0a4a2a201f8cdd1f0828906935d4de7f40e4dcf796d7eb72"
+    },
+    {
+      "seed": 60602,
+      "raw_count": 400,
+      "score_count": 191,
+      "vertical_count": 10,
+      "both_count": 2,
+      "wall_s": 0.2088446559937438,
+      "upstream_timing": {
+        "infer_ms": 208.7074860028224
+      },
+      "path": "seed-60602.npz",
+      "sha256": "dfb934bd62794bd9086806af9dbc0b69f701f8214e8d6c16274b227efbbd9461"
+    },
+    {
+      "seed": 60603,
+      "raw_count": 400,
+      "score_count": 199,
+      "vertical_count": 12,
+      "both_count": 8,
+      "wall_s": 0.205766949991812,
+      "upstream_timing": {
+        "infer_ms": 205.64410201041028
+      },
+      "path": "seed-60603.npz",
+      "sha256": "1415feac56c3b2a6d9097fed68e88b526359583d17727280084bb3e27391a439"
+    },
+    {
+      "seed": 60604,
+      "raw_count": 400,
+      "score_count": 196,
+      "vertical_count": 11,
+      "both_count": 2,
+      "wall_s": 0.20536723599070683,
+      "upstream_timing": {
+        "infer_ms": 205.2435060031712
+      },
+      "path": "seed-60604.npz",
+      "sha256": "9709bcb274341e6e983edb6b0278dd4f64f87a7a3fc5ffe0cd4a5877f10ea10b"
+    }
+  ],
+  "checkpoint_files": [
+    {
+      "path": "/home/spark/Projects/cascade-clean-20260930-02/.graspgenx-src/ext/graspgenx_checkpoints/release/dis/config.yaml",
+      "sha256": "43cf8ea0ade67d938040bde0df318b3f4c9c19e4f88d97052dc175df2c28c8e7"
+    },
+    {
+      "path": "/home/spark/Projects/cascade-clean-20260930-02/.graspgenx-src/ext/graspgenx_checkpoints/release/dis/epoch_1056.pth",
+      "sha256": "cbf3f3bdb2e4c03fca8486ed24de0e6a8a859e6bd22bce2f1434a610335abd3e"
+    },
+    {
+      "path": "/home/spark/Projects/cascade-clean-20260930-02/.graspgenx-src/ext/graspgenx_checkpoints/release/gen/config.yaml",
+      "sha256": "16aedbdc23441a1db818261b865f55bd71451d6224fc514615e0d1ab744b7dcb"
+    },
+    {
+      "path": "/home/spark/Projects/cascade-clean-20260930-02/.graspgenx-src/ext/graspgenx_checkpoints/release/gen/epoch_736.pth",
+      "sha256": "8b55f31cdb8340a573b4df27b027c15cff326bd6debcb389bf631d2aaab7ac44"
+    }
+  ],
+  "upstream_files": [
+    {
+      "path": "/home/spark/Projects/cascade-native-0fee56f-20261001/.graspgenx-src/graspgenx/serving/zmq_server.py",
+      "sha256": "bcd1869f320eed4083ba6fbeb51ab1882364f5585503f9a581f397b3e5501867"
+    },
+    {
+      "path": "/home/spark/Projects/cascade-native-0fee56f-20261001/.graspgenx-src/graspgenx/grasp_server.py",
+      "sha256": "72080843fdf303f4c01302b50f0e719fb6abaf7aab8897ec098d9cd075cae8bb"
+    }
+  ],
+  "complete": true
+}

@@ -41,6 +41,10 @@ MODEL_ASSETS = {
     "mobileclip_blt.ts": 599764649,
 }
 MODEL_RELEASE = "https://github.com/ultralytics/assets/releases/download/v8.3.0"
+SPARK_RUNTIME_DEFAULTS = {
+    "CASCADE_ISAAC_CAM_EVERY": "6", "CASCADE_OBSERVED_FINGER_GATE": "1",
+    "CASCADE_ISAAC_DT": str(1.0 / 120.0),
+}
 ROBOT_ASSET_DIRS = ("assets/usd/RS-rebot-dev-arm", "assets/urdf/00-arm-rs_asm-v3")
 ROBOT_LFS_INCLUDE = ",".join(f"{directory}/**" for directory in ROBOT_ASSET_DIRS)
 
@@ -387,6 +391,9 @@ def _launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, head
         env.pop("ISAACSIM_PATH", None)
         env.update(isaac_environment(repo))
         env.update(model_environment(repo))
+        # Match the reusable shell environment; explicit overrides win.
+        for key, value in SPARK_RUNTIME_DEFAULTS.items():
+            env.setdefault(key, value)
         env["CASCADE_INSTALL_PROFILE"] = "spark"
         env["CASCADE_OPENCLAW_PROFILE"] = "cascade-demo"
         env["CASCADE_QWEN_BASE_URL"] = f"http://127.0.0.1:{QWEN_PORT}/v1"
@@ -654,6 +661,11 @@ def record_install(repo: Path, profile: str, brain: str, ref: str, *, accept_eul
     text += "\n".join(
         f"export {key}={shlex.quote(value)}" for key, value in exports.items()
     )
+    if profile == "spark":
+        # Defaults apply when the shell is launched, not when it is installed.
+        # Preserve an explicit operator value, including a disabled gate.
+        for key, value in SPARK_RUNTIME_DEFAULTS.items():
+            text += f'\nexport {key}="${{{key}-{value}}}"'
     bins = os.pathsep.join((str(repo / ".openclaw-cli/bin"), str(repo / ".venv/bin"), str(Path.home() / ".local/bin")))
     text += f'\nexport PATH={shlex.quote(bins)}:"$PATH"\n'
     temporary.write_text(text)

@@ -107,10 +107,11 @@ def test_producer_captures_render_mask_in_same_frame(capture_bridge):
             return SimpleNamespace(numpy=lambda: ids), {"idToLabels": {"1": ROBOT + "/mesh", "2": "/World_Props/pink_cube"}}
         return old_sensor.get_data(name)
 
-    b.env["_annotators"]["cam0"] = (SimpleNamespace(get_data=get_data), K)
+    b.env["_annotators"]["cam0"] = (SimpleNamespace(get_data=get_data,
+        get_render_times=old_sensor.get_render_times, render_product_id=old_sensor.render_product_id), K)
     b.env["_PIXEL_MASK_ENABLED"] = True
     b.env["_encode_robot_mask"] = runpy.run_path(str(HELPER))["encode_robot_mask"]
-    b.env["_refresh_frames"]()
+    b.publish()
     p = b.env["_frames"]["cam0"]
     assert p.get("robot_pixel_mask") is not None
     assert p["robot_pixel_mask"]["t"] == p["proprioception"]["t"]

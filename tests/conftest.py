@@ -1,4 +1,8 @@
 import ast
+import copy
+import math
+import runpy
+import uuid
 import select
 import subprocess
 import sys
@@ -28,6 +32,14 @@ def load_isaac_bridge_definitions(names, env):
     path = REPO / "scripts/isaac_bridge.py"
     tree = ast.parse(path.read_text(), filename=str(path))
     wanted = set(names) | {"_bridge_should_stop", "_request_shutdown"}
+    if "Handler" in wanted or "_refresh_frames" in wanted:
+        wanted.add("_gripper_joint_snapshot")
+    if "_refresh_frames" in wanted or "_settle_props" in wanted:
+        wanted.add("_camera_capture_due")
+    if "_refresh_frames" in wanted:
+        wanted.add("_render_token")
+    if "_step_with_frame_history" in wanted:
+        wanted.update({"_capture_frame_state", "_invalidate_frame_history", "_gripper_joint_snapshot"})
     nodes = [node for node in tree.body
              if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in wanted]
     assert {node.name for node in nodes} == wanted
@@ -35,6 +47,19 @@ def load_isaac_bridge_definitions(names, env):
     env.setdefault("os", SimpleNamespace(path=SimpleNamespace(lexists=lambda _path: False)))
     env.setdefault("_shutdown_requested", False)
     env.setdefault("_camera_video", None)
+    env.setdefault("GRIP_IDX", [])
+    env.setdefault("_motion_clock_epoch", "test-bridge-epoch")
+    env.setdefault("_last_camera_capture_started", None)
+    env.setdefault("copy", copy)
+    env.setdefault("math", math)
+    env.setdefault("uuid", uuid)
+    if "_refresh_frames" in wanted or "_step_with_frame_history" in wanted:
+        helper = runpy.run_path(str(REPO / "scripts/isaac_frame_history.py"))
+        for name in ("FrameHistory", "ClockDiscontinuity", "reference_key"):
+            env.setdefault(name, helper[name])
+        env.setdefault("_frame_history", helper["FrameHistory"]())
+        env.setdefault("_published_frame_tokens", {})
+        env.setdefault("_camera_frame_errors", {})
     exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), "exec"), env)
 
 

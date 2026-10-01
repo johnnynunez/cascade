@@ -1,0 +1,232 @@
+{
+  "scope": "Individual physical finger feedback while the command is open, bound to original phase timestamps; numerical/tracking calibration only. No object truth supplied to planning. Observed extrema are not a universal bound.",
+  "script_sha256": "6b00ba490b50cb6b319d752176333eec6ea121466640dd39551abd372ed0f6f6",
+  "cases": [
+    {
+      "object": "green",
+      "attempt": "1790818438140538464-610516-fa6fc2a00d6d464b86c256879ad42f5a",
+      "witness_sha256": "e70d64c013342669ccbf3315720f44fe08e6b762906d729e6b9fb6d69a562a32",
+      "attempt_sha256": "860f920e97021f88f0d7144e649976b0daef1a804347208ab22a8686ce3f6fa7",
+      "phases": {
+        "home": {
+          "samples": 62,
+          "first_sequence": 48,
+          "last_sequence": 109,
+          "minimum_position_m": [
+            0.049999743700027466,
+            0.04999964311718941
+          ],
+          "maximum_position_m": [
+            0.05000002309679985,
+            0.05000001937150955
+          ],
+          "position_range_um": [
+            0.27939677238464355,
+            0.3762543201446533
+          ],
+          "minimum_error_from_open_um": [
+            -0.25704503059387207,
+            -0.35762786865234375
+          ],
+          "maximum_error_from_open_um": [
+            0.022351741790771484,
+            0.01862645149230957
+          ],
+          "max_absolute_error_from_open_um": [
+            0.25704503059387207,
+            0.35762786865234375
+          ],
+          "samples_with_contact_on_target": 0,
+          "target_contact_scope": "These contact sensors observe the requested target only; neighbor contact absence is not established.",
+          "no_target_contact_max_absolute_error_um": [
+            0.25704503059387207,
+            0.35762786865234375
+          ]
+        },
+        "pregrasp": {
+          "samples": 304,
+          "first_sequence": 110,
+          "last_sequence": 413,
+          "minimum_position_m": [
+            0.04999973252415657,
+            0.04992946982383728
+          ],
+          "maximum_position_m": [
+            0.05000074580311775,
+            0.050000015646219254
+          ],
+          "position_range_um": [
+            1.0132789611816406,
+            70.54582238197327
+          ],
+          "minimum_error_from_open_um": [
+            -0.2682209014892578,
+            -70.53092122077942
+          ],
+          "maximum_error_from_open_um": [
+            0.7450580596923828,
+            0.014901161193847656
+          ],
+          "max_absolute_error_from_open_um": [
+            0.7450580596923828,
+            70.53092122077942
+          ],
+          "samples_with_contact_on_target": 0,
+          "target_contact_scope": "These contact sensors observe the requested target only; neighbor contact absence is not established.",
+          "no_target_contact_max_absolute_error_um": [
+            0.7450580596923828,
+            70.53092122077942
+          ]
+        },
+        "descent": {
+          "samples": 134,
+          "first_sequence": 414,
+          "last_sequence": 547,
+          "minimum_position_m": [
+            0.05000000074505806,
+            0.04998299479484558
+          ],
+          "maximum_position_m": [
+            0.05000002682209015,
+            0.04998715594410896
+          ],
+          "position_range_um": [
+            0.0260770320892334,
+            4.161149263381958
+          ],
+          "minimum_error_from_open_um": [
+            0.0,
+            -17.005950212478638
+          ],
+          "maximum_error_from_open_um": [
+            0.0260770320892334,
+            -12.84480094909668
+          ],
+          "max_absolute_error_from_open_um": [
+            0.0260770320892334,
+            17.005950212478638
+          ],
+          "samples_with_contact_on_target": 0,
+          "target_contact_scope": "These contact sensors observe the requested target only; neighbor contact absence is not established.",
+          "no_target_contact_max_absolute_error_um": [
+            0.0260770320892334,
+            17.005950212478638
+          ]
+        }
+      }
+    },
+    {
+      "object": "orange",
+      "attempt": "1790818825075088880-610516-d41f14baed4042529174daeb0546ebc9",
+      "witness_sha256": "562afbcd0c11c87e593513a2500728bd42ba711a3e7f7e075098a65a355a2ac2",
+      "attempt_sha256": "ff87bb22099598293b5f029fe3479ac605b02c048069d74e6b56bf548b6ec147",
+      "phases": {
+        "home": {
+          "samples": 65,
+          "first_sequence": 85,
+          "last_sequence": 149,
+          "minimum_position_m": [
+            0.04999973997473717,
+            0.04999964311718941
+          ],
+          "maximum_position_m": [
+            0.05000001937150955,
+            0.050000015646219254
+          ],
+          "position_range_um": [
+            0.27939677238464355,
+            0.3725290298461914
+          ],
+          "minimum_error_from_open_um": [
+            -0.260770320892334,
+            -0.35762786865234375
+          ],
+          "maximum_error_from_open_um": [
+            0.01862645149230957,
+            0.014901161193847656
+          ],
+          "max_absolute_error_from_open_um": [
+            0.260770320892334,
+            0.35762786865234375
+          ],
+          "samples_with_contact_on_target": 0,
+          "target_contact_scope": "These contact sensors observe the requested target only; neighbor contact absence is not established.",
+          "no_target_contact_max_absolute_error_um": [
+            0.260770320892334,
+            0.35762786865234375
+          ]
+        },
+        "pregrasp": {
+          "samples": 316,
+          "first_sequence": 150,
+          "last_sequence": 465,
+          "minimum_position_m": [
+            0.049950841814279556,
+            0.04999997094273567
+          ],
+          "maximum_position_m": [
+            0.05000002309679985,
+            0.05000045523047447
+          ],
+          "position_range_um": [
+            49.18128252029419,
+            0.48428773880004883
+          ],
+          "minimum_error_from_open_um": [
+            -49.15893077850342,
+            -0.029802322387695312
+          ],
+          "maximum_error_from_open_um": [
+            0.022351741790771484,
+            0.4544854164123535
+          ],
+          "max_absolute_error_from_open_um": [
+            49.15893077850342,
+            0.4544854164123535
+          ],
+          "samples_with_contact_on_target": 0,
+          "target_contact_scope": "These contact sensors observe the requested target only; neighbor contact absence is not established.",
+          "no_target_contact_max_absolute_error_um": [
+            49.15893077850342,
+            0.4544854164123535
+          ]
+        },
+        "descent": {
+          "samples": 149,
+          "first_sequence": 466,
+          "last_sequence": 614,
+          "minimum_position_m": [
+            0.0390067994594574,
+            0.048554692417383194
+          ],
+          "maximum_position_m": [
+            0.050081223249435425,
+            0.05000533536076546
+          ],
+          "position_range_um": [
+            11074.423789978027,
+            1450.6429433822632
+          ],
+          "minimum_error_from_open_um": [
+            -10993.201285600662,
+            -1445.3083276748657
+          ],
+          "maximum_error_from_open_um": [
+            81.22250437736511,
+            5.334615707397461
+          ],
+          "max_absolute_error_from_open_um": [
+            10993.201285600662,
+            1445.3083276748657
+          ],
+          "samples_with_contact_on_target": 55,
+          "target_contact_scope": "These contact sensors observe the requested target only; neighbor contact absence is not established.",
+          "no_target_contact_max_absolute_error_um": [
+            10993.201285600662,
+            169.1766083240509
+          ]
+        }
+      }
+    }
+  ]
+}

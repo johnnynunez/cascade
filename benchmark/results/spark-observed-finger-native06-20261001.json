@@ -1,0 +1,1701 @@
+{
+  "schema": 1,
+  "scope": "Native launch06 is NOT READY. Green native placement/reset and external audit pass; orange planning rejects its only eligible GGX candidate. No five-object or restart acceptance.",
+  "source": "b28ebc3459199c961764e57e16bc33329ede00bc",
+  "validation": {
+    "full_suite_source": "67ebf9d0607a7600d8a6e8ac4c64e46327d0a2b4",
+    "passed": 2658,
+    "skipped": 43,
+    "deselected": 2,
+    "seconds": 320.6,
+    "log_sha256": "58a7da0dfdec909f967d1a947ac694ac5eb6fc98d2e802dadd80dfaadc5aaa53",
+    "final_pin_difference": "Only CI workflow installs already-declared grasp-safety extra; runtime and tests unchanged."
+  },
+  "session_id": "cascade-proof-4ba58b854fc242688bb3b6cff836bbd5",
+  "proof_verified": false,
+  "proof_sha256": "2b8e90a377f228ed89574ac233278fd2ad479a35b8e6e5d1b09dc2717eb0098b",
+  "driver": {
+    "source": "b28ebc3459199c961764e57e16bc33329ede00bc",
+    "started_unix_s": 1790825867.7309747,
+    "command": [
+      "python3",
+      "/home/spark/Projects/cascade-native-0fee56f-20261001/scripts/desktop.py",
+      "launch",
+      "--repo",
+      "/home/spark/Projects/cascade-native-0fee56f-20261001",
+      "--headless",
+      "--no-open"
+    ],
+    "environment_overrides": {
+      "CASCADE_GRASP_EVIDENCE_DIR": "/home/spark/Projects/cascade-native-0fee56f-20261001/runs/native-acceptance-20261001/grasp-evidence-06",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "CASCADE_LAUNCH_STATE": "/home/spark/Projects/cascade-native-0fee56f-20261001/runs/.launch",
+      "CASCADE_GRASP_MEMORY_PATH": "/home/spark/Projects/cascade-native-0fee56f-20261001/runs/.launch/profile-cascade-demo/memory/grasp_memory.json"
+    },
+    "proof_timeout_scale": "default1",
+    "environment_removed_for_default_verification": [
+      "CASCADE_PROOF_TIMEOUT_SCALE",
+      "CASCADE_OBSERVED_FINGER_GATE",
+      "CASCADE_ISAAC_CAM_EVERY",
+      "CASCADE_ISAAC_DT",
+      "CASCADE_ISAAC_WIDTH",
+      "CASCADE_ISAAC_HEIGHT"
+    ],
+    "expected_installed_defaults": {
+      "observed_finger_gate": "1",
+      "camera_every": 6,
+      "physics_dt_s": 0.008333333333333333,
+      "width": 1280,
+      "height": 720
+    },
+    "scope": "Normal native desktop launch with retained memory, reviewed30Hz targets, corrected mask alignment and approach/closing preflight. Camera, physics and gate settings come from the installed Spark defaults; no inherited overrides for these settings or the original motion/settle/MCP budgets.",
+    "passive_capture_receipt_sha256": "7c1886a19e948bd18e1eda4772fc64ab5886223f9cc7e88836e14cd41a70b694",
+    "passive_scope": "Bridge/camera implementation shared with passivecf71ab2; control/gate candidate is exercised by this native run itself",
+    "driver_script_sha256": "cd999b95780ab2245ed29a3717b1d92faba9040332c02e71f4b1b2a76442e6ca",
+    "snapshots_before_sha256": {
+      "runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "6b3b63d57681f4e40e69519d945c5857f29e3f0f24cfc10cbc5b962dec9a01f2",
+      "runs/.launch/profile-cascade-demo/proof.json": "171ff2efc302acc3f220766dd2bfc0933f381b006d4c45dc6dd8dd52e088d5f5",
+      "runs/.install/install.json": "857c03b4e8c98e55f99787b5e5b3f3f1298de2ca0bc2016f60de7cf0c3bb7a66",
+      "runs/.install/desktop-latest.json": "59e25d7ae68cfcb3ab3bb6fbdef9dbc74b830cbbf6d09bbf51c17b4deb5dc9bc"
+    },
+    "errors": [],
+    "desktop_pid": 673779,
+    "desktop_birth_ticks": 7176152,
+    "exit_code": 1,
+    "finished_unix_s": 1790826352.2476232,
+    "source_after": "b28ebc3459199c961764e57e16bc33329ede00bc",
+    "tracked_changes_after": "",
+    "memory_after_sha256": "1fec55d5187f16bc5ed38e340bcee0b4b5d05b2c6040cb8e01cc6ed214439304"
+  },
+  "archive": {
+    "name": "launch-06-retained.tar.gz",
+    "bytes": 17651075,
+    "sha256": "a28c0e8302a70a1e441d16dd555533e4d9a2b991d8e46d612342070db1f57134",
+    "verified_files": 82
+  },
+  "native_tools": [
+    {
+      "step": 0,
+      "skill": "describe_scene",
+      "args": {},
+      "duration_ms": 404.5,
+      "ok": true
+    },
+    {
+      "step": 1,
+      "skill": "pick_and_place",
+      "args": {
+        "object": "green cube",
+        "destination": "green square"
+      },
+      "duration_ms": 229142.5,
+      "ok": true
+    },
+    {
+      "step": 2,
+      "skill": "reset_scene",
+      "args": {},
+      "duration_ms": 30727.0,
+      "ok": true
+    },
+    {
+      "step": 3,
+      "skill": "describe_scene",
+      "args": {},
+      "duration_ms": 365.4,
+      "ok": true
+    },
+    {
+      "step": 4,
+      "skill": "pick_and_place",
+      "args": {
+        "object": "orange",
+        "destination": "open box"
+      },
+      "duration_ms": 1516.6,
+      "ok": false
+    }
+  ],
+  "strict_checker": {
+    "sha256": "e7b30aad5f72436f78187e79f589d92b09b5ac28a119d5e4c47f57992b7533ac",
+    "pass": false,
+    "errors": [
+      "proof is incomplete or verified is not true"
+    ],
+    "cases": [
+      {
+        "object": "green_cube",
+        "pass": true,
+        "errors": []
+      },
+      {
+        "object": "orange",
+        "pass": false,
+        "errors": [
+          "EvidenceError: completed case receipt is missing from proof"
+        ]
+      }
+    ]
+  },
+  "green_physics": {
+    "pass": true,
+    "object_name": "green_cube",
+    "checks": {
+      "complete_observation": true,
+      "all_phase_boundaries": true,
+      "live_prop_names_match_expected": true,
+      "spawn_prop_names_match_expected": true,
+      "spawn_positions_finite_and_unchanged": true,
+      "all_props_physically_reset_and_settled": true,
+      "scene_config_sha256_matches": true,
+      "prop_dimensions_match": true,
+      "cube_collider_geometry_matches": true,
+      "green_square_geometry_matches": true,
+      "scene_name_matches": true,
+      "scene_assets_sha256_matches": true,
+      "scene_content_sha256_matches": true,
+      "open_box_geometry_matches": true,
+      "ordered_phases": true,
+      "strict_pick_place_and_cameras": true,
+      "whole_cube_inside_green_square_throughout_settle": true,
+      "all_physics_tensors_cuda": true,
+      "single_supported_engine": true,
+      "gpu_backend_no_fallback": true,
+      "contact_sensor_and_actual_jaws_bound": true,
+      "two_jaw_contacts_during_real_lift": true,
+      "reset_settle_window": true,
+      "whole_footprint_enters_destination_with_bilateral_support": true,
+      "all_event_cameras_advance": true
+    },
+    "errors": [],
+    "pick": {
+      "pass": true,
+      "physics_pass": true,
+      "camera_pass": true,
+      "checks": {
+        "physics_channel": true,
+        "same_robot_and_engine": true,
+        "same_observed_prop_set": true,
+        "physics_clock_advances": true,
+        "finite_all_observed_state": true,
+        "actual_joints_within_limits": true,
+        "final_window_long_enough": true,
+        "valid_final_orientations": true,
+        "upright_support_geometry": true,
+        "gripper_readback_matches_actual_q": true,
+        "released_actual_jaws": true,
+        "destination_xy": true,
+        "supported_z": true,
+        "settled_linear_speed": true,
+        "settled_angular_speed": true,
+        "stable_final_position": true,
+        "observed_lift": true,
+        "observed_xy_displacement": true
+      },
+      "metrics": {
+        "samples": 1424,
+        "final_samples": 13,
+        "simulation_elapsed_s": 49.266666666666666,
+        "final_window_sim_s": 0.5166666666666657,
+        "lift_m": 0.09320503659546375,
+        "xy_displacement_m": 0.30071091919326115,
+        "final_xy_error_m": 0.0038234773931450053,
+        "max_final_xy_error_m": 0.0038235068996983236,
+        "max_final_support_z_error_m": 2.186971631568113e-09,
+        "max_final_linear_speed_m_s": 2.6188780738371808e-05,
+        "max_final_angular_speed_rad_s": 0.00041393040061939813,
+        "max_final_position_spread_m": 3.337203127736024e-08,
+        "max_final_tilt_deg": 6.854691214060673e-05,
+        "min_final_actual_open_fraction": 0.999999478459366,
+        "max_frame_age_s": 1.2367710070102476,
+        "unique_jpeg_hashes": 494
+      },
+      "object": "green_cube",
+      "target_xy": [
+        0.14,
+        -0.27
+      ],
+      "support_top_z": -3.3527612630646075e-10,
+      "object_half_height": 0.03,
+      "scope": "physical destination and camera audit; chat transcript is separate evidence",
+      "support_geometry": {
+        "method": "upright_half_height",
+        "half_height_argument_used": true,
+        "upright_tilt_limit_applied": true
+      },
+      "criteria": {
+        "xy_tolerance_m": 0.04,
+        "z_tolerance_m": 0.005,
+        "settle_sim_s": 0.5,
+        "min_final_samples": 4,
+        "max_linear_speed_m_s": 0.02,
+        "max_angular_speed_rad_s": 0.2,
+        "max_position_spread_m": 0.005,
+        "min_open_fraction": 0.9,
+        "max_tilt_deg": 5,
+        "min_lift_m": 0.015,
+        "min_xy_displacement_m": 0.02,
+        "max_frame_age_s": 2
+      },
+      "limitations": [
+        "Support test uses upright collider half-height; tilted objects fail the declared tilt bound.",
+        "Actual open jaws and settled support pose establish release here; no contact-force sensor is claimed."
+      ],
+      "camera_checks": {
+        "frames_available": true,
+        "frame_clock_advances": true,
+        "frames_recent": true,
+        "frame_robot_binding": true,
+        "visual_changes_during_motion": true
+      },
+      "failed_checks": [],
+      "destination_name": "green square"
+    },
+    "reset": {
+      "pink_cube": {
+        "max_spawn_error_m": 4.305546243245479e-08,
+        "max_speed_m_s": 2.709880105038558e-05,
+        "max_spin_rad_s": 0.00045005578759210307,
+        "max_spread_m": 3.337203127736024e-08,
+        "pass": true
+      },
+      "green_cube": {
+        "max_spawn_error_m": 1.5251436078421664e-08,
+        "max_speed_m_s": 1.5253532101828422e-05,
+        "max_spin_rad_s": 0.00045175513364563376,
+        "max_spread_m": 1.4930236657970956e-08,
+        "pass": true
+      },
+      "tomato_can": {
+        "max_spawn_error_m": 6.070645066279679e-08,
+        "max_speed_m_s": 0.00015858189337025907,
+        "max_spin_rad_s": 0.0011123392540062496,
+        "max_spread_m": 9.570444061357624e-08,
+        "pass": true
+      },
+      "lemon": {
+        "max_spawn_error_m": 7.176201959695758e-09,
+        "max_speed_m_s": 2.641669105685196e-10,
+        "max_spin_rad_s": 0.0,
+        "max_spread_m": 0.0,
+        "pass": true
+      },
+      "orange": {
+        "max_spawn_error_m": 7.638942475269053e-09,
+        "max_speed_m_s": 1.2222169942788241e-09,
+        "max_spin_rad_s": 0.0,
+        "max_spread_m": 0.0,
+        "pass": true
+      }
+    },
+    "destination_name": "green square",
+    "expected_props": [
+      "pink_cube",
+      "green_cube",
+      "tomato_can",
+      "lemon",
+      "orange"
+    ],
+    "scene_geometry": {
+      "pass": true,
+      "checks": {
+        "scene_config_sha256_matches": true,
+        "prop_dimensions_match": true,
+        "cube_collider_geometry_matches": true,
+        "green_square_geometry_matches": true,
+        "scene_name_matches": true,
+        "scene_assets_sha256_matches": true,
+        "scene_content_sha256_matches": true,
+        "open_box_geometry_matches": true
+      },
+      "samples": 1858,
+      "expected": {
+        "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+        "prop_dimensions_m": {
+          "pink_cube": [
+            0.0375,
+            0.0375,
+            0.06
+          ],
+          "green_cube": [
+            0.0375,
+            0.0375,
+            0.06
+          ],
+          "tomato_can": [
+            0.05445,
+            0.05445,
+            0.0825
+          ],
+          "lemon": [
+            0.0684,
+            0.0432,
+            0.0432
+          ],
+          "orange": [
+            0.05163983628153801,
+            0.05232211947441101,
+            0.05276046320796013
+          ]
+        },
+        "target_pad": {
+          "name": "green square",
+          "center_xy_m": [
+            0.14,
+            -0.27
+          ],
+          "outer_size_m": 0.16,
+          "border_width_m": 0.01,
+          "surface_z_m": 0.0006,
+          "support_top_z_m": 0.0
+        },
+        "scene_name": "paai-cocina-asier-v1",
+        "scene_assets_sha256": "3233acf21b6db660ea73587f9ea79f21a0ece340724a52c6cb94624ce53f4a45",
+        "scene_content_sha256": "512be8fd416ed9569d8eba78f8d18b4c0c85098b1d13afdd486e93e2625e7de3",
+        "convex_colliders": {
+          "tomato_can": {
+            "proxy": "cylinder",
+            "mass_kg": 0.067381875,
+            "dimensions_m": [
+              0.05445,
+              0.05445,
+              0.0825
+            ]
+          },
+          "lemon": {
+            "proxy": "ellipsoid",
+            "mass_kg": 0.047385,
+            "dimensions_m": [
+              0.0684,
+              0.0432,
+              0.0432
+            ]
+          },
+          "orange": {
+            "proxy": "ellipsoid",
+            "mass_kg": 0.0686,
+            "dimensions_m": [
+              0.05163983628153801,
+              0.05232211947441101,
+              0.05276046320796013
+            ]
+          }
+        },
+        "open_box": {
+          "name": "open box",
+          "center_xy_m": [
+            0.3,
+            -0.14
+          ],
+          "outer_dimensions_m": [
+            0.14,
+            0.14,
+            0.04
+          ],
+          "interior_dimensions_m": [
+            0.128,
+            0.128,
+            0.036
+          ],
+          "wall_thickness_m": 0.006,
+          "base_thickness_m": 0.004,
+          "support_top_z_m": 0.004,
+          "rim_top_z_m": 0.04
+        }
+      },
+      "geometry_readback_tolerance_m": 1e-06
+    },
+    "object_geometry": {
+      "dimensions_m": [
+        0.0375,
+        0.0375,
+        0.06
+      ],
+      "half_height_m": 0.03,
+      "source": "live _PROP_DIMENSIONS matched to reviewed scene SHA-256 and measured cube collider"
+    },
+    "footprint": {
+      "pass": true,
+      "destination_name": "green square",
+      "method": "all eight rotated cuboid corners",
+      "dimensions_m": [
+        0.0375,
+        0.0375,
+        0.06
+      ],
+      "final_samples": 13,
+      "final_window_sim_s": 0.5166666666666657,
+      "settle_window_complete": true,
+      "inner_bounds_xy_m": [
+        [
+          0.07,
+          -0.34
+        ],
+        [
+          0.21000000000000002,
+          -0.2
+        ]
+      ],
+      "observed_footprint_bounds_xy_m": [
+        [
+          0.12153527250221902,
+          -0.292787613693864
+        ],
+        [
+          0.15953939974622813,
+          -0.2547834815455116
+        ]
+      ],
+      "min_final_bottom_z_m": -3.2289529848517073e-08,
+      "max_final_bottom_z_m": -2.146918377798901e-08,
+      "min_inner_clearance_m": 0.047212386306136,
+      "max_final_center_error_m": 0.0038235068996983236,
+      "center_tolerance_m": 0.04,
+      "boundary_tolerance_m": 0.0
+    },
+    "bilateral_lift_contacts": {
+      "samples": 591,
+      "first_physics_step": 5482,
+      "last_physics_step": 7828
+    },
+    "supported_destination_entry": {
+      "pass": true,
+      "check": "whole_footprint_enters_destination_while_lifted_with_bilateral_support",
+      "object_name": "green_cube",
+      "destination_name": "green square",
+      "samples": 1424,
+      "inner_bounds_xy_m": 2,
+      "collider_vertices": 8,
+      "supported_lift_samples": 591,
+      "supported_inside_distinct_steps": 208,
+      "best_supported_inner_clearance_m": 0.048895027058109886,
+      "supported_inside": 208,
+      "inside_lifted_without_bilateral_support_samples": 0,
+      "scope": "Positive sampled grip at full destination entry; no continuous retention or commanded-release timing assertion"
+    },
+    "event_cameras": {
+      "pass": true,
+      "cameras": {
+        "cam0": {
+          "pass": true,
+          "phase_advancement": {
+            "pick": true,
+            "reset": true
+          },
+          "unique_jpeg_hashes": 603
+        },
+        "side": {
+          "pass": true,
+          "phase_advancement": {
+            "pick": true,
+            "reset": true
+          },
+          "unique_jpeg_hashes": 603
+        },
+        "proof": {
+          "pass": true,
+          "phase_advancement": {
+            "pick": true,
+            "reset": true
+          },
+          "unique_jpeg_hashes": 603
+        }
+      }
+    }
+  },
+  "grasp_attempts": [
+    {
+      "attempt_id": "1790825987960288739-675224-7eb5741fe9a049d89876733529811873",
+      "sha256": "c3cb6c1b72164589dc9f0b3564caed5e711d2766a733bdbd971f6d3135b63abc",
+      "duration_s": 100.66383433999727,
+      "logging_ok": true,
+      "event_counts": {
+        "request": 1,
+        "configuration": 1,
+        "array": 10,
+        "localized": 1,
+        "material_profile": 1,
+        "phase": 8,
+        "ggx_configuration": 1,
+        "ggx_response": 1,
+        "backend_candidates": 1,
+        "memory_prior": 1,
+        "planned_candidates": 1,
+        "floor_adjusted_candidates": 1,
+        "isaac_feedback": 1223,
+        "observed_finger_gate": 1,
+        "selection_input": 1,
+        "jaw_datum": 1,
+        "ik_targets": 2,
+        "pregrasp_ik": 2,
+        "grasp_ik": 2,
+        "candidate_validation": 2,
+        "selected": 1,
+        "isaac_gripper_target_sent": 3,
+        "move_target": 4,
+        "isaac_joint_target_sent": 390,
+        "observed_finger_close_preflight": 2,
+        "close_stage": 2,
+        "grip_verification": 1,
+        "result": 1
+      },
+      "last_event": {
+        "kind": "result",
+        "phase": "verify",
+        "elapsed_s": 100.66379630699521,
+        "data": {
+          "result": {
+            "held": "green cube",
+            "grip_profile": "rigid",
+            "grip_verified": true,
+            "gripper_open_frac": 0.42,
+            "grasp_width_m": 0.049
+          }
+        }
+      }
+    },
+    {
+      "attempt_id": "1790826342265527691-675224-299fdf1894584b0f984408c8dccb99cf",
+      "sha256": "a0688445c5538b617b72f5ad1985e9ed1fc44ebf7a80d417d03374433a418881",
+      "duration_s": 1.4996513450023485,
+      "logging_ok": true,
+      "event_counts": {
+        "request": 1,
+        "configuration": 1,
+        "array": 10,
+        "localized": 1,
+        "material_profile": 1,
+        "phase": 1,
+        "ggx_configuration": 1,
+        "ggx_response": 1,
+        "backend_candidates": 1,
+        "memory_prior": 1,
+        "memory_reranked_candidates": 1,
+        "planned_candidates": 1,
+        "floor_adjusted_candidates": 1,
+        "isaac_feedback": 1,
+        "observed_finger_gate": 1,
+        "selection_input": 1,
+        "jaw_datum": 1,
+        "ik_targets": 1,
+        "pregrasp_ik": 1,
+        "grasp_ik": 1,
+        "observed_finger_candidate_rejected": 1,
+        "candidate_validation": 1,
+        "attempt_exception": 1
+      },
+      "last_event": {
+        "kind": "attempt_exception",
+        "phase": "planning",
+        "elapsed_s": 1.4996286730020074,
+        "data": {
+          "exception_type": "SkillError",
+          "message": "no executable grasp: orange: pregrasp finger intersects observed surface: {'sample_index': 205, 'finger': 'joint_left', 'component': 6, 'surface': 'other observed surface', 'pixel_rc': [159, 788], 'point_base_m': [0.22487443580934152, 0.1876252322740024, 0.08235759423571576]}"
+        }
+      }
+    }
+  ],
+  "effective_defaults": {
+    "captured_unix_s": 1790826324.2806454,
+    "source": "b28ebc3459199c961764e57e16bc33329ede00bc",
+    "repo": "/home/spark/Projects/cascade-native-0fee56f-20261001",
+    "owner": "a138c08b805341dab1a0d8af1116d40e",
+    "allowlist": [
+      "CASCADE_OBSERVED_FINGER_GATE",
+      "CASCADE_ISAAC_CAM_EVERY",
+      "CASCADE_ISAAC_DT",
+      "CASCADE_ISAAC_WIDTH",
+      "CASCADE_ISAAC_HEIGHT",
+      "CASCADE_PROOF_TIMEOUT_SCALE"
+    ],
+    "processes": [
+      {
+        "pid": 673890,
+        "ppid": 673847,
+        "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:7176699",
+        "uid": 1000,
+        "owner_binding": "matching owned pid record",
+        "role": "isaac_bridge",
+        "ancestry": [
+          {
+            "pid": 673890,
+            "ppid": 673847,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:7176699",
+            "uid": 1000
+          },
+          {
+            "pid": 673847,
+            "ppid": 673780,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:7176601",
+            "uid": 1000
+          },
+          {
+            "pid": 673780,
+            "ppid": 673779,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:7176156",
+            "uid": 1000
+          },
+          {
+            "pid": 673779,
+            "ppid": 673774,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:7176152",
+            "uid": 1000
+          },
+          {
+            "pid": 673774,
+            "ppid": 280318,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:7176149",
+            "uid": 1000
+          },
+          {
+            "pid": 280318,
+            "ppid": 280136,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:3178962",
+            "uid": 1000
+          },
+          {
+            "pid": 280136,
+            "ppid": 219198,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:3178923",
+            "uid": 0
+          },
+          {
+            "pid": 219198,
+            "ppid": 1,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:2188710",
+            "uid": 0
+          }
+        ],
+        "environment": {
+          "CASCADE_OBSERVED_FINGER_GATE": null,
+          "CASCADE_ISAAC_CAM_EVERY": "6",
+          "CASCADE_ISAAC_DT": "0.008333333333333333",
+          "CASCADE_ISAAC_WIDTH": null,
+          "CASCADE_ISAAC_HEIGHT": null,
+          "CASCADE_PROOF_TIMEOUT_SCALE": null
+        },
+        "absent_keys": [
+          "CASCADE_OBSERVED_FINGER_GATE",
+          "CASCADE_ISAAC_WIDTH",
+          "CASCADE_ISAAC_HEIGHT",
+          "CASCADE_PROOF_TIMEOUT_SCALE"
+        ]
+      },
+      {
+        "pid": 675224,
+        "ppid": 675217,
+        "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:7184502",
+        "uid": 1000,
+        "owner_binding": "live ancestry to matching owned gateway record",
+        "role": "mcp",
+        "ancestry": [
+          {
+            "pid": 675224,
+            "ppid": 675217,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:7184502",
+            "uid": 1000
+          },
+          {
+            "pid": 675217,
+            "ppid": 675209,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:7184499",
+            "uid": 1000
+          },
+          {
+            "pid": 675209,
+            "ppid": 674796,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:7184497",
+            "uid": 1000
+          },
+          {
+            "pid": 674796,
+            "ppid": 1,
+            "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:7183051",
+            "uid": 1000
+          }
+        ],
+        "environment": {
+          "CASCADE_OBSERVED_FINGER_GATE": "1",
+          "CASCADE_ISAAC_CAM_EVERY": null,
+          "CASCADE_ISAAC_DT": null,
+          "CASCADE_ISAAC_WIDTH": null,
+          "CASCADE_ISAAC_HEIGHT": null,
+          "CASCADE_PROOF_TIMEOUT_SCALE": null
+        },
+        "absent_keys": [
+          "CASCADE_ISAAC_CAM_EVERY",
+          "CASCADE_ISAAC_DT",
+          "CASCADE_ISAAC_WIDTH",
+          "CASCADE_ISAAC_HEIGHT",
+          "CASCADE_PROOF_TIMEOUT_SCALE"
+        ]
+      }
+    ],
+    "record_hashes": {
+      "owner.json": "58e7065d362aaf86547a83673b45c8ee0db1c49e1bc456d941fca0ea060e7753",
+      "isaac_bridge.pid": "2ef346fd4c193b9af7b3a45246f45f8ddc947cf44f94cbf23ba3c07dc1f08d0d",
+      "gateway_child.pid": "d7ac288a41640fc597354e65c651809532d0bf6216cd18ab7890f441f4182619"
+    }
+  },
+  "green_neighbors": {
+    "analysis_sha256": "bb56ce315f25c1a5e4b873bf33ae9f64e2db05409427a9c1f65447e3de91865d",
+    "analyzer_sha256": "b439309f008631fda8ace4af50345f097e0bc1eaea5c592a608f1c29b01998dc",
+    "scope": "Sampled displacement in home/pregrasp/descent/close/lift; not continuous collision proof or measured neighbor force.",
+    "phase_max_displacement_m": {
+      "home": {
+        "pink_cube": 6.00973732952091e-08,
+        "tomato_can": 7.487740830422111e-08,
+        "lemon": 0.0,
+        "orange": 0.0
+      },
+      "pregrasp": {
+        "pink_cube": 3.7299440045842505e-08,
+        "tomato_can": 9.13266142616515e-08,
+        "lemon": 0.0,
+        "orange": 0.0
+      },
+      "descent": {
+        "pink_cube": 6.00973732952091e-08,
+        "tomato_can": 7.679882693323606e-08,
+        "lemon": 0.0,
+        "orange": 0.0
+      },
+      "close": {
+        "pink_cube": 3.077594869184923e-08,
+        "tomato_can": 1.0106459234841567e-07,
+        "lemon": 0.0,
+        "orange": 0.0
+      },
+      "lift": {
+        "pink_cube": 3.077594869184923e-08,
+        "tomato_can": 6.674406255472048e-08,
+        "lemon": 0.0,
+        "orange": 0.0
+      }
+    }
+  },
+  "green_camera_ages": {
+    "cam0": {
+      "samples": 1858,
+      "missing_or_invalid_samples": 0,
+      "first_invalid": null,
+      "all_sampled_records_valid": true,
+      "distinct_captures": 603,
+      "maximum_observed_capture_gap_s": 6.411122133999015,
+      "server_snapshot_age_s": {
+        "maximum": 1.9633670070033986,
+        "maximum_sample": {
+          "sample": {
+            "line": 1669,
+            "sequence": 1668,
+            "physics_step": 10208,
+            "sim_time": 85.06666666666666,
+            "server_monotonic": 72177.753861081,
+            "client_started_monotonic": 72177.692804459,
+            "client_finished_monotonic": 72177.836930442
+          },
+          "capture_monotonic": 72175.790494074,
+          "server_snapshot_age_s": 1.9633670070033986,
+          "client_delivery_age_s": 2.046436368007562
+        },
+        "samples_over_2s": 0,
+        "first_over_2s": null
+      },
+      "client_delivery_age_s": {
+        "maximum": 2.046436368007562,
+        "maximum_sample": {
+          "sample": {
+            "line": 1669,
+            "sequence": 1668,
+            "physics_step": 10208,
+            "sim_time": 85.06666666666666,
+            "server_monotonic": 72177.753861081,
+            "client_started_monotonic": 72177.692804459,
+            "client_finished_monotonic": 72177.836930442
+          },
+          "capture_monotonic": 72175.790494074,
+          "server_snapshot_age_s": 1.9633670070033986,
+          "client_delivery_age_s": 2.046436368007562
+        },
+        "samples_over_2s": 2,
+        "first_over_2s": {
+          "sample": {
+            "line": 1438,
+            "sequence": 1437,
+            "physics_step": 9044,
+            "sim_time": 75.36666666666666,
+            "server_monotonic": 72125.297208659,
+            "client_started_monotonic": 72125.231522883,
+            "client_finished_monotonic": 72125.362048619
+          },
+          "capture_monotonic": 72123.355293415,
+          "server_snapshot_age_s": 1.9419152439950267,
+          "client_delivery_age_s": 2.006755203998182
+        }
+      }
+    },
+    "side": {
+      "samples": 1858,
+      "missing_or_invalid_samples": 0,
+      "first_invalid": null,
+      "all_sampled_records_valid": true,
+      "distinct_captures": 603,
+      "maximum_observed_capture_gap_s": 6.411122133999015,
+      "server_snapshot_age_s": {
+        "maximum": 1.9633670070033986,
+        "maximum_sample": {
+          "sample": {
+            "line": 1669,
+            "sequence": 1668,
+            "physics_step": 10208,
+            "sim_time": 85.06666666666666,
+            "server_monotonic": 72177.753861081,
+            "client_started_monotonic": 72177.692804459,
+            "client_finished_monotonic": 72177.836930442
+          },
+          "capture_monotonic": 72175.790494074,
+          "server_snapshot_age_s": 1.9633670070033986,
+          "client_delivery_age_s": 2.046436368007562
+        },
+        "samples_over_2s": 0,
+        "first_over_2s": null
+      },
+      "client_delivery_age_s": {
+        "maximum": 2.046436368007562,
+        "maximum_sample": {
+          "sample": {
+            "line": 1669,
+            "sequence": 1668,
+            "physics_step": 10208,
+            "sim_time": 85.06666666666666,
+            "server_monotonic": 72177.753861081,
+            "client_started_monotonic": 72177.692804459,
+            "client_finished_monotonic": 72177.836930442
+          },
+          "capture_monotonic": 72175.790494074,
+          "server_snapshot_age_s": 1.9633670070033986,
+          "client_delivery_age_s": 2.046436368007562
+        },
+        "samples_over_2s": 2,
+        "first_over_2s": {
+          "sample": {
+            "line": 1438,
+            "sequence": 1437,
+            "physics_step": 9044,
+            "sim_time": 75.36666666666666,
+            "server_monotonic": 72125.297208659,
+            "client_started_monotonic": 72125.231522883,
+            "client_finished_monotonic": 72125.362048619
+          },
+          "capture_monotonic": 72123.355293415,
+          "server_snapshot_age_s": 1.9419152439950267,
+          "client_delivery_age_s": 2.006755203998182
+        }
+      }
+    },
+    "proof": {
+      "samples": 1858,
+      "missing_or_invalid_samples": 0,
+      "first_invalid": null,
+      "all_sampled_records_valid": true,
+      "distinct_captures": 603,
+      "maximum_observed_capture_gap_s": 6.411122133999015,
+      "server_snapshot_age_s": {
+        "maximum": 1.9633670070033986,
+        "maximum_sample": {
+          "sample": {
+            "line": 1669,
+            "sequence": 1668,
+            "physics_step": 10208,
+            "sim_time": 85.06666666666666,
+            "server_monotonic": 72177.753861081,
+            "client_started_monotonic": 72177.692804459,
+            "client_finished_monotonic": 72177.836930442
+          },
+          "capture_monotonic": 72175.790494074,
+          "server_snapshot_age_s": 1.9633670070033986,
+          "client_delivery_age_s": 2.046436368007562
+        },
+        "samples_over_2s": 0,
+        "first_over_2s": null
+      },
+      "client_delivery_age_s": {
+        "maximum": 2.046436368007562,
+        "maximum_sample": {
+          "sample": {
+            "line": 1669,
+            "sequence": 1668,
+            "physics_step": 10208,
+            "sim_time": 85.06666666666666,
+            "server_monotonic": 72177.753861081,
+            "client_started_monotonic": 72177.692804459,
+            "client_finished_monotonic": 72177.836930442
+          },
+          "capture_monotonic": 72175.790494074,
+          "server_snapshot_age_s": 1.9633670070033986,
+          "client_delivery_age_s": 2.046436368007562
+        },
+        "samples_over_2s": 2,
+        "first_over_2s": {
+          "sample": {
+            "line": 1438,
+            "sequence": 1437,
+            "physics_step": 9044,
+            "sim_time": 75.36666666666666,
+            "server_monotonic": 72125.297208659,
+            "client_started_monotonic": 72125.231522883,
+            "client_finished_monotonic": 72125.362048619
+          },
+          "capture_monotonic": 72123.355293415,
+          "server_snapshot_age_s": 1.9419152439950267,
+          "client_delivery_age_s": 2.006755203998182
+        }
+      }
+    }
+  },
+  "orange_offline_replay": {
+    "source_commit": "b28ebc3459199c961764e57e16bc33329ede00bc",
+    "runtime_sha256": "8f82e1cc3cbb592a7c6ba2153b28b83e80ba54096fef3fedea39dac50fe885a3",
+    "geometry_sha256": "cccd4778c2a99ace06183c5d74ff787536ec399ccb06e704a4058fd452dac7b0",
+    "receipt_sha256": "a0688445c5538b617b72f5ad1985e9ed1fc44ebf7a80d417d03374433a418881",
+    "npz_sha256": "c04954817c51fab335493796069ad0102a7173326bd7bc135f8066eb0b4dda84",
+    "historic_receipt_sha256": "7f3e3548473dc9f13b4fe7d432a7f6906acb3b4974e3a248e739b7a8425c48e7",
+    "script_sha256": "d696d45f981139ccf461ba82434818c67c2ebff95ce5d939b26ebbaaf1c02ced",
+    "actuator_calls": 0,
+    "scope": "Exact native06 observed RGBD/target mask and floor-adjusted candidates. Historic05 candidates are counterfactual only. No replanning, no GT decision, no threshold change.",
+    "raw_filters": {
+      "poses": 400,
+      "score_at_least_025": 167,
+      "approach_z_at_most_minus095": 10,
+      "intersection": 1,
+      "surviving_indices": [
+        112
+      ]
+    },
+    "point_pixel159_788": {
+      "rgb_bgr": [
+        74,
+        84,
+        101
+      ],
+      "target_mask": false,
+      "robot_mask": false,
+      "depth_m": 0.9070591926574707
+    },
+    "rows": [
+      {
+        "mode": "actual",
+        "candidate_count": 1,
+        "ok": false,
+        "error_type": "SkillError",
+        "error": "no executable grasp: orange: pregrasp finger intersects observed surface: {'sample_index': 205, 'finger': 'joint_left', 'component': 6, 'surface': 'other observed surface', 'pixel_rc': [159, 788], 'point_base_m': [0.22487443580934152, 0.1876252322740024, 0.08235759423571576]}",
+        "wall_s": 0.07212318199162837,
+        "rejections": [
+          {
+            "position": [
+              0.20080030108108998,
+              0.12006343011405973,
+              0.016773903553714737
+            ],
+            "rotation": [
+              [
+                0.09188832926657757,
+                -0.510144664642504,
+                -0.8551660403801782
+              ],
+              [
+                -0.06614893022575867,
+                -0.8600295604357779,
+                0.5059382112012762
+              ],
+              [
+                -0.9935697529487222,
+                0.01007850750010329,
+                -0.11277220325479279
+              ]
+            ],
+            "reason": "pregrasp finger intersects observed surface: {'sample_index': 205, 'finger': 'joint_left', 'component': 6, 'surface': 'other observed surface', 'pixel_rc': [159, 788], 'point_base_m': [0.22487443580934152, 0.1876252322740024, 0.08235759423571576]}"
+          }
+        ],
+        "events": [
+          {
+            "kind": "observed_finger_candidate_rejected",
+            "phase_name": "pregrasp",
+            "conflict": {
+              "sample_index": 205,
+              "finger": "joint_left",
+              "component": 6,
+              "surface": "other observed surface",
+              "pixel_rc": [
+                159,
+                788
+              ],
+              "point_base_m": [
+                0.22487443580934152,
+                0.1876252322740024,
+                0.08235759423571576
+              ]
+            },
+            "q_pre": [
+              -0.6497349613623198,
+              1.4225828830368281,
+              0.973149345715815,
+              -1.0879770515886453,
+              -0.1083897372017592,
+              1.958853526606479
+            ],
+            "q_grasp": [
+              -0.6306120365309571,
+              1.4682748687296918,
+              0.842622279198485,
+              -0.9097250209803555,
+              -0.1078088578369881,
+              1.9780823180003806
+            ]
+          }
+        ]
+      },
+      {
+        "mode": "actual_flipped",
+        "candidate_count": 1,
+        "ok": false,
+        "error_type": "SkillError",
+        "error": "no executable grasp: orange: pregrasp finger intersects observed surface: {'sample_index': 192, 'finger': 'joint_right', 'component': 1, 'surface': 'other observed surface', 'pixel_rc': [161, 792], 'point_base_m': [0.22933203577776562, 0.18808462797940417, 0.08270060032941184]}",
+        "wall_s": 0.06269492000865284,
+        "rejections": [
+          {
+            "position": [
+              0.20080030108108998,
+              0.12006343011405973,
+              0.016773903553714737
+            ],
+            "rotation": [
+              [
+                0.09188832926657757,
+                0.5101446635876494,
+                0.8551660403801782
+              ],
+              [
+                -0.06614893022575867,
+                0.8600295611951507,
+                -0.5059382112012762
+              ],
+              [
+                -0.9935697529487225,
+                -0.010078496094177892,
+                0.11277220325479276
+              ]
+            ],
+            "reason": "pregrasp finger intersects observed surface: {'sample_index': 192, 'finger': 'joint_right', 'component': 1, 'surface': 'other observed surface', 'pixel_rc': [161, 792], 'point_base_m': [0.22933203577776562, 0.18808462797940417, 0.08270060032941184]}"
+          }
+        ],
+        "events": [
+          {
+            "kind": "observed_finger_candidate_rejected",
+            "phase_name": "pregrasp",
+            "conflict": {
+              "sample_index": 192,
+              "finger": "joint_right",
+              "component": 1,
+              "surface": "other observed surface",
+              "pixel_rc": [
+                161,
+                792
+              ],
+              "point_base_m": [
+                0.22933203577776562,
+                0.18808462797940417,
+                0.08270060032941184
+              ]
+            },
+            "q_pre": [
+              -0.649644218227124,
+              1.4225237291015884,
+              0.9730776045616357,
+              -1.0880055342685684,
+              -0.10853489012018182,
+              -1.1826316001413093
+            ],
+            "q_grasp": [
+              -0.6306177902672323,
+              1.4682715716596242,
+              0.8426185191709529,
+              -0.9097223371605838,
+              -0.10781608215666208,
+              -1.1635157707242993
+            ]
+          }
+        ]
+      },
+      {
+        "mode": "historical05_index5",
+        "candidate_count": 1,
+        "ok": true,
+        "position": [
+          0.19082670876114496,
+          0.10971548228381131,
+          0.025168739843655478
+        ],
+        "rotation": [
+          [
+            -0.06609734743540296,
+            0.34870311016337946,
+            0.9348996093932497
+          ],
+          [
+            0.2839920136513002,
+            0.9047725854841554,
+            -0.31738797522952356
+          ],
+          [
+            -0.9565457003427925,
+            0.24452547826086093,
+            -0.15883196635454333
+          ]
+        ],
+        "q_pre": [
+          -0.19423629438714685,
+          1.3781547201553193,
+          0.9339032167875484,
+          -1.1369993053156273,
+          0.29566308986702655,
+          -0.5400655035593621
+        ],
+        "q_grasp": [
+          -0.2493483446974789,
+          1.4097409942175076,
+          0.7961781582788717,
+          -0.9509309581205034,
+          0.29581799862394864,
+          -0.5976710031408319
+        ],
+        "wall_s": 0.17829094499757048,
+        "rejections": [],
+        "events": []
+      },
+      {
+        "mode": "historical05_all",
+        "candidate_count": 9,
+        "ok": true,
+        "position": [
+          0.19082670876114496,
+          0.10971548228381131,
+          0.025168739843655478
+        ],
+        "rotation": [
+          [
+            -0.06609734743540296,
+            0.34870311016337946,
+            0.9348996093932497
+          ],
+          [
+            0.2839920136513002,
+            0.9047725854841554,
+            -0.31738797522952356
+          ],
+          [
+            -0.9565457003427925,
+            0.24452547826086093,
+            -0.15883196635454333
+          ]
+        ],
+        "q_pre": [
+          -0.19423629438714685,
+          1.3781547201553193,
+          0.9339032167875484,
+          -1.1369993053156273,
+          0.29566308986702655,
+          -0.5400655035593621
+        ],
+        "q_grasp": [
+          -0.2493483446974789,
+          1.4097409942175076,
+          0.7961781582788717,
+          -0.9509309581205034,
+          0.29581799862394864,
+          -0.5976710031408319
+        ],
+        "wall_s": 0.599221677010064,
+        "rejections": [
+          {
+            "position": [
+              0.19249159331896196,
+              0.10686745510096964,
+              0.01097292936441369
+            ],
+            "rotation": [
+              [
+                0.13752162413717622,
+                -0.652675272387996,
+                0.7450522072167144
+              ],
+              [
+                -0.16150615799228185,
+                0.7273565409460321,
+                0.6669844248356331
+              ],
+              [
+                -0.9772428376945237,
+                -0.21205530211781606,
+                -0.005383822822254428
+              ]
+            ],
+            "reason": "pregrasp finger intersects observed surface: {'sample_index': 150, 'finger': 'joint_right', 'component': 1, 'surface': 'other observed surface', 'pixel_rc': [162, 794], 'point_base_m': [0.23137079940921457, 0.18849024537360803, 0.08270138650578485]}"
+          },
+          {
+            "position": [
+              0.19275581645874001,
+              0.1140723291721291,
+              0.023246368273312393
+            ],
+            "rotation": [
+              [
+                -0.04967623341774683,
+                -0.9981387665670247,
+                0.035373367913344715
+              ],
+              [
+                0.2537442598682953,
+                0.021642303408866838,
+                0.9670291936435135
+              ],
+              [
+                -0.9659948873660339,
+                0.05701415069276401,
+                0.2521968744525663
+              ]
+            ],
+            "reason": "descent finger intersects observed surface: {'sample_index': 12, 'finger': 'joint_left', 'component': 6, 'surface': 'other observed surface', 'pixel_rc': [234, 724], 'point_base_m': [0.25165007160830655, 0.10112333922301653, 0.0602190368917036]}"
+          },
+          {
+            "position": [
+              0.19470532579043387,
+              0.13108121922734348,
+              0.02343315378604244
+            ],
+            "rotation": [
+              [
+                -0.08507723276926561,
+                -0.987874700980706,
+                -0.12986700189302616
+              ],
+              [
+                0.11529259749851344,
+                -0.13922453777732696,
+                0.9835263826247298
+              ],
+              [
+                -0.9896815050441076,
+                0.0687030075249292,
+                0.1257394786868079
+              ]
+            ],
+            "reason": "descent finger intersects observed surface: {'sample_index': 26, 'finger': 'joint_left', 'component': 6, 'surface': 'other observed surface', 'pixel_rc': [223, 751], 'point_base_m': [0.25285842122444235, 0.1276512756249244, 0.06023463551439234]}"
+          },
+          {
+            "position": [
+              0.18870146541653882,
+              0.11199302763387138,
+              0.023927134271887033
+            ],
+            "rotation": [
+              [
+                -0.1759498734803821,
+                0.37247781289737747,
+                0.9112090415189676
+              ],
+              [
+                -0.0517843693449612,
+                0.9208660908443154,
+                -0.38642466176867557
+              ],
+              [
+                -0.9830361240126335,
+                -0.11517778271999866,
+                -0.1427377435405502
+              ]
+            ],
+            "reason": "descent finger intersects observed surface: {'sample_index': 24, 'finger': 'joint_right', 'component': 1, 'surface': 'other observed surface', 'pixel_rc': [154, 783], 'point_base_m': [0.21735346758190432, 0.18857158055030154, 0.08273735809181326]}"
+          },
+          {
+            "position": [
+              0.19715742915747428,
+              0.12915953501583496,
+              0.019891152757156767
+            ],
+            "rotation": [
+              [
+                -0.2470308268680598,
+                -0.8811645367133104,
+                -0.4031436779408995
+              ],
+              [
+                0.05344380068549502,
+                -0.42779385187559066,
+                0.9022949523104109
+              ],
+              [
+                -0.9675327026747839,
+                0.20134914833756343,
+                0.15277105082913217
+              ]
+            ],
+            "reason": "closing fingers intersects observed non-target surface: {'finger': 'joint_left', 'component': 6, 'surface': 'other observed surface', 'pixel_rc': [223, 751], 'point_base_m': [0.25285842122444235, 0.1276512756249244, 0.06023463551439234]}"
+          }
+        ],
+        "events": [
+          {
+            "kind": "observed_finger_candidate_rejected",
+            "phase_name": "pregrasp",
+            "conflict": {
+              "sample_index": 150,
+              "finger": "joint_right",
+              "component": 1,
+              "surface": "other observed surface",
+              "pixel_rc": [
+                162,
+                794
+              ],
+              "point_base_m": [
+                0.23137079940921457,
+                0.18849024537360803,
+                0.08270138650578485
+              ]
+            },
+            "q_pre": [
+              -0.740366812697028,
+              1.4079943686279235,
+              0.9196884149668398,
+              -1.0900491118484557,
+              -0.21364469402635905,
+              -0.010432578213637201
+            ],
+            "q_grasp": [
+              -0.7013492455275003,
+              1.4514802114927894,
+              0.7876825792322631,
+              -0.9061285844625875,
+              -0.21374239385033114,
+              0.029492204476607897
+            ]
+          },
+          {
+            "kind": "observed_finger_candidate_rejected",
+            "phase_name": "descent",
+            "conflict": {
+              "sample_index": 12,
+              "finger": "joint_left",
+              "component": 6,
+              "surface": "other observed surface",
+              "pixel_rc": [
+                234,
+                724
+              ],
+              "point_base_m": [
+                0.25165007160830655,
+                0.10112333922301653,
+                0.0602190368917036
+              ]
+            },
+            "q_pre": [
+              -0.2503481531955423,
+              1.3707872357193045,
+              0.9295158016417835,
+              -1.1142357792893236,
+              0.2611562754295967,
+              1.2894210880513273
+            ],
+            "q_grasp": [
+              -0.2987463298553106,
+              1.4081636498360748,
+              0.7946913811615731,
+              -0.9291684549688184,
+              0.2600546599999274,
+              1.2393669429386742
+            ]
+          },
+          {
+            "kind": "observed_finger_candidate_rejected",
+            "phase_name": "descent",
+            "conflict": {
+              "sample_index": 26,
+              "finger": "joint_left",
+              "component": 6,
+              "surface": "other observed surface",
+              "pixel_rc": [
+                223,
+                751
+              ],
+              "point_base_m": [
+                0.25285842122444235,
+                0.1276512756249244,
+                0.06023463551439234
+              ]
+            },
+            "q_pre": [
+              -0.44549017501601484,
+              1.5033019997800992,
+              1.069392887161221,
+              -1.164210708729162,
+              0.14122037264743767,
+              1.2628852851653185
+            ],
+            "q_grasp": [
+              -0.4690229727782522,
+              1.5339407903308173,
+              0.9294165924276087,
+              -0.990293105376051,
+              0.14178013363819797,
+              1.239142204832634
+            ]
+          },
+          {
+            "kind": "observed_finger_candidate_rejected",
+            "phase_name": "descent",
+            "conflict": {
+              "sample_index": 24,
+              "finger": "joint_right",
+              "component": 1,
+              "surface": "other observed surface",
+              "pixel_rc": [
+                154,
+                783
+              ],
+              "point_base_m": [
+                0.21735346758190432,
+                0.18857158055030154,
+                0.08273735809181326
+              ]
+            },
+            "q_pre": [
+              -0.49270398619958383,
+              1.6627256120671667,
+              1.2201997189380591,
+              -1.3088839312562985,
+              0.03754636427398513,
+              -0.8820065794754178
+            ],
+            "q_grasp": [
+              -0.49859380772606626,
+              1.6689371968455866,
+              1.0588841704374579,
+              -1.1411474472305747,
+              0.03866798039461317,
+              -0.8878056902551567
+            ]
+          },
+          {
+            "kind": "observed_finger_candidate_rejected",
+            "phase_name": "close",
+            "conflict": {
+              "finger": "joint_left",
+              "component": 6,
+              "surface": "other observed surface",
+              "pixel_rc": [
+                223,
+                751
+              ],
+              "point_base_m": [
+                0.25285842122444235,
+                0.1276512756249244,
+                0.06023463551439234
+              ]
+            },
+            "q_pre": [
+              -0.42364429159740585,
+              1.7581842923482822,
+              1.2941188853358885,
+              -1.3137306942148035,
+              0.15091909933699726,
+              1.5988589337318242
+            ],
+            "q_grasp": [
+              -0.44544340616563355,
+              1.76244161463196,
+              1.133154299435592,
+              -1.145252396723886,
+              0.1552947889459312,
+              1.5772719673594569
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "ui": {
+    "pass": true,
+    "expected_offline": true,
+    "scope": "Actual Spark Chromium and shipped extension on an Xvfb virtual display; no GNOME login or visible Isaac editor validation",
+    "script_sha256": "0e0d10bb42a808f2b540ae6cc301cb1c3e2c8a3aa57048f6d7c2636bbf6f1db4",
+    "browser": {
+      "data": "/home/spark/snap/chromium/common/paai/17ecc3a9f7f8",
+      "profile": "/home/spark/snap/chromium/common/paai/17ecc3a9f7f8/profile",
+      "extension": "/home/spark/snap/chromium/common/paai/17ecc3a9f7f8/extension",
+      "url": "http://127.0.0.1:8092/",
+      "pid": 669595,
+      "debug_enabled": true
+    },
+    "main_target_id": "29EB1CCFA099C67EBA1107CCB78D0346",
+    "camera_target_id": "3B96587809802D0272E29D56EBF6039E",
+    "page": {
+      "time_origin_ms": 1790823895332.8,
+      "navigation": [
+        {
+          "type": "navigate",
+          "start": 0
+        }
+      ],
+      "title": "PAAI, Physical Agentic AI \u00b7 Build a Claw",
+      "extension": "dcpoiijagmhceoefclmkgoehiimaeihe",
+      "frame": "chrome-extension://dcpoiijagmhceoefclmkgoehiimaeihe/local.html",
+      "status": "OpenClaw is reconnecting\u2026",
+      "send_disabled": true,
+      "reset_disabled": true
+    },
+    "before": {
+      "status": "Cameras reconnecting\u2026",
+      "cameras": [
+        {
+          "name": "kitchen",
+          "frame_id": 352,
+          "live": false,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "worktop",
+          "frame_id": 352,
+          "live": false,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "side",
+          "frame_id": 352,
+          "live": false,
+          "width": 1280,
+          "height": 720
+        }
+      ]
+    },
+    "after": {
+      "status": "Cameras reconnecting\u2026",
+      "cameras": [
+        {
+          "name": "kitchen",
+          "frame_id": 352,
+          "live": false,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "worktop",
+          "frame_id": 352,
+          "live": false,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "side",
+          "frame_id": 352,
+          "live": false,
+          "width": 1280,
+          "height": 720
+        }
+      ]
+    },
+    "screenshot": "chromium-three-cameras.png",
+    "screenshot_sha256": "d1be31236f48b6a319d7561a83b3b8d9b0f511a8da56afa0fe668d46f3018d22"
+  },
+  "files_sha256": {
+    "runs/.launch/profile-cascade-demo/owner.json": "58e7065d362aaf86547a83673b45c8ee0db1c49e1bc456d941fca0ea060e7753",
+    "runs/.launch/profile-cascade-demo/processes/mcp_271285a449184668b29f7c6131b56041.json": "f35ad7c679b4125d89bb8fbf4e5c9dec8d41d605bac7f6b4c2d8d43874b52ce1",
+    "runs/.launch/profile-cascade-demo/proof.json": "2b8e90a377f228ed89574ac233278fd2ad479a35b8e6e5d1b09dc2717eb0098b",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/01-scene.json": "4767593b3b3f3f18c2c02a5bb292c20f04a61a5ef88d20c34c41b0d0a01d4d5e",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/01-scene.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/02-pick.json": "b274cd6ccb51aa4e4678d81045ae12e6d486df9d6b0f32a02169766ff7186ea6",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/02-pick.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/03-reset.json": "8e4c22f5b1a471eb079c6bf687bc9feecd5590a2fd443e51e346970c0788daf4",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/03-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/04-world-reset.json": "59ec6078ed76fdc8913cf7f4911a39b2c002b6f5460b7dd1558c9e64457491ea",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/04-world-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/05-inspect-reset.json": "aa09336b6f84bf747b9dd970ac5f04f4c1cf433a5ec8ee6d1315aa3563090958",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/05-inspect-reset.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/first-scene-geometry.json": "12acf10d34fa84496aceedcaa0b7910eaa7422de0d9e1f6638e3753768b5c603",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/gpu-physical-audit.json": "9e31f99e6d3e7d55b68d65d687a879082cabd0589b622e2058c28c584b9340e2",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/metadata.json": "94f50e1174773e76def31d014b76b234f453870de06be89c895c1c5d96cee782",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/phases.json": "9f8ffef0173647c3a7ac9a850c8624959376f2bce5dd1d5adcbf983629fbfd89",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/ping-after.json": "db9a3fb5806ac982db0c5eee78029f443158a453ca43a6b280da9b566eef4416",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/ping-before.json": "db9a3fb5806ac982db0c5eee78029f443158a453ca43a6b280da9b566eef4416",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/placed-cam0.jpg": "d8ca3d573dfcfca4ede8a65d1c7bf98a21caa6034753ea6740151441e5a123e7",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/placed-frames.json": "f6885704cc160f94910c6e5dfac878db81028d0dc2521c3122410a17c2ffc5f2",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/placed-proof.jpg": "eebc00998b80cfd35803ac1909941a4085d87027c4d12c752dbee4c56860b393",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/placed-side.jpg": "e336edc04e711b54e36f922b674c7343a8e7cf950c9917f5f978d5795f7bed16",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/reset-cam0.jpg": "5661e205cc407834334c6169b2a7f08d2a2adf7d191d9bf6bf907b0babd5b6a2",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/reset-frames.json": "e6f3b1d4d628f6b206512732840ede7ec9d457cc6972f3c633432188a3a8f200",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/reset-proof.jpg": "5f6077932761b4a2611a3fcaa64886a93d15e212aac468f1368fadd0f05d8253",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/reset-side.jpg": "fc3b89198d1a3f5bf19b56acf5b8680a2e91a592e159ae3e7d107ce5d5741160",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/samples.jsonl": "16395a461355f8ebfc6d5e1c9f4e76adbb4d235543ff15187f8d00c3ac28eb3e",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/snapshot-code.py": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-1/physics/wire.jsonl": "e44f9d77c5140b039259102372734fe41fffd99964d2876dc06640385f391e8d",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-2/02-pick.json": "ef26d623a42f9c43bb5c21ca05ee81ae6bf50e8db8211cd364f50073a9ecfd95",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-2/02-pick.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-2/physics/first-scene-geometry.json": "12acf10d34fa84496aceedcaa0b7910eaa7422de0d9e1f6638e3753768b5c603",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-2/physics/metadata.json": "8d6e339b713500864bfbd798a749ddfaa7a51f14d8bc3f002c047edbb49deb0d",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-2/physics/phases.json": "36057a69b6e085f58ae71ecdb4521babd1702952839ee7a30b3ceb3a61aee78d",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-2/physics/ping-after.json": "db9a3fb5806ac982db0c5eee78029f443158a453ca43a6b280da9b566eef4416",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-2/physics/ping-before.json": "db9a3fb5806ac982db0c5eee78029f443158a453ca43a6b280da9b566eef4416",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-2/physics/samples.jsonl": "981fc94ab3f658028c41e86e135493720a3edbbe534b754fb46f0a733dc2eeb3",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-2/physics/snapshot-code.py": "43a0031e46cd0a1a07db43f44a9db9b26a132824590dcf551f41ce38e489972a",
+    "runs/.launch/profile-cascade-demo/cascade-proof-4ba58b854fc242688bb3b6cff836bbd5/case-2/physics/wire.jsonl": "269564583bef645436bcca746b38203b8848cec405e4f61a781cb6b31cfa12c6",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/keyframes/0000_describe_scene_after.jpg": "4e30aada270957e13f6acbcdd2b76183abae748636106515fb8e0ab3e851c4e0",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/keyframes/0000_describe_scene_before.jpg": "7047ed60aa55a96817531636e4312284fddfb94cfde9bac2e0383704dbbc3ef6",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/keyframes/0001_pick_and_place_after.jpg": "99fe2872dcce1a15afaf8582aedb75f9bbac9eaf9b9eeb0e10151d1092f4715b",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/keyframes/0001_pick_and_place_before.jpg": "4e30aada270957e13f6acbcdd2b76183abae748636106515fb8e0ab3e851c4e0",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/keyframes/0002_reset_scene_after.jpg": "2058bf722625c3a6a5478004394774f74abf320c7f3bca8ddd1c233fa2ae055a",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/keyframes/0002_reset_scene_before.jpg": "99fe2872dcce1a15afaf8582aedb75f9bbac9eaf9b9eeb0e10151d1092f4715b",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/keyframes/0003_describe_scene_after.jpg": "d6de16d65f25a910362209b46862b2bc058a5e66a72401ad8b5ac464ae8efa58",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/keyframes/0003_describe_scene_before.jpg": "2058bf722625c3a6a5478004394774f74abf320c7f3bca8ddd1c233fa2ae055a",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/keyframes/0004_pick_and_place_after.jpg": "d35082de6683db457c569a3ace2bb1eeddf4c343a048394218fa89c005907245",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/keyframes/0004_pick_and_place_before.jpg": "d6de16d65f25a910362209b46862b2bc058a5e66a72401ad8b5ac464ae8efa58",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/placement/f04b758ec93d48bba6e43dadd2d18e50.json": "6f610aca382d01b2420d3c32f4b1e00c54b7b00b0ebdb7493a0b82907dfc4235",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/server.log": "f7bca0b35aacb0bb541cf07b23d49e185fbc2c67796a7bf898cee40f7be046ad",
+    "runs/mcp_675224_07249323820e4216b82359767a751cd1/trace.jsonl": "2e5ab91ae5ae8b8bd8329b405262bfb7734b299bf312def17b3ee4f0ff6997b6",
+    "runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "1fec55d5187f16bc5ed38e340bcee0b4b5d05b2c6040cb8e01cc6ed214439304",
+    "runs/.install/desktop-latest.json": "4d8ef8bdcf12936c7890050d4091379893e3ebd858d108e8a92d54b8b7fcce5b",
+    "runs/.install/install.json": "857c03b4e8c98e55f99787b5e5b3f3f1298de2ca0bc2016f60de7cf0c3bb7a66",
+    "runs/native-acceptance-20261001/grasp-evidence-06/1790825987960288739-675224-7eb5741fe9a049d89876733529811873.json": "c3cb6c1b72164589dc9f0b3564caed5e711d2766a733bdbd971f6d3135b63abc",
+    "runs/native-acceptance-20261001/grasp-evidence-06/1790825987960288739-675224-7eb5741fe9a049d89876733529811873.npz": "b56e6e09beb4d9944728d694c3aa465aa2eb5a885000bc19d5d266d1cbc6a93f",
+    "runs/native-acceptance-20261001/grasp-evidence-06/1790826342265527691-675224-299fdf1894584b0f984408c8dccb99cf.json": "a0688445c5538b617b72f5ad1985e9ed1fc44ebf7a80d417d03374433a418881",
+    "runs/native-acceptance-20261001/grasp-evidence-06/1790826342265527691-675224-299fdf1894584b0f984408c8dccb99cf.npz": "c04954817c51fab335493796069ad0102a7173326bd7bc135f8066eb0b4dda84",
+    "runs/native-acceptance-20261001/finger-preparation-06/assets.log": "2cc39f675cca4e85e03106bd407a6f3a34c9bbf732ec62bd1aab52b29c11b6c0",
+    "runs/native-acceptance-20261001/finger-preparation-06/before/runs/.install/desktop-latest.json": "59e25d7ae68cfcb3ab3bb6fbdef9dbc74b830cbbf6d09bbf51c17b4deb5dc9bc",
+    "runs/native-acceptance-20261001/finger-preparation-06/before/runs/.install/install.json": "b51b9d6931ed10964f3086455731807e670283fedb81ac989bc40b3b62691429",
+    "runs/native-acceptance-20261001/finger-preparation-06/before/runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "6b3b63d57681f4e40e69519d945c5857f29e3f0f24cfc10cbc5b962dec9a01f2",
+    "runs/native-acceptance-20261001/finger-preparation-06/before/runs/.launch/profile-cascade-demo/proof.json": "171ff2efc302acc3f220766dd2bfc0933f381b006d4c45dc6dd8dd52e088d5f5",
+    "runs/native-acceptance-20261001/finger-preparation-06/check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/native-acceptance-20261001/finger-preparation-06/receipt.json": "6da5c243e1b3807900a66d7f2d2309bf1a5ad9623ccd603b40db3c8aba81aba2",
+    "runs/native-acceptance-20261001/finger-preparation-06/record.log": "5f681fdfff3a00a396e61f968d98d51a5f1e3034a752e97e41c69f08e2416d0c",
+    "runs/native-acceptance-20261001/prelaunch-06/runs/.install/desktop-latest.json": "59e25d7ae68cfcb3ab3bb6fbdef9dbc74b830cbbf6d09bbf51c17b4deb5dc9bc",
+    "runs/native-acceptance-20261001/prelaunch-06/runs/.install/install.json": "857c03b4e8c98e55f99787b5e5b3f3f1298de2ca0bc2016f60de7cf0c3bb7a66",
+    "runs/native-acceptance-20261001/prelaunch-06/runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "6b3b63d57681f4e40e69519d945c5857f29e3f0f24cfc10cbc5b962dec9a01f2",
+    "runs/native-acceptance-20261001/prelaunch-06/runs/.launch/profile-cascade-demo/proof.json": "171ff2efc302acc3f220766dd2bfc0933f381b006d4c45dc6dd8dd52e088d5f5",
+    "runs/native-acceptance-20261001/prelaunch-06/snapshots.json": "22a3a1167402996fc415ae7a8f6c2c3e2c4dcb90fa414c812f4118e9dee3c6ca",
+    "runs/native-acceptance-20261001/launch-06.log": "b1da8e437280e9e155f57c8f46bf72efa438ca0260f3a82f1b85ea2c9fc8d637",
+    "runs/native-acceptance-20261001/launch-06-driver.json": "fc57cd5447081403517f44855da5dfafcf0522a965fb99d7846d4bd5c19ccbf7",
+    "runs/native-acceptance-20261001/system-observer-06/receipt.json": "9cd852c9bea6a3ec95e6467204af0e70f5715c6ccf235db38b70aa15a4e4ee7e",
+    "runs/native-acceptance-20261001/system-observer-06/samples.jsonl": "0231ed13fb41afe3f94694f60fa72138a6345ef2849882cb75ce3e6bdbd3c6ba",
+    "runs/.install/desktop-20261001-053747-5138bf74/progress.log": "2ed86d7f8d9400d7287d27b8412cadbb9ecec24953572ba06d57cbaf8bb86cbd",
+    "runs/native-acceptance-20261001/native-confirmed-06.json": "e7b30aad5f72436f78187e79f589d92b09b5ac28a119d5e4c47f57992b7533ac",
+    "runs/native-acceptance-20261001/spark-verify-06.json": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runs/native-acceptance-20261001/ui-06/chromium-three-cameras.png": "d1be31236f48b6a319d7561a83b3b8d9b0f511a8da56afa0fe668d46f3018d22",
+    "runs/native-acceptance-20261001/ui-06/ui-verification.json": "2813947625d3603c6c139dd19af2c41cbb02e1acb2c1f556b1fedb4bed8603a9"
+  },
+  "limits": [
+    "Green camera server ages stay below 2s, but two delivered frames per camera exceed 2s during reset. This does not prove continuously fresh delivery.",
+    "Orange attempt sends zero joint or gripper targets; that count covers its instrumented grasp attempt, not launcher shutdown or later actions.",
+    "A historical orange candidate passes the scene06 gate offline. It was not used for physical actuation.",
+    "The omitted symmetric orientation also fails on scene06; selector ordering does not explain this failure.",
+    "Memory was retained. It reranks/nudges candidates and does not supply a cached pose in this attempt."
+  ]
+}

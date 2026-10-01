@@ -16,6 +16,7 @@ Configuration via environment (set in the MCP server entry):
                         manipulation camera (overrides CASCADE_CAMERA)
     CASCADE_ARM             arm profile    (default: mock)
     CASCADE_RUN_DIR         trace directory (default: <repo>/runs/mcp_<pid>)
+    CASCADE_GRASP_EVIDENCE_DIR  opt-in per-attempt JSON + NPZ evidence directory
     CASCADE_DETECTOR_MODEL  override detector weights (e.g. a yolo11n.pt path
                         for closed-set COCO until the CLIP fork is installed)
     CASCADE_DETECT_CLASSES  comma-separated default vocabulary for observations

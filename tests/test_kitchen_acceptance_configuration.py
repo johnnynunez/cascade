@@ -140,3 +140,35 @@ def test_cli_rejects_invalid_query_before_creating_output(tmp_path, arguments):
                    '--output', str(tmp_path/'new'), *arguments])
     assert exc.value.code == 2
     assert not (tmp_path/'new').exists()
+
+
+@pytest.mark.parametrize('component', ['physics', 'cameras', 'frame'])
+@pytest.mark.parametrize('value', [None, [], {}])
+def test_malformed_camera_records_remain_serializable(component, value):
+    import json
+    rows = records()
+    if component == 'physics':
+        rows[1]['physics'] = value
+    elif component == 'cameras':
+        rows[1]['physics']['cameras'] = value
+    else:
+        rows[1]['physics']['cameras']['side'] = value
+    report = summary(rows)
+    assert not report['pass']
+    assert report['cameras']['side']['first_invalid_sample']['sequence'] == 1
+    json.dumps(report, allow_nan=False)
+
+
+@pytest.mark.parametrize('value', [float('nan'), float('inf'), float('-inf')])
+@pytest.mark.parametrize('field', ['capture_monotonic', 'server_monotonic'])
+def test_nonfinite_camera_clock_is_preserved_as_typed_evidence(value, field):
+    import json
+    rows = records()
+    if field == 'server_monotonic':
+        rows[1]['physics'][field] = value
+    else:
+        rows[1]['physics']['cameras']['side'][field] = value
+    report = summary(rows)
+    assert not report['pass']
+    encoded = json.dumps(report, allow_nan=False)
+    assert 'invalid_value' in encoded

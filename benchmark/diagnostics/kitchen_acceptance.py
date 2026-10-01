@@ -93,7 +93,21 @@ def configure_query_region(cfg, args):
             "min": cfg.occupancy.get("region_min", before["workspace"]["min"]),
             "max": cfg.occupancy.get("region_max", before["workspace"]["max"]),
             "safety_before": before, "safety_after": after,
-            "scope": "ESDF query bounds only; unknown remains rejected"}
+            "scope": "ESDF query bounds only; measured payload outside the contact exemption "
+                     "still rejects unknown. Existing arm-body policy is unchanged."}
+
+
+def json_evidence(value):
+    """Keep malformed values reviewable without making the receipt unwritable."""
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else {"type": "float", "invalid_value": repr(value)}
+    if isinstance(value, dict):
+        return {str(key): json_evidence(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_evidence(item) for item in value]
+    return {"type": type(value).__name__, "invalid_value": repr(value)}
 
 
 def camera_age_summary(records, *, host, port, robot_id, complete, errors):
@@ -105,9 +119,12 @@ def camera_age_summary(records, *, host, port, robot_id, complete, errors):
     for name in ("cam0", "side", "proof"):
         captures, ages, failures = [], [], []
         for row in records:
+            physics = row.get("physics") if isinstance(row, dict) else None
+            cameras = physics.get("cameras") if isinstance(physics, dict) else None
+            frame = cameras.get(name) if isinstance(cameras, dict) else None
             try:
-                physics = row["physics"]
-                frame = physics["cameras"][name]
+                if not all(isinstance(value, dict) for value in (row, physics, cameras, frame)):
+                    raise ValueError("missing or malformed physical/camera snapshot")
                 capture, server = frame.get("capture_monotonic"), physics.get("server_monotonic")
                 if (frame.get("available") is not True or physics.get("robot_id") != robot_id
                         or frame.get("robot_id") != robot_id
@@ -122,10 +139,13 @@ def camera_age_summary(records, *, host, port, robot_id, complete, errors):
                 if not -.01 <= age <= 2 or capture < previous:
                     raise ValueError("stale, future or regressed capture")
             except (KeyError, TypeError, ValueError) as exc:
-                failures.append({"sequence": row.get("sequence"), "error": str(exc),
-                    "client_started_monotonic": row.get("client_started_monotonic"),
-                    "frame": row.get("physics", {}).get("cameras", {}).get(name),
-                    "server_monotonic": row.get("physics", {}).get("server_monotonic")})
+                failures.append(json_evidence({
+                    "sequence": row.get("sequence") if isinstance(row, dict) else None,
+                    "error": str(exc), "frame": frame,
+                    "snapshot_types": {"physics": type(physics).__name__,
+                                       "cameras": type(cameras).__name__, "frame": type(frame).__name__},
+                    "client_started_monotonic": row.get("client_started_monotonic") if isinstance(row, dict) else None,
+                    "server_monotonic": physics.get("server_monotonic") if isinstance(physics, dict) else None}))
         unique = sorted(set(captures))
         passed = bool(records and not failures and len(unique) > 1)
         result["cameras"][name] = {"pass": passed, "samples": len(records),

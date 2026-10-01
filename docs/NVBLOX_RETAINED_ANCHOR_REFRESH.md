@@ -22,7 +22,7 @@ camera commit. Every mapping camera must integrate and query successfully above
 the common capture floor, with the same attachment and observed payload surface,
 before the barrier completes. The epoch binding persists after completion. The
 public reset preserves the halt generation through home, jaw opening, and the
-prop reset. Any failure leaves geometry fenced. No unknown-clearance or 30 mm
+prop reset. Any capture-refresh failure leaves geometry fenced. No unknown-clearance or 30 mm
 clearance rule is relaxed, and no contact exemption is added.
 
 A real prop reset still invokes `begin_scene_reset()` and discards all history.
@@ -41,8 +41,9 @@ The next proposed environment uses new owned ports 8693/25561 on GPU 1, with
 960×540 cameras, physics dt 1/120 s, capture every six bridge loop iterations,
 viewport disabled, 4 Hz camera consumers, and nominal 50 Hz target sampling.
 The query ROI is explicitly `[.10, -.30, -.01]` to `[.58, .30, .55]`; the safety
-workspace remains bounded by X=.50, clearance remains 30 mm, and RPC, barrier,
-and motion wall deadlines remain 500 ms, 5 s, and 120 s. The existing held scenes
+workspace remains bounded by X=.50, clearance remains 30 mm, and mapper RPC,
+barrier, and motion wall deadlines remain 500 ms, 5 s, and 120 s. The state RPC
+retains its 1 s deadline. The existing held scenes
 also consume GPU compute. Source/ownership verification and passive measurements
 of the clock, all three cameras, and the real mapper must be reviewed before any
 actuation in that new environment. No new environment has been started by this

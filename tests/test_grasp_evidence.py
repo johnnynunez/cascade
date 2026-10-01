@@ -12,7 +12,7 @@ from cascade.config import Cfg
 from cascade.control.isaac_arm import IsaacArm
 from cascade.grasping import evidence
 from cascade.grasping.obb_grasp import _yaw_rotation
-from cascade.safety.harness import SafeArm
+from cascade.safety.harness import SafeArm, SafetyHarness
 from cascade.skills.runtime import SkillRuntime
 from cascade.types import Detection, Frame, Grasp, ObjectFix, SkillError
 
@@ -66,6 +66,9 @@ def runtime(monkeypatch, fail=False):
         allow_grasp_descent=lambda *args, **kwargs: None,
         clear_grasp_exemption=lambda: None,
     )
+    # This telemetry double retains the real generation guard; its command
+    # trace still measures only transport reads and writes, not gate calls.
+    harness._check_halt_generation = SafetyHarness._check_halt_generation.__get__(harness)
     rt = SkillRuntime.__new__(SkillRuntime)
     rt.arm, rt.kin = SafeArm(raw, harness), Kin()
     rt.cfg = Cfg({'arm': {'home_q': [.2, 0, .2], 'gripper': {}},

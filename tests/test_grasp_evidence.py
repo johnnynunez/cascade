@@ -24,12 +24,20 @@ def runtime(monkeypatch, fail=False):
     calls = []
 
     class Bridge:
+        _addr = ('test', 0)
+        step = 0
         q = np.array([.2, 0, .2])
         gripper_pos = 1.
-        def state(self):
+        def state(self, *, timeout_s=None):
+            self.step += 1
+            clock[0] += .02
             calls.append(('read', self.q.tolist(), self.gripper_pos))
-            return {'q': self.q.copy(), 'gripper_pos': self.gripper_pos, 't': clock[0]}
-        def set_joints(self, q):
+            return {'q': self.q.copy(), 'dq': np.zeros(3), 'gripper_pos': self.gripper_pos,
+                    't': clock[0], 'physics_clock': {
+                        'version': 1, 'engine': 'physx', 'clock': 'SimulationManager',
+                        'robot_id': '/robot', 'epoch': 'test', 'sim_time': self.step * .02,
+                        'physics_step': self.step, 'physics_dt_s': .02}}
+        def set_joints(self, q, *, timeout_s=None):
             calls.append(('joints', q.tolist()))
             if fail and q[2] < .12:
                 raise SkillError('original descent transport failure')
@@ -45,7 +53,7 @@ def runtime(monkeypatch, fail=False):
             pose = np.eye(4); pose[:3, 3] = q
             return pose
 
-    raw = IsaacArm(Cfg({'n_joints': 3}))
+    raw = IsaacArm(Cfg({'n_joints': 3, 'bridge_robot_id': '/robot'}))
     raw._client = Bridge()
     harness = SimpleNamespace(
         limits=SimpleNamespace(workspace_min=[0, -.3, 0], table_z=0., max_joint_vel=10.),

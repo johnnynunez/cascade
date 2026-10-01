@@ -102,6 +102,9 @@ class RobotState:
     gripper_pos: float = 0.0  # gripper motor position, rad
     gripper_valid: bool = True  # False when the gripper read failed (unknown)
     t: float = field(default_factory=time.monotonic)
+    # Atomic simulator clock from the SAME physics read as q/dq. Its source
+    # is bound by the client endpoint, never inferred from local receipt t.
+    physics_clock: dict | None = None
 
 
 class SkillError(RuntimeError):

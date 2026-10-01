@@ -1090,6 +1090,11 @@ class SkillRuntime:
         grasp_evidence.event("backend_candidates", grasps=grasps, backend=self.grasp_planner_used)
 
         # ---- fake-RL memory prior: re-rank + z-nudge -----------------------
+        # Establish the legacy quality order before applying the prior. This
+        # also orders mixed learned/analytic batches when there is no memory.
+        # The selector must preserve this final order, not undo the prior by
+        # sorting on the unchanged model quality a second time.
+        grasps = sorted(grasps, key=lambda g: -g.quality)
         lbl = label or getattr(fix, "label", None) or "object"
         try:
             prior = self.grasp_memory.prior(lbl, fix) if _prior_snapshot is None else _prior_snapshot[0]
@@ -1923,6 +1928,7 @@ class SkillRuntime:
                         max_width_m=self._max_width,
                         pregrasp_offset_m=float(gcfg.get("pregrasp_offset_m", 0.12)),
                         validate=_vet,
+                        preserve_order=True,
                         # Single-hinge jaw datum (TOOL frame): the fixed jaw's contact
                         # point and the closing direction toward the moving jaw. Per
                         # arm, like every other jaw dimension: the SO-101 beak closes

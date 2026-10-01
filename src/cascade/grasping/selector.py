@@ -39,6 +39,7 @@ def select_grasp(
     jaw_fixed_tip_m=None,
     jaw_close_dir=None,
     check=None,
+    preserve_order: bool = False,
 ) -> tuple[Grasp, np.ndarray, np.ndarray]:
     """-> (grasp, q_pregrasp, q_grasp) for the best executable candidate.
 
@@ -46,6 +47,11 @@ def select_grasp(
     veto candidates on grounds IK cannot see (safety-harness geometry): a
     candidate that would abort mid-descent must lose the ranking here, not
     kill the attempt later.
+
+    By default candidates are ranked by their model quality. A caller that
+    already ranked them (for example with an outcome-memory prior) must set
+    ``preserve_order=True``. Every candidate still passes the same width,
+    IK and validation checks; its stored model quality is never rewritten.
 
     A symmetric parallel jaw has TWO wrist poses for every grasp (jaws
     swapped, 180 degrees apart about the approach). The planners emit both
@@ -131,7 +137,7 @@ def select_grasp(
         return float(np.max(np.abs(q[:n] - q_ref[:n]))) if n else 0.0
 
     _check()
-    for g in sorted(grasps, key=lambda g: -g.quality):
+    for g in grasps if preserve_order else sorted(grasps, key=lambda g: -g.quality):
         _check()
         if g.width_m > max_width_m:
             reasons.append(

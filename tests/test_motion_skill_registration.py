@@ -1,6 +1,6 @@
 """Every arm-moving skill must be registered in _MOTION_SKILLS.
 
-CLAUDE.md flags this as a silent trap: membership is what pauses WorldWatcher
+AGENTS.md flags this as a silent trap: membership is what pauses WorldWatcher
 belief fusion during motion and what captures the pre-motion frame for the
 postcondition channel. Forget it and the held object gets re-fused at bogus
 mid-air positions, while the verifier compares the after-frame against itself
@@ -67,7 +67,7 @@ def test_grasp_at_pixel_is_a_motion_skill():
 
 
 def test_every_skill_has_a_tool_spec():
-    """The reverse of the existing check, which CLAUDE.md says is unenforced.
+    """The reverse of the existing check, which AGENTS.md says is unenforced.
 
     A skill without a TOOL_SPECS entry is invisible to the LLM and MCP: it
     fails no test, it simply never gets called.

@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "scope": "Completed software integration and exact tested-to-MAIN equality. Separate GPU rendering and physical manipulation receipts define their own acceptance scopes.",
+  "tested_commit": "76410fcc01a07aa68307a593d126a558e81e31f0",
+  "merged_commit": "28061a60c3ae8099e8a80ab0d1eb8511adbbab86",
+  "tree": "e571c787c5a195a1a02288adb6bf313df76a4f38",
+  "pull_request": "https://github.com/johnnynunez/cascade/pull/44",
+  "full_suite": {
+    "command": "python -m pytest -q",
+    "passed": 3295,
+    "skipped": 43,
+    "deselected": 4,
+    "pytest_wall_s": 340.2,
+    "working_files_verified": 1081,
+    "release_assets_verified": 8,
+    "tracked_clean": true,
+    "source_unchanged": true,
+    "result_sha256": "9a355abd90232469c3cff2bd30777fec0bf14861da50c9914cf58ad5d62ffb9e",
+    "log_sha256": "5ebbe11baa48c42e36b1fb94739541235b0c7d92ccfe2ba7b52e140b8d92ba79",
+    "source_manifest_sha256": "3448ddd7c1cbb9246b53e916cb0b6ad15aa312d460e332f2111744df31327b3d"
+  },
+  "exact_source_equivalence_sha256": "d3c621d3eb53caed321b9ab3e3528e04cdfa0c8b998fbad9d0a61f15506d91aa",
+  "ci": {
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/36853523969",
+    "run_id": 36853523969,
+    "head_sha": "76410fcc01a07aa68307a593d126a558e81e31f0",
+    "receipt_sha256": "c02882a7861df4ab6276eb7def1e6fad1ef7014a15e699284ad9c2f855c27852",
+    "jobs": [
+      {
+        "name": "booth pages and camera extension",
+        "conclusion": "success"
+      },
+      {
+        "name": "minimal install, no accelerator",
+        "conclusion": "success"
+      },
+      {
+        "name": "ubuntu-24.04-arm / py3.12",
+        "conclusion": "success"
+      },
+      {
+        "name": "macos-latest / py3.12",
+        "conclusion": "success"
+      },
+      {
+        "name": "ubuntu-latest / py3.12",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "limits": [
+    "The full suite ran in the existing environment, not a fresh installation.",
+    "Skipped and deselected tests are not counted as passed.",
+    "No physical proof, five-object campaign or restart acceptance is established by this software result."
+  ],
+  "merged_source_ci": {
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/36855128112",
+    "run_id": 36855128112,
+    "head_sha": "28061a60c3ae8099e8a80ab0d1eb8511adbbab86",
+    "receipt_sha256": "bcd3ab25a6fefda9366e0170fe71c55c61b9f6b35b9cf597bb06cdcf691fd270",
+    "jobs": [
+      {
+        "name": "minimal install, no accelerator",
+        "conclusion": "success"
+      },
+      {
+        "name": "booth pages and camera extension",
+        "conclusion": "success"
+      },
+      {
+        "name": "ubuntu-latest / py3.12",
+        "conclusion": "success"
+      },
+      {
+        "name": "ubuntu-24.04-arm / py3.12",
+        "conclusion": "success"
+      },
+      {
+        "name": "macos-latest / py3.12",
+        "conclusion": "success"
+      }
+    ]
+  }
+}

@@ -8,7 +8,19 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
-The latest physical-run baseline,
+MAIN `28061a60c3ae8099e8a80ab0d1eb8511adbbab86` merged
+[PR #44](https://github.com/johnnynunez/cascade/pull/44) after all five CI jobs
+passed; all five jobs also passed on the merged source. Its tree
+`e571c787c5a195a1a02288adb6bf313df76a4f38` is identical to the
+tested integration `76410fcc01a07aa68307a593d126a558e81e31f0`: **3,295 tests passed**,
+43 were skipped and four deselected, in 340.20 seconds. All 1,073 tracked files
+and eight pinned kitchen release assets stayed unchanged.
+The [integration receipt](evidence/render-geometry-integration/validation.json)
+binds the test log, full source manifest, merge and CI. These results cover the
+combined geometry and optional renderer changes; they do not establish new
+physical acceptance.
+
+The previous physical-run baseline,
 `477c88fe40092fdaad99c0f777a6f1c3b9a41224`, merges the reviewed integration
 `391436063c5dd98b0686202db02cefc9bdf294d1` with the same product tree
 `ff43ff758ddf39dac8e9661fe083fb5ac7943bcd`. The final suite passed **3,205 tests**,
@@ -37,8 +49,10 @@ in the validation history.
 | [PR #27](https://github.com/johnnynunez/cascade/pull/27) | Multicamera payload mapping, retained contact/release episodes, scoped recovery, [anchor refresh](NVBLOX_RETAINED_ANCHOR_REFRESH.md), [mapper reset](NVBLOX_MAPPER_RESET.md) and [read-only truth construction](NVBLOX_TRUTH_READONLY.md). |
 | [PR #41](https://github.com/johnnynunez/cascade/pull/41) | A deterministic recorder-clock test replaces an assumption about host scheduling overhead; recorder production is unchanged. |
 | [PR #42](https://github.com/johnnynunez/cascade/pull/42) | [Preserved grasp-memory ranking](grasp-memory-ranking.md) and [coherent held-object observations](HELD_OBJECT_OBSERVATION.md); a cached aiming estimate cannot authorize slip release. |
+| [PR #43](https://github.com/johnnynunez/cascade/pull/43) | Repository documentation reconciled with the installed profiles, software contracts and retained physical failures. |
+| [PR #44](https://github.com/johnnynunez/cascade/pull/44) | Optional [OVRTX RGBD rendering](OVRTX_RENDERER.md), the [PhysX envelope](physx-finger-envelope.md) admitted against x86 and ARM exports, and complete portable distribution of their runtime inputs. |
 
-## Subsequent renderer and geometry integration
+## Merged renderer and geometry integration
 
 The [PhysX finger envelope](physx-finger-envelope.md) retains all eight nominal
 components and adds sixteen derived cooking components from each of the x86
@@ -55,9 +69,10 @@ with 43 skipped and four deselected, in 326.74 seconds. Tracked source and eight
 release assets were unchanged. The first run failed because those ignored
 kitchen assets were missing; its failure is retained, and the successful rerun
 used the same code. The subsequent cross-platform geometry revision `d14b0c1`
-passed 74 focused tests and both representation audits. New physical acceptance
-remains pending. The joint renderer/geometry tree's software results are bound to its
-exact SHA in the integration PR and CI, rather than inherited from this count.
+passed 74 focused tests and both representation audits. The merged source then
+passed the two-object Spark proof recorded below. The joint renderer/geometry
+tree passed the separate 3,295-test
+run recorded above; it does not inherit its result from the earlier component count.
 
 The optional [OVRTX adapter](OVRTX_RENDERER.md) has real analytic RGBD execution
 on Linux x86_64 and Spark aarch64, plus a public static-camera factory capture
@@ -72,14 +87,17 @@ failures below. Documentation PR #43 preserved that earlier source distinction.
 
 ## Current physical acceptance
 
-**Physical acceptance of the corrections is incomplete.** Spark final-MAIN-02
-and the isolated RTX nvblox environment 09 are separate runs. Neither a completed five-object
-campaign nor same-version restart acceptance is claimed here until its own
-bound receipts pass. Preparation, software tests and passive observations do
-not replace those stages.
+**Spark final-MAIN-03 passed the two-object native proof, strict confirmation
+and READY on `28061a6`.** The existing Chromium page retained its identity and
+showed three advancing 1280 × 720 cameras. The five-object campaign, normal
+restart and separate RTX nvblox recovery remain distinct acceptance stages;
+their success is not inferred from this proof. Preparation, software tests and
+passive observations do not replace those stages.
 
 | Source/run | Measured result and boundary |
 | --- | --- |
+| MAIN `28061a6`, Spark final-MAIN-03 | Green and orange completed native placement, return home and reset; both independent physical audits and the strict checker passed. Sampled camera server ages remained ≤2 s, and measured neighboring props remained stationary within 0.00013 mm during grasp. The [proof receipt](evidence/spark-final-main-03/proof.json) retains separate delivery ages, capture gaps and earlier helper failures. This is an upgraded existing installation, not a fresh-install measurement. |
+| MAIN `28061a6`, nvblox environment 10 | Passive three-camera admission passed. Initial map warmup took 6.006 s; some later commits aged to 2.642 s, while all three final commits were ≤1.045 s. The release launcher then failed its read-only atomic-truth preflight before starting the diagnostic child or issuing actuator commands. Investigation is separate from a release/recovery pass. |
 | September `9cf5402` delivery | A fresh-destination GB10 installation, two desktop proofs, a five-object visitor round and restart passed on that source. Download caches were reused. [Historical receipt](../benchmark/results/spark_clean_delivery_20260930.json). Later orange failures remain recorded; this is not the acceptance result for current MAIN. |
 | MAIN `6b5dad6`, Spark final-MAIN-01 | Green completed placement, return home and reset under the existing server-camera-age audit. Orange failed with an air grasp and no observed lift. The overall native proof failed; no five-object campaign or restart followed. [Ranking diagnosis](grasp-memory-ranking.md). |
 | MAIN `6b5dad6`, nvblox environment 08 | A slip verdict opened the gripper although the last measured sample still showed bilateral contact and a lifted orange. The intended post-release fault was never reached. The exact legacy offset branch was not logged. [Retained failure](HELD_OBJECT_OBSERVATION.md). |

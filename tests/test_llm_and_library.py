@@ -23,7 +23,7 @@ def test_tool_specs_are_valid_schemas():
 
 
 def test_every_skill_method_has_a_spec_and_motion_skills_exist():
-    """The reverse of the check above -- CLAUDE.md warned for months that
+    """The reverse of the check above -- AGENTS.md warned for months that
     'forgetting the spec entry fails no test, the skill just never becomes
     visible to the LLM/MCP'. Now it fails a test. Also: every name in
     _MOTION_SKILLS must be a real skill, or a typo there silently stops

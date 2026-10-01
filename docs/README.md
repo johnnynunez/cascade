@@ -92,7 +92,7 @@ above; automatic physics producers and its kitchen acceptance remain future work
 - [reBot provenance](../assets/REBOT_PROVENANCE.md), per-asset `PROVENANCE.md`,
   [kitchen notice](../demo/scene/NOTICE.md), licenses and vendored validation
   reports: ownership and original asset evidence are preserved.
-- [Repository development guide](../CLAUDE.md): factual runtime conventions and
+- [Repository development guide](../AGENTS.md): factual runtime conventions and
   existing contributor instructions. Locally installed authoring skills are
   not runtime dependencies.
 

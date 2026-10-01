@@ -1,8 +1,9 @@
 # Spark delivery details
 
 Current source and acceptance are indexed in
-[project status, 1 October](PROJECT_STATUS_20261001.md). Runtime baseline `477c88f` contains
-PRs #27 and #32–42 and passes the 3,205-test combined suite. The dated results
+[project status, 1 October](PROJECT_STATUS_20261001.md). Runtime baseline `28061a6` contains
+PRs #27 and #32–44; its identical integration tree passed the 3,295-test combined
+suite, and all five CI jobs passed on the merged source. The dated results
 below retain their original pins and verdicts; they are not current-source
 installation, campaign or restart claims.
 
@@ -13,6 +14,32 @@ That guide pins the tested runtime source and reports the measured installation,
 native-agent proof and browser scope.
 The default event flow installs Isaac Sim, GraspGen-X, Qwen Q4, the vision projector,
 llama.cpp, OpenClaw and the verified kitchen. Cosmos is not installed.
+
+## Current two-object proof, 1 October 2026
+
+The upgraded installed checkout at `28061a6` completed a normal desktop launch
+with preserved outcome memory and the installed defaults. Green and orange both
+passed native placement, return home, reset, independent physical audits and
+the strict confirmation checker. `spark_verify.py` reported **READY**. The
+[bound proof receipt](evidence/spark-final-main-03/proof.json) records the exact
+source, attempts, validation references and evidence hashes.
+
+| Object | Destination | Final center error | Physical placement and reset |
+| --- | --- | --- | --- |
+| Green cube | Green square | 2.06 mm | PASS |
+| Orange | Open box | 9.26 mm | PASS |
+
+The same Chromium process and page remained open, with connected chat and three
+advancing 1280 × 720 camera views, shown in the [current screenshot](../benchmark/results/images/spark_final_main_three_cameras_20261001.png). Sampled camera server age peaked at 1.623 s
+for green and 1.925 s for orange. One orange reset delivery per camera took
+2.065 s; delivery time is recorded separately from the server-age gate. Observed
+capture gaps during reset do not establish continuous frame availability or
+absence. Initial metadata and UI-interpreter helper failures remain archived;
+they did not alter the running product or its environments.
+
+This is a two-object proof on an existing installation. Five-object campaign,
+normal restart and fresh-install measurements require their own receipts.
+Earlier failed physical runs remain in the [status index](PROJECT_STATUS_20261001.md).
 
 ## Validated delivery, 30 September 2026
 
@@ -216,7 +243,7 @@ for the bounded observation window and per-call receipts.
 This direct-runtime campaign does not establish a new native-chat or UI
 acceptance, full desktop READY proof, fresh installation or deployment of the
 final source. The September installation result remains historical. The setup guide now
-selects runtime baseline `477c88f`; its current acceptance is recorded separately in the
+selects runtime baseline `28061a6`; its current acceptance is recorded separately in the
 [status index](PROJECT_STATUS_20261001.md).
 
 ## Native confirmation gate and failed follow-up, 1 October 2026

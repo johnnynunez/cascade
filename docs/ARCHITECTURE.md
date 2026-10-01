@@ -1,12 +1,11 @@
 # Architecture
 
-Runtime contracts updated on 1 October 2026, including the later optional OVRTX
-renderer and PhysX finger envelope. The latest physical runs remain pinned to
-`477c88f`; see the
+Runtime contracts updated on 1 October 2026, including the merged optional OVRTX
+renderer and PhysX finger envelope. The current physical runs use `28061a6`; see the
 [source and acceptance index](PROJECT_STATUS_20261001.md) for merged changes,
 software validation and the current physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.
-Read this after the README and before `CLAUDE.md`.
+Read this after the README and before `AGENTS.md`.
 
 ## Design position
 

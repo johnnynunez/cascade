@@ -135,7 +135,7 @@ class ArmRig:
 
         Deliberately does NOT touch a LazyArm that has not materialized:
         reading state would power the motors as a side effect of rendering a
-        status panel (the LazyArm trap in CLAUDE.md). `connected` is on
+        status panel (the LazyArm trap in AGENTS.md). `connected` is on
         LazyArm's own surface, so probing it is safe.
         """
         out = {}

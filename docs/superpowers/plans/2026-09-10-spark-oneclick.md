@@ -82,7 +82,7 @@ Owner: controller.
 
 ## Task 4: Integration and delivery documentation
 
-Files: README.md, docs/QUICKSTART.md, docs/ROADMAP.md, docs/ARCHITECTURE.md, CLAUDE.md, docs/SPARK_DELIVERY.md.
+Files: README.md, docs/QUICKSTART.md, docs/ROADMAP.md, docs/ARCHITECTURE.md, AGENTS.md, docs/SPARK_DELIVERY.md.
 
 1. Review worker diffs, reconcile interfaces from the global constraints and fix test-proven gaps.
 2. Run `.venv/bin/python -m pytest tests/ -q`; run `bash -n` on changed shell scripts and focused ruff checks.

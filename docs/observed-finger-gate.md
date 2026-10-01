@@ -30,7 +30,7 @@ read immediately before the first opening command, after selection.
 
 ## Geometry and opening interval
 
-The artifact covers **only the complete collision meshes of the two finger
+The artifacts cover **only the complete collision geometry of the two finger
 links**, `gripper_left` and `gripper_right`. It does not cover `gripper_end`
 (palm), the rest of the arm or carried objects. This approach check ends at
 closure; the separate [closing preflight](observed-finger-closing.md) vets each
@@ -45,6 +45,16 @@ in the component's unit-normal halfspaces. Convexification can cause additional
 rejection of concavities. The runtime verifies source hashes and calibrated
 joint names, limits and TCP frame. Runtime assets remain subject to the normal
 source/asset manifest and deployment checks.
+
+For a validated PhysX clock, the runtime selects the
+[PhysX envelope artifact](physx-finger-envelope.md): all eight nominal components
+plus sixteen derived cooking components from each of the x86 and ARM exports,
+giving forty components per finger. The nominal artifact remains
+the path for other consumers. The union covers the audited derived convexes;
+it does not modify simulator colliders, add contact offsets or establish active
+shape identity on another host. Local representation admission and subsequent
+physical acceptance are required separately. The original replays below used
+their historical artifact and retain that scope.
 
 For each finger separately, the checked stroke interval spans its measured
 position and the authored open limit, expanded by **0.0001 m at both ends**.

@@ -83,6 +83,11 @@ arm-feetech = [
 dev = [
     { name = "pytest" },
 ]
+grasp-safety = [
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
+    { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
 grasping = [
     { name = "msgpack" },
     { name = "msgpack-numpy" },
@@ -103,6 +108,10 @@ occupancy = [
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "warp-lang" },
+]
+ovrtx = [
+    { name = "ovrtx" },
+    { name = "ovstage" },
 ]
 perception = [
     { name = "ultralytics" },
@@ -130,18 +139,21 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "openai", marker = "extra == 'llm'", specifier = ">=1.50" },
     { name = "opencv-python-headless", specifier = ">=4.8" },
+    { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = "==0.5.0.377615" },
+    { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.2.0.377349" },
     { name = "pin", marker = "extra == 'kinematics'", specifier = ">=3.0" },
     { name = "pyserial", marker = "extra == 'arm-feetech'", specifier = ">=3.5" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "pyzmq", marker = "extra == 'grasping'", specifier = ">=25.0" },
     { name = "pyzmq", marker = "extra == 'occupancy'", specifier = ">=25.0" },
+    { name = "scipy", marker = "extra == 'grasp-safety'", specifier = ">=1.10" },
     { name = "scipy", marker = "extra == 'occupancy'", specifier = ">=1.10" },
     { name = "ultralytics", marker = "extra == 'perception'", specifier = ">=8.3" },
     { name = "warp-lang", marker = "extra == 'occupancy'", specifier = ">=1.16" },
     { name = "warp-lang", marker = "extra == 'sim-warp'", specifier = ">=1.7" },
 ]
-provides-extras = ["perception", "llm", "kinematics", "arm", "arm-feetech", "sim", "sim-warp", "grasping", "occupancy", "dev"]
+provides-extras = ["perception", "llm", "kinematics", "arm", "arm-feetech", "sim", "ovrtx", "sim-warp", "grasping", "grasp-safety", "occupancy", "dev"]
 
 [[package]]
 name = "certifi"
@@ -2241,6 +2253,22 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/9b/21/f6ef335f6e65724aa78b8d792b48d40a48c381715f1e62f5a5049e09d07e/opencv_python_headless-5.0.0.93-cp37-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:ed709fdf9aa0bd1f2ed8549e71d19449b03a675bb581eb292285f6861953be37", size = 61204038, upload-time = "2026-07-02T06:56:41.823Z" },
     { url = "https://files.pythonhosted.org/packages/d0/8f/b8756467ea991449a293797f6b3fa80fcfdd29598a0a60d1cd5715b96e61/opencv_python_headless-5.0.0.93-cp37-abi3-win32.whl", hash = "sha256:c6bcd96b185975ea240d22cfdb15a1f6d080cc95264cfbe2621f21bb144d89b9", size = 35411237, upload-time = "2026-07-02T05:50:12.901Z" },
     { url = "https://files.pythonhosted.org/packages/b8/88/763b967f7efd7226b82c9fae16d560cba049b1f0c036647e65c610fd636e/opencv_python_headless-5.0.0.93-cp37-abi3-win_amd64.whl", hash = "sha256:829717b6a95554f273e49e357cee3b3a2a26b6f4842fbc1bed2b45bdd8f87e0e", size = 43825962, upload-time = "2026-07-02T05:50:09.627Z" },
+]
+
+[[package]]
+name = "ovrtx"
+version = "0.5.0.377615"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/30/e6/4b78683684655d06b67bcc0eef83fa58028b897573a5407c864383a5f38c/ovrtx-0.5.0.377615.tar.gz", hash = "sha256:53bd10858b5af64bdb5cd5463ed16f5ad3aebecaae56fa1ee1be1d0297c343db", size = 23080, upload-time = "2026-09-09T01:59:15.718Z" }
+
+[[package]]
+name = "ovstage"
+version = "0.2.0.377349"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/83/803ac9c32d1276180e34b5a650ece84d81e995d250e9efc22ab94b00f48f/ovstage-0.2.0.377349-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:48622327aa693774e0f03a283e11aa25344119ff0cfc411867e4d03a38c6f4ea", size = 68611171, upload-time = "2026-09-08T20:10:56.393Z" },
+    { url = "https://files.pythonhosted.org/packages/81/b7/333b3682da5125b9222ada4a11f2a998b922e005ace0a081c088eda731b2/ovstage-0.2.0.377349-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:092a34c0054664b90a32c07209647bd02e6f774a705295d8c460813940153f5b", size = 70881630, upload-time = "2026-09-08T20:10:34.164Z" },
+    { url = "https://files.pythonhosted.org/packages/09/dd/861c19634b92c692cdad925a731661043afa06147672295ee8e9165ebbcc/ovstage-0.2.0.377349-py3-none-win_amd64.whl", hash = "sha256:d1408fd27ad57bc216c8da3ba326fa2a2f9a5abb922c4c42206dd40e0c3e7f3b", size = 46087437, upload-time = "2026-09-08T20:10:16.591Z" },
 ]
 
 [[package]]

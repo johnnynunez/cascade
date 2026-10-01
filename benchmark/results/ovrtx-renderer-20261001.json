@@ -1,0 +1,404 @@
+{
+  "version": 1,
+  "date": "2026-10-01",
+  "scope": "optional independent OVRTX renderer; no automatic physics producer or demo default switch",
+  "sdk": {
+    "ovrtx": "0.5.0.377615",
+    "ovstage": "0.2.0.377349",
+    "python_x86": "3.12.13",
+    "gpu_x86": "RTX PRO 6000 Blackwell",
+    "driver_x86": "615.71.09"
+  },
+  "package_availability_receipt_sha256": "4dac24ebe92aa370f7908649748ab757ece8bf78952955ec4523d0c206eaa3fa",
+  "x86": [
+    {
+      "run": "gpu-smoke-01",
+      "aggregate_pass": false,
+      "receipt_sha256": "c3af8220f9f1b061529d3594a281379f89d17e52504ebeff43fcf932b18de6d4",
+      "errors": [
+        "RuntimeError: Owned OVRTX process appeared on unselected GPU: GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3"
+      ],
+      "source_unchanged": true,
+      "sources": {
+        "src/cascade/sim/ovrtx_renderer.py": "22c1074b290222a0dce09584d26d2349c02bcb993f5510dc439a4ee2b3f9e965",
+        "src/cascade/perception/ovrtx_camera.py": "aee2ae3405dc29e0f2641b37341ee2516027c418d406a726720c25b42fe6f74b",
+        "benchmark/diagnostics/ovrtx_rgbd_smoke.py": "39553fb52d08cb04c07dec35810d238c0ab025278ac022df2dabff36356d5eb8",
+        "main.py": "9d09f783ea65ec30da4989fb1d6501ce99160a7799e396125f62b62414d394c3"
+      },
+      "official_minimal": {
+        "exit_code": -15,
+        "scope": "human visual inspection confirms robot warehouse image; not analytic calibration"
+      },
+      "interpretation": "Supervisor stopped own process during initial 8 MiB graphics context on GPU0; did not establish wrong rendering GPU."
+    },
+    {
+      "run": "gpu-smoke-02",
+      "aggregate_pass": false,
+      "receipt_sha256": "6e87834f9de2e40f7a31f6b5f3788200e5796e0f6d3de9b9d15ff1bb8901b5cb",
+      "errors": [
+        "RuntimeError: cascade-rgbd exit=1"
+      ],
+      "source_unchanged": true,
+      "sources": {
+        "src/cascade/sim/ovrtx_renderer.py": "22c1074b290222a0dce09584d26d2349c02bcb993f5510dc439a4ee2b3f9e965",
+        "src/cascade/perception/ovrtx_camera.py": "aee2ae3405dc29e0f2641b37341ee2516027c418d406a726720c25b42fe6f74b",
+        "benchmark/diagnostics/ovrtx_rgbd_smoke.py": "39553fb52d08cb04c07dec35810d238c0ab025278ac022df2dabff36356d5eb8",
+        "main.py": "9d09f783ea65ec30da4989fb1d6501ce99160a7799e396125f62b62414d394c3",
+        "cascade-ovrtx-readback-wrapper.py": "a5c472d0e9fd2ee815d20a7afc6b6b886bf047bcc45edb3dfa10256f5a51b4c6"
+      },
+      "analytic_receipt_sha256": "7fa352113fb2a093c0901e7c88fc871aecb3ad31c5136096e39defa7a7d4ac65",
+      "analytic_pass": false,
+      "cleanup_errors": [],
+      "frames": [],
+      "artifacts": {
+        "scene.usda": "067f47e15b93dab532ed42811dc6784bde1f42f6a1e3786c200ebfc556c50628"
+      },
+      "official_minimal": {
+        "exit_code": 0,
+        "scope": "human visual inspection confirms robot warehouse image; not analytic calibration"
+      },
+      "interpretation": "Official example rendered successfully; Cascade scene failed USDA parsing before a frame. Both results retained."
+    },
+    {
+      "run": "gpu-smoke-03",
+      "aggregate_pass": false,
+      "receipt_sha256": "de8edc775b4380ba99eaa3e3c68119179748ca32800885a7c3d61bfe9e8e58bf",
+      "errors": [
+        "RuntimeError: cascade-rgbd exit=1"
+      ],
+      "source_unchanged": true,
+      "sources": {
+        "src/cascade/sim/ovrtx_renderer.py": "26984056e51719acf205778b8a71ec39db8feb76d4c2586755dba2d8ca2c487c",
+        "src/cascade/perception/ovrtx_camera.py": "aee2ae3405dc29e0f2641b37341ee2516027c418d406a726720c25b42fe6f74b",
+        "benchmark/diagnostics/ovrtx_rgbd_smoke.py": "1c5934443d1fb57e5af35daa219e7b93081cbdc4aac6b24467430794ffa1fc2a",
+        "main.py": "9d09f783ea65ec30da4989fb1d6501ce99160a7799e396125f62b62414d394c3",
+        "cascade-ovrtx-readback-wrapper.py": "a5c472d0e9fd2ee815d20a7afc6b6b886bf047bcc45edb3dfa10256f5a51b4c6"
+      },
+      "analytic_receipt_sha256": "67540b0ae914fd8ab81f03e4c734af17c10a41ee21277bfd6b957a638b3affc9",
+      "analytic_pass": false,
+      "cleanup_errors": [],
+      "frames": [
+        {
+          "camera": "square",
+          "snapshot": 1,
+          "bbox_error_px": 1,
+          "max_interior_depth_error_m": 4.76837158203125e-07,
+          "diagnostic_half_pixel_depth_error_m": 4.76837158203125e-07,
+          "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+          "valid_depth_pixels": 1024,
+          "duplicate_whole_packet": true,
+          "pass": true
+        },
+        {
+          "camera": "unequal",
+          "snapshot": 1,
+          "bbox_error_px": 4,
+          "max_interior_depth_error_m": 4.76837158203125e-07,
+          "diagnostic_half_pixel_depth_error_m": 4.76837158203125e-07,
+          "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+          "valid_depth_pixels": 1024,
+          "duplicate_whole_packet": true,
+          "pass": false
+        },
+        {
+          "camera": "square",
+          "snapshot": 2,
+          "bbox_error_px": 1,
+          "max_interior_depth_error_m": 0.043094068577472555,
+          "diagnostic_half_pixel_depth_error_m": 2.6530730794505075e-06,
+          "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+          "valid_depth_pixels": 1731,
+          "duplicate_whole_packet": true,
+          "pass": false
+        },
+        {
+          "camera": "unequal",
+          "snapshot": 2,
+          "bbox_error_px": 8,
+          "max_interior_depth_error_m": 0.043094068577472555,
+          "diagnostic_half_pixel_depth_error_m": 2.6530730794505075e-06,
+          "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+          "valid_depth_pixels": 1731,
+          "duplicate_whole_packet": true,
+          "pass": false
+        }
+      ],
+      "artifacts": {
+        "01-square.npz": "18f06a470b9d8b97e3b2e845a3070b19a3cb0765a3b65a049b0fdb38e798092f",
+        "02-unequal.png": "1620e954c79e74622031c103f2ad43977dc301a66bb0fe5c41d38097c78ce329",
+        "02-unequal.npz": "7c4d334c056f4a7f9ac3eb539c0fa1c0fcf0b0726d388916cd9b0c5339b360a8",
+        "02-square.npz": "5d14ad54525ef39c4ce1ae2507e6e27bd8819c79e20108b19dca9bc4e4efdf7d",
+        "scene.usda": "ad541183ffe979add08307b68de63fa3c3c4119fd38d7e87543e0d442acaa6a2",
+        "02-square.png": "1620e954c79e74622031c103f2ad43977dc301a66bb0fe5c41d38097c78ce329",
+        "01-square.png": "d5d8c0f1cfb3902767564c3c293e68e26cfc69ea13826d4c6ee4e67c428708fb",
+        "01-unequal.png": "d5d8c0f1cfb3902767564c3c293e68e26cfc69ea13826d4c6ee4e67c428708fb",
+        "01-unequal.npz": "6176ac68d91be22db508325786d4d97f77cd60578ce9b0164cda2a713e668979"
+      },
+      "interpretation": "Four RGBD frames exposed incorrect half-pixel K and unequal-focal-length behavior. Not accepted."
+    },
+    {
+      "run": "gpu-smoke-04",
+      "aggregate_pass": true,
+      "receipt_sha256": "210a0245079599bd2f53f15101dafc9640592dc1287e71fb069fbc6b883df67d",
+      "errors": [],
+      "source_unchanged": true,
+      "sources": {
+        "src/cascade/sim/ovrtx_renderer.py": "24d1750019cd145438ae2f5ebb50072a610d91cf684f9ed23897da376e8f1bb6",
+        "src/cascade/perception/ovrtx_camera.py": "83ae65510aa8d7d49f44904f0403eee5643e47ba4c9792bfa532a1e2cb38a0d1",
+        "benchmark/diagnostics/ovrtx_rgbd_smoke.py": "532db78bdf0686a098a3a97276aeab756429e5dbbea6f185c7722049d5c922b4",
+        "main.py": "9d09f783ea65ec30da4989fb1d6501ce99160a7799e396125f62b62414d394c3",
+        "cascade-ovrtx-readback-wrapper.py": "a5c472d0e9fd2ee815d20a7afc6b6b886bf047bcc45edb3dfa10256f5a51b4c6"
+      },
+      "analytic_receipt_sha256": "94e773fa291fb2f984daa24a647ece343cd93605978ca34639df71f872e9a664",
+      "analytic_pass": true,
+      "cleanup_errors": [],
+      "frames": [
+        {
+          "camera": "square",
+          "snapshot": 1,
+          "bbox_error_px": 0,
+          "max_interior_depth_error_m": 4.76837158203125e-07,
+          "diagnostic_half_pixel_depth_error_m": 4.76837158203125e-07,
+          "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+          "valid_depth_pixels": 1024,
+          "duplicate_whole_packet": true,
+          "pass": true
+        },
+        {
+          "camera": "wide",
+          "snapshot": 1,
+          "bbox_error_px": 0,
+          "max_interior_depth_error_m": 4.76837158203125e-07,
+          "diagnostic_half_pixel_depth_error_m": 4.76837158203125e-07,
+          "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+          "valid_depth_pixels": 600,
+          "duplicate_whole_packet": true,
+          "pass": true
+        },
+        {
+          "camera": "square",
+          "snapshot": 2,
+          "bbox_error_px": 0,
+          "max_interior_depth_error_m": 2.487495207592616e-06,
+          "diagnostic_half_pixel_depth_error_m": 0.044560283610637796,
+          "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+          "valid_depth_pixels": 1731,
+          "duplicate_whole_packet": true,
+          "pass": true
+        },
+        {
+          "camera": "wide",
+          "snapshot": 2,
+          "bbox_error_px": 0,
+          "max_interior_depth_error_m": 2.495423748083425e-06,
+          "diagnostic_half_pixel_depth_error_m": 0.07646083461158693,
+          "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+          "valid_depth_pixels": 894,
+          "duplicate_whole_packet": true,
+          "pass": true
+        }
+      ],
+      "artifacts": {
+        "01-square.npz": "08bc94fcae17f4897bb70f20e8ef2b49d400c2329b50a6d986d24986ffe217ec",
+        "02-wide.png": "180b68aabb03f9803a02574f43be41bbda5ba89428ec444eadfce5fa03b3dd12",
+        "01-wide.npz": "dc20e27e39c1aac3e713e0470562dfea54eabb9744f9af61589fd8144364a5e6",
+        "02-square.npz": "7758e60df3afba281f5a49c0c565ca6bde26950f48ac56a7619e927652668e4a",
+        "scene.usda": "ad541183ffe979add08307b68de63fa3c3c4119fd38d7e87543e0d442acaa6a2",
+        "02-wide.npz": "c4b486493a7a4a4a3572913621205308840985b843870edcbede1e8acd30ae5d",
+        "02-square.png": "3e6cfb12ff4d935786207717b7a17506e579f1b9294ceb59c71e18885c0eecb7",
+        "01-square.png": "931735d48012edb59bb45be2750605475078baa90be3bd46f70a893777dfc9bd",
+        "01-wide.png": "9510f56f798f2487bcc8e3a09989a13999d49022e95dce671d01ebca9efaaeb8"
+      },
+      "interpretation": "Corrected integer-index K, square-pixel cameras only. Analytic CPU references and GPU outputs pass; no physical acceptance claim."
+    }
+  ],
+  "arm": {
+    "wheel_available": true,
+    "execution": "snapshot renderer PASS; CameraBase public profile exercised separately on x86",
+    "prepare_receipt_sha256": "dbce3a2d4bbdb6aa5472b5df94287032f86b14952dd1a018ef9ad29ec2537cc9",
+    "sdk": {
+      "ovrtx": "0.5.0.377615",
+      "ovstage": "0.2.0.377349",
+      "numpy": "2.2.6",
+      "python": "3.12.3",
+      "gpu": "NVIDIA GB10",
+      "driver": "580.178.04"
+    },
+    "runs": [
+      {
+        "run": "gpu-smoke-arm-01",
+        "receipt_sha256": "f5ac012b56e4ed74e89597db3026ddf4a9dee07f8176b1d68ada0815380b478b",
+        "pass": false,
+        "errors": [
+          "AssertionError: renderer child failed"
+        ],
+        "budget_s": 180,
+        "elapsed_s": 0.6769001009961357,
+        "source_unchanged": true,
+        "protected_before_equals_after": true,
+        "artifacts_verified": 3,
+        "interpretation": "Missing existing bridge_client import dependency in task-only transfer. Failed before Renderer creation; SDK compatibility not evaluated."
+      },
+      {
+        "run": "gpu-smoke-arm-02",
+        "receipt_sha256": "603e2878aef650c99c341f731fc89aa6dfe808b2105e9c9409247554799f8158",
+        "pass": false,
+        "errors": [
+          "TimeoutError: isolated renderer exceeded 180s"
+        ],
+        "budget_s": 180,
+        "elapsed_s": 181.05275935100508,
+        "source_unchanged": true,
+        "protected_before_equals_after": true,
+        "artifacts_verified": 6,
+        "interpretation": "180-second isolated startup budget expired during cold raytracing shader compilation; no frame or calibration result. Receipt remains failed."
+      },
+      {
+        "run": "gpu-smoke-arm-03",
+        "receipt_sha256": "f92146087b1b3c149a91813f19d4006cdb4d685251fb2af20622dfda3156eb6f",
+        "pass": true,
+        "errors": [],
+        "budget_s": 360,
+        "elapsed_s": 65.37941445600882,
+        "source_unchanged": true,
+        "protected_before_equals_after": true,
+        "artifacts_verified": 15,
+        "analytic_receipt_sha256": "334633537d0da7fee93d2f521958e6a7abbd8d6264008223027200372a0b4905",
+        "frames": [
+          {
+            "camera": "square",
+            "snapshot": 1,
+            "bbox_error_px": 0,
+            "max_interior_depth_error_m": 4.76837158203125e-07,
+            "diagnostic_half_pixel_depth_error_m": 4.76837158203125e-07,
+            "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+            "valid_depth_pixels": 1024,
+            "duplicate_whole_packet": true,
+            "pass": true
+          },
+          {
+            "camera": "wide",
+            "snapshot": 1,
+            "bbox_error_px": 0,
+            "max_interior_depth_error_m": 4.76837158203125e-07,
+            "diagnostic_half_pixel_depth_error_m": 4.76837158203125e-07,
+            "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+            "valid_depth_pixels": 600,
+            "duplicate_whole_packet": true,
+            "pass": true
+          },
+          {
+            "camera": "square",
+            "snapshot": 2,
+            "bbox_error_px": 0,
+            "max_interior_depth_error_m": 2.487495207592616e-06,
+            "diagnostic_half_pixel_depth_error_m": 0.044560283610637796,
+            "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+            "valid_depth_pixels": 1731,
+            "duplicate_whole_packet": true,
+            "pass": true
+          },
+          {
+            "camera": "wide",
+            "snapshot": 2,
+            "bbox_error_px": 0,
+            "max_interior_depth_error_m": 2.495423748083425e-06,
+            "diagnostic_half_pixel_depth_error_m": 0.07646083461158693,
+            "primary_projection": "integer pixel indices and Frame.K, same as Cascade backprojection",
+            "valid_depth_pixels": 894,
+            "duplicate_whole_packet": true,
+            "pass": true
+          }
+        ],
+        "sources": {
+          "src/cascade/sim/ovrtx_renderer.py": "24d1750019cd145438ae2f5ebb50072a610d91cf684f9ed23897da376e8f1bb6",
+          "src/cascade/perception/ovrtx_camera.py": "83ae65510aa8d7d49f44904f0403eee5643e47ba4c9792bfa532a1e2cb38a0d1",
+          "benchmark/diagnostics/ovrtx_rgbd_smoke.py": "532db78bdf0686a098a3a97276aeab756429e5dbbea6f185c7722049d5c922b4"
+        },
+        "artifacts": {
+          "02-square.png": "68c45c5fe9296b2ca1c6829944b995ca7b43ecdf26d293b10e1a465a2fb60283",
+          "scene.usda": "ad541183ffe979add08307b68de63fa3c3c4119fd38d7e87543e0d442acaa6a2",
+          "02-wide.npz": "bd9cbd4c8b9942bebd422fde3bf2fbc50471dd9d5efff30a627ab6820c48a223",
+          "02-wide.png": "19ff761593f8c9e47d459bfd4c78744638d579c8b44c734e8fe563c7b7cbeeb9",
+          "01-wide.png": "96d0b708643e5d3018e71d1fc58fb794939106793b97158a8369c22e055618ff",
+          "01-square.npz": "2e91a6144f0891453fcfcbf2b98e1d73287752d8aa3eb8891e0b09c1da12993e",
+          "01-wide.npz": "a9f80563e2fe6d8a7fdceb780f69c4a240540e46a457803b73e7c3b715b3c7c9",
+          "01-square.png": "ecc2f433bcf38e9fd9cadb49104c4c32fff037076e0fdec9df8b5d52f664b8fe",
+          "02-square.npz": "4c3d3adad13afcf343067e3ad158925e0861bd51bbe146f7085d521998a94911"
+        },
+        "cuda_maps": 8,
+        "cleanup_errors": [],
+        "interpretation": "New explicitly authorized 360-second startup budget; same code/scene/tolerances, reused partial shader cache. Four analytic packets passed. Not a cold-start timing guarantee."
+      }
+    ]
+  },
+  "cpu_validation": {
+    "command": "python -m pytest tests/test_ovrtx_renderer.py tests/test_camera_recovery.py tests/test_isaac_frame_snapshot.py -q",
+    "result": "111 passed in 3.23s",
+    "scope": "CPU contract tests; separate from GPU rendering"
+  },
+  "limitations": [
+    "fx must equal fy; centered pinhole only",
+    "root USD hash does not attest referenced asset closure",
+    "no robot/target/payload masks or physical joint/contact metadata",
+    "snapshot producer for Isaac/Newton not implemented",
+    "x86 selected GPU rendering also used 8 MiB administrative graphics context on another GPU",
+    "native cold shader compilation requires external process supervision"
+  ],
+  "public_camera_profile_x86": {
+    "pass": true,
+    "receipt_sha256": "399069f59fde450adb386b0fbecf29dce8d4b99425744ab8767bb26976c0a6bd",
+    "camera_receipt_sha256": "7e5c5d79e9c26a0468b0f842d4d405efae92378c32205854471a084ba03e1c9b",
+    "bbox_error_px": 0,
+    "max_depth_error_m": 4.76837158203125e-07,
+    "elapsed_s": 2.6342969200049993,
+    "static_scene": true,
+    "cleanup_errors": [],
+    "sources": {
+      "configs/cameras/ovrtx.yaml": "4e68b6f60357b7c0f89f619cf60b99742b94d7a1d0aa14e0268fab22b3ace8e1",
+      "demo/ovrtx/rgbd.usda": "893b459ab176718a666ec5b23f8e4074b3071d40a61001b7e8cd9d05d06e308e",
+      "src/cascade/perception/ovrtx_camera.py": "47b97ee7f55e494a99b6d4d7cbb8f15b12510171039fd31a20f5e579029da1f3",
+      "src/cascade/perception/camera_base.py": "19035e54806ed96f8d853ab4e51f81f506ae267efbc58b774abc9d09ffd99ac6",
+      "src/cascade/perception/freshness.py": "df2fb381d876c12ba7aae9551861e349cabc219f1e8424ddfbf81b13b00a8234",
+      "src/cascade/sim/ovrtx_renderer.py": "24d1750019cd145438ae2f5ebb50072a610d91cf684f9ed23897da376e8f1bb6",
+      "src/cascade/config.py": "984cf4e2aa276ce54f8b24e78a5fd863699a5109e8c522dc00d072bb6c6d82d7",
+      "src/cascade/types.py": "d7620295c9864c14502a495ff4ce093232ffc0dbc12be01eaa02297832a09bf0",
+      "benchmark/diagnostics/ovrtx_rgbd_smoke.py": "532db78bdf0686a098a3a97276aeab756429e5dbbea6f185c7722049d5c922b4"
+    },
+    "artifacts": {
+      "frame.png": "ac6b061e7c06579b9383bffb24d225dece007a21593c354427dbe2ee3dbe7b10",
+      "frame.npz": "614a374605ad3d05a5cc3248bf70e49f14a53971ec4e0982979fdc92118b6529"
+    },
+    "scope": "one public make_camera static-profile capture, no physics or robot"
+  },
+  "cpu_validation_static_profile": {
+    "command": "python -m pytest tests/test_ovrtx_renderer.py tests/test_device_and_profiles.py tests/test_visual_diff.py -q",
+    "result": "74 passed in 0.41s",
+    "scope": "includes actual SkillRuntime._visual_diff abstention for shipped static profile and rejection of missing/false static_scene"
+  },
+  "lock_validation": {
+    "command": "uv lock --check",
+    "pass": true,
+    "new_packages": [
+      "ovrtx==0.5.0.377615",
+      "ovstage==0.2.0.377349"
+    ],
+    "existing_package_versions_changed": false,
+    "note": "also reconciles already-declared grasp-safety extra metadata; no SciPy version change and no shared environment sync"
+  },
+  "retained_helper_manifest_sha256": "cea7adf57157d8ea2efa37f5660d74ebaa2ccd15ce56089ae84394f7d0ad759d",
+  "retained_helper_sha256": {
+    "cascade-ovrtx-gpu-smoke-01.py": "d239e619b6a77f100c670479ec9597eda3c10b48b4eace7a45835e55b1a38b27",
+    "cascade-ovrtx-gpu-smoke-02.py": "d8acf09592d33e2eb3b0f0424ad1e3df265e5f24fbd99c265f11cc5a10285822",
+    "cascade-ovrtx-gpu-smoke-03.py": "c76c24fcf3dd78c3ed26e452454e0e406503dab908d773f9f237c0478fae96a1",
+    "cascade-ovrtx-gpu-smoke-04.py": "c2e1ed51db1f6daf25bff36bf9867cda7d6e7dd495258f23ed556756492017cb",
+    "cascade-ovrtx-readback-wrapper.py": "a5c472d0e9fd2ee815d20a7afc6b6b886bf047bcc45edb3dfa10256f5a51b4c6",
+    "cascade-ovrtx-arm-prepare.py": "b5a776e3d0ec0e4b4ae97ee460d6a8060a6736bfd999c5b53ef987628cf5c394",
+    "cascade-ovrtx-arm-smoke-01.py": "2a49205bea2e26b10ce953eecc74bd2ea7546fa0a2c7738d56e2f9c17c9fe38b",
+    "cascade-ovrtx-arm-smoke-02.py": "27ff8589d5e07604523bf484408fe8188246dc3878c1ad2ac8b70ed5a9e4b823",
+    "cascade-ovrtx-arm-smoke-03.py": "c9dec7afdff478ea7d1bf6af3f83ec412c9235afc7a421de1a317919432505c5",
+    "cascade-ovrtx-arm-supplement-02.json": "04a244eb8c0072564c75d4b6c44d4bfd90707e4b44d89034813deab8570fd5e0",
+    "cascade-ovrtx-profile-smoke.py": "84a3b9ff9878ce821aea30591ecac6ce41d8a2a705ca67e1971ec201ebf86f13",
+    "cascade-ovrtx-profile-supervisor.py": "8b75c09372755dec8afb5848f3a682801f175a5b94995698204743080fd54d81"
+  }
+}

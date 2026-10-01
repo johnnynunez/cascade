@@ -22,30 +22,35 @@ or design scopes. The offline [Jev/Kev pilot](JEV_DECISIONS.md) has not demonstr
 a decision-quality advantage over the recorded-status rule baseline and is not
 part of presenter startup.
 
+## PhysX finger envelope (2026-10-01)
+
+The [observed-scene envelope](physx-finger-envelope.md) now combines the complete
+nominal finger components with both retained x86 and ARM derived PhysX cooking
+representations, giving forty components per finger.
+It preserves the opening feedback bound and observed target/non-target rules;
+it does not modify colliders or invent a contact margin. Candidate `26b6826`
+passed 3,238 software tests before the cross-platform extension. The final
+geometry passes both representation audits and 74 focused tests. New physical
+acceptance remains pending; the earlier orange failures and failed ARM coverage
+of the first artifact stay recorded. Joint
+integration validation is attributed to the exact tree in its PR/CI.
+
 ## Optional sensor backend: NVIDIA ovrtx (2026-10-01)
 
-Implement an optional [ovrtx](https://github.com/NVIDIA-Omniverse/ovrtx)
-backend for Cascade's simulated cameras and visualization. NVIDIA exposes
-C and Python interfaces for RTX sensor rendering; its current pre-release
-integrates USD scene management through `ovstage`. Implementation is in progress
-in an isolated branch. It is not part of validated runtime baseline `477c88f`;
-real SDK rendering and calibration checks precede any compatibility claim.
-The [0.5.0 release](https://github.com/NVIDIA-Omniverse/ovrtx/releases/tag/v0.5.0)
-provides Linux packages for both x86_64 and aarch64, covering the architectures
-of the RTX workstation and DGX Spark.
+An opt-in static `CameraBase` profile and scene-snapshot API now render real
+RGB-D through OVRTX 0.5 and `ovstage`. Real analytic smokes on Linux x86_64
+and Spark aarch64 verify metric Z-depth, integer-index pinhole calibration,
+local scene transforms, camera poses and whole-packet duplicate retention.
+The public `make_camera(load_profile("cameras", "ovrtx"))` entry point also passed
+on x86 with the static example profile. Square pixels are required;
+unequal focal lengths are explicitly rejected after the measured SDK path
+ignored that request. See [OVRTX_RENDERER.md](OVRTX_RENDERER.md) for exact
+versions, platform evidence, installation and limits.
 
-Start with an isolated camera adapter feeding the existing frame contract:
-RGB-D, calibration, masks where supported, and a render identity tied to the
-matching physics state. Check the actual available outputs, synchronization,
-CPU/GPU transfers and Cascade's integration on both supported architectures
-before choosing an API.
-Keep the physics and motion interfaces independent of the renderer.
-
-Compare the same kitchen scene against the existing backend for geometry,
-repeated-frame timestamps, latency, memory and throughput. Require the
-existing mapping and physical acceptance checks before enabling it in a
-demo profile. The current PR integration and Spark acceptance remain the
-immediate delivery work.
+Connecting an automatic Isaac/Newton physics producer, supplying the masks
+and physical identity required by safety consumers, and comparing the same
+kitchen scene remain future work. No demo default changes. Rendering tests
+do not establish grasping, mapping or physical acceptance.
 
 ## PAAI event follow-up (2026-09-15)
 

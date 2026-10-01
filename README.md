@@ -1,9 +1,11 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
-Validated runtime baseline: **`477c88f` (1 October 2026)**. The integrated suite passes
-3,205 tests; current Spark and nvblox physical acceptance remains separately
-tracked in the [project status](docs/PROJECT_STATUS_20261001.md). Historical
-installation, campaign and restart results below apply only to their stated pins.
+The latest acceptance runs use **`477c88f` (1 October 2026)**, whose software
+suite passed 3,205 tests. The subsequent PhysX finger envelope and optional OVRTX
+renderer have separate validation recorded in the
+[project status](docs/PROJECT_STATUS_20261001.md). Spark and nvblox physical
+acceptance remains incomplete; historical installation, campaign and restart
+results apply only to their stated pins.
 
 <p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
@@ -45,6 +47,12 @@ advisor + experience memory), in the same
 service-oriented/composable spirit as [RPent](https://github.com/RLinf/RPent).
 
 [PAAI staff guide](docs/BOOTH_GUIDE.md) · [DGX Spark setup](docs/DGX_SPARK_SETUP.md) · [Spark delivery](docs/SPARK_DELIVERY.md) · [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Physical rig runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](CLAUDE.md)
+
+The optional [OVRTX renderer](docs/OVRTX_RENDERER.md) supplies calibrated
+RGB-D from static USD scenes or explicit scene snapshots, independently of
+physics. Analytic RGBD passed on Linux x86_64 and DGX Spark aarch64; the public
+static camera profile also passed on x86. It does not replace the demo's Isaac
+cameras or provide an automatic Isaac/Newton state producer.
 
 ```
 ┌──────────────────────────────────────────┐   ┌──────────────────────────────────────────┐
@@ -89,19 +97,19 @@ explains the prompts, result checks and recovery steps. See the
 
 ## Roadmap
 
-The delivery work is source-bound Spark and nvblox acceptance of
-the merged fixes, followed by the five-object campaign and same-version restart.
-See the [current status](docs/PROJECT_STATUS_20261001.md); future work includes:
+Source-bound Spark and nvblox acceptance continues, followed by the five-object
+campaign and same-version restart. See [current status](docs/PROJECT_STATUS_20261001.md).
 
-**Newton parity.** The installed Spark event path defaults to CUDA PhysX.
-Newton remains explicit and has a separate engine/asset validation matrix; its
-results are not a substitute for the current Spark acceptance.
+**Newton parity.** Installed Spark defaults to CUDA PhysX. Newton remains
+explicit, with separate engine/asset validation.
 
-**Cosmos 3 Edge.** We will add it when native tool calling through OpenClaw is
-consistent enough for normal attendee requests. Until then, Qwen remains the
-event path. An optional **ovrtx** camera backend is being implemented separately;
-it is not included in this validated runtime baseline.
-[Jev/Kev](docs/JEV_DECISIONS.md) remains offline decision research.
+**Cosmos 3 Edge.** Adoption follows when native tool calling through OpenClaw
+passes attendee evaluation. Until then, Qwen remains the event path.
+
+Optional **ovrtx** RGBD now runs on x86 and ARM with separate rendering evidence;
+it is not included in the historical `477c88f` runtime baseline. Automatic
+physics producers remain future work. [Jev/Kev](docs/JEV_DECISIONS.md) remains
+offline decision research.
 
 ## Brev deployment
 

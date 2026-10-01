@@ -8,6 +8,17 @@ import time
 def capture_marker(frame) -> dict:
     """Identity and clock of one capture, or a local backend's frame creation."""
     capture = getattr(frame, "capture", None)
+    if isinstance(capture, dict) and capture.get("backend") == "ovrtx":
+        stamp = capture.get("t")
+        if (not all(isinstance(capture.get(k), str) and capture[k]
+                    for k in ("source", "camera", "producer_epoch"))
+                or capture.get("time_source") != "snapshot_monotonic"
+                or type(stamp) not in (int, float) or not math.isfinite(stamp)
+                or stamp != frame.t):
+            raise ValueError("OVRTX frame lacks its snapshot identity/clock")
+        return {"channel": "producer_capture", "backend": "ovrtx", "source": capture["source"],
+                "camera": capture["camera"], "epoch": capture["producer_epoch"],
+                "clock": capture["time_source"], "t": stamp}
     if isinstance(capture, dict) and capture.get("backend") == "isaac":
         state = capture.get("proprioception") or {}
         source = capture.get("source")

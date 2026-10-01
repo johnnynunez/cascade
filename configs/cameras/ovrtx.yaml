@@ -1,0 +1,21 @@
+# Optional, independent STATIC USD renderer. Does not mirror a live robot.
+name: cam0
+type: ovrtx
+scene_mode: static
+static_scene: true        # Static pixels cannot witness motion of a robot.
+scene_usd: "${repo}/demo/ovrtx/rgbd.usda"
+meters_per_unit: 1.0
+device: 0                 # CUDA-visible ordinal; does not select physics device.
+width: 320
+height: 240
+fx: 240.0
+fy: 240.0
+# Centered integer-index calibration: cx=159.5, cy=119.5. fx must equal fy.
+fps: 30
+depth: true
+near_m: 0.01
+far_m: 10.0
+extrinsics:
+  mode: eye_to_hand
+  # Optical +Z points along world -Z, +Y image-down along world -Y.
+  T: [[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 3], [0, 0, 0, 1]]

@@ -25,6 +25,7 @@ does not change which code produced those measurements.
 - [Isaac motion clock](ISAAC_MOTION_CLOCK.md)
 - [Isaac camera frames bound to render history](isaac-render-frame-history.md)
 - [Observed-surface finger veto (experimental)](observed-finger-gate.md)
+- [PhysX finger envelope, provenance and local admission](physx-finger-envelope.md)
 - [Check the observed closing stroke before commanding it](observed-finger-closing.md)
 - [Align detector masks with their RGB-D frame](detector-mask-letterbox.md)
 - [Bounded grasp feasibility search](grasp-planning-search.md)
@@ -41,6 +42,7 @@ does not change which code produced those measurements.
 - [Retained withdrawal after release](NVBLOX_RELEASE_RETREAT.md)
 - [nvblox map reset and allocation history](NVBLOX_MAPPER_RESET.md)
 - [Read-only construction of truth-pose views](NVBLOX_TRUTH_READONLY.md)
+- [Optional OVRTX RGBD renderer: x86/ARM evidence and limits](OVRTX_RENDERER.md)
 - [Newton physics engine: setup and validation](NEWTON_ENGINE.md)
 - [Bridge degradation under sustained verification polling](BRIDGE_DEGRADATION.md)
 
@@ -59,7 +61,8 @@ certify a later checkout.
 ## Research and future work
 
 A design or paper comparison is not an enabled runtime feature. In particular,
-Jev/Kev is offline evaluation and ovrtx is proposed work.
+Jev/Kev is offline evaluation. OVRTX is an implemented optional renderer listed
+above; automatic physics producers and its kitchen acceptance remain future work.
 
 - [Roadmap](ROADMAP.md)
 - [Decision models in Cascade](JEV_DECISIONS.md)
@@ -95,7 +98,7 @@ Jev/Kev is offline evaluation and ovrtx is proposed work.
 
 ## Documentation verification
 
-The 1 October audit inventoried tracked Markdown, readmes, historical plans,
+The documentation-only PR #43 audit on 1 October inventoried tracked Markdown, readmes, historical plans,
 asset documentation and the standalone presenter page. It inspected profile,
 launcher and installer definitions before updating defaults and examples.
 Runtime prompts, test fixtures, licenses, configuration and executable source
@@ -105,7 +108,10 @@ no asset result or threshold was invented to replace them.
 
 Offline checks cover local links/anchors, shell-block syntax and the existing
 presenter/setup/consent/English tests. They do not execute installation, launch,
-reset, motion or external commands copied from the guides. All non-documentary
-tracked files are compared with physical MAIN `477c88f`, including Git LFS
-content hashes and sizes. The presenter page's JavaScript and CSS are unchanged.
-Physical outcomes remain governed by their own source-bound receipts.
+reset, motion or external commands copied from the guides. That audit compared
+all non-documentary tracked files with physical MAIN `477c88f`, including Git LFS
+content hashes and sizes; its presenter JavaScript and CSS were unchanged.
+The later PhysX-envelope and OVRTX integration changes executable source and has
+its own source-bound software and rendering evidence. This documentation update
+distinguishes those contracts from the retained physical runs; it does not
+extend the earlier documentation-only equivalence claim to new runtime code.

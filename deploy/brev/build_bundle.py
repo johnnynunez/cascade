@@ -14,12 +14,13 @@ import prepare_bundle as bundle
 HERE = Path(__file__).resolve().parent
 SOURCE_PATTERNS = (
     "LICENSE", "pyproject.toml", "uv.lock", "src/cascade/**/*.py", "configs/**/*.yaml",
+    "assets/grasp_geometry/*.json",
     "scripts/isaac_bridge.py", "scripts/isaac_runtime.py", "scripts/isaac_camera_readback.py", "scripts/isaac_frame_history.py",
     "scripts/isaac_materials.py", "scripts/isaac_self_mask.py", "scripts/isaac_launch.py",
     "scripts/newton_mesh_compat.py",
     "scripts/demo_proof.py", "scripts/native_turn_budget.py", "scripts/judge_run.py", "scripts/install_support.py", "scripts/kitchen_assets.py",
     "scripts/build_cocina_asier.py",
-    "demo/**/*.py", "demo/scene/kitchen_config.json", "demo/scene/own_assets.json",
+    "demo/**/*.py", "demo/ovrtx/rgbd.usda", "demo/scene/kitchen_config.json", "demo/scene/own_assets.json",
     "demo/scene/cocina_asier_*.json",
     "demo/scene/NOTICE.md", "demo/scene/props/LICENSE.txt", "demo/scene/props/*.usda",
     "demo/kitchen/visitor-instructions.md", "demo/kitchen/dashboard/*.js",

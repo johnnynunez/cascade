@@ -10,11 +10,17 @@ import argparse
 import json
 import math
 import os
+from pathlib import Path
+import runpy
 import subprocess
 import sys
 from urllib.parse import urlsplit
 from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
+
+_turn_budget = runpy.run_path(str(Path(__file__).resolve().with_name("native_turn_budget.py")))
+NATIVE_TURN_TIMEOUT_S = _turn_budget["NATIVE_TURN_TIMEOUT_S"]
+AGENT_EXIT_GRACE_S = _turn_budget["AGENT_EXIT_GRACE_S"]
 
 
 class ProofError(RuntimeError):
@@ -246,7 +252,7 @@ def agent_turn(session: str, model: str, message: str, output, timeout: int, req
     timeout = proof_timeout(timeout)
     command = oc_command("agent", "--session-id", session, "--model", model,
                          "--message", message, "--json", "--timeout", str(timeout))
-    p = subprocess.run(command, capture_output=True, text=True, timeout=timeout + 30)
+    p = subprocess.run(command, capture_output=True, text=True, timeout=timeout + AGENT_EXIT_GRACE_S)
     output.write_text(p.stdout)
     output.with_suffix(".stderr.txt").write_text(p.stderr)
     if p.returncode:
@@ -334,7 +340,7 @@ def _run_spark_cases(repo, state_dir, evidence, report, owner, baseline):
             started = time.time()
             message = ("Could you put the green cube in the green square?" if number == 1
                        else "Please put the orange in the open box.")
-            turn(message, "pick_and_place", case_dir / "02-pick.json", 300)
+            turn(message, "pick_and_place", case_dir / "02-pick.json", NATIVE_TURN_TIMEOUT_S)
             _bound_world(state_dir, owner, baseline, report["started_at"], process)
             witness.settle(wall_timeout=90)
             witness.mark("pick_end")
@@ -404,7 +410,7 @@ def run_proof(repo, state_dir, sim: str, robot_turn: bool = True) -> dict:
         print(f"[proof] picking {target} (physics confirmation required)", file=sys.stderr, flush=True)
         agent_turn(session, model,
                    f"Please put the {target} in the drop zone.",
-                   evidence / "03-pick.json", 300, "pick_and_place")
+                   evidence / "03-pick.json", NATIVE_TURN_TIMEOUT_S, "pick_and_place")
         _bound_world(state_dir, owner, baseline, report["started_at"], process)
         validate_pick_trace(trace, started, target)
         reset_started = time.time()

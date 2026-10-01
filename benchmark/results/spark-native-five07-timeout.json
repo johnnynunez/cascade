@@ -1,0 +1,79 @@
+{
+  "schema": "cascade.native-timeout-diagnostic.v1",
+  "source_commit": "12534a4bfe94d4ae0282eb9a7fda4c6b0a167629",
+  "captured_utc": "2026-10-01T04:48:26.966141+00:00",
+  "scope": "Allowlisted diagnostic lines only; original log hashes identify snapshots at extraction. No configuration, authentication material or complete gateway logs copied. No RPC or actuation.",
+  "originals": {
+    "gateway": {
+      "path": "runs/.launch/profile-cascade-demo/openclaw-gateway.log",
+      "sha256": "64f805098ee165bbbdf4de5186888b2ef6b625ccb697a67e60858b32fccf7c35",
+      "bytes": 119674,
+      "extract": "gateway-allowlisted.json",
+      "extract_sha256": "68f485d80f3ae8b45a2fe164d13666e23b3da76233022bbbf887da52991c8c6d"
+    },
+    "mcp": {
+      "path": "runs/mcp_705180_fc7d78b48ada4685891bfaafd015b41b/server.log",
+      "sha256": "de4f113a1e1077c9995bfbf5ccf255181fde8dfe796a4abbd26efc6c2710fbec",
+      "bytes": 5830,
+      "extract": "mcp-allowlisted.json",
+      "extract_sha256": "7a312c99dd6eefeae9dd9299415da24b5c7516a9b8968622ed24b8928e36b153"
+    }
+  },
+  "timeline": {
+    "visitor_started_unix_s": 1790829522.8707922,
+    "visitor_finished_unix_s": 1790829763.7100267,
+    "trace_finished_unix_s": 1790829767.208218,
+    "skill_duration_s": 231.08,
+    "timings": {
+      "grasp_attempt1_s": 102.82,
+      "place_s": 107.4
+    },
+    "return_home": {
+      "attempted": true,
+      "ok": false,
+      "error": "simulation motion stopped"
+    },
+    "post_place_retreat": {
+      "ok": true,
+      "tcp_at": [
+        0.14,
+        -0.281,
+        0.14
+      ]
+    },
+    "placement_status": "confirmed",
+    "placement_scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+    "reset_confirmed": false
+  },
+  "source_files_sha256": {
+    "deploy/brev/visitor_chat.py": "8c0552123ce68ee505a7a76c3a8dde0c59c7f3e116ba31fb7f9f1c5dcd467cf3",
+    "scripts/demo_proof.py": "e30964ad6de0c7f6ffc51130c8946f3f5c40afa871d93a5ad25ad4a99888548a",
+    "scripts/launch.sh": "5c8b69a6ec939738f0a29ea66a8e21b0c06a0dfaee2f814b6559ccece13ca1af",
+    "src/cascade/apps/mcp_server.py": "aea905a26335ddff2cc5a6d20124348dbda894fe6b53a87ec875eef303d06f57"
+  },
+  "extracts": {
+    "gateway-allowlisted.json": [
+      {
+        "line": 802,
+        "text": "2026-10-01T06:42:43.646+02:00 [agent/embedded] embedded run timeout: runId=ae073370-9608-4fce-b204-4df4f31a29f1 sessionId=cascade-proof-3097bfc17ce34f118e3f75e5c12dc51b timeoutMs=239999"
+      }
+    ],
+    "mcp-allowlisted.json": [
+      {
+        "line": 23,
+        "text": "[cascade-mcp] client cancelled 'pick_and_place' mid-motion -> e-stop. If this arrived at a round number of seconds the HOST's per-call budget expired (OpenClaw requestTimeoutMs, default 60 s) -- a persistent pick legitimately runs longer; raise it in the server entry (launch.sh sets 300000)."
+      },
+      {
+        "line": 24,
+        "text": "[cascade-mcp] EMERGENCY STOP latched (out-of-band)"
+      }
+    ]
+  },
+  "remote_receipt_sha256": "8cb10ccb7baad77c3d86c8bad3f5c213b4fdf0322d64d0d5ab641a2ca9e1cb22",
+  "interpretation": {
+    "failure": "The attendee whole-turn deadline cancelled pick_and_place during return_home after successful grasp and placement. The separate MCP requestTimeoutMs remained300000.",
+    "normal_proof": "Native proof used300s for each pick turn; the attendee used240s. Source had not changed.",
+    "safety": "Client cancellation correctly latched e-stop; the subsequent requested reset was rejected and no campaign case2 was launched.",
+    "fix_acceptance": "Correction not yet deployed or physically accepted."
+  }
+}

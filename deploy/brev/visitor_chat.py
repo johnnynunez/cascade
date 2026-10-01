@@ -7,11 +7,16 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import subprocess
 import sys
 import threading
 import time
 import uuid
+
+_turn_budget = runpy.run_path(str(Path(__file__).resolve().parents[2] / "scripts/native_turn_budget.py"))
+NATIVE_TURN_TIMEOUT_S = _turn_budget["NATIVE_TURN_TIMEOUT_S"]
+AGENT_EXIT_GRACE_S = _turn_budget["AGENT_EXIT_GRACE_S"]
 
 TOOLS = frozenset({"describe_scene", "localize_object", "pick_and_place",
                    "reset_scene", "camera_snapshot", "world_state"})
@@ -171,10 +176,11 @@ class AttendeeChat:
                        NODE_COMPILE_CACHE=str(self.state / "openclaw/cache/node-compile"))
             command = [str(self.repo / ".openclaw-cli/bin/openclaw"), "--profile", "cascade-demo", "agent",
                        "--session-id", proof["session_id"], "--model", proof["model"],
-                       "--message", message, "--json", "--timeout", "240"]
+                       "--message", message, "--json", "--timeout", str(NATIVE_TURN_TIMEOUT_S)]
             # Keep the order lock alive in the CLI if the visitor is restarted.
             completed = subprocess.run(command, env=env, cwd=self.repo, capture_output=True,
-                                       text=True, timeout=270, pass_fds=(lock.fileno(),))
+                                       text=True, timeout=NATIVE_TURN_TIMEOUT_S + AGENT_EXIT_GRACE_S,
+                                       pass_fds=(lock.fileno(),))
             if completed.returncode:
                 raise ValueError("The attendee turn failed")
             envelope = json.loads(completed.stdout)

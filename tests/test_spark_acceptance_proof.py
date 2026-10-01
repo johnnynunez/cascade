@@ -14,7 +14,7 @@ host_boundary = _host_boundary
 @pytest.fixture
 def spark_boundary(host_boundary, monkeypatch):
     h = host_boundary
-    h.update(turns=[], prompts=[], audits=[], witnesses=[], audit_fail=None, duplicate_call=False,
+    h.update(turns=[], prompts=[], timeouts=[], audits=[], witnesses=[], audit_fail=None, duplicate_call=False,
              reset_failure=False, wrong_object=False, extra_inspection=False)
     monkeypatch.setenv("CASCADE_INSTALL_PROFILE", "spark")
 
@@ -26,6 +26,7 @@ def spark_boundary(host_boundary, monkeypatch):
         }.get(message, {})
         h["prompts"].append(message)
         h["turns"].append((required_tool, arguments, session))
+        h["timeouts"].append((required_tool, timeout))
         output.write_text(json.dumps({"synthetic_test_only": True, "arguments": arguments}))
         if "trace" not in h:
             h["spawn"]()
@@ -95,6 +96,9 @@ def test_two_native_orders_with_observed_resets_share_one_real_process_binding(s
     assert tools == ["describe_scene", *(["pick_and_place", "reset_scene",
                                       "world_state", "describe_scene"] * 2)]
     assert len({session for _, _, session in h["turns"]}) == 1
+    assert [timeout for tool, timeout in h["timeouts"] if tool == "pick_and_place"] == [
+        demo_proof.NATIVE_TURN_TIMEOUT_S, demo_proof.NATIVE_TURN_TIMEOUT_S]
+    assert demo_proof.NATIVE_TURN_TIMEOUT_S == 300
     assert h["audits"] == ["green_cube", "orange"]
     assert len(h["children"]) == 1
     for witness in h["witnesses"]:

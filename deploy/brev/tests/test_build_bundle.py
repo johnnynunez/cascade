@@ -83,6 +83,34 @@ def test_assembled_runtime_is_admitted_by_existing_prepare(distribution, tmp_pat
     assert not (output / "source/kitchen").exists()
 
 
+def test_assembled_native_turn_modules_load_in_an_isolated_python(distribution, tmp_path):
+    """Exercise real assembled scripts without checkout/import-cache fallback."""
+    checkout, _, output, _ = distribution
+    source = builder.HERE.parents[1]
+    for name in ("scripts/demo_proof.py", "scripts/native_turn_budget.py", "deploy/brev/visitor_chat.py"):
+        dest = checkout / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / name, dest)
+    assemble(distribution)
+    code = """
+import importlib.util, json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+result = {}
+for name in ('scripts/demo_proof.py', 'deploy/brev/visitor_chat.py'):
+    spec = importlib.util.spec_from_file_location('isolated_turn_module', root/name)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    result[name] = [module.NATIVE_TURN_TIMEOUT_S, module.AGENT_EXIT_GRACE_S]
+print(json.dumps(result))
+"""
+    completed = subprocess.run([sys.executable, "-I", "-c", code, str(output / "source")],
+                               cwd=tmp_path, capture_output=True, text=True, timeout=10, check=True)
+    assert json.loads(completed.stdout) == {
+        "scripts/demo_proof.py": [300, 30], "deploy/brev/visitor_chat.py": [300, 30]}
+    subprocess.run([sys.executable, "-I", str(output / "source/scripts/demo_proof.py"), "--help"],
+                   cwd=tmp_path, capture_output=True, text=True, timeout=10, check=True)
+
+
 def test_repeat_assembly_reuses_certified_asset_bytes(distribution, monkeypatch):
     first = assemble(distribution)
     _, assets, output, _ = distribution

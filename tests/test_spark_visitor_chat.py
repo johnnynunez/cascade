@@ -221,7 +221,9 @@ def test_abandoned_order_blocks_both_visitors_until_a_new_verified_world(chat, m
 
 def test_cli_timeout_keeps_the_uncertain_order_latched(chat, monkeypatch):
     def timeout(command, **kwargs):
-        raise chat_module.subprocess.TimeoutExpired(command, 270, output="private-token-fixture")
+        assert command[command.index("--timeout") + 1] == "300"
+        assert kwargs["timeout"] == 330
+        raise chat_module.subprocess.TimeoutExpired(command, kwargs["timeout"], output="private-token-fixture")
     monkeypatch.setattr(chat_module.subprocess, "run", timeout)
     chat.submit("Move the cube")
     assert finished(chat)["status"] == "error"
@@ -229,6 +231,52 @@ def test_cli_timeout_keeps_the_uncertain_order_latched(chat, monkeypatch):
     assert "private-token-fixture" not in chat.result_path.read_text()
     with pytest.raises(chat_module.BusyError):
         chat.submit("Move another cube")
+
+
+@pytest.mark.parametrize("elapsed_s", [249, 299, 300, 301])
+def test_turn_budget_keeps_legitimate_motion_but_expiry_still_latches_stop(chat, monkeypatch, elapsed_s):
+    """Model only gateway time; use the real MCP cancel and safety latch.
+
+    No sleeping, physical backend, or claim of an end-to-end OpenClaw test.
+    The existing stdio tests separately cover notifications/cancelled routing.
+    """
+    import numpy as np
+    from cascade.apps.mcp_server import McpSkillServer
+    from cascade.safety.harness import SafeArm, SafetyHarness, SafetyLimits
+
+    stopped = []
+    harness = SafetyHarness(SafetyLimits(np.full(3, -1.), np.full(3, 1.)))
+    server = McpSkillServer()
+    server._runtime = SimpleNamespace(arm=SafeArm(SimpleNamespace(stop=lambda: stopped.append(True)), harness))
+    server._inflight = (41, "pick_and_place")
+    calls = []
+
+    def gateway(command, **kwargs):
+        calls.append(command)
+        deadline = int(command[command.index("--timeout") + 1])
+        assert deadline == 300
+        assert kwargs["timeout"] == deadline + 30
+        envelope = answer(chat)
+        envelope["result"]["meta"]["toolSummary"]["tools"] = ["cascade__pick_and_place"]
+        if elapsed_s >= deadline:
+            # OpenClaw sends this cancellation when its whole-turn budget ends.
+            server.cancel_request(41)
+            envelope["result"]["meta"]["aborted"] = True
+        return SimpleNamespace(returncode=0, stdout=json.dumps(envelope))
+
+    monkeypatch.setattr(chat_module.subprocess, "run", gateway)
+    chat.submit("Please put the green cube in the green square.")
+    result = finished(chat)
+    assert len(calls) == 1
+    if elapsed_s < 300:
+        assert result["status"] == "done"
+        assert not harness.estopped and not server._stop_pending and stopped == []
+    else:
+        assert result["status"] == "error" and not chat.status()["ready"]
+        assert json.loads(chat.result_path.read_text())["order"]["status"] == "uncertain"
+        assert harness.estopped and server._stop_pending and stopped == [True]
+        with pytest.raises(chat_module.BusyError):
+            chat.submit("Move another cube")
 
 
 @contextmanager

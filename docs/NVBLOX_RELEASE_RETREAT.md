@@ -40,8 +40,25 @@ acknowledged at least one target; lost acknowledgements remain ambiguous and
 blocked. The counter proves transport acknowledgement, not physical motion or
 settling. Unconfirmed release or missing/changed feedback also remains blocked.
 
-The original live scene still runs `1efa8e9`; these source changes are prepared
-and tested in a separate worktree. The old runtime's episode was not retained,
-so any recovery of that scene would require a separately reviewed diagnostic
-rehydration with explicit historical and live evidence. No such actuation is
-performed by the offline tests.
+The original `1efa8e9` trial did not retain this new episode. Its final state was
+captured without commands, then only its owned bridge and mapper were terminated
+normally. That administrative close did not finish withdrawal or home and is not
+a restorable PhysX checkpoint. No release authority was reconstructed from the
+old receipt or from `held_object=None`. The five-object campaign remains 0/5
+complete, with one physically placed orange and four objects unattempted.
+
+The final source pin `224b2eb` passed 2,880 tests (43 skipped, 3 deselected) in
+318.97 seconds after independent review. Earlier full runs are preserved:
+`3564e0b` found ten optional-harness compatibility failures; `ee7e4cf` found one
+launcher `/proc` disappearance race. The final pin fixes both without weakening
+release guards. Native physical validation of this new release episode is still
+pending in a fresh scene.
+
+A separate mapper-only replay of saved measured frames reproduced the 500 ms
+limit without any robot RPC. After the third clear, the first integration took
+718.718 ms on the server (client timeout at 500.644 ms), with host spans of
+278.697 ms in depth integration and 439.299 ms in ESDF update. All 29 requests have
+matching server timing records; six queries took 25.043–37.045 ms. This later
+stationary workload is not the lost pregrasp history and does not establish the
+cause of the original timeout. Mapper optimization remains separate from this
+release-recovery change; no deadline, clearance or publication rule was relaxed.

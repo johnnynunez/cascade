@@ -1,0 +1,99 @@
+{
+  "campaign_pass": false,
+  "source_commit": "7e02de70a24cd5e89a6f774e95189d1225ea2cb5",
+  "campaign_sha256": "d440384f4dabf0ddcd7d0d33cc754e4089825fbb5047ab345918a1dc6c31e176",
+  "case_sha256": "30f395adbcf60fbc2eeccc02fb18495329363d926ebdbd5e30fe22f0a1051147",
+  "launch_sha256": "6bea8dd65da35df81664910a13f86d67826ba660bf83885cd7d3989e2aa0d120",
+  "attempted": [
+    "orange"
+  ],
+  "unattempted": [
+    "green_cube",
+    "pink_cube",
+    "lemon",
+    "tomato_can"
+  ],
+  "failure": "place failed after 1 attempts: SkillError: release requires the same observed attachment and producer epoch",
+  "postcondition": {
+    "skill": "pick_and_place",
+    "kind": "relocated",
+    "status": "refuted",
+    "evidence": "orange ended 19.7 cm from where it was meant to go (at [0.275, 0.056], wanted [0.3, -0.14])",
+    "channel": "physics",
+    "measured": {
+      "moved_m": 0.115,
+      "final": [
+        0.2754,
+        0.0559,
+        0.0235
+      ],
+      "target_err_m": 0.1974
+    }
+  },
+  "reset_pass": true,
+  "raw_sampled_cameras": {
+    "cam0": {
+      "samples": 2156,
+      "maximum_server_age_s": 1.0132592299924,
+      "maximum_delivery_age_s": 1.0432748519961024,
+      "samples_server_over_2s": 0
+    },
+    "side": {
+      "samples": 2156,
+      "maximum_server_age_s": 1.0132592299924,
+      "maximum_delivery_age_s": 1.0432748519961024,
+      "samples_server_over_2s": 0
+    },
+    "proof": {
+      "samples": 2156,
+      "maximum_server_age_s": 1.0132592299924,
+      "maximum_delivery_age_s": 1.0432748519961024,
+      "samples_server_over_2s": 0
+    }
+  },
+  "neighbor_final_displacement_from_first_witness_m": {
+    "pink_cube": 2.986047331594191e-08,
+    "green_cube": 0.0003150735409997681,
+    "tomato_can": 7.450580596923828e-08,
+    "lemon": 0.017851423444474723
+  },
+  "neighbor_scope": "Final pick state versus first witness; does not attribute contact cause.",
+  "capture_gap_scope": "Server monotonic minus capture in the same physical snapshot; observed capture gaps are sample gaps, not all producer frames.",
+  "diagnostic_profile": {
+    "llm": "mock",
+    "occupancy": "nvblox",
+    "belief_persistence": false,
+    "fresh_grasp_memory": true,
+    "held_xy_slip_feedback": "production truth lookup with perception fallback",
+    "release_height_feedback": "FK and configured support plane",
+    "cuda_perception_required": true,
+    "acceptance": "independent passive physics proof; skill ok alone is insufficient"
+  },
+  "schema_version": 1,
+  "root_review_sha256": "714bc99202b4cc8c8f689b235919f7cdfb679e5ae3cbee3f0b2f3f6e3fc4e4c3",
+  "artifacts_rehashed": 27,
+  "source_files_rehashed": 259,
+  "cause_review": "Witness confirms real grip loss during horizontal transport before release; mechanical cause unresolved.",
+  "analysis_sha256": "d0d022cd2e346d7fd287280ffa6b180f850b45a26699d9fb28bfbe2991329f23",
+  "analysis_artifacts_manifest_sha256": "baae61bbe21cb03f116f964301bb71788e135ccd639c403e3cce77f3bed6d1cb",
+  "loss_during_horizontal_transport": true,
+  "no_gripper_command_between_close_and_native_reset_open": true,
+  "producer_epoch": "4662a0d83e35444d9655a3c8bbeba604",
+  "neighbor_peak_position_delta_m": {
+    "pink_cube": 3.337203127736024e-08,
+    "green_cube": 0.00032051304452681976,
+    "tomato_can": 9.570444061357624e-08,
+    "lemon": 0.018362877923142052
+  },
+  "analysis_limitations": [
+    "The release begin predicate combines map streams, attachment count, epoch and source. Its internal map fields were not logged at the exact failure; three contemporary camera packets and real contacts independently show attachment loss in the same producer epoch.",
+    "The measurements demonstrate loss of physical grip during transport, followed by falling; they do not identify its mechanical cause.",
+    "Command recorder wraps skill arm calls, not all backend targets. Successful move results are not a statement that payload remained attached.",
+    "Maximum observed capture gap includes unsampled intervals; per-snapshot ages do not prove continuous freshness.",
+    "Native reset was explicitly part of the approved fail-fast case. Reset PASS does not convert placement or campaign to PASS."
+  ],
+  "analysis_root_artifact_review_sha256": "7386eecf7f16ea8c7d8944400a33891fea92e11755c1f7fc5e1d2f860ab34ae0",
+  "analysis_artifacts_rehashed": 33,
+  "independent_peer_sha256": "4285f85d3dd4ecad2b5cc7be034e0499d74124267a9de2305de7eee723b45a08",
+  "independent_peer_scope": "Offline raw chronology, contacts, epochs, neighbors and camera recomputation; failed campaign confirmed."
+}

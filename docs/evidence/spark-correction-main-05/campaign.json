@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "source": "0e2387070c2b784ba864981f5c291a1b1e4d117a",
+  "scope": "Spark correction-MAIN-05 five-object campaign, distinct from earlier two-object proof",
+  "pass": false,
+  "run_complete": false,
+  "attempted_cases": 2,
+  "passed_cases": 1,
+  "unattempted_cases": 3,
+  "restart_performed": false,
+  "cases": [
+    {
+      "object": "green_cube",
+      "physical_audit_pass": true,
+      "audit_errors": [],
+      "witness_samples": 1990,
+      "shared_feedback": {
+        "feedback_samples": 580,
+        "distinct_steps": 580,
+        "max_q_error_rad": 0.0,
+        "max_jaw_error_m": 0.0
+      },
+      "lift_samples": 98,
+      "bilateral_lift_samples": 98,
+      "lift_height_m": 0.03988058306276798,
+      "maximum_neighbor_phase_displacement_m": 1.2065570608304177e-07,
+      "cameras": {
+        "cam0": {
+          "server_max_s": 1.983697260991903,
+          "server_over_2s": 0,
+          "delivery_max_s": 2.079855806005071,
+          "delivery_over_2s": 2
+        },
+        "side": {
+          "server_max_s": 1.983697260991903,
+          "server_over_2s": 0,
+          "delivery_max_s": 2.079855806005071,
+          "delivery_over_2s": 2
+        },
+        "proof": {
+          "server_max_s": 1.983697260991903,
+          "server_over_2s": 0,
+          "delivery_max_s": 2.079855806005071,
+          "delivery_over_2s": 2
+        }
+      },
+      "peer_receipt_sha256": "82899dc84d9fadf888a9f16b61ba675c44ce73f418aa5e30870a2e3c5c9c2a4b",
+      "association_sha256": "c319bad5c987c1a695bf9998b5f1d2b07d787a6ae78e85ec064a3aba3aeda0c4"
+    },
+    {
+      "object": "orange",
+      "physical_audit_pass": false,
+      "audit_errors": [],
+      "witness_samples": 2191,
+      "shared_feedback": {
+        "feedback_samples": 693,
+        "distinct_steps": 693,
+        "max_q_error_rad": 0.0,
+        "max_jaw_error_m": 0.0
+      },
+      "lift_samples": 192,
+      "bilateral_lift_samples": 192,
+      "lift_height_m": 0.03849939443171024,
+      "maximum_neighbor_phase_displacement_m": 1.0595815370476165e-07,
+      "cameras": {
+        "cam0": {
+          "server_max_s": 2.071459982995293,
+          "server_over_2s": 1,
+          "delivery_max_s": 2.165724129998125,
+          "delivery_over_2s": 2
+        },
+        "side": {
+          "server_max_s": 2.071459982995293,
+          "server_over_2s": 1,
+          "delivery_max_s": 2.165724129998125,
+          "delivery_over_2s": 2
+        },
+        "proof": {
+          "server_max_s": 2.071459982995293,
+          "server_over_2s": 1,
+          "delivery_max_s": 2.165724129998125,
+          "delivery_over_2s": 2
+        }
+      },
+      "peer_receipt_sha256": "958228a987a895dc0f8f8ad1c64e124ab42941e4453602ef50b99346ff6d8251",
+      "association_sha256": "5d3c59ec66765ab2f2ecbcd7f8794e785e74aab2d9082f61b9ec398e23b1d89e"
+    }
+  ],
+  "orange_failure": {
+    "physical_results": {
+      "pick_audit": true,
+      "pick_physics": true,
+      "pick_cameras": true,
+      "native_postcondition_status": "confirmed",
+      "native_placement_checks": {
+        "actual_joints_within_limits": true,
+        "released_actual_jaws": true,
+        "destination_xy": true,
+        "supported_z": true,
+        "settled_linear_speed": true,
+        "settled_angular_speed": true,
+        "stable_final_position": true,
+        "support_geometry": true,
+        "whole_collider_contained_and_supported": true
+      },
+      "return_home": {
+        "attempted": true,
+        "ok": true,
+        "at": "home"
+      },
+      "reset_tool_ok": true,
+      "reset_confirmed": true
+    },
+    "stale_samples": [
+      {
+        "sequence": 1989,
+        "physics_step": 60116,
+        "bridge_loop_step": 29087,
+        "camera": "cam0",
+        "server_monotonic": 108262.843703158,
+        "capture_monotonic": 108260.772243175,
+        "server_age_s": 2.071459982995293,
+        "client_delivery_age_s": 2.165724129998125
+      },
+      {
+        "sequence": 1989,
+        "physics_step": 60116,
+        "bridge_loop_step": 29087,
+        "camera": "side",
+        "server_monotonic": 108262.843703158,
+        "capture_monotonic": 108260.772243175,
+        "server_age_s": 2.071459982995293,
+        "client_delivery_age_s": 2.165724129998125
+      },
+      {
+        "sequence": 1989,
+        "physics_step": 60116,
+        "bridge_loop_step": 29087,
+        "camera": "proof",
+        "server_monotonic": 108262.843703158,
+        "capture_monotonic": 108260.772243175,
+        "server_age_s": 2.071459982995293,
+        "client_delivery_age_s": 2.165724129998125
+      }
+    ],
+    "event_timing": {
+      "unix_inferred_from_reset_marker_offset": 1790862369.049287,
+      "wall_conversion_basis": {
+        "monotonic": 108175.849353319,
+        "unix": 1790862282.0549371
+      },
+      "seconds_after_reset_order_finished": 31.098539113998413,
+      "seconds_after_reset_tool_trace": 38.76142859458923,
+      "visitor_order": "world_state",
+      "world_order_started_at": 1790862337.9677098,
+      "world_order_finished_at": 1790862379.7837198,
+      "inside_broad_reset_observation_phase": true
+    },
+    "native_trace_validator_replay": {
+      "without_optional_audit_accepts_confirmed_trace": true,
+      "with_actual_failed_global_audit_error": "expected one current physics-confirmed pick for 'orange'; found 0",
+      "meaning": "The global camera failure overrides the confirmed trace predicate; found0 does not mean absent physical placement."
+    },
+    "bounded_inference": [
+      "The same capture timestamp and per-camera JPEG hash remain visible through sequence1989 and update by1990; full RGBD packet equality was not observed.",
+      "Sequence1986 request lasts1.324s, with1.118s after the snapshot server timestamp before client completion; this includes observer work and transport after the timestamp, and does not identify a unique renderer/GPU/network cause.",
+      "The stale observation is after reset finished, during world_state; broad reset observation markers also cover later nonmotion visitor queries.",
+      "Sampled actual q remains near HOME with open jaws; no evidence here of a new motion command.",
+      "The witness does not record render-product rational tokens or per-stage internal timings, so no exclusive rendering cause is established."
+    ]
+  },
+  "archive": {
+    "pass_review": true,
+    "scope": "Independent root rehash of exact retained archive; proof2PASS and campaignFAIL remain separate. No restart or new physical authority.",
+    "archive_sha256": "abf6a0905ae5088b31a7b12c9ad75ac3dfc1ac0bce65e398a05661c7a47a250e",
+    "archive_bytes": 123612610,
+    "archive_members_verified": 275,
+    "retention_sha256": "e12e56a4d2b2c8885b66751295a0f6380721bb7a1c4fa74b802c05d3f2f1a7e3",
+    "proof_verified": true,
+    "campaign": {
+      "pass": false,
+      "run_complete": false,
+      "attempted_cases": 2,
+      "passed_cases": 1,
+      "errors": []
+    },
+    "utc": "2026-10-01T13:57:18.156352+00:00"
+  },
+  "evidence_sha256": {
+    "archive_root_review": "c84406b5c938ea93f7a5aff6ba3e31080b025c5dd317267cf880e71d6f8279f0",
+    "orange_diagnostic_peer": "27758d41820a2de06d73a220e07f536f505b293a789dbdfd746a38b3cf899bb4"
+  }
+}

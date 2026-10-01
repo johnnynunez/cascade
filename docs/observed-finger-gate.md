@@ -8,6 +8,12 @@ Offline evidence and subsequent physical cases are source-bound; see the
 [current acceptance index](PROJECT_STATUS_20261001.md). A successful case does
 not establish collision-free behavior in general.
 
+The later [endpoint occlusion veto](observed-finger-occlusion.md) also rejects
+finger envelopes extending behind valid non-target, non-robot depth along
+sampled pixel rays at pregrasp, grasp and measured pre-close poses. The surface
+checks described here remain in force. Invalid or masked depth, unseen regions,
+space between rays and intermediate poses gain no free-space certification.
+
 The native04 orange attempt localized the object within about 1 mm, but the
 selected descent pushed the orange and its neighbor before closing. An offline
 mesh analysis found that even its ideal joint path intersected the neighbor.

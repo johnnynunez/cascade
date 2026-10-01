@@ -8,16 +8,55 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
-Latest MAIN `13ec4830c913f4da3c3c6d07c4a810f95a49f323` adds the optional
+Current runtime **`27f2b0d7ab76f1c4e3bf246d1b23c636e570496f`** merges
+[PR #51](https://github.com/johnnynunez/cascade/pull/51). Its tree
+`6ceed3ab9c9e894daf9f427f004c404cd63c8c3c` exactly matches tested candidate
+`eb90272`: **3,467 tests passed**, 43 skipped and four deselected, in 340.66 seconds.
+All 1,100 tracked files and eight release assets stayed unchanged. All five PR
+CI jobs passed; merged-source CI is tracked separately in the
+[software receipt](evidence/finger-depth-occlusion-integration/validation.json).
+The [endpoint occlusion veto](observed-finger-occlusion.md) rejects finger
+endpoints behind observed non-target depth; independently vetted wrist twins
+remain available when the original orientation fails. Planning deadlines,
+0.1 mm jaw tracking, physical colliders and camera settings are unchanged.
+These checks do not certify hidden free space or establish physical acceptance.
+
+Earlier runtime **`7e02de70a24cd5e89a6f774e95189d1225ea2cb5`** merges
+[PR #50](https://github.com/johnnynunez/cascade/pull/50), following the release
+synchronization fix in PR #49. Its tree `7d52a7fcc778b69a962418c5713cf20fb7baf9a1`
+is byte-identical to tested candidate `c5e63d7`: **3,441 tests passed**, 43 skipped
+and four deselected, in 346.22 seconds. All 1,092 tracked files and eight release
+assets stayed unchanged, and all five PR and all five merged-source CI jobs passed. The
+[combined software receipt](evidence/camera-publication-integration/validation.json)
+binds the complete suite, two independent source reviews and exact MAIN equality.
+Repeated render tokens now leave each camera pending for the next existing
+update; publication still requires valid render history and original timestamps.
+New physical proof, campaign, release recovery and restart require separate results.
+
+Commit `13ec4830c913f4da3c3c6d07c4a810f95a49f323` adds the optional
 [cuMotion planner](CUMOTION.md) in [PR #47](https://github.com/johnnynunez/cascade/pull/47).
 Its six new files leave the existing native runtime paths unchanged. The
-source-bound Spark and nvblox trials remain on baseline `0e23870`; this distinction
-also applies to the installation commands below. The standalone planner passed
-78 CPU tests and one real x86 GPU CLI/factory smoke, with no actuator execution.
-Its CI is recorded separately; the 3,365-test baseline result is not a full-suite
-measurement of the later addition.
+earlier Spark and nvblox trials described below remain bound to `0e23870`. The focused CPU suite passed
+78 tests, including 47 new planner contract tests. Real x86 and Spark aarch64
+GPU CLI/factory smokes also passed, with no actuator execution.
+All five PR CI jobs and all five merged-source CI jobs passed; their hashes are
+recorded in the [planner receipt](../benchmark/results/cumotion-planner-20261001.json).
+The 3,365-test local baseline result is not a full-suite measurement of the later
+addition. Documentation PR #48 subsequently merged as `00c89f1`, including the
+renamed [AGENTS.md](../AGENTS.md) guide and the
+[screw manipulation investigation](SCREW_MANIPULATION_RESEARCH.md). Its five PR
+and five merged-source CI jobs also passed; see the
+[documentation CI receipt](evidence/final-documentation-48/validation.json).
 
-Runtime baseline `0e2387070c2b784ba864981f5c291a1b1e4d117a` merged
+[PR #49](https://github.com/johnnynunez/cascade/pull/49) merged as `8ecf19f`
+after five successful CI jobs. Its candidate `c3ea27c` passed **3,436 tests**,
+43 skipped and four deselected, in 355.82 seconds. Release now waits within the
+existing deadlines for both actual jaws and a genuinely newer, fully open
+camera capture before recording release floors. Malformed state, wrong source,
+changed epoch and foreign contacts still reject. The [software receipt](evidence/release-opening-integration/validation.json)
+does not change environment 11’s failed physical result.
+
+Earlier runtime baseline `0e2387070c2b784ba864981f5c291a1b1e4d117a` merged
 [PR #46](https://github.com/johnnynunez/cascade/pull/46) after all five PR CI jobs
 passed. All five merged-source CI jobs also passed. Its tree
 `de39bba7c65f466e7fce42179ed22c213cd256da` is identical to tested
@@ -87,7 +126,11 @@ in the validation history.
 | [PR #44](https://github.com/johnnynunez/cascade/pull/44) | Optional [OVRTX RGBD rendering](OVRTX_RENDERER.md), the [PhysX envelope](physx-finger-envelope.md) admitted against x86 and ARM exports, and complete portable distribution of their runtime inputs. |
 | [PR #45](https://github.com/johnnynunez/cascade/pull/45) | Diagnostic recorders retain opaque callback metadata and forward the actual safety callback unchanged. |
 | [PR #46](https://github.com/johnnynunez/cascade/pull/46) | [Native host reserve](native-visitor-turn-budget.md): 360-second visitor/proof pick turns around the unchanged 300-second MCP call limit. |
-| [PR #47](https://github.com/johnnynunez/cascade/pull/47) | Optional [cuMotion 1.1.0 planning](CUMOTION.md), static-world candidate export, real x86 GPU smoke; no integration into native actuator execution. |
+| [PR #47](https://github.com/johnnynunez/cascade/pull/47) | Optional [cuMotion 1.1.0 planning](CUMOTION.md), static-world candidate export, real x86 and Spark ARM GPU smokes; no integration into native actuator execution. |
+| [PR #48](https://github.com/johnnynunez/cascade/pull/48) | Agent guide renamed to [AGENTS.md](../AGENTS.md), delivery documentation reconciled, and [threaded assembly research](SCREW_MANIPULATION_RESEARCH.md) added. |
+| [PR #49](https://github.com/johnnynunez/cascade/pull/49) | Wait for both actual jaws and newer release captures within the existing deadlines; partial opening cannot authorize withdrawal. |
+| [PR #50](https://github.com/johnnynunez/cascade/pull/50) | Keep incomplete camera publications pending across existing updates; retain duplicate packets and original timestamps until a new bound render is available. |
+| [PR #51](https://github.com/johnnynunez/cascade/pull/51) | [Endpoint depth occlusion checks](observed-finger-occlusion.md) and independently vetted symmetric wrist alternatives, with unchanged planning and physical limits. |
 
 ## Merged renderer and geometry integration
 
@@ -124,17 +167,61 @@ failures below. Documentation PR #43 preserved that earlier source distinction.
 
 ## Current physical acceptance
 
-**Spark final-MAIN-03 passed the two-object native proof, strict confirmation
-and READY on `28061a6`. Its subsequent five-object campaign failed, with four
-complete cases passing.** The tomato can reached confirmed placement, but the
-whole-turn deadline cancelled its return home; reset then refused the latched
-stop. The existing Chromium page retained its identity and three advancing
-1280 × 720 cameras. Normal restart and separate RTX nvblox recovery remain
-unaccepted stages. Preparation, software tests and passive observations do not
-replace them.
+The endpoint-occlusion correction in [PR #51](https://github.com/johnnynunez/cascade/pull/51)
+passed 3,467 software tests on candidate `eb90272`. Its new Spark run has not
+started: Tailscale reported the host offline from 15:24 UTC and SSH timed out
+before source transfer. The owner subsequently confirmed the Sparks were
+intentionally disconnected and requested local validation on the dual-RTX Pro
+PC. That x86 validation is being prepared and will not certify ARM delivery. The [candidate receipt](evidence/finger-depth-occlusion-integration/validation.json)
+records the full suite, equality check and blocked deployment. The separate
+environment 12 five-object campaign on `7e02de7` failed its first orange case
+before release because the observed attachment could not be confirmed. Its
+planned native reset passed; the remaining four objects were not attempted.
+The [campaign receipt](evidence/nvblox-environment-12/campaign.json) records
+zero of five cases passed, the successful reset and preserved failure. Witness data show bilateral contact loss during horizontal transport, followed
+by the orange falling to the table. No jaw command occurred between closure and
+the later planned reset. The mechanical cause remains unresolved.
+
+**The latest executed Spark proof, correction-MAIN-07 on `7e02de7`, failed.**
+Green completed native placement, return home and reset, with independent
+physical review. Orange stopped during descent when the right jaw fell below
+the geometrically checked opening interval, before any close or lift. The
+same guard refused withdrawal; no campaign or acceptance restart followed.
+All three sampled camera server ages stayed within two seconds in both cases.
+The [retained proof](evidence/spark-correction-main-07/proof.json) binds both
+outcomes and the independently rehashed 186-file archive. Strict confirmation
+and READY remained negative. Independent offline analysis found that
+the modeled open endpoint intersects the retained pink-cube box behind a visible
+depth surface. This identifies a blind spot in point-only vetting; the run did
+not measure a pink contact pair or force.
+
+**RTX nvblox environment 12 passed its native release/recovery diagnostic on
+`7e02de7`.** Orange completed pickup and placement; the injected mapper refusal
+blocked withdrawal after release. One explicit reset then performed the original
+retained withdrawal, returned home and reset the scene with three fresh map
+commits. All 2,476 observed samples per camera stayed below 0.834 s server age.
+The [release receipt](evidence/nvblox-environment-12/release.json) binds the
+source, native checks, 27 retained artifacts and independent root review.
+Observed capture gaps remain recorded; the five-object campaign is still separate.
+
+Earlier **Spark correction-MAIN-05 passed both native proof cases, strict confirmation
+and READY on `0e23870`.** Green cube and orange completed placement, return home
+and reset, with independent physical review and unchanged Chromium page identity.
+Its five-object campaign stopped after one complete pass: orange placement,
+return home and reset passed, but a subsequent camera sample exceeded the
+two-second server-age limit. The aggregate campaign remains FAIL and no
+acceptance restart followed. RTX nvblox environment 11 reached placement and opening but rejected
+release confirmation; that failed run remains unchanged by environment 12’s
+new result. The earlier final-MAIN-03 campaign failure remains in the history below.
 
 | Source/run | Measured result and boundary |
 | --- | --- |
+| MAIN `7e02de7`, Spark correction-MAIN-07 | Green placement/home/reset and independent audit passed. Orange aborted before closure when the right jaw reached 49.8942 mm against a 49.9 mm checked lower bound; withdrawal was also refused. No orange target contact or lift was observed. Sampled server camera ages peaked at 1.669 s for green and 1.259 s for orange. Overall proof, strict confirmation and READY remain FAIL; no campaign or restart followed. [Evidence](evidence/spark-correction-main-07/proof.json). |
+| MAIN `7e02de7`, nvblox environment 12 | Passive admission and one native release/recovery diagnostic passed. After the labeled post-open mapper refusal, no actuator commands occurred until the explicitly requested original withdrawal. Endpoint error was 0.004094 rad, orange displacement during withdrawal 1.86 nm; home/reset and three newer map commits passed. Sampled camera server/delivery maxima were 0.8332/0.8749 s. [Admission](evidence/nvblox-environment-12/admission.json) and [release](evidence/nvblox-environment-12/release.json). This is direct native skill execution, not visitor-host or five-object acceptance. |
+| MAIN `7e02de7`, nvblox environment 12 normal campaign | Orange pickup/lift passed, but placement rejected the missing observed attachment before release. Planned native reset passed; the other four objects were not attempted. Sampled camera server/delivery maxima were 1.0133/1.0433 s. Final non-target displacement was 17.85 mm for lemon and 0.315 mm for green; this measurement alone does not identify the contact mechanism. Overall FAIL, with no restart acceptance. [Campaign](evidence/nvblox-environment-12/campaign.json). |
+| MAIN `0e23870`, Spark correction-MAIN-05 proof | Both objects passed native placement/home/reset, strict confirmation, READY and independent physical review. Lift had bilateral contacts in 98/98 green and 190/190 orange samples. Maximum sampled server camera ages were 1.967 s and 1.872 s; client delivery maxima of 2.087 s and 2.077 s are retained separately. Same Chromium page and three advancing 1280 × 720 cameras. [Proof receipt](evidence/spark-correction-main-05/proof.json). This result covers two proof cases, not the separate five-object campaign or restart. |
+| MAIN `0e23870`, Spark correction-MAIN-05 campaign | Green passed. Orange placement, home and reset passed, but one subsequent sample on all three cameras aged to 2.07146 s at the server during `world_state`, 31.099 s after the reset order finished. The aggregate audit and campaign remain FAIL: one of two attempted cases passed, three were not attempted, and no acceptance restart followed. [Campaign evidence](evidence/spark-correction-main-05/campaign.json) preserves the physical successes and camera failure separately. |
+| MAIN `0e23870`, nvblox environment 11 | Native orange pick, lift, carry and placement reached the acknowledged gripper opening. Release confirmation then rejected incompletely open jaw feedback before the intended mapper-barrier failure, so no recovery or normal five-object campaign followed. No actuator commands occurred after the opening acknowledgement. Witness cameras still carried an intermediate opening until 8 ms after the abort; the exact internal state-versus-camera throw site was not logged. [Retained failure and root review](evidence/nvblox-environment-11/failure.json). |
 | MAIN `28061a6`, Spark final-MAIN-03 | Green and orange completed native placement, return home and reset; both independent physical audits and the strict checker passed. Sampled camera server ages remained ≤2 s, and measured neighboring props remained stationary within 0.00013 mm during grasp. The [proof receipt](evidence/spark-final-main-03/proof.json) retains separate delivery ages, capture gaps and earlier helper failures. This is an upgraded existing installation, not a fresh-install measurement. |
 | MAIN `28061a6`, Spark final-MAIN-03 campaign | Green cube, orange, pink cube and lemon passed complete placement/home/reset audits. Tomato-can placement and retreat were confirmed, but the 300-second turn deadline cancelled return home. The reset refused e-stop without resetting props. Strict confirmation and the aggregate campaign remain FAIL; no restart followed. The [campaign receipt](evidence/spark-final-main-03/campaign.json) preserves all five verdicts, camera measurements and the independently verified 356-file archive. |
 | MAIN `28061a6`, nvblox environment 10 | Passive three-camera admission passed. Initial map warmup took 6.006 s; some later commits aged to 2.642 s, while all three final commits were ≤1.045 s. The first release launcher failed its read-only atomic-truth preflight before any actuator commands. A later native truth probe passed in 88 ms. The second diagnostic completed setup reset, then its recorder rejected a callback as non-JSON data before the first pick motion. No close, injected mapping fault or release episode occurred. Both failures are retained; no recovery or five-object pass is claimed. [Failure receipt](evidence/nvblox-environment-10/failures.json). |

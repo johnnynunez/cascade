@@ -1,8 +1,8 @@
 # Spark delivery details
 
 Current source and acceptance are indexed in
-[project status, 1 October](PROJECT_STATUS_20261001.md). Runtime baseline `0e23870` contains
-PRs #27 and #32–46; its identical integration tree passed the 3,365-test combined
+[project status, 1 October](PROJECT_STATUS_20261001.md). Runtime baseline `27f2b0d` includes
+merged work through PR #51; its identical integration tree passed the 3,467-test combined
 suite, and all five PR CI jobs passed. The dated results
 below retain their original pins and verdicts; they are not current-source
 installation, campaign or restart claims.
@@ -16,6 +16,22 @@ The default event flow installs Isaac Sim, GraspGen-X, Qwen Q4, the vision proje
 llama.cpp, OpenClaw and the verified kitchen. Cosmos is not installed.
 
 ## Current two-object proof, 1 October 2026
+
+The merged correction (`27f2b0d`, tested candidate `eb90272`, PR #51) passed its 3,467-test software suite,
+but its Spark proof has not started. Tailscale last saw the host at 15:24 UTC and then reported it offline;
+SSH timed out before deployment. The owner confirmed the Sparks were
+intentionally disconnected and requested local dual-RTX Pro validation; that
+preparation does not establish Spark acceptance. See the [deployment receipt](evidence/finger-depth-occlusion-integration/validation.json).
+
+The latest run, correction-MAIN-07 on `7e02de7`, **failed**. Green completed
+placement, return home and reset. Orange stopped during descent before closure
+when the right jaw left the checked opening interval; withdrawal was also
+refused. Both cases retained camera server ages within two seconds. Strict
+confirmation and READY remained negative, and no campaign or restart followed.
+The [current proof receipt](evidence/spark-correction-main-07/proof.json) preserves
+the successful green case, failed orange case and independently verified archive.
+
+## Earlier two-object proof on `28061a6`
 
 The upgraded installed checkout at `28061a6` completed a normal desktop launch
 with preserved outcome memory and the installed defaults. Green and orange both
@@ -251,7 +267,7 @@ for the bounded observation window and per-call receipts.
 This direct-runtime campaign does not establish a new native-chat or UI
 acceptance, full desktop READY proof, fresh installation or deployment of the
 final source. The September installation result remains historical. The setup guide now
-selects runtime baseline `0e23870`; its current acceptance is recorded separately in the
+selects runtime baseline `27f2b0d`; its current acceptance is recorded separately in the
 [status index](PROJECT_STATUS_20261001.md).
 
 ## Native confirmation gate and failed follow-up, 1 October 2026

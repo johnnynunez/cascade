@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "pr": 51,
+  "candidate": "eb90272dee93c9d5dd56d24a3431d9e7d0a187c1",
+  "tree": "6ceed3ab9c9e894daf9f427f004c404cd63c8c3c",
+  "scope": "Software review for additional finger endpoint occlusion veto and independently vetted symmetric candidates. No physical acceptance inherited from recorded replay.",
+  "author_focal_passed": 128,
+  "independent_focal_passed": 84,
+  "independent_review_sha256": "b465584c7f2b83e462f7ee38be5823e29f7bf0ee913a6f6b494c38915d9fe39b",
+  "root_review_sha256": "afc0739b05d6c344d66c52810de1585a8b92c37e431b34e6787ce4922cf55f7c",
+  "full_suite_status": "passed",
+  "ci_status": "five_pr_jobs_passed",
+  "physical_status": "not_started_spark_disconnected_by_owner_x86_validation_planned",
+  "boundaries": [
+    "Existing 3-second route preflight and 8-second total planning limits unchanged.",
+    "Existing 0.1 mm jaw tracking interval and physics/camera settings unchanged.",
+    "Depth check covers discrete pixel rays at endpoints and measured pre-close poses; no full free-space certificate."
+  ],
+  "full_suite": {
+    "passed": 3467,
+    "skipped": 43,
+    "deselected": 4,
+    "seconds": 340.66,
+    "files_verified": 1108,
+    "tracked_files": 1100,
+    "release_assets": 8,
+    "source_unchanged": true,
+    "receipt_sha256": "9fa59770281987d8eeace79b23804b1087ffe49641c97c840cf2e3e0a19ae946",
+    "log_sha256": "9665ad5515a230dbc9babd3df7689630334d5c844c06ad518e65ea6953b6c47e",
+    "source_manifest_sha256": "df38b4209c2666d78df20df851a89ab032c6d5e7e6d5b03581968a65cf15a9ae"
+  },
+  "spark_candidate_equivalence_sha256": "1e77f78e31d813d187511718dc43b44b06b28c79ca81f5855c7d3bd455cac24f",
+  "spark_blocker": {
+    "observation": "Tailscale Online=false and SSH connect timeouts; host power versus network failure undetermined.",
+    "diagnostic_sha256": "b36de72057ffe583fa9b4ab8d19c8d3469883d79286256b3ade4479273923cc8",
+    "source_transfer_failure_sha256": "ce09376210e7ea9f3abe34ced8f7e7c8c9efbb709aa1223b9202709fd8720b3a",
+    "source_transfer": false,
+    "preparation": false,
+    "desktop_launch": false,
+    "last_seen_utc": "2026-10-01T15:24:09.1Z",
+    "owner_update": {
+      "date": "2026-10-01",
+      "statement": "Owner confirmed the Sparks were intentionally disconnected and requested validation on the local PC with two RTX Pro GPUs.",
+      "scope": "Local x86 results will not establish Spark/aarch64 acceptance."
+    }
+  },
+  "ci_jobs": [
+    {
+      "name": "ubuntu-latest / py3.12",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS"
+    },
+    {
+      "name": "ubuntu-24.04-arm / py3.12",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS"
+    },
+    {
+      "name": "macos-latest / py3.12",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS"
+    },
+    {
+      "name": "booth pages and camera extension",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS"
+    },
+    {
+      "name": "minimal install, no accelerator",
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS"
+    }
+  ],
+  "ci_snapshot_sha256": "a85ef1c886df99db9de4e56780d708cbe53a9db9f7f3805c18056e365cc793b5",
+  "merged_commit": "27f2b0d7ab76f1c4e3bf246d1b23c636e570496f",
+  "merged_at": "2026-10-01T15:35:05Z",
+  "ci_receipt_sha256": "a85ef1c886df99db9de4e56780d708cbe53a9db9f7f3805c18056e365cc793b5",
+  "merged_source_ci_status": "in_progress",
+  "merged_source_ci_run": 36885404673,
+  "merged_tree_equivalence_sha256": "427ba88a8410ddac6d65feaf2a760d22bdaa72e2f24114b48dcf7434363f92d2",
+  "full_suite_independent_addendum_sha256": "39e1b3f0a468f72147ce440f389ed20092b9248aa80fac15c60e1eb3a396043d",
+  "ci_observed_utc": "2026-10-01T15:44:38.046373+00:00"
+}

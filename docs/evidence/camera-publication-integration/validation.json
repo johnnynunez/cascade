@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "pr": 50,
+  "tested": "c5e63d7efc8b9a844d6e035cdac9a799557d00e9",
+  "tested_tree": "7d52a7fcc778b69a962418c5713cf20fb7baf9a1",
+  "scope": "Combined software suite including release opening synchronization and pending-camera publication; fresh physical acceptance requires separate receipts",
+  "full": {
+    "head": "c5e63d7efc8b9a844d6e035cdac9a799557d00e9",
+    "started_unix_s": 1790863702.2344522,
+    "finished_unix_s": 1790864050.324293,
+    "exit_code": 0,
+    "log_sha256": "ba9e9afb6cf2c0b6b4ef1273c8e954c35fcba73494f9a336ad7f02e93405412b",
+    "source_manifest_sha256": "a8569cabee8a9b2cb797dff0dc6aab2e640743eac527caaff983936dcb11cdaf",
+    "files_verified": 1100,
+    "tracked_clean": true,
+    "source_unchanged": true,
+    "pass": true,
+    "passed": 3441,
+    "skipped": 43,
+    "deselected": 4,
+    "pytest_elapsed_s": 346.22
+  },
+  "full_receipt_sha256": "663cf7fc7aea147f339495bc7462a74d9ce27b74ea688ce46b4b7c347f917b7e",
+  "focal_passed": 202,
+  "independent_camera_tests_passed": 78,
+  "evidence_sha256": {
+    "root_source_review": "bc7ab612c5720ee6993c7a173539254b790bab5ffe4a05dce8268ff1748d9f35",
+    "nvblox_peer": "4136c1cda8fcf406cb8fc363e09e5503c24270c142a5c41e6e4fbab84385009d",
+    "camera_peer": "027eac26acc26feccfa20f3a1faa44010209eec35545ec9ba94ca37921d3599f",
+    "geometry_admission": "97ef54b7e3f1b04b5a49296b6a8f5ab8d048ecf2bf29b4270b340bf9822051ad"
+  },
+  "merged": "7e02de70a24cd5e89a6f774e95189d1225ea2cb5",
+  "pr_ci": {
+    "pass": true,
+    "jobs": 5,
+    "run_id": 36874271087,
+    "receipt_sha256": "7fcd93ee5df8bfb51da1bfe1e609466877604ab7501295a00ab6e8e589ea62c5"
+  },
+  "source_equivalence": {
+    "pass": true,
+    "receipt_sha256": "14ccdbe17a727d50259260f1a2f810db43254af31e544b837b8542f5d74cad94",
+    "working_files_verified": 1100,
+    "release_assets_verified": 8
+  },
+  "main_ci": {
+    "pass": true,
+    "jobs": 5,
+    "run_id": 36876343742,
+    "receipt_sha256": "31ae879adf5f82274af72b148efb9bcf2028ebb5e088f8ab439ee3b80f90abc9"
+  }
+}

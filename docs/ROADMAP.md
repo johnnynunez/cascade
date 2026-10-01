@@ -7,12 +7,13 @@ Read top-down for status; the dated sections are history.
 ## Current delivery work (2026-10-01)
 
 [The source and acceptance index](PROJECT_STATUS_20261001.md) supersedes the
-historical status lists below. Runtime baseline `0e23870` integrates PRs #27 and
-#32–46; its identical integration tree passed 3,365 tests, and all five PR CI jobs
+historical status lists below. Runtime baseline `27f2b0d` includes the merged
+work through PR #51; its identical integration tree passed 3,467 tests, and all five PR CI jobs
 passed. Spark now uses the
 installed PhysX/Qwen/real-GGX profile, physical-time joint motion, render-bound
 camera state, observed-finger approach/closing preflight, bounded planning,
-preserved memory ranking and coherent held-object observations. These are
+preserved memory ranking, coherent held-object observations, release-opening
+synchronization and per-camera pending publication. These are
 implemented contracts, not a blanket physical-success claim.
 
 The immediate work is source-bound Spark proof and five-object acceptance,
@@ -27,9 +28,9 @@ part of presenter startup.
 
 [PR #47](https://github.com/johnnynunez/cascade/pull/47) adds a standalone
 [cuMotion planner](CUMOTION.md). Its factory and CLI export validated trajectory
-candidates; a real x86 GPU smoke passed with the 1.1.0 SDK. The native execution
+candidates; real x86 and Spark aarch64 GPU smokes passed with the 1.1.0 SDK. The native execution
 path is unchanged. Live scene/payload binding and trajectory-aware execution
-need separate implementation and physical validation; ARM is not locally tested.
+need separate implementation and physical validation.
 
 The [screw manipulation investigation](SCREW_MANIPULATION_RESEARCH.md) identifies
 SimReady tools/fasteners and permissively licensed original Factory meshes.
@@ -47,7 +48,7 @@ It preserves the opening feedback bound and observed target/non-target rules;
 it does not modify colliders or invent a contact margin. Candidate `26b6826`
 passed 3,238 software tests before the cross-platform extension. The final
 geometry passes both representation audits and 74 focused tests. The merged
-source passed the [two-object Spark proof](SPARK_DELIVERY.md#current-two-object-proof-1-october-2026);
+source passed the [two-object Spark proof](SPARK_DELIVERY.md#earlier-two-object-proof-on-28061a6);
 campaign and restart acceptance are separate. The earlier orange failures and failed ARM coverage
 of the first artifact stay recorded. The combined renderer/geometry integration
 passed 3,295 tests and five CI jobs before merging as

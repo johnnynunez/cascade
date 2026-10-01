@@ -1,11 +1,11 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
-The current tested runtime is **`0e23870` (1 October 2026)**, including the
-PhysX finger envelope, optional OVRTX renderer, callback-safe diagnostics and
-native host time reserve. Its identical integration tree passed 3,365 tests,
-and all five PR CI jobs passed. [Project status](docs/PROJECT_STATUS_20261001.md) records the separate
-Spark and nvblox physical stages; historical installation, campaign and restart
-results apply only to their stated pins.
+The current tested runtime is **`27f2b0d` (1 October 2026)**. It includes
+render-bound camera publication, release-opening synchronization, the PhysX
+finger envelope, endpoint occlusion checks and optional OVRTX/cuMotion adapters. Its identical integration
+tree passed 3,467 tests and all five PR CI jobs. [Project status](docs/PROJECT_STATUS_20261001.md)
+records the separate Spark and nvblox physical stages; installation, campaign
+and restart measurements apply only to their stated pins.
 
 <p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
@@ -56,7 +56,8 @@ cameras or provide an automatic Isaac/Newton state producer.
 
 The optional [cuMotion planner](docs/CUMOTION.md), added in PR #47 after runtime
 baseline `0e23870`, exports static-world trajectory candidates through a factory
-and CLI. Native planning passed on Linux x86_64 with the 1.1.0 GPU SDK; candidates
+and CLI. Native planning passed on Linux x86_64 and DGX Spark aarch64 with the
+1.1.0 GPU SDK; candidates
 have no actuator execution authority. [Screw manipulation research](docs/SCREW_MANIPULATION_RESEARCH.md)
 records assets and the missing thread/torque verification for a future assembly task.
 

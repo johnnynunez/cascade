@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "pr": 49,
+  "tested": "c3ea27cfcb46e860ebca826f91abae3091a5ed22",
+  "merged": "8ecf19f4b042d730f4671bbaaf037ffd459b36c0",
+  "tested_tree": "5108fc8fd15e821413e86ac2a0057975768a3991",
+  "scope": "Software correction of asynchronous gripper-opening and render-bound release synchronization; not physical recovery acceptance",
+  "full": {
+    "head": "c3ea27cfcb46e860ebca826f91abae3091a5ed22",
+    "started_unix_s": 1790862264.6113427,
+    "finished_unix_s": 1790862622.286571,
+    "exit_code": 0,
+    "log_sha256": "3aa889264e04ab714be8df27f6beffd1c3be392480763d5466e396d983adfdbb",
+    "source_manifest_sha256": "c60319cfb6747caa10c0073cd15ca7f9e17b925659083d51b5655d47590d0b31",
+    "files_verified": 1099,
+    "tracked_clean": true,
+    "source_unchanged": true,
+    "pass": true,
+    "passed": 3436,
+    "skipped": 43,
+    "deselected": 4,
+    "pytest_elapsed_s": 355.82
+  },
+  "full_receipt_sha256": "6e4fc07b6d445729e73f3ce9a65b2311843c27dcb445092d55ac37b5d6bb9e77",
+  "focal_passed": 206,
+  "peer_passed": 72,
+  "source_review_sha256": "eb8fe9b80b324892e561e854f442aa92a70636845e04633cd8a3e73eb88638d4",
+  "peer_receipt_sha256": "919bfe5c6c7934dda5412646eb3ae2a701c9d7bd451341bdf2e8fe8206986f38",
+  "pr_ci": {
+    "pass": true,
+    "jobs": 5,
+    "run_id": 36870961104,
+    "receipt_sha256": "c4da35fc6ce2d10622af5cebe9be2d5e697904ef3d47fd8f4a9c14d96cf55af2"
+  },
+  "main_ci": {
+    "pass": true,
+    "jobs": 5,
+    "run_id": 36873961335,
+    "receipt_sha256": "af919cf7831abbd5ce9698408171ba420ac713b0e31b33c0201b466756570570"
+  }
+}

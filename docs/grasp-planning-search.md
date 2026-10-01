@@ -14,5 +14,12 @@ Send and receive share one deadline; polling checks cancellation without robot r
 
 The planning deadline ends immediately before the first authorized open command. Physical motion keeps its existing clock, duration, velocity, settling and deadline contracts. Exhaustion preserves the failure and the gate's prohibition on automatic recovery. Telemetry records batch numbers, filtered counts, every raw response, rejection reasons and the selected batch. Seeds are explicitly unrecorded for the production server; the retained raw responses support replay.
 
+The [endpoint occlusion correction](observed-finger-occlusion.md) checks each
+symmetric wrist orientation independently, including a twin whose original
+orientation was rejected. Both run the complete IK, harness and observed-scene
+checks. Ranked candidate order and the preference for shorter joint travel when
+both orientations pass remain unchanged. This adds no planning batch or deadline
+extension and performs no actuator command while alternatives are examined.
+
 This contract is merged; source-bound physical results and current acceptance
 are listed in [project status](PROJECT_STATUS_20261001.md). Rebinding feedback does not refresh the observed scene, certify occluded space or provide continuous braking during gripper closure.

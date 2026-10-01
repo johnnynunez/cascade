@@ -73,12 +73,72 @@
   },
   "model_metadata_sha256": "004ae0dbaf6a691b2795bd6c9530021ae5061a831779bbbb61cb901271073b6b",
   "limits": [
-    "Single static-world x86 GPU smoke, not a performance benchmark",
-    "No native ARM, kitchen collision, actuator tracking, payload or physical task acceptance",
+    "One static-world GPU smoke on each of Linux x86_64 and Spark aarch64, not a performance benchmark",
+    "No Windows, kitchen collision, actuator tracking, payload or physical task acceptance",
     "Model spheres and sampled cuboids are not continuous/live-world clearance certification"
   ],
   "pr_ci": {
     "run_id": 36866872326,
-    "status": "pending"
+    "status": "success",
+    "jobs_passed": 5,
+    "head_sha": "81b2070e0d539297796a0045fa092b40b7e48872",
+    "receipt_sha256": "b59be9ff7cff217996ca3ab23c4e3ebbd8fa98407e1a87b977c63633e62acac4",
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/36866872326"
+  },
+  "main_ci": {
+    "run_id": 36867277221,
+    "status": "success",
+    "jobs_passed": 5,
+    "head_sha": "13ec4830c913f4da3c3c6d07c4a810f95a49f323",
+    "receipt_sha256": "63a9353fa5d613269ca00e68540dd45b425c85d75ca15140e76c97a36507f6df",
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/36867277221"
+  },
+  "arm": {
+    "sdk": "cuMotion 1.1.0 CUDA 13.0 Linux aarch64",
+    "sdk_archive_sha256": "15d9d3a0f2eb9825852919c887b512c3064b37a60bd4b6a100d2c750b90cc8b9",
+    "source": "81b2070e0d539297796a0045fa092b40b7e48872",
+    "native": {
+      "pass": true,
+      "scope": "real cuMotion 1.1.0 public CLI/factory trajectory candidate, no execution",
+      "architecture": "aarch64",
+      "elapsed_s": 0.7034037609992083,
+      "samples": 12,
+      "trajectory_duration_s": 0.21901892265304923,
+      "start_max_error": 1.1444091807533141e-07,
+      "goal_max_error": 1.1444091807533141e-07,
+      "max_sample_velocity": [
+        0.9827661093599805,
+        0.1364933921128921,
+        0.15397713983851133,
+        0.21638496459126313,
+        0.23008174454072675,
+        0.34259215180673613,
+        0.33416334957489097
+      ],
+      "execution_authorized": false,
+      "python_network_and_subprocess_forbidden": true
+    },
+    "gpu": {
+      "model": "NVIDIA GB10",
+      "sample_count": 11,
+      "peak_process_mib": 200,
+      "total_memory": "N/A",
+      "selected_gpu_only": true
+    },
+    "cleanup": {
+      "child_exit_code": 0,
+      "child_absent": true,
+      "protected_unique_pids": 11,
+      "isolated_source_environment_files_unchanged": 2007,
+      "active_runtime_files_unchanged": 1083,
+      "two_graphics_cwd_unreadable": true
+    },
+    "evidence_sha256": {
+      "receipt": "52a9124bb5614e4c5932066826a409351c7dfd1f7f4571a3b062edd3dd9678ff",
+      "candidate": "4c4856a887447567a82d1e3541b21eb733078d0438be18e1f160c90043f554bc",
+      "model": "c61018e7d596dc94348951fe738979e505c30482747c4e6e9b8ac7686eee83a6",
+      "root_review": "219c00b897e53278665754581ba37972e374a25576aee4c39b63819efef26612",
+      "archive": "992264c5d30f37a75b414dc4c4b42de2c1aebe261aa9c8d2d1126729be6af827"
+    }
   }
 }

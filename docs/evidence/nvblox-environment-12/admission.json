@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "source": "7e02de70a24cd5e89a6f774e95189d1225ea2cb5",
+  "scope": "Passive mapping and independent truth availability admission only; physical release/recovery/campaign require their own outcomes.",
+  "passive": {
+    "pass": true,
+    "scope": "Root independent rehash of actual admission outputs and source identities. Passive map warmup and intermittent commit ages retained; not motion/recovery acceptance or continuous map-freshness proof.",
+    "receipt_sha256": "f9122cbbb2b6e283b883977734638b95ed2441980f9aad81b8bb1ee904ef5261",
+    "source_sha256": "b318977dea579917782e649221c19b1901fdb59c54c4749262b5f8255ca50c58",
+    "ownership_sha256": "870893b857395607d6b831933642d89cfdf24a51498b70d6fa3514336b5bd241",
+    "source_files_rehashed": 286,
+    "artifacts_rehashed": 10,
+    "epoch": "4662a0d83e35444d9655a3c8bbeba604",
+    "camera_ages": {
+      "cam0": {
+        "pass": true,
+        "samples": 117,
+        "valid_clock_samples": 117,
+        "maximum_age_s": 0.7383138980076183,
+        "samples_over_2s": 0,
+        "distinct_captures": 48,
+        "maximum_observed_capture_gap_s": 0.6473043190053431,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      },
+      "side": {
+        "pass": true,
+        "samples": 117,
+        "valid_clock_samples": 117,
+        "maximum_age_s": 0.7383138980076183,
+        "samples_over_2s": 0,
+        "distinct_captures": 48,
+        "maximum_observed_capture_gap_s": 0.6473043190053431,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      },
+      "proof": {
+        "pass": true,
+        "samples": 117,
+        "valid_clock_samples": 117,
+        "maximum_age_s": 0.7383138980076183,
+        "samples_over_2s": 0,
+        "distinct_captures": 48,
+        "maximum_observed_capture_gap_s": 0.6473043190053431,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      }
+    },
+    "map_startup": {
+      "first_three_source_sample": 21,
+      "seconds_from_first_map": 2.375119848002214,
+      "samples_missing_sources": 21,
+      "stale_samples": 0,
+      "scope": "All warmup samples retained. PASS requires final readiness; it does not assert continuous three-source commits from startup.",
+      "after_first_three": {
+        "samples": 118,
+        "wall_s": 17.3641714569967,
+        "max_commit_ages_s": {
+          "cam0": 2.058585870996467,
+          "side": 2.3348103879980044,
+          "proof": 2.058585870996467
+        }
+      }
+    },
+    "all_commit_ages_s": {
+      "cam0": 2.4411922069994034,
+      "side": 2.3348103879980044,
+      "proof": 2.058585870996467
+    },
+    "final_commit_ages_s": {
+      "cam0": 1.0847153219947359,
+      "side": 1.0847153219947359,
+      "proof": 1.0847153219947359
+    },
+    "performance": {
+      "wall_s": 19.95557029900374,
+      "simulation_s": 3.3999999999999986,
+      "rtf": 0.1703784932756214,
+      "reference_50hz_18_72_physical_second_pregrasp_wall_s": 109.8730223521618,
+      "scope": "Passive runtime/mapping load only; 18.72s is a prior50Hz comparison reference, not a30Hz trajectory prediction.",
+      "windows": {
+        "3.0": {
+          "count": 164,
+          "minimum_rtf": 0.1304321713278057
+        },
+        "5.0": {
+          "count": 143,
+          "minimum_rtf": 0.13895237851932443
+        }
+      }
+    }
+  },
+  "passive_root_review_sha256": "767d0c0e84acc62e6798c0442b1331ebe4d0f00279fe0785250aba5ac20a1d7b",
+  "truth_readiness": {
+    "pass": true,
+    "scope": "Availability preparation only. First native1s RPC timeout retained; one same-nonce completion poll. Does not satisfy later1s motion preflight.",
+    "receipt_sha256": "0524b64ee05928734f4adfc31ab1bb4e1c03bcd1b6dc8829ac597c8e9513f4ba",
+    "artifacts_rehashed": 4,
+    "source_files_rehashed": 286,
+    "native_submissions": 1,
+    "native_rpc_timeout_s": 1.0001997859944822,
+    "native_completion_s": 1.6050282200012589,
+    "fresh_independent_preflight_required": true
+  },
+  "truth_readiness_root_review_sha256": "b5f3b094ee9c3e5a6dab34088085d88ec25866a68fb385567867b0aa4d5667dc"
+}

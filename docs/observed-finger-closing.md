@@ -6,6 +6,13 @@ historical evidence. [Project status](PROJECT_STATUS_20261001.md) distinguishes
 software validation from the current native proof, five-object campaign and
 restart acceptance.
 
+The later [endpoint occlusion veto](observed-finger-occlusion.md) adds a check
+for closing envelopes behind valid non-target, non-robot depth, both during
+selection and at each measured pre-close pose. It uses the same captured scene
+and full independent strokes. Each measured preflight has the existing
+three-second route budget capped by the task deadline; expiry prevents a new
+closing command. It does not provide continuous braking or certify hidden space.
+
 Native launch05 completed both audited pick/place/reset cases, but the pink
 cube moved about 19.8 mm during the orange grasp's closing phase. The existing
 gate covered the open approach. The target-only contact sensor cannot directly

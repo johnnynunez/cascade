@@ -1,8 +1,9 @@
 # Architecture
 
 Runtime contracts updated on 1 October 2026, including the merged optional OVRTX
-renderer, PhysX finger envelope, callback-safe diagnostics and native host reserve.
-The current runtime baseline is `0e23870`; see the
+renderer, cuMotion candidate planning, PhysX finger envelope, native host reserve,
+release-opening synchronization and pending-camera publication.
+The current runtime baseline is `27f2b0d`; see the
 [source and acceptance index](PROJECT_STATUS_20261001.md) for merged changes,
 software validation and the current physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.
@@ -231,6 +232,13 @@ exports, giving forty components per finger. Source hashes and
 kinematic metadata bind that choice. This changes the checked geometric envelope,
 not the physical colliders, 0.1 mm opening interval or occupancy clearance.
 Local representation admission and physical acceptance are separate evidence.
+
+The additional [endpoint occlusion veto](observed-finger-occlusion.md) clips
+those convex envelopes against captured pixel rays and rejects portions behind
+valid non-target, non-robot depth. It covers pregrasp/grasp endpoints and measured
+pre-close poses; it does not certify invalid depth, masked regions, inter-ray
+space or intermediate poses. Symmetric wrist alternatives pass all checks
+independently, within the existing planning deadlines and preserved ranking.
 
 ### Grasp pipeline
 

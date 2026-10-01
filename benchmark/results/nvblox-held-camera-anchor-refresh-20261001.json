@@ -1,0 +1,485 @@
+{
+  "scope": "One real held-tomato-can recovery after FrozenProducer injection in the same runtime, with measured anchors retained. Not five-object normal acceptance, and not a physical camera disconnect.",
+  "source_pin": "1efa8e9b81b1c4903eecaab64ca4f57ab7f38861",
+  "full_suite": {
+    "passed": 2829,
+    "skipped": 43,
+    "deselected": 3,
+    "wall_s": 323.09,
+    "log_sha256": "b00d37dbc84f207bfcaf3b911cd1a6e83a9ce4da596a694bceb714237955c8cd"
+  },
+  "passive": {
+    "pass": true,
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-rate/runs/nvblox-rtx/isolated-clock-04/passive-01/receipt.json",
+    "sha256": "5bb5b0275d26d1bf34d9ebdc1475e611940e7516d072d83656a649eb3b9e7c20",
+    "artifact_hashes_verified": 10,
+    "source_hashes_verified": 257,
+    "clock": {
+      "wall_s": 20.044684070002404,
+      "simulation_s": 4.583333333333336,
+      "rtf": 0.2286558030711225,
+      "reference_50hz_18_72_physical_second_pregrasp_wall_s": 81.86977871791522,
+      "scope": "Passive runtime/mapping load only; 18.72s is a prior50Hz comparison reference, not a30Hz trajectory prediction."
+    },
+    "camera_ages": {
+      "pass": true,
+      "complete": true,
+      "observer_errors": [],
+      "source": [
+        "127.0.0.1",
+        8693
+      ],
+      "cameras": {
+        "cam0": {
+          "pass": true,
+          "samples": 119,
+          "valid_clock_samples": 119,
+          "maximum_age_s": 0.6280819670064375,
+          "samples_over_2s": 0,
+          "distinct_captures": 48,
+          "maximum_observed_capture_gap_s": 0.7483476190100191,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        },
+        "side": {
+          "pass": true,
+          "samples": 119,
+          "valid_clock_samples": 119,
+          "maximum_age_s": 0.6280819670064375,
+          "samples_over_2s": 0,
+          "distinct_captures": 48,
+          "maximum_observed_capture_gap_s": 0.7483476190100191,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        },
+        "proof": {
+          "pass": true,
+          "samples": 119,
+          "valid_clock_samples": 119,
+          "maximum_age_s": 0.6280819670064375,
+          "samples_over_2s": 0,
+          "distinct_captures": 48,
+          "maximum_observed_capture_gap_s": 0.7483476190100191,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        }
+      },
+      "scope": "Server monotonic minus capture in the same physical snapshot; observed capture gaps are sample gaps, not all producer frames."
+    },
+    "state_samples": 226,
+    "map_samples": 156,
+    "map_error_samples": 0,
+    "map_commit_samples": {
+      "cam0": {
+        "sampled_map_commit_age_max_s": 2.1900267279997934,
+        "distinct_integrated_captures": 37,
+        "samples_above_2s": 2
+      },
+      "side": {
+        "sampled_map_commit_age_max_s": 1.2659657930053072,
+        "distinct_integrated_captures": 34,
+        "samples_above_2s": 0
+      },
+      "proof": {
+        "sampled_map_commit_age_max_s": 1.537515557007282,
+        "distinct_integrated_captures": 28,
+        "samples_above_2s": 0
+      }
+    },
+    "window_rtf": {
+      "3": {
+        "count": 192,
+        "min_rtf": 0.19111277186037195,
+        "max_rtf": 0.2543575244142145
+      },
+      "5": {
+        "count": 172,
+        "min_rtf": 0.19786208114106954,
+        "max_rtf": 0.24279944155847125
+      },
+      "10": {
+        "count": 116,
+        "min_rtf": 0.2165264942990044,
+        "max_rtf": 0.23817213507408647
+      }
+    },
+    "state_sample_max_gap_s": 0.3366686390072573,
+    "state_rpc_max_wall_s": 0.33655615799943916,
+    "reference_prior50_pregrasp_wall_s": 97.4348649505396,
+    "reference_prior50_pregrasp_at_min_3s_rtf_wall_s": 116.57539721452626,
+    "reference_prior50_pregrasp_at_min_5s_rtf_wall_s": 112.59887272947324,
+    "motion_limit_s": 120,
+    "scope": "Passive with real map only; proportional historical scaling, not proof of trajectory duration. Frame age and committed-capture age are separate measures.",
+    "thirty_hz_projection_hypothesis": {
+      "assumption": "Scale prior50Hz measured pregrasp workload by225/375 targets and inverse observed RTF; legacy50 safety checks remain and actual30Hz movement is unmeasured. This is not a trajectory duration guarantee.",
+      "global_wall_s": 58.46091897032376,
+      "minimum3s_rtf_wall_s": 69.94523832871576,
+      "minimum5s_rtf_wall_s": 67.55932363768395
+    }
+  },
+  "physical_diagnostic": {
+    "pass": true,
+    "receipt_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-rate/runs/nvblox-rtx/isolated-clock-04/camera-held-01/receipt.json",
+    "receipt_sha256": "0e6950d099bdf56574419e36cc324186f678e0f71d9c8cab4d4808be99c950f3",
+    "analysis_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-rate/runs/nvblox-rtx/isolated-clock-04/camera-held-01/analysis.json",
+    "analysis_sha256": "d8b6a835b1a3c1778e320e8f0e45b752ce104b27ef5de877d3806f63a5a3166d",
+    "artifact_hashes_verified": 17,
+    "diagnostic_source_hashes_verified": 242,
+    "startup_source_hashes_verified": 257,
+    "checks": {
+      "first_barrier_failed": true,
+      "first_barrier_left_pending_map": true,
+      "blocked_public_reset_refused": true,
+      "blocked_issued_no_actuator_or_motion_calls": true,
+      "blocked_held_state_preserved": true,
+      "blocked_physics_within_diagnostic_1mrad_2mm": true,
+      "frozen_same_frame_and_producer_marker": true,
+      "recovered_public_reset_completed": true,
+      "all_props_reset_reported": true,
+      "all_camera_depths_rebuilt": true,
+      "all_reset_camera_commits_newer_than_floors": true,
+      "fresh_esdf_without_pending_fault": true,
+      "post_recovery_physics": true,
+      "all_camera_barriers_reported": true,
+      "same_camera_robot_clock_binding": true,
+      "all_producer_clocks_advanced": true,
+      "retained_measured_anchors": true,
+      "retained_epoch_and_all_fresh_commits": true,
+      "retained_background_replayed": true,
+      "source_unchanged": true,
+      "observer_complete": true,
+      "no_diagnostic_errors": true,
+      "cleanup_sent_no_commands": true
+    },
+    "motions": [
+      {
+        "phase": "setup_grasp",
+        "requested_duration_s": 1.5,
+        "rate_hz_in_kwargs": 30.0,
+        "targets": 45,
+        "wall_s": 10.41105574600806,
+        "outcome": "end",
+        "begin_monotonic": 69496.548316324,
+        "end_monotonic": 69506.95937207
+      },
+      {
+        "phase": "setup_grasp",
+        "requested_duration_s": 7.5,
+        "rate_hz_in_kwargs": 30.0,
+        "targets": 225,
+        "wall_s": 49.201151865010615,
+        "outcome": "end",
+        "begin_monotonic": 69507.26156253,
+        "end_monotonic": 69556.462714395
+      },
+      {
+        "phase": "setup_grasp",
+        "requested_duration_s": 2.0,
+        "rate_hz_in_kwargs": null,
+        "targets": 60,
+        "wall_s": 12.85819699599233,
+        "outcome": "end",
+        "begin_monotonic": 69556.46311279,
+        "end_monotonic": 69569.321309786
+      },
+      {
+        "phase": "setup_grasp",
+        "requested_duration_s": 4.0,
+        "rate_hz_in_kwargs": null,
+        "targets": 120,
+        "wall_s": 43.716967204993125,
+        "outcome": "end",
+        "begin_monotonic": 69573.449555607,
+        "end_monotonic": 69617.166522812
+      },
+      {
+        "phase": "recovered_reset",
+        "requested_duration_s": 3.0,
+        "rate_hz_in_kwargs": 30.0,
+        "targets": 90,
+        "wall_s": 29.66664522899373,
+        "outcome": "end",
+        "begin_monotonic": 69635.852769235,
+        "end_monotonic": 69665.519414464
+      }
+    ],
+    "actuator_begin_counts": {
+      "recovered_reset": {
+        "send_joint_target": 90,
+        "set_gripper": 1,
+        "reset_props": 1
+      },
+      "setup_grasp": {
+        "set_gripper": 3,
+        "send_joint_target": 450
+      }
+    },
+    "phase_wall_s": {
+      "setup_grasp": 140.37712338200072,
+      "private_pending_barrier": 5.001532755995868,
+      "blocked_reset": 5.263361363991862,
+      "recovered_reset": 39.18538031799835
+    },
+    "phase_requested_calls": {
+      "setup": 460,
+      "first_barrier": 0,
+      "blocked_reset": 0,
+      "recovered_reset": 94
+    },
+    "blocked_measurements": {
+      "q_max_drift_rad": 1.1920928955078125e-07,
+      "jaw_max_drift_m": 2.9802322387695312e-08,
+      "prop_drift_m": {
+        "pink_cube": 3.0719530773294423e-08,
+        "green_cube": 9.313225746154785e-10,
+        "tomato_can": 4.470348358154297e-08,
+        "lemon": 0.0,
+        "orange": 0.0
+      }
+    },
+    "retained_anchor_refresh": {
+      "producer_epoch": "c36c7e03f85548fa87d0992bdd0e3504",
+      "shared_floor": 69633.286047805,
+      "contact_paths": [
+        "/World_Props/tomato_can"
+      ],
+      "anchors_before": {
+        "cam0": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8693
+          ],
+          "camera": "cam0",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 69476.644858859
+        },
+        "side": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8693
+          ],
+          "camera": "side",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 69477.346820908
+        },
+        "proof": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8693
+          ],
+          "camera": "proof",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 69477.346820908
+        }
+      },
+      "anchors_after": {
+        "cam0": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8693
+          ],
+          "camera": "cam0",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 69476.644858859
+        },
+        "side": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8693
+          ],
+          "camera": "side",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 69477.346820908
+        },
+        "proof": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8693
+          ],
+          "camera": "proof",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 69477.346820908
+        }
+      },
+      "integrated": [
+        {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8693
+          ],
+          "camera": "proof",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 69633.668693262,
+          "producer_epoch": "c36c7e03f85548fa87d0992bdd0e3504"
+        },
+        {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8693
+          ],
+          "camera": "side",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 69634.035537941,
+          "producer_epoch": "c36c7e03f85548fa87d0992bdd0e3504"
+        },
+        {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8693
+          ],
+          "camera": "cam0",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 69633.668693262,
+          "producer_epoch": "c36c7e03f85548fa87d0992bdd0e3504"
+        }
+      ],
+      "replayed_frames": 6,
+      "prop_history_floor": {
+        "/World_Props/tomato_can": 69633.668693262
+      }
+    },
+    "proof_camera_observations": {
+      "samples": 1217,
+      "maximum_age_s": 3.5475894550036173,
+      "samples_over_2s": 2,
+      "stale_samples": [
+        {
+          "sequence": 5,
+          "server_monotonic": 69480.834099877,
+          "capture_monotonic": 69477.346820908,
+          "age_s": 3.487278968997998,
+          "before_first_actuator_begin": true
+        },
+        {
+          "sequence": 6,
+          "server_monotonic": 69480.894410363,
+          "capture_monotonic": 69477.346820908,
+          "age_s": 3.5475894550036173,
+          "before_first_actuator_begin": true
+        }
+      ],
+      "joint_motion_samples": 931,
+      "joint_motion_maximum_age_s": 0.5901883659971645,
+      "joint_motion_samples_over_2s": 0,
+      "scope": "Frame age from server_monotonic minus proof capture in the same raw physical snapshot. Motion intervals use request begin/end and fully enclosed witness rows."
+    },
+    "camera_continuity_scope": "The reviewed GpuProofObserver records proof only, so continuous cam0/side ages are unavailable in this physical diagnostic. The generic all-three summary remains FAIL for missing fields; successful three-source integration/floor checks do not imply continuous three-camera freshness.",
+    "cleanup_calls": [],
+    "errors": [],
+    "final_held": null,
+    "final_map": {
+      "pending": false,
+      "stale": false,
+      "last_error": null,
+      "body_error": null,
+      "has_grid": true,
+      "last_refresh_monotonic": 69674.655800436,
+      "camera_history": {
+        "cam0": [
+          69670.782334397,
+          69674.092161417
+        ],
+        "side": [
+          69670.782334397,
+          69674.092161417
+        ],
+        "proof": [
+          69671.20746215,
+          69673.719823408
+        ]
+      }
+    },
+    "held_return_observations": {
+      "samples_before_release": 206,
+      "samples_with_bilateral_contact": 206,
+      "last_before_release_sequence": 1186,
+      "min_observed_can_rise_m": 0.0987114215006652,
+      "scope": "Original tomato_can actual prop and bilateral GPU contact readings during recovered_reset before the first authorized jaw-open command; no claim between sampled instants."
+    },
+    "held_return_last_contact": {
+      "channel": "physx_gpu_contact_tensor",
+      "sensor_paths": [
+        "/World_Props/tomato_can"
+      ],
+      "filter_paths": [
+        [
+          "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+          "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+        ]
+      ],
+      "jaw_contact_counts": [
+        4,
+        4
+      ],
+      "jaw_forces_n": [
+        [
+          -0.050292860716581345,
+          111.9962387084961,
+          -1.6158241033554077
+        ],
+        [
+          0.041769158095121384,
+          -112.00810241699219,
+          1.6220024824142456
+        ]
+      ],
+      "physics_step": 19558
+    },
+    "held_return_last_can_position_m": [
+      0.47716715931892395,
+      0.0007913291919976473,
+      0.4368606507887664
+    ]
+  },
+  "mobileclip_asset": {
+    "scope": "MobileCLIP asset was fetched by installed Ultralytics during setup_grasp despite offline environment flags, before first observed joint targets. Original source freeze covered .pt model files and did not include this previously absent .ts file; this receipt is post-download evidence, not a prior freeze.",
+    "observed_unix_s": 1790824419.0684907,
+    "artifacts": {
+      "current": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-rate/models/mobileclip_blt.ts",
+        "size_bytes": 599764649,
+        "sha256": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54"
+      },
+      "previous": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/models/mobileclip_blt.ts",
+        "size_bytes": 599764649,
+        "sha256": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54"
+      }
+    },
+    "matches_historical_cached_asset": true
+  },
+  "state": "Scene04 reset complete, home empty, mapper fresh; no further actions. Original8691 preserved, held8692 paused, scene03 closed normally. Normalfiveobjectcampaign pending."
+}

@@ -1,0 +1,78 @@
+{
+  "scope": "Offline release-retreat fix validation, isolated mapper latency, and administrative closure of failed prior scene. NOT physical acceptance of release recovery or five-object campaign.",
+  "source_head": "224b2ebf6281ce5cbed6abe827eb0b23bc388a01",
+  "full_validation": {
+    "head": "224b2ebf6281ce5cbed6abe827eb0b23bc388a01",
+    "tracked_clean": true,
+    "pass": true,
+    "passed": 2880,
+    "skipped": 43,
+    "deselected": 3,
+    "duration_s": 318.97,
+    "log_sha256": "c2415847018003cd8f31b18a64b835aec9edce9916f1b227cbe229a1591d764f",
+    "pythonpath": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-release-retreat/src",
+    "argv": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "prior_full_failures_preserved": [
+      {
+        "head": "3564e0b53106bc2a91a266e348683a5c42f9a2e9",
+        "failed": 10,
+        "passed": 2868,
+        "reason": "Optional harness access in configured-zone observation; fixed production detection"
+      },
+      {
+        "head": "ee7e4cfbcbb859308ababa815062a008b2da0b89",
+        "failed": 1,
+        "passed": 2877,
+        "reason": "Launcher /proc ESRCH race hid actual early exit; fixed narrow StartupExited classification"
+      }
+    ]
+  },
+  "evidence_sha256": {
+    "cascade-nvblox-release-retreat/runs/nvblox-rtx/release-validation-224b2eb/result.json": "5b876cd0eeb5990ec579cdfed370a16e1a5bff0b9139ce0930fd2da9c9225281",
+    "cascade-nvblox-mapper-timing/runs/nvblox-rtx/mapper-replay-01/receipt.json": "8818a7a3b93384d85a04ea36c8f5a6d9f1bc0a55b7144b9d5bcd85727b900287",
+    "cascade-nvblox-mapper-timing/runs/nvblox-rtx/mapper-replay-01/analysis.json": "3201e3ce8e1b3901acbe2c368d5cd715aa5273a40212d3ea329092441eb36b06",
+    "cascade-nvblox-anchor-rate/runs/nvblox-rtx/isolated-clock-04/final-preservation-01/receipt.json": "24d26cbd2ee16136368815924c621687ad6d942bea26abc0535ac3d335a2ffd4",
+    "cascade-nvblox-anchor-rate/runs/nvblox-rtx/isolated-clock-04/final-preservation-01/shutdown.json": "7912ab54c416bf1d8d68850a926dec4d70c153c2a89acbe8ca94c3f8614e73aa"
+  },
+  "mapper_profile": {
+    "pass": false,
+    "client_deadline_ms": 500,
+    "client_failure_ms": 500.6441630102927,
+    "server_integration_ms": 718.7175989965908,
+    "add_depth_host_wall_ms": 278.6968279979192,
+    "esdf_host_wall_ms": 439.2992940120166,
+    "requests": 29,
+    "matching_server_records": 29,
+    "robot_rpc_calls": 0,
+    "scope": "Later stationary RGBD workload, not original pregrasp replay; host timings are not GPU-event attribution. No repeated request after timeout."
+  },
+  "prior_scene_closure": {
+    "pass": true,
+    "bridge_pid": 1664753,
+    "mapper_pid": 1664681,
+    "signals": [
+      "pidfd SIGTERM bridge",
+      "pidfd SIGTERM mapper"
+    ],
+    "actuator_commands": 0,
+    "source_model_hashes_unchanged": 261,
+    "retained8691_unchanged": true,
+    "retained8692_still_paused": true,
+    "scene_state_restorable_checkpoint": false,
+    "original_retreat_or_home_completed": false
+  },
+  "release_contract": "Each jaw >=98% open and no captured bilateral attachment. This does not assert zero individual contacts.",
+  "physical_validation_new_release_episode": "pending",
+  "normal_five_campaign": {
+    "complete": 0,
+    "attempted": 1,
+    "placed_orange": true,
+    "withdrawal_and_reset": "FAIL",
+    "unattempted": 4
+  }
+}

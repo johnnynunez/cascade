@@ -8,6 +8,7 @@ from __future__ import annotations
 import ast
 import base64
 import json
+import os
 import socketserver
 import threading
 import time
@@ -46,8 +47,9 @@ def capture_bridge(loopback):
     sensor = SimpleNamespace(get_data=lambda name: (
         rgba if name == "rgb" else depth, {}), get_render_times=render_times,
         render_product_id="/Synthetic/RP")
-    env = dict(np=np, time=time, cv2=cv2, base64=base64, zlib=zlib, json=json,
+    env = dict(np=np, time=time, cv2=cv2, base64=base64, zlib=zlib, json=json, os=os,
                threading=threading,
+               _motion_clock_epoch="captured-test-epoch",
                socketserver=socketserver, _frames={}, _wrist_T=wrist_T,
                _annotators={n: (sensor, np.eye(3).tolist()) for n in ("cam0", "side", "wrist")},
                MPU=1., args=SimpleNamespace(prim=ROBOT), engine="newton",
@@ -109,7 +111,7 @@ def test_capture_snapshot_survives_real_tcp_camera_delayed_consumption(capture_b
         assert snapshot["robot_id"] == ROBOT
         assert snapshot["joint_convention"] == "asset"
         assert snapshot["time_source"] == "physics_loop_monotonic"
-        assert snapshot["producer_epoch"] == "test-bridge-epoch"
+        assert snapshot["producer_epoch"] == "captured-test-epoch"
         assert snapshot["gripper_joints"] == {
             "version": 1, "names": ["joint_left", "joint_right"],
             "position_m": [.02, .04], "lower_m": [0., 0.], "upper_m": [.05, .05]}
@@ -450,6 +452,20 @@ def test_stream_and_depth_provider_preserve_capture(capture_bridge, depth):
         np.testing.assert_allclose(filled.capture["proprioception"]["q"], b.q[0, :6])
     finally:
         stream.close()
+
+
+def test_camera_epoch_is_the_existing_state_clock_uuid_at_capture(capture_bridge):
+    b = capture_bridge
+    b.env.update(engine='physx', args=SimpleNamespace(prim=ROBOT, dt=1/120))
+    load_isaac_bridge_definitions({'_motion_clock_snapshot'}, b.env)
+    captured = b.env['_frames']['cam0']['proprioception'].copy()
+    assert captured['producer_epoch'] == b.env['_motion_clock_snapshot']()['epoch']
+    b.env['_invalidate_frame_history']()
+    assert captured['producer_epoch'] != b.env['_motion_clock_snapshot']()['epoch']
+    assert not b.env['_frames']
+    b.publish()
+    assert b.env['_frames']['cam0']['proprioception']['producer_epoch'] == b.env['_motion_clock_snapshot']()['epoch']
+    assert captured['producer_epoch'] == 'captured-test-epoch'
 
 
 def test_same_render_token_preserves_entire_packet_without_current_joint_read(capture_bridge):

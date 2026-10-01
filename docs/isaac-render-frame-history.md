@@ -92,6 +92,22 @@ authoring during observation. Camera history does not change motion, placement,
 retry, or safety thresholds. Kitchen validation, five-object acceptance and an
 acceptance restart are still pending for this candidate.
 
+## nvblox payload masks
+
+With contact tracking enabled, the completed-update snapshot also owns the
+bilateral-contact paths, the set of scene-prop paths and any contact-read error.
+Mask publication uses that historical evidence alongside the matching pixels,
+joints and camera transform. A later release or new attachment cannot change
+the mask of an older render. A historical contact error leaves the frame without
+a usable robot/payload mask, even if the current sensor has recovered.
+
+Focused integration tests cover both directions of attachment changes, a
+historical contact failure and a newer failure while an older valid packet is
+retained. These tests do not establish contact timing or camera performance in
+the new kitchen scene; those remain part of physical validation.
+
+## Exact SDK double encodings
+
 The first ARM admission of `b31b021` failed closed after 137 complete frame
 observations. A separate passive diagnostic failed after 409 observations and
 captured the cause: history step 2058 stores SDK time `17150000 / 1000000` and

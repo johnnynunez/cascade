@@ -35,3 +35,16 @@ def test_geometry_refresh_precedes_delayed_semantic_inference(detector_fails):
     else:
         watcher._tick(cam)
     assert fused_epochs == [0], "mask depth before inference can age the image relative to the robot"
+
+
+def test_map_only_camera_contributes_depth_without_changing_beliefs():
+    frame = SimpleNamespace(frame_id=1, has_depth=True, T_base_cam=np.eye(4))
+    stream = SimpleNamespace(latest=lambda: frame, set_overlay=lambda **kw: None, name="proof")
+    cam = WatchedCamera(stream, SimpleNamespace(ensure_depth=lambda f: f), Extrinsics(),
+                        fuse=False, map_depth=True)
+    mapped = []
+    watcher = WorldWatcher([cam], SimpleNamespace(detect=lambda *a, **k: [object()]),
+                           beliefs=None, occupancy=SimpleNamespace(refresh=lambda f, T: mapped.append(f)))
+    watcher._tick(cam)
+    assert mapped == [frame]
+    assert watcher.ticks == 1

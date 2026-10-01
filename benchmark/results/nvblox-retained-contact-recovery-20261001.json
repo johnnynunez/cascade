@@ -1,0 +1,481 @@
+{
+  "schema_version": 1,
+  "scope": "Single explicitly rehydrated retained trial16 contact episode. Not ordinary recovery across process restart; not successful whole reset or placement acceptance.",
+  "pass": false,
+  "controller_source_ref": "72bf77854b944bc6588c18e726ab4cdf7920ed7c",
+  "diagnostic_source_ref": "ca4c037059d7e1230a47597e5b98fbd6d7106ca0",
+  "source_match_scope": [
+    "benchmark/diagnostics/nvblox_contact_recovery.py",
+    "benchmark/diagnostics/nvblox_camera_recovery.py",
+    "src/cascade/skills/contact_episode.py",
+    "src/cascade/skills/runtime.py",
+    "src/cascade/safety/harness.py",
+    "src/cascade/perception/occupancy.py"
+  ],
+  "original_receipt": "runs/nvblox-rtx/physical-16-contact-recovery-01/receipt.json",
+  "original_receipt_sha256": "20ea7781881656fad86d1dfc827fd3b210fd27876678cc4b517151f3c3323722",
+  "recorded_source_sha256": {
+    "benchmark/diagnostics/kitchen_acceptance.py": "3a11d4bb9503304097d1845c1dc67959726be83c731b07a7e906d166b0f0a3f8",
+    "benchmark/diagnostics/nvblox_camera_recovery.py": "46b35c482248da7e1168a1c21025ae227f40c3e1756451cc5f722f3755b898a0",
+    "benchmark/diagnostics/nvblox_contact_recovery.py": "b47e613d30f6be8054ac32bd7a3efad6634a3e53b515e092131c7f8b3f658189",
+    "configs/arms/fr3.yaml": "c40b1954ecdff4da07bf8db6307b638b8419ed7e337561bf3b22e26cb043b1a2",
+    "configs/arms/fr3_mock.yaml": "d77e7fbefb391b8923488584720c289680f50e6028c43ba201a7e83b3595965a",
+    "configs/arms/fr3_mujoco.yaml": "549dadcb979f8eb486750ce0c36ee115c79e38208bd29f4483a23a75b139e06f",
+    "configs/arms/g1.yaml": "68757b74bfebf752bae9c7a590a66a939e2122fd1ef416200477c94f28da7743",
+    "configs/arms/g1_mock.yaml": "c485550f17608a5d2ff9b5485fb5eced110f800fc629a60fc1b127f3aa01df25",
+    "configs/arms/h1.yaml": "cbb7c02285063ec6d08c60e47d654ca62ab39f46f2b656bbd51f1f280ce23e94",
+    "configs/arms/h1_2.yaml": "0a60137fe5ece3867a1bb2674bc59826f51d1c0da0e262087aa564ce1ac94686",
+    "configs/arms/h1_2_mock.yaml": "4586dca7926194fd0647b2060227edcfe25e6bc107f6e9690ffcb2d17d893c22",
+    "configs/arms/h1_2_sdk.yaml": "ffdff02f677a9fab91004b7ee8b769f423f4652528ac92bbd98b7cd1a89f2b3a",
+    "configs/arms/h1_mock.yaml": "f46ae115b22779fb2bcf3037ab935d5e8232d97e5f25bf392316139b24b8b4e1",
+    "configs/arms/h1_sdk.yaml": "02795591c32fcbb4980f8d04b5a92ae975c98c90b71421e2dfdc6a8dea745f1b",
+    "configs/arms/isaac.yaml": "4e7ed975f36f55a6b47cb32bfaf4fccf2d17c09bdd9ed260e90433a17e0dff35",
+    "configs/arms/isaac_kitchen.yaml": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+    "configs/arms/isaac_kitchen_gpu.yaml": "3274e46b33305a6b0fb90a0a2417a754c9935e4a3662d7e06c0dacbef193b62c",
+    "configs/arms/libero_panda.yaml": "63e465e3a5331133d48efc96bbc5bb1bd20bb9d4f53bc6c4c911b5b131c03ade",
+    "configs/arms/mock.yaml": "57c7caf4c2f4504a94e8ba57f2ed2172579b6779fece873a2113bdef3b3b12e6",
+    "configs/arms/piper.yaml": "63e7877447f92700dce0a955e7eda19de762763a0b3547b40cc4a811251516c6",
+    "configs/arms/piper_mock.yaml": "6109d857035d21c7bbf54cbe4578c1ff4d27a36d20044ca4180da82ebb1f322c",
+    "configs/arms/piper_mujoco.yaml": "aac872856d3e06ac6588f21b6de1c796f7bf4f2964077a785dbc09f321f659d7",
+    "configs/arms/rebot_rs.yaml": "398af8f90117b3d4315782fec600959bdbb980eebac05766ddeaa44fb65be019",
+    "configs/arms/rebot_rs_mb.yaml": "8d9df585d2260f366250dc5e0c763093befa59b3f39d422319e12471fedf9ff3",
+    "configs/arms/ros2_generic.yaml": "6831f2db3619f0830fa68ef2997417da7a5b6417f04c1bb4ee88ea68b86651df",
+    "configs/arms/so101.yaml": "f30426014f7af2445787546e0328ebdb38a964e6d43f0856fdd25fe546de54d1",
+    "configs/arms/so101_left.yaml": "bf35a99f2df32718a6f213cdab78b37299ac66cb735fb55265e9030a935c180a",
+    "configs/arms/so101_mjwarp.yaml": "d9844a1b87b44d0be195f6571840242365f32d3d81d1b10fc9d52d0e0c67b779",
+    "configs/arms/so101_mock.yaml": "cf600a14583bb06a1ff253e54a24a23b3d3b3324f1c5939a11bd63dd32888b0d",
+    "configs/arms/so101_mujoco.yaml": "8dd66c7e5b37b0880e04efeb9fdffd1dbc8d558a246455d3b10795727b836abe",
+    "configs/arms/so101_right.yaml": "b26e98d5ae5d087f08e1cd22edc4542199d155a0b24c510ded719ff4dc254348",
+    "configs/arms/so101_ros2.yaml": "fc70c30ddf093cb0eb6f2c27a899256c985ce0d603b8062839ede6a6b665dfde",
+    "configs/booth.yaml": "1ccdf0450c4fb24c4e97f868640ff143f3924e258ff2fac815e258e71f6c372e",
+    "configs/cameras/d435i.yaml": "ee1aee33894f3f8464360d7a91868ebffed01ed02fb35d21854144ec22c9d57c",
+    "configs/cameras/d455f.yaml": "1aabb5e15653e60a98efe6f91da5034577561c041f9920ee588fe8b810a6c4f2",
+    "configs/cameras/d455f_scene.yaml": "432384a0987388801cff4c136b80fc1e631fafb02e9764cf9bbd0090b8d23c26",
+    "configs/cameras/d455f_wrist.yaml": "0e02654cca88c191f1c15a631ab506023b719bfd6cf00ac213b3e3691b0928a6",
+    "configs/cameras/isaac.yaml": "d2816b4e30b4a4e8c62d80b84d5985c5a6c1cc007b641be87009a150e6517fc4",
+    "configs/cameras/isaac_proof.yaml": "850316c42f0e087af2f1e45e2d5856eb5db0d7458262cb41ab062adecf298fd4",
+    "configs/cameras/isaac_side.yaml": "3bdb043d3d0d9b155f8ad8cdd75b988ba2af88b7b5a59daa83c97a1177fac555",
+    "configs/cameras/isaac_wrist.yaml": "dea4dcd0d48aaf40ec3e00e2d616d617497c36495807e5234e26852ce28555fa",
+    "configs/cameras/l515.yaml": "3af253519e25b42f3f7b3106b7f1b4863c2de75a255d77d2addfb80b8fd8edc8",
+    "configs/cameras/mock.yaml": "43899128265eb97232ffd3a10c3e413c824d2c864e3f8f95ad241b3389a440ea",
+    "configs/cameras/mock_small.yaml": "68c1fd6f01a6e7b55d001eda46d5164209c18742ff4930e496632375ef62a7e8",
+    "configs/cameras/mujoco_scene.yaml": "69128176ddf511e5a03989f16a2315a3b7e09e9489fd22aeed7d692a8e0e68fc",
+    "configs/cameras/mujoco_scene_large.yaml": "8f7ec4de1d1639c68ad1b0f788193be8456779cbb364ff5ed19333d6dfabed7f",
+    "configs/cameras/mujoco_scene_two.yaml": "ed7bd13f3efc2ee9998bab48569f58c6264ef9e1622cb68b47f70d543f990bdc",
+    "configs/cameras/uvc.yaml": "50b27807162e90b1e14e9db38ee5fca652bc96f1b9270f31aac05517cf434853",
+    "configs/cameras/uvc4k.yaml": "e1c1c3e35e389b39bba01866cb325715843ba0f709313036536e3eeb7b05eb7f",
+    "configs/demo.yaml": "06cba8688a3f52a092d7736d10077db1f27ab01105a1986f49a7f7fafbb0d9f9",
+    "configs/llm/anthropic.yaml": "fb14f179e258cb58c5a253b309952b124a37f876e5b1609f598446a5d1b249f6",
+    "configs/llm/deepseek.yaml": "48d63b422d31f6a920f1636f76f86c8b74955dfaed778cbf2bd9e8d836d105c6",
+    "configs/llm/hermes.yaml": "58854fa6214e5a0254abaa3a25595fc37b05e739c7d1da9b2c81a6efeffd668c",
+    "configs/llm/local_cosmos.yaml": "cfe6ec468d722daf4c07e71095e22c83e71a4844a28d6c1e9a86754c05a095a3",
+    "configs/llm/local_cosmos_sglang.yaml": "6d5e6fdc7154521b3d98cfae3fe8d92fae42a1ccfdbe67c59177ed099d83b057",
+    "configs/llm/local_qwen.yaml": "7b563bb9e4b0c1f497f80aa33b3a1979c048f5c0592b57732b16cdb56c38e363",
+    "configs/llm/mock.yaml": "237784c3d74e6b0c6a5d8b38525ee5119b202fbbf3c43b66c6e0313d5ef040b2",
+    "configs/llm/openai.yaml": "32a5a3f707eaa2699c002dc649a1f90c055dddc61ea899b6b025b75631f371c5",
+    "demo/kitchen/physics/convex_geometry.py": "f1e3c87aed4b2343f2818564048ee42e002c588b97f87007f55c83a158d0de65",
+    "demo/kitchen/physics/convex_settle.py": "1b4508ad31cb03e8c027fee11087d112f4ae725b52fafa185026d9e64d7ef03f",
+    "demo/kitchen/physics/destination_entry.py": "263a9fb383af509f435118deed536d19afca9d43701487edf7999dad92f1b441",
+    "demo/kitchen/physics/gpu_proof_audit.py": "f85392450376bf6a320138198612530d26f08ab4a95962a20047f3f3ceb26fb2",
+    "demo/kitchen/physics/perception_probe.py": "cf8f5d58fe25e44201794d7fe5fb2223d4cece82653218a2745299c1b172c224",
+    "demo/kitchen/physics/placement_verdict.py": "8bfd029bf129fd1c7906c111941c2bda9dda9ff029d494d24ee8e21294e8a810",
+    "demo/kitchen/physics/snapshot_codec.py": "f902c0ba118a322a1c8eed9c7c3c875982db4815089d9b944b6fcb663bd9042e",
+    "demo/kitchen/physics/spark_proof.py": "675434aab150a74fefe1ab637a6d1d740c24e7f11c319f5bd50cd4a1426c78d4",
+    "demo/scene/kitchen_config.json": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+    "src/cascade/__init__.py": "9ad9a785986c78d2d9512862056bcc035972ca6589d8606fc1f6e896825a3583",
+    "src/cascade/agent/__init__.py": "2b1ef7be03a5dfa56bded1abc26687f85a26700bd3cc22f8b7880ad5f3a8b68d",
+    "src/cascade/agent/advisor.py": "36e14c28929152af66307a12bfe41f8f8206ec13bf245c126cdbcc34aa21112a",
+    "src/cascade/agent/aspire.py": "37089adde1adf7de5ec2aa6fd55cb63f393e48761605beea808ab528fed64a78",
+    "src/cascade/agent/cosmos3.py": "8c286bed7b1e550f5783a1bd9e15fd8323abf762ec424c652849dfbe6fa9f3f1",
+    "src/cascade/agent/decision.py": "9c3539a903b1a1b0a11b5a5bb37c9a1cfcbf3eba72234f1c0e7b5a5e6b1965c0",
+    "src/cascade/agent/effects.py": "8d6eb766848bec8cbb53f5faabbd22996e82ecb171c40a911f80854d89bf88bb",
+    "src/cascade/agent/llm.py": "0ea6793b049a802300a97ceaea3f6477a03016d9f919800489fa324a0484481a",
+    "src/cascade/agent/milestones.py": "d96e4ca968a94b30348b83200076eb14ac4fb36f8883c1150e826345ab1a64e9",
+    "src/cascade/agent/orchestrator.py": "df52c7279e3d7e73b8dce8406eb77b676c4b7906f69be2b98c5ffcee720aa7f9",
+    "src/cascade/agent/prompts.py": "aa24b79e8ba315c59b4e1bcc622736e19add624a4a877b6eb5155026ae284951",
+    "src/cascade/agent/reflex.py": "8e402c422a3bec8549d32730579c7ffddccff06728ca488eaeac85f6f64ec2a0",
+    "src/cascade/agent/trace.py": "e37c8613f482e24a272c9dbf67f6c5e6c1950c3a2c0d6692280bbc7d4f6008e9",
+    "src/cascade/apps/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/cascade/apps/demo.py": "e6569d5e77dbcf042d6c45fbf0ed48a422525771aa3b9602f3593cd36bd5d100",
+    "src/cascade/apps/external_view.py": "39f4e01fbff8246d8ed9eafaedb7b319147c148dcd724aa03185de2baec3e4c8",
+    "src/cascade/apps/live_control.py": "627d575ef7815b8d01da2985fca7a74321a2e56cae24825681b841f21bf01084",
+    "src/cascade/apps/live_view.py": "9ff49752979828b0177a9590e62895eab57e53689c53117fa36bc9bd08c84b9c",
+    "src/cascade/apps/mcp_server.py": "da9756c5c91fa31706b7ab893f40b57f056f8aebe10bb8f6661cd30e328abb14",
+    "src/cascade/apps/process_owner.py": "dd80dd362be384a168c2ce5fd46d9e5d4e8df40a521930407fac482deca7da9e",
+    "src/cascade/apps/record.py": "65ead0a0906b87b9773d69ad68beebf083a23fd7e102d231579a67407ea0b86d",
+    "src/cascade/apps/stream_server.py": "06abd177fa440caa87683babde77410e104d9624efd6696822cd136d10688050",
+    "src/cascade/apps/viewer.py": "a8982c55bab1beaf8c060dffaeb2cae1751c89bea90f54f0566888f33b5e6340",
+    "src/cascade/config.py": "984cf4e2aa276ce54f8b24e78a5fd863699a5109e8c522dc00d072bb6c6d82d7",
+    "src/cascade/control/__init__.py": "6c3fcfc0f9a8fd5213e2c3a3ef0eb2fc3735540f90e849c1496c1a156c2d0c9f",
+    "src/cascade/control/arm_base.py": "a041dea27968a41bfcd3a25a37a184cc1d3047bfd0c0f3744756eda2574edbe7",
+    "src/cascade/control/arm_rig.py": "f68c273e0b8474fbbb0c20bf826e2915be87fe621757ee9b8d30f5119a471ee5",
+    "src/cascade/control/feetech.py": "d00fa3da7ccf5dfd587eab0cc0640198d55e7ad2b891ed563ff0f214ae7ca587",
+    "src/cascade/control/feetech_arm.py": "f0a50c6321ee08c2fd76edfcd7a0cd234c3735cf53f50ec0e96f777c3a8a8f0a",
+    "src/cascade/control/isaac_arm.py": "f3ccc1d94626206547f15e9e282ffadd6c70b30259e032ec415920ac5f09fcf7",
+    "src/cascade/control/kinematics.py": "734bdbc5527ffafddf7f41d34e048b70fc78cc07af29cde13af60ba7472c4647",
+    "src/cascade/control/lazy_arm.py": "50a457613df68a561bd0f86a066e87e3170ab7d32cd4143c6999e8bf163deb0b",
+    "src/cascade/control/mock_arm.py": "9d134597720124baa95e627246111949a7462edf5b2ef5dc375a46066b547c22",
+    "src/cascade/control/mujoco_arm.py": "d83da2cdd92efa4863475b15397947bb50e06428330aa536570c42d060ea90b0",
+    "src/cascade/control/rebot_rs_arm.py": "847965828d71add9a39f770644840fd20ac729097f44fb764c7d525cfeb69e49",
+    "src/cascade/control/rebot_rs_mb_arm.py": "588ebb584921d888420883ab435a370978f795b540b58cffbf1a68f721caa957",
+    "src/cascade/control/ros2_arm.py": "f33c05db506c7acce8fbe57ea29553af22a24c2627fe921d22bbbbe40f1318e0",
+    "src/cascade/control/unitree_arm.py": "c35fa34d0af20d1f36f737de04103da71730ca1795abeec386157b4c3b2579fa",
+    "src/cascade/control/usd_model.py": "3394681cd789ffada9785c965bcb1eb903f0516e16f8e5ce899e1b90d2f28297",
+    "src/cascade/device.py": "9c1bb69867276bdc3cdc08c52a59ef463e36622fae8ea88f3ade38fe90cd28f4",
+    "src/cascade/eval/__init__.py": "5764789b78ce2227cbcc8483deb859472c16858f9a4ea47ccd7ec7d966d3a6cf",
+    "src/cascade/eval/progress_judge.py": "697004d5980efa3096ad29ca5b431ef1e1409ede5c9e5679022e41c0971a9099",
+    "src/cascade/grasping/__init__.py": "a789c74c9c94eee777a69eee49594944f670c4cbd7826518c2bb884b02943140",
+    "src/cascade/grasping/force.py": "accb6f790da865a6691e3e5778a8957c52cd6c0bb5f3c674d0e1fe46d4fae755",
+    "src/cascade/grasping/graspgenx_backend.py": "f9575978c84ff6478b07cb981291719413c8a025780afb1ff0f337b2b25776fc",
+    "src/cascade/grasping/obb_grasp.py": "5c38fb8c54ce30deebe29cddc6ac3daa562e5b2903287a60d315f1250b01a9cb",
+    "src/cascade/grasping/selector.py": "5d3e180793ddbce88973cbb9843e2f3998a6bbe28e48624c6e503e3e068fa822",
+    "src/cascade/memory/__init__.py": "ba09e863e42c98bd68246adbbb60b1f1ffb7206315d86ab7c691c4258dacab1f",
+    "src/cascade/memory/beliefs.py": "cdc95bdf7185d3d8958c36c1fd7910b2118247d5b0174765639f1dcf72b5d839",
+    "src/cascade/memory/envelope.py": "980bf879b9653d7a2da422c98aeb5ba4ac6626e508555f1e66dcbf1fbc04fd28",
+    "src/cascade/memory/episodic.py": "d8c9969332d155fb2c5bf63b68a0337574262f598487caa3e4ba45ed4cba45d6",
+    "src/cascade/memory/grasp_memory.py": "681eb1befc84258942722c4701a80c56c1fb27619ff5af3fe2f56175f82932f9",
+    "src/cascade/memory/turboquant.py": "38eb5acdb35a21069f9a1939d946cc92fb7dc6c2cffc7eb8ed8da53027037046",
+    "src/cascade/memory/vector_index.py": "00eeada61a6b6f63ccf986ef06456727ad9d6d59b3e23a09744dd1489b59a31d",
+    "src/cascade/perception/__init__.py": "78f3a9b69f28ee417414302035370d30d5b845a868eb5840013587dd9b1f8879",
+    "src/cascade/perception/_warp_tsdf_kernels.py": "a64c26db052a34f0a7cbeed8ec083d7cffc284bf7413572a4e4709c6ce82e515",
+    "src/cascade/perception/calibration.py": "b1634d46a9ff4fcb19b40c1f169f359d19a4b112553d338336f4e05e837b2d58",
+    "src/cascade/perception/camera_base.py": "bbcb0e66b7d7df2b487108217595113af4a88831d43d7b6dc8a7807c14bc62b8",
+    "src/cascade/perception/colors.py": "903efd73bb656e8937e14f7da5884c45ea1f002b680a396708b7e7b967708587",
+    "src/cascade/perception/cuda_math.py": "d148ef4481868d3247b37710548dc87fdb7a5d08700fb6135b41fb6fd3900e33",
+    "src/cascade/perception/depth_provider.py": "57a7e91c1477b879614ab012b4ddf654598f5d943df2753b36f34d7b65daf6a6",
+    "src/cascade/perception/detector.py": "77e90ba6d528cc34987b5c1e1c32e8ad2d7eeff360e3d1418e8aa0afd9358bc0",
+    "src/cascade/perception/freshness.py": "076941701c0fc1b7b9f6df23071f4a0f3558d724578a5d0fd427824e5a3886ac",
+    "src/cascade/perception/grounding.py": "e93ce3d7388d35a53ff4c0b61af541f0c065e4a65d3b8cd7c0573b50963a4458",
+    "src/cascade/perception/isaac_camera.py": "ad91d4ae718ca741c01c93945732f1af47eb313de69fe78bbd477a46ce57128f",
+    "src/cascade/perception/mock_camera.py": "716af026242d862dc05e18c408bd83d4db3e08f0b58d768c03917e68a0929148",
+    "src/cascade/perception/mujoco_camera.py": "bb00670f240497a43e5e645a053fb4a929c66d5efb6262954db2465730feb543",
+    "src/cascade/perception/occupancy.py": "ec488c320360de00ad56276834f14fd7e35959188af76d26a14fb6997c6ac663",
+    "src/cascade/perception/occupancy_backends.py": "443f0252b8b4f988a89dcd9bde619bf2badbe6945f567772f47d1258baa4e5d4",
+    "src/cascade/perception/opencv_camera.py": "f7a0629af12c759b91c07a7bb9d13f03ea6b5f8788ecf45e2ad4755bc1b14762",
+    "src/cascade/perception/pixel_target.py": "cbec5fd3dcc997407ece63dc4ca133c42e6180c7836b59cd53f687aaadc03b6b",
+    "src/cascade/perception/probe.py": "6ecad3e84c9f849ce5f1c9a6a4b14057002e4126b34ca7a9b144670b26937c7e",
+    "src/cascade/perception/realsense_camera.py": "9033003ba9fbac442b405c5bd967fcf964dd7db2ae5ff41a9c0bd8d151f1fc83",
+    "src/cascade/perception/reference.py": "540b360f42ff8ec6c82397c1f7575d23fc07026eac6f007b12c5930ba944fc23",
+    "src/cascade/perception/robot_mask.py": "29cc7552a42984321a6ed9b95afc19a4836f19ebd7b581b9e3f123332975a48b",
+    "src/cascade/perception/segmenter.py": "53b80007a00984333cf951703915fa06575a4a5f659b75f38764a3c38d7bf7f1",
+    "src/cascade/perception/stream.py": "f0ede7b90fb3cfabb6e7c40e699eba614f7a11d5726e381e8eb7e6ab065c6616",
+    "src/cascade/perception/thread_join.py": "1dc4274c605f6b8c7b467987503f08537c304bf6f97e5fa13e3cbe10a80d7f25",
+    "src/cascade/perception/visual_diff.py": "ff7a897ea0a5a18430099a00ecd9cc6d37451a04ddf41460cf8935442ba06288",
+    "src/cascade/perception/visual_interface.py": "d711a574ca2da3cfc9f34d4e836909361ce93ec8d6c501a3dfc0ea4a65327946",
+    "src/cascade/perception/vlm_detector.py": "62fe1aad2a472271c47ce30cee897d2c9d74906130c3bfef76d099074c78d18e",
+    "src/cascade/perception/vlm_ground.py": "a937b3d5e7d6232bff782f116fe268c79e8d5b6275ff52b540f7a00a247f0251",
+    "src/cascade/perception/workspace.py": "9bc8e5b294eb3e8705fa80864bd1a3dddda6f7aca2e2d879ceab112e8e69301e",
+    "src/cascade/perception/world.py": "7ac251c02dcd81bb62c1ef28ce1c37b8facf544d53737670af3f2075b85fbc07",
+    "src/cascade/safety/__init__.py": "fb84ccbfeba1e290e54faa97932641c83649c79fea00675c40d314e6348c6d85",
+    "src/cascade/safety/geometry.py": "03738caeeb7620311b18766aed8a7568922a1ac042b9477710dcfd84532d37ff",
+    "src/cascade/safety/harness.py": "7ec542b44f0d64099736da2dac74b07a155ec7e3a293620ab6aaffbc34f18373",
+    "src/cascade/safety/trajectory.py": "16f8dd9a656ee4eabe338d0b1079cbd17884cb3aef81756e8216e59c6aaa5b95",
+    "src/cascade/sim/__init__.py": "9a72614d597aff9c10aac49adcf9d4d6f5cefb3430c090d63da61bc6d561c062",
+    "src/cascade/sim/bridge_client.py": "29ff72d341a47952b21c0f90118a7b8ba2cb5d8ce1ae68baf124070787d1c80b",
+    "src/cascade/sim/demo_scene.py": "76c861f6d4607e3738db280f3a27f4c2f17fc534c8f341dfed8f61e398d6c907",
+    "src/cascade/sim/isaac_reset.py": "d11f2bef8fbc7f3366d94e8f25ada19aa9a869d99d762c1ea6aff6f1f440d602",
+    "src/cascade/sim/mujoco_rgbd.py": "19201ade2b5d2a211a5f5e0af002ba45c8547f688d178a15af84ca49b684fb30",
+    "src/cascade/sim/mujoco_world.py": "1377878a68f40e0d9227e90f63cbae44e460ee51b87fb63713ba56ee76e59a13",
+    "src/cascade/sim/placement.py": "aae283b13280de1aa7ee578bde5566f77ffa085cd988e1154b52c9310835ec4e",
+    "src/cascade/sim/truth.py": "5088b778ad400d8020293a88cebdeef2299a448e0052e2bae37f7dddb7cfb00b",
+    "src/cascade/skills/__init__.py": "83e24ec52773d9722e13f1630797593b1cecc20f44907ad579b1d09ac5c38c63",
+    "src/cascade/skills/contact_episode.py": "e81fb822b272093bfcb6a5e5d559364b88f2318ad99606ed10d1030d8f501a38",
+    "src/cascade/skills/library.py": "ea2fbb3b195b23b0818abb16f6781282f85518ae890c0d798b719cd3fa45c710",
+    "src/cascade/skills/runtime.py": "d9012f0ae1d730c3c42d3c0d6b51a189ac584b5263ee3530e14a1e6957b2e158",
+    "src/cascade/types.py": "cbd65a50d2e7eb89fc1a908c5d3ede0e587f1b344b4da0d76bcf33d81f6e8b60"
+  },
+  "historical_inputs_sha256": {
+    "runs/nvblox-rtx/physical-16/campaign.json": "64926767cd123f472c98d30f3b52b567d01b457674413cef748711905cb14cfc",
+    "runs/nvblox-rtx/physical-16/tomato_can_r1/receipt.json": "687ff1925eb07c4c98bc67f6692269b01083d674c4d5c62ef3c2958837b4f500",
+    "runs/nvblox-rtx/physical-16/tomato_can_r1/commands.jsonl": "c7464d648a27d6585bb4e76376edf1fdcc33be0dc14546b9737e39bbbdd7bd62",
+    "runs/nvblox-rtx/physical-16/tomato_can_r1/witness/samples.jsonl": "9d5ea5ffd0bf95f41782349103e36633a4bf62ad2727b9debe63be81cbfd9217",
+    "runs/nvblox-rtx/physical-16-held-capture-02/metadata.json": "108af58a284843a6de5203fa4a6d0934fb24a4653758e31938d0249c6276e2d4",
+    "runs/nvblox-rtx/physical-16-held-capture-02/witness/samples.jsonl": "73ec17ae1308be7fa878c59de9ebc1279a4697687f6a7f0c4ec8cbb6c0cf7142",
+    "runs/nvblox-rtx/physical-16-held-capture-02/side.npz": "1d978e2794d5b35ab6680f09b7523e154f3787a84d5710c2d71abd45d8b9384a",
+    "runs/nvblox-rtx/physical-16-held-capture-02/cam0.npz": "4cba954f975d701faba50393d1cdae694f27e281eb4cc573f0bca6b0c0c59335",
+    "runs/nvblox-rtx/physical-16-held-capture-02/proof.npz": "2cb17ceb779a3d74e42ac3dbc4fa776f91d4745f6abca59b444907265621a93d"
+  },
+  "artifacts_sha256": {
+    "skills.jsonl": "3135d2c7524796c83e3464e7b64cd6cbddfef9bc62a02890045f5164b66d6df3",
+    "actuators.jsonl": "12153801657d1c327ac64416cdc9a9714545a02978ba7c90d9f053a9efd2fa22",
+    "runtime/trace.jsonl": "842ef8b499c6eaf38bba6b102acef210eed15571c43a53e19046804568a0d8fc",
+    "witness/phases.json": "910628bef3067e97fac81c24aab26774375327e1a87bafbd2415a48155698dad",
+    "witness/ping-before.json": "bacf927824b348b4082e2a3ba492944fc9a0df6f329870f342aad6b0ad81df6a",
+    "witness/metadata.json": "3a2ee92128d8a0c0f79b1460e854c6aac102d903530a0244e0e16b950e320df8",
+    "witness/first-scene-geometry.json": "6e93c070feb463bdccb4533da7ea242a27516fae2c509293c75547a3c435b3c3",
+    "witness/wire.jsonl": "ac6353166e8e56a493971a8e71ba1fc5a666d0a0e43e2fdfea8e0ca2f839b60b",
+    "witness/snapshot-code.py": "287760d11bf31c76541a8f8925c0d5475a379a7dc337aaaaa2ebf79b2f66d89d",
+    "witness/ping-after.json": "bacf927824b348b4082e2a3ba492944fc9a0df6f329870f342aad6b0ad81df6a",
+    "witness/samples.jsonl": "ded7b321b03b920be3b798bc26be01c45ea6f647ed34b29a87e77799782ae452",
+    "runtime/keyframes/0000_reset_scene_before.jpg": "f53667559da9af1f4e559c1005d80c8d87013e3e18a5fe57fa9db600f0dab9e6",
+    "runtime/keyframes/0000_reset_scene_after.jpg": "ab43d2a7224592b6aa9b354f67fa58f171d2ed289c1ce0ef09f220928a0137b1"
+  },
+  "checks": {
+    "setup_sent_no_commands": true,
+    "public_reset_completed": false,
+    "original_contact_retreat_completed": true,
+    "independent_retreat_and_command_evidence": true,
+    "every_reset_camera_committed": false,
+    "reset_physics": false,
+    "retained_episode_cleared": true,
+    "contact_exemption_cleared": true,
+    "fresh_map": true,
+    "all_camera_barriers_reported": false,
+    "same_camera_robot_clock_binding": true,
+    "all_producer_clocks_advanced": true,
+    "source_unchanged": true,
+    "historical_inputs_unchanged": true,
+    "no_diagnostic_errors": true,
+    "observer_complete": true,
+    "cleanup_sent_no_commands": true
+  },
+  "live_binding": {
+    "max_arm_delta_rad": 3.5762786865234375e-07,
+    "max_jaw_delta_m": 6.51925802230835e-08,
+    "prop_position_delta_m": {
+      "pink_cube": 3.332000937312528e-08,
+      "green_cube": 0.0,
+      "tomato_can": 7.607258057840965e-08,
+      "lemon": 0.0,
+      "orange": 0.0
+    },
+    "prop_orientation_delta_rad": {
+      "pink_cube": 2.175773650222406e-06,
+      "green_cube": 5.519467347101031e-07,
+      "tomato_can": 2.022609651202902e-06,
+      "lemon": 0.0,
+      "orange": 0.0
+    },
+    "local_q": [
+      -0.7213385701179504,
+      1.7775615453720093,
+      1.3720595836639404,
+      -1.1607218980789185,
+      0.007776329293847084,
+      0.6476767659187317
+    ]
+  },
+  "retreat": {
+    "pass": true,
+    "checks": {
+      "observed_original_pregrasp": true,
+      "no_jaw_or_prop_reset_during_retreat": true,
+      "actual_joint_commands_observed": true,
+      "final_target_is_original_pregrasp": true,
+      "original_cylinder_throughout_retreat": true,
+      "runtime_retreat_completed": true,
+      "same_object_still_in_measured_bilateral_contact": true,
+      "object_lift_observed_before_home_or_release": true,
+      "physics_advanced_during_retreat": true
+    },
+    "pregrasp_error_rad": 0.03679170326984571,
+    "settle_tolerance_rad": 0.045,
+    "object_lift_m": 0.09754934161901473
+  },
+  "postclose_geometry": {
+    "floors": [
+      {
+        "channel": "producer_capture",
+        "backend": "isaac",
+        "source": [
+          "127.0.0.1",
+          8691
+        ],
+        "camera": "cam0",
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "clock": "physics_loop_monotonic",
+        "t": 58394.122231921
+      },
+      {
+        "channel": "producer_capture",
+        "backend": "isaac",
+        "source": [
+          "127.0.0.1",
+          8691
+        ],
+        "camera": "side",
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "clock": "physics_loop_monotonic",
+        "t": 58394.122231921
+      },
+      {
+        "channel": "producer_capture",
+        "backend": "isaac",
+        "source": [
+          "127.0.0.1",
+          8691
+        ],
+        "camera": "proof",
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "clock": "physics_loop_monotonic",
+        "t": 58394.122231921
+      }
+    ],
+    "shared_floor": 58394.122231921,
+    "integrated": [
+      {
+        "channel": "producer_capture",
+        "backend": "isaac",
+        "source": [
+          "127.0.0.1",
+          8691
+        ],
+        "camera": "cam0",
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "clock": "physics_loop_monotonic",
+        "t": 58394.483376723
+      },
+      {
+        "channel": "producer_capture",
+        "backend": "isaac",
+        "source": [
+          "127.0.0.1",
+          8691
+        ],
+        "camera": "proof",
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "clock": "physics_loop_monotonic",
+        "t": 58394.483376723
+      },
+      {
+        "channel": "producer_capture",
+        "backend": "isaac",
+        "source": [
+          "127.0.0.1",
+          8691
+        ],
+        "camera": "side",
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "clock": "physics_loop_monotonic",
+        "t": 58394.483376723
+      }
+    ],
+    "contact_paths": [
+      "/World_Props/tomato_can"
+    ],
+    "surfaces_by_camera": {
+      "cam0": 877,
+      "side": 1024,
+      "proof": 561
+    }
+  },
+  "reset_result": {
+    "props_reset": [],
+    "world": null,
+    "observation_refreshed": false,
+    "objects_visible": [],
+    "contact_recovery": {
+      "retreated_to_original_pregrasp": true,
+      "geometry": {
+        "floors": [
+          {
+            "channel": "producer_capture",
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              8691
+            ],
+            "camera": "cam0",
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "clock": "physics_loop_monotonic",
+            "t": 58394.122231921
+          },
+          {
+            "channel": "producer_capture",
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              8691
+            ],
+            "camera": "side",
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "clock": "physics_loop_monotonic",
+            "t": 58394.122231921
+          },
+          {
+            "channel": "producer_capture",
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              8691
+            ],
+            "camera": "proof",
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "clock": "physics_loop_monotonic",
+            "t": 58394.122231921
+          }
+        ],
+        "shared_floor": 58394.122231921,
+        "integrated": [
+          {
+            "channel": "producer_capture",
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              8691
+            ],
+            "camera": "cam0",
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "clock": "physics_loop_monotonic",
+            "t": 58394.483376723
+          },
+          {
+            "channel": "producer_capture",
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              8691
+            ],
+            "camera": "proof",
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "clock": "physics_loop_monotonic",
+            "t": 58394.483376723
+          },
+          {
+            "channel": "producer_capture",
+            "backend": "isaac",
+            "source": [
+              "127.0.0.1",
+              8691
+            ],
+            "camera": "side",
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "clock": "physics_loop_monotonic",
+            "t": 58394.483376723
+          }
+        ],
+        "contact_paths": [
+          "/World_Props/tomato_can"
+        ],
+        "surfaces_by_camera": {
+          "cam0": 877,
+          "side": 1024,
+          "proof": 561
+        }
+      }
+    },
+    "ok": false,
+    "stage": "home",
+    "home_error": "no safe joint route found; direct route: attached object point 5 has unobserved clearance (occupancy map) at [0.2140, 0.2089, 0.1826]",
+    "beliefs_forgotten": 0,
+    "error": "Scene reset could not reach home: no safe joint route found; direct route: attached object point 5 has unobserved clearance (occupancy map) at [0.2140, 0.2089, 0.1826]"
+  },
+  "actual_actuator_call_counts": {
+    "send_joint_target": 100,
+    "set_gripper": 0,
+    "reset_props": 0
+  },
+  "cleanup_calls": [],
+  "tests": {
+    "controller_full_suite": {
+      "source_ref": "72bf778",
+      "passed": 2605,
+      "skipped": 43,
+      "deselected": 3,
+      "seconds": 317.03,
+      "environment": "PYTHONPATH set to the tested checkout/src so subprocesses use the same source"
+    },
+    "new_diagnostic_focused_tests_passed": 28
+  },
+  "remaining": "Current can remains held near original pregrasp. Home refused unknown attached clearance before issuing home targets. Full reset, camera rebuild, probes and repeated five-object/native acceptance remain outstanding."
+}

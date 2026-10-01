@@ -821,7 +821,9 @@ if _PIXEL_MASK_ENABLED:
     import runpy as _mask_runpy
     from pathlib import Path as _MaskPath
 
-    _encode_robot_mask = _mask_runpy.run_path(str(_MaskPath(__file__).with_name("isaac_self_mask.py")))["encode_robot_mask"]
+    _mask_helpers = _mask_runpy.run_path(str(_MaskPath(__file__).with_name("isaac_self_mask.py")))
+    _encode_robot_mask = _mask_helpers["encode_robot_mask"]
+    _bilateral_contact_paths = _mask_helpers["bilateral_contact_paths"]
 
     for _sensor, _K in _annotators.values():
         _sensor.attach_annotators("instance_id_segmentation")
@@ -1502,7 +1504,19 @@ def _capture_frame_state(t, wrist_T):
         }
     except Exception:
         snapshot = None  # Viewing only; masking/motion consumers fail closed.
-    return {"proprioception": snapshot, "wrist_T": copy.deepcopy(wrist_T)}
+    contact_tracking = os.environ.get("CASCADE_ISAAC_CONTACT_MASK", "0") == "1"
+    contact_paths, contact_error, scene_prop_paths = [], None, []
+    if contact_tracking:
+        try:
+            scene_prop_paths = ["/World_Props/" + name for name in _PROP_SPAWNS]
+            contact_paths = _bilateral_contact_paths(
+                {name: _gpu_contact_snapshot(name) for name in _PROP_SPAWNS})
+        except Exception as exc:
+            # Unknown contact is never an empty, usable payload mask.
+            contact_error = str(exc)
+    return {"proprioception": snapshot, "wrist_T": copy.deepcopy(wrist_T),
+            "contact_state": {"tracking": contact_tracking, "paths": contact_paths,
+                              "error": contact_error, "scene_prop_paths": scene_prop_paths}}
 
 
 def _invalidate_frame_history():
@@ -1614,7 +1628,12 @@ def _refresh_frames():
                 try:
                     _ids, _info = sensor.get_data("instance_id_segmentation")
                     _ids = _ids.numpy() if hasattr(_ids, "numpy") else np.asarray(_ids)
-                    entry["robot_pixel_mask"] = _encode_robot_mask(_ids, _info, args.prim, t)
+                    contact = payload["contact_state"]
+                    if contact["error"] is not None:
+                        raise RuntimeError(f"payload contact evidence unavailable: {contact['error']}")
+                    entry["robot_pixel_mask"] = _encode_robot_mask(
+                        _ids, _info, args.prim, t, contact_paths=contact["paths"],
+                        payload_tracking=contact["tracking"], scene_prop_paths=contact["scene_prop_paths"])
                 except Exception as exc:
                     entry["robot_pixel_mask_error"] = str(exc)
             if cam_name == "wrist" and payload["wrist_T"] is not None:

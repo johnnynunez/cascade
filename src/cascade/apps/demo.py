@@ -220,6 +220,14 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
 
         occupancy.add_robot_body(_body_points, radius_m=float(acfg.get("body_mask_radius_m", 0.06)),
                                  frame_link_points_fn=frame_body)
+        if fallback_cfg.get("occupancy", _empty_cfg()).get("track_payload", False):
+            if acfg.get("type") != "isaac":
+                raise ValueError("payload segmentation currently requires the Isaac capture contract")
+            def frame_tcp_pose(frame, _cfg=acfg, _kin=kin, _T=base_T):
+                from ..control.isaac_arm import IsaacArm
+                pose = _kin.fk(IsaacArm(_cfg).state_from_frame(frame).q)
+                return pose if _T is None else _T @ pose
+            occupancy.track_payload(frame_tcp_pose)
     return arm, SafeArm(arm, harness), kin
 
 
@@ -361,6 +369,7 @@ def build_runtime(
                 # beliefs (garbage base-frame positions); it still streams
                 # video + overlays + heartbeats.
                 fuse=bool(ccfg.get("fuse_beliefs", "extrinsics" in ccfg)),
+                map_depth=ccfg.get("map_depth"),
             )
         )
     rig = CameraRig(streams)

@@ -28,6 +28,7 @@ escape vertically.
 from __future__ import annotations
 
 import time
+import threading
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -104,6 +105,10 @@ class SafetyHarness:
         self._estopped = False
         self._halt: str | None = None
         self._halt_generation = 0
+        self._pending_contact_episode = None
+        self._contact_scope = threading.local()
+        self._pending_release_episode = None
+        self._release_scope = threading.local()
         self._grasp_exempt: tuple[np.ndarray, float, float] | None = None
         self._last_heartbeat = time.monotonic()
         self._motion_active = False
@@ -163,9 +168,22 @@ class SafetyHarness:
     ) -> None:
         """Open a cylinder over the grasp target where the TCP may go low."""
         z = self.limits.table_z if z_min is None else z_min
-        self._grasp_exempt = (np.asarray(center_xy, dtype=float)[:2], radius_m, z)
+        candidate = (np.asarray(center_xy, dtype=float)[:2].copy(), radius_m, z)
+        pending = self._pending_release_episode
+        if pending is not None:
+            scope = getattr(self._release_scope, "value", None)
+            original = pending["cylinder"]
+            if (scope is None or scope[0] is not pending or scope[1] != "retreat"
+                    or not np.array_equal(candidate[0], original[0]) or candidate[1:] != original[1:]):
+                raise SafetyViolation("retained release only permits its original scoped cylinder")
+        self._grasp_exempt = candidate
 
     def clear_grasp_exemption(self) -> None:
+        pending = self._pending_release_episode
+        if pending is not None:
+            scope = getattr(self._release_scope, "value", None)
+            if scope is None or scope[0] is not pending or scope[1] != "cleanup":
+                raise SafetyViolation("retained release cylinder cleanup requires its episode scope")
         self._grasp_exempt = None
 
     # ── inter-arm awareness ──────────────────────────────────────────────
@@ -259,12 +277,55 @@ class SafetyHarness:
         if expected is not None and expected != self._halt_generation:
             raise MotionHalted("halt received during route planning or execution")
 
+    def check_contact_episode(self, *, gripper=False) -> None:
+        """A failed close remains stationary until its explicit reset retreat.
+
+        Authority belongs to the initiating thread and the exact retained
+        episode. A concurrent skill cannot borrow the recovery exemption.
+        """
+        self.check_release_episode(gripper=gripper)
+        pending = self._pending_contact_episode
+        scope = getattr(self._contact_scope, "value", None)
+        if pending is not None and (scope is None or scope[0] is not pending
+                                    or (gripper and not scope[1])):
+            raise SafetyViolation("unfinished contact episode; explicit reset_scene recovery required")
+        if pending is not None:
+            self._check_halt_generation(pending["halt_generation"])
+
+    def check_release_episode(self, *, gripper=False, target=None, duration=None, grip=None):
+        """Only the exact original release/withdrawal may use a retained scope."""
+        pending = self._pending_release_episode
+        if pending is None:
+            return
+        scope = getattr(self._release_scope, "value", None)
+        expected = "open" if gripper else "retreat"
+        if scope is None or scope[0] is not pending or scope[1] != expected:
+            raise SafetyViolation("unfinished release episode; explicit reset_scene recovery required")
+        self._check_halt_generation(pending["halt_generation"])
+        if self.occupancy.scene_reset_generation != pending["scene_generation"]:
+            raise SafetyViolation("release episode scene identity changed")
+        if not gripper and (self.occupancy._contact_paths != ()
+                            or self.occupancy._payload_epoch != pending["clock"]["epoch"]
+                            or self.occupancy.is_stale()):
+            raise SafetyViolation("released withdrawal contact or producer identity changed")
+        original, active = pending["cylinder"], self._grasp_exempt
+        if (active is None or not np.array_equal(active[0], original[0]) or active[1:] != original[1:]):
+            raise SafetyViolation("release contact cylinder changed")
+        if gripper and grip is not None and grip != pending["open_position"]:
+            raise SafetyViolation("release episode only authorizes the original opening")
+        if target is not None and (not np.array_equal(np.asarray(target), pending["q_retreat"])
+                                   or duration != pending["duration_s"]):
+            raise SafetyViolation("release episode only authorizes its exact original retreat")
+
     def begin_motion(self, *, halt_generation: int | None = None) -> None:
         """Check perception freshness once, then suspend the watchdog for the
         duration of this motion (grasp sequences legitimately run > watchdog_s
         without a new observation)."""
+        self.check_contact_episode()
         if self._estopped:
             raise SafetyViolation("e-stop latched")
+        # A halt before the caller started is recoverable; a new halt during
+        # route planning or between its segments must cancel that same route.
         self._check_halt_generation(halt_generation)
         # A halt applies to the motion that was in flight when it was raised,
         # not to every future one. Clearing here (rather than making the caller
@@ -279,6 +340,18 @@ class SafetyHarness:
     def end_motion(self) -> None:
         self._motion_active = False
 
+    def check_stream_start(self, *, halt_generation: int | None = None) -> None:
+        """Recheck live guards after planning without clearing a new halt."""
+        self.check_contact_episode()
+        if self._estopped:
+            raise SafetyViolation("e-stop latched")
+        self._check_halt_generation(halt_generation)
+        if self._halt is not None:
+            raise MotionHalted(f"halted: {self._halt}")
+        age = time.monotonic() - self._last_heartbeat
+        if age > self.limits.watchdog_s:
+            self._reject(f"perception watchdog: last observation {age:.1f}s old")
+
     # ── the gate ─────────────────────────────────────────────────────────
 
     def approve(self, q_prev: np.ndarray, q_next: np.ndarray, dt: float,
@@ -291,17 +364,37 @@ class SafetyHarness:
         Every other gate (workspace, table clearance, keep-outs, velocity,
         neighbours) still runs at full strength.
         """
+        self._approve_step(q_prev, q_next, dt, joint_margin, self._reject, True)
+
+    def vet_step(self, q_prev: np.ndarray, q_next: np.ndarray, dt: float,
+                 joint_margin: float | None = None) -> str | None:
+        """Preflight the same geometry/escape gates without recording a violation.
+
+        This cannot authorize motion: begin_motion still checks the live watchdog
+        and clears a previous halt, and approve still checks every streamed step.
+        """
+        def reject(reason):
+            raise SafetyViolation(reason)
+
+        try:
+            self._approve_step(q_prev, q_next, dt, joint_margin, reject, False)
+        except SafetyViolation as exc:
+            return str(exc)
+        return None
+
+    def _approve_step(self, q_prev, q_next, dt, joint_margin, reject, live_checks):
+        self.check_contact_episode()
         if self._estopped:
             raise SafetyViolation("e-stop latched")
-        if self._halt is not None:
+        if live_checks and self._halt is not None:
             # MotionHalted subclasses SafetyViolation, so every existing
             # abort path still stops the stream; callers that want to tell
             # "unsafe" from "changed my mind" can catch the subclass.
             raise MotionHalted(f"halted: {self._halt}")
-        if not self._motion_active:
+        if live_checks and not self._motion_active:
             age = time.monotonic() - self._last_heartbeat
             if age > self.limits.watchdog_s:
-                self._reject(f"perception watchdog: last observation {age:.1f}s old")
+                reject(f"perception watchdog: last observation {age:.1f}s old")
 
         q_prev = np.asarray(q_prev, dtype=float)
         q_next = np.asarray(q_next, dtype=float)
@@ -328,7 +421,7 @@ class SafetyHarness:
                     break
                 if not escaping:
                     bad = int(np.argmax(low_bad | high_bad))
-                    self._reject(
+                    reject(
                         f"joint {bad + 1} target {q_next[bad]:.3f} rad outside "
                         f"[{lo[bad] + m:.3f}, {hi[bad] - m:.3f}]"
                     )
@@ -337,7 +430,7 @@ class SafetyHarness:
             vel = np.abs(q_next - q_prev) / dt
             if np.any(vel > self.limits.max_joint_vel):
                 bad = int(np.argmax(vel))
-                self._reject(
+                reject(
                     f"joint {bad + 1} velocity {vel[bad]:.2f} rad/s exceeds "
                     f"{self.limits.max_joint_vel:.2f}"
                 )
@@ -361,7 +454,7 @@ class SafetyHarness:
             tcp_prev = self.kin.fk(np.asarray(q_prev, dtype=float))[:3, 3]
             prev_out = np.any(tcp_prev < lo_w) or np.any(tcp_prev > hi_w)
             if not (prev_out and _dist_to_box(tcp) <= _dist_to_box(tcp_prev) + 1e-3):
-                self._reject(
+                reject(
                     f"TCP {np.round(tcp, 3).tolist()} outside workspace "
                     f"[{lo_w.tolist()} .. {hi_w.tolist()}]"
                 )
@@ -377,14 +470,14 @@ class SafetyHarness:
             dxy = float(np.linalg.norm(tcp[:2] - T_prev[:2, 3]))
             ascending = tcp[2] > prev_z + 1e-9 or (dxy < 1e-6 and tcp[2] >= prev_z - 1e-9)
             if not (prev_z < floor and ascending):
-                self._reject(
+                reject(
                     f"TCP z={tcp[2]:.3f} below table clearance {floor:.3f} "
                     "outside the grasp exemption zone"
                 )
 
         for kmin, kmax in self.limits.keep_out:
             if np.all(tcp >= kmin) and np.all(tcp <= kmax):
-                self._reject(f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}")
+                reject(f"TCP inside keep-out zone {kmin.tolist()}..{kmax.tolist()}")
 
         # Coarse link check: joint origins must stay above the table too
         # (elbow scooping the table is the classic failure). The LAST link is
@@ -397,21 +490,25 @@ class SafetyHarness:
         elbow_links = links[1:-1] if len(links) > 2 else links[1:]
         for i, p in enumerate(elbow_links, start=2):
             if p[2] < self.limits.table_z + 0.01 and not self._in_grasp_cylinder(p):
-                self._reject(f"link/joint {i} at z={p[2]:.3f} would hit the table")
+                reject(f"link/joint {i} at z={p[2]:.3f} would hit the table")
 
         if self.occupancy is not None:
             reason = self._occupancy_violation(
                 np.vstack([tcp[None, :], links[1:]]), self._grasp_exempt
             )
             if reason is not None:
-                self._reject(reason)
+                reject(reason)
+
+            reason = self._payload_occupancy_violation(q_next, self._grasp_exempt)
+            if reason is not None:
+                reject(reason)
 
         # Inter-arm proximity, LAST because it is the only check that reads
         # another robot's live state. No neighbours registered = no cost, so
         # a single-arm rig runs the identical code path it always did.
         reason = self._neighbor_violation(q_next)
         if reason is not None:
-            self._reject(reason)
+            reject(reason)
 
     def vet_pose(
         self,
@@ -476,12 +573,28 @@ class SafetyHarness:
             reason = self._occupancy_violation(np.vstack([tcp[None, :], links[1:]]), exempt)
             if reason is not None:
                 return reason
+            reason = self._payload_occupancy_violation(q, exempt)
+            if reason is not None:
+                return reason
         # Same inter-arm gate approve() applies per waypoint, so a grasp
         # candidate that would abort against the neighbour is discarded at
         # ranking time instead of failing mid-descent.
         return self._neighbor_violation(q)
 
-    def _occupancy_violation(self, points: np.ndarray, exempt: tuple | None) -> str | None:
+    def _payload_occupancy_violation(self, q, exempt):
+        points_fn = getattr(self.occupancy, "payload_points", None)
+        if points_fn is None:
+            return None
+        pose = self.kin.fk(q)
+        if self.base_pose is not None:
+            pose = self.base_pose @ pose
+        points = points_fn(pose)
+        if not len(points):
+            return None
+        reason = self._occupancy_violation(points, exempt, attached=True)
+        return f"attached object {reason}" if reason else None
+
+    def _occupancy_violation(self, points: np.ndarray, exempt: tuple | None, *, attached=False) -> str | None:
         """Occupancy-map check: any query point closer than min_clearance_m
         to a cached obstacle, outside the active grasp exemption.
 
@@ -491,13 +604,18 @@ class SafetyHarness:
         occupancy bridge must degrade the same way a missing one does, never
         freeze the arm.
         """
-        dist = self.occupancy.clearance(points)
+        query = self.occupancy.payload_clearance if attached else self.occupancy.clearance
+        dist = query(points)
         if dist is None:
-            return None
+            return "clearance unavailable (fresh observed distance grid required)" if attached else None
         min_c = self.limits.min_clearance_m
         for i, (p, d) in enumerate(zip(points, dist)):
+            if not np.isfinite(d) and attached and not self._in_cylinder(p, exempt):
+                return (f"point {i} has unobserved clearance (occupancy map)"
+                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
             if d < min_c and not self._in_cylinder(p, exempt):
-                return f"point {i} clearance {d:.3f} m below {min_c:.3f} m (occupancy map)"
+                return (f"point {i} clearance {d:.3f} m below {min_c:.3f} m (occupancy map)"
+                        f" at [{p[0]:.4f}, {p[1]:.4f}, {p[2]:.4f}]")
         return None
 
     def _in_grasp_cylinder(self, p: np.ndarray) -> bool:
@@ -554,10 +672,17 @@ class SafeArm:
         return self._arm.get_state(**kwargs)
 
     def move_joints(self, q_target: np.ndarray, duration_s: float = 2.0,
-                    joint_margin: float | None = None, _halt_generation=None, **backend_kw) -> bool:
+                    joint_margin: float | None = None, _preflight=None,
+                    _halt_generation: int | None = None,
+                    **backend_kw) -> bool:
+        if _preflight is not None and any(key in backend_kw for key in ("preflight", "before_stream")):
+            # Route validation and observed-scene callbacks have distinct
+            # targets. Never replace one safety callback with the other.
+            raise SafetyViolation("ambiguous motion preflight callbacks; no motion sent")
         # Min-jerk peak velocity is 1.875 * dq / T; stretch the duration so
         # the planned profile stays safely under the cap (harness remains the
         # backstop for anything else).
+        self.harness.check_release_episode(target=q_target, duration=duration_s)
         dq_max = float(np.max(np.abs(np.asarray(q_target, dtype=float) - self._arm.get_state().q)))
         needed = 1.875 * dq_max / (0.9 * self.harness.limits.max_joint_vel)
         duration_s = max(duration_s, needed)
@@ -575,6 +700,14 @@ class SafeArm:
 
             def approve(q_prev, q_next, dt):
                 h.approve(q_prev, q_next, dt, joint_margin=jm)
+
+        if _preflight is not None:
+            # Backends run this AFTER reading their start state but BEFORE
+            # their pacing clock. A slow preflight cannot create a burst of
+            # targets trying to catch up with expired streaming deadlines.
+            backend_kw = {**backend_kw, "preflight": _preflight,
+                          "before_stream": lambda: self.harness.check_stream_start(
+                              halt_generation=_halt_generation)}
 
         try:
             # `backend_kw` forwards backend-specific hints (e.g. a measured
@@ -597,9 +730,43 @@ class SafeArm:
         finally:
             self.harness.end_motion()
 
+    def move_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *,
+                     _halt_generation=None, rate_hz=None) -> bool:
+        """Execute a fully vetted deterministic route, retaining live gates."""
+        from .trajectory import (PLAN_BUDGET_S, geometry_guard, plan_route,
+                                 vet_route, vet_segment)
+        from ..control.motion_profile import resolve_motion_rate
+
+        self.harness.check_release_episode(target=q_target, duration=duration_s)
+        halt_generation = self.harness._halt_generation if _halt_generation is None else _halt_generation
+        self.harness._check_halt_generation(halt_generation)
+        start = self.get_state().q  # Materialize LazyArm before inspecting its rate.
+        self.harness._check_halt_generation(halt_generation)
+        rate = resolve_motion_rate(self._arm, rate_hz)
+        route = plan_route(self.harness, start, q_target, duration_s, rate_hz=rate)
+        for index, goal in enumerate(route):
+            def revalidate(start, actual_duration):
+                deadline = time.monotonic() + PLAN_BUDGET_S
+                # Never reuse an approval after feedback drift or an occupancy
+                # refresh. Vet this stream and all remaining segments afresh.
+                with geometry_guard(self.harness, deadline=deadline):
+                    reason = vet_segment(self.harness, start, goal, actual_duration,
+                                         deadline=deadline, stretch=False, rate_hz=rate)
+                    if reason is None:
+                        reason = vet_route(self.harness, goal, route[index + 1:],
+                                           duration_s, deadline=deadline, rate_hz=rate)
+                if reason:
+                    raise SafetyViolation(f"planned route became unsafe: {reason}")
+
+            if not self.move_joints(goal, duration_s=duration_s, _preflight=revalidate,
+                                    _halt_generation=halt_generation, rate_hz=rate):
+                return False
+        return True
+
     def set_gripper(self, pos: float, effort: float = 1.0, *, _halt_generation=None) -> None:
-        if _halt_generation is not None:
-            self.harness._check_halt_generation(_halt_generation)
+        self.harness.check_release_episode(gripper=True, grip=pos)
+        self.harness.check_contact_episode(gripper=True)
+        self.harness._check_halt_generation(_halt_generation)
         if self.harness.estopped:
             raise SafetyViolation("e-stop latched")
         self._arm.set_gripper(pos, effort)

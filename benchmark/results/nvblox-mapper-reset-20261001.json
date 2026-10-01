@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "scope": "Offline, CUDA and mapper-only saved-frame validation. No physical acceptance or general latency guarantee.",
+  "runtime_head": "7bdaf5aacc581652cbb1c7704702170fe09d6bdc",
+  "native_vendor_head": "c457c3fc01003bec6eba3ec1c61e6bf84bc3f51f",
+  "vendor_preexisting_build_changes_preserved": true,
+  "original_rpc_deadline_ms": 500,
+  "robot_connections": 0,
+  "input_sha256": {
+    "cam0.npz": "94701d81c80a19a8021991e93da4c6f4d3bbd7a6fdcda23d4af51f49344d6974",
+    "side.npz": "13845fc07045d16e6a2338baf0fb4fa40334e5bae6962780345a1efd692278ba",
+    "proof.npz": "081336c6404681bd7dcecf0e09097994d14ffae249cf093caa2fff45285881d6",
+    "receipt.json": "5a3490f63cba03e4b86f58afbcc627adb0d4a3d417744f18a25e74b7032b44d2"
+  },
+  "libraries_sha256": {
+    "libpy_nvblox.so": "47b771ee70bfdbeb2adb94f6d612ab5776e0b7cca96a52028a76082a2fdfbcc8",
+    "libnvblox_lib.so": "d633b603fb056f6b5b13cfe327c0c6e5d4cd8221826a0eaf23288e240a70d9d4"
+  },
+  "original_profile": {
+    "receipt_sha256": "8818a7a3b93384d85a04ea36c8f5a6d9f1bc0a55b7144b9d5bcd85727b900287",
+    "first_failed_request_id": "28",
+    "client_timeout_ms": 500.644,
+    "server_ms": 718.718,
+    "scope": "Instrumented profile on saved later captures, not exact failed physical history; different background load from direct control."
+  },
+  "direct_control": {
+    "receipt_sha256": "bf3ed68145c31e4760e33c01fe84e8b9cab84da4847bfe8e0ce82011a755ebd5",
+    "native_clear_first_integrate_ms": [
+      97.743,
+      304.072,
+      591.764
+    ],
+    "fresh_mapper_first_integrate_ms": [
+      81.446,
+      92.997,
+      88.564
+    ],
+    "largest_fresh_mapper_replacement_ms": 264.995,
+    "six_final_grids_bitwise_equal": true,
+    "all_unknown_after_each_clear": true,
+    "mode_ordered": true
+  },
+  "candidate_rpc": {
+    "receipt_sha256": "af310f88f0b2386e4b54490cbc6d09ad29af2d19ba93a31dc4887b34078ae2b0",
+    "plan_sha256": "65216aadb5d5663f70e77799357bbbec4c1e742418778408d532e04d9d1f7a50",
+    "script_sha256": "c623295856834d41f25f47ad558955b2d80d781d10d8285d9567b0538a09787c",
+    "pass": true,
+    "requests": 43,
+    "max_wall_ms": 260.9598759881919,
+    "clear_wall_ms": [
+      107.67217900138348,
+      147.2741759935161,
+      166.36561699851882
+    ],
+    "cycles": [
+      {
+        "cycle": 1,
+        "all_unknown_after_clear": true,
+        "final_grid_bitwise_equal": true,
+        "grid_sha256": "39d20cfcfbf1f16781f27790e8e1725790a46ad05223e9e6318ba625597a4b10",
+        "known_voxels": 1333710
+      },
+      {
+        "cycle": 2,
+        "all_unknown_after_clear": true,
+        "final_grid_bitwise_equal": true,
+        "grid_sha256": "39d20cfcfbf1f16781f27790e8e1725790a46ad05223e9e6318ba625597a4b10",
+        "known_voxels": 1333710
+      },
+      {
+        "cycle": 3,
+        "all_unknown_after_clear": true,
+        "final_grid_bitwise_equal": true,
+        "grid_sha256": "39d20cfcfbf1f16781f27790e8e1725790a46ad05223e9e6318ba625597a4b10",
+        "known_voxels": 1333710
+      }
+    ],
+    "source_unchanged": true,
+    "protected_processes_unchanged": true,
+    "owned_mapper_stopped": true
+  },
+  "focused_tests": {
+    "offline_passed": 24,
+    "offline_hardware_deselected": 2,
+    "cuda_passed": 1,
+    "cuda_other_deselected": 3,
+    "cuda_duration_s": 1.59,
+    "cuda_log_sha256": "e10281fe530b32e032524a1111002cb0ec2e65c4cd1f3f1e5311da5fa014a46d"
+  },
+  "full_suite": {
+    "head": "7bdaf5aacc581652cbb1c7704702170fe09d6bdc",
+    "argv": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q"
+    ],
+    "pythonpath": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-mapper-reset/src",
+    "started_unix_s": 1790831673.148614,
+    "finished_unix_s": 1790831999.2194226,
+    "exit_code": 0,
+    "log_sha256": "b0e1e883f48a0f25d2b2c8a3192d27df582c8137e44d2e6fdafea6356b8abaf6",
+    "source_manifest_sha256": "d266256a8830433408696d5e309b2b36bfef0d8df6f7c9680159598158fefaea",
+    "tracked_clean": true,
+    "source_unchanged": true,
+    "pass": true,
+    "passed": 2883,
+    "skipped": 43,
+    "deselected": 4,
+    "duration_s": 324.44,
+    "receipt_sha256": "62effe8857da9494b7fad42324940728057f84cd6a5f97afbcfe12e85e51f247"
+  },
+  "physical_five_object_campaign": {
+    "pass": false,
+    "status": "pending new runtime validation; prior trial remains failed0/5"
+  }
+}

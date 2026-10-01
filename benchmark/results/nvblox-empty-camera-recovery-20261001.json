@@ -1,0 +1,288 @@
+{
+  "pass": true,
+  "scope": "One empty-gripper FrozenProducer stream-injection test, not a disconnected camera, held recovery, native/UI or full manipulation acceptance. Original held8691/25559 preserved.",
+  "source_head": "d8bad803a59d0dc0bf08bbd502f8dae5dfb005a4",
+  "evidence_root": "runs/nvblox-rtx/isolated-clock-02/camera-empty-01",
+  "receipt_sha256": "3f2f258c649f4f608558157fc10166ad0bf3052830b63a48b156b884a9d8832b",
+  "checks": {
+    "first_barrier_failed": true,
+    "first_barrier_left_pending_map": true,
+    "blocked_public_reset_refused": true,
+    "blocked_issued_no_actuator_or_motion_calls": true,
+    "blocked_held_state_preserved": true,
+    "blocked_physics_within_diagnostic_1mrad_2mm": true,
+    "frozen_same_frame_and_producer_marker": true,
+    "recovered_public_reset_completed": true,
+    "all_props_reset_reported": true,
+    "all_camera_depths_rebuilt": true,
+    "fresh_esdf_without_pending_fault": true,
+    "post_recovery_physics": true,
+    "all_camera_barriers_reported": true,
+    "same_camera_robot_clock_binding": true,
+    "all_producer_clocks_advanced": true,
+    "source_unchanged": true,
+    "observer_complete": true,
+    "no_diagnostic_errors": true,
+    "cleanup_sent_no_commands": true
+  },
+  "freeze": {
+    "marker": {
+      "channel": "producer_capture",
+      "backend": "isaac",
+      "source": [
+        "127.0.0.1",
+        8692
+      ],
+      "camera": "side",
+      "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+      "clock": "physics_loop_monotonic",
+      "t": 63150.725486009
+    },
+    "rgb": {
+      "dtype": "uint8",
+      "shape": [
+        540,
+        960,
+        3
+      ],
+      "sha256": "f2d56f21d14a12e5166c8ec439831dd496c4a8dc514f9e175e46ff7eada28c49"
+    },
+    "depth": {
+      "dtype": "float32",
+      "shape": [
+        540,
+        960
+      ],
+      "sha256": "9e75eae19af75f0d5dad9231d9b6c6111073d627045f486485a1432584d1e98e"
+    },
+    "frame_t": 63150.989316657,
+    "frame_id": 181,
+    "deliveries": 181,
+    "all_deliveries_same_marker": true,
+    "unchanged_frame": true
+  },
+  "blocked_measurements": {
+    "q_max_drift_rad": 2.384185791015625e-07,
+    "jaw_max_drift_m": 5.21540641784668e-08,
+    "prop_drift_m": {
+      "pink_cube": 3.332000937312528e-08,
+      "green_cube": 1.4930236657970956e-08,
+      "tomato_can": 2.1073424255447017e-08,
+      "lemon": 0.0,
+      "orange": 0.0
+    }
+  },
+  "reset_physics": {
+    "pass": true,
+    "checks": {
+      "reset_settle_window": true,
+      "same_engine_robot": true,
+      "expected_props": true,
+      "actual_home_joints": true,
+      "actual_jaws_open": true,
+      "pink_cube_reset_settled": true,
+      "green_cube_reset_settled": true,
+      "tomato_can_reset_settled": true,
+      "lemon_reset_settled": true,
+      "orange_reset_settled": true
+    },
+    "home_max_error_rad": 0.002300190925598189,
+    "props": {
+      "pink_cube": {
+        "max_spawn_error_m": 4.305546243245479e-08,
+        "max_speed_m_s": 2.7082132974261064e-05,
+        "max_spin_rad_s": 0.0004547030178612955,
+        "max_spread_m": 3.332000937312528e-08
+      },
+      "green_cube": {
+        "max_spawn_error_m": 1.4537489213722366e-08,
+        "max_speed_m_s": 1.5211125664836053e-05,
+        "max_spin_rad_s": 0.0004513418924100911,
+        "max_spread_m": 1.501712528671799e-08
+      },
+      "tomato_can": {
+        "max_spawn_error_m": 5.0816809798543924e-08,
+        "max_speed_m_s": 0.00014789710935015618,
+        "max_spin_rad_s": 0.0016612537591855524,
+        "max_spread_m": 6.757064591056501e-08
+      },
+      "lemon": {
+        "max_spawn_error_m": 7.176201959695758e-09,
+        "max_speed_m_s": 2.641669105685196e-10,
+        "max_spin_rad_s": 0.0,
+        "max_spread_m": 0.0
+      },
+      "orange": {
+        "max_spawn_error_m": 7.638942475269053e-09,
+        "max_speed_m_s": 1.2222169942788241e-09,
+        "max_spin_rad_s": 0.0,
+        "max_spread_m": 0.0
+      }
+    },
+    "scope": "post-recovery reset only; no lift/transport/native/UI acceptance"
+  },
+  "cleanup_calls": [],
+  "phases": {
+    "setup": {
+      "ok": true,
+      "stage": null,
+      "error": null,
+      "geometry_recovered": null,
+      "actuator_counts": {
+        "send_joint_target": 150,
+        "reset_props": 1
+      },
+      "request_counts": {
+        "move_joints": 1
+      },
+      "after_map": {
+        "pending": false,
+        "stale": false,
+        "last_error": null,
+        "body_error": null,
+        "has_grid": true,
+        "last_refresh_monotonic": 63147.76946303,
+        "camera_history": {
+          "cam0": [
+            63143.447816694,
+            63147.22592463
+          ],
+          "side": [
+            63143.447816694,
+            63147.22592463
+          ],
+          "proof": [
+            63143.829697936,
+            63147.22592463
+          ]
+        }
+      }
+    },
+    "first_barrier": {
+      "ok": false,
+      "stage": null,
+      "error": "Reset observation could not be refreshed: Camera did not produce a fresh capture before the reset deadline",
+      "geometry_recovered": null,
+      "actuator_counts": {
+        "send_joint_target": 150,
+        "reset_props": 1
+      },
+      "request_counts": {
+        "move_joints": 1
+      },
+      "after_map": {
+        "pending": true,
+        "stale": true,
+        "last_error": null,
+        "body_error": "waiting for post-reset captured geometry",
+        "has_grid": false,
+        "last_refresh_monotonic": null,
+        "camera_history": {}
+      }
+    },
+    "blocked_reset": {
+      "ok": false,
+      "stage": "reset_recovery",
+      "error": "Reset recovery could not refresh geometry: Camera did not produce a fresh capture before the reset deadline",
+      "geometry_recovered": null,
+      "actuator_counts": {},
+      "request_counts": {},
+      "after_map": {
+        "pending": true,
+        "stale": true,
+        "last_error": null,
+        "body_error": "waiting for post-reset captured geometry",
+        "has_grid": false,
+        "last_refresh_monotonic": null,
+        "camera_history": {}
+      }
+    },
+    "recovered_reset": {
+      "ok": true,
+      "stage": null,
+      "error": null,
+      "geometry_recovered": true,
+      "actuator_counts": {
+        "send_joint_target": 150,
+        "reset_props": 1
+      },
+      "request_counts": {
+        "move_joints": 1
+      },
+      "after_map": {
+        "pending": true,
+        "stale": false,
+        "last_error": "native depth masking unavailable: occupancy bridge at 127.0.0.1:25560 timed out (500 ms); is scripts/serve_occupancy.sh running?",
+        "body_error": "payload tracking unavailable: native depth masking unavailable: occupancy bridge at 127.0.0.1:25560 timed out (500 ms); is scripts/serve_occupancy.sh running?",
+        "has_grid": true,
+        "last_refresh_monotonic": 63235.317331391,
+        "camera_history": {
+          "cam0": [
+            63234.4691333,
+            63234.761139367
+          ]
+        }
+      }
+    }
+  },
+  "hash_verification": {
+    "environment_sources": {
+      "count": 252,
+      "mismatches": [],
+      "pass": true
+    },
+    "diagnostic_sources": {
+      "count": 169,
+      "mismatches": [],
+      "pass": true
+    },
+    "artifacts": {
+      "count": 18,
+      "mismatches": [],
+      "pass": true
+    }
+  },
+  "final_map": {
+    "pending": false,
+    "stale": false,
+    "last_error": null,
+    "body_error": null,
+    "has_grid": true,
+    "last_refresh_monotonic": 63240.007760419,
+    "camera_history": {
+      "cam0": [
+        63234.4691333,
+        63239.487188379
+      ],
+      "side": [
+        63237.600431748,
+        63239.487188379
+      ],
+      "proof": [
+        63237.600431748,
+        63239.129533142
+      ]
+    }
+  },
+  "transient_recovery_mapping_error": {
+    "observed": "payload tracking unavailable: native depth masking unavailable: occupancy bridge at 127.0.0.1:25560 timed out (500 ms); is scripts/serve_occupancy.sh running?",
+    "after_sequence": 754,
+    "final_sequence": 774,
+    "elapsed_to_final_s": 3.137586675999046,
+    "interpretation": "A 500ms mapper timeout remained pending in the immediate post-reset snapshot; subsequent settling observations recovered to a fresh error-free map. This is not an error-free recovery interval."
+  },
+  "camera_evidence_limit": "Final map has all three camera histories and the public reset has newer producer captures, but this older diagnostic did not save _integrated_captures; do not claim independently verified commit stamps for every source. Continuous physical witness camera age is proof-only.",
+  "proof_camera_age": {
+    "samples": 776,
+    "maximum_s": 0.5990597670024727,
+    "over_2s": 0
+  },
+  "provenance": {
+    "runs/nvblox-rtx/isolated-clock-02/camera-empty-01/receipt.json": "3f2f258c649f4f608558157fc10166ad0bf3052830b63a48b156b884a9d8832b",
+    "runs/nvblox-rtx/isolated-clock-02/camera-empty-01/commands.jsonl": "08676b9cac7a6d47c5ebfe8d508ed83a60962ca28815cd676f7c85cd6319edc5",
+    "runs/nvblox-rtx/isolated-clock-02/camera-empty-01/witness/samples.jsonl": "6d9bce4655647410760142566fefe2943f2a03c184082e4e26119bd838b2cf02",
+    "runs/nvblox-rtx/isolated-clock-02/camera-empty-launch.json": "b07010accb8c45f3c42aa28e8e70c10ac799ca7d21d02d9941c93b2cdf701eac",
+    "runs/nvblox-rtx/isolated-clock-02/camera-empty-preflight-initial.json": "e10e5ca9fe540f8884a4246e6fd06857f580973ead8e7517db093e5211a1ecac"
+  },
+  "full_acceptance_pass": false
+}

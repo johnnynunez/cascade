@@ -93,9 +93,11 @@ class MockArm(ArmBase):
 
     # Mock streaming doesn't need real-time pacing; override to skip sleeps.
     def stream_to(self, q_target, duration_s, rate_hz=50.0, approve=None,
-                  settle_tol=None, settle_timeout_s=2.0) -> bool:
-        q_start = self.get_state().q.copy()
-        q_target = np.asarray(q_target, dtype=float).reshape(-1)
+                  settle_tol=None, settle_timeout_s=2.0, preflight=None,
+                  before_stream=None) -> bool:
+        from .arm_base import prepare_stream
+
+        q_start, q_target = prepare_stream(self, q_target, duration_s, preflight, before_stream)
         steps = max(2, int(duration_s * rate_hz))
         dt = duration_s / steps
         q_prev = q_start

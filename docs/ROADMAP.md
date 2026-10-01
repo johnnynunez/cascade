@@ -4,6 +4,30 @@ This file is a dated log: each "Landed <date>" section records what shipped,
 the work that motivated it, and what was deliberately not adopted.
 Read top-down for status; the dated sections are history.
 
+## Future sensor backend: NVIDIA ovrtx (2026-10-01)
+
+Evaluate an optional [ovrtx](https://github.com/NVIDIA-Omniverse/ovrtx)
+backend for Cascade's simulated cameras and visualization. NVIDIA exposes
+C and Python interfaces for RTX sensor rendering; its current pre-release
+integrates USD scene management through `ovstage`. This is planned work,
+not an installed dependency or a supported Cascade backend.
+The [0.5.0 release](https://github.com/NVIDIA-Omniverse/ovrtx/releases/tag/v0.5.0)
+provides Linux packages for both x86_64 and aarch64, covering the architectures
+of the RTX workstation and DGX Spark.
+
+Start with an isolated camera adapter feeding the existing frame contract:
+RGB-D, calibration, masks where supported, and a render identity tied to the
+matching physics state. Check the actual available outputs, synchronization,
+CPU/GPU transfers and Cascade's integration on both supported architectures
+before choosing an API.
+Keep the physics and motion interfaces independent of the renderer.
+
+Compare the same kitchen scene against the existing backend for geometry,
+repeated-frame timestamps, latency, memory and throughput. Require the
+existing mapping and physical acceptance checks before enabling it in a
+demo profile. The current PR integration and Spark acceptance remain the
+immediate delivery work.
+
 ## PAAI event follow-up (2026-09-15)
 
 The initial **PAAI, Physical Agentic AI** demo for **Build a Claw** has

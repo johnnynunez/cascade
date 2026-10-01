@@ -60,13 +60,13 @@ def wait_ready(pid: int, path: Path, *, timeout: float = 30) -> dict:
     """Wait for one interpreter; never respawn it or adopt a reused PID."""
     try:
         expected = kernel_identity(pid)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ProcessLookupError) as exc:
         raise StartupExited(f"Isaac launcher {pid} exited before interpreter readiness") from exc
     deadline = time.monotonic() + timeout
     while True:
         try:
             current = kernel_identity(pid)
-        except FileNotFoundError as exc:
+        except (FileNotFoundError, ProcessLookupError) as exc:
             raise StartupExited(f"Isaac launcher {pid} exited before interpreter readiness") from exc
         if current["birth"] != expected["birth"]:
             raise RuntimeError("Isaac launcher PID was reused during interpreter startup")
@@ -98,7 +98,7 @@ def clean_environment(original: Mapping[str, str], *, source: str | None) -> dic
             "NVIDIA_VISIBLE_DEVICES", "VK_ICD_FILENAMES", "__GLX_VENDOR_LIBRARY_NAME",
             "OMNI_KIT_ACCEPT_EULA", "CASCADE_PHYSICS_DEVICE", "CASCADE_REQUIRE_CUDA", "CASCADE_BRIDGE_BIND",
             "CASCADE_BRIDGE_NO_TARGETS", "CASCADE_COMPANION_EXTS",
-            "CASCADE_PROOF_CAMERA", "CASCADE_ISAAC_PIXEL_MASK", "XDG_CACHE_HOME",
+            "CASCADE_PROOF_CAMERA", "CASCADE_ISAAC_PIXEL_MASK", "CASCADE_ISAAC_CONTACT_MASK", "XDG_CACHE_HOME",
             "CASCADE_ISAAC_WIDTH", "CASCADE_ISAAC_HEIGHT", "CASCADE_ISAAC_CAM_EVERY", "CASCADE_ISAAC_DT",
             "XDG_CONFIG_HOME", "CUDA_CACHE_PATH", "WARP_CACHE_PATH",
             "__GL_SHADER_DISK_CACHE_PATH")

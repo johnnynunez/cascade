@@ -103,6 +103,7 @@ class SafetyHarness:
         self._neighbors: dict = {}
         self._estopped = False
         self._halt: str | None = None
+        self._halt_generation = 0
         self._grasp_exempt: tuple[np.ndarray, float, float] | None = None
         self._last_heartbeat = time.monotonic()
         self._motion_active = False
@@ -143,6 +144,7 @@ class SafetyHarness:
         waypoint (20 ms) rather than at the end of the trajectory.
         """
         self._halt = reason
+        self._halt_generation += 1
         self.violations.append(f"HALT: {reason}")
 
     def clear_halt(self) -> None:
@@ -253,12 +255,17 @@ class SafetyHarness:
                 )
         return None
 
-    def begin_motion(self) -> None:
+    def _check_halt_generation(self, expected: int | None) -> None:
+        if expected is not None and expected != self._halt_generation:
+            raise MotionHalted("halt received during route planning or execution")
+
+    def begin_motion(self, *, halt_generation: int | None = None) -> None:
         """Check perception freshness once, then suspend the watchdog for the
         duration of this motion (grasp sequences legitimately run > watchdog_s
         without a new observation)."""
         if self._estopped:
             raise SafetyViolation("e-stop latched")
+        self._check_halt_generation(halt_generation)
         # A halt applies to the motion that was in flight when it was raised,
         # not to every future one. Clearing here (rather than making the caller
         # remember) is what keeps halt recoverable and distinct from e-stop:
@@ -547,14 +554,17 @@ class SafeArm:
         return self._arm.get_state()
 
     def move_joints(self, q_target: np.ndarray, duration_s: float = 2.0,
-                    joint_margin: float | None = None, **backend_kw) -> bool:
+                    joint_margin: float | None = None, _halt_generation=None, **backend_kw) -> bool:
         # Min-jerk peak velocity is 1.875 * dq / T; stretch the duration so
         # the planned profile stays safely under the cap (harness remains the
         # backstop for anything else).
         dq_max = float(np.max(np.abs(np.asarray(q_target, dtype=float) - self._arm.get_state().q)))
         needed = 1.875 * dq_max / (0.9 * self.harness.limits.max_joint_vel)
         duration_s = max(duration_s, needed)
-        self.harness.begin_motion()  # perception-freshness check happens here
+        if _halt_generation is None:
+            self.harness.begin_motion()
+        else:
+            self.harness.begin_motion(halt_generation=_halt_generation)
         approve = self.harness.approve
         if joint_margin is not None:
             # The park drives onto the mechanical stop; relax only the joint
@@ -575,7 +585,11 @@ class SafeArm:
                 return self._arm.stream_to(q_target, duration_s,
                                            approve=approve,
                                            **backend_kw)
-            except TypeError:
+            except TypeError as exc:
+                if any(key in backend_kw for key in ("preflight", "before_stream", "feedback_guard")):
+                    # Safety callbacks are mandatory, never backend hints. A
+                    # TypeError after a target must not retry without them.
+                    raise SafetyViolation("motion safety callback failed; no unguarded retry") from exc
                 if not backend_kw:
                     raise
                 return self._arm.stream_to(q_target, duration_s,
@@ -583,7 +597,9 @@ class SafeArm:
         finally:
             self.harness.end_motion()
 
-    def set_gripper(self, pos: float, effort: float = 1.0) -> None:
+    def set_gripper(self, pos: float, effort: float = 1.0, *, _halt_generation=None) -> None:
+        if _halt_generation is not None:
+            self.harness._check_halt_generation(_halt_generation)
         if self.harness.estopped:
             raise SafetyViolation("e-stop latched")
         self._arm.set_gripper(pos, effort)

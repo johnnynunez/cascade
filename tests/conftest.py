@@ -28,6 +28,8 @@ def load_isaac_bridge_definitions(names, env):
     path = REPO / "scripts/isaac_bridge.py"
     tree = ast.parse(path.read_text(), filename=str(path))
     wanted = set(names) | {"_bridge_should_stop", "_request_shutdown"}
+    if "Handler" in wanted or "_refresh_frames" in wanted:
+        wanted.add("_gripper_joint_snapshot")
     nodes = [node for node in tree.body
              if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in wanted]
     assert {node.name for node in nodes} == wanted
@@ -35,6 +37,8 @@ def load_isaac_bridge_definitions(names, env):
     env.setdefault("os", SimpleNamespace(path=SimpleNamespace(lexists=lambda _path: False)))
     env.setdefault("_shutdown_requested", False)
     env.setdefault("_camera_video", None)
+    env.setdefault("GRIP_IDX", [])
+    env.setdefault("_motion_clock_epoch", "test-bridge-epoch")
     exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), "exec"), env)
 
 

@@ -84,6 +84,7 @@ class IsaacArm(ArmBase):
             gripper_pos=float(s.get("gripper_pos", 0.0)),
             gripper_valid="gripper_pos" in s,
             physics_clock=clock,
+            gripper_joints=copy.deepcopy(s.get("gripper_joints")),
         )
 
     def state_from_frame(self, frame) -> RobotState:
@@ -128,7 +129,7 @@ class IsaacArm(ArmBase):
 
     def stream_to(self, q_target, duration_s, rate_hz=None, approve=None,
                   settle_tol=None, settle_timeout_s=None, preflight=None,
-                  before_stream=None, bias_compensate=False) -> bool:
+                  before_stream=None, bias_compensate=False, feedback_guard=None) -> bool:
         """Stream in simulator time; `bias_compensate` remains unsupported.
 
         Accept the existing advisory keyword explicitly so TypeError cannot
@@ -137,7 +138,8 @@ class IsaacArm(ArmBase):
         from .simulation_motion import SimulationMotion
         from .motion_profile import resolve_motion_rate
 
-        motion = SimulationMotion(self, approve=approve, before_stream=before_stream)
+        motion = SimulationMotion(self, approve=approve, before_stream=before_stream,
+                                  feedback_guard=feedback_guard)
         return motion.stream(q_target, duration_s, resolve_motion_rate(self, rate_hz),
                              self.settle_tol if settle_tol is None else settle_tol,
                              self.settle_timeout_s if settle_timeout_s is None else settle_timeout_s,

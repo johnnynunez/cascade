@@ -1193,6 +1193,17 @@ def _grip_frac_now(q_full: np.ndarray) -> float:
     return float(np.clip(np.mean(fr), 0.0, 1.0))
 
 
+def _gripper_joint_snapshot(q_full: np.ndarray) -> dict:
+    """Individual finger positions from the q read already made by the caller."""
+    return {
+        "version": 1,
+        "names": [names[i] for i in GRIP_IDX],
+        "position_m": [float(q_full[i]) for i in GRIP_IDX],
+        "lower_m": [float(lower[i]) for i in GRIP_IDX],
+        "upper_m": [float(upper[i]) for i in GRIP_IDX],
+    }
+
+
 def _motion_clock_snapshot() -> dict:
     """Authoritative clock, read beside q/dq between physics updates."""
     if engine == "newton":
@@ -1277,6 +1288,7 @@ class Handler(socketserver.StreamRequestHandler):
                     "q": [float(q[i]) for i in ARM_IDX],
                     "dq": [float(dq[i]) for i in ARM_IDX],
                     "gripper_pos": _grip_frac_now(q),
+                    "gripper_joints": _gripper_joint_snapshot(q),
                     "physics_clock": _motion_clock_snapshot(),
                 }
             return self._on_main(read_state)
@@ -1444,6 +1456,8 @@ def _refresh_frames():
             "version": 1, "backend": "isaac", "robot_id": args.prim,
             "joint_convention": "asset", "q": [float(q[i]) for i in ARM_IDX],
             "t": t, "time_source": "physics_loop_monotonic",
+            "producer_epoch": _motion_clock_epoch,
+            "gripper_joints": _gripper_joint_snapshot(q),
         }
     except Exception:
         # Preserve viewing during stale-view transitions, but make this frame

@@ -1,0 +1,115 @@
+{
+  "started_unix_s": 1790824225.0252464,
+  "robot_runtime_constructed": false,
+  "robot_rpc_calls": 0,
+  "source_commit": "c5baad5881848ec1d44cc9565c6e9df77084d194",
+  "torch": "2.14.0+cu130",
+  "ultralytics": "8.4.170",
+  "device": "cuda:0",
+  "script_sha256": "137091521cae348a8f798a9d8bc4288005b5d640255c51de531c2bc93c66dbf7",
+  "scale_masks_source": "def scale_masks(\n    masks: torch.Tensor,\n    shape: tuple[int, int],\n    ratio_pad: tuple[tuple[float, float], tuple[float, float]] | None = None,\n    padding: bool = True,\n    mode: str = \"bilinear\",\n) -> torch.Tensor:\n    \"\"\"Rescale segment masks to target shape.\n\n    Args:\n        masks (torch.Tensor): Masks with shape (N, C, H, W).\n        shape (tuple[int, int]): Target height and width as (height, width).\n        ratio_pad (tuple, optional): Ratio and padding values as ((ratio_h, ratio_w), (pad_w, pad_h)), the letterbox\n            gains and its top-left padding.\n        padding (bool): Whether masks are based on YOLO-style augmented images with padding.\n        mode (str): Interpolation mode, e.g. 'bilinear' for logits or 'nearest' for integer class maps.\n\n    Returns:\n        (torch.Tensor): Rescaled float masks with shape (N, C, height, width), or the input unchanged if it already\n            matches shape.\n    \"\"\"\n    im1_h, im1_w = masks.shape[2:]\n    im0_h, im0_w = shape[:2]\n    if im1_h == im0_h and im1_w == im0_w:\n        return masks\n    if masks.shape[1] == 0:  # empty mask stack: F.interpolate rejects a 0-length channel dim\n        return masks.new_zeros((*masks.shape[:2], im0_h, im0_w), dtype=torch.float32)\n\n    if ratio_pad is None:  # calculate from im0_shape\n        gain_h = gain_w = min(im1_h / im0_h, im1_w / im0_w)  # gain  = old / new\n        pad_w, pad_h = (im1_w - round(im0_w * gain_w)) / 2, (im1_h - round(im0_h * gain_h)) / 2  # wh padding\n    else:\n        (gain_h, gain_w), (pad_w, pad_h) = ratio_pad\n    top, left = (round(pad_h - 0.1), round(pad_w - 0.1)) if padding else (0, 0)\n    bottom, right = top + round(im0_h * gain_h), left + round(im0_w * gain_w)  # content end, odd pads extra at end\n    return F.interpolate(masks[..., top:bottom, left:right].float(), shape, mode=mode)  # NCHW masks\n",
+  "scale_masks_module_sha256": "400c4b1572bc074757440603bf4ea5b931a4a529fdaba3f6a4aeadf8c292c497",
+  "detector_source_sha256": "77e90ba6d528cc34987b5c1e1c32e8ad2d7eeff360e3d1418e8aa0afd9358bc0",
+  "model_hashes": {
+    "yoloe-11s-seg-pf.pt": "292bdf157a9ec7315f34b567cb93467c5043cd1889a1cc18abbfdeb88d7a948d",
+    "yoloe-11s-seg.pt": "8e439445c87338b79d9ce21dec109f4621e26df67e94d26ea1a98c1e64dce3e3"
+  },
+  "rows": [
+    {
+      "label": "green cube",
+      "resolved": {
+        "prompts": [
+          "green cube",
+          "cube"
+        ],
+        "vocab": null,
+        "color": "green",
+        "near_xyz": null,
+        "belief": null,
+        "prefer_label": null,
+        "configured_description": false
+      },
+      "receipt_sha256": "8a587cde39466036982ab50ae197538b078457dcd27b81afd07001a126e9ed52",
+      "input_npz_sha256": "0611cc0959822c6ff0bd8c16edd48a6c76dd91dac9a5df049cda316d85c1dbb3",
+      "detection_label": "green cube",
+      "confidence": 0.85777747631073,
+      "bbox": [
+        587.6959228515625,
+        249.8482666015625,
+        655.1839599609375,
+        344.9443359375
+      ],
+      "raw_shape": [
+        384,
+        640
+      ],
+      "orig_shape": [
+        720,
+        1280
+      ],
+      "gain": 0.5,
+      "padding_wh_each_side": [
+        0.0,
+        12.0
+      ],
+      "raw_device": "cuda:0",
+      "corrected_device": "cuda:0",
+      "raw_dtype": "torch.uint8",
+      "old_pixels": 5172,
+      "corrected_pixels": 5516,
+      "old_vs_historical_different_pixels": 0,
+      "corrected_vs_old_different_pixels": 584,
+      "npz": "green_cube.npz",
+      "sha256": "93925147d5641db598ab8d775f5da5408ea1f2b0d548aa3834fa00f55d0c85cc",
+      "prediction_retina_masks": false
+    },
+    {
+      "label": "orange",
+      "resolved": {
+        "prompts": [
+          "orange fruit"
+        ],
+        "vocab": null,
+        "color": "orange",
+        "near_xyz": null,
+        "belief": null,
+        "prefer_label": null,
+        "configured_description": true
+      },
+      "receipt_sha256": "7f3e3548473dc9f13b4fe7d432a7f6906acb3b4974e3a248e739b7a8425c48e7",
+      "input_npz_sha256": "1bb74e814cc9423b8d518003b21ea0bc224aac82c47ddc19d04bddf6940eae8e",
+      "detection_label": "orange fruit",
+      "confidence": 0.6600127816200256,
+      "bbox": [
+        658.3104248046875,
+        184.7508544921875,
+        716.8302001953125,
+        245.85507202148438
+      ],
+      "raw_shape": [
+        384,
+        640
+      ],
+      "orig_shape": [
+        720,
+        1280
+      ],
+      "gain": 0.5,
+      "padding_wh_each_side": [
+        0.0,
+        12.0
+      ],
+      "raw_device": "cuda:0",
+      "corrected_device": "cuda:0",
+      "raw_dtype": "torch.uint8",
+      "old_pixels": 2854,
+      "corrected_pixels": 3020,
+      "old_vs_historical_different_pixels": 0,
+      "corrected_vs_old_different_pixels": 1102,
+      "npz": "orange.npz",
+      "sha256": "39b7123bc0645fe8244db9a3b29c70b68749580e717204d262ec8e7b16c93f92",
+      "prediction_retina_masks": false
+    }
+  ],
+  "finished_unix_s": 1790824236.1470292
+}

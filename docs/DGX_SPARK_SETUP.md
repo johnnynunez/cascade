@@ -1,5 +1,10 @@
 # PAAI on NVIDIA DGX Spark
 
+**Source pin for these commands: runtime baseline `477c88f`, 1 October 2026.** Software
+validation is complete; current native proof, five-object campaign and restart
+results are tracked separately in [project status](PROJECT_STATUS_20261001.md).
+The September installation measurements below remain historical.
+
 PAAI means Physical Agentic AI. This installs the Build a Claw kitchen demo:
 Isaac Sim 6.1 with PhysX CUDA, real GraspGen-X inference, local Qwen Q4,
 OpenClaw and the PAAI camera extension in Chromium. No model API key is needed.
@@ -11,8 +16,10 @@ SHA-256 hashes. See the [scene notice](../demo/scene/NOTICE.md).
 
 ## Validated release and scope
 
-The commands pin `9cf540279f09df8197eda6541311b41edb455243`. On 30 September
-2026, this source completed a fresh installation, a read-only installation
+The commands now pin `477c88fe40092fdaad99c0f777a6f1c3b9a41224`. Its combined
+suite passed 3,205 tests. This does not establish a fresh installation or current
+physical acceptance. On 30 September 2026, the earlier source
+`9cf540279f09df8197eda6541311b41edb455243` completed a fresh installation, a read-only installation
 check and two complete desktop launches on an NVIDIA GB10 Spark. The launcher
 reached **READY** with green-cube and orange placements, independent physics
 audits, resets and all three cameras passing. See the
@@ -38,8 +45,12 @@ OpenClaw gateway retained its original PID and process start time. Shutdown
 before the second launch needed SIGKILL for the owned Qwen process after its
 SIGTERM timeout; the launcher released all demo ports before restarting.
 
-Use the same checkout for installation, checks and startup. The Spark defaults
-are PhysX, Qwen Q4, learned GraspGen-X and three camera views. Occupancy/nvblox
+Use the same checkout for installation, checks and startup. The installed Spark defaults
+are PhysX CUDA, Qwen Q4, required GraspGen-X, three camera views,
+`dt=1/120`, six bridge iterations between nominal camera polls and the
+observed-finger gate enabled. Isaac nominal joint targets are 30 Hz with
+complete legacy 50 Hz safety edges retained; this is not measured throughput.
+Explicit supported overrides remain effective. Occupancy/nvblox
 is disabled, and JEv is not part of the installer or presenter runtime.
 Newton remains an explicit engine option under separate validation.
 See the [presenter card](PRESENTER_QUICKSTART.md) for the short demo and recovery.
@@ -72,7 +83,7 @@ system package, use the [administrator command](#system-prerequisites)
 before continuing.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/spark_prerequisites.py | python3 -'
+bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/477c88fe40092fdaad99c0f777a6f1c3b9a41224/scripts/spark_prerequisites.py | python3 -'
 ```
 
 Success: `PREREQUISITES_OK`.
@@ -89,14 +100,14 @@ page or ask for consent again. `OMNI_KIT_ACCEPT_EULA=YES` alone does not grant c
 
 The source URL and `--ref` select the same fixed commit. This downloads the
 runtime, model and assets, then builds the local CUDA model server. Allow
-space for at least 150 GiB. The measured installation took **12 min 21 s**
+space for at least 150 GiB. The historical September installation took **12 min 21 s**
 with reused download and uv caches but new runtime and model destinations.
 For an uncached machine, allow 30–90 minutes plus cold CUDA builds as a
 planning estimate; slower connections can take longer.
 The progress log shows each stage.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/9cf540279f09df8197eda6541311b41edb455243/scripts/bootstrap.sh | env -u ISAACSIM_PATH -u ISAACSIM_PYTHON_EXE -u CASCADE_QWEN_MODEL -u CASCADE_QWEN_MMPROJ -u LLAMA_SERVER -u LLAMA_DIR bash -s -- --ref 9cf540279f09df8197eda6541311b41edb455243 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
+bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/477c88fe40092fdaad99c0f777a6f1c3b9a41224/scripts/bootstrap.sh | env -u ISAACSIM_PATH -u ISAACSIM_PYTHON_EXE -u CASCADE_QWEN_MODEL -u CASCADE_QWEN_MMPROJ -u LLAMA_SERVER -u LLAMA_DIR bash -s -- --ref 477c88fe40092fdaad99c0f777a6f1c3b9a41224 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
 ```
 
 Success: `PREPARED`. No demo services or startup manipulation tests have run.
@@ -115,8 +126,9 @@ Success: `CHECKED`. The receipt is `runs/.install/install.json`.
 ### 4. Start and prove the demo
 
 This starts the dedicated `cascade-demo` OpenClaw agent and moves the
-simulated robot through two placement checks and resets. The tested first
-launch took **12 min 12 s**. Cold shader and collision preparation can take
+simulated robot through two placement checks and resets. The historical September first
+launch took **12 min 12 s**; current-source time and acceptance are recorded
+separately. Cold shader and collision preparation can take
 longer. The physical checks can be quiet for several minutes. Wait for
 the command to finish even when no new log lines appear; do not start another copy. The model health timeout
 is 30 minutes and the Isaac startup timeout is 20 minutes.
@@ -127,7 +139,7 @@ is 30 minutes and the Isaac startup timeout is 20 minutes.
   cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" || exit
   python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open 2>&1 |
     tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
-) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref 9cf540279f09df8197eda6541311b41edb455243
+) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref 477c88fe40092fdaad99c0f777a6f1c3b9a41224
 ```
 
 Success: one `READY` summary with both placements, cameras and resets passing.

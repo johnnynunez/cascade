@@ -1,5 +1,15 @@
 # Decision models in Cascade
 
+**Integration status, 1 October 2026:** PR #30 merged the evaluation code and
+read-only replay of ten captured post-tool outcomes. Kev 4B, Qwen 27B and the
+recorded-status rule baseline each scored 10/10; these data demonstrate no
+decision-quality advantage over rules. The 111 focused tests cover that
+evaluation change. No Jev/Kev backend is active in the presenter runtime, and
+official TypeSafe Jev was not evaluated without its API credential. See
+[current source and acceptance](PROJECT_STATUS_20261001.md) for the separate
+robot/software stages. The research proposals below remain proposals.
+
+
 Jev can complement Cascade's Qwen planner by choosing among explicitly supplied
 options. The initial experiment evaluates tool selection from handwritten
 synthetic text states; it does not execute robot actions. The anticipated benefit is less time

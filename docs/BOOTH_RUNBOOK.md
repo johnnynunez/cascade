@@ -1,5 +1,10 @@
 # Booth runbook — hands-on expo session
 
+For the installed DGX Spark presenter, start with [Spark setup](DGX_SPARK_SETUP.md)
+and the [current acceptance index](PROJECT_STATUS_20261001.md). This runbook also
+covers generic/local profiles; their fallback and reset behavior must not be
+used to bypass required GGX, a latched stop or a retained payload episode.
+
 This runbook covers the physical tabletop rig. For **PAAI, Physical Agentic
 AI** at Build a Claw on Brev, use the [staff guide](BOOTH_GUIDE.md) and
 [Brev deployment guide](BREV.md). That demo uses a simulated arm, prepared

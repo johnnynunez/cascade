@@ -1,5 +1,11 @@
 # GraspGen-X on DGX Spark
 
+For current installation and acceptance use [Spark setup](DGX_SPARK_SETUP.md)
+and [project status](PROJECT_STATUS_20261001.md). The presenter requires real
+CUDA inference; optional-profile OBB fallback does not apply to that path.
+[Planning search](grasp-planning-search.md) and [memory ranking](grasp-memory-ranking.md)
+run after model responses without relaxing geometric vetoes.
+
 The Spark profile uses the **real GraspGen-X CUDA model**. It starts a local
 server, checks a diffusion inference, and requires learned candidates during
 manipulation. An absent server, protocol stub or inference failure is reported

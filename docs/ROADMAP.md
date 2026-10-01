@@ -4,13 +4,32 @@ This file is a dated log: each "Landed <date>" section records what shipped,
 the work that motivated it, and what was deliberately not adopted.
 Read top-down for status; the dated sections are history.
 
-## Future sensor backend: NVIDIA ovrtx (2026-10-01)
+## Current delivery work (2026-10-01)
 
-Evaluate an optional [ovrtx](https://github.com/NVIDIA-Omniverse/ovrtx)
+[The source and acceptance index](PROJECT_STATUS_20261001.md) supersedes the
+historical status lists below. Runtime baseline `477c88f` integrates PRs #32–42 and #27;
+the combined immutable software suite passed 3,205 tests. Spark now uses the
+installed PhysX/Qwen/real-GGX profile, physical-time joint motion, render-bound
+camera state, observed-finger approach/closing preflight, bounded planning,
+preserved memory ranking and coherent held-object observations. These are
+implemented contracts, not a blanket physical-success claim.
+
+The immediate work is source-bound Spark proof and five-object acceptance,
+isolated RTX nvblox recovery/campaign acceptance, and then a separate normal
+same-version restart check. Preserve failed runs and outcome memory. Newton,
+new hardware, Cosmos evaluation, mobility, and ovrtx retain separate validation
+or design scopes. The offline [Jev/Kev pilot](JEV_DECISIONS.md) has not demonstrated
+a decision-quality advantage over the recorded-status rule baseline and is not
+part of presenter startup.
+
+## Optional sensor backend: NVIDIA ovrtx (2026-10-01)
+
+Implement an optional [ovrtx](https://github.com/NVIDIA-Omniverse/ovrtx)
 backend for Cascade's simulated cameras and visualization. NVIDIA exposes
 C and Python interfaces for RTX sensor rendering; its current pre-release
-integrates USD scene management through `ovstage`. This is planned work,
-not an installed dependency or a supported Cascade backend.
+integrates USD scene management through `ovstage`. Implementation is in progress
+in an isolated branch. It is not part of validated runtime baseline `477c88f`;
+real SDK rendering and calibration checks precede any compatibility claim.
 The [0.5.0 release](https://github.com/NVIDIA-Omniverse/ovrtx/releases/tag/v0.5.0)
 provides Linux packages for both x86_64 and aarch64, covering the architectures
 of the RTX workstation and DGX Spark.
@@ -42,9 +61,12 @@ remain work for later versions.
   Retain the reliable event backend until Cosmos passes the same acceptance
   gates.
 
-## Status at a glance (2026-09-10)
+## Historical status at a glance (2026-09-10)
 
-**Current delivery priority:** one command per Linux DGX Spark to install
+This section records the September design and open work at that time; its
+Newton/Cosmos target and unavailable-Spark statement are not current defaults.
+
+**Delivery priority at that date:** one command per Linux DGX Spark to install
 Isaac Sim **6.1.0.0**, use its **Newton** experience, serve **Cosmos3-Edge**
 and open an isolated OpenClaw chat. Implementation and acceptance boundary
 are tracked in [SPARK_DELIVERY.md](SPARK_DELIVERY.md). No Spark was

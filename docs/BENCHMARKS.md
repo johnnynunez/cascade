@@ -1,5 +1,11 @@
 # Benchmarks
 
+Results are scoped to their recorded source, dataset, hardware and execution
+path. The [current acceptance index](PROJECT_STATUS_20261001.md) separates full
+software tests, native two-object proof, five-object campaign and restart.
+The [Jev/Kev ten-outcome replay](JEV_DECISIONS.md) is offline evaluation and found
+no decision-quality advantage over its rule baseline; it adds no motion authority.
+
 Everything needed to measure this repo against the manipulation benchmarks the
 literature uses, plus the ablation that measures cascade's own layers.
 
@@ -19,7 +25,7 @@ benchmark/
     comparison_table.py console tables + Wilson intervals
     make_pdf.py         paper-style PDF
     report.py           OpenVLA aggregate vs published
-  diagnostics/          11 scripts that found the bridge-degradation bug
+  diagnostics/          source-bound bridge, mapping and acceptance diagnostics
   results/              measurements (JSON)
 ```
 

@@ -1,5 +1,11 @@
 # Perception and Execution: what to change, and what the measurements say
 
+This is a research/design note. Current merged behavior and measured acceptance
+are indexed in [project status](PROJECT_STATUS_20261001.md), with explicit
+[camera-history](isaac-render-frame-history.md), [finger-geometry](observed-finger-gate.md)
+and [held-observation](HELD_OBJECT_OBSERVATION.md) contracts. Proposals below are
+not enabled merely by appearing in this document.
+
 Status: research note, 2026-08-08. No code changed yet.
 
 This note answers four questions raised together:

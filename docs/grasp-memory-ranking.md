@@ -36,5 +36,8 @@ which is recorded separately from that criterion.
 Validation: 109 focused tests passed, including nine ranking regressions and
 the existing planning cancellation/deadline and observed-finger tests. The two
 runtime ranking regressions fail against the explicitly imported unmodified
-`6b5dad6` source. A combined full suite and new physical acceptance follow
-integration with the separately reviewed held-object observation correction.
+`6b5dad6` source. The combined suite with the held-object observation correction passed 3,205
+tests on immutable `3914360`, merged as MAIN `477c88f`. The follow-up optional
+backend test checks learned-candidate identity and quality order rather than
+the obsolete list position. [Current physical acceptance](PROJECT_STATUS_20261001.md)
+uses preserved memory and remains a separate result.

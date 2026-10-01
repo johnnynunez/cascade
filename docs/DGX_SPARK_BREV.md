@@ -1,5 +1,9 @@
 # DGX Spark portability
 
+For the merged 1 October source and separate Spark/RTX acceptance, see
+[project status](PROJECT_STATUS_20261001.md). Architecture-specific deployment
+results are not interchangeable.
+
 The Brev kitchen container targets x86_64 and RTX PRO 6000 Blackwell.
 DGX Spark uses arm64 and GB10; do not reuse the Brev binary image or assume
 its separate VRAM limits describe Spark's shared memory.

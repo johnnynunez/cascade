@@ -1,5 +1,9 @@
 # Align detector masks with their RGB-D frame
 
+Merged with the observed-finger safety changes. The current [closing preflight](observed-finger-closing.md)
+uses this corrected mask without dilating it; approach checking keeps the target
+in its observed scene. Source-bound physical results are in [project status](PROJECT_STATUS_20261001.md).
+
 The YOLOE result supplies boxes in original image coordinates, but its default
 segmentation masks remain on the letterboxed inference canvas. Resizing that
 whole canvas shifted the mask relative to RGB and depth. For the retained

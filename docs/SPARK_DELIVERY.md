@@ -1,5 +1,11 @@
 # Spark delivery details
 
+Current source and acceptance are indexed in
+[project status, 1 October](PROJECT_STATUS_20261001.md). Runtime baseline `477c88f` contains
+PRs #27 and #32–42 and passes the 3,205-test combined suite. The dated results
+below retain their original pins and verdicts; they are not current-source
+installation, campaign or restart claims.
+
 Presenting the demo? Start with the [presenter card](PRESENTER_QUICKSTART.md).
 
 Use [DGX Spark setup](DGX_SPARK_SETUP.md) for the install and start commands.
@@ -110,7 +116,11 @@ arm profile, the shipped kitchen scene and a 1/120 second physics step.
 GraspGen-X runs its real CUDA diffusion model; startup checks an actual
 inference before enabling robot tools. Occupancy/nvblox is disabled, and JEv
 is outside the presenter installation and runtime. Startup checks the live engine, CUDA context,
-scene hash and timestep before the OpenClaw proof.
+scene hash and timestep before the OpenClaw proof. The installed defaults now
+include six camera bridge iterations and the observed-finger gate. [Render-bound
+frame history](isaac-render-frame-history.md) prevents a repeated renderer buffer
+from acquiring a new capture timestamp. [Physical-time motion](ISAAC_MOTION_CLOCK.md)
+uses 30 Hz nominal Isaac targets while preserving legacy 50 Hz safety edges.
 
 The app, Isaac and model runtime stay separate. A selected complete Isaac
 6.1 source release can be reused without package writes to its embedded
@@ -157,7 +167,10 @@ Both orders enter through OpenClaw in one session and one bound simulation:
 The independent observer reads the live simulation. It requires real lift,
 both finger contacts, release, settled support and the whole collider inside
 the destination. The orange uses its measured convex collider and the box's
-measured cavity and floor. Every camera must advance during motion and reset.
+measured cavity and floor. Every camera must advance during motion and reset, with sampled server capture
+age at most two seconds. Client delivery age and observed gaps are separate
+measurements; the audit does not prove continuous availability or absence of
+unobserved neighbor contact.
 The proof retains native tool results, physics samples, scene hashes,
 screenshots and reset readbacks. A failed native placement or reset, refuted
 placement or failed audit prevents READY. `--no-robot-turn` remains
@@ -202,8 +215,9 @@ for the bounded observation window and per-call receipts.
 
 This direct-runtime campaign does not establish a new native-chat or UI
 acceptance, full desktop READY proof, fresh installation or deployment of the
-final source. The clean September installation and its pin remain unchanged;
-the install commands in the setup guide still select that tested release.
+final source. The September installation result remains historical. The setup guide now
+selects runtime baseline `477c88f`; its current acceptance is recorded separately in the
+[status index](PROJECT_STATUS_20261001.md).
 
 ## Native confirmation gate and failed follow-up, 1 October 2026
 

@@ -1,10 +1,10 @@
 # Architecture
 
-Synced to the code on 2026-09-10 (33 skills, 41 MCP tools;
-re-derive before quoting -- see "Counts" at the end). Spark delivery has a
-separate acceptance boundary in `docs/SPARK_DELIVERY.md`. Read this after the
-README and before `CLAUDE.md`, which carries the invariants an editor must
-not break.
+Runtime contracts updated for baseline `477c88f` on 1 October 2026. See the
+[source and acceptance index](PROJECT_STATUS_20261001.md) for merged changes,
+software validation and the current physical runs. Counts are derived at the
+end of this document; dated benchmark measurements retain their original scope.
+Read this after the README and before `CLAUDE.md`.
 
 ## Design position
 
@@ -73,15 +73,15 @@ that back it).
    perception/     grasping/       control/    safety/         memory/            sim/            eval/
    CameraRig →     GraspGen-X      Pinocchio   SafetyHarness   BeliefStore        MuJoCo world    Robo-Dopamine
    WorldWatcher    (ZMQ) + OBB     FK/IK,      per arm: every  (persisted),       registry,       progress judge
-   → BeliefStore   fallback,       min-jerk    50 Hz waypoint  EpisodicMemory     rendered RGB-D  (GRM/VLM, off
+   → BeliefStore   fallback,       min-jerk    profiled edge   EpisodicMemory     rendered RGB-D  (GRM/VLM, off
    + occupancy     outcome memory  streaming   + occupancy     (frames K=4),      cameras, truth  the hot path)
    client          re-rank         to ANY arm  + neighbours    envelope, habits   channel
 ```
 
-Everything above `SkillRuntime` decides *what*; everything below it is the
-same for every brain, every tier and every robot. That is the property the
-name refers to: behaviour, safety and tracing do not depend on which tier
-(or which hardware) acted.
+Everything above `SkillRuntime` decides *what*. Skills, safety and tracing share
+one composition root across brains and tiers. Backend capabilities remain
+explicit: physical clocks, captured joint state, collision geometry and payload
+recovery are validated for the selected arm rather than assumed interchangeable.
 
 ### Always-on perception, reflex-first dispatch (since 2026-07-18)
 
@@ -171,20 +171,34 @@ delivery acceptance remains the separate boundary documented above.
 
 ### Motion safety path
 
-Skills only ever hold a `SafeArm`. `SafeArm.move_joints()` stretches the
-duration so the min-jerk peak stays under the velocity cap, checks
-perception freshness once at `begin_motion()`, then `ArmBase.stream_to()`
-asks `SafetyHarness.approve()` for every 50 Hz waypoint: joint limits and
-margins, workspace AABB, table-plane clearance (with an explicit exemption
-cylinder around a grasp target), keep-out zones, perception watchdog,
-e-stop latch, the **occupancy clearance gate** (`perception/occupancy.py`:
-an ESDF/EDT distance query against the fused map, robot body masked out
-before integration; stale or absent map = SKIP, never "blocked"), and the
-**inter-arm gate** (segment-to-segment link-centreline distance in a shared
-table frame, `safety/geometry.py`, when two arms declare `base_pose`).
-`SafetyViolation` aborts mid-stream. `vet_pose()` is the static twin used
-by grasp ranking so a doomed candidate loses before the arm moves. Gripper
-commands bypass geometric gating (e-stop check only).
+Skills hold a `SafeArm`. Its motion path enforces the configured peak velocity,
+joint limits, workspace, table clearance, keep-out zones, perception watchdog,
+stop generation and optional occupancy/inter-arm checks. A `SafetyViolation`
+ends the stream. `vet_pose()` is the static counterpart for candidate rejection;
+planned routes also vet their sampled segments before execution.
+
+Isaac defaults to 30 Hz nominal targets paced by authoritative physical time.
+The common profile preserves every complete legacy 50 Hz edge with its original
+dt, adds actual command edges and checks intervening subedges. Hardware retains
+its existing 50 Hz default. This is sampled coverage, not continuous collision
+certification. Settling and bounded state/command RPCs are described in
+[Isaac motion clock](ISAAC_MOTION_CLOCK.md).
+
+Ordinary non-payload occupancy may report no data for an absent/stale cache;
+that is not evidence of free space. A known body-mask fault raises even when
+the map is stale. Payload/recovery modes additionally require observed geometry,
+correct source/epoch/contact binding and successful fresh commits from all
+required cameras. Unknown payload samples and the configured 30 mm clearance
+remain rejection conditions. Contact/release episodes retain narrowly scoped
+recovery authority after failure; another command cannot borrow their cylinder.
+See [nvblox](NVBLOX.md) and [release recovery](NVBLOX_RELEASE_RETREAT.md).
+
+Gripper commands retain stop/generation and pending-episode checks. On the
+observed-finger path, each close stage also has an actual-pose, full-stroke
+preflight against non-target observed surfaces. That check does not continuously
+brake an already submitted gripper command. The [approach gate](observed-finger-gate.md)
+keeps target points in the scene and covers the two calibrated finger links,
+not the palm, whole arm or unobserved space.
 
 ### Grasp pipeline
 
@@ -194,14 +208,12 @@ localize ─▶ ObjectFix (base-frame OBB; de-biased centre, verified on 2 engin
    │    swept volume -- the arm profile owns `grasp.graspgenx.sweep`)
    └─▶ OBB candidates (optional profiles only)       optional server error → reported OBB fallback
                                                       learned inference retried after cooldown
-   grasp-outcome memory re-rank + z-nudge (~/.cascade/grasp_memory.json)
-   select_grasp: jaw-width filter ▸ IK pregrasp → grasp (seeded from home_q, on
-   purpose) ▸ harness pre-vet incl. 7 samples along the descent
-   re-home (forces the elbow-up branch) ▸ pregrasp ▸ exempted descent ▸ two-stage
-   stall-aware close ▸ lift ▸ air-grasp check (jaw fraction) ▸ grip verified
-   place_at: same look that aims the held object detects a SLIP (object far below
-   the TCP) and raises instead of lowering an empty gripper; pick_and_place
-   re-grasps until `grasp.persist_seconds` / `max_pick_attempts` run out
+   stable quality order ▸ outcome-memory re-rank + existing z-nudge
+   select_grasp(preserve_order=True): width ▸ IK ▸ harness and observed-scene vetoes
+   current→home ▸ home→pregrasp ▸ descent, with shared motion-profile preflight
+   actual-pose full-stroke preflight before each close stage ▸ lift ▸ verification
+   place_at: aiming compensation and fresh slip authority are separate results
+
 ```
 
 The Spark presenter profile requires real GraspGen-X candidates and checks
@@ -209,6 +221,20 @@ diffusion inference during startup. A missing server, protocol stub or failed
 required inference raises an error instead of substituting OBB. The five-second
 fallback cooldown applies to optional profiles; required profiles retry on the
 next request.
+
+With GGX and the observed-finger gate, infeasible planning may request at most
+three batches within eight seconds, using the same saved scene and frozen prior.
+No motion separates these batches. Transport, malformed data, cancellation and
+clock errors are terminal, rather than reasons to regenerate candidates.
+[Planning search](grasp-planning-search.md) and [memory ranking](grasp-memory-ranking.md)
+define the selector contract.
+
+A cached offset or an unbound legacy position can aim a carried object but cannot
+prove slip or authorize opening. [Held-object observations](HELD_OBJECT_OBSERVATION.md)
+require identified, temporally coherent evidence and the driver's actual joint
+convention. Camera geometry uses the TCP at capture time, not a later TCP.
+Identity/epoch/stop failures remain terminal. Optional retry behavior elsewhere
+does not override those guards or the observed-gate failure boundary.
 
 Single-hinge jaws (SO-101) close toward the fixed tip, so the profile
 declares the jaw datum (`jaw_fixed_tip_m`, `jaw_close_dir`) and the selector
@@ -226,10 +252,14 @@ the physics prop, not a painted one, and `postcondition: confirmed
 (arm MJCF + table + N props from the camera profile's `extra_props`)
 deterministically, so either the arm or a camera can create it first.
 Isaac Sim plays the same role over a TCP bridge (`scripts/isaac_bridge.py`,
-`sim/bridge_client.py`) with `RigidPrim` poses as truth. `reset_scene`
-puts free bodies back on `qpos0` under the world lock, then burns one frame
-before observing (a render in flight when the state was teleported would
-otherwise be served as fresh).
+`sim/bridge_client.py`). Truth readers disable mutating constructor defaults;
+slip-authorizing observations additionally require valid physical handles and
+same-step articulation/base/clock evidence. MuJoCo resets restore `qpos0` under
+the world lock. Isaac resets restore backend physical state and require the
+appropriate fresh-camera/map barrier before subsequent motion. Its renderer
+publishes only a token bound to recorded state, so reading an old render cannot
+make that image current by assigning a new timestamp. See
+[frame history](isaac-render-frame-history.md).
 
 ### Memory
 
@@ -312,16 +342,19 @@ src/cascade/
 │   ├── mujoco_arm.py   any MJCF; engines mjc (C) | warp (MuJoCo Warp); viewer guarded
 │   │                   by a display probe (a sleeping display segfaults GLFW)
 │   ├── isaac_arm.py    Isaac articulation over the TCP bridge
+│   ├── simulation_motion.py / motion_profile.py  physical clock + shared safety edges
 │   ├── feetech.py / feetech_arm.py   SO-101 & co over Feetech serial (UNVERIFIED on hw)
 │   ├── rebot_rs_arm.py / rebot_rs_mb_arm.py   reBot B601 over CAN / MotorBridge
 │   ├── ros2_arm.py     ANY ros2_control robot (JointState in, JointTrajectory out)
 │   └── unitree_arm.py  Unitree SDK arms (H1 / H1-2 / G1)
 ├── safety/
 │   ├── harness.py      SafetyHarness (approve / vet_pose, escape rules) + SafeArm
+│   ├── trajectory.py   sampled route validation and bounded planning
 │   └── geometry.py     segment-segment distances for the inter-arm gate
 ├── grasping/
 │   ├── obb_grasp.py    base-frame OBB grasps      graspgenx_backend.py  ZMQ client + fallback
-│   ├── selector.py     width ▸ IK walk ▸ harness pre-vet (jaw datum aware)
+│   ├── selector.py     supplied/quality order ▸ width ▸ IK ▸ harness pre-vet
+│   ├── observed_scene.py calibrated observed-finger approach and closing veto
 │   └── force.py        material → two-stage close profiles
 ├── agent/
 │   ├── orchestrator.py reflex → habit → LLM loop; memory harness injection; TaskReport
@@ -335,6 +368,8 @@ src/cascade/
 │   └── trace.py        trace.jsonl + keyframes
 ├── skills/
 │   ├── runtime.py      SkillRuntime: 33 skills + task_done, TOOL_SPECS, _MOTION_SKILLS
+│   ├── contact_episode.py / release_episode.py  scoped retained recovery
+│   ├── held_observation.py aiming estimates vs coherent release authority
 │   └── library.py      markdown repair notes; written by aspire.py, retrieved per task
 ├── sim/
 │   ├── mujoco_world.py shared MjModel/MjData registry (arm + cameras + truth, one lock)
@@ -408,7 +443,10 @@ and a checkout-local OpenClaw 2026.9.3 CLI.
 `.llama.cpp` runs the local brain, and `cascade-demo` isolates the attendee
 host profile. The installer does not replace drivers. Required learned grasps
 fail visibly if inference is unavailable. Occupancy/nvblox is disabled; JEv
-and Cosmos are not part of the presenter installation.
+and Cosmos are not active presenter backends. Jev/Kev evaluation code is merged
+research; it is not selected by normal launch. The installed Spark defaults to
+`dt=1/120`, six bridge iterations per nominal camera poll and the observed-finger
+gate enabled. Explicit supported overrides retain precedence.
 `--prepare-only` stops after dependencies/assets; it cannot print READY.
 The package/model resolution and CPU contract tests are not GPU rehearsal:
 see `docs/DGX_SPARK_SETUP.md` for the release pin and its acceptance status.
@@ -418,14 +456,15 @@ mujoco|none`, `--setup` (venv, extras, assets, OpenClaw CLI, provider
 onboarding), `--check` (report only, never mutates), `--dry-run`, `--down`
 (stops the sidecars it started AND the per-session MCP servers the gateway
 never reaps). Before READY it proves the stack: runtime built with the
-server's exact env, tools listed, a trivial brain turn, one real pick and
-reset in the SAME chat session. Proof must bind model/session, exact MCP
+server's exact env, tools listed, a trivial brain turn, a real pick and reset in the SAME chat session (the installed Spark profile
+requires its green and orange cases). Proof must bind model/session, exact MCP
 tool names and the owned live process to its trace; a recent timestamp
 alone cannot establish identity. Reset must include the manipulated prop
 and a subsequent `world_state` read-back. `--no-robot-turn` is STARTED /
 UNVERIFIED, not READY. The MCP server is registered with
-`requestTimeoutMs: 300000` (a persistent pick runs 60–120 s; the host's
-60 s default cancelled it and latched the e-stop), dead MCP entries are
+`requestTimeoutMs: 300000`. Native visitor and proof turns share a 300-second
+whole-turn budget plus a 30-second CLI return margin; an expired motion still
+latches e-stop. See [turn budgets](native-visitor-turn-budget.md). Dead MCP entries are
 pruned, and on macOS the server runs under `mjpython` so the MuJoCo window
 can open -- when a display is active; a sleeping display is detected and
 the window retried on the next motion instead of segfaulting the server.
@@ -457,13 +496,14 @@ openai|local_*`) cascade runs its own loop with all three tiers.
   separately validated option. Standalone Newton CPU tests
   are a separate validation path, not an additional CASCADE arm backend.
 - **Feedback, not sleep.** Every backend reports real joint positions;
-  settling is `max|q − q*| < tol` with a per-profile tolerance and timeout,
-  and a stepped-on-demand sim steps inside its own wait.
-- **Fail-closed safety, degrade-open knowledge.** Limits and the e-stop
-  fail closed; *information* sources (occupancy map, neighbour arm,
-  grasp server, truth channel, verifier) degrade to "no data, say so",
-  never to "blocked" or to a silent pass. The banner and the run summary
-  name what actually answered.
+  settling checks target error with a per-profile tolerance and timeout. Isaac
+  additionally requires stable q over advancing physical steps; a stepped-on-demand
+  simulator advances through its own backend contract.
+- **Authority depends on evidence.** Limits, stop generation and required
+  geometry fail closed. Optional observations can remain unavailable; they do
+  not become free-space proof, required-GGX fallback or authority to open a
+  held object. Known mask faults and payload barriers reject. An unavailable
+  postcondition remains unverified. Results name the channel that answered.
 - **A claim is not a fact.** Every effect is verified on an independent
   channel when one exists, and the verdict travels with the result, into
   the trace, into memory and to the judge.

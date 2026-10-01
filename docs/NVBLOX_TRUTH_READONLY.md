@@ -1,5 +1,10 @@
 # Read-only construction of truth-pose views
 
+Merged through PR #27. The subsequent [held-object observation contract](HELD_OBJECT_OBSERVATION.md)
+adds explicit identity, joint-convention and physical-handle requirements for
+slip authority. This constructor report retains its narrower, source-bound
+read-only measurement scope; see [project status](PROJECT_STATUS_20261001.md).
+
 Candidate `fe2007cbbf1812803f41a5930690822cb9bcd493` changes the lazy
 `TruthPoseReader` probe to construct `RigidPrim` with
 `reset_xform_properties=False` and `prepare_contact_sensors=False`. The installed

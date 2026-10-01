@@ -1,5 +1,11 @@
 # Brev kitchen deployment
 
+This x86_64 deployment guide has its own acceptance boundary. The merged
+1 October [project status](PROJECT_STATUS_20261001.md) separates Spark aarch64
+native proof, RTX mapping experiments and historical Brev measurements. Do not
+apply Spark defaults or a later source's acceptance to this profile without its
+own deployment check.
+
 The tested machine was an AWS `g7e.2xlarge` with one NVIDIA RTX PRO 6000
 Blackwell Server Edition (97,887 MiB VRAM), eight vCPUs, 62.27 GiB RAM and a
 separate 1.7 TB NVMe volume. Isaac Sim 6.1 runs CUDA PhysX. The production

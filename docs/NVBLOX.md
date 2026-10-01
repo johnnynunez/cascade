@@ -1,5 +1,12 @@
 # nvblox and the kitchen cameras
 
+Current integration: PR #27 is merged, including payload/contact and release
+recovery, retained anchors, mapper replacement on clear and historical renderer
+state. See [current source and acceptance](PROJECT_STATUS_20261001.md) for the
+MAIN pin and separate RTX diagnostic/campaign results. The measurements below
+retain their original dates and sources; nvblox remains disabled in the normal
+Spark presenter profile.
+
 ## Status (2026-09-30)
 
 **Real nvblox CUDA mapping now runs on both RTX PRO 6000 Blackwell and DGX
@@ -111,8 +118,10 @@ therefore do not automatically mean three map inputs. The replay above
 explicitly integrates all selected cameras; it does not alter those profiles.
 
 Cascade consumes the distance grid as a clearance gate for TCP and sampled
-arm-link positions. It does **not** refine object localization, alter
-GraspGen-X input geometry, or automatically plan a path around an obstacle.
+arm-link positions and attached payload samples. It does **not** refine object
+localization or GraspGen-X input geometry. The merged planned-motion path vets
+configured candidate routes against the map; this is not an arbitrary obstacle
+avoidance planner or evidence that an unseen route is free.
 These measurements establish mapping coverage, not more accurate grasping or
 placement. No manipulation accuracy improvement has been demonstrated.
 
@@ -124,9 +133,11 @@ observations, intentional grasp contact and reset is still under physical
 validation. The presenter default remains unchanged until that acceptance
 passes.
 
-The existing world-map consumer treats unknown cells as no known obstacle,
-and missing/stale data disables that measured-clearance check. That policy
-is not proof of free space. Known robot-mask failures fail closed. A mapping
+The ordinary non-payload world-map consumer can report unknown cells as no
+known obstacle and an unavailable cache as no data. That policy is not proof of
+free space. Payload/recovery modes additionally reject unknown samples and
+require fresh, correctly bound integration commits. Known robot-mask failures
+fail closed even if the cache has aged out. A mapping
 benchmark, especially an idle scene, cannot establish collision safety during
 motion or around unseen geometry.
 

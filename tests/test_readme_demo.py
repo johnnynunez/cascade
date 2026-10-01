@@ -17,19 +17,22 @@ def _roadmap():
     return readme.split("## Roadmap\n", 1)[1].split("\n## ", 1)[0].strip()
 
 
-def test_readme_roadmap_describes_pending_parity_and_tool_calling_gates():
+def test_readme_roadmap_separates_acceptance_and_future_backend_work():
     roadmap = " ".join(_roadmap().split())
-    assert roadmap.startswith("We are working on two things next.")
-    newton, cosmos = roadmap.split("**Cosmos 3 Edge.**", 1)
-    assert "**Newton parity.**" in newton
-    assert "current event path uses CUDA PhysX" in newton
-    assert "repeatable setup today" in newton
-    assert "We are closing the cross-engine reproducibility gap" in newton
-    assert "contact, grasp and placement behavior" in newton
-    assert "then we can move the full demo to Newton" in newton
-    assert "We will add it when native tool calling through OpenClaw" in cosmos
-    assert "consistent enough for normal attendee requests" in cosmos
-    assert "Until then, Qwen remains the working event path" in cosmos
+    acceptance, future = roadmap.split("**Newton parity.**", 1)
+    assert "docs/PROJECT_STATUS_20261001.md" in acceptance
+    assert all(word in acceptance for word in (
+        "Spark", "nvblox", "acceptance", "five-object", "restart"
+    ))
+    newton, future = future.split("**Cosmos 3 Edge.**", 1)
+    assert re.search(r"Spark.*\bdefaults?\b.*\bPhysX\b", newton)
+    assert all(word in newton for word in ("Newton", "explicit", "separate", "validation"))
+    cosmos, ovrtx = future.split("**ovrtx**", 1)
+    assert all(word in cosmos for word in ("native tool calling", "OpenClaw", "Qwen"))
+    assert re.search(r"\bwhen\b.*OpenClaw", cosmos)
+    assert re.search(r"\bUntil\b.*Qwen", cosmos)
+    assert re.search(r"\bseparate(?:ly)?\b", ovrtx)
+    assert re.search(r"\bnot included\b.*\bruntime baseline\b", ovrtx)
     assert "nondeterminism" not in roadmap.lower()
 
 

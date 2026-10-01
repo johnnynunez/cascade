@@ -1,5 +1,11 @@
 # Agentic upgrades (2026-07-31)
 
+This design/research account retains its dated claims. Current implementation
+updates are indexed in [project status](PROJECT_STATUS_20261001.md), including
+[preserved memory ranking](grasp-memory-ranking.md), [coherent held observations](HELD_OBJECT_OBSERVATION.md)
+and [native cancellation budgets](native-visitor-turn-budget.md). Historical
+research comparisons are not physical acceptance of the present source.
+
 Six papers, one thesis: **the frozen policy is rarely the bottleneck — the
 loop around it is.** Pigey names the measurable version of this the
 *orchestration gap* (12.8% → 53.3% on LIBERO-PRO with identical weights;

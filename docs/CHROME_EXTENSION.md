@@ -1,5 +1,10 @@
 # Chrome camera companion
 
+Browser delivery and physical acceptance are separate. The dated browser checks
+below retain their original source; the [current acceptance index](PROJECT_STATUS_20261001.md)
+identifies today's source/proof. A connected chat or advancing camera widget does
+not establish successful manipulation, a complete campaign or restart acceptance.
+
 The optional extension places live Kitchen, Worktop and Side cameras in a
 Chrome side panel or a movable panel inside OpenClaw. Robot orders still go
 through OpenClaw. The public camera page works without this extension.

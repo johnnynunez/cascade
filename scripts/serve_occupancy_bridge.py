@@ -23,6 +23,10 @@ frame, metres, float32):
           "esdf": true, "carving": true, "describe": "..."}
   {"action": "integrate_depth", "depth": (H,W), "K": (3,3), "T_base_cam": (4,4)}
       -> {"ms": float}
+  {"action": "integrate_masked_depth", "depth": (H,W), "active_mask": (H,W) uint8,
+   "K": (3,3), "T_base_cam": (4,4)}
+      -> {"ms": float}; nvblox only, negotiated by probe["masked_depth"].
+         Inactive measured pixels carve only in front of the truncation band.
   {"action": "integrate", "points": (N,3)}          # legacy cloud input
       -> {}
   {"action": "query", "region_min": (3,), "region_max": (3,)}
@@ -78,6 +82,7 @@ def main() -> None:
         "ok": True, "backend": grid.name, "describe": describe, "voxel": float(grid.voxel),
         "device": str(getattr(grid, "device", "cpu")),
         "esdf": grid.name in ("nvblox", "warp"), "carving": grid.name in ("nvblox", "warp"),
+        "masked_depth": bool(getattr(grid, "masked_depth", False)),
     }
     while True:
         raw = sock.recv()
@@ -94,6 +99,15 @@ def main() -> None:
                 grid.integrate_depth(np.asarray(req["depth"], dtype=np.float32),
                                      np.asarray(req["K"], dtype=np.float64),
                                      np.asarray(req["T_base_cam"], dtype=np.float64))
+                resp = {"ms": (time.perf_counter() - t1) * 1e3}
+            elif action == "integrate_masked_depth":
+                if not getattr(grid, "masked_depth", False):
+                    raise ValueError(f"native masked depth is unavailable for {grid.name}")
+                t1 = time.perf_counter()
+                grid.integrate_masked_depth(np.asarray(req["depth"], dtype=np.float32),
+                                            np.asarray(req["K"], dtype=np.float64),
+                                            np.asarray(req["T_base_cam"], dtype=np.float64),
+                                            np.asarray(req["active_mask"]))
                 resp = {"ms": (time.perf_counter() - t1) * 1e3}
             elif action == "integrate":
                 grid.integrate_points(np.asarray(req["points"], dtype=np.float32).reshape(-1, 3))

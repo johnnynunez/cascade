@@ -1,4 +1,8 @@
-"""Read and archive the live, idle kitchen; never commands motion."""
+"""Archive stationary kitchen captures, including available payload evidence.
+
+Never commands motion. Run once before pickup and once while stationary with
+a confirmed grasp to provide anchor/held inputs to nvblox_payload_replay.py.
+"""
 
 import argparse
 import hashlib
@@ -21,7 +25,7 @@ a.output.mkdir(exist_ok=False, parents=True)
 b = BridgeClient(port=a.port)
 b.connect()
 metadata = {
-    "scope": "Actual idle Isaac kitchen RGB-D captures; no motion commanded. Ground truth is used only to evaluate mapping.",
+    "scope": "Actual Isaac kitchen RGB-D captures; no motion commanded. Ground truth is used only to evaluate mapping.",
     "identity": b.request({"op": "ping"}),
     "cameras": {},
 }
@@ -60,14 +64,19 @@ for config_name, name in [
         else np.asarray(cc.extrinsics.T, dtype=float)
     )
     path = a.output / (name + ".npz")
+    props = {f"prop_{i}": prop for i, prop in enumerate(sorted(f.prop_masks or {}))}
+    masks = {key: f.prop_masks[prop] for key, prop in props.items()}
+    if f.payload_mask is not None:
+        masks["payload_mask"] = f.payload_mask
     np.savez_compressed(
-        path, depth=f.depth_m, K=f.K, T=T, robot_mask=f.robot_mask, rgb=f.rgb
+        path, depth=f.depth_m, K=f.K, T=T, robot_mask=f.robot_mask, rgb=f.rgb, **masks
     )
     metadata["cameras"][name] = {
         "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         "capture": f.capture,
         "shape": list(f.depth_m.shape),
         "masked_pixels": int(f.robot_mask.sum()),
+        "props": props,
     }
 b.close()
 (a.output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")

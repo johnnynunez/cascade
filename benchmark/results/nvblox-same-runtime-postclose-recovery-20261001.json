@@ -1,0 +1,349 @@
+{
+  "scope": "One real tomato-can grasp with labelled postclose integration refusals and one explicit same-runtime recovery reset. No normal grasp-success, multiobject transport, restart recovery, native or UI acceptance claim.",
+  "source_head": "d8bad803a59d0dc0bf08bbd502f8dae5dfb005a4",
+  "pass": true,
+  "source_unchanged": true,
+  "receipt_sha256": "c940d94e08add42685601f3789e2cbeaddb69b31a70efe86cd9e490d620746f0",
+  "actuators_sha256": "e28b19717cccb8898861c20c0805b577682929379bdadd589a2deaa649be3d4b",
+  "witness_sha256": "a2dddb72474a921a60643648715bcd7213e226df8a86e1ec437345c5ae6f8295",
+  "checks": {
+    "integration_fault_exercised": true,
+    "payload_deadline_reported": true,
+    "no_actuation_after_close": true,
+    "episode_and_provisional_retained": true,
+    "global_exemption_removed": true,
+    "preclose_anchors_retained": true,
+    "public_reset_completed": true,
+    "independent_retreat_evidence": true,
+    "reset_physics": true,
+    "every_reset_camera_committed": true,
+    "fresh_map": true,
+    "retained_episode_cleared": true,
+    "all_camera_barriers_reported": true,
+    "same_camera_robot_clock_binding": true,
+    "all_producer_clocks_advanced": true,
+    "source_unchanged": true,
+    "workspace_and_clearance_unchanged": true,
+    "no_diagnostic_errors": true,
+    "observer_complete": true,
+    "cleanup_sent_no_commands": true
+  },
+  "refused_integrations": 37,
+  "postclose_actuator_calls": 0,
+  "object_lift_m": 0.09975519031286238,
+  "pregrasp_error_rad": 0.014265108956367345,
+  "settle_tolerance_rad": 0.045,
+  "reset_home_error_rad": 0.002300071716308638,
+  "actuator_counts": {
+    "send_joint_target": 950,
+    "reset_props": 2,
+    "set_gripper": 4
+  },
+  "cleanup_calls": 0,
+  "witness_samples": 1497,
+  "proof_camera_age": {
+    "scope": "server_monotonic minus proof capture_monotonic in each same-server physical snapshot; cam0/side ages were not separately sampled in this frozen physical diagnostic. All3map identities/floors separately verified in receipt.",
+    "samples": 1497,
+    "maximum_s": 3.408557827999175,
+    "samples_over_2s": 2,
+    "continuous_age_requirement_pass": false,
+    "first_fresh_after_stale": {
+      "sequence": 219,
+      "client_started_monotonic": 62324.485898249,
+      "client_finished_monotonic": 62324.581087613,
+      "server_monotonic": 62324.529281674,
+      "sim_time": 174.36666666666667,
+      "physics_step": 20924,
+      "capture_monotonic": 62324.332631905,
+      "age_s": 0.19664976899366593
+    },
+    "distinct_captures": 613,
+    "capture_clock_regressions": 0,
+    "maximum_observed_capture_gap_s": 4.961960701999487
+  },
+  "segments": [
+    {
+      "phase": "setup_reset",
+      "nominal_duration_s": 3.0,
+      "wall_duration_s": 30.76504254199972,
+      "within_motion_wall_limit_120s": true,
+      "proof_samples": 197,
+      "proof_age_max_s": 0.5910475970013067,
+      "proof_samples_over_2s": 0,
+      "observed_physics_span_s": 8.383333333333354,
+      "physics_span_scope": "Fully enclosed passive samples, including preflight and settling; not exact stream duration"
+    },
+    {
+      "phase": "postclose_failure",
+      "nominal_duration_s": 1.5,
+      "wall_duration_s": 16.008027992997086,
+      "within_motion_wall_limit_120s": true,
+      "proof_samples": 103,
+      "proof_age_max_s": 0.5457911650009919,
+      "proof_samples_over_2s": 0,
+      "observed_physics_span_s": 4.349999999999994,
+      "physics_span_scope": "Fully enclosed passive samples, including preflight and settling; not exact stream duration"
+    },
+    {
+      "phase": "postclose_failure",
+      "nominal_duration_s": 7.5,
+      "wall_duration_s": 78.65779903400107,
+      "within_motion_wall_limit_120s": true,
+      "proof_samples": 506,
+      "proof_age_max_s": 0.6734847759944387,
+      "proof_samples_over_2s": 0,
+      "observed_physics_span_s": 21.383333333333326,
+      "physics_span_scope": "Fully enclosed passive samples, including preflight and settling; not exact stream duration"
+    },
+    {
+      "phase": "postclose_failure",
+      "nominal_duration_s": 2.0,
+      "wall_duration_s": 21.939101672003744,
+      "within_motion_wall_limit_120s": true,
+      "proof_samples": 138,
+      "proof_age_max_s": 0.5899774709978374,
+      "proof_samples_over_2s": 0,
+      "observed_physics_span_s": 5.650000000000006,
+      "physics_span_scope": "Fully enclosed passive samples, including preflight and settling; not exact stream duration"
+    },
+    {
+      "phase": "original_contact_withdrawal",
+      "nominal_duration_s": 2.0,
+      "wall_duration_s": 25.185584056998778,
+      "within_motion_wall_limit_120s": true,
+      "proof_samples": 159,
+      "proof_age_max_s": 0.6546776190007222,
+      "proof_samples_over_2s": 0,
+      "observed_physics_span_s": 5.916666666666686,
+      "physics_span_scope": "Fully enclosed passive samples, including preflight and settling; not exact stream duration"
+    },
+    {
+      "phase": "recovered_reset",
+      "nominal_duration_s": 3.0,
+      "wall_duration_s": 38.27309842700197,
+      "within_motion_wall_limit_120s": true,
+      "proof_samples": 245,
+      "proof_age_max_s": 0.626014198998746,
+      "proof_samples_over_2s": 0,
+      "observed_physics_span_s": 9.133333333333326,
+      "physics_span_scope": "Fully enclosed passive samples, including preflight and settling; not exact stream duration"
+    }
+  ],
+  "preserved_services_identity_unchanged": {
+    "isaac_8691": true,
+    "mapper_25559": true
+  },
+  "owned_services_live": true,
+  "stale_proof_observations": [
+    {
+      "sequence": 217,
+      "client_started_monotonic": 62320.972962791,
+      "client_finished_monotonic": 62324.172716084,
+      "server_monotonic": 62324.141725206,
+      "sim_time": 174.2,
+      "physics_step": 20904,
+      "capture_monotonic": 62320.797966306,
+      "age_s": 3.3437588999950094,
+      "phase": "postclose_failure, before first grasp actuator",
+      "previous_actuator": {
+        "call": "reset_props",
+        "phase": "setup_reset",
+        "monotonic": 62318.685864106
+      },
+      "next_actuator": {
+        "call": "set_gripper",
+        "phase": "postclose_failure",
+        "monotonic": 62327.417130184
+      }
+    },
+    {
+      "sequence": 218,
+      "client_started_monotonic": 62324.173462729,
+      "client_finished_monotonic": 62324.240091819,
+      "server_monotonic": 62324.206524134,
+      "sim_time": 174.21666666666667,
+      "physics_step": 20906,
+      "capture_monotonic": 62320.797966306,
+      "age_s": 3.408557827999175,
+      "phase": "postclose_failure, before first grasp actuator",
+      "previous_actuator": {
+        "call": "reset_props",
+        "phase": "setup_reset",
+        "monotonic": 62318.685864106
+      },
+      "next_actuator": {
+        "call": "set_gripper",
+        "phase": "postclose_failure",
+        "monotonic": 62327.417130184
+      }
+    }
+  ],
+  "stale_activity_timeline": {
+    "setup_reset_end": 62320.560665274,
+    "postclose_failure_begin": 62320.970742897,
+    "telemetry_grasp_entry": 62324.140106996,
+    "localization_complete": 62326.394711958,
+    "interpretation": "Long observer RPC began before instrumented grasp entry; stale snapshots overlap entry and precede localization completion. This temporal coincidence does not identify the blocking cause."
+  },
+  "hash_verification": {
+    "frozen_environment_source": {
+      "count": 252,
+      "mismatches": [],
+      "pass": true
+    },
+    "diagnostic_source": {
+      "count": 177,
+      "mismatches": [],
+      "pass": true
+    },
+    "diagnostic_artifacts": {
+      "count": 20,
+      "mismatches": [],
+      "pass": true
+    }
+  },
+  "retreat_checks": {
+    "observed_original_pregrasp": true,
+    "no_jaw_or_prop_reset_during_retreat": true,
+    "actual_joint_commands_observed": true,
+    "final_target_is_original_pregrasp": true,
+    "original_cylinder_throughout_retreat": true,
+    "runtime_retreat_completed": true,
+    "same_object_still_in_measured_bilateral_contact": true,
+    "object_lift_observed_before_home_or_release": true,
+    "physics_advanced_during_retreat": true
+  },
+  "retreat_bilateral_counts": [
+    4,
+    4
+  ],
+  "experimental_map_query_region": {
+    "min": [
+      0.1,
+      -0.3,
+      -0.01
+    ],
+    "max": [
+      0.58,
+      0.3,
+      0.55
+    ],
+    "reason": "Read-only retained-scene replay showed the original home endpoint outside query support; expanded query used existing observed ESDF, with zero unknown samples at that endpoint."
+  },
+  "camera_map_commits": {
+    "cameras": [
+      {
+        "camera": "cam0",
+        "floor": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8692
+          ],
+          "camera": "cam0",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 62522.99733459
+        },
+        "committed": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8692
+          ],
+          "camera": "cam0",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 62527.679213911
+        },
+        "pass": true
+      },
+      {
+        "camera": "side",
+        "floor": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8692
+          ],
+          "camera": "side",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 62522.99733459
+        },
+        "committed": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8692
+          ],
+          "camera": "side",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 62527.679213911
+        },
+        "pass": true
+      },
+      {
+        "camera": "proof",
+        "floor": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8692
+          ],
+          "camera": "proof",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 62522.99733459
+        },
+        "committed": {
+          "channel": "producer_capture",
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8692
+          ],
+          "camera": "proof",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "clock": "physics_loop_monotonic",
+          "t": 62528.064995432
+        },
+        "pass": true
+      }
+    ],
+    "pass": true
+  },
+  "all_three_continuous_camera_age_verified": false,
+  "full_acceptance_pass": false,
+  "full_acceptance_limitations": [
+    "Two idle proof observations exceed 2 seconds; cam0/side continuous age was not recorded in this physical diagnostic.",
+    "One labelled integration-refusal and same-runtime recovery only; no normal grasp/transport acceptance, repeated five-object campaign, ordinary restart recovery, native agent or UI claim."
+  ],
+  "telemetry": {
+    "path": "runs/nvblox-rtx/isolated-clock-02/grasp-evidence/1790817221869722345-1474759-9f0fa2b934d844e38bf24ac14cd31554.json",
+    "sha256": "7154785693ea2f3efcc40b4e58bb85af833ad3483897bcc79a1477fcdb5eb872",
+    "logging_ok": true,
+    "dropped_events": 0,
+    "logging_errors": []
+  },
+  "evidence_root": "runs/nvblox-rtx/isolated-clock-02/postclose-same-runtime-01",
+  "provenance": {
+    "runs/nvblox-rtx/isolated-clock-02/postclose-same-runtime-01/receipt.json": "c940d94e08add42685601f3789e2cbeaddb69b31a70efe86cd9e490d620746f0",
+    "runs/nvblox-rtx/isolated-clock-02/postclose-same-runtime-01/actuators.jsonl": "e28b19717cccb8898861c20c0805b577682929379bdadd589a2deaa649be3d4b",
+    "runs/nvblox-rtx/isolated-clock-02/postclose-same-runtime-01/skills.jsonl": "de30e727f73a7a7f7df11f7cb542d4c796e1426a4db7a15d3d55e43f2a2e82cb",
+    "runs/nvblox-rtx/isolated-clock-02/postclose-same-runtime-01/witness/samples.jsonl": "a2dddb72474a921a60643648715bcd7213e226df8a86e1ec437345c5ae6f8295",
+    "runs/nvblox-rtx/isolated-clock-02/postclose-same-runtime-01/witness/phases.json": "abac923e631bfc5c9ad50bb9b2740943209a8d874cc97940ac44f0a5cc735498",
+    "runs/nvblox-rtx/isolated-clock-02/source.json": "11aa279670d7a1d70ae88ae78df58412b17536137c5f128c5b0a4743081a9d98",
+    "runs/nvblox-rtx/isolated-clock-02/ownership.json": "d91b467934757811e7fa7c7e70dae3045ba021209f03c5a151b0376b58536cdc",
+    "runs/nvblox-rtx/isolated-clock-02/diagnostic-launch.json": "5d21444ae2b4b4859ecad978b7e75ef81abaccac30ae8219d28af1c5a82ed0bb",
+    "runs/nvblox-rtx/isolated-clock-02/render-readback.json": "ac146f72993b8159f4d45f6e1ef67baca661cf71a8a4913860665fb5eb33c36a",
+    "runs/nvblox-rtx/isolated-clock-02/passive-01/receipt.json": "d5d439778edfe9dd3c1bbc026b2d5b685bb79aa634830052ab4c7ad35f861bdb"
+  },
+  "analysis_script_sha256": "02d150db48a67f8d6d4614d94e496d1d6e11d7c24419f03755f3ff15bc7de186"
+}

@@ -1,0 +1,2825 @@
+{
+  "schema": 1,
+  "date": "2026-10-01",
+  "hardware": "RTX PRO 6000 Blackwell; GPU PhysX120Hz; real GraspGen-X CUDA service",
+  "scope": "Opt-in skill-path manipulation diagnostic with mock language model, not native-agent READY. All failures retained. GPU shared with existing services; wall times are not a speed comparison.",
+  "source_note": "Campaign-recorded application source hashes and original receipt hashes retained. Simulator, mapper and GraspGen-X wrapper ran from the same local checkout; external GraspGen-X model uses Torch2.7.0+cu128, while isolated nvblox uses Torch2.14.1+cu132. These local trials do not attest Spark physical acceptance.",
+  "validation": {
+    "focused_regressions": "70 passed, 1 deselected",
+    "command": "env PYTHONPATH=src .venv/bin/python -m pytest -q tests/test_nvblox_payload_replay.py tests/test_occupancy_payload.py tests/test_nvblox_masking.py tests/test_nvblox_query.py tests/test_occupancy_capture_order.py tests/test_reset_capture_freshness.py tests/test_reset_recovery.py"
+  },
+  "trials": [
+    {
+      "trial": "physical-11",
+      "campaign_sha256": "fe3b1a4ed34abac215a1b0af5c87a6747f9d373c9e2ea528ed455ca8e971a5d5",
+      "pass": false,
+      "source_sha256": {
+        "benchmark/diagnostics/kitchen_acceptance.py": "bc10f92bebc7a9ba8a8448d3931f0a45d0575563a86b92db0d4690a5838a4117",
+        "scripts/isaac_bridge.py": "48ded6d28a040b9a715d78ffbea3c1f40868f9c15e12c3e07d0fdb7f648bdf33",
+        "scripts/isaac_materials.py": "54fafa297d2e150df5f4a066d76e27e63055acf0a6bfcdb502dc02b3373350fd",
+        "scripts/isaac_runtime.py": "2644d2339d4c5402f04085ddbef863e5ca983a27777d59d656f65c7fd60785ca",
+        "scripts/isaac_self_mask.py": "2b9bfd22b398c8fdece59ae04df9f6b1908dd3a234e32f4fb54179eba3ae79f0",
+        "src/cascade/sim/bridge_client.py": "29ff72d341a47952b21c0f90118a7b8ba2cb5d8ce1ae68baf124070787d1c80b",
+        "src/cascade/safety/harness.py": "46a84713c8c4aaf11423185e0242e2b257eda8d25307cbf7eb6cb0b6cb779408",
+        "src/cascade/types.py": "cbd65a50d2e7eb89fc1a908c5d3ede0e587f1b344b4da0d76bcf33d81f6e8b60",
+        "src/cascade/skills/runtime.py": "e00ca46b86b47da88e858199cb4ff23ad17843dbcd8af3e460eb04a4b523520f",
+        "src/cascade/grasping/obb_grasp.py": "5c38fb8c54ce30deebe29cddc6ac3daa562e5b2903287a60d315f1250b01a9cb",
+        "src/cascade/grasping/graspgenx_backend.py": "f9575978c84ff6478b07cb981291719413c8a025780afb1ff0f337b2b25776fc",
+        "src/cascade/config.py": "984cf4e2aa276ce54f8b24e78a5fd863699a5109e8c522dc00d072bb6c6d82d7",
+        "src/cascade/apps/demo.py": "e6569d5e77dbcf042d6c45fbf0ed48a422525771aa3b9602f3593cd36bd5d100",
+        "src/cascade/perception/grounding.py": "e93ce3d7388d35a53ff4c0b61af541f0c065e4a65d3b8cd7c0573b50963a4458",
+        "src/cascade/perception/cuda_math.py": "d148ef4481868d3247b37710548dc87fdb7a5d08700fb6135b41fb6fd3900e33",
+        "src/cascade/perception/occupancy.py": "55a1e0f631a8077e0c4ed3c0b56e0e2c8b28e430d961b23c27ed648da0c80d61",
+        "src/cascade/perception/occupancy_backends.py": "443f0252b8b4f988a89dcd9bde619bf2badbe6945f567772f47d1258baa4e5d4",
+        "src/cascade/perception/world.py": "7ac251c02dcd81bb62c1ef28ce1c37b8facf544d53737670af3f2075b85fbc07",
+        "src/cascade/agent/effects.py": "b452f1a30552a9969d472314d4ec8c22b4f9f46a4c954780fbbca5589f915fcf",
+        "src/cascade/sim/truth.py": "172aa74560a7b55059edfe65738b1ea9f683f2ce760e7ebc825717788ef195cd",
+        "demo/kitchen/physics/gpu_proof_audit.py": "f85392450376bf6a320138198612530d26f08ab4a95962a20047f3f3ceb26fb2",
+        "demo/kitchen/physics/convex_geometry.py": "f1e3c87aed4b2343f2818564048ee42e002c588b97f87007f55c83a158d0de65",
+        "demo/kitchen/physics/destination_entry.py": "263a9fb383af509f435118deed536d19afca9d43701487edf7999dad92f1b441",
+        "demo/kitchen/physics/spark_proof.py": "675434aab150a74fefe1ab637a6d1d740c24e7f11c319f5bd50cd4a1426c78d4",
+        "assets/newton/rebot_gripper_hulls.usda": "46fd39d7f4ad948a9a7e6d67f2f7fde5a92333972e1f4ff2014dcba1449462de",
+        "configs/arms/isaac_kitchen.yaml": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+        "configs/arms/isaac_kitchen_gpu.yaml": "3274e46b33305a6b0fb90a0a2417a754c9935e4a3662d7e06c0dacbef193b62c"
+      },
+      "requested_objects": [
+        "tomato_can"
+      ],
+      "render_resolution_px": [
+        1280,
+        720
+      ],
+      "cases": [
+        {
+          "object": "tomato_can",
+          "destination": "green square",
+          "pass": false,
+          "errors": [],
+          "failed_checks": [
+            "all_props_physically_reset_and_settled",
+            "strict_pick_place_and_cameras",
+            "whole_convex_collider_inside_green_square_and_supported",
+            "all_event_cameras_advance",
+            "pick_skill_completed",
+            "reset_skill_completed"
+          ],
+          "diagnostic_profile": {
+            "llm": "mock",
+            "occupancy": "nvblox",
+            "belief_persistence": false,
+            "fresh_grasp_memory": true,
+            "held_xy_slip_feedback": "production truth lookup with perception fallback",
+            "release_height_feedback": "FK and configured support plane",
+            "cuda_perception_required": true,
+            "acceptance": "independent passive physics proof; skill ok alone is insufficient"
+          },
+          "placement_configuration": {
+            "pregrasp_offset_m": 0.1,
+            "release_height_m": 0.08,
+            "release_clearance_m": 0.115,
+            "place_support_clearance_m": 0.015,
+            "source_support_top_z_m": 0.0,
+            "carry_height_m": 0.14,
+            "pre_carry_lift": true,
+            "open_box": {
+              "center_xy_m": [
+                0.3,
+                -0.14
+              ],
+              "support_top_z_m": 0.004,
+              "release_height_m": 0.104
+            },
+            "release_open_timeout_s": 8.0,
+            "close_feedback_timeout_s": 8.0
+          },
+          "release_gap_scope": null,
+          "occupancy_camera_count": 3,
+          "occupancy_probe": {
+            "ok": true,
+            "backend": "nvblox",
+            "describe": "nvblox (nvblox_torch TSDF+ESDF on NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 0.5 cm)",
+            "voxel": 0.005,
+            "device": "cuda:0",
+            "esdf": true,
+            "carving": true,
+            "masked_depth": true
+          },
+          "pick_result": {
+            "destination": "green square",
+            "destination_kind": "configured_point",
+            "target": [
+              0.14,
+              -0.27
+            ],
+            "ok": false,
+            "stage": "place",
+            "error": "place failed after 2 attempts: SafetyViolation: attached object point 1761 clearance 0.030 m below 0.030 m (occupancy map) at [0.1626, -0.2654, 0.0273]",
+            "note": "still holding 'tomato can'; try place_at with explicit coordinates",
+            "grip_verified": true,
+            "postcondition": {
+              "skill": "pick_and_place",
+              "kind": "relocated",
+              "status": "unverified",
+              "evidence": "tomato can is 0.8 cm from the green square center (physics); full object containment and release are not established by a center position",
+              "channel": "physics",
+              "measured": {
+                "moved_m": 0.49,
+                "final": [
+                  0.1362,
+                  -0.2627,
+                  0.1044
+                ],
+                "target_err_m": 0.0082,
+                "destination": "green square"
+              }
+            },
+            "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+          },
+          "pick_payload_query": {
+            "samples": 2605,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.0296321888201571,
+            "surfaces_by_camera": {
+              "cam0": 890,
+              "side": 875,
+              "proof": 840
+            }
+          },
+          "pick_wall_seconds": 97.01285410999844,
+          "reset_result": {
+            "props_reset": [],
+            "world": null,
+            "observation_refreshed": false,
+            "objects_visible": [],
+            "ok": false,
+            "stage": "home",
+            "home_error": "attached object point 838 clearance 0.030 m below 0.030 m (occupancy map) at [0.1628, -0.2731, 0.0272]",
+            "beliefs_forgotten": 0,
+            "error": "Scene reset could not reach home: attached object point 838 clearance 0.030 m below 0.030 m (occupancy map) at [0.1628, -0.2731, 0.0272]"
+          },
+          "reset_payload_query": {
+            "samples": 2609,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.02927024050469703,
+            "surfaces_by_camera": {
+              "cam0": 854,
+              "side": 894,
+              "proof": 861
+            }
+          },
+          "reset_wall_seconds": 11.04429753000295,
+          "phase_final_states": {
+            "pick": {
+              "pink_cube": {
+                "position_m": [
+                  0.27000001072883606,
+                  0.10999999940395355,
+                  0.02999999747775224
+                ],
+                "orientation_wxyz": [
+                  0.9999999403953552,
+                  -6.16291231381183e-08,
+                  -7.118118219295866e-07,
+                  -1.6185406792601498e-08
+                ],
+                "linear_velocity_m_s": [
+                  -1.1088926839875057e-05,
+                  -6.295029379543848e-06,
+                  -1.4365650713443756e-06
+                ],
+                "angular_velocity_rad_s": [
+                  6.537999433930963e-05,
+                  -0.00010367740469519049,
+                  7.14607836016512e-07
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "green_cube": {
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000009089708328,
+                  0.02999999934039739
+                ],
+                "orientation_wxyz": [
+                  0.9999999403953552,
+                  -5.486713803293242e-07,
+                  -6.005100203765323e-07,
+                  1.6049457940425782e-07
+                ],
+                "linear_velocity_m_s": [
+                  -8.040375178097747e-06,
+                  1.0909388038271572e-05,
+                  -6.634276360273361e-06
+                ],
+                "angular_velocity_rad_s": [
+                  -0.0003420364810153842,
+                  0.0002864237758331001,
+                  2.78262518804695e-06
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "tomato_can": {
+                "position_m": [
+                  0.13821299374103546,
+                  -0.27042925357818604,
+                  0.06909779460333017
+                ],
+                "orientation_wxyz": [
+                  0.9990749359130859,
+                  -0.022022081539034843,
+                  0.02533101849257946,
+                  -0.026880938559770584
+                ],
+                "linear_velocity_m_s": [
+                  -0.032351311296224594,
+                  -0.042238738387823105,
+                  0.07065100222826004
+                ],
+                "angular_velocity_rad_s": [
+                  -1.7904047966003418,
+                  5.95751428604126,
+                  0.1552974283695221
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "lemon": {
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  2.641669105685196e-10
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "orange": {
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  1.2222169942788241e-09
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              }
+            },
+            "reset": {
+              "pink_cube": {
+                "position_m": [
+                  0.27000001072883606,
+                  0.11000000685453415,
+                  0.02999999934039739
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  -6.191386319187586e-07,
+                  -6.936027148185531e-07,
+                  6.133290764154253e-09
+                ],
+                "linear_velocity_m_s": [
+                  -7.99764438852435e-06,
+                  1.089041143131908e-05,
+                  -6.638467311859131e-06
+                ],
+                "angular_velocity_rad_s": [
+                  -0.00034282245906069875,
+                  0.0002900061081163585,
+                  2.760390771072707e-06
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "green_cube": {
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000010021030903,
+                  0.02999999934039739
+                ],
+                "orientation_wxyz": [
+                  0.9999999403953552,
+                  -5.174475177227578e-07,
+                  -6.285056883825746e-07,
+                  -8.775329973786938e-08
+                ],
+                "linear_velocity_m_s": [
+                  -7.807357178535312e-06,
+                  1.0986670531565323e-05,
+                  -6.532296538352966e-06
+                ],
+                "angular_velocity_rad_s": [
+                  -0.0003397449618205428,
+                  0.0002830575394909829,
+                  2.739756610026234e-06
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "tomato_can": {
+                "position_m": [
+                  0.1382998526096344,
+                  -0.2706071734428406,
+                  0.06908567250869897
+                ],
+                "orientation_wxyz": [
+                  0.9990729093551636,
+                  -0.022313131019473076,
+                  0.025173533707857132,
+                  -0.026862425729632378
+                ],
+                "linear_velocity_m_s": [
+                  -0.03304044157266617,
+                  -0.04085557907819748,
+                  0.07079777866601944
+                ],
+                "angular_velocity_rad_s": [
+                  -1.7836564779281616,
+                  5.961550235748291,
+                  0.1463163197040558
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "lemon": {
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  2.641669105685196e-10
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "orange": {
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  1.2222169942788241e-09
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              }
+            }
+          },
+          "backends": {
+            "grasp_planner": "graspgenx (learned 6-DoF)",
+            "occupancy": "nvblox on cuda:0 (0.5 cm voxels, ESDF)",
+            "occupancy_live": true
+          },
+          "occupancy_final": {
+            "stale": false,
+            "last_error": null,
+            "last_masked_pixels": 15538,
+            "has_distance_grid": true,
+            "replayed_frames_on_last_transition": 6
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+              "capability": [
+                12,
+                0
+              ],
+              "torch": "2.7.0+cu128",
+              "cuda": "12.8",
+              "architecture": "x86_64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 15.716
+          },
+          "round": 1,
+          "receipt_sha256": "ac93b36d9791f9d148c7d4ab5444c76433170b6d2233fec26b108e376622b83d",
+          "physical_audit": {
+            "pass": false,
+            "checks": {
+              "complete_observation": true,
+              "all_phase_boundaries": true,
+              "live_prop_names_match_expected": true,
+              "spawn_prop_names_match_expected": true,
+              "spawn_positions_finite_and_unchanged": true,
+              "all_props_physically_reset_and_settled": false,
+              "scene_config_sha256_matches": true,
+              "prop_dimensions_match": true,
+              "cube_collider_geometry_matches": true,
+              "green_square_geometry_matches": true,
+              "scene_name_matches": true,
+              "scene_assets_sha256_matches": true,
+              "scene_content_sha256_matches": true,
+              "open_box_geometry_matches": true,
+              "convex_body_identity": true,
+              "authored_convex_vertices_match": true,
+              "convex_topology_matches": true,
+              "convex_body_and_collider_enabled": true,
+              "convex_body_and_child_transforms_match": true,
+              "convex_tensor_mass_and_com_match": true,
+              "convex_tensor_inertia_valid": true,
+              "physx_support_live_identity": true,
+              "physx_support_source_matches": true,
+              "physx_support_solid_subset": true,
+              "physx_support_geometry_unchanged": true,
+              "ordered_phases": true,
+              "strict_pick_place_and_cameras": false,
+              "whole_convex_collider_inside_green_square_and_supported": false,
+              "tomato_can_settles_upright": true,
+              "all_physics_tensors_cuda": true,
+              "single_supported_engine": true,
+              "gpu_backend_no_fallback": true,
+              "contact_sensor_and_actual_jaws_bound": true,
+              "two_jaw_contacts_during_real_lift": true,
+              "reset_settle_window": true,
+              "whole_footprint_enters_destination_with_bilateral_support": true,
+              "all_event_cameras_advance": false,
+              "requested_engine_matches_every_sample": true,
+              "pick_skill_completed": false,
+              "reset_skill_completed": false,
+              "harness_has_no_errors": true,
+              "nvblox_has_fresh_distance_grid": true,
+              "nvblox_has_no_mapping_error": true
+            },
+            "errors": [],
+            "pick": {
+              "pass": false,
+              "physics_pass": false,
+              "camera_pass": false,
+              "checks": {
+                "physics_channel": true,
+                "same_robot_and_engine": true,
+                "same_observed_prop_set": true,
+                "physics_clock_advances": true,
+                "finite_all_observed_state": true,
+                "actual_joints_within_limits": true,
+                "final_window_long_enough": true,
+                "valid_final_orientations": true,
+                "projected_support_geometry": true,
+                "gripper_readback_matches_actual_q": true,
+                "released_actual_jaws": false,
+                "destination_xy": true,
+                "supported_z": false,
+                "settled_linear_speed": false,
+                "settled_angular_speed": false,
+                "stable_final_position": false,
+                "observed_lift": true,
+                "observed_xy_displacement": true
+              },
+              "metrics": {
+                "samples": 366,
+                "final_samples": 31,
+                "simulation_elapsed_s": 6.133333333333326,
+                "final_window_sim_s": 0.5,
+                "lift_m": 0.09923036769032477,
+                "xy_displacement_m": 0.4931262752697517,
+                "final_xy_error_m": 0.0018378384052913854,
+                "max_final_xy_error_m": 0.008358819322117446,
+                "max_final_support_z_error_m": 0.030339469557226342,
+                "max_final_linear_speed_m_s": 0.08990632509116782,
+                "max_final_angular_speed_rad_s": 6.222671700751486,
+                "max_final_position_spread_m": 0.008893829716320042,
+                "max_final_tilt_deg": 3.8470282351677847,
+                "min_final_actual_open_fraction": 0.562434150838343,
+                "max_frame_age_s": 3.6996748599995044,
+                "unique_jpeg_hashes": 184
+              },
+              "object": "tomato_can",
+              "target_xy": [
+                0.14,
+                -0.27
+              ],
+              "support_top_z": -3.3527612630646075e-10,
+              "object_half_height": 0.04125,
+              "scope": "physical destination and camera audit; chat transcript is separate evidence",
+              "support_geometry": {
+                "method": "physx_collision_representation",
+                "engine": "physx",
+                "stage_id": 9223002,
+                "collider_path": "/World_Props/tomato_can/Collision",
+                "result": "RESULT_VALID",
+                "convex_count": 1,
+                "frame": "body_local",
+                "units": "m",
+                "source_vertices_f32_sha256": "f2d7e766cb35a9225802a59f20986de76c5b28b1e6c8884932ee30a27b96f05c",
+                "source_topology_sha256": "f57ed3a867ffc146ba0ed7bbc4f285ce471cfe380d83e3bea2e32722dd3e0224",
+                "vertex_count": 48,
+                "vertices_f32_sha256": "2077f8b0aab6ecf11f574c4ab1a178b2f6308a3fc9f855ba2cef3abc4610be8f",
+                "authored_vertex_indices": [
+                  10,
+                  34,
+                  33,
+                  9,
+                  22,
+                  46,
+                  45,
+                  21,
+                  17,
+                  41,
+                  40,
+                  16,
+                  7,
+                  6,
+                  5,
+                  4,
+                  3,
+                  2,
+                  1,
+                  0,
+                  23,
+                  20,
+                  19,
+                  18,
+                  15,
+                  14,
+                  13,
+                  12,
+                  11,
+                  8,
+                  31,
+                  30,
+                  37,
+                  36,
+                  38,
+                  29,
+                  28,
+                  25,
+                  24,
+                  26,
+                  35,
+                  47,
+                  42,
+                  43,
+                  44,
+                  32,
+                  27,
+                  39
+                ],
+                "body_name": "tomato_can",
+                "scene_config_binding_verified": true,
+                "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+                "half_height_argument_used": false,
+                "upright_tilt_limit_applied": false,
+                "final_samples": [
+                  {
+                    "sample_index": 335,
+                    "sim_time": 64.36666666666666,
+                    "downward_extent_m": 0.04297433326969706,
+                    "expected_body_origin_z_m": 0.042974332934420933,
+                    "observed_body_origin_z_m": 0.07331380249164728,
+                    "lowest_vertex_world_z_m": 0.030339469221950216
+                  },
+                  {
+                    "sample_index": 336,
+                    "sim_time": 64.38333333333334,
+                    "downward_extent_m": 0.0429571839669384,
+                    "expected_body_origin_z_m": 0.042957183631662274,
+                    "observed_body_origin_z_m": 0.072509869944078,
+                    "lowest_vertex_world_z_m": 0.0295526859771396
+                  },
+                  {
+                    "sample_index": 337,
+                    "sim_time": 64.4,
+                    "downward_extent_m": 0.04294561496065755,
+                    "expected_body_origin_z_m": 0.04294561462538142,
+                    "observed_body_origin_z_m": 0.07186025382183221,
+                    "lowest_vertex_world_z_m": 0.028914638861174666
+                  },
+                  {
+                    "sample_index": 338,
+                    "sim_time": 64.41666666666667,
+                    "downward_extent_m": 0.04294591249861909,
+                    "expected_body_origin_z_m": 0.04294591216334297,
+                    "observed_body_origin_z_m": 0.07133539022110132,
+                    "lowest_vertex_world_z_m": 0.028389477722482223
+                  },
+                  {
+                    "sample_index": 339,
+                    "sim_time": 64.43333333333334,
+                    "downward_extent_m": 0.042946015710368976,
+                    "expected_body_origin_z_m": 0.04294601537509285,
+                    "observed_body_origin_z_m": 0.07091129572294382,
+                    "lowest_vertex_world_z_m": 0.02796528001257484
+                  },
+                  {
+                    "sample_index": 340,
+                    "sim_time": 64.45,
+                    "downward_extent_m": 0.04294590858913797,
+                    "expected_body_origin_z_m": 0.042945908253861846,
+                    "observed_body_origin_z_m": 0.07056806982658533,
+                    "lowest_vertex_world_z_m": 0.027622161237447353
+                  },
+                  {
+                    "sample_index": 341,
+                    "sim_time": 64.46666666666667,
+                    "downward_extent_m": 0.04294570541089819,
+                    "expected_body_origin_z_m": 0.042945705075622065,
+                    "observed_body_origin_z_m": 0.07029046119354394,
+                    "lowest_vertex_world_z_m": 0.027344755782645752
+                  },
+                  {
+                    "sample_index": 342,
+                    "sim_time": 64.48333333333333,
+                    "downward_extent_m": 0.04294538221561105,
+                    "expected_body_origin_z_m": 0.04294538188033492,
+                    "observed_body_origin_z_m": 0.07006596029899743,
+                    "lowest_vertex_world_z_m": 0.027120578083386387
+                  },
+                  {
+                    "sample_index": 343,
+                    "sim_time": 64.5,
+                    "downward_extent_m": 0.04294509966189175,
+                    "expected_body_origin_z_m": 0.042945099326615624,
+                    "observed_body_origin_z_m": 0.06988401712082055,
+                    "lowest_vertex_world_z_m": 0.026938917458928804
+                  },
+                  {
+                    "sample_index": 344,
+                    "sim_time": 64.51666666666667,
+                    "downward_extent_m": 0.042944695907257704,
+                    "expected_body_origin_z_m": 0.04294469557198158,
+                    "observed_body_origin_z_m": 0.06973633171222833,
+                    "lowest_vertex_world_z_m": 0.026791635804970626
+                  },
+                  {
+                    "sample_index": 345,
+                    "sim_time": 64.53333333333333,
+                    "downward_extent_m": 0.04294428232795703,
+                    "expected_body_origin_z_m": 0.042944281992680904,
+                    "observed_body_origin_z_m": 0.0696167647948089,
+                    "lowest_vertex_world_z_m": 0.026672482466851867
+                  },
+                  {
+                    "sample_index": 346,
+                    "sim_time": 64.55,
+                    "downward_extent_m": 0.042943875678939585,
+                    "expected_body_origin_z_m": 0.04294387534366346,
+                    "observed_body_origin_z_m": 0.06951951236627725,
+                    "lowest_vertex_world_z_m": 0.026575636687337666
+                  },
+                  {
+                    "sample_index": 347,
+                    "sim_time": 64.56666666666666,
+                    "downward_extent_m": 0.04294349375231147,
+                    "expected_body_origin_z_m": 0.04294349341703534,
+                    "observed_body_origin_z_m": 0.0694406777729812,
+                    "lowest_vertex_world_z_m": 0.02649718402066973
+                  },
+                  {
+                    "sample_index": 348,
+                    "sim_time": 64.58333333333333,
+                    "downward_extent_m": 0.04294502687327976,
+                    "expected_body_origin_z_m": 0.04294502653800363,
+                    "observed_body_origin_z_m": 0.06937612594268945,
+                    "lowest_vertex_world_z_m": 0.026431099069409693
+                  },
+                  {
+                    "sample_index": 349,
+                    "sim_time": 64.6,
+                    "downward_extent_m": 0.04295002876218993,
+                    "expected_body_origin_z_m": 0.042950028426913804,
+                    "observed_body_origin_z_m": 0.06932388247154382,
+                    "lowest_vertex_world_z_m": 0.02637385370935389
+                  },
+                  {
+                    "sample_index": 350,
+                    "sim_time": 64.61666666666666,
+                    "downward_extent_m": 0.04295443361022177,
+                    "expected_body_origin_z_m": 0.04295443327494564,
+                    "observed_body_origin_z_m": 0.06928138435981897,
+                    "lowest_vertex_world_z_m": 0.0263269507495972
+                  },
+                  {
+                    "sample_index": 351,
+                    "sim_time": 64.63333333333334,
+                    "downward_extent_m": 0.04295835350368882,
+                    "expected_body_origin_z_m": 0.04295835316841269,
+                    "observed_body_origin_z_m": 0.06924670935772088,
+                    "lowest_vertex_world_z_m": 0.026288355854032067
+                  },
+                  {
+                    "sample_index": 352,
+                    "sim_time": 64.65,
+                    "downward_extent_m": 0.04296178170616071,
+                    "expected_body_origin_z_m": 0.042961781370884584,
+                    "observed_body_origin_z_m": 0.06921864302061227,
+                    "lowest_vertex_world_z_m": 0.02625686131445156
+                  },
+                  {
+                    "sample_index": 353,
+                    "sim_time": 64.66666666666667,
+                    "downward_extent_m": 0.042964849039228245,
+                    "expected_body_origin_z_m": 0.04296484870395212,
+                    "observed_body_origin_z_m": 0.06919534505508569,
+                    "lowest_vertex_world_z_m": 0.026230496015857446
+                  },
+                  {
+                    "sample_index": 354,
+                    "sim_time": 64.68333333333334,
+                    "downward_extent_m": 0.042967484876645014,
+                    "expected_body_origin_z_m": 0.04296748454136889,
+                    "observed_body_origin_z_m": 0.06917598844669488,
+                    "lowest_vertex_world_z_m": 0.02620850357004987
+                  },
+                  {
+                    "sample_index": 355,
+                    "sim_time": 64.7,
+                    "downward_extent_m": 0.04296980887617618,
+                    "expected_body_origin_z_m": 0.04296980854090005,
+                    "observed_body_origin_z_m": 0.06916032732628015,
+                    "lowest_vertex_world_z_m": 0.02619051845010397
+                  },
+                  {
+                    "sample_index": 356,
+                    "sim_time": 64.71666666666667,
+                    "downward_extent_m": 0.042971887274137324,
+                    "expected_body_origin_z_m": 0.0429718869388612,
+                    "observed_body_origin_z_m": 0.06914766133926538,
+                    "lowest_vertex_world_z_m": 0.026175774065128055
+                  },
+                  {
+                    "sample_index": 357,
+                    "sim_time": 64.73333333333333,
+                    "downward_extent_m": 0.042973662296723156,
+                    "expected_body_origin_z_m": 0.04297366196144703,
+                    "observed_body_origin_z_m": 0.06913702936075357,
+                    "lowest_vertex_world_z_m": 0.026163367064030413
+                  },
+                  {
+                    "sample_index": 358,
+                    "sim_time": 64.75,
+                    "downward_extent_m": 0.04297523553842913,
+                    "expected_body_origin_z_m": 0.042975235203153,
+                    "observed_body_origin_z_m": 0.06912831963203576,
+                    "lowest_vertex_world_z_m": 0.026153084093606636
+                  },
+                  {
+                    "sample_index": 359,
+                    "sim_time": 64.76666666666667,
+                    "downward_extent_m": 0.042976634970432845,
+                    "expected_body_origin_z_m": 0.04297663463515672,
+                    "observed_body_origin_z_m": 0.06912128628395227,
+                    "lowest_vertex_world_z_m": 0.026144651313519424
+                  },
+                  {
+                    "sample_index": 360,
+                    "sim_time": 64.78333333333333,
+                    "downward_extent_m": 0.0429778315022061,
+                    "expected_body_origin_z_m": 0.04297783116692997,
+                    "observed_body_origin_z_m": 0.06911545992992547,
+                    "lowest_vertex_world_z_m": 0.026137628427719377
+                  },
+                  {
+                    "sample_index": 361,
+                    "sim_time": 64.8,
+                    "downward_extent_m": 0.04297889524238437,
+                    "expected_body_origin_z_m": 0.042978894907108246,
+                    "observed_body_origin_z_m": 0.06911033393047479,
+                    "lowest_vertex_world_z_m": 0.026131438688090418
+                  },
+                  {
+                    "sample_index": 362,
+                    "sim_time": 64.81666666666666,
+                    "downward_extent_m": 0.04297982983146029,
+                    "expected_body_origin_z_m": 0.04297982949618416,
+                    "observed_body_origin_z_m": 0.06910629571579126,
+                    "lowest_vertex_world_z_m": 0.02612646588433097
+                  },
+                  {
+                    "sample_index": 363,
+                    "sim_time": 64.83333333333333,
+                    "downward_extent_m": 0.04298064528647063,
+                    "expected_body_origin_z_m": 0.042980644951194504,
+                    "observed_body_origin_z_m": 0.06910313666961816,
+                    "lowest_vertex_world_z_m": 0.026122491383147532
+                  },
+                  {
+                    "sample_index": 364,
+                    "sim_time": 64.85,
+                    "downward_extent_m": 0.04298134300909225,
+                    "expected_body_origin_z_m": 0.04298134267381613,
+                    "observed_body_origin_z_m": 0.06910021604202417,
+                    "lowest_vertex_world_z_m": 0.026118873032931915
+                  },
+                  {
+                    "sample_index": 365,
+                    "sim_time": 64.86666666666666,
+                    "downward_extent_m": 0.04298197993142,
+                    "expected_body_origin_z_m": 0.042981979596143874,
+                    "observed_body_origin_z_m": 0.06909779460333017,
+                    "lowest_vertex_world_z_m": 0.026115814671910167
+                  }
+                ]
+              },
+              "criteria": {
+                "xy_tolerance_m": 0.04,
+                "z_tolerance_m": 0.005,
+                "settle_sim_s": 0.5,
+                "min_final_samples": 4,
+                "max_linear_speed_m_s": 0.02,
+                "max_angular_speed_rad_s": 0.2,
+                "max_position_spread_m": 0.005,
+                "min_open_fraction": 0.9,
+                "max_tilt_deg": 5,
+                "min_lift_m": 0.015,
+                "min_xy_displacement_m": 0.02,
+                "max_frame_age_s": 2
+              },
+              "limitations": [
+                "Support uses the live PhysX collision representation in body-local coordinates. The complete authored hull separately bounds the horizontal footprint.",
+                "Actual open jaws and settled support pose establish release here; no contact-force sensor is claimed."
+              ],
+              "camera_checks": {
+                "frames_available": true,
+                "frame_clock_advances": true,
+                "frames_recent": false,
+                "frame_robot_binding": true,
+                "visual_changes_during_motion": true
+              },
+              "failed_checks": [
+                "released_actual_jaws",
+                "supported_z",
+                "settled_linear_speed",
+                "settled_angular_speed",
+                "stable_final_position",
+                "frames_recent"
+              ],
+              "destination_name": "green square"
+            },
+            "supported_destination_entry": {
+              "pass": true,
+              "check": "whole_footprint_enters_destination_while_lifted_with_bilateral_support",
+              "object_name": "tomato_can",
+              "destination_name": "green square",
+              "samples": 366,
+              "criteria": {
+                "jaw_force_exclusive_min_n": 0.01,
+                "min_lift_m": 0.015,
+                "min_distinct_supported_inside_steps": 2,
+                "boundary_tolerance_m": 0.0
+              },
+              "inner_bounds_xy_m": [
+                [
+                  0.07000000029802322,
+                  -0.3400000035762787
+                ],
+                [
+                  0.20999999344348907,
+                  -0.20000000298023224
+                ]
+              ],
+              "collider_vertices": 48,
+              "supported_lift_samples": 186,
+              "supported_inside_distinct_steps": 128,
+              "best_supported_inner_clearance_m": 0.04003022785540747,
+              "inside_lifted_without_bilateral_support_samples": 0,
+              "scope": "Positive sampled grip at full destination entry; no continuous retention or commanded-release timing assertion"
+            },
+            "event_cameras": {
+              "pass": false,
+              "cameras": {},
+              "error": "cam0: missing, stale or unbound camera frame"
+            }
+          },
+          "witness_sha256": {
+            "metadata.json": "c73d8cf52d629d20cbc07fe0e6192477cc354b1bc378defa6aded5698add8847",
+            "gpu-physical-audit.json": "9d9e07a98a86e7f00d2598f959688cc8a1408aa9837d500b3056f320bbd18127",
+            "samples.jsonl": "c7191fca98eaf49e0cc258e51a2cba941b1c11574eb1ada7001940d60617bd35",
+            "wire.jsonl": "475d24e05c4d5b4b0baa8aaeb5b4b694fb6f75677ef612d1de763a38c2a7f855"
+          }
+        }
+      ]
+    },
+    {
+      "trial": "physical-12",
+      "campaign_sha256": "f4cf4f41ceda16786696791660629217a3bf50d76a91d68a813aa079f1497cbb",
+      "pass": false,
+      "source_sha256": {
+        "benchmark/diagnostics/kitchen_acceptance.py": "dffd42acfc3fd83e3688fa82bca0e576541a4c2dd9e2ae1aca0f5da1d68f2869",
+        "scripts/isaac_bridge.py": "48ded6d28a040b9a715d78ffbea3c1f40868f9c15e12c3e07d0fdb7f648bdf33",
+        "scripts/isaac_materials.py": "54fafa297d2e150df5f4a066d76e27e63055acf0a6bfcdb502dc02b3373350fd",
+        "scripts/isaac_runtime.py": "2644d2339d4c5402f04085ddbef863e5ca983a27777d59d656f65c7fd60785ca",
+        "scripts/isaac_self_mask.py": "2b9bfd22b398c8fdece59ae04df9f6b1908dd3a234e32f4fb54179eba3ae79f0",
+        "src/cascade/sim/bridge_client.py": "29ff72d341a47952b21c0f90118a7b8ba2cb5d8ce1ae68baf124070787d1c80b",
+        "src/cascade/safety/harness.py": "46a84713c8c4aaf11423185e0242e2b257eda8d25307cbf7eb6cb0b6cb779408",
+        "src/cascade/types.py": "cbd65a50d2e7eb89fc1a908c5d3ede0e587f1b344b4da0d76bcf33d81f6e8b60",
+        "src/cascade/skills/runtime.py": "e00ca46b86b47da88e858199cb4ff23ad17843dbcd8af3e460eb04a4b523520f",
+        "src/cascade/grasping/obb_grasp.py": "5c38fb8c54ce30deebe29cddc6ac3daa562e5b2903287a60d315f1250b01a9cb",
+        "src/cascade/grasping/graspgenx_backend.py": "f9575978c84ff6478b07cb981291719413c8a025780afb1ff0f337b2b25776fc",
+        "src/cascade/config.py": "984cf4e2aa276ce54f8b24e78a5fd863699a5109e8c522dc00d072bb6c6d82d7",
+        "src/cascade/apps/demo.py": "e6569d5e77dbcf042d6c45fbf0ed48a422525771aa3b9602f3593cd36bd5d100",
+        "src/cascade/perception/grounding.py": "e93ce3d7388d35a53ff4c0b61af541f0c065e4a65d3b8cd7c0573b50963a4458",
+        "src/cascade/perception/cuda_math.py": "d148ef4481868d3247b37710548dc87fdb7a5d08700fb6135b41fb6fd3900e33",
+        "src/cascade/perception/occupancy.py": "55a1e0f631a8077e0c4ed3c0b56e0e2c8b28e430d961b23c27ed648da0c80d61",
+        "src/cascade/perception/occupancy_backends.py": "443f0252b8b4f988a89dcd9bde619bf2badbe6945f567772f47d1258baa4e5d4",
+        "src/cascade/perception/world.py": "7ac251c02dcd81bb62c1ef28ce1c37b8facf544d53737670af3f2075b85fbc07",
+        "src/cascade/agent/effects.py": "b452f1a30552a9969d472314d4ec8c22b4f9f46a4c954780fbbca5589f915fcf",
+        "src/cascade/sim/truth.py": "172aa74560a7b55059edfe65738b1ea9f683f2ce760e7ebc825717788ef195cd",
+        "demo/kitchen/physics/gpu_proof_audit.py": "f85392450376bf6a320138198612530d26f08ab4a95962a20047f3f3ceb26fb2",
+        "demo/kitchen/physics/convex_geometry.py": "f1e3c87aed4b2343f2818564048ee42e002c588b97f87007f55c83a158d0de65",
+        "demo/kitchen/physics/destination_entry.py": "263a9fb383af509f435118deed536d19afca9d43701487edf7999dad92f1b441",
+        "demo/kitchen/physics/spark_proof.py": "675434aab150a74fefe1ab637a6d1d740c24e7f11c319f5bd50cd4a1426c78d4",
+        "assets/newton/rebot_gripper_hulls.usda": "46fd39d7f4ad948a9a7e6d67f2f7fde5a92333972e1f4ff2014dcba1449462de",
+        "configs/arms/isaac_kitchen.yaml": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+        "configs/arms/isaac_kitchen_gpu.yaml": "3274e46b33305a6b0fb90a0a2417a754c9935e4a3662d7e06c0dacbef193b62c"
+      },
+      "requested_objects": [
+        "tomato_can",
+        "orange",
+        "green_cube",
+        "pink_cube",
+        "lemon"
+      ],
+      "render_resolution_px": [
+        1280,
+        720
+      ],
+      "cases": [
+        {
+          "object": "tomato_can",
+          "destination": "green square",
+          "pass": false,
+          "errors": [],
+          "failed_checks": [
+            "all_props_physically_reset_and_settled",
+            "strict_pick_place_and_cameras",
+            "all_event_cameras_advance",
+            "reset_skill_completed"
+          ],
+          "diagnostic_profile": {
+            "llm": "mock",
+            "occupancy": "nvblox",
+            "belief_persistence": false,
+            "fresh_grasp_memory": true,
+            "held_xy_slip_feedback": "production truth lookup with perception fallback",
+            "release_height_feedback": "FK and configured support plane",
+            "cuda_perception_required": true,
+            "acceptance": "independent passive physics proof; skill ok alone is insufficient"
+          },
+          "placement_configuration": {
+            "pregrasp_offset_m": 0.1,
+            "release_height_m": 0.08,
+            "release_clearance_m": 0.115,
+            "place_support_clearance_m": 0.04,
+            "source_support_top_z_m": 0.0,
+            "carry_height_m": 0.14,
+            "pre_carry_lift": true,
+            "open_box": {
+              "center_xy_m": [
+                0.3,
+                -0.14
+              ],
+              "support_top_z_m": 0.004,
+              "release_height_m": 0.104
+            },
+            "release_open_timeout_s": 8.0,
+            "close_feedback_timeout_s": 8.0
+          },
+          "release_gap_scope": null,
+          "occupancy_camera_count": 3,
+          "occupancy_probe": {
+            "ok": true,
+            "backend": "nvblox",
+            "describe": "nvblox (nvblox_torch TSDF+ESDF on NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 0.5 cm)",
+            "voxel": 0.005,
+            "device": "cuda:0",
+            "esdf": true,
+            "carving": true,
+            "masked_depth": true
+          },
+          "pick_result": {
+            "picked": "tomato can",
+            "placed_at": [
+              0.14,
+              -0.27,
+              0.102
+            ],
+            "destination": "green square",
+            "grip_profile": "slippery",
+            "grip_verified": true,
+            "grasp_attempts": 1,
+            "place_attempts": 1,
+            "duration_s": 61.65,
+            "timings": {
+              "grasp_attempt1_s": 36.93,
+              "place_s": 23.49
+            },
+            "return_home": {
+              "attempted": true,
+              "ok": false,
+              "error": "TCP [0.153, -0.3, 0.142] outside workspace [[0.1, -0.3, -0.01] .. [0.5, 0.3, 0.55]]"
+            },
+            "next_action": "Start the reply with 'Placement unverified.' Explain the verification_note. ok=true means the motion routine finished; it does not confirm the requested placement. Do not say 'done', 'success', or that the object is inside the destination. Include any return_home failure, then await the next user order without another movement.",
+            "destination_kind": "configured_point",
+            "post_place_retreat": {
+              "ok": true,
+              "tcp_at": [
+                0.141,
+                -0.293,
+                0.145
+              ]
+            },
+            "ok": true,
+            "postcondition": {
+              "skill": "pick_and_place",
+              "kind": "relocated",
+              "status": "unverified",
+              "evidence": "tomato can is 0.9 cm from the green square center (physics); full object containment and release are not established by a center position",
+              "channel": "physics",
+              "measured": {
+                "moved_m": 0.4886,
+                "final": [
+                  0.1484,
+                  -0.2676,
+                  0.0413
+                ],
+                "target_err_m": 0.0087,
+                "destination": "green square"
+              }
+            },
+            "verified": false,
+            "verification_note": "tomato can is 0.9 cm from the green square center (physics); full object containment and release are not established by a center position"
+          },
+          "pick_payload_query": {
+            "samples": 2582,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.04965917298615701,
+            "surfaces_by_camera": {
+              "cam0": 869,
+              "side": 944,
+              "proof": 769
+            }
+          },
+          "pick_wall_seconds": 75.30523161499877,
+          "reset_result": {
+            "props_reset": [],
+            "world": null,
+            "observation_refreshed": false,
+            "objects_visible": [],
+            "ok": false,
+            "stage": "home",
+            "home_error": "TCP [0.154, -0.3, 0.141] outside workspace [[0.1, -0.3, -0.01] .. [0.5, 0.3, 0.55]]",
+            "beliefs_forgotten": 0,
+            "error": "Scene reset could not reach home: TCP [0.154, -0.3, 0.141] outside workspace [[0.1, -0.3, -0.01] .. [0.5, 0.3, 0.55]]"
+          },
+          "reset_payload_query": {
+            "samples": 2582,
+            "unobserved_samples": 0,
+            "minimum_observed_clearance_m": 0.04965917298615701,
+            "surfaces_by_camera": {
+              "cam0": 869,
+              "side": 944,
+              "proof": 769
+            }
+          },
+          "reset_wall_seconds": 10.559884269998292,
+          "phase_final_states": {
+            "pick": {
+              "pink_cube": {
+                "position_m": [
+                  0.27000004053115845,
+                  0.11000001430511475,
+                  0.02999999934039739
+                ],
+                "orientation_wxyz": [
+                  0.9999999403953552,
+                  -4.560451998258941e-07,
+                  -4.008860230442224e-07,
+                  3.355235733693007e-08
+                ],
+                "linear_velocity_m_s": [
+                  -8.514498404110782e-06,
+                  9.37528966460377e-06,
+                  -6.46873377263546e-06
+                ],
+                "angular_velocity_rad_s": [
+                  -0.00031544838566333055,
+                  0.0002656430297065526,
+                  2.617398195070564e-06
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "green_cube": {
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000010021030903,
+                  0.02999999934039739
+                ],
+                "orientation_wxyz": [
+                  0.9999999403953552,
+                  -5.687401767318079e-07,
+                  -6.701467327729915e-07,
+                  1.3476147842084174e-07
+                ],
+                "linear_velocity_m_s": [
+                  -7.831198672647588e-06,
+                  1.1081083357566968e-05,
+                  -6.567453965544701e-06
+                ],
+                "angular_velocity_rad_s": [
+                  -0.0003422499285079539,
+                  0.00028561390354298055,
+                  2.774529775706469e-06
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "tomato_can": {
+                "position_m": [
+                  0.14838340878486633,
+                  -0.26754581928253174,
+                  0.041250005375367674
+                ],
+                "orientation_wxyz": [
+                  0.9999106526374817,
+                  -3.60119912556911e-07,
+                  -2.7352017539783446e-08,
+                  -0.013365307822823524
+                ],
+                "linear_velocity_m_s": [
+                  -5.273445367492968e-06,
+                  -3.196340912836604e-06,
+                  -5.68302266401588e-06
+                ],
+                "angular_velocity_rad_s": [
+                  -9.638413757784292e-05,
+                  0.00019618264923337847,
+                  -1.0262088835588656e-05
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "lemon": {
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  2.641669105685196e-10
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "orange": {
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  1.2222169942788241e-09
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              }
+            },
+            "reset": {
+              "pink_cube": {
+                "position_m": [
+                  0.27000001072883606,
+                  0.11000001430511475,
+                  0.02999999934039739
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  -3.719906658261607e-07,
+                  -3.66871063306462e-07,
+                  3.0953582808024294e-08
+                ],
+                "linear_velocity_m_s": [
+                  -8.523305950802751e-06,
+                  8.84873588802293e-06,
+                  -6.327405571937561e-06
+                ],
+                "angular_velocity_rad_s": [
+                  -0.0003025969781447202,
+                  0.00025171073502860963,
+                  2.5279448436776875e-06
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "green_cube": {
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000009089708328,
+                  0.02999999934039739
+                ],
+                "orientation_wxyz": [
+                  0.9999999403953552,
+                  -5.041565032115614e-07,
+                  -5.989660962768539e-07,
+                  2.5899447919641716e-08
+                ],
+                "linear_velocity_m_s": [
+                  -8.022891051950864e-06,
+                  1.1062631529057398e-05,
+                  -6.6587235778570175e-06
+                ],
+                "angular_velocity_rad_s": [
+                  -0.0003448304196354002,
+                  0.0002886829897761345,
+                  2.799593403324252e-06
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "tomato_can": {
+                "position_m": [
+                  0.14838336408138275,
+                  -0.26754581928253174,
+                  0.04125001282594827
+                ],
+                "orientation_wxyz": [
+                  0.9999105930328369,
+                  -8.05649108315265e-07,
+                  1.9016205499156058e-07,
+                  -0.01336508896201849
+                ],
+                "linear_velocity_m_s": [
+                  -5.310589767759666e-05,
+                  7.780492887832224e-05,
+                  -2.074495751003269e-05
+                ],
+                "angular_velocity_rad_s": [
+                  -0.0009737586369737983,
+                  -0.0007476715254597366,
+                  -0.000113992668048013
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "lemon": {
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  2.641669105685196e-10
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "orange": {
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  1.2222169942788241e-09
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              }
+            }
+          },
+          "backends": {
+            "grasp_planner": "graspgenx (learned 6-DoF)",
+            "occupancy": "nvblox on cuda:0 (0.5 cm voxels, ESDF)",
+            "occupancy_live": true
+          },
+          "occupancy_final": {
+            "stale": false,
+            "last_error": null,
+            "last_masked_pixels": 13717,
+            "has_distance_grid": true,
+            "replayed_frames_on_last_transition": 6
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+              "capability": [
+                12,
+                0
+              ],
+              "torch": "2.7.0+cu128",
+              "cuda": "12.8",
+              "architecture": "x86_64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.661
+          },
+          "round": 1,
+          "receipt_sha256": "34c03d91b6e59dcef91c1a356ce32e3f4c1f49b3910485261979c21ba764b5ce",
+          "physical_audit": {
+            "pass": false,
+            "checks": {
+              "complete_observation": true,
+              "all_phase_boundaries": true,
+              "live_prop_names_match_expected": true,
+              "spawn_prop_names_match_expected": true,
+              "spawn_positions_finite_and_unchanged": true,
+              "all_props_physically_reset_and_settled": false,
+              "scene_config_sha256_matches": true,
+              "prop_dimensions_match": true,
+              "cube_collider_geometry_matches": true,
+              "green_square_geometry_matches": true,
+              "scene_name_matches": true,
+              "scene_assets_sha256_matches": true,
+              "scene_content_sha256_matches": true,
+              "open_box_geometry_matches": true,
+              "convex_body_identity": true,
+              "authored_convex_vertices_match": true,
+              "convex_topology_matches": true,
+              "convex_body_and_collider_enabled": true,
+              "convex_body_and_child_transforms_match": true,
+              "convex_tensor_mass_and_com_match": true,
+              "convex_tensor_inertia_valid": true,
+              "physx_support_live_identity": true,
+              "physx_support_source_matches": true,
+              "physx_support_solid_subset": true,
+              "physx_support_geometry_unchanged": true,
+              "ordered_phases": true,
+              "strict_pick_place_and_cameras": false,
+              "whole_convex_collider_inside_green_square_and_supported": true,
+              "tomato_can_settles_upright": true,
+              "all_physics_tensors_cuda": true,
+              "single_supported_engine": true,
+              "gpu_backend_no_fallback": true,
+              "contact_sensor_and_actual_jaws_bound": true,
+              "two_jaw_contacts_during_real_lift": true,
+              "reset_settle_window": true,
+              "whole_footprint_enters_destination_with_bilateral_support": true,
+              "all_event_cameras_advance": false,
+              "requested_engine_matches_every_sample": true,
+              "pick_skill_completed": true,
+              "reset_skill_completed": false,
+              "harness_has_no_errors": true,
+              "nvblox_has_fresh_distance_grid": true,
+              "nvblox_has_no_mapping_error": true
+            },
+            "errors": [],
+            "pick": {
+              "pass": false,
+              "physics_pass": true,
+              "camera_pass": false,
+              "checks": {
+                "physics_channel": true,
+                "same_robot_and_engine": true,
+                "same_observed_prop_set": true,
+                "physics_clock_advances": true,
+                "finite_all_observed_state": true,
+                "actual_joints_within_limits": true,
+                "final_window_long_enough": true,
+                "valid_final_orientations": true,
+                "projected_support_geometry": true,
+                "gripper_readback_matches_actual_q": true,
+                "released_actual_jaws": true,
+                "destination_xy": true,
+                "supported_z": true,
+                "settled_linear_speed": true,
+                "settled_angular_speed": true,
+                "stable_final_position": true,
+                "observed_lift": true,
+                "observed_xy_displacement": true
+              },
+              "metrics": {
+                "samples": 284,
+                "final_samples": 31,
+                "simulation_elapsed_s": 4.7333333333333325,
+                "final_window_sim_s": 0.5,
+                "lift_m": 0.10040820762515067,
+                "xy_displacement_m": 0.4885903807863381,
+                "final_xy_error_m": 0.0087352473261017,
+                "max_final_xy_error_m": 0.008735267555116787,
+                "max_final_support_z_error_m": 4.312209683776658e-08,
+                "max_final_linear_speed_m_s": 9.731172194987644e-05,
+                "max_final_angular_speed_rad_s": 0.0012871465071437069,
+                "max_final_position_spread_m": 5.4241045484546706e-08,
+                "max_final_tilt_deg": 0.00011502837553119197,
+                "min_final_actual_open_fraction": 0.9999620020395219,
+                "max_frame_age_s": 3.1013322720027645,
+                "unique_jpeg_hashes": 143
+              },
+              "object": "tomato_can",
+              "target_xy": [
+                0.14,
+                -0.27
+              ],
+              "support_top_z": -3.3527612630646075e-10,
+              "object_half_height": 0.04125,
+              "scope": "physical destination and camera audit; chat transcript is separate evidence",
+              "support_geometry": {
+                "method": "physx_collision_representation",
+                "engine": "physx",
+                "stage_id": 9223002,
+                "collider_path": "/World_Props/tomato_can/Collision",
+                "result": "RESULT_VALID",
+                "convex_count": 1,
+                "frame": "body_local",
+                "units": "m",
+                "source_vertices_f32_sha256": "f2d7e766cb35a9225802a59f20986de76c5b28b1e6c8884932ee30a27b96f05c",
+                "source_topology_sha256": "f57ed3a867ffc146ba0ed7bbc4f285ce471cfe380d83e3bea2e32722dd3e0224",
+                "vertex_count": 48,
+                "vertices_f32_sha256": "2077f8b0aab6ecf11f574c4ab1a178b2f6308a3fc9f855ba2cef3abc4610be8f",
+                "authored_vertex_indices": [
+                  10,
+                  34,
+                  33,
+                  9,
+                  22,
+                  46,
+                  45,
+                  21,
+                  17,
+                  41,
+                  40,
+                  16,
+                  7,
+                  6,
+                  5,
+                  4,
+                  3,
+                  2,
+                  1,
+                  0,
+                  23,
+                  20,
+                  19,
+                  18,
+                  15,
+                  14,
+                  13,
+                  12,
+                  11,
+                  8,
+                  31,
+                  30,
+                  37,
+                  36,
+                  38,
+                  29,
+                  28,
+                  25,
+                  24,
+                  26,
+                  35,
+                  47,
+                  42,
+                  43,
+                  44,
+                  32,
+                  27,
+                  39
+                ],
+                "body_name": "tomato_can",
+                "scene_config_binding_verified": true,
+                "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+                "half_height_argument_used": false,
+                "upright_tilt_limit_applied": false,
+                "final_samples": [
+                  {
+                    "sample_index": 253,
+                    "sim_time": 13.283333333333333,
+                    "downward_extent_m": 0.04125001191727797,
+                    "expected_body_origin_z_m": 0.041250011582001846,
+                    "observed_body_origin_z_m": 0.04125001282594827,
+                    "lowest_vertex_world_z_m": 9.086702987270989e-10
+                  },
+                  {
+                    "sample_index": 254,
+                    "sim_time": 13.3,
+                    "downward_extent_m": 0.04125004129133701,
+                    "expected_body_origin_z_m": 0.041250040956060885,
+                    "observed_body_origin_z_m": 0.04125000910065797,
+                    "lowest_vertex_world_z_m": -3.219067903903472e-08
+                  },
+                  {
+                    "sample_index": 255,
+                    "sim_time": 13.316666666666666,
+                    "downward_extent_m": 0.041250042696388274,
+                    "expected_body_origin_z_m": 0.04125004236111215,
+                    "observed_body_origin_z_m": 0.04125001655123857,
+                    "lowest_vertex_world_z_m": -2.614514970494808e-08
+                  },
+                  {
+                    "sample_index": 256,
+                    "sim_time": 13.333333333333334,
+                    "downward_extent_m": 0.0412500417373279,
+                    "expected_body_origin_z_m": 0.041250041402051775,
+                    "observed_body_origin_z_m": 0.04125001655123857,
+                    "lowest_vertex_world_z_m": -2.5186089332163153e-08
+                  },
+                  {
+                    "sample_index": 257,
+                    "sim_time": 13.35,
+                    "downward_extent_m": 0.041250055726582184,
+                    "expected_body_origin_z_m": 0.04125005539130606,
+                    "observed_body_origin_z_m": 0.04125002027652887,
+                    "lowest_vertex_world_z_m": -3.545005331645479e-08
+                  },
+                  {
+                    "sample_index": 258,
+                    "sim_time": 13.366666666666667,
+                    "downward_extent_m": 0.04125001524213571,
+                    "expected_body_origin_z_m": 0.04125001490685958,
+                    "observed_body_origin_z_m": 0.04125000910065797,
+                    "lowest_vertex_world_z_m": -6.141477736087975e-09
+                  },
+                  {
+                    "sample_index": 259,
+                    "sim_time": 13.383333333333333,
+                    "downward_extent_m": 0.04125004284249582,
+                    "expected_body_origin_z_m": 0.04125004250721969,
+                    "observed_body_origin_z_m": 0.04125001655123857,
+                    "lowest_vertex_world_z_m": -2.6291257247679223e-08
+                  },
+                  {
+                    "sample_index": 260,
+                    "sim_time": 13.4,
+                    "downward_extent_m": 0.041250056009646534,
+                    "expected_body_origin_z_m": 0.04125005567437041,
+                    "observed_body_origin_z_m": 0.04125001655123857,
+                    "lowest_vertex_world_z_m": -3.9458407964654274e-08
+                  },
+                  {
+                    "sample_index": 261,
+                    "sim_time": 13.416666666666666,
+                    "downward_extent_m": 0.04125000614548955,
+                    "expected_body_origin_z_m": 0.04125000581021342,
+                    "observed_body_origin_z_m": 0.04125001282594827,
+                    "lowest_vertex_world_z_m": 6.680458720931259e-09
+                  },
+                  {
+                    "sample_index": 262,
+                    "sim_time": 13.433333333333334,
+                    "downward_extent_m": 0.04125000671793067,
+                    "expected_body_origin_z_m": 0.041250006382654546,
+                    "observed_body_origin_z_m": 0.04125001655123857,
+                    "lowest_vertex_world_z_m": 9.833307897111343e-09
+                  },
+                  {
+                    "sample_index": 263,
+                    "sim_time": 13.45,
+                    "downward_extent_m": 0.04125002393824633,
+                    "expected_body_origin_z_m": 0.041250023602970205,
+                    "observed_body_origin_z_m": 0.041250024001819166,
+                    "lowest_vertex_world_z_m": 6.357283449665019e-11
+                  },
+                  {
+                    "sample_index": 264,
+                    "sim_time": 13.466666666666667,
+                    "downward_extent_m": 0.04125000288632683,
+                    "expected_body_origin_z_m": 0.041250002551050706,
+                    "observed_body_origin_z_m": 0.041250005375367674,
+                    "lowest_vertex_world_z_m": 2.4890408414912635e-09
+                  },
+                  {
+                    "sample_index": 265,
+                    "sim_time": 13.483333333333333,
+                    "downward_extent_m": 0.04125004968178932,
+                    "expected_body_origin_z_m": 0.0412500493465132,
+                    "observed_body_origin_z_m": 0.04125001282594827,
+                    "lowest_vertex_world_z_m": -3.6855841052674254e-08
+                  },
+                  {
+                    "sample_index": 266,
+                    "sim_time": 13.5,
+                    "downward_extent_m": 0.041250017055335014,
+                    "expected_body_origin_z_m": 0.04125001672005889,
+                    "observed_body_origin_z_m": 0.041250005375367674,
+                    "lowest_vertex_world_z_m": -1.1679967340527675e-08
+                  },
+                  {
+                    "sample_index": 267,
+                    "sim_time": 13.516666666666667,
+                    "downward_extent_m": 0.04125000751205815,
+                    "expected_body_origin_z_m": 0.041250007176782025,
+                    "observed_body_origin_z_m": 0.04125002027652887,
+                    "lowest_vertex_world_z_m": 1.276447071651976e-08
+                  },
+                  {
+                    "sample_index": 268,
+                    "sim_time": 13.533333333333333,
+                    "downward_extent_m": 0.04125000405303993,
+                    "expected_body_origin_z_m": 0.04125000371776381,
+                    "observed_body_origin_z_m": 0.04125000910065797,
+                    "lowest_vertex_world_z_m": 5.047618038822588e-09
+                  },
+                  {
+                    "sample_index": 269,
+                    "sim_time": 13.55,
+                    "downward_extent_m": 0.041250020168285384,
+                    "expected_body_origin_z_m": 0.04125001983300926,
+                    "observed_body_origin_z_m": 0.04125001282594827,
+                    "lowest_vertex_world_z_m": -7.34233711330301e-09
+                  },
+                  {
+                    "sample_index": 270,
+                    "sim_time": 13.566666666666666,
+                    "downward_extent_m": 0.04125000921831339,
+                    "expected_body_origin_z_m": 0.041250008883037266,
+                    "observed_body_origin_z_m": 0.04125001655123857,
+                    "lowest_vertex_world_z_m": 7.332925176795069e-09
+                  },
+                  {
+                    "sample_index": 271,
+                    "sim_time": 13.583333333333334,
+                    "downward_extent_m": 0.0412500049444255,
+                    "expected_body_origin_z_m": 0.04125000460914938,
+                    "observed_body_origin_z_m": 0.041250005375367674,
+                    "lowest_vertex_world_z_m": 4.3094217083705644e-10
+                  },
+                  {
+                    "sample_index": 272,
+                    "sim_time": 13.6,
+                    "downward_extent_m": 0.04125003197183878,
+                    "expected_body_origin_z_m": 0.041250031636562656,
+                    "observed_body_origin_z_m": 0.04125001655123857,
+                    "lowest_vertex_world_z_m": -1.542060021342273e-08
+                  },
+                  {
+                    "sample_index": 273,
+                    "sim_time": 13.616666666666667,
+                    "downward_extent_m": 0.041250024762239414,
+                    "expected_body_origin_z_m": 0.04125002442696329,
+                    "observed_body_origin_z_m": 0.04125001655123857,
+                    "lowest_vertex_world_z_m": -8.211000844526861e-09
+                  },
+                  {
+                    "sample_index": 274,
+                    "sim_time": 13.633333333333333,
+                    "downward_extent_m": 0.04125001937246177,
+                    "expected_body_origin_z_m": 0.04125001903718564,
+                    "observed_body_origin_z_m": 0.041250005375367674,
+                    "lowest_vertex_world_z_m": -1.3997094094886364e-08
+                  },
+                  {
+                    "sample_index": 275,
+                    "sim_time": 13.65,
+                    "downward_extent_m": 0.04125004883274064,
+                    "expected_body_origin_z_m": 0.04125004849746451,
+                    "observed_body_origin_z_m": 0.041250005375367674,
+                    "lowest_vertex_world_z_m": -4.345737296407304e-08
+                  },
+                  {
+                    "sample_index": 276,
+                    "sim_time": 13.666666666666666,
+                    "downward_extent_m": 0.041250004168575716,
+                    "expected_body_origin_z_m": 0.04125000383329959,
+                    "observed_body_origin_z_m": 0.04125002027652887,
+                    "lowest_vertex_world_z_m": 1.6107953151878185e-08
+                  },
+                  {
+                    "sample_index": 277,
+                    "sim_time": 13.683333333333334,
+                    "downward_extent_m": 0.04125001003157999,
+                    "expected_body_origin_z_m": 0.041250009696303866,
+                    "observed_body_origin_z_m": 0.041250005375367674,
+                    "lowest_vertex_world_z_m": -4.656212318487896e-09
+                  },
+                  {
+                    "sample_index": 278,
+                    "sim_time": 13.7,
+                    "downward_extent_m": 0.04125002927757807,
+                    "expected_body_origin_z_m": 0.041250028942301946,
+                    "observed_body_origin_z_m": 0.04125000910065797,
+                    "lowest_vertex_world_z_m": -2.0176920099979068e-08
+                  },
+                  {
+                    "sample_index": 279,
+                    "sim_time": 13.716666666666667,
+                    "downward_extent_m": 0.041250021816662194,
+                    "expected_body_origin_z_m": 0.04125002148138607,
+                    "observed_body_origin_z_m": 0.04125000910065797,
+                    "lowest_vertex_world_z_m": -1.2716004221813293e-08
+                  },
+                  {
+                    "sample_index": 280,
+                    "sim_time": 13.733333333333333,
+                    "downward_extent_m": 0.04125001130940054,
+                    "expected_body_origin_z_m": 0.04125001097412442,
+                    "observed_body_origin_z_m": 0.04125000910065797,
+                    "lowest_vertex_world_z_m": -2.208742570786182e-09
+                  },
+                  {
+                    "sample_index": 281,
+                    "sim_time": 13.75,
+                    "downward_extent_m": 0.041250035955687624,
+                    "expected_body_origin_z_m": 0.0412500356204115,
+                    "observed_body_origin_z_m": 0.04125001655123857,
+                    "lowest_vertex_world_z_m": -1.9404449054516437e-08
+                  },
+                  {
+                    "sample_index": 282,
+                    "sim_time": 13.766666666666667,
+                    "downward_extent_m": 0.04125002023363935,
+                    "expected_body_origin_z_m": 0.04125001989836322,
+                    "observed_body_origin_z_m": 0.04125001282594827,
+                    "lowest_vertex_world_z_m": -7.4076910785980665e-09
+                  },
+                  {
+                    "sample_index": 283,
+                    "sim_time": 13.783333333333333,
+                    "downward_extent_m": 0.041250021225990696,
+                    "expected_body_origin_z_m": 0.04125002089071457,
+                    "observed_body_origin_z_m": 0.041250005375367674,
+                    "lowest_vertex_world_z_m": -1.5850623022450883e-08
+                  }
+                ]
+              },
+              "criteria": {
+                "xy_tolerance_m": 0.04,
+                "z_tolerance_m": 0.005,
+                "settle_sim_s": 0.5,
+                "min_final_samples": 4,
+                "max_linear_speed_m_s": 0.02,
+                "max_angular_speed_rad_s": 0.2,
+                "max_position_spread_m": 0.005,
+                "min_open_fraction": 0.9,
+                "max_tilt_deg": 5,
+                "min_lift_m": 0.015,
+                "min_xy_displacement_m": 0.02,
+                "max_frame_age_s": 2
+              },
+              "limitations": [
+                "Support uses the live PhysX collision representation in body-local coordinates. The complete authored hull separately bounds the horizontal footprint.",
+                "Actual open jaws and settled support pose establish release here; no contact-force sensor is claimed."
+              ],
+              "camera_checks": {
+                "frames_available": true,
+                "frame_clock_advances": true,
+                "frames_recent": false,
+                "frame_robot_binding": true,
+                "visual_changes_during_motion": true
+              },
+              "failed_checks": [
+                "frames_recent"
+              ],
+              "destination_name": "green square"
+            },
+            "supported_destination_entry": {
+              "pass": true,
+              "check": "whole_footprint_enters_destination_while_lifted_with_bilateral_support",
+              "object_name": "tomato_can",
+              "destination_name": "green square",
+              "samples": 284,
+              "criteria": {
+                "jaw_force_exclusive_min_n": 0.01,
+                "min_lift_m": 0.015,
+                "min_distinct_supported_inside_steps": 2,
+                "boundary_tolerance_m": 0.0
+              },
+              "inner_bounds_xy_m": [
+                [
+                  0.07000000029802322,
+                  -0.3400000035762787
+                ],
+                [
+                  0.20999999344348907,
+                  -0.20000000298023224
+                ]
+              ],
+              "collider_vertices": 48,
+              "supported_lift_samples": 89,
+              "supported_inside_distinct_steps": 28,
+              "best_supported_inner_clearance_m": 0.03313710013166926,
+              "inside_lifted_without_bilateral_support_samples": 4,
+              "scope": "Positive sampled grip at full destination entry; no continuous retention or commanded-release timing assertion"
+            },
+            "event_cameras": {
+              "pass": false,
+              "cameras": {},
+              "error": "cam0: missing, stale or unbound camera frame"
+            }
+          },
+          "witness_sha256": {
+            "metadata.json": "d709f68016f65da85d980dc8f9724481346a498306b097b0a954f0644b25df21",
+            "gpu-physical-audit.json": "1213e7820d9316f76f61e5443a9352334b9dfe185f50317d6620f62549a8344c",
+            "samples.jsonl": "9d966b34e1e504db6702c5e694bee2ca563fda6d56587bc5487a6aacccb223fc",
+            "wire.jsonl": "1fdd2f27e536a75762b02bd73a26f654dffe8d9d934a831f193483b33db7934f"
+          }
+        }
+      ]
+    },
+    {
+      "trial": "physical-13",
+      "campaign_sha256": "5f1b171edea5f1176afb6ceb75284d2a8a6dad979d6dcc888e2cee257a6f00a0",
+      "pass": false,
+      "source_sha256": {
+        "benchmark/diagnostics/kitchen_acceptance.py": "a8d1191f1e052f4e2c2a7bd6cf7d9f9327e893c29f5709fd20cd6fccee2f8d81",
+        "scripts/isaac_bridge.py": "48ded6d28a040b9a715d78ffbea3c1f40868f9c15e12c3e07d0fdb7f648bdf33",
+        "scripts/isaac_materials.py": "54fafa297d2e150df5f4a066d76e27e63055acf0a6bfcdb502dc02b3373350fd",
+        "scripts/isaac_runtime.py": "2644d2339d4c5402f04085ddbef863e5ca983a27777d59d656f65c7fd60785ca",
+        "scripts/isaac_self_mask.py": "2b9bfd22b398c8fdece59ae04df9f6b1908dd3a234e32f4fb54179eba3ae79f0",
+        "src/cascade/sim/bridge_client.py": "29ff72d341a47952b21c0f90118a7b8ba2cb5d8ce1ae68baf124070787d1c80b",
+        "src/cascade/safety/harness.py": "46a84713c8c4aaf11423185e0242e2b257eda8d25307cbf7eb6cb0b6cb779408",
+        "src/cascade/types.py": "cbd65a50d2e7eb89fc1a908c5d3ede0e587f1b344b4da0d76bcf33d81f6e8b60",
+        "src/cascade/skills/runtime.py": "e00ca46b86b47da88e858199cb4ff23ad17843dbcd8af3e460eb04a4b523520f",
+        "src/cascade/grasping/obb_grasp.py": "5c38fb8c54ce30deebe29cddc6ac3daa562e5b2903287a60d315f1250b01a9cb",
+        "src/cascade/grasping/graspgenx_backend.py": "f9575978c84ff6478b07cb981291719413c8a025780afb1ff0f337b2b25776fc",
+        "src/cascade/config.py": "984cf4e2aa276ce54f8b24e78a5fd863699a5109e8c522dc00d072bb6c6d82d7",
+        "src/cascade/apps/demo.py": "e6569d5e77dbcf042d6c45fbf0ed48a422525771aa3b9602f3593cd36bd5d100",
+        "src/cascade/perception/grounding.py": "e93ce3d7388d35a53ff4c0b61af541f0c065e4a65d3b8cd7c0573b50963a4458",
+        "src/cascade/perception/cuda_math.py": "d148ef4481868d3247b37710548dc87fdb7a5d08700fb6135b41fb6fd3900e33",
+        "src/cascade/perception/occupancy.py": "55a1e0f631a8077e0c4ed3c0b56e0e2c8b28e430d961b23c27ed648da0c80d61",
+        "src/cascade/perception/occupancy_backends.py": "443f0252b8b4f988a89dcd9bde619bf2badbe6945f567772f47d1258baa4e5d4",
+        "src/cascade/perception/world.py": "7ac251c02dcd81bb62c1ef28ce1c37b8facf544d53737670af3f2075b85fbc07",
+        "src/cascade/agent/effects.py": "b452f1a30552a9969d472314d4ec8c22b4f9f46a4c954780fbbca5589f915fcf",
+        "src/cascade/sim/truth.py": "172aa74560a7b55059edfe65738b1ea9f683f2ce760e7ebc825717788ef195cd",
+        "demo/kitchen/physics/gpu_proof_audit.py": "f85392450376bf6a320138198612530d26f08ab4a95962a20047f3f3ceb26fb2",
+        "demo/kitchen/physics/convex_geometry.py": "f1e3c87aed4b2343f2818564048ee42e002c588b97f87007f55c83a158d0de65",
+        "demo/kitchen/physics/destination_entry.py": "263a9fb383af509f435118deed536d19afca9d43701487edf7999dad92f1b441",
+        "demo/kitchen/physics/spark_proof.py": "675434aab150a74fefe1ab637a6d1d740c24e7f11c319f5bd50cd4a1426c78d4",
+        "assets/newton/rebot_gripper_hulls.usda": "46fd39d7f4ad948a9a7e6d67f2f7fde5a92333972e1f4ff2014dcba1449462de",
+        "configs/arms/isaac_kitchen.yaml": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+        "configs/arms/isaac_kitchen_gpu.yaml": "3274e46b33305a6b0fb90a0a2417a754c9935e4a3662d7e06c0dacbef193b62c"
+      },
+      "requested_objects": [
+        "orange",
+        "green_cube",
+        "pink_cube",
+        "lemon"
+      ],
+      "render_resolution_px": [
+        960,
+        540
+      ],
+      "cases": [
+        {
+          "object": "orange",
+          "destination": "open box",
+          "pass": false,
+          "errors": [],
+          "failed_checks": [
+            "all_props_physically_reset_and_settled",
+            "strict_pick_place_and_cameras",
+            "whole_convex_collider_inside_open_box_and_supported",
+            "two_jaw_contacts_during_real_lift",
+            "whole_footprint_enters_destination_with_bilateral_support",
+            "pick_skill_completed",
+            "reset_skill_completed"
+          ],
+          "diagnostic_profile": {
+            "llm": "mock",
+            "occupancy": "nvblox",
+            "belief_persistence": false,
+            "fresh_grasp_memory": true,
+            "held_xy_slip_feedback": "production truth lookup with perception fallback",
+            "release_height_feedback": "FK and configured support plane",
+            "cuda_perception_required": true,
+            "acceptance": "independent passive physics proof; skill ok alone is insufficient"
+          },
+          "placement_configuration": {
+            "pregrasp_offset_m": 0.1,
+            "release_height_m": 0.08,
+            "release_clearance_m": 0.115,
+            "place_support_clearance_m": 0.04,
+            "source_support_top_z_m": 0.0,
+            "carry_height_m": 0.14,
+            "pre_carry_lift": true,
+            "open_box": {
+              "center_xy_m": [
+                0.3,
+                -0.14
+              ],
+              "support_top_z_m": 0.004,
+              "release_height_m": 0.104
+            },
+            "release_open_timeout_s": 8.0,
+            "close_feedback_timeout_s": 8.0
+          },
+          "release_gap_scope": "place_support_clearance_m is requested controller configuration, not measured release height. The held support offset and TCP ceiling can limit the effective gap; placed_at records the commanded TCP pose, and the independent physical audit judges release and settling.",
+          "occupancy_camera_count": 3,
+          "occupancy_probe": {
+            "ok": true,
+            "backend": "nvblox",
+            "describe": "nvblox (nvblox_torch TSDF+ESDF on NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 0.5 cm)",
+            "voxel": 0.005,
+            "device": "cuda:0",
+            "esdf": true,
+            "carving": true,
+            "masked_depth": true
+          },
+          "pick_result": {
+            "ok": false,
+            "stage": "grasp",
+            "error": "grasp failed after 2 attempts (26.8s): SafetyViolation: point 0 clearance 0.019 m below 0.030 m (occupancy map) at [0.2086, 0.1256, 0.0573]",
+            "suggestion": "check world_state / camera_snapshot; the object may be unreachable or mis-detected",
+            "postcondition": {
+              "skill": "pick_and_place",
+              "kind": "relocated",
+              "status": "refuted",
+              "evidence": "orange is still within 0.0 cm of where it started",
+              "channel": "physics",
+              "measured": {
+                "moved_m": 0.0,
+                "final": [
+                  0.18,
+                  0.12,
+                  0.0264
+                ]
+              }
+            },
+            "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+          },
+          "pick_payload_query": null,
+          "pick_wall_seconds": 36.272966279000684,
+          "reset_result": {
+            "props_reset": [],
+            "world": null,
+            "observation_refreshed": false,
+            "objects_visible": [],
+            "ok": false,
+            "stage": "home",
+            "home_error": "point 0 clearance 0.019 m below 0.030 m (occupancy map) at [0.2087, 0.1255, 0.0573]",
+            "beliefs_forgotten": 0,
+            "error": "Scene reset could not reach home: point 0 clearance 0.019 m below 0.030 m (occupancy map) at [0.2087, 0.1255, 0.0573]"
+          },
+          "reset_payload_query": null,
+          "reset_wall_seconds": 8.668883065001864,
+          "phase_final_states": {
+            "pick": {
+              "pink_cube": {
+                "position_m": [
+                  0.2706508934497833,
+                  0.1184212788939476,
+                  0.033761981885654005
+                ],
+                "orientation_wxyz": [
+                  0.9910817742347717,
+                  -0.13263727724552155,
+                  0.004072904121130705,
+                  -0.01214679703116417
+                ],
+                "linear_velocity_m_s": [
+                  -0.08794217556715012,
+                  0.05890049412846565,
+                  -0.10758595168590546
+                ],
+                "angular_velocity_rad_s": [
+                  -4.513579368591309,
+                  4.972754001617432,
+                  1.0586603879928589
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "green_cube": {
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000010021030903,
+                  0.02999999934039739
+                ],
+                "orientation_wxyz": [
+                  0.9999999403953552,
+                  -5.791338821836689e-07,
+                  -6.564904992956144e-07,
+                  1.4164103845359932e-07
+                ],
+                "linear_velocity_m_s": [
+                  -8.012330908968579e-06,
+                  1.0931857104878873e-05,
+                  -6.622401997447014e-06
+                ],
+                "angular_velocity_rad_s": [
+                  -0.0003418078413233161,
+                  0.0002858123043552041,
+                  2.7814789973490406e-06
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "tomato_can": {
+                "position_m": [
+                  0.22499996423721313,
+                  0.21500003337860107,
+                  0.04124999792478708
+                ],
+                "orientation_wxyz": [
+                  0.9999999403953552,
+                  2.9812338198098587e-07,
+                  1.356449246259217e-07,
+                  -5.182923246138671e-08
+                ],
+                "linear_velocity_m_s": [
+                  -3.258955621276982e-05,
+                  6.2086378420644905e-06,
+                  -1.9660948964883573e-05
+                ],
+                "angular_velocity_rad_s": [
+                  -0.00044736042036674917,
+                  -0.000701705168467015,
+                  -4.298983185435645e-05
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "lemon": {
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  2.641669105685196e-10
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "orange": {
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  1.2222169942788241e-09
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              }
+            },
+            "reset": {
+              "pink_cube": {
+                "position_m": [
+                  0.2706509232521057,
+                  0.11842085421085358,
+                  0.03376185150049356
+                ],
+                "orientation_wxyz": [
+                  0.9910826683044434,
+                  -0.13263039290905,
+                  0.004073064308613539,
+                  -0.01214643381536007
+                ],
+                "linear_velocity_m_s": [
+                  -0.08792345970869064,
+                  0.05889139696955681,
+                  -0.10758857429027557
+                ],
+                "angular_velocity_rad_s": [
+                  -4.513628005981445,
+                  4.973318576812744,
+                  1.058425784111023
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "green_cube": {
+                "position_m": [
+                  0.24000000953674316,
+                  0.010000009089708328,
+                  0.02999999934039739
+                ],
+                "orientation_wxyz": [
+                  0.9999999403953552,
+                  -5.811280061607249e-07,
+                  -6.505824217128975e-07,
+                  1.1685082057510954e-07
+                ],
+                "linear_velocity_m_s": [
+                  -8.07979449746199e-06,
+                  1.0873101928154938e-05,
+                  -6.641726940870285e-06
+                ],
+                "angular_velocity_rad_s": [
+                  -0.00034160164068453014,
+                  0.00028580884099937975,
+                  2.7846724606206408e-06
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "tomato_can": {
+                "position_m": [
+                  0.22500000894069672,
+                  0.2150000035762787,
+                  0.04124999792478708
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  -4.699213889125531e-07,
+                  7.995789275128118e-08,
+                  1.7141979924417683e-07
+                ],
+                "linear_velocity_m_s": [
+                  -7.934025234135333e-06,
+                  -1.207048057949578e-06,
+                  -7.1845256570668425e-06
+                ],
+                "angular_velocity_rad_s": [
+                  -0.00023175752721726894,
+                  0.00014737615128979087,
+                  -2.5571513106115162e-05
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "lemon": {
+                "position_m": [
+                  0.3199999928474426,
+                  0.004999999888241291,
+                  0.021600000571233305
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  2.641669105685196e-10
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              },
+              "orange": {
+                "position_m": [
+                  0.18000000715255737,
+                  0.11999999731779099,
+                  0.02638023161492971
+                ],
+                "orientation_wxyz": [
+                  1.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "linear_velocity_m_s": [
+                  0.0,
+                  0.0,
+                  1.2222169942788241e-09
+                ],
+                "angular_velocity_rad_s": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "tensor_device": "cuda:0"
+              }
+            }
+          },
+          "backends": {
+            "grasp_planner": "graspgenx (learned 6-DoF)",
+            "occupancy": "nvblox on cuda:0 (0.5 cm voxels, ESDF)",
+            "occupancy_live": true
+          },
+          "occupancy_final": {
+            "stale": false,
+            "last_error": null,
+            "last_masked_pixels": 9029,
+            "has_distance_grid": true,
+            "replayed_frames_on_last_transition": 0
+          },
+          "graspgenx": {
+            "required": true,
+            "status": {
+              "status": "ok",
+              "learned": true,
+              "device": "cuda:0",
+              "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+              "capability": [
+                12,
+                0
+              ],
+              "torch": "2.7.0+cu128",
+              "cuda": "12.8",
+              "architecture": "x86_64"
+            },
+            "branch_counts": {
+              "diff": 400
+            },
+            "last_latency_s": 0.578
+          },
+          "round": 1,
+          "receipt_sha256": "ee89fb95734d46ebb8622df618a0ed9ce47f6321328aa111193879fcba940538",
+          "physical_audit": {
+            "pass": false,
+            "checks": {
+              "complete_observation": true,
+              "all_phase_boundaries": true,
+              "live_prop_names_match_expected": true,
+              "spawn_prop_names_match_expected": true,
+              "spawn_positions_finite_and_unchanged": true,
+              "all_props_physically_reset_and_settled": false,
+              "scene_config_sha256_matches": true,
+              "prop_dimensions_match": true,
+              "cube_collider_geometry_matches": true,
+              "green_square_geometry_matches": true,
+              "scene_name_matches": true,
+              "scene_assets_sha256_matches": true,
+              "scene_content_sha256_matches": true,
+              "open_box_geometry_matches": true,
+              "convex_body_identity": true,
+              "authored_convex_vertices_match": true,
+              "convex_topology_matches": true,
+              "convex_body_and_collider_enabled": true,
+              "convex_body_and_child_transforms_match": true,
+              "convex_tensor_mass_and_com_match": true,
+              "convex_tensor_inertia_valid": true,
+              "physx_support_live_identity": true,
+              "physx_support_source_matches": true,
+              "physx_support_solid_subset": true,
+              "physx_support_geometry_unchanged": true,
+              "ordered_phases": true,
+              "strict_pick_place_and_cameras": false,
+              "whole_convex_collider_inside_open_box_and_supported": false,
+              "all_physics_tensors_cuda": true,
+              "single_supported_engine": true,
+              "gpu_backend_no_fallback": true,
+              "contact_sensor_and_actual_jaws_bound": true,
+              "two_jaw_contacts_during_real_lift": false,
+              "reset_settle_window": true,
+              "whole_footprint_enters_destination_with_bilateral_support": false,
+              "all_event_cameras_advance": true,
+              "requested_engine_matches_every_sample": true,
+              "pick_skill_completed": false,
+              "reset_skill_completed": false,
+              "harness_has_no_errors": true,
+              "nvblox_has_fresh_distance_grid": true,
+              "nvblox_has_no_mapping_error": true
+            },
+            "errors": [],
+            "pick": {
+              "pass": false,
+              "physics_pass": false,
+              "camera_pass": true,
+              "checks": {
+                "physics_channel": true,
+                "same_robot_and_engine": true,
+                "same_observed_prop_set": true,
+                "physics_clock_advances": true,
+                "finite_all_observed_state": true,
+                "actual_joints_within_limits": true,
+                "final_window_long_enough": true,
+                "valid_final_orientations": true,
+                "projected_support_geometry": true,
+                "gripper_readback_matches_actual_q": true,
+                "released_actual_jaws": false,
+                "destination_xy": false,
+                "supported_z": true,
+                "settled_linear_speed": true,
+                "settled_angular_speed": true,
+                "stable_final_position": true,
+                "observed_lift": false,
+                "observed_xy_displacement": false
+              },
+              "metrics": {
+                "samples": 177,
+                "final_samples": 31,
+                "simulation_elapsed_s": 2.966666666666667,
+                "final_window_sim_s": 0.5,
+                "lift_m": 0.0,
+                "xy_displacement_m": 0.0,
+                "final_xy_error_m": 0.28635641583285265,
+                "max_final_xy_error_m": 0.28635641583285265,
+                "max_final_support_z_error_m": 0.003999999989050356,
+                "max_final_linear_speed_m_s": 1.2222169942788241e-09,
+                "max_final_angular_speed_rad_s": 0.0,
+                "max_final_position_spread_m": 0.0,
+                "max_final_tilt_deg": 0.0,
+                "min_final_actual_open_fraction": 0.7816136511919849,
+                "max_frame_age_s": 0.5366443830062053,
+                "unique_jpeg_hashes": 89
+              },
+              "object": "orange",
+              "target_xy": [
+                0.3,
+                -0.14
+              ],
+              "support_top_z": 0.004,
+              "object_half_height": 0.026380231603980064,
+              "scope": "physical destination and camera audit; chat transcript is separate evidence",
+              "support_geometry": {
+                "method": "physx_collision_representation",
+                "engine": "physx",
+                "stage_id": 9223002,
+                "collider_path": "/World_Props/orange/Collision",
+                "result": "RESULT_VALID",
+                "convex_count": 1,
+                "frame": "body_local",
+                "units": "m",
+                "source_vertices_f32_sha256": "90697e3136712edd92ca521c6210a37ae7a531ecf48d1eb6d2389eb87ac0550e",
+                "source_topology_sha256": "ed91dddccc1e377b10c7e06e4b46eca7e4385674485a027e46c8d76a0708d8f4",
+                "vertex_count": 34,
+                "vertices_f32_sha256": "079db56bf35af24d8f5cfbc19296f048d5eecd3245b9daaeddea96ccad20b38d",
+                "authored_vertex_indices": [
+                  49,
+                  76,
+                  121,
+                  94,
+                  193,
+                  190,
+                  172,
+                  205,
+                  178,
+                  133,
+                  184,
+                  61,
+                  88,
+                  82,
+                  125,
+                  127,
+                  199,
+                  55,
+                  141,
+                  211,
+                  139,
+                  67,
+                  137,
+                  129,
+                  40,
+                  226,
+                  28,
+                  232,
+                  265,
+                  220,
+                  34,
+                  0,
+                  46,
+                  238
+                ],
+                "body_name": "orange",
+                "scene_config_binding_verified": true,
+                "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+                "half_height_argument_used": false,
+                "upright_tilt_limit_applied": false,
+                "final_samples": [
+                  {
+                    "sample_index": 146,
+                    "sim_time": 11.083333333333334,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 147,
+                    "sim_time": 11.1,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 148,
+                    "sim_time": 11.116666666666667,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 149,
+                    "sim_time": 11.133333333333333,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 150,
+                    "sim_time": 11.15,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 151,
+                    "sim_time": 11.166666666666666,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 152,
+                    "sim_time": 11.183333333333334,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 153,
+                    "sim_time": 11.2,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 154,
+                    "sim_time": 11.216666666666667,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 155,
+                    "sim_time": 11.233333333333333,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 156,
+                    "sim_time": 11.25,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 157,
+                    "sim_time": 11.266666666666667,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 158,
+                    "sim_time": 11.283333333333333,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 159,
+                    "sim_time": 11.3,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 160,
+                    "sim_time": 11.316666666666666,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 161,
+                    "sim_time": 11.333333333333334,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 162,
+                    "sim_time": 11.35,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 163,
+                    "sim_time": 11.366666666666667,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 164,
+                    "sim_time": 11.383333333333333,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 165,
+                    "sim_time": 11.4,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 166,
+                    "sim_time": 11.416666666666666,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 167,
+                    "sim_time": 11.433333333333334,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 168,
+                    "sim_time": 11.45,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 169,
+                    "sim_time": 11.466666666666667,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 170,
+                    "sim_time": 11.483333333333333,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 171,
+                    "sim_time": 11.5,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 172,
+                    "sim_time": 11.516666666666667,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 173,
+                    "sim_time": 11.533333333333333,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 174,
+                    "sim_time": 11.55,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 175,
+                    "sim_time": 11.566666666666666,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  },
+                  {
+                    "sample_index": 176,
+                    "sim_time": 11.583333333333334,
+                    "downward_extent_m": 0.026380231603980064,
+                    "expected_body_origin_z_m": 0.030380231603980064,
+                    "observed_body_origin_z_m": 0.02638023161492971,
+                    "lowest_vertex_world_z_m": 1.0949643969304645e-11
+                  }
+                ]
+              },
+              "criteria": {
+                "xy_tolerance_m": 0.04,
+                "z_tolerance_m": 0.005,
+                "settle_sim_s": 0.5,
+                "min_final_samples": 4,
+                "max_linear_speed_m_s": 0.02,
+                "max_angular_speed_rad_s": 0.2,
+                "max_position_spread_m": 0.005,
+                "min_open_fraction": 0.9,
+                "max_tilt_deg": 5,
+                "min_lift_m": 0.015,
+                "min_xy_displacement_m": 0.02,
+                "max_frame_age_s": 2
+              },
+              "limitations": [
+                "Support uses the live PhysX collision representation in body-local coordinates. The complete authored hull separately bounds the horizontal footprint.",
+                "Actual open jaws and settled support pose establish release here; no contact-force sensor is claimed."
+              ],
+              "camera_checks": {
+                "frames_available": true,
+                "frame_clock_advances": true,
+                "frames_recent": true,
+                "frame_robot_binding": true,
+                "visual_changes_during_motion": true
+              },
+              "failed_checks": [
+                "released_actual_jaws",
+                "destination_xy",
+                "observed_lift",
+                "observed_xy_displacement"
+              ],
+              "destination_name": "open box"
+            },
+            "supported_destination_entry": {
+              "pass": false,
+              "check": "whole_footprint_enters_destination_while_lifted_with_bilateral_support",
+              "object_name": "orange",
+              "destination_name": "open box",
+              "samples": 177,
+              "criteria": {
+                "jaw_force_exclusive_min_n": 0.01,
+                "min_lift_m": 0.015,
+                "min_distinct_supported_inside_steps": 2,
+                "boundary_tolerance_m": 0.0
+              },
+              "inner_bounds_xy_m": [
+                [
+                  0.236,
+                  -0.204
+                ],
+                [
+                  0.364,
+                  -0.076
+                ]
+              ],
+              "collider_vertices": 266,
+              "supported_lift_samples": 0,
+              "supported_inside_distinct_steps": 0,
+              "best_supported_inner_clearance_m": null,
+              "inside_lifted_without_bilateral_support_samples": 0,
+              "scope": "Positive sampled grip at full destination entry; no continuous retention or commanded-release timing assertion"
+            },
+            "event_cameras": {
+              "pass": true,
+              "cameras": {
+                "cam0": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 131
+                },
+                "side": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 131
+                },
+                "proof": {
+                  "pass": true,
+                  "phase_advancement": {
+                    "pick": true,
+                    "reset": true
+                  },
+                  "unique_jpeg_hashes": 131
+                }
+              }
+            }
+          },
+          "witness_sha256": {
+            "metadata.json": "d1b275e43df4d8d16fcac79c7604e7bd61ac0bb4451537edd46c1e7a6e84b359",
+            "gpu-physical-audit.json": "649d3b3e2e80a7f026376d147fe0752ea2bc375fc021b6d1c32e14513eb3d3cc",
+            "samples.jsonl": "aed823bfd22d24280a34c341132a2a8f9d9d6a62521ac3c19814ce4af731ac91",
+            "wire.jsonl": "164e7c5cfb988926aa55d8011659087cd4959b7dc6e784d413eb93735db7b4f5"
+          }
+        }
+      ]
+    }
+  ],
+  "replay_evidence": {
+    "path": "benchmark/results/nvblox-rtx-payload-surface-replay-20261001.json",
+    "sha256": "e9eb2a814f4f376d841655c6f347671d969728aecaad3505c6b5832d9f070a9d"
+  }
+}

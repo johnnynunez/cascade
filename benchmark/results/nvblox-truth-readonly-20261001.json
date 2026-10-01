@@ -1,0 +1,187 @@
+{
+  "schema": 1,
+  "scope": "Read-only constructor candidate, offline tests and one instrumented live truth-read control in an already initialized scene. No cold-start, historical-cause or five-object acceptance claim.",
+  "candidate_head": "fe2007cbbf1812803f41a5930690822cb9bcd493",
+  "baseline_and_live_head": "7bdaf5aacc581652cbb1c7704702170fe09d6bdc",
+  "production_change": {
+    "file": "src/cascade/sim/truth.py",
+    "sha256": "bb955991c3f588c06a064017d00bec4c0088e539465934d13eb3df6fba6b7c78",
+    "constructor_kwargs": {
+      "reset_xform_properties": false,
+      "prepare_contact_sensors": false
+    },
+    "existing_pose_api_cache_and_error_handling_preserved": true,
+    "production_handle_validity_gate_added": false,
+    "sdk_usd_fallback_removed": false
+  },
+  "focused_tests": {
+    "reported_passed": 197,
+    "reported_duration_s": 18.27,
+    "log_path": "/tmp/truth-readonly-focused-20261001.log",
+    "log_sha256": "6d4c48aa4adff63154b39082bf56fa4e8c82ee48541ecd9f56503ee4e3784b4d",
+    "exact_argv_retained": false,
+    "limitation": "Log and candidate source are retained; the full command/ordering for this selection was not retained. No reconstructed argv is asserted.",
+    "earlier_missing_ignored_assets_attempt": {
+      "receipt_path": "/tmp/truth-focal-setup-failure.json",
+      "receipt_sha256": "0a660ce610acdcf7b5f22c536f8f1912ba444e09c8164be96b89de2920522d9c",
+      "details": {
+        "scope": "Initial focused run in new checkout before installing ignored kitchen release",
+        "failed": 65,
+        "passed": 132,
+        "duration_s": 16.11,
+        "cause": "Missing eight pinned Cocina Asier bundle files. No product assertion failure observed among these failures.",
+        "fix": "Copy verified existing pinned assets, re-verify manifest and rerun same focused selection."
+      }
+    }
+  },
+  "independent_tests": {
+    "passed": 84,
+    "duration_s": 0.2,
+    "receipt_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/truth-readonly-independent-review-20261001/receipt.json",
+    "receipt_sha256": "0bd9f95f86abc25f6406560a4f8a76a6f01861b503c768352084cfb7e43b06a0",
+    "log_sha256": "facda4154877fd040f7a38ca35b78dd5b9148045ee97126d5468b2e4b9e71e47",
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_truth_probe_readonly.py",
+      "tests/test_truth_channel.py",
+      "tests/test_truth_lost_refutes.py",
+      "tests/test_truth_isaac_initial.py",
+      "tests/test_truth_label_aliases.py"
+    ],
+    "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-truth-readonly",
+    "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-truth-readonly/src",
+    "source_sha256": {
+      "src/cascade/sim/truth.py": "bb955991c3f588c06a064017d00bec4c0088e539465934d13eb3df6fba6b7c78",
+      "tests/test_truth_probe_readonly.py": "623f0264157152297bfd02a8b74c5ed689fae0cf0c8afc9f8d35f4e3ae1e2622",
+      "tests/test_truth_channel.py": "d63f6ba3a0c5f340c197c07e4cb72f728fda21cead32848628e3e2dd20e9a5db",
+      "tests/test_truth_lost_refutes.py": "12868cf2cf503c83e2754034fcffdedac07624d2ae9825aa7a08d7a17cc74f88",
+      "tests/test_truth_isaac_initial.py": "4cbbd2360eb15a3687ecc9767dd1c9deb7826620fb098593a781169d0beb35a5",
+      "tests/test_truth_label_aliases.py": "0290ebb6f0882e7ddf2599113e526968f90f7c0facb9cd4ba14be039ddaa2216"
+    },
+    "source_unchanged": true,
+    "tracked_clean": true,
+    "head_unchanged": true,
+    "scope": "Offline/synthetic tests, not native physical acceptance."
+  },
+  "negative_baseline": {
+    "baseline_head": "7bdaf5aacc581652cbb1c7704702170fe09d6bdc",
+    "expected_failed": 2,
+    "duration_s": 0.05,
+    "log_path": "/tmp/truth-readonly-baseline-negative-no-conftest-20261001.log",
+    "log_sha256": "4fc56850bcde57307d41fcb7f993fd5bb3900cd02a94340c00a671044e9b7eb3",
+    "test_copy_path": "/tmp/test_truth_probe_baseline_20261001.py",
+    "test_copy_sha256": "623f0264157152297bfd02a8b74c5ed689fae0cf0c8afc9f8d35f4e3ae1e2622",
+    "known_invocation_parts": {
+      "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-mapper-reset/src",
+      "pytest_options": [
+        "-q",
+        "--confcutdir=/tmp"
+      ],
+      "test_file": "/tmp/test_truth_probe_baseline_20261001.py"
+    },
+    "exact_argv_and_cwd_retained": false,
+    "assertion": "Both tests rejected constructor authoring under the baseline defaults.",
+    "invalid_prior_candidate_import": {
+      "passed": 2,
+      "duration_s": 0.03,
+      "log_path": "/tmp/truth-readonly-baseline-negative-20261001.log",
+      "log_sha256": "149e983c325e1215d8fe411fd58fb9c0fa38bc5dfa119c4a6a92d44ee61e3e10",
+      "counts_as_negative_control": false,
+      "cause": "Repository conftest selected the candidate source rather than the intended baseline."
+    }
+  },
+  "live_control": {
+    "pass": true,
+    "receipt_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-mapper-reset/runs/nvblox-rtx/isolated-clock-06/truth-readonly-control-01/receipt.json",
+    "receipt_sha256": "5b4b1404dd6b2da7c7126bb9106094778ac7dc9e76ca8f40838bf386e0279c78",
+    "plan_sha256": "c4e731a621eddd5610c997657fe063d45122fcb1f4dc271fe264d738aaf722f8",
+    "script_sha256": "081b9c6e46ba6967dd12b9b29877fc6e90991932e1250ae6b31f3b795582f157",
+    "code_sha256": "2f60c87cc6ef5ea9867b8962aed2bba476c2909252ef98c4ebabd8d4aaed3063",
+    "artifacts_verified": 2,
+    "scope": "One readonly truth-probe control on preserved NV06. New private cache, existing imports/session; not cold-start or physical acceptance.",
+    "ports": [
+      8695,
+      25564
+    ],
+    "epoch": "f34d86475fc240e1815331b4f750122d",
+    "private_cache": true,
+    "original_cache_unchanged": true,
+    "original_view_count": 5,
+    "stage_prim_count": 1131,
+    "dynamic_paths": [
+      "/World_Props/green_cube",
+      "/World_Props/lemon",
+      "/World_Props/orange",
+      "/World_Props/pink_cube",
+      "/World_Props/tomato_can"
+    ],
+    "constructors": 5,
+    "pose_reads": 10,
+    "all_live_physics_handles_valid": true,
+    "all_constructor_flags_false": true,
+    "inventory_wall_s": 0.002984085993375629,
+    "phases": [
+      {
+        "name": "new_private_views",
+        "cache_count": 5,
+        "ok": true,
+        "wall_s": 0.024663849995704368,
+        "constructor_count": 5,
+        "pose_read_count": 5
+      },
+      {
+        "name": "same_private_cache",
+        "cache_count": 5,
+        "ok": true,
+        "wall_s": 0.00500109200947918,
+        "constructor_count": 0,
+        "pose_read_count": 5
+      }
+    ],
+    "constructor_wall_s": [
+      0.015827719995286316,
+      0.0011121699935756624,
+      0.0010873930004891008,
+      0.0010905469971476123,
+      0.0010193790076300502
+    ],
+    "server_control_wall_s": 0.03456121600174811,
+    "client_control_rpc_wall_s": 0.05289410300611053,
+    "observed_attributes_unchanged": true,
+    "usd_notices": [],
+    "notice_overflow": false,
+    "loaded_vendor_path": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/extsDeprecated/isaacsim.core.prims/isaacsim/core/prims/impl/rigid_prim.py",
+    "resolved_vendor_path": "/home/johnny/Projects/isaac/IsaacSim/source/deprecated/isaacsim.core.prims/python/impl/rigid_prim.py",
+    "vendor_sha256": "a98036939aca1d89da6d5ec4c1ca42cae3db132bdcf45e500ab7a6b1092639d3",
+    "source_model_count_final": 259,
+    "actuator_calls": [],
+    "mapper_requests": 0,
+    "state_deadline_s": 1.0,
+    "diagnostic_exec_deadline_s": 5.0,
+    "native_deadlines_unchanged": true,
+    "errors": []
+  },
+  "prior_camera_failure": {
+    "receipt_sha256": "88d55938c760fb4a916f9adefaee724451b5a45a9ab110f465dbd6a17c5004e5",
+    "camera_timeline_sha256": "f30650049cb1889ca5d699de31556a887741660a2d3079d8a1f3c9dad5791d7d",
+    "global_pass": false,
+    "causal_attribution": "Leading hypothesis only; historical truth-stage timing/cache state were not recorded."
+  },
+  "limits": [
+    "Existing session/imports and prior truth initialization were warm; a new private cache does not make a full cold start.",
+    "No earlier scene authoring was undone. The no-change result covers this control and its recorded USD attributes/notices only.",
+    "Production still inherits SDK USD fallback when the physics handle is invalid. The diagnostic required valid handles, but this is not a new production guard.",
+    "Synthetic failure-by-exception tests do not exercise the SDK internal fallback.",
+    "Observed timing does not prove exclusive historical stall causality or production latency under different loads.",
+    "Combined full validation, fresh-scene camera acceptance and normal five-object acceptance remain pending."
+  ],
+  "publication": {
+    "prepared_only": true,
+    "intended_document": "docs/NVBLOX_TRUTH_READONLY.md",
+    "intended_receipt": "benchmark/results/nvblox-truth-readonly-20261001.json",
+    "live_source_modified": false
+  }
+}

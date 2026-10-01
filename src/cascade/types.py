@@ -37,6 +37,9 @@ class Frame:
     capture: dict | None = None
     # Optional exact self-pixel mask from this render product; raw depth stays intact.
     robot_mask: np.ndarray | None = None
+    # Subset of robot_mask belonging to props with measured bilateral jaw contact.
+    payload_mask: np.ndarray | None = None
+    prop_masks: dict[str, np.ndarray] | None = None
 
     @property
     def has_depth(self) -> bool:

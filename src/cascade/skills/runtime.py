@@ -153,6 +153,7 @@ class SkillRuntime:
         self._held_color: str | None = None
         #: optional WorldWatcher (set by the app wiring); paused during motion
         self.watcher = None
+        self._reset_observation_pending = False
         #: RGB frame captured immediately before the current motion skill, for
         #: CaP-X visual differencing. Set by execute(); None between motions.
         self._pre_motion_frame = None
@@ -800,6 +801,8 @@ class SkillRuntime:
         real held state so the next skill does not open the jaws on it.
         Jaws closed on air -> drop the marker.
         """
+        if getattr(self, "_contact_episode", None) is not None:
+            return  # only explicit contact recovery may finish this failed close
         prov = getattr(self, "_held_provisional", None)
         if prov is not None and not self.held_object:
             wf = self._gripper_width_frac()
@@ -846,6 +849,8 @@ class SkillRuntime:
         agree on what a retry cannot cure: an e-stop, an object the world
         model has never seen after re-scans (a typo, or not on the table),
         and an object wider than the jaws (re-scanning cannot shrink it)."""
+        if getattr(self, "_contact_episode", None) is not None:
+            return "unfinished contact episode; explicit reset_scene recovery required"
         if self.arm.harness.estopped:
             return "e-stop latched; not retrying"
         if attempt >= 2 and "no detections" in last_err and self.beliefs.find(object) is None:
@@ -1752,6 +1757,8 @@ class SkillRuntime:
 
         grasps = generate_batch(0)
 
+        grasp_evidence.event("floor_adjusted_candidates", grasps=grasps, z_floor_m=z_floor)
+
         # Pre-vet every candidate against the harness geometry (with the
         # exemption cylinder the descent will open) so a doomed candidate
         # loses the ranking up front instead of aborting mid-motion.
@@ -1782,10 +1789,24 @@ class SkillRuntime:
                 return {}
             from ..control.motion_profile import resolve_motion_rate
             def preflight(start, duration):
+                _scene_cancel()
+                rate = resolve_motion_rate(self.arm.raw)
+                deadline = time.monotonic() + PLAN_BUDGET_S
+                with geometry_guard(harness, deadline=deadline):
+                    reason = vet_segment(harness, start, target, duration,
+                        deadline=deadline, stretch=False, rate_hz=rate)
+                if reason:
+                    raise SafetyViolation(f"observed-finger route became unsafe: {reason}")
+                _scene_cancel()
                 scene_gate.require_profile(start, target, duration,
-                                            resolve_motion_rate(self.arm.raw), check=_scene_cancel)
-            return {"preflight": preflight, "before_stream": _scene_cancel,
+                                            rate, check=_scene_cancel)
+            def before_stream():
+                _scene_cancel()
+                harness.check_stream_start(halt_generation=scene_halt_generation)
+            return {"preflight": preflight, "before_stream": before_stream,
                     "feedback_guard": scene_gate.feedback, "_halt_generation": scene_halt_generation}
+        from ..safety.trajectory import PLAN_BUDGET_S, geometry_guard, vet_segment
+        approach_deadline = time.monotonic() + PLAN_BUDGET_S
 
         def _vet(g, q_pre, q_grasp):
             # The approach leg executes BEFORE allow_grasp_descent opens the
@@ -1797,8 +1818,18 @@ class SkillRuntime:
             # endpoints (near-horizontal approaches can dip below the floor
             # OUTSIDE the cylinder mid-descent).
             reason = harness.vet_pose(q_pre)
+            if search is not None:
+                search.check()
             if reason:
                 return f"pregrasp unsafe: {reason}"
+            with geometry_guard(harness, deadline=approach_deadline):
+                reason = vet_segment(
+                    harness, _seed, q_pre,
+                    float(gcfg.get("move_duration_s", 2.5)),
+                    deadline=approach_deadline,
+                )
+            if reason:
+                return f"approach unsafe: {reason}"
             # Exemption floor a bit BELOW the table: the reBot RS gripper's
             # finger/wrist links extend ~5 cm below the TCP, so a top-down
             # grasp of a low object legitimately dips a link to z ~ -0.018
@@ -1958,16 +1989,19 @@ class SkillRuntime:
                                             **_scene_motion(np.asarray(_home, dtype=float))):
                     raise SkillError("did not settle at required observed-finger home pose")
             else:
-                try:
-                    self.arm.move_joints(np.asarray(_home, dtype=float),
-                                         duration_s=1.5)
-                except Exception as exc:
-                    grasp_evidence.exception("ignored_home_exception", exc)
-                    pass  # best-effort re-home; pregrasp move is the real gate
+                if not self.arm.move_planned(np.asarray(_home, dtype=float), duration_s=1.5):
+                    raise SkillError("did not settle at home before grasp approach")
         grasp_evidence.phase("pregrasp")
         grasp_evidence.event("move_target", q=q_pre, duration_s=gcfg.get("move_duration_s", 2.5))
-        if not self.arm.move_joints(q_pre, duration_s=float(gcfg.get("move_duration_s", 2.5)),
-                                    **_scene_motion(q_pre)):
+        # The observed gate vets the exact direct profile; the mapping-only
+        # path retains its fully vetted deterministic route from measured pose.
+        if scene_gate is not None:
+            approached = self.arm.move_joints(q_pre,
+                duration_s=float(gcfg.get("move_duration_s", 2.5)), **_scene_motion(q_pre))
+        else:
+            approached = self.arm.move_planned(q_pre,
+                duration_s=float(gcfg.get("move_duration_s", 2.5)))
+        if not approached:
             raise SkillError("did not settle at pregrasp pose")
 
         # 2. descend inside the exemption cylinder (slow)
@@ -1976,6 +2010,9 @@ class SkillRuntime:
             radius_m=float(gcfg.get("exempt_radius_m", 0.07)),
             z_min=float(self.arm.harness.limits.table_z) - 0.06,
         )
+        from . import contact_episode
+        episode = None
+        contact_completed = False
         grasp_evidence.phase("descent")
         grasp_evidence.event("move_target", q=q_grasp,
                              duration_s=gcfg.get("descend_duration_s", 2.0), bias_compensate=True)
@@ -2001,6 +2038,7 @@ class SkillRuntime:
             if scene_gate is not None:
                 _scene_cancel()
                 def close_guard():
+                    nonlocal episode
                     # Separate safety read: the measured pose can differ from
                     # selected IK after descent or between closing stages.
                     _scene_cancel()
@@ -2017,12 +2055,16 @@ class SkillRuntime:
                     # A failed first veto has not attempted closure. Preserve
                     # a provisional hold only once a jaw command is about to
                     # be attempted; a later stage/transport failure may hold.
+                    if episode is None:
+                        episode = contact_episode.begin(self, q_pre)
                     self._held_provisional = provisional
             else:
+                episode = contact_episode.begin(self, q_pre)
                 self._held_provisional = provisional
             self._close_two_stage(profile,
                                    **({"_halt_generation": scene_halt_generation,
                                        "_before_close": close_guard} if scene_enabled else {}))
+            contact_episode.wait_geometry(self, episode)
             self._held_support_offset_m = None
             if gcfg.get("place_support_clearance_m") is not None and float(-grasp.approach[2]) > .95:
                 # A partial cloud's lowest visible point can be several mm
@@ -2038,10 +2080,35 @@ class SkillRuntime:
             lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
             grasp_evidence.phase("lift")
             grasp_evidence.event("move_target", q=q_pre, duration_s=lift_dur)
-            self.arm.move_joints(q_pre, duration_s=lift_dur,
-                                 **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
+            if not self.arm.move_joints(q_pre, duration_s=lift_dur,
+                    **({"_halt_generation": scene_halt_generation} if scene_enabled else {})):
+                raise SkillError("did not settle at grasp lift pose")
+            contact_completed = True
+        except (SkillError, SafetyViolation) as exc:
+            # A failed descent can leave the open tool intentionally close to
+            # the target. Finish the same contact episode by withdrawing to
+            # its vetted pregrasp before removing its original exemption.
+            # After close, a possible payload needs its own observed geometry;
+            # do not invent an empty-tool recovery or open the jaws here.
+            if (getattr(self, "_held_provisional", None) is None and not harness.estopped
+                    and getattr(harness, "_halt", None) is None):
+                try:
+                    if scene_gate is not None:
+                        settled = self.arm.move_joints(q_pre,
+                            duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                            **_scene_motion(q_pre))
+                    else:
+                        settled = self.arm.move_planned(
+                            q_pre, duration_s=float(gcfg.get("descend_duration_s", 2.0)))
+                    recovery = "completed" if settled else "did not settle"
+                except (SkillError, SafetyViolation) as retreat_error:
+                    recovery = f"refused: {retreat_error}"
+                self.memory.add("outcome", f"grasp descent failed: {exc}; pre-close retreat {recovery}")
+                raise type(exc)(f"{exc}; pre-close retreat {recovery}") from exc
+            raise
         finally:
             self.arm.harness.clear_grasp_exemption()
+            contact_episode.finish(self, episode, completed=contact_completed)
 
         # 5. verify: ASPIRE heuristic on jaw travel after close. An object in
         # the jaws stalls them ABOVE the commanded close; if they reached the
@@ -2444,10 +2511,16 @@ class SkillRuntime:
         if not self.arm.move_joints(pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5))):
             raise SkillError("did not settle above the place target")
         self.arm.harness.allow_grasp_descent(target[:2], z_min=release_z - 0.02)
+        from . import release_episode
+        release = None
+        withdrawal_completed = False
         try:
             if not self.arm.move_joints(low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
                 raise SkillError("did not settle at place pose")
-            self.arm.set_gripper(self._grip_open, effort=0.6)
+            if retreat is not None:
+                release = release_episode.begin(self, retreat.q,
+                    float(gcfg.get("descend_duration_s", 2.0)))
+            release_episode.open_hand(self, release)
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if release_timeout is not None:
                 # In simulation, a wall-clock dwell does not guarantee the
@@ -2485,10 +2558,16 @@ class SkillRuntime:
             self._held_color = None
             self.memory.add("action", f"placed {placed!r} at {target.round(3).tolist()}")
             try:
-                ascended = release_error is None and self.arm.move_joints(
-                    retreat.q if retreat is not None else pre.q,
-                    duration_s=float(gcfg.get("descend_duration_s", 2.0)),
-                )
+                if release_error is None and release is not None:
+                    release_episode.wait_geometry(self, release)
+                    ascended = release_episode.withdraw(self, release)
+                    release_episode._guard(self, release)
+                    withdrawal_completed = bool(ascended)
+                else:
+                    ascended = release_error is None and self.arm.move_joints(
+                        retreat.q if retreat is not None else pre.q,
+                        duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                    )
                 if retreat is not None and not ascended and release_error is None:
                     retreat_error = "did not settle at the post-place retreat pose"
             except (SkillError, SafetyViolation) as e:
@@ -2497,7 +2576,10 @@ class SkillRuntime:
                 # Keep legacy behavior when no explicit retreat was requested.
                 self.memory.add("note", f"placed, but the ascent aborted: {e}")
         finally:
-            self.arm.harness.clear_grasp_exemption()
+            if release is None:
+                self.arm.harness.clear_grasp_exemption()
+            else:
+                release_episode.finish(self, release, completed=withdrawal_completed)
         # Report where the OBJECT was aimed, not where the TCP was sent. The
         # postcondition channel scores the object's final pose against this,
         # so returning the offset-compensated TCP point would grade the place
@@ -2833,6 +2915,10 @@ class SkillRuntime:
                         pass
                     self._reobserve()
                 try:
+                    place_harness = getattr(self.arm, "harness", None)
+                    occupancy = getattr(place_harness, "occupancy", None)
+                    place_generation = (place_harness._halt_generation
+                                        if getattr(occupancy, "tracks_payload", False) else None)
                     if destination and not _names_drop_zone(destination):
                         res = self.skill_place_on_object(destination)
                     else:
@@ -2900,7 +2986,10 @@ class SkillRuntime:
         if (not placed.get("home_skipped", False)
                 and bool(self.cfg.grasp.get("home_after_place", True))):
             try:  # clear the camera view for the next command; best effort
-                self.skill_move_home()
+                if place_generation is None:
+                    self.skill_move_home()
+                else:
+                    self.skill_move_home(_halt_generation=place_generation)
                 return_home = {"attempted": True, "ok": True, "at": "home"}
             except (SkillError, SafetyViolation) as exc:
                 return_home = {"attempted": True, "ok": False, "error": str(exc)}
@@ -3370,6 +3459,70 @@ class SkillRuntime:
         wf = self._gripper_width_frac()
         return {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
 
+    def _reset_camera_frames(self, *, require_geometry=False, scene_changed=True):
+        """Reopen reset's capture barrier, retaining failed attempts for retry."""
+        from ..perception.freshness import frames_after_reset
+
+        pending = getattr(self, "_reset_observation_pending", False)
+        scene_changed = bool(scene_changed or (pending and getattr(self, "_reset_scene_changed", True)))
+        self._reset_scene_changed = scene_changed
+        self._reset_observation_pending = True
+        occupancy = getattr(self.arm.harness, "occupancy", None)
+        deadline = time.monotonic() + 5.
+        producer_clock = None
+        guard = lambda: None
+        try:
+            if not scene_changed:
+                if occupancy is None or not occupancy.tracks_payload:
+                    raise SkillError("retained-anchor refresh requires payload tracking")
+                occupancy.fence_capture_refresh("validating the producer clock")
+                if not pending:
+                    self._refresh_halt_generation = self.arm.harness._halt_generation
+                validate = getattr(self.arm.raw, "validate_simulation_clock", None)
+                if not callable(validate):
+                    raise SkillError("retained-anchor refresh requires a validated Isaac producer clock")
+                producer_clock = validate()
+                def guard():
+                    self.arm.harness._check_halt_generation(self._refresh_halt_generation)
+                    if self.arm.harness.estopped:
+                        raise SafetyViolation("e-stop latched during retained-anchor refresh")
+                    if time.monotonic() >= deadline:
+                        raise SkillError("retained-anchor capture refresh deadline expired")
+                guard()
+            if self.watcher is not None:
+                observed = self.watcher.reset_camera_frames(self.camera,
+                    timeout_s=max(.001, deadline-time.monotonic()), scene_changed=scene_changed,
+                    producer_clock=producer_clock, guard=guard)
+            else:
+                resetting_map = (getattr(occupancy, "begin_scene_reset", lambda: False)() if scene_changed
+                                 else occupancy.begin_capture_refresh(producer_clock))
+                observed = frames_after_reset([self.camera], timeout_s=max(.001, deadline-time.monotonic()))
+                if resetting_map:
+                    occupancy.finish_scene_reset([floor for _, floor, _ in observed])
+                    fresh = self.depth.ensure_depth(observed[0][2])
+                    T = fresh.T_base_cam if fresh.T_base_cam is not None else self.extrinsics.cam_to_base()
+                    occupancy.refresh(fresh, T)
+                    if not scene_changed:
+                        occupancy.wait_payload_ready([floor for _, floor, _ in observed], deadline=deadline, guard=guard)
+            if not scene_changed:
+                current_clock = validate()
+                if any(current_clock.get(key) != producer_clock.get(key) for key in ("source", "robot_id", "epoch")):
+                    raise SkillError("producer identity changed during retained-anchor refresh")
+                guard()
+            if require_geometry and occupancy is not None:
+                if (occupancy.scene_reset_pending or occupancy.last_error
+                        or occupancy.is_stale()):
+                    raise SkillError(
+                        "reset recovery has no fresh validated occupancy geometry"
+                        + (f": {occupancy.last_error}" if occupancy.last_error else "")
+                    )
+        except Exception as exc:
+            if not scene_changed and occupancy is not None:
+                occupancy.fence_capture_refresh(exc)
+            raise
+        self._reset_observation_pending = False
+        return observed
+
     def skill_reset_scene(self) -> dict:
         """Start the demo over: arm home, every sim prop back on its spawn
         pose, the world model and the task's visual memory cleared, one fresh
@@ -3385,18 +3538,79 @@ class SkillRuntime:
         the jaws."""
         out: dict = {"props_reset": [], "world": None, "observation_refreshed": False,
                      "objects_visible": []}
+        occupancy = getattr(self.arm.harness, "occupancy", None)
+        recovery_generation = None
+        def recovery_cancelled():
+            if recovery_generation is None:
+                return False
+            try:
+                self.arm.harness._check_halt_generation(recovery_generation)
+                if self.arm.harness.estopped:
+                    raise SafetyViolation("e-stop latched during scene recovery")
+            except SafetyViolation as exc:
+                out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
+                           beliefs_forgotten=0, error=f"Scene recovery cancelled: {exc}")
+                return True
+            return False
+        if getattr(self, "_release_episode", None) is not None:
+            from .release_episode import recover
+            recovery_generation = self._release_episode["halt_generation"]
+            try:
+                out["release_recovery"] = recover(self)
+            except (SkillError, SafetyViolation) as e:
+                out.update(ok=False, stage="release_recovery", home_skipped=True,
+                           recovery_error=str(e), beliefs_forgotten=0,
+                           error=f"Reset could not finish the retained release withdrawal: {e}")
+                return out
+        if (getattr(self, "_reset_observation_pending", False)
+                or getattr(occupancy, "scene_reset_pending", False)):
+            # A previous reset may have invalidated geometry before a camera
+            # timed out. Reacquire it while stationary, before asking home's
+            # collision gate to plan any motion or releasing a held object.
+            try:
+                scene_changed = getattr(self, "_reset_scene_changed", True)
+                observed = self._reset_camera_frames(require_geometry=True, scene_changed=scene_changed)
+                if not scene_changed:
+                    recovery_generation = self._refresh_halt_generation
+                    out["retained_anchor_refresh"] = occupancy.last_capture_refresh
+                self.last_frame = self.depth.ensure_depth(observed[0][2])
+                self.arm.harness.heartbeat()
+                out["geometry_recovered"] = True
+            except Exception as e:  # noqa: BLE001
+                out.update(ok=False, stage="reset_recovery", home_skipped=True,
+                           recovery_error=str(e), beliefs_forgotten=0,
+                           error=f"Reset recovery could not refresh geometry: {e}")
+                return out
+        if getattr(self, "_contact_episode", None) is not None:
+            from .contact_episode import recover
+            try:
+                out["contact_recovery"] = recover(self)
+                self._reconcile_held()
+            except (SkillError, SafetyViolation) as e:
+                out.update(ok=False, stage="contact_recovery", home_skipped=True,
+                           recovery_error=str(e), beliefs_forgotten=0,
+                           error=f"Reset could not withdraw the retained contact episode: {e}")
+                return out
         home_ok = True
         try:
-            self.skill_move_home()
+            self.skill_move_home(_halt_generation=recovery_generation) if recovery_generation is not None else self.skill_move_home()
         except (SkillError, SafetyViolation) as e:
-            home_ok = False
-            out["home_error"] = str(e)
+            out.update(ok=False, stage="home", home_error=str(e), beliefs_forgotten=0,
+                       error=f"Scene reset could not reach home: {e}")
+            return out
+        if recovery_cancelled():
+            return out
         # release anything the runtime still thinks it holds: a reset while
         # carrying is the operator's decision that the episode is over
         if self.held_object:
             try:
-                self.arm.set_gripper(1.0)
-            except Exception:  # noqa: BLE001
+                kwargs = {} if recovery_generation is None else {"_halt_generation": recovery_generation}
+                self.arm.set_gripper(1.0, **kwargs)
+            except Exception as exc:  # noqa: BLE001
+                if recovery_generation is not None:
+                    out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
+                               beliefs_forgotten=0, error=f"Scene recovery could not release safely: {exc}")
+                    return out
                 pass
             self.held_object = None
             self._held_det_label = None
@@ -3417,6 +3631,8 @@ class SkillRuntime:
                 world = live[0] if len(live) == 1 else None
             except Exception:  # noqa: BLE001
                 world = None
+        if recovery_cancelled():
+            return out
         if world is not None and hasattr(world, "reset_props"):
             out["props_reset"] = list(world.reset_props())
             out["world"] = "mujoco"
@@ -3425,8 +3641,6 @@ class SkillRuntime:
             try:  # Isaac bridge returns physics read-back, not camera inference.
                 from ..sim.isaac_reset import validate_isaac_reset
 
-                if not home_ok:
-                    raise SkillError("cannot reset props before the arm reaches home")
                 reset = validate_isaac_reset(raw.reset_props())
                 out["props_reset"] = reset["props_reset"]
                 out["reset_verification"] = reset["reset_verification"]
@@ -3443,11 +3657,9 @@ class SkillRuntime:
             # frame IDs and receipt times. Fence by the carried producer clock,
             # and analyze that exact frame instead of fetching another copy.
             if out["props_reset"]:
-                from ..perception.freshness import capture_marker, frames_after_reset
+                from ..perception.freshness import capture_marker
 
-                watcher = self.watcher
-                observed = (watcher.reset_camera_frames(self.camera) if watcher is not None
-                            else frames_after_reset([self.camera]))
+                observed = self._reset_camera_frames()
                 frame = self.depth.ensure_depth(observed[0][2])
                 self.last_frame = frame
                 self.arm.harness.heartbeat()
@@ -3468,9 +3680,14 @@ class SkillRuntime:
         out["ok"] = home_ok and out["observation_refreshed"]
         return out
 
-    def skill_move_home(self) -> dict:
+    def skill_move_home(self, *, _halt_generation=None) -> dict:
         home = self._profile_q("home_q", "move home")
-        if not self.arm.move_joints(home, duration_s=3.0):
+        # SafeArm plans the complete return before motion and re-vets against
+        # actual feedback/map state at every segment. Legacy test doubles may
+        # expose only move_joints; all real runtime arms are SafeArms.
+        move = getattr(self.arm, "move_planned", self.arm.move_joints)
+        kwargs = {} if _halt_generation is None else {"_halt_generation": _halt_generation}
+        if not move(home, duration_s=3.0, **kwargs):
             raise SkillError("did not settle at home")
         return {"at": "home"}
 

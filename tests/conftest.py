@@ -44,7 +44,7 @@ def load_isaac_bridge_definitions(names, env):
              if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in wanted]
     assert {node.name for node in nodes} == wanted
     # Unit tests have their own shutdown state and never consult a live STOP file.
-    env.setdefault("os", SimpleNamespace(path=SimpleNamespace(lexists=lambda _path: False)))
+    env.setdefault("os", SimpleNamespace(path=SimpleNamespace(lexists=lambda _path: False), environ={}))
     env.setdefault("_shutdown_requested", False)
     env.setdefault("_camera_video", None)
     env.setdefault("GRIP_IDX", [])

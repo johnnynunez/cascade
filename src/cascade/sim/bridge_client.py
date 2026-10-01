@@ -166,6 +166,8 @@ class BridgeClient:
             if r.get("T_base_cam") is not None else None
         )
         robot_mask = None
+        payload_mask = None
+        prop_masks = None
         if r.get("robot_pixel_mask") is not None:
             try:
                 m = r["robot_pixel_mask"]
@@ -180,6 +182,20 @@ class BridgeClient:
                 if np.any(mask > 1):
                     raise ValueError("render self-mask is not binary")
                 robot_mask = mask.astype(bool)
+                if "payload_data" in m:
+                    payload_bytes = zlib.decompress(base64.b64decode(m["payload_data"], validate=True))
+                    payload = np.frombuffer(payload_bytes, np.uint8).reshape(bgr.shape[:2])
+                    if np.any(payload > 1) or np.any((payload != 0) & ~robot_mask):
+                        raise ValueError("payload mask is not a subset of the self mask")
+                    payload_mask = payload.astype(bool)
+                if "prop_data" in m:
+                    prop_masks = {}
+                    for path, encoded in m["prop_data"].items():
+                        raw_mask = zlib.decompress(base64.b64decode(encoded, validate=True))
+                        mask = np.frombuffer(raw_mask, np.uint8).reshape(bgr.shape[:2])
+                        if not path.startswith("/World_Props/") or np.any(mask > 1):
+                            raise ValueError("invalid per-prop pixel mask")
+                        prop_masks[path] = mask.astype(bool)
             except Exception as exc:
                 raise BridgeError(f"invalid render self-mask: {exc}") from exc
         return Frame(
@@ -187,6 +203,8 @@ class BridgeClient:
             depth_source="sensor" if depth is not None else "none",
             T_base_cam=T_base_cam,
             robot_mask=robot_mask,
+            payload_mask=payload_mask,
+            prop_masks=prop_masks,
             capture={"backend": "isaac", "source": self._addr, "camera": camera,
                      "t": r.get("t"), "proprioception": copy.deepcopy(r.get("proprioception")),
                      "render_reference": copy.deepcopy(r.get("render_reference")),

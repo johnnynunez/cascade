@@ -1,0 +1,441 @@
+{
+  "pass": false,
+  "scope": "One held-camera FrozenProducer stream injection after an actual successful tomato-can grasp. Private freshness barrier used the existing scene-reset invalidation. Restore rebuilt geometry but HOME failed on unknown payload clearance before actuation. Scene retained; five-object campaign not started.",
+  "code_head": "4e67b5e",
+  "runtime_source_pin": "d8bad803a59d0dc0bf08bbd502f8dae5dfb005a4",
+  "evidence_root": "runs/nvblox-rtx/isolated-clock-02/camera-held-01",
+  "receipt_sha256": "5dd80e27a9fb078e0478f7e83c3c532c30acabec78ede3104b63d291d5e18c62",
+  "experimental_map_query_region": {
+    "explicit_override": true,
+    "min": [
+      0.1,
+      -0.3,
+      -0.01
+    ],
+    "max": [
+      0.58,
+      0.3,
+      0.55
+    ],
+    "safety_before": {
+      "workspace": {
+        "min": [
+          0.1,
+          -0.3,
+          -0.01
+        ],
+        "max": [
+          0.5,
+          0.3,
+          0.55
+        ]
+      },
+      "min_clearance_m": 0.03
+    },
+    "safety_after": {
+      "workspace": {
+        "min": [
+          0.1,
+          -0.3,
+          -0.01
+        ],
+        "max": [
+          0.5,
+          0.3,
+          0.55
+        ]
+      },
+      "min_clearance_m": 0.03
+    },
+    "scope": "ESDF query bounds only; measured payload outside the contact exemption still rejects unknown. Existing arm-body policy is unchanged."
+  },
+  "checks": {
+    "first_barrier_failed": true,
+    "first_barrier_left_pending_map": true,
+    "blocked_public_reset_refused": true,
+    "blocked_issued_no_actuator_or_motion_calls": true,
+    "blocked_held_state_preserved": true,
+    "blocked_physics_within_diagnostic_1mrad_2mm": true,
+    "frozen_same_frame_and_producer_marker": true,
+    "recovered_public_reset_completed": false,
+    "all_props_reset_reported": false,
+    "all_camera_depths_rebuilt": true,
+    "all_reset_camera_commits_newer_than_floors": false,
+    "fresh_esdf_without_pending_fault": true,
+    "post_recovery_physics": false,
+    "all_camera_barriers_reported": false,
+    "same_camera_robot_clock_binding": true,
+    "all_producer_clocks_advanced": true,
+    "source_unchanged": true,
+    "observer_complete": true,
+    "no_diagnostic_errors": true,
+    "cleanup_sent_no_commands": true
+  },
+  "setup_grasp": {
+    "held": "tomato can",
+    "grip_profile": "slippery",
+    "grip_verified": true,
+    "gripper_open_frac": 0.55,
+    "grasp_width_m": 0.043,
+    "ok": true,
+    "postcondition": {
+      "skill": "grasp_object",
+      "kind": "holding",
+      "status": "confirmed",
+      "evidence": "tomato can rose 10.0 cm off the table (physics pose)",
+      "channel": "physics",
+      "measured": {
+        "z_before": 0.0413,
+        "z_after": 0.141,
+        "rise_m": 0.0998,
+        "gripper_frac": 0.5506990954175726
+      }
+    },
+    "verified": true
+  },
+  "held_contact_steps": 21,
+  "freeze": {
+    "marker": {
+      "channel": "producer_capture",
+      "backend": "isaac",
+      "source": [
+        "127.0.0.1",
+        8692
+      ],
+      "camera": "side",
+      "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+      "clock": "physics_loop_monotonic",
+      "t": 64198.574666153
+    },
+    "rgb": {
+      "dtype": "uint8",
+      "shape": [
+        540,
+        960,
+        3
+      ],
+      "sha256": "9cddb8f1502fa01c64667ee778314662d674d6e3e097dd2be5e3afaff6808cfe"
+    },
+    "depth": {
+      "dtype": "float32",
+      "shape": [
+        540,
+        960
+      ],
+      "sha256": "82ac493d59f2eacc5a9c2e4b8d3add80b225f6ad00daa33dc0707f4986759b8d"
+    },
+    "frame_t": 64198.843543973,
+    "frame_id": 754,
+    "deliveries": 45,
+    "all_deliveries_same_marker": true,
+    "unchanged_frame": true
+  },
+  "blocked_measurements": {
+    "q_max_drift_rad": 1.1920928955078125e-07,
+    "jaw_max_drift_m": 3.5390257835388184e-08,
+    "prop_drift_m": {
+      "pink_cube": 2.986047331594191e-08,
+      "green_cube": 1.4930236657970956e-08,
+      "tomato_can": 1.8189185285171422e-07,
+      "lemon": 0.0,
+      "orange": 0.0
+    }
+  },
+  "final_held": "tomato can",
+  "final_contacts": {
+    "channel": "physx_gpu_contact_tensor",
+    "device": "cuda:0",
+    "sensor_paths": [
+      "/World_Props/tomato_can"
+    ],
+    "filter_paths": [
+      [
+        "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+        "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+      ]
+    ],
+    "net_force_n": [
+      0.01056671142578125,
+      0.03388214111328125,
+      -0.12594211101531982
+    ],
+    "jaw_forces_n": [
+      [
+        -107.4476547241211,
+        30.717403411865234,
+        -0.02140730991959572
+      ],
+      [
+        107.45822143554688,
+        -30.683521270751953,
+        -0.10453479737043381
+      ]
+    ],
+    "jaw_contact_counts": [
+      4,
+      4
+    ],
+    "physics_dt_s": 0.008333333333333333,
+    "physics_step": 118270
+  },
+  "cleanup_calls": [],
+  "phases": {
+    "setup": {
+      "ok": true,
+      "stage": null,
+      "error": null,
+      "geometry_recovered": null,
+      "actuator_counts": {
+        "set_gripper": 3,
+        "send_joint_target": 750
+      },
+      "request_count": 7,
+      "after_map": {
+        "pending": false,
+        "stale": false,
+        "last_error": null,
+        "body_error": null,
+        "has_grid": true,
+        "last_refresh_monotonic": 64195.420464411,
+        "camera_history": {
+          "cam0": [
+            64010.20785075,
+            64194.792479557
+          ],
+          "side": [
+            64018.358301044,
+            64194.792479557
+          ],
+          "proof": [
+            64020.010647868,
+            64194.420822707
+          ]
+        }
+      }
+    },
+    "first_barrier": {
+      "ok": false,
+      "stage": null,
+      "error": "Camera did not produce a fresh capture before the reset deadline",
+      "geometry_recovered": null,
+      "actuator_counts": {},
+      "request_count": 0,
+      "after_map": {
+        "pending": true,
+        "stale": true,
+        "last_error": null,
+        "body_error": "waiting for post-reset captured geometry",
+        "has_grid": false,
+        "last_refresh_monotonic": null,
+        "camera_history": {}
+      }
+    },
+    "blocked_reset": {
+      "ok": false,
+      "stage": "reset_recovery",
+      "error": "Reset recovery could not refresh geometry: Camera did not produce a fresh capture before the reset deadline",
+      "geometry_recovered": null,
+      "actuator_counts": {},
+      "request_count": 0,
+      "after_map": {
+        "pending": true,
+        "stale": true,
+        "last_error": null,
+        "body_error": "waiting for post-reset captured geometry",
+        "has_grid": false,
+        "last_refresh_monotonic": null,
+        "camera_history": {}
+      }
+    },
+    "recovered_reset": {
+      "ok": false,
+      "stage": "home",
+      "error": "Scene reset could not reach home: no safe joint route found; direct route: attached object point 0 has unobserved clearance (occupancy map) at [0.2464, 0.1990, 0.1822]",
+      "geometry_recovered": true,
+      "actuator_counts": {},
+      "request_count": 0,
+      "after_map": {
+        "pending": false,
+        "stale": false,
+        "last_error": null,
+        "body_error": null,
+        "has_grid": true,
+        "last_refresh_monotonic": 64211.850908221,
+        "camera_history": {
+          "cam0": [
+            64210.643621554,
+            64211.445185088
+          ],
+          "side": [
+            64210.643621554,
+            64211.445185088
+          ],
+          "proof": [
+            64211.068807382,
+            64211.445185088
+          ]
+        }
+      }
+    }
+  },
+  "hash_verification": {
+    "environment_sources": {
+      "count": 252,
+      "mismatches": [],
+      "pass": true
+    },
+    "diagnostic_sources": {
+      "count": 241,
+      "mismatches": [],
+      "pass": true
+    },
+    "artifacts": {
+      "count": 17,
+      "mismatches": [],
+      "pass": true
+    }
+  },
+  "anchor_history_observation": "Setup anchors t64010/64018/64020 were discarded by the private begin_scene_reset barrier; restored geometry used only t64210/64211 anchors captured while holding. Lost measured background coverage is the working explanation; no complete frozen grid/candidate-route replay was recorded by this diagnostic.",
+  "motion_requests": [
+    {
+      "nominal_duration_s": 1.5,
+      "wall_duration_s": 16.679254727001535
+    },
+    {
+      "nominal_duration_s": 7.5,
+      "wall_duration_s": 80.47470597900247
+    },
+    {
+      "nominal_duration_s": 2.0,
+      "wall_duration_s": 21.40259125600278
+    },
+    {
+      "nominal_duration_s": 4.0,
+      "wall_duration_s": 50.75042280300113
+    }
+  ],
+  "proof_camera_age": {
+    "samples": 1306,
+    "maximum_s": 0.6329395950015169,
+    "over_2s": 0,
+    "scope": "Proof only; no continuous cam0/side age claim."
+  },
+  "stationary_capture": {
+    "path": "runs/nvblox-rtx/isolated-clock-02/camera-held-capture-01",
+    "metadata_sha256": "5958855ca3b0fb44eff2567d7d8f2b08326d7e2b8cec6bf3ad1a142e23863eb1",
+    "scope": "Three real stationary RGB-D captures, static calibrated T from each profile; no motion or map integration commanded. Capture tool provenance recorded separately.",
+    "cameras": {
+      "cam0": {
+        "sha256": "4a744aca5b1aea21fecaa8968dc24f9ac553f21c54b0d54279d39bfdbb6cc13c",
+        "capture": {
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8692
+          ],
+          "camera": "cam0",
+          "t": 64340.011132338,
+          "proprioception": {
+            "version": 1,
+            "backend": "isaac",
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "joint_convention": "asset",
+            "q": [
+              0.7691563963890076,
+              -1.902714490890503,
+              -1.9793870449066162,
+              1.6577255725860596,
+              0.004920123610645533,
+              -0.522691011428833
+            ],
+            "t": 64340.011132338,
+            "time_source": "physics_loop_monotonic"
+          },
+          "contact_paths": [
+            "/World_Props/tomato_can"
+          ]
+        },
+        "shape": [
+          540,
+          960
+        ]
+      },
+      "side": {
+        "sha256": "3ded36d9ecd853b98b653300deef2c2413529bd2dd84f4415d038027792c6510",
+        "capture": {
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8692
+          ],
+          "camera": "side",
+          "t": 64340.251645432,
+          "proprioception": {
+            "version": 1,
+            "backend": "isaac",
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "joint_convention": "asset",
+            "q": [
+              0.7691563963890076,
+              -1.902713656425476,
+              -1.9793870449066162,
+              1.6577255725860596,
+              0.004920130129903555,
+              -0.522691011428833
+            ],
+            "t": 64340.251645432,
+            "time_source": "physics_loop_monotonic"
+          },
+          "contact_paths": [
+            "/World_Props/tomato_can"
+          ]
+        },
+        "shape": [
+          540,
+          960
+        ]
+      },
+      "proof": {
+        "sha256": "8356171411ee06c7bf2fe5ba0dd67487f80e12c76ed5657253c265b088aa9660",
+        "capture": {
+          "backend": "isaac",
+          "source": [
+            "127.0.0.1",
+            8692
+          ],
+          "camera": "proof",
+          "t": 64340.512308045,
+          "proprioception": {
+            "version": 1,
+            "backend": "isaac",
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "joint_convention": "asset",
+            "q": [
+              0.7691563963890076,
+              -1.9027140140533447,
+              -1.9793870449066162,
+              1.6577255725860596,
+              0.004920125938951969,
+              -0.522691011428833
+            ],
+            "t": 64340.512308045,
+            "time_source": "physics_loop_monotonic"
+          },
+          "contact_paths": [
+            "/World_Props/tomato_can"
+          ]
+        },
+        "shape": [
+          540,
+          960
+        ]
+      }
+    }
+  },
+  "provenance": {
+    "runs/nvblox-rtx/isolated-clock-02/camera-held-01/receipt.json": "5dd80e27a9fb078e0478f7e83c3c532c30acabec78ede3104b63d291d5e18c62",
+    "runs/nvblox-rtx/isolated-clock-02/camera-held-01/commands.jsonl": "c9801293e9c543bc3acf945f7584c184578840ba607f66545ffcc462f50d695a",
+    "runs/nvblox-rtx/isolated-clock-02/camera-held-01/witness/samples.jsonl": "ac3219c01682e200eee9b85d3df09aafa8997d32161306334c843482bfbc8a93",
+    "runs/nvblox-rtx/isolated-clock-02/camera-held-launch.json": "e1e3bf1a09b1fec3b058e8e087c33aa4ff7be14800fca076298010e712476a53"
+  }
+}

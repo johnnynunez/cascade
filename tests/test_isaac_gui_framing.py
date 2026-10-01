@@ -10,6 +10,20 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.parametrize("gui", [False, True])
+def test_application_disables_only_the_headless_default_viewport(gui):
+    tree = ast.parse((REPO / "scripts/isaac_bridge.py").read_text())
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+             and isinstance(node.func, ast.Name) and node.func.id == "SimulationApp"]
+    assert len(calls) == 1
+    settings = eval(compile(ast.Expression(calls[0].args[0]), "isaac_app_settings", "eval"),
+                    {"args": types.SimpleNamespace(gui=gui, width=960, height=540)})
+    assert settings["headless"] is (not gui)
+    assert settings["disable_viewport_updates"] is (not gui)
+    assert settings["renderer"] == "RayTracedLighting"
+    assert (settings["width"], settings["height"]) == (960, 540)
+
+
 def helper(monkeypatch, gui=True):
     tree = ast.parse((REPO / "scripts/isaac_bridge.py").read_text())
     functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_frame_gui_viewport"]

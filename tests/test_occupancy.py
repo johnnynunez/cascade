@@ -423,10 +423,27 @@ def test_probe_names_the_backend(bridge_server):
     m = _live_map(bridge_server)
     st = m.probe()
     assert st is not None and st["backend"] == "warp" and st["esdf"] is True and st["carving"] is True
+    assert st["masked_depth"] is False
     assert "warp" in m.describe()
     dead = _live_map(5597)
     assert dead.probe() is None and dead.probe_error and "timed out" in dead.probe_error
     assert dead.describe().startswith("none")
+
+
+@needs_wire
+def test_non_native_bridge_rejects_raw_masked_depth_operation(bridge_server):
+    from cascade.perception.occupancy import OccupancyClient
+
+    c = OccupancyClient(host=loopback_host(), port=bridge_server, timeout_ms=5000)
+    try:
+        with pytest.raises(OccupancyError, match="native masked depth is unavailable for warp"):
+            c.request({"action": "integrate_masked_depth",
+                       "depth": np.full((2, 2), .4, np.float32),
+                       "active_mask": np.zeros((2, 2), np.uint8),
+                       "K": np.eye(3), "T_base_cam": np.eye(4)})
+        assert c.probe()["masked_depth"] is False  # error did not wedge REP
+    finally:
+        c.close()
 
 
 def _tabletop_frame(cube: bool, W=160, H=120, fx=150.0):

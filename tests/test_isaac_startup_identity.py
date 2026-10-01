@@ -155,6 +155,24 @@ def test_wait_rejects_pid_reuse_instead_of_adopting_new_birth(tmp_path, monkeypa
         module.wait_ready(42, tmp_path / "missing", timeout=.1)
 
 
+@pytest.mark.parametrize("after_initial_identity", [False, True])
+def test_disappearing_proc_read_preserves_early_exit_status(tmp_path, monkeypatch, after_initial_identity):
+    module = adapter()
+    calls = 0
+    def identity(pid):
+        nonlocal calls
+        calls += 1
+        if after_initial_identity and calls == 1:
+            return {"pid": pid, "birth": "original", "state": "R"}
+        # Linux /proc may report ESRCH rather than ENOENT if the process
+        # disappears while its stat data is being read.
+        raise ProcessLookupError(3, "No such process")
+    monkeypatch.setattr(module, "kernel_identity", identity)
+    with pytest.raises(module.StartupExited, match="exited before interpreter readiness"):
+        module.wait_ready(42, tmp_path / "missing", timeout=.1)
+    assert calls == (2 if after_initial_identity else 1)
+
+
 def test_timeout_is_bounded_and_does_not_restart_or_signal_child(tmp_path):
     module = adapter()
     process = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(60)"])

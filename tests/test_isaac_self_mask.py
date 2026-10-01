@@ -135,3 +135,23 @@ def test_required_render_mask_cannot_fall_back_to_capsules(capture_bridge):
         arm.state_from_frame(f)
 
 
+def test_payload_and_all_prop_identities_survive_real_wire(capture_bridge):
+    b = capture_bridge
+    prop = "/World_Props/pink_cube"
+    ids = np.full(b.depth.shape[:2], 2, np.uint32)
+    ids[0, 0] = 1
+    payload = b.env["_frames"]["cam0"]
+    payload["robot_pixel_mask"] = runpy.run_path(str(HELPER))["encode_robot_mask"](
+        ids, {"idToLabels": {"1": ROBOT + "/mesh", "2": prop + "/mesh"}},
+        ROBOT, payload["t"], contact_paths=[prop], payload_tracking=True,
+        scene_prop_paths=[prop, "/World_Props/green_cube"])
+    c = BridgeClient(host=b.host, port=b.port)
+    c.connect()
+    try:
+        f = c.observation("cam0")
+    finally:
+        c.close()
+    np.testing.assert_array_equal(f.payload_mask, ids == 2)
+    np.testing.assert_array_equal(f.prop_masks[prop], ids == 2)
+    assert not f.prop_masks["/World_Props/green_cube"].any()
+

@@ -1,0 +1,310 @@
+{
+  "schema_version": 1,
+  "scope": "Captured diagnostics and remaining failures; no complete task, native-agent or presenter acceptance claim. This receipt preserves failed campaigns, not a successful retry.",
+  "clearance_m": 0.03,
+  "unknown_space_rejection": true,
+  "trials": [
+    {
+      "trial": 15,
+      "campaign_pass": false,
+      "requested_rounds": 2,
+      "requested_objects": [
+        "tomato_can",
+        "orange",
+        "green_cube",
+        "pink_cube",
+        "lemon"
+      ],
+      "completed_cases": 1,
+      "fail_fast": true,
+      "source_commit_matching_manifest": "9fb8121693d469b44e1ee1634ed7a4ab4ee17e04",
+      "source_manifest_matches_commit": true,
+      "runtime_source_unchanged": true,
+      "source_sha256": {
+        "benchmark/diagnostics/kitchen_acceptance.py": "20888c5f83794eef120e63bba4e486c6a7fabe306bc2312039601039a0ccf03b",
+        "scripts/isaac_bridge.py": "48ded6d28a040b9a715d78ffbea3c1f40868f9c15e12c3e07d0fdb7f648bdf33",
+        "scripts/isaac_materials.py": "54fafa297d2e150df5f4a066d76e27e63055acf0a6bfcdb502dc02b3373350fd",
+        "scripts/isaac_runtime.py": "2644d2339d4c5402f04085ddbef863e5ca983a27777d59d656f65c7fd60785ca",
+        "scripts/isaac_self_mask.py": "2b9bfd22b398c8fdece59ae04df9f6b1908dd3a234e32f4fb54179eba3ae79f0",
+        "src/cascade/sim/bridge_client.py": "29ff72d341a47952b21c0f90118a7b8ba2cb5d8ce1ae68baf124070787d1c80b",
+        "src/cascade/safety/harness.py": "4e9ded0b5c4a3096f95006ce39cee39947b85a74ed6af8ea5c316c1ebbcce07e",
+        "src/cascade/types.py": "cbd65a50d2e7eb89fc1a908c5d3ede0e587f1b344b4da0d76bcf33d81f6e8b60",
+        "src/cascade/safety/trajectory.py": "16f8dd9a656ee4eabe338d0b1079cbd17884cb3aef81756e8216e59c6aaa5b95",
+        "src/cascade/control/arm_base.py": "b287417741b08782ba610ddca28e6926fb713c667c1aa8f7ce542cf638f6e120",
+        "src/cascade/control/mock_arm.py": "9d134597720124baa95e627246111949a7462edf5b2ef5dc375a46066b547c22",
+        "src/cascade/skills/runtime.py": "92990cb1378345f53014123d00189b7e5cc4c45fd7f552baba0b739cac4c0075",
+        "src/cascade/grasping/obb_grasp.py": "5c38fb8c54ce30deebe29cddc6ac3daa562e5b2903287a60d315f1250b01a9cb",
+        "src/cascade/grasping/graspgenx_backend.py": "f9575978c84ff6478b07cb981291719413c8a025780afb1ff0f337b2b25776fc",
+        "src/cascade/config.py": "984cf4e2aa276ce54f8b24e78a5fd863699a5109e8c522dc00d072bb6c6d82d7",
+        "src/cascade/apps/demo.py": "e6569d5e77dbcf042d6c45fbf0ed48a422525771aa3b9602f3593cd36bd5d100",
+        "src/cascade/perception/grounding.py": "e93ce3d7388d35a53ff4c0b61af541f0c065e4a65d3b8cd7c0573b50963a4458",
+        "src/cascade/perception/cuda_math.py": "d148ef4481868d3247b37710548dc87fdb7a5d08700fb6135b41fb6fd3900e33",
+        "src/cascade/perception/occupancy.py": "55a1e0f631a8077e0c4ed3c0b56e0e2c8b28e430d961b23c27ed648da0c80d61",
+        "src/cascade/perception/occupancy_backends.py": "443f0252b8b4f988a89dcd9bde619bf2badbe6945f567772f47d1258baa4e5d4",
+        "src/cascade/perception/world.py": "7ac251c02dcd81bb62c1ef28ce1c37b8facf544d53737670af3f2075b85fbc07",
+        "src/cascade/agent/effects.py": "8d6eb766848bec8cbb53f5faabbd22996e82ecb171c40a911f80854d89bf88bb",
+        "src/cascade/sim/truth.py": "5088b778ad400d8020293a88cebdeef2299a448e0052e2bae37f7dddb7cfb00b",
+        "src/cascade/sim/placement.py": "aae283b13280de1aa7ee578bde5566f77ffa085cd988e1154b52c9310835ec4e",
+        "demo/kitchen/physics/placement_verdict.py": "8bfd029bf129fd1c7906c111941c2bda9dda9ff029d494d24ee8e21294e8a810",
+        "demo/kitchen/physics/gpu_proof_audit.py": "f85392450376bf6a320138198612530d26f08ab4a95962a20047f3f3ceb26fb2",
+        "demo/kitchen/physics/convex_geometry.py": "f1e3c87aed4b2343f2818564048ee42e002c588b97f87007f55c83a158d0de65",
+        "demo/kitchen/physics/destination_entry.py": "263a9fb383af509f435118deed536d19afca9d43701487edf7999dad92f1b441",
+        "demo/kitchen/physics/spark_proof.py": "675434aab150a74fefe1ab637a6d1d740c24e7f11c319f5bd50cd4a1426c78d4",
+        "assets/newton/rebot_gripper_hulls.usda": "46fd39d7f4ad948a9a7e6d67f2f7fde5a92333972e1f4ff2014dcba1449462de",
+        "configs/arms/isaac_kitchen.yaml": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+        "configs/arms/isaac_kitchen_gpu.yaml": "3274e46b33305a6b0fb90a0a2417a754c9935e4a3662d7e06c0dacbef193b62c"
+      },
+      "artifact_root": "runs/nvblox-rtx/physical-15",
+      "artifact_sha256": {
+        "campaign.json": "1e6ac512f92749bef6671c9edf3e57f2eb52acee0ba3c12ab51b70a4345ea886",
+        "tomato_can_r1/commands.jsonl": "1002eb19f5e3eb2f28d887aecc405080b16dab3b13825a1f676f93ceacb300c6",
+        "tomato_can_r1/execution.log": "e96edd7300ca4c35f3644969e235f5ec6fc670f66a1b81ca7f3c633468dbaddb",
+        "tomato_can_r1/grasp-memory.json": "8ead6c82de9d98be3a08775ad2a15871cdab00503c4b957d5532ffb2223bb6c1",
+        "tomato_can_r1/receipt.json": "2708eb3511cac262093ac617077b5989975ec8275e0549e206e10a4746fc61a3",
+        "tomato_can_r1/runtime/keyframes/0000_pick_and_place_after.jpg": "a5dc4fdb31e62b4af25e345e4d68ea8cc2535cb212cab4ea789b0444feb1b07b",
+        "tomato_can_r1/runtime/keyframes/0000_pick_and_place_before.jpg": "6594910d167ca449b5d2fd6c1e75e43f36f1d8ea10c28d029ee57ca102d88669",
+        "tomato_can_r1/runtime/keyframes/0001_reset_scene_after.jpg": "35490bf39f8beee82e7e5306892b5477a4db661364b4511a5c36ff9630ac2908",
+        "tomato_can_r1/runtime/keyframes/0001_reset_scene_before.jpg": "a5dc4fdb31e62b4af25e345e4d68ea8cc2535cb212cab4ea789b0444feb1b07b",
+        "tomato_can_r1/runtime/placement/ae17bfe10154443193954d8afef3d4b8.json": "21498ebb61760157523628c47fb04bfcae78b073d0be612ab30bdad7a653ea54",
+        "tomato_can_r1/runtime/trace.jsonl": "c567ec124d8510992610f75967c6aa859b2c61e8b75291bd536e163c5beb4528",
+        "tomato_can_r1/witness/first-scene-geometry.json": "6e93c070feb463bdccb4533da7ea242a27516fae2c509293c75547a3c435b3c3",
+        "tomato_can_r1/witness/gpu-physical-audit.json": "e538efb096ea81eefae6560d03fae46357688d8bf27004617d403290fc5ef3f5",
+        "tomato_can_r1/witness/metadata.json": "f42491161b5d30b8867522d4a3355e2367d4286a51902248c2db9c1d2c890942",
+        "tomato_can_r1/witness/phases.json": "53ae5628487a8ae5094a8f9acf35a10e7260e77f11c176cbd14356c23fa3c24e",
+        "tomato_can_r1/witness/ping-after.json": "bacf927824b348b4082e2a3ba492944fc9a0df6f329870f342aad6b0ad81df6a",
+        "tomato_can_r1/witness/ping-before.json": "bacf927824b348b4082e2a3ba492944fc9a0df6f329870f342aad6b0ad81df6a",
+        "tomato_can_r1/witness/placed-cam0.jpg": "b07cfb91cfa3b5bce0922c1e73a78631879f6f9bc10ebdd756d4902df6b882be",
+        "tomato_can_r1/witness/placed-frames.json": "ef681552b99deecddd55e2108b365519ab4088f132468ac3af9e5f8b7d9e2ddc",
+        "tomato_can_r1/witness/placed-proof.jpg": "b1e2985709c7110cd12bac3afff67b3b7383e0870c75b144681c187725a11731",
+        "tomato_can_r1/witness/placed-side.jpg": "fe9989c7d6fc26bd5e5ec3c357fd4aa6703906a5e2eece4a030c56ab2498b003",
+        "tomato_can_r1/witness/reset-cam0.jpg": "e7e5db113e23f064afe71e7661395a0d51a19b268828c4116ad4628ac133c4f6",
+        "tomato_can_r1/witness/reset-frames.json": "ec8f0791468f660cb0c7937a3b41315d08d5b7040dc710b1e03dbbc7cba8279c",
+        "tomato_can_r1/witness/reset-proof.jpg": "ad18874e8fac6576ccba4db9dbe796d7b3b98891bee4c8156a3fa26731759a19",
+        "tomato_can_r1/witness/reset-side.jpg": "2014fa74efc6137cce65bf3520a5ba9b5a805b47e6f5cbe218169d566b839312",
+        "tomato_can_r1/witness/samples.jsonl": "bd00a856708a41e044eb92cd42c88ba35825a86ea0826c2381227ef56d7812e4",
+        "tomato_can_r1/witness/snapshot-code.py": "402e4fbd6c93e640375636141177a087d64998a837047fbcc3c3ffc1cf0abe70",
+        "tomato_can_r1/witness/wire.jsonl": "901935f7426d9a0ccc925e8162880f940d3e09c116a6e73eab8d7c84739d1424"
+      },
+      "application_cuda_visible_devices": "0",
+      "services_cuda_visible_devices": "0",
+      "physics_pass": true,
+      "camera_pass": false,
+      "max_frame_age_s": 2.9977082990008057,
+      "pick_ok": true,
+      "return_home": {
+        "attempted": true,
+        "ok": false,
+        "error": "joint feedback changed during route preflight; no motion sent"
+      },
+      "reset_ok": true,
+      "failed_audit_checks": [
+        "strict_pick_place_and_cameras",
+        "all_event_cameras_advance"
+      ],
+      "payload_query": {
+        "samples": 2424,
+        "unobserved_samples": 0,
+        "minimum_observed_clearance_m": 0.04760974403045704,
+        "surfaces_by_camera": {
+          "proof": 643,
+          "cam0": 967,
+          "side": 814
+        }
+      },
+      "occupancy_final": {
+        "stale": false,
+        "last_error": null,
+        "last_masked_pixels": 6796,
+        "has_distance_grid": true,
+        "replayed_frames_on_last_transition": 0
+      },
+      "interpretation": "Placement physics and explicit scene reset passed. Overall failure: frame age exceeded 2 s. Return-home inside pick also failed on measured feedback drift during route preflight; the old diagnostic omitted a separate return-home gate.",
+      "camera_outliers": {
+        "samples_over_2_seconds": 2,
+        "sequence": [
+          41,
+          42
+        ],
+        "ages_s": [
+          2.903,
+          2.998
+        ],
+        "timing": "before first actuator request during initial pick work",
+        "remaining_samples_max_age_s": 0.5983,
+        "causal_limit": "CPU/GPU cold work or contention is plausible but not isolated by these samples."
+      },
+      "feedback_drift": {
+        "joint_index_zero_based": 3,
+        "from_rad": 1.48554,
+        "to_rad": 1.49376,
+        "elapsed_wall_s": 0.46,
+        "unchanged_preflight_limit_rad": 0.001
+      },
+      "payload_query_scope": "Last map query, including hypothetical route preflight; not necessarily the last executed pose. commands.jsonl and the passive witness establish actual motion."
+    },
+    {
+      "trial": 16,
+      "campaign_pass": false,
+      "requested_rounds": 2,
+      "requested_objects": [
+        "tomato_can",
+        "orange",
+        "green_cube",
+        "pink_cube",
+        "lemon"
+      ],
+      "completed_cases": 1,
+      "fail_fast": true,
+      "source_commit_matching_manifest": "bfffa80eb2fb5868b5c4def687afd2e231a7a569",
+      "source_manifest_matches_commit": true,
+      "runtime_source_unchanged": true,
+      "source_sha256": {
+        "benchmark/diagnostics/kitchen_acceptance.py": "be30d3c9863aa66b3ed0573276767160c7dc8947a51b8f0772f5ca1bbbdf9949",
+        "scripts/isaac_bridge.py": "48ded6d28a040b9a715d78ffbea3c1f40868f9c15e12c3e07d0fdb7f648bdf33",
+        "scripts/isaac_materials.py": "54fafa297d2e150df5f4a066d76e27e63055acf0a6bfcdb502dc02b3373350fd",
+        "scripts/isaac_runtime.py": "2644d2339d4c5402f04085ddbef863e5ca983a27777d59d656f65c7fd60785ca",
+        "scripts/isaac_self_mask.py": "2b9bfd22b398c8fdece59ae04df9f6b1908dd3a234e32f4fb54179eba3ae79f0",
+        "src/cascade/sim/bridge_client.py": "29ff72d341a47952b21c0f90118a7b8ba2cb5d8ce1ae68baf124070787d1c80b",
+        "src/cascade/safety/harness.py": "4e9ded0b5c4a3096f95006ce39cee39947b85a74ed6af8ea5c316c1ebbcce07e",
+        "src/cascade/types.py": "cbd65a50d2e7eb89fc1a908c5d3ede0e587f1b344b4da0d76bcf33d81f6e8b60",
+        "src/cascade/safety/trajectory.py": "16f8dd9a656ee4eabe338d0b1079cbd17884cb3aef81756e8216e59c6aaa5b95",
+        "src/cascade/control/arm_base.py": "a041dea27968a41bfcd3a25a37a184cc1d3047bfd0c0f3744756eda2574edbe7",
+        "src/cascade/control/mock_arm.py": "9d134597720124baa95e627246111949a7462edf5b2ef5dc375a46066b547c22",
+        "src/cascade/skills/runtime.py": "92990cb1378345f53014123d00189b7e5cc4c45fd7f552baba0b739cac4c0075",
+        "src/cascade/grasping/obb_grasp.py": "5c38fb8c54ce30deebe29cddc6ac3daa562e5b2903287a60d315f1250b01a9cb",
+        "src/cascade/grasping/graspgenx_backend.py": "f9575978c84ff6478b07cb981291719413c8a025780afb1ff0f337b2b25776fc",
+        "src/cascade/config.py": "984cf4e2aa276ce54f8b24e78a5fd863699a5109e8c522dc00d072bb6c6d82d7",
+        "src/cascade/apps/demo.py": "e6569d5e77dbcf042d6c45fbf0ed48a422525771aa3b9602f3593cd36bd5d100",
+        "src/cascade/perception/grounding.py": "e93ce3d7388d35a53ff4c0b61af541f0c065e4a65d3b8cd7c0573b50963a4458",
+        "src/cascade/perception/cuda_math.py": "d148ef4481868d3247b37710548dc87fdb7a5d08700fb6135b41fb6fd3900e33",
+        "src/cascade/perception/occupancy.py": "55a1e0f631a8077e0c4ed3c0b56e0e2c8b28e430d961b23c27ed648da0c80d61",
+        "src/cascade/perception/occupancy_backends.py": "443f0252b8b4f988a89dcd9bde619bf2badbe6945f567772f47d1258baa4e5d4",
+        "src/cascade/perception/world.py": "7ac251c02dcd81bb62c1ef28ce1c37b8facf544d53737670af3f2075b85fbc07",
+        "src/cascade/agent/effects.py": "8d6eb766848bec8cbb53f5faabbd22996e82ecb171c40a911f80854d89bf88bb",
+        "src/cascade/sim/truth.py": "5088b778ad400d8020293a88cebdeef2299a448e0052e2bae37f7dddb7cfb00b",
+        "src/cascade/sim/placement.py": "aae283b13280de1aa7ee578bde5566f77ffa085cd988e1154b52c9310835ec4e",
+        "demo/kitchen/physics/placement_verdict.py": "8bfd029bf129fd1c7906c111941c2bda9dda9ff029d494d24ee8e21294e8a810",
+        "demo/kitchen/physics/gpu_proof_audit.py": "f85392450376bf6a320138198612530d26f08ab4a95962a20047f3f3ceb26fb2",
+        "demo/kitchen/physics/convex_geometry.py": "f1e3c87aed4b2343f2818564048ee42e002c588b97f87007f55c83a158d0de65",
+        "demo/kitchen/physics/destination_entry.py": "263a9fb383af509f435118deed536d19afca9d43701487edf7999dad92f1b441",
+        "demo/kitchen/physics/spark_proof.py": "675434aab150a74fefe1ab637a6d1d740c24e7f11c319f5bd50cd4a1426c78d4",
+        "assets/newton/rebot_gripper_hulls.usda": "46fd39d7f4ad948a9a7e6d67f2f7fde5a92333972e1f4ff2014dcba1449462de",
+        "configs/arms/isaac_kitchen.yaml": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+        "configs/arms/isaac_kitchen_gpu.yaml": "3274e46b33305a6b0fb90a0a2417a754c9935e4a3662d7e06c0dacbef193b62c"
+      },
+      "artifact_root": "runs/nvblox-rtx/physical-16",
+      "artifact_sha256": {
+        "campaign.json": "64926767cd123f472c98d30f3b52b567d01b457674413cef748711905cb14cfc",
+        "tomato_can_r1/commands.jsonl": "c7464d648a27d6585bb4e76376edf1fdcc33be0dc14546b9737e39bbbdd7bd62",
+        "tomato_can_r1/execution.log": "ca026377582ae9829f1267caac0ae3768249db628f9739893f82398e4cfbd2e0",
+        "tomato_can_r1/receipt.json": "687ff1925eb07c4c98bc67f6692269b01083d674c4d5c62ef3c2958837b4f500",
+        "tomato_can_r1/runtime/keyframes/0000_pick_and_place_after.jpg": "24d36b6f9a090536c1e1f64162eaed14a18d3d7db85b864961cc0ac49a45c33d",
+        "tomato_can_r1/runtime/keyframes/0000_pick_and_place_before.jpg": "7f9087665e7417ff7183612fda02d2a5bb550d55d5896af7ae944017695157a6",
+        "tomato_can_r1/runtime/keyframes/0001_reset_scene_after.jpg": "27738aac0115d81e3c3a341567637421a76947eb8f64f9ec228183aabcce3e0f",
+        "tomato_can_r1/runtime/keyframes/0001_reset_scene_before.jpg": "24d36b6f9a090536c1e1f64162eaed14a18d3d7db85b864961cc0ac49a45c33d",
+        "tomato_can_r1/runtime/trace.jsonl": "e87a6e03c542b929e4dbbb8afdda7b03459b2388d9c6a1c3e3367145d245682c",
+        "tomato_can_r1/witness/first-scene-geometry.json": "6e93c070feb463bdccb4533da7ea242a27516fae2c509293c75547a3c435b3c3",
+        "tomato_can_r1/witness/gpu-physical-audit.json": "dcea76568a1394b525826b887ee7a44243e92fef9aa0b6d39ee65a7ac0d61d20",
+        "tomato_can_r1/witness/metadata.json": "51810b574b6145956a4c9051ad74744c727c0ab3b5ee3826d54e615f499ccf76",
+        "tomato_can_r1/witness/phases.json": "ca55905be77b6c8d29e68743d68f619663546a29c6150fca3ef1ef9f477c9ce8",
+        "tomato_can_r1/witness/ping-after.json": "bacf927824b348b4082e2a3ba492944fc9a0df6f329870f342aad6b0ad81df6a",
+        "tomato_can_r1/witness/ping-before.json": "bacf927824b348b4082e2a3ba492944fc9a0df6f329870f342aad6b0ad81df6a",
+        "tomato_can_r1/witness/placed-cam0.jpg": "c75f1241cf41d1a3d0c7acd1851775d1aa4241b779564a9657d33df7644aba4d",
+        "tomato_can_r1/witness/placed-frames.json": "b6c65fd4abb1988735a98ea43fed33c29b857b0af74ed4101c4b4038e9c82c23",
+        "tomato_can_r1/witness/placed-proof.jpg": "9ad69a352ecaff2831953a6f8c905d69cb68315e6573c18ec69a3b5ba59e9579",
+        "tomato_can_r1/witness/placed-side.jpg": "e504f30e9d9cadb737b169ed2341c74e90e904eb52215403085d01f116685460",
+        "tomato_can_r1/witness/reset-cam0.jpg": "f40824b9415b943d68eaba19f6de05d26a01f121c2e7e9e3bd84e148eddc9467",
+        "tomato_can_r1/witness/reset-frames.json": "38edddaca6a915e4c7e942c37235c0c339711c3c3bd8931073d6cb01fffe1dd2",
+        "tomato_can_r1/witness/reset-proof.jpg": "1f56ed35fb79030b6a4a123044958c7d69b275e1747e031885e52d03fa54c8f8",
+        "tomato_can_r1/witness/reset-side.jpg": "6987e398ead31395b604a82c75f454c7e8dd2c23ea84db88aa4bca307c385f0c",
+        "tomato_can_r1/witness/samples.jsonl": "9d5ea5ffd0bf95f41782349103e36633a4bf62ad2727b9debe63be81cbfd9217",
+        "tomato_can_r1/witness/snapshot-code.py": "402e4fbd6c93e640375636141177a087d64998a837047fbcc3c3ffc1cf0abe70",
+        "tomato_can_r1/witness/wire.jsonl": "5c16fbcabb2b4afd2a353a1ab8e352a59c6519ccbdf9133b9e518623cc9f3d1a"
+      },
+      "application_cuda_visible_devices": "1",
+      "services_cuda_visible_devices": "0",
+      "physics_pass": false,
+      "camera_pass": true,
+      "max_frame_age_s": 0.581498093000846,
+      "pick_ok": false,
+      "return_home": null,
+      "reset_ok": false,
+      "failed_audit_checks": [
+        "all_props_physically_reset_and_settled",
+        "strict_pick_place_and_cameras",
+        "whole_convex_collider_inside_green_square_and_supported",
+        "two_jaw_contacts_during_real_lift",
+        "whole_footprint_enters_destination_with_bilateral_support",
+        "pick_skill_completed",
+        "home_after_place_completed",
+        "reset_skill_completed"
+      ],
+      "payload_query": {
+        "samples": 2438,
+        "unobserved_samples": 2273,
+        "minimum_observed_clearance_m": 0.006880371997103507,
+        "surfaces_by_camera": {
+          "proof": 547,
+          "cam0": 872,
+          "side": 1019
+        }
+      },
+      "occupancy_final": {
+        "stale": false,
+        "last_error": null,
+        "last_masked_pixels": 8229,
+        "has_distance_grid": true,
+        "replayed_frames_on_last_transition": 6
+      },
+      "interpretation": "First lift refused after a 500 ms mapping timeout during payload transition. Provisional held state was promoted; reset then refused unobserved attached clearance. No release/reset success is claimed. Camera audit passed with perception moved to GPU 1.",
+      "first_failure": "payload tracking unavailable: occupancy bridge at 127.0.0.1:25559 timed out (500 ms)",
+      "reset_error": "no safe joint route found; direct route: attached object point 0 has unobserved clearance (occupancy map) at [0.2442, 0.1963, 0.0843]",
+      "teardown_scope": "Historical harness attempted a park after observer shutdown; it was rejected by unknown attached clearance. Future diagnostic teardown closes consumers and sockets without motion.",
+      "payload_query_scope": "Last map query, including hypothetical route preflight; not necessarily the last executed pose. commands.jsonl and the passive witness establish actual motion."
+    }
+  ],
+  "retained_trial16_observation": {
+    "scope": "Read-only actual retained trial16 state; no runtime, arm, movement, gripper, reset or park commands.",
+    "observer_complete": true,
+    "observer_errors": [],
+    "sample_count": 21,
+    "artifact_root": "runs/nvblox-rtx/physical-16-held-capture-02",
+    "artifact_sha256": {
+      "cam0.npz": "4cba954f975d701faba50393d1cdae694f27e281eb4cc573f0bca6b0c0c59335",
+      "metadata.json": "108af58a284843a6de5203fa4a6d0934fb24a4653758e31938d0249c6276e2d4",
+      "proof.npz": "2cb17ceb779a3d74e42ac3dbc4fa776f91d4745f6abca59b444907265621a93d",
+      "side.npz": "1d978e2794d5b35ab6680f09b7523e154f3787a84d5710c2d71abd45d8b9384a",
+      "witness/first-scene-geometry.json": "6e93c070feb463bdccb4533da7ea242a27516fae2c509293c75547a3c435b3c3",
+      "witness/metadata.json": "a3e84a2dad612db6fd3bacdf9f4d4fcfbf81797f649d86403ad49587c2083771",
+      "witness/ping-after.json": "bacf927824b348b4082e2a3ba492944fc9a0df6f329870f342aad6b0ad81df6a",
+      "witness/ping-before.json": "bacf927824b348b4082e2a3ba492944fc9a0df6f329870f342aad6b0ad81df6a",
+      "witness/samples.jsonl": "73ec17ae1308be7fa878c59de9ebc1279a4697687f6a7f0c4ec8cbb6c0cf7142",
+      "witness/snapshot-code.py": "287760d11bf31c76541a8f8925c0d5475a379a7dc337aaaaa2ebf79b2f66d89d",
+      "witness/wire.jsonl": "45bb2b2e92e387b497bdd79b1a4b946054d1b38adf8f2c3ae8c5d23bf447ae1f"
+    },
+    "first_contact_counts": [
+      6,
+      3
+    ],
+    "first_can_position_m": [
+      0.22941425442695618,
+      0.21669380366802216,
+      0.0423541478922191
+    ],
+    "no_recovery_claim": true
+  },
+  "test_evidence": [
+    {
+      "scope": "Full source regression at d0efb1b before the newer diagnostics/rebind",
+      "passed": 2569,
+      "skipped": 43,
+      "deselected": 3,
+      "log_sha256": "1c11aa9c4eb5fb27aaf21463b90be3a8a047449d39f115c5a158d0345923cf34"
+    },
+    {
+      "scope": "Independent root run after bounded feedback rebinding: home routes, contact recovery and camera probe",
+      "passed": 47,
+      "source_commit": "bfffa80"
+    }
+  ]
+}

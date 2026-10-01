@@ -8,8 +8,8 @@ Three backends behind ONE interface, chosen by `make_backend(name)`:
           linux x86_64 wheel from the GitHub release; Jetson builds from
           source). Verified against the nvblox_torch public API at
           nvidia-isaac/nvblox `public` (Mapper.add_depth_frame /
-          update_esdf / query_layer(QueryType.ESDF)). CUDA integration has
-          not been validated for the Spark delivery; see docs/NVBLOX.md.
+          update_esdf / query_layer(QueryType.ESDF)). CUDA mapping has been
+          validated on RTX Blackwell and Spark GB10; see docs/NVBLOX.md.
 
   warp    Hardware-agnostic default. ~200 lines of NVIDIA Warp kernels owned
           by this repo: a DENSE projective TSDF over the workspace AABB
@@ -58,10 +58,20 @@ import numpy as np
 class GridSpec:
     """Dense grid over an AABB. Voxel (i,j,k) centre = origin + (i,j,k)*voxel."""
 
-    def __init__(self, region_min, region_max, voxel: float):
+    def __init__(self, region_min, region_max, voxel: float, *, voxel_centres: bool = False):
         self.voxel = float(voxel)
         lo = np.asarray(region_min, dtype=np.float64)
         hi = np.asarray(region_max, dtype=np.float64)
+        if voxel_centres:
+            # nvblox looks up the containing voxel, whose value belongs at
+            # (index + 0.5) * voxel. Boundary queries can select either neighbor
+            # after float32 rounding and misregister the interpolation grid.
+            # Bracket the requested AABB with native voxel centers.
+            first = np.floor(lo / self.voxel - 0.5).astype(np.int64)
+            last = np.ceil(hi / self.voxel - 0.5).astype(np.int64)
+            self.shape = tuple(int(max(2, n)) for n in last - first + 1)
+            self.origin = ((first + 0.5) * self.voxel).astype(np.float32)
+            return
         self.shape = tuple(int(max(2, np.ceil((hi[a] - lo[a]) / self.voxel) + 1)) for a in range(3))
         self.origin = lo.astype(np.float32)
 
@@ -276,6 +286,7 @@ class NvbloxBackend:
         Mapper(voxel_sizes_m=float, mapper_parameters=MapperParams())
         Sensor.from_camera(fu, fv, cu, cv, width, height)
         mapper.add_depth_frame(depth_HxW_float32_cuda, t_w_c_4x4_CPU, sensor)
+            mask_frame=active_HxW_uint8_cuda optionally preserves front free space
         mapper.update_esdf()
         mapper.query_layer(QueryType.ESDF, spheres_Nx4_cuda) -> (N,1) distance;
             unknown == constants.esdf_unknown_distance()
@@ -288,6 +299,8 @@ class NvbloxBackend:
 
     def __init__(self, voxel: float = 0.01, region_min=(-0.5, -0.5, -0.1),
                  region_max=(0.8, 0.5, 0.6), max_integration_m: float = 2.0, **_):
+        import inspect
+
         import torch  # noqa: F401
         from nvblox_torch.mapper import Mapper, QueryType  # type: ignore
         from nvblox_torch.mapper_params import MapperParams, ProjectiveIntegratorParams  # type: ignore
@@ -312,7 +325,11 @@ class NvbloxBackend:
             self._Sensor = Sensor
         except ImportError:
             pass
-        self.mapper = Mapper(voxel_sizes_m=float(voxel), mapper_parameters=params)
+        # Preserve the exact construction parameters across a logical reset.
+        self._mapper_factory = lambda: Mapper(
+            voxel_sizes_m=float(voxel), mapper_parameters=params)
+        self.mapper = self._mapper_factory()
+        self.masked_depth = "mask_frame" in inspect.signature(self.mapper.add_depth_frame).parameters
         self.voxel = float(voxel)
         self.spec = GridSpec(region_min, region_max, self.voxel)
         self.last_integrate_ms = 0.0
@@ -325,32 +342,72 @@ class NvbloxBackend:
         raise RuntimeError("nvblox integrates DEPTH FRAMES (ray casting); use integrate_depth")
 
     def clear(self) -> None:
-        self.mapper.clear()
+        # Upstream clear drops live blocks without returning them to its pool,
+        # whose historical allocation count then drives larger reallocations.
+        # Replace the mapper so a reset drops both observations and that history.
+        # Keep the backend unavailable until construction and synchronization
+        # succeed; failed clears must not expose the previous map to queries.
+        self.mapper = None
+        self.last_integrate_ms = 0.0
+        self.last_query_ms = 0.0
+        replacement = self._mapper_factory()
         self._torch.cuda.synchronize()
+        self.mapper = replacement
+
+    def _ready_mapper(self):
+        if self.mapper is None:
+            raise RuntimeError("nvblox map unavailable: clear must complete before reuse")
+        return self.mapper
 
     def integrate_depth(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray) -> None:
+        self._integrate_depth(depth, K, T_base_cam)
+
+    def integrate_masked_depth(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray,
+                               active_mask: np.ndarray) -> None:
+        """Preserve measured front free space while omitting excluded surfaces.
+
+        An inactive pixel is still a depth measurement. nvblox stops its
+        free-space integration before the positive TSDF truncation band;
+        the excluded surface and everything behind it remain unobserved.
+        """
+        if not self.masked_depth:
+            raise RuntimeError("installed nvblox does not support native depth masking")
+        mask = np.asarray(active_mask)
+        if (np.ndim(depth) != 2 or mask.shape != np.shape(depth)
+                or mask.dtype not in (np.dtype(bool), np.dtype(np.uint8))
+                or not np.all((mask == 0) | (mask == 1))):
+            raise ValueError("active_mask must be a binary bool/uint8 image matching depth shape")
+        self._integrate_depth(depth, K, T_base_cam, np.ascontiguousarray(mask, dtype=np.uint8))
+
+    def _integrate_depth(self, depth, K, T_base_cam, active_mask=None) -> None:
+        mapper = self._ready_mapper()
         torch = self._torch
         t0 = time.perf_counter()
         h, w = depth.shape
         sensor = self._Sensor.from_camera(float(K[0, 0]), float(K[1, 1]), float(K[0, 2]), float(K[1, 2]), int(w), int(h))
         d = torch.as_tensor(np.ascontiguousarray(depth, dtype=np.float32)).cuda()
         pose = torch.as_tensor(np.asarray(T_base_cam, dtype=np.float32))  # CPU, sensor->world
-        self.mapper.add_depth_frame(d, pose, sensor)
-        self.mapper.update_esdf()
+        if active_mask is None:
+            mapper.add_depth_frame(d, pose, sensor)
+        else:
+            mapper.add_depth_frame(d, pose, sensor,
+                                   mask_frame=torch.as_tensor(active_mask).cuda())
+        mapper.update_esdf()
         torch.cuda.synchronize()
         self.last_integrate_ms = (time.perf_counter() - t0) * 1e3
 
     def query(self, region_min, region_max) -> dict[str, Any]:
+        mapper = self._ready_mapper()
         torch = self._torch
         t0 = time.perf_counter()
-        spec = GridSpec(region_min, region_max, self.voxel)
+        spec = GridSpec(region_min, region_max, self.voxel, voxel_centres=True)
         centres = spec.centres().reshape(-1, 3)
         # nvblox 0.0.10's ESDF kernel requires (x, y, z, radius), despite
         # query_layer's Nx3 docstring. Zero radius asks for point clearance.
         spheres = np.zeros((len(centres), 4), dtype=np.float32)
         spheres[:, :3] = centres
         query = torch.as_tensor(spheres).cuda()
-        sdf = self.mapper.query_layer(self._QueryType.ESDF, query).reshape(-1).cpu().numpy()
+        sdf = mapper.query_layer(self._QueryType.ESDF, query).reshape(-1).cpu().numpy()
         grid = sdf.reshape(spec.shape).astype(np.float32)
         unknown = grid == self._unknown
         # Keep the 3-D layout: a flat SDF mask cannot index this grid.

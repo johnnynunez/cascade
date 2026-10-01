@@ -49,6 +49,8 @@ class IsaacArm(ArmBase):
             port=int(cfg.get("bridge_port", 8611)),
         )
         self._stopped = False
+        # Acknowledged targets only; never infer motion from requested poses.
+        self._acknowledged_joint_targets = 0
 
     def connect(self) -> None:
         self._client.connect()
@@ -125,6 +127,7 @@ class IsaacArm(ArmBase):
             self._client.set_joints(q_asset)
         else:
             self._client.set_joints(q_asset, timeout_s=timeout_s)
+        self._acknowledged_joint_targets += 1
         grasp_evidence.event("isaac_joint_target_sent", q_local=q, q_asset=q_asset)
 
     def stream_to(self, q_target, duration_s, rate_hz=None, approve=None,

@@ -1162,6 +1162,7 @@ class SkillRuntime:
         measured against the moment the current motion skill STARTED, not
         "now" -- the watcher is paused while the arm moves, so beliefs age
         artificially during exactly the retries that need them."""
+        localization_started = time.monotonic()
         r = self._resolve_query(query)
         workspace_bounds = self._localization_workspace_bounds()
         def in_workspace(position):
@@ -1172,19 +1173,33 @@ class SkillRuntime:
                     and np.all(point <= workspace_bounds[1]))
         frame = None
         last_err: SkillError | None = None
-        tries = int(self.cfg.get("perception_loop", {}).get("localize_frames", 3))
-        for _ in range(max(tries, 1)):
-            frame = self.observe()
+
+        def analyze(cframe, ext):
+            # Bound the age of the image actually analyzed, including lazy
+            # detector loading and a slow miss. Capture clocks may be remote;
+            # Frame.t and this analysis clock are both client-local.
+            _frame_age_s(cframe)
+            started = time.monotonic()
             try:
-                fix = localize_object(
-                    frame, query, self.detector, self.extrinsics,
+                return localize_object(
+                    cframe, query, self.detector, ext,
                     prompts=r["prompts"], spatial_hint=spatial_hint,
                     color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
                     prefer_label=r["prefer_label"],
                     workspace_bounds=workspace_bounds,
                     require_unique=r["configured_description"],
                 )
+            finally:
+                _analyzed_frame_age_s(cframe, time.monotonic() - started)
+
+        tries = int(self.cfg.get("perception_loop", {}).get("localize_frames", 3))
+        for _ in range(max(tries, 1)):
+            frame = self.observe()
+            try:
+                fix = analyze(frame, self.extrinsics)
                 return frame, fix
+            except SlowPerceptionError:
+                raise  # Not detector flicker; do not fall back to memory.
             except ReferenceResolutionError:
                 # An unsatisfied identity constraint is not detector flicker.
                 # Retrying/falling back to a remembered noun can select a
@@ -1204,14 +1219,7 @@ class SkillRuntime:
                     continue
                 ext = (_Ext(T=cframe.T_base_cam)
                        if cframe.T_base_cam is not None else cam.extrinsics)
-                fix = localize_object(
-                    cframe, query, self.detector, ext,
-                    prompts=r["prompts"], spatial_hint=spatial_hint,
-                    color=r["color"], near_xyz=r["near_xyz"], vocab=r["vocab"],
-                    prefer_label=r["prefer_label"],
-                    workspace_bounds=workspace_bounds,
-                    require_unique=r["configured_description"],
-                )
+                fix = analyze(cframe, ext)
                 if (os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
                         and cframe.T_base_cam is None and ext.mode == "eye_to_hand"):
                     # Bind the secondary view's actual static calibration to
@@ -1224,6 +1232,8 @@ class SkillRuntime:
                     f"through {getattr(cam.stream, 'name', 'another camera')}",
                 )
                 return cframe, fix
+            except SlowPerceptionError:
+                raise
             except ReferenceResolutionError:
                 raise
             except Exception:
@@ -1263,6 +1273,7 @@ class SkillRuntime:
             and in_workspace(belief.position)
         )
         if mem_ok:
+            _analyzed_frame_age_s(frame, time.monotonic() - localization_started)
             self.memory.add(
                 "note",
                 f"localize {query!r}: instant detection missed; using the "
@@ -1273,10 +1284,12 @@ class SkillRuntime:
         # Last filter: VLM grounding. YOLOE's text embeddings miss what a
         # full VLM reads easily; one slow call only ever runs on this
         # failure path.
-        fix = self._vlm_ground_fix(frame, query)
-        if fix is not None and in_workspace(fix.position):
-            return frame, fix
-        if fix is not None:
+        _analyzed_frame_age_s(frame, time.monotonic() - localization_started)
+        grounded = self._vlm_ground_fix(frame, query)
+        if grounded is not None and in_workspace(grounded[1].position):
+            return grounded
+        if grounded is not None:
+            _, fix = grounded
             last_err = SkillError(
                 f"localize {query!r} failed: VLM fix at "
                 f"{np.round(fix.position, 3).tolist()} is outside the active arm workspace"
@@ -1288,16 +1301,20 @@ class SkillRuntime:
         lift it to a 3D fix -- trying EVERY camera's view (the primary may
         see the object at 40 px while the side camera fills the frame with
         it). Fail-soft: any error returns None so the caller reports the
-        original detector failure."""
+        original detector failure. A successful result keeps its actual view;
+        slow analysis is terminal rather than a miss on another camera."""
         gcfg = self.cfg.get("grounder", None)
         if not gcfg:
             return None
+        if frame is not None:
+            _frame_age_s(frame)
+        started = time.monotonic()
         try:
             if self._grounder is None:
                 from ..perception.vlm_ground import VLMGrounder
 
                 self._grounder = VLMGrounder(
-                    base_url=str(gcfg["base_url"]),
+                    base_url=str(gcfg.base_url),
                     model=str(gcfg.get("model", "")),
                     timeout_s=float(gcfg.get("timeout_s", 45.0)),
                 )
@@ -1318,7 +1335,11 @@ class SkillRuntime:
                               is not None else cam.extrinsics.cam_to_base()))
             det = gframe = T = None
             for cframe, cT in views:
-                det = self._grounder.ground(cframe, query)
+                _analyzed_frame_age_s(cframe, time.monotonic() - started)
+                try:
+                    det = self._grounder.ground(cframe, query)
+                finally:
+                    _analyzed_frame_age_s(cframe, time.monotonic() - started)
                 if det is not None:
                     gframe, T = cframe, cT
                     break
@@ -1344,10 +1365,17 @@ class SkillRuntime:
                 f"YOLOE missed {query!r}; the VLM (2nd filter) found it at "
                 f"{[round(float(v), 2) for v in center]}",
             )
-            return ObjectFix(
+            fix = ObjectFix(
                 label=query, position=center, points=pts,
                 detection=det, extent=extents, axes=axes,
             )
+            _analyzed_frame_age_s(gframe, time.monotonic() - started)
+            if gframe.T_base_cam is None:
+                from dataclasses import replace
+                gframe = replace(gframe, T_base_cam=np.asarray(T).copy())
+            return gframe, fix
+        except SlowPerceptionError:
+            raise
         except Exception as e:
             self.memory.add("note", f"VLM grounding unavailable: {str(e)[:80]}")
             return None
@@ -2931,6 +2959,11 @@ class SkillRuntime:
                     if isinstance(e, carry_attachment.AttachmentInvalid):
                         return carry_attachment.failure_result(self, e,
                             **failure_destination, grasp_attempts=attempt, place_attempts=0)
+                    if isinstance(e, SlowPerceptionError):
+                        return {**failure_destination, "ok": False, "stage": "grasp",
+                                "error": str(e), "home_skipped": True,
+                                "grasp_attempts": attempt,
+                                "note": "localization analysis expired; no automatic motion recovery"}
                     res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
                 timings[f"grasp_attempt{attempt}_s"] = round(time.monotonic() - tg, 2)
                 if res.get("ok", True) and res.get("held"):

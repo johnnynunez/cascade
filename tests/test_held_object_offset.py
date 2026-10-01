@@ -20,6 +20,7 @@ compensation just removed).
 from __future__ import annotations
 
 import numpy as np
+from types import SimpleNamespace
 
 
 from cascade.skills.runtime import SkillRuntime
@@ -54,6 +55,7 @@ def _runtime(tcp=(0.30, 0.10, 0.95), held="cube"):
     rt._object_pose = None
     rt.arm = _Arm(tcp)
     rt.kin = _Kin(tcp)
+    rt.cfg = SimpleNamespace(arm={})
     return rt
 
 
@@ -144,29 +146,26 @@ def test_belief_is_reseeded_at_the_object_aim_not_the_tcp():
     assert "np.array([x, y, release_z]" in seed
 
 
-def test_place_detects_a_carry_slip_instead_of_placing_air():
-    """Measured on a visitor run: the red cube slipped 4 cm from where it
-    started, `place_at` lowered an empty gripper and returned ok, and only
-    the pick_and_place postcondition (20 s later) refuted it. The same look
-    that measures the in-jaw offset sees the object far BELOW the TCP; that
-    is a slip, and place_at must say so instead of pretending to place."""
+def test_legacy_vector_below_tcp_does_not_authorize_releasing_the_object():
+    """A vector without identity/time cannot prove a slip. Atomic physical
+    drop detection is exercised by test_held_observation instead."""
     import pytest
     from types import SimpleNamespace
-    from cascade.types import SkillError
 
     tcp = np.array([0.30, 0.10, 0.25])
     rt = _runtime(tcp=tcp, held="red cube")
     rt._object_pose = lambda name: tcp + np.array([0.02, 0.01, -0.22])   # on the table
     rt.cfg = SimpleNamespace(grasp={"slip_drop_m": 0.06, "release_height_m": 0.05},
-                             safety={"table_z": 0.0})
+                             safety={"table_z": 0.0}, arm={})
     opened = []
     rt.arm.set_gripper = lambda pos, effort=1.0: opened.append(pos)
     rt._grip_open = 1.0
     rt.memory = SimpleNamespace(add=lambda *a, **k: None)
     rt._held_color = None
-    with pytest.raises(SkillError, match="slipped out of the gripper"):
+    rt.kin.ik = lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("planning boundary"))
+    with pytest.raises(RuntimeError, match="planning boundary"):
         rt.skill_place_at(0.20, -0.12)
-    assert rt.held_object is None and opened == [1.0]
+    assert rt.held_object == "red cube" and opened == []
     # a normal in-jaw offset (object at TCP height) is NOT a slip
     rt2 = _runtime(tcp=tcp, held="red cube")
     rt2._object_pose = lambda name: tcp + np.array([0.02, 0.01, -0.02])

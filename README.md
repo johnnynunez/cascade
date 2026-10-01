@@ -30,7 +30,9 @@ The common skill API selects an arm through its driver and a
 home poses, tool-frame convention, reach and gripper travel come from that
 profile, and the skills, safety harness and grasp planner read them. Backend
 capabilities remain explicit: Isaac motion requires a physical clock, and its
-observed-finger and held-object guards require bound capture metadata. Model
+observed-finger and held-object guards require bound capture metadata. The
+[NV carry guard](docs/NVBLOX_CARRY_ATTACHMENT.md) stops transport when its
+retained attachment is lost or unavailable; it does not cure mechanical slip. Model
 device selection uses [`resolve_device()`](src/cascade/device.py), which probes the
 host; required CUDA or learned-inference profiles fail when that capability
 is unavailable rather than silently accepting a fallback.

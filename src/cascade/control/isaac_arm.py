@@ -20,6 +20,9 @@ from .arm_base import ArmBase
 
 
 class IsaacArm(ArmBase):
+    # Only the NV post-close barrier arms this capability. Other backends and
+    # Isaac configurations without payload tracking retain their contracts.
+    attachment_feedback_version = 1
     def __init__(self, cfg: Cfg, kinematics=None):
         self._cfg = cfg
         self.n_joints = int(cfg.get("n_joints", 6))
@@ -80,6 +83,13 @@ class IsaacArm(ArmBase):
         clock = copy.deepcopy(s.get("physics_clock"))
         if isinstance(clock, dict):
             clock["source"] = self._client._addr  # bind locally, never trust a wire endpoint
+        attachment = copy.deepcopy(s.get("attachment"))
+        if isinstance(attachment, dict):
+            attachment["source"] = self._client._addr
+            aq = np.asarray(attachment.get("q"))
+            if (aq.shape != q.shape or aq.dtype.kind not in "fiu"
+                    or not np.isfinite(aq).all() or not np.array_equal(aq, q)):
+                attachment.update(tracking=False, error="attachment asset q differs from state")
         return RobotState(
             q=q.astype(float) * self._signs,
             dq=dq.astype(float) * self._signs if dq is not None else None,
@@ -87,6 +97,7 @@ class IsaacArm(ArmBase):
             gripper_valid="gripper_pos" in s,
             physics_clock=clock,
             gripper_joints=copy.deepcopy(s.get("gripper_joints")),
+            attachment=attachment,
         )
 
     def state_from_frame(self, frame) -> RobotState:

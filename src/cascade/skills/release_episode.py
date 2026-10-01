@@ -65,6 +65,10 @@ def begin(runtime, q_retreat, duration_s):
     validator = PhysicsClock(tuple(clock["source"]), clock["robot_id"])
     validator.observe(clock)
     state = _backend(runtime.arm).get_state(timeout_s=1.)
+    # The state already read for release must still carry the original NV
+    # attachment. Never authorize opening from a lagging map's old paths.
+    from .carry_attachment import observe
+    observe(runtime, state)
     validator.observe(state.physics_clock)
     harness._check_halt_generation(generation)
     if harness.estopped:

@@ -111,6 +111,9 @@ class RobotState:
     # Optional individual finger state from the SAME atomic simulator q read.
     # A mean open fraction cannot establish the position of either finger.
     gripper_joints: dict | None = None
+    # Optional Isaac completed-update contact evidence, matched to this q and
+    # physics clock before asset->local conversion. Not a logical held flag.
+    attachment: dict | None = None
 
 
 class SkillError(RuntimeError):

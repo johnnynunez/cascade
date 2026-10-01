@@ -32,10 +32,11 @@ def configure(b):
     return ids
 
 
-def contacts(attached):
+def contacts(attached, b):
     def read(name):
         held = attached and name == "pink_cube"
-        return {"jaw_forces_n": [[1., 0., 0.], [1., 0., 0.]] if held else np.zeros((2, 3)),
+        return {"channel": b.env["NEWTON_CONTACT_CHANNEL"], "physics_step": b.physics_index[0],
+                "jaw_forces_n": [[1., 0., 0.], [1., 0., 0.]] if held else np.zeros((2, 3)),
                 "jaw_contact_counts": [1, 1] if held else [0, 0]}
     return read
 
@@ -44,11 +45,11 @@ def contacts(attached):
 def test_delayed_mask_uses_historical_attachment_and_never_current_contacts(capture_bridge, historically_attached):
     b = capture_bridge
     ids = configure(b)
-    b.env["_gpu_contact_snapshot"] = contacts(historically_attached)
+    b.env["_gpu_contact_snapshot"] = contacts(historically_attached, b)
     b.publish()
     historical_index = b.physics_index[0]
     historical_t = b.env["_frames"]["cam0"]["t"]
-    b.env["_gpu_contact_snapshot"] = contacts(not historically_attached)
+    b.env["_gpu_contact_snapshot"] = contacts(not historically_attached, b)
     b.env["_step_with_frame_history"]()
     b.render_index[0] = historical_index
     b.env["_frames"].clear()
@@ -72,7 +73,7 @@ def test_historical_contact_failure_remains_unknown_after_current_read_recovers(
     b.env["_gpu_contact_snapshot"] = unavailable
     b.publish()
     historical_index = b.physics_index[0]
-    b.env["_gpu_contact_snapshot"] = contacts(True)
+    b.env["_gpu_contact_snapshot"] = contacts(True, b)
     b.env["_step_with_frame_history"]()
     b.render_index[0] = historical_index
     b.env["_frames"].clear()
@@ -86,7 +87,7 @@ def test_historical_contact_failure_remains_unknown_after_current_read_recovers(
 def test_new_contact_failure_cannot_erase_old_valid_payload_evidence(capture_bridge):
     b = capture_bridge
     configure(b)
-    b.env["_gpu_contact_snapshot"] = contacts(True)
+    b.env["_gpu_contact_snapshot"] = contacts(True, b)
     b.publish()
     historical_index = b.physics_index[0]
     original = b.env["_frames"]["cam0"]

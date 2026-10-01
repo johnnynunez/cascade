@@ -34,6 +34,8 @@ def load_isaac_bridge_definitions(names, env):
     wanted = set(names) | {"_bridge_should_stop", "_request_shutdown"}
     if "Handler" in wanted or "_refresh_frames" in wanted:
         wanted.add("_gripper_joint_snapshot")
+    if "Handler" in wanted:
+        wanted.add("_attachment_state_snapshot")
     if "_refresh_frames" in wanted or "_settle_props" in wanted:
         wanted.add("_camera_capture_due")
     if "_refresh_frames" in wanted:
@@ -54,6 +56,9 @@ def load_isaac_bridge_definitions(names, env):
     env.setdefault("copy", copy)
     env.setdefault("math", math)
     env.setdefault("uuid", uuid)
+    constant = next(n.value for n in tree.body if isinstance(n, ast.Assign)
+                    and any(isinstance(t, ast.Name) and t.id == "NEWTON_CONTACT_CHANNEL" for t in n.targets))
+    env.setdefault("NEWTON_CONTACT_CHANNEL", ast.literal_eval(constant))
     if "_refresh_frames" in wanted or "_step_with_frame_history" in wanted:
         helper = runpy.run_path(str(REPO / "scripts/isaac_frame_history.py"))
         for name in ("FrameHistory", "ClockDiscontinuity", "reference_key"):

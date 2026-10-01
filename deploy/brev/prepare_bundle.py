@@ -35,6 +35,7 @@ KITCHEN_SOURCE_FILES = (
 RUNTIME_FILES = (
     "LICENSE", "pyproject.toml", "src/cascade/__init__.py",
     "src/cascade/skills/held_observation.py", "src/cascade/sim/truth.py",
+    "src/cascade/skills/carry_attachment.py",
     "assets/grasp_geometry/rebot_rs_fingers.json",
     "assets/grasp_geometry/rebot_rs_fingers_physx.json",
     "assets/grasp_geometry/physx_finger_cooking_source.json",

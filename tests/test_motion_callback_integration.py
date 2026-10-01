@@ -40,7 +40,9 @@ def test_nv_preflight_and_spark_feedback_guard_both_preserved():
     arm,raw,harness=setup();events=[]
     assert arm.move_joints(np.zeros(6), _preflight=lambda *a: events.append('route'),
         feedback_guard=lambda state: events.append('feedback'), _halt_generation=0)
-    assert events == ['route','feedback']
+    # The pre-existing stretch read is now checked before any stream starts.
+    assert events == ['feedback','route','feedback']
+    assert raw.reads == 2
     assert len(raw.streams)==1 and not harness._motion_active
 
 
@@ -49,7 +51,8 @@ def test_spark_callbacks_forwarded_without_replacement():
     assert arm.move_joints(np.zeros(6), preflight=lambda *a:events.append('scene'),
         before_stream=lambda:events.append('cancel'), feedback_guard=lambda state:events.append('feedback'),
         _halt_generation=0)
-    assert events == ['scene','cancel','feedback']
+    assert events == ['feedback','scene','cancel','feedback']
+    assert raw.reads == 2
 
 
 @pytest.mark.parametrize('name', ['preflight','before_stream','feedback_guard'])
@@ -58,7 +61,8 @@ def test_callback_typeerror_does_not_trigger_unprotected_retry(name):
     def failed(*args): raise TypeError('callback failure')
     with pytest.raises(SafetyViolation, match='no unguarded retry'):
         arm.move_joints(np.zeros(6), **{name:failed})
-    assert len(raw.streams)==1 and not harness._motion_active
+    assert len(raw.streams) == (0 if name == 'feedback_guard' else 1)
+    assert not harness._motion_active
 
 
 def test_state_timeout_forwarded():

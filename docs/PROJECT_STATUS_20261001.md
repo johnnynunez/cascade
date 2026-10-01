@@ -182,6 +182,12 @@ zero of five cases passed, the successful reset and preserved failure. Witness d
 by the orange falling to the table. No jaw command occurred between closure and
 the later planned reset. The mechanical cause remains unresolved.
 
+The [carry attachment correction](NVBLOX_CARRY_ATTACHMENT.md) retains the
+post-close attachment and rejects subsequent lift/transport targets on observed
+loss or unavailable atomic feedback. It preserves a terminal failure instead of
+opening, retrying or returning home. This software change is not a successful
+repeat of the failed campaign and does not resolve the mechanical cause.
+
 **The latest executed Spark proof, correction-MAIN-07 on `7e02de7`, failed.**
 Green completed native placement, return home and reset, with independent
 physical review. Orange stopped during descent when the right jaw fell below

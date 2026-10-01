@@ -377,6 +377,61 @@ validation was added; its receipt matches the committed replay source hashes.
 
 ## Scope and remaining work
 
+The [same-runtime post-close recovery receipt](../benchmark/results/nvblox-same-runtime-postclose-recovery-20261001.json)
+records one successful fault-and-recovery experiment on isolated Isaac 8692 and
+nvblox 25560 at source `d8bad80`. The original retained trial-16 scene on
+8691/25559 was preserved. This new scene used 960×540 cameras, a 120 Hz physics
+clock, camera capture every six bridge loop iterations, disabled headless
+viewport updates, the existing 4 Hz client camera cap and nominal 50 Hz target
+sampling. Each bridge loop iteration advanced two physics steps.
+The experimental ESDF query extended X to 0.58 m; the TCP workspace remained
+at 0.50 m, with 30 mm clearance, unknown rejection, 500 ms mapping RPCs,
+the five-second payload barrier and the 120-second motion wall budget unchanged.
+
+After a real tomato-can close, the diagnostic refused 37 integration requests
+until the payload barrier failed. This was a labelled synthetic refusal, not
+a measured network outage. No actuator command followed that close before
+explicit recovery. The same runtime retained its three pre-close depth anchors
+and original contact episode. One public reset then withdrew to the original
+pregrasp with 99.755 mm observed object lift and bilateral GPU contact counts
+of 4/4, before home, release or prop reset. The pregrasp error was 0.01427 rad
+against the existing 0.045 rad tolerance. Home, open jaws, all five prop resets
+and fresh committed map contributions from all three cameras subsequently
+passed. Cleanup sent no commands. The longest motion request took 78.658 wall
+seconds, including preflight and settling. All 252 environment source hashes,
+177 diagnostic source hashes and 20 recorded artifact hashes were rechecked.
+
+This result does **not** establish continuous camera acceptance. Among 1,497
+physical witness samples, proof frames 217 and 218 were 3.344 and 3.409 seconds
+old during the pause after setup reset and before the next gripper command.
+Frame 219 was fresh again before actuation; the six motion requests had no
+proof sample older than two seconds (maximum 0.6735 seconds). The long observer
+request began before instrumented grasp entry, so its cause remains unproven.
+This frozen diagnostic recorded only proof's continuous age; cam0 and side
+have verified reset/barrier commits but no continuous age series. A subsequent
+five-object campaign must record all three. No normal pick-and-place, repeated
+campaign, restart recovery, native-agent or UI acceptance follows from this
+single recovery result.
+
+The subsequent [empty-camera recovery receipt](../benchmark/results/nvblox-empty-camera-recovery-20261001.json)
+passed once on the same isolated pair. `FrozenProducer` repeated one real side
+camera frame and its original producer marker for 181 deliveries; it did not
+disconnect a camera. The first frozen reset sent 150 joint targets and one
+prop reset before its camera barrier failed. The second public reset, while
+recovery was pending, sent no actuator or motion request. Restoring the getter
+allowed the next explicit reset to complete. The blocked interval's endpoint
+joint drift was 2.38×10⁻⁷ rad, and cleanup sent no commands.
+
+The immediate post-recovery snapshot still reported a 500 ms mapper timeout
+and pending map. The final snapshot 3.138 seconds later, after observed
+settling, had fresh geometry without that error and all three camera histories;
+the reset reported newer captures from all three cameras. This older diagnostic
+did not retain independent per-source map commit stamps. Its 776 continuous
+proof-camera samples remained below two seconds (maximum 0.5991 seconds), but
+cam0/side continuous ages were not recorded. The 252 environment hashes,
+169 diagnostic source hashes and 18 artifact hashes were rechecked. The held
+camera-fault case remains separate and unexecuted.
+
 This is a diagnostic using a mock language model; it is not a full native-agent
 `launch.sh` READY proof. The initial lift/approach offset is 80 mm, versus the
 40 mm initial diagnostic; the later RTX trials used 100 mm. Therefore absolute placement errors from these runs

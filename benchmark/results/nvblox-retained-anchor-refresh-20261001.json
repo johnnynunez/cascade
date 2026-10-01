@@ -1,0 +1,321 @@
+{
+  "source_pin": "8b6b865b1914a7928cde93fc92df6795a3aa4f75",
+  "production_review_pin": "317ca5d224ac3a30fcf9525733485e50d9e47349",
+  "validation": {
+    "focused": 268,
+    "independent_focused": 185,
+    "final_anchor_evidence": 42,
+    "full": {
+      "passed": 2795,
+      "skipped": 43,
+      "deselected": 3,
+      "wall_s": 315.04,
+      "log_path": "/tmp/nvblox-anchor-refresh-full-final-20261001.log",
+      "log_sha256": "c8f4a484149d978714af5d077f5c271514017451c2daaa8b8fd810dba5349a9d"
+    },
+    "first_full": {
+      "passed": 2791,
+      "failed": 4,
+      "cause": "Telemetry fixture lacked real halt-generation guard; fixed fixture only."
+    }
+  },
+  "passive_first": {
+    "pass": false,
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-refresh/runs/nvblox-rtx/isolated-clock-03/passive-01/receipt.json",
+    "sha256": "d6ad2d229562aa2c9eeaf901ce9e58707449e04909764af8f6de75bdaa3af2bf",
+    "reason": "LazyArm reader did not accept timeout_s; no interval states, zero writes, cleanup clean."
+  },
+  "passive_second": {
+    "pass": true,
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-refresh/runs/nvblox-rtx/isolated-clock-03/passive-02/receipt.json",
+    "sha256": "49c01d575e2f931fa0fb6c72ac57ffa9025f2302b06de5a00fdee3692155eca4",
+    "clock": {
+      "wall_s": 20.157852509000804,
+      "simulation_s": 3.4499999999999886,
+      "rtf": 0.17114918359778197,
+      "estimated_18_72_physical_second_pregrasp_wall_s": 109.37826057057863,
+      "scope": "Passive runtime/mapping load only; estimate does not guarantee a moving-scene budget."
+    },
+    "camera_ages": {
+      "pass": true,
+      "complete": true,
+      "observer_errors": [],
+      "source": [
+        "127.0.0.1",
+        8693
+      ],
+      "cameras": {
+        "cam0": {
+          "pass": true,
+          "samples": 117,
+          "valid_clock_samples": 117,
+          "maximum_age_s": 0.7867786689894274,
+          "samples_over_2s": 0,
+          "distinct_captures": 37,
+          "maximum_observed_capture_gap_s": 0.8716900399886072,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        },
+        "side": {
+          "pass": true,
+          "samples": 117,
+          "valid_clock_samples": 117,
+          "maximum_age_s": 0.7867786689894274,
+          "samples_over_2s": 0,
+          "distinct_captures": 37,
+          "maximum_observed_capture_gap_s": 0.8716900399886072,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        },
+        "proof": {
+          "pass": true,
+          "samples": 117,
+          "valid_clock_samples": 117,
+          "maximum_age_s": 0.7867786689894274,
+          "samples_over_2s": 0,
+          "distinct_captures": 37,
+          "maximum_observed_capture_gap_s": 0.8716900399886072,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        }
+      },
+      "scope": "Server monotonic minus capture in the same physical snapshot; observed capture gaps are sample gaps, not all producer frames."
+    },
+    "state_samples": 199,
+    "map_samples": 124,
+    "map_error_samples": 0,
+    "map_commit_samples": {
+      "cam0": {
+        "sampled_map_commit_age_max_s": 2.7116190000087954,
+        "distinct_integrated_captures": 24
+      },
+      "side": {
+        "sampled_map_commit_age_max_s": 1.6846600220014807,
+        "distinct_integrated_captures": 24
+      },
+      "proof": {
+        "sampled_map_commit_age_max_s": 1.920320859993808,
+        "distinct_integrated_captures": 22
+      }
+    },
+    "window_rtf": {
+      "3": {
+        "count": 171,
+        "min_rtf": 0.14745749201470226,
+        "max_rtf": 0.18874375104709376
+      },
+      "5": {
+        "count": 152,
+        "min_rtf": 0.15718306318289801,
+        "max_rtf": 0.1856590326039552
+      },
+      "10": {
+        "count": 101,
+        "min_rtf": 0.168299098613063,
+        "max_rtf": 0.17800269736365718
+      }
+    }
+  },
+  "performance_interpretation": {
+    "assumption": "Rough proportional scaling only, not a trajectory prediction",
+    "previous_held_pregrasp_wall_s": 80.4747,
+    "previous_passive_rtf": 0.27684536,
+    "scaled_previous_pregrasp_wall_s": 130.1732606843748,
+    "motion_limit_s": 120,
+    "physical_attempt_authorized": false
+  },
+  "state": "Original8691 unchanged; owned held8692 paused with one reviewed pidfd SIGSTOP and no automatic resume. New8693 received no motion/jaw/reset. Passive03 passed observation, but minimum3s historical scaling exceeded120s; physical held recovery and normalfiveobjectcampaign remain pending.",
+  "scope": "Experimental recovery contract plus offline and passive validation; held-camera physical recovery and five-object normal acceptance remain pending.",
+  "integration": {
+    "tested_source_pin": "8b6b865b1914a7928cde93fc92df6795a3aa4f75",
+    "published_code_equivalent_pin": "d1c6a682404db0e842616861906a79250569516b",
+    "method": "Cherry-pick into a separate publication worktree; git diff against tested pin empty for src/scripts/demo/tests/benchmark/diagnostics/configs."
+  },
+  "temporary_source_checkout_change": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade",
+    "before_and_restored_head": "87c55bd7f54f8d25ab47757bc901c8e39e7017a7",
+    "temporary_head": "d1c6a68",
+    "from_local": "2026-10-01T04:49:42+02:00",
+    "restored_local": "2026-10-01T04:53:13+02:00",
+    "scope": "No RPC or actuator commands were sent by this agent during the on-disk change. Existing simulator physics continued advancing. Commits were preserved in cascade-nvblox-pr27-publish; runtime source8b6 remained unchanged."
+  },
+  "pause_attempts": [
+    {
+      "name": "held02-pause-01",
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-refresh/runs/nvblox-rtx/isolated-clock-03/held02-pause-01/receipt.json",
+      "sha256": "fdf90e17110673d10a7bb2356cf85ca1595ab90bbc05b7684fc116214288796f",
+      "pass": false,
+      "signal_sent": false,
+      "stopped": false,
+      "artifact_hashes_verified": 0,
+      "failure_summary": "Historical scene path rejected by isolated auditor before any RPC"
+    },
+    {
+      "name": "held02-pause-02",
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-refresh/runs/nvblox-rtx/isolated-clock-03/held02-pause-02/receipt.json",
+      "sha256": "928ce7e09ac7742d828b0490beb35fac8c6fade662245a148d0b1a47dea82deb",
+      "pass": false,
+      "signal_sent": false,
+      "stopped": false,
+      "artifact_hashes_verified": 10,
+      "failure_summary": "Interpreter lacked os.pidfd_open before any signal"
+    },
+    {
+      "name": "held02-pause-03",
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-refresh/runs/nvblox-rtx/isolated-clock-03/held02-pause-03/receipt.json",
+      "sha256": "a6c3cf97dc9ec0a5fe6807044d76db952c9fe91d951388332b975536032c5e21",
+      "pass": true,
+      "signal_sent": true,
+      "stopped": true,
+      "artifact_hashes_verified": 12,
+      "failure_summary": null
+    }
+  ],
+  "passive_third": {
+    "pass": true,
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-nvblox-anchor-refresh/runs/nvblox-rtx/isolated-clock-03/passive-03/receipt.json",
+    "sha256": "9024fb56bbd75c7de79099e2d0c001aa8d97d6de4b5379a823d136e602877eb0",
+    "artifact_hashes_verified": 10,
+    "source_hashes_verified": 254,
+    "clock": {
+      "wall_s": 19.950522156999796,
+      "simulation_s": 4.600000000000023,
+      "rtf": 0.23057040631821643,
+      "estimated_18_72_physical_second_pregrasp_wall_s": 81.1899510389205,
+      "scope": "Passive runtime/mapping load only; estimate does not guarantee a moving-scene budget."
+    },
+    "camera_ages": {
+      "pass": true,
+      "complete": true,
+      "observer_errors": [],
+      "source": [
+        "127.0.0.1",
+        8693
+      ],
+      "cameras": {
+        "cam0": {
+          "pass": true,
+          "samples": 123,
+          "valid_clock_samples": 123,
+          "maximum_age_s": 0.6359232959948713,
+          "samples_over_2s": 0,
+          "distinct_captures": 48,
+          "maximum_observed_capture_gap_s": 0.752511629005312,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        },
+        "side": {
+          "pass": true,
+          "samples": 123,
+          "valid_clock_samples": 123,
+          "maximum_age_s": 0.6359232959948713,
+          "samples_over_2s": 0,
+          "distinct_captures": 48,
+          "maximum_observed_capture_gap_s": 0.752511629005312,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        },
+        "proof": {
+          "pass": true,
+          "samples": 123,
+          "valid_clock_samples": 123,
+          "maximum_age_s": 0.6359232959948713,
+          "samples_over_2s": 0,
+          "distinct_captures": 48,
+          "maximum_observed_capture_gap_s": 0.752511629005312,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        }
+      },
+      "scope": "Server monotonic minus capture in the same physical snapshot; observed capture gaps are sample gaps, not all producer frames."
+    },
+    "state_samples": 227,
+    "map_samples": 160,
+    "map_error_samples": 0,
+    "map_commit_samples": {
+      "cam0": {
+        "sampled_map_commit_age_max_s": 2.199620009996579,
+        "distinct_integrated_captures": 36,
+        "samples_above_2s": 2
+      },
+      "side": {
+        "sampled_map_commit_age_max_s": 1.2857922809926094,
+        "distinct_integrated_captures": 36,
+        "samples_above_2s": 0
+      },
+      "proof": {
+        "sampled_map_commit_age_max_s": 1.2727216220082482,
+        "distinct_integrated_captures": 32,
+        "samples_above_2s": 0
+      }
+    },
+    "window_rtf": {
+      "3": {
+        "count": 191,
+        "min_rtf": 0.18209296431472016,
+        "max_rtf": 0.25548062232264995
+      },
+      "5": {
+        "count": 168,
+        "min_rtf": 0.20211254711242946,
+        "max_rtf": 0.23978325959392105
+      },
+      "10": {
+        "count": 115,
+        "min_rtf": 0.21570471808810562,
+        "max_rtf": 0.23807631271712165
+      }
+    },
+    "state_sample_max_gap_s": 0.3206362789933337,
+    "state_rpc_max_wall_s": 0.32047617599891964,
+    "scaled_previous_pregrasp_wall_s": 96.62578840080667,
+    "scaled_previous_pregrasp_at_min_3s_rtf_wall_s": 122.34985231986246,
+    "scaled_previous_pregrasp_at_min_5s_rtf_wall_s": 110.23089664986904,
+    "motion_limit_s": 120,
+    "scope": "Passive with real map only; proportional historical scaling, not proof of trajectory duration. Frame age and committed-capture age are separate measures."
+  },
+  "configuration": {
+    "bridge_port": 8693,
+    "mapper_port": 25561,
+    "gpu": 1,
+    "resolution": [
+      960,
+      540
+    ],
+    "physics_dt_s": 0.008333333333333333,
+    "camera_capture_every_bridge_loop_iterations": 6,
+    "viewport_disabled": true,
+    "camera_client_hz": 4,
+    "watcher_hz": 3,
+    "nominal_target_sample_hz": 50,
+    "query_region_min": [
+      0.1,
+      -0.3,
+      -0.01
+    ],
+    "query_region_max": [
+      0.58,
+      0.3,
+      0.55
+    ],
+    "safety_workspace_max_x": 0.5,
+    "clearance_m": 0.03,
+    "mapper_rpc_s": 0.5,
+    "state_rpc_s": 1.0,
+    "barrier_s": 5.0,
+    "motion_wall_limit_s": 120.0,
+    "unknown_rejection_scope": "Attached payload outside the existing original contact exemption; empty-arm unknown handling is unchanged."
+  }
+}

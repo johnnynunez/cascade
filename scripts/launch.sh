@@ -1017,13 +1017,16 @@ if [[ $DRY == 0 ]]; then
         RUNTIME_CHECK="$(cd "$REPO/models" && CASCADE_CAMERAS="$CAMERAS" CASCADE_ARM="$ARM" CASCADE_DETECTOR_MODEL="$DETECTOR" \
             CASCADE_DETECT_CLASSES="$CLASSES" YOLO_OFFLINE=True ULTRALYTICS_OFFLINE=True CASCADE_STREAM=0 CASCADE_VIEW=0 CASCADE_BELIEFS=0 \
             "$PY" - <<'PYEOF' 2>&1 | tee "$STATE_DIR/runtime-check.log" | grep -v "ARB_clip\|linesearch\|^Warp\|Module .* load\|^$" | tail -5
-import os, sys, tempfile
+import json, os, sys, tempfile
 from cascade.config import load_demo_config
 from cascade.apps.demo import build_runtime, shutdown_runtime
 cams = os.environ["CASCADE_CAMERAS"].split(",")
 cfg = load_demo_config(cameras=cams, arm=os.environ["CASCADE_ARM"], llm="mock")
 rt, arm = build_runtime(cfg, tempfile.mkdtemp(prefix="cascade-check-"), view=False, lazy_arm=True, serve=False)
 try:
+    if cfg.arm.get("type") == "isaac":
+        from cascade.sim.startup_readiness import prepare_isaac_verification
+        print("[launch] Isaac verification readiness:", json.dumps(prepare_isaac_verification(rt)))
     print("[launch] runtime builds:", rt.backends())
 finally:
     shutdown_runtime(rt, arm)

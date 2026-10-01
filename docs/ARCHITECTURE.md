@@ -220,6 +220,14 @@ remain rejection conditions. Contact/release episodes retain narrowly scoped
 recovery authority after failure; another command cannot borrow their cylinder.
 See [nvblox](NVBLOX.md) and [release recovery](NVBLOX_RELEASE_RETREAT.md).
 
+The [NV carry attachment guard](NVBLOX_CARRY_ATTACHMENT.md) retains the original
+post-close attachment through lift and placement transport. Isaac state reuses
+the same completed-update contact history; existing feedback reads validate
+source, epoch, step, joints and jaws before further targets. Loss or unknown
+evidence is terminal, with no automatic open, retry, home or reset. This
+capability is armed only by the NV payload barrier, not by occupancy-off or
+legacy backends, and it does not correct mechanical slip.
+
 Gripper commands retain stop/generation and pending-episode checks. On the
 observed-finger path, each close stage also has an actual-pose, full-stroke
 preflight against non-target observed surfaces. That check does not continuously

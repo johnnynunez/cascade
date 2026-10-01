@@ -21,6 +21,7 @@ import numpy as np
 from ..agent.trace import TraceLogger
 from ..grasping import plan_grasps_from_fix, select_grasp, select_profile
 from ..grasping import evidence as grasp_evidence
+from . import carry_attachment
 from ..memory import BeliefStore, EpisodicMemory
 from ..perception.colors import detection_color, parse_color_query
 from ..perception.reference import ReferenceResolutionError, parse_reference
@@ -582,6 +583,8 @@ class SkillRuntime:
             self._arm_override.arm = selected
             with hold:
                 try:
+                    if name in _MOTION_SKILLS:
+                        carry_attachment.check(self)
                     result = fn(**args)
                 finally:
                     self._arm_override.arm = prev_arm
@@ -597,7 +600,9 @@ class SkillRuntime:
             if "ok" not in result:
                 result["ok"] = True
         except (SkillError, SafetyViolation) as e:
-            result = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+            result = (carry_attachment.failure_result(self, e)
+                      if isinstance(e, carry_attachment.AttachmentInvalid)
+                      else {"ok": False, "error": f"{type(e).__name__}: {e}"})
         except TypeError as e:
             result = {"ok": False, "error": f"bad arguments for {name}: {e}"}
         except Exception as e:  # camera dropouts, CAN loss, ... : the agent
@@ -932,7 +937,13 @@ class SkillRuntime:
     def _gripper_width_frac(self) -> float | None:
         """0 = fully closed, 1 = fully open (from motor angle, linear map).
         None when the gripper position is unknown (feedback failure)."""
-        state = self.arm.get_state()
+        try:
+            state = self.arm.get_state()
+            carry_attachment.observe(self, state)
+        except Exception as exc:
+            if carry_attachment.active(self) is not None:
+                carry_attachment.active(self).reject("jaw feedback unavailable: " + str(exc))
+            raise
         if not getattr(state, "gripper_valid", True):
             return None
         span = self._grip_closed - self._grip_open
@@ -1679,6 +1690,7 @@ class SkillRuntime:
         inevitably drift apart.
         """
         scene_enabled = os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
+        carry_attachment.check(self)
         scene_halt_generation = self.arm.harness._halt_generation if scene_enabled else None
         self._reconcile_held()
         if self.held_object:
@@ -2096,7 +2108,7 @@ class SkillRuntime:
             self._held_support_offset_m = None
             # Approximate aiming compensation uses the closed grasp pose,
             # before lift. It is not an independent measurement of a held body.
-            close_state = self.arm.get_state()
+            close_state = carry_attachment.arm(self, episode)
             tcp_close = self.kin.fk(close_state.q)[:3, 3]
             try:
                 held_offset_at_close = np.asarray(fix.position, float) - tcp_close
@@ -2117,7 +2129,7 @@ class SkillRuntime:
             lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
             grasp_evidence.phase("lift")
             grasp_evidence.event("move_target", q=q_pre, duration_s=lift_dur)
-            if not self.arm.move_joints(q_pre, duration_s=lift_dur,
+            if not carry_attachment.move(self, q_pre, duration_s=lift_dur,
                     **({"_halt_generation": scene_halt_generation} if scene_enabled else {})):
                 raise SkillError("did not settle at grasp lift pose")
             contact_completed = True
@@ -2164,6 +2176,9 @@ class SkillRuntime:
                 and expected_open >= commanded_open + 0.07
             )
             if air_grasp:
+                if carry_attachment.active(self) is not None:
+                    carry_attachment.active(self).reject(
+                        "jaw heuristic contradicts retained attachment; no retry authorized")
                 self._held_provisional = None
                 self.memory.add("outcome", f"grasp {label!r} FAILED: jaws closed on air")
                 try:
@@ -2193,10 +2208,14 @@ class SkillRuntime:
         try:
             import copy
             state_after_lift = self.arm.get_state()
+            carry_attachment.observe(self, state_after_lift)
             self._held_observation_floor = copy.deepcopy(state_after_lift.physics_clock)
             self._held_observation_floor_q = np.asarray(state_after_lift.q, float).copy()
-        except Exception:
-            pass
+        except carry_attachment.AttachmentInvalid:
+            raise
+        except Exception as exc:
+            if carry_attachment.active(self) is not None:
+                carry_attachment.active(self).reject("post-lift feedback unavailable: " + str(exc))
         self.beliefs.mark_removed(self._held_det_label or label, near=fix.position)
         try:
             self.grasp_memory.record(
@@ -2324,6 +2343,7 @@ class SkillRuntime:
         return float(support_z) + float(offset) + clearance
 
     def skill_place_at(self, x: float, y: float, z: float | None = None) -> dict:
+        carry_attachment.check(self)
         self._adopt_unknown_held()
         if not self.held_object:
             raise SkillError("not holding anything")
@@ -2352,6 +2372,15 @@ class SkillRuntime:
         observation_generation = getattr(observation_harness, "_halt_generation", None)
         from .held_observation import HeldObservationInvalid, binding
         observation_binding = binding(self)
+        # Reuse the planning state below. On an armed NV hold, validate contact
+        # before any visual slip handler could issue an opening command.
+        carry_state = None
+        if carry_attachment.active(self) is not None:
+            try:
+                carry_state = self.arm.get_state()
+                carry_attachment.observe(self, carry_state)
+            except Exception as exc:
+                carry_attachment.active(self).reject("pre-carry feedback unavailable: " + str(exc))
         held_observation = self._held_object_observation()
         try:
             if any(a is not b for a, b in zip(observation_binding, binding(self))):
@@ -2386,6 +2415,9 @@ class SkillRuntime:
         if held_offset is not None:
             drop_m = float(self.cfg.grasp.get("slip_drop_m", 0.06))
             if held_observation.release_authority and float(held_offset[2]) < -drop_m:
+                if carry_attachment.active(self) is not None:
+                    carry_attachment.active(self).reject(
+                        "held pose contradicts the retained attachment; no opening authorized")
                 self.memory.add(
                     "outcome",
                     f"{self.held_object!r} is {-float(held_offset[2])*100:.0f} cm below the "
@@ -2416,7 +2448,7 @@ class SkillRuntime:
             )
         from ..grasping.obb_grasp import _yaw_rotation
 
-        q_now = self.arm.get_state().q
+        q_now = (carry_state if carry_state is not None else self.arm.get_state()).q
         tcp_now = self.kin.fk(q_now)
         hover = target + np.array([0.0, 0.0, float(gcfg.get("pregrasp_offset_m", 0.12))])
         # Finish the horizontal carry before lowering the held object. A
@@ -2511,27 +2543,39 @@ class SkillRuntime:
                 raise _PostPlaceRetreatPlanError("release opening timeout must be finite and nonnegative")
         if lift is not None:
             try:
-                lifted = self.arm.move_joints(
+                lifted = carry_attachment.move(self,
                     lift.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)),
                 )
+            except carry_attachment.AttachmentInvalid:
+                raise
             except (SkillError, SafetyViolation) as exc:
                 raise _PreCarryLiftError(f"pre-carry lift was interrupted: {exc}") from exc
             if not lifted:
                 raise _PreCarryLiftError("pre-carry lift did not settle; keeping the grasp")
             self.memory.add("action", f"reached planned carry height {hover[2]:.3f} m before horizontal transport")
-        if not self.arm.move_joints(pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5))):
+        if not carry_attachment.move(self, pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5))):
             raise SkillError("did not settle above the place target")
         self.arm.harness.allow_grasp_descent(target[:2], z_min=release_z - 0.02)
         from . import release_episode
         release = None
         withdrawal_completed = False
         try:
-            if not self.arm.move_joints(low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
+            if not carry_attachment.move(self, low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
                 raise SkillError("did not settle at place pose")
-            if retreat is not None:
-                release = release_episode.begin(self, retreat.q,
-                    float(gcfg.get("descend_duration_s", 2.0)))
-            release_episode.open_hand(self, release)
+            try:
+                if retreat is not None:
+                    release = release_episode.begin(self, retreat.q,
+                        float(gcfg.get("descend_duration_s", 2.0)))
+                release_episode.open_hand(self, release)
+            except carry_attachment.AttachmentInvalid:
+                raise
+            except Exception as exc:
+                if carry_attachment.active(self) is not None:
+                    carry_attachment.active(self).reject("release handoff unavailable: " + str(exc))
+                raise
+            # This is the native intentional release, after the separate
+            # release-episode identity/geometry checks. It ends carry scope.
+            self._carry_attachment = None
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if release_timeout is not None and release is not None:
                 try:
@@ -2772,7 +2816,11 @@ class SkillRuntime:
         persistence budget (grasp.persist_seconds / grasp.max_pick_attempts)
         runs out. No LLM in the loop; this is the reflex the web chat calls
         for "pick and place pink object"."""
-        self._reconcile_held()
+        try:
+            carry_attachment.check(self)
+            self._reconcile_held()
+        except carry_attachment.AttachmentInvalid as exc:
+            return carry_attachment.failure_result(self, exc, grasp_attempts=0, place_attempts=0)
         from .held_observation import HeldObservationInvalid
         already_held = None
         if self.held_object:
@@ -2880,6 +2928,9 @@ class SkillRuntime:
                         **({"_planning_deadline": deadline}
                            if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
                 except (SkillError, SafetyViolation) as e:
+                    if isinstance(e, carry_attachment.AttachmentInvalid):
+                        return carry_attachment.failure_result(self, e,
+                            **failure_destination, grasp_attempts=attempt, place_attempts=0)
                     res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
                 timings[f"grasp_attempt{attempt}_s"] = round(time.monotonic() - tg, 2)
                 if res.get("ok", True) and res.get("held"):
@@ -2955,6 +3006,9 @@ class SkillRuntime:
                     break
                 except (SkillError, SafetyViolation) as e:
                     place_err = f"{type(e).__name__}: {e}"
+                    if isinstance(e, carry_attachment.AttachmentInvalid):
+                        return carry_attachment.failure_result(self, e,
+                            **failure_destination, grasp_attempts=attempt, place_attempts=p_attempt)
                     if isinstance(e, HeldObservationInvalid):
                         return {**failure_destination, "ok": False, "stage": "held_observation",
                                 "error": place_err, "holding": self.held_object,
@@ -3561,6 +3615,10 @@ class SkillRuntime:
         the jaws."""
         out: dict = {"props_reset": [], "world": None, "observation_refreshed": False,
                      "objects_visible": []}
+        try:
+            carry_attachment.check(self)
+        except carry_attachment.AttachmentInvalid as exc:
+            return {**out, **carry_attachment.failure_result(self, exc)}
         occupancy = getattr(self.arm.harness, "occupancy", None)
         recovery_generation = None
         def recovery_cancelled():
@@ -3701,9 +3759,12 @@ class SkillRuntime:
             out.setdefault("error", f"Reset observation could not be refreshed: {e}")
         out["beliefs_forgotten"] = dropped
         out["ok"] = home_ok and out["observation_refreshed"]
+        if out["ok"]:
+            self._carry_attachment = None  # The existing explicit scene reset completed.
         return out
 
     def skill_move_home(self, *, _halt_generation=None) -> dict:
+        carry_attachment.check(self)
         home = self._profile_q("home_q", "move home")
         # SafeArm plans the complete return before motion and re-vets against
         # actual feedback/map state at every segment. Legacy test doubles may

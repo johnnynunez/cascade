@@ -683,7 +683,16 @@ class SafeArm:
         # the planned profile stays safely under the cap (harness remains the
         # backstop for anything else).
         self.harness.check_release_episode(target=q_target, duration=duration_s)
-        dq_max = float(np.max(np.abs(np.asarray(q_target, dtype=float) - self._arm.get_state().q)))
+        start_state = self._arm.get_state()
+        feedback_guard = backend_kw.get("feedback_guard")
+        if feedback_guard is not None:
+            # Reuse the stretching read. A lost attachment or cancelled
+            # observed-finger state must not disappear behind a later sample.
+            try:
+                feedback_guard(start_state)
+            except TypeError as exc:
+                raise SafetyViolation("motion safety callback failed; no unguarded retry") from exc
+        dq_max = float(np.max(np.abs(np.asarray(q_target, dtype=float) - start_state.q)))
         needed = 1.875 * dq_max / (0.9 * self.harness.limits.max_joint_vel)
         duration_s = max(duration_s, needed)
         if _halt_generation is None:

@@ -1241,6 +1241,52 @@ def _motion_clock_snapshot() -> dict:
             "sim_time": sim_time, "physics_step": step, "physics_dt_s": args.dt}
 
 
+def _attachment_state_snapshot(q_full, clock):
+    """Reuse contact tensors already recorded after the same completed update.
+
+    No sensor read, construction, update or camera RPC occurs here. A missing
+    or poisoned history entry is unavailable, never an empty attachment.
+    """
+    result = {"version": 1, "backend": "isaac", "robot_id": args.prim,
+              "producer_epoch": clock["epoch"], "physics_step": clock["physics_step"],
+              "sim_time": clock["sim_time"], "joint_convention": "asset",
+              "q": [float(q_full[i]) for i in ARM_IDX],
+              "gripper_joints": _gripper_joint_snapshot(q_full),
+              "tracking": False, "paths": None, "error": None,
+              "channel": "completed_update_bilateral_contact"}
+    try:
+        current = SimulationManager._simulation_manager_interface.get_current_time()
+        entry = _frame_history.resolve(
+            reference=(current.numerator, current.denominator),
+            simulation_time=clock["sim_time"], epoch=clock["epoch"])
+        if (entry is None or entry["physics_step"] != clock["physics_step"]
+                or entry["simulation_time"] != clock["sim_time"]):
+            raise ValueError("current attachment history missing or ambiguous")
+        snapshot = entry["payload"]["proprioception"]
+        if (not isinstance(snapshot, dict) or type(snapshot.get("version")) is not int or snapshot["version"] != 1
+                or snapshot.get("backend") != "isaac" or snapshot.get("robot_id") != args.prim
+                or snapshot.get("producer_epoch") != clock["epoch"]
+                or snapshot.get("joint_convention") != "asset"
+                or snapshot.get("q") != result["q"]
+                or snapshot.get("gripper_joints") != result["gripper_joints"]):
+            raise ValueError("attachment history does not match current articulation")
+        contacts = entry["payload"]["contact_state"]
+        if (contacts.get("tracking") is not True or contacts.get("error") is not None
+                or type(contacts.get("physics_step")) is not int or contacts["physics_step"] != clock["physics_step"]
+                or contacts.get("sensor_channel") != ({"physx": "physx_gpu_contact_tensor",
+                                                       "newton": NEWTON_CONTACT_CHANNEL}.get(engine))):
+            raise ValueError("attachment tracking unavailable: " + str(contacts.get("error")))
+        paths = contacts.get("paths")
+        if (not isinstance(paths, list) or any(not isinstance(p, str) or not p for p in paths)
+                or len(set(paths)) != len(paths)):
+            raise ValueError("invalid attachment paths")
+        result.update(tracking=True, paths=list(paths), sensor_channel=contacts["sensor_channel"],
+                      history_reference=list(entry["reference"]))
+    except Exception as exc:
+        result["error"] = str(exc)
+    return result
+
+
 class Handler(socketserver.StreamRequestHandler):
     # Optional startup metadata is attached before serving. Keep protocol
     # handlers usable independently of the Kit scene-authoring lifecycle.
@@ -1300,13 +1346,15 @@ class Handler(socketserver.StreamRequestHandler):
             def read_state():
                 q = art.get_dof_positions().numpy()[0].astype(float)
                 dq = art.get_dof_velocities().numpy()[0].astype(float)
+                clock = _motion_clock_snapshot()
                 return {
                     "ok": True,
                     "q": [float(q[i]) for i in ARM_IDX],
                     "dq": [float(dq[i]) for i in ARM_IDX],
                     "gripper_pos": _grip_frac_now(q),
                     "gripper_joints": _gripper_joint_snapshot(q),
-                    "physics_clock": _motion_clock_snapshot(),
+                    "physics_clock": clock,
+                    "attachment": _attachment_state_snapshot(q, clock),
                 }
             return self._on_main(read_state)
         if op == "set_joints":
@@ -1510,17 +1558,24 @@ def _capture_frame_state(t, wrist_T):
         snapshot = None  # Viewing only; masking/motion consumers fail closed.
     contact_tracking = os.environ.get("CASCADE_ISAAC_CONTACT_MASK", "0") == "1"
     contact_paths, contact_error, scene_prop_paths = [], None, []
+    contact_step, sensor_channel = None, None
     if contact_tracking:
         try:
             scene_prop_paths = ["/World_Props/" + name for name in _PROP_SPAWNS]
-            contact_paths = _bilateral_contact_paths(
-                {name: _gpu_contact_snapshot(name) for name in _PROP_SPAWNS})
+            contacts = {name: _gpu_contact_snapshot(name) for name in _PROP_SPAWNS}
+            contact_step = int(SimulationManager.get_num_physics_steps())
+            sensor_channel = ("physx_gpu_contact_tensor" if engine == "physx" else NEWTON_CONTACT_CHANNEL)
+            if (not contacts or any(type(c.get("physics_step")) is not int or c["physics_step"] != contact_step
+                                   or c.get("channel") != sensor_channel for c in contacts.values())):
+                raise ValueError("contact tensors do not match completed physics update")
+            contact_paths = _bilateral_contact_paths(contacts)
         except Exception as exc:
             # Unknown contact is never an empty, usable payload mask.
             contact_error = str(exc)
     return {"proprioception": snapshot, "wrist_T": copy.deepcopy(wrist_T),
             "contact_state": {"tracking": contact_tracking, "paths": contact_paths,
-                              "error": contact_error, "scene_prop_paths": scene_prop_paths}}
+                              "error": contact_error, "scene_prop_paths": scene_prop_paths,
+                              "physics_step": contact_step, "sensor_channel": sensor_channel}}
 
 
 def _invalidate_frame_history():

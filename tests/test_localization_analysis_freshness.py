@@ -162,9 +162,19 @@ def test_vlm_slow_miss_does_not_try_next_view(rig):
     assert rig.calls == [rig.primary]
 
 
-def test_pick_failure_does_not_home_open_or_retry_without_observed_gate(rig, monkeypatch):
+@pytest.mark.parametrize("slow_path", ["detector", "failed_vlm_constructor"])
+def test_pick_failure_does_not_home_open_or_retry_without_observed_gate(rig, monkeypatch, slow_path):
     monkeypatch.delenv("CASCADE_OBSERVED_FINGER_GATE", raising=False)
-    rig.detector(104.)
+    if slow_path == "detector":
+        rig.detector(104.)
+    else:
+        from cascade.perception import vlm_ground
+        rig.detector(found=False)
+        rig.rt.cfg._data["grounder"] = {"base_url": "unused"}
+        def failed_init(**kwargs):
+            rig.clock.now += 6.
+            raise RuntimeError("Model unavailable")
+        monkeypatch.setattr(vlm_ground, "VLMGrounder", failed_init)
     rig.rt._reconcile_held = lambda: None
     calls = []
     def grasp(*args, **kwargs):
@@ -252,3 +262,34 @@ def test_vlm_depth_processing_is_included_in_age_budget(rig, monkeypatch):
     monkeypatch.setattr(module, "oriented_bbox", slow_bbox)
     with pytest.raises(SlowPerceptionError):
         rig.rt._vlm_ground_fix(rig.primary, "object")
+
+
+@pytest.mark.parametrize("delay", [0., 6.])
+def test_vlm_constructor_failure_is_fail_soft_only_while_fresh(rig, monkeypatch, delay):
+    from cascade.perception import vlm_ground
+    rig.rt.cfg._data["grounder"] = {"base_url": "unused"}
+    def failed_init(**kwargs):
+        rig.clock.now += delay
+        raise RuntimeError("Model unavailable")
+    monkeypatch.setattr(vlm_ground, "VLMGrounder", failed_init)
+    if delay > 5:
+        with pytest.raises(SlowPerceptionError):
+            rig.rt._vlm_ground_fix(rig.primary, "object")
+    else:
+        assert rig.rt._vlm_ground_fix(rig.primary, "object") is None
+    assert not rig.lazy.connected
+
+
+@pytest.mark.parametrize("result", ["empty_cloud", "geometry_error"])
+def test_vlm_slow_depth_miss_or_error_is_terminal(rig, monkeypatch, result):
+    rig.rt.cfg._data["grounder"] = {"base_url": "unused"}
+    rig.rt._grounder = SimpleNamespace(ground=lambda *a: detection())
+    def failed_points(*args, **kwargs):
+        rig.clock.now += 6.
+        if result == "geometry_error":
+            raise ValueError("Depth transform failed")
+        return np.empty((0, 3))
+    monkeypatch.setattr(module, "mask_to_points_cam", failed_points)
+    with pytest.raises(SlowPerceptionError):
+        rig.rt._vlm_ground_fix(rig.primary, "object")
+    assert not rig.lazy.connected

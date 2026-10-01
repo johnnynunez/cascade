@@ -1309,6 +1309,7 @@ class SkillRuntime:
         if frame is not None:
             _frame_age_s(frame)
         started = time.monotonic()
+        analyzed_frame = frame
         try:
             if self._grounder is None:
                 from ..perception.vlm_ground import VLMGrounder
@@ -1335,6 +1336,7 @@ class SkillRuntime:
                               is not None else cam.extrinsics.cam_to_base()))
             det = gframe = T = None
             for cframe, cT in views:
+                analyzed_frame = cframe
                 _analyzed_frame_age_s(cframe, time.monotonic() - started)
                 try:
                     det = self._grounder.ground(cframe, query)
@@ -1379,6 +1381,11 @@ class SkillRuntime:
         except Exception as e:
             self.memory.add("note", f"VLM grounding unavailable: {str(e)[:80]}")
             return None
+        finally:
+            # A delayed constructor failure, empty cloud or failed transform
+            # is still expired analysis, not a fast miss eligible for recovery.
+            if analyzed_frame is not None:
+                _analyzed_frame_age_s(analyzed_frame, time.monotonic() - started)
 
     def _other_cams(self) -> list:
         """Non-primary fusing cameras from the watcher wiring: each entry

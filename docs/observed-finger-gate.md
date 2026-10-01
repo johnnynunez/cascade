@@ -95,17 +95,31 @@ trajectory safety.
 
 ## Offline evidence
 
-The [independent replay](evidence/observed-finger-gate/observed-gate-replay05.json)
+The [independent final-source replay](evidence/observed-finger-gate/observed-gate-replay05-014f016.json)
 checks native04's recorded joint paths against **new passive05** depth and
-production detector/SAM masks, with no ground-truth object geometry. Every
+production YOLOE segmentation masks, with no ground-truth object geometry. Every
 historical actuator target matches the reconstructed nominal profile within
 2.3e-16 rad. Across 10 object/view/round combinations, home/pregrasp had no
 observed conflict; all six green descents passed this gate and all four orange
 descents were rejected. This is a counterfactual replay on a new observed
 initial scene, not a recreation of unavailable native04 full-frame depth.
 
-The replay preserves the evaluated module and geometry hashes. Maximum local
-host build time was 0.329 s; maximum phase check was 0.0813 s. These are local
-CPU measurements, not Spark timing or physical validation. Source scripts and
-input hashes accompany the receipts. A new reviewed physical trial with the
-explicit option remains required.
+The [selection replay](evidence/observed-finger-gate/observed-selection-replay05b-014f016.json)
+also uses the exact runtime vet functions, real selector and safety harness.
+Without the gate it reproduces historical selected joints within 5e-16 rad.
+With the gate, green retains candidate 0 in all six views; orange rejects
+candidate 0 and selects candidate 1 in all four views. Candidates come from
+native04 and the observed scene from passive05; no new planner or robot call
+was made. The earlier preliminary replay is retained separately.
+
+The receipts preserve evaluated source/module/geometry and input hashes.
+Reported CPU timings are local host measurements, not Spark timing or physical
+validation. A new reviewed physical trial with the explicit option remains
+required.
+
+The runtime source is frozen at `014f01699800bb9da7b3127e2517047f55890bdf`:
+158 focused tests, 146 independent reviewer tests, and the full suite
+**2617 passed, 43 skipped, 2 deselected** in 311.05 s. Full-suite HEAD was
+identical before/after and the checkout remained clean. The log SHA-256 is
+`89eee92cb7080373d2d8483c46f6693c799619dc27c02f04d3d54a939cd41453`.
+This final evidence update changes documentation only.

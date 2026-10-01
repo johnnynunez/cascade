@@ -98,7 +98,7 @@ def test_two_native_orders_with_observed_resets_share_one_real_process_binding(s
     assert len({session for _, _, session in h["turns"]}) == 1
     assert [timeout for tool, timeout in h["timeouts"] if tool == "pick_and_place"] == [
         demo_proof.NATIVE_TURN_TIMEOUT_S, demo_proof.NATIVE_TURN_TIMEOUT_S]
-    assert demo_proof.NATIVE_TURN_TIMEOUT_S == 300
+    assert demo_proof.NATIVE_TURN_TIMEOUT_S == 360
     assert h["audits"] == ["green_cube", "orange"]
     assert len(h["children"]) == 1
     for witness in h["witnesses"]:

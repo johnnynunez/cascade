@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "scope": "Allowlisted timeout/cancel lines with original snapshot hashes only. No gateway configurations, full gateway logs, new RPC or actuator requests. Campaign remains FAIL. No instrumentation of internal halt generation was available; cancellation and latched reset refusal are observed.",
+  "source_commit": "28061a60c3ae8099e8a80ab0d1eb8511adbbab86",
+  "diagnostic_receipt_sha256": "1fe9332898763c28ba68464422b6e2a18a664d55880bf8719539d641b29f5f12",
+  "original_log_snapshots": {
+    "gateway": {
+      "path": "runs/.launch/profile-cascade-demo/openclaw-gateway.log",
+      "sha256": "d1654335e07cf840a7110240bbca11aa384c2d7dcd48b992ce9fb08ce2b9af0b",
+      "bytes": 245756,
+      "extract": "gateway-allowlisted.json",
+      "extract_sha256": "aa46d9656f9f347aec704fdb53b9bf22766011251752fe5bbe5ba81f97fdb412"
+    },
+    "mcp": {
+      "path": "runs/mcp_1042543_44244ba348ed4b76a6476c77a1632222/server.log",
+      "sha256": "67e5b726da283f7015e7b6361c848ab6822df99a76ae3cc33ecf9b8ccb8d0f07",
+      "bytes": 12736,
+      "extract": "mcp-allowlisted.json",
+      "extract_sha256": "9a41118d46d4b170cbce6c7a3ec085e5ea070cbe94dc836e1ca4aef1d489bcf2"
+    }
+  },
+  "source_files_sha256": {
+    "scripts/native_turn_budget.py": "616f396c7dc4595976df4c4b1ad4abac1197e5a5ca7dc75c6cc416bb313b8f09",
+    "scripts/demo_proof.py": "9166af8df96636d80f272571e052317c148ae857330f3a2d8af8b6bf6c06499a",
+    "deploy/brev/visitor_chat.py": "ae29acce83d2eb891f411f50df008011b3fa31a56cc359a30bfb2af1fcfce9ac",
+    "src/cascade/apps/mcp_server.py": "aea905a26335ddff2cc5a6d20124348dbda894fe6b53a87ec875eef303d06f57",
+    "scripts/launch.sh": "5c8b69a6ec939738f0a29ea66a8e21b0c06a0dfaee2f814b6559ccece13ca1af"
+  },
+  "timeline": {
+    "visitor_started_unix_s": 1790857017.6666665,
+    "visitor_order_finished_unix_s": 1790857318.5370016,
+    "visitor_poll_finished_unix_s": 1790857319.2265553,
+    "trace_finished_unix_s": 1790857321.972494,
+    "tool_started_derived_unix_s": 1790857038.7287939,
+    "pre_tool_turn_elapsed_s": 21.062127351760864,
+    "skill_duration_s": 283.2437,
+    "timings": {
+      "grasp_attempt1_s": 121.53,
+      "place_s": 112.79
+    },
+    "unpartitioned_tool_time_s": 48.9237,
+    "return_home": {
+      "attempted": true,
+      "ok": false,
+      "error": "simulation motion stopped"
+    },
+    "post_place_retreat": {
+      "ok": true,
+      "tcp_at": [
+        0.136,
+        -0.271,
+        0.14
+      ]
+    },
+    "placement_status": "confirmed",
+    "placement_scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+    "reset_trace_unix_s": 1790857337.2328374,
+    "reset_duration_ms": 94.1,
+    "reset_result": {
+      "props_reset": [],
+      "world": null,
+      "observation_refreshed": false,
+      "objects_visible": [],
+      "ok": false,
+      "stage": "home",
+      "home_error": "no safe joint route found; direct route: e-stop latched",
+      "beliefs_forgotten": 0,
+      "error": "Scene reset could not reach home: no safe joint route found; direct route: e-stop latched"
+    }
+  },
+  "aggregate_campaign_pass": false,
+  "gateway_allowlisted": [
+    {
+      "line": 1617,
+      "text": "2026-10-01T14:21:58.461+02:00 [agent/embedded] embedded run timeout: runId=5d24d8f8-c013-429e-b964-c418134f5aaf sessionId=cascade-proof-7334f15385c24b908112806bbe136815 timeoutMs=299999"
+    }
+  ],
+  "mcp_allowlisted": [
+    {
+      "line": 51,
+      "text": "[cascade-mcp] client cancelled 'pick_and_place' mid-motion -> e-stop. If this arrived at a round number of seconds the HOST's per-call budget expired (OpenClaw requestTimeoutMs, default 60 s) -- a persistent pick legitimately runs longer; raise it in the server entry (launch.sh sets 300000)."
+    }
+  ]
+}

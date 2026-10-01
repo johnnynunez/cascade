@@ -1,9 +1,9 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
-The current tested runtime is **`28061a6` (1 October 2026)**, including the
-PhysX finger envelope and optional OVRTX renderer. Its identical integration
-tree passed 3,295 tests, and all five CI jobs passed on both the PR and merged
-source. [Project status](docs/PROJECT_STATUS_20261001.md) records the separate
+The current tested runtime is **`0e23870` (1 October 2026)**, including the
+PhysX finger envelope, optional OVRTX renderer, callback-safe diagnostics and
+native host time reserve. Its identical integration tree passed 3,365 tests,
+and all five PR CI jobs passed. [Project status](docs/PROJECT_STATUS_20261001.md) records the separate
 Spark and nvblox physical stages; historical installation, campaign and restart
 results apply only to their stated pins.
 

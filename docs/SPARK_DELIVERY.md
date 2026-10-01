@@ -1,9 +1,9 @@
 # Spark delivery details
 
 Current source and acceptance are indexed in
-[project status, 1 October](PROJECT_STATUS_20261001.md). Runtime baseline `28061a6` contains
-PRs #27 and #32–44; its identical integration tree passed the 3,295-test combined
-suite, and all five CI jobs passed on the merged source. The dated results
+[project status, 1 October](PROJECT_STATUS_20261001.md). Runtime baseline `0e23870` contains
+PRs #27 and #32–46; its identical integration tree passed the 3,365-test combined
+suite, and all five PR CI jobs passed. The dated results
 below retain their original pins and verdicts; they are not current-source
 installation, campaign or restart claims.
 
@@ -251,7 +251,7 @@ for the bounded observation window and per-call receipts.
 This direct-runtime campaign does not establish a new native-chat or UI
 acceptance, full desktop READY proof, fresh installation or deployment of the
 final source. The September installation result remains historical. The setup guide now
-selects runtime baseline `28061a6`; its current acceptance is recorded separately in the
+selects runtime baseline `0e23870`; its current acceptance is recorded separately in the
 [status index](PROJECT_STATUS_20261001.md).
 
 ## Native confirmation gate and failed follow-up, 1 October 2026

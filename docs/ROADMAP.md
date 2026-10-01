@@ -7,9 +7,9 @@ Read top-down for status; the dated sections are history.
 ## Current delivery work (2026-10-01)
 
 [The source and acceptance index](PROJECT_STATUS_20261001.md) supersedes the
-historical status lists below. Runtime baseline `28061a6` integrates PRs #27 and
-#32–44; its identical integration tree passed 3,295 tests, and all five CI jobs
-passed on the merged source. Spark now uses the
+historical status lists below. Runtime baseline `0e23870` integrates PRs #27 and
+#32–46; its identical integration tree passed 3,365 tests, and all five PR CI jobs
+passed. Spark now uses the
 installed PhysX/Qwen/real-GGX profile, physical-time joint motion, render-bound
 camera state, observed-finger approach/closing preflight, bounded planning,
 preserved memory ranking and coherent held-object observations. These are

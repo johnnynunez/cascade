@@ -1,6 +1,6 @@
 # PAAI on NVIDIA DGX Spark
 
-**Source pin for these commands: runtime baseline `28061a6`, 1 October 2026.** Software
+**Source pin for these commands: runtime baseline `0e23870`, 1 October 2026.** Software
 validation is complete; current native proof, five-object campaign and restart
 results are tracked separately in [project status](PROJECT_STATUS_20261001.md).
 The September installation measurements below remain historical.
@@ -16,9 +16,8 @@ SHA-256 hashes. See the [scene notice](../demo/scene/NOTICE.md).
 
 ## Validated release and scope
 
-The commands now pin `28061a60c3ae8099e8a80ab0d1eb8511adbbab86`. Its identical
-integration tree passed 3,295 tests; all five CI jobs passed on the merged
-source. This does not establish a fresh installation. Current physical stages
+The commands now pin `0e2387070c2b784ba864981f5c291a1b1e4d117a`. Its identical
+integration tree passed 3,365 tests; all five PR CI jobs passed. This does not establish a fresh installation. Current physical stages
 are recorded in the status index above. On 30 September 2026, the earlier source
 `9cf540279f09df8197eda6541311b41edb455243` completed a fresh installation, a read-only installation
 check and two complete desktop launches on an NVIDIA GB10 Spark. The launcher
@@ -26,7 +25,7 @@ reached **READY** with green-cube and orange placements, independent physics
 audits, resets and all three cameras passing. See the
 [release receipt](../benchmark/results/spark_clean_delivery_20260930.json).
 
-On the current pin, an upgraded existing installation passed the two-object
+On the earlier `28061a6` pin, an upgraded existing installation passed the two-object
 native desktop proof, strict confirmation and READY, with the original browser
 showing three advancing cameras. See the [current proof](SPARK_DELIVERY.md#current-two-object-proof-1-october-2026)
 for measured results and limits. The following timing table remains the
@@ -90,7 +89,7 @@ system package, use the [administrator command](#system-prerequisites)
 before continuing.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/28061a60c3ae8099e8a80ab0d1eb8511adbbab86/scripts/spark_prerequisites.py | python3 -'
+bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/0e2387070c2b784ba864981f5c291a1b1e4d117a/scripts/spark_prerequisites.py | python3 -'
 ```
 
 Success: `PREREQUISITES_OK`.
@@ -114,7 +113,7 @@ planning estimate; slower connections can take longer.
 The progress log shows each stage.
 
 ```bash
-bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/28061a60c3ae8099e8a80ab0d1eb8511adbbab86/scripts/bootstrap.sh | env -u ISAACSIM_PATH -u ISAACSIM_PYTHON_EXE -u CASCADE_QWEN_MODEL -u CASCADE_QWEN_MMPROJ -u LLAMA_SERVER -u LLAMA_DIR bash -s -- --ref 28061a60c3ae8099e8a80ab0d1eb8511adbbab86 --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
+bash -o pipefail -c 'curl -fsSL --retry 3 https://raw.githubusercontent.com/johnnynunez/cascade/0e2387070c2b784ba864981f5c291a1b1e4d117a/scripts/bootstrap.sh | env -u ISAACSIM_PATH -u ISAACSIM_PYTHON_EXE -u CASCADE_QWEN_MODEL -u CASCADE_QWEN_MMPROJ -u LLAMA_SERVER -u LLAMA_DIR bash -s -- --ref 0e2387070c2b784ba864981f5c291a1b1e4d117a --profile spark --accept-eula --prepare-only --dir "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" 2>&1 | tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-install.log"'
 ```
 
 Success: `PREPARED`. No demo services or startup manipulation tests have run.
@@ -146,7 +145,7 @@ is 30 minutes and the Isaac startup timeout is 20 minutes.
   cd "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" || exit
   python3 scripts/desktop.py launch --repo "$PWD" --headless --no-open 2>&1 |
     tee "${PAAI_INSTALL_DIR:-$HOME/paai-spark}-launch.log" | awk '/^\[desktop\]/ { print; fflush() }'
-) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref 28061a60c3ae8099e8a80ab0d1eb8511adbbab86
+) && python3 "${PAAI_INSTALL_DIR:-$HOME/paai-spark}/scripts/spark_verify.py" --repo "${PAAI_INSTALL_DIR:-$HOME/paai-spark}" --expected-ref 0e2387070c2b784ba864981f5c291a1b1e4d117a
 ```
 
 Success: one `READY` summary with both placements, cameras and resets passing.

@@ -8,7 +8,22 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
-MAIN `28061a60c3ae8099e8a80ab0d1eb8511adbbab86` merged
+Runtime baseline `0e2387070c2b784ba864981f5c291a1b1e4d117a` merged
+[PR #46](https://github.com/johnnynunez/cascade/pull/46) after all five PR CI jobs
+passed. Its tree `de39bba7c65f466e7fce42179ed22c213cd256da` is identical to tested
+candidate `4999a754c1c71759ff25dcbda5867bb1b3513fa5`: **3,365 tests passed**,
+43 skipped and four deselected, in 342.63 seconds. This run includes the core
+suite and the separate Brev visitor/video/portable-bundle Python suites.
+All 1,075 tracked files and eight release assets stayed unchanged; the new
+physical-run checkout matches every byte. The
+[validation receipt](evidence/native-host-budget-integration/validation.json)
+binds these checks. The preceding CI run exposed a stale bundle-test expectation
+of 300 seconds; the test now expects the implemented 360-second turn budget.
+That failed run is retained. The MCP call limit remains 300 seconds, with
+60 seconds reserved around it for host routing and response; expiry still stops
+motion. Physical proof, recovery and restart require their own receipts.
+
+Earlier baseline `28061a60c3ae8099e8a80ab0d1eb8511adbbab86` merged
 [PR #44](https://github.com/johnnynunez/cascade/pull/44) after all five CI jobs
 passed; all five jobs also passed on the merged source. Its tree
 `e571c787c5a195a1a02288adb6bf313df76a4f38` is identical to the
@@ -21,7 +36,8 @@ combined geometry and optional renderer changes; they do not establish new
 physical acceptance.
 
 [PR #45](https://github.com/johnnynunez/cascade/pull/45) fixes diagnostic
-recording of the motion safety callbacks. Its candidate `525ab80` passed
+recording of the motion safety callbacks. It merged as `07670e2`, with all five
+PR and merged-source CI jobs passing. Its candidate `525ab80` passed
 **3,304 tests**, with 43 skipped and four deselected, in 334.95 seconds, plus
 81 focused checks. Both recorders now store opaque callback metadata while
 forwarding the original arguments unchanged; logging neither calls nor replaces
@@ -59,6 +75,8 @@ in the validation history.
 | [PR #42](https://github.com/johnnynunez/cascade/pull/42) | [Preserved grasp-memory ranking](grasp-memory-ranking.md) and [coherent held-object observations](HELD_OBJECT_OBSERVATION.md); a cached aiming estimate cannot authorize slip release. |
 | [PR #43](https://github.com/johnnynunez/cascade/pull/43) | Repository documentation reconciled with the installed profiles, software contracts and retained physical failures. |
 | [PR #44](https://github.com/johnnynunez/cascade/pull/44) | Optional [OVRTX RGBD rendering](OVRTX_RENDERER.md), the [PhysX envelope](physx-finger-envelope.md) admitted against x86 and ARM exports, and complete portable distribution of their runtime inputs. |
+| [PR #45](https://github.com/johnnynunez/cascade/pull/45) | Diagnostic recorders retain opaque callback metadata and forward the actual safety callback unchanged. |
+| [PR #46](https://github.com/johnnynunez/cascade/pull/46) | [Native host reserve](native-visitor-turn-budget.md): 360-second visitor/proof pick turns around the unchanged 300-second MCP call limit. |
 
 ## Merged renderer and geometry integration
 

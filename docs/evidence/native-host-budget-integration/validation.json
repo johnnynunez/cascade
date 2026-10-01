@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "scope": "software validation and source equivalence; not physical acceptance",
+  "tested_commit": "4999a754c1c71759ff25dcbda5867bb1b3513fa5",
+  "merged_commit": "0e2387070c2b784ba864981f5c291a1b1e4d117a",
+  "tree": "de39bba7c65f466e7fce42179ed22c213cd256da",
+  "tests": {
+    "passed": 3365,
+    "skipped": 43,
+    "deselected": 4,
+    "seconds": 342.63,
+    "receipt": {
+      "file": "native-turn-host-budget-full-validation-02-20261001/result.json",
+      "sha256": "7e9510a1d38b260ef0a37df7c089629b033a9b28cf8b73547a4d9ba8af484385"
+    },
+    "log": {
+      "file": "native-turn-host-budget-full-validation-02-20261001/pytest.log",
+      "sha256": "34dcaf766003954569b6c93e1a30edb989455bcd85a6cdff21e8cac8b38212f6"
+    },
+    "source_manifest": {
+      "file": "native-turn-host-budget-full-validation-02-20261001/source.json",
+      "sha256": "5fad6f5034d30f046fc77621a39e8fcd04b24372386f4a7073e59541a19ef8a9"
+    }
+  },
+  "source_equivalence": {
+    "receipt": {
+      "file": "callback-main-source-equivalence-20261001.json",
+      "sha256": "8ccb7bc9a8c0bc2871e68ec288e73cb193c00189f48a59ce97e864629d0c1d55"
+    },
+    "summary": {
+      "pass": true,
+      "tested_commit": "4999a754c1c71759ff25dcbda5867bb1b3513fa5",
+      "deployed_commit": "0e2387070c2b784ba864981f5c291a1b1e4d117a",
+      "tested_tree": "de39bba7c65f466e7fce42179ed22c213cd256da",
+      "deployed_tree": "de39bba7c65f466e7fce42179ed22c213cd256da",
+      "verified_origin_main": "0e2387070c2b784ba864981f5c291a1b1e4d117a",
+      "verified_remote_main": "0e2387070c2b784ba864981f5c291a1b1e4d117a",
+      "differences": {},
+      "working_files_verified": 1083,
+      "tracked_files_verified": 1075,
+      "inventory_scope": "all tracked files plus the eight release assets",
+      "full_receipt_sha256": "7e9510a1d38b260ef0a37df7c089629b033a9b28cf8b73547a4d9ba8af484385",
+      "full_log_sha256": "34dcaf766003954569b6c93e1a30edb989455bcd85a6cdff21e8cac8b38212f6",
+      "full_source_manifest_sha256": "5fad6f5034d30f046fc77621a39e8fcd04b24372386f4a7073e59541a19ef8a9",
+      "release_assets": {
+        "demo/scene/cocina_asier/NOTICE.md": {
+          "sha256": "afae350de8e942115d3f906d4ce08f1df5b722eeeb389e1303eef2095ca38d1e",
+          "size_bytes": 3893
+        },
+        "demo/scene/cocina_asier/cocina_asier.usdc": {
+          "sha256": "7cf14a77293aeae53b1f07a4f06d8f5d10b09494425e15ed7b2c8cd19331eca2",
+          "size_bytes": 37740835
+        },
+        "demo/scene/cocina_asier/geometry-audit.json": {
+          "sha256": "c66cbfd7b1acb87badce8bc246c758c26bc4af78bc2e16233915e4a4b5c8414e",
+          "size_bytes": 74295
+        },
+        "demo/scene/cocina_asier/sources.json": {
+          "sha256": "c7c51f4d606cff2aab8984856512d65799a16e4172e69671b63b615f8ce0eae9",
+          "size_bytes": 1999
+        },
+        "demo/scene/cocina_asier/textures/Wood044_2K-JPG_Color.jpg": {
+          "sha256": "d4063b53baf806eada501feb7d0763c181bce44ffbc980d3508f158cc57edfe5",
+          "size_bytes": 4107217
+        },
+        "demo/scene/cocina_asier/textures/Wood044_2K-JPG_Roughness.jpg": {
+          "sha256": "ccd2764bcf715df2ea309da85e0862a7a6f3f8b2a07f09a59cd9af075b7fc11c",
+          "size_bytes": 1901851
+        },
+        "demo/scene/cocina_asier/textures/WoodFloor051_2K-JPG_Color.jpg": {
+          "sha256": "cd20f4039f62ca2b2430b8a4521774572a31ee586babac058a3afe178ed9ef5f",
+          "size_bytes": 4243864
+        },
+        "demo/scene/cocina_asier/textures/WoodFloor051_2K-JPG_Roughness.jpg": {
+          "sha256": "136fafdf901678e5959d4690b812ad4ef654c53db05295eb07e1efa24337cd61",
+          "size_bytes": 1667762
+        }
+      },
+      "geometry_admission_manifest_sha256": "df27a20b4525f635cc5d7dc0f9cd9aa1b155fd5c14724020b246548e09f41c93",
+      "geometry_artifact_sha256": "fb58af87addb6f614ccb4e86146d398a762dbf791d89d0cd92ef9be9b65c52cc",
+      "script_sha256": "2e19bd54500a0b4295d62d6b2e6d9d1af6f6e096076c53d40838d97fb224cea2"
+    }
+  },
+  "pr_ci": {
+    "run_id": 36863265512,
+    "jobs_passed": 5,
+    "receipt": {
+      "file": "pr-merge-readonly-audit-20261001/pr46-ci-complete.json",
+      "sha256": "252fac3dc29186f272a6e9efb503cf8bdab00923a992f51802b9986d9abcc397"
+    }
+  },
+  "main_ci": {
+    "run_id": 36865381713,
+    "status": "pending"
+  },
+  "prior_failed_ci": {
+    "run_id": 36862232725,
+    "candidate": "47ca9833de843e39e249a45e925816db7a1305e9",
+    "cause": "Portable bundle test retained expected300 while production correctly emitted360; final candidate updates one test line, production unchanged."
+  },
+  "physical_acceptance": "pending separate receipts"
+}

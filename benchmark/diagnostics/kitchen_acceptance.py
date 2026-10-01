@@ -72,6 +72,92 @@ def retarget_ports(node, port):
     return count
 
 
+def configure_query_region(cfg, args):
+    """Change only the queried ESDF volume, never motion safety geometry."""
+    before = {"workspace": cfg.safety.workspace.as_dict(),
+              "min_clearance_m": float(cfg.safety.get("min_clearance_m", .03))}
+    minimum, maximum = args.query_region_min, args.query_region_max
+    if (minimum is None) != (maximum is None):
+        raise ValueError("query-region-min and query-region-max must be supplied together")
+    if minimum is not None:
+        if (args.occupancy != "nvblox" or len(minimum) != 3 or len(maximum) != 3
+                or any(not math.isfinite(v) for v in [*minimum, *maximum])
+                or any(lo >= hi for lo, hi in zip(minimum, maximum))):
+            raise ValueError("query region requires nvblox and three finite increasing bounds")
+        cfg._data["occupancy"].update(region_min=list(minimum), region_max=list(maximum))
+    after = {"workspace": cfg.safety.workspace.as_dict(),
+             "min_clearance_m": float(cfg.safety.get("min_clearance_m", .03))}
+    if before != after:
+        raise RuntimeError("query configuration changed motion safety geometry")
+    return {"explicit_override": minimum is not None,
+            "min": cfg.occupancy.get("region_min", before["workspace"]["min"]),
+            "max": cfg.occupancy.get("region_max", before["workspace"]["max"]),
+            "safety_before": before, "safety_after": after,
+            "scope": "ESDF query bounds only; unknown remains rejected"}
+
+
+def camera_age_summary(records, *, host, port, robot_id, complete, errors):
+    """Summarize every existing three-camera snapshot, without new reads."""
+    result = {"pass": bool(complete and records and not errors), "complete": bool(complete),
+              "observer_errors": list(errors), "source": [host, port], "cameras": {},
+              "scope": "Server monotonic minus capture in the same physical snapshot; "
+                       "observed capture gaps are sample gaps, not all producer frames."}
+    for name in ("cam0", "side", "proof"):
+        captures, ages, failures = [], [], []
+        for row in records:
+            try:
+                physics = row["physics"]
+                frame = physics["cameras"][name]
+                capture, server = frame.get("capture_monotonic"), physics.get("server_monotonic")
+                if (frame.get("available") is not True or physics.get("robot_id") != robot_id
+                        or frame.get("robot_id") != robot_id
+                        or frame.get("producer_time_source") != "physics_loop_monotonic"
+                        or type(capture) not in (int, float) or not math.isfinite(capture)
+                        or type(server) not in (int, float) or not math.isfinite(server)):
+                    raise ValueError("missing or invalid camera/source clock binding")
+                age = server - capture
+                ages.append(age)
+                previous = captures[-1] if captures else capture
+                captures.append(capture)
+                if not -.01 <= age <= 2 or capture < previous:
+                    raise ValueError("stale, future or regressed capture")
+            except (KeyError, TypeError, ValueError) as exc:
+                failures.append({"sequence": row.get("sequence"), "error": str(exc),
+                    "client_started_monotonic": row.get("client_started_monotonic"),
+                    "frame": row.get("physics", {}).get("cameras", {}).get(name),
+                    "server_monotonic": row.get("physics", {}).get("server_monotonic")})
+        unique = sorted(set(captures))
+        passed = bool(records and not failures and len(unique) > 1)
+        result["cameras"][name] = {"pass": passed, "samples": len(records),
+            "valid_clock_samples": len(ages), "maximum_age_s": max(ages) if ages else None,
+            "samples_over_2s": sum(age > 2 for age in ages), "distinct_captures": len(unique),
+            "maximum_observed_capture_gap_s": max((b-a for a,b in zip(unique, unique[1:])), default=None),
+            "invalid_samples": len(failures), "first_invalid_sample": failures[0] if failures else None,
+            "robot_id": robot_id, "producer_clock": "physics_loop_monotonic"}
+        result["pass"] &= passed
+    return result
+
+
+def frozen_sources(scene_config):
+    paths = {Path(__file__), Path(scene_config),
+             ROOT / "benchmark/diagnostics/nvblox_camera_recovery.py",
+             ROOT / "benchmark/diagnostics/nvblox_postclose_recovery.py",
+             ROOT / "benchmark/diagnostics/nvblox_contact_recovery.py",
+             ROOT / "assets/newton/rebot_gripper_hulls.usda"}
+    for folder in ("src/cascade", "scripts", "demo"):
+        paths.update((ROOT / folder).rglob("*.py"))
+    for suffix in ("*.yaml", "*.yml", "*.json"):
+        paths.update((ROOT / "configs").rglob(suffix))
+    return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(paths)}
+
+
+def check_frozen_sources(source_hashes):
+    if any(not (ROOT / name).is_file()
+           or hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != digest
+           for name, digest in source_hashes.items()):
+        raise RuntimeError("campaign source changed before requested physical phase")
+
+
 def phase(observer, runtime, skill, arguments, phase_name, receipt):
     observer.mark(phase_name + "_begin")
     started = time.monotonic()
@@ -137,7 +223,7 @@ def install_command_trace(runtime, path):
     runtime.memory.add = add
 
 
-def run_case(args, proof, case_dir, object_name):
+def run_case(args, proof, case_dir, object_name, source_hashes):
     from cascade.apps.demo import build_runtime
     from cascade.config import load_demo_config
 
@@ -166,6 +252,11 @@ def run_case(args, proof, case_dir, object_name):
             for index, camera_cfg in enumerate(cfg._data["cameras"]):
                 camera_cfg["map_depth"] = index < args.map_cameras
             receipt["occupancy_camera_count"] = args.map_cameras
+        receipt["experimental_map_query_region"] = configure_query_region(cfg, args)
+        receipt["effective_occupancy_configuration"] = cfg.occupancy.as_dict()
+        receipt["effective_camera_configuration"] = {
+            "perception_loop": cfg.perception_loop.as_dict(),
+            "cameras": cfg._data["cameras"]}
         if args.pregrasp_offset is not None:
             cfg._data["grasp"]["pregrasp_offset_m"] = args.pregrasp_offset
         if args.place_support_clearance is not None:
@@ -185,6 +276,8 @@ def run_case(args, proof, case_dir, object_name):
                 "release_open_timeout_s", "close_feedback_timeout_s")}
         runtime, _ = build_runtime(cfg, case_dir / "runtime", lazy_arm=True)
         install_command_trace(runtime, case_dir / "commands.jsonl")
+        from nvblox_postclose_recovery import require_simulation_clock
+        receipt["simulation_clock"] = require_simulation_clock(runtime)
         if args.occupancy == "nvblox":
             occ = runtime.arm.harness.occupancy
             status = occ.probe(timeout_ms=2000) if occ is not None else None
@@ -204,20 +297,29 @@ def run_case(args, proof, case_dir, object_name):
                     expected_scene_geometry=proof.shared.load_expected_scene_geometry(args.scene_config))
 
         observer = Witness()
+        if any(str(c.get("bridge_host", "127.0.0.1")) != observer.host
+               or int(c["bridge_port"]) != observer.port for c in cfg._data["cameras"]):
+            raise RuntimeError("camera sources differ from the passive witness endpoint")
         with observer:
             engines = {r["physics"].get("engine") for r in observer.records}
             if engines != {args.engine}:
                 raise RuntimeError(f"Requested {args.engine}; observed {sorted(engines)}")
             observer.settle(simulation_seconds=.65, wall_timeout=40)
+            check_frozen_sources(source_hashes)
             try:
                 phase(observer, runtime, "pick_and_place",
                       {"object": object_name.replace("_", " "), "destination": destination},
                       "pick", receipt)
             finally:
                 # Reset is an explicit real skill, including after a failed pick.
+                check_frozen_sources(source_hashes)
                 phase(observer, runtime, "reset_scene", {}, "reset", receipt)
         receipt["physical_audit"] = observer.audit()
+        receipt["camera_age_summary"] = camera_age_summary(observer.records,
+            host=observer.host, port=observer.port, robot_id=cfg.arm.bridge_robot_id,
+            complete=observer.complete, errors=observer.errors)
         checks = receipt["physical_audit"]["checks"]
+        checks["all_three_camera_age_series_complete"] = receipt["camera_age_summary"]["pass"]
         checks["requested_engine_matches_every_sample"] = bool(observer.records) and all(
             r["physics"].get("engine") == args.engine for r in observer.records)
         checks["pick_skill_completed"] = receipt.get("pick_result", {}).get("ok") is True
@@ -286,6 +388,10 @@ def main(argv=None):
     parser.add_argument("--engine", choices=("newton", "physx"), required=True)
     parser.add_argument("--occupancy", choices=("none", "nvblox"), default="none")
     parser.add_argument("--occupancy-port", type=int, default=5557)
+    parser.add_argument("--query-region-min", type=float, nargs=3, metavar=("X", "Y", "Z"),
+                        help="Explicit experimental ESDF query minimum; requires --query-region-max")
+    parser.add_argument("--query-region-max", type=float, nargs=3, metavar=("X", "Y", "Z"),
+                        help="ESDF query maximum, independent of the unchanged TCP workspace")
     parser.add_argument("--pregrasp-offset", type=float, help="Diagnostic lift/approach distance, recorded in every receipt")
     parser.add_argument("--place-support-clearance", type=float,
                         help="Requested diagnostic support gap in metres; runtime TCP ceiling still applies")
@@ -303,6 +409,12 @@ def main(argv=None):
     if args.place_support_clearance is not None and (
             not math.isfinite(args.place_support_clearance) or args.place_support_clearance < 0):
         parser.error("place-support-clearance must be finite and nonnegative")
+    if (args.query_region_min is None) != (args.query_region_max is None):
+        parser.error("query-region-min and query-region-max must be supplied together")
+    if args.query_region_min is not None and (args.occupancy != "nvblox"
+            or any(not math.isfinite(v) for v in args.query_region_min + args.query_region_max)
+            or any(lo >= hi for lo, hi in zip(args.query_region_min, args.query_region_max))):
+        parser.error("query region requires nvblox and finite increasing bounds")
     if not args.output.is_relative_to(ROOT) or args.output.exists():
         parser.error("output must be a NEW directory inside this checkout")
     if len(set(args.objects)) != len(args.objects):
@@ -323,29 +435,12 @@ def main(argv=None):
         proof.shared.load_expected_scene_geometry(args.scene_config)
         args.output.mkdir(parents=True)
         os.chdir(ROOT / "models")
-        sources = ("benchmark/diagnostics/kitchen_acceptance.py",
-                   "benchmark/diagnostics/nvblox_camera_recovery.py",
-                   "scripts/isaac_bridge.py", "scripts/isaac_materials.py", "scripts/isaac_runtime.py",
-                   "scripts/isaac_self_mask.py", "src/cascade/sim/bridge_client.py",
-                   "src/cascade/safety/harness.py", "src/cascade/types.py",
-                   "src/cascade/safety/trajectory.py",
-                   "src/cascade/control/arm_base.py", "src/cascade/control/mock_arm.py",
-                   "src/cascade/skills/runtime.py", "src/cascade/grasping/obb_grasp.py",
-                   "src/cascade/skills/contact_episode.py",
-                   "src/cascade/grasping/graspgenx_backend.py", "src/cascade/config.py",
-                   "src/cascade/apps/demo.py",
-                   "src/cascade/perception/grounding.py", "src/cascade/perception/cuda_math.py",
-                   "src/cascade/perception/occupancy.py", "src/cascade/perception/occupancy_backends.py",
-                   "src/cascade/perception/world.py",
-                   "src/cascade/agent/effects.py", "src/cascade/sim/truth.py",
-                   "src/cascade/sim/placement.py", "demo/kitchen/physics/placement_verdict.py",
-                   "demo/kitchen/physics/gpu_proof_audit.py", "demo/kitchen/physics/convex_geometry.py",
-                   "demo/kitchen/physics/destination_entry.py", "demo/kitchen/physics/spark_proof.py",
-                   "assets/newton/rebot_gripper_hulls.usda",
-                   "configs/arms/isaac_kitchen.yaml", "configs/arms/isaac_kitchen_gpu.yaml")
-        source_hashes = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in sources}
+        source_hashes = frozen_sources(args.scene_config)
         campaign = {"pass": False, "source_sha256": source_hashes, "engine": args.engine, "port": args.port,
                     "rounds": args.rounds, "objects": args.objects,
+                    "argv": list(sys.argv[1:] if argv is None else argv),
+                    "experimental_query_region": {"min": args.query_region_min, "max": args.query_region_max},
+                    "stop_policy": "--fail-fast stops after the first failed case and its one explicit reset; cleanup sends no commands",
                     "scene_config": str(args.scene_config), "cases": []}
         for round_number in range(1, args.rounds + 1):
             for obj in args.objects:
@@ -354,7 +449,7 @@ def main(argv=None):
                 print(f"BEGIN {obj} round={round_number} engine={args.engine}", flush=True)
                 with (case_dir / "execution.log").open("w", buffering=1) as log:
                     with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
-                        receipt = run_case(args, proof, case_dir, obj)
+                        receipt = run_case(args, proof, case_dir, obj, source_hashes)
                 campaign["cases"].append({"object": obj, "round": round_number,
                     "pass": receipt["pass"], "receipt": str(case_dir / "receipt.json"),
                     "failed_checks": receipt.get("failed_checks", []), "errors": receipt["errors"]})

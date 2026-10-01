@@ -19,6 +19,7 @@ import copy
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -287,7 +288,10 @@ def close_without_motion(runtime):
 
 
 def run(args, out):
-    from kitchen_acceptance import load_proof, retarget_ports
+    from kitchen_acceptance import (check_frozen_sources, configure_query_region,
+                                    frozen_sources, load_proof, retarget_ports)
+    from nvblox_contact_recovery import rebuilt_camera_map
+    from nvblox_postclose_recovery import require_simulation_clock
     from cascade.apps.demo import build_runtime
     from cascade.config import load_demo_config
     cfg = load_demo_config(cameras=["isaac", "isaac_side", "isaac_proof"], arm="isaac_kitchen_gpu", llm="mock")
@@ -297,20 +301,19 @@ def run(args, out):
         allowed_contact_paths=["/World_Props/" + name for name in OBJECTS])
     for camera in cfg._data["cameras"]:
         camera["map_depth"] = True
-    cfg._data["grasp"]["pregrasp_offset_m"] = .10
+    cfg._data["grasp"]["pregrasp_offset_m"] = args.pregrasp_offset
     receipt = {"pass": False, "scope": __doc__, "held_requested": args.held, "errors": [], "phases": {},
         "barrier_trigger": "private _reset_camera_frames(require_geometry=True) under paused watcher" if args.held else "public reset_scene API",
         "port": args.port, "occupancy_port": args.occupancy_port, "engine": args.engine}
+    receipt["experimental_map_query_region"] = configure_query_region(cfg, args)
     receipt["effective_configuration"] = {"home_q": cfg.arm.home_q, "joint_signs": cfg.arm.joint_signs,
         "robot_id": cfg.arm.bridge_robot_id, "grasp": cfg.grasp.as_dict(), "safety": cfg.safety.as_dict()}
-    sources = sorted(set([Path(__file__), ROOT / "benchmark/diagnostics/kitchen_acceptance.py", args.scene_config]
-        + list((ROOT / "src/cascade").rglob("*.py")) + list((ROOT / "demo/kitchen/physics").glob("*.py"))
-        + list((ROOT / "configs").rglob("*.yaml"))))
-    receipt["source_sha256"] = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
+    receipt["source_sha256"] = frozen_sources(args.scene_config)
     runtime = observer = recorder = None
     try:
         runtime, _ = build_runtime(cfg, out / "runtime", lazy_arm=True)
         recorder = ActuatorTrace(runtime, out / "commands.jsonl")
+        receipt["simulation_clock"] = require_simulation_clock(runtime)
         occupancy = runtime.arm.harness.occupancy
         status = occupancy.probe(timeout_ms=2000) if occupancy is not None else None
         receipt["occupancy_probe"] = status
@@ -325,6 +328,7 @@ def run(args, out):
                 identity = [(r["physics"]["engine"], r["physics"]["robot_id"]) for r in observer.records]
             if not identity or set(identity) != {(args.engine, cfg.arm.bridge_robot_id)}:
                 raise RuntimeError("passive observer does not match the requested engine/robot")
+            check_frozen_sources(receipt["source_sha256"])
             if args.held:
                 setup = phase(observer, runtime, recorder, "setup_grasp",
                               lambda: runtime.execute("grasp_object", {"label": args.held.replace("_", " ")}))
@@ -357,17 +361,21 @@ def run(args, out):
                         runtime._reset_camera_frames(require_geometry=True)
                         return {"ok": True, "unexpected_barrier_completion": True}
                     operation = seed_pending if args.held else (lambda: runtime.execute("reset_scene", {}))
+                    check_frozen_sources(receipt["source_sha256"])
                     first = phase(observer, runtime, recorder, first_name, operation)
                     receipt["phases"]["first_barrier"] = first
                     if not occupancy.scene_reset_pending or not getattr(runtime, "_reset_observation_pending", False):
                         raise RuntimeError("first frozen barrier did not establish pending recovery; no second reset attempted")
+                    check_frozen_sources(receipt["source_sha256"])
                     receipt["phases"]["blocked_reset"] = phase(observer, runtime, recorder, "blocked_reset",
                                                                 lambda: runtime.execute("reset_scene", {}))
                 receipt["freeze"] = freeze.report()
+                check_frozen_sources(receipt["source_sha256"])
                 recovery = phase(observer, runtime, recorder, "recovered_reset", lambda: runtime.execute("reset_scene", {}))
                 receipt["phases"]["recovered_reset"] = recovery
                 observer.settle(simulation_seconds=.65, wall_timeout=40)
                 receipt["final_state"] = fresh_state(observer, runtime)
+                receipt["camera_map_commits"] = rebuilt_camera_map(occupancy, recovery["result"])
             with observer._lock:
                 records = copy.deepcopy(observer.records)
             receipt["reset_physics"] = reset_window(records, after=observer.marks["recovered_reset_end"]["monotonic"],
@@ -391,6 +399,7 @@ def run(args, out):
                 "recovered_public_reset_completed": recovery["result"].get("ok") is True and recovery["result"].get("geometry_recovered") is True,
                 "all_props_reset_reported": set(recovery["result"].get("props_reset") or []) == set(expected["prop_dimensions_m"]),
                 "all_camera_depths_rebuilt": set(final_map["camera_history"]) == expected_cameras,
+                "all_reset_camera_commits_newer_than_floors": receipt["camera_map_commits"]["pass"],
                 "fresh_esdf_without_pending_fault": final_map["has_grid"] and not final_map["pending"] and not final_map["stale"]
                     and final_map["last_error"] is None and final_map["body_error"] is None,
                 "post_recovery_physics": receipt["reset_physics"]["pass"], **fresh_checks}
@@ -425,9 +434,22 @@ def main(argv=None):
     parser.add_argument("--engine", choices=("physx", "newton"), default="physx")
     parser.add_argument("--camera", default="side")
     parser.add_argument("--held", choices=OBJECTS)
+    parser.add_argument("--pregrasp-offset", type=float, default=.10,
+                        help="Explicit diagnostic approach/lift offset in metres")
+    parser.add_argument("--query-region-min", type=float, nargs=3, metavar=("X", "Y", "Z"))
+    parser.add_argument("--query-region-max", type=float, nargs=3, metavar=("X", "Y", "Z"))
+    parser.set_defaults(occupancy="nvblox")
     parser.add_argument("--scene-config", type=Path, default=ROOT / "demo/scene/kitchen_config.json")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
+    if not math.isfinite(args.pregrasp_offset) or args.pregrasp_offset <= 0:
+        parser.error("pregrasp-offset must be finite and positive")
+    if (args.query_region_min is None) != (args.query_region_max is None):
+        parser.error("query-region-min and query-region-max must be supplied together")
+    if args.query_region_min is not None and (
+            any(not math.isfinite(v) for v in args.query_region_min + args.query_region_max)
+            or any(lo >= hi for lo, hi in zip(args.query_region_min, args.query_region_max))):
+        parser.error("query region requires finite increasing bounds")
     out, args.scene_config = args.output.resolve(), args.scene_config.resolve()
     if not out.is_relative_to(ROOT) or out.exists():
         parser.error("output must be a NEW directory inside this checkout")

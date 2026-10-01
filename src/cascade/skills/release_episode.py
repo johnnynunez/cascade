@@ -41,9 +41,14 @@ def _jaws(snapshot, *, expected=None, require_open=False):
     identity = (tuple(lower), tuple(upper))
     if expected is not None and identity != expected:
         raise SafetyViolation("release jaw limits changed")
-    if require_open and np.any((q-lower)/(upper-lower) < .98):
+    if require_open and not _both_open(q, identity):
         raise SafetyViolation("release requires both actual jaws fully open")
     return identity
+
+
+def _both_open(positions, limits):
+    lower, upper = (np.asarray(v, float) for v in limits)
+    return bool(np.all((np.asarray(positions)-lower)/(upper-lower) >= .98))
 
 
 def begin(runtime, q_retreat, duration_s):
@@ -158,50 +163,86 @@ def open_hand(runtime, episode):
         harness._release_scope.value = None
 
 
+def wait_open(runtime, episode, *, timeout_s):
+    """Wait for each measured jaw, under the existing release-open budget.
+
+    A partial but valid state is pending; clock/identity/feedback errors remain
+    terminal. Neither the ACK nor the average jaw opening proves release.
+    """
+    if not episode["open_acknowledged"] or episode["released"]:
+        raise SafetyViolation("release opening is not pending")
+    deadline = time.monotonic() + timeout_s
+    while True:
+        _state(runtime, episode, require_open=False, deadline=deadline)
+        _guard(runtime, episode)
+        remaining = deadline-time.monotonic()
+        if remaining <= 0:
+            raise SkillError("actual jaws did not confirm full opening before retraction")
+        if _both_open(episode["feedback_jaws"], episode["jaw_identity"]):
+            return
+        time.sleep(min(.05, remaining))
+
+
 def wait_geometry(runtime, episode, *, reference=None):
     if episode is None:
         return None
     if not episode["open_acknowledged"]:
         raise SafetyViolation("release opening was not acknowledged; state remains ambiguous")
     deadline = time.monotonic() + 5.
-    before = _state(runtime, episode, deadline=deadline)
-    if reference is not None and np.max(abs(before-reference)) > .001:
-        raise SafetyViolation("release feedback changed from retained failure")
-    floors = []
-    for stream in episode["streams"]:
-        _guard(runtime, episode)
-        left = deadline-time.monotonic()
-        if left <= 0:
-            raise SkillError("post-release capture deadline expired")
-        try:
-            frame = read_frame_after(stream, timeout_s=left)
-            marker = capture_marker(frame)
-        except (TimeoutError, ValueError) as exc:
-            raise SkillError(f"post-release capture unavailable: {exc}") from exc
-        snapshot = (frame.capture or {}).get("proprioception", {})
-        clock = episode["clock"]
-        if (marker.get("backend") != "isaac" or tuple(marker["source"]) != tuple(clock["source"])
-                or marker["robot_id"] != clock["robot_id"] or snapshot.get("producer_epoch") != clock["epoch"]
-                or frame.capture.get("contact_paths") != [] or marker["t"] <= episode["attachment_stamp"]):
-            raise SafetyViolation("post-release capture identity/contact changed")
-        _jaws(snapshot.get("gripper_joints"), expected=episode["jaw_identity"], require_open=True)
-        key = runtime.arm.harness.occupancy._capture_key(marker)
-        previous = episode["stream_capture_keys"].get(id(stream))
-        if previous is not None and previous != key:
-            raise SafetyViolation("post-release stream source identity changed")
-        if previous is None and episode["released"]:
-            raise SafetyViolation("post-release stream identity was not retained")
-        episode["stream_capture_keys"][id(stream)] = key
-        floors.append(frame)
-    if {runtime.arm.harness.occupancy._capture_key(capture_marker(f)) for f in floors} != episode["capture_keys"]:
-        raise SafetyViolation("post-release capture camera set changed")
-    # Eligibility is established by actual open fingers AND empty contacts,
-    # before waiting for the mapper; held_object=None alone never authorizes it.
-    episode["released"] = True
     def guard():
         _guard(runtime, episode)
         if time.monotonic() >= deadline:
             raise SkillError("post-release geometry deadline expired")
+    before = _state(runtime, episode, deadline=deadline)
+    guard()
+    if reference is not None and np.max(abs(before-reference)) > .001:
+        raise SafetyViolation("release feedback changed from retained failure")
+    floors = []
+    for stream in episode["streams"]:
+        after = None
+        while True:
+            guard()
+            try:
+                frame = read_frame_after(stream, after=after, timeout_s=deadline-time.monotonic())
+                marker = capture_marker(frame)
+            except (TimeoutError, ValueError) as exc:
+                raise SkillError(f"post-release capture unavailable: {exc}") from exc
+            guard()
+            snapshot = (frame.capture or {}).get("proprioception", {})
+            clock = episode["clock"]
+            paths = frame.capture.get("contact_paths")
+            if (marker.get("backend") != "isaac" or tuple(marker["source"]) != tuple(clock["source"])
+                    or marker["robot_id"] != clock["robot_id"] or snapshot.get("producer_epoch") != clock["epoch"]
+                    or marker["t"] <= episode["attachment_stamp"]
+                    or not isinstance(paths, list) or (paths != [] and paths != list(episode["paths"]))):
+                raise SafetyViolation("post-release capture identity/contact changed")
+            key = runtime.arm.harness.occupancy._capture_key(marker)
+            previous = episode["stream_capture_keys"].get(id(stream))
+            if key not in episode["capture_keys"] or (previous is not None and previous != key):
+                raise SafetyViolation("post-release stream source identity changed")
+            if previous is None and episode["released"]:
+                raise SafetyViolation("post-release stream identity was not retained")
+            # Bind the first packet, including an intermediate opening packet.
+            # A later camera/epoch replacement cannot become this stream's floor.
+            episode["stream_capture_keys"][id(stream)] = key
+            if after is not None and marker["t"] <= capture_marker(after)["t"]:
+                raise SafetyViolation("post-release capture did not advance")
+            captured_jaws = snapshot.get("gripper_joints")
+            _jaws(captured_jaws, expected=episode["jaw_identity"])
+            if _both_open(captured_jaws["position_m"], episode["jaw_identity"]) and paths == []:
+                floors.append(frame)
+                break
+            if episode["released"]:
+                raise SafetyViolation("post-release captured opening/contact regressed")
+            # Delivery can lag actual opening. Require a genuinely newer packet
+            # under this same deadline; no intermediate packet is a map floor.
+            after = frame
+    if {runtime.arm.harness.occupancy._capture_key(capture_marker(f)) for f in floors} != episode["capture_keys"]:
+        raise SafetyViolation("post-release capture camera set changed")
+    # Eligibility is established by actual open fingers AND empty contacts,
+    # before waiting for the mapper; held_object=None alone never authorizes it.
+    guard()
+    episode["released"] = True
     try:
         evidence = runtime.arm.harness.occupancy.wait_released_ready(floors,
             deadline=deadline, guard=guard, producer_epoch=episode["clock"]["epoch"],

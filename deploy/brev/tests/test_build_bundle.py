@@ -106,7 +106,7 @@ print(json.dumps(result))
     completed = subprocess.run([sys.executable, "-I", "-c", code, str(output / "source")],
                                cwd=tmp_path, capture_output=True, text=True, timeout=10, check=True)
     assert json.loads(completed.stdout) == {
-        "scripts/demo_proof.py": [300, 30], "deploy/brev/visitor_chat.py": [300, 30]}
+        "scripts/demo_proof.py": [360, 30], "deploy/brev/visitor_chat.py": [360, 30]}
     subprocess.run([sys.executable, "-I", str(output / "source/scripts/demo_proof.py"), "--help"],
                    cwd=tmp_path, capture_output=True, text=True, timeout=10, check=True)
 

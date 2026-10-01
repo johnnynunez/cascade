@@ -490,8 +490,9 @@ tool names and the owned live process to its trace; a recent timestamp
 alone cannot establish identity. Reset must include the manipulated prop
 and a subsequent `world_state` read-back. `--no-robot-turn` is STARTED /
 UNVERIFIED, not READY. The MCP server is registered with
-`requestTimeoutMs: 300000`. Native visitor and proof turns share a 300-second
-whole-turn budget plus a 30-second CLI return margin; an expired motion still
+`requestTimeoutMs: 300000`. Native visitor and proof turns share a 360-second
+whole-turn budget, including a 60-second host reserve around the per-tool limit,
+plus a 30-second CLI return margin; an expired motion still
 latches e-stop. See [turn budgets](native-visitor-turn-budget.md). Dead MCP entries are
 pruned, and on macOS the server runs under `mjpython` so the MuJoCo window
 can open -- when a display is active; a sleeping display is detected and

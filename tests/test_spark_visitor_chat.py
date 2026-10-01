@@ -221,8 +221,8 @@ def test_abandoned_order_blocks_both_visitors_until_a_new_verified_world(chat, m
 
 def test_cli_timeout_keeps_the_uncertain_order_latched(chat, monkeypatch):
     def timeout(command, **kwargs):
-        assert command[command.index("--timeout") + 1] == "300"
-        assert kwargs["timeout"] == 330
+        assert command[command.index("--timeout") + 1] == "360"
+        assert kwargs["timeout"] == 390
         raise chat_module.subprocess.TimeoutExpired(command, kwargs["timeout"], output="private-token-fixture")
     monkeypatch.setattr(chat_module.subprocess, "run", timeout)
     chat.submit("Move the cube")
@@ -233,8 +233,15 @@ def test_cli_timeout_keeps_the_uncertain_order_latched(chat, monkeypatch):
         chat.submit("Move another cube")
 
 
-@pytest.mark.parametrize("elapsed_s", [249, 299, 300, 301])
-def test_turn_budget_keeps_legitimate_motion_but_expiry_still_latches_stop(chat, monkeypatch, elapsed_s):
+@pytest.mark.parametrize("before_tool_s,tool_s,after_tool_s", [
+    (21.062, 283.244, 4.),  # Captured can timeline plus host response time.
+    (30., 299., 20.),      # A tool within its own limit can complete after 300 s.
+    (30., 299., 30.),      # Immediately below the complete turn deadline.
+    (30., 299., 31.),      # Complete turn expires at 360 s.
+    (30., 299., 32.),
+])
+def test_turn_budget_keeps_legitimate_motion_but_expiry_still_latches_stop(
+        chat, monkeypatch, before_tool_s, tool_s, after_tool_s):
     """Model only gateway time; use the real MCP cancel and safety latch.
 
     No sleeping, physical backend, or claim of an end-to-end OpenClaw test.
@@ -250,11 +257,13 @@ def test_turn_budget_keeps_legitimate_motion_but_expiry_still_latches_stop(chat,
     server._runtime = SimpleNamespace(arm=SafeArm(SimpleNamespace(stop=lambda: stopped.append(True)), harness))
     server._inflight = (41, "pick_and_place")
     calls = []
+    elapsed_s = before_tool_s + tool_s + after_tool_s
+    assert tool_s < 300
 
     def gateway(command, **kwargs):
         calls.append(command)
         deadline = int(command[command.index("--timeout") + 1])
-        assert deadline == 300
+        assert deadline == 360
         assert kwargs["timeout"] == deadline + 30
         envelope = answer(chat)
         envelope["result"]["meta"]["toolSummary"]["tools"] = ["cascade__pick_and_place"]
@@ -268,7 +277,7 @@ def test_turn_budget_keeps_legitimate_motion_but_expiry_still_latches_stop(chat,
     chat.submit("Please put the green cube in the green square.")
     result = finished(chat)
     assert len(calls) == 1
-    if elapsed_s < 300:
+    if elapsed_s < 360:
         assert result["status"] == "done"
         assert not harness.estopped and not server._stop_pending and stopped == []
     else:

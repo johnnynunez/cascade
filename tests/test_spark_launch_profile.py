@@ -22,6 +22,18 @@ ROOT = Path(__file__).resolve().parents[1]
 LAUNCH = ROOT / "scripts/launch.sh"
 
 
+def test_host_turn_reserve_does_not_extend_the_registered_mcp_call(monkeypatch, capsys):
+    blocks = re.findall(r"<<'PYEOF'[^\n]*\n(.*?)\nPYEOF", LAUNCH.read_text(), flags=re.DOTALL)
+    [registration] = [block for block in blocks if '"requestTimeoutMs"' in block]
+    monkeypatch.setattr(sys, "argv", ["-", sys.executable, "/fixture/repo", "isaac",
+                                     "isaac_kitchen_gpu", "/fixture/detector", "", "isaac",
+                                     "/fixture/state", "fixture-owner", "0", "none"])
+    exec(compile(registration, str(LAUNCH), "exec"), {})
+    config = json.loads(capsys.readouterr().out)
+    assert config["requestTimeoutMs"] == 300000
+    assert config["connectionTimeoutMs"] == 120000
+
+
 def test_ready_banner_prints_both_spark_entry_points(tmp_path):
     source = LAUNCH.read_text()
     banner = source[source.index('LAUNCH_STATUS="STARTED'):]

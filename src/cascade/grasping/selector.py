@@ -14,6 +14,10 @@ from ..types import Grasp, SkillError, make_transform
 from . import evidence
 
 
+class NoExecutableGrasp(SkillError):
+    """All candidates failed geometry/IK checks before any actuation."""
+
+
 def _flip_twin(g: Grasp) -> Grasp:
     """The same parallel-jaw grasp with the jaws swapped: the TCP rotated
     180 degrees about the approach axis. Position, width and approach are
@@ -34,6 +38,7 @@ def select_grasp(
     validate=None,
     jaw_fixed_tip_m=None,
     jaw_close_dir=None,
+    check=None,
 ) -> tuple[Grasp, np.ndarray, np.ndarray]:
     """-> (grasp, q_pregrasp, q_grasp) for the best executable candidate.
 
@@ -85,8 +90,13 @@ def select_grasp(
     evidence.event("jaw_datum", fixed_tip_m=fixed_tip, close_dir=close_dir,
                    max_width_m=max_width_m, pregrasp_offset_m=pregrasp_offset_m)
 
+    def _check():
+        if check is not None:
+            check()
+
     def _solve(g: Grasp):
         """-> (q_pre, q_grasp) or a failure reason string."""
+        _check()
         p_grasp = g.position
         if fixed_tip is not None and close_dir is not None:
             off = fixed_tip + close_dir * (float(g.width_m) / 2.0)
@@ -97,15 +107,19 @@ def select_grasp(
         )
         evidence.event("ik_targets", grasp=g, T_grasp=T_grasp, T_pre=T_pre, seed_q=q_current)
         pre = kin.ik(T_pre, q_current)
+        _check()
         evidence.ik_result("pregrasp_ik", pre)
         if not pre.success:
             return f"pregrasp IK failed (err {pre.error:.4f})"
         grasp = kin.ik(T_grasp, pre.q)
+        _check()
         evidence.ik_result("grasp_ik", grasp)
         if not grasp.success:
             return f"grasp IK failed (err {grasp.error:.4f})"
         if validate is not None:
+            _check()
             reason = validate(g, pre.q, grasp.q)
+            _check()
             evidence.event("candidate_validation", reason=reason)
             if reason:
                 return f"{g.label}: {reason}"
@@ -116,7 +130,9 @@ def select_grasp(
         n = min(q.size, q_ref.size)
         return float(np.max(np.abs(q[:n] - q_ref[:n]))) if n else 0.0
 
+    _check()
     for g in sorted(grasps, key=lambda g: -g.quality):
+        _check()
         if g.width_m > max_width_m:
             reasons.append(
                 f"{g.label}: required width {g.width_m * 1000:.0f}mm > gripper "
@@ -134,5 +150,7 @@ def select_grasp(
             if (not isinstance(twin_solved, str)
                     and _travel(twin_solved[0]) < _travel(solved[0])):
                 best = (twin, *twin_solved)
+        _check()
         return best
-    raise SkillError("no executable grasp: " + "; ".join(reasons[:4]))
+    _check()
+    raise NoExecutableGrasp("no executable grasp: " + "; ".join(reasons[:4]))

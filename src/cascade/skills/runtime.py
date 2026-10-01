@@ -884,7 +884,9 @@ class SkillRuntime:
                     pass
                 self._reobserve()
             try:
-                res = self.skill_grasp_object(object, material=material)
+                res = self.skill_grasp_object(object, material=material,
+                    **({"_planning_deadline": deadline}
+                       if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
             except (SkillError, SafetyViolation) as e:
                 res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
             if res.get("ok", True) and res.get("held"):
@@ -1008,7 +1010,8 @@ class SkillRuntime:
             "configured_description": visual_query != query,
         }
 
-    def _plan_grasps(self, fix, label: str | None = None) -> list:
+    def _plan_grasps(self, fix, label: str | None = None, *,
+                     _deadline=None, _check=None, _prior_snapshot=None) -> list:
         """Grasp candidates: learned 6-DoF (GraspGen-X server) when
         configured. The Spark profile requires the real model; other profiles
         can use an explicit, visible analytic fallback.
@@ -1017,6 +1020,8 @@ class SkillRuntime:
         geometry that historically WORKED for this object profile goes first
         (RPent strategy-prior pattern), and applies a learned grasp-z nudge.
         """
+        if _check is not None:
+            _check()
         gcfg = self.cfg.grasp
         obb = plan_grasps_from_fix(
             fix,
@@ -1046,8 +1051,11 @@ class SkillRuntime:
 
                     self._graspgenx = GraspGenXPlanner(gcfg)
                 if self._graspgenx.status is None or self._graspgenx_down:
-                    self._graspgenx.probe()
-                learned = self._graspgenx.plan(fix, max_width_m=self._max_width)
+                    self._graspgenx.probe(**({} if _deadline is None else {"deadline": _deadline, "check": _check}))
+                learned = self._graspgenx.plan(fix, max_width_m=self._max_width,
+                    **({} if _deadline is None else {"deadline": _deadline, "check": _check}))
+                if _check is not None:
+                    _check()
                 if not learned:
                     raise RuntimeError("GraspGen-X returned no usable candidates")
                 self.memory.add(
@@ -1059,6 +1067,9 @@ class SkillRuntime:
                 grasps = learned if bool(gcfg.graspgenx.get("required", False)) else learned + obb
                 self.grasp_planner_used = self._graspgenx.describe()
             except Exception as e:
+                if _check is not None:
+                    _check()
+                    raise  # bounded search never retries model/transport/cancellation errors
                 self._graspgenx_down = True
                 self._graspgenx_retry_after = time.monotonic() + 5.0
                 if self._graspgenx is not None:
@@ -1076,10 +1087,11 @@ class SkillRuntime:
         # ---- fake-RL memory prior: re-rank + z-nudge -----------------------
         lbl = label or getattr(fix, "label", None) or "object"
         try:
-            prior = self.grasp_memory.prior(lbl, fix)
+            prior = self.grasp_memory.prior(lbl, fix) if _prior_snapshot is None else _prior_snapshot[0]
             grasp_evidence.event("memory_prior", label=lbl, prior=prior)
             if prior:
-                grasps = self.grasp_memory.rerank(grasps, lbl, fix)
+                grasps = (self.grasp_memory.rerank(grasps, lbl, fix) if _prior_snapshot is None
+                          else self.grasp_memory.rerank_with_prior(grasps, fix, prior))
                 grasp_evidence.event("memory_reranked_candidates", grasps=grasps)
                 dz = float(prior["nudges"].get("grasp_z_delta", 0.0))
                 if abs(dz) > 1e-4:
@@ -1098,8 +1110,12 @@ class SkillRuntime:
             else:
                 self._last_grasp_z_nudge = 0.0
         except Exception as e:
+            if _prior_snapshot is not None:
+                raise
             self._last_grasp_z_nudge = 0.0
             self.memory.add("note", f"grasp-memory prior skipped ({str(e)[:60]})")
+        if _check is not None:
+            _check()
         return grasps
 
     def _localization_workspace_bounds(self):
@@ -1641,6 +1657,7 @@ class SkillRuntime:
         spatial_hint: str | None = None,
         _fix=None,
         _frame=None,
+        _planning_deadline=None,
     ) -> dict:
         """Grasp a named object.
 
@@ -1666,26 +1683,74 @@ class SkillRuntime:
         profile = select_profile(fix.detection.label or label, material)
         grasp_evidence.event("material_profile", profile=profile)
         grasp_evidence.phase("planning")
-        grasps = self._plan_grasps(fix, label=label)
-        grasp_evidence.event("planned_candidates", grasps=grasps,
-                             backend=getattr(self, "grasp_planner_used", None),
-                             z_nudge_m=getattr(self, "_last_grasp_z_nudge", None))
+        search = None
+        planning_active = False
+        search_cfg = gcfg.get("graspgenx") or {}
+        if (scene_enabled and str(gcfg.get("backend", "obb")) == "graspgenx"
+                and search_cfg.get("feasibility_max_batches") is not None):
+            from ..grasping.planning_budget import PlanningBudget
+            def search_cancel():
+                if self.arm.harness.estopped:
+                    raise SafetyViolation("e-stop during grasp planning")
+                self.arm.harness._check_halt_generation(scene_halt_generation)
+            search = PlanningBudget(search_cfg.get("feasibility_max_batches"),
+                search_cfg.get("feasibility_timeout_s"),
+                deadlines=(_planning_deadline, getattr(self, "_task_deadline", None)),
+                cancel=search_cancel)
+            planning_active = True
+            # Outcomes may change in another caller; this attempt uses one prior.
+            import copy
+            frozen_prior = (copy.deepcopy(self.grasp_memory.prior(label, fix)),)
+            search.check()
 
-        # Learned grasp z can overshoot below the table by a few mm (the
-        # tip-offset conversion is empirical): a millimeter under the
-        # workspace floor must shallow the grasp slightly, not abort it.
         lim = self.arm.harness.limits
-        z_floor = max(
-            float(lim.workspace_min[2]) + 0.002,
-            lim.table_z + float(gcfg.get("min_grasp_z_m", 0.008)),
-        )
-        for g in grasps:
-            dz = z_floor - float(g.position[2])
-            if 0.0 < dz <= 0.03:  # bigger misses are garbage; let vetting drop them
-                g.position = np.asarray(g.position, dtype=float).copy()
-                g.position[2] = z_floor
+        z_floor = max(float(lim.workspace_min[2]) + 0.002,
+                      lim.table_z + float(gcfg.get("min_grasp_z_m", 0.008)))
 
-        grasp_evidence.event("floor_adjusted_candidates", grasps=grasps, z_floor_m=z_floor)
+        def generate_batch(index):
+            if search is not None:
+                search.check()
+                grasp_evidence.event("planning_batch", batch=index + 1,
+                    max_batches=search.max_batches, deadline_monotonic_s=search.deadline,
+                    seed=None, rng="server RNG; raw response captured, no seed override")
+            from ..grasping.graspgenx_backend import NoEligibleGrasps
+            try:
+                candidates = self._plan_grasps(fix, label=label, **({} if search is None else {
+                    "_deadline": search.deadline, "_check": search.check,
+                    "_prior_snapshot": frozen_prior}))
+            except NoEligibleGrasps as exc:
+                if search is None:
+                    raise
+                search.check()
+                # Valid raw batch, unchanged score/approach constraints removed
+                # every pose. Feed explicit exhaustion to the same selector loop.
+                grasp_evidence.event("planning_batch_filtered_empty", batch=index + 1, reason=str(exc))
+                candidates = []
+            grasp_evidence.event("planned_candidates", grasps=candidates,
+                backend=getattr(self, "grasp_planner_used", None),
+                z_nudge_m=getattr(self, "_last_grasp_z_nudge", None))
+            # Preserve the existing small below-table correction, independently
+            # on every fresh proposal (never compound a previous batch's nudge).
+            for candidate in candidates:
+                dz = z_floor - float(candidate.position[2])
+                if 0.0 < dz <= 0.03:
+                    candidate.position = np.asarray(candidate.position, dtype=float).copy()
+                    candidate.position[2] = z_floor
+            grasp_evidence.event("floor_adjusted_candidates", grasps=candidates, z_floor_m=z_floor)
+            if search is not None:
+                search.check()
+            return candidates
+
+        def planning_state():
+            if search is None:
+                return self.arm.get_state()
+            # Additional safety reads must not enlarge Isaac's normal RPC cap.
+            budget = search.remaining(self.cfg.arm.get("motion_rpc_timeout_s", 1.0))
+            result = self.arm.get_state(timeout_s=budget)
+            search.check()
+            return result
+
+        grasps = generate_batch(0)
 
         # Pre-vet every candidate against the harness geometry (with the
         # exemption cylinder the descent will open) so a doomed candidate
@@ -1698,6 +1763,8 @@ class SkillRuntime:
             if harness.estopped:
                 raise SafetyViolation("e-stop during observed-finger preflight")
             harness._check_halt_generation(scene_halt_generation)
+            if planning_active:
+                search.check()
 
         def _scene_duration(start, target, requested):
             # Identical velocity stretch to SafeArm; its actual-start preflight
@@ -1786,7 +1853,9 @@ class SkillRuntime:
                             return f"grasp carry lift unsafe: {reason}"
             return None
 
-        state = self.arm.get_state()
+        state = planning_state()
+        if search is not None:
+            search.check()
         # Seed grasp IK from HOME (elbow-up), not the live pose: seeding from
         # an arbitrary current configuration can converge to an elbow-down IK
         # branch whose approach path dips a link under the table.
@@ -1801,22 +1870,48 @@ class SkillRuntime:
                 if conflict:
                     raise SafetyViolation(f"home finger trajectory intersects observed surface: {conflict}")
         grasp_evidence.event("selection_input", state=state, seed_q=_seed)
+        from ..grasping.selector import NoExecutableGrasp
         try:
-            grasp, q_pre, q_grasp = select_grasp(
-                grasps,
-                self.kin,
-                _seed,
-                max_width_m=self._max_width,
-                pregrasp_offset_m=float(gcfg.get("pregrasp_offset_m", 0.12)),
-                validate=_vet,
-                # Single-hinge jaw datum (TOOL frame): the fixed jaw's contact
-                # point and the closing direction toward the moving jaw. Per
-                # arm, like every other jaw dimension: the SO-101 beak closes
-                # against its fixed tip at the frame origin; parallel jaws
-                # omit both. See selector.select_grasp's docstring.
-                jaw_fixed_tip_m=(self.cfg.arm.get("gripper") or {}).get("jaw_fixed_tip_m"),
-                jaw_close_dir=(self.cfg.arm.get("gripper") or {}).get("jaw_close_dir"),
-            )
+            for batch in range(1 if search is None else search.max_batches):
+                if batch:
+                    search.check()
+                    state = planning_state()
+                    search.check()
+                    scene_gate.feedback(state)  # same captured epoch, never a new gate
+                    _scene_cancel()
+                    if _home is not None:
+                        conflict = _scene_path(state.q, _seed, 1.5)
+                        if conflict:
+                            raise SafetyViolation(f"home finger trajectory intersects observed surface: {conflict}")
+                    grasps = generate_batch(batch)
+                try:
+                    grasp, q_pre, q_grasp = select_grasp(
+                        grasps,
+                        self.kin,
+                        _seed,
+                        max_width_m=self._max_width,
+                        pregrasp_offset_m=float(gcfg.get("pregrasp_offset_m", 0.12)),
+                        validate=_vet,
+                        # Single-hinge jaw datum (TOOL frame): the fixed jaw's contact
+                        # point and the closing direction toward the moving jaw. Per
+                        # arm, like every other jaw dimension: the SO-101 beak closes
+                        # against its fixed tip at the frame origin; parallel jaws
+                        # omit both. See selector.select_grasp's docstring.
+                        jaw_fixed_tip_m=(self.cfg.arm.get("gripper") or {}).get("jaw_fixed_tip_m"),
+                        jaw_close_dir=(self.cfg.arm.get("gripper") or {}).get("jaw_close_dir"),
+                        **({} if search is None else {"check": search.check}),
+                    )
+                    if search is not None:
+                        search.check()
+                        grasp_evidence.event("planning_batch_selected", batch=batch + 1)
+                    break
+                except NoExecutableGrasp as exc:
+                    if search is None:
+                        raise
+                    search.check()
+                    grasp_evidence.event("planning_batch_rejected", batch=batch + 1, reason=str(exc))
+                    if batch + 1 == search.max_batches:
+                        raise
         except (SkillError, SafetyViolation) as e:
             # No candidate survived IK + harness vetting. Log it against the
             # object profile so the fake-RL memory learns to bias future
@@ -1843,12 +1938,15 @@ class SkillRuntime:
             _scene_cancel()
             # Planning can be long. This safety read (not logging) binds the
             # opening extrusion to current feedback before the first jaw op.
-            open_state = self.arm.get_state()
+            open_state = planning_state()
             _scene_cancel()
             scene_gate.feedback(open_state)
             conflict = scene_gate.pose(open_state.q)
             if conflict:
                 raise SafetyViolation(f"opening fingers intersects observed surface: {conflict}")
+        if search is not None:
+            search.check()  # Include the final pre-open read/veto in the same budget.
+        planning_active = False  # Motion retains its separate physical-clock budget.
         self.arm.set_gripper(self._grip_open, effort=0.8,
                              **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
         _home = self.cfg.arm.get("home_q")
@@ -2678,7 +2776,9 @@ class SkillRuntime:
                     self._reobserve()
                 tg = time.monotonic()
                 try:
-                    res = self.skill_grasp_object(object, material=material)
+                    res = self.skill_grasp_object(object, material=material,
+                        **({"_planning_deadline": deadline}
+                           if os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1" else {}))
                 except (SkillError, SafetyViolation) as e:
                     res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
                 timings[f"grasp_attempt{attempt}_s"] = round(time.monotonic() - tg, 2)

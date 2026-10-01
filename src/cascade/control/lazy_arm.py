@@ -68,8 +68,8 @@ class LazyArm(ArmBase):
                 self._arm.disconnect()
                 self._arm = None
 
-    def get_state(self):
-        return self._ensure().get_state()
+    def get_state(self, **kwargs):
+        return self._ensure().get_state(**kwargs)
 
     def send_joint_target(self, q) -> None:
         self._ensure().send_joint_target(q)

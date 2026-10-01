@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import abc
 import logging
+from collections import OrderedDict
 
 import numpy as np
 
@@ -76,6 +77,13 @@ class OpenVocabDetector(Detector):
         pf = self._pf_path() if (prompt_free and not classes) else None
         self._model = YOLO(pf or model_path)
         self._prepare_cuda_model()
+        # Keep the two model modes resident. A watcher alternates open-world
+        # detection with foreground prompts; replacing either checkpoint on
+        # every switch also discards its predictor and repeats cold startup.
+        self._models = {str(pf or model_path): self._model}
+        self._text_embeddings = OrderedDict()
+        self._prompt_classes = []
+        self._prompt_filter_only = False
         if pf is not None:
             self._prompt_free = True
         elif classes:
@@ -101,13 +109,38 @@ class OpenVocabDetector(Detector):
                 "restricted to the configured vocabulary", self._model_path,
             )
             return
-        from ultralytics import YOLO  # lazy heavy import
-
-        self._model = YOLO(pf_path)
-        self._prepare_cuda_model()
+        self._prompt_classes = list(self._classes)
+        self._prompt_filter_only = self._filter_only
+        self._select_model(pf_path)
         self._prompt_free = True
         self._filter_only = False
         self._classes = []
+
+    def _select_model(self, path: str) -> None:
+        path = str(path)
+        model = self._models.get(path)
+        if model is None:
+            from ultralytics import YOLO  # lazy heavy import
+
+            previous = self._model
+            self._model = YOLO(path)
+            try:
+                self._prepare_cuda_model()
+            except BaseException:
+                self._model = previous
+                raise
+            self._models[path] = self._model
+        else:
+            self._model = model
+
+    def prepare(self, classes: list[str] | None) -> None:
+        """Load vocabulary resources before choosing an image to analyze.
+
+        This supplies no detections or geometry. detect() still selects its
+        own vocabulary and analyzes its actual frame with normal age guards.
+        Shared callers serialize preparation through LockedDetector.
+        """
+        self.set_classes(classes)
 
     def _pf_path(self) -> str | None:
         """`yoloe-11s-seg.pt` -> `yoloe-11s-seg-pf.pt`, if that name is usable.
@@ -131,19 +164,25 @@ class OpenVocabDetector(Detector):
         if list(classes) == self._classes and not self._prompt_free:
             return
         if self._prompt_free:
-            # The -pf head is fused to its own vocabulary and cannot take
-            # text prompts; reload the promptable checkpoint to narrow it.
-            from ultralytics import YOLO  # lazy heavy import
-
-            self._model = YOLO(self._model_path)
-            self._prepare_cuda_model()
+            # The fused -pf head cannot take prompts. Its separate resident
+            # counterpart retains the normal promptable head/predictor.
+            self._select_model(self._model_path)
             self._prompt_free = False
+            self._classes = list(self._prompt_classes)
+            self._filter_only = self._prompt_filter_only
+            if list(classes) == self._classes:
+                return  # Preserve its predictor too; vocabulary is unchanged.
         # YOLOE needs text embeddings passed explicitly; YOLO-World does not.
         # Closed-set models (yolo11n, ...) have no set_classes at all: fall
         # back to post-filtering detections by label (self._filter_only).
         self._filter_only = False
         try:
-            embeddings = self._model.get_text_pe(classes)
+            key = tuple(classes)
+            if key in self._text_embeddings:
+                embeddings = self._text_embeddings[key]
+                self._text_embeddings.move_to_end(key)
+            else:
+                embeddings = self._model.get_text_pe(classes)
             import os
             if os.environ.get("CASCADE_REQUIRE_CUDA", "0") == "1":
                 if getattr(getattr(embeddings, "device", None), "type", None) != "cuda":
@@ -151,6 +190,12 @@ class OpenVocabDetector(Detector):
                 from .cuda_math import record
                 record("neural_text_embeddings", embeddings)
             self._model.set_classes(classes, embeddings)
+            # Cache only successfully applied, attested text tensors. Bound
+            # residency independently of how many visitor prompts are used.
+            self._text_embeddings[key] = embeddings
+            self._text_embeddings.move_to_end(key)
+            while len(self._text_embeddings) > 8:
+                self._text_embeddings.popitem(last=False)
         except (AttributeError, TypeError):
             try:
                 self._model.set_classes(classes)

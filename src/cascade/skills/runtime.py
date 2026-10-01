@@ -2497,6 +2497,20 @@ class SkillRuntime:
             failure_destination = {"destination": destination_name,
                 "destination_kind": "configured_point",
                 "target": [float(dz[0]), float(dz[1])]}
+        elif (str(destination).strip().lower() in _OPEN_BOX_WORDS
+                and gcfg.get("open_box") is not None):
+            box = gcfg.get("open_box")
+            try:
+                center = np.asarray(box.get("center_xy_m"), dtype=float)
+            except (AttributeError, TypeError, ValueError, OverflowError) as exc:
+                raise SkillError("configured open box requires a finite XY center") from exc
+            if center.shape != (2,) or not np.isfinite(center).all():
+                raise SkillError("configured open box requires a finite XY center")
+            # Its grouping prim can sit at the origin while the cavity is
+            # elsewhere. A failed grasp needs the same destination provenance
+            # as a completed place, before the place stage has been reached.
+            failure_destination = {"destination": "open box",
+                "destination_kind": "configured_point", "target": center.tolist()}
         max_attempts = max(int(gcfg.get("max_pick_attempts", 8)), 1)
         deadline = t0 + float(gcfg.get("persist_seconds", 120.0))
         # #2.3: the budget must not multiply across tiers. The reflex tier

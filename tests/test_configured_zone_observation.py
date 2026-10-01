@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from cascade.agent.effects import PostconditionChecker, UNVERIFIED
+from cascade.agent.effects import PostconditionChecker, REFUTED, UNVERIFIED
 from cascade.config import Cfg
 from cascade.skills.runtime import SkillRuntime
 from cascade.types import SkillError
@@ -97,3 +97,42 @@ def test_placement_alias_and_physics_verifier_use_the_same_configured_destinatio
     assert "containment and release are not established" in verdict.evidence
     assert queried and set(queried) == {"lemon"}
     assert verdict.measured["destination"] == "green square"
+
+
+@pytest.mark.parametrize("destination", ["open box", "the beige box", "storage box"])
+def test_failed_grasp_keeps_box_cavity_target_instead_of_grouping_prim_origin(destination):
+    rt = configured_runtime()
+    rt.cfg._data["grasp"]["max_pick_attempts"] = 1
+    rt.held_object = None
+    rt._reconcile_held = lambda: None
+    rt.memory = SimpleNamespace(add=lambda *a, **kw: None)
+    rt.skill_grasp_object = lambda *a, **kw: {"ok": False, "error": "air grasp"}
+    rt._grasp_retry_verdict = lambda *a: None
+    rt.skill_move_home = lambda: None
+    result = rt.skill_pick_and_place("orange", destination=destination)
+    assert result["ok"] is False and result["stage"] == "grasp"
+    assert result["destination"] == "open box"
+    assert result["destination_kind"] == "configured_point"
+    assert result["target"] == [.3, -.14]
+    queried = []
+    def pose(name):
+        queried.append(name)
+        return [.128, .115, .026] if name == "orange" else [0., 0., 0.]
+    verdict = PostconditionChecker(object_pose=pose).verify("pick_and_place",
+        {"object": "orange", "destination": destination}, result,
+        {"label": "orange", "pose": [.18, .12, .026], "channel": "physics"})
+    assert verdict.status == REFUTED
+    assert set(queried) == {"orange"}
+    assert "dest_err_m" not in verdict.measured
+    assert verdict.measured["target_err_m"] == pytest.approx(.3076, abs=.0001)
+
+
+@pytest.mark.parametrize("box", [{}, {"center_xy_m": [float("nan"), -.14]}, "box"])
+def test_invalid_box_target_is_rejected_before_grasping(box):
+    rt = configured_runtime()
+    rt.cfg._data["grasp"]["open_box"] = box
+    rt.held_object = None
+    rt._reconcile_held = lambda: None
+    rt.skill_grasp_object = lambda *a, **kw: pytest.fail("grasp before valid destination")
+    with pytest.raises(SkillError, match="finite XY center"):
+        rt.skill_pick_and_place("orange", destination="open box")

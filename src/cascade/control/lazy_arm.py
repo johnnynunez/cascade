@@ -51,6 +51,12 @@ class LazyArm(ArmBase):
     def settle_tol(self) -> float:  # type: ignore[override]
         return self._arm.settle_tol if self._arm is not None else ArmBase.settle_tol
 
+    @property
+    def motion_rate_hz(self) -> float:
+        # Route planning reads feedback first, so the backend is materialized.
+        # Merely inspecting this property must never connect a hardware arm.
+        return self._arm.motion_rate_hz if self._arm is not None else ArmBase.motion_rate_hz
+
     # ── ArmBase surface ──────────────────────────────────────────────────
 
     def connect(self) -> None:

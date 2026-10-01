@@ -22,6 +22,20 @@ sample before issuing the next command. Transport delays therefore cannot
 credit the next interval. These conservative intervals can make the profile
 longer than its requested minimum physical duration.
 
+Isaac defaults to `motion_rate_hz: 30` nominal actuator targets. An explicit
+`stream_to(..., rate_hz=...)` takes precedence; omitted/None uses the profile.
+Hardware keeps its existing 50 Hz default. The shared nominal profile retains
+every exact legacy 50 Hz safety sample AND its original complete edge/dt,
+adds each actual target, and checks each real command edge and the virtual
+subedges with their own physical dt. Legacy edges intersecting a command's
+interval are checked before entering them, even if they end just beyond its
+target. This preserves refusals from tolerances that apply per whole edge.
+These checks use the ordinary approval/escape rules and issue no virtual
+actuator commands. Planned NV routes use the same union during initial planning
+and feedback revalidation. This preserves sampled coverage, not a continuous
+collision proof. Larger command steps change tracking dynamics and require
+new physical acceptance; no duration, velocity limit or clearance is relaxed.
+
 NV route preflight retains its existing bounded feedback rebind (1 mrad),
 callback order and thread. The start callback runs before streaming. During
 physics pauses, the ordinary approval callback revalidates the pending or last

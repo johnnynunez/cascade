@@ -34,6 +34,7 @@ class IsaacArm(ArmBase):
         self.motion_wall_timeout_s = float(cfg.get("motion_wall_timeout_s", 120.0))
         self.motion_rpc_timeout_s = float(cfg.get("motion_rpc_timeout_s", 1.0))
         self.settle_hold_s = float(cfg.get("settle_hold_s", .1))
+        self.motion_rate_hz = cfg.get("motion_rate_hz", 30.0)
         # joint_signs map the bridge's ASSET joint convention to the client's
         # LOCAL convention that the kinematics/harness use. The bridge reports
         # and accepts raw DOF (asset) values; the planner/IK work in local.
@@ -125,7 +126,7 @@ class IsaacArm(ArmBase):
             self._client.set_joints(q_asset, timeout_s=timeout_s)
         grasp_evidence.event("isaac_joint_target_sent", q_local=q, q_asset=q_asset)
 
-    def stream_to(self, q_target, duration_s, rate_hz=50.0, approve=None,
+    def stream_to(self, q_target, duration_s, rate_hz=None, approve=None,
                   settle_tol=None, settle_timeout_s=None, preflight=None,
                   before_stream=None, bias_compensate=False) -> bool:
         """Stream in simulator time; `bias_compensate` remains unsupported.
@@ -134,9 +135,10 @@ class IsaacArm(ArmBase):
         trigger SafeArm's legacy retry after any command has been sent.
         """
         from .simulation_motion import SimulationMotion
+        from .motion_profile import resolve_motion_rate
 
         motion = SimulationMotion(self, approve=approve, before_stream=before_stream)
-        return motion.stream(q_target, duration_s, rate_hz,
+        return motion.stream(q_target, duration_s, resolve_motion_rate(self, rate_hz),
                              self.settle_tol if settle_tol is None else settle_tol,
                              self.settle_timeout_s if settle_timeout_s is None else settle_timeout_s,
                              preflight)

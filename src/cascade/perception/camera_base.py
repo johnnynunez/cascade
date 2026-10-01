@@ -92,4 +92,8 @@ def make_camera(cfg: Cfg) -> CameraBase:
         from .mujoco_camera import MujocoCamera
 
         return MujocoCamera(cfg)
-    raise ValueError(f"unknown camera type {kind!r} (realsense|uvc|mock|isaac|mujoco)")
+    if kind == "ovrtx":
+        from .ovrtx_camera import OvrtxCamera
+
+        return OvrtxCamera(cfg)
+    raise ValueError(f"unknown camera type {kind!r} (realsense|uvc|mock|isaac|mujoco|ovrtx)")

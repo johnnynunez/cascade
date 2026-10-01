@@ -24,28 +24,18 @@ part of presenter startup.
 
 ## Optional sensor backend: NVIDIA ovrtx (2026-10-01)
 
-Implement an optional [ovrtx](https://github.com/NVIDIA-Omniverse/ovrtx)
-backend for Cascade's simulated cameras and visualization. NVIDIA exposes
-C and Python interfaces for RTX sensor rendering; its current pre-release
-integrates USD scene management through `ovstage`. Implementation is in progress
-in an isolated branch. It is not part of validated runtime baseline `477c88f`;
-real SDK rendering and calibration checks precede any compatibility claim.
-The [0.5.0 release](https://github.com/NVIDIA-Omniverse/ovrtx/releases/tag/v0.5.0)
-provides Linux packages for both x86_64 and aarch64, covering the architectures
-of the RTX workstation and DGX Spark.
+An opt-in static `CameraBase` profile and scene-snapshot API now render real
+RGB-D through OVRTX 0.5 and `ovstage`. The x86 analytic smoke verifies metric
+Z-depth, integer-index pinhole calibration, local scene transforms, camera
+poses and whole-packet duplicate retention. Square pixels are required;
+unequal focal lengths are explicitly rejected after the measured SDK path
+ignored that request. See [OVRTX_RENDERER.md](OVRTX_RENDERER.md) for exact
+versions, platform evidence, installation and limits.
 
-Start with an isolated camera adapter feeding the existing frame contract:
-RGB-D, calibration, masks where supported, and a render identity tied to the
-matching physics state. Check the actual available outputs, synchronization,
-CPU/GPU transfers and Cascade's integration on both supported architectures
-before choosing an API.
-Keep the physics and motion interfaces independent of the renderer.
-
-Compare the same kitchen scene against the existing backend for geometry,
-repeated-frame timestamps, latency, memory and throughput. Require the
-existing mapping and physical acceptance checks before enabling it in a
-demo profile. The current PR integration and Spark acceptance remain the
-immediate delivery work.
+Connecting an automatic Isaac/Newton physics producer, supplying the masks
+and physical identity required by safety consumers, and comparing the same
+kitchen scene remain future work. No demo default changes. Rendering tests
+do not establish grasping, mapping or physical acceptance.
 
 ## PAAI event follow-up (2026-09-15)
 

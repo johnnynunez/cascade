@@ -46,6 +46,11 @@ service-oriented/composable spirit as [RPent](https://github.com/RLinf/RPent).
 
 [PAAI staff guide](docs/BOOTH_GUIDE.md) · [DGX Spark setup](docs/DGX_SPARK_SETUP.md) · [Spark delivery](docs/SPARK_DELIVERY.md) · [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Physical rig runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](CLAUDE.md)
 
+The optional [OVRTX renderer](docs/OVRTX_RENDERER.md) supplies calibrated
+RGB-D from static USD scenes or explicit scene snapshots, independently of
+physics. It does not replace the demo's Isaac cameras or provide an automatic
+Isaac/Newton state producer.
+
 ```
 ┌──────────────────────────────────────────┐   ┌──────────────────────────────────────────┐
 │  chat host: OpenClaw / Hermes /          │   │  CLI: --task / --interactive REPL        │

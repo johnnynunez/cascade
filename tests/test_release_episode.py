@@ -1,5 +1,6 @@
 """Released withdrawal never borrows a global exemption or reopens the jaws."""
 from types import SimpleNamespace
+import copy
 import threading
 import time
 
@@ -20,6 +21,19 @@ def jaws(pos=.05):
             'lower_m':[0.,0.],'upper_m':[.05,.05]}
 
 
+def atomic_attachment(state, *, paths=(), signs=None):
+    clock = state.physics_clock
+    signs = np.ones(len(state.q)) if signs is None else signs
+    state.attachment = {'version': 1, 'backend': 'isaac', 'source': clock['source'],
+        'robot_id': clock['robot_id'], 'producer_epoch': clock['epoch'],
+        'physics_step': clock['physics_step'], 'sim_time': clock['sim_time'],
+        'joint_convention': 'asset', 'q': (state.q * signs).tolist(),
+        'gripper_joints': copy.deepcopy(state.gripper_joints),
+        'tracking': True, 'error': None, 'paths': list(paths),
+        'channel': 'completed_update_bilateral_contact', 'sensor_channel': 'physx_gpu_contact_tensor'}
+    return state
+
+
 def capture(name, stamp, *, attached=False):
     f=frame(attached,stamp);f.capture['camera']=name
     f.capture['proprioception'].update(producer_epoch='epoch',gripper_joints=jaws())
@@ -35,14 +49,17 @@ def case():
     events=[]
     class Raw:
         n_joints=3
+        _signs=np.ones(3)
+        settle_hold_s=.1
         _acknowledged_joint_targets=0
         q=np.array([.2,.1,.3]);step=0;opening=.025
         def get_state(self, *, timeout_s=None):
             self.step+=1
-            return RobotState(q=self.q.copy(),dq=np.zeros(3),gripper_joints=jaws(self.opening),
+            state = RobotState(q=self.q.copy(),dq=np.zeros(3),gripper_joints=jaws(self.opening),
                 physics_clock={'version':1,'source':('test',1),'robot_id':'/Robot','engine':'physx',
                   'clock':'SimulationManager','epoch':'epoch','physics_step':self.step,
                   'sim_time':self.step/120.,'physics_dt_s':1/120.})
+            return atomic_attachment(state, paths=() if self.opening >= .049 else (PROP,))
         def validate_simulation_clock(self):return self.get_state().physics_clock
         def set_gripper(self,p,effort):self.opening=.05*p;events.append(('jaw',p))
         def stream_to(self,target,duration_s,approve,**kw):
@@ -60,7 +77,7 @@ def case():
              for name in ('cam0','side','proof')]
     rt=SkillRuntime.__new__(SkillRuntime)
     rt.arm=arm;rt.kin=h.kin;rt.cfg=Cfg({'arm':{'type':'isaac','bridge_host':'test','bridge_port':1,
-        'bridge_robot_id':'/Robot'},'grasp':{'descend_duration_s':2.}})
+        'bridge_robot_id':'/Robot','joint_signs':[1,1,1]},'grasp':{'descend_duration_s':2.}})
     rt.held_object='green cube';rt._grip_open=1.;rt.camera=streams[0]
     rt.watcher=SimpleNamespace(_cams=[SimpleNamespace(stream=s,maps_depth=True) for s in streams])
     original=m.wait_released_ready

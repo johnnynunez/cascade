@@ -12,7 +12,7 @@ import pytest
 from cascade.skills import release_episode as release
 from cascade.skills import runtime as runtime_module
 from cascade.types import SafetyViolation, SkillError
-from test_release_episode import case, capture, retained
+from test_release_episode import atomic_attachment, case, capture, retained
 
 
 class Clock:
@@ -43,14 +43,14 @@ def test_individual_feedback_waits_even_when_average_already_passes(monkeypatch)
 
     def state(**kwargs):
         result = original(**kwargs)
-        result.gripper_joints['position_m'] = next(values)
+        result.gripper_joints['position_m'] = next(values, [.05, .04999724])
         reads.append(kwargs['timeout_s'])
-        return result
+        return atomic_attachment(result)
 
     rt.arm.raw.get_state = state
     start = clock.now
     release.wait_open(rt, ep, timeout_s=8.)
-    assert reads == [1., 1., 1.] and clock.now-start == pytest.approx(.1)
+    assert reads == [1.] * 15 and clock.now-start == pytest.approx(.7)
     assert not ep['released'] and ep['barrier'] is None and not events
 
 
@@ -65,7 +65,7 @@ def test_open_deadline_never_accepts_late_or_incomplete_feedback(monkeypatch, la
         result = original(**kwargs)
         result.gripper_joints['position_m'] = [.05, .05 if late_open else .0485]
         clock.sleep(8. if late_open else .2)
-        return result
+        return atomic_attachment(result)
 
     rt.arm.raw.get_state = state
     start = clock.now
@@ -95,7 +95,7 @@ def test_invalid_opening_feedback_is_terminal_without_poll_retry(monkeypatch, fa
         if fault == 'malformed': result.gripper_joints['position_m'][0] = float('nan')
         if fault == 'halt': rt.arm.harness.halt('while opening')
         if fault == 'same_step': result.physics_clock = previous_clock
-        return result
+        return atomic_attachment(result)
 
     rt.arm.raw.get_state = state
     with pytest.raises(SafetyViolation):
@@ -190,7 +190,8 @@ def test_recovery_cannot_wait_through_opening_or_contact_regression(regression):
     assert len(calls) == 1 and not events and ep['barrier'] is None
 
 
-def test_runtime_place_uses_individual_opening_before_capture_barrier(monkeypatch):
+@pytest.mark.parametrize('stability_timeout', [False, True])
+def test_runtime_place_uses_individual_opening_before_capture_barrier(monkeypatch, stability_timeout):
     rt, ep, events = case()
     release.finish(rt, ep, completed=True)
     rt.cfg._data['safety'] = {'table_z': 0.}
@@ -203,20 +204,51 @@ def test_runtime_place_uses_individual_opening_before_capture_barrier(monkeypatc
     rt._held_object_offset = lambda: np.zeros(3)
     rt.memory = SimpleNamespace(add=lambda *a: None)
     rt.beliefs = SimpleNamespace(update=lambda *a, **kw: None)
+    rt._reconcile_held = lambda: None
+    rt.skill_place_on_object = lambda destination: rt.skill_place_at(.2, .1, .3)
+    flow = []
+    rt.skill_move_home = lambda **kw: flow.append('home')
+    rt.skill_reset_scene = lambda **kw: pytest.fail('release must not reset the scene')
     rt._gripper_width_frac = lambda: pytest.fail('average opening is not release evidence')
     clock = Clock()
     monkeypatch.setattr(release, 'time', clock)
     monkeypatch.setattr(runtime_module, 'time', clock)
     original = rt.arm.raw.get_state
     opened_reads = []
+    pending_reads = []
     def state(**kwargs):
         result = original(**kwargs)
-        if events and events[-1][0] == 'jaw' and len(opened_reads) < 2:
-            opened_reads.append(True)
-            result.gripper_joints['position_m'] = [.0485, .05]
-        return result
+        if events and events[-1][0] == 'jaw':
+            pending_reads.append(result.physics_clock['physics_step'])
+            flow.append('observation')
+            if len(opened_reads) < 2:
+                opened_reads.append(True)
+                result.gripper_joints['position_m'] = [.0485, .05]
+            if stability_timeout:
+                result.q[-1] += .0006*len(pending_reads)
+        return atomic_attachment(result)
     rt.arm.raw.get_state = state
-    result = rt.skill_place_at(.2, .1, .3)
-    assert result['post_place_retreat']['ok'] and len(opened_reads) == 2
-    assert [e[0] for e in events] == ['move', 'move', 'jaw', 'move']
-    assert rt._release_episode is None and rt.arm.harness._grasp_exempt is None
+    for name in ('open_hand', 'wait_geometry', 'withdraw'):
+        original_call = getattr(release, name)
+        def recorded(*args, _call=original_call, _name=name, **kwargs):
+            flow.append(_name)
+            return _call(*args, **kwargs)
+        monkeypatch.setattr(release, name, recorded)
+    result = rt.skill_pick_and_place('green cube', destination='shelf')
+    assert len(opened_reads) == 2 and len(set(pending_reads)) >= 3
+    assert flow.count('open_hand') == 1 and result['place_attempts'] == 1
+    if stability_timeout:
+        assert not result['ok'] and result['home_skipped']
+        assert result['return_home']['attempted'] is False
+        assert 'deadline' in result['error']
+        assert not any(x in flow for x in ('wait_geometry', 'withdraw', 'home'))
+        assert [e[0] for e in events] == ['move', 'move', 'jaw']
+        assert rt._release_episode is not None and not rt._release_episode['released']
+    else:
+        assert result['post_place_retreat']['ok'] and result['return_home']['ok']
+        assert flow.count('wait_geometry') == flow.count('withdraw') == flow.count('home') == 1
+        assert flow.index('open_hand') < flow.index('observation') < flow.index('wait_geometry')
+        assert flow.index('wait_geometry') < flow.index('withdraw') < flow.index('home')
+        assert [e[0] for e in events] == ['move', 'move', 'jaw', 'move']
+        assert rt._release_episode is None
+    assert rt.arm.harness._grasp_exempt is None

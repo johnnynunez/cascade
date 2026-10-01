@@ -5,10 +5,12 @@ scope ends at the original retreat endpoint, before the ordinary home planner.
 """
 from __future__ import annotations
 
+import copy
 import time
 import numpy as np
 
-from ..control.simulation_motion import PhysicsClock
+from ..control.arm_base import PREFLIGHT_MAX_DRIFT_RAD
+from ..control.simulation_motion import PhysicsClock, positive
 from ..perception.freshness import capture_marker, read_frame_after
 from ..perception.occupancy import OccupancyError
 from ..types import SafetyViolation, SkillError
@@ -79,6 +81,12 @@ def begin(runtime, q_retreat, duration_s):
     q, target = np.asarray(state.q, float), np.asarray(q_retreat, float)
     if q.shape != target.shape or q.shape != (runtime.arm.raw.n_joints,) or not np.isfinite([q,target]).all():
         raise SkillError("release requires finite original joint geometry")
+    backend = _backend(runtime.arm)
+    n_joints = backend.n_joints
+    signs = np.asarray(getattr(backend, "_signs", None))
+    if (type(n_joints) is not int or n_joints <= 0 or signs.shape != (n_joints,)
+            or signs.dtype.kind not in "fiu" or not np.isin(signs, [-1, 1]).all()):
+        raise SafetyViolation("release requires a fixed exact-DOF joint convention")
     streams = _streams(runtime)
     with occupancy._refresh_lock:
         paths = tuple(occupancy._contact_paths or ())
@@ -97,6 +105,8 @@ def begin(runtime, q_retreat, duration_s):
         "identity": _identity(runtime), "clock": clock, "clock_validator": validator,
         "halt_generation": generation, "scene_generation": scene_generation,
         "q_release": q.copy(), "q_retreat": target.copy(), "q_failure": None,
+        "n_joints": n_joints, "joint_signs": signs.copy(),
+        "config_joint_signs": copy.deepcopy(runtime.cfg.arm.get("joint_signs")),
         "duration_s": float(duration_s), "open_position": runtime._grip_open,
         "jaw_identity": jaw_identity, "feedback_q": q.copy(),
         "feedback_jaws": np.asarray(state.gripper_joints["position_m"], float).copy(),
@@ -105,9 +115,23 @@ def begin(runtime, q_retreat, duration_s):
         "attachment_stamp": attachment_stamp,
         "streams": streams, "capture_keys": capture_keys, "stream_capture_keys": {}, "prop_floors": floors, "open_acknowledged": False,
         "released": False, "barrier": None, "withdrawal_counter": None}
+    episode["opening_attachment_previous"] = _opening_observation(episode, state)
     runtime._release_episode = episode
     harness._pending_release_episode = episode
     return episode
+
+
+def _same_joint_binding(runtime, episode):
+    try:
+        backend = episode["backend"]
+        signs = np.asarray(getattr(backend, "_signs", None))
+        return (type(getattr(backend, "n_joints", None)) is int
+                and backend.n_joints == episode["n_joints"]
+                and signs.dtype.kind in "fiu"
+                and np.array_equal(signs, episode["joint_signs"])
+                and np.array_equal(runtime.cfg.arm.get("joint_signs"), episode["config_joint_signs"]))
+    except (AttributeError, TypeError, ValueError):
+        return False
 
 
 def _guard(runtime, episode):
@@ -115,6 +139,7 @@ def _guard(runtime, episode):
     if (arm is not episode["arm"] or arm.raw is not episode["raw"]
             or harness is not episode["harness"] or harness.occupancy is not episode["occupancy"]
             or _backend(arm) is not episode["backend"] or _identity(runtime) != episode["identity"]
+            or not _same_joint_binding(runtime, episode)
             or harness._pending_release_episode is not episode
             or harness.occupancy.scene_reset_generation != episode["scene_generation"]
             or _streams(runtime) != episode["streams"]):
@@ -138,7 +163,7 @@ def _observe_feedback(episode, state, *, require_open=True):
     return q.astype(float)
 
 
-def _state(runtime, episode, *, require_open=True, deadline=None):
+def _state_feedback(runtime, episode, *, require_open=True, deadline=None):
     _guard(runtime, episode)
     remaining = 1. if deadline is None else deadline-time.monotonic()
     if remaining <= 0:
@@ -148,7 +173,63 @@ def _state(runtime, episode, *, require_open=True, deadline=None):
     except Exception as exc:
         raise SafetyViolation(f"release feedback unavailable: {exc}") from exc
     _guard(runtime, episode)
-    return _observe_feedback(episode, state, require_open=require_open)
+    if deadline is not None and time.monotonic() >= deadline:
+        raise SkillError("post-release feedback deadline expired")
+    try:
+        return _observe_feedback(episode, state, require_open=require_open), state
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+        raise SafetyViolation("invalid release feedback: " + str(exc)) from exc
+
+
+def _state(runtime, episode, *, require_open=True, deadline=None):
+    return _state_feedback(runtime, episode, require_open=require_open, deadline=deadline)[0]
+
+
+def _opening_observation(episode, state):
+    """Validate an existing atomic reply; no sensor or mapper request.
+
+    Empty paths mean no observed bilateral attachment, not zero unilateral
+    contact. This never substitutes for the subsequent camera/map barrier.
+    """
+    try:
+        return _validated_opening_observation(episode, state)
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+        raise SafetyViolation("invalid atomic release opening feedback: " + str(exc)) from exc
+
+
+def _validated_opening_observation(episode, state):
+    q, dq = np.asarray(state.q), np.asarray(state.dq)
+    if (q.shape != (episode["n_joints"],) or q.dtype.kind not in "fiu" or not np.isfinite(q).all()
+            or dq.shape != q.shape or dq.dtype.kind not in "fiu" or not np.isfinite(dq).all()):
+        raise SafetyViolation("release opening requires finite, exact-DOF q and dq")
+    clock = episode["clock_validator"]
+    a = state.attachment
+    if (not isinstance(a, dict) or type(a.get("version")) is not int or a["version"] != 1
+            or a.get("backend") != "isaac" or a.get("source") != clock.source
+            or a.get("robot_id") != clock.robot_id or a.get("producer_epoch") != episode["clock"]["epoch"]
+            or type(a.get("physics_step")) is not int or a["physics_step"] != clock.step
+            or type(a.get("sim_time")) not in (int, float) or a["sim_time"] != clock.time
+            or a.get("joint_convention") != "asset"
+            or a.get("channel") != "completed_update_bilateral_contact"
+            or a.get("sensor_channel") != {"physx": "physx_gpu_contact_tensor",
+                                            "newton": "newton_mjwarp_contact_force"}.get(state.physics_clock["engine"])
+            or a.get("tracking") is not True or a.get("error") is not None):
+        raise SafetyViolation("release opening attachment is not valid atomic feedback")
+    aq = np.asarray(a.get("q"))
+    if (aq.shape != q.shape or aq.dtype.kind not in "fiu" or not np.isfinite(aq).all()
+            or not np.array_equal(aq * episode["joint_signs"], q)
+            or a.get("gripper_joints") != state.gripper_joints):
+        raise SafetyViolation("release opening attachment articulation differs from feedback")
+    _jaws(state.gripper_joints, expected=episode["jaw_identity"])
+    paths = a.get("paths")
+    if (not isinstance(paths, list) or any(not isinstance(p, str) or not p for p in paths)
+            or len(set(paths)) != len(paths) or (paths and tuple(paths) != episode["paths"])):
+        raise SafetyViolation("release opening attachment paths are unknown or changed")
+    previous = episode.get("opening_attachment_previous")
+    current = (clock.step, tuple(paths), tuple(dq))
+    if previous is not None and previous[0] == clock.step and previous != current:
+        raise SafetyViolation("release atomic opening feedback changed without a new physics step")
+    return current
 
 
 def open_hand(runtime, episode):
@@ -168,22 +249,45 @@ def open_hand(runtime, episode):
 
 
 def wait_open(runtime, episode, *, timeout_s):
-    """Wait for each measured jaw, under the existing release-open budget.
+    """Observe open jaws and stable measured q within one opening deadline.
 
-    A partial but valid state is pending; clock/identity/feedback errors remain
-    terminal. Neither the ACK nor the average jaw opening proves release.
+    Candidate stability windows may restart while opening is pending. Once
+    open and free of bilateral attachment, regressing either is terminal.
+    This establishes no geometry authority and sends no actuator command.
     """
     if not episode["open_acknowledged"] or episode["released"]:
         raise SafetyViolation("release opening is not pending")
+    if type(timeout_s) not in (int, float) or not np.isfinite(timeout_s) or timeout_s < 0:
+        raise SafetyViolation("release opening timeout must be finite and nonnegative")
     deadline = time.monotonic() + timeout_s
+    hold_s = positive(getattr(episode["backend"], "settle_hold_s", None), "release opening physical hold")
+    eligible = False
+    anchor_q = anchor_time = None
+    samples = 0
     while True:
-        _state(runtime, episode, require_open=False, deadline=deadline)
+        clock = episode["clock_validator"]
+        previous_step = clock.step
+        q, state = _state_feedback(runtime, episode, require_open=False, deadline=deadline)
+        observation = _opening_observation(episode, state)
+        episode["opening_attachment_previous"] = observation
         _guard(runtime, episode)
         remaining = deadline-time.monotonic()
         if remaining <= 0:
-            raise SkillError("actual jaws did not confirm full opening before retraction")
-        if _both_open(episode["feedback_jaws"], episode["jaw_identity"]):
-            return
+            raise SkillError("release opening stability deadline expired")
+        opened = _both_open(episode["feedback_jaws"], episode["jaw_identity"])
+        unattached = not observation[1]
+        if eligible and (not opened or not unattached):
+            raise SafetyViolation("release opening or bilateral attachment regressed")
+        if opened and unattached:
+            eligible = True  # Never reset this latch with the candidate window.
+            if clock.step != previous_step:
+                if (anchor_q is None or clock.delta > hold_s+1e-9
+                        or np.max(abs(q-anchor_q)) > PREFLIGHT_MAX_DRIFT_RAD):
+                    anchor_q, anchor_time, samples = q.copy(), clock.time, 1
+                else:
+                    samples += 1
+                if samples >= 3 and clock.time-anchor_time >= hold_s-1e-9:
+                    return
         time.sleep(min(.05, remaining))
 
 

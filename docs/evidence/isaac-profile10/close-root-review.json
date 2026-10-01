@@ -1,0 +1,17 @@
+{
+  "pass": true,
+  "scope": "Independent root verification after own passive100sample diagnostic and normal administrative close. No native task acceptance.",
+  "source": "6e1bc81a89039eaf585166310af54385a7f5e732",
+  "files_verified": 1277,
+  "protected_processes_verified": 12,
+  "closed_ports": [
+    8611,
+    25577,
+    18795,
+    19088
+  ],
+  "observer_sha256": "26a6c8f626cc8c0f41699624a4241a52840f514fd7277837adff62139462479a",
+  "close_sha256": "ee4d6a8ca29f53648ccf60e48d72531a6c6999610ca0829cdf2940265fe93dd2",
+  "finished_at": 1790895485.619379,
+  "native_physical_acceptance": false
+}

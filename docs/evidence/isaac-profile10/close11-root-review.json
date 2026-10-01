@@ -1,0 +1,52 @@
+{
+  "pass": true,
+  "source": "d1d54dcf078b3efefd9542d46947c77bd29afe7e",
+  "tree": "7b6b1015e768656a80faef6844beda1573b085ab",
+  "source_files_verified": 1305,
+  "protected_processes_verified": 12,
+  "observer_sha256": "fb3594d9af14ce7a49eff0f1ed1ffba4c0434e2ff89b3f20ae29ecf88b111e5d",
+  "close_sha256": "89a873e6d2db008725c2deb956a188be49655428770b575d5d7f1f5dabb60314",
+  "startup_sha256": "e50ebed6a3060a35041a851d79a53f605ae7b330bbda578aaa17e1653f441e49",
+  "owner": {
+    "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-11",
+    "profile": "observer-profile-11",
+    "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-11/runs/observer-profile-11/ownership/profile-observer-profile-11",
+    "owner": "e71082d990524098898fc7666600c4bc",
+    "schema": 1
+  },
+  "owned_ancestry": [
+    {
+      "pid": 3186237,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14177565",
+      "command_sha256": "fb6f042d3f7578f84ea8159e3ece78ce3b563b5858f20b5bc5785b1fd95d6e2b",
+      "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.3.0+feature.manylinux_2_35_x86_64.release/python/bin/python3.12",
+      "require_stopped": false
+    },
+    {
+      "pid": 3186229,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14177564",
+      "command_sha256": "9c475ddb8ce3a189bbf65c11b0717eac6555702c09b24b355394d444b6a8b8cc",
+      "executable": "/usr/bin/bash",
+      "require_stopped": false
+    },
+    {
+      "pid": 3186228,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14177562",
+      "command_sha256": "78d3c153b3333b46077b697d5fc1ce42023bebccc1ffc0565abbc089209e5ba6",
+      "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+      "require_stopped": false
+    }
+  ],
+  "observer_files_verified": 13,
+  "samples": 100,
+  "collection_wall_s": 15.186070203781128,
+  "ports_closed": [
+    8611,
+    25577,
+    18795,
+    19088
+  ],
+  "owned_processes_closed": true,
+  "native_physical_acceptance": false,
+  "finished_at": 1790896810.0392702
+}

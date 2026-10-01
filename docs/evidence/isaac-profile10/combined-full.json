@@ -1,0 +1,29 @@
+{
+  "head": "d1d54dcf078b3efefd9542d46947c77bd29afe7e",
+  "tree": "7b6b1015e768656a80faef6844beda1573b085ab",
+  "argv": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests",
+    "deploy/brev/tests/test_public_visitor.py",
+    "deploy/brev/tests/test_visitor_video.py",
+    "deploy/brev/tests/test_build_bundle.py",
+    "deploy/brev/tests/test_prepare_bundle.py"
+  ],
+  "pythonpath": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-lazy-frame-components/src",
+  "started_unix_s": 1790895916.551335,
+  "finished_unix_s": 1790896257.6353264,
+  "exit_code": 0,
+  "log_sha256": "fdbdf87ed4a6ae3cbe9eeb06d999d8cdcaf0b648dace51fc0b147d4f185ef59b",
+  "source_manifest_sha256": "1c02872d8c10b6c4323dc5866214a8de7b0bab1d91cde19713cf831b4615f31c",
+  "input_preparation_sha256": "33e22ef0a21e01d46ac855779c8caaa727a06b5b204c743c12635b90795b60f5",
+  "files_verified": 1305,
+  "tracked_clean": true,
+  "source_unchanged": true,
+  "pass": true,
+  "source_after_manifest_sha256": "1c02872d8c10b6c4323dc5866214a8de7b0bab1d91cde19713cf831b4615f31c",
+  "script_sha256": "7ff1ccb16ebd11e0a1dd86be1c378a4f74c1bafe0a08043320ea16fc84da1258",
+  "preflight_sha256": "718aa8733e4bec10ac8e47996e67ec22e4c8b8cc8b8b0dc96815256060c3783c"
+}

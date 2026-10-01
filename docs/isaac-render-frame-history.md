@@ -53,6 +53,11 @@ an old image. Failures in one camera do not prevent validation of the others.
 The wire frame carries `render_reference`, and the client preserves it in
 `Frame.capture` and opt-in grasp evidence.
 
+The [independent component-encoding candidate](ISAAC_FRAME_ENCODING.md) defers
+RGB and depth encoding separately after these copies. Complete packet bytes
+and all capture metadata remain unchanged; neither component's encoding time
+renews the conservative capture anchor.
+
 The portable bundle includes and requires `isaac_frame_history.py`. Kitchen
 source fingerprints are regenerated with the standard manifest tool.
 

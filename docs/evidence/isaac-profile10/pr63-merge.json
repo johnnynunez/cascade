@@ -1,0 +1,26 @@
+{
+  "pass": true,
+  "pr": 63,
+  "merge": "f7a88233cc80fccc1b02396d963086b1146d2078",
+  "head": "909cae03f5a15c1a85efe97c2789c34445f02b24",
+  "base": "c5b2fd5173641613c4ee27d2f05e5eef8cd09430",
+  "tree": "b1f5510f32300c17e57f58e2e47eef0bb471dd6a",
+  "merged_at": "2026-10-01T23:06:41Z",
+  "main_observed": "f7a88233cc80fccc1b02396d963086b1146d2078",
+  "exact_tree_preserved": true,
+  "remote_mutations": [],
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-main-f7a8823-20261001T230742356877Z-pull.json",
+      "sha256": "896dc17127905005ace7e7a0ae51a50eefc669a2ca774bec9773f207c34a2c5d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-main-f7a8823-20261001T230743256288Z-commit.json",
+      "sha256": "4be2665ea1e14f96ef2b505c7d6deb096ad9514b45c2e798e1020035bf9ba1fb"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-main-f7a8823-20261001T230744159851Z-main.json",
+      "sha256": "6098143b6db2d41059118a2759826c81d9edd349c8efe5f64adce3f71cb307bf"
+    }
+  ]
+}

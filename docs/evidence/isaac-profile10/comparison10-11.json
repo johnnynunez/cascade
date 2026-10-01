@@ -1,0 +1,1166 @@
+{
+  "pass": true,
+  "scope": "Passive host elapsed comparison, one fresh scene per source. No active09 causal one-to-one attribution, absolute GPU duration, native task acceptance, or repeated-run confidence interval.",
+  "native_physical_acceptance": false,
+  "gpu_timing_validated": false,
+  "errors": [],
+  "baseline": {
+    "samples": 100,
+    "sections": {
+      "inventory": {
+        "n": 100,
+        "sum_ns": 10231977,
+        "mean_ns": 102319.77,
+        "median_ns": 110217.5,
+        "p95_ns": 133423,
+        "max_ns": 197440
+      },
+      "clock": {
+        "n": 100,
+        "sum_ns": 1712573,
+        "mean_ns": 17125.73,
+        "median_ns": 20140.0,
+        "p95_ns": 24086,
+        "max_ns": 38829
+      },
+      "schemas": {
+        "n": 100,
+        "sum_ns": 2847475,
+        "mean_ns": 28474.75,
+        "median_ns": 28593.0,
+        "p95_ns": 31227,
+        "max_ns": 39821
+      },
+      "view_construct": {
+        "n": 1,
+        "sum_ns": 1572931,
+        "mean_ns": 1572931,
+        "median_ns": 1572931,
+        "p95_ns": 1572931,
+        "max_ns": 1572931
+      },
+      "views": {
+        "n": 100,
+        "sum_ns": 2346937,
+        "mean_ns": 23469.37,
+        "median_ns": 7321.5,
+        "p95_ns": 9854,
+        "max_ns": 1597469
+      },
+      "articulation_valid": {
+        "n": 100,
+        "sum_ns": 202095,
+        "mean_ns": 2020.95,
+        "median_ns": 2218.5,
+        "p95_ns": 3174,
+        "max_ns": 3365
+      },
+      "q": {
+        "n": 100,
+        "sum_ns": 58246417,
+        "mean_ns": 582464.17,
+        "median_ns": 288779.5,
+        "p95_ns": 1482534,
+        "max_ns": 3078170
+      },
+      "dq": {
+        "n": 100,
+        "sum_ns": 69044877,
+        "mean_ns": 690448.77,
+        "median_ns": 90252.0,
+        "p95_ns": 1497367,
+        "max_ns": 3000371
+      },
+      "limits": {
+        "n": 100,
+        "sum_ns": 89368465,
+        "mean_ns": 893684.65,
+        "median_ns": 497672.0,
+        "p95_ns": 1705042,
+        "max_ns": 2530537
+      },
+      "state_pack": {
+        "n": 100,
+        "sum_ns": 5726520,
+        "mean_ns": 57265.2,
+        "median_ns": 54838.5,
+        "p95_ns": 74903,
+        "max_ns": 86421
+      },
+      "prop_valid": {
+        "n": 100,
+        "sum_ns": 654985,
+        "mean_ns": 6549.85,
+        "median_ns": 6054.5,
+        "p95_ns": 11417,
+        "max_ns": 12198
+      },
+      "prop_poses": {
+        "n": 100,
+        "sum_ns": 247827558,
+        "mean_ns": 2478275.58,
+        "median_ns": 1290456.0,
+        "p95_ns": 7294129,
+        "max_ns": 12162060
+      },
+      "prop_velocities": {
+        "n": 100,
+        "sum_ns": 155281637,
+        "mean_ns": 1552816.37,
+        "median_ns": 743789.5,
+        "p95_ns": 5661396,
+        "max_ns": 11668258
+      },
+      "prop_pack": {
+        "n": 100,
+        "sum_ns": 103053892,
+        "mean_ns": 1030538.92,
+        "median_ns": 867540.0,
+        "p95_ns": 2414672,
+        "max_ns": 3532039
+      },
+      "frame_hash": {
+        "n": 100,
+        "sum_ns": 4841726681,
+        "mean_ns": 48417266.81,
+        "median_ns": 47762320.5,
+        "p95_ns": 98811368,
+        "max_ns": 103349687
+      },
+      "camera_hashes": {
+        "n": 100,
+        "sum_ns": 7297394092,
+        "mean_ns": 72973940.92,
+        "median_ns": 70835883.0,
+        "p95_ns": 147888717,
+        "max_ns": 154032006
+      },
+      "attestation": {
+        "n": 100,
+        "sum_ns": 26767345,
+        "mean_ns": 267673.45,
+        "median_ns": 287081.5,
+        "p95_ns": 332556,
+        "max_ns": 365556
+      },
+      "contacts": {
+        "n": 100,
+        "sum_ns": 293285590,
+        "mean_ns": 2932855.9,
+        "median_ns": 611119.0,
+        "p95_ns": 12211384,
+        "max_ns": 13065222
+      },
+      "geometry": {
+        "n": 100,
+        "sum_ns": 2158096951,
+        "mean_ns": 21580969.51,
+        "median_ns": 21234246.0,
+        "p95_ns": 23863868,
+        "max_ns": 26321785
+      },
+      "json": {
+        "n": 100,
+        "sum_ns": 17804072,
+        "mean_ns": 178040.72,
+        "median_ns": 168601.0,
+        "p95_ns": 222809,
+        "max_ns": 254837
+      },
+      "transport": {
+        "n": 100,
+        "sum_ns": 16089853,
+        "mean_ns": 160898.53,
+        "median_ns": 159923.0,
+        "p95_ns": 177339,
+        "max_ns": 189929
+      },
+      "payload": {
+        "n": 100,
+        "sum_ns": 15424419768,
+        "mean_ns": 154244197.68,
+        "median_ns": 157988466.5,
+        "p95_ns": 280758732,
+        "max_ns": 301236974
+      }
+    },
+    "first_payload_ns": 278369009,
+    "after_first_payload": {
+      "n": 99,
+      "sum_ns": 15146050759,
+      "mean_ns": 152990411.7070707,
+      "median_ns": 54522698,
+      "p95_ns": 282175336,
+      "max_ns": 301236974
+    },
+    "residual": {
+      "n": 100,
+      "sum_ns": 26709776,
+      "mean_ns": 267097.76,
+      "median_ns": 264195.0,
+      "p95_ns": 334539,
+      "max_ns": 366819
+    },
+    "cohorts": {
+      "new_capture": {
+        "payload": {
+          "n": 50,
+          "sum_ns": 13683931323,
+          "mean_ns": 273678626.46,
+          "median_ns": 272239125.5,
+          "p95_ns": 285596607,
+          "max_ns": 301236974
+        },
+        "frame_hash": {
+          "n": 50,
+          "sum_ns": 4829438977,
+          "mean_ns": 96588779.54,
+          "median_ns": 95994810.5,
+          "p95_ns": 99800191,
+          "max_ns": 103349687
+        },
+        "camera_hashes": {
+          "n": 50,
+          "sum_ns": 7267285239,
+          "mean_ns": 145345704.78,
+          "median_ns": 144806692.0,
+          "p95_ns": 151513367,
+          "max_ns": 154032006
+        },
+        "geometry": {
+          "n": 50,
+          "sum_ns": 1070014387,
+          "mean_ns": 21400287.74,
+          "median_ns": 21192858.5,
+          "p95_ns": 23034478,
+          "max_ns": 24147671
+        }
+      },
+      "same_capture": {
+        "payload": {
+          "n": 50,
+          "sum_ns": 1740488445,
+          "mean_ns": 34809768.9,
+          "median_ns": 33434659.0,
+          "p95_ns": 50386300,
+          "max_ns": 54522698
+        },
+        "frame_hash": {
+          "n": 50,
+          "sum_ns": 12287704,
+          "mean_ns": 245754.08,
+          "median_ns": 214421.0,
+          "p95_ns": 248087,
+          "max_ns": 1695438
+        },
+        "camera_hashes": {
+          "n": 50,
+          "sum_ns": 30108853,
+          "mean_ns": 602177.06,
+          "median_ns": 599791.5,
+          "p95_ns": 649268,
+          "max_ns": 730220
+        },
+        "geometry": {
+          "n": 50,
+          "sum_ns": 1088082564,
+          "mean_ns": 21761651.28,
+          "median_ns": 21282885.5,
+          "p95_ns": 24360734,
+          "max_ns": 26321785
+        }
+      },
+      "new_capture_after_first": {
+        "payload": {
+          "n": 49,
+          "sum_ns": 13405562314,
+          "mean_ns": 273582904.36734694,
+          "median_ns": 271657977,
+          "p95_ns": 285596607,
+          "max_ns": 301236974
+        },
+        "frame_hash": {
+          "n": 49,
+          "sum_ns": 4730766801,
+          "mean_ns": 96546261.24489796,
+          "median_ns": 95986503,
+          "p95_ns": 99800191,
+          "max_ns": 103349687
+        },
+        "camera_hashes": {
+          "n": 49,
+          "sum_ns": 7120488882,
+          "mean_ns": 145316099.63265306,
+          "median_ns": 144780162,
+          "p95_ns": 151513367,
+          "max_ns": 154032006
+        },
+        "geometry": {
+          "n": 49,
+          "sum_ns": 1047711211,
+          "mean_ns": 21381861.44897959,
+          "median_ns": 21167951,
+          "p95_ns": 23034478,
+          "max_ns": 24147671
+        }
+      },
+      "same_capture_after_first": {
+        "payload": {
+          "n": 50,
+          "sum_ns": 1740488445,
+          "mean_ns": 34809768.9,
+          "median_ns": 33434659.0,
+          "p95_ns": 50386300,
+          "max_ns": 54522698
+        },
+        "frame_hash": {
+          "n": 50,
+          "sum_ns": 12287704,
+          "mean_ns": 245754.08,
+          "median_ns": 214421.0,
+          "p95_ns": 248087,
+          "max_ns": 1695438
+        },
+        "camera_hashes": {
+          "n": 50,
+          "sum_ns": 30108853,
+          "mean_ns": 602177.06,
+          "median_ns": 599791.5,
+          "p95_ns": 649268,
+          "max_ns": 730220
+        },
+        "geometry": {
+          "n": 50,
+          "sum_ns": 1088082564,
+          "mean_ns": 21761651.28,
+          "median_ns": 21282885.5,
+          "p95_ns": 24360734,
+          "max_ns": 26321785
+        }
+      }
+    },
+    "mixed_camera_capture_changes": 0,
+    "cohort_definition": "New means any of the three capture timestamps differs from previous sample; first is new. Mixed-camera changes are counted explicitly. No equality of capture timestamps across separate runs is assumed.",
+    "source": "6e1bc81a89039eaf585166310af54385a7f5e732",
+    "receipt_sha256": "26a6c8f626cc8c0f41699624a4241a52840f514fd7277837adff62139462479a",
+    "input_sha256": {
+      "samples.jsonl": "2945de89ea10db3876c60ec4555b7e054eb667cb1bae47a0f59aade563d419a9",
+      "timings.json": "1479f55d5b5082b5ef6eb7bf48c2d7fc24b299f3738b3d2b21d9485c1f032fde",
+      "timing-summary.json": "ca30e21a27aa9acbef994b1416f1e349e53deb168d5e8455c1f16a0929cba0bd",
+      "instrumentation.json": "840265ac826884493ff9b0e779f52dcfc403382ebbf8da3d685d9f66c4cd6c79",
+      "snapshot-original.py": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+      "passive-checks.json": "117af159d5912afd0bbf4c8e8f1aa6cfc2e2c397a2065c70ec13828b0e40e0e6",
+      "metadata.json": "b1352a4431deb4a89a31deab6b4c398f39d25d320111498838321bac0f034e03"
+    },
+    "receipt_pass": true,
+    "collection_complete": true,
+    "errors": [],
+    "observer_errors": [],
+    "wall_s": 24.69737148284912,
+    "pid": 3129020,
+    "passive_checks": {
+      "pass": true,
+      "geometry": {
+        "pass": true,
+        "checks": {
+          "scene_config_sha256_matches": true,
+          "prop_dimensions_match": true,
+          "cube_collider_geometry_matches": true,
+          "green_square_geometry_matches": true,
+          "scene_name_matches": true,
+          "scene_assets_sha256_matches": true,
+          "scene_content_sha256_matches": true,
+          "open_box_geometry_matches": true
+        },
+        "samples": 100,
+        "expected": {
+          "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+          "prop_dimensions_m": {
+            "pink_cube": [
+              0.0375,
+              0.0375,
+              0.06
+            ],
+            "green_cube": [
+              0.0375,
+              0.0375,
+              0.06
+            ],
+            "tomato_can": [
+              0.05445,
+              0.05445,
+              0.0825
+            ],
+            "lemon": [
+              0.0684,
+              0.0432,
+              0.0432
+            ],
+            "orange": [
+              0.05163983628153801,
+              0.05232211947441101,
+              0.05276046320796013
+            ]
+          },
+          "target_pad": {
+            "name": "green square",
+            "center_xy_m": [
+              0.14,
+              -0.27
+            ],
+            "outer_size_m": 0.16,
+            "border_width_m": 0.01,
+            "surface_z_m": 0.0006,
+            "support_top_z_m": 0.0
+          },
+          "scene_name": "paai-cocina-asier-v1",
+          "scene_assets_sha256": "c387f32907c3f3f8086f9b4657afa36fbb4648241e7779f2abf9a6663d70d6f1",
+          "scene_content_sha256": "e56d9f8fb7dbd780780905e1442e4fbb9d67dee9bf3842004f023d540603f565",
+          "convex_colliders": {
+            "tomato_can": {
+              "proxy": "cylinder",
+              "mass_kg": 0.067381875,
+              "dimensions_m": [
+                0.05445,
+                0.05445,
+                0.0825
+              ]
+            },
+            "lemon": {
+              "proxy": "ellipsoid",
+              "mass_kg": 0.047385,
+              "dimensions_m": [
+                0.0684,
+                0.0432,
+                0.0432
+              ]
+            },
+            "orange": {
+              "proxy": "ellipsoid",
+              "mass_kg": 0.0686,
+              "dimensions_m": [
+                0.05163983628153801,
+                0.05232211947441101,
+                0.05276046320796013
+              ]
+            }
+          },
+          "open_box": {
+            "name": "open box",
+            "center_xy_m": [
+              0.3,
+              -0.14
+            ],
+            "outer_dimensions_m": [
+              0.14,
+              0.14,
+              0.04
+            ],
+            "interior_dimensions_m": [
+              0.128,
+              0.128,
+              0.036
+            ],
+            "wall_thickness_m": 0.006,
+            "base_thickness_m": 0.004,
+            "support_top_z_m": 0.004,
+            "rim_top_z_m": 0.04
+          }
+        },
+        "geometry_readback_tolerance_m": 1e-06
+      },
+      "inventory": {
+        "live_prop_names_match_expected": true,
+        "spawn_prop_names_match_expected": true,
+        "spawn_positions_finite_and_unchanged": true
+      },
+      "camera_unique_jpeg_hashes": {
+        "cam0": 50,
+        "side": 50,
+        "proof": 50
+      },
+      "native_phases_present": false,
+      "native_physical_acceptance": false,
+      "scope": "Complete geometry/inventory and original per-frame age/identity checks; timestamp advancement in a stationary passive scene"
+    },
+    "physics_attestations_valid": true,
+    "camera": {
+      "cam0": {
+        "unique_captures": 50,
+        "unique_jpeg_hashes": 50,
+        "min_age_s": 0.1145667500095442,
+        "max_age_s": 0.8950355839915574
+      },
+      "side": {
+        "unique_captures": 50,
+        "unique_jpeg_hashes": 50,
+        "min_age_s": 0.1145667500095442,
+        "max_age_s": 0.8950355839915574
+      },
+      "proof": {
+        "unique_captures": 50,
+        "unique_jpeg_hashes": 50,
+        "min_age_s": 0.1145667500095442,
+        "max_age_s": 0.8950355839915574
+      }
+    }
+  },
+  "candidate": {
+    "samples": 100,
+    "sections": {
+      "inventory": {
+        "n": 100,
+        "sum_ns": 9760086,
+        "mean_ns": 97600.86,
+        "median_ns": 90212.0,
+        "p95_ns": 129577,
+        "max_ns": 137680
+      },
+      "clock": {
+        "n": 100,
+        "sum_ns": 1561973,
+        "mean_ns": 15619.73,
+        "median_ns": 14041.0,
+        "p95_ns": 24026,
+        "max_ns": 28273
+      },
+      "schemas": {
+        "n": 100,
+        "sum_ns": 2828053,
+        "mean_ns": 28280.53,
+        "median_ns": 27747.0,
+        "p95_ns": 32459,
+        "max_ns": 41072
+      },
+      "view_construct": {
+        "n": 1,
+        "sum_ns": 2125169,
+        "mean_ns": 2125169,
+        "median_ns": 2125169,
+        "p95_ns": 2125169,
+        "max_ns": 2125169
+      },
+      "views": {
+        "n": 100,
+        "sum_ns": 2884710,
+        "mean_ns": 28847.1,
+        "median_ns": 7256.5,
+        "p95_ns": 9194,
+        "max_ns": 2157590
+      },
+      "articulation_valid": {
+        "n": 100,
+        "sum_ns": 167372,
+        "mean_ns": 1673.72,
+        "median_ns": 1467.0,
+        "p95_ns": 2934,
+        "max_ns": 3165
+      },
+      "q": {
+        "n": 100,
+        "sum_ns": 52432280,
+        "mean_ns": 524322.8,
+        "median_ns": 290602.0,
+        "p95_ns": 1292975,
+        "max_ns": 2543647
+      },
+      "dq": {
+        "n": 100,
+        "sum_ns": 94160965,
+        "mean_ns": 941609.65,
+        "median_ns": 119536.5,
+        "p95_ns": 2628286,
+        "max_ns": 2909784
+      },
+      "limits": {
+        "n": 100,
+        "sum_ns": 114615461,
+        "mean_ns": 1146154.61,
+        "median_ns": 506845.5,
+        "p95_ns": 2590088,
+        "max_ns": 3107294
+      },
+      "state_pack": {
+        "n": 100,
+        "sum_ns": 5736593,
+        "mean_ns": 57365.93,
+        "median_ns": 55870.0,
+        "p95_ns": 66961,
+        "max_ns": 115856
+      },
+      "prop_valid": {
+        "n": 100,
+        "sum_ns": 594131,
+        "mean_ns": 5941.31,
+        "median_ns": 5297.0,
+        "p95_ns": 9234,
+        "max_ns": 12197
+      },
+      "prop_poses": {
+        "n": 100,
+        "sum_ns": 330649500,
+        "mean_ns": 3306495,
+        "median_ns": 1059225.5,
+        "p95_ns": 8376956,
+        "max_ns": 12046014
+      },
+      "prop_velocities": {
+        "n": 100,
+        "sum_ns": 282962896,
+        "mean_ns": 2829628.96,
+        "median_ns": 760486.0,
+        "p95_ns": 8221038,
+        "max_ns": 11374391
+      },
+      "prop_pack": {
+        "n": 100,
+        "sum_ns": 131086065,
+        "mean_ns": 1310860.65,
+        "median_ns": 868967.0,
+        "p95_ns": 2553963,
+        "max_ns": 3747036
+      },
+      "frame_hash": {
+        "n": 100,
+        "sum_ns": 535028262,
+        "mean_ns": 5350282.62,
+        "median_ns": 5183590.5,
+        "p95_ns": 10704213,
+        "max_ns": 13845268
+      },
+      "camera_hashes": {
+        "n": 100,
+        "sum_ns": 1100663242,
+        "mean_ns": 11006632.42,
+        "median_ns": 10725119.5,
+        "p95_ns": 22034037,
+        "max_ns": 22486965
+      },
+      "attestation": {
+        "n": 100,
+        "sum_ns": 23694972,
+        "mean_ns": 236949.72,
+        "median_ns": 230525.0,
+        "p95_ns": 309200,
+        "max_ns": 321389
+      },
+      "contacts": {
+        "n": 100,
+        "sum_ns": 237099615,
+        "mean_ns": 2370996.15,
+        "median_ns": 488377.0,
+        "p95_ns": 12773188,
+        "max_ns": 13431950
+      },
+      "geometry": {
+        "n": 100,
+        "sum_ns": 2395386719,
+        "mean_ns": 23953867.19,
+        "median_ns": 21214331.0,
+        "p95_ns": 23529090,
+        "max_ns": 267636292
+      },
+      "json": {
+        "n": 100,
+        "sum_ns": 18543801,
+        "mean_ns": 185438.01,
+        "median_ns": 176338.5,
+        "p95_ns": 235428,
+        "max_ns": 334569
+      },
+      "transport": {
+        "n": 100,
+        "sum_ns": 16447505,
+        "mean_ns": 164475.05,
+        "median_ns": 162627.5,
+        "p95_ns": 186563,
+        "max_ns": 191211
+      },
+      "payload": {
+        "n": 100,
+        "sum_ns": 5379966972,
+        "mean_ns": 53799669.72,
+        "median_ns": 54208099.5,
+        "p95_ns": 79663969,
+        "max_ns": 309668142
+      }
+    },
+    "first_payload_ns": 72518826,
+    "after_first_payload": {
+      "n": 99,
+      "sum_ns": 5307448146,
+      "mean_ns": 53610587.333333336,
+      "median_ns": 52368753,
+      "p95_ns": 82264362,
+      "max_ns": 309668142
+    },
+    "residual": {
+      "n": 100,
+      "sum_ns": 23662771,
+      "mean_ns": 236627.71,
+      "median_ns": 228870.5,
+      "p95_ns": 304601,
+      "max_ns": 335093
+    },
+    "cohorts": {
+      "new_capture": {
+        "payload": {
+          "n": 50,
+          "sum_ns": 3642120256,
+          "mean_ns": 72842405.12,
+          "median_ns": 68169860.0,
+          "p95_ns": 83891626,
+          "max_ns": 309668142
+        },
+        "frame_hash": {
+          "n": 50,
+          "sum_ns": 524504095,
+          "mean_ns": 10490081.9,
+          "median_ns": 10369013.5,
+          "p95_ns": 11093855,
+          "max_ns": 13845268
+        },
+        "camera_hashes": {
+          "n": 50,
+          "sum_ns": 1070837572,
+          "mean_ns": 21416751.44,
+          "median_ns": 21410424.0,
+          "p95_ns": 22201902,
+          "max_ns": 22486965
+        },
+        "geometry": {
+          "n": 50,
+          "sum_ns": 1326500078,
+          "mean_ns": 26530001.56,
+          "median_ns": 21514327.5,
+          "p95_ns": 23564674,
+          "max_ns": 267636292
+        }
+      },
+      "same_capture": {
+        "payload": {
+          "n": 50,
+          "sum_ns": 1737846716,
+          "mean_ns": 34756934.32,
+          "median_ns": 30376259.0,
+          "p95_ns": 48271224,
+          "max_ns": 52368753
+        },
+        "frame_hash": {
+          "n": 50,
+          "sum_ns": 10524167,
+          "mean_ns": 210483.34,
+          "median_ns": 210405.0,
+          "p95_ns": 224110,
+          "max_ns": 250371
+        },
+        "camera_hashes": {
+          "n": 50,
+          "sum_ns": 29825670,
+          "mean_ns": 596513.4,
+          "median_ns": 593042.0,
+          "p95_ns": 656478,
+          "max_ns": 768198
+        },
+        "geometry": {
+          "n": 50,
+          "sum_ns": 1068886641,
+          "mean_ns": 21377732.82,
+          "median_ns": 21142216.0,
+          "p95_ns": 23498073,
+          "max_ns": 25494889
+        }
+      },
+      "new_capture_after_first": {
+        "payload": {
+          "n": 49,
+          "sum_ns": 3569601430,
+          "mean_ns": 72849008.7755102,
+          "median_ns": 67575902,
+          "p95_ns": 83891626,
+          "max_ns": 309668142
+        },
+        "frame_hash": {
+          "n": 49,
+          "sum_ns": 510658827,
+          "mean_ns": 10421608.714285715,
+          "median_ns": 10363034,
+          "p95_ns": 11069558,
+          "max_ns": 11183422
+        },
+        "camera_hashes": {
+          "n": 49,
+          "sum_ns": 1049131995,
+          "mean_ns": 21410857.040816326,
+          "median_ns": 21403859,
+          "p95_ns": 22201902,
+          "max_ns": 22486965
+        },
+        "geometry": {
+          "n": 49,
+          "sum_ns": 1304514344,
+          "mean_ns": 26622741.714285713,
+          "median_ns": 21487196,
+          "p95_ns": 23564674,
+          "max_ns": 267636292
+        }
+      },
+      "same_capture_after_first": {
+        "payload": {
+          "n": 50,
+          "sum_ns": 1737846716,
+          "mean_ns": 34756934.32,
+          "median_ns": 30376259.0,
+          "p95_ns": 48271224,
+          "max_ns": 52368753
+        },
+        "frame_hash": {
+          "n": 50,
+          "sum_ns": 10524167,
+          "mean_ns": 210483.34,
+          "median_ns": 210405.0,
+          "p95_ns": 224110,
+          "max_ns": 250371
+        },
+        "camera_hashes": {
+          "n": 50,
+          "sum_ns": 29825670,
+          "mean_ns": 596513.4,
+          "median_ns": 593042.0,
+          "p95_ns": 656478,
+          "max_ns": 768198
+        },
+        "geometry": {
+          "n": 50,
+          "sum_ns": 1068886641,
+          "mean_ns": 21377732.82,
+          "median_ns": 21142216.0,
+          "p95_ns": 23498073,
+          "max_ns": 25494889
+        }
+      }
+    },
+    "mixed_camera_capture_changes": 0,
+    "cohort_definition": "New means any of the three capture timestamps differs from previous sample; first is new. Mixed-camera changes are counted explicitly. No equality of capture timestamps across separate runs is assumed.",
+    "source": "d1d54dcf078b3efefd9542d46947c77bd29afe7e",
+    "receipt_sha256": "fb3594d9af14ce7a49eff0f1ed1ffba4c0434e2ff89b3f20ae29ecf88b111e5d",
+    "input_sha256": {
+      "samples.jsonl": "0a7b1911f8e5a268b40105ed8c3a09a49bc072d5d3922f917a3eb7ba21fb2d6e",
+      "timings.json": "fd0f70babd962e7ffcc04fc5f90b78e6c0d963db9c39001481dc8196a1477741",
+      "timing-summary.json": "df67a3500f9a8906cfb31caa4c3e50035ac9e61e81241a98bbb6641508d76cdc",
+      "instrumentation.json": "d8568767d505bd3f582a7cbabc0ba77fd3dfdd04c8aa9c3a252d8f1effe12254",
+      "snapshot-original.py": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+      "passive-checks.json": "1897110a72336d98468f1e0e35606a50c38c0ed55952f5940fbb92cdd4f28655",
+      "metadata.json": "cab4480bd4be15e9f59f00654cd7d8f0c06e8b6a8f656bea6351b51bffa4fcf3"
+    },
+    "receipt_pass": true,
+    "collection_complete": true,
+    "errors": [],
+    "observer_errors": [],
+    "wall_s": 15.186070203781128,
+    "pid": 3186237,
+    "passive_checks": {
+      "pass": true,
+      "geometry": {
+        "pass": true,
+        "checks": {
+          "scene_config_sha256_matches": true,
+          "prop_dimensions_match": true,
+          "cube_collider_geometry_matches": true,
+          "green_square_geometry_matches": true,
+          "scene_name_matches": true,
+          "scene_assets_sha256_matches": true,
+          "scene_content_sha256_matches": true,
+          "open_box_geometry_matches": true
+        },
+        "samples": 100,
+        "expected": {
+          "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+          "prop_dimensions_m": {
+            "pink_cube": [
+              0.0375,
+              0.0375,
+              0.06
+            ],
+            "green_cube": [
+              0.0375,
+              0.0375,
+              0.06
+            ],
+            "tomato_can": [
+              0.05445,
+              0.05445,
+              0.0825
+            ],
+            "lemon": [
+              0.0684,
+              0.0432,
+              0.0432
+            ],
+            "orange": [
+              0.05163983628153801,
+              0.05232211947441101,
+              0.05276046320796013
+            ]
+          },
+          "target_pad": {
+            "name": "green square",
+            "center_xy_m": [
+              0.14,
+              -0.27
+            ],
+            "outer_size_m": 0.16,
+            "border_width_m": 0.01,
+            "surface_z_m": 0.0006,
+            "support_top_z_m": 0.0
+          },
+          "scene_name": "paai-cocina-asier-v1",
+          "scene_assets_sha256": "ffda6a5deb3bf95e5a29af783005bd6d93438ff99a35a61cb0e8205db9654e14",
+          "scene_content_sha256": "9fc73ab23156df08d952f503760072f79205ff9abbe4b811b48652faf6eaa73f",
+          "convex_colliders": {
+            "tomato_can": {
+              "proxy": "cylinder",
+              "mass_kg": 0.067381875,
+              "dimensions_m": [
+                0.05445,
+                0.05445,
+                0.0825
+              ]
+            },
+            "lemon": {
+              "proxy": "ellipsoid",
+              "mass_kg": 0.047385,
+              "dimensions_m": [
+                0.0684,
+                0.0432,
+                0.0432
+              ]
+            },
+            "orange": {
+              "proxy": "ellipsoid",
+              "mass_kg": 0.0686,
+              "dimensions_m": [
+                0.05163983628153801,
+                0.05232211947441101,
+                0.05276046320796013
+              ]
+            }
+          },
+          "open_box": {
+            "name": "open box",
+            "center_xy_m": [
+              0.3,
+              -0.14
+            ],
+            "outer_dimensions_m": [
+              0.14,
+              0.14,
+              0.04
+            ],
+            "interior_dimensions_m": [
+              0.128,
+              0.128,
+              0.036
+            ],
+            "wall_thickness_m": 0.006,
+            "base_thickness_m": 0.004,
+            "support_top_z_m": 0.004,
+            "rim_top_z_m": 0.04
+          }
+        },
+        "geometry_readback_tolerance_m": 1e-06
+      },
+      "inventory": {
+        "live_prop_names_match_expected": true,
+        "spawn_prop_names_match_expected": true,
+        "spawn_positions_finite_and_unchanged": true
+      },
+      "camera_unique_jpeg_hashes": {
+        "cam0": 50,
+        "side": 50,
+        "proof": 50
+      },
+      "native_phases_present": false,
+      "native_physical_acceptance": false,
+      "scope": "Complete geometry/inventory and original per-frame age/identity checks; timestamp advancement in a stationary passive scene"
+    },
+    "physics_attestations_valid": true,
+    "camera": {
+      "cam0": {
+        "unique_captures": 50,
+        "unique_jpeg_hashes": 50,
+        "min_age_s": 0.11781201299163513,
+        "max_age_s": 0.5338905339885969
+      },
+      "side": {
+        "unique_captures": 50,
+        "unique_jpeg_hashes": 50,
+        "min_age_s": 0.11781201299163513,
+        "max_age_s": 0.5338905339885969
+      },
+      "proof": {
+        "unique_captures": 50,
+        "unique_jpeg_hashes": 50,
+        "min_age_s": 0.11781201299163513,
+        "max_age_s": 0.5338905339885969
+      }
+    }
+  },
+  "comparisons": {
+    "new_capture": {
+      "payload": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 272.2391255,
+        "after_median_ms": 68.16986,
+        "median_reduction_pct": 74.95956546481047,
+        "before_p95_ms": 285.596607,
+        "after_p95_ms": 83.891626
+      },
+      "frame_hash": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 95.9948105,
+        "after_median_ms": 10.3690135,
+        "median_reduction_pct": 89.19836036344903,
+        "before_p95_ms": 99.800191,
+        "after_p95_ms": 11.093855
+      },
+      "camera_hashes": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 144.806692,
+        "after_median_ms": 21.410424,
+        "median_reduction_pct": 85.21447889991161,
+        "before_p95_ms": 151.513367,
+        "after_p95_ms": 22.201902
+      },
+      "geometry": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 21.1928585,
+        "after_median_ms": 21.5143275,
+        "median_reduction_pct": -1.5168741866511404,
+        "before_p95_ms": 23.034478,
+        "after_p95_ms": 23.564674
+      }
+    },
+    "same_capture": {
+      "payload": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 33.434659,
+        "after_median_ms": 30.376259,
+        "median_reduction_pct": 9.147394026061395,
+        "before_p95_ms": 50.3863,
+        "after_p95_ms": 48.271224
+      },
+      "frame_hash": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 0.214421,
+        "after_median_ms": 0.210405,
+        "median_reduction_pct": 1.87295087701298,
+        "before_p95_ms": 0.248087,
+        "after_p95_ms": 0.22411
+      },
+      "camera_hashes": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 0.5997915,
+        "after_median_ms": 0.593042,
+        "median_reduction_pct": 1.1253077110962684,
+        "before_p95_ms": 0.649268,
+        "after_p95_ms": 0.656478
+      },
+      "geometry": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 21.2828855,
+        "after_median_ms": 21.142216,
+        "median_reduction_pct": 0.6609512605797785,
+        "before_p95_ms": 24.360734,
+        "after_p95_ms": 23.498073
+      }
+    },
+    "new_capture_after_first": {
+      "payload": {
+        "before_n": 49,
+        "after_n": 49,
+        "before_median_ms": 271.657977,
+        "after_median_ms": 67.575902,
+        "median_reduction_pct": 75.1246391708203,
+        "before_p95_ms": 285.596607,
+        "after_p95_ms": 83.891626
+      },
+      "frame_hash": {
+        "before_n": 49,
+        "after_n": 49,
+        "before_median_ms": 95.986503,
+        "after_median_ms": 10.363034,
+        "median_reduction_pct": 89.20365501803936,
+        "before_p95_ms": 99.800191,
+        "after_p95_ms": 11.069558
+      },
+      "camera_hashes": {
+        "before_n": 49,
+        "after_n": 49,
+        "before_median_ms": 144.780162,
+        "after_median_ms": 21.403859,
+        "median_reduction_pct": 85.2163040127003,
+        "before_p95_ms": 151.513367,
+        "after_p95_ms": 22.201902
+      },
+      "geometry": {
+        "before_n": 49,
+        "after_n": 49,
+        "before_median_ms": 21.167951,
+        "after_median_ms": 21.487196,
+        "median_reduction_pct": -1.5081525840644705,
+        "before_p95_ms": 23.034478,
+        "after_p95_ms": 23.564674
+      }
+    },
+    "same_capture_after_first": {
+      "payload": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 33.434659,
+        "after_median_ms": 30.376259,
+        "median_reduction_pct": 9.147394026061395,
+        "before_p95_ms": 50.3863,
+        "after_p95_ms": 48.271224
+      },
+      "frame_hash": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 0.214421,
+        "after_median_ms": 0.210405,
+        "median_reduction_pct": 1.87295087701298,
+        "before_p95_ms": 0.248087,
+        "after_p95_ms": 0.22411
+      },
+      "camera_hashes": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 0.5997915,
+        "after_median_ms": 0.593042,
+        "median_reduction_pct": 1.1253077110962684,
+        "before_p95_ms": 0.649268,
+        "after_p95_ms": 0.656478
+      },
+      "geometry": {
+        "before_n": 50,
+        "after_n": 50,
+        "before_median_ms": 21.2828855,
+        "after_median_ms": 21.142216,
+        "median_reduction_pct": 0.6609512605797785,
+        "before_p95_ms": 24.360734,
+        "after_p95_ms": 23.498073
+      }
+    }
+  },
+  "runtime_parameters_equal": true,
+  "finished_at": 1790896796.3135955,
+  "script_sha256": "b6370f2365b2883cbdc91a3806204b29fb7719feb5f3f09136a8d74e947bb3e6"
+}

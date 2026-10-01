@@ -5,8 +5,10 @@ renderer, cuMotion candidate planning, PhysX finger envelope, native host reserv
 release-opening synchronization, pending-camera publication, retained NV carry
 attachment, explicit MCP GPU selection, Isaac verifier startup readiness and
 localization analysis freshness and bounded detector model/vocabulary reuse.
-The previous command baseline for physical validation is `ff8d58b`; current main `c5b2fd5`
-also includes optional bridge profiling from PR #62. See the
+The previous command baseline for physical validation is `ff8d58b`; current
+main `f7a8823` includes bridge profiling from PR #62 and the profile 09 report
+from PR #63. The separate combined candidate also includes independent frame
+encoding and release-open stability. See the
 [source and acceptance index](PROJECT_STATUS_20261001.md) for merged changes,
 software validation and the current physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.
@@ -219,6 +221,17 @@ samples bind captured CPU event order to bounded monotonic intervals;
 profiler logs and timings never authorize motion or renew camera freshness.
 Profiler errors invalidate diagnostics while the
 original operation and safety behavior remain intact.
+
+### Lazy frame encoding
+
+The [component-encoding candidate](ISAAC_FRAME_ENCODING.md) gives RGB JPEG and
+compressed depth separate locks and caches. An RGB-only reader does not start
+depth compression or acquire its lock. `wire()` still returns both components
+with their original encoding and field order. Camera buffers retain their
+existing render/history identity; codec completion never updates timestamps,
+epochs or measured joints. Unused raw components remain owned by the retained
+frame until requested or released. Live performance and native acceptance
+remain separate from the retained CPU comparison.
 
 ### Motion safety path
 

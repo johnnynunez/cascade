@@ -1,0 +1,42 @@
+{
+  "pass": true,
+  "findings": [],
+  "scope": "Independent read-only code/test/source review; no tests rerun, GPU, RPC, full suite or product edits",
+  "author_receipt_sha256": "4a61e1ad4fdda8a5514aeb2af31dc95351f79f275138ba3b23eb18219a20dc51",
+  "source_base": "6e1bc81a89039eaf585166310af54385a7f5e732",
+  "files": {
+    "scripts/isaac_bridge.py": "4a7c054fb97f97795548e2e514864ae1ab8e837795ca63c2f7ae29f0c1b18212",
+    "tests/test_isaac_lazy_frame.py": "e7e61f050662fd0065b6c69d2373bbc182f91003ebe1a61a3810c687f5e61452"
+  },
+  "outside_LazyFrame_AST_identical": true,
+  "reviewed_contracts": {
+    "independent_locks": "RGB/depth acquire only their own lock; wire acquires/releases each sequentially; RGB does not enter the depth lock even when cached",
+    "at_most_once_success": "Each encoded key is the successful-publication sentinel, inspected under component lock; raw buffer released only after its encoded value is stored",
+    "retry": "Component failure propagates native exception and retains own raw buffer; prior successful other component is preserved",
+    "wire": "Both components materialized; explicit reconstruction preserves metadata insertion order then RGB then depth across every access order",
+    "bytes": "JPEG RGB-to-BGR conversion quality90 and zlib depth level3 unchanged; nonfinite depth sanitization remains identical on depth encoding; no-depth key remains null",
+    "ownership": "Existing capture copies unchanged; independent raw references release independently and are bounded by retained frame objects",
+    "physical_safety": "No physics reads, camera cadence, capture anchors, history, timestamps, provenance, actuator paths, observer or depth consumers changed"
+  },
+  "test_evidence_reviewed": {
+    "new": {
+      "receipt_sha256": "4a848ed917073ffa180f75d15b5600ff34d9d81bdd197dc9dff39747ce7dae59",
+      "summary": "16 passed in 0.32s",
+      "raw_shell_log_retained": false,
+      "provenance": "Observed tool result retained explicitly; no invented raw log."
+    },
+    "regressions": {
+      "receipt_sha256": "b2f09ecd1a40acb202186772c71c08681c24475c10f31ef0d28113d7e8501095",
+      "log_sha256": "7b6d6ecec3921dc5cf3adf97b86bc99c8d1f5c47ce23a2e014098ca80d5f4dc7",
+      "summary": "123 passed in 4.01s"
+    },
+    "baseline_negative": {
+      "receipt_sha256": "905e3a4e3529c2eb27d5c3cfbf2ccce5bbb1f96eecb933e96bd2a9926f4e34c1",
+      "summary": "3 failed in 2.11s (expected baseline regressions)"
+    }
+  },
+  "limits": [
+    "No measured speedup or native acceptance follows from CPU tests. Controlled comparison and source-bound full validation remain parent work.",
+    "The 16 focused successes have observed tool-result provenance rather than a separately retained shell stdout log, accurately disclosed by author."
+  ]
+}

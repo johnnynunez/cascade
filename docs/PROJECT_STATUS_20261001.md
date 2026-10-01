@@ -8,6 +8,25 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
+Current main is `f7a88233cc80fccc1b02396d963086b1146d2078`, the exact-tree
+[merge of documentation PR #63](evidence/isaac-profile10/pr63-merge.json).
+All five [PR checks](evidence/isaac-profile10/pr63-ci-passed.json) passed;
+all five [merged-source checks](evidence/isaac-profile10/pr63-main-ci-passed.json)
+also passed.
+
+Combined candidate `d1d54dcf078b3efefd9542d46947c77bd29afe7e` includes the
+release-open stability change, independent RGB/depth encoding (`8935c0e`) and
+the reviewed profile 09 documentation. Its
+[complete software suite](evidence/isaac-profile10/combined-full.json) passed
+[3,757 tests](evidence/isaac-profile10/combined-test-summary.json), with 43
+skipped and four deselected in 339.27 seconds. All 1,305 source-bound inputs
+remained unchanged. The
+[encoding measurements and contract](ISAAC_FRAME_ENCODING.md) separate
+100 passive observations on each of `6e1bc81a` and `d1d54dc`, a CPU comparison
+on one retained frame and the new implementation's focused checks. The new-source
+passive repeat and administrative closure passed. This integration remains
+unmerged; native physical validation is pending.
+
 Optional [Isaac bridge Python profiling](ISAAC_BRIDGE_PROFILING.md) at
 `3ccdc2e82815cca2a462b49770f58bb6e522789a` passed **3,685 tests**, 43 skipped
 and four deselected in 334.79 seconds. All 1,276 source, model and release
@@ -288,6 +307,26 @@ Neither addition retroactively changes the physical source `477c88f` or the
 failures below. Documentation PR #43 preserved that earlier source distinction.
 
 ## Current physical acceptance
+
+**Passive observer profile 10 on `6e1bc81a` passed its measurement checks.**
+It collected 100 samples with no actuator commands or native task. Image-hash
+sections dominated the observed payload cost; code inspection found that an
+RGB-only lookup also compressed unused depth. The independent component
+candidate reduced median RGB-only encoding from 44.323 to 2.196 ms in a
+CPU replay of one retained frame; full packet encoding stayed near 44.1 ms
+with identical bytes and capture metadata. These results do not establish a
+live task speedup or repair profile 09's failed placement. See the
+[profiles 10/11 evidence and limits](ISAAC_FRAME_ENCODING.md).
+
+**Passive profile 11 on combined candidate `d1d54dc` also passed.** Its 100
+samples completed in 15.186 seconds, with 50 new and 50 repeated captures and
+50 distinct JPEG hashes per camera. Against profile 10, the new-capture payload
+median fell from 272.239 to 68.170 ms; repeated captures measured 33.435 and
+30.376 ms. Geometry, inventory, camera freshness/identity and physics checks
+passed. A 309.668 ms slow sample remains included; its geometry section took
+267.636 ms, without an established internal cause. Owned closure passed with
+all 1,305 source inputs and 12 protected process identities verified. These
+are two passive runs, without native commands or task acceptance.
 
 **Local dual-RTX Pro attempt 09 on `3ccdc2e8` failed during placement.**
 The grasp was verified in 164.497 seconds, then the unchanged 300-second MCP

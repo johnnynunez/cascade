@@ -1,0 +1,970 @@
+{
+  "pass": true,
+  "scope": "Offline CPU replay on one retained camera capture; BGR pixels were previously JPEG-decoded. Same input in both variants. No Kit import, GPU, RPC, native acceptance or whole-task speedup claim.",
+  "baseline": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-open-settle/scripts/isaac_bridge.py",
+  "baseline_sha256": "f74ccd74b65b756579e52ba2f1714b99cc287ccec667512303e25a48e168dc08",
+  "candidate": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-lazy-frame-components/scripts/isaac_bridge.py",
+  "candidate_sha256": "4a7c054fb97f97795548e2e514864ae1ab8e837795ca63c2f7ae29f0c1b18212",
+  "corpus": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/grasp-evidence/1790892284751806135-3061629-3be60c1f02a446da8c7443d337fa5e26.npz",
+  "corpus_sha256": "a67ed16dc62082ab3cd7010b69bac68b69d372db1c871826e5047150a060f2e4",
+  "script_sha256": "edc897f07069df1ffdf252dbcde2a9087f514eae4f5889f9f803e6d048e46533",
+  "opencv_version": "5.0.0",
+  "numpy_version": "2.5.3",
+  "trials": [
+    {
+      "iteration": 0,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 46486391,
+      "thread_cpu_ns": 45824073,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 0,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2178802,
+      "thread_cpu_ns": 2180830,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 0,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 43915943,
+      "thread_cpu_ns": 43918691,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 0,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 43996736,
+      "thread_cpu_ns": 43999312,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 1,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2256040,
+      "thread_cpu_ns": 2257945,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 1,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 45293427,
+      "thread_cpu_ns": 45266933,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 1,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 45741048,
+      "thread_cpu_ns": 44496966,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 1,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 44155257,
+      "thread_cpu_ns": 44144670,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 2,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 47665153,
+      "thread_cpu_ns": 46217696,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 2,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2245074,
+      "thread_cpu_ns": 2246439,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 2,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 44508624,
+      "thread_cpu_ns": 44502786,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 2,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 44222369,
+      "thread_cpu_ns": 44200214,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 3,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2171962,
+      "thread_cpu_ns": 2173299,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 3,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 44810633,
+      "thread_cpu_ns": 44795496,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 3,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 43752504,
+      "thread_cpu_ns": 43754435,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 3,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 43741678,
+      "thread_cpu_ns": 43743358,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 4,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 44013100,
+      "thread_cpu_ns": 44015446,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 4,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2196399,
+      "thread_cpu_ns": 2198356,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 4,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 43951767,
+      "thread_cpu_ns": 43946802,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 4,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 43972799,
+      "thread_cpu_ns": 43963728,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 5,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2262620,
+      "thread_cpu_ns": 2264646,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 5,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 43797352,
+      "thread_cpu_ns": 43778882,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 5,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 43727797,
+      "thread_cpu_ns": 43729807,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 5,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 45229621,
+      "thread_cpu_ns": 45213230,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 6,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 44377946,
+      "thread_cpu_ns": 44366311,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 6,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2241958,
+      "thread_cpu_ns": 2243464,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 6,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 44125301,
+      "thread_cpu_ns": 44116236,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 6,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 44330033,
+      "thread_cpu_ns": 44326602,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 7,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2190620,
+      "thread_cpu_ns": 2192338,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 7,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 44415652,
+      "thread_cpu_ns": 44394222,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 7,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 46609819,
+      "thread_cpu_ns": 45137010,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 7,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 45001754,
+      "thread_cpu_ns": 45002786,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 8,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 44872286,
+      "thread_cpu_ns": 44873702,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 8,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2258023,
+      "thread_cpu_ns": 2259047,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 8,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 44587964,
+      "thread_cpu_ns": 44579852,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 8,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 44828611,
+      "thread_cpu_ns": 44821255,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 9,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2134234,
+      "thread_cpu_ns": 2135542,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 9,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 44267137,
+      "thread_cpu_ns": 44248035,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 9,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 43735279,
+      "thread_cpu_ns": 43737118,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 9,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 43886157,
+      "thread_cpu_ns": 43887634,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 10,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 44857665,
+      "thread_cpu_ns": 44848547,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 10,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2216800,
+      "thread_cpu_ns": 2218487,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 10,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 44079742,
+      "thread_cpu_ns": 44082657,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 10,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 44007593,
+      "thread_cpu_ns": 43974664,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 11,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2215017,
+      "thread_cpu_ns": 2217014,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 11,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 45620284,
+      "thread_cpu_ns": 45601956,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 11,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 44258554,
+      "thread_cpu_ns": 44241974,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 11,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 43762940,
+      "thread_cpu_ns": 43757069,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 12,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 43693234,
+      "thread_cpu_ns": 43686542,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 12,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2137008,
+      "thread_cpu_ns": 2133359,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 12,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 43779776,
+      "thread_cpu_ns": 43777799,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 12,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 43998829,
+      "thread_cpu_ns": 43996768,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 13,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2186394,
+      "thread_cpu_ns": 2188031,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 13,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 44146023,
+      "thread_cpu_ns": 44137618,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 13,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 43697592,
+      "thread_cpu_ns": 43700173,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 13,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 43820117,
+      "thread_cpu_ns": 43822296,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 14,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 43887119,
+      "thread_cpu_ns": 43876418,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 14,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2166354,
+      "thread_cpu_ns": 2168832,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 14,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 43792795,
+      "thread_cpu_ns": 43795446,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 14,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 44242670,
+      "thread_cpu_ns": 44245311,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 15,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2195217,
+      "thread_cpu_ns": 2197285,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 15,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 44015454,
+      "thread_cpu_ns": 44012362,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 15,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 44536316,
+      "thread_cpu_ns": 44535154,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 15,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 44545620,
+      "thread_cpu_ns": 44547614,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 16,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 46021715,
+      "thread_cpu_ns": 45984848,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 16,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2208347,
+      "thread_cpu_ns": 2209242,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 16,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 45331515,
+      "thread_cpu_ns": 45331859,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 16,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 44716209,
+      "thread_cpu_ns": 44717188,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 17,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2327709,
+      "thread_cpu_ns": 2328752,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 17,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 43865817,
+      "thread_cpu_ns": 43867824,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 17,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 44208448,
+      "thread_cpu_ns": 44198640,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 17,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 44511518,
+      "thread_cpu_ns": 44514073,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 18,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 43793307,
+      "thread_cpu_ns": 43784549,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 18,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2140814,
+      "thread_cpu_ns": 2141982,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 18,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 45273277,
+      "thread_cpu_ns": 45254132,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 18,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 43690851,
+      "thread_cpu_ns": 43692332,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 19,
+      "mode": "rgb_only",
+      "variant": "candidate",
+      "elapsed_ns": 2129187,
+      "thread_cpu_ns": 2130424,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 0
+      }
+    },
+    {
+      "iteration": 19,
+      "mode": "rgb_only",
+      "variant": "baseline",
+      "elapsed_ns": 44166274,
+      "thread_cpu_ns": 44168715,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 19,
+      "mode": "full_wire",
+      "variant": "candidate",
+      "elapsed_ns": 43764833,
+      "thread_cpu_ns": 43765871,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    },
+    {
+      "iteration": 19,
+      "mode": "full_wire",
+      "variant": "baseline",
+      "elapsed_ns": 43549586,
+      "thread_cpu_ns": 43551370,
+      "encoding_calls": {
+        "jpeg": 1,
+        "depth": 1
+      }
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "rgb_only": {
+        "elapsed": {
+          "count": 20,
+          "median_ns": 44322541.5,
+          "p95_ns": 46486391,
+          "max_ns": 47665153,
+          "total_ns": 894065969
+        },
+        "thread_cpu": {
+          "count": 20,
+          "median_ns": 44307173.0,
+          "p95_ns": 45984848,
+          "max_ns": 46217696,
+          "total_ns": 891750175
+        }
+      },
+      "full_wire": {
+        "elapsed": {
+          "count": 20,
+          "median_ns": 44102521.5,
+          "p95_ns": 45273277,
+          "max_ns": 45331515,
+          "total_ns": 885550952
+        },
+        "thread_cpu": {
+          "count": 20,
+          "median_ns": 44099446.5,
+          "p95_ns": 45254132,
+          "max_ns": 45331859,
+          "total_ns": 885490360
+        }
+      }
+    },
+    "candidate": {
+      "rgb_only": {
+        "elapsed": {
+          "count": 20,
+          "median_ns": 2195808.0,
+          "p95_ns": 2262620,
+          "max_ns": 2327709,
+          "total_ns": 44058579
+        },
+        "thread_cpu": {
+          "count": 20,
+          "median_ns": 2197820.5,
+          "p95_ns": 2264646,
+          "max_ns": 2328752,
+          "total_ns": 44085314
+        }
+      },
+      "full_wire": {
+        "elapsed": {
+          "count": 20,
+          "median_ns": 44108020.5,
+          "p95_ns": 45741048,
+          "max_ns": 46609819,
+          "total_ns": 886038890
+        },
+        "thread_cpu": {
+          "count": 20,
+          "median_ns": 44098976.0,
+          "p95_ns": 44821255,
+          "max_ns": 45137010,
+          "total_ns": 883234522
+        }
+      }
+    }
+  },
+  "full_wire_exact_equal": true,
+  "rgb_exact_equal": true,
+  "capture_metadata_unchanged": true,
+  "reference_wire_sha256": "c2c2b7bf9c22e1fc8441b50ae4b17595ecf4c44cfe794398abdc334b547b3f9d",
+  "finished_at": 1790895651.6292155
+}

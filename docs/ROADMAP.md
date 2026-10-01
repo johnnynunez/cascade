@@ -38,10 +38,22 @@ optimization; the current spans do not establish an internal cause, speedup
 or completed physical case. Global/GPU absolute alignment remains unqualified,
 and earlier failed runs remain unchanged.
 
-Current main `c5b2fd5` includes the optional spans merged in PR #62. Separately,
+Current main `f7a8823` includes the optional spans merged in PR #62 and the
+profile 09 documentation from PR #63. Separately,
 release-open stability candidate `6e1bc81a` passed 3,741 tests with the original
 deadlines and geometry guards. Integration and physical validation are still
 pending; it does not yet resolve the retained NV15 retreat failure.
+
+Passive profile 10 measured the observer itself and found unused depth encoding
+on RGB-only reads. [Independent component encoding](ISAAC_FRAME_ENCODING.md)
+preserved complete frame bytes and reduced RGB-only time in a CPU replay of
+one retained capture. Combined candidate `d1d54dc` integrates this change with
+release-open stability; its full software suite passed 3,757 tests with 1,305
+inputs unchanged. Passive profile 11 on that source passed 100 samples and
+owned closure; new-capture observer median was 68.170 ms versus 272.239 ms in
+profile 10, with the slow geometry sample retained. Obtain new native
+placement/release/home, camera, campaign and restart evidence; these two passive
+runs do not establish whole-task performance or physical acceptance.
 
 ## Optional cuMotion planning and assembly research (2026-10-01)
 

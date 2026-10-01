@@ -1874,6 +1874,22 @@ class SkillRuntime:
                 search.check()
             if reason:
                 return f"pregrasp unsafe: {reason}"
+            if scene_gate is not None:
+                def endpoint_check():
+                    _scene_cancel()
+                    if time.monotonic() > approach_deadline:
+                        raise SkillError("route preflight exceeded its time budget; no route authorized")
+                # The same immutable closing envelope can reject a candidate
+                # before its expensive approach/descent profiles. Keep the
+                # initial harness/map admission above, and run every original
+                # route and endpoint check before accepting any candidate.
+                endpoint_check()
+                conflict = scene_gate.closing_pose(q_grasp)
+                endpoint_check()
+                if conflict:
+                    grasp_evidence.event("observed_finger_candidate_rejected", phase_name="close",
+                                         conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
+                    return f"closing fingers intersects observed non-target surface: {conflict}"
             with geometry_guard(harness, deadline=approach_deadline):
                 reason = vet_segment(
                     harness, _seed, q_pre,
@@ -1913,15 +1929,6 @@ class SkillRuntime:
                         grasp_evidence.event("observed_finger_candidate_rejected", phase_name=phase,
                                              conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
                         return f"{phase} finger intersects observed surface: {conflict}"
-                conflict = scene_gate.closing_pose(q_grasp)
-                if conflict:
-                    grasp_evidence.event("observed_finger_candidate_rejected", phase_name="close",
-                                         conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
-                    return f"closing fingers intersects observed non-target surface: {conflict}"
-                def endpoint_check():
-                    _scene_cancel()
-                    if time.monotonic() > approach_deadline:
-                        raise SkillError("route preflight exceeded its time budget; no route authorized")
                 for endpoint, q, closing in (("pregrasp", q_pre, False),
                                              ("grasp_open", q_grasp, False),
                                              ("grasp_closing", q_grasp, True)):

@@ -63,6 +63,30 @@ Those candidates were produced from historical localization, so this establishes
 neither the result of new GGX requests nor physical acceptance. Full runtime
 validation and a new physical campaign are required before deployment.
 
+## Reject closing conflicts before candidate route sampling
+
+Candidate vetting first retains the static pregrasp harness check, including
+its existing occupancy behavior. It then checks the same immutable closing
+envelope before sampling the approach and descent. Cancellation and the
+existing route deadline are checked both before and after this early veto.
+An unavailable map reported by the initial check still propagates; closure
+cannot conceal that error. A rejected candidate has no route authorization,
+and its omitted route checks make no statement about map or path safety.
+
+Any candidate that survives still runs every original harness route, descent
+pose, observed trajectory, endpoint-occlusion and carry-height check. Candidate
+ranking, independent symmetric alternatives, target masks, geometry and the
+3 s route / 8 s search budgets are unchanged. The measured-pose checks before
+actual closing commands also remain unchanged.
+
+The [saved NV13 replay](evidence/observed-closure-first-20261001.json) preserves
+all six recorded rejections. Historically five were closing conflicts and one
+was a descent conflict; with the early closing check all six are rejected at
+closure. This replay uses saved RGBD, masks, geometry and solved joint poses,
+without a retained ESDF grid or new services. Its CPU timings demonstrate
+avoidable observed-route work, not native end-to-end latency or a feasible
+alternative. The original physical case remains failed with no actuation.
+
 ## Native launch06: green passes, orange planning rejected
 
 The normal Spark installation of `b28ebc3` passed its asset, dependency and

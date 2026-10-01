@@ -108,6 +108,8 @@ class RobotState:
     # Atomic simulator clock from the SAME physics read as q/dq. Its source
     # is bound by the client endpoint, never inferred from local receipt t.
     physics_clock: dict | None = None
+    # Individual fingers from the same atomic read; a mean is insufficient.
+    gripper_joints: dict | None = None
 
 
 class SkillError(RuntimeError):

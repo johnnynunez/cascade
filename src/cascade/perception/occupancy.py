@@ -200,6 +200,7 @@ class OccupancyMap:
         self._reset_pending = False
         self._reset_floors = {}
         self.last_payload_query = None
+        self.scene_reset_generation = 0
         # Captures admitted to the CURRENT successful depth + ESDF query.
         # Camera delivery and an attempted RPC are not map evidence.
         self._integrated_captures = {}
@@ -298,6 +299,7 @@ class OccupancyMap:
         if self._payload_pose_fn is None:
             return False
         with self._refresh_lock:
+            self.scene_reset_generation += 1
             self._scene_reset_invalidated = True
             self._reset_pending = True
             self._body_error = "waiting for post-reset captured geometry"
@@ -364,6 +366,20 @@ class OccupancyMap:
         cameras must progress beyond the latest floor on their shared producer
         clock. Waiting never holds the refresh lock or changes an RPC timeout.
         """
+        return self._wait_capture_ready(floors, deadline=deadline, guard=guard,
+                                        expected_paths=expected_paths)
+
+    def wait_released_ready(self, floors, *, deadline, guard, producer_epoch, prop_floors):
+        """Require successful fresh commits of the empty-hand state from every source.
+
+        This does not clear/rebuild the map or discard anchors. The ordinary
+        attachment transition must have committed the released prop's history
+        floor before any withdrawal may use its original contact cylinder.
+        """
+        return self._wait_capture_ready(floors, deadline=deadline, guard=guard,
+            expected_paths=(), released=(producer_epoch, dict(prop_floors)))
+
+    def _wait_capture_ready(self, floors, *, deadline, guard, expected_paths=None, released=None):
         from .freshness import capture_marker
 
         markers = [capture_marker(frame) for frame in floors]
@@ -386,13 +402,18 @@ class OccupancyMap:
             try:
                 entries = [self._integrated_captures.get(key) for key in keys]
                 ready = (all(e is not None and e["marker"]["t"] > floor for e in entries)
-                         and bool(self._contact_paths)
+                         and (self._contact_paths == () if released else bool(self._contact_paths))
                          and all(e["paths"] == self._contact_paths for e in entries if e)
+                         and (released is None or (
+                             self._payload_epoch == released[0]
+                             and all(e["marker"].get("producer_epoch") == released[0] for e in entries if e)
+                             and all(self._prop_history_floor.get(path, -np.inf) >= stamp
+                                     for path, stamp in released[1].items())))
                          and (expected is None or self._contact_paths == expected))
                 if ready and not self._body_error and not self.last_error and not self.is_stale():
                     if (self._grid is not None and self._grid.size
                             and np.isfinite(self._grid).any()
-                            and sum(len(v) for v in self._payload_samples.values()) > 0):
+                            and (released is not None or sum(len(v) for v in self._payload_samples.values()) > 0)):
                         guard()
                         if time.monotonic() >= deadline:
                             raise OccupancyError("post-close payload geometry deadline expired")

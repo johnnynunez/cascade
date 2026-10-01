@@ -69,6 +69,8 @@ def runtime(monkeypatch, fail=False):
     # This telemetry double retains the real generation guard; its command
     # trace still measures only transport reads and writes, not gate calls.
     harness._check_halt_generation = SafetyHarness._check_halt_generation.__get__(harness)
+    harness._pending_release_episode = None
+    harness.check_release_episode = SafetyHarness.check_release_episode.__get__(harness)
     rt = SkillRuntime.__new__(SkillRuntime)
     rt.arm, rt.kin = SafeArm(raw, harness), Kin()
     rt.cfg = Cfg({'arm': {'home_q': [.2, 0, .2], 'gripper': {}},

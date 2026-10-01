@@ -2275,10 +2275,16 @@ class SkillRuntime:
         if not self.arm.move_joints(pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5))):
             raise SkillError("did not settle above the place target")
         self.arm.harness.allow_grasp_descent(target[:2], z_min=release_z - 0.02)
+        from . import release_episode
+        release = None
+        withdrawal_completed = False
         try:
             if not self.arm.move_joints(low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
                 raise SkillError("did not settle at place pose")
-            self.arm.set_gripper(self._grip_open, effort=0.6)
+            if retreat is not None:
+                release = release_episode.begin(self, retreat.q,
+                    float(gcfg.get("descend_duration_s", 2.0)))
+            release_episode.open_hand(self, release)
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
             if release_timeout is not None:
                 # In simulation, a wall-clock dwell does not guarantee the
@@ -2316,10 +2322,16 @@ class SkillRuntime:
             self._held_color = None
             self.memory.add("action", f"placed {placed!r} at {target.round(3).tolist()}")
             try:
-                ascended = release_error is None and self.arm.move_joints(
-                    retreat.q if retreat is not None else pre.q,
-                    duration_s=float(gcfg.get("descend_duration_s", 2.0)),
-                )
+                if release_error is None and release is not None:
+                    release_episode.wait_geometry(self, release)
+                    ascended = release_episode.withdraw(self, release)
+                    release_episode._guard(self, release)
+                    withdrawal_completed = bool(ascended)
+                else:
+                    ascended = release_error is None and self.arm.move_joints(
+                        retreat.q if retreat is not None else pre.q,
+                        duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                    )
                 if retreat is not None and not ascended and release_error is None:
                     retreat_error = "did not settle at the post-place retreat pose"
             except (SkillError, SafetyViolation) as e:
@@ -2328,7 +2340,10 @@ class SkillRuntime:
                 # Keep legacy behavior when no explicit retreat was requested.
                 self.memory.add("note", f"placed, but the ascent aborted: {e}")
         finally:
-            self.arm.harness.clear_grasp_exemption()
+            if release is None:
+                self.arm.harness.clear_grasp_exemption()
+            else:
+                release_episode.finish(self, release, completed=withdrawal_completed)
         # Report where the OBJECT was aimed, not where the TCP was sent. The
         # postcondition channel scores the object's final pose against this,
         # so returning the offset-compensated TCP point would grade the place
@@ -2644,6 +2659,9 @@ class SkillRuntime:
                         pass
                     self._reobserve()
                 try:
+                    occupancy = getattr(self.arm.harness, "occupancy", None)
+                    place_generation = (self.arm.harness._halt_generation
+                                        if getattr(occupancy, "tracks_payload", False) else None)
                     if destination and not _names_drop_zone(destination):
                         res = self.skill_place_on_object(destination)
                     else:
@@ -2711,7 +2729,10 @@ class SkillRuntime:
         if (not placed.get("home_skipped", False)
                 and bool(self.cfg.grasp.get("home_after_place", True))):
             try:  # clear the camera view for the next command; best effort
-                self.skill_move_home()
+                if place_generation is None:
+                    self.skill_move_home()
+                else:
+                    self.skill_move_home(_halt_generation=place_generation)
                 return_home = {"attempted": True, "ok": True, "at": "home"}
             except (SkillError, SafetyViolation) as exc:
                 return_home = {"attempted": True, "ok": False, "error": str(exc)}
@@ -3274,6 +3295,16 @@ class SkillRuntime:
                            beliefs_forgotten=0, error=f"Scene recovery cancelled: {exc}")
                 return True
             return False
+        if getattr(self, "_release_episode", None) is not None:
+            from .release_episode import recover
+            recovery_generation = self._release_episode["halt_generation"]
+            try:
+                out["release_recovery"] = recover(self)
+            except (SkillError, SafetyViolation) as e:
+                out.update(ok=False, stage="release_recovery", home_skipped=True,
+                           recovery_error=str(e), beliefs_forgotten=0,
+                           error=f"Reset could not finish the retained release withdrawal: {e}")
+                return out
         if (getattr(self, "_reset_observation_pending", False)
                 or getattr(occupancy, "scene_reset_pending", False)):
             # A previous reset may have invalidated geometry before a camera

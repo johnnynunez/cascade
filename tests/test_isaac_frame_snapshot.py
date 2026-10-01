@@ -29,7 +29,7 @@ ROBOT = "/tn__00armrs_asmv3_hJ6D/Geometry/base_link"
 @pytest.fixture
 def capture_bridge(loopback):
     """Execute actual producer and Handler, without importing/booting Kit."""
-    q = np.array([[0., -1.2, -1.2, 0., -0.75, 0., 0.5]])
+    q = np.array([[0., -1.2, -1.2, 0., -0.75, 0., 0.02, 0.04]])
     rgba = np.full((12, 16, 4), 90, np.uint8)
     depth = np.full((12, 16, 1), 0.6, np.float32)
     wrist_T = np.eye(4).tolist()
@@ -44,7 +44,9 @@ def capture_bridge(loopback):
                art=SimpleNamespace(get_dof_positions=lambda: SimpleNamespace(numpy=lambda: q),
                                    get_dof_velocities=lambda: SimpleNamespace(numpy=lambda: np.zeros_like(q))),
                _grip_frac_now=lambda q: 0.5,
-               ARM_IDX=list(range(6)), names=[f"joint{i}" for i in range(7)])
+               ARM_IDX=list(range(6)), GRIP_IDX=[6, 7],
+               lower=np.zeros(8), upper=np.array([3.] * 6 + [.05, .05]),
+               names=[f"joint{i}" for i in range(1, 7)] + ['joint_left', 'joint_right'])
     load_isaac_bridge_definitions({"_refresh_frames", "_LazyFrame", "Handler"}, env)
     env["_refresh_frames"]()
     srv = socketserver.ThreadingTCPServer((loopback, 0), env["Handler"])
@@ -86,6 +88,9 @@ def test_capture_snapshot_survives_real_tcp_camera_delayed_consumption(capture_b
         assert snapshot["joint_convention"] == "asset"
         assert snapshot["time_source"] == "physics_loop_monotonic"
         assert snapshot["producer_epoch"] == "captured-test-epoch"
+        assert snapshot["gripper_joints"] == {
+            "version": 1, "names": ["joint_left", "joint_right"],
+            "position_m": [.02, .04], "lower_m": [0., 0.], "upper_m": [.05, .05]}
         assert snapshot["t"] == f.capture["t"]
         assert np.isfinite(snapshot["t"])
         np.testing.assert_allclose(snapshot["q"], before)
@@ -99,6 +104,25 @@ def test_capture_snapshot_survives_real_tcp_camera_delayed_consumption(capture_b
     b.env["_refresh_frames"]()
     for f in frames:
         np.testing.assert_allclose(f.capture["proprioception"]["q"], before)
+
+
+def test_capture_epoch_and_individual_fingers_share_one_existing_q_read(capture_bridge):
+    b = capture_bridge
+    reads = []
+    old_read = b.env['art'].get_dof_positions
+    def read():
+        reads.append('q')
+        return old_read()
+    b.env['art'].get_dof_positions = read
+    b.env['_motion_clock_epoch'] = 'bridge-before-restart'
+    b.env['_refresh_frames']()
+    b.env['_motion_clock_epoch'] = 'bridge-after-restart'
+    b.q[0, 6:] = [.04, .02]
+    assert reads == ['q']  # one existing q read serves all cameras
+    for name in ('cam0', 'side', 'wrist'):
+        snapshot = b.env['_frames'][name]['proprioception']
+        assert snapshot['producer_epoch'] == 'bridge-before-restart'
+        assert snapshot['gripper_joints']['position_m'] == [.02, .04]
 
 
 def test_producer_state_failure_publishes_unmaskable_frame_not_previous_q(capture_bridge):

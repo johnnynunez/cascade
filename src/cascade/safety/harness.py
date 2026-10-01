@@ -107,6 +107,8 @@ class SafetyHarness:
         self._halt_generation = 0
         self._pending_contact_episode = None
         self._contact_scope = threading.local()
+        self._pending_release_episode = None
+        self._release_scope = threading.local()
         self._grasp_exempt: tuple[np.ndarray, float, float] | None = None
         self._last_heartbeat = time.monotonic()
         self._motion_active = False
@@ -166,9 +168,22 @@ class SafetyHarness:
     ) -> None:
         """Open a cylinder over the grasp target where the TCP may go low."""
         z = self.limits.table_z if z_min is None else z_min
-        self._grasp_exempt = (np.asarray(center_xy, dtype=float)[:2], radius_m, z)
+        candidate = (np.asarray(center_xy, dtype=float)[:2].copy(), radius_m, z)
+        pending = self._pending_release_episode
+        if pending is not None:
+            scope = getattr(self._release_scope, "value", None)
+            original = pending["cylinder"]
+            if (scope is None or scope[0] is not pending or scope[1] != "retreat"
+                    or not np.array_equal(candidate[0], original[0]) or candidate[1:] != original[1:]):
+                raise SafetyViolation("retained release only permits its original scoped cylinder")
+        self._grasp_exempt = candidate
 
     def clear_grasp_exemption(self) -> None:
+        pending = self._pending_release_episode
+        if pending is not None:
+            scope = getattr(self._release_scope, "value", None)
+            if scope is None or scope[0] is not pending or scope[1] != "cleanup":
+                raise SafetyViolation("retained release cylinder cleanup requires its episode scope")
         self._grasp_exempt = None
 
     # ── inter-arm awareness ──────────────────────────────────────────────
@@ -268,6 +283,7 @@ class SafetyHarness:
         Authority belongs to the initiating thread and the exact retained
         episode. A concurrent skill cannot borrow the recovery exemption.
         """
+        self.check_release_episode(gripper=gripper)
         pending = self._pending_contact_episode
         scope = getattr(self._contact_scope, "value", None)
         if pending is not None and (scope is None or scope[0] is not pending
@@ -275,6 +291,31 @@ class SafetyHarness:
             raise SafetyViolation("unfinished contact episode; explicit reset_scene recovery required")
         if pending is not None:
             self._check_halt_generation(pending["halt_generation"])
+
+    def check_release_episode(self, *, gripper=False, target=None, duration=None, grip=None):
+        """Only the exact original release/withdrawal may use a retained scope."""
+        pending = self._pending_release_episode
+        if pending is None:
+            return
+        scope = getattr(self._release_scope, "value", None)
+        expected = "open" if gripper else "retreat"
+        if scope is None or scope[0] is not pending or scope[1] != expected:
+            raise SafetyViolation("unfinished release episode; explicit reset_scene recovery required")
+        self._check_halt_generation(pending["halt_generation"])
+        if self.occupancy.scene_reset_generation != pending["scene_generation"]:
+            raise SafetyViolation("release episode scene identity changed")
+        if not gripper and (self.occupancy._contact_paths != ()
+                            or self.occupancy._payload_epoch != pending["clock"]["epoch"]
+                            or self.occupancy.is_stale()):
+            raise SafetyViolation("released withdrawal contact or producer identity changed")
+        original, active = pending["cylinder"], self._grasp_exempt
+        if (active is None or not np.array_equal(active[0], original[0]) or active[1:] != original[1:]):
+            raise SafetyViolation("release contact cylinder changed")
+        if gripper and grip is not None and grip != pending["open_position"]:
+            raise SafetyViolation("release episode only authorizes the original opening")
+        if target is not None and (not np.array_equal(np.asarray(target), pending["q_retreat"])
+                                   or duration != pending["duration_s"]):
+            raise SafetyViolation("release episode only authorizes its exact original retreat")
 
     def begin_motion(self, *, halt_generation: int | None = None) -> None:
         """Check perception freshness once, then suspend the watchdog for the
@@ -637,6 +678,7 @@ class SafeArm:
         # Min-jerk peak velocity is 1.875 * dq / T; stretch the duration so
         # the planned profile stays safely under the cap (harness remains the
         # backstop for anything else).
+        self.harness.check_release_episode(target=q_target, duration=duration_s)
         dq_max = float(np.max(np.abs(np.asarray(q_target, dtype=float) - self._arm.get_state().q)))
         needed = 1.875 * dq_max / (0.9 * self.harness.limits.max_joint_vel)
         duration_s = max(duration_s, needed)
@@ -684,6 +726,7 @@ class SafeArm:
                                  vet_route, vet_segment)
         from ..control.motion_profile import resolve_motion_rate
 
+        self.harness.check_release_episode(target=q_target, duration=duration_s)
         halt_generation = self.harness._halt_generation if _halt_generation is None else _halt_generation
         self.harness._check_halt_generation(halt_generation)
         start = self.get_state().q  # Materialize LazyArm before inspecting its rate.
@@ -710,6 +753,7 @@ class SafeArm:
         return True
 
     def set_gripper(self, pos: float, effort: float = 1.0, *, _halt_generation=None) -> None:
+        self.harness.check_release_episode(gripper=True, grip=pos)
         self.harness.check_contact_episode(gripper=True)
         self.harness._check_halt_generation(_halt_generation)
         if self.harness.estopped:

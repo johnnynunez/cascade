@@ -377,9 +377,13 @@ def test_runtime_recovers_after_one_failed_inference_without_sticky_obb(required
         assert runtime.grasp_planner_used == "obb (graspgenx down)"
     runtime._graspgenx_retry_after = 0
     result = SkillRuntime._plan_grasps(runtime, _cube_fix())
-    assert result[0] is learned
+    # Recovery restores the actual model proposal. Its low quality need not
+    # outrank analytic candidates in optional mode.
+    assert any(candidate is learned for candidate in result)
     if required:
         assert len(result) == 1  # no analytic candidates mixed into required mode
+    else:
+        assert [g.quality for g in result] == sorted((g.quality for g in result), reverse=True)
     assert runtime._graspgenx.calls == 2
     assert not runtime._graspgenx_down
     assert runtime.grasp_planner_used == "graspgenx (learned 6-DoF)"

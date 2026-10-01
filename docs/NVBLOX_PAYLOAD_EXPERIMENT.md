@@ -430,7 +430,27 @@ did not retain independent per-source map commit stamps. Its 776 continuous
 proof-camera samples remained below two seconds (maximum 0.5991 seconds), but
 cam0/side continuous ages were not recorded. The 252 environment hashes,
 169 diagnostic source hashes and 18 artifact hashes were rechecked. The held
-camera-fault case remains separate and unexecuted.
+camera-fault case is recorded separately below.
+
+The [held-camera trial](../benchmark/results/nvblox-held-camera-recovery-20261001.json)
+then **failed**, and the five-object campaign was not started. A real tomato-can
+grasp first passed with about 100 mm observed lift. The diagnostic repeated one
+side-camera capture for 45 deliveries and seeded a private geometry barrier;
+this is not a claim that a real public reset failed before any motion. That
+barrier and the pending public reset issued zero commands. After restoring the
+getter, all three camera histories were rebuilt and `geometry_recovered` was
+true, but home was rejected before actuation: an attached surface point at
+`[0.2464, 0.1990, 0.1822]` had unknown clearance. No release or prop reset
+followed, and cleanup sent no commands. Isaac 8692 remains holding the can.
+
+The barrier had discarded the original measured background anchors and replaced
+them with captures taken while holding the can. This supports investigating
+separate semantics for capture freshness when props have not been reset;
+the trial did not archive a complete grid replay that proves the sole cause.
+True prop resets must continue to invalidate old anchors. The 1,306 continuous
+proof-camera samples stayed below two seconds (maximum 0.63294 seconds), and
+252 environment, 241 diagnostic and 17 artifact hashes matched. Three later
+stationary RGB-D captures preserve the held state without commanding motion.
 
 This is a diagnostic using a mock language model; it is not a full native-agent
 `launch.sh` READY proof. The initial lift/approach offset is 80 mm, versus the

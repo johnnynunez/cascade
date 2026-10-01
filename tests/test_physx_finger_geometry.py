@@ -32,7 +32,7 @@ def test_complete_nominal_components_preserved_and_all_derived_vertices_covered(
     assert result["physics_engine"] == "physx"
     for f, old, new in zip(result["fingers"], nominal["fingers"], source["fingers"], strict=True):
         assert f["components"][:8] == old["components"]
-        assert len(f["components"]) == 24 and len(new["hulls"]) == 16
+        assert len(f["components"]) == 40 and len(new["hulls"]) == 32
         for part, raw in zip(f["components"][8:], new["hulls"], strict=True):
             points = builder.tcp_vertices(raw["vertices"], new["mesh_to_tcp_at_zero_row_major"])
             assert builder.cover_vertices(points, [part])["covered"]
@@ -81,7 +81,7 @@ def test_degenerate_or_invalid_components_are_never_omitted(points):
         builder.certify_hull(points)
 
 
-def passive_fixture():
+def passive_fixture(export_id="nv_x86_09"):
     """A minimal valid export around the reviewed convex arrays; no private files."""
     source = calibration()
     rows, results = [], {}
@@ -95,7 +95,10 @@ def passive_fixture():
                      "mesh": mesh, "mesh_sha256": mesh_sha,
                      "local_to_body_row_major": copy.deepcopy(finger["local_to_body_row_major"]),
                      "attributes": copy.deepcopy(finger["attributes"])})
-        results[finger["collision_prim"]] = {"result": 0, "error": None, "hulls": copy.deepcopy(finger["hulls"])}
+        results[finger["collision_prim"]] = {"result": 0, "error": None, "hulls": [copy.deepcopy(h) for h in finger["hulls"] if h["export_id"] == export_id]}
+    for exported in source["exports"].values():
+        for row, finger in zip(exported["finger_hulls"], source["fingers"], strict=True):
+            row["metadata"] = {k: v for k, v in finger.items() if k != "hulls"}
     clock = {"engine": "physx", "epoch": "test-epoch", "robot_id": source["robot_id"]}
     geometry = {"meters_per_unit": 1., "colliders": rows}
     exported = {"version": 1, "pass": True, "geometry_unchanged": True,
@@ -105,8 +108,9 @@ def passive_fixture():
     return exported, artifact(), source
 
 
-def test_matching_local_hulls_admitted_without_hull_index_correspondence():
-    exported, geometry, source = passive_fixture()
+@pytest.mark.parametrize("export_id", ["nv_x86_09", "arm_spark_03"])
+def test_matching_local_hulls_admitted_without_hull_index_correspondence(export_id):
+    exported, geometry, source = passive_fixture(export_id)
     for result in exported["results"].values():
         result["hulls"].reverse()
     report = builder.audit_representation(exported, geometry, source)
@@ -188,3 +192,36 @@ def test_artifact_metadata_cannot_change_geometry_semantics(field):
         exported, _, source = passive_fixture()
         with pytest.raises(ValueError):
             builder.audit_representation(exported, changed, source)
+
+
+@pytest.mark.parametrize("fault", ["mesh", "zero_transform", "local_transform", "units", "engine",
+                                   "robot", "epoch", "empty_epoch", "duplicate_export_id", "missing_hull", "index", "raw_vertex"])
+def test_each_export_is_bound_independently_without_omission(fault):
+    c = calibration()
+    arm = c["exports"]["arm_spark_03"]
+    raw = c["fingers"][0]["hulls"][16]
+    if fault == "mesh": arm["finger_hulls"][0]["metadata"]["mesh_sha256"] = "0"*64
+    elif fault == "zero_transform": arm["finger_hulls"][0]["metadata"]["mesh_to_tcp_at_zero_row_major"][3][0] += .001
+    elif fault == "local_transform": arm["finger_hulls"][0]["metadata"]["local_to_body_row_major"][3][0] += .001
+    elif fault == "units": arm["units"] = "cm"
+    elif fault == "engine": arm["physics_engine"] = "newton"
+    elif fault == "robot": arm["robot_id"] = "other"
+    elif fault == "epoch": arm["producer_epoch"] = "different"
+    elif fault == "empty_epoch": arm["producer_epoch"] = ""
+    elif fault == "duplicate_export_id": raw["export_id"] = "nv_x86_09"
+    elif fault == "missing_hull": c["fingers"][0]["hulls"].pop()
+    elif fault == "index": raw["source_hull_index"] = 1
+    elif fault == "raw_vertex": raw["vertices"][0][0] += .001
+    with pytest.raises(ValueError):
+        builder.validate_calibration_exports(c)
+
+
+def test_component_provenance_identifies_original_export_and_index():
+    c, result = calibration(), artifact()
+    builder.validate_calibration_exports(c)
+    for finger, saved in zip(c["fingers"], result["fingers"], strict=True):
+        assert [(h["export_id"], h["source_hull_index"]) for h in finger["hulls"]] == [
+            (export_id, index) for export_id in ("nv_x86_09", "arm_spark_03") for index in range(16)]
+        for part, raw in zip(saved["components"][8:], finger["hulls"], strict=True):
+            assert part["provenance"] == {"source": "requested_physx_representation",
+                "export_id": raw["export_id"], "source_hull_index": raw["source_hull_index"]}

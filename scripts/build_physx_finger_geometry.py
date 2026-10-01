@@ -77,14 +77,64 @@ def verify_sources(root, sources):
             raise ValueError("geometry source hash mismatch: " + relative)
 
 
+def validate_calibration_exports(calibration):
+    """Bind every original convex and coordinate contract to its own export."""
+    exports = calibration.get("exports")
+    provenance = calibration.get("request_provenance", {}).get("exports")
+    if (calibration.get("version") != 2 or not isinstance(exports, dict) or not exports
+            or not isinstance(provenance, dict) or set(exports) != set(provenance)):
+        raise ValueError("invalid calibration export inventory")
+    fingers = calibration["fingers"]
+    names = [f["name"] for f in fingers]
+    if names != ["joint_left", "joint_right"]:
+        raise ValueError("calibration must contain both fingers exactly once")
+    for export_id, exported in exports.items():
+        if not isinstance(export_id, str) or not export_id:
+            raise ValueError("invalid export identity")
+        if (exported.get("units") != calibration.get("units") or calibration.get("units") != "m"
+                or exported.get("physics_engine") != calibration.get("physics_engine")
+                or calibration.get("physics_engine") != "physx"
+                or exported.get("robot_id") != calibration["robot_id"]):
+            raise ValueError("export coordinate/engine identity mismatch")
+        epoch = exported.get("producer_epoch")
+        if not isinstance(epoch, str) or not epoch or epoch != provenance[export_id].get("clock_epoch"):
+            raise ValueError("export epoch/provenance mismatch")
+        for field in ("representation_sha256", "receipt_sha256"):
+            digest = provenance[export_id].get(field)
+            if (not isinstance(digest, str) or len(digest) != 64
+                    or any(c not in "0123456789abcdef" for c in digest)):
+                raise ValueError("invalid export source hash")
+        rows = exported["finger_hulls"]
+        if [row["name"] for row in rows] != names:
+            raise ValueError("export finger inventory mismatch")
+        for finger, row in zip(fingers, rows, strict=True):
+            metadata = {k: v for k, v in finger.items() if k != "hulls"}
+            if row["metadata"] != metadata or row["collision_prim"] != finger["collision_prim"]:
+                raise ValueError("export mesh/kinematics/parameters mismatch")
+            hulls = [h for h in finger["hulls"] if h.get("export_id") == export_id]
+            count = row["hull_count"]
+            if (type(count) is not int or count <= 0 or len(hulls) != count
+                    or [h.get("source_hull_index") for h in hulls] != list(range(count))
+                    or any(type(h.get("source_hull_index")) is not int for h in hulls)):
+                raise ValueError("export original hull inventory mismatch")
+            raw = [{k: v for k, v in h.items() if k not in ("export_id", "source_hull_index")}
+                   for h in hulls]
+            if canonical_sha(raw) != row["raw_hulls_sha256"]:
+                raise ValueError("export raw hull hash mismatch")
+    for finger in fingers:
+        if any(h.get("export_id") not in exports for h in finger["hulls"]):
+            raise ValueError("unbound hull export identity")
+
+
 def build(root=ROOT):
     root = Path(root)
     nominal = json.loads((root / NOMINAL).read_text())
     calibration = json.loads((root / CALIBRATION).read_text())
-    if (calibration.get("version") != 1 or calibration.get("physics_engine") != "physx"
+    if (calibration.get("version") != 2 or calibration.get("physics_engine") != "physx"
             or calibration.get("units") != "m"
             or nominal.get("frame") != "gripper_end"):
         raise ValueError("unsupported calibration")
+    validate_calibration_exports(calibration)
     sources = {**nominal["sources"], **calibration["sources"],
                str(NOMINAL): sha(root / NOMINAL), str(CALIBRATION): sha(root / CALIBRATION)}
     verify_sources(root, sources)
@@ -106,9 +156,11 @@ def build(root=ROOT):
         if finger["name"] != derived["name"] or not derived["hulls"]:
             raise ValueError("finger calibration mismatch")
         # Do not replace, simplify or drop any nominal component.
-        for index, raw in enumerate(derived["hulls"]):
+        for raw in derived["hulls"]:
             part = certify_hull(tcp_vertices(raw["vertices"], derived["mesh_to_tcp_at_zero_row_major"]))
-            part["provenance"] = {"source": "requested_physx_representation", "hull_index": index}
+            part["provenance"] = {"source": "requested_physx_representation",
+                                  "export_id": raw["export_id"],
+                                  "source_hull_index": raw["source_hull_index"]}
             finger["components"].append(part)
     return result
 
@@ -162,6 +214,7 @@ def validate_artifact_metadata(artifact, generated):
 
 def audit_representation(representation, artifact, calibration, *, nominal=None):
     """Audit a separately guarded passive export; this does not acquire it."""
+    validate_calibration_exports(calibration)
     if nominal is None:
         nominal = json.loads((ROOT / NOMINAL).read_text())
     validate_kinematic_metadata(artifact, nominal)
@@ -248,6 +301,10 @@ def main():
             if saved["components"][:n] != orig["components"] or len(saved["components"]) != n+len(derived["hulls"]):
                 raise ValueError("nominal/derived components were omitted or changed")
             for part, raw in zip(saved["components"][n:], derived["hulls"], strict=True):
+                if part["provenance"] != {"source": "requested_physx_representation",
+                                          "export_id": raw["export_id"],
+                                          "source_hull_index": raw["source_hull_index"]}:
+                    raise ValueError("stored component export provenance mismatch")
                 points = tcp_vertices(raw["vertices"], derived["mesh_to_tcp_at_zero_row_major"])
                 if not cover_vertices(points, [part])["covered"]:
                     raise ValueError("stored derived component does not cover its vertices")

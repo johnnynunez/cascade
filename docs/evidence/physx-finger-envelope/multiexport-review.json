@@ -1,0 +1,258 @@
+{
+  "version": 2,
+  "scope": "Complete nominal+NV+x86/ARM derived convex union. Passive source477 admission and offline replay only; no new native physical acceptance. Prior negative coverage and failed setup/capture receipts remain unchanged.",
+  "historical_source": "477c88fe40092fdaad99c0f777a6f1c3b9a41224",
+  "evidence": {
+    "arm-physx-envelope-admission/cascade-physx-envelope-passive-20261001-evidence/preparation.json": {
+      "sha256": "6b2c485e0e5d435458fcc00bb1444a0bb8a8b5f26ea54d0d8c3e412e43f9b3ec",
+      "bytes": 10133
+    },
+    "arm-physx-envelope-admission/cascade-physx-envelope-passive-20261001-02-evidence/receipt.json": {
+      "sha256": "5bc40b9ee7f96c6b8063aa57b1a20cc95a29c48eb14974c1439f513349b12fb0",
+      "bytes": 21951
+    },
+    "arm-physx-envelope-admission/cascade-physx-envelope-passive-20261001-03-evidence/receipt.json": {
+      "sha256": "aa5e5bbc58374b38a1fa2defb166c9abf9e5b777a42b1d17b64276b1e98df985",
+      "bytes": 31352
+    },
+    "arm-physx-envelope-admission/cascade-physx-envelope-passive-20261001-03-evidence/representation.json": {
+      "sha256": "e0e75580aec03ca519aeea3997b71b1c65090935896e4de99da0bc4eb90fddd0",
+      "bytes": 3484910
+    },
+    "arm-physx-envelope-admission/artifact-coverage03.json": {
+      "sha256": "76ee05c254a45d9cf8dacba529263061faaa4024d7bf979e2b0a909a1ff6c2fd",
+      "bytes": 5637
+    },
+    "arm-physx-envelope-admission/independent-review03.json": {
+      "sha256": "858b04a396fbeba092256d8175c488167c802089c53f5a3c6a804f798a151eed",
+      "bytes": 17990
+    },
+    "arm-physx-envelope-admission/union40-nv-coverage.json": {
+      "sha256": "92b1f6d4be4d3551713c22d31eeb30a60888d304c5fe333c94986786f1f8fab9",
+      "bytes": 5602
+    },
+    "arm-physx-envelope-admission/union40-arm-coverage.json": {
+      "sha256": "0d3fac7213ea42a11c29a06851eca19fc837c2f9683791fac503d1b384b00667",
+      "bytes": 5602
+    },
+    "arm-physx-envelope-admission/green02-union40-final-replay.json": {
+      "sha256": "e150b98e8d5283c9c4ba5f1350c4d9e24983a82d8f02cb53b51035d7e7d86b5e",
+      "bytes": 55913
+    },
+    "arm-physx-envelope-admission/orange02-union40-final-replay.json": {
+      "sha256": "145be30c526065df94266963a532b3a1afc44082d78bc720ffce4a8fc2bd9488",
+      "bytes": 9928
+    },
+    "arm-physx-envelope-admission/cross-platform-independent-review.json": {
+      "sha256": "84a6c7ae8b8b28f2f5ff3a24ec308b73be4b039f53abb866c2ea1fd4cfd0ccf6",
+      "bytes": 17936
+    }
+  },
+  "artifact": {
+    "path": "assets/grasp_geometry/rebot_rs_fingers_physx.json",
+    "sha256": "fb58af87addb6f614ccb4e86146d398a762dbf791d89d0cd92ef9be9b65c52cc",
+    "bytes": 939021,
+    "components_per_finger": {
+      "nominal": 8,
+      "nv_x86_09": 16,
+      "arm_spark_03": 16,
+      "total": 40
+    },
+    "contact_offset_expansion_m": 0.0,
+    "construction_epsilon_m": 1e-12
+  },
+  "calibration": {
+    "path": "assets/grasp_geometry/physx_finger_cooking_source.json",
+    "sha256": "71c979464eadae33d4dcf00aaa256609d592b5752e32f9b23b6b0fb6277114ef",
+    "bytes": 141102
+  },
+  "builder": {
+    "sha256": "3da6d07ef3d269e6af9ee975fba2f5617075bb5373108720462d22c238803029",
+    "bytes": 17767
+  },
+  "replay": {
+    "green": {
+      "selected_index": 0,
+      "selection_wall_s": 0.5345790899882559,
+      "historical_q_error_rad": 6.661338147750939e-16,
+      "individual_vet_results": [
+        {
+          "index": 0,
+          "vet_pass": true
+        },
+        {
+          "index": 1,
+          "vet_pass": true
+        },
+        {
+          "index": 2,
+          "vet_pass": true
+        },
+        {
+          "index": 3,
+          "vet_pass": true
+        },
+        {
+          "index": 4,
+          "vet_pass": true
+        },
+        {
+          "index": 5,
+          "vet_pass": true
+        },
+        {
+          "index": 6,
+          "vet_pass": true
+        },
+        {
+          "index": 7,
+          "vet_pass": true
+        },
+        {
+          "index": 8,
+          "vet_pass": false
+        },
+        {
+          "index": 9,
+          "vet_pass": false
+        },
+        {
+          "index": 10,
+          "vet_pass": false
+        },
+        {
+          "index": 11,
+          "vet_pass": true
+        },
+        {
+          "index": 12,
+          "vet_pass": true
+        },
+        {
+          "index": 13,
+          "vet_pass": true
+        },
+        {
+          "index": 14,
+          "vet_pass": false
+        },
+        {
+          "index": 15,
+          "vet_pass": true
+        },
+        {
+          "index": 16,
+          "vet_pass": true
+        },
+        {
+          "index": 17,
+          "vet_pass": true
+        },
+        {
+          "index": 18,
+          "vet_pass": true
+        },
+        {
+          "index": 19,
+          "vet_pass": true
+        },
+        {
+          "index": 20,
+          "vet_pass": true
+        },
+        {
+          "index": 21,
+          "vet_pass": false
+        },
+        {
+          "index": 22,
+          "vet_pass": true
+        },
+        {
+          "index": 23,
+          "vet_pass": false
+        },
+        {
+          "index": 24,
+          "vet_pass": true
+        },
+        {
+          "index": 25,
+          "vet_pass": true
+        },
+        {
+          "index": 26,
+          "vet_pass": false
+        },
+        {
+          "index": 27,
+          "vet_pass": true
+        },
+        {
+          "index": 28,
+          "vet_pass": false
+        },
+        {
+          "index": 29,
+          "vet_pass": false
+        },
+        {
+          "index": 30,
+          "vet_pass": true
+        },
+        {
+          "index": 31,
+          "vet_pass": true
+        }
+      ]
+    },
+    "orange": {
+      "selected_index": 3,
+      "selection_wall_s": 1.2983595300029265,
+      "historical_q_error_rad": 0.9768163738340603,
+      "individual_vet_results": [
+        {
+          "index": 0,
+          "vet_pass": false
+        },
+        {
+          "index": 1,
+          "vet_pass": false
+        },
+        {
+          "index": 2,
+          "vet_pass": false
+        },
+        {
+          "index": 3,
+          "vet_pass": true
+        },
+        {
+          "index": 4,
+          "vet_pass": false
+        }
+      ]
+    },
+    "scope": "Local x86 CPU offline timings; original candidates/masks/cloud/frame preserved. No ARM latency or physical-success inference."
+  },
+  "validation": {
+    "author_focals": {
+      "passed": 74,
+      "seconds": 2.43,
+      "selection": [
+        "tests/test_physx_finger_geometry.py",
+        "tests/test_observed_finger_scene.py"
+      ]
+    },
+    "independent_focals": {
+      "passed": 74,
+      "seconds": 2.2
+    },
+    "artifact_build_check": "PASS",
+    "original_NV_export_coverage": "PASS",
+    "original_ARM_export_coverage": "PASS",
+    "old_24_component_ARM_coverage": "FAIL_RETAINED",
+    "native_physical_acceptance": "PENDING",
+    "full_suite_for_multiexport": "PENDING"
+  }
+}

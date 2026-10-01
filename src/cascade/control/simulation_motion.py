@@ -77,8 +77,9 @@ class PhysicsClock:
 
 
 class SimulationMotion:
-    def __init__(self, arm, *, approve=None, before_stream=None):
+    def __init__(self, arm, *, approve=None, before_stream=None, feedback_guard=None):
         self.arm, self.approve, self.before_stream = arm, approve, before_stream
+        self.feedback_guard = feedback_guard
         self.deadline = time.monotonic() + positive(arm.motion_wall_timeout_s, "motion wall budget")
         self.clock = PhysicsClock(arm._client._addr, arm._cfg.get("bridge_robot_id"))
         self.last_state = None
@@ -132,6 +133,9 @@ class SimulationMotion:
             raise SafetyViolation("joint feedback changed without a new physics step")
         self.last_state = state
         self.fresh = fresh
+        if self.feedback_guard is not None:
+            self.feedback_guard(state)
+            self.check()
         return state
 
     def stream(self, q_target, duration_s, rate_hz, settle_tol, settle_timeout_s, preflight):

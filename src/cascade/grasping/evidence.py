@@ -33,6 +33,8 @@ _SOURCE_FILES = (
     "src/cascade/skills/runtime.py", "src/cascade/memory/grasp_memory.py",
     "src/cascade/control/isaac_arm.py", "src/cascade/control/arm_base.py",
     "src/cascade/safety/harness.py", "src/cascade/apps/mcp_server.py", "scripts/launch.sh",
+    "src/cascade/grasping/observed_scene.py", "src/cascade/control/simulation_motion.py",
+    "src/cascade/control/motion_profile.py", "assets/grasp_geometry/rebot_rs_fingers.json",
 )
 
 

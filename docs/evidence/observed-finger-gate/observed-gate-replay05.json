@@ -1,0 +1,349 @@
+{
+  "scope": "Historical launch04 joint paths checked against NEW passive05 observed depth. This is a counterfactual discrete surface veto, not a replay of unavailable launch04 full camera depth, continuous safety, or physical acceptance.",
+  "module_sha256": "7ac6b2441b6dd5c7b4f545b12507b17760f67aab14316b01448024d173b84eba",
+  "geometry_sha256": "cccd4778c2a99ace06183c5d74ff787536ec399ccb06e704a4058fd452dac7b0",
+  "capture_receipt_sha256": "7c1886a19e948bd18e1eda4772fc64ab5886223f9cc7e88836e14cd41a70b694",
+  "mask_receipt_sha256": "6c4a3591cdc0da9a4354f44fe2c70d056c67a13a60800e87209326e55b9674a6",
+  "script_sha256": "d09197c2571e3414d46b89991e1afc6e88e3fa29ab96880ae2bf1a8b57d2d8fb",
+  "uncertainty_m": 0.0001,
+  "actuator_calls": 0,
+  "rows": [
+    {
+      "query": "green cube",
+      "input_frame": "round-0-cam0.json",
+      "input_sha256": "cd9a8e9f877fc36cd7f57e67a21fcf217d6eaa29ac999cde375a592a45792afb",
+      "attempt_sha256": "860f920e97021f88f0d7144e649976b0daef1a804347208ab22a8686ce3f6fa7",
+      "build_wall_s": 0.32932289999735076,
+      "observed_points": 884819,
+      "phases": {
+        "home": {
+          "wall_s": 0.01063970300310757,
+          "targets": 45,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "pregrasp": {
+          "wall_s": 0.05299817999184597,
+          "targets": 225,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "descent": {
+          "wall_s": 0.022327690006932244,
+          "targets": 60,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        }
+      }
+    },
+    {
+      "query": "green cube",
+      "input_frame": "round-0-side.json",
+      "input_sha256": "932a3cbf27c804561202731165ffaf387475e3103dc64f38bf1ce8bbf01c9e39",
+      "attempt_sha256": "860f920e97021f88f0d7144e649976b0daef1a804347208ab22a8686ce3f6fa7",
+      "build_wall_s": 0.24039110899320804,
+      "observed_points": 873536,
+      "phases": {
+        "home": {
+          "wall_s": 0.012387148992274888,
+          "targets": 45,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "pregrasp": {
+          "wall_s": 0.07894326899258886,
+          "targets": 225,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "descent": {
+          "wall_s": 0.022070248000090942,
+          "targets": 60,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        }
+      }
+    },
+    {
+      "query": "green cube",
+      "input_frame": "round-0-proof.json",
+      "input_sha256": "c4ecf0b5e0b94a446fbef27ea2cbf29cdffd270b5e755071fb87a62589eb8b1a",
+      "attempt_sha256": "860f920e97021f88f0d7144e649976b0daef1a804347208ab22a8686ce3f6fa7",
+      "build_wall_s": 0.21749436399841215,
+      "observed_points": 891872,
+      "phases": {
+        "home": {
+          "wall_s": 0.01558585200109519,
+          "targets": 45,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "pregrasp": {
+          "wall_s": 0.07168800999352243,
+          "targets": 225,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "descent": {
+          "wall_s": 0.018633995001437142,
+          "targets": 60,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        }
+      }
+    },
+    {
+      "query": "green cube",
+      "input_frame": "round-1-cam0.json",
+      "input_sha256": "188b83c63f3f3c8a774762e2315027721a61bd34b2f72c8cb0d5b06c2a887f7e",
+      "attempt_sha256": "860f920e97021f88f0d7144e649976b0daef1a804347208ab22a8686ce3f6fa7",
+      "build_wall_s": 0.2137907550059026,
+      "observed_points": 884819,
+      "phases": {
+        "home": {
+          "wall_s": 0.011580742997466587,
+          "targets": 45,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "pregrasp": {
+          "wall_s": 0.050356665000435896,
+          "targets": 225,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "descent": {
+          "wall_s": 0.019397655996726826,
+          "targets": 60,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        }
+      }
+    },
+    {
+      "query": "green cube",
+      "input_frame": "round-1-side.json",
+      "input_sha256": "8ae4d57c2911a0896f02ea52bf36202308370e6ff487276f16c9832e3b0b9310",
+      "attempt_sha256": "860f920e97021f88f0d7144e649976b0daef1a804347208ab22a8686ce3f6fa7",
+      "build_wall_s": 0.21015610900940374,
+      "observed_points": 873536,
+      "phases": {
+        "home": {
+          "wall_s": 0.013107945007504895,
+          "targets": 45,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "pregrasp": {
+          "wall_s": 0.08124310399580281,
+          "targets": 225,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "descent": {
+          "wall_s": 0.019221256996388547,
+          "targets": 60,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        }
+      }
+    },
+    {
+      "query": "green cube",
+      "input_frame": "round-1-proof.json",
+      "input_sha256": "7ce06c420364b2e726d27260207b7a56510f39e25d2b01ac973986af892cd6f5",
+      "attempt_sha256": "860f920e97021f88f0d7144e649976b0daef1a804347208ab22a8686ce3f6fa7",
+      "build_wall_s": 0.19687992900435347,
+      "observed_points": 891872,
+      "phases": {
+        "home": {
+          "wall_s": 0.015104830003110692,
+          "targets": 45,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "pregrasp": {
+          "wall_s": 0.07267192499421071,
+          "targets": 225,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "descent": {
+          "wall_s": 0.020830192996072583,
+          "targets": 60,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        }
+      }
+    },
+    {
+      "query": "orange",
+      "input_frame": "round-0-cam0.json",
+      "input_sha256": "cd9a8e9f877fc36cd7f57e67a21fcf217d6eaa29ac999cde375a592a45792afb",
+      "attempt_sha256": "ff87bb22099598293b5f029fe3479ac605b02c048069d74e6b56bf548b6ec147",
+      "build_wall_s": 0.2044707280001603,
+      "observed_points": 884819,
+      "phases": {
+        "home": {
+          "wall_s": 0.008341430002474226,
+          "targets": 45,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "pregrasp": {
+          "wall_s": 0.04658540300442837,
+          "targets": 225,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "descent": {
+          "wall_s": 0.005607202998362482,
+          "targets": 60,
+          "reconstruction_error_rad": 1.3877787807814457e-17,
+          "first_conflict": {
+            "sample_index": 14,
+            "finger": "joint_left",
+            "component": 6,
+            "surface": "other observed surface",
+            "pixel_rc": [
+              237,
+              717
+            ],
+            "point_base_m": [
+              0.2513403575894908,
+              0.09435520631070737,
+              0.0600618965420745
+            ]
+          }
+        }
+      }
+    },
+    {
+      "query": "orange",
+      "input_frame": "round-0-side.json",
+      "input_sha256": "932a3cbf27c804561202731165ffaf387475e3103dc64f38bf1ce8bbf01c9e39",
+      "attempt_sha256": "ff87bb22099598293b5f029fe3479ac605b02c048069d74e6b56bf548b6ec147",
+      "build_wall_s": 0.19753236099495552,
+      "observed_points": 873536,
+      "phases": {
+        "home": {
+          "wall_s": 0.01053012600459624,
+          "targets": 45,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "pregrasp": {
+          "wall_s": 0.07369309800560586,
+          "targets": 225,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "descent": {
+          "wall_s": 0.0052898010035278276,
+          "targets": 60,
+          "reconstruction_error_rad": 1.3877787807814457e-17,
+          "first_conflict": {
+            "sample_index": 15,
+            "finger": "joint_left",
+            "component": 6,
+            "surface": "other observed surface",
+            "pixel_rc": [
+              418,
+              728
+            ],
+            "point_base_m": [
+              0.2528874824868861,
+              0.09329449701946346,
+              0.0604415131954803
+            ]
+          }
+        }
+      }
+    },
+    {
+      "query": "orange",
+      "input_frame": "round-1-cam0.json",
+      "input_sha256": "188b83c63f3f3c8a774762e2315027721a61bd34b2f72c8cb0d5b06c2a887f7e",
+      "attempt_sha256": "ff87bb22099598293b5f029fe3479ac605b02c048069d74e6b56bf548b6ec147",
+      "build_wall_s": 0.18228166899643838,
+      "observed_points": 884819,
+      "phases": {
+        "home": {
+          "wall_s": 0.008596586994826794,
+          "targets": 45,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "pregrasp": {
+          "wall_s": 0.046777144001680426,
+          "targets": 225,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "descent": {
+          "wall_s": 0.005683540002792142,
+          "targets": 60,
+          "reconstruction_error_rad": 1.3877787807814457e-17,
+          "first_conflict": {
+            "sample_index": 14,
+            "finger": "joint_left",
+            "component": 6,
+            "surface": "other observed surface",
+            "pixel_rc": [
+              237,
+              717
+            ],
+            "point_base_m": [
+              0.2513401400465859,
+              0.09435538916242264,
+              0.060061674358094286
+            ]
+          }
+        }
+      }
+    },
+    {
+      "query": "orange",
+      "input_frame": "round-1-side.json",
+      "input_sha256": "8ae4d57c2911a0896f02ea52bf36202308370e6ff487276f16c9832e3b0b9310",
+      "attempt_sha256": "ff87bb22099598293b5f029fe3479ac605b02c048069d74e6b56bf548b6ec147",
+      "build_wall_s": 0.18387383900699206,
+      "observed_points": 873536,
+      "phases": {
+        "home": {
+          "wall_s": 0.011587062996113673,
+          "targets": 45,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "pregrasp": {
+          "wall_s": 0.07319278799695894,
+          "targets": 225,
+          "reconstruction_error_rad": 2.220446049250313e-16,
+          "first_conflict": null
+        },
+        "descent": {
+          "wall_s": 0.0052660850051324815,
+          "targets": 60,
+          "reconstruction_error_rad": 1.3877787807814457e-17,
+          "first_conflict": {
+            "sample_index": 15,
+            "finger": "joint_left",
+            "component": 6,
+            "surface": "other observed surface",
+            "pixel_rc": [
+              418,
+              728
+            ],
+            "point_base_m": [
+              0.25288756323149264,
+              0.09329457308383782,
+              0.0604415583169578
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "primary_counterexample_checks_pass": true
+}

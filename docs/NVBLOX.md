@@ -45,6 +45,14 @@ fresh; this did not validate the expired analysis image. The environment was
 closed administratively with its failure retained. See the
 [NV14 result and detector follow-up](LOCAL_RTX_VALIDATION.md#detector-reuse-and-nvblox-environment-14).
 
+Environment 15 on `c9147db8` passed perception and carried the orange to the
+box, then failed the unchanged 1 mrad release-feedback guard while waiting
+for geometry. Home and reset were not attempted; placement remained
+unverified. Camera witnesses passed, and administrative closure preserved
+the failure. The [NV15 report](LOCAL_RTX_VALIDATION.md#nvblox-environment-15-release-feedback-movement)
+records the measured drift and the separate 352.74-second direct case; it
+does not establish presenter deadline or campaign acceptance.
+
 ## Status (2026-09-30)
 
 **Real nvblox CUDA mapping now runs on both RTX PRO 6000 Blackwell and DGX

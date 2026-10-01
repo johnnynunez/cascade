@@ -136,6 +136,17 @@ def test_isaac_environment_does_not_inherit_agent_python_or_profiler(tmp_path):
     assert env["OMNI_KIT_ACCEPT_EULA"] == "YES"
 
 
+@pytest.mark.parametrize("value", [None, "1", "0", "true"])
+def test_explicit_bridge_spans_flag_is_preserved_without_creating_a_default(value):
+    original = {"HOME": "/home/test", "NSYS_PROFILING_SESSION_ID": "must-not-propagate"}
+    if value is not None:
+        original["CASCADE_ISAAC_PYTHON_SPANS"] = value
+    env = adapter().clean_environment(original, source=None)
+    assert ("CASCADE_ISAAC_PYTHON_SPANS" in env) == (value is not None)
+    assert env.get("CASCADE_ISAAC_PYTHON_SPANS") == value
+    assert "NSYS_PROFILING_SESSION_ID" not in env
+
+
 def test_environment_adapter_does_not_create_eula_consent():
     module = adapter()
     env = module.clean_environment({"HOME": "/home/test"}, source=None)
@@ -150,6 +161,7 @@ def test_launch_adapter_runs_real_child_with_exit_status_and_sanitized_env(tmp_p
                             env={**os.environ, "PYTHONEXE": "/agent/python", "VIRTUAL_ENV": "/agent",
                                  "CASCADE_REQUIRE_CUDA": "1", "CASCADE_ISAAC_DT": "0.008333333333333333",
                                  "CASCADE_ISAAC_CONTACT_MASK": "1",
+                                 "CASCADE_ISAAC_PYTHON_SPANS": "1",
                                  "PAAI_CAMERA_VIDEO_CONFIG": str(tmp_path / "optional-video.json")},
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 17
@@ -158,6 +170,7 @@ def test_launch_adapter_runs_real_child_with_exit_status_and_sanitized_env(tmp_p
     assert env["CASCADE_REQUIRE_CUDA"] == "1"
     assert env["CASCADE_ISAAC_DT"] == "0.008333333333333333"
     assert env["CASCADE_ISAAC_CONTACT_MASK"] == "1"
+    assert env["CASCADE_ISAAC_PYTHON_SPANS"] == "1"
     assert "PAAI_CAMERA_VIDEO_CONFIG" not in env
 
 

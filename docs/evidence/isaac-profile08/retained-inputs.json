@@ -1,0 +1,83 @@
+{
+  "scope": "Original receipts copied byte-for-byte. Native failure, administrative closure and trace decoding have distinct verdicts. Large raw trace and event exports remain in their local archives, hash-bound by these receipts.",
+  "files": [
+    {
+      "file": "native-failed.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-08/runs/x86-spark-profile-08/proof/receipt.json",
+      "sha256": "ab4642359d7396be7754668d74d72a2cc9b20324a07441aa58ceaa42fa83e402",
+      "bytes": 5379
+    },
+    {
+      "file": "strict-failed.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-08/runs/x86-spark-profile-08/strict-proof2.json",
+      "sha256": "0cac06aea7a8611db60131554927e926872aa17c1b61b26cf599785685c3f380",
+      "bytes": 1238
+    },
+    {
+      "file": "capture.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-08/runs/x86-spark-profile-08/tracy-capture/receipt.json",
+      "sha256": "26e7e751c82176851af316a5c94617853089175c9a3f5cc0ea61a60ea3492d03",
+      "bytes": 8540
+    },
+    {
+      "file": "administrative-close.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-08/runs/x86-spark-profile-08/administrative-close08/receipt.json",
+      "sha256": "2a8922b6e0f8312037e46e8ccc2f5ed93bdba20b248dfe0b38b3d93372343f57",
+      "bytes": 10662
+    },
+    {
+      "file": "close-root-review.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile08-root-review-20261002/administrative-close-result.json",
+      "sha256": "12c9a93ed17033b47e810d2a078f209eded17f46b7aa9071f011d64b21e15233",
+      "bytes": 597
+    },
+    {
+      "file": "throughput.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile08-throughput-analysis-20261002/result.json",
+      "sha256": "795c24b11e3ec20b9187361a77cc2db9bad2879fd923c8d68b7d4e95eaeedf1d",
+      "bytes": 11944
+    },
+    {
+      "file": "tracy-analysis.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile08-offline-analysis-20261002/receipt.json",
+      "sha256": "2394350976442f3120eac6d428389f701ee0ad5e287fca92dcc4e1aa60374144",
+      "bytes": 7019
+    },
+    {
+      "file": "tracy-summary.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile08-offline-analysis-20261002/summary.json",
+      "sha256": "0740f941a0aa2591e800de664de37d23cc2047aecc62b996faccd4864611a21e",
+      "bytes": 23975
+    },
+    {
+      "file": "tracy-root-review.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile08-root-review-20261002/offline-trace-review.json",
+      "sha256": "7ef463d2485fd7d47ec01c562a17f7b615d00053693c01209eb6540f592270ef",
+      "bytes": 532
+    },
+    {
+      "file": "retention.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile08-negative-retained/retention.json",
+      "sha256": "3d3c9c8949e1c5a21f83154f30ad17bad2889dfe206adb64f8ac607f4822828a",
+      "bytes": 34808
+    },
+    {
+      "file": "pr61-ci.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr61-ci-complete.json",
+      "sha256": "aaeede0af07cfcb85c5ff9871a5c2dbaad169ebac05308fac8f49af115a441da",
+      "bytes": 13107
+    },
+    {
+      "file": "pr61-merge.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr61-merged-review.json",
+      "sha256": "d20eec8489c1565c70a42ea58698565e5b33875a527d54e1b4a6008fe74f0d4c",
+      "bytes": 3662
+    },
+    {
+      "file": "main61-ci.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/main61-ci-complete.json",
+      "sha256": "5fe15b06ca33f80fdce48910393b8812ea215f378aec8ff1942e0cd48d3bf1ae",
+      "bytes": 10770
+    }
+  ]
+}

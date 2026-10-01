@@ -1,0 +1,322 @@
+{
+  "pass": true,
+  "utc": "2026-10-01T21:04:01.201718+00:00",
+  "scope": "Byte-for-byte preclose preservation of all 52 original NV15 files. Two live simulator/mapper log copies are snapshots; immutable terminal/native/passive/readiness/source/owner data pinned. No RPC, actuator, signal or source/model mutation. Native FAIL remains FAIL. Final live logs require a postclose copy.",
+  "native_pass": false,
+  "files": {
+    "endpoint-admission.json": {
+      "sha256": "594770849d9ba7386bd49abdca6b20edc0d67615559c28fd0bb4c83a3521fbc3",
+      "size_bytes": 980,
+      "live_log_snapshot": false
+    },
+    "isaac.log": {
+      "sha256": "51fa5c2854692f2eccc2b27b0f91118549be6858de3f70a79afd332472a29a1d",
+      "size_bytes": 39575,
+      "live_log_snapshot": true
+    },
+    "isaac.ready.json": {
+      "sha256": "e8e29878ccee5c3eeaa85c06f11d26e3b873a95f3a486a096e18497d39a8c190",
+      "size_bytes": 180,
+      "live_log_snapshot": false
+    },
+    "launcher.py": {
+      "sha256": "49df3c5bc83303687bbbbae571fb80cfae1cc660246cf28479ff277e299bad85",
+      "size_bytes": 15052,
+      "live_log_snapshot": false
+    },
+    "mapper.log": {
+      "sha256": "29066f2e8cd4c1162d8b6598b5505ae32f9689f958e7116c96f818bc7766b383",
+      "size_bytes": 29652,
+      "live_log_snapshot": true
+    },
+    "native-case-evidence-01/1790888135703018928-2969666-2f224e9e42e04c62a66dd822b92f7c75.json": {
+      "sha256": "ac8af94e18b96e5d158a6fe67acb0fff141666e6c52926fe9ff8eca76e21fc9c",
+      "size_bytes": 4684063,
+      "live_log_snapshot": false
+    },
+    "native-case-evidence-01/1790888135703018928-2969666-2f224e9e42e04c62a66dd822b92f7c75.npz": {
+      "sha256": "a93bec5b4d6463e753e92a37db7e77865a9199f1425f7f949628cb8c02b4c860",
+      "size_bytes": 4752168,
+      "live_log_snapshot": false
+    },
+    "native-case-launch.json": {
+      "sha256": "d50fdab723e1b30b690219f68bd0c7ce5ed363afd9fb63db7b95d07a9bcdd498",
+      "size_bytes": 128446,
+      "live_log_snapshot": false
+    },
+    "native-case-launcher.py": {
+      "sha256": "46164c24708a8936e1212e927d50851018db3f5b106b5147e1eecb9b33979fc9",
+      "size_bytes": 11888,
+      "live_log_snapshot": false
+    },
+    "native-case-truth-preflight.py": {
+      "sha256": "801d84fb39b32d45e775c103c30f72cac515cd9b675c4e30fa2b76b855cd980f",
+      "size_bytes": 2537,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/commands.jsonl": {
+      "sha256": "59d335ee36a3e5395676ced367b8682ba67c97b2f0e01be8e7f477e8ad0d22b2",
+      "size_bytes": 5443933,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/grasp-memory.json": {
+      "sha256": "df4ee8f7e48f64cfcf386e0b48fcbe81cacc4f57d12844f01db62e58d6bd428c",
+      "size_bytes": 368,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/receipt.json": {
+      "sha256": "036dbab60f71d605b18e1d2732488bee8355dc7568ea4cf87f7e3c3a0219bc47",
+      "size_bytes": 2060734,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/runtime/keyframes/0000_pick_and_place_after.jpg": {
+      "sha256": "f1e33dd5e94f67a93d28b5d9cbf8781adfc23664f5940054208e1134a3d36442",
+      "size_bytes": 140922,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/runtime/keyframes/0000_pick_and_place_before.jpg": {
+      "sha256": "ad3d80ad458d4426161698639cf7a5e3da22ceb1b95226666785ca509f4fd3a6",
+      "size_bytes": 144179,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/runtime/trace.jsonl": {
+      "sha256": "f81584e5a8f038a2af0e2a675286753a9760d0ca82b33225886248d4abf6c771",
+      "size_bytes": 1687,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/witness/first-scene-geometry.json": {
+      "sha256": "b741127cc91a5f7845ff13938a83e6aaeac944c265e9b63d4d13e09d6f636445",
+      "size_bytes": 2583,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/witness/gpu-physical-audit.json": {
+      "sha256": "22728a60c1085fff1271bb57ad86ea2201435fb0f98a38ad7115627d85b888f3",
+      "size_bytes": 348,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/witness/metadata.json": {
+      "sha256": "db1829ad7f1f7057935928e0ce8eb535c55b6389f00f7752f891669adf8bf35d",
+      "size_bytes": 2719,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/witness/phases.json": {
+      "sha256": "6ad89639131a7a6f5323d5281f237d82f7d13e7bd8b3a285a0476d6e1d2dc889",
+      "size_bytes": 178,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/witness/ping-after.json": {
+      "sha256": "b2ca7f186841aeed783f4ce2269c540d4a2b6b3b63db1b2103d9db0486940801",
+      "size_bytes": 1188,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/witness/ping-before.json": {
+      "sha256": "b2ca7f186841aeed783f4ce2269c540d4a2b6b3b63db1b2103d9db0486940801",
+      "size_bytes": 1188,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/witness/samples.jsonl": {
+      "sha256": "dc88d00445b5fe6cc7ef8ff0e5954114f7fe753289f624fe98d11541d46ea533",
+      "size_bytes": 72329331,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/witness/snapshot-code.py": {
+      "sha256": "62756f47090f0d3880dada6acd20d94ee327c6b7f5c974302c1a420b6487d168",
+      "size_bytes": 23875,
+      "live_log_snapshot": false
+    },
+    "native-orange-01/witness/wire.jsonl": {
+      "sha256": "ac68fdc4ff3c34e1a0cfd3ca2d38aea520054a784fb0716ae278cd7bd4bac259",
+      "size_bytes": 13111270,
+      "live_log_snapshot": false
+    },
+    "native-orange-01.log": {
+      "sha256": "5198bbbae073657b49dfe8fffd3673d615452df38970f313e5f1a175bb9cecda",
+      "size_bytes": 769,
+      "live_log_snapshot": false
+    },
+    "ownership/isaac.pid": {
+      "sha256": "35a9c43594d9576ae91ba1a075193776b6d4b3cbab00fa471b0e0a7e5445d7fd",
+      "size_bytes": 1336,
+      "live_log_snapshot": false
+    },
+    "ownership/isaac_bridge.pid": {
+      "sha256": "7d689378d008b1cab9718d256aba7af81f93cfa6ff7e67790fcda2604d7fbbee",
+      "size_bytes": 1073,
+      "live_log_snapshot": false
+    },
+    "ownership/occupancy.pid": {
+      "sha256": "a5ad7833d48e34c1bea832072e2d9208f008b6765e30c883a2ec92fff883e526",
+      "size_bytes": 895,
+      "live_log_snapshot": false
+    },
+    "ownership/owner.json": {
+      "sha256": "4af9e6e721f2889717e69d35749a248a12fcfac3db435b02b52a75e43379a5a0",
+      "size_bytes": 326,
+      "live_log_snapshot": false
+    },
+    "ownership.json": {
+      "sha256": "abc044d014f3df2922e0ac3348c819ad33ca292d294e8b523af8b5d1c6856fef",
+      "size_bytes": 7906,
+      "live_log_snapshot": false
+    },
+    "passive-01/cam0.npz": {
+      "sha256": "8e376aad633c50aa7785c77fa344551070d188bcdb3b7edbf3a29203fcaf6915",
+      "size_bytes": 1505706,
+      "live_log_snapshot": false
+    },
+    "passive-01/proof.npz": {
+      "sha256": "82070e93fcfa929cc4c6142aefffd5210295b75d66e3cb5026b3cf1a411f6361",
+      "size_bytes": 2038207,
+      "live_log_snapshot": false
+    },
+    "passive-01/receipt.json": {
+      "sha256": "d1f5747a3c6a2fd6a2de928df152cc89d8d5eac8b9d262c58ec126c5194b2958",
+      "size_bytes": 2316935,
+      "live_log_snapshot": false
+    },
+    "passive-01/side.npz": {
+      "sha256": "43d87b9e54fa455ea7465db97748f251cbb4d6a37443abb7f116c495ee2f56de",
+      "size_bytes": 1939878,
+      "live_log_snapshot": false
+    },
+    "passive-01/witness/first-scene-geometry.json": {
+      "sha256": "b741127cc91a5f7845ff13938a83e6aaeac944c265e9b63d4d13e09d6f636445",
+      "size_bytes": 2583,
+      "live_log_snapshot": false
+    },
+    "passive-01/witness/metadata.json": {
+      "sha256": "c1f9460020f5242f6f494e8db08b4c486a71c87ca5fb02be453b88f3ce79769b",
+      "size_bytes": 2533,
+      "live_log_snapshot": false
+    },
+    "passive-01/witness/ping-after.json": {
+      "sha256": "b2ca7f186841aeed783f4ce2269c540d4a2b6b3b63db1b2103d9db0486940801",
+      "size_bytes": 1188,
+      "live_log_snapshot": false
+    },
+    "passive-01/witness/ping-before.json": {
+      "sha256": "b2ca7f186841aeed783f4ce2269c540d4a2b6b3b63db1b2103d9db0486940801",
+      "size_bytes": 1188,
+      "live_log_snapshot": false
+    },
+    "passive-01/witness/samples.jsonl": {
+      "sha256": "d8bfb967ac5d9378069d6dd3a6e35e6e86500e1d190b42ee6d05896c04f887ab",
+      "size_bytes": 1336723,
+      "live_log_snapshot": false
+    },
+    "passive-01/witness/snapshot-code.py": {
+      "sha256": "fe1f496553c59d97b742d470c7750aee151d94c8023f6c2f3cd3e0de03029b5f",
+      "size_bytes": 14288,
+      "live_log_snapshot": false
+    },
+    "passive-01/witness/wire.jsonl": {
+      "sha256": "dfdca312ec800b4263b004de49e514358c508d24577eca0205f518fba80a0a3c",
+      "size_bytes": 495384,
+      "live_log_snapshot": false
+    },
+    "passive-source.json": {
+      "sha256": "aa4d59d5c09e54a35659747306dd737d4dbf4575943cb35d96d6f8b5a793cf0f",
+      "size_bytes": 841,
+      "live_log_snapshot": false
+    },
+    "passive.py": {
+      "sha256": "4f33582eeded05ba862f6be198311f7242374c6d95700b8729321232694766b6",
+      "size_bytes": 25624,
+      "live_log_snapshot": false
+    },
+    "plan.json": {
+      "sha256": "4a2fcfb8927a1956b91ef80fd154285f8b158d189449e0c8a661b0cf0a6c1350",
+      "size_bytes": 26296,
+      "live_log_snapshot": false
+    },
+    "preflight.json": {
+      "sha256": "baf2eb643dbd1d20919e320592941dd32355fbfac7ece66c325fe6c459539bf0",
+      "size_bytes": 1962,
+      "live_log_snapshot": false
+    },
+    "source.json": {
+      "sha256": "f76659538adcbdcf5e9c74056a3bf0c841bf5ce87403dbc0a85665cbb74359ba",
+      "size_bytes": 33096,
+      "live_log_snapshot": false
+    },
+    "truth-readiness-01/nvblox15-truth-readiness-plan.json": {
+      "sha256": "6c772e470beec38dafbfbbbf457176a0558bafdad7bfae9684aff14df422722a",
+      "size_bytes": 1511,
+      "live_log_snapshot": false
+    },
+    "truth-readiness-01/nvblox15-truth-readiness.py": {
+      "sha256": "92408bb38fb789eaafb03c193d3f2add15fe1b21fcbc400122cc1d1db75b6a5b",
+      "size_bytes": 10182,
+      "live_log_snapshot": false
+    },
+    "truth-readiness-01/nvblox_truth_preflight15.py": {
+      "sha256": "801d84fb39b32d45e775c103c30f72cac515cd9b675c4e30fa2b76b855cd980f",
+      "size_bytes": 2537,
+      "live_log_snapshot": false
+    },
+    "truth-readiness-01/nvblox_truth_readiness.py": {
+      "sha256": "e421e948db25f162d144fd1f96feb546e839656258ad90302ff39449b6f13b41",
+      "size_bytes": 8479,
+      "live_log_snapshot": false
+    },
+    "truth-readiness-01/receipt.json": {
+      "sha256": "36e7f936f9c4d1983705b46dc90da1e1cb22603750216a8bd3968a21a0b00a83",
+      "size_bytes": 11945,
+      "live_log_snapshot": false
+    }
+  },
+  "immutable_inputs_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/endpoint-admission.json": "594770849d9ba7386bd49abdca6b20edc0d67615559c28fd0bb4c83a3521fbc3",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/isaac.ready.json": "e8e29878ccee5c3eeaa85c06f11d26e3b873a95f3a486a096e18497d39a8c190",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/launcher.py": "49df3c5bc83303687bbbbae571fb80cfae1cc660246cf28479ff277e299bad85",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-case-evidence-01/1790888135703018928-2969666-2f224e9e42e04c62a66dd822b92f7c75.json": "ac8af94e18b96e5d158a6fe67acb0fff141666e6c52926fe9ff8eca76e21fc9c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-case-evidence-01/1790888135703018928-2969666-2f224e9e42e04c62a66dd822b92f7c75.npz": "a93bec5b4d6463e753e92a37db7e77865a9199f1425f7f949628cb8c02b4c860",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-case-launch.json": "d50fdab723e1b30b690219f68bd0c7ce5ed363afd9fb63db7b95d07a9bcdd498",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-case-launcher.py": "46164c24708a8936e1212e927d50851018db3f5b106b5147e1eecb9b33979fc9",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-case-truth-preflight.py": "801d84fb39b32d45e775c103c30f72cac515cd9b675c4e30fa2b76b855cd980f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/commands.jsonl": "59d335ee36a3e5395676ced367b8682ba67c97b2f0e01be8e7f477e8ad0d22b2",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/grasp-memory.json": "df4ee8f7e48f64cfcf386e0b48fcbe81cacc4f57d12844f01db62e58d6bd428c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/receipt.json": "036dbab60f71d605b18e1d2732488bee8355dc7568ea4cf87f7e3c3a0219bc47",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/runtime/keyframes/0000_pick_and_place_after.jpg": "f1e33dd5e94f67a93d28b5d9cbf8781adfc23664f5940054208e1134a3d36442",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/runtime/keyframes/0000_pick_and_place_before.jpg": "ad3d80ad458d4426161698639cf7a5e3da22ceb1b95226666785ca509f4fd3a6",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/runtime/trace.jsonl": "f81584e5a8f038a2af0e2a675286753a9760d0ca82b33225886248d4abf6c771",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/witness/first-scene-geometry.json": "b741127cc91a5f7845ff13938a83e6aaeac944c265e9b63d4d13e09d6f636445",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/witness/gpu-physical-audit.json": "22728a60c1085fff1271bb57ad86ea2201435fb0f98a38ad7115627d85b888f3",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/witness/metadata.json": "db1829ad7f1f7057935928e0ce8eb535c55b6389f00f7752f891669adf8bf35d",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/witness/phases.json": "6ad89639131a7a6f5323d5281f237d82f7d13e7bd8b3a285a0476d6e1d2dc889",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/witness/ping-after.json": "b2ca7f186841aeed783f4ce2269c540d4a2b6b3b63db1b2103d9db0486940801",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/witness/ping-before.json": "b2ca7f186841aeed783f4ce2269c540d4a2b6b3b63db1b2103d9db0486940801",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/witness/samples.jsonl": "dc88d00445b5fe6cc7ef8ff0e5954114f7fe753289f624fe98d11541d46ea533",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/witness/snapshot-code.py": "62756f47090f0d3880dada6acd20d94ee327c6b7f5c974302c1a420b6487d168",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01/witness/wire.jsonl": "ac68fdc4ff3c34e1a0cfd3ca2d38aea520054a784fb0716ae278cd7bd4bac259",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/native-orange-01.log": "5198bbbae073657b49dfe8fffd3673d615452df38970f313e5f1a175bb9cecda",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/ownership/isaac.pid": "35a9c43594d9576ae91ba1a075193776b6d4b3cbab00fa471b0e0a7e5445d7fd",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/ownership/isaac_bridge.pid": "7d689378d008b1cab9718d256aba7af81f93cfa6ff7e67790fcda2604d7fbbee",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/ownership/occupancy.pid": "a5ad7833d48e34c1bea832072e2d9208f008b6765e30c883a2ec92fff883e526",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/ownership/owner.json": "4af9e6e721f2889717e69d35749a248a12fcfac3db435b02b52a75e43379a5a0",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/ownership.json": "abc044d014f3df2922e0ac3348c819ad33ca292d294e8b523af8b5d1c6856fef",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-01/cam0.npz": "8e376aad633c50aa7785c77fa344551070d188bcdb3b7edbf3a29203fcaf6915",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-01/proof.npz": "82070e93fcfa929cc4c6142aefffd5210295b75d66e3cb5026b3cf1a411f6361",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-01/receipt.json": "d1f5747a3c6a2fd6a2de928df152cc89d8d5eac8b9d262c58ec126c5194b2958",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-01/side.npz": "43d87b9e54fa455ea7465db97748f251cbb4d6a37443abb7f116c495ee2f56de",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-01/witness/first-scene-geometry.json": "b741127cc91a5f7845ff13938a83e6aaeac944c265e9b63d4d13e09d6f636445",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-01/witness/metadata.json": "c1f9460020f5242f6f494e8db08b4c486a71c87ca5fb02be453b88f3ce79769b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-01/witness/ping-after.json": "b2ca7f186841aeed783f4ce2269c540d4a2b6b3b63db1b2103d9db0486940801",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-01/witness/ping-before.json": "b2ca7f186841aeed783f4ce2269c540d4a2b6b3b63db1b2103d9db0486940801",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-01/witness/samples.jsonl": "d8bfb967ac5d9378069d6dd3a6e35e6e86500e1d190b42ee6d05896c04f887ab",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-01/witness/snapshot-code.py": "fe1f496553c59d97b742d470c7750aee151d94c8023f6c2f3cd3e0de03029b5f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-01/witness/wire.jsonl": "dfdca312ec800b4263b004de49e514358c508d24577eca0205f518fba80a0a3c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive-source.json": "aa4d59d5c09e54a35659747306dd737d4dbf4575943cb35d96d6f8b5a793cf0f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/passive.py": "4f33582eeded05ba862f6be198311f7242374c6d95700b8729321232694766b6",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/plan.json": "4a2fcfb8927a1956b91ef80fd154285f8b158d189449e0c8a661b0cf0a6c1350",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/preflight.json": "baf2eb643dbd1d20919e320592941dd32355fbfac7ece66c325fe6c459539bf0",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/source.json": "f76659538adcbdcf5e9c74056a3bf0c841bf5ce87403dbc0a85665cbb74359ba",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/truth-readiness-01/nvblox15-truth-readiness-plan.json": "6c772e470beec38dafbfbbbf457176a0558bafdad7bfae9684aff14df422722a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/truth-readiness-01/nvblox15-truth-readiness.py": "92408bb38fb789eaafb03c193d3f2add15fe1b21fcbc400122cc1d1db75b6a5b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/truth-readiness-01/nvblox_truth_preflight15.py": "801d84fb39b32d45e775c103c30f72cac515cd9b675c4e30fa2b76b855cd980f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/truth-readiness-01/nvblox_truth_readiness.py": "e421e948db25f162d144fd1f96feb546e839656258ad90302ff39449b6f13b41",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/truth-readiness-01/receipt.json": "36e7f936f9c4d1983705b46dc90da1e1cb22603750216a8bd3968a21a0b00a83"
+  },
+  "copied_files": 52,
+  "total_bytes": 112718435
+}

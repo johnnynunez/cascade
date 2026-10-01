@@ -157,6 +157,49 @@ sources plus protected processes remained intact. The
 the physical verdict. These observations motivated detector preparation work;
 the saved-image benchmark cannot isolate the entire historical delay.
 
+## nvblox environment 15: release feedback movement
+
+Environment 15 used `c9147db8`, the exact tested `ff8d58b` tree with detector
+preparation and reuse. Three-camera passive observation passed: 20.008 wall
+seconds, 3.783 simulation seconds (RTF 0.189), maximum server age 0.791 seconds
+and three final map commit ages of 0.556 seconds. All warmup records remain
+retained: initial mapping took 4.168 seconds with 42 incomplete samples, and
+later stale commits were not erased by final admission.
+One read-only native truth preparation passed in 114.43 ms; the subsequent
+case obtained its own independent observation in 20.76 ms under the unchanged
+one-second deadline.
+
+The single native orange case reached grasp, lift and transport, then failed
+at post-place retreat after 352.74 seconds. The error was
+`release feedback moved while waiting for geometry`. Home and reset were not
+attempted. The native postcondition remained unverified: the final center near
+the open box did not establish full containment or release. All 1,994 samples
+per camera passed the two-second server-age limit, with a maximum of 0.940 s.
+The [compact result](evidence/nvblox15/summary.json) explicitly identifies its
+original full receipts. This direct runtime diagnostic has no MCP transport;
+its duration does not pass the presenter's 300-second request limit.
+
+Offline [release analysis](evidence/nvblox15/release-analysis.json) found measured
+joint 6 movement from 1.46485424 to 1.46255064 radians across 14 physics steps,
+about 0.967 wall seconds. The 0.00230360-radian change exceeded the unchanged
+0.001-radian guard. Both readings showed open jaws and empty contacts, and
+matched the physical witness after joint-convention conversion. The last
+acknowledged joint target was 1.46077252 radians; no new joint target followed
+opening. The sequence is consistent with unloading and settling toward that
+held target, rather than an incoherent observation. Exact before/after call
+sites are reconstructed from source flow; the logs do not label those calls.
+This does not prove a unique cause or establish that a proposed settling check
+would make the task pass.
+
+All failure evidence and memory were preserved before
+[administrative closure](evidence/nvblox15/administrative-close.json). Only the
+owned Kit and mapper received SIGTERM; all three owned processes exited and
+both ports closed. There were no extra robot RPCs, motion, recovery commands or
+escalation. [Root verification](evidence/nvblox15/close-root-review.json) checked
+the closure, protected identities and 289 runtime/model sources. The
+[retained records](evidence/nvblox15/retained-inputs.json) keep the negative task
+verdict separate from successful cleanup.
+
 ## Profiling attempt 07: startup port mismatch
 
 Diagnostic attempt 07 used the unchanged `ff8d58b` product source with an
@@ -177,6 +220,70 @@ source files, prior outcome memory and protected processes. The
 separate from its failed startup. A future diagnostic must verify the effective
 producer and consumer endpoints before starting services; it must not modify
 frozen product files to hide this failed attempt.
+
+## Profiling attempt 08: placement timeout and real trace
+
+Attempt 08 ran the unchanged `ff8d58b` product source with an external launcher
+enabling Kit's Tracy profiler. Producer, three camera consumers and arm all
+used the shipped port 8611, verified before startup. The normal runtime check
+passed in 2.131 seconds; initial camera server ages were about 0.488 seconds.
+The simulator and MCP used local GPU 1. No Spark was contacted.
+
+The grasp completed and was verified after 171.835 seconds. The unchanged
+300-second MCP limit then cancelled `pick_and_place` during placement and
+latched the stop. The final cube center was near the destination in x/y but
+about 13 cm above the table, with jaw contacts still observed. The native
+postcondition explicitly remained unverified: release and containment were not
+established. There was no second case, reset, campaign, restart or recovery.
+The supervisor's later missing-gateway bookkeeping error is separate from
+this native timeout. Both the [native failure](evidence/isaac-profile08/native-failed.json)
+and [strict failure](evidence/isaac-profile08/strict-failed.json) are retained.
+
+Independent [throughput analysis](evidence/isaac-profile08/throughput.json)
+covered 1,324 witness samples per camera over 303.950 wall seconds and
+35.683 simulation seconds (RTF 0.117). Camera server age never exceeded
+0.828 seconds; delivery age never exceeded 0.855 seconds. These measurements
+include profiler and shared-machine load and do not establish a regression or
+speedup against earlier runs. Planning took 1.782 seconds, home 17.954 seconds,
+pregrasp 90.258 seconds, descent 25.112 seconds and lift 31.743 seconds.
+
+The [owned capture](evidence/isaac-profile08/capture.json) ran for 120.428 seconds,
+exited normally and retained a 34,869,014-byte trace. Offline decoding found
+4,105,715 CPU zones and 263,610 GPU zones from the exact Kit process; the
+calibrated Vulkan context identified GPU 1. The complete trace includes startup:
+its relative duration is 248.102 seconds. No sufficiently precise trace-origin
+mapping to the normal task clock was recorded, so `profile_validated` remains
+false. Real trace data alone does not establish 100 completed updates inside a
+proven normal-task window.
+
+The [profiling analysis](evidence/isaac-profile08/tracy-summary.json) and
+[integrity review](evidence/isaac-profile08/tracy-root-review.json) preserve
+an exploratory **trace-relative** 130–240 second slice:
+
+| Measurement | Relative slice result |
+|---|---:|
+| Completed `App Update` calls | 855 |
+| `App Update` inclusive time | 16.623 s |
+| `PhysXUpdateNonRender` inclusive / self time | 10.254 / 9.583 s |
+| Union of instrumented main-thread root intervals | 20.659 s of 110 s |
+| Complete graphics GPU zones | 61,758 |
+| Union of tracked GPU root intervals | 5.074 s |
+
+This slice is not an established normal-task window. Missing Python zones
+leave 89.341 seconds of main-thread elapsed time unattributed; no specific
+getter, lock, CUDA synchronization or contention source is proven responsible.
+GPU graphics intervals do not represent all CUDA work or total device busy
+time. CPU self elapsed time includes waits and scheduling delays. The installed
+SDK CSV exporter independently matched the full trace's 3,647 `App Update`
+calls and 77.205 seconds exactly.
+
+Normal [administrative closure](evidence/isaac-profile08/administrative-close.json)
+closed only this attempt's owned services. All four ports and owned processes
+were closed; frozen source, failure receipts, outcome memory and protected
+process identities stayed unchanged. [Root verification](evidence/isaac-profile08/close-root-review.json)
+confirmed this separately. Closure adds no placement, home or recovery result.
+The [retained inputs](evidence/isaac-profile08/retained-inputs.json) bind these
+records and the local raw-trace archive.
 
 ## Retained local attempt 01
 

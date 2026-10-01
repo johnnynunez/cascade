@@ -1,0 +1,963 @@
+{
+  "status": "ANALYSIS_COMPLETE_SCOPE_LIMITED",
+  "capture_decode_pass": true,
+  "sdk_cpu_export_comparison_pass": true,
+  "profile_validated": false,
+  "normal_window_completed_updates_qualified": null,
+  "reason": "No sufficiently reviewed mapping of Tracy initialization clock to Python monotonic normal window. on_demand=false; buffered startup included. Integer epoch and last-event time are not substituted as exact anchors.",
+  "trace": {
+    "kind": "trace",
+    "reader_version": "0.11.1",
+    "pid": 2943612,
+    "capture_epoch_seconds": 1790886392,
+    "on_demand": false,
+    "frame_offset": 0,
+    "first_ns": 0,
+    "last_ns": 248101817253,
+    "declared_cpu_zones": 4105715,
+    "declared_gpu_zones": 263610,
+    "program": "python3"
+  },
+  "contexts": [
+    {
+      "kind": "gpu_context",
+      "index": 0,
+      "type": 2,
+      "thread": 2943860,
+      "declared_count": 263610,
+      "has_calibration": true,
+      "period": 1,
+      "name": "GPU_NVIDIA RTX PRO 6000 Blackwell Workstation Edition (DeviceUUID: 4c811d2a79b2837425e5f62ac3c578a)"
+    }
+  ],
+  "cpu_zone_count": 4105715,
+  "gpu_zone_count": 263610,
+  "main_app_update": {
+    "kind": "cpu",
+    "owner": "2943612",
+    "name": "App Update",
+    "file": "../../../source/plugins/omni.kit.app/App.cpp",
+    "line": 604,
+    "count": 3647,
+    "inclusive_s": 77.205265007,
+    "self_s": 0.079773124,
+    "max_ms": 656.392452,
+    "min_ms": 0.382452,
+    "max_depth": 1,
+    "start_s": 7.641366564,
+    "end_s": 248.101816962
+  },
+  "main_self_top": [
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "PhysXUpdateNonRender",
+      "file": "/builds/omniverse/physics/omni/ovruntime/source/omni.physx/plugins/PhysXUpdate.cpp",
+      "line": 113,
+      "count": 3591,
+      "inclusive_s": 50.741985505,
+      "self_s": 48.875386922,
+      "max_ms": 53.163774,
+      "min_ms": 0.057818,
+      "max_depth": 10,
+      "start_s": 30.677223741,
+      "end_s": 248.099277222
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "PyEval_EvalCode",
+      "file": "../../../source/plugins/carb.scripting-python/ScriptingPython.cpp",
+      "line": 287,
+      "count": 719,
+      "inclusive_s": 5.606253076,
+      "self_s": 5.588977359,
+      "max_ms": 1682.634323,
+      "min_ms": 0.003906,
+      "max_depth": 10,
+      "start_s": 0.232540034,
+      "end_s": 9.343894668
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "Notify observers - enable carb.eventdispatcher.observers for more info",
+      "file": "../../../source/plugins/carb.eventdispatcher/EventDispatcher.cpp",
+      "line": 1011,
+      "count": 50843,
+      "inclusive_s": 135.013695376,
+      "self_s": 4.695078801,
+      "max_ms": 899.07238,
+      "min_ms": 0.000121,
+      "max_depth": 11,
+      "start_s": 7.104934514,
+      "end_s": 248.101812536
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "Py::gc.collect (Python)",
+      "file": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/kit/kernel/py/omni/kit/app/_impl/__init__.py",
+      "line": 199,
+      "count": 9837,
+      "inclusive_s": 4.639870128,
+      "self_s": 4.639870128,
+      "max_ms": 271.088392,
+      "min_ms": 0.007161,
+      "max_depth": 11,
+      "start_s": 8.559534131,
+      "end_s": 248.079896842
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "_reshape_output_ptr (Python)",
+      "file": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/extscache/omni.replicator.core-1.13.36+110.3.0.lx64.r.cp312/omni/replicator/core/scripts/utils/annotator_utils.py",
+      "line": 513,
+      "count": 8140,
+      "inclusive_s": 2.51531755,
+      "self_s": 2.299367857,
+      "max_ms": 18.568135,
+      "min_ms": 0.227025,
+      "max_depth": 4,
+      "start_s": 33.115623343,
+      "end_s": 247.777552959
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "FabricManager::update",
+      "file": "/builds/omniverse/physics/omni/ovruntime/source/omni.physx.fabric/plugins/FabricManager.cpp",
+      "line": 507,
+      "count": 3591,
+      "inclusive_s": 2.426580128,
+      "self_s": 1.661594081,
+      "max_ms": 4.953029,
+      "min_ms": 0.19716,
+      "max_depth": 11,
+      "start_s": 30.693727679,
+      "end_s": 248.099669588
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "addRender",
+      "file": "../../../source/extensions/omni.usd.core/sharedlibs/omni.usd/UsdContext.cpp",
+      "line": 8708,
+      "count": 14357,
+      "inclusive_s": 1.540177176,
+      "self_s": 1.536585723,
+      "max_ms": 2.952878,
+      "min_ms": 0.048023,
+      "max_depth": 6,
+      "start_s": 8.411877368,
+      "end_s": 248.090333877
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "post-step update subscription update",
+      "file": "/builds/omniverse/physics/omni/ovruntime/source/omni.physx/plugins/PhysXUpdate.cpp",
+      "line": 375,
+      "count": 7178,
+      "inclusive_s": 1.270413872,
+      "self_s": 1.264507861,
+      "max_ms": 15.981183,
+      "min_ms": 0.004026,
+      "max_depth": 11,
+      "start_s": 30.74131731,
+      "end_s": 248.09927589
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "get_extra_data (Python)",
+      "file": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/extscache/omni.replicator.core-1.13.36+110.3.0.lx64.r.cp312/omni/replicator/core/scripts/utils/annotator_utils.py",
+      "line": 799,
+      "count": 21308,
+      "inclusive_s": 1.228345922,
+      "self_s": 1.228345922,
+      "max_ms": 6.303872,
+      "min_ms": 0.008593,
+      "max_depth": 2,
+      "start_s": 33.114964221,
+      "end_s": 247.780754575
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "ExecutionController::executeDefinition",
+      "file": "../../../source/extensions/omni.kit.exec.core/plugins/ExecutionController.cpp",
+      "line": 150,
+      "count": 22725,
+      "inclusive_s": 2.723452521,
+      "self_s": 0.903473276,
+      "max_ms": 3.595325,
+      "min_ms": 0.003094,
+      "max_depth": 15,
+      "start_s": 30.721697225,
+      "end_s": 248.090615165
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "get_common_params (Python)",
+      "file": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/extscache/omni.replicator.core-1.13.36+110.3.0.lx64.r.cp312/omni/replicator/core/scripts/utils/annotator_utils.py",
+      "line": 461,
+      "count": 8140,
+      "inclusive_s": 0.744853426,
+      "self_s": 0.744853426,
+      "max_ms": 8.26913,
+      "min_ms": 0.047543,
+      "max_depth": 3,
+      "start_s": 33.11546976,
+      "end_s": 247.7772711
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "get annotator attributes (Python)",
+      "file": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/extscache/omni.replicator.core-1.13.36+110.3.0.lx64.r.cp312/omni/replicator/core/scripts/utils/annotator_utils.py",
+      "line": 858,
+      "count": 21308,
+      "inclusive_s": 0.7404786,
+      "self_s": 0.7404786,
+      "max_ms": 8.640995,
+      "min_ms": 0.012078,
+      "max_depth": 1,
+      "start_s": 33.114914436,
+      "end_s": 247.780727063
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "ConvexDecompositionCookingTask::performTask",
+      "file": "/builds/omniverse/physics/omni/ovruntime/source/omni.physx.cooking/plugins/tasks/ConvexDecompositionCookingTask.cpp",
+      "line": 119,
+      "count": 3,
+      "inclusive_s": 0.694917414,
+      "self_s": 0.694519919,
+      "max_ms": 251.397589,
+      "min_ms": 210.454252,
+      "max_depth": 6,
+      "start_s": 29.886585952,
+      "end_s": 30.582988013
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "RenderOp: DLSS RenderOp",
+      "file": "../../../source/plugins/rtx.rendergraph/RenderGraph.cpp",
+      "line": 2064,
+      "count": 4831,
+      "inclusive_s": 0.631838829,
+      "self_s": 0.630827723,
+      "max_ms": 43.678756,
+      "min_ms": 0.058589,
+      "max_depth": 18,
+      "start_s": 8.468001132,
+      "end_s": 247.677836359
+    },
+    {
+      "kind": "cpu",
+      "owner": "2943612",
+      "name": "PathTracing graph build",
+      "file": "../../../source/plugins/carb.scenerenderer-rtx/RtxPathtracer.cpp",
+      "line": 1712,
+      "count": 4831,
+      "inclusive_s": 0.662988025,
+      "self_s": 0.554359482,
+      "max_ms": 5.670991,
+      "min_ms": 0.062334,
+      "max_depth": 17,
+      "start_s": 8.453509112,
+      "end_s": 247.675032597
+    }
+  ],
+  "thread_exclusive_zone_elapsed_ranking": [
+    {
+      "tid": "2943612",
+      "self_s": 96.43439813600034,
+      "zones": 3226783,
+      "name": "Main thread"
+    },
+    {
+      "tid": "2943639",
+      "self_s": 6.907887640000004,
+      "zones": 44131,
+      "name": "carb.tasking11"
+    },
+    {
+      "tid": "2943642",
+      "self_s": 6.552384198999998,
+      "zones": 44162,
+      "name": "carb.tasking14"
+    },
+    {
+      "tid": "2943636",
+      "self_s": 6.5297903979999985,
+      "zones": 44416,
+      "name": "carb.tasking8"
+    },
+    {
+      "tid": "2943643",
+      "self_s": 6.48615265,
+      "zones": 43300,
+      "name": "carb.tasking15"
+    },
+    {
+      "tid": "2943629",
+      "self_s": 6.480994298,
+      "zones": 42903,
+      "name": "carb.tasking1"
+    },
+    {
+      "tid": "2943630",
+      "self_s": 6.458785019999998,
+      "zones": 43087,
+      "name": "carb.tasking2"
+    },
+    {
+      "tid": "2943641",
+      "self_s": 6.412248962,
+      "zones": 42642,
+      "name": "carb.tasking13"
+    },
+    {
+      "tid": "2943631",
+      "self_s": 6.407791032000003,
+      "zones": 44208,
+      "name": "carb.tasking3"
+    },
+    {
+      "tid": "2943635",
+      "self_s": 6.384390540999997,
+      "zones": 41654,
+      "name": "carb.tasking7"
+    },
+    {
+      "tid": "2943634",
+      "self_s": 6.31390488,
+      "zones": 43505,
+      "name": "carb.tasking6"
+    },
+    {
+      "tid": "2943628",
+      "self_s": 6.275532911999999,
+      "zones": 42257,
+      "name": "carb.tasking0"
+    },
+    {
+      "tid": "2943640",
+      "self_s": 6.267905864000001,
+      "zones": 43225,
+      "name": "carb.tasking12"
+    },
+    {
+      "tid": "2943632",
+      "self_s": 6.183856123999998,
+      "zones": 42642,
+      "name": "carb.tasking4"
+    },
+    {
+      "tid": "2943637",
+      "self_s": 6.126473907999999,
+      "zones": 42141,
+      "name": "carb.tasking9"
+    },
+    {
+      "tid": "2943638",
+      "self_s": 6.087203289,
+      "zones": 43275,
+      "name": "carb.tasking10"
+    },
+    {
+      "tid": "2943633",
+      "self_s": 6.044718303000005,
+      "zones": 42690,
+      "name": "carb.tasking5"
+    },
+    {
+      "tid": "2943663",
+      "self_s": 3.355075368,
+      "zones": 29454,
+      "name": "python3"
+    },
+    {
+      "tid": "2943856",
+      "self_s": 0.21435873099999994,
+      "zones": 9815,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943850",
+      "self_s": 0.21398859100000003,
+      "zones": 9482,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943858",
+      "self_s": 0.21392188799999998,
+      "zones": 9634,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943859",
+      "self_s": 0.21280420699999997,
+      "zones": 9383,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943847",
+      "self_s": 0.21158819299999992,
+      "zones": 9471,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943848",
+      "self_s": 0.211263671,
+      "zones": 9543,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943857",
+      "self_s": 0.210740035,
+      "zones": 9525,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943846",
+      "self_s": 0.21058140700000003,
+      "zones": 9516,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943849",
+      "self_s": 0.21007950300000008,
+      "zones": 9557,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943851",
+      "self_s": 0.209972629,
+      "zones": 9596,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943852",
+      "self_s": 0.20985394,
+      "zones": 9781,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943855",
+      "self_s": 0.208799175,
+      "zones": 9500,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943854",
+      "self_s": 0.20827464199999995,
+      "zones": 9426,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943853",
+      "self_s": 0.20757387799999993,
+      "zones": 9498,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943845",
+      "self_s": 0.20578026300000002,
+      "zones": 9674,
+      "name": "tbb.worker"
+    },
+    {
+      "tid": "2943860",
+      "self_s": 0.126835603,
+      "zones": 1210,
+      "name": "GPU_NVIDIA RTX PRO 6000 Blackwell Workstation Edition (DeviceUUID: 4c811d2a79b2837425e5f62ac3c578a)"
+    },
+    {
+      "tid": "2944430",
+      "self_s": 0.062062835999999996,
+      "zones": 14394,
+      "name": "rtx.scenedb.freeRangeDefrag"
+    },
+    {
+      "tid": "2944187",
+      "self_s": 0.006884804,
+      "zones": 6,
+      "name": "2944187"
+    },
+    {
+      "tid": "2944191",
+      "self_s": 0.005429193,
+      "zones": 1,
+      "name": "2944191"
+    },
+    {
+      "tid": "2944192",
+      "self_s": 0.005324894,
+      "zones": 1,
+      "name": "2944192"
+    },
+    {
+      "tid": "2944279",
+      "self_s": 0.002560643,
+      "zones": 4,
+      "name": "2944279"
+    },
+    {
+      "tid": "2944188",
+      "self_s": 0.002104179,
+      "zones": 1,
+      "name": "2944188"
+    },
+    {
+      "tid": "2944196",
+      "self_s": 0.001919217,
+      "zones": 3,
+      "name": "2944196"
+    },
+    {
+      "tid": "2944195",
+      "self_s": 0.001706003,
+      "zones": 4,
+      "name": "2944195"
+    },
+    {
+      "tid": "2944049",
+      "self_s": 0.001581524,
+      "zones": 5,
+      "name": "2944049"
+    },
+    {
+      "tid": "2944027",
+      "self_s": 0.001524458,
+      "zones": 4,
+      "name": "2944027"
+    },
+    {
+      "tid": "2944284",
+      "self_s": 0.0014819730000000001,
+      "zones": 4,
+      "name": "2944284"
+    },
+    {
+      "tid": "2944030",
+      "self_s": 0.001423242,
+      "zones": 7,
+      "name": "2944030"
+    },
+    {
+      "tid": "2944189",
+      "self_s": 0.001373447,
+      "zones": 1,
+      "name": "2944189"
+    },
+    {
+      "tid": "2944232",
+      "self_s": 0.001292797,
+      "zones": 10,
+      "name": "2944232"
+    },
+    {
+      "tid": "2944190",
+      "self_s": 0.001278243,
+      "zones": 1,
+      "name": "2944190"
+    },
+    {
+      "tid": "2944434",
+      "self_s": 0.0010750420000000002,
+      "zones": 68,
+      "name": "DynamicIOPool Worker"
+    },
+    {
+      "tid": "2944214",
+      "self_s": 0.000987651,
+      "zones": 5,
+      "name": "2944214"
+    },
+    {
+      "tid": "2944045",
+      "self_s": 0.000877274,
+      "zones": 6,
+      "name": "2944045"
+    },
+    {
+      "tid": "2944282",
+      "self_s": 0.000713084,
+      "zones": 1,
+      "name": "2944282"
+    },
+    {
+      "tid": "2944193",
+      "self_s": 0.00070376,
+      "zones": 1,
+      "name": "2944193"
+    },
+    {
+      "tid": "2944198",
+      "self_s": 0.000689568,
+      "zones": 1,
+      "name": "2944198"
+    },
+    {
+      "tid": "2944057",
+      "self_s": 0.000604289,
+      "zones": 3,
+      "name": "2944057"
+    },
+    {
+      "tid": "2944281",
+      "self_s": 0.000570817,
+      "zones": 1,
+      "name": "2944281"
+    },
+    {
+      "tid": "2944289",
+      "self_s": 0.000520221,
+      "zones": 6,
+      "name": "2944289"
+    },
+    {
+      "tid": "2944272",
+      "self_s": 0.000514089,
+      "zones": 6,
+      "name": "2944272"
+    },
+    {
+      "tid": "2944218",
+      "self_s": 0.000487802,
+      "zones": 7,
+      "name": "2944218"
+    },
+    {
+      "tid": "2944205",
+      "self_s": 0.000479598,
+      "zones": 6,
+      "name": "2944205"
+    },
+    {
+      "tid": "2944200",
+      "self_s": 0.000475183,
+      "zones": 4,
+      "name": "2944200"
+    },
+    {
+      "tid": "2944029",
+      "self_s": 0.000462854,
+      "zones": 1,
+      "name": "2944029"
+    },
+    {
+      "tid": "2944197",
+      "self_s": 0.000461372,
+      "zones": 1,
+      "name": "2944197"
+    },
+    {
+      "tid": "2944021",
+      "self_s": 0.000450655,
+      "zones": 7,
+      "name": "2944021"
+    },
+    {
+      "tid": "2944283",
+      "self_s": 0.000425687,
+      "zones": 2,
+      "name": "2944283"
+    },
+    {
+      "tid": "2944203",
+      "self_s": 0.00042302400000000003,
+      "zones": 5,
+      "name": "2944203"
+    },
+    {
+      "tid": "2944275",
+      "self_s": 0.000419838,
+      "zones": 3,
+      "name": "2944275"
+    },
+    {
+      "tid": "2944235",
+      "self_s": 0.00041452,
+      "zones": 3,
+      "name": "2944235"
+    },
+    {
+      "tid": "2944210",
+      "self_s": 0.000395553,
+      "zones": 7,
+      "name": "2944210"
+    },
+    {
+      "tid": "2944028",
+      "self_s": 0.000381049,
+      "zones": 1,
+      "name": "2944028"
+    },
+    {
+      "tid": "2944274",
+      "self_s": 0.000343923,
+      "zones": 3,
+      "name": "2944274"
+    },
+    {
+      "tid": "2944236",
+      "self_s": 0.000296469,
+      "zones": 4,
+      "name": "2944236"
+    },
+    {
+      "tid": "2944216",
+      "self_s": 0.000294077,
+      "zones": 1,
+      "name": "2944216"
+    },
+    {
+      "tid": "2944215",
+      "self_s": 0.000273666,
+      "zones": 1,
+      "name": "2944215"
+    },
+    {
+      "tid": "2944234",
+      "self_s": 0.000273576,
+      "zones": 1,
+      "name": "2944234"
+    },
+    {
+      "tid": "2944023",
+      "self_s": 0.000271493,
+      "zones": 1,
+      "name": "2944023"
+    },
+    {
+      "tid": "2944277",
+      "self_s": 0.000263572,
+      "zones": 3,
+      "name": "2944277"
+    },
+    {
+      "tid": "2944202",
+      "self_s": 0.00025666,
+      "zones": 1,
+      "name": "2944202"
+    },
+    {
+      "tid": "2944211",
+      "self_s": 0.000240686,
+      "zones": 1,
+      "name": "2944211"
+    },
+    {
+      "tid": "2944233",
+      "self_s": 0.000232673,
+      "zones": 1,
+      "name": "2944233"
+    },
+    {
+      "tid": "2944051",
+      "self_s": 0.00020345,
+      "zones": 1,
+      "name": "2944051"
+    },
+    {
+      "tid": "2944220",
+      "self_s": 0.000177249,
+      "zones": 1,
+      "name": "2944220"
+    },
+    {
+      "tid": "2944278",
+      "self_s": 0.000177029,
+      "zones": 3,
+      "name": "2944278"
+    },
+    {
+      "tid": "2944022",
+      "self_s": 0.000172302,
+      "zones": 1,
+      "name": "2944022"
+    },
+    {
+      "tid": "2945003",
+      "self_s": 0.000170258,
+      "zones": 1,
+      "name": "2945003"
+    },
+    {
+      "tid": "2944219",
+      "self_s": 0.000154846,
+      "zones": 1,
+      "name": "2944219"
+    },
+    {
+      "tid": "2944273",
+      "self_s": 0.000146433,
+      "zones": 1,
+      "name": "2944273"
+    },
+    {
+      "tid": "2944050",
+      "self_s": 0.000140343,
+      "zones": 1,
+      "name": "2944050"
+    },
+    {
+      "tid": "2944201",
+      "self_s": 0.000131691,
+      "zones": 1,
+      "name": "2944201"
+    },
+    {
+      "tid": "2943659",
+      "self_s": 0.000122827,
+      "zones": 2,
+      "name": "python3"
+    },
+    {
+      "tid": "2944206",
+      "self_s": 0.000103257,
+      "zones": 1,
+      "name": "2944206"
+    },
+    {
+      "tid": "2944290",
+      "self_s": 9.6537e-05,
+      "zones": 1,
+      "name": "2944290"
+    },
+    {
+      "tid": "2944212",
+      "self_s": 8.6121e-05,
+      "zones": 1,
+      "name": "2944212"
+    },
+    {
+      "tid": "2944047",
+      "self_s": 7.3612e-05,
+      "zones": 1,
+      "name": "2944047"
+    },
+    {
+      "tid": "2944291",
+      "self_s": 7.0807e-05,
+      "zones": 1,
+      "name": "2944291"
+    },
+    {
+      "tid": "2944046",
+      "self_s": 6.6171e-05,
+      "zones": 1,
+      "name": "2944046"
+    },
+    {
+      "tid": "2944207",
+      "self_s": 6.602e-05,
+      "zones": 1,
+      "name": "2944207"
+    },
+    {
+      "tid": "2944208",
+      "self_s": 6.1874e-05,
+      "zones": 1,
+      "name": "2944208"
+    }
+  ],
+  "relative_diagnostic_slice": {
+    "scope": "Trace-relative diagnostic slice; NOT yet proven normal monotonic window",
+    "window_ns": [
+      130000000000,
+      240000000000
+    ],
+    "window_s": 110,
+    "profile_validated": false,
+    "normal_window_mapping": "not established; epoch seconds and capture connect time are not an exact trace origin",
+    "selected": {
+      "get_annotator_data (Python)": {
+        "count": 9041,
+        "sum_s": 2.477334466,
+        "min_ms": 0.032539,
+        "max_ms": 13.950226,
+        "mean_ms": 0.2740111122663422,
+        "p50_ms": 0.061514,
+        "p95_ms": 0.792995,
+        "p99_ms": 1.003986
+      },
+      "App Update": {
+        "count": 855,
+        "sum_s": 16.623181337,
+        "min_ms": 9.534533,
+        "max_ms": 42.018973,
+        "mean_ms": 19.44231735321637,
+        "p50_ms": 19.352407,
+        "p95_ms": 31.955766,
+        "p99_ms": 36.539243
+      },
+      "PhysXUpdateNonRender": {
+        "count": 855,
+        "sum_s": 10.254130456,
+        "min_ms": 7.411606,
+        "max_ms": 33.249323,
+        "mean_ms": 11.99313503625731,
+        "p50_ms": 10.475164,
+        "p95_ms": 22.060064,
+        "p99_ms": 25.375413
+      },
+      "UsdContext hydraRender": {
+        "count": 855,
+        "sum_s": 2.546940343,
+        "min_ms": 0.02621,
+        "max_ms": 12.371616,
+        "mean_ms": 2.978877594152047,
+        "p50_ms": 0.055805,
+        "p95_ms": 9.614205,
+        "p99_ms": 10.844334
+      }
+    },
+    "app_update_gaps": {
+      "count": 854,
+      "sum_s": 93.05041095,
+      "min_ms": 0.766455,
+      "max_ms": 607.771173,
+      "mean_ms": 108.95832663934426,
+      "p50_ms": 37.909286,
+      "p95_ms": 363.868587,
+      "p99_ms": 379.446236
+    },
+    "main_top_level_union_s": 20.659494481,
+    "gpu_complete_zone_count": 61758,
+    "gpu_root_count": 564,
+    "gpu_root_union_s": 5.073938616,
+    "gpu_root_distribution": {
+      "count": 564,
+      "sum_s": 5.073938616,
+      "min_ms": 0.234425,
+      "max_ms": 28.22216,
+      "mean_ms": 8.996345063829787,
+      "p50_ms": 3.579275,
+      "p95_ms": 24.445284,
+      "p99_ms": 26.137578
+    }
+  },
+  "interpretation": [
+    "CPU zone elapsed self time excludes instrumented children but includes waiting/preemption; it is not sampled CPU utilization. Inclusive zones and separate threads overlap.",
+    "The relative130-240s slice is exploratory, not an asserted exact pick or capture interval.855complete App Update zones occur there but do not satisfy normal-window qualification without an anchor.",
+    "App Update occupies16.623s of the110s slice. Consecutive update gaps sum93.050s; all selected main top-level zones cover20.659s, leaving89.341s uninstrumented in that slice.",
+    "PhysXUpdateNonRender is the largest named elapsed cost inside App Update; the trace does not distinguish GPU/CPU synchronization from computation within its self time.",
+    "GPU context is calibrated Vulkan on physical GPU1. It measures tracked graphics regions, not all device activity, CUDA physics, PyTorch/MCP inference or foreign processes. GPU root union5.074s is not total device busy time.",
+    "Targets/get/numpy/set, frame-state getters, Python exec queue and bridge loop have no dedicated zones. No cause of the300s timeout is proven."
+  ],
+  "next_measurement": [
+    "Explicit opt-in disabled-by-default bridge.loop and existing targets get/numpy/compose/set, wrist, app.update, frame q/contact/history, refresh and execjobs zones; preserve single-call ordering and exceptions.",
+    "One same-thread clock anchor: take existing-host monotonic_ns between an identifiable trace begin/end, persist it as diagnostic metadata, and use the enclosing trace interval to bound origin uncertainty. Do not infer an exact origin from integer epoch.",
+    "No additional getters/synchronization/robotRPC, altered budgets, render/physics knobs or hidden instrumentation. Kit trace cannot replace separate MCP lock/detection/decoder timings."
+  ],
+  "physical_acceptance": "Native profile08 is FAIL(timeout during place), not altered by successful capture/decode."
+}

@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import shutil
 import stat
+import time
+from types import SimpleNamespace
 import zipfile
 
 import pytest
@@ -58,9 +60,10 @@ def test_offline_prepare_leaves_all_bytes_and_mtimes_unchanged(source, monkeypat
 
 
 @pytest.mark.parametrize("fault", ["missing", "size", "checksum", "symlink"])
-def test_tampered_source_is_rejected_before_use(source, tmp_path, fault):
+@pytest.mark.parametrize("source_name", ["demo/own_kitchen.py", "scripts/isaac_python_spans.py"])
+def test_tampered_source_is_rejected_before_use(source, tmp_path, fault, source_name):
     repo, config = source
-    path = repo / "demo/own_kitchen.py"
+    path = repo / source_name
     raw = path.read_bytes()
     if fault == "missing":
         path.unlink()
@@ -269,10 +272,15 @@ def test_download_rejects_size_checksum_origin_and_time_failures(tmp_path, monke
     response = io.BytesIO(body)
     response.geturl = lambda: "https://example.invalid/asset" if fault == "redirect" else identity.BUNDLE_URL
     response.headers = {"Content-Length": "1"} if fault == "content_length" else {}
-    monkeypatch.setattr(kitchen.urllib.request, "urlopen", lambda *a, **kw: response)
+    def fetch(*args, **kwargs):
+        # Another clock consumer must not exhaust the installer's fake ticks.
+        for _ in range(3):
+            time.monotonic()
+        return response
+    monkeypatch.setattr(kitchen.urllib.request, "urlopen", fetch)
     if fault == "deadline":
         ticks = iter([0, kitchen.DOWNLOAD_BUDGET_S + 1])
-        monkeypatch.setattr(kitchen.time, "monotonic", lambda: next(ticks))
+        monkeypatch.setattr(kitchen, "time", SimpleNamespace(monotonic=lambda: next(ticks)))
     with pytest.raises((ValueError, TimeoutError)):
         kitchen.download(identity.BUNDLE_URL, tmp_path / "download.zip", expected)
 

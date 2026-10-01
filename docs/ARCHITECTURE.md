@@ -208,6 +208,16 @@ are distinct metadata. No robot/target masks or physical attachment authority
 are fabricated. The USD source hash covers the root file, not its dependency
 closure. See [OVRTX rendering and platform evidence](OVRTX_RENDERER.md).
 
+### Optional bridge timing
+
+The Isaac bridge has disabled-by-default [Python profiling zones](ISAAC_BRIDGE_PROFILING.md)
+around its existing target, update, frame-history, camera and execution-queue
+operations. The standard-library helper imports Carbonite only when enabled
+after application creation. Its one clock anchor binds a captured zone to a
+bounded monotonic interval; profiler logs and timings never authorize motion
+or renew camera freshness. Profiler errors invalidate diagnostics while the
+original operation and safety behavior remain intact.
+
 ### Motion safety path
 
 Skills hold a `SafeArm`. Its motion path enforces the configured peak velocity,

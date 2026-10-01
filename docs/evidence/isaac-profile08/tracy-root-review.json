@@ -1,0 +1,12 @@
+{
+  "pass": true,
+  "checked_utc": "2026-10-01T20:43:00.824541+00:00",
+  "analysis_receipt_sha256": "2394350976442f3120eac6d428389f701ee0ad5e287fca92dcc4e1aa60374144",
+  "small_inputs_outputs_rehashed": 22,
+  "large_exports_not_rehashed_again": true,
+  "main_complete_root_union_s": 20.659494481,
+  "main_clipped_root_union_s": 20.659494481,
+  "boundary_crossings": [],
+  "profile_validated": false,
+  "scope": "Independent code review and retained-input integrity; relative slice only, no normal-window mapping or causal claim."
+}

@@ -26,6 +26,12 @@ or design scopes. The offline [Jev/Kev pilot](JEV_DECISIONS.md) has not demonstr
 a decision-quality advantage over the recorded-status rule baseline and is not
 part of presenter startup.
 
+Local profile 08 retained a real CPU/GPU trace and fresh cameras but timed out
+during placement. Its trace includes startup without an exact task-clock
+mapping. Optional [bridge Python spans](ISAAC_BRIDGE_PROFILING.md) provide the
+next measurement points and a bounded clock anchor; they do not establish a
+performance improvement or a completed physical case.
+
 ## Optional cuMotion planning and assembly research (2026-10-01)
 
 [PR #47](https://github.com/johnnynunez/cascade/pull/47) adds a standalone

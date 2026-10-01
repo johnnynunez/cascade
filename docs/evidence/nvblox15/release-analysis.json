@@ -1,0 +1,450 @@
+{
+  "pass": true,
+  "created_utc": "2026-10-01T21:05:46.662393+00:00",
+  "scope": "Offline source and retained-data review only. This is not a successful task, an executed fix or new physical/test evidence.",
+  "runtime_head": "c9147db84356de32d6a98c7a70a1aca3ecefe084",
+  "runtime_source_sha256": {
+    "src/cascade/skills/release_episode.py": "28b26364897da2db2f794312810778bf55033bc72a89a7dca36a29c5250b97aa",
+    "src/cascade/control/simulation_motion.py": "9b860dca4e8090e806a692b320d0624e6d6e775ce023daa6efbd5222f8258ac8",
+    "src/cascade/control/isaac_arm.py": "0f73e6d65af3b9eb9c4faaf0167c87fe10aa0f2567646a4a65e015848c045f74",
+    "src/cascade/skills/runtime.py": "ffa03bc4445f63293efbccfa81af88dfd8de4cbfe1152fea77e2fd2941fcd138",
+    "src/cascade/perception/occupancy.py": "2904b1874de94e600039a58db5f832a8192db32b0e725e52887d0ccd1493664e",
+    "scripts/isaac_bridge.py": "7437f6ebdf4a24262061d7178dec9cbc00b8ab7599634d5218830cf8e3897ee2",
+    "configs/arms/isaac.yaml": "5523941aabe11ff31973532f15eba198f808b51d63e39be450d5c3cea27f6212",
+    "configs/arms/isaac_kitchen.yaml": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+    "tests/test_release_episode.py": "c1a55a4ef57efffe1ccdeaa926ef0d205e4ce52dd5c29517d4574196e063d475",
+    "tests/test_release_open_sync.py": "f69e01059a78062d02b1cd59ff4a5d8ca99f35bc0ecc7a0657c336888c906a0a"
+  },
+  "inputs_sha256": {
+    "receipt.json": "036dbab60f71d605b18e1d2732488bee8355dc7568ea4cf87f7e3c3a0219bc47",
+    "commands.jsonl": "59d335ee36a3e5395676ced367b8682ba67c97b2f0e01be8e7f477e8ad0d22b2",
+    "witness/samples.jsonl": "dc88d00445b5fe6cc7ef8ff0e5954114f7fe753289f624fe98d11541d46ea533"
+  },
+  "native_task_pass": false,
+  "native_error": "post-place retreat aborted: release feedback moved while waiting for geometry",
+  "reconstruction_caveat": "commands.jsonl logs existing get_state reads but no release callsite labels. before/after are inferred from source ordering, held-object transition and final consecutive reads; exact same-step witness equality independently confirms their physical bytes.",
+  "reconstructed_before": {
+    "started_monotonic": 133589.493483202,
+    "finished_monotonic": 133589.656798242,
+    "physics_clock": {
+      "version": 1,
+      "engine": "physx",
+      "clock": "SimulationManager",
+      "epoch": "79c58e9eaf944e1b8e8a93b89f7d4747",
+      "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+      "sim_time": 196.51666666666668,
+      "physics_step": 23582,
+      "physics_dt_s": 0.008333333333333333,
+      "source": [
+        "127.0.0.1",
+        8704
+      ]
+    },
+    "q": [
+      0.4649348855018616,
+      1.878822684288025,
+      1.557871699333191,
+      -1.2539337873458862,
+      3.6788874240301084e-06,
+      1.4648542404174805
+    ],
+    "gripper_joints": {
+      "version": 1,
+      "names": [
+        "joint_left",
+        "joint_right"
+      ],
+      "position_m": [
+        0.05000003054738045,
+        0.049995243549346924
+      ],
+      "lower_m": [
+        0.0,
+        0.0
+      ],
+      "upper_m": [
+        0.05000000074505806,
+        0.05000000074505806
+      ]
+    },
+    "held": null
+  },
+  "reconstructed_after": {
+    "started_monotonic": 133590.572529134,
+    "finished_monotonic": 133590.62372861,
+    "physics_clock": {
+      "version": 1,
+      "engine": "physx",
+      "clock": "SimulationManager",
+      "epoch": "79c58e9eaf944e1b8e8a93b89f7d4747",
+      "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+      "sim_time": 196.63333333333333,
+      "physics_step": 23596,
+      "physics_dt_s": 0.008333333333333333,
+      "source": [
+        "127.0.0.1",
+        8704
+      ]
+    },
+    "q": [
+      0.46493852138519287,
+      1.8788087368011475,
+      1.5578675270080566,
+      -1.2538787126541138,
+      5.449055606732145e-06,
+      1.4625506401062012
+    ],
+    "gripper_joints": {
+      "version": 1,
+      "names": [
+        "joint_left",
+        "joint_right"
+      ],
+      "position_m": [
+        0.05000003054738045,
+        0.05000007897615433
+      ],
+      "lower_m": [
+        0.0,
+        0.0
+      ],
+      "upper_m": [
+        0.05000000074505806,
+        0.05000000074505806
+      ]
+    },
+    "held": null
+  },
+  "preopen": {
+    "started_monotonic": 133588.353346988,
+    "finished_monotonic": 133588.46375138,
+    "physics_clock": {
+      "version": 1,
+      "engine": "physx",
+      "clock": "SimulationManager",
+      "epoch": "79c58e9eaf944e1b8e8a93b89f7d4747",
+      "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+      "sim_time": 196.36666666666667,
+      "physics_step": 23564,
+      "physics_dt_s": 0.008333333333333333,
+      "source": [
+        "127.0.0.1",
+        8704
+      ]
+    },
+    "q": [
+      0.46492379903793335,
+      1.8789540529251099,
+      1.5578997135162354,
+      -1.254151463508606,
+      -2.53472535405308e-06,
+      1.4726709127426147
+    ],
+    "gripper_joints": {
+      "version": 1,
+      "names": [
+        "joint_left",
+        "joint_right"
+      ],
+      "position_m": [
+        0.021977879106998444,
+        0.02217070385813713
+      ],
+      "lower_m": [
+        0.0,
+        0.0
+      ],
+      "upper_m": [
+        0.05000000074505806,
+        0.05000000074505806
+      ]
+    },
+    "held": "orange"
+  },
+  "last_joint_command": {
+    "event": "begin",
+    "layer": "actuator",
+    "call": "send_joint_target",
+    "id": 133587219452022,
+    "args": [
+      [
+        0.4652876499017979,
+        1.8750035046820321,
+        1.5580330429083655,
+        -1.253829140963845,
+        7.38691985319085e-06,
+        1.4607725233462872
+      ]
+    ],
+    "kwargs": {
+      "timeout_s": 1.0
+    },
+    "phase": "pick",
+    "monotonic": 133587.219454996,
+    "held": "orange"
+  },
+  "open_command": {
+    "event": "begin",
+    "layer": "actuator",
+    "call": "set_gripper",
+    "id": 133588464286424,
+    "args": [
+      1.0,
+      0.6
+    ],
+    "kwargs": {},
+    "phase": "pick",
+    "monotonic": 133588.464287175,
+    "held": "orange"
+  },
+  "joint_commands_after_open": 0,
+  "delta_q_local_rad": [
+    3.635883331298828e-06,
+    -1.3947486877441406e-05,
+    -4.172325134277344e-06,
+    5.507469177246094e-05,
+    1.7701681827020366e-06,
+    -0.002303600311279297
+  ],
+  "max_abs_delta_rad": 0.002303600311279297,
+  "max_abs_delta_joint_one_based": 6,
+  "guard_threshold_rad": 0.001,
+  "guard_exceeded": true,
+  "physics_steps_delta": 14,
+  "physics_time_delta_s": 0.11666666666664582,
+  "feedback_return_delta_wall_s": 0.9669303679838777,
+  "feedback_call_window_wall_s": 1.1302454079850577,
+  "error_to_last_target_rad": {
+    "preopen": [
+      -0.00036385086386453436,
+      0.003950548243077723,
+      -0.00013332939213017703,
+      -0.0003223225447610556,
+      -9.92164520724393e-06,
+      0.011898389396327591
+    ],
+    "before": [
+      -0.0003527643999363117,
+      0.003819179605992762,
+      -0.00016134357517461062,
+      -0.00010464638204132903,
+      -3.708032429160742e-06,
+      0.004081717071193314
+    ],
+    "after": [
+      -0.0003491285166050129,
+      0.0038052321191153204,
+      -0.00016551590030888796,
+      -4.9571690268868096e-05,
+      -1.9378642464587054e-06,
+      0.0017781167599140169
+    ]
+  },
+  "witness_selected": [
+    {
+      "sequence": 1979,
+      "server_monotonic": 133588.466005607,
+      "physics_step": 23564,
+      "sim_time": 196.36666666666667,
+      "q_asset": [
+        -0.46492379903793335,
+        -1.8789540529251099,
+        -1.5578997135162354,
+        1.254151463508606,
+        2.53472535405308e-06,
+        -1.4726709127426147,
+        0.021977879106998444,
+        0.02217070385813713
+      ],
+      "dq_asset": [
+        0.005181353539228439,
+        0.10322138667106628,
+        0.04037956893444061,
+        -0.047575511038303375,
+        -0.11632616072893143,
+        -0.013765721581876278,
+        0.06975962966680527,
+        0.035178959369659424
+      ],
+      "jaw_contacts": [
+        4,
+        4
+      ],
+      "orange_position_m": [
+        0.2981722950935364,
+        -0.14171461760997772,
+        0.0667638480772796
+      ],
+      "orange_velocity_m_s": [
+        -0.05547090619802475,
+        -0.029108284041285515,
+        0.13849367201328278
+      ]
+    },
+    {
+      "sequence": 1985,
+      "server_monotonic": 133589.498479538,
+      "physics_step": 23580,
+      "sim_time": 196.5,
+      "q_asset": [
+        -0.46493393182754517,
+        -1.8788282871246338,
+        -1.557873010635376,
+        1.253947138786316,
+        -3.35948766405636e-06,
+        -1.4653692245483398,
+        0.04998407140374184,
+        0.04997774958610535
+      ],
+      "dq_asset": [
+        0.01561812125146389,
+        0.09772719442844391,
+        0.014345282688736916,
+        -0.0051190415397286415,
+        0.0001629962061997503,
+        0.03289291262626648,
+        0.006416867021471262,
+        0.0005038530798628926
+      ],
+      "jaw_contacts": [
+        0,
+        0
+      ],
+      "orange_position_m": [
+        0.29201215505599976,
+        -0.14381419122219086,
+        0.02937657014630464
+      ],
+      "orange_velocity_m_s": [
+        -0.012843477539718151,
+        0.01250993087887764,
+        -0.001349485362879932
+      ]
+    },
+    {
+      "sequence": 1986,
+      "server_monotonic": 133589.658719102,
+      "physics_step": 23582,
+      "sim_time": 196.51666666666668,
+      "q_asset": [
+        -0.4649348855018616,
+        -1.878822684288025,
+        -1.557871699333191,
+        1.2539337873458862,
+        -3.6788874240301084e-06,
+        -1.4648542404174805,
+        0.05000003054738045,
+        0.049995243549346924
+      ],
+      "dq_asset": [
+        0.015547615475952625,
+        0.09774649888277054,
+        0.01430798601359129,
+        -0.0046712118200957775,
+        8.834397158352658e-05,
+        0.02926766499876976,
+        4.822883283850388e-07,
+        -0.00168916757684201
+      ],
+      "jaw_contacts": [
+        0,
+        0
+      ],
+      "orange_position_m": [
+        0.2917942702770233,
+        -0.1435854732990265,
+        0.02934873850248483
+      ],
+      "orange_velocity_m_s": [
+        -0.013112219050526619,
+        0.013024906627833843,
+        -0.0017013208707794547
+      ]
+    },
+    {
+      "sequence": 1991,
+      "server_monotonic": 133590.629337778,
+      "physics_step": 23596,
+      "sim_time": 196.63333333333333,
+      "q_asset": [
+        -0.46493852138519287,
+        -1.8788087368011475,
+        -1.5578675270080566,
+        1.2538787126541138,
+        -5.449055606732145e-06,
+        -1.4625506401062012,
+        0.05000003054738045,
+        0.05000007897615433
+      ],
+      "dq_asset": [
+        0.015680044889450073,
+        0.09749619662761688,
+        0.014000006020069122,
+        -0.004250781610608101,
+        -2.807319106068462e-05,
+        0.012755145318806171,
+        2.935530574177392e-07,
+        2.0936400687787682e-05
+      ],
+      "jaw_contacts": [
+        0,
+        0
+      ],
+      "orange_position_m": [
+        0.28939124941825867,
+        -0.14101004600524902,
+        0.028749708097201856
+      ],
+      "orange_velocity_m_s": [
+        -0.028455909341573715,
+        0.03119330294430256,
+        -0.00970593560487032
+      ]
+    },
+    {
+      "sequence": 1993,
+      "server_monotonic": 133591.07153566,
+      "physics_step": 23604,
+      "sim_time": 196.7,
+      "q_asset": [
+        -0.4649394452571869,
+        -1.8788061141967773,
+        -1.5578670501708984,
+        1.2538620233535767,
+        -5.9154845075681806e-06,
+        -1.4618762731552124,
+        0.05000004544854164,
+        0.05000007525086403
+      ],
+      "dq_asset": [
+        0.01571578159928322,
+        0.09741859883069992,
+        0.013982674106955528,
+        -0.0041143158450722694,
+        -1.2042923117405735e-05,
+        0.00795357208698988,
+        3.407012627576478e-07,
+        2.0832550944760442e-05
+      ],
+      "jaw_contacts": [
+        0,
+        0
+      ],
+      "orange_position_m": [
+        0.28915539383888245,
+        -0.13988204300403595,
+        0.028645033027750524
+      ],
+      "orange_velocity_m_s": [
+        0.0006046615890227258,
+        0.010986206121742725,
+        -0.000138732124469243
+      ]
+    }
+  ],
+  "same_step_state_witness_exact": true,
+  "tests_rerun": false,
+  "product_edits": false,
+  "gpu_or_rpc": false,
+  "inference": "The wrist continues moving toward its already acknowledged target after jaws open and contacts disappear. This is consistent with physical unloading/servo relaxation, not evidence of a clock or joint-convention mismatch. The logs cannot uniquely identify solver/drive/contact mechanics, and correct guard rejection is preserved."
+}

@@ -24,6 +24,13 @@ offline comparison; no inference was repeated. See the
 All five [merged-source CI jobs](evidence/detector-reuse/main60-ci.json) also
 passed. New physical acceptance is tracked separately.
 
+Documentation [PR #61](https://github.com/johnnynunez/cascade/pull/61) merged as
+`5359405a` with the exact reviewed tree after all five PR checks passed.
+All five [merged-source CI jobs](evidence/isaac-profile08/main61-ci.json) also passed.
+It records detector validation, NV14 and the failed startup of profile 07.
+The [CI and merge records](evidence/isaac-profile08/retained-inputs.json) preserve
+that documentation revision separately from the runtime pin above.
+
 Documentation [PR #59](https://github.com/johnnynunez/cascade/pull/59) merged as
 `70e4f5fe` after all five PR checks passed; all five merged-source checks passed.
 It records the failed native attempt 06 and the prior source-bound results.
@@ -250,6 +257,31 @@ Neither addition retroactively changes the physical source `477c88f` or the
 failures below. Documentation PR #43 preserved that earlier source distinction.
 
 ## Current physical acceptance
+
+**nvblox environment 15 on `c9147db8` failed during post-release retreat.**
+Unlike NV14, this detector revision reached actuation, verified the orange
+grasp and completed transport. The native case then rejected measured joint
+movement while waiting for release geometry. It took 352.74 seconds; home
+and reset were not attempted, and the postcondition remained unverified.
+All 1,994 witnesses per camera met the two-second age limit (maximum 0.940 s).
+This direct diagnostic does not validate the presenter MCP deadline of
+300 seconds. Its separate administrative closure passed.
+See [NV15](LOCAL_RTX_VALIDATION.md#nvblox-environment-15-release-feedback-movement)
+for retained results and the measured drift; no tolerance was relaxed.
+
+**Local dual-RTX Pro attempt 08 on `ff8d58b` failed during placement.**
+Read-only startup readiness and all three cameras passed; the grasp was
+verified in 171.835 seconds. The unchanged 300-second MCP request limit
+then cancelled placement and latched the stop. The cube remained held about
+13 cm above the table; proximity to the destination did not establish
+containment or release. No reset, second case, campaign or restart followed.
+All 1,324 witness samples per camera met the two-second limit (maximum
+server age 0.828 s, delivery age 0.855 s). Observed real-time factor was
+0.117, under the profiler and existing shared GPU load.
+A 120-second Tracy capture decoded real CPU and GPU zones, but included
+buffered startup without a precise mapping to the task clock. It cannot
+certify a normal-task timing window. [Attempt 08](LOCAL_RTX_VALIDATION.md#profiling-attempt-08-placement-timeout-and-real-trace)
+retains the failed task, separate successful closure and profiling limits.
 
 Diagnostic [profiling attempt 07](LOCAL_RTX_VALIDATION.md#profiling-attempt-07-startup-port-mismatch)
 on `ff8d58b` stopped during startup because its diagnostic bridge port differed

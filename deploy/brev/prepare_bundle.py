@@ -26,6 +26,7 @@ BUNDLE_REQUIRED_FILES = frozenset({"cocina_asier.usdc", "geometry-audit.json", "
 ASSET_MANIFEST = Path(__file__).with_name("bundle_assets.json")
 KITCHEN_SOURCE_FILES = (
     "scripts/isaac_bridge.py",
+    "scripts/isaac_python_spans.py",
     "demo/isaac_scene.py", "demo/own_kitchen.py", "demo/own_kitchen_props.py",
     "demo/cocina_asier.py", "scripts/build_cocina_asier.py",
     "demo/scene/cocina_asier_sources.json", "demo/scene/cocina_asier_audit.json", BUNDLE_MANIFEST,
@@ -41,7 +42,7 @@ RUNTIME_FILES = (
     "assets/grasp_geometry/physx_finger_cooking_source.json",
     "src/cascade/perception/ovrtx_camera.py", "src/cascade/sim/ovrtx_renderer.py",
     "configs/cameras/ovrtx.yaml", "demo/ovrtx/rgbd.usda",
-    "scripts/isaac_bridge.py", "scripts/isaac_runtime.py", "scripts/isaac_frame_history.py",
+    "scripts/isaac_bridge.py", "scripts/isaac_runtime.py", "scripts/isaac_frame_history.py", "scripts/isaac_python_spans.py",
     *KITCHEN_SOURCE_FILES, "demo/serve_isaac_view.py", "demo/scene/kitchen_config.json",
     "demo/scene/own_assets.json", "deploy/runtime/runtime.py", "deploy/runtime/brain.py",
     "deploy/runtime/brain_qwen.json", "deploy/runtime/web_runtime.py",

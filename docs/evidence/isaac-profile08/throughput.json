@@ -1,0 +1,372 @@
+{
+  "scope": "Offline descriptive08 profile under normal load with configuration-only profiler active for first120s; no causal attribution, physical acceptance or threshold change. Different source/cache/profiler context from06.",
+  "runs": [
+    {
+      "run": "08",
+      "source": "ff8d58be1ae8e000bbecb19cd8db1551ac54be73",
+      "archive_sha256": "3d3c9c8949e1c5a21f83154f30ad17bad2889dfe206adb64f8ac607f4822828a",
+      "samples": 1324,
+      "phases_present": [
+        "pick_begin"
+      ],
+      "wall_observed_s": 303.9500964730105,
+      "sim_observed_s": 35.68333333333333,
+      "rtf": 0.11739865769873793,
+      "rtf_windows": [
+        {
+          "start_s": 0.0,
+          "observed_wall_s": 59.726459879020695,
+          "rtf": 0.12947918475325068
+        },
+        {
+          "start_s": 60.0,
+          "observed_wall_s": 59.729515384009574,
+          "rtf": 0.13114677530818253
+        },
+        {
+          "start_s": 120.0,
+          "observed_wall_s": 59.68315095701837,
+          "rtf": 0.1094669639349035
+        },
+        {
+          "start_s": 180.0,
+          "observed_wall_s": 59.86344153500977,
+          "rtf": 0.11526233412365204
+        },
+        {
+          "start_s": 240.0,
+          "observed_wall_s": 59.81849386301474,
+          "rtf": 0.10392549636744332
+        }
+      ],
+      "cameras": {
+        "cam0": {
+          "server_age_s": {
+            "count": 1324,
+            "min": 0.10472674100310542,
+            "median": 0.2888470354810124,
+            "mean": 0.3087149061888164,
+            "p95": 0.5162456230027601,
+            "max": 0.8276018929900602
+          },
+          "delivery_age_s": {
+            "count": 1324,
+            "min": 0.2234145760012325,
+            "median": 0.4427749140158994,
+            "mean": 0.44990966657562703,
+            "p95": 0.5829808970156591,
+            "max": 0.8547206099901814
+          },
+          "server_stale": [],
+          "missing": 0
+        },
+        "side": {
+          "server_age_s": {
+            "count": 1324,
+            "min": 0.10472674100310542,
+            "median": 0.2888470354810124,
+            "mean": 0.3087149061888164,
+            "p95": 0.5162456230027601,
+            "max": 0.8276018929900602
+          },
+          "delivery_age_s": {
+            "count": 1324,
+            "min": 0.2234145760012325,
+            "median": 0.4427749140158994,
+            "mean": 0.44990966657562703,
+            "p95": 0.5829808970156591,
+            "max": 0.8547206099901814
+          },
+          "server_stale": [],
+          "missing": 0
+        },
+        "proof": {
+          "server_age_s": {
+            "count": 1324,
+            "min": 0.10472674100310542,
+            "median": 0.2888470354810124,
+            "mean": 0.3087149061888164,
+            "p95": 0.5162456230027601,
+            "max": 0.8276018929900602
+          },
+          "delivery_age_s": {
+            "count": 1324,
+            "min": 0.2234145760012325,
+            "median": 0.4427749140158994,
+            "mean": 0.44990966657562703,
+            "p95": 0.5829808970156591,
+            "max": 0.8547206099901814
+          },
+          "server_stale": [],
+          "missing": 0
+        }
+      },
+      "observer_case_samples": 61,
+      "gpu_global": {
+        "0": {
+          "uuid": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3",
+          "memory_mib": {
+            "count": 61,
+            "min": 21676.0,
+            "median": 21908.0,
+            "mean": 21895.573770491803,
+            "p95": 22035.0,
+            "max": 22035.0
+          },
+          "utilization_percent": {
+            "count": 61,
+            "min": 60.0,
+            "median": 78.0,
+            "mean": 79.26229508196721,
+            "p95": 94.0,
+            "max": 98.0
+          }
+        },
+        "1": {
+          "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+          "memory_mib": {
+            "count": 61,
+            "min": 47386.0,
+            "median": 47826.0,
+            "mean": 47815.50819672131,
+            "p95": 47826.0,
+            "max": 47826.0
+          },
+          "utilization_percent": {
+            "count": 61,
+            "min": 36.0,
+            "median": 48.0,
+            "mean": 50.14754098360656,
+            "p95": 68.0,
+            "max": 99.0
+          }
+        }
+      },
+      "host_load1": {
+        "count": 61,
+        "min": 10.94,
+        "median": 29.67,
+        "mean": 28.701639344262293,
+        "p95": 46.11,
+        "max": 49.61
+      },
+      "process_cpu_percent_one_core": {
+        "6185": {
+          "count": 60,
+          "min": 0.1997173773026046,
+          "median": 0.20009157099806452,
+          "mean": 0.40351303666716076,
+          "p95": 0.40035638973223053,
+          "max": 7.8110105801494
+        },
+        "2946505": {
+          "count": 60,
+          "min": 0.0,
+          "median": 0.19995220366115174,
+          "mean": 0.4167212424121258,
+          "p95": 0.8004754736253235,
+          "max": 7.596128718082143
+        },
+        "2945169": {
+          "count": 60,
+          "min": 0.0,
+          "median": 0.20018383780582308,
+          "mean": 0.737308798682652,
+          "p95": 0.599963960644785,
+          "max": 27.43867819180687
+        },
+        "2943602": {
+          "count": 60,
+          "min": 0.0,
+          "median": 0.0,
+          "mean": 0.0,
+          "p95": 0.0,
+          "max": 0.0
+        },
+        "2947828": {
+          "count": 60,
+          "min": 203.56367377751653,
+          "median": 254.02864695972985,
+          "mean": 257.30996297760464,
+          "p95": 290.29190101578865,
+          "max": 374.9285078471712
+        },
+        "2943612": {
+          "count": 60,
+          "min": 184.42781012848184,
+          "median": 207.8544209536957,
+          "mean": 209.041367549662,
+          "p95": 237.20261748316076,
+          "max": 254.2022505534085
+        }
+      },
+      "grasp_phase_intervals": [
+        {
+          "phase": "planning",
+          "start_s": 1.7267310659808572,
+          "duration_to_next_phase_s": 1.7816355950199068
+        },
+        {
+          "phase": "open",
+          "start_s": 3.508366661000764,
+          "duration_to_next_phase_s": 0.06225021599675529
+        },
+        {
+          "phase": "home",
+          "start_s": 3.5706168769975193,
+          "duration_to_next_phase_s": 17.954159726999933
+        },
+        {
+          "phase": "pregrasp",
+          "start_s": 21.524776603997452,
+          "duration_to_next_phase_s": 90.25757268400048
+        },
+        {
+          "phase": "descent",
+          "start_s": 111.78234928799793,
+          "duration_to_next_phase_s": 25.112423771992326
+        },
+        {
+          "phase": "close",
+          "start_s": 136.89477305999026,
+          "duration_to_next_phase_s": 3.003920205985196
+        },
+        {
+          "phase": "lift",
+          "start_s": 139.89869326597545,
+          "duration_to_next_phase_s": 31.743330390017945
+        },
+        {
+          "phase": "verify",
+          "start_s": 171.6420236559934,
+          "duration_to_next_phase_s": 0.19296334200771526
+        }
+      ],
+      "grasp_duration_s": 171.8349869980011,
+      "render_reference_app_update_duration_s": {
+        "count": 1,
+        "min": 0.030611858004704118,
+        "median": 0.030611858004704118,
+        "mean": 0.030611858004704118,
+        "p95": 0.030611858004704118,
+        "max": 0.030611858004704118
+      },
+      "render_reference_count": 1,
+      "render_reference_scope": "Only retained attempt image metadata; physics witness omits render_reference. Not a representative distribution of all update steps.",
+      "trace_outcomes": [
+        {
+          "skill": "pick_and_place",
+          "t": 1790886823.1583285,
+          "duration_ms": 299944.5,
+          "result": {
+            "destination": "green square",
+            "destination_kind": "configured_point",
+            "target": [
+              0.14,
+              -0.27
+            ],
+            "ok": false,
+            "stage": "place",
+            "error": "place failed after 1 attempts: SafetyViolation: simulation motion stopped (e-stop latched; not retrying)",
+            "note": "still holding 'green cube'; try place_at with explicit coordinates",
+            "grip_verified": true,
+            "postcondition": {
+              "skill": "pick_and_place",
+              "kind": "relocated",
+              "status": "unverified",
+              "evidence": "green cube is 0.2 cm from the green square center (physics); full object containment and release are not established by a center position",
+              "channel": "physics",
+              "measured": {
+                "moved_m": 0.3121,
+                "final": [
+                  0.1404,
+                  -0.2684,
+                  0.1299
+                ],
+                "target_err_m": 0.0016,
+                "destination": "green square"
+              }
+            },
+            "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+          }
+        }
+      ],
+      "last_observed": {
+        "step": 9584,
+        "q": [
+          -1.0943182706832886,
+          -1.801696538925171,
+          -1.7196444272994995,
+          1.4928162097930908,
+          7.596385694341734e-05,
+          -2.598703145980835,
+          0.01987782120704651,
+          0.020077690482139587
+        ],
+        "gripper": {
+          "indices": [
+            6,
+            7
+          ],
+          "q": [
+            0.01987782120704651,
+            0.020077690482139587
+          ],
+          "qd": [
+            0.02028023824095726,
+            0.006009931676089764
+          ],
+          "lower": [
+            0.0,
+            0.0
+          ],
+          "upper": [
+            0.05000000074505806,
+            0.05000000074505806
+          ],
+          "open_fractions": [
+            0.3975564182168779,
+            0.4015538036591738
+          ],
+          "open_fraction": 0.39955511093802587
+        },
+        "green": {
+          "position_m": [
+            0.14038591086864471,
+            -0.26845139265060425,
+            0.1299461126437011
+          ],
+          "orientation_wxyz": [
+            0.9974237084388733,
+            0.07012875378131866,
+            0.010807711631059647,
+            0.010541233234107494
+          ],
+          "linear_velocity_m_s": [
+            -0.02517697773873806,
+            -0.011965615674853325,
+            0.05116897448897362
+          ],
+          "angular_velocity_rad_s": [
+            0.786298394203186,
+            0.9497857689857483,
+            7.145263671875
+          ],
+          "tensor_device": "cuda:0"
+        },
+        "contacts": [
+          11,
+          4
+        ]
+      },
+      "inputs": {
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile08-negative-retained/retention.json": "3d3c9c8949e1c5a21f83154f30ad17bad2889dfe206adb64f8ac607f4822828a",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile08-negative-retained/proof-evidence/case-1/physics/samples.jsonl": "5a67c950b28098bff61b7860f523f70a9cfc3cc53edd7abf5aae053cff176eaa",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile08-negative-retained/proof-evidence/case-1/physics/phases.json": "4f784e4556cc42208f2c4252b4b7c1a8e1529a46c8de3b2afe9e85fe27d663f6",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile08-negative-retained/run/observer-proof/samples.jsonl": "dce419ad6783e67df6551c3747b04338838f211f906bdd188b689a3a1ff600f3",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile08-negative-retained/runtime/trace.jsonl": "a5270d78a3f8f2a937791cc60a403946c084251a5c389601aee5caa454381c38"
+      }
+    }
+  ],
+  "script_sha256": "f18dbc58d08cd794efd68990b0051b4c6b4db795918673369bbb77b7d8b32ea4"
+}

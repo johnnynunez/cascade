@@ -1,0 +1,64 @@
+{
+  "pass": true,
+  "captured_utc": "2026-10-01T20:37:48.250062+00:00",
+  "pr": {
+    "headRefOid": "7ec2561782b4953d658adb9968a76ed578358313",
+    "mergeCommit": {
+      "oid": "5359405a607a14e9d30182309c40d30c3b95f80b"
+    },
+    "mergedAt": "2026-10-01T20:37:18Z",
+    "number": 61,
+    "state": "MERGED",
+    "url": "https://github.com/johnnynunez/cascade/pull/61"
+  },
+  "commit": {
+    "sha": "5359405a607a14e9d30182309c40d30c3b95f80b",
+    "node_id": "C_kwDOUGHcANoAKDUzNTk0MDVhNjA3YTE0ZTlkMzAxODIzMDljNDBkMzBjM2I5NWY4MGI",
+    "url": "https://api.github.com/repos/johnnynunez/cascade/git/commits/5359405a607a14e9d30182309c40d30c3b95f80b",
+    "html_url": "https://github.com/johnnynunez/cascade/commit/5359405a607a14e9d30182309c40d30c3b95f80b",
+    "author": {
+      "name": "Johnny",
+      "email": "johnnync13@gmail.com",
+      "date": "2026-10-01T20:37:17Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-01T20:37:17Z"
+    },
+    "tree": {
+      "sha": "1a3089f540ae38c51570624ebf2a1cb4228a36c1",
+      "url": "https://api.github.com/repos/johnnynunez/cascade/git/trees/1a3089f540ae38c51570624ebf2a1cb4228a36c1"
+    },
+    "message": "Merge pull request #61 from johnnynunez/docs/detector-local-validation-20261001\n\ndocs: update detector validation and local startup results",
+    "parents": [
+      {
+        "sha": "c9147db84356de32d6a98c7a70a1aca3ecefe084",
+        "url": "https://api.github.com/repos/johnnynunez/cascade/git/commits/c9147db84356de32d6a98c7a70a1aca3ecefe084",
+        "html_url": "https://github.com/johnnynunez/cascade/commit/c9147db84356de32d6a98c7a70a1aca3ecefe084"
+      },
+      {
+        "sha": "7ec2561782b4953d658adb9968a76ed578358313",
+        "url": "https://api.github.com/repos/johnnynunez/cascade/git/commits/7ec2561782b4953d658adb9968a76ed578358313",
+        "html_url": "https://github.com/johnnynunez/cascade/commit/7ec2561782b4953d658adb9968a76ed578358313"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJqvsR9CRC1aQ7uu5UhlAAAEVwQAJ4iQSBYIAZHgPqZtmBVmshr\nfUS4OGqlk21IrhF7B5RxqwvoKC2a+W9tzXO55yKhA59ky8zw56svQKqoV0EseynM\nKdSNEtIx8O+t6zn59gVzvRDJ6LEN9Ted2C4YtRrLZPOtztZWoERRMnfQ+dpWGukL\n7ptTn5DCCf4DZah/Jx3S/P5abVop/tcBCW5pt2Y82Qn+uJ2BDA30vYri4+x9fU3L\n8uF6lZuMZhuqYwP3l5lIQoIqhp/oqbVbe8Afl73ljJ/cE4BdHPn+XZzojtUOR3vH\n3J+JRXbefglqbs6FFbSKdgjL0rbmwPP3tpVF6F+SD9GZo7g133h8g1CfYLefyAa0\n4hVp8F7yiJa8cvO4FCKgI4Mh04rCDCp9R/CB6eHhfDF8A5x4cTNmDZWcpwWsuzjL\nkjiLygEks4H7c91dciPR1z2pOHADULhnpCE6MiDjAfc7Tj96j296yST6/9Hq6wRs\nYpyFzi5GZS9Np4XawCzXV5VLl4nAAwjmjmL97UVA0f+1aO1HPTxqThembi1I+t+H\nZnrbT2wy4vYK2HAsY4bh4XXE2LAbwnIBOLIAD57u/Q+fCLgksb8NfgGC+1gDJ8TK\ne+Bpcg3ICjqpmzaMoZdBiNs/+7t6bBVYhUu8xMQ3ga37L65hXM1div2i9R15UzBZ\nF4W7TDdORUoNujIlW2Bl\n=N1Be\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 1a3089f540ae38c51570624ebf2a1cb4228a36c1\nparent c9147db84356de32d6a98c7a70a1aca3ecefe084\nparent 7ec2561782b4953d658adb9968a76ed578358313\nauthor Johnny <johnnync13@gmail.com> 1790887037 +0200\ncommitter GitHub <noreply@github.com> 1790887037 +0200\n\nMerge pull request #61 from johnnynunez/docs/detector-local-validation-20261001\n\ndocs: update detector validation and local startup results",
+      "verified_at": "2026-10-01T20:37:18Z"
+    }
+  },
+  "main_ci": [
+    {
+      "conclusion": "",
+      "databaseId": 36922919694,
+      "headSha": "5359405a607a14e9d30182309c40d30c3b95f80b",
+      "status": "in_progress",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/36922919694"
+    }
+  ],
+  "exact_tested_tree": true
+}

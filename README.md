@@ -6,9 +6,10 @@ explicit MCP GPU selection, Isaac verifier startup readiness, localization
 freshness checks, [detector model reuse](docs/DETECTOR_MODEL_REUSE.md) and optional OVRTX/cuMotion adapters.
 [Project status](docs/PROJECT_STATUS_20261001.md) records the
 source-specific software checks. [Local dual-RTX Pro validation](docs/LOCAL_RTX_VALIDATION.md)
-retains three native timeouts and separate NV preflight/localization failures.
-The latest local profile proof (attempt 06) passed camera freshness but timed out during retreat; current
-physical proof, campaign and restart acceptance remain incomplete.
+retains four native timeouts and separate NV localization and release-geometry failures.
+The latest local profile proof (attempt 08) passed camera freshness and verified
+the grasp, but timed out during placement while still holding the object.
+Current physical proof, campaign and restart acceptance remain incomplete.
 
 <p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
@@ -828,6 +829,7 @@ silently vanishes.
 ## Docs
 
 - [Detector preparation and GPU comparison](docs/DETECTOR_MODEL_REUSE.md) — bounded model/vocabulary reuse, unchanged image expiry and retained comparison results.
+- [Isaac bridge profiling](docs/ISAAC_BRIDGE_PROFILING.md) — optional Python zones, clock binding and limits of retained CPU/GPU measurements.
 
 Browse the [documentation index](docs/README.md) for all operating guides,
 runtime contracts, historical measurements and research notes.

@@ -1,0 +1,18 @@
+{
+  "pass": true,
+  "checked_utc": "2026-10-01T20:39:54.144372+00:00",
+  "closure": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-08/runs/x86-spark-profile-08/administrative-close08/receipt.json",
+    "sha256": "2a8922b6e0f8312037e46e8ccc2f5ed93bdba20b248dfe0b38b3d93372343f57"
+  },
+  "source_and_protected_guard": true,
+  "ports_closed": [
+    8611,
+    25576,
+    18794,
+    19087
+  ],
+  "owned_pid_births_absent": true,
+  "negative_inputs_unchanged": true,
+  "task_result": "FAIL; administrative close does not establish placement or recovery."
+}

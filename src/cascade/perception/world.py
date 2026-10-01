@@ -176,12 +176,14 @@ class WorldWatcher:
         """Skip fusing this label (e.g. the object currently in the jaws)."""
         self._ignore = {label} if label else set()
 
-    def reset_camera_frames(self, primary, *, timeout_s=5):
+    def reset_camera_frames(self, primary, *, timeout_s=5, scene_changed=True,
+                            producer_clock=None, guard=lambda: None):
         """Fence every fusing camera while reset owns the existing pause.
 
         A camera that times out remains fenced. If it later recovers, its
         first delivery establishes a floor and only a newer capture can fuse.
         """
+        deadline = time.monotonic() + timeout_s
         watched = [cam for cam in self._cams if cam.fuse or cam.maps_depth or cam.stream is primary]
         cameras = [primary] + [cam.stream for cam in watched if cam.stream is not primary]
         with self._pause_lock:
@@ -197,16 +199,26 @@ class WorldWatcher:
                     if cam.stream is stream:
                         cam.fusion_floor = frame
 
-        resetting_map = getattr(self._occupancy, "begin_scene_reset", lambda: False)()
-        observed = frames_after_reset(cameras, timeout_s=timeout_s, on_floor=floor_ready)
+        guard()
+        if scene_changed:
+            resetting_map = getattr(self._occupancy, "begin_scene_reset", lambda: False)()
+        else:
+            resetting_map = self._occupancy.begin_capture_refresh(producer_clock)
+        observed = frames_after_reset(cameras, timeout_s=max(.001, deadline-time.monotonic()), on_floor=floor_ready)
         if resetting_map:
-            self._occupancy.finish_scene_reset([floor for _, floor, _ in observed])
+            mapped = [(stream, floor, fresh) for stream, floor, fresh in observed
+                      if any(c.stream is stream and c.maps_depth for c in watched)]
+            self._occupancy.finish_scene_reset([floor for _, floor, _ in mapped])
             for stream, _, fresh in observed:
                 cam = next((c for c in watched if c.stream is stream and c.maps_depth), None)
                 if cam is not None:
                     fresh = cam.depth.ensure_depth(fresh)
                     T = fresh.T_base_cam if fresh.T_base_cam is not None else cam.extrinsics.cam_to_base()
                     self._occupancy.refresh(fresh, T)
+            if not scene_changed:
+                self._occupancy.wait_payload_ready([floor for _, floor, _ in mapped],
+                    deadline=deadline, guard=guard)
+        guard()
         with self._pause_lock:
             for cam in watched:
                 cam.reset_pending = False

@@ -204,7 +204,12 @@ class OccupancyMap:
         # Camera delivery and an attempted RPC are not map evidence.
         self._integrated_captures = {}
         self._payload_identity = None
+        self._payload_epoch = None
+        self._payload_epoch_error = None
         self._transition_pending = None
+        self._capture_refresh_binding = None
+        self.last_capture_refresh = None
+        self._scene_reset_invalidated = False
 
     @staticmethod
     def _capture_key(marker):
@@ -214,13 +219,86 @@ class OccupancyMap:
     def scene_reset_pending(self) -> bool:
         """A reset still needs its capture barrier or valid captured geometry."""
         with self._refresh_lock:
-            return self._reset_pending or bool(self._reset_floors and self._body_error)
+            return (self._reset_pending or self._scene_reset_invalidated or self._capture_refresh_binding is not None
+                    or bool(self._reset_floors and self._body_error))
+
+    @staticmethod
+    def _capture_epoch(frame):
+        state = (getattr(frame, "capture", None) or {}).get("proprioception") or {}
+        epoch = state.get("producer_epoch")
+        if not isinstance(epoch, str) or not epoch:
+            raise OccupancyError("capture refresh requires the producer physics epoch")
+        return epoch
+
+    def begin_capture_refresh(self, producer_clock):
+        """Fence fresh geometry without discarding measured, unchanged-scene anchors.
+
+        This contract is only for a confirmed attachment before any prop reset.
+        A real scene reset must use begin_scene_reset, which discards this state.
+        """
+        if not self.tracks_payload:
+            return False
+        with self._refresh_lock:
+            if self._scene_reset_invalidated:
+                raise OccupancyError("scene reset cannot be downgraded to retained-anchor refresh")
+            self._reset_pending = True
+            self._body_error = "waiting for fresh retained-payload geometry"
+            self._grid = self._occupied = None
+            self._last_refresh = None
+            self.last_capture_refresh = None
+            binding = self._capture_refresh_binding
+            if binding is not None and binding.get("failure"):
+                raise OccupancyError(binding["failure"])
+            if binding is None:
+                if not self._contact_paths or self._payload_identity is None or not self._depth_history:
+                    raise OccupancyError("capture refresh requires an observed attached payload and anchors")
+                keys, epochs = set(), set()
+                for camera, history in self._depth_history.items():
+                    if not history:
+                        raise OccupancyError("capture refresh is missing a measured camera anchor")
+                    for old in history:
+                        marker = old.get("marker") or {}
+                        identity = (tuple(marker.get("source", ())), marker.get("robot_id"), marker.get("clock"))
+                        epoch = old.get("producer_epoch")
+                        if (identity != self._payload_identity or marker.get("camera") != camera
+                                or not isinstance(epoch, str) or not epoch
+                                or set(old["props"]) != self.allowed_contact_paths):
+                            raise OccupancyError("retained anchor source, robot, clock or prop identity is invalid")
+                        keys.add(self._capture_key(marker))
+                        epochs.add(epoch)
+                if len(epochs) != 1:
+                    raise OccupancyError("retained anchors span different producer physics epochs")
+                binding = {"keys": keys, "epoch": epochs.pop(), "paths": self._contact_paths,
+                           "identity": self._payload_identity, "floor": None, "failure": None,
+                           "anchors": {name: dict(rows[0]["marker"]) for name, rows in self._depth_history.items()}}
+                self._capture_refresh_binding = binding
+            if (not isinstance(producer_clock, dict) or producer_clock.get("epoch") != binding["epoch"]
+                    or tuple(producer_clock.get("source", ())) != binding["identity"][0]
+                    or producer_clock.get("robot_id") != binding["identity"][1]):
+                binding["failure"] = "retained anchors differ from the current validated producer clock"
+                raise OccupancyError(binding["failure"])
+            self._integrated_captures.clear()
+            self._reset_floors.clear()
+            # The next validated frame replays measured background before it
+            # can publish a new query. A failed replay remains fenced.
+            self._transition_pending = (binding["paths"], self._latest_contact_stamp)
+            return True
+
+    def fence_capture_refresh(self, reason):
+        """Keep a failed/deadline-expired refresh unusable until explicit retry."""
+        with self._refresh_lock:
+            self._reset_pending = True
+            self._body_error = "retained-payload capture refresh failed: " + str(reason)
+            self._grid = self._occupied = None
+            self._last_refresh = None
+            self._integrated_captures.clear()
 
     def begin_scene_reset(self):
         """Invalidate attached geometry/history before draining pre-reset captures."""
         if self._payload_pose_fn is None:
             return False
         with self._refresh_lock:
+            self._scene_reset_invalidated = True
             self._reset_pending = True
             self._body_error = "waiting for post-reset captured geometry"
             self._grid = self._occupied = None
@@ -230,7 +308,11 @@ class OccupancyMap:
             self._payload_samples.clear()
             self._integrated_captures.clear()
             self._payload_identity = None
+            self._payload_epoch = None
+            self._payload_epoch_error = None
             self._transition_pending = None
+            self._capture_refresh_binding = None
+            self.last_capture_refresh = None
             self._contact_paths = None
             self._contact_floor = self._latest_contact_stamp = -np.inf
             self._reset_floors.clear()
@@ -247,6 +329,20 @@ class OccupancyMap:
                 floors[self._capture_key(marker)] = marker["t"]
             if not floors:
                 raise OccupancyError("reset requires captured camera floors")
+            binding = self._capture_refresh_binding
+            if binding is not None:
+                try:
+                    if len(floor_frames) != len(floors) or set(floors) != binding["keys"]:
+                        raise OccupancyError("capture refresh camera set or identity changed")
+                    for frame in floor_frames:
+                        if (self._capture_epoch(frame) != binding["epoch"]
+                                or tuple(sorted(frame.capture.get("contact_paths", []))) != binding["paths"]):
+                            raise OccupancyError("capture refresh producer epoch or contact changed")
+                    binding["floor"] = max(floors.values())
+                    floors = {key: binding["floor"] for key in floors}
+                except (OccupancyError, TypeError, ValueError) as exc:
+                    binding["failure"] = str(exc)
+                    raise
             self._reset_floors = floors
             self._reset_pending = False
 
@@ -485,6 +581,8 @@ class OccupancyMap:
             key = self._capture_key(marker)
             if key not in self._reset_floors:
                 self._body_error = "camera identity changed after reset"
+                if self._capture_refresh_binding is not None:
+                    self._capture_refresh_binding["failure"] = self._body_error
                 raise OccupancyError(self._body_error)
             if marker["t"] <= self._reset_floors[key]:
                 return
@@ -553,6 +651,7 @@ class OccupancyMap:
                 self._contact_paths = paths
                 self._transition_pending = None
                 self._payload_identity = (tuple(marker["source"]), marker["robot_id"], marker["clock"])
+                self._payload_epoch = marker.get("producer_epoch")
                 self._latest_contact_stamp = max(self._latest_contact_stamp, stamp)
                 self._prop_history_floor = floors
                 if paths and len(points):
@@ -562,6 +661,38 @@ class OccupancyMap:
                 if paths and not any(len(p) for p in self._payload_samples.values()):
                     self._body_error = "attached object has no measured depth surface"
                     self.last_error = self._body_error
+                binding = self._capture_refresh_binding
+                if binding is not None:
+                    entries = [self._integrated_captures.get(key) for key in binding["keys"]]
+                    complete = (binding["floor"] is not None and not binding["failure"]
+                        and all(entry is not None and entry["marker"]["t"] > binding["floor"]
+                                and entry["paths"] == binding["paths"] for entry in entries)
+                        and self._grid is not None and np.isfinite(self._grid).any()
+                        and any(len(points) for points in self._payload_samples.values()))
+                    if complete and not self._body_error:
+                        self.last_capture_refresh = {
+                            "producer_epoch": binding["epoch"], "shared_floor": binding["floor"],
+                            "contact_paths": list(binding["paths"]),
+                            "anchors_before": binding["anchors"],
+                            "anchors_after": {name: dict(rows[0]["marker"])
+                                              for name, rows in self._depth_history.items()},
+                            "integrated": [dict(entry["marker"]) for entry in entries],
+                            "replayed_frames": self.last_replayed_frames,
+                            "prop_history_floor": dict(self._prop_history_floor),
+                        }
+                        self._capture_refresh_binding = None
+                    else:
+                        self._body_error = binding["failure"] or "waiting for all retained-payload camera commits"
+                elif self._scene_reset_invalidated:
+                    complete = bool(self._reset_floors) and all(
+                        key in self._integrated_captures
+                        and self._integrated_captures[key]["marker"]["t"] > floor
+                        and self._integrated_captures[key]["paths"] == self._contact_paths
+                        for key, floor in self._reset_floors.items())
+                    if complete and not self._body_error:
+                        self._scene_reset_invalidated = False
+                    else:
+                        self._body_error = "waiting for every post-reset camera integration"
             if self.status is None:
                 # the bridge came up after startup: name it now
                 self.probe()
@@ -618,7 +749,10 @@ class OccupancyMap:
         history = self._depth_history.setdefault(camera, [])
         if history and history[-1]["t"] == stamp:
             return
-        history.append({"t": stamp, "depth": frame.depth_m.copy(), "K": frame.K.copy(),
+        from .freshness import capture_marker
+        history.append({"t": stamp, "marker": capture_marker(frame),
+                        "producer_epoch": capture.get("proprioception", {}).get("producer_epoch"),
+                        "depth": frame.depth_m.copy(), "K": frame.K.copy(),
                         "T": np.asarray(T_base_cam).copy(),
                         "robot": frame.robot_mask & ~frame.payload_mask,
                         "props": {path: mask.copy() for path, mask in frame.prop_masks.items()}})
@@ -638,7 +772,8 @@ class OccupancyMap:
         self._grid = self._occupied = None
         self._last_refresh = None
         self._integrated_captures.clear()
-        self._payload_samples.clear()
+        if self._capture_refresh_binding is None or paths != self._contact_paths:
+            self._payload_samples.clear()
         self._client.request({"action": "clear"})
         self.last_replayed_frames = 0
         history = sorted((f for frames in self._depth_history.values() for f in frames),
@@ -663,12 +798,33 @@ class OccupancyMap:
             if marker.get("backend") != "isaac":
                 raise ValueError("payload requires an Isaac producer capture")
             identity = (tuple(marker["source"]), marker["robot_id"], marker["clock"])
+            epoch = (getattr(frame, "capture", None) or {}).get("proprioception", {}).get("producer_epoch")
+            if self._payload_epoch_error:
+                raise ValueError(self._payload_epoch_error)
+            if ((epoch is not None and (not isinstance(epoch, str) or not epoch))
+                    or (self._payload_epoch is not None and epoch != self._payload_epoch)):
+                self._payload_epoch_error = "payload producer epoch changed; a real scene reset is required"
+                raise ValueError(self._payload_epoch_error)
+            if epoch is not None:
+                marker["producer_epoch"] = epoch
             if self._payload_identity is not None and identity != self._payload_identity:
+                if self._capture_refresh_binding is not None:
+                    self._capture_refresh_binding["failure"] = "payload capture source/robot/clock identity changed"
                 raise ValueError("payload capture source/robot/clock identity changed")
             mask = getattr(frame, "payload_mask", None)
             capture = frame.capture or {}
             stamp = float(capture["t"])
             paths = tuple(sorted(capture.get("contact_paths", [])))
+            binding = self._capture_refresh_binding
+            if binding is not None:
+                try:
+                    if (binding["failure"] or self._capture_key(marker) not in binding["keys"]
+                            or identity != binding["identity"] or paths != binding["paths"]
+                            or self._capture_epoch(frame) != binding["epoch"]):
+                        raise OccupancyError(binding["failure"] or "retained-payload capture identity or contact changed")
+                except (OccupancyError, ValueError, TypeError) as exc:
+                    binding["failure"] = str(exc)
+                    raise
             props = getattr(frame, "prop_masks", None)
             if (props is None or set(props) != self.allowed_contact_paths
                     or any(m.dtype != np.bool_ or m.shape != frame.depth_m.shape for m in props.values())):

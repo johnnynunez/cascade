@@ -1446,6 +1446,7 @@ def _refresh_frames():
             "version": 1, "backend": "isaac", "robot_id": args.prim,
             "joint_convention": "asset", "q": [float(q[i]) for i in ARM_IDX],
             "t": t, "time_source": "physics_loop_monotonic",
+            "producer_epoch": _motion_clock_epoch,
         }
     except Exception:
         # Preserve viewing during stale-view transitions, but make this frame

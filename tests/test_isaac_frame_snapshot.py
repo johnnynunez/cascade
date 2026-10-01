@@ -37,6 +37,7 @@ def capture_bridge(loopback):
         rgba if name == "rgb" else depth, {}))
     env = dict(np=np, time=time, cv2=cv2, base64=base64, zlib=zlib, json=json, os=os,
                threading=threading,
+               _motion_clock_epoch="captured-test-epoch",
                socketserver=socketserver, _frames={}, _wrist_T=wrist_T,
                _annotators={n: (sensor, np.eye(3).tolist()) for n in ("cam0", "side", "wrist")},
                MPU=1., args=SimpleNamespace(prim=ROBOT), engine="newton",
@@ -84,6 +85,7 @@ def test_capture_snapshot_survives_real_tcp_camera_delayed_consumption(capture_b
         assert snapshot["robot_id"] == ROBOT
         assert snapshot["joint_convention"] == "asset"
         assert snapshot["time_source"] == "physics_loop_monotonic"
+        assert snapshot["producer_epoch"] == "captured-test-epoch"
         assert snapshot["t"] == f.capture["t"]
         assert np.isfinite(snapshot["t"])
         np.testing.assert_allclose(snapshot["q"], before)
@@ -397,3 +399,17 @@ def test_stream_and_depth_provider_preserve_capture(capture_bridge, depth):
         np.testing.assert_allclose(filled.capture["proprioception"]["q"], b.q[0, :6])
     finally:
         stream.close()
+
+
+def test_camera_epoch_is_the_existing_state_clock_uuid_at_capture(capture_bridge):
+    b = capture_bridge
+    b.env.update(engine='physx', args=SimpleNamespace(prim=ROBOT, dt=1/120),
+        SimulationManager=SimpleNamespace(get_simulation_time=lambda: 1., get_num_physics_steps=lambda: 120))
+    load_isaac_bridge_definitions({'_motion_clock_snapshot'}, b.env)
+    captured = b.env['_frames']['cam0']['proprioception'].copy()
+    assert captured['producer_epoch'] == b.env['_motion_clock_snapshot']()['epoch']
+    b.env['_motion_clock_epoch'] = 'another-process-epoch'
+    assert captured['producer_epoch'] != b.env['_motion_clock_snapshot']()['epoch']
+    b.env['_refresh_frames']()
+    assert b.env['_frames']['cam0']['proprioception']['producer_epoch'] == b.env['_motion_clock_snapshot']()['epoch']
+    assert captured['producer_epoch'] == 'captured-test-epoch'

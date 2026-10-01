@@ -3181,29 +3181,67 @@ class SkillRuntime:
         wf = self._gripper_width_frac()
         return {"gripper": "closed", "open_frac": round(wf, 2) if wf is not None else "unknown"}
 
-    def _reset_camera_frames(self, *, require_geometry=False):
+    def _reset_camera_frames(self, *, require_geometry=False, scene_changed=True):
         """Reopen reset's capture barrier, retaining failed attempts for retry."""
         from ..perception.freshness import frames_after_reset
 
+        pending = getattr(self, "_reset_observation_pending", False)
+        scene_changed = bool(scene_changed or (pending and getattr(self, "_reset_scene_changed", True)))
+        self._reset_scene_changed = scene_changed
         self._reset_observation_pending = True
         occupancy = getattr(self.arm.harness, "occupancy", None)
-        if self.watcher is not None:
-            observed = self.watcher.reset_camera_frames(self.camera)
-        else:
-            resetting_map = getattr(occupancy, "begin_scene_reset", lambda: False)()
-            observed = frames_after_reset([self.camera])
-            if resetting_map:
-                occupancy.finish_scene_reset([floor for _, floor, _ in observed])
-                fresh = self.depth.ensure_depth(observed[0][2])
-                T = fresh.T_base_cam if fresh.T_base_cam is not None else self.extrinsics.cam_to_base()
-                occupancy.refresh(fresh, T)
-        if require_geometry and occupancy is not None:
-            if (occupancy.scene_reset_pending or occupancy.last_error
-                    or occupancy.is_stale()):
-                raise SkillError(
-                    "reset recovery has no fresh validated occupancy geometry"
-                    + (f": {occupancy.last_error}" if occupancy.last_error else "")
-                )
+        deadline = time.monotonic() + 5.
+        producer_clock = None
+        guard = lambda: None
+        try:
+            if not scene_changed:
+                if occupancy is None or not occupancy.tracks_payload:
+                    raise SkillError("retained-anchor refresh requires payload tracking")
+                occupancy.fence_capture_refresh("validating the producer clock")
+                if not pending:
+                    self._refresh_halt_generation = self.arm.harness._halt_generation
+                validate = getattr(self.arm.raw, "validate_simulation_clock", None)
+                if not callable(validate):
+                    raise SkillError("retained-anchor refresh requires a validated Isaac producer clock")
+                producer_clock = validate()
+                def guard():
+                    self.arm.harness._check_halt_generation(self._refresh_halt_generation)
+                    if self.arm.harness.estopped:
+                        raise SafetyViolation("e-stop latched during retained-anchor refresh")
+                    if time.monotonic() >= deadline:
+                        raise SkillError("retained-anchor capture refresh deadline expired")
+                guard()
+            if self.watcher is not None:
+                observed = self.watcher.reset_camera_frames(self.camera,
+                    timeout_s=max(.001, deadline-time.monotonic()), scene_changed=scene_changed,
+                    producer_clock=producer_clock, guard=guard)
+            else:
+                resetting_map = (getattr(occupancy, "begin_scene_reset", lambda: False)() if scene_changed
+                                 else occupancy.begin_capture_refresh(producer_clock))
+                observed = frames_after_reset([self.camera], timeout_s=max(.001, deadline-time.monotonic()))
+                if resetting_map:
+                    occupancy.finish_scene_reset([floor for _, floor, _ in observed])
+                    fresh = self.depth.ensure_depth(observed[0][2])
+                    T = fresh.T_base_cam if fresh.T_base_cam is not None else self.extrinsics.cam_to_base()
+                    occupancy.refresh(fresh, T)
+                    if not scene_changed:
+                        occupancy.wait_payload_ready([floor for _, floor, _ in observed], deadline=deadline, guard=guard)
+            if not scene_changed:
+                current_clock = validate()
+                if any(current_clock.get(key) != producer_clock.get(key) for key in ("source", "robot_id", "epoch")):
+                    raise SkillError("producer identity changed during retained-anchor refresh")
+                guard()
+            if require_geometry and occupancy is not None:
+                if (occupancy.scene_reset_pending or occupancy.last_error
+                        or occupancy.is_stale()):
+                    raise SkillError(
+                        "reset recovery has no fresh validated occupancy geometry"
+                        + (f": {occupancy.last_error}" if occupancy.last_error else "")
+                    )
+        except Exception as exc:
+            if not scene_changed and occupancy is not None:
+                occupancy.fence_capture_refresh(exc)
+            raise
         self._reset_observation_pending = False
         return observed
 
@@ -3223,13 +3261,30 @@ class SkillRuntime:
         out: dict = {"props_reset": [], "world": None, "observation_refreshed": False,
                      "objects_visible": []}
         occupancy = getattr(self.arm.harness, "occupancy", None)
+        recovery_generation = None
+        def recovery_cancelled():
+            if recovery_generation is None:
+                return False
+            try:
+                self.arm.harness._check_halt_generation(recovery_generation)
+                if self.arm.harness.estopped:
+                    raise SafetyViolation("e-stop latched during scene recovery")
+            except SafetyViolation as exc:
+                out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
+                           beliefs_forgotten=0, error=f"Scene recovery cancelled: {exc}")
+                return True
+            return False
         if (getattr(self, "_reset_observation_pending", False)
                 or getattr(occupancy, "scene_reset_pending", False)):
             # A previous reset may have invalidated geometry before a camera
             # timed out. Reacquire it while stationary, before asking home's
             # collision gate to plan any motion or releasing a held object.
             try:
-                observed = self._reset_camera_frames(require_geometry=True)
+                scene_changed = getattr(self, "_reset_scene_changed", True)
+                observed = self._reset_camera_frames(require_geometry=True, scene_changed=scene_changed)
+                if not scene_changed:
+                    recovery_generation = self._refresh_halt_generation
+                    out["retained_anchor_refresh"] = occupancy.last_capture_refresh
                 self.last_frame = self.depth.ensure_depth(observed[0][2])
                 self.arm.harness.heartbeat()
                 out["geometry_recovered"] = True
@@ -3250,17 +3305,24 @@ class SkillRuntime:
                 return out
         home_ok = True
         try:
-            self.skill_move_home()
+            self.skill_move_home(_halt_generation=recovery_generation) if recovery_generation is not None else self.skill_move_home()
         except (SkillError, SafetyViolation) as e:
             out.update(ok=False, stage="home", home_error=str(e), beliefs_forgotten=0,
                        error=f"Scene reset could not reach home: {e}")
+            return out
+        if recovery_cancelled():
             return out
         # release anything the runtime still thinks it holds: a reset while
         # carrying is the operator's decision that the episode is over
         if self.held_object:
             try:
-                self.arm.set_gripper(1.0)
-            except Exception:  # noqa: BLE001
+                kwargs = {} if recovery_generation is None else {"_halt_generation": recovery_generation}
+                self.arm.set_gripper(1.0, **kwargs)
+            except Exception as exc:  # noqa: BLE001
+                if recovery_generation is not None:
+                    out.update(ok=False, stage="reset_recovery", recovery_error=str(exc),
+                               beliefs_forgotten=0, error=f"Scene recovery could not release safely: {exc}")
+                    return out
                 pass
             self.held_object = None
             self._held_det_label = None
@@ -3281,6 +3343,8 @@ class SkillRuntime:
                 world = live[0] if len(live) == 1 else None
             except Exception:  # noqa: BLE001
                 world = None
+        if recovery_cancelled():
+            return out
         if world is not None and hasattr(world, "reset_props"):
             out["props_reset"] = list(world.reset_props())
             out["world"] = "mujoco"
@@ -3328,13 +3392,14 @@ class SkillRuntime:
         out["ok"] = home_ok and out["observation_refreshed"]
         return out
 
-    def skill_move_home(self) -> dict:
+    def skill_move_home(self, *, _halt_generation=None) -> dict:
         home = self._profile_q("home_q", "move home")
         # SafeArm plans the complete return before motion and re-vets against
         # actual feedback/map state at every segment. Legacy test doubles may
         # expose only move_joints; all real runtime arms are SafeArms.
         move = getattr(self.arm, "move_planned", self.arm.move_joints)
-        if not move(home, duration_s=3.0):
+        kwargs = {} if _halt_generation is None else {"_halt_generation": _halt_generation}
+        if not move(home, duration_s=3.0, **kwargs):
             raise SkillError("did not settle at home")
         return {"at": "home"}
 

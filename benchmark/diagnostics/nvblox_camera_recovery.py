@@ -211,6 +211,26 @@ def fresh_camera_checks(result, expected_cameras):
             "same_camera_robot_clock_binding": identities_valid, "all_producer_clocks_advanced": advanced}
 
 
+def retained_anchor_checks(result, expected_cameras):
+    """Report the unchanged-scene rebuild before home/real prop reset discard it."""
+    report = result.get("retained_anchor_refresh") or {}
+    before, after = report.get("anchors_before") or {}, report.get("anchors_after") or {}
+    integrated = report.get("integrated") or []
+    epoch, floor = report.get("producer_epoch"), report.get("shared_floor")
+    names = [row.get("camera") for row in integrated]
+    return {
+        "retained_measured_anchors": bool(before and before == after and set(before) == expected_cameras),
+        "retained_epoch_and_all_fresh_commits": bool(isinstance(epoch, str) and epoch
+            and type(floor) in (int, float) and math.isfinite(floor)
+            and len(names) == len(expected_cameras) and set(names) == expected_cameras
+            and all(row.get("producer_epoch") == epoch and row["t"] > floor
+                    and {k: row.get(k) for k in ("source", "robot_id", "clock")}
+                        == {k: before.get(row["camera"], {}).get(k) for k in ("source", "robot_id", "clock")}
+                    for row in integrated)),
+        "retained_background_replayed": report.get("replayed_frames", 0) >= len(expected_cameras),
+    }
+
+
 def reset_window(records, *, after, cfg, expected_props, engine):
     """Reset-only physical checks at the existing GPU auditor's thresholds."""
     import numpy as np
@@ -358,7 +378,7 @@ def run(args, out):
                 with freeze:
                     first_name = "private_pending_barrier" if args.held else "first_frozen_reset"
                     def seed_pending():
-                        runtime._reset_camera_frames(require_geometry=True)
+                        runtime._reset_camera_frames(require_geometry=True, scene_changed=False)
                         return {"ok": True, "unexpected_barrier_completion": True}
                     operation = seed_pending if args.held else (lambda: runtime.execute("reset_scene", {}))
                     check_frozen_sources(receipt["source_sha256"])
@@ -403,6 +423,8 @@ def run(args, out):
                 "fresh_esdf_without_pending_fault": final_map["has_grid"] and not final_map["pending"] and not final_map["stale"]
                     and final_map["last_error"] is None and final_map["body_error"] is None,
                 "post_recovery_physics": receipt["reset_physics"]["pass"], **fresh_checks}
+            if args.held:
+                receipt["checks"].update(retained_anchor_checks(recovery["result"], expected_cameras))
     except Exception:
         receipt["errors"].append(traceback.format_exc())
     finally:

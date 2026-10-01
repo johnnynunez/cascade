@@ -677,13 +677,16 @@ class SafeArm:
         finally:
             self.harness.end_motion()
 
-    def move_planned(self, q_target: np.ndarray, duration_s: float = 3.0) -> bool:
+    def move_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *, _halt_generation=None) -> bool:
         """Execute a fully vetted deterministic route, retaining live gates."""
         from .trajectory import (PLAN_BUDGET_S, geometry_guard, plan_route,
                                  vet_route, vet_segment)
 
-        halt_generation = self.harness._halt_generation
-        route = plan_route(self.harness, self.get_state().q, q_target, duration_s)
+        halt_generation = self.harness._halt_generation if _halt_generation is None else _halt_generation
+        self.harness._check_halt_generation(halt_generation)
+        start = self.get_state().q
+        self.harness._check_halt_generation(halt_generation)
+        route = plan_route(self.harness, start, q_target, duration_s)
         for index, goal in enumerate(route):
             def revalidate(start, actual_duration):
                 deadline = time.monotonic() + PLAN_BUDGET_S
@@ -703,8 +706,9 @@ class SafeArm:
                 return False
         return True
 
-    def set_gripper(self, pos: float, effort: float = 1.0) -> None:
+    def set_gripper(self, pos: float, effort: float = 1.0, *, _halt_generation=None) -> None:
         self.harness.check_contact_episode(gripper=True)
+        self.harness._check_halt_generation(_halt_generation)
         if self.harness.estopped:
             raise SafetyViolation("e-stop latched")
         self._arm.set_gripper(pos, effort)

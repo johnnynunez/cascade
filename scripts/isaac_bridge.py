@@ -2119,6 +2119,7 @@ try:
     _python_spans.anchor_once()
     while app.is_running() and not _bridge_should_stop():
         with _profile_zone("bridge.loop"):
+            _python_spans.sample_clock_if_due()
             if _camera_video is not None and _camera_video.poll():
                 print(f"[bridge] camera video: {json.dumps(_camera_video_status())}", flush=True)
             if _REQUIRE_CUDA:

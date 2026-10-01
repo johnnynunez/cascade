@@ -58,9 +58,10 @@ def test_offline_prepare_leaves_all_bytes_and_mtimes_unchanged(source, monkeypat
 
 
 @pytest.mark.parametrize("fault", ["missing", "size", "checksum", "symlink"])
-def test_tampered_source_is_rejected_before_use(source, tmp_path, fault):
+@pytest.mark.parametrize("source_name", ["demo/own_kitchen.py", "scripts/isaac_python_spans.py"])
+def test_tampered_source_is_rejected_before_use(source, tmp_path, fault, source_name):
     repo, config = source
-    path = repo / "demo/own_kitchen.py"
+    path = repo / source_name
     raw = path.read_bytes()
     if fault == "missing":
         path.unlink()

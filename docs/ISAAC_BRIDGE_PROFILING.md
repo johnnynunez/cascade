@@ -39,28 +39,50 @@ anchors. Timing zones are not safety or freshness evidence. A profiler error
 invalidates the diagnostic recording, disables new zones and preserves the
 original enclosed operation and its exceptions.
 
-## Bind the trace to the task clock
+## Bind CPU event order to the task clock
 
 Before the main loop, the enabled helper attempts one static
 `bridge.clock_anchor` zone. A `[bridge-python-spans]` JSON log record contains
 the monotonic nanosecond values immediately before and after that zone,
 process and native thread IDs, and bridge/helper source hashes. Retain this
-log with the raw trace. A shutdown record reports profiler errors; absence of
-a final record must be reported as incomplete diagnostic evidence.
+log with the raw trace. Inside `bridge.loop`, the helper also emits
+`bridge.clock_sample.000001` through at most `.002048`: one sample on the first
+loop, then at most one per second measured from the preceding sample's end.
+There is no catch-up burst or additional sleep. Each immediate `clock_sample`
+JSON record carries `seq`, its monotonic bracket, process/thread/source
+identity, `diagnostic_valid` and `error_count`. The helper retains only its
+counter and last sample. Attempting a 2049th sample invalidates further
+diagnostics and emits `diagnostic_error`; other profiler failures do likewise.
+A shutdown record reports errors and the last sample. Absence of that final
+record leaves final diagnostic status pending even if a closed CPU window
+can already be qualified from a retained log prefix.
 
-For a usable mapping, require exactly one matching anchor zone in the trace,
-the same process/thread/source, an error-free anchor record, and an acceptable
-bracket width. Each anchor boundary must map inside that recorded monotonic
-interval. Preserve the resulting clock-origin interval and its uncertainty;
-do not invent an exact offset from the capture connection time or the trace's
-wall-clock epoch. Missing, ambiguous or excessively wide anchors cannot
-qualify a task window. Buffered startup must be excluded explicitly.
+Retain the initial anchor's startup preflight. For the captured interval,
+require a contiguous, unique sequence of complete sample zones paired with
+their log records, with identical process, native thread and source hashes.
+Disclose any samples omitted before or after capture; reject interior gaps,
+duplicates, regressions, invalid records and excessively wide brackets.
+Select completed main-thread CPU zones
+by their actual order in the trace tree between samples whose complete
+monotonic brackets lie inside the independently recorded task interval.
+Sorting zones by timestamps does not establish this order. Exclude buffered
+startup and boundary-crossing zones. Require at least 100 completed updates
+for a loaded comparison; insufficient samples or updates leave it unqualified.
 
-Only count completed update and GPU zones wholly inside the proven task
-window, accounting for the mapping uncertainty. Use at least 100 completed
-updates for a loaded timing comparison. Report inclusive and self elapsed
-times separately; do not add parents to children or sum overlapping threads.
-Graphics GPU zones do not measure all CUDA work or total device utilization.
+These brackets establish CPU event ordering without assuming that Tracy's
+clock has a constant offset or a known drift relative to `monotonic_ns`.
+Report Tracy durations as relative trace times unless a separate calibration
+establishes conversion and rate error bounds. A narrow startup bracket alone
+does not bound drift across the task. Never infer an offset from connection
+time, capture epoch or the last event. CPU ordering markers do not qualify a
+GPU task window or establish CPU/GPU causality; global profile validation
+remains incomplete without independent GPU clock evidence.
+Disclose later diagnostic errors or cap exhaustion separately; a qualified
+earlier closed CPU window does not make the whole recording valid.
+
+Report inclusive and self elapsed times separately; do not add parents to
+children or sum overlapping threads. Graphics GPU zones do not measure all
+CUDA work or total device utilization.
 Kit's bridge zones also do not measure the separate MCP process's detector,
 watcher locks or camera decoding. Missing zones never mean zero work.
 
@@ -71,3 +93,6 @@ capture, failed native task and incomplete clock mapping remain separate
 [retained results](evidence/isaac-profile08/retained-inputs.json). This diagnostic
 interface does not establish a speedup or successful manipulation; any later
 run requires its own source-bound software checks and physical evidence.
+The scene source inventory includes the bridge and its profiling helper;
+changes require regenerating `demo/scene/own_assets.json` with the maintainer
+`demo.scene_identity.source_manifest` operation before source admission.

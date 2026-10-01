@@ -15,6 +15,10 @@ import threading
 import time
 
 
+_CLOCK_SAMPLE_INTERVAL_NS = 1_000_000_000
+_MAX_CLOCK_SAMPLES = 2048
+
+
 class _NoZone:
     def __enter__(self):
         return self
@@ -63,11 +67,24 @@ class PythonSpans:
         self.source_sha256 = None
         self.helper_sha256 = None
         self._anchor_attempted = False
+        self.clock_sample_count = 0
+        self.last_clock_sample = None
+        self._last_clock_ns = None
 
     def fail(self, stage, exc):
         self.error_count += 1
         if self.first_error is None:
             self.first_error = {"stage": stage, "type": type(exc).__name__}
+            try:
+                self.emit("[bridge-python-spans] " + json.dumps(
+                    {"event": "diagnostic_error", "diagnostic_valid": False,
+                     "error_count": self.error_count, "first_error": self.first_error,
+                     "pid": os.getpid(), "native_thread_id": threading.get_native_id(),
+                     "source_path": self.source_path, "source_sha256": self.source_sha256,
+                     "helper_sha256": self.helper_sha256}), flush=True)
+            except Exception:
+                # A broken output sink must not recurse or replace an SDK error.
+                self.error_count += 1
         # An exception can leave the native stack's state unknown. Do not add
         # more zones; already-entered scopes still attempt their matching end.
 
@@ -93,6 +110,7 @@ class PythonSpans:
             after = self.clock_ns()
             if after < before:
                 raise ValueError("monotonic clock regressed")
+            self._last_clock_ns = after
             self.anchor = {"zone": name, "before_monotonic_ns": before,
                            "after_monotonic_ns": after,
                            "native_thread_id": threading.get_native_id(),
@@ -105,6 +123,50 @@ class PythonSpans:
         except Exception as exc:
             self.fail("anchor", exc)
 
+    def sample_clock_if_due(self):
+        """Bracket a bounded, uniquely named CPU ordering marker at most 1 Hz.
+
+        No catch-up, sleep, SDK read, or growing event history. These markers
+        qualify CPU event order; they do not calibrate Tracy or GPU durations.
+        """
+        if not self.enabled or self.error_count:
+            return
+        try:
+            before = self.clock_ns()
+            if (type(before) is not int or self._last_clock_ns is None
+                    or before < self._last_clock_ns):
+                raise ValueError("missing anchor or regressing monotonic clock")
+            self._last_clock_ns = before
+            if (self.last_clock_sample is not None
+                    and before - self.last_clock_sample["after_monotonic_ns"]
+                    < _CLOCK_SAMPLE_INTERVAL_NS):
+                return
+            if self.clock_sample_count >= _MAX_CLOCK_SAMPLES:
+                raise RuntimeError("clock sample limit reached")
+            if threading.get_native_id() != self.anchor["native_thread_id"]:
+                raise ValueError("clock sample changed native thread")
+            seq = self.clock_sample_count + 1
+            name = f"bridge.clock_sample.{seq:06d}"
+            with self.zone(name):
+                pass
+            after = self.clock_ns()
+            if type(after) is not int or after < before:
+                raise ValueError("monotonic clock regressed")
+            self._last_clock_ns = after
+            self.clock_sample_count = seq
+            self.last_clock_sample = {
+                "zone": name, "seq": seq, "before_monotonic_ns": before,
+                "after_monotonic_ns": after,
+                "native_thread_id": threading.get_native_id(), "pid": os.getpid(),
+                "source_path": self.source_path, "source_sha256": self.source_sha256,
+                "helper_sha256": self.helper_sha256}
+            self.emit("[bridge-python-spans] " + json.dumps(
+                {"event": "clock_sample", **self.last_clock_sample,
+                 "diagnostic_valid": not bool(self.error_count),
+                 "error_count": self.error_count}), flush=True)
+        except Exception as exc:
+            self.fail("clock_sample", exc)
+
     def report(self):
         if not self.enabled:
             return
@@ -113,7 +175,8 @@ class PythonSpans:
                 {"event": "shutdown", "enabled": True,
                  "diagnostic_valid": not bool(self.error_count),
                  "error_count": self.error_count, "first_error": self.first_error,
-                 "anchor": self.anchor}), flush=True)
+                 "anchor": self.anchor, "clock_sample_count": self.clock_sample_count,
+                 "last_clock_sample": self.last_clock_sample}), flush=True)
         except Exception as exc:
             self.fail("report", exc)
 

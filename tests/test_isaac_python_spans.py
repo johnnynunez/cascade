@@ -54,6 +54,7 @@ def test_disabled_helper_import_and_scopes_never_import_carb(monkeypatch):
         with spans.zone('nested'):
             pass
     spans.anchor_once()
+    spans.sample_clock_if_due()
     spans.report()
     assert not spans.enabled and spans.anchor is None
     assert not any(name.startswith(('carb', 'omni', 'isaacsim')) for name in imported)
@@ -127,6 +128,7 @@ def _loop(*, enabled, failure=None, stopped=False, finger_step=None, partial=Fal
     events, written = [], []
     backend = Backend(failure)
     spans = PythonSpans(enabled=enabled, backend=backend)
+    spans.anchor_once()
     targets = np.array([[0., -1., -1., 0., .1, .2, .025, .035]])
 
     def get():
@@ -147,7 +149,8 @@ def _loop(*, enabled, failure=None, stopped=False, finger_step=None, partial=Fal
         events.append('update')
         counter[0] += 1
 
-    env = dict(np=np, _profile_zone=spans.zone, _camera_video=None, _REQUIRE_CUDA=False,
+    env = dict(np=np, _python_spans=spans, _profile_zone=spans.zone,
+               _camera_video=None, _REQUIRE_CUDA=False,
                _tl=SimpleNamespace(is_playing=lambda: True), _was_playing=True,
                _state_lock=threading.Lock(), _targets=dict(q=None if partial else [1, 2, 3, 4, 5, 6],
                grip_frac=.5, stopped=stopped), _FINGER_STEP=finger_step,
@@ -220,5 +223,147 @@ def test_profiler_factory_is_called_after_simulationapp_and_bundled():
     source = (REPO / 'scripts/isaac_bridge.py').read_text()
     assert source.index('app = SimulationApp(') < source.index('_python_spans = _python_spans_from_environment(')
     for path in ('deploy/brev/build_bundle.py', 'deploy/brev/prepare_bundle.py',
-                 'src/cascade/grasping/evidence.py'):
+                 'src/cascade/grasping/evidence.py', 'demo/scene_identity.py'):
         assert '"scripts/isaac_python_spans.py"' in (REPO / path).read_text()
+
+
+class Clock:
+    def __init__(self):
+        self.now, self.calls = 1000, 0
+
+    def __call__(self):
+        self.calls += 1
+        return self.now
+
+
+def _sampling_spans():
+    clock, records, backend = Clock(), [], Backend()
+    spans = PythonSpans(enabled=True, backend=backend, clock_ns=clock,
+                        source_path='/reviewed/bridge.py',
+                        emit=lambda line, **kw: records.append(json.loads(
+                            line.removeprefix('[bridge-python-spans] '))))
+    spans.source_sha256, spans.helper_sha256 = 'a' * 64, 'b' * 64
+    spans.anchor_once()
+    return spans, clock, records, backend
+
+
+def test_disabled_periodic_sampling_does_not_read_clock_backend_or_log():
+    def forbidden(*args, **kwargs):
+        pytest.fail('Disabled sampling performed work')
+
+    spans = PythonSpans(clock_ns=forbidden, emit=forbidden)
+    for _ in range(3):
+        spans.sample_clock_if_due()
+    assert spans.clock_sample_count == 0 and spans.last_clock_sample is None
+
+
+def test_periodic_samples_are_unique_bracketed_and_never_catch_up():
+    spans, clock, records, backend = _sampling_spans()
+    spans.sample_clock_if_due()
+    clock.now += 999_999_999
+    spans.sample_clock_if_due()
+    assert spans.clock_sample_count == 1
+    clock.now += 20_000_000_000  # A slow iteration adds one sample, never a burst.
+    spans.sample_clock_if_due()
+    spans.sample_clock_if_due()
+    clock.now += 1_000_000_000
+    spans.sample_clock_if_due()
+    samples = [r for r in records if r['event'] == 'clock_sample']
+    assert [r['seq'] for r in samples] == [1, 2, 3]
+    for sample in samples:
+        assert sample['zone'] == f"bridge.clock_sample.{sample['seq']:06d}"
+        assert sample['diagnostic_valid'] and sample['error_count'] == 0
+        assert sample['before_monotonic_ns'] <= sample['after_monotonic_ns']
+        for key in ('pid', 'native_thread_id', 'source_path', 'source_sha256', 'helper_sha256'):
+            assert sample[key] == spans.anchor[key]
+        assert backend.events.count(('begin', sample['zone'])) == 1
+        assert backend.events.count(('end', sample['zone'])) == 1
+    assert backend.stack == []
+    assert clock.calls == 2 + 5 + 3  # Initial bracket; five polls; three end clocks.
+    spans.report()
+    assert records[-1]['clock_sample_count'] == 3
+    assert records[-1]['last_clock_sample'] == spans.last_clock_sample
+
+
+def test_periodic_bracket_encloses_zone_and_spacing_starts_after_end():
+    spans, clock, records, backend = _sampling_spans()
+    original_begin, original_end = backend.begin_with_location, backend.end
+    observed = []
+
+    def begin(*args):
+        clock.now += 10
+        observed.append(clock.now)
+        original_begin(*args)
+
+    def end(*args):
+        clock.now += 10
+        observed.append(clock.now)
+        original_end(*args)
+
+    backend.begin_with_location, backend.end = begin, end
+    spans.sample_clock_if_due()
+    sample = records[-1]
+    assert sample['before_monotonic_ns'] <= observed[0] <= observed[1] <= sample['after_monotonic_ns']
+    clock.now = sample['before_monotonic_ns'] + 1_000_000_000
+    spans.sample_clock_if_due()
+    assert spans.clock_sample_count == 1
+    clock.now = sample['after_monotonic_ns'] + 1_000_000_000
+    spans.sample_clock_if_due()
+    assert spans.clock_sample_count == 2
+
+
+def test_periodic_name_budget_is_bounded_and_cap_invalidates_only_diagnostics():
+    spans, clock, records, backend = _sampling_spans()
+    keys = set(vars(spans))
+    for _ in range(2048):
+        spans.sample_clock_if_due()
+        clock.now += 1_000_000_000
+    assert spans.clock_sample_count == 2048 and spans.error_count == 0
+    spans.sample_clock_if_due()
+    assert spans.clock_sample_count == 2048 and spans.error_count == 1
+    assert records[-1]['event'] == 'diagnostic_error'
+    assert records[-1]['first_error']['stage'] == 'clock_sample'
+    assert not records[-1]['diagnostic_valid']
+    previous = (clock.calls, len(records), len(backend.events))
+    spans.sample_clock_if_due()
+    with spans.zone('after-cap'):
+        native_operation = 'still executed'
+    assert native_operation == 'still executed'
+    assert previous == (clock.calls, len(records), len(backend.events))
+    assert set(vars(spans)) == keys and backend.stack == []
+    assert not any(isinstance(value, list) for value in vars(spans).values())
+
+
+@pytest.mark.parametrize('fault', ['begin', 'end', 'clock', 'regression', 'thread', 'emit'])
+def test_periodic_errors_do_not_replace_native_exception_or_emit_more_zones(fault):
+    spans, clock, records, backend = _sampling_spans()
+    if fault in ('begin', 'end'):
+        backend.fail = fault
+    elif fault == 'clock':
+        spans.clock_ns = lambda: (_ for _ in ()).throw(OSError('clock failed'))
+    elif fault == 'regression':
+        clock.now -= 1
+    elif fault == 'thread':
+        spans.anchor['native_thread_id'] = -1
+    else:
+        spans.emit = lambda *a, **kw: (_ for _ in ()).throw(OSError('log failed'))
+    native = ValueError('native operation')
+    with pytest.raises(ValueError) as caught:
+        spans.sample_clock_if_due()
+        raise native
+    assert caught.value is native and spans.error_count
+    previous = list(backend.events)
+    spans.sample_clock_if_due()
+    assert backend.events == previous and backend.stack == []
+    if fault != 'emit':
+        assert any(r['event'] == 'diagnostic_error' for r in records)
+
+
+def test_periodic_clock_regression_after_a_not_due_poll_invalidates():
+    spans, clock, records, _ = _sampling_spans()
+    spans.sample_clock_if_due()
+    clock.now += 500_000_000
+    spans.sample_clock_if_due()
+    clock.now -= 1
+    spans.sample_clock_if_due()
+    assert spans.error_count and records[-1]['event'] == 'diagnostic_error'

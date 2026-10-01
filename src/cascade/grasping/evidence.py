@@ -33,6 +33,8 @@ _SOURCE_FILES = (
     "src/cascade/skills/runtime.py", "src/cascade/memory/grasp_memory.py",
     "src/cascade/control/isaac_arm.py", "src/cascade/control/arm_base.py",
     "src/cascade/safety/harness.py", "src/cascade/apps/mcp_server.py", "scripts/launch.sh",
+    "src/cascade/sim/bridge_client.py", "scripts/isaac_bridge.py",
+    "scripts/isaac_frame_history.py", "scripts/isaac_camera_readback.py",
 )
 
 

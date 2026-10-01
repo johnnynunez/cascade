@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import copy
 from contextlib import ExitStack
 import json
 import math
@@ -87,13 +88,14 @@ p.add_argument("--gui", action="store_true", help="run with the editor window (d
 p.add_argument("--width", type=int, default=int(os.environ.get("CASCADE_ISAAC_WIDTH", "1280")))
 p.add_argument("--height", type=int, default=int(os.environ.get("CASCADE_ISAAC_HEIGHT", "720")))
 p.add_argument("--dt", type=float, default=float(os.environ.get("CASCADE_ISAAC_DT", str(1.0 / 60.0))))
-p.add_argument("--cam-every", type=int, default=int(os.environ.get("CASCADE_ISAAC_CAM_EVERY", "2")), help="refresh camera cache every N sim steps")
+p.add_argument("--cam-every", type=int, default=int(os.environ.get("CASCADE_ISAAC_CAM_EVERY", "2")), help="refresh camera cache every N bridge iterations (also poll after .5 wall seconds)")
 args = p.parse_args()
 if not 0 < args.dt <= 1.0:
     p.error("--dt / CASCADE_ISAAC_DT must be finite and in (0, 1] seconds")
 
 # Ownership registration must see this final interpreter, not the adapter
 # before exec. This handshake runs before loading Kit or creating GPU state.
+from isaac_frame_history import FrameHistory, ClockDiscontinuity, reference_key
 from isaac_launch import publish_ready
 publish_ready()
 
@@ -695,7 +697,16 @@ def _camera(path, eye, target, up, focal_mm=18.0, haperture_mm=20.955):
         print(f"[bridge]     - {row}", flush=True)
     from isaac_camera_readback import CpuCameraReadback
 
-    return CpuCameraReadback(sensor), K
+    import omni.replicator.core as rep
+
+    product = str(sensor.render_product.GetPath())
+    render_times = {}
+    for name in ("rpFabricTime", "IsaacReadSimulationTime"):
+        annotator = rep.AnnotatorRegistry.get_annotator(name)
+        annotator.attach([product])
+        render_times[name] = annotator
+    return CpuCameraReadback(sensor, render_times=render_times,
+                             render_product_id=product), K
 
 
 # cam0 = the manipulation camera, mounted like the REAL rig's tripod: off to
@@ -1026,6 +1037,9 @@ _targets: dict = {
     "stopped": False,
 }
 _frames: dict[str, dict] = {}  # camera cache refreshed by the main loop
+_frame_history = FrameHistory(maxlen=256)
+_published_frame_tokens = {}
+_camera_frame_errors = {}
 _exec_lock = threading.Lock()
 _exec_jobs: list = []  # (code, result_holder, done_event) -> main loop
 _gpu_contact_views = {}
@@ -1398,11 +1412,10 @@ class _LazyFrame(dict):
     thrown away: the next refresh replaced the frame before any client
     asked for it.
 
-    The CAPTURE is unchanged and still happens on the main thread right
-    after app.update(): the raw buffers, K, the wrist pose and the joint
-    snapshot are copied there, so a served frame is exactly as fresh and as
-    self-consistent as before. Only the encoding moves to the thread that
-    reads it (and runs at most once per frame).
+    Camera buffers are copied on the main thread and bound through their
+    render-product time to a historical joint/wrist snapshot. Encoding moves
+    to the thread that reads the packet and runs at most once per frame;
+    neither readback nor encoding renews its conservative capture anchor.
     """
 
     _LAZY_KEYS = ("rgb_jpeg_b64", "depth_z_b64")
@@ -1447,13 +1460,40 @@ class _LazyFrame(dict):
         return dict(self)
 
 
-def _refresh_frames():
-    # Called on the main thread after app.update(), before jobs/physics can
-    # advance. CameraSensor supplies no exposure timestamp for RGB/depth:
-    # this is a completed physics/render-loop snapshot, NOT exposure time.
-    t = time.monotonic()
+_last_camera_capture_started = None
+
+
+def _camera_capture_due(step=None):
+    """Schedule one capture before rendering, by bridge iterations or wall age.
+
+    The wall anchor is the START of the attempt, shared with nested reset
+    steps. Rendering/readback time must not become an extra cooldown. This
+    does not guarantee freshness while Kit or a main-thread job is blocked.
+    """
+    global _last_camera_capture_started
+    now = time.monotonic()
+    if not math.isfinite(now) or now < 0:
+        raise ValueError("camera schedule requires a finite monotonic clock")
+    if _last_camera_capture_started is not None and now < _last_camera_capture_started:
+        raise ValueError("camera schedule clock regressed")
+    due = (_last_camera_capture_started is None
+           or now - _last_camera_capture_started >= .5
+           or (step is not None and step % args.cam_every == 0))
+    if due:
+        _last_camera_capture_started = now
+    return due
+
+
+def _capture_frame_state(t, wrist_T):
+    """State from this completed update; extensible for history-bound masks.
+
+    t is the conservative BEFORE-update monotonic anchor. wrist_T is the
+    camera transform authorized before that update, not FK recomputed after.
+    """
     try:
         q = art.get_dof_positions().numpy()[0].copy()
+        if not np.isfinite(q).all():
+            raise ValueError("non-finite capture articulation")
         snapshot = {
             "version": 1, "backend": "isaac", "robot_id": args.prim,
             "joint_convention": "asset", "q": [float(q[i]) for i in ARM_IDX],
@@ -1462,65 +1502,150 @@ def _refresh_frames():
             "gripper_joints": _gripper_joint_snapshot(q),
         }
     except Exception:
-        # Preserve viewing during stale-view transitions, but make this frame
-        # explicitly unmaskable. Never reuse prior q or kill the Kit loop.
-        snapshot = None
+        snapshot = None  # Viewing only; masking/motion consumers fail closed.
     contact_tracking = os.environ.get("CASCADE_ISAAC_CONTACT_MASK", "0") == "1"
-    contact_paths, contact_error = [], None
+    contact_paths, contact_error, scene_prop_paths = [], None, []
     if contact_tracking:
         try:
-            contact_paths = _bilateral_contact_paths({name: _gpu_contact_snapshot(name) for name in _PROP_SPAWNS})
+            scene_prop_paths = ["/World_Props/" + name for name in _PROP_SPAWNS]
+            contact_paths = _bilateral_contact_paths(
+                {name: _gpu_contact_snapshot(name) for name in _PROP_SPAWNS})
         except Exception as exc:
+            # Unknown contact is never an empty, usable payload mask.
             contact_error = str(exc)
+    return {"proprioception": snapshot, "wrist_T": copy.deepcopy(wrist_T),
+            "contact_state": {"tracking": contact_tracking, "paths": contact_paths,
+                              "error": contact_error, "scene_prop_paths": scene_prop_paths}}
+
+
+def _invalidate_frame_history():
+    """No camera package or render key may cross a physics clock epoch."""
+    global _motion_clock_epoch, _last_camera_capture_started
+    _frame_history.clear()
+    _frames.clear()
+    _published_frame_tokens.clear()
+    _camera_frame_errors.clear()
+    _motion_clock_epoch = uuid.uuid4().hex
+    _last_camera_capture_started = None
+
+
+def _step_with_frame_history():
+    """Exactly one existing Kit update, followed by its private state copy."""
+    started = time.monotonic()
+    wrist_T = copy.deepcopy(_wrist_T)
+    app.update()
+    finished = time.monotonic()
+    try:
+        current = SimulationManager._simulation_manager_interface.get_current_time()
+        _frame_history.record(
+            reference=(current.numerator, current.denominator),
+            simulation_time=float(SimulationManager.get_simulation_time()),
+            physics_step=int(SimulationManager.get_num_physics_steps()),
+            started_monotonic=started, finished_monotonic=finished,
+            epoch=_motion_clock_epoch, payload=_capture_frame_state(started, wrist_T))
+        Handler.scene_identity.pop("camera_history_error", None)
+    except ClockDiscontinuity as exc:
+        _invalidate_frame_history()
+        Handler.scene_identity["camera_history_error"] = str(exc)
+    except Exception as exc:
+        # Invalid/unavailable clocks cannot preserve an admitted epoch either.
+        # Do not fabricate a matching state or add physics steps for a camera.
+        _invalidate_frame_history()
+        Handler.scene_identity["camera_history_error"] = str(exc)
+
+
+def _render_token(sensor):
+    times = sensor.get_render_times()
+    rp = times["rpFabricTime"]
+    reference = (rp["fabricFrameTimeNumerator"], rp["fabricFrameTimeDenominator"])
+    key = reference_key(reference)
+    simulation_time = times["IsaacReadSimulationTime"]["simulationTime"]
+    if isinstance(simulation_time, bool) or not isinstance(simulation_time, (int, float)) or not math.isfinite(simulation_time):
+        raise ValueError("invalid render simulation time")
+    product = sensor.render_product_id
+    if not isinstance(product, str) or not product:
+        raise ValueError("missing render product identity")
+    return (product, key), reference, float(simulation_time)
+
+
+def _refresh_frames():
+    # rpFabricTime is render-product-specific. Generic ReferenceTime can
+    # advance while tick-limited RGB/depth/segmentation remain unchanged.
     for cam_name, (sensor, K) in _annotators.items():
-        rgb_data, _ = sensor.get_data("rgb")
-        if rgb_data is None:
-            continue
-        rgba = np.asarray(rgb_data.numpy() if hasattr(rgb_data, "numpy") else rgb_data)
-        if rgba.size == 0:
-            continue
-        # COPY now (astype always copies): the renderer reuses this buffer
-        # after the next update. Encoding is deferred to the reader.
-        rgb = rgba[..., :3].astype(np.uint8)
-        depth_data, _ = sensor.get_data("distance_to_image_plane")
-        depth = None
-        if depth_data is not None:
-            d = np.asarray(depth_data.numpy() if hasattr(depth_data, "numpy") else depth_data)
-            if d.size:
-                # sensor returns (H, W, 1); the wire format is flat (H, W).
-                # `* MPU` allocates, so this is a private copy as well.
-                depth = np.ascontiguousarray(np.squeeze(d), dtype=np.float32) * MPU
-        h, w = rgb.shape[:2]
-        entry = {
-            "ok": True, "width": w, "height": h, "K": [list(row) for row in K],
-            "t": t,
-            "proprioception": ({**snapshot, "q": list(snapshot["q"])}
-                               if snapshot is not None else None),
-        }
-        if globals().get("_PIXEL_MASK_ENABLED", False):
-            try:
-                _ids, _info = sensor.get_data("instance_id_segmentation")
-                _ids = _ids.numpy() if hasattr(_ids, "numpy") else np.asarray(_ids)
-                if contact_error is not None:
-                    raise RuntimeError(f"payload contact evidence unavailable: {contact_error}")
-                entry["robot_pixel_mask"] = _encode_robot_mask(
-                    _ids, _info, args.prim, t, contact_paths=contact_paths,
-                    payload_tracking=contact_tracking,
-                    scene_prop_paths=["/World_Props/" + name for name in _PROP_SPAWNS] if contact_tracking else ())
-            except Exception as _e:
-                # View remains available; required-mask consumers refuse motion.
-                entry["robot_pixel_mask_error"] = str(_e)
-        if cam_name == "wrist" and _wrist_T is not None:
-            # eye-in-hand: extrinsics move with the arm; serve the matrix
-            # that was current when this frame rendered
-            entry["T_base_cam"] = [list(row) for row in _wrist_T]
-        _frames[cam_name] = _LazyFrame(entry, rgb, depth)
+        try:
+            token, reference, simulation_time = _render_token(sensor)
+            previous = _published_frame_tokens.get(cam_name)
+            if previous is not None and (previous[0] != token[0] or token[1] < previous[1]):
+                _frames.pop(cam_name, None)
+                raise ValueError("camera render token regressed or changed product")
+            history = _frame_history.resolve(reference=reference,
+                simulation_time=simulation_time, epoch=_motion_clock_epoch)
+            if history is None:
+                _frames.pop(cam_name, None)
+                raise ValueError("render frame has no unique matching state history")
+            if previous == token and cam_name in _frames:
+                continue  # Preserve the ENTIRE prior packet and its age.
+            payload = history["payload"]
+            t = history["started_monotonic"]
+            rgb_data, _ = sensor.get_data("rgb")
+            if rgb_data is None:
+                raise ValueError("render RGB unavailable")
+            rgba = np.asarray(rgb_data.numpy() if hasattr(rgb_data, "numpy") else rgb_data)
+            if rgba.size == 0:
+                raise ValueError("render RGB empty")
+            rgb = rgba[..., :3].astype(np.uint8)  # Own the reused render buffer.
+            depth_data, _ = sensor.get_data("distance_to_image_plane")
+            depth = None
+            if depth_data is not None:
+                d = np.asarray(depth_data.numpy() if hasattr(depth_data, "numpy") else depth_data)
+                if d.size:
+                    depth = np.ascontiguousarray(np.squeeze(d), dtype=np.float32) * MPU
+            h, w = rgb.shape[:2]
+            entry = {
+                "ok": True, "width": w, "height": h, "K": copy.deepcopy(K),
+                "t": t, "proprioception": copy.deepcopy(payload["proprioception"]),
+                "render_reference": {
+                    "version": 1, "source": "rpFabricTime", "product": token[0],
+                    "numerator": int(reference[0]), "denominator": int(reference[1]),
+                    "producer_epoch": _motion_clock_epoch,
+                    "history_physics_step": history["physics_step"],
+                    "history_simulation_time": history["simulation_time"],
+                    "render_simulation_time": simulation_time,
+                    "snapshot_started_monotonic": t,
+                    "snapshot_finished_monotonic": history["finished_monotonic"],
+                },
+            }
+            if globals().get("_PIXEL_MASK_ENABLED", False):
+                try:
+                    _ids, _info = sensor.get_data("instance_id_segmentation")
+                    _ids = _ids.numpy() if hasattr(_ids, "numpy") else np.asarray(_ids)
+                    contact = payload["contact_state"]
+                    if contact["error"] is not None:
+                        raise RuntimeError(f"payload contact evidence unavailable: {contact['error']}")
+                    entry["robot_pixel_mask"] = _encode_robot_mask(
+                        _ids, _info, args.prim, t, contact_paths=contact["paths"],
+                        payload_tracking=contact["tracking"], scene_prop_paths=contact["scene_prop_paths"])
+                except Exception as exc:
+                    entry["robot_pixel_mask_error"] = str(exc)
+            if cam_name == "wrist" and payload["wrist_T"] is not None:
+                entry["T_base_cam"] = copy.deepcopy(payload["wrist_T"])
+            after_token, _, after_simulation_time = _render_token(sensor)
+            if after_token != token or after_simulation_time != simulation_time:
+                raise ValueError("render token changed during camera readback")
+            _frames[cam_name] = _LazyFrame(entry, rgb, depth)
+            _published_frame_tokens[cam_name] = token
+            _camera_frame_errors.pop(cam_name, None)
+        except Exception as exc:
+            # One failed camera must not discard the negative evidence of
+            # another. Existing packets age normally; never relabel old data.
+            _camera_frame_errors[cam_name] = str(exc)
+    Handler.scene_identity["camera_frame_errors"] = dict(_camera_frame_errors)
 
 
 # ── main loop: physics + rendering stay on the main thread (Kit rule) ────
 # RTX warmup before the first served frame
 for _ in range(60):
-    app.update()
+    _step_with_frame_history()
 
 
 def _zero_prop_velocity(_rp) -> bool:
@@ -1655,18 +1780,18 @@ def _settle_props() -> None:
     """
     from isaacsim.core.experimental.prims import RigidPrim  # noqa: E402
 
-    last_capture = time.monotonic()
     camera_warning = False
 
     def _step():
-        nonlocal last_capture, camera_warning
+        nonlocal camera_warning
         # Reset runs inside a main-thread job. Its nested Kit updates must
         # publish cameras too; otherwise viewers lose every view while the
-        # props settle. Keep the same physics steps and cap encoding at 2 Hz.
-        capture_due = time.monotonic() - last_capture >= .5
+        # props settle. Keep the same physics steps and request a capture
+        # every .5 wall seconds, measured from the start of the last attempt.
+        capture_due = _camera_capture_due()
         if capture_due:
             _update_wrist_cam()
-        app.update()
+        _step_with_frame_history()
         if capture_due:
             try:
                 _refresh_frames()
@@ -1676,8 +1801,6 @@ def _settle_props() -> None:
                 if not camera_warning:
                     print(f"[bridge] reset camera refresh failed: {exc}", flush=True)
                     camera_warning = True
-            finally:
-                last_capture = time.monotonic()
 
     def _zero_vel(_rp) -> bool:
         return _zero_prop_velocity(_rp)
@@ -1908,6 +2031,8 @@ try:
             _gpu_log_guard.check()
         playing = _tl.is_playing()
         if not playing:
+            if _was_playing:
+                _invalidate_frame_history()
             _was_playing = False
             app.update()
             _run_exec_jobs()
@@ -1915,13 +2040,14 @@ try:
         if not _was_playing:
             _was_playing = True
             for _ in range(5):
-                app.update()  # let physics finish re-attaching
+                _step_with_frame_history()  # let physics finish re-attaching
                 if _bridge_should_stop():
                     break
             if _bridge_should_stop():
                 break
             try:
                 _resume_scene()
+                _invalidate_frame_history()  # Drop pre-restoration snapshots.
             except Exception as _e:
                 print(f"[bridge] resume failed: {_e}", flush=True)
         with _state_lock:
@@ -1948,11 +2074,12 @@ try:
             except Exception:
                 pass  # stale view during a Stop/Play transition
         step += 1
-        if step % args.cam_every == 0:
+        capture_due = _camera_capture_due(step)
+        if capture_due:
             # Author before rendering; changing this after app.update would
             # label the old image with NEXT frame's wrist extrinsics.
             _update_wrist_cam()
-        app.update()
+        _step_with_frame_history()
         if _bridge_should_stop():
             break
         if _REQUIRE_CUDA and step % 120 == 0:
@@ -1962,7 +2089,7 @@ try:
                 raise RuntimeError("GPU physics produced non-finite articulation state")
             identity["gpu_attestation"]["fallback_log_count"] = len(_gpu_log_guard.failures)
             Handler.scene_identity.update(identity)
-        if step % args.cam_every == 0:
+        if capture_due:
             _refresh_frames()  # read q + RGB-D before any exec job can step
         _run_exec_jobs()
 finally:
@@ -1971,6 +2098,8 @@ finally:
     with ExitStack() as cleanup:
         cleanup.callback(signal.signal, signal.SIGTERM, _previous_sigterm)
         cleanup.callback(app.close)
+        for sensor, _ in _annotators.values():
+            cleanup.callback(sensor.detach_render_times)
         cleanup.callback(app_utils.stop)
         if _gpu_log_consumer is not None:
             cleanup.callback(lambda: omni.log.get_log().remove_message_consumer(_gpu_log_consumer))

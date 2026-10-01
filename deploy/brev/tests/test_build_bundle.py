@@ -289,3 +289,22 @@ def test_generated_mcp_and_isaac_entrypoints_are_selected(tmp_path):
                     if (checkout / dependency).is_file():
                         assert dependency in names
                         pending.append(dependency)
+
+
+def test_frame_history_helper_is_required_and_works_in_isolated_bundle(distribution, tmp_path):
+    checkout, _, output, _ = distribution
+    source = builder.HERE.parents[1]
+    name = 'scripts/isaac_frame_history.py'
+    assert name in bundle.RUNTIME_FILES
+    shutil.copy2(source / name, checkout / name)
+    assemble(distribution)
+    code = '''
+import runpy,sys
+h = runpy.run_path(sys.argv[1])['FrameHistory']()
+h.record(reference=(1650000,1000000), simulation_time=1.65, physics_step=198,
+         started_monotonic=10., finished_monotonic=11., epoch='bundle-test', payload={'q':[1,2]})
+assert h.resolve(reference=(1650000000,1000000000), simulation_time=1.65, epoch='bundle-test')['payload']=={'q':[1,2]}
+assert h.resolve(reference=(1660000000,1000000000), simulation_time=1.65, epoch='bundle-test') is None
+'''
+    subprocess.run([sys.executable, '-I', '-c', code, str(output / 'source' / name)],
+                   cwd=tmp_path, capture_output=True, text=True, timeout=10, check=True)

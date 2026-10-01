@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "scope": "Two-object native proof05 only; five-object campaign and restart require separate completed evidence",
+  "source": "0e2387070c2b784ba864981f5c291a1b1e4d117a",
+  "proof_session": "cascade-proof-f8fa0cdc701c432c8fc5aa06c331fcce",
+  "pass": true,
+  "peer_review": {
+    "pass": true,
+    "scope": "Independent offline review of two completed Spark05 proof cases only; no campaign/restart admission or RPC. Existing camera gate is server snapshot age<=2s.",
+    "source": "0e2387070c2b784ba864981f5c291a1b1e4d117a",
+    "proof_session": "cascade-proof-f8fa0cdc701c432c8fc5aa06c331fcce",
+    "mcp_pid": 1177060,
+    "bridge_pid_expected_from_run_binding": 1174791,
+    "cases": [
+      {
+        "case": 1,
+        "object": "green_cube",
+        "pass": true,
+        "peer_receipt_sha256": "6c741533c1f07d4629173f82b7202384af27b8d9d0e5919985745c7c27354471",
+        "association_sha256": "aee0f08d83d0fdd60f252619adc34fe3c416e7a868cbb12a166be0e5c358b028",
+        "artifacts_rehashed": 27,
+        "source_files_rehashed": 26,
+        "samples": 1863,
+        "native_physical_checks": 25,
+        "terminals": {
+          "02-pick.json": {
+            "sha256": "084154efc685da5782d1461d787b1ab1f20d41627bcb1675d9da004a95431c85",
+            "status": "ok",
+            "aborted": false,
+            "successful_tool_names": [
+              "cascade__pick_and_place"
+            ],
+            "duration_ms": 251704,
+            "session_id": "cascade-proof-f8fa0cdc701c432c8fc5aa06c331fcce"
+          },
+          "03-reset.json": {
+            "sha256": "f8c34a7246c84034a516084de8431e642546c4626584e26a273061c258ee459e",
+            "status": "ok",
+            "aborted": false,
+            "successful_tool_names": [
+              "cascade__reset_scene"
+            ],
+            "duration_ms": 39143,
+            "session_id": "cascade-proof-f8fa0cdc701c432c8fc5aa06c331fcce"
+          }
+        },
+        "lift_bilateral_samples": 98,
+        "grasp_lift_height_m": 0.04032074846327305,
+        "whole_pick_lift_height_m": 0.09669424779713152,
+        "maximum_neighbor_phase_displacement_m": 1.0058283805847168e-07,
+        "maximum_neighbor_postgrasp_displacement_m": 7.679882693323606e-08,
+        "cameras": {
+          "cam0": {
+            "server_max_s": 1.9668086239980767,
+            "server_over_2s": 0,
+            "delivery_max_s": 2.0872443669941276,
+            "delivery_over_2s": 2,
+            "invalid_samples": 0
+          },
+          "side": {
+            "server_max_s": 1.9668086239980767,
+            "server_over_2s": 0,
+            "delivery_max_s": 2.0872443669941276,
+            "delivery_over_2s": 2,
+            "invalid_samples": 0
+          },
+          "proof": {
+            "server_max_s": 1.9668086239980767,
+            "server_over_2s": 0,
+            "delivery_max_s": 2.0872443669941276,
+            "delivery_over_2s": 2,
+            "invalid_samples": 0
+          }
+        },
+        "observed_gap": {
+          "camera": "cam0",
+          "capture_delta_s": 6.703563895003754,
+          "server_sample_delta_s": 6.745820427997387,
+          "prior_sequence": 1607,
+          "sequence": 1608,
+          "within_reset_markers": true
+        },
+        "image_visual_review": "placed-proof.jpg inspected; target visibly inside expected destination, robot open and raised. Metric placement remains based on physics audit."
+      },
+      {
+        "case": 2,
+        "object": "orange",
+        "pass": true,
+        "peer_receipt_sha256": "93ba45211e6f703beebc99d4a5980505a95d4c167a5312af384272f004ae7957",
+        "association_sha256": "7b9540cbb27ad10c9f6b41b49d68b06c260e35e7ffa20b4b54919a5cc8fc4df9",
+        "artifacts_rehashed": 27,
+        "source_files_rehashed": 26,
+        "samples": 2127,
+        "native_physical_checks": 36,
+        "terminals": {
+          "02-pick.json": {
+            "sha256": "3e21f46f2b0257f75839b441d15e52cb20eacadec7a6a7fd8b8d570d2565b418",
+            "status": "ok",
+            "aborted": false,
+            "successful_tool_names": [
+              "cascade__pick_and_place"
+            ],
+            "duration_ms": 288207,
+            "session_id": "cascade-proof-f8fa0cdc701c432c8fc5aa06c331fcce"
+          },
+          "03-reset.json": {
+            "sha256": "ce594f7fd2995bb20abc0ca141021f4dc111b25182dea5ae3dafe1c0f52f060b",
+            "status": "ok",
+            "aborted": false,
+            "successful_tool_names": [
+              "cascade__reset_scene"
+            ],
+            "duration_ms": 53160,
+            "session_id": "cascade-proof-f8fa0cdc701c432c8fc5aa06c331fcce"
+          }
+        },
+        "lift_bilateral_samples": 190,
+        "grasp_lift_height_m": 0.039251262322068214,
+        "whole_pick_lift_height_m": 0.11871787346899508,
+        "maximum_neighbor_phase_displacement_m": 1.2065570608304177e-07,
+        "maximum_neighbor_postgrasp_displacement_m": 7.598131170262075e-08,
+        "cameras": {
+          "cam0": {
+            "server_max_s": 1.871999238996068,
+            "server_over_2s": 0,
+            "delivery_max_s": 2.0772680070076603,
+            "delivery_over_2s": 2,
+            "invalid_samples": 0
+          },
+          "side": {
+            "server_max_s": 1.871999238996068,
+            "server_over_2s": 0,
+            "delivery_max_s": 2.0772680070076603,
+            "delivery_over_2s": 2,
+            "invalid_samples": 0
+          },
+          "proof": {
+            "server_max_s": 1.871999238996068,
+            "server_over_2s": 0,
+            "delivery_max_s": 2.0772680070076603,
+            "delivery_over_2s": 2,
+            "invalid_samples": 0
+          }
+        },
+        "observed_gap": {
+          "camera": "cam0",
+          "capture_delta_s": 6.764642437003204,
+          "server_sample_delta_s": 6.897845879997476,
+          "prior_sequence": 1837,
+          "sequence": 1838,
+          "within_reset_markers": true
+        },
+        "image_visual_review": "placed-proof.jpg inspected; target visibly inside expected destination, robot open and raised. Metric placement remains based on physics audit."
+      }
+    ],
+    "limits": [
+      "Client delivery exceeded2s in2samples/camera/case; this remains explicit and is not the existing server-age gate.",
+      "Maximum observed capture gaps occur during reset alongside witness sample gaps; no continuous-stall inference.",
+      "Neighbor displacements are sampled measurements, not force/contact-link attribution or a new threshold.",
+      "Witness v1 has no epoch; receipt feedback and saved image epochs plus step/q/jaw consistency support the bounded association.",
+      "Later MAIN13ec changes are not attributed to this frozen0e238 run."
+    ]
+  },
+  "strict": {
+    "pass": true,
+    "case_count": 2,
+    "errors": []
+  },
+  "ready": {
+    "repo": "/home/spark/Projects/cascade-native-0fee56f-20261001",
+    "source_commit": "0e2387070c2b784ba864981f5c291a1b1e4d117a",
+    "source_dirty": false,
+    "profile": "spark",
+    "brain": "qwen",
+    "eula_accepted": true,
+    "health": true,
+    "live_binding": true,
+    "attached": false,
+    "verified": true,
+    "sim": "isaac",
+    "model": "custom-127-0-0-1-8080/Qwen/Qwen3.8-27B",
+    "cases": [
+      {
+        "object": "green cube",
+        "destination": "green square",
+        "physics": true,
+        "event_cameras": true,
+        "reset": true
+      },
+      {
+        "object": "orange",
+        "destination": "open box",
+        "physics": true,
+        "event_cameras": true,
+        "reset": true
+      }
+    ]
+  },
+  "ui": {
+    "pass": true,
+    "main_target_id": "29EB1CCFA099C67EBA1107CCB78D0346",
+    "camera_target_id": "3B96587809802D0272E29D56EBF6039E",
+    "page_time_origin_ms": 1790823895332.8,
+    "before": {
+      "status": "Three cameras live",
+      "cameras": [
+        {
+          "name": "kitchen",
+          "frame_id": 155,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "worktop",
+          "frame_id": 155,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "side",
+          "frame_id": 155,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        }
+      ]
+    },
+    "after": {
+      "status": "Three cameras live",
+      "cameras": [
+        {
+          "name": "kitchen",
+          "frame_id": 159,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "worktop",
+          "frame_id": 159,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "side",
+          "frame_id": 159,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        }
+      ]
+    },
+    "screenshot_sha256": "ca18a434fd0f56b6d502cea297f2aba963f555cf840b8f27c300025363753675",
+    "scope": "Actual Spark Chromium and shipped extension on an Xvfb virtual display; no GNOME login or visible Isaac editor validation"
+  },
+  "evidence_sha256": {
+    "two_case_peer_review": "eb74acff1378c862e0868abed895e501d0fe4afc5f1db333fb74b4e7a1f7895d",
+    "root_review": "25cf14aaa3fd1ca0dea347fd1af6bc13e00e799359d8d2114bd64c5e2e49c002",
+    "closure_receipt": "50d218a878cdedad297d4680119e562a6717be9463b8f251d395de0d921663ea",
+    "closure_files": {
+      "runs/.launch/profile-cascade-demo/proof.json": "efdaad9590007c8b23008a7d663b588b50cf315e76bb89be31015b9224f0b3e4",
+      "runs/native-acceptance-20261001/launch-correction-main-05-driver.json": "bb74d3c5294d23dac3d8b41fe35ec605a8aa3f254a122362496e014db528a64a",
+      "runs/native-acceptance-20261001/native-confirmed-correction-main-05.json": "d6929c17b6064166111995228b447a5178335a26bceb7ee5aedfa7bce907db11",
+      "runs/native-acceptance-20261001/spark-verify-correction-main-05.json": "b226e459c45122fc570cee0e40339e929e61f5b35860af03e0adee3932255309",
+      "runs/native-acceptance-20261001/ui-correction-main-05/chromium-three-cameras.png": "ca18a434fd0f56b6d502cea297f2aba963f555cf840b8f27c300025363753675",
+      "runs/native-acceptance-20261001/ui-correction-main-05/continuity.json": "a4b13ff457340a65dfb7272779f3ae2643dd655a354bd800ea049ec005f7935f",
+      "runs/native-acceptance-20261001/ui-correction-main-05/ui-verification.json": "d854fa89c83c837bf280c67efa17686c1b4ada7f9d2e1feb969f2504f293ca0b",
+      "runs/native-acceptance-20261001/effective-runtime-correction-main-05.json": "fc98fb886d28e15ef982202a69aa371e462ca6d2eb44f3633f7b4d32e582a8a5",
+      "runs/native-acceptance-20261001/system-observer-correction-main-05/receipt.json": "d00696193ae70d67905eea18cda5313b5a0fa2d55d187a8b38b28a268cbdb8d4"
+    }
+  }
+}

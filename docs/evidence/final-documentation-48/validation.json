@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "scope": "PR48 documentation and merged-source software CI; no new physical acceptance",
+  "ci": {
+    "pr48-ci-complete.json": {
+      "run_id": 36868227215,
+      "head_sha": "6d060c57dc61d39195aea1687c7c46e7effe8aa3",
+      "pass": true,
+      "jobs_passed": 5,
+      "receipt_sha256": "23b6ad9fcb5965fb39b81e024d07db5aa0b539b5b0b69491b608e9194c3cdf79",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/36868227215"
+    },
+    "main00c89-ci-complete.json": {
+      "run_id": 36868408376,
+      "head_sha": "00c89f1763f90d6518087b60b68f9d133a853538",
+      "pass": true,
+      "jobs_passed": 5,
+      "receipt_sha256": "c0c667d41e9ac60768703ec7a02adf41dea70df3884fa418c099fd8000889901",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/36868408376"
+    }
+  }
+}

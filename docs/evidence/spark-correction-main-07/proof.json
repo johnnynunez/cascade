@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "source": "7e02de70a24cd5e89a6f774e95189d1225ea2cb5",
+  "proof_session": "cascade-proof-4a8447916ff5494a9da1245729163ad5",
+  "pass": false,
+  "cases_passed": 1,
+  "cases_attempted": 2,
+  "campaign_attempted": false,
+  "restart_attempted": false,
+  "archive": {
+    "pass": true,
+    "scope": "Independent archive integrity only. Native proof FAIL preserved; no campaign or restart.",
+    "source": "7e02de70a24cd5e89a6f774e95189d1225ea2cb5",
+    "archive_sha256": "a68b6e55c557950e54028cd833c56e82cbf426b24c1f21fab25eea6c10b32f62",
+    "archive_bytes": 63087293,
+    "retention_sha256": "c80afba3e24eb3f34a44e031551e6c180363e1b30e6c5836cb9946b97315efda",
+    "files_rehashed": 186
+  },
+  "archive_root_review_sha256": "c274ef7c7240b1060c6f1879522e7d0f3ccc9edb5d2b47ac520d2939fc58a577",
+  "cases": [
+    {
+      "object": "green_cube",
+      "attempt_id": "1790865148245242209-1261332-34a678cef9934aa2828463a274e37fdf",
+      "association_sha256": "ebae5fddf2379469bc7749e61882c7f300e203a6ea8907172bc7ad68fc90a578",
+      "peer_review_sha256": "cb19dce00cdd94ffa3e39eafeb9c9860745168391ad3815b38275dd1dd299c5d",
+      "native_physical_audit_pass": true,
+      "witness_samples": 1906,
+      "feedback_witness_matches": {
+        "feedback_samples": 601,
+        "distinct_steps": 601,
+        "max_q_error_rad": 0.0,
+        "max_jaw_error_m": 0.0
+      },
+      "camera_ages": {
+        "cam0": {
+          "server_maximum_s": 1.668744388007326,
+          "delivery_maximum_s": 1.8017140980082331,
+          "server_samples_over_2s": 0
+        },
+        "side": {
+          "server_maximum_s": 1.668744388007326,
+          "delivery_maximum_s": 1.8017140980082331,
+          "server_samples_over_2s": 0
+        },
+        "proof": {
+          "server_maximum_s": 1.668744388007326,
+          "delivery_maximum_s": 1.8017140980082331,
+          "server_samples_over_2s": 0
+        }
+      },
+      "limits": [
+        "Server snapshot age<=2s is the existing camera acceptance contract; client delivery is reported separately.",
+        "Only target contact sensor/filter pair is observed; sampled neighbor positions cannot attribute contact link or force.",
+        "Witness lacks a producer epoch; attempt and saved image epochs are checked, plus overlapping step/q/jaw consistency.",
+        "Gaps between observed capture stamps do not establish a continuous camera stall; no interpolation.",
+        "Source hashes describe retained on-disk files and do not independently attest imported bytecode."
+      ],
+      "outcome": "Native placement, home and reset PASS; independent physical audit PASS."
+    },
+    {
+      "object": "orange",
+      "attempt_id": "1790865517833689673-1261332-e353c086e22542e4989aa1a7964f5e36",
+      "association_sha256": "5b0e93f8c153175e4cc45ae05014142ff6f388c0e9c2e0a0622d545168618f7f",
+      "peer_review_sha256": "b452bfc299b1418fa3ac7a80b8514513454d77bb21c28523e51184b04f164bfe",
+      "native_physical_audit_pass": null,
+      "witness_samples": 635,
+      "feedback_witness_matches": {
+        "feedback_samples": 527,
+        "distinct_steps": 527,
+        "max_q_error_rad": 0.0,
+        "max_jaw_error_m": 0.0
+      },
+      "camera_ages": {
+        "cam0": {
+          "server_maximum_s": 1.258752359994105,
+          "delivery_maximum_s": 1.4357375809922814,
+          "server_samples_over_2s": 0
+        },
+        "side": {
+          "server_maximum_s": 1.258752359994105,
+          "delivery_maximum_s": 1.4357375809922814,
+          "server_samples_over_2s": 0
+        },
+        "proof": {
+          "server_maximum_s": 1.258752359994105,
+          "delivery_maximum_s": 1.4357375809922814,
+          "server_samples_over_2s": 0
+        }
+      },
+      "limits": [
+        "Server snapshot age<=2s is the existing camera acceptance contract; client delivery is reported separately.",
+        "Only target contact sensor/filter pair is observed; sampled neighbor positions cannot attribute contact link or force.",
+        "Witness lacks a producer epoch; attempt and saved image epochs are checked, plus overlapping step/q/jaw consistency.",
+        "Gaps between observed capture stamps do not establish a continuous camera stall; no interpolation.",
+        "Source hashes describe retained on-disk files and do not independently attest imported bytecode."
+      ],
+      "outcome": "Descent aborted before close/lift when individual right finger position left its checked opening interval; attempted withdrawal rejected by same guard. No reset or campaign.",
+      "first_veto_right_jaw_m": 0.04989419505,
+      "checked_lower_m": 0.0499,
+      "home_skipped": true,
+      "scope": "No target contact/lift observed. Neighbor movement does not identify a contact link or force; root cause still under offline investigation."
+    }
+  ],
+  "diagnosis": {
+    "geometry_peer_sha256": "e901c287e6c51615774a3504311dd4d9d018256ff47b0f895876e530c4b2cd75",
+    "postabort_peer_sha256": "6a4fd3d8e1951a84559e0d533631e712bee7c02a4c13fc7f68f1adde1b43eaa6",
+    "finding": "The commanded open endpoint intersects the retained oriented pink-cube collider box in a derived right-finger hull. The interior projects behind a visible non-target, non-robot depth pixel. Original observed-point replay accepts the endpoint.",
+    "endpoint_intersection_inscribed_radius_m": 0.000213807,
+    "pixel_rc": [
+      226,
+      744
+    ],
+    "interior_depth_behind_observed_surface_m": 0.002021,
+    "commands_after_first_interval_violation": 0,
+    "scope": "Offline model-versus-witness diagnosis; pink contact pairs and forces were not recorded. No active-shape export or continuous-free-space claim. No new commands does not imply that prior drive targets were disabled."
+  }
+}

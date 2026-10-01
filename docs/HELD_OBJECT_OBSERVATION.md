@@ -73,7 +73,7 @@ halt/resume cases using the actual safety wrapper.
 
 The compact retained evidence is in
 `benchmark/results/nvblox-held-offset-false-slip-20261001.json`. That failure is
-separate from the [two-object Spark proof on the later merged source](SPARK_DELIVERY.md#current-two-object-proof-1-october-2026).
+separate from the [two-object Spark proof on the later merged source](SPARK_DELIVERY.md#earlier-two-object-proof-on-28061a6).
 Campaign and nvblox recovery results are tracked in the
 [current acceptance index](PROJECT_STATUS_20261001.md). Runtime sources used by
 the preserved NV08 scene were not edited.

@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "source": "7e02de70a24cd5e89a6f774e95189d1225ea2cb5",
+  "pass": true,
+  "scope": "One isolated RTX native orange release/recovery diagnostic. Synthetic mapper refusal after native opening; one explicit reset exercises original withdrawal and then home. No normal five-object, presenter or restart acceptance.",
+  "receipt_sha256": "85d57c307bc32a4352319a36ad720c18a92779a4cd648b6bc1329324b0b68641",
+  "root_review_sha256": "3ed9206c6e24d9b234d35e034e01785bb02f7d6b12026ee9f9e0e4e9a612b60c",
+  "root_raw_audit_sha256": "c77aafe91459e805b0e512e03892aa06c367b0193dddd501c40ca8d075497fff",
+  "author_analysis_sha256": "aea6d1ae9461cb56512d03bd14825af1bd9a136dabe3b1f00638a780ddbfc7cf",
+  "diagnostic_sources_rehashed": 315,
+  "startup_sources_rehashed": 286,
+  "artifacts_rehashed": 27,
+  "checks": {
+    "reset_ok": true,
+    "withdrawal_observed": true,
+    "reset_three_commits": true,
+    "fresh_map": true,
+    "episode_cleared": true,
+    "physical_placement_lift_and_reset": true,
+    "all_event_cameras_advance": true,
+    "no_errors": true,
+    "source_unchanged": true,
+    "cleanup_no_commands": true,
+    "startup_ready": true,
+    "startup_zero_writes": true,
+    "three_camera_continuity": true
+  },
+  "failure_checks": {
+    "label_exercised": true,
+    "post_release_barrier_failed": true,
+    "no_commands_after_open": true,
+    "native_episode_retained": true,
+    "release_confirmed": true,
+    "failure_feedback_measured": true,
+    "no_global_exemption": true,
+    "held_cleared": true
+  },
+  "pick_metrics": {
+    "samples": 1904,
+    "final_samples": 22,
+    "simulation_elapsed_s": 50.19999999999999,
+    "final_window_sim_s": 0.5,
+    "lift_m": 0.13787383772432804,
+    "xy_displacement_m": 0.27937865017885666,
+    "final_xy_error_m": 0.007194101462959534,
+    "max_final_xy_error_m": 0.0071941070804893295,
+    "max_final_support_z_error_m": 8.209896129596217e-08,
+    "max_final_linear_speed_m_s": 0.0010099679238081514,
+    "max_final_angular_speed_rad_s": 0.03515760981395018,
+    "max_final_position_spread_m": 2.986047331594191e-08,
+    "max_final_tilt_deg": 24.383503867010287,
+    "min_final_actual_open_fraction": 0.9999997764825854,
+    "max_frame_age_s": 0.8331960849900497,
+    "unique_jpeg_hashes": 814
+  },
+  "withdrawal": {
+    "pass": true,
+    "endpoint_error_rad": 0.004093799175224566,
+    "orange_position_delta_m": 1.862645149230957e-09,
+    "geometry_verified": true,
+    "checks": {
+      "exact_original_target_and_duration": true,
+      "measured_original_endpoint": true,
+      "physics_advanced": true,
+      "actual_target_commands": true,
+      "no_jaws_or_prop_reset": true,
+      "orange_position_delta_at_most_1mm": true,
+      "global_exemption_removed": true,
+      "episode_cleared": true,
+      "native_geometry_reported": true
+    }
+  },
+  "sampled_camera_and_neighbor_audit": {
+    "pass": true,
+    "scope": "Root independent raw camera epoch/source/time audit and sampled non-target motion during pick markers; does not establish continuous frame availability or contact forces.",
+    "input_sha256": {
+      "witness/samples.jsonl": "cdbcfec8211918a91bed2e6bccde38f97cbeecca534a1b672fceb7b511f083fa",
+      "witness/phases.json": "4cdd27ce7be7a11598292618fcfbfd5237a9082736358793a73eceb0e1dcbab9"
+    },
+    "camera": {
+      "cam0": {
+        "samples": 2476,
+        "server_max_s": 0.8331960849900497,
+        "delivery_max_s": 0.8748718139977427,
+        "samples_over_2s": 0
+      },
+      "side": {
+        "samples": 2476,
+        "server_max_s": 0.8331960849900497,
+        "delivery_max_s": 0.8748718139977427,
+        "samples_over_2s": 0
+      },
+      "proof": {
+        "samples": 2476,
+        "server_max_s": 0.8331960849900497,
+        "delivery_max_s": 0.8748718139977427,
+        "samples_over_2s": 0
+      }
+    },
+    "pick_samples": 1898,
+    "neighbor_max_displacement_m": {
+      "pink_cube": 3.337203127736024e-08,
+      "green_cube": 1.5160833109263057e-08,
+      "tomato_can": 7.487740830422111e-08,
+      "lemon": 0
+    }
+  },
+  "retained_capture_gap_s": 6.397,
+  "limitations": [
+    "Sampled camera ages do not establish continuous frame availability.",
+    "Synthetic mapper RPC refusal does not establish tolerance of arbitrary network failures.",
+    "No new actuator commands after opening until the explicitly reviewed original withdrawal.",
+    "A diagnostic uses the native skills directly; this is not a visitor-host timing measurement."
+  ]
+}

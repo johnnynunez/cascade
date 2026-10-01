@@ -2,7 +2,7 @@
 
 The merged forty-component envelope was exercised by the normal Spark desktop
 proof on `28061a6`: green and orange completed placement, return home and reset
-with both independent physical audits passing. See the [current proof](SPARK_DELIVERY.md#current-two-object-proof-1-october-2026)
+with both independent physical audits passing. See the [earlier proof](SPARK_DELIVERY.md#earlier-two-object-proof-on-28061a6)
 and its [source-bound receipt](evidence/spark-final-main-03/proof.json).
 These two cases do not establish a general success rate or replace the separate
 campaign and restart stages. The earlier failures and geometric measurements

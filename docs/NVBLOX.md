@@ -2,10 +2,23 @@
 
 Current integration: PR #27 is merged, including payload/contact and release
 recovery, retained anchors, mapper replacement on clear and historical renderer
-state. See [current source and acceptance](PROJECT_STATUS_20261001.md) for the
+state. PR #49 adds bounded synchronization of actual jaw opening and newer
+camera captures before establishing release geometry. See [current source and acceptance](PROJECT_STATUS_20261001.md) for the
 MAIN pin and separate RTX diagnostic/campaign results. The measurements below
 retain their original dates and sources; nvblox remains disabled in the normal
 Spark presenter profile.
+
+On 1 October, the isolated RTX environment 12 on `7e02de7` passed a native
+orange release/recovery diagnostic: a labeled mapper refusal after opening
+prevented withdrawal, then one explicit reset resumed the original withdrawal
+before returning home and resetting all props. Three newer camera map commits
+and all sampled camera ages passed. See the [source-bound receipt](evidence/nvblox-environment-12/release.json).
+The subsequent five-object campaign failed on the first orange case before
+release: the same observed attachment could not be confirmed. The planned
+native reset passed; the remaining four cases were not attempted. Witnesses show real contact loss and a fall during horizontal transport, before
+any release command. The mechanical cause remains unresolved. The [campaign receipt](evidence/nvblox-environment-12/campaign.json)
+retains the failure, reset and camera measurements. Neither run establishes
+five-object or presenter acceptance.
 
 ## Status (2026-09-30)
 

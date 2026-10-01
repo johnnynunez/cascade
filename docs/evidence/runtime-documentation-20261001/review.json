@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "scope": "Repository documentation and measured acceptance reconciliation through runtime27f2b0d. No executable source or presenter JavaScript changed.",
+  "runtime_commit": "27f2b0d7ab76f1c4e3bf246d1b23c636e570496f",
+  "documents_reviewed": 80,
+  "local_links_checked": 523,
+  "broken_links": 0,
+  "shell_blocks_checked": 81,
+  "shell_syntax_pass": true,
+  "audit_sha256": "307ee2f94eaebf94b7f13e18ef435f03bcd8fbaec5093b7d202b3e19c56d44eb",
+  "focused_tests_passed": 49,
+  "focused_test_receipt_sha256": "cdbbd08060de96d490be81675c3941e4b9f31ebb7376b684d74ba9916a51bb1a",
+  "focused_test_log_sha256": "a7b859826e54386dc40a19d9584bbc646b809849f996a766d71f1ed0f60f7185",
+  "presenter_javascript_unchanged": true,
+  "independent_documentation_review_sha256": "a8f96113a2a93a3ba471518c7becd21854a885181a984de6bbff1eb88115e5c1",
+  "review_limit": "Peer snapshot preceded final owner-disconnected clarification and NV12 independent analysis references; root reviewed those additions.",
+  "physical_acceptance": "Spark07 proofFAIL and NV12 campaignFAIL remain failures; local dual-RTX Pro validation is being prepared."
+}

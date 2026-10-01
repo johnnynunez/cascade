@@ -22,9 +22,9 @@ The [upstream requirements](https://github.com/nvidia-isaac/cumotion#system-requ
 list Python 3.10–3.14 wheels, Linux x86_64 with CUDA 12.6/13.0, aarch64 on
 Jetson Orin with CUDA 12.6 and Jetson Thor/DGX Spark with CUDA 13.0, and
 Windows x86_64 with CUDA 13.0. x86 requires an NVIDIA Turing GPU or newer.
-These are upstream platform claims. The native smoke below establishes one
-Linux x86_64 GPU planning result; ARM, Windows and physical task execution
-remain unvalidated in Cascade.
+These are upstream platform claims. Cascade has native GPU planning smokes on
+Linux x86_64 and DGX Spark aarch64. Windows, other ARM devices and physical
+task execution remain unvalidated in Cascade.
 
 Download the matching release archive and follow
 [NVIDIA's installation instructions](https://nvidia-isaac.github.io/cumotion/getting_started.html).
@@ -142,10 +142,18 @@ and existing process identities were unchanged. The
 [compact receipt](../benchmark/results/cumotion-planner-20261001.json) binds the
 candidate, supervisor, model metadata and independent review.
 
-This is one native integration smoke. It does not measure ARM support,
-continuous/live-world collision clearance, robot execution or kitchen success.
-The SDK was installed in a separate environment; no presenter environment or
-runtime source changed. Model parsing exposed stale frame names in an upstream
+The same source and model also passed the real CUDA 13.0 aarch64 wheel on
+DGX Spark GB10: 12 samples over 0.219 seconds, generated in 0.703 wall seconds,
+with the same endpoint error. The selected child peaked at 200 MiB of reported
+GPU process memory and exited normally. All 2,007 isolated source/environment
+files, 1,083 active runtime files and 11 existing process identities remained
+unchanged. GPU total memory was unavailable; two graphics-process working
+directories were unreadable and are recorded as such.
+
+These are individual native integration smokes, not a comparative performance
+benchmark or evidence of continuous/live-world clearance, robot execution or
+kitchen success. Each SDK was installed in a separate environment; no presenter
+environment or runtime source changed. Model parsing exposed stale frame names in an upstream
 example, which the shipped profile now corrects.
 
 

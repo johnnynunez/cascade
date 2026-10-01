@@ -1,13 +1,16 @@
-"""Positive observed-surface veto for the calibrated reBot finger meshes.
+"""Observed-surface and endpoint-occlusion vetoes for calibrated reBot fingers.
 
 This is discrete trajectory checking, NOT a continuous swept-volume or free-
 space certificate. Occluded surfaces are unknown. Approach retains all target
 points. Only deliberate closure excludes the exact same-frame target mask,
 while checking each finger's complete mechanical stroke before its command.
+Endpoints also reject hull ray intervals behind observed non-target depth;
+this does not certify unmeasured space or add a continuous trajectory check.
 """
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 from pathlib import Path
 
@@ -169,6 +172,13 @@ class ObservedScene:
         self.is_target = target[valid]
         self.pixels = np.c_[rows, cols]
         self.tree = cKDTree(self.points)
+        # Immutable, same-capture inputs for the additional endpoint veto.
+        # Target surfaces still participate in the existing approach check.
+        self._depth = depth.copy()
+        self._occluder = valid & ~target
+        self._K = K.copy()
+        self._inverse_K = np.linalg.inv(K)
+        self._T_base_cam = T.copy()
         self.identity = (source, robot_id, epoch)
         self.receipt = {"camera": capture["camera"], "capture_t": capture["t"],
                         "source": source, "robot_id": robot_id, "epoch": epoch,
@@ -206,6 +216,81 @@ class ObservedScene:
                             "pixel_rc": self.pixels[i].tolist(), "point_base_m": self.points[i].tolist()}
         return None
 
+    def occluded(self, T_base_tcp, envelopes, *, check=None):
+        """Find a finger ray interval behind observed non-target depth.
+
+        Uses the same discrete pixel rays and depth-Z convention as the point
+        cloud. This is an additional endpoint veto, not a free-space or
+        swept-volume certificate. Holes, robot pixels, target pixels and
+        out-of-view space make no claim here; the surface veto is unchanged.
+        """
+        def checked():
+            if check is not None:
+                check()
+        checked()
+        T = _array(T_base_tcp, (4, 4), "endpoint TCP transform")
+        R = T[:3, :3]
+        if (not np.array_equal(T[3], [0, 0, 0, 1]) or np.linalg.det(R) <= 0
+                or not np.allclose(R.T @ R, np.eye(3), atol=1e-9, rtol=0)):
+            raise SafetyViolation("observed-finger endpoint transform must be rigid")
+        camera_to_tcp = np.linalg.inv(T) @ self._T_base_cam
+        tcp_to_camera = np.linalg.inv(self._T_base_cam) @ T
+        origin = camera_to_tcp[:3, 3]
+        height, width = self._depth.shape
+        for name, part, planes, lo, hi, _center, _radius in envelopes:
+            checked()
+            corners = np.array(list(itertools.product(*zip(lo, hi))))
+            camera = corners @ tcp_to_camera[:3, :3].T + tcp_to_camera[:3, 3]
+            if not np.isfinite(camera).all():
+                raise SafetyViolation("non-finite finger projection")
+            if camera[:, 2].max() <= 0:
+                continue  # outside the measured camera half-space
+            if camera[:, 2].min() <= 0:
+                checked()
+                return {"finger": name, "component": part,
+                        "surface": "endpoint envelope crosses camera plane"}
+            projection = camera @ self._K.T
+            pixels = projection[:, :2] / projection[:, 2, None]
+            if not np.isfinite(pixels).all():
+                raise SafetyViolation("non-finite finger pixel projection")
+            # Clamp before integer conversion, including completely off-screen
+            # envelopes; no inf/large integer cast can produce an empty ROI.
+            left = int(np.clip(np.floor(pixels[:, 0].min()), 0, width))
+            right = int(np.clip(np.ceil(pixels[:, 0].max()) + 1, 0, width))
+            top = int(np.clip(np.floor(pixels[:, 1].min()), 0, height))
+            bottom = int(np.clip(np.ceil(pixels[:, 1].max()) + 1, 0, height))
+            depth = self._depth[top:bottom, left:right]
+            possible = self._occluder[top:bottom, left:right] & (depth <= camera[:, 2].max())
+            rows, cols = np.nonzero(possible)
+            rows, cols = rows + top, cols + left
+            for start in range(0, len(rows), 1024):
+                checked()
+                rr, cc = rows[start:start + 1024], cols[start:start + 1024]
+                rays = np.c_[cc, rr, np.ones(len(rr))] @ self._inverse_K.T
+                directions = rays @ camera_to_tcp[:3, :3].T
+                near, far = np.zeros(len(rr)), np.full(len(rr), np.inf)
+                live = np.ones(len(rr), dtype=bool)
+                for plane in planes:
+                    slope = directions @ plane[:3]
+                    offset = float(origin @ plane[:3] + plane[3])
+                    nonzero = slope != 0
+                    bound = np.divide(-offset, slope, out=np.zeros_like(slope), where=nonzero)
+                    near = np.maximum(near, np.where(slope < 0, bound, -np.inf))
+                    far = np.minimum(far, np.where(slope > 0, bound, np.inf))
+                    live &= nonzero | (offset <= 0)
+                hits = np.flatnonzero(live & (far >= near) & (far > self._depth[rr, cc]))
+                checked()
+                if len(hits):
+                    i = int(hits[0])
+                    return {"finger": name, "component": part,
+                            "surface": "occluded behind observed non-target depth",
+                            "pixel_rc": [int(rr[i]), int(cc[i])],
+                            "observed_depth_z_m": float(self._depth[rr[i], cc[i]]),
+                            "finger_ray_near_z_m": float(near[i]),
+                            "finger_ray_far_z_m": float(far[i])}
+        checked()
+        return None
+
 
 class ObservedFingerGate:
     def __init__(self, scene, geometry, kin, state, *, uncertainty_m=0.):
@@ -231,6 +316,7 @@ class ObservedFingerGate:
         self._q_shape = q.shape
         self._cache = {}
         self._closing_cache = {}
+        self._occlusion_cache = {}
         self.feedback(state)
 
     def pose(self, q):
@@ -247,6 +333,19 @@ class ObservedFingerGate:
             self._closing_cache[key] = self.scene.conflict(
                 self.kin.fk(q), self.closing_envelopes, allow_target_contact=True)
         return self._closing_cache[key]
+
+    def occluded_pose(self, q, *, closing=False, check=None):
+        if check is not None:
+            check()
+        q = _array(q, self._q_shape, "endpoint joint pose")
+        key = (closing, q.tobytes())
+        if key not in self._occlusion_cache:
+            self._occlusion_cache[key] = self.scene.occluded(
+                self.kin.fk(q), self.closing_envelopes if closing else self.envelopes,
+                check=check)
+        if check is not None:
+            check()
+        return self._occlusion_cache[key]
 
     def _observe(self, state):
         """Common atomic snapshot contract for open motion and closing."""
@@ -273,7 +372,7 @@ class ObservedFingerGate:
             raise SafetyViolation(f"measured finger intersects observed surface: {conflict}")
         self._remember(state, q, strokes)
 
-    def require_closing(self, state):
+    def require_closing(self, state, *, check=None):
         """Veto the complete closing envelope at the measured pose pre-command.
 
         This does not stop an already commanded closure or refresh the scene.
@@ -286,6 +385,9 @@ class ObservedFingerGate:
         conflict = self.closing_pose(q)
         if conflict:
             raise SafetyViolation(f"closing fingers intersects observed non-target surface: {conflict}")
+        conflict = self.occluded_pose(q, closing=True, check=check)
+        if conflict:
+            raise SafetyViolation(f"closing fingers occluded by non-target depth: {conflict}")
         self._remember(state, q, strokes)
 
     def profile(self, start, target, duration_s, rate_hz, *, check=None):

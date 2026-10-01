@@ -63,6 +63,8 @@ def select_grasp(
     window closed, and the proof failed twice with "did not settle at
     pregrasp pose". The best candidate is therefore executed in whichever
     orientation needs the smaller largest-joint excursion from `q_current`.
+    Both orientations independently pass IK and validation, even when the
+    original fails; rejecting one must not discard its feasible twin.
     Single-hinge jaws (below) are not symmetric and keep their pose.
 
     `jaw_fixed_tip_m` + `jaw_close_dir` (both TOOL frame) describe a
@@ -146,17 +148,20 @@ def select_grasp(
             )
             continue
         solved = _solve(g)
+        best = None
         if isinstance(solved, str):
             reasons.append(solved)
-            continue
-        best = (g, *solved)
+        else:
+            best = (g, *solved)
         if fixed_tip is None:
             twin = _flip_twin(g)
             twin_solved = _solve(twin)
-            if (not isinstance(twin_solved, str)
-                    and _travel(twin_solved[0]) < _travel(solved[0])):
+            if isinstance(twin_solved, str):
+                reasons.append(twin_solved)
+            elif best is None or _travel(twin_solved[0]) < _travel(best[1]):
                 best = (twin, *twin_solved)
         _check()
-        return best
+        if best is not None:
+            return best
     _check()
     raise NoExecutableGrasp("no executable grasp: " + "; ".join(reasons[:4]))

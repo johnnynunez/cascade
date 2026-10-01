@@ -1,0 +1,228 @@
+{
+  "recorded_configuration": {
+    "grasp": {
+      "backend": "graspgenx",
+      "graspgenx": {
+        "host": "127.0.0.1",
+        "port": 25556,
+        "gripper": "franka_panda",
+        "num_grasps": 400,
+        "topk": 32,
+        "min_score": 0.25,
+        "timeout_ms": 45000,
+        "tip_offset_m": 0.098,
+        "sweep": {
+          "extents_open": [
+            0.09,
+            0.02,
+            0.045
+          ],
+          "offset_open": [
+            0.0,
+            0.0,
+            -0.0225
+          ],
+          "extents_mid": [
+            0.045,
+            0.02,
+            0.045
+          ],
+          "offset_mid": [
+            0.0,
+            0.0,
+            -0.0225
+          ],
+          "gripper_type": 0,
+          "fingertip_depth": 0.0
+        },
+        "required": true,
+        "planner": "diffusion",
+        "approach_z_max": -0.95,
+        "probe_timeout_ms": 5000,
+        "feasibility_max_batches": 3,
+        "feasibility_timeout_s": 8.0
+      },
+      "pregrasp_offset_m": 0.1,
+      "depth_fraction": 0.15,
+      "exempt_radius_m": 0.15,
+      "move_duration_s": 7.5,
+      "descend_duration_s": 2.0,
+      "release_height_m": 0.08,
+      "release_clearance_m": 0.115,
+      "air_grasp_frac": 0.04,
+      "close_settle_s": 0.4,
+      "drop_zone": [
+        0.14,
+        -0.27
+      ],
+      "home_after_place": true,
+      "topdown_z_max": 0.15,
+      "persist_seconds": 120,
+      "max_pick_attempts": 2,
+      "min_grasp_z_m": 0.008,
+      "drop_zone_name": "green square",
+      "open_box": {
+        "center_xy_m": [
+          0.3,
+          -0.14
+        ],
+        "support_top_z_m": 0.004,
+        "release_height_m": 0.104
+      },
+      "place_support_clearance_m": 0.04,
+      "source_support_top_z_m": 0.0,
+      "release_open_timeout_s": 8.0,
+      "close_feedback_timeout_s": 8.0,
+      "post_place_retreat_offset_m": 0.025,
+      "carry_height_m": 0.14,
+      "pre_carry_lift": true
+    },
+    "safety": {
+      "workspace": {
+        "min": [
+          0.1,
+          -0.3,
+          -0.01
+        ],
+        "max": [
+          0.5,
+          0.3,
+          0.55
+        ]
+      },
+      "table_z": 0.0,
+      "table_clearance": 0.02,
+      "max_joint_vel": 1.2,
+      "joint_margin": 0.02,
+      "watchdog_s": 5.0,
+      "keep_out": [],
+      "min_clearance_m": 0.03
+    }
+  },
+  "all_inputs_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/runs/nvblox-rtx/isolated-clock-12/release-evidence-01/1790866018352461980-2688021-20019e2661794f2289e3cd16e4c27b65.json": "db9c021170a5badd31c962283efa3f4e90c7cb03bca00b217744a37000febfb6",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/runs/nvblox-rtx/isolated-clock-12/release-evidence-01/1790866018352461980-2688021-20019e2661794f2289e3cd16e4c27b65.npz": "27f69c2284a43de3b7ef7d76ea7584d02137a66b6248b2a4685f8df0cbf510f7",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-release-main-physical/assets/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf": "72b4a40aeb78f1229c782e7501c3be26ea093562cf960a0ca1c2e4a966b4e4e3",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-finger-depth-occlusion/assets/grasp_geometry/rebot_rs_fingers_physx.json": "fb58af87addb6f614ccb4e86146d398a762dbf791d89d0cd92ef9be9b65c52cc",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-finger-depth-occlusion/src/cascade/grasping/observed_scene.py": "4316b86e7e5e189ef72ef401d955204841d3a2cb80c1ca70e374a269c8ba16cd",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-finger-depth-occlusion/src/cascade/grasping/selector.py": "49c089991bfecae12c79ac3a3ca7ff629aa6fb337db33606f01ed820378099a3",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-finger-depth-occlusion/src/cascade/skills/runtime.py": "9dee28c5c60fa0581a2cb849dee7b7b7dbdbf38c31516092c267b0ceb2d977ac",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-finger-depth-occlusion/src/cascade/grasping/planning_budget.py": "8ae9580334fb3560a6e51c507ef66a79b6882a5804b630dc83d97aae40de8d55",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-finger-depth-occlusion/src/cascade/control/kinematics.py": "734bdbc5527ffafddf7f41d34e048b70fc78cc07af29cde13af60ba7472c4647",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-finger-depth-occlusion/src/cascade/control/motion_profile.py": "230677b172f2160dcb8c803e0e7ac956309b3ebf01d6385f087043da49fe5663",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-finger-depth-occlusion/src/cascade/safety/harness.py": "8b29da849b4efa5dccfa6034a65d8c7866f78b553bc4743caf6ce32fd003863b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-finger-depth-occlusion/src/cascade/safety/trajectory.py": "77e910481156e4701b50576c50172c50a0b5458a42777377d4771fde55e4dd6b"
+  },
+  "all_inputs_unchanged": true,
+  "historical_selected_endpoint_occlusion": [
+    {
+      "endpoint": "pregrasp",
+      "conflict": null
+    },
+    {
+      "endpoint": "grasp_open",
+      "conflict": null
+    },
+    {
+      "endpoint": "grasp_closing",
+      "conflict": null
+    }
+  ],
+  "nv_limit": "No saved ESDF grid is supplied to this offline harness. This verifies observed surfaces and new endpoint/twin logic only; it is not a full NV map admission, live planning or execution. Model inference and capture elapsed time excluded.",
+  "scope": "Offline exact production AST _vet and selector on immutable recorded candidate batch(s), with real 2s selection and 8s PlanningBudget/check active. Excludes fresh model, transport and physical execution; each recorded batch replay is independent, no claim for native end-to-end8s.",
+  "source_recorded": "7e02de70a24cd5e89a6f774e95189d1225ea2cb5",
+  "receipt_sha256": "db9c021170a5badd31c962283efa3f4e90c7cb03bca00b217744a37000febfb6",
+  "npz_sha256": "27f69c2284a43de3b7ef7d76ea7584d02137a66b6248b2a4685f8df0cbf510f7",
+  "source_sha256": {
+    "src/cascade/skills/runtime.py": "9dee28c5c60fa0581a2cb849dee7b7b7dbdbf38c31516092c267b0ceb2d977ac",
+    "src/cascade/grasping/observed_scene.py": "4316b86e7e5e189ef72ef401d955204841d3a2cb80c1ca70e374a269c8ba16cd",
+    "src/cascade/grasping/selector.py": "49c089991bfecae12c79ac3a3ca7ff629aa6fb337db33606f01ed820378099a3"
+  },
+  "geometry_sha256": "fb58af87addb6f614ccb4e86146d398a762dbf791d89d0cd92ef9be9b65c52cc",
+  "script_sha256": "5c752e52d93c0a3af7614632b15b98f63919f47b8eafc4b4238235b18da6ec9b",
+  "batches": [
+    {
+      "batch": 1,
+      "candidates": 11,
+      "individual": [],
+      "selected_index": 1,
+      "historical_q_error_rad": 0.0,
+      "selection_wall_s": 0.985058496997226
+    }
+  ],
+  "rejections": [
+    {
+      "kind": "observed_finger_candidate_rejected",
+      "phase_name": "descent",
+      "conflict": {
+        "sample_index": 38,
+        "finger": "joint_right",
+        "component": 8,
+        "surface": "other observed surface",
+        "pixel_rc": [
+          167,
+          563
+        ],
+        "point_base_m": [
+          0.2524532043564729,
+          0.12762885584277672,
+          0.060324577100311916
+        ]
+      },
+      "q_pre": [
+        -0.7778551757899081,
+        1.77078853580504,
+        1.5990063965660444,
+        -1.620409157378098,
+        -0.13951535737565093,
+        -2.402895881907949
+      ],
+      "q_grasp": [
+        -0.7251685799968679,
+        1.7064297102446913,
+        1.1172733729493844,
+        -1.195523855148389,
+        -0.15084584701724335,
+        -2.350893612924256
+      ]
+    },
+    {
+      "kind": "observed_finger_candidate_rejected",
+      "phase_name": "descent",
+      "conflict": {
+        "sample_index": 39,
+        "finger": "joint_left",
+        "component": 9,
+        "surface": "other observed surface",
+        "pixel_rc": [
+          167,
+          563
+        ],
+        "point_base_m": [
+          0.2524532043564729,
+          0.12762885584277672,
+          0.060324577100311916
+        ]
+      },
+      "q_pre": [
+        -0.7778153183090304,
+        1.77080270752383,
+        1.5990810217570344,
+        -1.6204040064540266,
+        -0.13947313993914168,
+        0.7387419684834212
+      ],
+      "q_grasp": [
+        -0.7251645802282644,
+        1.7064230331813386,
+        1.1172679206306089,
+        -1.1955192275540814,
+        -0.1508414063760686,
+        0.7907037826581564
+      ]
+    }
+  ],
+  "selection_timings_s": [
+    0.9850185160030378
+  ]
+}

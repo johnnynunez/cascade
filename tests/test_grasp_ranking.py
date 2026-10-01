@@ -40,6 +40,34 @@ def test_default_selector_keeps_quality_order_and_does_not_mutate_input():
         np.testing.assert_array_equal(current.rotation, old.rotation)
 
 
+@pytest.mark.parametrize('blocked', ['original', 'twin', 'both'])
+def test_symmetric_orientations_are_independently_vetted(blocked):
+    g = candidates()[0]
+    seen = []
+    def vet(candidate, *args):
+        original = np.allclose(candidate.rotation, g.rotation)
+        seen.append(original)
+        return 'occluded endpoint' if blocked == 'both' or original == (blocked == 'original') else None
+    if blocked == 'both':
+        with pytest.raises(NoExecutableGrasp, match='occluded endpoint'):
+            select([g], validate=vet)
+    else:
+        selected = select([g], validate=vet)
+        assert np.allclose(selected.rotation, g.rotation) == (blocked == 'twin')
+        assert selected.quality == g.quality
+    assert seen == [True, False]
+
+
+def test_cancellation_in_twin_after_original_veto_is_terminal():
+    g = candidates()[0]
+    def vet(candidate, *args):
+        if np.allclose(candidate.rotation, g.rotation):
+            return 'occluded endpoint'
+        raise MotionHalted('cancel twin search')
+    with pytest.raises(MotionHalted, match='twin search'):
+        select([g, candidates()[1]], validate=vet)
+
+
 def test_explicit_ranked_order_survives_lower_model_quality_and_veto():
     gs = [candidates()[i] for i in (2, 1, 0)]
     assert select(gs, preserve_order=True).quality == .5

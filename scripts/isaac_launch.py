@@ -60,13 +60,13 @@ def wait_ready(pid: int, path: Path, *, timeout: float = 30) -> dict:
     """Wait for one interpreter; never respawn it or adopt a reused PID."""
     try:
         expected = kernel_identity(pid)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, ProcessLookupError) as exc:
         raise StartupExited(f"Isaac launcher {pid} exited before interpreter readiness") from exc
     deadline = time.monotonic() + timeout
     while True:
         try:
             current = kernel_identity(pid)
-        except FileNotFoundError as exc:
+        except (FileNotFoundError, ProcessLookupError) as exc:
             raise StartupExited(f"Isaac launcher {pid} exited before interpreter readiness") from exc
         if current["birth"] != expected["birth"]:
             raise RuntimeError("Isaac launcher PID was reused during interpreter startup")

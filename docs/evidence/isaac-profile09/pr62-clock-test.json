@@ -1,0 +1,39 @@
+{
+  "pass": true,
+  "created_utc": "2026-10-01T22:12:54.076648+00:00",
+  "head": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+  "tree": "bbc677e8a041898120c28d280909c69373b20f52",
+  "branch": "fix/ci62-clock-isolation",
+  "worktree": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-ci62-clock-isolation",
+  "scope": "Test-only isolation of fake monotonic clock; original product code, download deadline and source/full03 worktrees unchanged. No full suite, GPU, RPC, commit or push.",
+  "changed_files": [
+    "tests/test_kitchen_assets.py"
+  ],
+  "source_before_sha256": "2f29fde745ab1d9f9cbefb34098c05c04c4416752c2076e6064849602228e96f",
+  "source_after_sha256": "c88f254806a33584e56603c7d04b3e20eeb65b3b758233fffdba0c87a4501c36",
+  "product_unchanged_sha256": "28c0cf563aa70b2f4b4ef56a4bd405486d2039c166f7cdb9593878d44c994433",
+  "diff_sha256": "64ece1bb77ae7361d8395f56a1cc620eedb6d9fac57b54d6ddb8b6386d4618f5",
+  "red": {
+    "summary": "1 failed in 0.09s",
+    "log_sha256": "9bb4f6cc16d77b81c30024687c0240dd62f34d97c53ac32d9723fa6383536a2d",
+    "failure": "Deterministic URL-open callback reads process clock three times and exhausts globally patched two-tick iterator."
+  },
+  "green": {
+    "summary": "42 passed in 0.43s",
+    "log_sha256": "99c716b8108ee140896b8b751e1c4c81a2332326397b3cb57edbb6c2324fcb3c",
+    "argv": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_kitchen_assets.py"
+    ]
+  },
+  "ci_failure_log": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T221019856739Z-macos-raw.log",
+    "sha256": "8b02846a1d770b921db814511cf232edc464b4e1e1b624ed8689e4ffe6a6b097"
+  },
+  "committed": false,
+  "pushed": false,
+  "remote_ci_rerun": false
+}

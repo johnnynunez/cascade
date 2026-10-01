@@ -1,0 +1,21 @@
+{
+  "scope": "Source-bound software result for an unmerged release-open stability candidate; no physical acceptance claimed.",
+  "head": "6e1bc81a89039eaf585166310af54385a7f5e732",
+  "tree": "48e1de2804ff300acda0ba2b6fc479ba08715bd7",
+  "pass": true,
+  "passed": 3741,
+  "skipped": 43,
+  "deselected": 4,
+  "pytest_elapsed_s": 349.32,
+  "summary_line": "3741 passed, 43 skipped, 4 deselected in 349.32s (0:05:49)",
+  "log": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/release-open-settle-full-validation-20261002/pytest.log",
+    "sha256": "cb1d4f39b541009cf291514581d8a44f24f67e16111c861789aa61cd59057ce6",
+    "size_bytes": 4299
+  },
+  "result_sha256": "4a1aef2b94c8f19c07f79b7d7a7d87c357bbce2f7bec6f6ec53e4af64548db2d",
+  "files_verified": 1277,
+  "source_unchanged": true,
+  "physical_validation_pass": null,
+  "physical_validation_performed": false
+}

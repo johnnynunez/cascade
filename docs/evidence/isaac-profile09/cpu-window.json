@@ -1,0 +1,177 @@
+{
+  "cpu_window_qualified": true,
+  "profile_validated": false,
+  "gpu_absolute_alignment_qualified": false,
+  "gpu_tracks_present": true,
+  "scope": "Closed same-main-thread CPU subset; durations are Tracy-reported ns; GPU relative context only",
+  "source_identity": {
+    "pid": 3058153,
+    "source_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/scripts/isaac_bridge.py",
+    "source_sha256": "f74ccd74b65b756579e52ba2f1714b99cc287ccec667512303e25a48e168dc08",
+    "helper_sha256": "6f89d58e9eeddf5a9ef5055352e0dbf93768c43c013d0e7042e3c29b29835b40",
+    "maximum_anchor_bracket_ns": 10000000
+  },
+  "task_monotonic_interval_ns": [
+    137384071754051,
+    137504304960396
+  ],
+  "left_sample_seq": 90,
+  "right_sample_seq": 197,
+  "causal_ordinal_bounds": [
+    4954423,
+    6703216
+  ],
+  "wall_duration_interval_ns": [
+    118592627625,
+    118592655798
+  ],
+  "tracy_endpoint_duration_ns": 118592620903,
+  "clock_rate_error_bound_ppm": null,
+  "absolute_timestamp_mapping": null,
+  "minimum_completed_updates": 100,
+  "completed_updates": 968,
+  "selected_cpu_zones": 874395,
+  "bridge_zone_statistics": {
+    "bridge.targets.get": {
+      "count": 968,
+      "inclusive_tracy_ns": 555373952,
+      "self_tracy_ns": 555373952,
+      "minimum_tracy_ns": 23105,
+      "maximum_tracy_ns": 3907279
+    },
+    "bridge.targets.numpy": {
+      "count": 968,
+      "inclusive_tracy_ns": 218479367,
+      "self_tracy_ns": 218479367,
+      "minimum_tracy_ns": 52720,
+      "maximum_tracy_ns": 15990667
+    },
+    "bridge.targets.compose": {
+      "count": 968,
+      "inclusive_tracy_ns": 26508930,
+      "self_tracy_ns": 26508930,
+      "minimum_tracy_ns": 10276,
+      "maximum_tracy_ns": 6446249
+    },
+    "bridge.targets.set": {
+      "count": 968,
+      "inclusive_tracy_ns": 2195693769,
+      "self_tracy_ns": 2195693769,
+      "minimum_tracy_ns": 223119,
+      "maximum_tracy_ns": 23381502
+    },
+    "bridge.app_update": {
+      "count": 968,
+      "inclusive_tracy_ns": 19214920843,
+      "self_tracy_ns": 64549369,
+      "minimum_tracy_ns": 9460501,
+      "maximum_tracy_ns": 58009891
+    },
+    "bridge.frame_state.q": {
+      "count": 968,
+      "inclusive_tracy_ns": 800174608,
+      "self_tracy_ns": 800174608,
+      "minimum_tracy_ns": 192422,
+      "maximum_tracy_ns": 15575156
+    },
+    "bridge.history": {
+      "count": 968,
+      "inclusive_tracy_ns": 1013400637,
+      "self_tracy_ns": 213226029,
+      "minimum_tracy_ns": 336511,
+      "maximum_tracy_ns": 15812196
+    },
+    "bridge.exec_job.code": {
+      "count": 548,
+      "inclusive_tracy_ns": 75398120985,
+      "self_tracy_ns": 73801815458,
+      "minimum_tracy_ns": 7225323,
+      "maximum_tracy_ns": 536395635
+    },
+    "bridge.exec_jobs": {
+      "count": 968,
+      "inclusive_tracy_ns": 77263640492,
+      "self_tracy_ns": 88231367,
+      "minimum_tracy_ns": 3656,
+      "maximum_tracy_ns": 537321563
+    },
+    "bridge.loop": {
+      "count": 967,
+      "inclusive_tracy_ns": 118432233068,
+      "self_tracy_ns": 195119623,
+      "minimum_tracy_ns": 10509205,
+      "maximum_tracy_ns": 626785016
+    },
+    "bridge.wrist": {
+      "count": 508,
+      "inclusive_tracy_ns": 1576225822,
+      "self_tracy_ns": 1511225151,
+      "minimum_tracy_ns": 978918,
+      "maximum_tracy_ns": 16188819
+    },
+    "bridge.refresh.token": {
+      "count": 2032,
+      "inclusive_tracy_ns": 301750230,
+      "self_tracy_ns": 65650828,
+      "minimum_tracy_ns": 81504,
+      "maximum_tracy_ns": 10081716
+    },
+    "bridge.refresh.rgb": {
+      "count": 1020,
+      "inclusive_tracy_ns": 9053961078,
+      "self_tracy_ns": 8448949561,
+      "minimum_tracy_ns": 7000922,
+      "maximum_tracy_ns": 25677152
+    },
+    "bridge.refresh.depth": {
+      "count": 1020,
+      "inclusive_tracy_ns": 1154486059,
+      "self_tracy_ns": 563841378,
+      "minimum_tracy_ns": 741297,
+      "maximum_tracy_ns": 8446039
+    },
+    "bridge.refresh.mask": {
+      "count": 1020,
+      "inclusive_tracy_ns": 4232844535,
+      "self_tracy_ns": 3326787137,
+      "minimum_tracy_ns": 3079280,
+      "maximum_tracy_ns": 15405217
+    },
+    "bridge.refresh.publish": {
+      "count": 1020,
+      "inclusive_tracy_ns": 225984001,
+      "self_tracy_ns": 85560283,
+      "minimum_tracy_ns": 144009,
+      "maximum_tracy_ns": 6794238
+    },
+    "bridge.refresh": {
+      "count": 508,
+      "inclusive_tracy_ns": 16262595513,
+      "self_tracy_ns": 1293569610,
+      "minimum_tracy_ns": 1623678,
+      "maximum_tracy_ns": 85555543
+    },
+    "bridge.exec_job.callable": {
+      "count": 915,
+      "inclusive_tracy_ns": 1777288140,
+      "self_tracy_ns": 1777288140,
+      "minimum_tracy_ns": 283832,
+      "maximum_tracy_ns": 14948353
+    }
+  },
+  "log_prefix_complete": true,
+  "shutdown_seen": false,
+  "final_diagnostic_status": "pending",
+  "later_diagnostic_error_count": 0,
+  "diagnostic_error_log_records": 0,
+  "failed_clock_sample_records": 0,
+  "uncaptured_log_sample_prefix": 0,
+  "uncaptured_log_sample_suffix": 584,
+  "trace": {
+    "reader_complete": true,
+    "open_final_main_thread_zones": 3,
+    "cpu": 4260854,
+    "gpu": 271275,
+    "gpu_resolved": 271275
+  }
+}

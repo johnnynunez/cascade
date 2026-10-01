@@ -1,0 +1,131 @@
+{
+  "pass": true,
+  "profile_validated": false,
+  "gpu_absolute_alignment_qualified": false,
+  "source": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+  "kit": {
+    "pid": 3058153,
+    "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13725453",
+    "command_sha256": "8616ec9e803af17ad5abe453b683ef9bde0391102d0bc591992648d8e01e593c",
+    "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.3.0+feature.manylinux_2_35_x86_64.release/python/bin/python3.12",
+    "stopped": false
+  },
+  "owner": {
+    "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09",
+    "profile": "cascade-demo",
+    "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo",
+    "owner": "6cf5cf038b694de3bdc45a0898da6bdd",
+    "schema": 1
+  },
+  "session": "cascade-proof-91bb7398ce27435bb63b89fd4e382455",
+  "native_case_pass": false,
+  "source_full_manifest_sha256": "b809fc78692ad391e3ed4ace5bfb2ab840a218c651f94e3e8f446ebf3514ad35",
+  "inputs_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile09-python-name-adapter-20261002/analysis-plan.json": "cd3aaf3a5a5a5839ba072633b60daaa3995a410b563ce5e2ea0de44f0a29b8ca",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/tracy-capture/receipt.json": "bd35d4ac912ac2b0df667f7ef2b069a1751d358c048707a18512d56d79d07e50",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/tracy-capture/profile.tracy": "d8f9b6b362271bbbd059526897d0c6239c2d52a44f9a5f6e06e645b545318fa1",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-offline-reader-preparation-20261002/build/tracy_offline_reader": "7cfe9862630b69dc6341b776db0de55f5d411f5059ff7c5414f691bc2e067075",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile09-order-logfix-20261002/cpu_order_window.py": "6cad0bca2d825ce456906409b4a33e346842978cf343da2371353b5cf41ae715",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/proof/receipt.json": "c63d414f70a238e6457097803c195e9f89ca4d83a2dd7e2eaa3db84a808fa783",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile09-offline-decode-20261002/reader-execution.json": "db009893a3cb14476cc2b2a73a42a2587a0f0651e422746d377797a17280b053",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/anchor-preflight.json": "d1caa696b376a30625d66063098029b213b304cea2ca555886223463d78636e1",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/tracy-wrapper/configured.json": "091db094edfcff36d6b0138fd45a0c9583e457e1a5b1b0355afb8b3279a978bd"
+  },
+  "actions": {
+    "sdk_imports": 0,
+    "gpu_work": 0,
+    "live_connections": 0,
+    "service_signals": 0,
+    "robot_rpc": 0
+  },
+  "bridge_prefix": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/isaac_bridge.log",
+    "source_inode": 128732160,
+    "observed_source_bytes": 478119,
+    "frozen_complete_bytes": 478119,
+    "sha256": "31f0f40ddd2259a46fff1ebab3ea556dd42a1479813b8bdd5993d8cd84691846",
+    "partial_final_line_excluded": false
+  },
+  "decode": {
+    "pass": true,
+    "argv": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-offline-reader-preparation-20261002/build/tracy_offline_reader",
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/tracy-capture/profile.tracy"
+    ],
+    "returncode": 0,
+    "wall_s": 14.284445927012712,
+    "trace_sha256": "d8f9b6b362271bbbd059526897d0c6239c2d52a44f9a5f6e06e645b545318fa1",
+    "capture_receipt_sha256": "bd35d4ac912ac2b0df667f7ef2b069a1751d358c048707a18512d56d79d07e50",
+    "reader_sha256": "7cfe9862630b69dc6341b776db0de55f5d411f5059ff7c5414f691bc2e067075",
+    "events_sha256": "4d677199d3413e943cdd35342af8c847eda2b0e552ff16a9d9650f3f08ef5908",
+    "event_bytes": 1035316266,
+    "event_inode": 128843830,
+    "event_mtime_ns": 1790892835864629586,
+    "affinity": [
+      0,
+      1
+    ],
+    "nice": 10,
+    "memory_limit_bytes": 8589934592,
+    "kit": {
+      "pid": 3058153,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13725453",
+      "command_sha256": "8616ec9e803af17ad5abe453b683ef9bde0391102d0bc591992648d8e01e593c",
+      "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.3.0+feature.manylinux_2_35_x86_64.release/python/bin/python3.12",
+      "stopped": false
+    },
+    "owner": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo",
+      "owner": "6cf5cf038b694de3bdc45a0898da6bdd",
+      "schema": 1
+    },
+    "source": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+    "script_sha256": "6463cbec3e6312aeb21253399e19c4608095be4377c9c59604393511dd6a620c",
+    "profile_validated": false,
+    "cpu_window_qualified": false,
+    "gpu_absolute_alignment_qualified": false,
+    "actions": {
+      "sdk_imports": 0,
+      "gpu_work": 0,
+      "live_connections": 0,
+      "service_signals": 0,
+      "robot_rpc": 0,
+      "decode_count": 1,
+      "profile08_reparsed": false
+    },
+    "hash_method": "Incremental while writing stdout; no repeated full JSONL hash"
+  },
+  "events": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile09-offline-decode-20261002/events.jsonl",
+  "cpu_window_qualified": true,
+  "final_diagnostic_status": "pending",
+  "completed_updates": 968,
+  "window": {
+    "start_monotonic_ns": 137384071754051,
+    "end_monotonic_ns": 137504304960396,
+    "end_candidates": {
+      "capture_end_lower_ns": 137504619329666,
+      "last_complete_witness_request_start_lower_ns": 137504304960396
+    },
+    "witness_samples_used": 555,
+    "scope": "Conservative observed case window; includes possible dispatch, settling or failure cleanup, not exact skill-only activity",
+    "clock_conversion": "Only explicit monotonic-float rounding margin (max2ns or4ULP); no Tracy clock mapping or ppm assumption"
+  },
+  "later_diagnostic_error_count": 0,
+  "scope": "Source-bound observed case CPU window; relative Tracy durations, no global/GPU absolute qualification",
+  "small_outputs_sha256": {
+    "reader-execution.json": "db009893a3cb14476cc2b2a73a42a2587a0f0651e422746d377797a17280b053",
+    "bridge-prefix-snapshot.json": "7524eebf4d7fa94b94a8e51e36a6b6d01b7066f1f267bf8023c60257282c124a",
+    "task-window.json": "fe2f815d21e65edd52b659c8f19a7f1742e3cbad943cf533022a20dc5bf84be0",
+    "window-stats.json": "aaf8fa8d31c4cfaa9bec9ab61759a48fda260830f5a5bdd4082736a448d13d08",
+    "phases-snapshot.json": "83586bf4817c1129742628ac17a81d4fc4015a2c05c1d4f87d6dd5e2e47d3085",
+    "README.md": "f789f664b3f7fec867ab439114cbb53aa73f79412b4691b3bb8fc0ba67ba1100",
+    "identity.json": "41c240323dea84721d861b7e9b0b329020d147326b483bdfbab20f662d78ad22",
+    "cpu-window.json": "a8cd9c7c2524eec49d9dac9742f761533496a9216af4bf48940144c94880f196",
+    "witness-prefix.jsonl": "82fa6c6911c49a6314b24002b20796da23ec7bd599a8580965b4bf864062d67f",
+    "bridge-prefix.log": "31f0f40ddd2259a46fff1ebab3ea556dd42a1479813b8bdd5993d8cd84691846",
+    "capture-receipt.json": "bd35d4ac912ac2b0df667f7ef2b069a1751d358c048707a18512d56d79d07e50",
+    "python-name-normalization.json": "65b1b598da54c266760aaacb4039308dee351147ab47c6efbfa0e6a141ff0b41"
+  }
+}

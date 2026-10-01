@@ -1,0 +1,32 @@
+{
+  "pass": true,
+  "tests": "12 passed in 0.01s",
+  "scope": "Offline name suffix adapter only; no trace decode or real qualification rerun yet",
+  "previous_failure": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile09-offline-analysis-20261002/receipt.json",
+    "sha256": "246c810e6ac8293de60e77fb477292dbb52e56fac4cb2945d9a137a66461f4c4"
+  },
+  "artifacts": {
+    "python_names.py": "abd1e510db2bc54f2ba1487068cdbb5289398b6721cd5f716f3241e9dbcd1ca2",
+    "analyze09.py": "ac7340de185431ea886798532776175acf7480f37fd86c1cec6a41eed7b81f0b",
+    "analysis-plan.json": "cd3aaf3a5a5a5839ba072633b60daaa3995a410b563ce5e2ea0de44f0a29b8ca",
+    "window_stats.py": "8941162a36fd98ffb9838e1308e7f76a039d47429819fe4bc7285bfecab5695a",
+    "test_python_names.py": "b19e9cb4622736c922fc07f526189f91e3914020ee12c326798d77ed2f6444fd",
+    "pytest.log": "6df767ed38fe5451f0df2743920fa44bfd2a5b997da138e26760828b07f2ef8e",
+    "runner-delta.patch": "e587759909c7e4edaad08c48441430c0ec7faaf0b622597c49e73a44abd3c39e"
+  },
+  "raw_row_example": {
+    "kind": "cpu",
+    "tid": 3058153,
+    "depth": 1,
+    "start_ns": 37106280466,
+    "end_ns": 37106281718,
+    "name": "bridge.clock_sample.000001 (Python)",
+    "file": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/scripts/isaac_bridge.py",
+    "line": 0
+  },
+  "decoder_omits_function": true,
+  "matcher_sha256": "6cad0bca2d825ce456906409b4a33e346842978cf343da2371353b5cf41ae715",
+  "reader_sha256": "7cfe9862630b69dc6341b776db0de55f5d411f5059ff7c5414f691bc2e067075",
+  "profile_validated": false
+}

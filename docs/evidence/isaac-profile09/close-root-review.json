@@ -1,0 +1,54 @@
+{
+  "pass": true,
+  "scope": "Append-only final09 administrative evidence after source/12protected/ownedabsence checks; native proof and strict remain FAIL. No restart/retry or actuator work.",
+  "prior_retention_sha256": "c231a25f1d086f7c5e061f76266ba6ca1386fc3640d2b1fd9602ec9cf6718a73",
+  "administrative_close_sha256": "90cbba468d8a9e11f370fd91a4c16a30ea773a90c8726bd7d1497c855836b4fc",
+  "source_files_verified": 1276,
+  "protected_processes_verified": 12,
+  "owned_pids_absent": [
+    3058143,
+    3058145,
+    3058153,
+    3059241
+  ],
+  "ports_closed": [
+    8611,
+    25577,
+    18795,
+    19088
+  ],
+  "native_proof_verified": false,
+  "strict_pass": false,
+  "final_memory_sha256": "cf1d9bf901ba0077eb1e2eb515052fbaf33fe00e19ecb107df5091ba7d9ad0ce",
+  "files": {
+    "grasp-memory.json": {
+      "sha256": "cf1d9bf901ba0077eb1e2eb515052fbaf33fe00e19ecb107df5091ba7d9ad0ce",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/administrative-close09/grasp-memory.json"
+    },
+    "python-spans-final.json": {
+      "sha256": "4e5ed68439d4bcbc80d29380b9fdd6a714bc25b6057870d050fd0b284900fc4a",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/administrative-close09/python-spans-final.json"
+    },
+    "stdout.log": {
+      "sha256": "a9fba4ca41d68ec4de8d171b2b2d9b0c0d1eb7d4d98a1508902749fbcfc333ae",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/administrative-close09/stdout.log"
+    },
+    "receipt.json": {
+      "sha256": "90cbba468d8a9e11f370fd91a4c16a30ea773a90c8726bd7d1497c855836b4fc",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/administrative-close09/receipt.json"
+    },
+    "isaac_bridge-final.log": {
+      "sha256": "31f0f40ddd2259a46fff1ebab3ea556dd42a1479813b8bdd5993d8cd84691846",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/administrative-close09/isaac_bridge-final.log"
+    },
+    "proof.json": {
+      "sha256": "e106d042cd079a5c60aa2f1d1756216c0b3bc3cd29a3f96ab63c2ecc044ece06",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/administrative-close09/proof.json"
+    },
+    "owner.json": {
+      "sha256": "3539b6a292aff32b145fbbbf459db5947c73f358360785603776ccae21b6be6f",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/administrative-close09/owner.json"
+    }
+  },
+  "created_at": 1790893080.958903
+}

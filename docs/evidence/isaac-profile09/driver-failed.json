@@ -1,0 +1,116 @@
+{
+  "pass": false,
+  "phase": "proof",
+  "scope": "Files-only concrete09 preparation; separate exact review and launch/capture authorization required.",
+  "source": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+  "plan_sha256": "9adbbfb8411dba82941fdcd110c23eedde86a14918cceaff7b086e5145c6903d",
+  "script_sha256": "389f9cf433332468b967b3cb0b3937acae91c0a66f905a26fe0f9553f2de99fb",
+  "started_at": 1790892149.0671608,
+  "errors": [
+    "Traceback (most recent call last):\n  File \"/tmp/cascade-x86-spark09-driver.py\", line 273, in main\n    assert report['exit_code']==0\n           ^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+    "Traceback (most recent call last):\n  File \"/tmp/cascade-x86-spark09-driver.py\", line 283, in main\n    owner,rows,roles,gpu=bound()\n                         ^^^^^^^\n  File \"/tmp/cascade-x86-spark09-driver.py\", line 153, in bound\n    assert {'isaac_bridge','gateway_child','graspgenx'}<=set(roles),set(roles)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'isaac_bridge', 'graspgenx'}\n"
+  ],
+  "nv14_close_admission": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-closure-main-physical/runs/nvblox-rtx/isolated-clock-14/final-preservation-01/shutdown.json",
+    "sha256": "495ad19e2a50c75651853ef37c88bcd48b27a95b65146a612bec03a09507a179",
+    "owner": "452b72d36e0c4337bfe1c077d62a9c86",
+    "owned_processes_absent": true,
+    "ports_closed": [
+      8703,
+      25573
+    ]
+  },
+  "nv15_close_admission": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/final-preservation-01/shutdown.json",
+    "sha256": "6703d110261236be8e8d86999a049efedc292dfe1b22a16f82fd8e3e88c29356",
+    "owned_processes_absent": true,
+    "ports_closed": [
+      8704,
+      25575
+    ]
+  },
+  "memory_before_sha256": "54625c9d7e93862b85f4502c0e41b5730db29537e25ed5aa974025969fd342d3",
+  "consumer_port_preflight": {
+    "config_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/configs",
+    "producer": [
+      "127.0.0.1",
+      8611
+    ],
+    "arm": [
+      "127.0.0.1",
+      8611
+    ],
+    "cameras": [
+      [
+        "127.0.0.1",
+        8611
+      ],
+      [
+        "127.0.0.1",
+        8611
+      ],
+      [
+        "127.0.0.1",
+        8611
+      ]
+    ],
+    "passed": true,
+    "sockets": 0,
+    "source": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+    "script_sha256": "389f9cf433332468b967b3cb0b3937acae91c0a66f905a26fe0f9553f2de99fb",
+    "scope": "CPU-only real load_demo_config; exact official arm/3camera endpoints equal producer. No runtime construction, model, SDK or socket."
+  },
+  "device_registration_preflight": {
+    "pass": true,
+    "source": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+    "launch_sha256": "3ffc66dac031197b97934e2418f14d68f4a726ad0b73fa2d70637ee785c30d25",
+    "registration_block_sha256": "83b7766b2c0ee5d19018b4297f1fffab3f92e110b6dced2e2aed5385cd9f0573",
+    "explicit_gpu_environment": {
+      "CUDA_VISIBLE_DEVICES": "1",
+      "CASCADE_REQUIRE_CUDA": "1"
+    },
+    "inherited_home": "/home/johnny",
+    "isolated_state_paths": {
+      "CASCADE_LAUNCH_STATE": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch",
+      "OPENCLAW_STATE_DIR": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/openclaw",
+      "OPENCLAW_CONFIG_PATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/openclaw/openclaw.json",
+      "NODE_COMPILE_CACHE": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/openclaw/cache/node-compile",
+      "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/grasp-memory.json",
+      "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/memory/envelope.json",
+      "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/memory/beliefs.json"
+    },
+    "mcp_cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/models",
+    "clean_stdlib_child_environment": {
+      "CUDA_VISIBLE_DEVICES": "1",
+      "CASCADE_REQUIRE_CUDA": "1"
+    },
+    "scope": "CPU-only production registration and stdlib child; no MCP/CUDA/robot startup. Does not claim observation before real MCP model initialization."
+  },
+  "command": [
+    "bash",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile09-concrete-preparation-20261002/authorization/launch-diagnostic-authorized.sh",
+    "--sim",
+    "isaac",
+    "--brain",
+    "qwen",
+    "--occupancy",
+    "none",
+    "--graspgenx",
+    "local",
+    "--headless",
+    "--no-open",
+    "--no-judge"
+  ],
+  "child": {
+    "pid": 3058048,
+    "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13725323",
+    "command_sha256": "25b8900a02cdd32d3814eaf11a8037c005c8a7c859b6951b89b7729e88adb27b",
+    "executable": "/usr/bin/bash",
+    "require_stopped": false
+  },
+  "exit_code": 1,
+  "protected_and_source_after": true,
+  "finished_at": 1790892588.210501,
+  "memory_sha256": "cf1d9bf901ba0077eb1e2eb515052fbaf33fe00e19ecb107df5091ba7d9ad0ce",
+  "cleanup": "No automatic signal/reset/recovery; any failed phase requires retained-state review. Own normal down is a separate reviewed action."
+}

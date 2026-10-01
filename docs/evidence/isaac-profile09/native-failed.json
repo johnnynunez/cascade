@@ -1,0 +1,128 @@
+{
+  "native_case_pass": false,
+  "source": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+  "tree": "bbc677e8a041898120c28d280909c69373b20f52",
+  "skill_trace": {
+    "step": 1,
+    "t": 1790892584.9890718,
+    "skill": "pick_and_place",
+    "tier": "mcp-host",
+    "args": {
+      "object": "green cube",
+      "destination": "green square"
+    },
+    "context": {
+      "arm": "isaac_kitchen_gpu",
+      "held_object": null
+    },
+    "duration_ms": 299734.8,
+    "result": {
+      "destination": "green square",
+      "destination_kind": "configured_point",
+      "target": [
+        0.14,
+        -0.27
+      ],
+      "ok": false,
+      "stage": "place",
+      "error": "place failed after 1 attempts: SafetyViolation: simulation motion stopped (e-stop latched; not retrying)",
+      "note": "still holding 'green cube'; try place_at with explicit coordinates",
+      "grip_verified": true,
+      "postcondition": {
+        "skill": "pick_and_place",
+        "kind": "relocated",
+        "status": "unverified",
+        "evidence": "green cube is 0.1 cm from the green square center (physics); full object containment and release are not established by a center position",
+        "channel": "physics",
+        "measured": {
+          "moved_m": 0.3106,
+          "final": [
+            0.1402,
+            -0.2691,
+            0.1231
+          ],
+          "target_err_m": 0.001,
+          "destination": "green square"
+        }
+      },
+      "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+    },
+    "keyframe_before": "keyframes/0001_pick_and_place_before.jpg",
+    "keyframe_after": "keyframes/0001_pick_and_place_after.jpg"
+  },
+  "grasp": {
+    "attempt_id": "1790892284751806135-3061629-3be60c1f02a446da8c7443d337fa5e26",
+    "duration_s": 164.49702403397532,
+    "result_event": {
+      "kind": "result",
+      "phase": "verify",
+      "elapsed_s": 164.49698710799566,
+      "data": {
+        "result": {
+          "held": "green cube",
+          "grip_profile": "rigid",
+          "grip_verified": true,
+          "gripper_open_frac": 0.4,
+          "grasp_width_m": 0.049
+        }
+      }
+    },
+    "logging_ok": true,
+    "dropped_events": 0
+  },
+  "cancellation_server_log_lines": [
+    "[cascade-mcp] client cancelled 'pick_and_place' mid-motion -> e-stop. If this arrived at a round number of seconds the HOST's per-call budget expired (OpenClaw requestTimeoutMs, default 60 s) -- a persistent pick legitimately runs longer; raise it in the server entry (launch.sh sets 300000).",
+    "[cascade-mcp] EMERGENCY STOP latched (out-of-band)",
+    "[cascade-mcp] tools/call pick_and_place(object=green cube, destination=green square) -> ERROR in 300.5s: {\"destination\": \"green square\", \"destination_kind\": \"configured_point\", \"target\": [0.14, -0.27], \"ok\": false, \"stage\": \"place\", \"error\": \"place failed after 1 attempts: SafetyViolation: simulation mot"
+  ],
+  "host_request_timeout_ms": 300000,
+  "host_timeout_scope": "Configured request budget, supported by native timeout response and MCP cancellation/e-stop log; not inferred solely from elapsed duration.",
+  "final_observed_cube": {
+    "position_m": [
+      0.1402117908000946,
+      -0.26907074451446533,
+      0.12304037810466913
+    ],
+    "orientation_wxyz": [
+      0.9995529651641846,
+      0.02273550070822239,
+      0.012753559276461601,
+      0.014634250663220882
+    ],
+    "linear_velocity_m_s": [
+      -0.023416152223944664,
+      -0.010061651468276978,
+      0.05452210083603859
+    ],
+    "angular_velocity_rad_s": [
+      0.3541944921016693,
+      2.345608711242676,
+      6.298800468444824
+    ],
+    "tensor_device": "cuda:0"
+  },
+  "final_jaw_contact_counts": [
+    4,
+    4
+  ],
+  "campaign_attempted": false,
+  "restart_attempted": false,
+  "inputs": {
+    "trace": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/mcp_3061629_ee186edcec26444db1bc03adceb1bc27/trace.jsonl",
+      "sha256": "14bc3a9f15060135e5a3246cd22c7c0fddfd97a5de68eeaa26bf6eece839029c"
+    },
+    "grasp": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/grasp-evidence/1790892284751806135-3061629-3be60c1f02a446da8c7443d337fa5e26.json",
+      "sha256": "a8601cd342d2782351cd8b6680a13494bc6041b28c4690a7a9840650e34c5f90"
+    },
+    "server_log": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/mcp_3061629_ee186edcec26444db1bc03adceb1bc27/server.log",
+      "sha256": "580b78d5186441633c58334d58de6cff0d97e4022c64670c21de21f5d7a4bb11"
+    },
+    "physics_samples": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/cascade-proof-91bb7398ce27435bb63b89fd4e382455/case-1/physics/samples.jsonl",
+      "sha256": "d00823e59d1e5e1378a95355ec054f62bbd0dea58ed57e6a3763ae7c96cbcae2"
+    }
+  }
+}

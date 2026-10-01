@@ -4,10 +4,10 @@ This file is a dated log: each "Landed <date>" section records what shipped,
 the work that motivated it, and what was deliberately not adopted.
 Read top-down for status; the dated sections are history.
 
-## Current delivery work (2026-10-01)
+## Current delivery work (2026-10-02)
 
 [The source and acceptance index](PROJECT_STATUS_20261001.md) supersedes the
-historical status lists below. Reviewed runtime pin `ff8d58b` includes the
+historical status lists below. Previous command baseline for physical validation `ff8d58b` includes the
 retained NV carry guard, explicit MCP GPU registration, verifier startup
 readiness, localization freshness checks and [detector model reuse](DETECTOR_MODEL_REUSE.md). Source-bound software results are
 recorded in that index. Spark uses the
@@ -26,11 +26,22 @@ or design scopes. The offline [Jev/Kev pilot](JEV_DECISIONS.md) has not demonstr
 a decision-quality advantage over the recorded-status rule baseline and is not
 part of presenter startup.
 
-Local profile 08 retained a real CPU/GPU trace and fresh cameras but timed out
-during placement. Its trace includes startup without an exact task-clock
-mapping. Optional [bridge Python spans](ISAAC_BRIDGE_PROFILING.md) provide the
-next measurement points and a bounded clock anchor; they do not establish a
-performance improvement or a completed physical case.
+Local profiles 08 and 09 retained real traces and fresh sampled cameras but
+timed out during placement. Profile 09 on `3ccdc2e8` includes optional
+[bridge Python spans](ISAAC_BRIDGE_PROFILING.md) and periodic task-clock
+markers. Its 120.460-second technical capture and administrative closure
+passed. The first offline name matcher failed on the SDK's Python suffix;
+a strict adapter then qualified a closed 118.593-second CPU window with 968
+updates. Execution-job code dominates its measured elapsed time. Measure that
+job's subcomponents and possible observer overhead before selecting an
+optimization; the current spans do not establish an internal cause, speedup
+or completed physical case. Global/GPU absolute alignment remains unqualified,
+and earlier failed runs remain unchanged.
+
+Current main `c5b2fd5` includes the optional spans merged in PR #62. Separately,
+release-open stability candidate `6e1bc81a` passed 3,741 tests with the original
+deadlines and geometry guards. Integration and physical validation are still
+pending; it does not yet resolve the retained NV15 retreat failure.
 
 ## Optional cuMotion planning and assembly research (2026-10-01)
 

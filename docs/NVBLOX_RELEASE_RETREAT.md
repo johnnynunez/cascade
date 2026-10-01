@@ -20,6 +20,22 @@ captured bilateral-contact paths on every map camera. Mean opening and
 existing physics epoch and same atomic joint read, including individual fingers;
 old bridge snapshots without those fields fail closed.
 
+The payload-tracking release path waits for each actual finger under the
+profile's existing opening timeout (eight seconds in `isaac_kitchen`). Every
+state read retains the episode's clock, jaw limits, backend and halt guards;
+an invalid state is a failure, not another pending opening sample. The mean
+opening cannot end this wait while one finger remains below 98%.
+
+The subsequent five-second geometry barrier can receive a valid camera packet
+captured while the fingers were still opening. Before release is confirmed,
+such a packet, or one still showing the original bilateral attachment, is
+pending. Its stream identity is retained immediately; the next packet must
+have a strictly newer producer timestamp. Only packets showing both fingers
+at least 98% open and no bilateral attachment become map floors. Foreign
+contacts, invalid metadata, changed identity and expired deadlines fail. Once
+release is confirmed, reopening/contact regressions are terminal, including
+during explicit recovery. This adds no gripper commands or opening retries.
+
 Withdrawal waits at most five seconds for every source to commit a newer depth
 integration and ESDF query beyond a shared post-open floor. The ordinary
 attachment-to-empty transition retains measured background anchors while its

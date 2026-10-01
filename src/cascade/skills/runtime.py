@@ -2512,7 +2512,13 @@ class SkillRuntime:
                     float(gcfg.get("descend_duration_s", 2.0)))
             release_episode.open_hand(self, release)
             time.sleep(float(self.cfg.grasp.get("close_settle_s", 0.0)))
-            if release_timeout is not None:
+            if release_timeout is not None and release is not None:
+                try:
+                    release_episode.wait_open(self, release, timeout_s=float(release_timeout))
+                except (SkillError, SafetyViolation) as exc:
+                    release_error = str(exc)
+                    retreat_error = release_error
+            elif release_timeout is not None:
                 # In simulation, a wall-clock dwell does not guarantee the
                 # rate-limited fingers have opened. Retracting while they
                 # still touch the payload can tip a successfully placed can.

@@ -9,15 +9,18 @@ from conftest import REPO, load_isaac_bridge_definitions
 
 
 def run_loop(update_times, *, job_times=None, capture_time=0., step=0,
-             initial_anchor=None, initial_frame_time=0., nested_job=None):
+             initial_anchor=None, initial_frame_time=0., nested_job=None,
+             capture_results=None):
     clock = [0.]
     events, captures, observed_ages = [], [], []
     frame_time = [initial_frame_time]
     update_started = [0.]
     index = [0]
     job_times = job_times or [0.] * len(update_times)
+    results = iter(capture_results) if capture_results is not None else None
     env = dict(time=SimpleNamespace(monotonic=lambda: clock[0]),
                args=SimpleNamespace(cam_every=6), _last_camera_capture_started=initial_anchor,
+               _annotators={'cam0': None},
                _tl=SimpleNamespace(is_playing=lambda: True), _was_playing=True,
                _REQUIRE_CUDA=False, _state_lock=threading.Lock(),
                _targets=dict(q=None, grip_frac=None, stopped=True), step=step)
@@ -35,7 +38,9 @@ def run_loop(update_times, *, job_times=None, capture_time=0., step=0,
     def capture():
         assert events[-2:] == [("wrist", index[0] - 1), ("update", index[0] - 1)]
         events.append(("capture", index[0] - 1))
-        frame_time[0] = update_started[0]  # Conservative snapshot anchor.
+        if results is None or next(results):
+            frame_time[0] = update_started[0]  # Conservative snapshot anchor.
+            env['_pending_camera_publications'].discard('cam0')
         # This scheduling model has no renderer latency; it cannot certify
         # actual camera freshness. Real history/readback is tested separately.
         captures.append((env["step"], clock[0]))
@@ -95,10 +100,30 @@ def test_nested_capture_updates_the_same_anchor_as_the_outer_loop():
             clock[0] += .6
             assert env["_camera_capture_due"]()
             clock[0] += .1  # Nested render/readback after starting its attempt.
+            env['_pending_camera_publications'].discard('cam0')
 
     run = run_loop([.05] * 3, nested_job=nested)
     assert [step for step, _ in run.captures] == [1]
     assert run.env["_last_camera_capture_started"] == pytest.approx(.65)
+
+
+def test_duplicate_render_retries_on_next_existing_update_without_new_cooldown():
+    # A long RPC is followed by an old render token, then a new token on the
+    # next existing update. The old scheduler waited until step 29088.
+    run = run_loop([.1] * 4, job_times=[1.2, 0., 0., 0.], step=29083,
+                   initial_anchor=0., capture_results=[False, True])
+    assert [step for step, _ in run.captures] == [29085, 29086]
+    assert run.ages[:2] == pytest.approx([.1, 1.4])  # Duplicate was not retimestamped.
+    assert run.ages[2:] == pytest.approx([.1, .2])
+    assert run.steps == 4  # No catch-up updates or extra physics steps.
+    assert run.env['_last_camera_capture_started'] == pytest.approx(1.3)
+
+
+def test_repeated_tokens_do_not_turn_attempts_into_publications():
+    run = run_loop([.1] * 4, capture_results=[False] * 4)
+    assert len(run.captures) == run.steps == 4
+    assert run.ages == pytest.approx([.1, .2, .3, .4])
+    assert run.env['_pending_camera_publications'] == {'cam0'}
 
 
 @pytest.mark.parametrize('now', [float('nan'), float('inf'), -1.])

@@ -97,6 +97,7 @@ def _load_bridge_definitions(monkeypatch, physics):
         "_tl": SimpleNamespace(is_playing=lambda: True),
         "_newton_teleport": physics.teleport,
         "_update_wrist_cam": lambda: None, "_refresh_frames": lambda: None,
+        "_annotators": {},  # This fixture has no render products/publications.
     }
     # This suite isolates the reset step count/delivery; frame history has
     # separate real-wrapper tests and never inserts an extra Kit update.

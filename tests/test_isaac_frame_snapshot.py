@@ -479,6 +479,84 @@ def test_same_render_token_preserves_entire_packet_without_current_joint_read(ca
     assert all(b.env['_frames'][name] is old for name, old in originals.items())
 
 
+@pytest.mark.parametrize('next_cycle', ['nominal', 'wall'])
+def test_pending_cameras_complete_individually_without_recopies_or_retimestamp(capture_bridge, next_cycle):
+    b = capture_bridge
+    clock = [time.monotonic() + 1.]
+    b.env['time'] = SimpleNamespace(monotonic=lambda: clock[0])
+    b.env['args'].cam_every = 6
+    original = dict(b.env['_frames'])
+    tokens = {name: 1 for name in original}
+    reads = []
+    base_sensor = b.env['_annotators']['cam0'][0]
+
+    def times(name):
+        reads.append((name, 'token'))
+        return {'rpFabricTime': {'fabricFrameTimeNumerator': tokens[name] * 1000,
+                                'fabricFrameTimeDenominator': 1000000},
+                'IsaacReadSimulationTime': {'simulationTime': tokens[name] / 1000}}
+
+    def data(name, channel):
+        reads.append((name, channel))
+        return base_sensor.get_data(channel)
+
+    for name, (_, K) in list(b.env['_annotators'].items()):
+        b.env['_annotators'][name] = (SimpleNamespace(
+            get_render_times=lambda name=name: times(name),
+            get_data=lambda channel, name=name: data(name, channel),
+            render_product_id=base_sensor.render_product_id), K)
+
+    assert b.env['_camera_capture_due'](7)
+    b.env['_step_with_frame_history']()  # History for token 2.
+    tokens['cam0'] = 2
+    b.env['_refresh_frames']()
+    assert b.env['_pending_camera_publications'] == {'side', 'wrist'}
+    assert b.env['_frames']['side'] is original['side']
+    assert b.env['_frames']['wrist'] is original['wrist']
+    assert not [(name, ch) for name, ch in reads if name != 'cam0' and ch != 'token']
+    first = b.env['_frames']['cam0']
+
+    clock[0] += .1
+    reads.clear()
+    assert b.env['_camera_capture_due'](8)  # No new nominal/wall cycle.
+    b.env['_step_with_frame_history']()  # History for token 3.
+    tokens.update(cam0=3, side=2)
+    b.env['_refresh_frames']()
+    assert b.env['_pending_camera_publications'] == {'wrist'}
+    assert not [read for read in reads if read[0] == 'cam0']
+    assert b.env['_frames']['cam0'] is first  # Not even a newer A token is copied.
+    assert b.env['_frames']['side']['t'] == first['t']  # History, not readback time.
+    assert b.env['_frames']['wrist'] is original['wrist']
+
+    clock[0] += .1
+    reads.clear()
+    assert b.env['_camera_capture_due'](9)
+    b.env['_step_with_frame_history']()
+    tokens['wrist'] = 3
+    b.env['_refresh_frames']()
+    assert not b.env['_pending_camera_publications']
+    assert {name for name, _ in reads} == {'wrist'}
+    assert b.env['_frames']['wrist']['t'] == pytest.approx(first['t'] + .1)
+    assert not b.env['_camera_capture_due'](10)
+    if next_cycle == 'wall':
+        clock[0] += .5
+    assert b.env['_camera_capture_due'](12 if next_cycle == 'nominal' else 10)
+    assert b.env['_pending_camera_publications'] == set(original)
+
+
+def test_failed_history_readback_stays_pending_until_a_new_bound_packet(capture_bridge):
+    b = capture_bridge
+    b.env['args'].cam_every = 6
+    assert b.env['_camera_capture_due'](6)
+    b.env['_frame_history'].clear()
+    b.env['_refresh_frames']()
+    assert b.env['_pending_camera_publications'] == set(b.env['_annotators'])
+    assert not b.env['_frames']  # No fallback to a stale or current-state packet.
+    b.publish()
+    assert not b.env['_pending_camera_publications']
+    assert not b.env['_camera_frame_errors']
+
+
 def test_delayed_render_binds_old_q_jaws_and_authorized_wrist_not_current_state(capture_bridge):
     b = capture_bridge
     original = b.env['_frames']['wrist']
@@ -527,9 +605,11 @@ def test_token_change_during_readback_cannot_publish_mixed_packet(capture_bridge
         return result
     b.env['_annotators'] = {'cam0': (SimpleNamespace(get_data=get_data,
         get_render_times=sensor.get_render_times, render_product_id=sensor.render_product_id), K)}
+    b.env['_pending_camera_publications'].add('cam0')
     b.env['_refresh_frames']()
     assert b.env['_frames']['cam0'] is original
     assert 'changed during' in b.env['_camera_frame_errors']['cam0']
+    assert b.env['_pending_camera_publications'] == {'cam0'}
 
 
 def test_one_camera_missing_token_does_not_prevent_other_camera_publication(capture_bridge):
@@ -538,11 +618,13 @@ def test_one_camera_missing_token_does_not_prevent_other_camera_publication(capt
     sensor, K = b.env['_annotators']['cam0']
     b.env['_annotators']['cam0'] = (SimpleNamespace(get_data=sensor.get_data,
         get_render_times=lambda: {}, render_product_id=sensor.render_product_id), K)
+    b.env['_pending_camera_publications'].update(b.env['_annotators'])
     b.publish()
     assert b.env['_frames']['cam0'] is originals['cam0']
     assert b.env['_frames']['side'] is not originals['side']
     assert 'cam0' in b.env['_camera_frame_errors']
     assert 'side' not in b.env['_camera_frame_errors']
+    assert b.env['_pending_camera_publications'] == {'cam0'}
 
 
 def test_slow_update_uses_before_update_anchor_not_readback_or_completion(capture_bridge):
@@ -566,10 +648,12 @@ def test_slow_update_uses_before_update_anchor_not_readback_or_completion(captur
 def test_clock_regression_invalidates_camera_epoch_and_cached_packets(capture_bridge):
     b = capture_bridge
     epoch = b.env['_motion_clock_epoch']
+    b.env['_pending_camera_publications'].update(b.env['_annotators'])
     b.physics_index[0] = -1
     b.env['_step_with_frame_history']()
     assert not b.env['_frames']
     assert not b.env['_published_frame_tokens']
+    assert not b.env['_pending_camera_publications']
     assert b.env['_motion_clock_epoch'] != epoch
 
 

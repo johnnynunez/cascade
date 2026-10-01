@@ -14,8 +14,13 @@ or a new timestamp would conceal its age and corrupt the robot mask.
 
 The sensor tick rate and physics step remain unchanged. The bridge requests
 readback on its existing `cam_every` iterations, and when at least 0.5 wall
-seconds have passed since the **start** of the previous request. Outer updates
-and nested reset updates share this anchor. There are no catch-up captures,
+seconds have passed since the **start** of the previous scheduled cycle. Each
+cycle requests all cameras. A camera remains pending until it publishes a new
+bound packet: duplicate tokens and readback failures keep it eligible on the
+next existing update, without another half-second cooldown. Completed cameras
+are not polled or copied again for another camera's retry; the next nominal or
+wall cycle requests all cameras again. Outer updates and nested reset updates
+share the anchor and pending set. There are no catch-up captures,
 extra physics steps, sleeps, renderer toggles, or changed motion deadlines.
 
 Each relevant existing `app.update()` records a bounded private history entry:
@@ -50,6 +55,35 @@ The wire frame carries `render_reference`, and the client preserves it in
 
 The portable bundle includes and requires `isaac_frame_history.py`. Kitchen
 source fingerprints are regenerated with the standard manifest tool.
+
+## Publication scheduling regression (1 October 2026)
+
+Campaign correction05 on `0e23870` stopped after its orange camera audit failed.
+Placement and reset were physically confirmed. Sample 1989 contained three
+correctly bound camera packets aged 2.071459983 seconds at the server; client
+delivery age was 2.165724130 seconds. This was during the subsequent
+`world_state` response, 31.099 seconds after the reset order finished. The
+broader witness phase named RESET also includes world-state and scene queries.
+
+The previous scheduler restarted its half-second cooldown even when a poll
+found only repeated render tokens. A deterministic test reproduces this defect:
+a slow main-thread job, an unchanged render token, and a new token available
+on the following existing update. The old source delays that publication;
+pending-camera scheduling reads it without adding a Kit update. The actual
+campaign witness did not retain the render token available at each poll, so
+this is a reproduced mechanism compatible with the failure, not proof of its
+sole cause. The long witness RPC also includes observation/encoding/transport
+work that was not separately timed. The campaign remains failed.
+
+Regression tests exercise the real scheduler/loop and the real packet producer
+with deterministic SDK boundaries. They cover independent camera completion,
+duplicate packet identity and timestamps, missing or contradictory history,
+changing tokens during readback, nested reset scheduling, and epoch clearing.
+The kitchen source manifest changes with the bridge. The renderer history
+helper, collider geometry, camera settings, physics steps, sensor tick rate,
+and two-second acceptance threshold do not change. A blocked main thread or
+renderer can still exceed that threshold; physical performance and acceptance
+on the new source require a new run.
 
 ## Isolated renderer evidence
 

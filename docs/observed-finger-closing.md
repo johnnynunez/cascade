@@ -54,7 +54,7 @@ inherited overrides for those settings. Existing grasp memory was preserved.
 The [retained launch06 receipt](../benchmark/results/spark-observed-finger-native06-20261001.json)
 records a complete green-cube native placement and reset, passing external
 physics audit and strict native confirmation. Both closing preflights ran.
-Sampled neighboring props moved less than 0.000101 mm during home, pregrasp,
+Sampled neighboring props moved less than 0.000102 mm during home, pregrasp,
 descent, close and lift. All three cameras had 1,858 samples with server ages
 below two seconds; two deliveries per camera exceeded two seconds during reset
 (maximum 2.046437 s). These sampled measurements do not establish continuously

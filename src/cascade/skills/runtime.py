@@ -1650,7 +1650,7 @@ class SkillRuntime:
             frame, fix = _frame, _fix
         else:
             frame, fix = self._localize(label, spatial_hint=spatial_hint)
-        grasp_evidence.localized(frame, fix)
+        grasp_evidence.localized(frame, fix, getattr(self, "extrinsics", None))
         profile = select_profile(fix.detection.label or label, material)
         grasp_evidence.event("material_profile", profile=profile)
         grasp_evidence.phase("planning")

@@ -191,16 +191,36 @@ def array(name, value):
             attempt.error(f"array:{name}", exc)
 
 
-def localized(frame, fix):
+def localized(frame, fix, extrinsics=None):
     if _ACTIVE.get() is None:
         return
     try:
         array("localized_points_base_m", fix.points)
+        # Preserve the exact already-read observation, including nearby objects.
+        # This is an opt-in copy, not a camera read or a new segmentation call.
+        array("frame_rgb_bgr", frame.rgb)
+        if frame.depth_m is not None:
+            array("frame_depth_m", frame.depth_m)
+        if getattr(frame, "robot_mask", None) is not None:
+            array("frame_robot_mask", frame.robot_mask)
+        if getattr(fix.detection, "mask", None) is not None:
+            array("frame_target_mask", fix.detection.mask)
+        T = frame.T_base_cam
+        if T is None and extrinsics is not None:
+            if getattr(extrinsics, "mode", None) == "eye_to_hand":
+                T = extrinsics.T  # static calibration; never call a live FK hook
+            else:
+                _ACTIVE.get().error("frame_T_base_cam", ValueError(
+                    "capture-time transform absent; live eye-in-hand FK is not evidence"))
+        array("frame_K", frame.K)
+        if T is not None:
+            array("frame_T_base_cam", T)
         event("localized", label=fix.label, position_base_m=fix.position,
               extent_m=fix.extent, axes_base=fix.axes, fix_t=fix.t,
               detection_label=fix.detection.label, confidence=fix.detection.conf,
               bbox=fix.detection.bbox, frame_id=frame.frame_id, frame_t=frame.t,
-              capture=frame.capture, K=frame.K, T_base_cam=frame.T_base_cam)
+              capture=frame.capture, K=frame.K, T_base_cam=frame.T_base_cam,
+              effective_T_base_cam=T, depth_source=frame.depth_source)
     except Exception as exc:
         _ACTIVE.get().error("localized", exc)
 

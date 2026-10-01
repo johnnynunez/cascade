@@ -84,6 +84,7 @@ class IsaacArm(ArmBase):
             gripper_pos=float(s.get("gripper_pos", 0.0)),
             gripper_valid="gripper_pos" in s,
             physics_clock=clock,
+            gripper_joints=copy.deepcopy(s.get("gripper_joints")),
         )
 
     def state_from_frame(self, frame) -> RobotState:

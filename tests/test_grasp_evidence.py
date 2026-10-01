@@ -182,6 +182,65 @@ def test_attempt_buffer_copies_arrays_and_excludes_other_threads(monkeypatch, tm
         np.testing.assert_array_equal(arrays['0000_points'], [1., 2.])
 
 
+def test_rgbd_masks_and_effective_calibration_are_copied_from_existing_frame(monkeypatch, tmp_path):
+    monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path))
+    rt, _, fix, frame = runtime(monkeypatch)
+    frame.rgb[:] = 23
+    frame.depth_m = np.full((3, 3), .7, np.float32)
+    frame.depth_source = 'sensor'
+    frame.robot_mask = np.eye(3, dtype=bool)
+    fix.detection.mask = np.fliplr(np.eye(3, dtype=bool)).copy()
+    T = np.eye(4); T[0, 3] = .3
+    extrinsics = SimpleNamespace(mode='eye_to_hand', T=T)
+    @evidence.record_attempt
+    def action(rt, label):
+        evidence.localized(frame, fix, extrinsics)
+        frame.rgb[:] = 99
+        frame.depth_m[:] = 4
+        frame.robot_mask[:] = False
+        fix.detection.mask[:] = False
+        frame.K[:] = 0
+        T[:] = 0
+        return {'ok': True}
+    action(rt, 'orange')
+    doc = receipt(tmp_path)
+    assert doc['logging_ok']
+    with np.load(tmp_path / doc['arrays']['path'], allow_pickle=False) as arrays:
+        values = {key[5:]: arrays[key] for key in arrays.files}
+        np.testing.assert_array_equal(values['frame_rgb_bgr'], np.full((3, 3, 3), 23))
+        np.testing.assert_allclose(values['frame_depth_m'], .7)
+        np.testing.assert_array_equal(values['frame_robot_mask'], np.eye(3, dtype=bool))
+        np.testing.assert_array_equal(values['frame_target_mask'], np.fliplr(np.eye(3, dtype=bool)))
+        np.testing.assert_array_equal(values['frame_K'], np.eye(3))
+        assert values['frame_T_base_cam'][0, 3] == .3
+    assert next(e['data'] for e in doc['events'] if e['kind'] == 'localized')['effective_T_base_cam'][0][3] == .3
+
+
+@pytest.mark.parametrize('has_capture_transform', [False, True])
+def test_evidence_never_queries_live_eye_in_hand_fk(monkeypatch, tmp_path, has_capture_transform):
+    from cascade.perception.grounding import Extrinsics
+    monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path))
+    rt, _, fix, frame = runtime(monkeypatch)
+    called = []
+    def live_fk():
+        called.append('hardware read')
+        raise AssertionError('telemetry must not read the arm')
+    ext = Extrinsics(mode='eye_in_hand', fk_tcp2base=live_fk)
+    frame.T_base_cam = np.eye(4) if has_capture_transform else None
+    @evidence.record_attempt
+    def action(rt, label):
+        evidence.localized(frame, fix, ext)
+        return {'ok': True}
+    assert action(rt, 'orange') == {'ok': True}
+    assert called == []
+    doc = receipt(tmp_path)
+    assert doc['logging_ok'] is has_capture_transform
+    loc = next(e['data'] for e in doc['events'] if e['kind'] == 'localized')
+    assert (loc['effective_T_base_cam'] is not None) is has_capture_transform
+    if not has_capture_transform:
+        assert doc['logging_errors'][0]['operation'] == 'frame_T_base_cam'
+
+
 def test_capture_error_and_truncation_are_never_silent_success(monkeypatch, tmp_path):
     monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path))
     monkeypatch.setattr(evidence, '_MAX_EVENTS', 3)

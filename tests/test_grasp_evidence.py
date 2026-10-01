@@ -125,6 +125,21 @@ def test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result(
     assert loc['position_base_m'] == fix.position.tolist()
 
 
+def test_cached_aim_uses_close_pose_not_postlift_tcp(monkeypatch):
+    """A real runtime grasp must not turn its own lift into a negative offset."""
+    rt, calls, fix, frame = runtime(monkeypatch)
+    result = rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
+    assert result['held'] == 'orange'
+    last_close = max(i for i, c in enumerate(calls) if c[0] == 'gripper')
+    first_lift = next(i for i in range(last_close + 1, len(calls)) if calls[i][0] == 'joints')
+    close_q = [c[1] for c in calls[last_close:first_lift] if c[0] == 'read'][-1]
+    np.testing.assert_allclose(rt._held_offset, fix.position - rt.kin.fk(close_q)[:3, 3])
+    old_offset = fix.position - rt.kin.fk(rt.arm.raw._client.q)[:3, 3]
+    assert old_offset[2] < -.06 and abs(rt._held_offset[2]) < .01
+    assert rt._held_observation_floor['physics_step'] > 0
+    np.testing.assert_array_equal(rt._held_observation_floor_q, rt.arm.raw._client.q)
+
+
 def test_failed_attempt_preserves_original_exception_and_exact_command_read_trace(monkeypatch, tmp_path):
     runs = []
     failures = []

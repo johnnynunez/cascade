@@ -220,6 +220,20 @@ class OpenVocabDetector(Detector):
             if masks is not None and i < len(masks):
                 m = masks[i]
                 if m.shape != (h, w):
+                    # YOLO's default segmentation output uses the letterboxed
+                    # inference canvas, unlike boxes which are already scaled
+                    # to orig_shape. Remove that padding before resizing: e.g.
+                    # 720x1280 -> 384x640 has 12 padded rows at both ends.
+                    # Match Ultralytics scale_masks' content bounds, keeping
+                    # nearest interpolation and the tensor on its device.
+                    # Compute the bounds here for older supported Ultralytics
+                    # versions whose scale_masks lacks the `mode` argument.
+                    mh, mw = m.shape
+                    gain = min(mh / h, mw / w)
+                    content_h, content_w = round(h * gain), round(w * gain)
+                    top = round((mh - content_h) / 2 - 0.1)
+                    left = round((mw - content_w) / 2 - 0.1)
+                    m = m[top:top + content_h, left:left + content_w]
                     if strict_cuda:
                         import torch.nn.functional as F
                         m = F.interpolate(m[None, None], size=(h, w), mode="nearest")[0, 0]

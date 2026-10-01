@@ -29,6 +29,7 @@ import sys
 import threading
 import time
 import traceback
+import types
 
 ROOT = Path(__file__).resolve().parents[2]
 CASES = {
@@ -214,6 +215,14 @@ def install_command_trace(runtime, path):
                      provisional=getattr(runtime, "_held_provisional", None),
                      exemption=runtime.arm.harness._grasp_exempt)
         def encode(value):
+            if callable(value):
+                # Opaque diagnostic metadata only: never inspect repr/closure or call it.
+                if isinstance(value, (types.FunctionType, types.MethodType,
+                                      types.BuiltinFunctionType, types.BuiltinMethodType)):
+                    return {"diagnostic_kind": "opaque_callback", "module": value.__module__,
+                            "qualname": value.__qualname__}
+                return {"diagnostic_kind": "opaque_callback", "type_module": type(value).__module__,
+                        "type_qualname": type(value).__qualname__}
             if hasattr(value, "tolist"):
                 return value.tolist()
             raise TypeError(type(value).__name__)

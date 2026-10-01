@@ -10,8 +10,8 @@ import time
 
 import numpy as np
 
-from ..control.arm_base import min_jerk
-from ..types import SkillError
+from ..control.motion_profile import nominal_profile, profile_counts
+from ..types import SkillError, SafetyViolation
 
 PLAN_BUDGET_S = 3.0
 MAX_ROUTE_CANDIDATES = 15
@@ -48,8 +48,8 @@ def _joints(start, goal):
     return start, goal
 
 
-def vet_segment(harness, start, goal, duration_s, *, deadline=None, stretch=True):
-    """Return the first refusal on the actual 50 Hz min-jerk setpoints.
+def vet_segment(harness, start, goal, duration_s, *, deadline=None, stretch=True, rate_hz=50.0):
+    """Vet the executor's real edges and retained legacy safety samples.
 
     Callers vetting several segments hold geometry_guard around the whole
     route. SafetyHarness.vet_step retains the ordinary escape rules.
@@ -59,32 +59,31 @@ def vet_segment(harness, start, goal, duration_s, *, deadline=None, stretch=True
         raise SkillError("route duration must be finite and positive")
     duration = (motion_duration(harness, start, goal, duration_s)
                 if stretch else float(duration_s))
-    steps = max(2, int(duration * 50.))
-    if steps > 10000:
-        raise SkillError("route exceeds the bounded waypoint budget")
-    dt, previous = duration / steps, start
-    for index in range(1, steps + 1):
-        if deadline is not None and time.monotonic() >= deadline:
-            raise SkillError("route preflight exceeded its time budget; no route authorized")
-        waypoint = start + (goal - start) * min_jerk(index / steps)
-        reason = harness.vet_step(previous, waypoint, dt)
-        if reason:
-            return reason
-        previous = waypoint
+    try:
+        profile_counts(duration, rate_hz, max_steps=10000)
+    except SafetyViolation as exc:
+        raise SkillError(f"route exceeds or violates its bounded waypoint profile: {exc}") from exc
+    for target in nominal_profile(start, goal, duration, rate_hz, max_steps=10000):
+        for previous, waypoint, dt in target.checks:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise SkillError("route preflight exceeded its time budget; no route authorized")
+            reason = harness.vet_step(previous, waypoint, dt)
+            if reason:
+                return reason
     return None
 
 
-def vet_route(harness, start, goals, duration_s, *, deadline=None):
+def vet_route(harness, start, goals, duration_s, *, deadline=None, rate_hz=50.0):
     previous = start
     for goal in goals:
-        reason = vet_segment(harness, previous, goal, duration_s, deadline=deadline)
+        reason = vet_segment(harness, previous, goal, duration_s, deadline=deadline, rate_hz=rate_hz)
         if reason:
             return reason
         previous = goal
     return None
 
 
-def plan_route(harness, start, goal, duration_s=3.0):
+def plan_route(harness, start, goal, duration_s=3.0, *, rate_hz=50.0):
     """Try a direct route, then joint-first/joint-last corners, without retries.
 
     Corners use only the measured start and requested goal. Every segment must
@@ -110,7 +109,7 @@ def plan_route(harness, start, goal, duration_s=3.0):
         for index, route in enumerate(candidates()):
             if index >= MAX_ROUTE_CANDIDATES:
                 break
-            reason = vet_route(harness, start, route, duration_s, deadline=deadline)
+            reason = vet_route(harness, start, route, duration_s, deadline=deadline, rate_hz=rate_hz)
             if reason is None:
                 return route
             if first_reason is None:

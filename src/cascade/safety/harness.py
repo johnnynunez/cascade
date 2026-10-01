@@ -677,16 +677,19 @@ class SafeArm:
         finally:
             self.harness.end_motion()
 
-    def move_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *, _halt_generation=None) -> bool:
+    def move_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *,
+                     _halt_generation=None, rate_hz=None) -> bool:
         """Execute a fully vetted deterministic route, retaining live gates."""
         from .trajectory import (PLAN_BUDGET_S, geometry_guard, plan_route,
                                  vet_route, vet_segment)
+        from ..control.motion_profile import resolve_motion_rate
 
         halt_generation = self.harness._halt_generation if _halt_generation is None else _halt_generation
         self.harness._check_halt_generation(halt_generation)
-        start = self.get_state().q
+        start = self.get_state().q  # Materialize LazyArm before inspecting its rate.
         self.harness._check_halt_generation(halt_generation)
-        route = plan_route(self.harness, start, q_target, duration_s)
+        rate = resolve_motion_rate(self._arm, rate_hz)
+        route = plan_route(self.harness, start, q_target, duration_s, rate_hz=rate)
         for index, goal in enumerate(route):
             def revalidate(start, actual_duration):
                 deadline = time.monotonic() + PLAN_BUDGET_S
@@ -694,15 +697,15 @@ class SafeArm:
                 # refresh. Vet this stream and all remaining segments afresh.
                 with geometry_guard(self.harness, deadline=deadline):
                     reason = vet_segment(self.harness, start, goal, actual_duration,
-                                         deadline=deadline, stretch=False)
+                                         deadline=deadline, stretch=False, rate_hz=rate)
                     if reason is None:
                         reason = vet_route(self.harness, goal, route[index + 1:],
-                                           duration_s, deadline=deadline)
+                                           duration_s, deadline=deadline, rate_hz=rate)
                 if reason:
                     raise SafetyViolation(f"planned route became unsafe: {reason}")
 
             if not self.move_joints(goal, duration_s=duration_s, _preflight=revalidate,
-                                    _halt_generation=halt_generation):
+                                    _halt_generation=halt_generation, rate_hz=rate):
                 return False
         return True
 

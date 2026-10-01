@@ -1,0 +1,11 @@
+{
+  "pass": true,
+  "head": "93af4f6e70c9db2319f14e24b9f24fd30c1f074c",
+  "at_unix_s": 1790879812.5517814,
+  "full_result_sha256": "2b68163700f512501605e7f71edfb1f4f6697212b903685a5e6b3c5014154851",
+  "source_manifest_sha256": "bcd071e2bb874a1e22558f2f836b8fdd4f3f62320c662d4d7c81a3139f0fd2b6",
+  "log_sha256": "264e34a574fa7695a5dfe1f218b2e8295f04eec6a21b05ece70755c5cf28f9e9",
+  "source_files_independently_rehashed": 1169,
+  "tracked_clean": true,
+  "scope": "Root independently rehashed frozen1169 source/release files plus full result/log/source; fullPASS3628/43/4. No physical acceptance."
+}

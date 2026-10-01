@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "head": "93af4f6e70c9db2319f14e24b9f24fd30c1f074c",
+  "parent": "727aaabc5dec7a72a43e112a7ba076d7c6e5aab3",
+  "tracked_clean": true,
+  "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observed-closure-first",
+  "changed_sha256": {
+    "src/cascade/skills/runtime.py": "70c4ccaca2b8c91b26fe682d70ea0d173a4bdc633971ea221b46f5bc3a2462a1",
+    "tests/test_observed_closure_first.py": "be5c3877296183a1162109f1a5bcfa91433543bd8c62da904b492ffeba9af28d",
+    "docs/observed-finger-closing.md": "8b3062618eb1cff0ea13d055c8de0b40d07e58cdeca3b94e4d11873cc417272c",
+    "docs/evidence/observed-closure-first-20261001.json": "4ebfdf3f6fa6024cc7d65fea794d9cd60107f67769d429aa6e0a16ba884626da"
+  },
+  "focal": {
+    "argv": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_observed_closure_first.py",
+      "tests/test_observed_finger_runtime.py",
+      "tests/test_grasp_planning_search.py",
+      "tests/test_grasp_evidence.py"
+    ],
+    "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observed-closure-first/src",
+    "passed": 77,
+    "seconds": 1.41,
+    "exit_code": 0,
+    "evidence": "Tool output retained; no dedicated test log was captured. Runtime and test bytes match the tested cut; later additions were documentation/evidence only."
+  },
+  "artifacts_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/observed-closure-first-preparation-20261001/release-assets.json": "95b6c6504a17f0f3f9b8ced101b57415362e921b8bca267048b846c27886fbcf",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox13-native-failure-analysis-20261001/recorded-veto-replay.json": "bf7f7c5549628cc8fecc6f30cef87a89f073c8e7a9a7eb12553b1f2159172ef5",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox13-native-failure-analysis-20261001/recorded-veto-closure-first-replay.json": "137ea320437b05bb065ef9c25b22422c7edcceedf9f67d820cccf7ffc2d72e09",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox13-native-failure-analysis-20261001/planning-cost-and-instrumentation.json": "0d57e639a8e8e51357e06287e59ae25032e3bb907ec66e77a2d991c7ef75f9ee",
+    "/tmp/nvblox13-recorded-veto-replay.py": "c0c02dab3fc6a589763a184b3d095925123efc21a16918a4a99f6430a1bba5e7",
+    "/tmp/nvblox13-recorded-veto-closure-first-replay.py": "cda2d8f483087b418fd5fc55c10c04bc3ea431cf5387737374b052f58886e058"
+  },
+  "kitchen_check": "14source+8release PASS",
+  "physical_execution": false,
+  "full_suite": "Not run by this agent; parent coordinates."
+}

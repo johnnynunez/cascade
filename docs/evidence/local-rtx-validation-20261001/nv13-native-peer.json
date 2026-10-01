@@ -1,0 +1,167 @@
+{
+  "review_pass": true,
+  "physical_case_pass": false,
+  "scope": "Independent offline review of terminal native failure and partial evidence; no execution authority.",
+  "input_receipt_sha256": "cabc311871044741f9d8c0bbe8f901bdfbbbfb517147e8571cdb320bed579b69",
+  "grasp_receipt_sha256": "b22b58a18609e3e515ae106aaf46c1e3e88bc5f85dfaacd070c13172165f39a7",
+  "grasp_arrays_sha256": "a7383f50a757d75a50733f81a60bba2ad37de15c7d1fb8ea0a323f15624992ac",
+  "artifacts_rehashed": 14,
+  "runtime_source_files_rehashed": 287,
+  "source": "f9cb6b8e93e1ef720507e8b3e904b6aa5bfed67a",
+  "pid": 2839594,
+  "epoch": "779d9c79937c4505a9fabf6dc81e978c",
+  "native_result": {
+    "destination": "open box",
+    "destination_kind": "configured_point",
+    "target": [
+      0.3,
+      -0.14
+    ],
+    "ok": false,
+    "stage": "grasp",
+    "error": "SkillError: route preflight exceeded its time budget; no route authorized",
+    "home_skipped": true,
+    "grasp_attempts": 1,
+    "note": "observed-finger attempt failed; automatic recovery was not geometrically checked",
+    "postcondition": {
+      "skill": "pick_and_place",
+      "kind": "relocated",
+      "status": "refuted",
+      "evidence": "orange is still within 0.0 cm of where it started",
+      "channel": "physics",
+      "measured": {
+        "moved_m": 0.0,
+        "final": [
+          0.18,
+          0.12,
+          0.0264
+        ]
+      }
+    },
+    "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+  },
+  "actual_marks": {
+    "pick_begin": {
+      "monotonic": 122154.544224403,
+      "unix": 1790877052.2739356
+    },
+    "pick_end": {
+      "monotonic": 122262.960293603,
+      "unix": 1790877160.6900046
+    }
+  },
+  "duration_s": 108.41606920000049,
+  "commands": [
+    {
+      "event": "existing_state_feedback",
+      "phase": "setup",
+      "started": 122153.345320888,
+      "ended": 122153.399466123
+    },
+    {
+      "event": "existing_state_feedback",
+      "phase": "pick",
+      "started": 122259.278804972,
+      "ended": 122259.517102586
+    }
+  ],
+  "actuator_commands": 0,
+  "reset_attempted": false,
+  "partial_audit_pass": true,
+  "cameras": {
+    "cam0": {
+      "count": 664,
+      "max_server_age_s": 0.7744813129975228,
+      "max_delivery_age_s": 0.9004722219979158,
+      "server_samples_over_2s": 0
+    },
+    "side": {
+      "count": 664,
+      "max_server_age_s": 0.7744813129975228,
+      "max_delivery_age_s": 0.9004722219979158,
+      "server_samples_over_2s": 0
+    },
+    "proof": {
+      "count": 664,
+      "max_server_age_s": 0.7744813129975228,
+      "max_delivery_age_s": 0.9004722219979158,
+      "server_samples_over_2s": 0
+    }
+  },
+  "props": {
+    "pink_cube": {
+      "max_displacement_m": 6.146728992462158e-08,
+      "final_position_m": [
+        0.27000001072883606,
+        0.11000000685453415,
+        0.02999999934039739
+      ]
+    },
+    "green_cube": {
+      "max_displacement_m": 2.986047331594191e-08,
+      "final_position_m": [
+        0.24000000953674316,
+        0.010000010021030903,
+        0.02999999934039739
+      ]
+    },
+    "tomato_can": {
+      "max_displacement_m": 1.3374777936202467e-07,
+      "final_position_m": [
+        0.22499996423721313,
+        0.21500001847743988,
+        0.04125000910065797
+      ]
+    },
+    "lemon": {
+      "max_displacement_m": 0.0,
+      "final_position_m": [
+        0.3199999928474426,
+        0.004999999888241291,
+        0.021600000571233305
+      ]
+    },
+    "orange": {
+      "max_displacement_m": 0.0,
+      "final_position_m": [
+        0.18000000715255737,
+        0.11999999731779099,
+        0.02638023161492971
+      ]
+    }
+  },
+  "max_joint_drift_rad": 7.152557373046875e-07,
+  "min_jaw_open_fractions": [
+    0.9999991059303417,
+    0.9999995529651708
+  ],
+  "target_contacts_all_zero": true,
+  "planning": {
+    "localization_elapsed_s": 104.0461208409979,
+    "localized_at_monotonic": 122258.715341651,
+    "used_capture_monotonic": 122154.603493878,
+    "capture_age_at_localized_event_s": 104.11184777299059,
+    "planning_elapsed_until_failure_s": 3.97694496200711,
+    "candidate_rejections": 6,
+    "batch_count": 1,
+    "terminal_error": "route preflight exceeded its time budget; no route authorized"
+  },
+  "model_paths_final": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/mobileclip_blt.ts": {
+      "sha256": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54",
+      "size": 599764649
+    },
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/models/mobileclip_blt.ts": {
+      "sha256": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54",
+      "size": 599764649
+    }
+  },
+  "log_sha256": "839f255db19488f4dd24e066e267e6000b1dbb482640a57715552f3d773b7d37",
+  "limitations": [
+    "Download occurred inside native pick phase; it was not a pre-case bootstrap. Final downloaded bytes equal preexisting pinned model, checked retrospectively.",
+    "No exact instrumented download completion time is available; the retained frame is about104s old when localization finishes, distinct from the fresh sampled producer stream.",
+    "The approach deadline is created after generate_batch in runtime.py; download time is not directly charged to this3s route preflight budget. No exclusive performance cause is inferred.",
+    "No lift, carry, placement, release, home completion or reset was exercised. Retained-attachment loss handling remains unvalidated by this case.",
+    "No extra RPC, actuator, SDK, GPU, or physical test performed by reviewer."
+  ]
+}

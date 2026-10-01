@@ -1,10 +1,10 @@
 # Build-a-Claw presenter card
 
 Use the [current source and acceptance status](PROJECT_STATUS_20261001.md)
-before rehearsal. The setup guide pins reviewed runtime `ed29a59`, with a
-3,556-test pass on parent `dc56689` and a comment-only shell follow-up. The owner
-disconnected the Sparks. [Local dual-RTX Pro attempt 02](LOCAL_RTX_VALIDATION.md)
-passed camera/GPU admission but timed out during green placement; physical
+before rehearsal. The setup guide pins reviewed runtime `93af4f6`; its software
+results are recorded separately from physical acceptance. The owner
+disconnected the Sparks. [Local dual-RTX Pro attempts](LOCAL_RTX_VALIDATION.md)
+timed out before complete placement/home verification; physical
 acceptance remains incomplete.
 The preceding `7e02de7` proof failed during orange descent; campaign and restart
 remain unaccepted. The [earlier two-object proof](SPARK_DELIVERY.md#earlier-two-object-proof-on-28061a6)

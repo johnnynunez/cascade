@@ -3,8 +3,9 @@
 Runtime contracts updated on 1 October 2026, including the merged optional OVRTX
 renderer, cuMotion candidate planning, PhysX finger envelope, native host reserve,
 release-opening synchronization, pending-camera publication, retained NV carry
-attachment and explicit MCP GPU selection.
-The reviewed runtime pin is `ed29a59`; see the
+attachment, explicit MCP GPU selection, Isaac verifier startup readiness and
+localization analysis freshness.
+The reviewed runtime pin is `93af4f6`; see the
 [source and acceptance index](PROJECT_STATUS_20261001.md) for merged changes,
 software validation and the current physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.
@@ -250,6 +251,13 @@ space or intermediate poses. Symmetric wrist alternatives pass all checks
 independently, within the existing planning deadlines and preserved ranking.
 
 ### Grasp pipeline
+
+[Localization freshness](LOCALIZATION_FRESHNESS.md) checks the analyzed image's
+client-local age before and after detector or VLM work, including accumulated
+fallback time. An expired result cannot authorize a grasp or an automatic home
+retry. A secondary-camera VLM fix keeps its actual image and calibration.
+The separate [Isaac startup check](ISAAC_STARTUP_READINESS.md) prepares the native
+read-only verifier and waits for newer camera captures before proof starts.
 
 ```
 localize ─▶ ObjectFix (base-frame OBB; de-biased centre, verified on 2 engines)

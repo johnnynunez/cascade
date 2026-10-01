@@ -1,0 +1,56 @@
+{
+  "pass": false,
+  "phase": "proof",
+  "scope": "x86 PC native normal launch.sh proof2 with occupancy disabled and borrowed Qwen. One native proof session, no separate brain-only/prewarm session. Not desktop, ARM, visitor UI, or restart acceptance.",
+  "source": "ed29a59eece5af6abd804c03aeb90de47ff88c74",
+  "plan_sha256": "ca14bc6677bdd70bac75ff813a81bb3e20143c38e46619cea9abccd0fb6758eb",
+  "script_sha256": "e3e8bda8397ab95f130c7a2698e57ff4d826611de6d606da8e2f90d31bffbb42",
+  "started_at": 1790874572.3600183,
+  "errors": [
+    "Traceback (most recent call last):\n  File \"/tmp/cascade-x86-spark03-driver.py\", line 193, in main\n    assert report['exit_code']==0\n           ^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+    "Traceback (most recent call last):\n  File \"/tmp/cascade-x86-spark03-driver.py\", line 203, in main\n    owner,rows,roles,gpu=bound()\n                         ^^^^^^^\n  File \"/tmp/cascade-x86-spark03-driver.py\", line 111, in bound\n    assert {'isaac_bridge','gateway_child','graspgenx'}<=set(roles),set(roles)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'isaac_bridge', 'graspgenx'}\n"
+  ],
+  "memory_before_sha256": "81853d5ace14bdd8299a72972813b0c2fc1211f6f1f327c808574e4e621afab1",
+  "device_registration_preflight": {
+    "pass": true,
+    "source": "ed29a59eece5af6abd804c03aeb90de47ff88c74",
+    "launch_sha256": "a1e7b8889a4e9c9881bb65a3337bcb61f207d4da0157eda7978a619707666893",
+    "registration_block_sha256": "83b7766b2c0ee5d19018b4297f1fffab3f92e110b6dced2e2aed5385cd9f0573",
+    "explicit_gpu_environment": {
+      "CUDA_VISIBLE_DEVICES": "1",
+      "CASCADE_REQUIRE_CUDA": "1"
+    },
+    "clean_stdlib_child_environment": {
+      "CUDA_VISIBLE_DEVICES": "1",
+      "CASCADE_REQUIRE_CUDA": "1"
+    },
+    "scope": "CPU-only production registration and stdlib child; no MCP/CUDA/robot startup. Does not claim observation before real MCP model initialization."
+  },
+  "command": [
+    "bash",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/scripts/launch.sh",
+    "--sim",
+    "isaac",
+    "--brain",
+    "qwen",
+    "--occupancy",
+    "none",
+    "--graspgenx",
+    "local",
+    "--headless",
+    "--no-open",
+    "--no-judge"
+  ],
+  "child": {
+    "pid": 2804870,
+    "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11967539",
+    "command_sha256": "1fbdb0f3d0239ff81187540bc1a015407cca9cae61af55779bcc40f59888011d",
+    "executable": "/usr/bin/bash",
+    "require_stopped": false
+  },
+  "exit_code": 1,
+  "protected_and_source_after": true,
+  "finished_at": 1790875011.3997831,
+  "memory_sha256": "0e11bbd71fde93043eaabe99d769f2f9984b5035fae0d9895231ec523e2a472c",
+  "cleanup": "No automatic signal/reset/recovery; any failed phase requires retained-state review. Own normal down is a separate reviewed action."
+}

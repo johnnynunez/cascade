@@ -1,0 +1,19 @@
+{
+  "pass": true,
+  "scope": "Documentation-only merge: tree equals reviewed 4f7d5f3 with49 focused tests and independent review; not physical acceptance.",
+  "pr": {
+    "headRefOid": "4f7d5f3b50347d97846a4bff5a3846fa7b0249b9",
+    "mergeCommit": {
+      "oid": "261dc1b0d08a6f0a6d5833e715a0bc9862f08b29"
+    },
+    "mergedAt": "2026-10-01T17:29:07Z",
+    "state": "MERGED",
+    "url": "https://github.com/johnnynunez/cascade/pull/55"
+  },
+  "merged_tree": "6ac7efd8745fb95bb65e10da07196ddafcbfe270",
+  "reviewed_tree": "6ac7efd8745fb95bb65e10da07196ddafcbfe270",
+  "tree_identical": true,
+  "ci_run": 36896880123,
+  "ci_sha256": "28a90cd4b4ee544723cd931ae095f61fbfc2ac94241b01af5da83a9562a24e3d",
+  "reviewed_at": 1790875795.0435677
+}

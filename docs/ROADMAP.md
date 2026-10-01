@@ -7,9 +7,10 @@ Read top-down for status; the dated sections are history.
 ## Current delivery work (2026-10-01)
 
 [The source and acceptance index](PROJECT_STATUS_20261001.md) supersedes the
-historical status lists below. Reviewed runtime pin `ed29a59` includes the
-retained NV carry guard and explicit MCP GPU registration. Its parent `dc56689`
-passed 3,556 tests; the follow-up changes one heredoc comment. Spark uses the
+historical status lists below. Reviewed runtime pin `93af4f6` includes the
+retained NV carry guard, explicit MCP GPU registration, verifier startup
+readiness and localization freshness checks. Source-bound software results are
+recorded in that index. Spark uses the
 installed PhysX/Qwen/real-GGX profile, physical-time joint motion, render-bound
 camera state, observed-finger approach/closing preflight, bounded planning,
 preserved memory ranking, coherent held-object observations, release-opening
@@ -17,7 +18,7 @@ synchronization and per-camera pending publication. These are
 implemented contracts, not a blanket physical-success claim.
 
 The owner disconnected the Sparks. Immediate work is resolving the local
-dual-RTX Pro native placement timeout and the separate nvblox carry failure,
+dual-RTX Pro native timeout and the separate nvblox route/carry failures,
 then completing source-bound proof, the five-object campaign and normal
 same-version restart. See [local validation](LOCAL_RTX_VALIDATION.md). Preserve failed runs and outcome memory. Newton,
 new hardware, Cosmos evaluation, mobility, and ovrtx retain separate validation

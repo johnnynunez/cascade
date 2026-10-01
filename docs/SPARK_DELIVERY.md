@@ -2,10 +2,10 @@
 
 Current source and acceptance are indexed in
 [project status, 1 October](PROJECT_STATUS_20261001.md). Reviewed runtime pin
-`ed29a59` includes the carry guard and explicit MCP GPU selection. The full
-3,556-test suite passed on parent `dc56689`; the follow-up changes one heredoc
-comment. [Local RTX validation](LOCAL_RTX_VALIDATION.md) records the subsequent
-placement timeout and outstanding acceptance. The dated results
+`93af4f6` includes the carry guard, explicit MCP GPU selection, verifier startup
+readiness and localization freshness checks.
+[Local RTX validation](LOCAL_RTX_VALIDATION.md) records the software checks,
+native timeouts and outstanding acceptance. The dated results
 below retain their original pins and verdicts; they are not current-source
 installation, campaign or restart claims.
 
@@ -17,22 +17,24 @@ native-agent proof and browser scope.
 The default event flow installs Isaac Sim, GraspGen-X, Qwen Q4, the vision projector,
 llama.cpp, OpenClaw and the verified kitchen. Cosmos is not installed.
 
-## Current two-object proof, 1 October 2026
+## Latest retained Spark two-object proof, 1 October 2026
 
 The merged correction (`27f2b0d`, tested candidate `eb90272`, PR #51) passed its 3,467-test software suite,
 but its Spark proof has not started. Tailscale last saw the host at 15:24 UTC and then reported it offline;
 SSH timed out before deployment. The owner confirmed the Sparks were
 intentionally disconnected and requested local dual-RTX Pro validation; that
-local validation does not establish Spark acceptance. Attempt 02 on `dc56689`
-passed camera/GPU admission but the 300-second MCP limit cancelled green
-placement, leaving proof negative and campaign/restart unattempted. See the [deployment receipt](evidence/finger-depth-occlusion-integration/validation.json).
+local validation does not establish Spark acceptance. Attempts 02, 03 and 06
+reached the 300-second MCP limit before complete placement/home verification,
+leaving proof negative and campaign/restart unattempted. See
+[local validation](LOCAL_RTX_VALIDATION.md) and the
+[earlier deployment receipt](evidence/finger-depth-occlusion-integration/validation.json).
 
 The latest run, correction-MAIN-07 on `7e02de7`, **failed**. Green completed
 placement, return home and reset. Orange stopped during descent before closure
 when the right jaw left the checked opening interval; withdrawal was also
 refused. Both cases retained camera server ages within two seconds. Strict
 confirmation and READY remained negative, and no campaign or restart followed.
-The [current proof receipt](evidence/spark-correction-main-07/proof.json) preserves
+The [retained proof receipt](evidence/spark-correction-main-07/proof.json) preserves
 the successful green case, failed orange case and independently verified archive.
 
 ## Earlier two-object proof on `28061a6`
@@ -50,7 +52,7 @@ source, attempts, validation references and evidence hashes.
 | Orange | Open box | 9.26 mm | PASS |
 
 The same Chromium process and page remained open, with connected chat and three
-advancing 1280 × 720 camera views, shown in the [current screenshot](../benchmark/results/images/spark_final_main_three_cameras_20261001.png). Sampled camera server age peaked at 1.623 s
+advancing 1280 × 720 camera views, shown in the [retained screenshot](../benchmark/results/images/spark_final_main_three_cameras_20261001.png). Sampled camera server age peaked at 1.623 s
 for green and 1.925 s for orange. One orange reset delivery per camera took
 2.065 s; delivery time is recorded separately from the server-age gate. Observed
 capture gaps during reset do not establish continuous frame availability or
@@ -271,7 +273,7 @@ for the bounded observation window and per-call receipts.
 This direct-runtime campaign does not establish a new native-chat or UI
 acceptance, full desktop READY proof, fresh installation or deployment of the
 final source. The September installation result remains historical. The setup guide now
-selects reviewed runtime pin `ed29a59`; its current acceptance is recorded separately in the
+selects reviewed runtime pin `93af4f6`; its current acceptance is recorded separately in the
 [status index](PROJECT_STATUS_20261001.md).
 
 ## Native confirmation gate and failed follow-up, 1 October 2026

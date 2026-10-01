@@ -1,0 +1,42 @@
+{
+  "pass": true,
+  "scope": "Independent static review and selected CPU tests only. No SDK, model loading, robot RPC, services or physical acceptance. Full remains separate.",
+  "head": "727aaabc5dec7a72a43e112a7ba076d7c6e5aab3",
+  "command": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_localization_analysis_freshness.py",
+    "tests/test_configured_object_description.py",
+    "tests/test_reference_expressions.py"
+  ],
+  "source_sha256_before": {
+    "src/cascade/skills/runtime.py": "2bf2db85e5abbeb60aa2301a80e1ba9e2824e7ec8b156fc7828b2e245fb6ae4e",
+    "docs/LOCALIZATION_FRESHNESS.md": "88058a32ca1107a1fe798a3e0892f22690e98c2353f6c236e9e1867c7005bc6e",
+    "tests/test_localization_analysis_freshness.py": "dc09f4d7492b9367925ecbf0766eb6103898e51991e3f0713edc4adb58bf2e99",
+    "tests/test_configured_object_description.py": "e2c415e3a7fda2be4f6fdabe618ec23ee4e0478fefdbfc4d3f3186006dd3637a",
+    "tests/test_reference_expressions.py": "116016470f338451614158c81b1a7ab94a20aa22f8255fe52ada232f39793e30"
+  },
+  "source_sha256_after": {
+    "src/cascade/skills/runtime.py": "2bf2db85e5abbeb60aa2301a80e1ba9e2824e7ec8b156fc7828b2e245fb6ae4e",
+    "docs/LOCALIZATION_FRESHNESS.md": "88058a32ca1107a1fe798a3e0892f22690e98c2353f6c236e9e1867c7005bc6e",
+    "tests/test_localization_analysis_freshness.py": "dc09f4d7492b9367925ecbf0766eb6103898e51991e3f0713edc4adb58bf2e99",
+    "tests/test_configured_object_description.py": "e2c415e3a7fda2be4f6fdabe618ec23ee4e0478fefdbfc4d3f3186006dd3637a",
+    "tests/test_reference_expressions.py": "116016470f338451614158c81b1a7ab94a20aa22f8255fe52ada232f39793e30"
+  },
+  "tracked_clean": true,
+  "exit_code": 0,
+  "elapsed_s": 0.9483377933502197,
+  "pytest_log_sha256": "ed4a83d745f078a4bda93763435fb087bda903d8355bff9fcdf007c31797170a",
+  "review": [
+    "Five-second client-local image age before/after primary and secondary analysis; foreign capture clock untouched.",
+    "Retained primary rechecked before belief/VLM; belief epoch contract unchanged.",
+    "VLM actual frame/calibration returned; finally covers constructor, empty cloud and geometry errors without masking expiry.",
+    "SlowPerceptionError terminal pick failure without home/reobserve/place or LazyArm materialization.",
+    "Existing two-second Isaac capture and task/motion limits unchanged; synchronous analysis is rejected after return, not interrupted."
+  ],
+  "limitations": [
+    "No physical or latency improvement claimed; stale analysis rejection does not fix cold model download or route performance."
+  ]
+}

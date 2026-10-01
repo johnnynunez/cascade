@@ -1,0 +1,24 @@
+{
+  "pass": true,
+  "head": "0a8f9ad2e807a256b0df3f9af302a6a54544488c",
+  "tree": "a73e02c08939e5b0b3666735c2095c439636a386",
+  "at_unix_s": 1790878351.2805986,
+  "scope": "Independent root complete production diff, existing age/error/motion context, all regression cases and documentation read. No additional unit suite duplicated; frozen full suite and peer pending separately. No physical acceptance.",
+  "files_sha256": {
+    "docs/LOCALIZATION_FRESHNESS.md": "88058a32ca1107a1fe798a3e0892f22690e98c2353f6c236e9e1867c7005bc6e",
+    "src/cascade/skills/runtime.py": "91d497549e56d51b7586036a58d8fa8fd6f2dcb04a77399d7d6c39f2f0655421",
+    "tests/test_localization_analysis_freshness.py": "6fb3ef8c394221c6aa139ab598e98eddfb5c4a4d0955408a3443add198b71834"
+  },
+  "checks": [
+    "Five-second existing client-local image-age contract before/after detector including failure path; foreign capture clocks not subtracted.",
+    "SlowPerceptionError survives primary/secondary/VLM fallbacks and prevents pick retry/home even without observed gate.",
+    "Aggregate failed views cannot attach expired primary image to eligible memory. Existing belief motion epoch preserved.",
+    "VLM returns actual successful view with its calibrated transform; normal Cfg attribute access fixes previously swallowed initialization.",
+    "VLM initialization, inference and postprocessing age bounded after synchronous completion; does not promise cancellation or faster inference.",
+    "No motion profile, joint/force/camera/deadline bounds relaxed; source04 untouched."
+  ],
+  "limitations": [
+    "No proof that route3s overrun is fixed; no physical carry stability claim.",
+    "Current source has not run a native case."
+  ]
+}

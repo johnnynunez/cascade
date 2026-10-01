@@ -8,7 +8,44 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
-The reviewed command pin is **`ed29a59eece5af6abd804c03aeb90de47ff88c74`**,
+The reviewed command pin is **`93af4f6e70c9db2319f14e24b9f24fd30c1f074c`**,
+from [PR #58](https://github.com/johnnynunez/cascade/pull/58). It checks the same
+[observed closing conflict](observed-finger-closing.md#reject-closing-conflicts-before-candidate-route-sampling)
+before expensive candidate route sampling, after the initial harness/map
+admission. Every accepted candidate still requires all existing checks; ranking,
+geometry and deadlines are unchanged. Its focused suite passed 77 tests and
+both source reviews passed. Its complete suite passed **3,628 tests**, 43 skipped
+and four deselected in 338.11 seconds. All 1,169 source/release files remained
+unchanged and were independently rehashed. All five PR CI jobs passed; it merged
+as `0a27bda2` with the exact tested tree. All five merged-source CI jobs also
+passed. Native acceptance remains incomplete, as recorded below.
+
+It includes candidate **`727aaabc5dec7a72a43e112a7ba076d7c6e5aab3`** from
+[PR #57](https://github.com/johnnynunez/cascade/pull/57). That change rejects
+[localization results whose image expired during analysis](LOCALIZATION_FRESHNESS.md),
+including detector misses, VLM errors and accumulated fallback work. An expired
+analysis cannot trigger automatic home or retry. A secondary-view VLM result
+retains its actual image and calibration. The focused suite passed 142 tests;
+an independent selection passed 70. Its complete suite passed **3,619 tests**,
+43 skipped and four deselected in 346.98 seconds. All 1,167 source/release files
+remained unchanged and were independently rehashed. All five PR CI jobs passed;
+it merged as `6ee6375b` with the exact tested tree. All five merged-source CI jobs
+also passed. New physical acceptance remains separate.
+
+This includes [PR #56](https://github.com/johnnynunez/cascade/pull/56), merged
+as `ba8f2e83` with the exact tree of tested candidate `33b27382`. Its full suite
+passed **3,591 tests**, 43 skipped and four deselected in 338.61 seconds, with
+all 1,165 source/release files unchanged. All five PR and all five merged-source
+CI jobs passed.
+[Isaac startup readiness](ISAAC_STARTUP_READINESS.md) prepares the native
+read-only verifier and waits for newer camera captures before proof starts.
+It does not extend the native motion deadline or establish physical success.
+[Documentation PR #55](https://github.com/johnnynunez/cascade/pull/55) merged as
+`261dc1b0`, with all five PR and all five merged-source CI jobs passing.
+These results and the failed physical runs remain separate in
+[local validation](LOCAL_RTX_VALIDATION.md).
+
+Earlier command pin **`ed29a59eece5af6abd804c03aeb90de47ff88c74`**,
 from [PR #54](https://github.com/johnnynunez/cascade/pull/54), merged as `f9cb6b8e`
 with an identical tree after all five PR CI jobs passed. It preserves literal
 GPU selection in the actual MCP environment. Parent `dc566892` passed the full
@@ -194,15 +231,39 @@ failures below. Documentation PR #43 preserved that earlier source distinction.
 
 ## Current physical acceptance
 
-**Local dual-RTX Pro attempt 02 on `dc566892` failed during green-cube
-placement.** Startup and camera/GPU admission passed; grasp completed in
-208.508 seconds, but the unchanged 300-second MCP call limit cancelled placement
-and latched the emergency stop. No reset, orange case, five-object campaign or
-acceptance restart followed. The sampled real-time factor was 0.105; planning
-the grasp took 1.699 seconds. An independent camera failure also occurred before
-motion: one sample per camera aged to 2.268394 seconds at the server.
+**Local dual-RTX Pro attempt 06 on `93af4f6` failed during post-place retreat.**
+Grasp completed in 137.410 seconds, but the 300-second MCP deadline cancelled
+the operation during retreat; return home was not attempted. The native
+postcondition remains unverified. Independent review of 1,391 witness samples
+found all three cameras within the two-second limit: maximum server age
+1.018476 seconds and delivery age 1.102881 seconds. The final cube was near the
+pad with open jaws and no contacts, while the arm had nonzero velocities and
+1.339 radians of maximum home error. No reset, second case, campaign or restart
+followed. The real-time factor was 0.136; throughput remains unresolved.
+The [local report](LOCAL_RTX_VALIDATION.md#local-attempt-06-fresh-cameras-retreat-timeout)
+binds the failure, independent review and preserved archive. Prepared attempts
+04 and 05 were never launched. They remain tied to their earlier source pins.
+
+**Local dual-RTX Pro attempt 03 on `ed29a59` failed its first native case.**
+The normal launcher used a single MCP runtime on the selected GPU. Grasp
+completed in 146.856 seconds, but the unchanged 300-second request limit expired
+before a completed placement/home result. Witnesses show the green cube on the
+destination pad and open jaws, with home incomplete and nonzero final velocities;
+they do not establish the exact cancellation stage or a verified postcondition.
+No reset, orange case, campaign or acceptance restart followed. The sampled
+real-time factor was 0.146. Two early samples per camera exceeded the freshness
+limit before the first actuator command, reaching 2.395272 seconds at the server.
+Attempt 02's timeout and separate camera failure remain retained.
 The [local validation report](LOCAL_RTX_VALIDATION.md)
 records the timings, source, retained failure and software corrections.
+
+Separate nvblox environment 13 on `f9cb6b8e` passed passive camera/map admission
+and a read-only truth probe, then failed the orange route preflight before any
+actuator command. Localization took 104.046 seconds, including a model download
+in that caller's working directory, and returned an expired image despite fresh
+independent camera witnesses. The later route-budget failure is distinct: its
+three-second timer began after grasp generation. There was no reset and no
+transport validation of the retained-attachment guard.
 
 The endpoint-occlusion correction in [PR #51](https://github.com/johnnynunez/cascade/pull/51)
 passed 3,467 software tests on candidate `eb90272`. Its new Spark run has not
@@ -259,6 +320,9 @@ new result. The earlier final-MAIN-03 campaign failure remains in the history be
 
 | Source/run | Measured result and boundary |
 | --- | --- |
+| MAIN `f9cb6b8e`, nvblox environment 13 | Passive admission and read-only truth readiness passed. Orange route preflight failed before any actuator command; no reset or further cases. Expired localization and later route timeout are separately recorded. [Evidence](LOCAL_RTX_VALIDATION.md#separate-nv-result). |
+| Candidate `93af4f6`, local dual-RTX Pro attempt 06 | Cameras passed throughout the sampled case. Grasp verified; MCP cancellation aborted post-place retreat, with HOME unattempted and placement unverified. No reset, campaign or restart. [Evidence](LOCAL_RTX_VALIDATION.md#local-attempt-06-fresh-cameras-retreat-timeout). |
+| Candidate `ed29a59`, local dual-RTX Pro attempt 03 | One native MCP session on the selected GPU. Grasp verified; the request expired before completed placement/home verification. Two early stale samples per camera also failed strict checking. No reset, campaign or restart. [Evidence](LOCAL_RTX_VALIDATION.md#local-attempt-03-single-native-session). |
 | Candidate `dc566892`, local dual-RTX Pro attempt 02 | Camera/GPU admission passed. Green grasp was verified, but the MCP request timed out during placement and latched e-stop. No reset or further cases followed; native proof and strict confirmation remain FAIL. [Local evidence](LOCAL_RTX_VALIDATION.md#local-attempt-02-native-timeout-during-placement). |
 | MAIN `7e02de7`, Spark correction-MAIN-07 | Green placement/home/reset and independent audit passed. Orange aborted before closure when the right jaw reached 49.8942 mm against a 49.9 mm checked lower bound; withdrawal was also refused. No orange target contact or lift was observed. Sampled server camera ages peaked at 1.669 s for green and 1.259 s for orange. Overall proof, strict confirmation and READY remain FAIL; no campaign or restart followed. [Evidence](evidence/spark-correction-main-07/proof.json). |
 | MAIN `7e02de7`, nvblox environment 12 | Passive admission and one native release/recovery diagnostic passed. After the labeled post-open mapper refusal, no actuator commands occurred until the explicitly requested original withdrawal. Endpoint error was 0.004094 rad, orange displacement during withdrawal 1.86 nm; home/reset and three newer map commits passed. Sampled camera server/delivery maxima were 0.8332/0.8749 s. [Admission](evidence/nvblox-environment-12/admission.json) and [release](evidence/nvblox-environment-12/release.json). This is direct native skill execution, not visitor-host or five-object acceptance. |

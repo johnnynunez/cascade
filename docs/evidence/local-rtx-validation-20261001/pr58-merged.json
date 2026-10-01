@@ -1,0 +1,13 @@
+{
+  "headRefOid": "93af4f6e70c9db2319f14e24b9f24fd30c1f074c",
+  "mergeCommit": {
+    "oid": "0a27bda2b1a9b6b85fdf39d4b420c736a1ba0ee1"
+  },
+  "mergedAt": "2026-10-01T18:46:44Z",
+  "state": "MERGED",
+  "url": "https://github.com/johnnynunez/cascade/pull/58",
+  "tree": "3ec5f7110a61abe14fee8aa25fafe9f71461fa9b",
+  "exact_tested_tree": true,
+  "reviewed_at": 1790880407.3102224,
+  "scope": "Merged tree equals source93af full3628 and reviewed native06; no physical success inferred"
+}

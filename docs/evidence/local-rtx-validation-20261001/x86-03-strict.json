@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "pass": false,
+  "scope": "Strict x86 native CLI acceptance: unchanged proof2 validator and unchanged full_audit/native_turn/native_outcome primitives for native five-case campaign. No visitor HTTP/UI or ARM claim.",
+  "trace_binding": "Owner-bound trace + unique step + exact arguments + observer/turn intervals; trace has no native run/order ID",
+  "native_run_id_scope": "Declared by each saved turn file; same-session envelopes cannot independently prove a run ID belongs to a particular case",
+  "proof": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo/proof.json",
+  "errors": [
+    "proof is incomplete or verified is not true",
+    "EvidenceError: missing proof model"
+  ],
+  "proof_native_cases": [],
+  "campaign_native_cases": [],
+  "checker_sha256": "fead2ac46bb0a3e4b3ca6821a7419220ea456ba278d9c41a69331998a4fbc7ee",
+  "input_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-03/runs/.launch/profile-cascade-demo/proof.json": "96be431c3b65e4a345a9436569f14ddcc52103f7fc22d3bac08018eb30713702"
+  },
+  "wrapper_sha256": "72190e88ac0a83116e1e40750eac66e2e8dccea076c87715e9cc32df9f681452"
+}

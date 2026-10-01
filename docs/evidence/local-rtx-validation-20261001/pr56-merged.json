@@ -1,0 +1,18 @@
+{
+  "headRefOid": "33b27382f092e1449446c89befc340cc74303788",
+  "mergeCommit": {
+    "oid": "ba8f2e8307ff8c77741e5e35b97b1895472edca8"
+  },
+  "mergedAt": "2026-10-01T18:04:40Z",
+  "number": 56,
+  "state": "MERGED",
+  "url": "https://github.com/johnnynunez/cascade/pull/56",
+  "pass": true,
+  "trees": {
+    "ba8f2e8307ff8c77741e5e35b97b1895472edca8": "38b26772781726a5eb3c2b171e7cc442f34a3345",
+    "33b27382f092e1449446c89befc340cc74303788": "38b26772781726a5eb3c2b171e7cc442f34a3345"
+  },
+  "ci_receipt_sha256": "09dc7b0603bb197919b8000d551cc536c54a9b96ff93f22e636ca8dd61ead73f",
+  "reviewed_full_receipt": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/isaac-startup-readiness-full-validation-20261001/result.json",
+  "scope": "Merge reviewed PR56 after five CI successes; merged tree equals frozen validated33b. Physical acceptance remains pending."
+}

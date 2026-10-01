@@ -1,0 +1,27 @@
+{
+  "pass": true,
+  "scope": "Independent root rehash of NV13 final administrative capture7artifacts and exact closure receipt; native manipulation remains failed; no new motion.",
+  "at_unix_s": 1790878260.5219011,
+  "capture_sha256": "240ed77f15500f213012c29350869db6803d00c0048a2892c718dd82036d734a",
+  "shutdown_sha256": "7921a66c3f587aa606815d6e90734ba0e0f23ad08297ab51f70f6e2c0644ce0e",
+  "artifacts_rehashed": 7,
+  "source_count": 287,
+  "signals": [
+    {
+      "role": "bridge",
+      "pid": 2834978,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:12170308",
+      "signal": "SIGTERM",
+      "attempted_monotonic": 123281.416924444,
+      "sent": true
+    },
+    {
+      "role": "mapper",
+      "pid": 2834906,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:12170304",
+      "signal": "SIGTERM",
+      "attempted_monotonic": 123282.892094026,
+      "sent": true
+    }
+  ]
+}

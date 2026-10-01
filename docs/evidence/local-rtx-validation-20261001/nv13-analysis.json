@@ -1,0 +1,299 @@
+{
+  "pass": false,
+  "scope": "Native13 task FAIL, offline forensic receipt. No additional runtime action or inference of a mechanical result.",
+  "native_receipt_sha256": "cabc311871044741f9d8c0bbe8f901bdfbbbfb517147e8571cdb320bed579b69",
+  "input_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/runs/nvblox-rtx/isolated-clock-13/native-orange-01/receipt.json": "cabc311871044741f9d8c0bbe8f901bdfbbbfb517147e8571cdb320bed579b69",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/runs/nvblox-rtx/isolated-clock-13/native-case-evidence-01/1790877052398908600-2839594-f55e3177cbd6456095183390455e387b.json": "b22b58a18609e3e515ae106aaf46c1e3e88bc5f85dfaacd070c13172165f39a7",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/runs/nvblox-rtx/isolated-clock-13/native-orange-01/commands.jsonl": "78b188be7abbbfa39cda8cac7e6e33146d908e47e708d295ff881848aaa11179",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/runs/nvblox-rtx/isolated-clock-13/native-case-launch.json": "4e725b6a19aaac2c343ad90f0e2c49395d5dd76b709eb4f9961929b2cdcdd692",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/runs/nvblox-rtx/isolated-clock-13/native-orange-01.log": "839f255db19488f4dd24e066e267e6000b1dbb482640a57715552f3d773b7d37",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/runs/nvblox-rtx/isolated-clock-13/source.json": "8c317a2c299c1f5ec070bcea34b86f554884ea5b6fdbbce917a4ea7531901626",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/runs/nvblox-rtx/isolated-clock-13/ownership.json": "70702aeafc294590270cc40cac84bc517c638b49cbd92742c0939edeaf79e99d",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/mobileclip_blt.ts": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/models/mobileclip_blt.ts": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/src/cascade/skills/runtime.py": "2e5b850ca5e785529d0cd3885bae8993de7cb3b264b20a244eaf34d20b591685",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/src/cascade/safety/trajectory.py": "77e910481156e4701b50576c50172c50a0b5458a42777377d4771fde55e4dd6b",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/src/cascade/grasping/selector.py": "49c089991bfecae12c79ac3a3ca7ff629aa6fb337db33606f01ed820378099a3"
+  },
+  "result": {
+    "destination": "open box",
+    "destination_kind": "configured_point",
+    "target": [
+      0.3,
+      -0.14
+    ],
+    "ok": false,
+    "stage": "grasp",
+    "error": "SkillError: route preflight exceeded its time budget; no route authorized",
+    "home_skipped": true,
+    "grasp_attempts": 1,
+    "note": "observed-finger attempt failed; automatic recovery was not geometrically checked",
+    "postcondition": {
+      "skill": "pick_and_place",
+      "kind": "relocated",
+      "status": "refuted",
+      "evidence": "orange is still within 0.0 cm of where it started",
+      "channel": "physics",
+      "measured": {
+        "moved_m": 0.0,
+        "final": [
+          0.18,
+          0.12,
+          0.0264
+        ]
+      }
+    },
+    "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+  },
+  "actual_marks": {
+    "pick_begin": {
+      "monotonic": 122154.544224403,
+      "unix": 1790877052.2739356
+    },
+    "pick_end": {
+      "monotonic": 122262.960293603,
+      "unix": 1790877160.6900046
+    }
+  },
+  "case_duration_s": 108.41606937999313,
+  "grasp_duration_s": 108.02315153299423,
+  "localization_elapsed_s": 104.0461208409979,
+  "localization_capture_monotonic": 122154.603493878,
+  "localized_event_monotonic": 122258.715341651,
+  "localized_capture_age_at_event_s": 104.11184777299059,
+  "planning_phase_elapsed_s": 104.04617820799467,
+  "planning_to_exception_s": 3.97694496200711,
+  "search_deadline_monotonic": 122266.716297144,
+  "exception_monotonic": 122262.69234398,
+  "ggx_filtered_counts": {
+    "raw": 400,
+    "score_pass": 146,
+    "vertical_pass": 20,
+    "both_pass": 5,
+    "retained": 5,
+    "min_score": 0.25,
+    "approach_z_max": -0.95
+  },
+  "events_by_kind": {
+    "request": 1,
+    "configuration": 1,
+    "array": 10,
+    "localized": 1,
+    "material_profile": 1,
+    "phase": 1,
+    "planning_batch": 1,
+    "ggx_configuration": 1,
+    "ggx_response": 1,
+    "ggx_filtered_counts": 1,
+    "backend_candidates": 1,
+    "memory_prior": 1,
+    "planned_candidates": 1,
+    "floor_adjusted_candidates": 2,
+    "isaac_feedback": 1,
+    "observed_finger_gate": 1,
+    "selection_input": 1,
+    "jaw_datum": 1,
+    "ik_targets": 8,
+    "pregrasp_ik": 8,
+    "grasp_ik": 7,
+    "observed_finger_candidate_rejected": 6,
+    "candidate_validation": 6,
+    "attempt_exception": 1
+  },
+  "candidate_rejections": [
+    {
+      "elapsed_s": 105.5300446409965,
+      "phase": "close",
+      "conflict": {
+        "finger": "joint_right",
+        "component": 1,
+        "surface": "other observed surface",
+        "pixel_rc": [
+          139,
+          513
+        ],
+        "point_base_m": [
+          0.16797728530909872,
+          0.12423435059208571,
+          0.04869456293818364
+        ]
+      }
+    },
+    {
+      "elapsed_s": 106.02348348700616,
+      "phase": "descent",
+      "conflict": {
+        "sample_index": 51,
+        "finger": "joint_right",
+        "component": 8,
+        "surface": "other observed surface",
+        "pixel_rc": [
+          167,
+          563
+        ],
+        "point_base_m": [
+          0.25245316869968615,
+          0.12762888812561957,
+          0.060324540623753586
+        ]
+      }
+    },
+    {
+      "elapsed_s": 106.48562094599765,
+      "phase": "close",
+      "conflict": {
+        "finger": "joint_right",
+        "component": 1,
+        "surface": "other observed surface",
+        "pixel_rc": [
+          139,
+          519
+        ],
+        "point_base_m": [
+          0.1709271072505968,
+          0.13058596809210765,
+          0.04782069210006723
+        ]
+      }
+    },
+    {
+      "elapsed_s": 106.95547591800278,
+      "phase": "close",
+      "conflict": {
+        "finger": "joint_left",
+        "component": 6,
+        "surface": "other observed surface",
+        "pixel_rc": [
+          139,
+          519
+        ],
+        "point_base_m": [
+          0.1709271072505968,
+          0.13058596809210765,
+          0.04782069210006723
+        ]
+      }
+    },
+    {
+      "elapsed_s": 107.49013416799426,
+      "phase": "close",
+      "conflict": {
+        "finger": "joint_left",
+        "component": 6,
+        "surface": "other observed surface",
+        "pixel_rc": [
+          139,
+          519
+        ],
+        "point_base_m": [
+          0.1709271072505968,
+          0.13058596809210765,
+          0.04782069210006723
+        ]
+      }
+    },
+    {
+      "elapsed_s": 107.99454851899645,
+      "phase": "close",
+      "conflict": {
+        "finger": "joint_right",
+        "component": 1,
+        "surface": "other observed surface",
+        "pixel_rc": [
+          139,
+          519
+        ],
+        "point_base_m": [
+          0.1709271072505968,
+          0.13058596809210765,
+          0.04782069210006723
+        ]
+      }
+    }
+  ],
+  "exception": {
+    "exception_type": "SkillError",
+    "message": "route preflight exceeded its time budget; no route authorized",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/src/cascade/grasping/evidence.py\", line 288, in wrapped\n    result = function(self, *args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/src/cascade/skills/runtime.py\", line 1948, in skill_grasp_object\n    grasp, q_pre, q_grasp = select_grasp(\n                            ^^^^^^^^^^^^^\n  File \"/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/src/cascade/grasping/selector.py\", line 158, in select_grasp\n    twin_solved = _solve(twin)\n                  ^^^^^^^^^^^^\n  File \"/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/src/cascade/grasping/selector.py\", line 129, in _solve\n    reason = validate(g, pre.q, grasp.q)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/src/cascade/skills/runtime.py\", line 1843, in _vet\n    reason = vet_segment(\n             ^^^^^^^^^^^^\n  File \"/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/src/cascade/safety/trajectory.py\", line 69, in vet_segment\n    raise SkillError(\"route preflight exceeded its time budget; no route authorized\")\ncascade.types.SkillError: route preflight exceeded its time budget; no route authorized\n"
+  },
+  "budget_scope": "Shared approach_deadline=monotonic()+PLAN_BUDGET_S(3.0) is created after generate_batch. Exception occurs in vet_segment within candidate/twin selection. Global feasibility deadline8s was still later. The100s cold download precedes this3s budget and cannot be treated as direct exhaustion of that same budget. No per-query timings isolate how much time map/geometry/CPU contention consumed.",
+  "commands_by_event": {
+    "existing_state_feedback": 2
+  },
+  "recorded_joint_target_acks": 0,
+  "recorded_jaw_target_acks": 0,
+  "reset": {
+    "attempted": false,
+    "reason": "native case failed or retained attachment invalid; no recovery commands"
+  },
+  "retained_attachment_final": {
+    "present": false
+  },
+  "camera_age_summary": {
+    "pass": true,
+    "complete": true,
+    "observer_errors": [],
+    "source": [
+      "127.0.0.1",
+      8702
+    ],
+    "cameras": {
+      "cam0": {
+        "pass": true,
+        "samples": 664,
+        "valid_clock_samples": 664,
+        "maximum_age_s": 0.7744813129975228,
+        "samples_over_2s": 0,
+        "distinct_captures": 260,
+        "maximum_observed_capture_gap_s": 0.815124079992529,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      },
+      "side": {
+        "pass": true,
+        "samples": 664,
+        "valid_clock_samples": 664,
+        "maximum_age_s": 0.7744813129975228,
+        "samples_over_2s": 0,
+        "distinct_captures": 260,
+        "maximum_observed_capture_gap_s": 0.815124079992529,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      },
+      "proof": {
+        "pass": true,
+        "samples": 664,
+        "valid_clock_samples": 664,
+        "maximum_age_s": 0.7744813129975228,
+        "samples_over_2s": 0,
+        "distinct_captures": 260,
+        "maximum_observed_capture_gap_s": 0.815124079992529,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      }
+    },
+    "scope": "Server monotonic minus capture in the same physical snapshot; observed capture gaps are sample gaps, not all producer frames."
+  },
+  "partial_audit_pass": true,
+  "aggregate_audit_pass": false,
+  "source_unchanged": true,
+  "source_count": 287,
+  "model_download": {
+    "expected_sha256": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54",
+    "effective_cwd_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/mobileclip_blt.ts",
+    "prior_frozen_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-carry-main-physical/models/mobileclip_blt.ts",
+    "equal_sha256": true,
+    "size_bytes": 599764649,
+    "first_progress_log": "Downloading https://github.com/ultralytics/assets/releases/download/v8.4.0/mobileclip_blt.ts to 'mobileclip_blt.ts': 0% \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 585.7KB/572.0MB 264.9KB/s 0.7s<36:48",
+    "final_progress_log": "Downloading https://github.com/ultralytics/assets/releases/download/v8.4.0/mobileclip_blt.ts to 'mobileclip_blt.ts': 100% \u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501 572.0MB 5.7MB/s 1:40",
+    "scope": "Retrospective equivalence only: native pick had begun before the CWD-relative download. Original startup manifest remains unchanged and did not pin this effective CWD path. No actuator occurred before or after the download. No exact per-I/O timings were captured."
+  },
+  "actuation_claim": "Zero target/jaw/reset events across native trace and grasp evidence. Early guard abort does not validate the retained carry guard or mechanical carry success."
+}

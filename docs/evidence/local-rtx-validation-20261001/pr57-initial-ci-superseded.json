@@ -1,0 +1,9 @@
+{
+  "conclusion": "",
+  "event": "pull_request",
+  "headSha": "0a8f9ad2e807a256b0df3f9af302a6a54544488c",
+  "name": "CI",
+  "status": "in_progress",
+  "url": "https://github.com/johnnynunez/cascade/actions/runs/36905219437",
+  "action": "Cancelled obsolete PR57 CI after push of reviewed error-exit fix727aa; new727 run36905832899 continues. Not a success claim."
+}

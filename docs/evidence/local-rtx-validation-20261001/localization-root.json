@@ -1,0 +1,12 @@
+{
+  "pass": true,
+  "head": "727aaabc5dec7a72a43e112a7ba076d7c6e5aab3",
+  "prior_root_review_sha256": "19b6d4265db3ef9542b8bac56f8b197e77dd9d46a3e6463753ffc30b5ef5a613",
+  "at_unix_s": 1790878690.1839576,
+  "scope": "Read complete7-line production delta plus new regression paths. Whole VLM finally validates last actual analyzed frame, including failed initialization, empty depth and failed geometry. None frames are not compared; normal fresh failures remain fail-soft. No physical acceptance or full-suite claim.",
+  "files_sha256": {
+    "src/cascade/skills/runtime.py": "2bf2db85e5abbeb60aa2301a80e1ba9e2824e7ec8b156fc7828b2e245fb6ae4e",
+    "tests/test_localization_analysis_freshness.py": "dc09f4d7492b9367925ecbf0766eb6103898e51991e3f0713edc4adb58bf2e99",
+    "docs/LOCALIZATION_FRESHNESS.md": "88058a32ca1107a1fe798a3e0892f22690e98c2353f6c236e9e1867c7005bc6e"
+  }
+}

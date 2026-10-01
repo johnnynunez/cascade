@@ -1,0 +1,24 @@
+{
+  "head": "727aaabc5dec7a72a43e112a7ba076d7c6e5aab3",
+  "argv": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests",
+    "deploy/brev/tests/test_public_visitor.py",
+    "deploy/brev/tests/test_visitor_video.py",
+    "deploy/brev/tests/test_build_bundle.py",
+    "deploy/brev/tests/test_prepare_bundle.py"
+  ],
+  "pythonpath": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-localization-analysis-freshness/src",
+  "started_unix_s": 1790878736.1163056,
+  "finished_unix_s": 1790879084.9544997,
+  "exit_code": 0,
+  "log_sha256": "b7bbdd26fc8b8ce69aab71fb7ac9d235de547e86bf38f5417ef48ba5ea130487",
+  "source_manifest_sha256": "ad5d29e6ff7edce6617c5b67c549e9204e93ad1c79e22a5677b3a9c9e72fa02f",
+  "files_verified": 1167,
+  "tracked_clean": true,
+  "source_unchanged": true,
+  "pass": true
+}

@@ -133,10 +133,12 @@ def camera_age_summary(records, *, host, port, robot_id, complete, errors):
                         or type(server) not in (int, float) or not math.isfinite(server)):
                     raise ValueError("missing or invalid camera/source clock binding")
                 age = server - capture
+                if not math.isfinite(age):
+                    raise ValueError("camera age arithmetic overflow")
                 ages.append(age)
                 previous = captures[-1] if captures else capture
                 captures.append(capture)
-                if not -.01 <= age <= 2 or capture < previous:
+                if not -.01 <= age <= 2 or capture < previous or not math.isfinite(capture - previous):
                     raise ValueError("stale, future or regressed capture")
             except (KeyError, TypeError, ValueError) as exc:
                 failures.append(json_evidence({
@@ -155,7 +157,7 @@ def camera_age_summary(records, *, host, port, robot_id, complete, errors):
             "invalid_samples": len(failures), "first_invalid_sample": failures[0] if failures else None,
             "robot_id": robot_id, "producer_clock": "physics_loop_monotonic"}
         result["pass"] &= passed
-    return result
+    return json_evidence(result)
 
 
 def frozen_sources(scene_config):
@@ -192,6 +194,7 @@ def phase(observer, runtime, skill, arguments, phase_name, receipt):
         observer.settle(simulation_seconds=.65, wall_timeout=40)
         observer.capture_frames("placed" if phase_name == "pick" else "reset")
     except Exception:
+        receipt["pass"] = False
         receipt["errors"].append(traceback.format_exc())
     finally:
         receipt[phase_name + "_wall_seconds"] = time.monotonic() - started
@@ -365,10 +368,17 @@ def run_case(args, proof, case_dir, object_name, source_hashes):
                 receipt["phase_final_states"][name] = rows[-1]["physics"]["props"]
         write_json(observer.out / "gpu-physical-audit.json", receipt["physical_audit"])
     except Exception:
+        receipt["pass"] = False
         receipt["errors"].append(traceback.format_exc())
         if observer is not None:
             receipt["observer_errors"] = list(observer.errors)
     finally:
+        if observer is not None and "camera_age_summary" not in receipt:
+            with observer._lock:
+                records = list(observer.records)
+            receipt["camera_age_summary"] = camera_age_summary(records,
+                host=observer.host, port=observer.port, robot_id=cfg.arm.bridge_robot_id,
+                complete=observer.complete, errors=observer.errors)
         if runtime is not None:
             receipt["backends"] = runtime.backends()
             occ = runtime.arm.harness.occupancy

@@ -172,3 +172,14 @@ def test_nonfinite_camera_clock_is_preserved_as_typed_evidence(value, field):
     assert not report['pass']
     encoded = json.dumps(report, allow_nan=False)
     assert 'invalid_value' in encoded
+
+
+def test_finite_clock_values_with_overflowing_difference_fail_serializably():
+    import json
+    rows = records()
+    rows[1]['physics']['server_monotonic'] = 1e308
+    rows[1]['physics']['cameras']['side']['capture_monotonic'] = -1e308
+    report = summary(rows)
+    assert not report['pass']
+    assert 'overflow' in report['cameras']['side']['first_invalid_sample']['error']
+    json.dumps(report, allow_nan=False)

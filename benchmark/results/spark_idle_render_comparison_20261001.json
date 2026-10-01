@@ -1,0 +1,1471 @@
+{
+  "schema": "cascade.spark-idle-render-comparison.v1",
+  "scope": "Sequential isolated idle Isaac runs; no joint, jaw or reset commands. No loaded native or manipulation acceptance claim.",
+  "host": "spark",
+  "raw_evidence_root": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/spark-render-evidence-20261001/render-performance-20261001",
+  "archive_sha256": "f2e7a00ac9590eec9d2a112d0efec2f92816133d96f5e3e04e46fb1b14f61923",
+  "physics_dt_s": 0.008333333333333333,
+  "resolution": [
+    1280,
+    720
+  ],
+  "cameras_read": [
+    "cam0",
+    "side",
+    "proof"
+  ],
+  "startup_and_warmup_excluded": true,
+  "nominal_measurement_wall_s": 45,
+  "warmup_wall_s": 10,
+  "scripts_sha256": {
+    "cascade-render-perf-prepare.py": "6cd1971b4ae261f54ce8f1634cf47b541c08ee7c23005b6c10548dd87b4f0b89",
+    "cascade-render-perf-run.py": "3e1bb8f5066f537452704447442b9fadd082319dd60ae92e21f8c7d4721d8c99",
+    "cascade-render-perf-run-02.py": "be582068cf460edfc928aa4d888e92dd62b8456141e736f9649416125284e7f7",
+    "cascade-render-perf-run-03.py": "aa68ca1f65451e42aea1534d037e6c21fe2a31b8a9f4cdb644b566dad16eb6d3",
+    "cascade-render-summary-20261001.py": "521669fe7f4526949339ac6a9009aef897a81a20a1781ce43892c27f90860b33"
+  },
+  "variants": [
+    {
+      "variant": "A-default-viewport",
+      "receipt_sha256": "f9f4078d23608acb5e56e97d3c2a7423711be6aca546e656da7f64cffc6835be",
+      "source": "5365fcb18df2c5d96ada993e781cb8d9cd7e8d2c",
+      "command": [
+        "/home/spark/Projects/cascade-native-0fee56f-20261001/.venv/bin/python",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_launch.py",
+        "--python",
+        "/home/spark/Projects/cascade-render-perf-20261001/.isaacsim/bin/python",
+        "--ready-file",
+        "/home/spark/Projects/cascade-render-perf-20261001/runs/render-performance-20261001/A-default-viewport/interpreter.json",
+        "--",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_bridge.py",
+        "--port",
+        "8612",
+        "--engine",
+        "physx",
+        "--scene-config",
+        "/home/spark/Projects/cascade-render-perf-20261001/demo/scene/kitchen_config.json",
+        "--width",
+        "1280",
+        "--height",
+        "720",
+        "--dt",
+        "0.008333333333333333",
+        "--cam-every",
+        "2"
+      ],
+      "errors": [],
+      "measured": {
+        "wall_s": 44.74202859900106,
+        "sim_s": 10.799999999999999,
+        "sim_per_wall": 0.24138378026608134,
+        "physics_steps": 1296,
+        "samples": 163,
+        "viewport_updates": true
+      },
+      "cameras": {
+        "cam0": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "cam0",
+              "t": 60159.079357534,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -3.578588075470179e-05,
+                  -0.0004910716670565307,
+                  -1.0707030014600605e-05,
+                  0.000220278074266389,
+                  4.169260989783652e-07,
+                  -2.8926743311785685e-07
+                ],
+                "t": 60159.079357534,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 37.98548811930546,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.21522882600402227,
+            "rgb_sha256": "3bc229560265d72365b04f2e85a1b0ce6dc0b708b752ffb545ca90564dd3efd4",
+            "depth_sha256": "c3b6f7b738682c60e9bccd705ffb98e7f1e3294337d8e2a715182e23a7fb0605",
+            "image_sha256": "e959668af3c635d3b09a081a63725d6d1dd0bbaaa3e1f03599bd92aff40128bb"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "cam0",
+              "t": 60214.579195972,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.0001283614692511037,
+                  -1.2022998332977295,
+                  -1.1986637115478516,
+                  0.0002232629485661164,
+                  -1.1908947072925002e-07,
+                  -2.7995830009786005e-07
+                ],
+                "t": 60214.579195972,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 36.74775316434525,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.172678745999292,
+            "rgb_sha256": "c4488b2dbe8e0f912b9340ffba1a477c9832d57c1aa915d2cbc6635f43461240",
+            "depth_sha256": "fd6433a4a4671fa3d44752f51c70fed5e6a92a8663d5dbb267ff32c5892e02cb",
+            "image_sha256": "e402c31283379ffc3525ee173a42597e8e2d5af80a50fbfb3c1db1bec3dc4638"
+          }
+        },
+        "side": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "side",
+              "t": 60159.215224077,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -0.00021691103756893426,
+                  -0.33675113320350647,
+                  -0.21000432968139648,
+                  0.0004430017143022269,
+                  2.0269596916477894e-06,
+                  2.1581819964922033e-05
+                ],
+                "t": 60159.215224077,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 41.38234021230749,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.21374306899815565,
+            "rgb_sha256": "03222f609423556fa915e4c213eaa08bbbc8601f94b0342545cddfc788aec466",
+            "depth_sha256": "a3d180b3c88ea23d27b554923da84871aaf2a8d82fd433427a739d6571f29323",
+            "image_sha256": "71db032cdd776a0b6448e4f779f48abdb16af6c42e0f93b4ea862d3dbef4acc9"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "side",
+              "t": 60214.72595208,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.0001283622841583565,
+                  -1.2022998332977295,
+                  -1.1986637115478516,
+                  0.00022326277394313365,
+                  -1.1635216878858046e-07,
+                  -2.803153620334342e-07
+                ],
+                "t": 60214.72595208,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 41.30536705052176,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.16653298500023084,
+            "rgb_sha256": "527472698bf7f11d4c267a2a68570b350027862add33936879bb7decb538e747",
+            "depth_sha256": "1c13344d7d8dd9fe7fb6c36f17f21736c39aa226d6fd577a922e6215bada9394",
+            "image_sha256": "cfea2e85ac2b25609a924d346a74c67a2985925cd9016303f0894d7c65179223"
+          }
+        },
+        "proof": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "proof",
+              "t": 60159.355395886,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -0.00010303440649295226,
+                  -0.6871668100357056,
+                  -0.5532113313674927,
+                  0.004355864133685827,
+                  -1.3205834648033488e-06,
+                  1.9125618564430624e-05
+                ],
+                "t": 60159.355395886,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 42.393834955912276,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.1992857700024615,
+            "rgb_sha256": "5b132c7f58448c5d3a3b564813ca9f3eeaacbbb9e58f3728f77e3d5d01188607",
+            "depth_sha256": "3796eee8f6e79688a69e4c569388712c80cff4e9f89acf42b8eaeb4612285a99",
+            "image_sha256": "52f8a8629f3260f956d99d304ce79c42ac9389143c9aa4ac628604789297f754"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "proof",
+              "t": 60214.72595208,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.0001283622841583565,
+                  -1.2022998332977295,
+                  -1.1986637115478516,
+                  0.00022326277394313365,
+                  -1.1635216878858046e-07,
+                  -2.803153620334342e-07
+                ],
+                "t": 60214.72595208,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 42.645698827974286,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.2910705649992451,
+            "rgb_sha256": "0644709d670d615d819000ef20170c06323198f4b127774aa9ef331b3f3c2b2e",
+            "depth_sha256": "7ecf85aa97bf49b1ebbf32413a9220a50c8fcf07771cdaf338d61ad5ac7647f0",
+            "image_sha256": "48ab21a49cf6c0858945b238e240fa3cc69d90a9b622057d6b2544d86cdd8f34"
+          }
+        }
+      }
+    },
+    {
+      "variant": "A2-default-viewport",
+      "receipt_sha256": "c15185b039007d255d3067290774ddb62177974be43937d5a2e148d069ad0b37",
+      "source": "5365fcb18df2c5d96ada993e781cb8d9cd7e8d2c",
+      "command": [
+        "/home/spark/Projects/cascade-native-0fee56f-20261001/.venv/bin/python",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_launch.py",
+        "--python",
+        "/home/spark/Projects/cascade-render-perf-20261001/.isaacsim/bin/python",
+        "--ready-file",
+        "/home/spark/Projects/cascade-render-perf-20261001/runs/render-performance-20261001/A2-default-viewport/interpreter.json",
+        "--",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_bridge.py",
+        "--port",
+        "8612",
+        "--engine",
+        "physx",
+        "--scene-config",
+        "/home/spark/Projects/cascade-render-perf-20261001/demo/scene/kitchen_config.json",
+        "--width",
+        "1280",
+        "--height",
+        "720",
+        "--dt",
+        "0.008333333333333333",
+        "--cam-every",
+        "2"
+      ],
+      "errors": [],
+      "measured": {
+        "wall_s": 44.70930163700541,
+        "sim_s": 10.733333333333334,
+        "sim_per_wall": 0.24006935783692648,
+        "physics_steps": 1288,
+        "samples": 162,
+        "viewport_updates": true
+      },
+      "cameras": {
+        "cam0": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "cam0",
+              "t": 60932.592394571,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -3.578588075470179e-05,
+                  -0.0004910716670565307,
+                  -1.0707030014600605e-05,
+                  0.000220278074266389,
+                  4.169260989783652e-07,
+                  -2.8926743311785685e-07
+                ],
+                "t": 60932.592394571,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 38.015234586404084,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.22151678199588787,
+            "rgb_sha256": "c09e342dd9b1c32a058967c2790f1bf26c03c5717150b2292210f0748e13be09",
+            "depth_sha256": "c3b6f7b738682c60e9bccd705ffb98e7f1e3294337d8e2a715182e23a7fb0605",
+            "image_sha256": "06c5dfe91bb0261524073afa5914dc0dcf282007c9757b74fe85a6991e51ef59"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "cam0",
+              "t": 60988.097474245,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.0001283614692511037,
+                  -1.202299952507019,
+                  -1.1986637115478516,
+                  0.00022326436010189354,
+                  -1.2308169061725494e-07,
+                  -2.7963409365838743e-07
+                ],
+                "t": 60988.097474245,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 36.726601060023064,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.12077210400457261,
+            "rgb_sha256": "325f391ddd057267e2b43e326837d8589b1191d91f79ae03cf3885a0615852be",
+            "depth_sha256": "a38fea60b968b6564de438cc2d1099c45fe6bf0267fd41e6002a3c3a276fd734",
+            "image_sha256": "029b27ecbf6d92a829b6dc439504f00a73512092e2d971bd220cd9271a764db4"
+          }
+        },
+        "side": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "side",
+              "t": 60932.744009565,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -0.00021691103756893426,
+                  -0.33675113320350647,
+                  -0.21000432968139648,
+                  0.0004430017143022269,
+                  2.0269596916477894e-06,
+                  2.1581819964922033e-05
+                ],
+                "t": 60932.744009565,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 41.41384608184968,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.21781206599553116,
+            "rgb_sha256": "600dbb870a90827925b8d61741e74efbc69f9d4acc8f14456f3499a8f18965c2",
+            "depth_sha256": "a3d180b3c88ea23d27b554923da84871aaf2a8d82fd433427a739d6571f29323",
+            "image_sha256": "61382e676343204e357bc21ac3d972cd86db9b34bb89bd693ea859f0ff2633d5"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "side",
+              "t": 60988.097474245,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.0001283614692511037,
+                  -1.202299952507019,
+                  -1.1986637115478516,
+                  0.00022326436010189354,
+                  -1.2308169061725494e-07,
+                  -2.7963409365838743e-07
+                ],
+                "t": 60988.097474245,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 41.22967014688968,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.2653879230056191,
+            "rgb_sha256": "eb8db8f795cd5993b754e3a4d20e82f61304fa3373b6f9a98aa9c5cfd569e20d",
+            "depth_sha256": "a939a9386f023b5790ab5ef98d42d641f4a562b03164cbc33f1528ef7fff7b4b",
+            "image_sha256": "cae6511016761d9d9fab38ae64882bedf29f7891f58bbaf45573df421b32f81f"
+          }
+        },
+        "proof": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "proof",
+              "t": 60932.883945111,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -0.00010303440649295226,
+                  -0.6871668100357056,
+                  -0.5532113313674927,
+                  0.004355864133685827,
+                  -1.3205834648033488e-06,
+                  1.9125618564430624e-05
+                ],
+                "t": 60932.883945111,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 42.41601920695424,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.19936227899597725,
+            "rgb_sha256": "120e5e0c0a86dc46ee323308910042b5242dfc332c635ba63d8d17f409370a2a",
+            "depth_sha256": "3796eee8f6e79688a69e4c569388712c80cff4e9f89acf42b8eaeb4612285a99",
+            "image_sha256": "5ab81a5db967e836e548e0baa03bdd2f065a121b2f2d0c8a3ca8da428d7bb817"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "proof",
+              "t": 60988.233760786,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.00012836094538215548,
+                  -1.202299952507019,
+                  -1.1986637115478516,
+                  0.00022326306498143822,
+                  -1.2191965481633815e-07,
+                  -2.797542038024403e-07
+                ],
+                "t": 60988.233760786,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 42.6145353395505,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.25123208899458405,
+            "rgb_sha256": "1f30e92098a1d551bde60e7fb0a27883a69116b849116780393553cc8c0ed0bc",
+            "depth_sha256": "c89982f7012ab174260450c5cca921576a51c464fe9b3ebfe45f847703d5755a",
+            "image_sha256": "7af2dbef22ad9a7889d8b224b41a3a0208daea03cd10f789805a66f80f8ab552"
+          }
+        }
+      }
+    },
+    {
+      "variant": "B-no-default-viewport",
+      "receipt_sha256": "25f3d7894b468ad1f182395a7f233f55790d7a5b181dc4e0d56d48cd315176f5",
+      "source": "cb3fa40730160978e86d81736c636397bd2bb91c",
+      "command": [
+        "/home/spark/Projects/cascade-native-0fee56f-20261001/.venv/bin/python",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_launch.py",
+        "--python",
+        "/home/spark/Projects/cascade-render-perf-20261001/.isaacsim/bin/python",
+        "--ready-file",
+        "/home/spark/Projects/cascade-render-perf-20261001/runs/render-performance-20261001/B-no-default-viewport/interpreter.json",
+        "--",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_bridge.py",
+        "--port",
+        "8612",
+        "--engine",
+        "physx",
+        "--scene-config",
+        "/home/spark/Projects/cascade-render-perf-20261001/demo/scene/kitchen_config.json",
+        "--width",
+        "1280",
+        "--height",
+        "720",
+        "--dt",
+        "0.008333333333333333",
+        "--cam-every",
+        "2"
+      ],
+      "errors": [
+        "Traceback (most recent call last):\n  File \"/tmp/cascade-render-perf-run.py\", line 75, in <module>\n    if proc.poll() is not None:raise RuntimeError('bridge exited during startup')\n                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: bridge exited during startup\n"
+      ],
+      "measured": null
+    },
+    {
+      "variant": "B2-no-default-viewport",
+      "receipt_sha256": "cee1633aec52a095bd9f14648d2e07f588aa98b80a33387aeec15afd84d3af9e",
+      "source": "6e54236e970b59378b42ac04076ab65f3d14068c",
+      "command": [
+        "/home/spark/Projects/cascade-native-0fee56f-20261001/.venv/bin/python",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_launch.py",
+        "--python",
+        "/home/spark/Projects/cascade-render-perf-20261001/.isaacsim/bin/python",
+        "--ready-file",
+        "/home/spark/Projects/cascade-render-perf-20261001/runs/render-performance-20261001/B2-no-default-viewport/interpreter.json",
+        "--",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_bridge.py",
+        "--port",
+        "8612",
+        "--engine",
+        "physx",
+        "--scene-config",
+        "/home/spark/Projects/cascade-render-perf-20261001/demo/scene/kitchen_config.json",
+        "--width",
+        "1280",
+        "--height",
+        "720",
+        "--dt",
+        "0.008333333333333333",
+        "--cam-every",
+        "2"
+      ],
+      "errors": [],
+      "measured": {
+        "wall_s": 44.990098693997425,
+        "sim_s": 11.05,
+        "sim_per_wall": 0.24560959679500083,
+        "physics_steps": 1326,
+        "samples": 167,
+        "viewport_updates": false
+      },
+      "cameras": {
+        "cam0": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "cam0",
+              "t": 60735.269122976,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -3.578588075470179e-05,
+                  -0.0004910716670565307,
+                  -1.0707030014600605e-05,
+                  0.000220278074266389,
+                  4.169260989783652e-07,
+                  -2.8926743311785685e-07
+                ],
+                "t": 60735.269122976,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 37.96161829589477,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.20363517299847445,
+            "rgb_sha256": "a724dc4f52a98d2ebd6a9976c1a772a866436a853fb438715dbf24a6dcdfe28b",
+            "depth_sha256": "c3b6f7b738682c60e9bccd705ffb98e7f1e3294337d8e2a715182e23a7fb0605",
+            "image_sha256": "2885fa2d95ccaa8871fe4e9ae3e4a638dfc7275438b776088dbf7c69a7ee653c"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "cam0",
+              "t": 60790.825992951,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.00012836221139878035,
+                  -1.202299952507019,
+                  -1.1986637115478516,
+                  0.00022326629550661892,
+                  -1.1452267756340007e-07,
+                  -2.8053113965142984e-07
+                ],
+                "t": 60790.825992951,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 36.69910708307456,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.2945612789990264,
+            "rgb_sha256": "6a4a0bf3bf3ec8c31d478d8c7ebadf67b2853bfcdf0fded6bb00d6d1bfbc5fb4",
+            "depth_sha256": "cb081fb22daf7eeb6260756281b48de6120ace55e2c4e94aaf6ff0ac1f758b38",
+            "image_sha256": "9b1e5bac753963555bcd2442eb2d11fcd42f4dd03ac4399f6382c2f82a732e9d"
+          }
+        },
+        "side": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "side",
+              "t": 60735.408812161,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -0.00021691103756893426,
+                  -0.33675113320350647,
+                  -0.21000432968139648,
+                  0.0004430017143022269,
+                  2.0269596916477894e-06,
+                  2.1581819964922033e-05
+                ],
+                "t": 60735.408812161,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 41.04343335138123,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.19258886600437108,
+            "rgb_sha256": "6c79e1f7ee4a6ee3f6f940537ffcfac0a1e1edb8111a4c5d748fccfeabc0d7e2",
+            "depth_sha256": "a3d180b3c88ea23d27b554923da84871aaf2a8d82fd433427a739d6571f29323",
+            "image_sha256": "3f120adddd47a09662f047a2ce95fcf6a6e92974e8ecaa89df56d88beb85d573"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "side",
+              "t": 60790.959538743,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.00012836426321882755,
+                  -1.202299952507019,
+                  -1.1986637115478516,
+                  0.0002232659317087382,
+                  -1.2193594045584177e-07,
+                  -2.798822720251337e-07
+                ],
+                "t": 60790.959538743,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 40.770018837176,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.2836960770000587,
+            "rgb_sha256": "3325da3528188b1a20f7acda11b13d5bafef0bb7c0297f56245f74f98258cb0e",
+            "depth_sha256": "521001bb5ab56fd4b1119851628521ed6cca74a23d96ab798c74a1d1ccb7f11d",
+            "image_sha256": "391fbab0294a8768a6c1362ecebf6ff4480b11f0c682b1b36396cc3bf61ead1f"
+          }
+        },
+        "proof": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "proof",
+              "t": 60735.408812161,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -0.00021691103756893426,
+                  -0.33675113320350647,
+                  -0.21000432968139648,
+                  0.0004430017143022269,
+                  2.0269596916477894e-06,
+                  2.1581819964922033e-05
+                ],
+                "t": 60735.408812161,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 41.939148568143175,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.3158249190018978,
+            "rgb_sha256": "0549997f57a5fb53b7f865881c2c6013f12dd8861b1c9ca66fde73f745a6e188",
+            "depth_sha256": "cc29fd2db40b44104147b3d28ca39361dba60c1389035722e389d0935f04e166",
+            "image_sha256": "26614a9e4cacea89a1881104270e2e87803772bc6e307d31f12525ed01be14b7"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "proof",
+              "t": 60791.125181017,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.0001283626479562372,
+                  -1.202299952507019,
+                  -1.1986637115478516,
+                  0.00022326606267597526,
+                  -1.2375282665288978e-07,
+                  -2.796021192352782e-07
+                ],
+                "t": 60791.125181017,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 42.093581699601515,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.24150284600182204,
+            "rgb_sha256": "f05fc26a599094f9feac375e0a87414a00385c2357b90e59c90626a306955026",
+            "depth_sha256": "2d25f97d3cda631580caa77391fbbe5b828a8d43a0986bdc61b5e3d7fb22eeed",
+            "image_sha256": "5f7d94b90cb375014cf9c776dcd2876fed7381a2a05acd3cdaf8845e1b1d7e97"
+          }
+        }
+      }
+    },
+    {
+      "variant": "C2-no-viewport-camera-10hz",
+      "receipt_sha256": "6cf2279306a7897549e3941f1bb83d9e07ea1bace15fbc66ca53e410199fd3e1",
+      "source": "6e54236e970b59378b42ac04076ab65f3d14068c",
+      "command": [
+        "/home/spark/Projects/cascade-native-0fee56f-20261001/.venv/bin/python",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_launch.py",
+        "--python",
+        "/home/spark/Projects/cascade-render-perf-20261001/.isaacsim/bin/python",
+        "--ready-file",
+        "/home/spark/Projects/cascade-render-perf-20261001/runs/render-performance-20261001/C2-no-viewport-camera-10hz/interpreter.json",
+        "--",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_bridge.py",
+        "--port",
+        "8612",
+        "--engine",
+        "physx",
+        "--scene-config",
+        "/home/spark/Projects/cascade-render-perf-20261001/demo/scene/kitchen_config.json",
+        "--width",
+        "1280",
+        "--height",
+        "720",
+        "--dt",
+        "0.008333333333333333",
+        "--cam-every",
+        "12"
+      ],
+      "errors": [],
+      "measured": {
+        "wall_s": 44.96178794500156,
+        "sim_s": 27.216666666666665,
+        "sim_per_wall": 0.6053288338968816,
+        "physics_steps": 3266,
+        "samples": 168,
+        "viewport_updates": false
+      },
+      "cameras": {
+        "cam0": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "cam0",
+              "t": 60828.65499327,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -3.578588075470179e-05,
+                  -0.0004910716670565307,
+                  -1.0707030014600605e-05,
+                  0.000220278074266389,
+                  4.169260989783652e-07,
+                  -2.8926743311785685e-07
+                ],
+                "t": 60828.65499327,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 37.60700410515595,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.21714117199735483,
+            "rgb_sha256": "ebc92acda40d0f27b40af2ea2bf035b7c27f6bbf5f5a82fcd1ccf4e30954745a",
+            "depth_sha256": "d827114e77117c4327296dec3752aa95d34bf973acbd3b9ae7179843280fd453",
+            "image_sha256": "c8aa5693af888e32070c70a61a0f28ca8d5782a432e9f35181989af35d84677f"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "cam0",
+              "t": 60884.131435411,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.00012835919915232807,
+                  -1.2022995948791504,
+                  -1.1986637115478516,
+                  0.00022326268663164228,
+                  -1.275323313620902e-07,
+                  -2.794065494526876e-07
+                ],
+                "t": 60884.131435411,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 36.55572156886747,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.34270439999818336,
+            "rgb_sha256": "a7e93c76ae72611cdfd62d2959f9e7d7716695909ed02fd2ef95858e16044ed7",
+            "depth_sha256": "57e8abf74b728d42fcf2d98b5af96d453e5405d8a4b0168fe37971d3fd6700b6",
+            "image_sha256": "d72e9744d4991c86feacf651ef286524d52c6faee3839f13bda5a75599747297"
+          }
+        },
+        "side": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "side",
+              "t": 60828.65499327,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -3.578588075470179e-05,
+                  -0.0004910716670565307,
+                  -1.0707030014600605e-05,
+                  0.000220278074266389,
+                  4.169260989783652e-07,
+                  -2.8926743311785685e-07
+                ],
+                "t": 60828.65499327,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 40.957682112665665,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.3356049770009122,
+            "rgb_sha256": "d5e787f584c1b5a7af4e33f70ea3ba9e88d710ff659cd50dce4d2020640ae0ee",
+            "depth_sha256": "4b009dd8a1a406f08cff99c871d598233f86024b6223c31051c89db84e35b11a",
+            "image_sha256": "0190ab77d998f5d6fde9649b02b36d8d970655a98fab9765bc52839eef6bec83"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "side",
+              "t": 60884.445532028,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.0001283617748413235,
+                  -1.202299952507019,
+                  -1.1986637115478516,
+                  0.00022326399630401284,
+                  -1.257403283716485e-07,
+                  -2.795509601583035e-07
+                ],
+                "t": 60884.445532028,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 40.68270947039084,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.16352807699877303,
+            "rgb_sha256": "f253f933744fb0267c1fa0080990a3681a8512661b2fd6f647abd53295137a0e",
+            "depth_sha256": "81212f0c4d7293de9ca51a79da8a84968dbda039764af4453a111c6192747a51",
+            "image_sha256": "46efb83fdc49c718eb3fc9ebba86d07cd99d7baa3a78ec24a40b42f7c4a393b5"
+          }
+        },
+        "proof": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "proof",
+              "t": 60828.65499327,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  -3.578588075470179e-05,
+                  -0.0004910716670565307,
+                  -1.0707030014600605e-05,
+                  0.000220278074266389,
+                  4.169260989783652e-07,
+                  -2.8926743311785685e-07
+                ],
+                "t": 60828.65499327,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 41.848881806494944,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.4830988719986635,
+            "rgb_sha256": "e836d6e2031c08ad692cb7fc81ee00145f4d06b8086656b88fdb3f6f6ba0eb7c",
+            "depth_sha256": "8588cf72fc32f3fab7ca3dfb29bba6026617df756b71d7b808ab3d27a03323b9",
+            "image_sha256": "3d730243bb498c32c8809981e6161d2eda3a624b8c406d5582f3ae73c9d09fc0"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "proof",
+              "t": 60884.445532028,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.0001283617748413235,
+                  -1.202299952507019,
+                  -1.1986637115478516,
+                  0.00022326399630401284,
+                  -1.257403283716485e-07,
+                  -2.795509601583035e-07
+                ],
+                "t": 60884.445532028,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 42.637875950124375,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.30494417999580037,
+            "rgb_sha256": "66437dfe436cb140e33174e86e269f81796828eb98b13c1ff6aeb20c1bc97f34",
+            "depth_sha256": "2769bdad75561f3862d63f4517088d2a35690e3dbed5c911d08e5cdaa9bc36e5",
+            "image_sha256": "e0f28cd4424ff389e4c69117d9620182c3d7fa052ba63ac4c9ecd487d5c5ffbf"
+          }
+        }
+      }
+    },
+    {
+      "variant": "D-default-viewport-camera-10hz",
+      "receipt_sha256": "afc38f30e2d6b405939501dc602f79baedbb403e40df4d856a68e4eae8134da9",
+      "source": "5365fcb18df2c5d96ada993e781cb8d9cd7e8d2c",
+      "command": [
+        "/home/spark/Projects/cascade-native-0fee56f-20261001/.venv/bin/python",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_launch.py",
+        "--python",
+        "/home/spark/Projects/cascade-render-perf-20261001/.isaacsim/bin/python",
+        "--ready-file",
+        "/home/spark/Projects/cascade-render-perf-20261001/runs/render-performance-20261001/D-default-viewport-camera-10hz/interpreter.json",
+        "--",
+        "/home/spark/Projects/cascade-render-perf-20261001/scripts/isaac_bridge.py",
+        "--port",
+        "8612",
+        "--engine",
+        "physx",
+        "--scene-config",
+        "/home/spark/Projects/cascade-render-perf-20261001/demo/scene/kitchen_config.json",
+        "--width",
+        "1280",
+        "--height",
+        "720",
+        "--dt",
+        "0.008333333333333333",
+        "--cam-every",
+        "12"
+      ],
+      "errors": [],
+      "measured": {
+        "wall_s": 44.91345240300143,
+        "sim_s": 18.03333333333333,
+        "sim_per_wall": 0.40151296256460167,
+        "physics_steps": 2164,
+        "samples": 165,
+        "viewport_updates": true
+      },
+      "cameras": {
+        "cam0": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "cam0",
+              "t": 61048.637897459,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.00012659876665566117,
+                  -1.2021535634994507,
+                  -1.198103904724121,
+                  0.0002625944616738707,
+                  -1.8753455321984802e-07,
+                  -3.989470656051708e-07
+                ],
+                "t": 61048.637897459,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 36.53616393645088,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.16073908900580136,
+            "rgb_sha256": "5f35a09098176ec23baa2890164a64dbe4dcdcf231025fe9c16ce6d0932b89bf",
+            "depth_sha256": "8fc55c7cb689225aad0f4ddaf2d2fc2b8e18039d6edc151cc6c75050052fcdd7",
+            "image_sha256": "9194c5887fd3482b848eba306db3a31e7541814db092ed76452421860fbd2553"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "cam0",
+              "t": 61103.924170455,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.00012836082896683365,
+                  -1.202299952507019,
+                  -1.198663592338562,
+                  0.00022326590260490775,
+                  -1.2269778437712375e-07,
+                  -2.7967888627244974e-07
+                ],
+                "t": 61103.924170455,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 36.73499765560442,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.4655856350000249,
+            "rgb_sha256": "4ceb2db4b0737730ec85a6ed9f10eee35c81120120ae83a006d0092e925f2ace",
+            "depth_sha256": "283ec754c427b8687a82a27fbabf065511f63e8db4d5f822ec701ca20c1409bb",
+            "image_sha256": "3eadf3c7caf8b9b839dffb8e9513a8da20627776b65a5c761bfe56de253577d9"
+          }
+        },
+        "side": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "side",
+              "t": 61048.637897459,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.00012659876665566117,
+                  -1.2021535634994507,
+                  -1.198103904724121,
+                  0.0002625944616738707,
+                  -1.8753455321984802e-07,
+                  -3.989470656051708e-07
+                ],
+                "t": 61048.637897459,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 40.91470414999388,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.294819227005064,
+            "rgb_sha256": "467cc395a056a5c99c296700598e80a554da8ddc376c7a0d5867994f12d85476",
+            "depth_sha256": "d4a3f472fd8751f66784742354989bde925d581c77389a9d95791a239c815da3",
+            "image_sha256": "82a88f95a0ef924b6ecfe29dbaaa5547e3332983a593dcc8b586a79ff1cc0548"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "side",
+              "t": 61103.924170455,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.00012836082896683365,
+                  -1.202299952507019,
+                  -1.198663592338562,
+                  0.00022326590260490775,
+                  -1.2269778437712375e-07,
+                  -2.7967888627244974e-07
+                ],
+                "t": 61103.924170455,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 41.07137480878544,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.5816104370023822,
+            "rgb_sha256": "071a7ad99ed2259e6cf38b5fd0986932e30c9917fbc36fee37572ae8398ab6f4",
+            "depth_sha256": "b0fd55c919a14a9efba7cb901beb63a028aec0db38041c6a20acfcf4fa63fe88",
+            "image_sha256": "d6466ce958b40d5528b9584aae8d3088f18bb3286345f2601a6dc8dae9f24d8c"
+          }
+        },
+        "proof": {
+          "initial": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "proof",
+              "t": 61048.637897459,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.00012659876665566117,
+                  -1.2021535634994507,
+                  -1.198103904724121,
+                  0.0002625944616738707,
+                  -1.8753455321984802e-07,
+                  -3.989470656051708e-07
+                ],
+                "t": 61048.637897459,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 42.26170695229306,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.41866692100302316,
+            "rgb_sha256": "1f0578bae787135160a70f80a5ccde57cb63926736c500bce56219d6771f3b00",
+            "depth_sha256": "15062fa93a4bd03fb7834fa6cfb2e49a7aa05ec057af91cb6d41448f8a8ac622",
+            "image_sha256": "50a5ee49aa45a850d6c940ccd3f9e3841a2cca67b25e90e659499b0e410d00ad"
+          },
+          "final": {
+            "capture": {
+              "backend": "isaac",
+              "source": [
+                "127.0.0.1",
+                8612
+              ],
+              "camera": "proof",
+              "t": 61104.411454204,
+              "proprioception": {
+                "version": 1,
+                "backend": "isaac",
+                "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+                "joint_convention": "asset",
+                "q": [
+                  0.00012836123642046005,
+                  -1.202299952507019,
+                  -1.1986638307571411,
+                  0.00022326559701468796,
+                  -1.1947999212225113e-07,
+                  -2.799255298668868e-07
+                ],
+                "t": 61104.411454204,
+                "time_source": "physics_loop_monotonic"
+              },
+              "contact_paths": []
+            },
+            "shape": [
+              720,
+              1280,
+              3
+            ],
+            "rgb_std": 42.21279620911633,
+            "depth_valid_fraction": 1.0,
+            "age_s": 0.21724733300652588,
+            "rgb_sha256": "7b607dd3be0f2417a2dbb8fe1bfe3f7b6792650dcc1105bc4505ccde5b8936df",
+            "depth_sha256": "26b63bb8cde11cf384013990d59175db629cbcdeea70983b84138ec767b97fdb",
+            "image_sha256": "551a4628548b3ff3659f6fa4d5324ab9389deb82806841986c422460bda29364"
+          }
+        }
+      }
+    }
+  ],
+  "limits": [
+    "Only A was repeated; sequential runs are not randomized or confidence intervals.",
+    "Camera stamps denote physics/render-loop copies, not sensor exposure times; this idle check does not validate masks on a moving robot.",
+    "Camera checks sample beginning/end; ages are not worst-case continuous freshness bounds.",
+    "Lower camera tick rate affects rendering and cache copies; physics timestep is unchanged.",
+    "B failed source-manifest validation before startup; B2 used a regenerated committed manifest.",
+    "Source refs are disk source pins and process argv; not imported-bytecode attestation.",
+    "Dynamic grasp, camera freshness under load and normal restart validation remain required."
+  ]
+}

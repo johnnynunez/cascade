@@ -156,6 +156,55 @@ def test_missing_physx_calibration_prevents_bundle_publication(distribution):
     assert not (output / 'PORTABLE_BUNDLE.json').exists()
 
 
+def test_assembled_ovrtx_profile_resolves_its_scene_without_loading_sdk(distribution, tmp_path):
+    checkout, _, output, _ = distribution
+    source = builder.HERE.parents[1]
+    shutil.copytree(source / "src/cascade", checkout / "src/cascade", dirs_exist_ok=True)
+    for name in ("configs/cameras/ovrtx.yaml", "demo/ovrtx/rgbd.usda"):
+        shutil.copy2(source / name, checkout / name)
+    assemble(distribution)
+    code = """
+import hashlib, json, pathlib, socket, sys
+root = pathlib.Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(root/'src'))
+def no_socket(*args, **kwargs):
+    raise AssertionError('No network or bridge access in portable profile admission')
+socket.socket = no_socket
+from cascade.config import load_profile
+from cascade.perception.camera_base import make_camera
+import cascade.perception.ovrtx_camera as adapter
+assert pathlib.Path(adapter.__file__).resolve().is_relative_to(root/'src')
+cfg = load_profile('cameras', 'ovrtx')
+assert cfg.static_scene is True
+with make_camera(cfg) as camera:
+    assert camera.has_depth
+    scene = camera._renderer.scene
+    assert scene == root/'demo/ovrtx/rgbd.usda'
+    assert scene.read_bytes().startswith(b'#usda 1.0')
+assert not {'ovrtx', 'ovstage'} & set(sys.modules)
+print(json.dumps({'scene': str(scene.relative_to(root)),
+                  'sha256': hashlib.sha256(scene.read_bytes()).hexdigest()}))
+"""
+    completed = subprocess.run([sys.executable, "-I", "-c", code, str(output / "source")],
+                               cwd=tmp_path, capture_output=True, text=True, timeout=10, check=True)
+    result = json.loads(completed.stdout)
+    manifest = json.loads((output / "PORTABLE_BUNDLE.json").read_text())
+    assert result["scene"] == "demo/ovrtx/rgbd.usda"
+    assert result["sha256"] == manifest["files"][result["scene"]]["sha256"]
+    assert (output / "source" / result["scene"]).read_bytes() == (source / result["scene"]).read_bytes()
+
+
+@pytest.mark.parametrize("name", ["demo/ovrtx/rgbd.usda", "configs/cameras/ovrtx.yaml",
+                                 "src/cascade/perception/ovrtx_camera.py",
+                                 "src/cascade/sim/ovrtx_renderer.py"])
+def test_missing_ovrtx_profile_dependency_prevents_publication(distribution, name):
+    checkout, _, output, _ = distribution
+    (checkout / name).unlink()
+    with pytest.raises(ValueError, match="incomplete"):
+        assemble(distribution)
+    assert not (output / "PORTABLE_BUNDLE.json").exists()
+
+
 def test_missing_licensed_asset_prevents_manifest(distribution):
     checkout, assets, output, _ = distribution
     (assets / "assets/REBOT_UPSTREAM_LICENSE.txt").rename(assets / "held-license.txt")

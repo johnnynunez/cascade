@@ -61,6 +61,9 @@ with make_camera(load_profile("cameras", "ovrtx")) as camera:
 ```
 
 The profile is [configs/cameras/ovrtx.yaml](../configs/cameras/ovrtx.yaml).
+Portable runtime bundles include that profile, its USD example and both adapter
+modules; assembly refuses missing members. This does not install the optional
+SDK or enable the profile by default.
 Selecting it does not mirror any live robot. First capture creates the native
 renderer in the capture thread. `close()` releases queries, mappings, stage
 and renderer; `keep_system_alive=False` prevents intentional global retention.

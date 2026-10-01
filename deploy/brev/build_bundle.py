@@ -20,7 +20,7 @@ SOURCE_PATTERNS = (
     "scripts/newton_mesh_compat.py",
     "scripts/demo_proof.py", "scripts/native_turn_budget.py", "scripts/judge_run.py", "scripts/install_support.py", "scripts/kitchen_assets.py",
     "scripts/build_cocina_asier.py",
-    "demo/**/*.py", "demo/scene/kitchen_config.json", "demo/scene/own_assets.json",
+    "demo/**/*.py", "demo/ovrtx/rgbd.usda", "demo/scene/kitchen_config.json", "demo/scene/own_assets.json",
     "demo/scene/cocina_asier_*.json",
     "demo/scene/NOTICE.md", "demo/scene/props/LICENSE.txt", "demo/scene/props/*.usda",
     "demo/kitchen/visitor-instructions.md", "demo/kitchen/dashboard/*.js",

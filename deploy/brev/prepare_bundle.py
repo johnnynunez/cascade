@@ -38,6 +38,8 @@ RUNTIME_FILES = (
     "assets/grasp_geometry/rebot_rs_fingers.json",
     "assets/grasp_geometry/rebot_rs_fingers_physx.json",
     "assets/grasp_geometry/physx_finger_cooking_source.json",
+    "src/cascade/perception/ovrtx_camera.py", "src/cascade/sim/ovrtx_renderer.py",
+    "configs/cameras/ovrtx.yaml", "demo/ovrtx/rgbd.usda",
     "scripts/isaac_bridge.py", "scripts/isaac_runtime.py", "scripts/isaac_frame_history.py",
     *KITCHEN_SOURCE_FILES, "demo/serve_isaac_view.py", "demo/scene/kitchen_config.json",
     "demo/scene/own_assets.json", "deploy/runtime/runtime.py", "deploy/runtime/brain.py",

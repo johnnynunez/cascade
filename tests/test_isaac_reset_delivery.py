@@ -98,6 +98,9 @@ def _load_bridge_definitions(monkeypatch, physics):
         "_newton_teleport": physics.teleport,
         "_update_wrist_cam": lambda: None, "_refresh_frames": lambda: None,
     }
+    # This suite isolates the reset step count/delivery; frame history has
+    # separate real-wrapper tests and never inserts an extra Kit update.
+    env["_step_with_frame_history"] = lambda: env["app"].update()
     load_isaac_bridge_definitions(wanted, env)
     return env
 
@@ -413,3 +416,29 @@ def test_string_exec_jobs_keep_their_existing_protocol(reset_bridge, code, ok):
         assert result["stdout"] == "exec still works\n"
     else:
         assert "exec failed" in result["error"]
+
+
+def test_reset_slow_capture_uses_attempt_start_without_extra_physics(monkeypatch):
+    physics = PhysicsBoundary()
+    env = _load_bridge_definitions(monkeypatch, physics)
+    now, captures, order = [0.], [], []
+    env["time"] = SimpleNamespace(monotonic=lambda: now[0])
+
+    def update():
+        physics.update()
+        order.append("update")
+        now[0] += .01
+
+    def capture():
+        assert order[-2:] == ["wrist", "update"]
+        captures.append(now[0])
+        now[0] += .8
+        order.append("capture")
+
+    env.update(app=SimpleNamespace(update=update),
+               _update_wrist_cam=lambda: order.append("wrist"), _refresh_frames=capture)
+    result = env["_reset_props_verified"]()
+    assert result["ok"]
+    assert physics.steps == len(captures) == 180
+    assert np.diff(captures) == pytest.approx(np.full(179, .81))
+    assert env["_last_camera_capture_started"] == pytest.approx(captures[-1] - .01)

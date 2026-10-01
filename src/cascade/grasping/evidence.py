@@ -35,7 +35,8 @@ _SOURCE_FILES = (
     "src/cascade/safety/harness.py", "src/cascade/apps/mcp_server.py", "scripts/launch.sh",
     "src/cascade/grasping/observed_scene.py", "src/cascade/control/simulation_motion.py",
     "src/cascade/grasping/planning_budget.py", "src/cascade/control/lazy_arm.py",
-    "configs/arms/isaac_kitchen_gpu.yaml",
+    "configs/arms/isaac_kitchen_gpu.yaml", "src/cascade/sim/bridge_client.py",
+    "scripts/isaac_bridge.py", "scripts/isaac_frame_history.py", "scripts/isaac_camera_readback.py",
     "src/cascade/control/motion_profile.py", "assets/grasp_geometry/rebot_rs_fingers.json",
 )
 

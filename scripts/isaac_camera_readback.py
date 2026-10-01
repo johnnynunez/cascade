@@ -9,9 +9,19 @@ from __future__ import annotations
 
 
 class CpuCameraReadback:
-    def __init__(self, sensor):
+    def __init__(self, sensor, *, render_times=None, render_product_id=None):
         self._sensor = sensor
         self._buffers = {}
+        self._render_times = dict(render_times or {})
+        self.render_product_id = render_product_id
+
+    def get_render_times(self):
+        """Public SDK annotator outputs for this exact render product."""
+        return {name: annotator.get_data() for name, annotator in self._render_times.items()}
+
+    def detach_render_times(self):
+        for annotator in self._render_times.values():
+            annotator.detach()
 
     def __getattr__(self, name):
         return getattr(self._sensor, name)

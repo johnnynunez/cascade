@@ -96,6 +96,15 @@ openclaw agent -m "reset the scene" --session-id demo-1
 Every host tool call is recorded in `runs/mcp_<pid>/server.log`.
 OpenClaw itself shows only a failure counter.
 
+For a selected GPU, export `CUDA_VISIBLE_DEVICES` before launching or running
+`scripts/setup_agents.py`. Both registrations preserve that value along with
+`CUDA_DEVICE_ORDER`, `CASCADE_DEVICE` and `CASCADE_REQUIRE_CUDA` when present,
+because a stdio host may discard inherited environment variables. Values are
+copied unchanged: an empty visibility string stays empty, and `cuda:0` remains
+an ordinal within the visible devices. `setup_agents.py --env KEY=VALUE` takes
+precedence over an inherited value. Registration does not attest the GPU used
+by an already running server; restart that owned server and check its admission.
+
 ### Memory demo with two cubes
 
 A single pick-and-place is Markovian, so it does not visibly demonstrate

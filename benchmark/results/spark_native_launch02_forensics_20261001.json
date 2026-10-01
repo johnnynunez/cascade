@@ -1,0 +1,1396 @@
+{
+  "schema": "cascade.launch02.forensics.v1",
+  "scope": "Read-only reconstruction from saved receipts, point clouds and passive physics witness. No controller change, replay, bridge connection, actuation or new acceptance run.",
+  "result": "Green grasp returns verified; both orange attempts fail during descent before close. Native two-case acceptance remains incomplete.",
+  "evidence_root_local": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-02-20261001",
+  "source_ref": "5365fcb18df2c5d96ada993e781cb8d9cd7e8d2c",
+  "analysis_program_local": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-02-20261001/launch02-forensics-analysis.py",
+    "sha256": "1f5ec63d3accf4a46bd3af1e106306edce926d3a2f87b40dfe09de367ff21699"
+  },
+  "methods": {
+    "source_scope": "Attempt source hashes describe disk files at flush, not imported-bytecode attestation.",
+    "clock_join": "Same-host monotonic clocks: each used server_monotonic falls inside its client request/response interval. Driver command events are transport-send receipts, not physics application timestamps.",
+    "simulation_duration": "Each wall endpoint is bracketed by the preceding/following saved physics samples. Lower=end.lower-start.upper; upper=end.upper-start.lower. These are observed elapsed-time bounds, not command application latency.",
+    "joint_error": "max(abs(q_local-q_goal)); q_local=-physics.q[:6] for this exact profile. Phase goal changes at descent start.",
+    "fk": "Pure Pinocchio FK using the checked-in mirrored URDF and joint_signs [-1]*6; no runtime constructed.",
+    "contact": "Nonzero contact counts and force norms above0.05 N are reported separately; zero force at a count-positive sample is retained, not rewritten as force confirmation.",
+    "neighbor_drift": "Euclidean displacement from each prop position in the first witness sample inside each attempt; does not identify the contacting link.",
+    "reported_velocity": "dq values are raw feedback observations. They alone are not a validated stability criterion; contact solvers can report noisy instantaneous dq.",
+    "memory": "object_profile(label, localized_extent_m) from the source-pinned implementation, checked against memory_prior and planned z_nudge telemetry."
+  },
+  "inputs_sha256": {
+    "retention.json": "cc01876f853bad4346582586c3d6b6c833d4189df30aa3f97839d0a88f284deb",
+    "runs/.launch/profile-cascade-demo/cascade-proof-e28ff667b5934f4a8cea9b65ab9835b9/case-1/physics/metadata.json": "46873aba2033db561c1431a58fdb5dfbcbe239aa2c1b0cc4d8e24e2570f1afff",
+    "runs/.launch/profile-cascade-demo/cascade-proof-e28ff667b5934f4a8cea9b65ab9835b9/case-1/physics/phases.json": "ce0a1f1e234a2ef6a31654a0b7abe3cab3d8894736b02e8682de3bc318bfdb2d",
+    "runs/.launch/profile-cascade-demo/cascade-proof-e28ff667b5934f4a8cea9b65ab9835b9/case-1/physics/samples.jsonl": "593abd241c30408eb82e28fa4ccfb0a16afe83f714daddab52d0c4c2198b7d62",
+    "runs/.launch/profile-cascade-demo/cascade-proof-e28ff667b5934f4a8cea9b65ab9835b9/case-2/physics/metadata.json": "03376526cdc31d5acdf309dc03dd804b52d8ecaa0031955f0c28e334c66b2f48",
+    "runs/.launch/profile-cascade-demo/cascade-proof-e28ff667b5934f4a8cea9b65ab9835b9/case-2/physics/phases.json": "9dd9d9872ab943f6cbcc038b486b3cf059d5c433b62e04e26980bf26573fd50a",
+    "runs/.launch/profile-cascade-demo/cascade-proof-e28ff667b5934f4a8cea9b65ab9835b9/case-2/physics/samples.jsonl": "5d3e91d8a601fde792c26c11b643136dab5880162579daa4dd7505731cb9ade9",
+    "runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "ff0c04a75e40e4267ea9dc2606eff0ce65aed317be3953f5fe129a09ba06f2d5",
+    "runs/mcp_573216_3c5701a7285d448f910ed911da8042fd/trace.jsonl": "f310ec6778efd9e2120c8a8a60b83621078cf6f7ac258f10c33850fec07b9dff",
+    "runs/native-acceptance-20261001/grasp-evidence-02/1790812711519635732-573216-2c2026e738be4c0bb2cea955f76aa97f.json": "d4999e7cfa1fc2f5a2dcea770d1e1efef78d9ada219556226a7046da224ab520",
+    "runs/native-acceptance-20261001/grasp-evidence-02/1790812711519635732-573216-2c2026e738be4c0bb2cea955f76aa97f.npz": "1f3aab21e91ea759ba8553b3c55de6c284cb4e4556f82c001a1319a296c98137",
+    "runs/native-acceptance-20261001/grasp-evidence-02/1790812897253226495-573216-83bffc3ee0074cf6b43625e1add58fdc.json": "c1d52895be977913f91ab2587fb16cc2d720edbd8ebb48e552b8eb90bd386d6c",
+    "runs/native-acceptance-20261001/grasp-evidence-02/1790812897253226495-573216-83bffc3ee0074cf6b43625e1add58fdc.npz": "7d9bcbae19f4ab366e4a7b31243e0f333db02326358618c8a8f6be35e5109dab",
+    "runs/native-acceptance-20261001/grasp-evidence-02/1790812926711881183-573216-770577ff1b774facb4b23e15e944e269.json": "554158d843b391432a3e880ccd292b3204834630e723df6d085ed30b37066ce4",
+    "runs/native-acceptance-20261001/grasp-evidence-02/1790812926711881183-573216-770577ff1b774facb4b23e15e944e269.npz": "6dfe4a437788e01c6b0bff4f1ac29ed1f1f82bd979491553bb9fda57c568e8b3",
+    "runs/native-acceptance-20261001/instrumented-preparation-02/before/runs/.launch/profile-cascade-demo/memory/grasp_memory.json": "4dc3b36106e73dc8408ca9ca791bb82ae18e5b865ef7411542de894e10e3b984"
+  },
+  "analysis_sources_sha256": {
+    "assets/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf": "72b4a40aeb78f1229c782e7501c3be26ea093562cf960a0ca1c2e4a966b4e4e3",
+    "src/cascade/control/kinematics.py": "734bdbc5527ffafddf7f41d34e048b70fc78cc07af29cde13af60ba7472c4647",
+    "src/cascade/memory/grasp_memory.py": "681eb1befc84258942722c4701a80c56c1fb27619ff5af3fe2f56175f82932f9"
+  },
+  "supporting_offline_analysis": {
+    "local_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-20261001/grasp-evidence-02/analysis-contact-paths.json",
+    "sha256": "805417101ccbd1d7e3ec4207cf76447b0e911b35c32ed2478fbff4fd9d4eb164",
+    "scope": "Author CAD-slab/partial-cloud analysis only; not an exact collision test."
+  },
+  "memory_before": {
+    "profiles": {
+      "green_cube|fp6cm|h3cm": {
+        "wins": 1,
+        "losses": 0,
+        "win_features": {
+          "approach_vert": 0.995,
+          "yaw_rel": 0.144,
+          "depth_frac": 0.378,
+          "width_norm": 0.846
+        },
+        "fail_reasons": {},
+        "nudges": {
+          "grasp_z_delta": 0.0,
+          "prefer_vert": 0.2
+        },
+        "last_update": 1790810595.7411032
+      },
+      "orange|fp6cm|h6cm": {
+        "wins": 0,
+        "losses": 1,
+        "win_features": {},
+        "fail_reasons": {
+          "air_grasp": 1
+        },
+        "nudges": {
+          "grasp_z_delta": -0.005,
+          "prefer_vert": 0.0
+        },
+        "last_update": 1790810812.623345
+      }
+    },
+    "saved_at": 1790810812.6233568
+  },
+  "memory_after": {
+    "profiles": {
+      "green_cube|fp6cm|h3cm": {
+        "wins": 2,
+        "losses": 0,
+        "win_features": {
+          "approach_vert": 0.995,
+          "yaw_rel": 0.164,
+          "depth_frac": 0.387,
+          "width_norm": 0.847
+        },
+        "fail_reasons": {},
+        "nudges": {
+          "grasp_z_delta": 0.0,
+          "prefer_vert": 0.36
+        },
+        "last_update": 1790812734.2491395
+      },
+      "orange|fp6cm|h6cm": {
+        "wins": 0,
+        "losses": 1,
+        "win_features": {},
+        "fail_reasons": {
+          "air_grasp": 1
+        },
+        "nudges": {
+          "grasp_z_delta": -0.005,
+          "prefer_vert": 0.0
+        },
+        "last_update": 1790810812.623345
+      }
+    },
+    "saved_at": 1790812734.249158
+  },
+  "attempts": [
+    {
+      "label": "green_cube",
+      "attempt_id": "1790812711519635732-573216-2c2026e738be4c0bb2cea955f76aa97f",
+      "case": "case-1",
+      "started_utc": "2026-09-30T23:58:31.519657+00:00",
+      "source": {
+        "observation": "on-disk files at post-attempt flush; not attestation of imported bytecode",
+        "repo": "/home/spark/Projects/cascade-native-0fee56f-20261001",
+        "sha256": {
+          "src/cascade/grasping/evidence.py": "286ba3bec1049589136ede559c30651702490b8822fb392aae8a85932f9ca5f8",
+          "src/cascade/grasping/selector.py": "1c2fa2d931fe0eed086c928a2f667a2e75bb2ee27ad158ed5ce50743e99e06ab",
+          "src/cascade/grasping/graspgenx_backend.py": "54500f38ffe14ed55d24271a390580872ffc54a85348896bcd04bfb3ee148996",
+          "src/cascade/grasping/force.py": "accb6f790da865a6691e3e5778a8957c52cd6c0bb5f3c674d0e1fe46d4fae755",
+          "src/cascade/skills/runtime.py": "b106f736b849d860c9c44df81458898648eb7ae5125b6ba8dbf59330742f34e0",
+          "src/cascade/memory/grasp_memory.py": "681eb1befc84258942722c4701a80c56c1fb27619ff5af3fe2f56175f82932f9",
+          "src/cascade/control/isaac_arm.py": "7e0f5fb16e108bf8ccf6316ef070794f46abe23ffc35322be8fd95f1244dc391",
+          "src/cascade/control/arm_base.py": "f7c50168328c38b76e34541fdd77109c3e7e6454139c21d15177cfe5baeffbec",
+          "src/cascade/safety/harness.py": "1de404032798055a93d47b1d319c8dbcf34056a95ac0fcd72a5da2c6e281d7b5",
+          "src/cascade/apps/mcp_server.py": "aea905a26335ddff2cc5a6d20124348dbda894fe6b53a87ec875eef303d06f57",
+          "scripts/launch.sh": "86b65b946eed23f09e8d53f2e81aa0606d84761e6685bfd1ff67251f24b58773"
+        },
+        "git_head": "5365fcb18df2c5d96ada993e781cb8d9cd7e8d2c",
+        "git_tracked_status_porcelain": ""
+      },
+      "logging_ok": true,
+      "dropped_events": 0,
+      "logging_errors": [],
+      "array_hash_valid": true,
+      "terminal": {
+        "result": {
+          "held": "green cube",
+          "grip_profile": "rigid",
+          "grip_verified": true,
+          "gripper_open_frac": 0.39,
+          "grasp_width_m": 0.046
+        }
+      },
+      "attempt_interval": {
+        "wall_s": 22.730415475998598,
+        "sim_elapsed_bounds_s": [
+          2.099999999999998,
+          2.1333333333333364
+        ],
+        "start": {
+          "sequences": [
+            31,
+            32
+          ],
+          "sim_time_bounds_s": [
+            17.9,
+            17.916666666666668
+          ]
+        },
+        "end": {
+          "sequences": [
+            154,
+            155
+          ],
+          "sim_time_bounds_s": [
+            20.016666666666666,
+            20.033333333333335
+          ]
+        }
+      },
+      "phase_start_elapsed_s": {
+        "planning": 0.6696229399967706,
+        "open": 1.392827659001341,
+        "home": 1.3946377039974323,
+        "pregrasp": 3.3786203359995852,
+        "descent": 13.24840770499577,
+        "close": 16.477457604996744,
+        "lift": 19.141703706001863,
+        "verify": 22.402264386997558
+      },
+      "gripper_commands": [
+        {
+          "elapsed_s": 1.3946227269989322,
+          "phase": "open",
+          "position": 1.0,
+          "effort": 0.8
+        },
+        {
+          "elapsed_s": 16.4803325210014,
+          "phase": "close",
+          "position": 0.5,
+          "effort": 0.48999999999999994
+        },
+        {
+          "elapsed_s": 17.906899936999253,
+          "phase": "close",
+          "position": 0.15000000000000002,
+          "effort": 0.7
+        }
+      ],
+      "close_stage_count": 2,
+      "selected": {
+        "grasp": {
+          "position": [
+            0.24684319432358343,
+            0.017716178543326147,
+            0.035790816260054675
+          ],
+          "rotation": [
+            [
+              -0.0020613236714791135,
+              -0.9978512874055646,
+              0.0654870916134838
+            ],
+            [
+              0.09378793576599875,
+              0.06500566201199004,
+              0.9934677080870673
+            ],
+            [
+              -0.995590063253684,
+              0.008189757593507934,
+              0.09345241473732678
+            ]
+          ],
+          "width_m": 0.04599699189050015,
+          "approach": [
+            -0.0020613236714791135,
+            0.09378793576599875,
+            -0.995590063253684
+          ],
+          "quality": 0.8337209224700928,
+          "label": "green cube"
+        },
+        "q_pre": [
+          0.020343732860680946,
+          1.5239760677210168,
+          1.1469259104224745,
+          -1.1977264649948234,
+          0.09394210866487933,
+          1.5258798155891509
+        ],
+        "q_grasp": [
+          0.005266048412724243,
+          1.5490096284638417,
+          1.0028629867919319,
+          -1.0272192882048052,
+          0.09392126748113422,
+          1.5107496912689593
+        ]
+      },
+      "memory": {
+        "current_profile_computed": "green_cube|fp6cm|h3cm",
+        "localized_extent_m": [
+          0.0671667260941945,
+          0.05418951615427687,
+          0.0364578121483127
+        ],
+        "prior": {
+          "profile": "green_cube|fp6cm|h3cm",
+          "wins": 1,
+          "losses": 0,
+          "success_rate": 1.0,
+          "win_features": {
+            "approach_vert": 0.995,
+            "yaw_rel": 0.144,
+            "depth_frac": 0.378,
+            "width_norm": 0.846
+          },
+          "nudges": {
+            "grasp_z_delta": 0.0,
+            "prefer_vert": 0.2
+          },
+          "top_fail": null
+        },
+        "applied_z_nudge_m": 0.0
+      },
+      "pregrasp_completion_feedback": {
+        "elapsed_s": 13.248343977000332,
+        "q_local": [
+          0.019844697788357735,
+          1.5264747142791748,
+          1.1468249559402466,
+          -1.179113507270813,
+          0.09225251525640488,
+          1.4857152700424194
+        ],
+        "max_q_error_rad": 0.040164545546731434,
+        "configured_settle_tol_rad": 0.045,
+        "max_abs_reported_dq_rad_s": 0.2869204878807068,
+        "gripper_open_fraction": 1.0,
+        "fk_position_error_m": [
+          0.005155789994426008,
+          -0.0003201656539010677,
+          -0.0006069877600022311
+        ],
+        "fk_position_error_norm_m": 0.005201260486973687
+      },
+      "command_windows": {
+        "home": {
+          "target_count": 75,
+          "first_elapsed_s": 1.733547825999267,
+          "last_elapsed_s": 3.212782340000558,
+          "wall_s": 1.4792345140012912,
+          "sim_elapsed_bounds_s": [
+            0.11666666666666714,
+            0.14999999999999858
+          ],
+          "start": {
+            "sequences": [
+              40,
+              41
+            ],
+            "sim_time_bounds_s": [
+              18.05,
+              18.066666666666666
+            ]
+          },
+          "end": {
+            "sequences": [
+              48,
+              49
+            ],
+            "sim_time_bounds_s": [
+              18.183333333333334,
+              18.2
+            ]
+          }
+        },
+        "pregrasp": {
+          "target_count": 375,
+          "first_elapsed_s": 3.767730933999701,
+          "last_elapsed_s": 11.247644857998239,
+          "wall_s": 7.479913923998538,
+          "sim_elapsed_bounds_s": [
+            0.7166666666666686,
+            0.75
+          ],
+          "start": {
+            "sequences": [
+              52,
+              53
+            ],
+            "sim_time_bounds_s": [
+              18.25,
+              18.266666666666666
+            ]
+          },
+          "end": {
+            "sequences": [
+              94,
+              95
+            ],
+            "sim_time_bounds_s": [
+              18.983333333333334,
+              19.0
+            ]
+          }
+        },
+        "descent": {
+          "target_count": 100,
+          "first_elapsed_s": 13.803639534999093,
+          "last_elapsed_s": 15.7836996479964,
+          "wall_s": 1.9800601129973074,
+          "sim_elapsed_bounds_s": [
+            0.14999999999999858,
+            0.18333333333333357
+          ],
+          "start": {
+            "sequences": [
+              107,
+              108
+            ],
+            "sim_time_bounds_s": [
+              19.216666666666665,
+              19.233333333333334
+            ]
+          },
+          "end": {
+            "sequences": [
+              117,
+              118
+            ],
+            "sim_time_bounds_s": [
+              19.383333333333333,
+              19.4
+            ]
+          }
+        }
+      },
+      "partial_cloud_selected_open_axis": {
+        "count": 4000,
+        "range_m": [
+          -0.016337803488930457,
+          0.02342158090560283
+        ],
+        "points_outside_nominal_plus_minus_45mm": 0,
+        "scope": "Observed GGX request cloud only, not the full object or swept collision volume."
+      },
+      "supporting_cad_slab_diagnostic": {
+        "scope": "slab diagnostic only: observed cloud, CAD envelope in TCP x[-88.61,0]mm z\u00b119.227mm; not exact collision model",
+        "selected_closest_gap_margin_m": 0.028081767829885577,
+        "nominal_descent_worst_margin_m": 0.024974907827423766
+      },
+      "target_contacts": {
+        "scope": "Target-to-finger tensor only; it does not observe contact with other props or arm links.",
+        "sample_count": 26,
+        "bilateral_count_samples": 24,
+        "bilateral_force_samples_over_0_05n": 24,
+        "first_nonzero_count": {
+          "sequence": 129,
+          "elapsed_server_monotonic_s": 17.907007137997425,
+          "client_elapsed_interval_s": [
+            17.86527360099717,
+            17.959944720998465
+          ],
+          "physics_step": 2352,
+          "sim_time_s": 19.6,
+          "jaw_contact_counts": [
+            0,
+            4
+          ],
+          "jaw_force_norms_n": [
+            0.0,
+            0.0
+          ],
+          "open_fractions": [
+            0.500979229793262,
+            0.5008054822563308
+          ],
+          "q_error_max_rad": 0.013865835811002869
+        },
+        "first_force_over_0_05n": {
+          "sequence": 130,
+          "elapsed_server_monotonic_s": 18.044309113000054,
+          "client_elapsed_interval_s": [
+            18.01549516999512,
+            18.17765434100147
+          ],
+          "physics_step": 2354,
+          "sim_time_s": 19.616666666666667,
+          "jaw_contact_counts": [
+            0,
+            4
+          ],
+          "jaw_force_norms_n": [
+            0.0,
+            27.767453938144804
+          ],
+          "open_fractions": [
+            0.41941645861541543,
+            0.42409501337863487
+          ],
+          "q_error_max_rad": 0.012535936976774353
+        },
+        "count_pairs_observed": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            4
+          ],
+          [
+            5,
+            4
+          ],
+          [
+            6,
+            4
+          ]
+        ]
+      },
+      "prop_displacement_from_first_attempt_sample": {
+        "pink_cube": {
+          "baseline_sequence": 32,
+          "baseline_position_m": [
+            0.27000004053115845,
+            0.11000000685453415,
+            0.02999999747775224
+          ],
+          "maximum_m": 6.006850114687196e-08,
+          "maximum_sequence": 104,
+          "maximum_elapsed_s": 13.116190533997724,
+          "first_over_1mm_sequence": null,
+          "first_over_1mm_elapsed_s": null
+        },
+        "green_cube": {
+          "baseline_sequence": 32,
+          "baseline_position_m": [
+            0.24000000953674316,
+            0.010000009089708328,
+            0.02999999934039739
+          ],
+          "maximum_m": 0.03793833923693434,
+          "maximum_sequence": 154,
+          "maximum_elapsed_s": 22.54552176300058,
+          "first_over_1mm_sequence": 130,
+          "first_over_1mm_elapsed_s": 18.044309113000054
+        },
+        "tomato_can": {
+          "baseline_sequence": 32,
+          "baseline_position_m": [
+            0.22500000894069672,
+            0.2149999886751175,
+            0.041250001650077375
+          ],
+          "maximum_m": 7.487740830422111e-08,
+          "maximum_sequence": 93,
+          "maximum_elapsed_s": 10.991286569995282,
+          "first_over_1mm_sequence": null,
+          "first_over_1mm_elapsed_s": null
+        },
+        "lemon": {
+          "baseline_sequence": 32,
+          "baseline_position_m": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "maximum_m": 0.0,
+          "maximum_sequence": 32,
+          "maximum_elapsed_s": 1.1439995432738215e-05,
+          "first_over_1mm_sequence": null,
+          "first_over_1mm_elapsed_s": null
+        },
+        "orange": {
+          "baseline_sequence": 32,
+          "baseline_position_m": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "maximum_m": 0.0,
+          "maximum_sequence": 32,
+          "maximum_elapsed_s": 1.1439995432738215e-05,
+          "first_over_1mm_sequence": null,
+          "first_over_1mm_elapsed_s": null
+        }
+      },
+      "pregrasp_opening": {
+        "first": {
+          "elapsed_s": 3.612830006000877,
+          "fraction": 0.9999999627470976
+        },
+        "minimum": {
+          "elapsed_s": 11.518730926996795,
+          "fraction": 0.9998931214229297
+        }
+      }
+    },
+    {
+      "label": "orange_attempt_1",
+      "attempt_id": "1790812897253226495-573216-83bffc3ee0074cf6b43625e1add58fdc",
+      "case": "case-2",
+      "started_utc": "2026-10-01T00:01:37.253256+00:00",
+      "source": {
+        "observation": "on-disk files at post-attempt flush; not attestation of imported bytecode",
+        "repo": "/home/spark/Projects/cascade-native-0fee56f-20261001",
+        "sha256": {
+          "src/cascade/grasping/evidence.py": "286ba3bec1049589136ede559c30651702490b8822fb392aae8a85932f9ca5f8",
+          "src/cascade/grasping/selector.py": "1c2fa2d931fe0eed086c928a2f667a2e75bb2ee27ad158ed5ce50743e99e06ab",
+          "src/cascade/grasping/graspgenx_backend.py": "54500f38ffe14ed55d24271a390580872ffc54a85348896bcd04bfb3ee148996",
+          "src/cascade/grasping/force.py": "accb6f790da865a6691e3e5778a8957c52cd6c0bb5f3c674d0e1fe46d4fae755",
+          "src/cascade/skills/runtime.py": "b106f736b849d860c9c44df81458898648eb7ae5125b6ba8dbf59330742f34e0",
+          "src/cascade/memory/grasp_memory.py": "681eb1befc84258942722c4701a80c56c1fb27619ff5af3fe2f56175f82932f9",
+          "src/cascade/control/isaac_arm.py": "7e0f5fb16e108bf8ccf6316ef070794f46abe23ffc35322be8fd95f1244dc391",
+          "src/cascade/control/arm_base.py": "f7c50168328c38b76e34541fdd77109c3e7e6454139c21d15177cfe5baeffbec",
+          "src/cascade/safety/harness.py": "1de404032798055a93d47b1d319c8dbcf34056a95ac0fcd72a5da2c6e281d7b5",
+          "src/cascade/apps/mcp_server.py": "aea905a26335ddff2cc5a6d20124348dbda894fe6b53a87ec875eef303d06f57",
+          "scripts/launch.sh": "86b65b946eed23f09e8d53f2e81aa0606d84761e6685bfd1ff67251f24b58773"
+        },
+        "git_head": "5365fcb18df2c5d96ada993e781cb8d9cd7e8d2c",
+        "git_tracked_status_porcelain": ""
+      },
+      "logging_ok": true,
+      "dropped_events": 0,
+      "logging_errors": [],
+      "array_hash_valid": true,
+      "terminal": {
+        "phase": "descent",
+        "exception_type": "SkillError",
+        "message": "did not settle at grasp pose"
+      },
+      "attempt_interval": {
+        "wall_s": 21.652480347001983,
+        "sim_elapsed_bounds_s": [
+          1.9500000000000028,
+          1.9833333333333343
+        ],
+        "start": {
+          "sequences": [
+            58,
+            59
+          ],
+          "sim_time_bounds_s": [
+            33.233333333333334,
+            33.25
+          ]
+        },
+        "end": {
+          "sequences": [
+            175,
+            176
+          ],
+          "sim_time_bounds_s": [
+            35.2,
+            35.21666666666667
+          ]
+        }
+      },
+      "phase_start_elapsed_s": {
+        "planning": 0.4955009469995275,
+        "open": 1.0857509359993855,
+        "home": 1.0918454109996674,
+        "pregrasp": 3.1555993830043008,
+        "descent": 13.078940022001916
+      },
+      "gripper_commands": [
+        {
+          "elapsed_s": 1.0918340499993064,
+          "phase": "open",
+          "position": 1.0,
+          "effort": 0.8
+        }
+      ],
+      "close_stage_count": 0,
+      "selected": {
+        "grasp": {
+          "position": [
+            0.19471794539314308,
+            0.12345318144155709,
+            0.014585968108180011
+          ],
+          "rotation": [
+            [
+              -0.27865139261984917,
+              0.8990607059790563,
+              0.3377029046252508
+            ],
+            [
+              0.1245888008950892,
+              0.3824989169279001,
+              -0.9155174540044233
+            ],
+            [
+              -0.952276762334639,
+              -0.21303620704806153,
+              -0.21859675116736638
+            ]
+          ],
+          "width_m": 0.05101859386061952,
+          "approach": [
+            -0.27865139261984917,
+            0.1245888008950892,
+            -0.952276762334639
+          ],
+          "quality": 0.6347094774246216,
+          "label": "orange"
+        },
+        "q_pre": [
+          -0.34073945131195393,
+          1.7567118736366107,
+          1.2524369252761856,
+          -1.2945791236455815,
+          0.21204867275493763,
+          -1.509313379176897
+        ],
+        "q_grasp": [
+          -0.37187065644042505,
+          1.7630579785891833,
+          1.0952365777712276,
+          -1.1243652606032803,
+          0.21907156117469176,
+          -1.5403866111483762
+        ]
+      },
+      "memory": {
+        "current_profile_computed": "orange|fp6cm|h3cm",
+        "localized_extent_m": [
+          0.05103132519659065,
+          0.049084632407042805,
+          0.024807130933879498
+        ],
+        "prior": null,
+        "applied_z_nudge_m": 0.0
+      },
+      "pregrasp_completion_feedback": {
+        "elapsed_s": 13.078875286002585,
+        "q_local": [
+          -0.3365541100502014,
+          1.7523162364959717,
+          1.2538187503814697,
+          -1.2711299657821655,
+          0.2084006667137146,
+          -1.4662749767303467
+        ],
+        "max_q_error_rad": 0.04303840244655022,
+        "configured_settle_tol_rad": 0.045,
+        "max_abs_reported_dq_rad_s": 0.346701443195343,
+        "gripper_open_fraction": 0.9997829645904457,
+        "fk_position_error_m": [
+          0.007683300194213261,
+          0.0008835838737644569,
+          -0.00037003523003484307
+        ],
+        "fk_position_error_norm_m": 0.0077427868631288746
+      },
+      "command_windows": {
+        "home": {
+          "target_count": 75,
+          "first_elapsed_s": 1.4371332340015215,
+          "last_elapsed_s": 2.915903157001594,
+          "wall_s": 1.4787699230000726,
+          "sim_elapsed_bounds_s": [
+            0.13333333333333286,
+            0.1666666666666643
+          ],
+          "start": {
+            "sequences": [
+              65,
+              66
+            ],
+            "sim_time_bounds_s": [
+              33.35,
+              33.36666666666667
+            ]
+          },
+          "end": {
+            "sequences": [
+              74,
+              75
+            ],
+            "sim_time_bounds_s": [
+              33.5,
+              33.516666666666666
+            ]
+          }
+        },
+        "pregrasp": {
+          "target_count": 375,
+          "first_elapsed_s": 3.3466800860041985,
+          "last_elapsed_s": 10.826760802003264,
+          "wall_s": 7.480080715999065,
+          "sim_elapsed_bounds_s": [
+            0.68333333333333,
+            0.7166666666666686
+          ],
+          "start": {
+            "sequences": [
+              77,
+              78
+            ],
+            "sim_time_bounds_s": [
+              33.55,
+              33.56666666666667
+            ]
+          },
+          "end": {
+            "sequences": [
+              118,
+              119
+            ],
+            "sim_time_bounds_s": [
+              34.25,
+              34.266666666666666
+            ]
+          }
+        },
+        "descent": {
+          "target_count": 100,
+          "first_elapsed_s": 13.436982815001102,
+          "last_elapsed_s": 15.414647999001318,
+          "wall_s": 1.977665184000216,
+          "sim_elapsed_bounds_s": [
+            0.18333333333333002,
+            0.21666666666666856
+          ],
+          "start": {
+            "sequences": [
+              132,
+              133
+            ],
+            "sim_time_bounds_s": [
+              34.483333333333334,
+              34.5
+            ]
+          },
+          "end": {
+            "sequences": [
+              144,
+              145
+            ],
+            "sim_time_bounds_s": [
+              34.68333333333333,
+              34.7
+            ]
+          }
+        }
+      },
+      "partial_cloud_selected_open_axis": {
+        "count": 2564,
+        "range_m": [
+          -0.03689061133102626,
+          0.010033280350400657
+        ],
+        "points_outside_nominal_plus_minus_45mm": 0,
+        "scope": "Observed GGX request cloud only, not the full object or swept collision volume."
+      },
+      "supporting_cad_slab_diagnostic": {
+        "scope": "slab diagnostic only: observed cloud, CAD envelope in TCP x[-88.61,0]mm z\u00b119.227mm; not exact collision model",
+        "selected_closest_gap_margin_m": 0.013189340790331822,
+        "nominal_descent_worst_margin_m": 0.009480947441485858
+      },
+      "target_contacts": {
+        "scope": "Target-to-finger tensor only; it does not observe contact with other props or arm links.",
+        "sample_count": 26,
+        "bilateral_count_samples": 0,
+        "bilateral_force_samples_over_0_05n": 0,
+        "first_nonzero_count": {
+          "sequence": 145,
+          "elapsed_server_monotonic_s": 15.53353751400573,
+          "client_elapsed_interval_s": [
+            15.489285782001389,
+            15.595587321004132
+          ],
+          "physics_step": 4164,
+          "sim_time_s": 34.7,
+          "jaw_contact_counts": [
+            1,
+            0
+          ],
+          "jaw_force_norms_n": [
+            0.0,
+            0.0
+          ],
+          "open_fractions": [
+            1.0001058727487047,
+            0.9931005389526406
+          ],
+          "q_error_max_rad": 0.08465465090461466
+        },
+        "first_force_over_0_05n": {
+          "sequence": 147,
+          "elapsed_server_monotonic_s": 15.934449996006151,
+          "client_elapsed_interval_s": [
+            15.885113893004018,
+            15.9892966970001
+          ],
+          "physics_step": 4168,
+          "sim_time_s": 34.733333333333334,
+          "jaw_contact_counts": [
+            3,
+            0
+          ],
+          "jaw_force_norms_n": [
+            112.72752543846437,
+            0.0
+          ],
+          "open_fractions": [
+            1.0001376867273795,
+            0.992990940913693
+          ],
+          "q_error_max_rad": 0.0731399872083256
+        },
+        "count_pairs_observed": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            3,
+            0
+          ],
+          [
+            4,
+            0
+          ]
+        ]
+      },
+      "prop_displacement_from_first_attempt_sample": {
+        "pink_cube": {
+          "baseline_sequence": 59,
+          "baseline_position_m": [
+            0.27000001072883606,
+            0.10999999940395355,
+            0.02999999747775224
+          ],
+          "maximum_m": 0.004238292582244955,
+          "maximum_sequence": 138,
+          "maximum_elapsed_s": 14.310052193999582,
+          "first_over_1mm_sequence": 127,
+          "first_over_1mm_elapsed_s": 12.28695050200622
+        },
+        "green_cube": {
+          "baseline_sequence": 59,
+          "baseline_position_m": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ],
+          "maximum_m": 1.501712528671799e-08,
+          "maximum_sequence": 72,
+          "maximum_elapsed_s": 2.4477590240057907,
+          "first_over_1mm_sequence": null,
+          "first_over_1mm_elapsed_s": null
+        },
+        "tomato_can": {
+          "baseline_sequence": 59,
+          "baseline_position_m": [
+            0.2250000238418579,
+            0.2149999737739563,
+            0.041250005375367674
+          ],
+          "maximum_m": 9.570444061357624e-08,
+          "maximum_sequence": 101,
+          "maximum_elapsed_s": 7.584935490005591,
+          "first_over_1mm_sequence": null,
+          "first_over_1mm_elapsed_s": null
+        },
+        "lemon": {
+          "baseline_sequence": 59,
+          "baseline_position_m": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "maximum_m": 0.0,
+          "maximum_sequence": 59,
+          "maximum_elapsed_s": 0.0038979790042503737,
+          "first_over_1mm_sequence": null,
+          "first_over_1mm_elapsed_s": null
+        },
+        "orange": {
+          "baseline_sequence": 59,
+          "baseline_position_m": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "maximum_m": 0.010192754318147357,
+          "maximum_sequence": 175,
+          "maximum_elapsed_s": 21.60326587700547,
+          "first_over_1mm_sequence": 148,
+          "first_over_1mm_elapsed_s": 16.0960786870055
+        }
+      },
+      "pregrasp_opening": {
+        "first": {
+          "elapsed_s": 3.191529152005387,
+          "fraction": 1.0
+        },
+        "minimum": {
+          "elapsed_s": 13.078875286002585,
+          "fraction": 0.9997829645904457
+        }
+      }
+    },
+    {
+      "label": "orange_attempt_2",
+      "attempt_id": "1790812926711881183-573216-770577ff1b774facb4b23e15e944e269",
+      "case": "case-2",
+      "started_utc": "2026-10-01T00:02:06.711908+00:00",
+      "source": {
+        "observation": "on-disk files at post-attempt flush; not attestation of imported bytecode",
+        "repo": "/home/spark/Projects/cascade-native-0fee56f-20261001",
+        "sha256": {
+          "src/cascade/grasping/evidence.py": "286ba3bec1049589136ede559c30651702490b8822fb392aae8a85932f9ca5f8",
+          "src/cascade/grasping/selector.py": "1c2fa2d931fe0eed086c928a2f667a2e75bb2ee27ad158ed5ce50743e99e06ab",
+          "src/cascade/grasping/graspgenx_backend.py": "54500f38ffe14ed55d24271a390580872ffc54a85348896bcd04bfb3ee148996",
+          "src/cascade/grasping/force.py": "accb6f790da865a6691e3e5778a8957c52cd6c0bb5f3c674d0e1fe46d4fae755",
+          "src/cascade/skills/runtime.py": "b106f736b849d860c9c44df81458898648eb7ae5125b6ba8dbf59330742f34e0",
+          "src/cascade/memory/grasp_memory.py": "681eb1befc84258942722c4701a80c56c1fb27619ff5af3fe2f56175f82932f9",
+          "src/cascade/control/isaac_arm.py": "7e0f5fb16e108bf8ccf6316ef070794f46abe23ffc35322be8fd95f1244dc391",
+          "src/cascade/control/arm_base.py": "f7c50168328c38b76e34541fdd77109c3e7e6454139c21d15177cfe5baeffbec",
+          "src/cascade/safety/harness.py": "1de404032798055a93d47b1d319c8dbcf34056a95ac0fcd72a5da2c6e281d7b5",
+          "src/cascade/apps/mcp_server.py": "aea905a26335ddff2cc5a6d20124348dbda894fe6b53a87ec875eef303d06f57",
+          "scripts/launch.sh": "86b65b946eed23f09e8d53f2e81aa0606d84761e6685bfd1ff67251f24b58773"
+        },
+        "git_head": "5365fcb18df2c5d96ada993e781cb8d9cd7e8d2c",
+        "git_tracked_status_porcelain": ""
+      },
+      "logging_ok": true,
+      "dropped_events": 0,
+      "logging_errors": [],
+      "array_hash_valid": true,
+      "terminal": {
+        "phase": "descent",
+        "exception_type": "SkillError",
+        "message": "did not settle at grasp pose"
+      },
+      "attempt_interval": {
+        "wall_s": 25.004716445997474,
+        "sim_elapsed_bounds_s": [
+          2.299999999999997,
+          2.3333333333333286
+        ],
+        "start": {
+          "sequences": [
+            219,
+            220
+          ],
+          "sim_time_bounds_s": [
+            35.95,
+            35.96666666666667
+          ]
+        },
+        "end": {
+          "sequences": [
+            357,
+            358
+          ],
+          "sim_time_bounds_s": [
+            38.266666666666666,
+            38.28333333333333
+          ]
+        }
+      },
+      "phase_start_elapsed_s": {
+        "planning": 0.6645778520032763,
+        "open": 1.3221676079992903,
+        "home": 1.322884717003035,
+        "pregrasp": 3.420634563997737,
+        "descent": 16.475346927996725
+      },
+      "gripper_commands": [
+        {
+          "elapsed_s": 1.3228689719981048,
+          "phase": "open",
+          "position": 1.0,
+          "effort": 0.8
+        }
+      ],
+      "close_stage_count": 0,
+      "selected": {
+        "grasp": {
+          "position": [
+            0.18307664228530537,
+            0.10636436646282556,
+            0.0281701239057294
+          ],
+          "rotation": [
+            [
+              0.16231781498224263,
+              -0.06730813876200807,
+              0.9844402177023712
+            ],
+            [
+              -0.18775754993668603,
+              0.9773362202958173,
+              0.09778051416004618
+            ],
+            [
+              -0.9687104982300768,
+              -0.20070756576242893,
+              0.1460014685566677
+            ]
+          ],
+          "width_m": 0.046873565053886346,
+          "approach": [
+            0.16231781498224257,
+            -0.187757549936686,
+            -0.9687104982300767
+          ],
+          "quality": 0.45136743783950806,
+          "label": "orange"
+        },
+        "q_pre": [
+          -0.8106156510878609,
+          1.3746617955070812,
+          0.9560502992147744,
+          -1.1771828424625599,
+          -0.24964865685682028,
+          -0.7297890318140415
+        ],
+        "q_grasp": [
+          -0.7635279726193125,
+          1.4005338535334866,
+          0.81236801258104,
+          -0.995608539713563,
+          -0.25048530852886125,
+          -0.6812035200196502
+        ]
+      },
+      "memory": {
+        "current_profile_computed": "orange|fp6cm|h3cm",
+        "localized_extent_m": [
+          0.05197305042408663,
+          0.05114875230670238,
+          0.026972060282731733
+        ],
+        "prior": null,
+        "applied_z_nudge_m": 0.0
+      },
+      "pregrasp_completion_feedback": {
+        "elapsed_s": 16.47528380699805,
+        "q_local": [
+          -0.8016172647476196,
+          1.366407871246338,
+          0.9684454798698425,
+          -1.187317967414856,
+          -0.2937110364437103,
+          -0.7368166446685791
+        ],
+        "max_q_error_rad": 0.04406237958689005,
+        "configured_settle_tol_rad": 0.045,
+        "max_abs_reported_dq_rad_s": 2.1322531700134277,
+        "gripper_open_fraction": 0.8027004144683418,
+        "fk_position_error_m": [
+          0.008317613225940601,
+          -0.006434513875379813,
+          0.0068674801097164395
+        ],
+        "fk_position_error_norm_m": 0.012559774745040147
+      },
+      "command_windows": {
+        "home": {
+          "target_count": 75,
+          "first_elapsed_s": 1.6978053869970609,
+          "last_elapsed_s": 3.18350481899688,
+          "wall_s": 1.4856994319998194,
+          "sim_elapsed_bounds_s": [
+            0.13333333333333286,
+            0.1666666666666643
+          ],
+          "start": {
+            "sequences": [
+              227,
+              228
+            ],
+            "sim_time_bounds_s": [
+              36.083333333333336,
+              36.1
+            ]
+          },
+          "end": {
+            "sequences": [
+              236,
+              237
+            ],
+            "sim_time_bounds_s": [
+              36.233333333333334,
+              36.25
+            ]
+          }
+        },
+        "pregrasp": {
+          "target_count": 375,
+          "first_elapsed_s": 3.6075974150007823,
+          "last_elapsed_s": 11.087922364997212,
+          "wall_s": 7.4803249499964295,
+          "sim_elapsed_bounds_s": [
+            0.7000000000000028,
+            0.7333333333333343
+          ],
+          "start": {
+            "sequences": [
+              239,
+              240
+            ],
+            "sim_time_bounds_s": [
+              36.28333333333333,
+              36.3
+            ]
+          },
+          "end": {
+            "sequences": [
+              281,
+              282
+            ],
+            "sim_time_bounds_s": [
+              37.0,
+              37.016666666666666
+            ]
+          }
+        },
+        "descent": {
+          "target_count": 100,
+          "first_elapsed_s": 16.7862281609996,
+          "last_elapsed_s": 18.76484916699701,
+          "wall_s": 1.978621005997411,
+          "sim_elapsed_bounds_s": [
+            0.1666666666666714,
+            0.20000000000000284
+          ],
+          "start": {
+            "sequences": [
+              312,
+              313
+            ],
+            "sim_time_bounds_s": [
+              37.516666666666666,
+              37.53333333333333
+            ]
+          },
+          "end": {
+            "sequences": [
+              323,
+              324
+            ],
+            "sim_time_bounds_s": [
+              37.7,
+              37.71666666666667
+            ]
+          }
+        }
+      },
+      "partial_cloud_selected_open_axis": {
+        "count": 2584,
+        "range_m": [
+          -0.0012009272432255988,
+          0.04578593217508683
+        ],
+        "points_outside_nominal_plus_minus_45mm": 1,
+        "scope": "Observed GGX request cloud only, not the full object or swept collision volume."
+      },
+      "supporting_cad_slab_diagnostic": {
+        "scope": "slab diagnostic only: observed cloud, CAD envelope in TCP x[-88.61,0]mm z\u00b119.227mm; not exact collision model",
+        "selected_closest_gap_margin_m": 0.009974979865851837,
+        "nominal_descent_worst_margin_m": 0.00855078040266194
+      },
+      "target_contacts": {
+        "scope": "Target-to-finger tensor only; it does not observe contact with other props or arm links.",
+        "sample_count": 38,
+        "bilateral_count_samples": 0,
+        "bilateral_force_samples_over_0_05n": 0,
+        "first_nonzero_count": {
+          "sequence": 320,
+          "elapsed_server_monotonic_s": 17.956266633002087,
+          "client_elapsed_interval_s": [
+            17.900295460000052,
+            18.112383510000654
+          ],
+          "physics_step": 4518,
+          "sim_time_s": 37.65,
+          "jaw_contact_counts": [
+            0,
+            3
+          ],
+          "jaw_force_norms_n": [
+            0.0,
+            261.6042900725773
+          ],
+          "open_fractions": [
+            0.9995686858956712,
+            0.7869290443222368
+          ],
+          "q_error_max_rad": 0.19885924326068016
+        },
+        "first_force_over_0_05n": {
+          "sequence": 320,
+          "elapsed_server_monotonic_s": 17.956266633002087,
+          "client_elapsed_interval_s": [
+            17.900295460000052,
+            18.112383510000654
+          ],
+          "physics_step": 4518,
+          "sim_time_s": 37.65,
+          "jaw_contact_counts": [
+            0,
+            3
+          ],
+          "jaw_force_norms_n": [
+            0.0,
+            261.6042900725773
+          ],
+          "open_fractions": [
+            0.9995686858956712,
+            0.7869290443222368
+          ],
+          "q_error_max_rad": 0.19885924326068016
+        },
+        "count_pairs_observed": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            3
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      },
+      "prop_displacement_from_first_attempt_sample": {
+        "pink_cube": {
+          "baseline_sequence": 220,
+          "baseline_position_m": [
+            0.2699476182460785,
+            0.10980816930532455,
+            0.02999999934039739
+          ],
+          "maximum_m": 3.0719530773294423e-08,
+          "maximum_sequence": 234,
+          "maximum_elapsed_s": 2.7825412640013383,
+          "first_over_1mm_sequence": null,
+          "first_over_1mm_elapsed_s": null
+        },
+        "green_cube": {
+          "baseline_sequence": 220,
+          "baseline_position_m": [
+            0.24000000953674316,
+            0.010000010952353477,
+            0.02999999934039739
+          ],
+          "maximum_m": 1.5160833109263057e-08,
+          "maximum_sequence": 262,
+          "maximum_elapsed_s": 7.787544986997091,
+          "first_over_1mm_sequence": null,
+          "first_over_1mm_elapsed_s": null
+        },
+        "tomato_can": {
+          "baseline_sequence": 220,
+          "baseline_position_m": [
+            0.22499996423721313,
+            0.21500001847743988,
+            0.04124999792478708
+          ],
+          "maximum_m": 0.04543087384946776,
+          "maximum_sequence": 334,
+          "maximum_elapsed_s": 20.556566746003227,
+          "first_over_1mm_sequence": 277,
+          "first_over_1mm_elapsed_s": 10.451701190002495
+        },
+        "lemon": {
+          "baseline_sequence": 220,
+          "baseline_position_m": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "maximum_m": 0.0,
+          "maximum_sequence": 220,
+          "maximum_elapsed_s": 0.14734649699676083,
+          "first_over_1mm_sequence": null,
+          "first_over_1mm_elapsed_s": null
+        },
+        "orange": {
+          "baseline_sequence": 220,
+          "baseline_position_m": [
+            0.17933528125286102,
+            0.1312182992696762,
+            0.024626715119701895
+          ],
+          "maximum_m": 0.0358479999326661,
+          "maximum_sequence": 338,
+          "maximum_elapsed_s": 21.39310968299833,
+          "first_over_1mm_sequence": 319,
+          "first_over_1mm_elapsed_s": 17.797025109997776
+        }
+      },
+      "pregrasp_opening": {
+        "first": {
+          "elapsed_s": 3.4590767190020415,
+          "fraction": 0.9999928474427335
+        },
+        "minimum": {
+          "elapsed_s": 16.23577641400334,
+          "fraction": 0.7812470267527248
+        }
+      }
+    }
+  ],
+  "figure": {
+    "path": "benchmark/results/images/spark_native_launch02_forensics_20261001.svg",
+    "sha256": "452e9197ca53834d036518fa06bb0cbd4f11aa73bfddb822f431e0200fb581fa"
+  },
+  "inferences_and_limits": [
+    "The wall-paced source and observed physical clock compression support investigating simulation-time execution. They do not isolate the cause of every collision.",
+    "Neighbor movement starts before descent; the orange-only contact filter cannot identify which arm link disturbed each neighbor.",
+    "The second attempt starts after the first disturbed the scene; it is not an independent reset trial.",
+    "The second opening loss develops after full opening was already reported and with no close command. It is not explained simply by a delayed initial opening.",
+    "The nominal cloud/gap geometry is partial and is not a clearance proof. No GGX sweep correction is justified by this receipt alone.",
+    "The persisted orange h6cm nudge is not applied to either current h3cm attempt. No successful orange close/lift/place/home/reset is demonstrated."
+  ]
+}

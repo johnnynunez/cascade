@@ -75,7 +75,7 @@ def launcher_copy(tmp_path):
     repo = tmp_path / "repo"
     (repo / "scripts").mkdir(parents=True)
     (repo / "src/cascade/apps").mkdir(parents=True)
-    for name in ("launch.sh", "demo_proof.py", "isaac_runtime.py"):
+    for name in ("launch.sh", "demo_proof.py", "native_turn_budget.py", "isaac_runtime.py"):
         shutil.copy2(REPO / "scripts" / name, repo / "scripts" / name)
     shutil.copy2(REPO / "src/cascade/apps/process_owner.py", repo / "src/cascade/apps/process_owner.py")
     return repo

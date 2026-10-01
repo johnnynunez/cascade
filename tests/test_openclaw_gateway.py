@@ -440,7 +440,7 @@ def test_actual_launcher_failure_trap_cleans_its_foreground_gateway(private_gate
     h = private_gateway
     scripts = h["repo"] / "scripts"
     scripts.mkdir()
-    for name in ("openclaw_gateway.py", "demo_proof.py"):
+    for name in ("openclaw_gateway.py", "demo_proof.py", "native_turn_budget.py"):
         (scripts / name).write_bytes((ROOT / "scripts" / name).read_bytes())
     source = (ROOT / "scripts/launch.sh").read_text()
     first = source.split("GATEWAY_OWNED=0\n", 1)[1].split("# register the MCP server", 1)[0]

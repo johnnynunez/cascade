@@ -26,12 +26,21 @@ import sys
 import threading
 import time
 import traceback
+import types
 
 ROOT = Path(__file__).resolve().parents[2]
 OBJECTS = ("orange", "green_cube", "pink_cube", "lemon", "tomato_can")
 
 
 def encode(value):
+    if callable(value):
+        # Opaque diagnostic metadata only: never inspect repr/closure or call it.
+        if isinstance(value, (types.FunctionType, types.MethodType,
+                              types.BuiltinFunctionType, types.BuiltinMethodType)):
+            return {"diagnostic_kind": "opaque_callback", "module": value.__module__,
+                    "qualname": value.__qualname__}
+        return {"diagnostic_kind": "opaque_callback", "type_module": type(value).__module__,
+                "type_qualname": type(value).__qualname__}
     if hasattr(value, "tolist"):
         return value.tolist()
     if isinstance(value, Path):

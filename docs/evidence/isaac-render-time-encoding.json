@@ -1,0 +1,90 @@
+{
+  "scope": "Offline replay of retained ARM failure tail and original synthetic control; no new renderer or physical actuation",
+  "source_pin_before": "b31b021d5eee585ceb78faf0986023215b0e9830",
+  "new_helper_sha256": "c36737445e041a8da303f0cb77e0247a23710080f6d9b743fd24d16aedf64e5b",
+  "failure_wire_sha256": "e0a7c49aeb8971191d222bcc9fa6279b09e419058f47882e9689838a71eb40cd",
+  "stdout_truncated_to_last_bytes": 8000,
+  "retained_complete_history_entries": 7,
+  "arm": {
+    "before": {
+      "cam0": null,
+      "side": null,
+      "wrist": null,
+      "proof": null
+    },
+    "after": {
+      "cam0": {
+        "physics_step": 2058,
+        "reference": [
+          17150000,
+          1000000
+        ],
+        "simulation_time": 17.15,
+        "started_monotonic": 85014.618164074
+      },
+      "side": {
+        "physics_step": 2058,
+        "reference": [
+          17150000,
+          1000000
+        ],
+        "simulation_time": 17.15,
+        "started_monotonic": 85014.618164074
+      },
+      "wrist": {
+        "physics_step": 2058,
+        "reference": [
+          17150000,
+          1000000
+        ],
+        "simulation_time": 17.15,
+        "started_monotonic": 85014.618164074
+      },
+      "proof": {
+        "physics_step": 2058,
+        "reference": [
+          17150000,
+          1000000
+        ],
+        "simulation_time": 17.15,
+        "started_monotonic": 85014.618164074
+      }
+    }
+  },
+  "control04": {
+    "receipt_sha256": "cc124be1da738a6fe1bc7b521da3050dda872fc11efbf18c6979d243f391845c",
+    "accepted": 220,
+    "rows": 220
+  },
+  "artifacts": {
+    "passive-render-correction-09/receipt.json": {
+      "sha256": "cbec78c7cb9836b1015858acb8abf88f02e5cf8d9cbe904558e40ef5bdb0717f",
+      "bytes": 7931
+    },
+    "passive-render-correction-09/samples.jsonl": {
+      "sha256": "c892ca11159c303c1b3f25e2337a87c87ccaee4fee595e861f0b053fbf439044",
+      "bytes": 264912
+    },
+    "passive-render-diagnostic-09b/receipt.json": {
+      "sha256": "758348123208f23b9c3cdff2fb8d8b5d33aa87ff9d67a5e9e3cc0570e3fa31c9",
+      "bytes": 8358
+    },
+    "passive-render-diagnostic-09b/samples.jsonl": {
+      "sha256": "d63502317ce7f0613b7cffbe83303d8af3796066a38a640be9bedb52c8242c40",
+      "bytes": 792029
+    },
+    "passive-render-diagnostic-09b/failure-diagnostic.json": {
+      "sha256": "e0a7c49aeb8971191d222bcc9fa6279b09e419058f47882e9689838a71eb40cd",
+      "bytes": 8750
+    },
+    "independent-09b-history-review.json": {
+      "sha256": "90104a7357a006510d3bde8c7038da4de0dd728aab7b06cb055cc63b904d09b9",
+      "bytes": 2650
+    },
+    "render-time-encoding-replay.json": {
+      "sha256": "978c4722827e5ef9554c52c54a4d0b1255df9203dbb69a2526dda01ac4caddb9",
+      "bytes": 1581
+    }
+  },
+  "replay_script_sha256": "17b0ef78597067e4fc23829592cb19233beac4679a5a1f6eff7d88d17a49e7a7"
+}

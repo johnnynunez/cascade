@@ -2,8 +2,11 @@
 
 Isaac's current-time reader truncates double times to integer microseconds.
 The render product can instead expose nanoseconds. Only that documented
-microsecond conversion is allowed here; other clock resolutions require an
-exact rational match. This is timestamp representation, not a freshness budget.
+microsecond conversion is allowed here. The observed nanosecond encoding of
+that same double is also accepted only when both raw encodings and the
+RP-derived simulation annotator agree exactly on a unique history entry.
+Other clock resolutions require an exact rational match. This is timestamp
+representation, not a freshness budget.
 """
 from collections import OrderedDict
 from copy import deepcopy
@@ -12,6 +15,7 @@ import math
 
 
 _SDK_DENOMINATOR = 1_000_000
+_RENDER_DENOMINATOR = 1_000_000_000
 
 
 class ClockDiscontinuity(ValueError):
@@ -130,15 +134,48 @@ class FrameHistory:
         if self._resolution == _SDK_DENOMINATOR:
             key = Fraction(key.numerator * _SDK_DENOMINATOR // key.denominator,
                            _SDK_DENOMINATOR)
-        entry = self._entries.get(key)
-        if entry is None or key in self._ambiguous or entry["epoch"] != epoch:
+        ordinary_key = key
+        # Collect identities before testing ambiguity or annotator coherence.
+        # A poisoned ordinary key must not permit choosing a different alias.
+        candidates = {}
+        if key in self._entries:
+            candidates[key] = self._entries[key]
+        aliases = set()
+        if (self._resolution == _SDK_DENOMINATOR
+                and reference[1] == _RENDER_DENOMINATOR):
+            # The same IEEE double can produce microsecond N but nanosecond
+            # N*1000-1 (e.g. 17.15). Reproduce BOTH observed SDK encodings;
+            # never search neighbouring timestamps or use an epsilon.
+            for candidate_key, entry in self._entries.items():
+                try:
+                    same_encoding = (
+                        entry["reference"][1] == _SDK_DENOMINATOR
+                        and math.trunc(entry["simulation_time"] * _SDK_DENOMINATOR)
+                            == entry["reference"][0]
+                        and math.trunc(entry["simulation_time"] * _RENDER_DENOMINATOR)
+                            == reference[0])
+                except (ValueError, OverflowError):
+                    same_encoding = False
+                if same_encoding:
+                    candidates[candidate_key] = entry
+                    aliases.add(candidate_key)
+        if len(candidates) != 1:
             return None
-        if self._resolution == _SDK_DENOMINATOR:
-            try:
+        key, entry = next(iter(candidates.items()))
+        if key in self._ambiguous or entry["epoch"] != epoch:
+            return None
+        try:
+            if key in aliases and simulation_time == float(reference_key(reference)):
+                # SDK multitick getSimulationTimeAt returns double(RP time).
+                # This is independent evidence, not arrival/current time.
+                coherent = True
+            elif key != ordinary_key:
+                coherent = False  # An alias also requires its exact RP-derived annotator.
+            elif self._resolution == _SDK_DENOMINATOR:
                 coherent = (math.trunc(simulation_time * _SDK_DENOMINATOR)
                             == math.trunc(entry["simulation_time"] * _SDK_DENOMINATOR))
-            except (ValueError, OverflowError):
-                return None
-        else:
-            coherent = simulation_time == entry["simulation_time"]
+            else:
+                coherent = simulation_time == entry["simulation_time"]
+        except (ValueError, OverflowError):
+            return None
         return deepcopy(entry) if coherent else None

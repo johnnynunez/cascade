@@ -1763,6 +1763,11 @@ class SkillRuntime:
                         grasp_evidence.event("observed_finger_candidate_rejected", phase_name=phase,
                                              conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
                         return f"{phase} finger intersects observed surface: {conflict}"
+                conflict = scene_gate.closing_pose(q_grasp)
+                if conflict:
+                    grasp_evidence.event("observed_finger_candidate_rejected", phase_name="close",
+                                         conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
+                    return f"closing fingers intersects observed non-target surface: {conflict}"
             if bool(gcfg.get("pre_carry_lift", False)) and gcfg.get("carry_height_m") is not None:
                 # A learned tilted grasp can solve at pickup height yet have
                 # no IK at the carry height. Reject it before closing on the
@@ -1891,13 +1896,35 @@ class SkillRuntime:
             # the jaws on it as "not holding anything". Record a provisional
             # marker first; `_reconcile_held` promotes it (jaws stalled on
             # something) or clears it (jaws closed on air) on the next call.
-            self._held_provisional = (label, fix.detection.label,
-                                      detection_color(frame.rgb, fix.detection))
+            provisional = (label, fix.detection.label,
+                           detection_color(frame.rgb, fix.detection))
             grasp_evidence.phase("close")
+            close_guard = None
             if scene_gate is not None:
                 _scene_cancel()
+                def close_guard():
+                    # Separate safety read: the measured pose can differ from
+                    # selected IK after descent or between closing stages.
+                    _scene_cancel()
+                    close_state = self.arm.get_state()
+                    _scene_cancel()
+                    scene_gate.require_closing(close_state)
+                    _scene_cancel()
+                    grasp_evidence.event("observed_finger_close_preflight",
+                                         physics_clock=close_state.physics_clock,
+                                         q=close_state.q, gripper_joints=close_state.gripper_joints,
+                                         stroke_lower_m=scene_gate.closing_lower,
+                                         stroke_upper_m=scene_gate.closing_upper,
+                                         scope="pre-command full finger stroke; target mask exempt only for closing")
+                    # A failed first veto has not attempted closure. Preserve
+                    # a provisional hold only once a jaw command is about to
+                    # be attempted; a later stage/transport failure may hold.
+                    self._held_provisional = provisional
+            else:
+                self._held_provisional = provisional
             self._close_two_stage(profile,
-                                   **({"_halt_generation": scene_halt_generation} if scene_enabled else {}))
+                                   **({"_halt_generation": scene_halt_generation,
+                                       "_before_close": close_guard} if scene_enabled else {}))
             self._held_support_offset_m = None
             if gcfg.get("place_support_clearance_m") is not None and float(-grasp.approach[2]) > .95:
                 # A partial cloud's lowest visible point can be several mm
@@ -1996,9 +2023,11 @@ class SkillRuntime:
             return support
         return max(float(self.cfg.safety.get("table_z", 0.0)), float(points[:, 2].min()))
 
-    def _close_two_stage(self, profile, *, _halt_generation=None) -> None:
+    def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None) -> None:
         raw = self.arm.raw
         if hasattr(raw, "close_gripper_two_stage"):
+            if _before_close is not None:
+                raise SafetyViolation("observed-finger closing requires individually guarded stages")
             raw.close_gripper_two_stage(
                 width_frac_stage1=profile.close_frac_stage1,
                 width_frac_stage2=profile.close_frac_stage2,
@@ -2015,6 +2044,8 @@ class SkillRuntime:
             (profile.close_frac_stage1, profile.effort * 0.7),
             (profile.close_frac_stage2, profile.effort),
         ):
+            if _before_close is not None:
+                _before_close()
             grasp_evidence.event("close_stage", closed_frac=frac, effort=eff,
                                  target_pos=self._grip_open + span * frac)
             self.arm.set_gripper(self._grip_open + span * frac, effort=eff,

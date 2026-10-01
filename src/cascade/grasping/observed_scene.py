@@ -1,9 +1,9 @@
 """Positive observed-surface veto for the calibrated reBot finger meshes.
 
 This is discrete trajectory checking, NOT a continuous swept-volume or free-
-space certificate. Occluded surfaces are unknown. Target points are retained:
-the exemption for deliberate closing is simply to stop using this OPEN-finger
-gate at the explicit close stage, never to erase the target or its neighbors.
+space certificate. Occluded surfaces are unknown. Approach retains all target
+points. Only deliberate closure excludes the exact same-frame target mask,
+while checking each finger's complete mechanical stroke before its command.
 """
 from __future__ import annotations
 
@@ -163,7 +163,7 @@ class ObservedScene:
                         "robot_pixels_excluded": int(robot.sum()),
                         "scope": "observed surfaces only; no occlusion or continuous-path certificate"}
 
-    def conflict(self, T_base_tcp, envelopes):
+    def conflict(self, T_base_tcp, envelopes, *, allow_target_contact=False):
         T = _array(T_base_tcp, (4, 4), "TCP transform")
         R, t = T[:3, :3], T[:3, 3]
         if (not np.array_equal(T[3], [0, 0, 0, 1]) or np.linalg.det(R) <= 0
@@ -173,6 +173,10 @@ class ObservedScene:
         radius_scale = float(np.linalg.norm(R, ord=2))
         for name, part, planes, lo, hi, center, radius in envelopes:
             ids = np.asarray(self.tree.query_ball_point(R @ center + t, radius * radius_scale + 1e-12), dtype=int)
+            if allow_target_contact:
+                # A local closure-only exemption. Keep the original scene,
+                # target mask and spatial index intact for approach checks.
+                ids = ids[~self.is_target[ids]]
             if not len(ids):
                 continue
             points = (self.points[ids] - t) @ inverse.T
@@ -199,6 +203,12 @@ class ObservedFingerGate:
         self.lower = np.minimum(strokes, geometry.upper) - uncertainty_m
         self.upper = np.maximum(strokes, geometry.upper) + uncertainty_m
         self.envelopes = geometry.envelopes(self.lower, self.upper)
+        # Conservative geometric extent, not a tracking guarantee under
+        # contact. Both fingers independently sweep the whole stroke, with
+        # the same fixed expansion used for opening; never grow it on error.
+        self.closing_lower = geometry.lower - uncertainty_m
+        self.closing_upper = self.upper.copy()
+        self.closing_envelopes = geometry.envelopes(self.closing_lower, self.closing_upper)
         self.clock = PhysicsClock(*scene.identity[:2])
         self.last_state = None
         self._last_q = self._last_strokes = None
@@ -207,6 +217,7 @@ class ObservedFingerGate:
             raise SafetyViolation("observed-finger gate requires a joint vector")
         self._q_shape = q.shape
         self._cache = {}
+        self._closing_cache = {}
         self.feedback(state)
 
     def pose(self, q):
@@ -216,7 +227,16 @@ class ObservedFingerGate:
             self._cache[key] = self.scene.conflict(self.kin.fk(q), self.envelopes)
         return self._cache[key]
 
-    def feedback(self, state):
+    def closing_pose(self, q):
+        q = _array(q, self._q_shape, "joint closing pose")
+        key = q.tobytes()
+        if key not in self._closing_cache:
+            self._closing_cache[key] = self.scene.conflict(
+                self.kin.fk(q), self.closing_envelopes, allow_target_contact=True)
+        return self._closing_cache[key]
+
+    def _observe(self, state):
+        """Common atomic snapshot contract for open motion and closing."""
         fresh = self.clock.observe(state.physics_clock)
         if state.physics_clock["epoch"] != self.scene.identity[2]:
             raise SafetyViolation("observed-finger scene belongs to another simulation epoch")
@@ -225,13 +245,35 @@ class ObservedFingerGate:
         if (not fresh and self._last_q is not None
                 and (not np.array_equal(q, self._last_q) or not np.array_equal(strokes, self._last_strokes))):
             raise SafetyViolation("arm or finger feedback changed without a new physics step")
+        return q, strokes
+
+    def _remember(self, state, q, strokes):
+        self.last_state = state
+        self._last_q, self._last_strokes = q.copy(), strokes.copy()
+
+    def feedback(self, state):
+        q, strokes = self._observe(state)
         if np.any(strokes < self.lower) or np.any(strokes > self.upper):
             raise SafetyViolation("finger feedback left the geometrically checked opening interval")
         conflict = self.scene.conflict(self.kin.fk(q), self.geometry.envelopes(strokes, strokes))
         if conflict:
             raise SafetyViolation(f"measured finger intersects observed surface: {conflict}")
-        self.last_state = state
-        self._last_q, self._last_strokes = q.copy(), strokes.copy()
+        self._remember(state, q, strokes)
+
+    def require_closing(self, state):
+        """Veto the complete closing envelope at the measured pose pre-command.
+
+        This does not stop an already commanded closure or refresh the scene.
+        The second stage may start partly closed but retains the same atomic
+        snapshot/epoch contract and immutable geometric stroke bounds.
+        """
+        q, strokes = self._observe(state)
+        if np.any(strokes < self.closing_lower) or np.any(strokes > self.closing_upper):
+            raise SafetyViolation("finger feedback left the geometrically checked closing interval")
+        conflict = self.closing_pose(q)
+        if conflict:
+            raise SafetyViolation(f"closing fingers intersects observed non-target surface: {conflict}")
+        self._remember(state, q, strokes)
 
     def profile(self, start, target, duration_s, rate_hz, *, check=None):
         """Same discrete samples/complete edges as executor, including lookahead."""
@@ -288,6 +330,8 @@ def for_runtime(runtime, frame, fix, state):
     from . import evidence
     evidence.event("observed_finger_gate", scene=scene.receipt, geometry_sha256=geometry.sha256,
                    stroke_lower_m=gate.lower, stroke_upper_m=gate.upper,
+                   closing_stroke_lower_m=gate.closing_lower,
+                   closing_stroke_upper_m=gate.closing_upper,
                    tracking_envelope_m=OPEN_TRACKING_ENVELOPE_M,
-                   scope="CPU safety veto after CUDA perception; discrete profile samples; fingers only")
+                   scope="CPU safety veto after CUDA perception; discrete approach and pre-command closing stroke; fingers only")
     return gate

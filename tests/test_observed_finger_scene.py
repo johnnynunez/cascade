@@ -60,6 +60,10 @@ def test_target_and_neighbor_surfaces_both_veto(geometry, target):
     hit = scene.conflict(np.eye(4), envelopes)
     assert hit is not None and hit['finger'] == 'joint_left'
     assert hit['surface'] == ('target' if target else 'other observed surface')
+    close_hit = scene.conflict(np.eye(4), envelopes, allow_target_contact=True)
+    assert (close_hit is None) == target
+    # Closure-only contact permission cannot mutate later approach checks.
+    assert scene.conflict(np.eye(4), envelopes) == hit
 
 
 def test_robot_mask_excludes_only_exact_self_pixels(geometry):
@@ -150,6 +154,69 @@ def test_snapshot_cannot_change_without_new_physics_step(geometry, changed):
     if changed == 'epoch': state.physics_clock = {**clock, 'epoch': 'restarted'}
     with pytest.raises(SafetyViolation, match='changed|epoch'):
         gate.feedback(state)
+
+
+def closing_gate(geometry):
+    scene = construct(*scene_at([10, 10, 10]))
+    clock = dict(version=1, engine='physx', clock='SimulationManager', source=('fake', 1),
+                 robot_id='/robot', epoch='epoch', sim_time=0., physics_step=0, physics_dt_s=.01)
+    state = RobotState(np.zeros(1), physics_clock=clock, gripper_joints=snapshot())
+    gate = ObservedFingerGate(scene, geometry, SimpleNamespace(fk=lambda q: np.eye(4)), state, uncertainty_m=.0001)
+    return gate, state
+
+
+def test_closing_envelope_contains_independent_finger_strokes_and_padding(geometry):
+    gate, _ = closing_gate(geometry)
+    for strokes in ([0., .05], [.05, 0.], [.013, .042], [-.0001, .0501]):
+        exact = geometry.envelopes(np.asarray(strokes), np.asarray(strokes))
+        for outer, inner in zip(gate.closing_envelopes, exact):
+            assert np.all(outer[3] <= inner[3] + 1e-12)
+            assert np.all(outer[4] >= inner[4] - 1e-12)
+            np.testing.assert_allclose(outer[2][:,:3], inner[2][:,:3])
+            assert np.all(outer[2][:,3] <= inner[2][:,3] + 1e-12)
+
+
+def test_second_close_accepts_new_partly_closed_snapshot_but_not_open_motion(geometry):
+    gate, state = closing_gate(geometry)
+    state.physics_clock = {**state.physics_clock, 'sim_time': .01, 'physics_step': 1}
+    state.gripper_joints = snapshot((.025, .019))
+    gate.require_closing(state)
+    gate.require_closing(state)  # identical same-step snapshot is legitimate
+    with pytest.raises(SafetyViolation, match='opening interval'): gate.feedback(state)
+
+
+@pytest.mark.parametrize('changed', ['q', 'finger', 'epoch', 'nan', 'outside'])
+def test_close_keeps_atomic_epoch_finite_and_fixed_bounds_contract(geometry, changed):
+    gate, state = closing_gate(geometry)
+    if changed == 'q': state.q[0] += .00001
+    if changed == 'finger': state.gripper_joints['position_m'][0] -= .00001
+    if changed == 'epoch': state.physics_clock = {**state.physics_clock, 'epoch': 'new'}
+    if changed in ('nan', 'outside'):
+        state.physics_clock = {**state.physics_clock, 'sim_time': .01, 'physics_step': 1}
+        state.gripper_joints = snapshot((np.nan if changed=='nan' else -.001, .02))
+    before = gate.closing_lower.copy()
+    with pytest.raises(SafetyViolation): gate.require_closing(state)
+    np.testing.assert_array_equal(gate.closing_lower, before)
+
+
+def test_recorded_observed_neighbor_point_is_clear_open_but_vetoes_closure(geometry):
+    from cascade.config import load_demo_config
+    from cascade.control.kinematics import Kinematics
+    cfg = load_demo_config(arm='isaac_kitchen_gpu', camera='mock', llm='mock').arm
+    kin = Kinematics(cfg.model, cfg.ee_frame, 6, cfg.joint_signs)
+    # One retained RGBD point, pixel (223,751), outside the target mask. Its
+    # semantic label/ground-truth pose is not supplied to the predicate.
+    scene = construct(*scene_at([.25285849249653447, .12765121104416072, .060234708493281386], target=False))
+    _, state = closing_gate(geometry)
+    state.q = np.asarray(cfg.home_q)
+    gate = ObservedFingerGate(scene, geometry, kin, state, uncertainty_m=.0001)
+    q = np.array([-.4454485906686117, 1.7624410876478933, 1.1331546533194867,
+                  -1.1452525526669397, .15528819138473887, -1.5643258051539406])
+    assert gate.pose(q) is None
+    assert gate.closing_pose(q)['surface'] == 'other observed surface'
+    state.physics_clock = {**state.physics_clock, 'sim_time': .01, 'physics_step': 1}
+    state.q = q
+    with pytest.raises(SafetyViolation, match='closing fingers'): gate.require_closing(state)
 
 
 def test_runtime_factory_binds_source_without_transport_reads():

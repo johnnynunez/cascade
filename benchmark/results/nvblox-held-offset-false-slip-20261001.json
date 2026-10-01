@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "scope": "Retained NV08 failure and offline conditional reproduction; no new physical action or acceptance claim.",
+  "runtime_head": "6b5dad64eaa35b0ea6c0a0430a4098818626cfee",
+  "original_global_pass": false,
+  "planned_post_release_fault_reached": false,
+  "normal_five_executed": false,
+  "pre_open_observed_bilateral_contact": true,
+  "last_bilateral_before_open_s": 0.010711823,
+  "observed_lift_approx_mm": 93.57,
+  "last_measured_vertical_object_tcp_offset_m": -0.0094820135,
+  "reconstructed_pre_localization_minus_postlift_tcp_m": -0.102936148637,
+  "live_offset_branch_recorded": false,
+  "conditional_reproduction": "Legacy detector alias orange fruit plus synthetically unavailable image returns the pre/post mixed cache; canonical orange resolves. This does not prove the live image failed.",
+  "legacy_offset_method_identical_to_successful_06": true,
+  "secondary_diagnostic_error": "AttributeError: runtime._release_episode absent; the skill failed before creating that episode.",
+  "evidence": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox-final-main-failure-analysis-20261001/offset-replay.json": "247e83b61863fe4887bf32f5f51f931564ceaed743dc45c2d40d64e79849fa98",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox-final-main-failure-analysis-20261001/orange08-independent-summary.json": "939bbbb3b34f4e81e86b993009647610a510d930ccf28a8c2429ed004abbb8a9",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-final-main-physical/runs/nvblox-rtx/isolated-clock-08/release-recovery-01/receipt.json": "4b90f7d0ccd1916544b8dc69fbaaedf502ed9901153b0f4c1adfc69edabb7ebc"
+  },
+  "limits": [
+    "Witness does not support physical slip before the native opening.",
+    "Bilateral contact is not proof of zero unilateral contact elsewhere.",
+    "The corrected source requires a new physical acceptance run; preserved live MAIN6b sources and scene were not modified."
+  ]
+}

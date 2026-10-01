@@ -1090,6 +1090,11 @@ class SkillRuntime:
         grasp_evidence.event("backend_candidates", grasps=grasps, backend=self.grasp_planner_used)
 
         # ---- fake-RL memory prior: re-rank + z-nudge -----------------------
+        # Establish the legacy quality order before applying the prior. This
+        # also orders mixed learned/analytic batches when there is no memory.
+        # The selector must preserve this final order, not undo the prior by
+        # sorting on the unchanged model quality a second time.
+        grasps = sorted(grasps, key=lambda g: -g.quality)
         lbl = label or getattr(fix, "label", None) or "object"
         try:
             prior = self.grasp_memory.prior(lbl, fix) if _prior_snapshot is None else _prior_snapshot[0]
@@ -1923,6 +1928,7 @@ class SkillRuntime:
                         max_width_m=self._max_width,
                         pregrasp_offset_m=float(gcfg.get("pregrasp_offset_m", 0.12)),
                         validate=_vet,
+                        preserve_order=True,
                         # Single-hinge jaw datum (TOOL frame): the fixed jaw's contact
                         # point and the closing direction toward the moving jaw. Per
                         # arm, like every other jaw dimension: the SO-101 beak closes
@@ -2013,6 +2019,7 @@ class SkillRuntime:
         from . import contact_episode
         episode = None
         contact_completed = False
+        held_offset_at_close = None
         grasp_evidence.phase("descent")
         grasp_evidence.event("move_target", q=q_grasp,
                              duration_s=gcfg.get("descend_duration_s", 2.0), bias_compensate=True)
@@ -2066,11 +2073,20 @@ class SkillRuntime:
                                        "_before_close": close_guard} if scene_enabled else {}))
             contact_episode.wait_geometry(self, episode)
             self._held_support_offset_m = None
+            # Approximate aiming compensation uses the closed grasp pose,
+            # before lift. It is not an independent measurement of a held body.
+            close_state = self.arm.get_state()
+            tcp_close = self.kin.fk(close_state.q)[:3, 3]
+            try:
+                held_offset_at_close = np.asarray(fix.position, float) - tcp_close
+                if held_offset_at_close.shape != (3,) or not np.isfinite(held_offset_at_close).all():
+                    held_offset_at_close = None
+            except (AttributeError, TypeError, ValueError):
+                held_offset_at_close = None
             if gcfg.get("place_support_clearance_m") is not None and float(-grasp.approach[2]) > .95:
                 # A partial cloud's lowest visible point can be several mm
                 # above the object's bottom. When the pickup support plane
                 # is calibrated, use it; otherwise retain the observed bound.
-                tcp_close = self.kin.fk(self.arm.get_state().q)[:3, 3]
                 bottom = self._grasp_support_height(fix.points)
                 offset = float(tcp_close[2]) - bottom
                 if np.isfinite(offset) and 0 < offset < .15:
@@ -2144,18 +2160,22 @@ class SkillRuntime:
         self._held_det_label = fix.detection.label
         self._held_color = detection_color(frame.rgb, fix.detection)
         self._held_provisional = None  # promoted: the real flag is set now
-        # Where the object sat relative to the TCP at the moment of grasp, in
-        # the base frame. `place_at` aims the TCP, so without this the object
-        # lands wherever the jaws happen to be holding it. MEASURED on LIBERO:
-        # 1.1 cm horizontal offset at grasp, 5.1 cm at release (it slides
-        # 4.3 cm in transit), which is most of the ~6 cm placement error
-        # against a 3 cm success predicate.
+        # A cached aiming estimate cannot prove a later slip. Preserve the
+        # post-lift clock floor separately for newly acquired hold evidence.
+        self._held_offset = held_offset_at_close
+        self._held_observation_floor = None
+        self._held_observation_floor_q = None
+        from .held_observation import binding
+        self._held_observation_binding = binding(self)
+        self._held_observation_joint_signs = np.asarray(
+            self.cfg.arm.get("joint_signs", [1] * self.arm.n_joints), float).copy()
         try:
-            tcp_at_grasp = self.kin.fk(self.arm.get_state().q)[:3, 3]
-            self._held_offset = np.asarray(fix.position, float) - tcp_at_grasp
+            import copy
+            state_after_lift = self.arm.get_state()
+            self._held_observation_floor = copy.deepcopy(state_after_lift.physics_clock)
+            self._held_observation_floor_q = np.asarray(state_after_lift.q, float).copy()
         except Exception:
-            self._held_offset = None
-            self._held_support_offset_m = None
+            pass
         self.beliefs.mark_removed(self._held_det_label or label, near=fix.position)
         try:
             self.grasp_memory.record(
@@ -2264,71 +2284,13 @@ class SkillRuntime:
                 "treating it as 'object'",
             )
 
+    def _held_object_observation(self):
+        from .held_observation import measure
+        return measure(self, localize_object)
+
     def _held_object_offset(self) -> np.ndarray | None:
-        """Where is the held object, relative to the TCP, RIGHT NOW?
-
-        A human looks at what is in their hand before setting it down. This is
-        that check, and it exists because the object does not stay where the
-        grasp put it: MEASURED on LIBERO, the horizontal offset from the TCP
-        was 1.1 cm at grasp and 5.1 cm at release, i.e. it slid 4.3 cm in
-        transit. `place_at` aims the TCP, so that slip lands directly in the
-        placement error, against a 3 cm success predicate.
-
-        Re-observes rather than trusting the grasp-time offset, since the
-        whole point is that the grasp-time value goes stale. Falls back to the
-        grasp-time offset, then to None, so a camera that cannot see the
-        gripper degrades to today's behaviour instead of failing the place.
-
-        MEASURED LIMIT: the re-observation only helps when a real detector is
-        running. On the LIBERO benchmark in `--perception oracle` the detector
-        is `MockDetector`, which reports nothing, so every call falls through
-        to the grasp-time value and compensates 0.5 cm instead of the true
-        4.8 cm. Median aim error improved only 6.1 -> 4.9 cm there, and that
-        residual is the slip this cannot see. Do not read that number as the
-        ceiling for this approach; read it as the cost of benchmarking with
-        perception switched off.
-        """
-        if not self.held_object:
-            return None
-        tcp = None
-        try:
-            tcp = self.kin.fk(self.arm.get_state().q)[:3, 3]
-        except Exception:
-            pass
-        # An external pose channel, when one is attached, sees the held object
-        # even while the camera cannot. On the LIBERO benchmark this is the
-        # same physics feed the verifier uses, which keeps the comparison
-        # honest: it is a PERCEPTION substitute, exactly like the seeded
-        # beliefs, and it is labelled as such in the results.
-        if tcp is not None and self._object_pose is not None:
-            try:
-                p = self._object_pose(self._held_det_label or self.held_object)
-                if p is not None:
-                    offset = np.asarray(p, float)[:3] - tcp
-                    if float(np.linalg.norm(offset[:2])) <= 0.12:
-                        return offset
-            except Exception:
-                pass
-        try:
-            frame = self.observe()
-            if tcp is None:
-                tcp = self.kin.fk(self.arm.get_state().q)[:3, 3]
-            label = self._held_det_label or self.held_object
-            fix = localize_object(
-                frame, label, self.detector, self.extrinsics,
-                prompts=[label], near_xyz=tcp,
-                workspace_bounds=self._localization_workspace_bounds(),
-            )
-            offset = np.asarray(fix.position, float) - tcp
-            # Sanity gate: the object is IN the gripper, so it cannot be far
-            # from the TCP. A larger "match" is a different object on the
-            # table, and trusting it would throw the place further off than
-            # doing nothing.
-            if float(np.linalg.norm(offset[:2])) <= 0.12:
-                return offset
-        except Exception:
-            pass
-        return getattr(self, "_held_offset", None)
+        """Compatibility accessor for aiming; it grants no release authority."""
+        return self._held_object_observation().offset
 
     def _supported_release_height(self, support_z: float, fallback: float) -> float:
         clearance = self.cfg.grasp.get("place_support_clearance_m")
@@ -2365,7 +2327,32 @@ class SkillRuntime:
         # currently sits in the jaws, or the object lands offset by exactly
         # that much. Only the horizontal part is compensated: z is governed by
         # the release height and the wrist ceiling above.
-        held_offset = self._held_object_offset()
+        observation_harness = getattr(self.arm, "harness", None)
+        observation_generation = getattr(observation_harness, "_halt_generation", None)
+        from .held_observation import HeldObservationInvalid, binding
+        observation_binding = binding(self)
+        held_observation = self._held_object_observation()
+        try:
+            if any(a is not b for a, b in zip(observation_binding, binding(self))):
+                raise HeldObservationInvalid("held observation arm or configuration changed")
+            if observation_generation is not None:
+                observation_harness._check_halt_generation(observation_generation)
+        except (SafetyViolation, HeldObservationInvalid) as exc:
+            held_observation.invalidated = True
+            held_observation.release_authority = False
+            held_observation.evidence.setdefault("rejected", []).append(str(exc))
+        held_offset = held_observation.offset
+        self.memory.add("note", "held offset channel=" + held_observation.channel
+                        + "; release_authority=" + str(held_observation.release_authority),
+                        {"held_observation": {
+                            "channel": held_observation.channel,
+                            "offset_m": None if held_offset is None else held_offset.tolist(),
+                            "release_authority": held_observation.release_authority,
+                            "invalidated": held_observation.invalidated,
+                            "evidence": held_observation.evidence}})
+        if held_observation.invalidated:
+            raise HeldObservationInvalid("held observation invalidated; preserve the held state: "
+                                         + str(held_observation.evidence.get("rejected", [])))
         # The same look also answers "is it still in the jaws?". When an
         # independent channel (sim physics, or the camera seeing the object
         # on the table) puts the object well below the TCP, it slipped
@@ -2377,16 +2364,19 @@ class SkillRuntime:
         # turns a silent bad place into an honest retry.
         if held_offset is not None:
             drop_m = float(self.cfg.grasp.get("slip_drop_m", 0.06))
-            if float(held_offset[2]) < -drop_m:
+            if held_observation.release_authority and float(held_offset[2]) < -drop_m:
                 self.memory.add(
                     "outcome",
                     f"{self.held_object!r} is {-float(held_offset[2])*100:.0f} cm below the "
                     "gripper -- it slipped during the carry",
                 )
+                if observation_generation is None:
+                    raise SkillError("observed carry slip lacks a gripper authorization context")
                 try:
-                    self.arm.set_gripper(self._grip_open, effort=0.6)
-                except Exception:  # noqa: BLE001
-                    pass
+                    self.arm.set_gripper(self._grip_open, effort=0.6,
+                                         _halt_generation=observation_generation)
+                except SafetyViolation as exc:
+                    raise HeldObservationInvalid("observed-slip opening was cancelled") from exc
                 slipped = self.held_object
                 self.held_object = None
                 self._held_det_label = None
@@ -2756,6 +2746,7 @@ class SkillRuntime:
         runs out. No LLM in the loop; this is the reflex the web chat calls
         for "pick and place pink object"."""
         self._reconcile_held()
+        from .held_observation import HeldObservationInvalid
         already_held = None
         if self.held_object:
             hq, oq = self.held_object.lower(), str(object).lower()
@@ -2937,6 +2928,11 @@ class SkillRuntime:
                     break
                 except (SkillError, SafetyViolation) as e:
                     place_err = f"{type(e).__name__}: {e}"
+                    if isinstance(e, HeldObservationInvalid):
+                        return {**failure_destination, "ok": False, "stage": "held_observation",
+                                "error": place_err, "holding": self.held_object,
+                                "home_skipped": True, "grasp_attempts": attempt,
+                                "place_attempts": p_attempt}
                     if isinstance(e, (_PostPlaceRetreatPlanError, _PreCarryLiftError)):
                         return {
                             **failure_destination,

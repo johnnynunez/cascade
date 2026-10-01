@@ -1,21 +1,12 @@
-"""Ground-truth object poses from the Isaac Sim bridge (Pigey's best channel).
+"""Simulator object poses for effect verification and held-object observation.
 
-Pigey's closed loop needs to answer "did the object actually move?" from an
-observation the actuator does not control.  In simulation there is a channel
-strictly better than perception: the physics state itself.  Reading a prop's
-world transform out of the USD stage is exact, costs no detector pass, and
-cannot flicker the way YOLOE labels do (the repo's own ROADMAP lists sim
-perception flakiness as an open campaign -- misses the banana on some boots,
-label-flickers the soup can).
-
-This is a *verification* channel only.  It is never fed to the planner or the
-grasp pipeline: the agent still perceives the world through cameras exactly as
-it would on the real rig, so nothing here leaks privileged state into the
-policy.  It only adjudicates, after the fact, whether a claimed effect
-happened -- the sim equivalent of a human checking the table.
-
-On the real rig this simply returns None and ``PostconditionChecker`` falls
-back to the belief store, so the same code path runs in both worlds.
+Legacy vectors retain their existing postcondition and XY compensation API.
+They carry no release authority: SDK fallback can return an authored USD pose.
+The optional atomic channel additionally requires valid physical handles,
+object identity, robot joints/base pose and a shared physics step. It supports
+the existing simulator-assisted carry check; this is not a perception-only
+evaluation. Real hardware without that channel keeps its existing perception
+and belief inputs.
 
 Implementation note: the bridge's ``exec`` op returns **stdout only** (see
 ``_run_exec_jobs`` in scripts/isaac_bridge.py -- it redirects stdout into the
@@ -27,6 +18,7 @@ restart.
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import re
@@ -66,6 +58,13 @@ from pxr import UsdGeom as _UsdGeom, Usd as _Usd, UsdPhysics as _UsdPhysics
 _stage = _usd.get_context().get_stage()
 _out = {}
 _dynamic = []
+_physical = {}
+_physical_seen = set()
+_physical_paths = {}
+try:
+    _truth_clock_before = _motion_clock_snapshot()
+except Exception:
+    _truth_clock_before = None
 for _prim in _stage.Traverse():
     _path = _prim.GetPath().pathString
     if not _path.startswith(%(roots)s):
@@ -83,6 +82,10 @@ for _prim in _stage.Traverse():
     except Exception:
         continue
 
+_counts = {}
+for _name, _path in _dynamic:
+    _key = __import__("re").sub(r"[^a-z0-9]+", "_", _name.strip().lower()).strip("_")
+    _counts[_key] = _counts.get(_key, 0) + 1
 if _dynamic:
     try:
         from isaacsim.core.prims import RigidPrim as _RigidPrim
@@ -104,14 +107,58 @@ if _dynamic:
                     _view = _RigidPrim(_path, reset_xform_properties=False,
                                        prepare_contact_sensors=False)
                     _cache[_path] = _view
+                try:
+                    _physical_before = _view.is_physics_handle_valid()
+                except Exception:
+                    _physical_before = False
                 _pos, _ = _view.get_world_poses()
                 _out[_name] = [round(float(v), 5) for v in _pos[0]]
+                # A legacy pose can use the SDK's USD fallback. Only a live
+                # physics handle may contribute to an atomic hold observation.
+                if _name in _physical_seen:
+                    _physical.pop(_name, None)
+                    _physical_paths.pop(_name, None)
+                else:
+                    _physical_seen.add(_name)
+                    try:
+                        _key = __import__("re").sub(r"[^a-z0-9]+", "_", _name.strip().lower()).strip("_")
+                        if (_counts[_key] == 1 and _physical_before
+                                and _view.is_physics_handle_valid()):
+                            _physical[_name] = [float(v) for v in _pos[0]]
+                            _physical_paths[_name] = _path
+                    except Exception:
+                        pass
             except Exception:
                 _cache.pop(_path, None)   # drop a stale view, retry next probe
                 continue
     except Exception:
         pass
 
+try:
+    from isaacsim.core.experimental.utils.backend import use_backend as _truth_backend
+    with _truth_backend("tensor", raise_on_unsupported=True, raise_on_fallback=True):
+        if not art.is_physics_tensor_entity_valid():
+            raise RuntimeError("truth articulation tensor view unavailable")
+        _truth_q = art.get_dof_positions().numpy()[0].astype(float)
+        _truth_base_pos, _truth_base_quat = art.get_world_poses()
+        _truth_base_pos = _truth_base_pos.numpy()[0].astype(float).tolist()
+        _truth_base_quat = _truth_base_quat.numpy()[0].astype(float).tolist()
+    _truth_clock_after = _motion_clock_snapshot()
+    if _truth_clock_before != _truth_clock_after:
+        raise RuntimeError("truth snapshot crossed a physics step")
+    _observation = {"version": 1, "physics_clock": _truth_clock_after,
+        "q_asset": [float(_truth_q[i]) for i in ARM_IDX],
+        "joint_convention": "asset", "joint_indices": list(ARM_IDX),
+        "joint_names": [str(names[i]) for i in ARM_IDX],
+        "pose_frame": "world", "base_position_world": _truth_base_pos,
+        "base_orientation_wxyz": _truth_base_quat,
+        "meters_per_unit": float(_UsdGeom.GetStageMetersPerUnit(_stage)),
+        "server_monotonic": __import__("time").monotonic(),
+        "physical_poses": _physical, "physical_paths": _physical_paths,
+        "physical_inventory": [{"name": name, "path": path} for name, path in _dynamic]}
+    print("CASCADE_TRUTH_OBSERVATION " + _json.dumps(_observation))
+except Exception:
+    pass  # Older bridges still provide their legacy vector-only channel.
 print("CASCADE_TRUTH_POSES " + _json.dumps(_out))
 """
 
@@ -175,6 +222,7 @@ class TruthPoseReader:
         self._roots = tuple(roots)
         self._cache: dict[str, list[float]] = {}
         self._cache_t = 0.0
+        self._observation = None
         #: readings rejected by the sanity gate, from the same probe as _cache
         self._lost: dict[str, list[float]] = {}
         #: count of poses rejected as physically impossible (diagnostic: a
@@ -209,19 +257,60 @@ class TruthPoseReader:
     def all_poses(self) -> dict:
         return dict(self._poses())
 
+    def observation(self, labels) -> dict | None:
+        """Fresh poses and arm joints from one physics step, when supported.
+
+        Vector callers retain their TTL behavior. This optional authority
+        never comes from that cache or from an SDK USD fallback.
+        """
+        self._poses(force=True, timeout_s=1.0)
+        if not isinstance(self._observation, dict):
+            return None
+        result = copy.deepcopy(self._observation)
+        physical = result.pop("physical_poses", {})
+        paths = result.pop("physical_paths", {})
+        inventory = result.pop("physical_inventory", [])
+        labels = tuple(labels)
+        normalized = [_normalize(name) for name in physical]
+        if len(normalized) != len(set(normalized)):
+            return None
+        names = {item["name"]: item["name"] for item in inventory}
+        canonical = _match_label(labels[0], names) if labels else None
+        if canonical is None:
+            return None
+        matches = {_match_label(label, names) for label in labels if label}
+        # None can mean missing OR ambiguous. A detector alias which is
+        # individually compatible with several bodies must not be ignored.
+        for label in labels:
+            if label and _match_label(label, names) is None:
+                possible = [name for name in names if _match_label(label, {name: name}) is not None]
+                if len(possible) > 1:
+                    return None
+        matches.discard(None)
+        if len(matches) != 1:
+            return None
+        name = next(iter(matches))
+        if name not in physical or not _is_sane(physical[name]):
+            return None
+        result.update(resolved_name=name, position_m=physical[name],
+                      resolved_path=paths.get(name),
+                      source=getattr(self._client, "_addr", None))
+        return result
+
     # ── internals ────────────────────────────────────────────────────────
 
-    def _poses(self) -> dict:
+    def _poses(self, *, force=False, timeout_s=None) -> dict:
         now = time.monotonic()
-        if self._cache and (now - self._cache_t) < self.ttl_s:
+        if not force and self._cache and (now - self._cache_t) < self.ttl_s:
             return self._cache
-        raw = self._probe()
+        raw = self._probe() if timeout_s is None else self._probe(timeout_s=timeout_s)
         if raw is None:
             # The TTL-valid cache already returned above. A failed fresh probe
             # cannot extend an expired pose's lifetime as current physics.
             self._cache = {}
             self._lost = {}
             self._cache_t = 0.0
+            self._observation = None
             return {}
         # Drop insane poses INSTEAD of caching them: a body caught mid-solver
         # reports things like [-11.8, -10.6, -122.1], and passing that to the
@@ -242,13 +331,22 @@ class TruthPoseReader:
         self._cache_t = now
         return self._cache
 
-    def _probe(self) -> dict | None:
+    def _probe(self, *, timeout_s=None) -> dict | None:
+        self._observation = None
         code = _PROBE % {"roots": repr(self._roots)}
         try:
-            resp = self._client.request({"op": "exec", "code": code})
+            resp = self._client.request({"op": "exec", "code": code},
+                **({} if timeout_s is None else {"timeout_s": timeout_s}))
         except Exception:
             return None
         stdout = str(resp.get("stdout") or "")
+        atomic = "CASCADE_TRUTH_OBSERVATION "
+        idx = stdout.rfind(atomic)
+        if idx >= 0:
+            try:
+                self._observation = json.loads(stdout[idx + len(atomic):].splitlines()[0])
+            except (json.JSONDecodeError, IndexError):
+                pass
         marker = "CASCADE_TRUTH_POSES "
         idx = stdout.rfind(marker)
         if idx < 0:
@@ -481,6 +579,11 @@ class LazyTruthPoseFn:
     def all_poses(self) -> dict:
         reader = self._resolve()
         return reader.all_poses() if reader is not None else {}
+
+    def observation(self, labels):
+        reader = self._resolve()
+        observe = getattr(reader, "observation", None)
+        return observe(labels) if callable(observe) else None
 
     def placement(self, label: str, destination: str, *, evidence_dir=None):
         """Read a fresh bounded placement window without activating an arm.

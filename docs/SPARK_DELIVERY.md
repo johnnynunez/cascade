@@ -41,6 +41,14 @@ This is a two-object proof on an existing installation. Five-object campaign,
 normal restart and fresh-install measurements require their own receipts.
 Earlier failed physical runs remain in the [status index](PROJECT_STATUS_20261001.md).
 
+The subsequent [five-object campaign](evidence/spark-final-main-03/campaign.json)
+passed green cube, orange, pink cube and lemon. Tomato-can placement and retreat
+were confirmed, but the 300-second whole-turn deadline cancelled the return
+home. Reset then refused the latched e-stop without resetting props. The
+aggregate campaign and its strict checker remain **FAIL**, with no restart
+acceptance. All 356 archived files were independently verified. The same browser
+and three camera views remained live after the failure.
+
 ## Validated delivery, 30 September 2026
 
 Source `9cf540279f09df8197eda6541311b41edb455243` completed installation and

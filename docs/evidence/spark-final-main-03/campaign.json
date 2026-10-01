@@ -1,0 +1,201 @@
+{
+  "schema": 1,
+  "scope": "Completed five-object campaign on the same source/session as the two-object proof. Four cases pass; tomato_can home/reset failure makes the aggregate FAIL. No restart acceptance.",
+  "source": "28061a60c3ae8099e8a80ab0d1eb8511adbbab86",
+  "proof_session": "cascade-proof-7334f15385c24b908112806bbe136815",
+  "two_object_proof": "proof.json",
+  "campaign_pass": false,
+  "cases_attempted": 5,
+  "cases_passed": 4,
+  "independent_five_case_review_sha256": "d8b347b79565055a4ad249df2f983bf2d68d66c50a6e24f404a776cb31e37abf",
+  "cases": [
+    {
+      "object": "green_cube",
+      "case": 1,
+      "case_pass": true,
+      "physical_audit_pass": true,
+      "missing_phase_markers": [],
+      "summary_sha256": "b6148e04ff3bfb7229ec7a98552b763450613ca7bf0fa3f5de3208d33a8c3d5d",
+      "witness_samples": 1947,
+      "lift_samples": 96,
+      "lift_bilateral_samples": 96,
+      "target_max_z_above_attempt_baseline_m": 0.04074948467314243,
+      "maximum_grasp_phase_neighbor_displacement_m": 8.429369702178807e-08,
+      "maximum_post_grasp_neighbor_displacement_m": 1.2036781326982014e-07,
+      "server_snapshot_maximum_s": 1.4794617890001973,
+      "client_delivery_maximum_s": 1.5776960030052578,
+      "client_delivery_over2_samples_per_camera": {
+        "cam0": 0,
+        "side": 0,
+        "proof": 0
+      },
+      "maximum_observed_capture_gap": {
+        "capture_delta_s": 7.145518069999525,
+        "server_sample_delta_s": 6.914335774999927,
+        "prior_sequence": 1660,
+        "sequence": 1661,
+        "prior_server_monotonic": 101556.473729834,
+        "server_monotonic": 101563.388065609,
+        "within_reset_markers": true,
+        "limit": "Observed capture-stamp/sample gap is not proof of a camera stall throughout an unsampled interval."
+      },
+      "unobserved_phases": []
+    },
+    {
+      "object": "orange",
+      "case": 2,
+      "case_pass": true,
+      "physical_audit_pass": true,
+      "missing_phase_markers": [],
+      "summary_sha256": "776a25e94aeaf5e7d59e9d14e3bced30d181deb20a3842b826aeae0f3f495495",
+      "witness_samples": 2203,
+      "lift_samples": 198,
+      "lift_bilateral_samples": 198,
+      "target_max_z_above_attempt_baseline_m": 0.03848453052341938,
+      "maximum_grasp_phase_neighbor_displacement_m": 1.1445799094242763e-07,
+      "maximum_post_grasp_neighbor_displacement_m": 7.459888009168501e-08,
+      "server_snapshot_maximum_s": 1.972272390004946,
+      "client_delivery_maximum_s": 2.08011233000434,
+      "client_delivery_over2_samples_per_camera": {
+        "cam0": 2,
+        "side": 2,
+        "proof": 2
+      },
+      "maximum_observed_capture_gap": {
+        "capture_delta_s": 6.743944435002049,
+        "server_sample_delta_s": 7.064179427005001,
+        "prior_sequence": 1874,
+        "sequence": 1875,
+        "prior_server_monotonic": 101973.765846807,
+        "server_monotonic": 101980.830026234,
+        "within_reset_markers": true,
+        "limit": "Observed capture-stamp/sample gap is not proof of a camera stall throughout an unsampled interval."
+      },
+      "unobserved_phases": [
+        "open"
+      ]
+    },
+    {
+      "object": "pink_cube",
+      "case": 3,
+      "case_pass": true,
+      "physical_audit_pass": true,
+      "missing_phase_markers": [],
+      "summary_sha256": "ee266024217fccf999cf4b38cb17a8df31db45ab4f13f8a52e5e14207f9490c0",
+      "witness_samples": 2222,
+      "lift_samples": 99,
+      "lift_bilateral_samples": 99,
+      "target_max_z_above_attempt_baseline_m": 0.041381169110536575,
+      "maximum_grasp_phase_neighbor_displacement_m": 9.431681708374741e-08,
+      "maximum_post_grasp_neighbor_displacement_m": 9.548668278736097e-08,
+      "server_snapshot_maximum_s": 1.7387539999908768,
+      "client_delivery_maximum_s": 2.0796575589920394,
+      "client_delivery_over2_samples_per_camera": {
+        "cam0": 1,
+        "side": 1,
+        "proof": 1
+      },
+      "maximum_observed_capture_gap": {
+        "capture_delta_s": 6.67511217900028,
+        "server_sample_delta_s": 7.1225402080017375,
+        "prior_sequence": 1872,
+        "sequence": 1873,
+        "prior_server_monotonic": 102405.396173641,
+        "server_monotonic": 102412.518713849,
+        "within_reset_markers": true,
+        "limit": "Observed capture-stamp/sample gap is not proof of a camera stall throughout an unsampled interval."
+      },
+      "unobserved_phases": [
+        "open"
+      ]
+    },
+    {
+      "object": "lemon",
+      "case": 4,
+      "case_pass": true,
+      "physical_audit_pass": true,
+      "missing_phase_markers": [],
+      "summary_sha256": "8133463c708e2ebd2378675bef7ee4e30541e6f31b9ccd972439755ea2dbf36f",
+      "witness_samples": 2084,
+      "lift_samples": 99,
+      "lift_bilateral_samples": 99,
+      "target_max_z_above_attempt_baseline_m": 0.03900943323969841,
+      "maximum_grasp_phase_neighbor_displacement_m": 1.0595815370476165e-07,
+      "maximum_post_grasp_neighbor_displacement_m": 6.919419624286409e-08,
+      "server_snapshot_maximum_s": 1.7625142530014273,
+      "client_delivery_maximum_s": 1.9002084740059217,
+      "client_delivery_over2_samples_per_camera": {
+        "cam0": 0,
+        "side": 0,
+        "proof": 0
+      },
+      "maximum_observed_capture_gap": {
+        "capture_delta_s": 7.325688186989282,
+        "server_sample_delta_s": 7.159156159992563,
+        "prior_sequence": 1736,
+        "sequence": 1737,
+        "prior_server_monotonic": 102812.837476542,
+        "server_monotonic": 102819.996632702,
+        "within_reset_markers": true,
+        "limit": "Observed capture-stamp/sample gap is not proof of a camera stall throughout an unsampled interval."
+      },
+      "unobserved_phases": [
+        "open"
+      ]
+    },
+    {
+      "object": "tomato_can",
+      "case": 5,
+      "case_pass": false,
+      "physical_audit_pass": false,
+      "missing_phase_markers": [
+        "reset_end"
+      ],
+      "summary_sha256": "2b8ce976c3d0b31ac5931d1050a8e68893e5a5da785618edcca204c855a418c9",
+      "witness_samples": 1828,
+      "lift_samples": 191,
+      "lift_bilateral_samples": 191,
+      "target_max_z_above_attempt_baseline_m": 0.03850284591317177,
+      "maximum_grasp_phase_neighbor_displacement_m": 6.368503346025481e-08,
+      "maximum_post_grasp_neighbor_displacement_m": 3.337203127736024e-08,
+      "server_snapshot_maximum_s": 1.3709612649981864,
+      "client_delivery_maximum_s": 1.7465468909940682,
+      "client_delivery_over2_samples_per_camera": {
+        "cam0": 0,
+        "side": 0,
+        "proof": 0
+      },
+      "maximum_observed_capture_gap": {
+        "capture_delta_s": 0.9186469900014345,
+        "server_sample_delta_s": 0.24832881399197504,
+        "prior_sequence": 32,
+        "sequence": 33,
+        "prior_server_monotonic": 102918.998649389,
+        "server_monotonic": 102919.246978203,
+        "within_reset_markers": null,
+        "limit": "Observed capture-stamp/sample gap is not proof of a camera stall throughout an unsampled interval."
+      },
+      "unobserved_phases": [
+        "open"
+      ]
+    }
+  ],
+  "strict_confirmation_pass": false,
+  "strict_receipt_sha256": "866f78e28d6cfe1a93092cd994baf30e2ba75d50c40e85d106ca01fefdeb7777",
+  "ui_continuity_pass": true,
+  "ui_receipt_sha256": "92d6315b3ebb5d028c64900bbb150230aff3b32375804ce04c6f6e833f4592b6",
+  "archive_sha256": "119d109fabe1d44bf6d32d3eda45459e62f1ba27c6cf772af64f49b48c0317b2",
+  "archive_bytes": 176427149,
+  "archive_retention_sha256": "15dabf89ee559fa8d8099bc32240fffb26b14b7d200242d032b8911cf9f6f9ca",
+  "archive_files_verified": 356,
+  "root_archive_verification_sha256": "e8ee0f59f99793d92a04efffa88e5168f4ccc9f057347889aaa500d4a9c3b1bf",
+  "cause": "Whole-turn deadline expired with timeoutMs=299999 after approximately21.062s before the tool started; MCP cancelled motion during return home. Placement and post-place retreat were confirmed, but the subsequent reset refused the latched e-stop.",
+  "diagnostic_receipt_sha256": "1fe9332898763c28ba68464422b6e2a18a664d55880bf8719539d641b29f5f12",
+  "limits": [
+    "No force or unsensed neighbor-contact-link attribution.",
+    "Neighbor displacements are measured descriptive values, not a new success threshold.",
+    "Server snapshot age<=2s is the existing camera acceptance contract; client-delivery overruns retained explicitly.",
+    "Observed frame/sample gaps do not prove continuous camera freeze; no claims for zero-sample phases.",
+    "Earlier failures retain original verdicts. This campaign does not establish repeatability or restart acceptance."
+  ]
+}

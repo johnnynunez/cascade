@@ -20,6 +20,14 @@ binds the test log, full source manifest, merge and CI. These results cover the
 combined geometry and optional renderer changes; they do not establish new
 physical acceptance.
 
+[PR #45](https://github.com/johnnynunez/cascade/pull/45) fixes diagnostic
+recording of the motion safety callbacks. Its candidate `525ab80` passed
+**3,304 tests**, with 43 skipped and four deselected, in 334.95 seconds, plus
+81 focused checks. Both recorders now store opaque callback metadata while
+forwarding the original arguments unchanged; logging neither calls nor replaces
+the safety callbacks. This candidate's software result does not turn the failed
+nvblox run below into a recovery pass.
+
 The previous physical-run baseline,
 `477c88fe40092fdaad99c0f777a6f1c3b9a41224`, merges the reviewed integration
 `391436063c5dd98b0686202db02cefc9bdf294d1` with the same product tree
@@ -88,16 +96,19 @@ failures below. Documentation PR #43 preserved that earlier source distinction.
 ## Current physical acceptance
 
 **Spark final-MAIN-03 passed the two-object native proof, strict confirmation
-and READY on `28061a6`.** The existing Chromium page retained its identity and
-showed three advancing 1280 × 720 cameras. The five-object campaign, normal
-restart and separate RTX nvblox recovery remain distinct acceptance stages;
-their success is not inferred from this proof. Preparation, software tests and
-passive observations do not replace those stages.
+and READY on `28061a6`. Its subsequent five-object campaign failed, with four
+complete cases passing.** The tomato can reached confirmed placement, but the
+whole-turn deadline cancelled its return home; reset then refused the latched
+stop. The existing Chromium page retained its identity and three advancing
+1280 × 720 cameras. Normal restart and separate RTX nvblox recovery remain
+unaccepted stages. Preparation, software tests and passive observations do not
+replace them.
 
 | Source/run | Measured result and boundary |
 | --- | --- |
 | MAIN `28061a6`, Spark final-MAIN-03 | Green and orange completed native placement, return home and reset; both independent physical audits and the strict checker passed. Sampled camera server ages remained ≤2 s, and measured neighboring props remained stationary within 0.00013 mm during grasp. The [proof receipt](evidence/spark-final-main-03/proof.json) retains separate delivery ages, capture gaps and earlier helper failures. This is an upgraded existing installation, not a fresh-install measurement. |
-| MAIN `28061a6`, nvblox environment 10 | Passive three-camera admission passed. Initial map warmup took 6.006 s; some later commits aged to 2.642 s, while all three final commits were ≤1.045 s. The release launcher then failed its read-only atomic-truth preflight before starting the diagnostic child or issuing actuator commands. Investigation is separate from a release/recovery pass. |
+| MAIN `28061a6`, Spark final-MAIN-03 campaign | Green cube, orange, pink cube and lemon passed complete placement/home/reset audits. Tomato-can placement and retreat were confirmed, but the 300-second turn deadline cancelled return home. The reset refused e-stop without resetting props. Strict confirmation and the aggregate campaign remain FAIL; no restart followed. The [campaign receipt](evidence/spark-final-main-03/campaign.json) preserves all five verdicts, camera measurements and the independently verified 356-file archive. |
+| MAIN `28061a6`, nvblox environment 10 | Passive three-camera admission passed. Initial map warmup took 6.006 s; some later commits aged to 2.642 s, while all three final commits were ≤1.045 s. The first release launcher failed its read-only atomic-truth preflight before any actuator commands. A later native truth probe passed in 88 ms. The second diagnostic completed setup reset, then its recorder rejected a callback as non-JSON data before the first pick motion. No close, injected mapping fault or release episode occurred. Both failures are retained; no recovery or five-object pass is claimed. [Failure receipt](evidence/nvblox-environment-10/failures.json). |
 | September `9cf5402` delivery | A fresh-destination GB10 installation, two desktop proofs, a five-object visitor round and restart passed on that source. Download caches were reused. [Historical receipt](../benchmark/results/spark_clean_delivery_20260930.json). Later orange failures remain recorded; this is not the acceptance result for current MAIN. |
 | MAIN `6b5dad6`, Spark final-MAIN-01 | Green completed placement, return home and reset under the existing server-camera-age audit. Orange failed with an air grasp and no observed lift. The overall native proof failed; no five-object campaign or restart followed. [Ranking diagnosis](grasp-memory-ranking.md). |
 | MAIN `6b5dad6`, nvblox environment 08 | A slip verdict opened the gripper although the last measured sample still showed bilateral contact and a lifted orange. The intended post-release fault was never reached. The exact legacy offset branch was not logged. [Retained failure](HELD_OBJECT_OBSERVATION.md). |

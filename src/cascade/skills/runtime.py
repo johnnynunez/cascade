@@ -1165,6 +1165,20 @@ class SkillRuntime:
         localization_started = time.monotonic()
         r = self._resolve_query(query)
         workspace_bounds = self._localization_workspace_bounds()
+        # Text/checkpoint loading does not consume an image. Finish it before
+        # observing, so cold vocabulary initialization cannot expire the
+        # image we have already selected. No detection or motion is retried;
+        # analyze() below still expires slow inference on its actual frame.
+        prepare = getattr(self.detector, "prepare", None)
+        if prepare is not None:
+            rounds = [r["vocab"]] if r["vocab"] else [[p] for p in (r["prompts"] or [query])]
+            try:
+                for classes in rounds:
+                    prepare(classes)
+            except Exception as exc:
+                raise SlowPerceptionError(
+                    f"Detector preparation failed before localization: {exc}"
+                ) from exc
         def in_workspace(position):
             if workspace_bounds is None:
                 return True

@@ -114,11 +114,21 @@ chat command ("pick and place the red cube")
 ```
 
 - **Latest-slot streaming, never queues** (`perception/stream.py`).
-- **Warm world model.** Command resolution is a belief lookup, not an
-  observe→detect round trip. Fusion pauses during `_MOTION_SKILLS` (the
+- **Warm world model.** Beliefs help resolve names and rank current visual
+  matches; localization still analyzes an image and bounds any permitted
+  memory fallback. Fusion pauses during `_MOTION_SKILLS` (the
   held object must not be re-fused mid-air). Two observations with
   DIFFERENT measured colours are two objects however close; proximity
   fusion (8 cm) is for label aliases of one object.
+- **Detector preparation.** The open-world and prompted YOLO models remain
+  resident, with up to eight successful text-embedding vocabularies retained
+  in LRU order. This adds model residency while avoiding checkpoint and text
+  encoder reloads when the watcher and a query alternate. Localization prepares
+  its vocabulary under the detector lock before selecting an image; this step
+  produces no detections or geometry. Every inference uses its own actual
+  image and the existing five-second age check. Slow inference and preparation
+  failures remain terminal for the attempted localization, with no automatic
+  movement recovery. Watcher detection and safety heartbeats continue normally.
 - **Colour without CLIP** (`perception/colors.py`): median mask HSV → colour
   word, stored on beliefs, matched against colour words in queries.
 - **LazyArm** (`control/lazy_arm.py`): the MCP server pre-warms cameras,

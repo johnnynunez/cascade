@@ -88,6 +88,59 @@ def test_invalid_initial_frame_cannot_reach_detector(rig, bad_t):
     assert not rig.calls and not rig.lazy.connected
 
 
+def test_vocabulary_preparation_finishes_before_frame_selection(rig):
+    prepared = []
+    def prepare(classes):
+        prepared.append(classes)
+        assert not rig.calls
+        rig.clock.now += 10.
+    rig.rt.detector.prepare = prepare
+    rig.rt.camera.get_frame = lambda: image(t=rig.clock.now)
+    frame, fix = rig.rt._localize("object")
+    assert prepared == [["object"]]
+    assert frame.t == 110. and fix.detection.label == "object"
+    assert rig.calls == [frame] and not rig.lazy.connected
+
+
+def test_preparation_does_not_relabel_an_old_frame(rig):
+    rig.rt.detector.prepare = lambda classes: setattr(rig.clock, "now", 110.)
+    with pytest.raises(SkillError, match="old"):
+        rig.rt._localize("object")
+    assert not rig.calls and rig.primary.t == 100. and not rig.lazy.connected
+
+
+def test_prepared_detector_still_expires_slow_image_analysis(rig):
+    rig.detector(delay=6.)
+    rig.rt.detector.prepare = lambda classes: setattr(rig.clock, "now", 110.)
+    rig.rt.camera.get_frame = lambda: image(t=rig.clock.now)
+    with pytest.raises(SlowPerceptionError, match="6.0s"):
+        rig.rt._localize("object")
+    assert len(rig.calls) == 1 and not rig.lazy.connected
+
+
+def test_preparation_failure_is_terminal_before_any_observation(rig):
+    def fail(classes):
+        raise RuntimeError("unavailable model")
+    rig.rt.detector.prepare = fail
+    rig.rt.camera.get_frame = lambda: pytest.fail("observed after preparation failure")
+    with pytest.raises(SlowPerceptionError, match="preparation failed.*unavailable model"):
+        rig.rt._localize("object")
+    assert not rig.calls and not rig.lazy.connected
+
+
+@pytest.mark.parametrize("vocab,prompts,expected", [
+    (["one", "two"], ["unused"], [["one", "two"]]),
+    (None, ["red cup", "cup"], [["red cup"], ["cup"]]),
+])
+def test_preparation_uses_the_actual_localization_vocabulary(rig, vocab, prompts, expected):
+    prepared = []
+    rig.rt.detector.prepare = prepared.append
+    resolve = rig.rt._resolve_query
+    rig.rt._resolve_query = lambda query: dict(resolve(query), vocab=vocab, prompts=prompts)
+    rig.rt._localize("object")
+    assert prepared == expected
+
+
 def secondary(rig):
     frame = image(x=.3)
     cam = SimpleNamespace(stream=SimpleNamespace(get_frame=lambda: frame, name="side"),

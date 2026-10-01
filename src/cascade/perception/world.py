@@ -52,6 +52,13 @@ class LockedDetector:
         with self._lock:
             self._detector.set_classes(classes)
 
+    def prepare(self, classes) -> None:
+        """Optional image-independent initialization under the same lock."""
+        with self._lock:
+            prepare = getattr(self._detector, "prepare", None)
+            if prepare is not None:
+                prepare(classes)
+
 
 @dataclass
 class WatchedCamera:

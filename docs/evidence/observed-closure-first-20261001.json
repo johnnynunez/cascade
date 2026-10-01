@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "scope": "Offline historical observed-surface replay and focused runtime regression tests; no physical acceptance claim.",
+  "original_case": {
+    "head": "f9cb6b8e93e1ef720507e8b3e904b6aa5bfed67a",
+    "receipt_sha256": "cabc311871044741f9d8c0bbe8f901bdfbbbfb517147e8571cdb320bed579b69",
+    "status": "FAIL before actuation",
+    "actuator_commands": 0,
+    "reset_commands": 0,
+    "recorded_rejections": {
+      "close": 5,
+      "descent": 1
+    }
+  },
+  "baseline_replay": {
+    "receipt_sha256": "bf7f7c5549628cc8fecc6f30cef87a89f073c8e7a9a7eb12553b1f2159172ef5",
+    "exact_conflict_matches": 6,
+    "observed_route_and_closure_cpu_wall_s": 1.4113572280330118
+  },
+  "early_closure_replay": {
+    "receipt_sha256": "137ea320437b05bb065ef9c25b22422c7edcceedf9f67d820cccf7ffc2d72e09",
+    "retained_rejections": 6,
+    "first_phase_counts": {
+      "close": 6,
+      "descent": 0
+    },
+    "closure_cpu_wall_s": 0.0032223579910350963
+  },
+  "limits": [
+    "Timings are individual CPU replays, not historical live timings or a statistical speedup benchmark.",
+    "No ESDF grid was saved, so neither replay certifies complete NV route eligibility.",
+    "Rejection pixels one pixel outside the target mask do not authorize enlarging the mask.",
+    "Unchanged budgets: route3s, search8s, up to3native candidate batches."
+  ],
+  "source_sha256": {
+    "runtime": "70c4ccaca2b8c91b26fe682d70ea0d173a4bdc633971ea221b46f5bc3a2462a1",
+    "tests": "be5c3877296183a1162109f1a5bcfa91433543bd8c62da904b492ffeba9af28d"
+  },
+  "focused_validation": {
+    "command": "python -m pytest -q tests/test_observed_closure_first.py tests/test_observed_finger_runtime.py tests/test_grasp_planning_search.py tests/test_grasp_evidence.py",
+    "passed": 77,
+    "wall_s": 1.41,
+    "scope": "Shared repository venv, PYTHONPATH fixed to candidate src; CPU-only. Initial tool output, before documentation-only additions."
+  }
+}

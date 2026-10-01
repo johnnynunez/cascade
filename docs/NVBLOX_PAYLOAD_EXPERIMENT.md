@@ -264,6 +264,30 @@ attachment-barrier work and do not replace live acceptance. Frozen-camera and
 labelled descent-failure probes are implemented; live PASS receipts remain
 required.
 
+The post-close barrier and retained episode implementation at `72bf778` passed
+2,605 tests, with 43 skipped and three deselected. The first full run had one
+ownership-test failure because its subprocess imported another checkout's
+editable installation; reproducing that mismatch and setting `PYTHONPATH` to
+this checkout resolved it without changing production code. The new retained
+recovery diagnostic at `ca4c037` separately passed 28 tests and independent review.
+
+One explicitly rehydrated recovery of the untouched trial-16 scene then
+completed the original contact withdrawal. All three producer captures had
+successfully entered the map before motion. Independent physics measured a
+97.549 mm can lift, continuing bilateral jaw contact and a 0.036792 rad maximum
+pregrasp error, within the unchanged profile's 0.045 rad tolerance. The command
+trace contains 100 actual joint targets and no jaw or prop-reset command. The
+original pregrasp and contact cylinder were preserved throughout the withdrawal.
+
+**The complete reset still failed.** Home preflight rejected unknown attached
+clearance at `[0.2140, 0.2089, 0.1826]` m before sending any home target. The can
+remained held at the elevated pregrasp, with no opening, prop reset or cleanup
+motion. The [recovery receipt](../benchmark/results/nvblox-retained-contact-recovery-20261001.json)
+retains source/input/witness hashes and both the successful withdrawal and
+failed home. Software state was reconstructed explicitly from the historical
+commands and a later stationary capture; this is not evidence of ordinary
+automatic recovery after a process restart or a successful full scene reset.
+
 ## Replay and regression evidence
 
 An RTX PRO 6000 Blackwell CUDA replay used identical archived idle and held
@@ -374,5 +398,6 @@ Recovery while still holding an object also needs dedicated validation. After
 any pending geometry barrier is recovered, scene reset attempts a
 collision-checked move home before resetting props. If unobserved payload
 clearance blocks home, it reports a failed reset; these experiments do not
-bypass that check or claim recovery success. A clean simulator restart was
-used between failed trials.
+bypass that check or claim recovery success. Earlier failed trials used clean
+simulator restarts. Trial 16's retained-state recovery above did not restart
+the simulator or reset its props.

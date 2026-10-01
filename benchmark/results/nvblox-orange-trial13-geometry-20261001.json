@@ -1,0 +1,120 @@
+{
+  "scope": "Offline diagnostic of the final rejected TCP from trial13. Physics hulls identify a nearby obstacle; they do not reconstruct the historical ESDF or prove the unrecorded first exception/cylinder state. No motion commanded and no geometry was used by the controller.",
+  "witness_sha256": "aed823bfd22d24280a34c341132a2a8f9d9d6a62521ac3c19814ce4af731ac91",
+  "receipt_sha256": "ee89fb95734d46ebb8622df618a0ed9ce47f6321328aa111193879fcba940538",
+  "sample_sequence": 261,
+  "rejected_tcp_m_rounded_from_error": [
+    0.2086,
+    0.1256,
+    0.0573
+  ],
+  "orange_pose": {
+    "position_m": [
+      0.18000000715255737,
+      0.11999999731779099,
+      0.02638023161492971
+    ],
+    "orientation_wxyz": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "linear_velocity_m_s": [
+      0.0,
+      0.0,
+      1.2222169942788241e-09
+    ],
+    "angular_velocity_rad_s": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "tensor_device": "cuda:0"
+  },
+  "physx_support": {
+    "method": "physx_collision_representation",
+    "engine": "physx",
+    "stage_id": 9223002,
+    "collider_path": "/World_Props/orange/Collision",
+    "physics_step": 1476,
+    "result": "RESULT_VALID",
+    "convex_count": 1,
+    "frame": "body_local",
+    "units": "m",
+    "source_vertices_f32_sha256": "90697e3136712edd92ca521c6210a37ae7a531ecf48d1eb6d2389eb87ac0550e",
+    "source_topology_sha256": "ed91dddccc1e377b10c7e06e4b46eca7e4385674485a027e46c8d76a0708d8f4",
+    "vertex_count": 34,
+    "vertices_f32_sha256": "079db56bf35af24d8f5cfbc19296f048d5eecd3245b9daaeddea96ccad20b38d",
+    "authored_vertex_indices": [
+      49,
+      76,
+      121,
+      94,
+      193,
+      190,
+      172,
+      205,
+      178,
+      133,
+      184,
+      61,
+      88,
+      82,
+      125,
+      127,
+      199,
+      55,
+      141,
+      211,
+      139,
+      67,
+      137,
+      129,
+      40,
+      226,
+      28,
+      232,
+      265,
+      220,
+      34,
+      0,
+      46,
+      238
+    ]
+  },
+  "closest_convex_geometry": [
+    {
+      "geometry": "authored_hull",
+      "vertices": 266,
+      "distance_m": 0.016461239365158455,
+      "closest_point_m": [
+        0.1977136043061207,
+        0.12418546915260435,
+        0.04503387213848255
+      ],
+      "max_halfspace_violation_m": 0.0
+    },
+    {
+      "geometry": "actual_physx_support_hull",
+      "vertices": 34,
+      "distance_m": 0.01698147549734911,
+      "closest_point_m": [
+        0.1978263483515931,
+        0.12043679107319763,
+        0.045231851268565014
+      ],
+      "max_halfspace_violation_m": 0.0
+    }
+  ],
+  "other_prop_rotated_aabb_distance_lower_bounds_m": {
+    "pink_cube": 0.0425370417478709,
+    "green_cube": 0.09767259931456544,
+    "tomato_can": 0.06217497184696376,
+    "lemon": 0.12633150399510262
+  },
+  "table_plane_distance_m": 0.0573,
+  "production_clearance_m": 0.03,
+  "reported_esdf_distance_m_rounded": 0.019,
+  "conclusion": "The orange hull is within30mm; every other prop bounding box and the table plane is farther than30mm. The original failure stage and exemption at that first failure were not recorded."
+}

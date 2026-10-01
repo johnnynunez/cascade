@@ -1,0 +1,187 @@
+{
+  "audit_complete": true,
+  "ci_pass": false,
+  "merge_ready": false,
+  "created_utc": "2026-10-01T22:13:43.239849+00:00",
+  "pr": 62,
+  "url": "https://github.com/johnnynunez/cascade/pull/62",
+  "head": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+  "expected_head": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+  "tree": "bbc677e8a041898120c28d280909c69373b20f52",
+  "base": "5359405a607a14e9d30182309c40d30c3b95f80b",
+  "expected_base": "5359405a607a14e9d30182309c40d30c3b95f80b",
+  "source_identity_matches": true,
+  "draft": false,
+  "state": "open",
+  "mergeable": true,
+  "mergeable_state": "unstable",
+  "body_review_pass": true,
+  "body_review_sha256": "79368e6eaaa7f02e4f5e1323ddc58abe088bcbb1ff6f0d45799a88a813d31dca",
+  "checks": [
+    {
+      "id": 110601800301,
+      "name": "macos-latest / py3.12",
+      "head_sha": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/36931571582/job/110601800301"
+    },
+    {
+      "id": 110601800227,
+      "name": "ubuntu-latest / py3.12",
+      "head_sha": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/36931571582/job/110601800227"
+    },
+    {
+      "id": 110601800187,
+      "name": "booth pages and camera extension",
+      "head_sha": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/36931571582/job/110601800187"
+    },
+    {
+      "id": 110601800164,
+      "name": "ubuntu-24.04-arm / py3.12",
+      "head_sha": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/36931571582/job/110601800164"
+    },
+    {
+      "id": 110601799864,
+      "name": "minimal install, no accelerator",
+      "head_sha": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/36931571582/job/110601799864"
+    }
+  ],
+  "ci_summary": "4 success, 1 failure (macOS)",
+  "failure": {
+    "test": "tests/test_kitchen_assets.py::test_download_rejects_size_checksum_origin_and_time_failures[deadline]",
+    "exception": "StopIteration",
+    "cause": "Test patches process-global time.monotonic with a two-item iterator; world-watcher threads consumed fake ticks, evidenced by two thread warnings and the matching fake-clock stack.",
+    "pytest_summary": "1 failed, 3563 passed, 114 skipped, 4 deselected, 2 warnings in 839.42s",
+    "log_sha256": "8b02846a1d770b921db814511cf232edc464b4e1e1b624ed8689e4ffe6a6b097"
+  },
+  "proposed_fix_receipt": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr62-clock-isolation-validation-20261002/receipt.json",
+    "sha256": "d927bae0215f28864c32881309e29a7affaa48004369431f059d5b7f9d0365bd",
+    "status": "Uncommitted isolated test-only fix; red reproduced then42focalPASS; no remote CI rerun yet."
+  },
+  "remote_mutations": [],
+  "merged": false,
+  "pushed": false,
+  "anomalies": [
+    "macOS CI test isolation failure blocks merge"
+  ],
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T215402609766Z-checks.json",
+      "sha256": "e2d46e77387bc85736536cd0450f7bd065d95d4dce7a7cde70538d5e33dcc9fe"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T215402609766Z-pull.json",
+      "sha256": "20021ae8c5375ecc219ce8f301401e30cb95ea3bdd8e744e74463fb66a72e8d5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T215402609766Z-status.json",
+      "sha256": "f151bbe2ac22455d32b5843cd1387e2c1ed7eb9913150fc214f9dcb4695c710b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T215446830311Z-commit.json",
+      "sha256": "9786347741c68dfa93cad8acb464f428a11cbac5632ba02bcee4e2c02009ec79"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T215611128247Z-checks.json",
+      "sha256": "e2d46e77387bc85736536cd0450f7bd065d95d4dce7a7cde70538d5e33dcc9fe"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T215611128247Z-pull.json",
+      "sha256": "20021ae8c5375ecc219ce8f301401e30cb95ea3bdd8e744e74463fb66a72e8d5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T215627295123Z-jobs.json",
+      "sha256": "e3a5c1f2045c1d1b358883a7d8ff6c7c59846ab001a75a2ae39ad903b2d85978"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T215740300254Z-checks.json",
+      "sha256": "e2d46e77387bc85736536cd0450f7bd065d95d4dce7a7cde70538d5e33dcc9fe"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T215740300254Z-pull.json",
+      "sha256": "20021ae8c5375ecc219ce8f301401e30cb95ea3bdd8e744e74463fb66a72e8d5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T215855839070Z-checks.json",
+      "sha256": "e2d46e77387bc85736536cd0450f7bd065d95d4dce7a7cde70538d5e33dcc9fe"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T215937241789Z-body-review.json",
+      "sha256": "79368e6eaaa7f02e4f5e1323ddc58abe088bcbb1ff6f0d45799a88a813d31dca"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220037024807Z-checks.json",
+      "sha256": "e0eb5872d45e5c0aab3c88badad91054ebb2db055027340f8bacdebe61a34d2f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220146708288Z-checks.json",
+      "sha256": "e0eb5872d45e5c0aab3c88badad91054ebb2db055027340f8bacdebe61a34d2f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220201675649Z-macos-job.json",
+      "sha256": "0409c8ed9c17bd655d4a4d4c898fa53998c5af1663bdad55390240bd2eac345e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220304913819Z-checks.json",
+      "sha256": "e0eb5872d45e5c0aab3c88badad91054ebb2db055027340f8bacdebe61a34d2f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220422770628Z-checks.json",
+      "sha256": "e0eb5872d45e5c0aab3c88badad91054ebb2db055027340f8bacdebe61a34d2f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220643301062Z-checks.json",
+      "sha256": "e0eb5872d45e5c0aab3c88badad91054ebb2db055027340f8bacdebe61a34d2f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220855977783Z-checks.json",
+      "sha256": "5ca2b51267f327a734763db7e0bc971a6ab30b5b4b7c75526bab1c891add1ec8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220953397193Z-annotations.json",
+      "sha256": "040c9417461102658b4aff4e4a4176f060b31d9dc665e0e538d823c02a0ce456"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220953397193Z-check.json",
+      "sha256": "75e18fc7561e12b4bb3778321d8f78c87a794c849d10e3ba91911c199bf6ca17"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220953397193Z-job.json",
+      "sha256": "4274c6fbd043b11d012e9a7e97eb182cea842a5a9dfc9f5d7bc1335aa15c556b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220953397193Z-run.json",
+      "sha256": "db3a8453248604e40cba7da2376146a135c44814c50e49015a8457a6b155fa37"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T221340939691Z-final-checks.json",
+      "sha256": "5ca2b51267f327a734763db7e0bc971a6ab30b5b4b7c75526bab1c891add1ec8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T221340939691Z-final-pull.json",
+      "sha256": "20021ae8c5375ecc219ce8f301401e30cb95ea3bdd8e744e74463fb66a72e8d5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T220923334998Z-macos-failed.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T221019856739Z-macos-raw.log",
+      "sha256": "8b02846a1d770b921db814511cf232edc464b4e1e1b624ed8689e4ffe6a6b097"
+    }
+  ]
+}

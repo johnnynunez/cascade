@@ -1,0 +1,117 @@
+{
+  "kind": "passive GPU physics/contact observation",
+  "complete": true,
+  "samples": 1341,
+  "errors": [],
+  "object_name": "green_cube",
+  "expected_props": [
+    "pink_cube",
+    "green_cube",
+    "tomato_can",
+    "lemon",
+    "orange"
+  ],
+  "destination_name": "green square",
+  "expected_scene_geometry": {
+    "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+    "prop_dimensions_m": {
+      "pink_cube": [
+        0.0375,
+        0.0375,
+        0.06
+      ],
+      "green_cube": [
+        0.0375,
+        0.0375,
+        0.06
+      ],
+      "tomato_can": [
+        0.05445,
+        0.05445,
+        0.0825
+      ],
+      "lemon": [
+        0.0684,
+        0.0432,
+        0.0432
+      ],
+      "orange": [
+        0.05163983628153801,
+        0.05232211947441101,
+        0.05276046320796013
+      ]
+    },
+    "target_pad": {
+      "name": "green square",
+      "center_xy_m": [
+        0.14,
+        -0.27
+      ],
+      "outer_size_m": 0.16,
+      "border_width_m": 0.01,
+      "surface_z_m": 0.0006,
+      "support_top_z_m": 0.0
+    },
+    "scene_name": "paai-cocina-asier-v1",
+    "scene_assets_sha256": "c387f32907c3f3f8086f9b4657afa36fbb4648241e7779f2abf9a6663d70d6f1",
+    "scene_content_sha256": "e56d9f8fb7dbd780780905e1442e4fbb9d67dee9bf3842004f023d540603f565",
+    "convex_colliders": {
+      "tomato_can": {
+        "proxy": "cylinder",
+        "mass_kg": 0.067381875,
+        "dimensions_m": [
+          0.05445,
+          0.05445,
+          0.0825
+        ]
+      },
+      "lemon": {
+        "proxy": "ellipsoid",
+        "mass_kg": 0.047385,
+        "dimensions_m": [
+          0.0684,
+          0.0432,
+          0.0432
+        ]
+      },
+      "orange": {
+        "proxy": "ellipsoid",
+        "mass_kg": 0.0686,
+        "dimensions_m": [
+          0.05163983628153801,
+          0.05232211947441101,
+          0.05276046320796013
+        ]
+      }
+    },
+    "open_box": {
+      "name": "open box",
+      "center_xy_m": [
+        0.3,
+        -0.14
+      ],
+      "outer_dimensions_m": [
+        0.14,
+        0.14,
+        0.04
+      ],
+      "interior_dimensions_m": [
+        0.128,
+        0.128,
+        0.036
+      ],
+      "wall_thickness_m": 0.006,
+      "base_thickness_m": 0.004,
+      "support_top_z_m": 0.004,
+      "rim_top_z_m": 0.04
+    }
+  },
+  "marks": {
+    "pick_begin": {
+      "monotonic": 137384.071754049,
+      "unix": 1790892281.8014653
+    }
+  },
+  "snapshot_sha256": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+  "existing_auditor_sha256": "dc10aa2e7d825dd6daec48c2c6153f47e7ad5a6310fae63cbb01b179ba2605f8"
+}

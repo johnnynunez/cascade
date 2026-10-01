@@ -1,0 +1,28 @@
+{
+  "pass": true,
+  "scope": "Root read qualified CPU window, ranking, scalar bounds and provenance; independently rehashed all small outputs, not repeated1GBdecode/hash. Elapsed self includes waiting/native work. Subcomponent attribution still pending.",
+  "receipt_sha256": "429cf68c7f7349f2219485b3d8be32bff9166adb5e75d4f21c85bccbf8aff42e",
+  "cpu_window_sha256": "a8cd9c7c2524eec49d9dac9742f761533496a9216af4bf48940144c94880f196",
+  "stats_sha256": "aaf8fa8d31c4cfaa9bec9ab61759a48fda260830f5a5bdd4082736a448d13d08",
+  "completed_updates": 968,
+  "cpu_window_qualified": true,
+  "profile_validated": false,
+  "gpu_absolute_alignment_qualified": false,
+  "final_diagnostic_status": "pending",
+  "interval_samples": [
+    90,
+    197
+  ],
+  "main_loop_wall_interval_ns": [
+    118592627625,
+    118592655798
+  ],
+  "dominant": {
+    "count": 548,
+    "inclusive_tracy_ns": 75398120985,
+    "self_tracy_ns": 73801815458,
+    "minimum_tracy_ns": 7225323,
+    "maximum_tracy_ns": 536395635
+  },
+  "normalization_passes": 3
+}

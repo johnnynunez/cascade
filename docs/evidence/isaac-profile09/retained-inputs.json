@@ -1,0 +1,185 @@
+{
+  "source": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+  "tree": "bbc677e8a041898120c28d280909c69373b20f52",
+  "scope": "Compact profile09 source-bound evidence and offline derivatives, plus separately bound PR62 software/CI/merge and unmerged release-candidate results. Raw trace and decoded events remain local.",
+  "copied_originals": {
+    "driver-failed.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/proof/receipt.json",
+      "sha256": "c63d414f70a238e6457097803c195e9f89ca4d83a2dd7e2eaa3db84a808fa783",
+      "size_bytes": 5652,
+      "copy": "exact"
+    },
+    "strict-failed.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/strict-proof2.json",
+      "sha256": "2f5295177c1f9f48180785058de89221dc6f40b896db37d283ff473eeb915c32",
+      "size_bytes": 1238,
+      "copy": "exact"
+    },
+    "capture.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/tracy-capture/receipt.json",
+      "sha256": "bd35d4ac912ac2b0df667f7ef2b069a1751d358c048707a18512d56d79d07e50",
+      "size_bytes": 8552,
+      "copy": "exact"
+    },
+    "administrative-close.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/administrative-close09/receipt.json",
+      "sha256": "90cbba468d8a9e11f370fd91a4c16a30ea773a90c8726bd7d1497c855836b4fc",
+      "size_bytes": 11339,
+      "copy": "exact"
+    },
+    "close-root-review.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile09-root-review-20261002/administrative-close-result.json",
+      "sha256": "30c3c2b51d3076c37890eb543a0d6b87f28c0cbf6c7fa5a02cab826eb90e5bd4",
+      "size_bytes": 2772,
+      "copy": "exact"
+    },
+    "retention.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile09-terminal-retained/retention.json",
+      "sha256": "c231a25f1d086f7c5e061f76266ba6ca1386fc3640d2b1fd9602ec9cf6718a73",
+      "size_bytes": 30550,
+      "copy": "exact"
+    },
+    "decode.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile09-offline-decode-20261002/reader-execution.json",
+      "sha256": "db009893a3cb14476cc2b2a73a42a2587a0f0651e422746d377797a17280b053",
+      "size_bytes": 2102,
+      "copy": "exact"
+    },
+    "analysis-first-failed.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile09-offline-analysis-20261002/receipt.json",
+      "sha256": "246c810e6ac8293de60e77fb477292dbb52e56fac4cb2945d9a137a66461f4c4",
+      "size_bytes": 6624,
+      "copy": "exact"
+    },
+    "anchor-preflight.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/anchor-preflight.json",
+      "sha256": "d1caa696b376a30625d66063098029b213b304cea2ca555886223463d78636e1",
+      "size_bytes": 3372,
+      "copy": "exact"
+    },
+    "native-turn.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/cascade-proof-91bb7398ce27435bb63b89fd4e382455/case-1/02-pick.json",
+      "sha256": "105bba1c5230473abcea6e80a1d89976ebda7befbe0a3ee04d17c421b28cdb7c",
+      "size_bytes": 9517,
+      "copy": "exact"
+    },
+    "physics-metadata.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/cascade-proof-91bb7398ce27435bb63b89fd4e382455/case-1/physics/metadata.json",
+      "sha256": "7048f270a2ec2af786295f69b5325dba2d477127aeef95460c519bb8ecebfc6b",
+      "size_bytes": 2633,
+      "copy": "exact"
+    },
+    "software-full.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/isaac-python-spans-full-validation-03-20261002/result.json",
+      "sha256": "e5c91b8c92cede261ccb5a4d004ea93f7a859588dd4ff1bd159447f1cbd6e5ed",
+      "size_bytes": 1019,
+      "copy": "exact"
+    },
+    "analysis-qualified.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile09-offline-analysis-02-20261002/receipt.json",
+      "sha256": "429cf68c7f7349f2219485b3d8be32bff9166adb5e75d4f21c85bccbf8aff42e",
+      "size_bytes": 7700,
+      "copy": "exact"
+    },
+    "cpu-window.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile09-offline-analysis-02-20261002/cpu-window.json",
+      "sha256": "a8cd9c7c2524eec49d9dac9742f761533496a9216af4bf48940144c94880f196",
+      "size_bytes": 5167,
+      "copy": "exact"
+    },
+    "window-stats.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile09-offline-analysis-02-20261002/window-stats.json",
+      "sha256": "aaf8fa8d31c4cfaa9bec9ab61759a48fda260830f5a5bdd4082736a448d13d08",
+      "size_bytes": 86231,
+      "copy": "exact"
+    },
+    "analysis-root-review.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/x86-spark-profile09-root-review-20261002/offline-analysis-review.json",
+      "sha256": "39792c2927e21c03bc12d9a58e2965ce9803c32ffb0779d3ce6cebe6fa8a040e",
+      "size_bytes": 1024,
+      "copy": "exact"
+    },
+    "python-name-adapter.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile09-python-name-adapter-20261002/receipt.json",
+      "sha256": "066bafa375b92f48c78aab83a3ef63eea329867cb027bb1eba80be4529f2e1d7",
+      "size_bytes": 1604,
+      "copy": "exact"
+    },
+    "pr62-ci-passed.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-381ad0c-20261001T223024733263Z-terminal-summary.json",
+      "sha256": "6cc8c0a4a48e9bdf7ebb4c7f23fa5ecbef8edc1826f09dce48e84d19971f445c",
+      "size_bytes": 11555,
+      "copy": "exact"
+    },
+    "pr62-ci-first-failed.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-20261001T221340939691Z-terminal-summary.json",
+      "sha256": "0d43cd382666a558aeb12aa975aa421832e1cf3c30893283ebb518c0fa6e10f4",
+      "size_bytes": 9556,
+      "copy": "exact"
+    },
+    "pr62-clock-test.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr62-clock-isolation-validation-20261002/receipt.json",
+      "sha256": "d927bae0215f28864c32881309e29a7affaa48004369431f059d5b7f9d0365bd",
+      "size_bytes": 1840,
+      "copy": "exact"
+    },
+    "pr62-merge.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-main-c5b2fd5-20261001T224057445490Z-merge-identity.json",
+      "sha256": "23aacf2f575e0ed29466ee19652cb2afda599ae4794a3fc25e02b6c6b6b6a261",
+      "size_bytes": 1178,
+      "copy": "exact"
+    },
+    "release-candidate-full.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/release-open-settle-full-validation-20261002/result.json",
+      "sha256": "4a1aef2b94c8f19c07f79b7d7a7d87c357bbce2f7bec6f6ec53e4af64548db2d",
+      "size_bytes": 1301,
+      "copy": "exact"
+    },
+    "main62-ci.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr62-main-c5b2fd5-20261001T224706419067Z-terminal-summary.json",
+      "sha256": "5548fe99a4b18f7694e15ca5b0efcf55cb5860b016a2ad266141b9e8a54e3496",
+      "size_bytes": 5481,
+      "copy": "exact"
+    }
+  },
+  "derived": {
+    "native-failed.json": {
+      "sha256": "25427ea2d73a41aa1630e3178271992ce3ef0b9b57721bf6d9acca9f87fcdf78",
+      "size_bytes": 5096
+    },
+    "throughput.json": {
+      "sha256": "74ec8f698e5e2e102ec79a0d661a3c9f01708ea846835d08e3247d684a37da33",
+      "size_bytes": 2128
+    },
+    "release-candidate-tests.json": {
+      "sha256": "e74956e7b11ee634594bcb76212e2834598470ee203c257b91428cfcf1310438",
+      "size_bytes": 879
+    }
+  },
+  "raw_trace": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/x86-spark-profile-09/tracy-capture/profile.tracy",
+    "sha256": "d8f9b6b362271bbbd059526897d0c6239c2d52a44f9a5f6e06e645b545318fa1",
+    "size_bytes": 36395224,
+    "hash_evidence": "capture.json; raw not reread for documentation"
+  },
+  "decoded_events": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/tracy-profile09-offline-decode-20261002/events.jsonl",
+    "sha256": "4d677199d3413e943cdd35342af8c847eda2b0e552ff16a9d9650f3f08ef5908",
+    "size_bytes": 1035316266,
+    "hash_evidence": "decode.json; events not reread for documentation"
+  },
+  "administrative_close_pass": true,
+  "native_case_pass": false,
+  "strict_pass": false,
+  "cpu_window_qualified": true,
+  "profile_validated": false,
+  "analysis_status": "Qualified closed main-thread CPU window after strict source/PID/name suffix normalization; original matcher failure retained. Global profile and GPU absolute alignment remain unqualified.",
+  "gpu_absolute_alignment_qualified": false,
+  "final_diagnostic_status": "pending",
+  "software_evidence_sources": {
+    "profiler_full": "3ccdc2e82815cca2a462b49770f58bb6e522789a",
+    "pr62_ci": "381ad0c443194c351ab2c4c7d11ec3aa5b71f7a5",
+    "merged_main": "c5b2fd5173641613c4ee27d2f05e5eef8cd09430",
+    "unmerged_release_full": "6e1bc81a89039eaf585166310af54385a7f5e732"
+  }
+}

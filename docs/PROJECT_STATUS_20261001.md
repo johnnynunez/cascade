@@ -1,4 +1,4 @@
-# Project status — 1 October 2026
+# Project status — updated 2 October 2026
 
 This is the current source and acceptance index. Dated experiment reports remain
 historical evidence; their successful cases and failures are not rewritten when
@@ -8,7 +8,38 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
-The reviewed command pin is **`ff8d58be1ae8e000bbecb19cd8db1551ac54be73`**,
+Optional [Isaac bridge Python profiling](ISAAC_BRIDGE_PROFILING.md) at
+`3ccdc2e82815cca2a462b49770f58bb6e522789a` passed **3,685 tests**, 43 skipped
+and four deselected in 334.79 seconds. All 1,276 source, model and release
+files remained unchanged in the [complete local suite](evidence/isaac-profile09/software-full.json).
+[PR #62](https://github.com/johnnynunez/cascade/pull/62) retains that software
+result separately from the failed physical profile 09 below. Its first macOS
+CI run failed because a test replaced the process-wide clock and watcher
+threads consumed its fake ticks. Test-only commit `381ad0c4` isolates that
+clock within the kitchen installer module; the existing fixture reproduces
+the interference deterministically and all 42 module tests pass. All five
+[CI checks passed on `381ad0c4`](evidence/isaac-profile09/pr62-ci-passed.json),
+including Linux x86_64, Linux aarch64 and macOS. The
+[original failure](evidence/isaac-profile09/pr62-ci-first-failed.json) and
+[focused test result](evidence/isaac-profile09/pr62-clock-test.json) remain
+separate; the complete local suite above belongs to `3ccdc2e8`.
+PR #62 merged as `c5b2fd5173641613c4ee27d2f05e5eef8cd09430` with the exact
+reviewed tree, as confirmed by the [merge identity](evidence/isaac-profile09/pr62-merge.json).
+All five [merged-source CI checks](evidence/isaac-profile09/main62-ci.json)
+also passed; their evidence remains separate from the five PR checks.
+
+The separate release-open stability candidate
+`6e1bc81a89039eaf585166310af54385a7f5e732` passed **3,741 tests**, 43 skipped
+and four deselected in 349.32 seconds. Its
+[software result](evidence/isaac-profile09/release-candidate-full.json) and
+[test summary](evidence/isaac-profile09/release-candidate-tests.json) bind the
+exact tree and 1,277 unchanged inputs. It waits for stable measured joints
+after the observed jaw opening within the existing release deadline; geometry
+guards and tolerances remain unchanged. This candidate is **unmerged and
+physically unvalidated**. Its full-suite result does not belong to source
+`3ccdc2e8`, merged main `c5b2fd5`, or the failed physical attempts.
+
+The previous command baseline for physical validation is **`ff8d58be1ae8e000bbecb19cd8db1551ac54be73`**,
 from [PR #60](https://github.com/johnnynunez/cascade/pull/60), merged as
 `c9147db84356de32d6a98c7a70a1aca3ecefe084` with the exact tested tree.
 [Detector model reuse](DETECTOR_MODEL_REUSE.md) keeps two detector modes and up
@@ -257,6 +288,25 @@ Neither addition retroactively changes the physical source `477c88f` or the
 failures below. Documentation PR #43 preserved that earlier source distinction.
 
 ## Current physical acceptance
+
+**Local dual-RTX Pro attempt 09 on `3ccdc2e8` failed during placement.**
+The grasp was verified in 164.497 seconds, then the unchanged 300-second MCP
+request budget cancelled the motion and latched the stop. The final cube
+center was 0.123 m above the support plane, with contacts at both jaws;
+release and containment remained unverified. No second case, reset, campaign
+or restart followed. All 1,341 samples per camera met the two-second limit
+(maximum server/delivery ages 1.155/1.253 s). The observed real-time factor was
+0.120 under profiling and shared-machine load, without a controlled speedup
+comparison. A 120.460-second technical capture passed; its first offline
+matcher failed on the SDK's ` (Python)` name suffix. A strict source-bound
+adapter then qualified 118.593 seconds and 968 complete CPU updates. The
+largest self elapsed was in `bridge.exec_job.code` (75.398 seconds inclusive,
+73.802 seconds self elapsed); its internal cost and possible observer overhead
+need separate measurement. These are elapsed durations, not CPU utilization.
+Global profile and GPU clock alignment remain unqualified. The
+[attempt 09 records](LOCAL_RTX_VALIDATION.md#profiling-attempt-09-python-spans-and-placement-timeout)
+retain the failed task and strict check, raw trace, first analysis failure
+and successful administrative closure.
 
 **nvblox environment 15 on `c9147db8` failed during post-release retreat.**
 Unlike NV14, this detector revision reached actuation, verified the orange

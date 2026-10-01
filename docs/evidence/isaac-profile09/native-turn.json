@@ -1,0 +1,249 @@
+{
+  "runId": "c74b6ed2-de29-4c61-8010-b83a51ff4b5c",
+  "status": "ok",
+  "summary": "completed",
+  "result": {
+    "payloads": [
+      {
+        "text": "I'm sorry — the action timed out before completing, so I can't confirm whether the green cube was placed in the green square. The placement was not verified. Would you like me to check the current scene to see where the green cube is now?",
+        "mediaUrl": null
+      }
+    ],
+    "meta": {
+      "durationMs": 303428,
+      "agentMeta": {
+        "sessionId": "cascade-proof-91bb7398ce27435bb63b89fd4e382455",
+        "sessionFile": "agent:main:explicit:cascade-proof-91bb7398ce27435bb63b89fd4e382455",
+        "provider": "custom-127-0-0-1-8080",
+        "model": "Qwen/Qwen3.8-27B",
+        "contextTokens": 32768,
+        "contextTokensSource": "resolved",
+        "agentHarnessId": "openclaw",
+        "credentialSource": {
+          "kind": "none"
+        },
+        "usage": {
+          "input": 1074,
+          "output": 96,
+          "cacheRead": 5168,
+          "cacheWrite": 0,
+          "total": 6338,
+          "cost": {
+            "total": 0
+          }
+        },
+        "lastCallUsage": {
+          "input": 61,
+          "output": 52,
+          "cacheRead": 3112,
+          "cacheWrite": 0,
+          "cost": {
+            "total": 0
+          },
+          "total": 3225
+        },
+        "promptTokens": 3173,
+        "contextBudgetStatus": {
+          "schemaVersion": 1,
+          "source": "pre-prompt-estimate",
+          "updatedAt": 1790892282687,
+          "provider": "custom-127-0-0-1-8080",
+          "model": "Qwen/Qwen3.8-27B",
+          "route": "fits",
+          "shouldCompact": false,
+          "estimatedPromptTokens": 6822,
+          "contextTokenBudget": 32768,
+          "promptBudgetBeforeReserve": 24576,
+          "reserveTokens": 8192,
+          "effectiveReserveTokens": 8192,
+          "remainingPromptBudgetTokens": 17754,
+          "overflowTokens": 0,
+          "toolResultReducibleChars": 0,
+          "messageCount": 4,
+          "unwindowedMessageCount": 4,
+          "sessionId": "cascade-proof-91bb7398ce27435bb63b89fd4e382455"
+        },
+        "codeModeEngaged": false,
+        "assistantTurns": 2,
+        "costUsd": 0,
+        "terminalReceipt": {
+          "runId": "c74b6ed2-de29-4c61-8010-b83a51ff4b5c",
+          "sessionId": "cascade-proof-91bb7398ce27435bb63b89fd4e382455",
+          "turnId": "c74b6ed2-de29-4c61-8010-b83a51ff4b5c",
+          "requested": {
+            "provider": "custom-127-0-0-1-8080",
+            "model": "Qwen/Qwen3.8-27B"
+          },
+          "effective": {
+            "provider": "custom-127-0-0-1-8080",
+            "model": "Qwen/Qwen3.8-27B",
+            "responseModel": "Qwen/Qwen3.8-27B"
+          },
+          "successfulToolNames": [],
+          "rerouted": false
+        }
+      },
+      "aborted": false,
+      "systemPromptReport": {
+        "source": "run",
+        "generatedAt": 1790892282505,
+        "sessionId": "cascade-proof-91bb7398ce27435bb63b89fd4e382455",
+        "sessionKey": "agent:main:explicit:cascade-proof-91bb7398ce27435bb63b89fd4e382455",
+        "provider": "custom-127-0-0-1-8080",
+        "model": "Qwen/Qwen3.8-27B",
+        "workspaceDir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/openclaw/workspace",
+        "bootstrapMaxChars": 20000,
+        "bootstrapTotalMaxChars": 60000,
+        "bootstrapTruncation": {
+          "warningMode": "always",
+          "warningShown": false,
+          "truncatedFiles": 0,
+          "nearLimitFiles": 0,
+          "totalNearLimit": false
+        },
+        "sandbox": {
+          "mode": "off",
+          "sandboxed": false
+        },
+        "systemPrompt": {
+          "chars": 11435,
+          "hash": "707ef206fa1ad1df24d2da62738ec1120000584f496542ef9b5bb02eb2e64c55",
+          "projectContextChars": 3658,
+          "nonProjectContextChars": 7777
+        },
+        "injectedWorkspaceFiles": [
+          {
+            "name": "AGENTS.md",
+            "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/openclaw/workspace/AGENTS.md",
+            "missing": false,
+            "rawChars": 2186,
+            "injectedChars": 2186,
+            "truncated": false
+          },
+          {
+            "name": "SOUL.md",
+            "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/openclaw/workspace/SOUL.md",
+            "missing": true,
+            "rawChars": 0,
+            "injectedChars": 164,
+            "truncated": false
+          },
+          {
+            "name": "IDENTITY.md",
+            "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/openclaw/workspace/IDENTITY.md",
+            "missing": true,
+            "rawChars": 0,
+            "injectedChars": 168,
+            "truncated": false
+          },
+          {
+            "name": "BOOTSTRAP.md",
+            "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-09/runs/.launch/profile-cascade-demo/openclaw/workspace/BOOTSTRAP.md",
+            "missing": true,
+            "rawChars": 0,
+            "injectedChars": 0,
+            "truncated": false
+          }
+        ],
+        "skills": {
+          "promptChars": 0,
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "entries": []
+        },
+        "tools": {
+          "listChars": 0,
+          "schemaChars": 1177,
+          "entries": [
+            {
+              "name": "cascade__camera_snapshot",
+              "summaryChars": 419,
+              "summaryHash": "b4ec0cbb1b1db1b3a1e5d16e250b2581102478088fa2b7fe1d9188c3758dc745",
+              "schemaChars": 73,
+              "schemaHash": "79f20f15c8fbf2abf9589bec6f2fcb373171f4f5cd8c975da51eb007bc4526dd",
+              "propertiesCount": 1
+            },
+            {
+              "name": "cascade__describe_scene",
+              "summaryChars": 356,
+              "summaryHash": "39336d3f59b59838e7bf0665b4aecb51c140e84fb2be4d5d5dd347635cb57dde",
+              "schemaChars": 47,
+              "schemaHash": "ab7bd4d62ff6dceead46c152b2ebb362c3ff9bd30b5e7894f5d8835830218dcb",
+              "propertiesCount": 0
+            },
+            {
+              "name": "cascade__localize_object",
+              "summaryChars": 340,
+              "summaryHash": "288f4197345c145a2cd39b85f6a11e31fd7acdee85674456ea7894e745916608",
+              "schemaChars": 164,
+              "schemaHash": "d0b4ceb2ffae85279a35b6d3b46946b8711689a91290080179b331e177c23441",
+              "propertiesCount": 2
+            },
+            {
+              "name": "cascade__pick_and_place",
+              "summaryChars": 1041,
+              "summaryHash": "3ad04d7d6ee04ee74fab4b06d72f9385fe3ce6c788d0ca8bb22f60f2b0349a22",
+              "schemaChars": 624,
+              "schemaHash": "d46b5410cbad30c93ed4a67ad0518fd085c10d6446a8be1d4423920112e0b108",
+              "propertiesCount": 4
+            },
+            {
+              "name": "cascade__reset_scene",
+              "summaryChars": 329,
+              "summaryHash": "3543def2fa8ecf19e5e5f5256394719d1107da4815541588fdf621647dc23090",
+              "schemaChars": 222,
+              "schemaHash": "8e94210dae2171a91c1f6a3538c4c519ac597da735a04ba5efa8b5e2c7af705f",
+              "propertiesCount": 1
+            },
+            {
+              "name": "cascade__world_state",
+              "summaryChars": 602,
+              "summaryHash": "7c29f55c7cd5608a90673273b26bd5b09b2111400dccf6ac81ce26100c8839b4",
+              "schemaChars": 47,
+              "schemaHash": "ab7bd4d62ff6dceead46c152b2ebb362c3ff9bd30b5e7894f5d8835830218dcb",
+              "propertiesCount": 0
+            }
+          ]
+        },
+        "currentTurn": {
+          "promptChars": 49,
+          "runtimeContextChars": 0,
+          "modelOnlyPromptChars": 0
+        }
+      },
+      "finalPromptText": "Could you put the green cube in the green square?",
+      "finalAssistantVisibleText": "I'm sorry — the action timed out before completing, so I can't confirm whether the green cube was placed in the green square. The placement was not verified. Would you like me to check the current scene to see where the green cube is now?",
+      "finalAssistantRawText": "I'm sorry — the action timed out before completing, so I can't confirm whether the green cube was placed in the green square. The placement was not verified. Would you like me to check the current scene to see where the green cube is now?",
+      "replayInvalid": true,
+      "livenessState": "working",
+      "stopReason": "stop",
+      "executionTrace": {
+        "winnerProvider": "custom-127-0-0-1-8080",
+        "winnerModel": "Qwen/Qwen3.8-27B",
+        "attempts": [
+          {
+            "provider": "custom-127-0-0-1-8080",
+            "model": "Qwen/Qwen3.8-27B",
+            "result": "success",
+            "stage": "assistant"
+          }
+        ],
+        "fallbackUsed": false,
+        "runner": "embedded"
+      },
+      "requestShaping": {
+        "thinking": "off"
+      },
+      "completion": {
+        "stopReason": "stop",
+        "finishReason": "stop"
+      },
+      "toolSummary": {
+        "calls": 1,
+        "tools": [
+          "cascade__pick_and_place"
+        ],
+        "failures": 1
+      }
+    }
+  }
+}

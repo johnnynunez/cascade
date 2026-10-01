@@ -1462,14 +1462,17 @@ class _LazyFrame(dict):
 
 
 _last_camera_capture_started = None
+_pending_camera_publications = set()
 
 
 def _camera_capture_due(step=None):
     """Schedule one capture before rendering, by bridge iterations or wall age.
 
-    The wall anchor is the START of the attempt, shared with nested reset
-    steps. Rendering/readback time must not become an extra cooldown. This
-    does not guarantee freshness while Kit or a main-thread job is blocked.
+    The wall anchor is the START of a scheduled cycle, shared with nested reset
+    steps. A duplicate render token does not complete a camera's request:
+    keep polling on existing updates until each requested camera publishes.
+    Rendering/readback time must not become an extra cooldown. This does
+    not guarantee freshness while Kit or a main-thread job is blocked.
     """
     global _last_camera_capture_started
     now = time.monotonic()
@@ -1482,7 +1485,8 @@ def _camera_capture_due(step=None):
            or (step is not None and step % args.cam_every == 0))
     if due:
         _last_camera_capture_started = now
-    return due
+        _pending_camera_publications.update(_annotators)
+    return due or bool(_pending_camera_publications)
 
 
 def _capture_frame_state(t, wrist_T):
@@ -1526,6 +1530,7 @@ def _invalidate_frame_history():
     _frames.clear()
     _published_frame_tokens.clear()
     _camera_frame_errors.clear()
+    _pending_camera_publications.clear()
     _motion_clock_epoch = uuid.uuid4().hex
     _last_camera_capture_started = None
 
@@ -1580,7 +1585,12 @@ def _render_token(sensor):
 def _refresh_frames():
     # rpFabricTime is render-product-specific. Generic ReferenceTime can
     # advance while tick-limited RGB/depth/segmentation remain unchanged.
+    # Direct startup refreshes request all cameras. Scheduled retries read
+    # only unfinished cameras, until the next nominal/wall cycle requests all.
+    requested = set(_pending_camera_publications) or set(_annotators)
     for cam_name, (sensor, K) in _annotators.items():
+        if cam_name not in requested:
+            continue
         try:
             token, reference, simulation_time = _render_token(sensor)
             previous = _published_frame_tokens.get(cam_name)
@@ -1644,6 +1654,7 @@ def _refresh_frames():
             _frames[cam_name] = _LazyFrame(entry, rgb, depth)
             _published_frame_tokens[cam_name] = token
             _camera_frame_errors.pop(cam_name, None)
+            _pending_camera_publications.discard(cam_name)
         except Exception as exc:
             # One failed camera must not discard the negative evidence of
             # another. Existing packets age normally; never relabel old data.

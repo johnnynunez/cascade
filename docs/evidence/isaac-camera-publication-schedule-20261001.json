@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "base_commit": "c3ea27cfcb46e860ebca826f91abae3091a5ed22",
+  "scope": "Deterministic scheduler/producer tests only; no Isaac process, bridge RPC or robot action. Physical acceptance pending.",
+  "source_sha256": {
+    "scripts/isaac_bridge.py": "f0703963cf160717b68d31ba0bf895d45f7d7bc602020ed1686ad15702aa566d",
+    "scripts/isaac_frame_history.py": "c36737445e041a8da303f0cb77e0247a23710080f6d9b743fd24d16aedf64e5b",
+    "demo/scene/own_assets.json": "acce2d45d6a9cdf9a5f85ce8a192ae4fe06788beae0c9b5018e4cf678e1d5788",
+    "tests/test_isaac_camera_cadence.py": "fa4cafe51f44710e73d80ad9bc0be754d202105302a6c029a3c2291243e91a7f",
+    "tests/test_isaac_frame_snapshot.py": "49fe26d174376ec8af624998ac7041fc8d57ce851e8262d6c454ad0f805363a0",
+    "tests/test_isaac_frame_history.py": "712016d70bdbe42be3d711b8560ced916c56135cea71cf1283044f86d103bb3a",
+    "tests/test_isaac_state_thread.py": "f9a3d3386c2097b012d74cc4711ad08acdfb5f55bd6148a42ab4f5762a62bda4",
+    "tests/test_isaac_reset_delivery.py": "97f89238a8906f483a7f27eaa22dc1a822a7d98f71fbe53523e85317cd80cb07",
+    "tests/test_isaac_startup_identity.py": "f4f8bf72bef85d6d48b1d453413fa0998d829a70ca5cb8f6f3aa38d47e07b6d2",
+    "tests/test_isaac_contact_frame_history.py": "302106f97019ad4edab259d1dac4a73358a2d1f2c55d48bd924a88604643cb64",
+    "tests/test_kitchen_assets.py": "7baae0275912b7c9ed8eeb30198b14ee157adebcf34b2675ea3e1552605cffcc"
+  },
+  "focal_validation": {
+    "result": "PASS",
+    "passed": 202,
+    "elapsed_pytest_s": 16.66,
+    "command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_isaac_camera_cadence.py",
+      "tests/test_isaac_frame_snapshot.py",
+      "tests/test_isaac_frame_history.py",
+      "tests/test_isaac_state_thread.py",
+      "tests/test_isaac_reset_delivery.py",
+      "tests/test_isaac_startup_identity.py",
+      "tests/test_isaac_contact_frame_history.py",
+      "tests/test_kitchen_assets.py"
+    ],
+    "log_sha256": "84f5e2c6e44944f3653cdec6f5eac72028ffda1794037f6e5d8af2eda36f4056",
+    "receipt_sha256": "c88324851d1a72678acd53ee2fcd2ce18a2bb60a9ecab7763a6f2b405a3fcc6f"
+  },
+  "old_source_regression": {
+    "result": "EXPECTED_FAILURE",
+    "failed": 3,
+    "base_bridge_sha256": "e8061e62c512309ab18da05536c300b7f638fd57286b9bfe1512ed96e1a79fda",
+    "command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_isaac_camera_cadence.py::test_duplicate_render_retries_on_next_existing_update_without_new_cooldown",
+      "tests/test_isaac_frame_snapshot.py::test_pending_cameras_complete_individually_without_recopies_or_retimestamp"
+    ],
+    "log_sha256": "fb80057b75026f77ffb77aa2ab881fa54dcbd22b05cd256af5846279baa225da",
+    "receipt_sha256": "a180198b2a99ffd367727a22fc852a95686d57397697be74d5c8bc7b284dba33"
+  },
+  "retained_observation": {
+    "source_commit": "0e2387070c2b784ba864981f5c291a1b1e4d117a",
+    "case": "correction05 visitor campaign orange",
+    "aggregate": "FAIL",
+    "placement_confirmed": true,
+    "server_camera_stale_sample": 1989,
+    "camera_count": 3,
+    "server_age_s": 2.071459982995293,
+    "delivery_age_s": 2.165724129998125,
+    "phase": "world_state after reset order",
+    "archive_sha256": "abf6a0905ae5088b31a7b12c9ad75ac3dfc1ac0bce65e398a05661c7a47a250e",
+    "independent_diagnostic_sha256": "27758d41820a2de06d73a220e07f536f505b293a789dbdfd746a38b3cf899bb4",
+    "limit": "Witness did not record available render tokens on every poll. Scheduling defect reproduced; not an exclusive attribution of the observed failure."
+  },
+  "unchanged_contracts": [
+    "cam_every=6 profile",
+    "dt=1/120 profile",
+    "1280x720 profile",
+    "sensor tick/render steps",
+    "RP token/history/epoch matching",
+    "whole repeated frame timestamps/q/jaws/TF",
+    "2-second server-age acceptance",
+    "collider geometry and motion deadlines"
+  ]
+}

@@ -50,6 +50,7 @@ def load_isaac_bridge_definitions(names, env):
     env.setdefault("GRIP_IDX", [])
     env.setdefault("_motion_clock_epoch", "test-bridge-epoch")
     env.setdefault("_last_camera_capture_started", None)
+    env.setdefault("_pending_camera_publications", set())
     env.setdefault("copy", copy)
     env.setdefault("math", math)
     env.setdefault("uuid", uuid)

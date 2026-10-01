@@ -142,3 +142,69 @@ def test_unusable_simulation_metadata_cannot_authorize_a_frame(bad):
 def test_reference_identity_stays_exact_independently_of_history_quantization():
     assert reference_key((17, 10)) == Fraction(17, 10)
     assert reference_key((1_700_000_001, 1_000_000_000)) != Fraction(17, 10)
+
+
+@pytest.mark.parametrize('value', [8.45, 17.15])
+def test_sdk_double_encodings_match_without_adjacent_timestamp_search(value):
+    history = FrameHistory()
+    sdk = int(value * 1_000_000)
+    render = int(value * 1_000_000_000)
+    assert render // 1000 == sdk - 1  # Actual ARM failure: same double, two encodings.
+    history.record(**sample(sdk, round(value * 120), value))
+    frame = resolve(history, render, float(Fraction(render, 1_000_000_000)))
+    assert frame is not None and frame['physics_step'] == round(value * 120)
+    assert frame['started_monotonic'] == 10.
+    assert frame['payload']['proprioception']['q'] == [1., 2.]
+    assert resolve(history, render - 1, float(Fraction(render - 1, 1_000_000_000))) is None
+    # This adjacent value already meets the ordinary microsecond rule.
+    assert resolve(history, render + 1, value) is not None
+    assert resolve(history, render, value) is None  # Wrong annotator for alias.
+    assert resolve(history, render, value + .0000001) is None
+    assert resolve(history, render, float(Fraction(render, 1_000_000_000)), 'other') is None
+
+
+def test_alias_requires_both_raw_sdk_and_render_double_encodings():
+    value = 17.15
+    render = int(value * 1_000_000_000)
+    history = FrameHistory()
+    history.record(**sample(int(value * 1_000_000) + 1, 2058, value))
+    assert resolve(history, render, render / 1_000_000_000) is None
+    history = FrameHistory()
+    s = sample(int(value * 1_000_000), 2058, value)
+    s['reference'] = (343, 20)  # Same rational identity, undocumented raw precision.
+    history.record(**s)
+    assert resolve(history, render, render / 1_000_000_000) is None
+    history = FrameHistory(); history.record(**sample(17_150_000, 2058, value))
+    assert history.resolve(reference=(render * 2, 2_000_000_000),
+                           simulation_time=render / 1_000_000_000, epoch='boot-a') is None
+
+
+@pytest.mark.parametrize('poison', [False, True])
+def test_multiple_encoding_candidates_remain_ambiguous_even_if_one_is_poisoned(poison):
+    import math
+    value = 17.15
+    earlier = math.nextafter(value, 0)
+    assert int(earlier * 1_000_000_000) == int(value * 1_000_000_000)
+    assert int(earlier * 1_000_000) != int(value * 1_000_000)
+    history = FrameHistory()
+    old = sample(int(earlier * 1_000_000), 2056, earlier)
+    history.record(**old)
+    if poison:
+        old['payload']['proprioception']['q'][0] += 1
+        history.record(**old)
+    history.record(**sample(int(value * 1_000_000), 2058, value, 11.))
+    render = int(value * 1_000_000_000)
+    assert resolve(history, render, render / 1_000_000_000) is None
+
+
+def test_encoding_alias_cannot_bypass_poison_eviction_or_clear():
+    history = FrameHistory(maxlen=1)
+    s = sample(17_150_000, 2058, 17.15)
+    history.record(**s)
+    s['payload']['proprioception']['gripper_joints']['position_m'][0] += .01
+    history.record(**s)
+    assert resolve(history, 17_149_999_999, 17.149999999) is None
+    history.record(**sample(17_200_000, 2064, 17.2, 11.))
+    assert resolve(history, 17_149_999_999, 17.149999999) is None
+    history.clear()
+    assert resolve(history, 17_149_999_999, 17.149999999) is None

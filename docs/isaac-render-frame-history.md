@@ -91,3 +91,30 @@ constructing a classic `RigidPrim` for observation sets
 authoring during observation. Camera history does not change motion, placement,
 retry, or safety thresholds. Kitchen validation, five-object acceptance and an
 acceptance restart are still pending for this candidate.
+
+The first ARM admission of `b31b021` failed closed after 137 complete frame
+observations. A separate passive diagnostic failed after 409 observations and
+captured the cause: history step 2058 stores SDK time `17150000 / 1000000` and
+simulation time `17.15`, while all four render products report
+`17149999999 / 1000000000`, with simulation annotator `17.149999999`.
+The diagnostic response retains only its final 8000 characters; seven complete
+history entries and the four render tokens survive. No native manipulation was
+started after either passive failure.
+
+Both integers are reproduced by truncating the corresponding multiplication
+of the same IEEE double. The resolver additionally admits this representation
+only for the observed raw precisions (SDK microseconds and render nanoseconds),
+when **both** forward encodings of a stored simulation time match the raw keys.
+An alias also requires the annotator to equal the render rational converted to
+double, as the SDK multitick `getSimulationTimeAt` implementation specifies.
+All ordinary and alias candidate identities are combined before ambiguity and
+coherence checks. Multiple candidates, poisoned entries, incorrect raw SDK
+values, epochs, or alias annotators remain rejected. There is no nearest-time
+search, numeric epsilon, interpolation, or replacement with current state.
+
+The retained ARM failure replays from four rejections to four bindings to the
+original step 2058, preserving its original timestamp and state; all 220 earlier
+synthetic control rows remain bound. The receipt in
+`docs/evidence/isaac-render-time-encoding.json` links the failed runs and replay.
+This offline result does not itself establish corrected ARM availability or
+native campaign acceptance; those remain separate candidate validations.

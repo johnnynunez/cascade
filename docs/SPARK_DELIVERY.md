@@ -1,9 +1,11 @@
 # Spark delivery details
 
 Current source and acceptance are indexed in
-[project status, 1 October](PROJECT_STATUS_20261001.md). Runtime baseline `27f2b0d` includes
-merged work through PR #51; its identical integration tree passed the 3,467-test combined
-suite, and all five PR CI jobs passed. The dated results
+[project status, 1 October](PROJECT_STATUS_20261001.md). Reviewed runtime pin
+`ed29a59` includes the carry guard and explicit MCP GPU selection. The full
+3,556-test suite passed on parent `dc56689`; the follow-up changes one heredoc
+comment. [Local RTX validation](LOCAL_RTX_VALIDATION.md) records the subsequent
+placement timeout and outstanding acceptance. The dated results
 below retain their original pins and verdicts; they are not current-source
 installation, campaign or restart claims.
 
@@ -21,7 +23,9 @@ The merged correction (`27f2b0d`, tested candidate `eb90272`, PR #51) passed its
 but its Spark proof has not started. Tailscale last saw the host at 15:24 UTC and then reported it offline;
 SSH timed out before deployment. The owner confirmed the Sparks were
 intentionally disconnected and requested local dual-RTX Pro validation; that
-preparation does not establish Spark acceptance. See the [deployment receipt](evidence/finger-depth-occlusion-integration/validation.json).
+local validation does not establish Spark acceptance. Attempt 02 on `dc56689`
+passed camera/GPU admission but the 300-second MCP limit cancelled green
+placement, leaving proof negative and campaign/restart unattempted. See the [deployment receipt](evidence/finger-depth-occlusion-integration/validation.json).
 
 The latest run, correction-MAIN-07 on `7e02de7`, **failed**. Green completed
 placement, return home and reset. Orange stopped during descent before closure
@@ -267,7 +271,7 @@ for the bounded observation window and per-call receipts.
 This direct-runtime campaign does not establish a new native-chat or UI
 acceptance, full desktop READY proof, fresh installation or deployment of the
 final source. The September installation result remains historical. The setup guide now
-selects runtime baseline `27f2b0d`; its current acceptance is recorded separately in the
+selects reviewed runtime pin `ed29a59`; its current acceptance is recorded separately in the
 [status index](PROJECT_STATUS_20261001.md).
 
 ## Native confirmation gate and failed follow-up, 1 October 2026

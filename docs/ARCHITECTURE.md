@@ -2,8 +2,9 @@
 
 Runtime contracts updated on 1 October 2026, including the merged optional OVRTX
 renderer, cuMotion candidate planning, PhysX finger envelope, native host reserve,
-release-opening synchronization and pending-camera publication.
-The current runtime baseline is `27f2b0d`; see the
+release-opening synchronization, pending-camera publication, retained NV carry
+attachment and explicit MCP GPU selection.
+The reviewed runtime pin is `ed29a59`; see the
 [source and acceptance index](PROJECT_STATUS_20261001.md) for merged changes,
 software validation and the current physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.

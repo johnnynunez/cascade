@@ -1,0 +1,35 @@
+{
+  "head": "da0255bd80562bc9714da3f62372bf60b5e5314a",
+  "reviewed_at": 1790871251.5104272,
+  "scope": "Source review only; full suite in progress separately. No physical success claim.",
+  "pass": true,
+  "peer_sha256": "a098941511ca127cd9d6954ebfa9309db7f36b4e66c4e1b02ca7949eb0b19153",
+  "review": [
+    "Current atomic completed-update metadata bound by exact q, jaws, rational clock, epoch and endpoint; unknown is distinct from no attachment.",
+    "Existing feedback reads guard initial lift, transport legs, settling and release handoff; no additional read, physics update or sensor query.",
+    "Token retained before post-close read and all loss/transport errors terminal across calls; no new automatic open, reset, home or retry.",
+    "Capability armed only by original Isaac NV post-close barrier; non-payload compatibility and existing intentional release authority preserved.",
+    "No mechanical-slip correction or physical acceptance claimed; full suite and future campaign still required."
+  ],
+  "files_sha256": {
+    "README.md": "839349ff8e09450ba2a56a9ba970b3174f6b59f7c6b3028a3e2bdc03195c29e8",
+    "demo/scene/own_assets.json": "a42c657805fd446891eda450480918a16aaa1eaa4ca0e088ae1c4c828cda4620",
+    "deploy/brev/prepare_bundle.py": "232c3c296632871d17c1c79de7d5f7f398135f92e38aa026b0fd6fb4b41a7ffa",
+    "docs/ARCHITECTURE.md": "31878170173c2e348373ac415b5c750e3a012439a46064ca5b82527f24061425",
+    "docs/NVBLOX_CARRY_ATTACHMENT.md": "c4a24f71f2e07554a5e222c48cd9d2a09bc1fafffdd3a3a6264ed51230e955f9",
+    "docs/PROJECT_STATUS_20261001.md": "8c79a297f362f00ad047d17ad7009ff806bbdf97875f9af65a2d2ca02290c20e",
+    "scripts/isaac_bridge.py": "7437f6ebdf4a24262061d7178dec9cbc00b8ab7599634d5218830cf8e3897ee2",
+    "src/cascade/control/isaac_arm.py": "0f73e6d65af3b9eb9c4faaf0167c87fe10aa0f2567646a4a65e015848c045f74",
+    "src/cascade/grasping/evidence.py": "8a1b1369db3f177e215cc929beedb9a121928e3c327bc8922a836f98223f3682",
+    "src/cascade/safety/harness.py": "9f3eedd546bc6e3f5b64c7ae02ddbc8564a4c70dc9939d95c06216ea1a87c757",
+    "src/cascade/skills/carry_attachment.py": "c37c1517a53698efee5cb8e39a07ad947147278487c517cd1ff01656a75c955c",
+    "src/cascade/skills/release_episode.py": "28b26364897da2db2f794312810778bf55033bc72a89a7dca36a29c5250b97aa",
+    "src/cascade/skills/runtime.py": "2e5b850ca5e785529d0cd3885bae8993de7cb3b264b20a244eaf34d20b591685",
+    "src/cascade/types.py": "1120730615f134b63539611add571032ddacd21cb96ca69312a54df5e8793bd9",
+    "tests/conftest.py": "f3b95bc062ec71eaaac177450220ca2882956f24d5bcc8ab5a5350014dd42fe8",
+    "tests/test_carry_attachment.py": "2c3e7c3ac0283e7c9683950af19bcc1c3713433305cf42b850ce19d5d39cbb3d",
+    "tests/test_isaac_attachment_state.py": "4c947babc41ac71445d723bdaa9cf2241932e989bb6810a93fcb2e1ec4b49ca3",
+    "tests/test_isaac_contact_frame_history.py": "75acae53d337b4a1ff55f0775f76542311cc95620f9e0117d19c520b8a93b1a5",
+    "tests/test_motion_callback_integration.py": "8eea2a1881acacffcc92a9af85a415c77bf31728545a3a9eadf36d8e50696bfd"
+  }
+}

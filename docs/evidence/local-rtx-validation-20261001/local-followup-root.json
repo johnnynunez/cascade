@@ -1,0 +1,20 @@
+{
+  "at_unix_s": 1790873515.2632365,
+  "scope": "Independent retained evidence integrity and exact PR54 comment-only comparison; no physical PASS claim and no robot actions.",
+  "retained_files_rehashed": 75,
+  "retention_sha256": "299ca28a402096516a70a32665a17116eeaca5a5f026a56556147b7c10f916d3",
+  "archive_sha256": "6d3f399fb3ee947ee7b663764ef9eea7e49911e827573d5bf439ed9bbb63b2bd",
+  "archive_bytes": 27639002,
+  "proof_pass": false,
+  "campaign_attempted": false,
+  "restart_attempted": false,
+  "comment_only_head": "ed29a59eece5af6abd804c03aeb90de47ff88c74",
+  "comment_only_parent": "dc566892cd76dd6a2c6fd9fb0854d19e54d70036",
+  "exact_single_substitution": true,
+  "changed_paths": [
+    "scripts/launch.sh"
+  ],
+  "launch_parent_sha256": "6106da5730d31f4477e5a36a30aa4b79bd7409bc7a3b078aa5e2142b473a33e1",
+  "launch_new_sha256": "a1e7b8889a4e9c9881bb65a3337bcb61f207d4da0157eda7978a619707666893",
+  "ci_pending": true
+}

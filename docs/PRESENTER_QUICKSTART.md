@@ -1,9 +1,11 @@
 # Build-a-Claw presenter card
 
 Use the [current source and acceptance status](PROJECT_STATUS_20261001.md)
-before rehearsal. The setup guide pins runtime baseline `27f2b0d`; its software
-suite passes. Its new Spark proof has not started because the owner disconnected
-the Sparks; local dual-RTX Pro validation is being prepared.
+before rehearsal. The setup guide pins reviewed runtime `ed29a59`, with a
+3,556-test pass on parent `dc56689` and a comment-only shell follow-up. The owner
+disconnected the Sparks. [Local dual-RTX Pro attempt 02](LOCAL_RTX_VALIDATION.md)
+passed camera/GPU admission but timed out during green placement; physical
+acceptance remains incomplete.
 The preceding `7e02de7` proof failed during orange descent; campaign and restart
 remain unaccepted. The [earlier two-object proof](SPARK_DELIVERY.md#earlier-two-object-proof-on-28061a6)
 applies to `28061a6`.

@@ -1,0 +1,924 @@
+{
+  "review_complete": true,
+  "physical_acceptance_pass": false,
+  "source": "dc566892cd76dd6a2c6fd9fb0854d19e54d70036",
+  "session": "cascade-proof-cf668ad1d45141beabc8b1f6d6ce3937",
+  "attempt_id": "1790872777177095543-2787753-caac77bb1c3f42b2b5dabdad76ccba1d",
+  "scope": "Independent offline partial witness review. The only case failed; neither placement, home, reset, campaign nor restart is accepted.",
+  "integrity": {
+    "retained_files_rehashed": 75,
+    "retention_sha256": "299ca28a402096516a70a32665a17116eeaca5a5f026a56556147b7c10f916d3",
+    "tar_sha256": "6d3f399fb3ee947ee7b663764ef9eea7e49911e827573d5bf439ed9bbb63b2bd",
+    "full_sha256": "44f8f44a9c59a4932c9200d78576cb8d0d9ea2761abf60f4fe6a5e498f591012",
+    "full_manifest_count": 1125,
+    "attempt_source_files_verified": 27,
+    "npz_sha256": "485cdd1f2f91651f9fae8f534e322bd7c36814fd1dfcc6a8890218b78874304c",
+    "npz_arrays": {
+      "0000_localized_points_base_m": {
+        "shape": [
+          4000,
+          3
+        ],
+        "dtype": "float64"
+      },
+      "0001_frame_rgb_bgr": {
+        "shape": [
+          720,
+          1280,
+          3
+        ],
+        "dtype": "uint8"
+      },
+      "0002_frame_depth_m": {
+        "shape": [
+          720,
+          1280
+        ],
+        "dtype": "float32"
+      },
+      "0003_frame_robot_mask": {
+        "shape": [
+          720,
+          1280
+        ],
+        "dtype": "bool"
+      },
+      "0004_frame_target_mask": {
+        "shape": [
+          720,
+          1280
+        ],
+        "dtype": "bool"
+      },
+      "0005_frame_K": {
+        "shape": [
+          3,
+          3
+        ],
+        "dtype": "float64"
+      },
+      "0006_frame_T_base_cam": {
+        "shape": [
+          4,
+          4
+        ],
+        "dtype": "float64"
+      },
+      "0007_ggx_request_points_base_m": {
+        "shape": [
+          4000,
+          3
+        ],
+        "dtype": "float32"
+      },
+      "0008_ggx_raw_poses": {
+        "shape": [
+          400,
+          4,
+          4
+        ],
+        "dtype": "float32"
+      },
+      "0009_ggx_raw_scores": {
+        "shape": [
+          400
+        ],
+        "dtype": "float32"
+      }
+    },
+    "source_tracked_clean": true
+  },
+  "identity": {
+    "proof_process_field_absent": true,
+    "association": "Retained owner registry, exact attempt PID, trace run path and session envelope; no invented proof.process",
+    "binding_sha256": "8a785341a839ee1f56e96fd00422e788694e9fcd729f9a65eb8ff46d26071fef",
+    "mcp": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02",
+      "profile": "cascade-demo",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+      "owner": "6edefe9a90f74b3c8f26ebc3132b42f8",
+      "schema": 1,
+      "pid": 2787753,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:11786382",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/x86-spark-profile-02/python/bin/python -m cascade.apps.mcp_server --launch-owner 6edefe9a90f74b3c8f26ebc3132b42f8 --launch-state-dir /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/.launch/profile-cascade-demo",
+      "role": "mcp",
+      "instance_id": "c5cb3c0db5a84815a09495798c6487e7",
+      "registered_at": 1790872761.5806372,
+      "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-spark-profile-02/runs/mcp_2787753_c60f289796914dd9a6b71651d0518faf"
+    },
+    "gpu": [
+      {
+        "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+        "memory_mib": "1822"
+      }
+    ],
+    "witness_epoch_absent": true,
+    "feedback_identities": [
+      {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "89429643b5e14406ae2a4186d82988ca",
+        "physics_dt_s": 0.008333333333333333,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "source": [
+          "127.0.0.1",
+          8611
+        ]
+      }
+    ],
+    "matched_feedback_records": 806,
+    "matched_steps": 806,
+    "max_same_step_q_error_rad": 0.0,
+    "max_same_step_jaw_error_m": 0.0,
+    "monotonic_unix_offset_difference_s": -2.384185791015625e-07
+  },
+  "timeline": {
+    "witness_first": {
+      "sequence": 0,
+      "physics_step": 10748,
+      "sim_time": 89.56666666666666,
+      "server_monotonic": 117875.009634571,
+      "client_finished_monotonic": 117875.065557729
+    },
+    "witness_last": {
+      "sequence": 1258,
+      "physics_step": 14562,
+      "sim_time": 121.35,
+      "server_monotonic": 118178.968088446,
+      "client_finished_monotonic": 118179.015175942
+    },
+    "actual_marks": {
+      "pick_begin": {
+        "monotonic": 117875.066832928,
+        "unix": 1790872772.796544
+      }
+    },
+    "missing_marks": [
+      "pick_end",
+      "reset_begin",
+      "reset_end"
+    ],
+    "grasp_start": 117879.447406242,
+    "grasp_end": 118087.955179361,
+    "grasp_duration_s": 208.50777311899583,
+    "grasp_phases": [
+      {
+        "phase": "planning",
+        "start_monotonic": 117890.847479847,
+        "end_monotonic": 117892.546021412,
+        "wall_duration_s": 1.6985415649978677,
+        "samples": 7,
+        "distinct_physics_steps": 7,
+        "observed_sim_span_s": 0.1666666666666714,
+        "measured_target_contacts": {
+          "channel": "physx_gpu_contact_tensor",
+          "sensor_paths": [
+            "/World_Props/green_cube"
+          ],
+          "filter_paths": [
+            [
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+            ]
+          ],
+          "any_contact_samples": 0,
+          "bilateral_samples": 0,
+          "unilateral_samples": 0,
+          "first_contact": null,
+          "first_bilateral": null
+        }
+      },
+      {
+        "phase": "open",
+        "start_monotonic": 117892.546021412,
+        "end_monotonic": 117892.620027241,
+        "wall_duration_s": 0.07400582901027519,
+        "samples": 1,
+        "distinct_physics_steps": 1,
+        "observed_sim_span_s": 0.0,
+        "measured_target_contacts": {
+          "channel": "physx_gpu_contact_tensor",
+          "sensor_paths": [
+            "/World_Props/green_cube"
+          ],
+          "filter_paths": [
+            [
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+            ]
+          ],
+          "any_contact_samples": 0,
+          "bilateral_samples": 0,
+          "unilateral_samples": 0,
+          "first_contact": null,
+          "first_bilateral": null
+        }
+      },
+      {
+        "phase": "home",
+        "start_monotonic": 117892.620027241,
+        "end_monotonic": 117911.064375321,
+        "wall_duration_s": 18.444348079996416,
+        "samples": 85,
+        "distinct_physics_steps": 85,
+        "observed_sim_span_s": 2.36666666666666,
+        "measured_target_contacts": {
+          "channel": "physx_gpu_contact_tensor",
+          "sensor_paths": [
+            "/World_Props/green_cube"
+          ],
+          "filter_paths": [
+            [
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+            ]
+          ],
+          "any_contact_samples": 0,
+          "bilateral_samples": 0,
+          "unilateral_samples": 0,
+          "first_contact": null,
+          "first_bilateral": null
+        }
+      },
+      {
+        "phase": "pregrasp",
+        "start_monotonic": 117911.064375321,
+        "end_monotonic": 118020.93670605,
+        "wall_duration_s": 109.87233072899107,
+        "samples": 449,
+        "distinct_physics_steps": 449,
+        "observed_sim_span_s": 11.366666666666674,
+        "measured_target_contacts": {
+          "channel": "physx_gpu_contact_tensor",
+          "sensor_paths": [
+            "/World_Props/green_cube"
+          ],
+          "filter_paths": [
+            [
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+            ]
+          ],
+          "any_contact_samples": 0,
+          "bilateral_samples": 0,
+          "unilateral_samples": 0,
+          "first_contact": null,
+          "first_bilateral": null
+        }
+      },
+      {
+        "phase": "descent",
+        "start_monotonic": 118020.93670605,
+        "end_monotonic": 118053.119595412,
+        "wall_duration_s": 32.18288936201134,
+        "samples": 129,
+        "distinct_physics_steps": 129,
+        "observed_sim_span_s": 3.1666666666666714,
+        "measured_target_contacts": {
+          "channel": "physx_gpu_contact_tensor",
+          "sensor_paths": [
+            "/World_Props/green_cube"
+          ],
+          "filter_paths": [
+            [
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+            ]
+          ],
+          "any_contact_samples": 0,
+          "bilateral_samples": 0,
+          "unilateral_samples": 0,
+          "first_contact": null,
+          "first_bilateral": null
+        }
+      },
+      {
+        "phase": "close",
+        "start_monotonic": 118053.119595412,
+        "end_monotonic": 118055.8028114,
+        "wall_duration_s": 2.6832159879995743,
+        "samples": 10,
+        "distinct_physics_steps": 10,
+        "observed_sim_span_s": 0.21666666666666856,
+        "measured_target_contacts": {
+          "channel": "physx_gpu_contact_tensor",
+          "sensor_paths": [
+            "/World_Props/green_cube"
+          ],
+          "filter_paths": [
+            [
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+            ]
+          ],
+          "any_contact_samples": 5,
+          "bilateral_samples": 2,
+          "unilateral_samples": 3,
+          "first_contact": {
+            "line": 747,
+            "sequence": 746,
+            "physics_step": 13090,
+            "sim_time": 109.08333333333333,
+            "server_monotonic": 118054.625299392,
+            "client_started_monotonic": 118054.583743065,
+            "client_finished_monotonic": 118054.650199396
+          },
+          "first_bilateral": {
+            "line": 750,
+            "sequence": 749,
+            "physics_step": 13100,
+            "sim_time": 109.16666666666667,
+            "server_monotonic": 118055.28975167,
+            "client_started_monotonic": 118055.23062415,
+            "client_finished_monotonic": 118055.591101494
+          }
+        }
+      },
+      {
+        "phase": "lift",
+        "start_monotonic": 118055.8028114,
+        "end_monotonic": 118087.571547557,
+        "wall_duration_s": 31.768736156998784,
+        "samples": 134,
+        "distinct_physics_steps": 134,
+        "observed_sim_span_s": 3.11666666666666,
+        "measured_target_contacts": {
+          "channel": "physx_gpu_contact_tensor",
+          "sensor_paths": [
+            "/World_Props/green_cube"
+          ],
+          "filter_paths": [
+            [
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+            ]
+          ],
+          "any_contact_samples": 134,
+          "bilateral_samples": 134,
+          "unilateral_samples": 0,
+          "first_contact": {
+            "line": 752,
+            "sequence": 751,
+            "physics_step": 13106,
+            "sim_time": 109.21666666666667,
+            "server_monotonic": 118055.803126559,
+            "client_started_monotonic": 118055.741592771,
+            "client_finished_monotonic": 118056.081238936
+          },
+          "first_bilateral": {
+            "line": 752,
+            "sequence": 751,
+            "physics_step": 13106,
+            "sim_time": 109.21666666666667,
+            "server_monotonic": 118055.803126559,
+            "client_started_monotonic": 118055.741592771,
+            "client_finished_monotonic": 118056.081238936
+          }
+        }
+      },
+      {
+        "phase": "verify",
+        "start_monotonic": 118087.571547557,
+        "end_monotonic": 118087.955179361,
+        "wall_duration_s": 0.3836318039975595,
+        "samples": 2,
+        "distinct_physics_steps": 2,
+        "observed_sim_span_s": 0.01666666666667993,
+        "measured_target_contacts": {
+          "channel": "physx_gpu_contact_tensor",
+          "sensor_paths": [
+            "/World_Props/green_cube"
+          ],
+          "filter_paths": [
+            [
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+              "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+            ]
+          ],
+          "any_contact_samples": 2,
+          "bilateral_samples": 2,
+          "unilateral_samples": 0,
+          "first_contact": {
+            "line": 886,
+            "sequence": 885,
+            "physics_step": 13484,
+            "sim_time": 112.36666666666666,
+            "server_monotonic": 118087.571728021,
+            "client_started_monotonic": 118087.500264247,
+            "client_finished_monotonic": 118087.835229295
+          },
+          "first_bilateral": {
+            "line": 886,
+            "sequence": 885,
+            "physics_step": 13484,
+            "sim_time": 112.36666666666666,
+            "server_monotonic": 118087.571728021,
+            "client_started_monotonic": 118087.500264247,
+            "client_finished_monotonic": 118087.835229295
+          }
+        }
+      }
+    ],
+    "commands_within_grasp": {
+      "isaac_gripper_target_sent": 3,
+      "isaac_joint_target_sent": 390
+    },
+    "gripper_targets": [
+      {
+        "t": 117892.620015083,
+        "position": 1.0,
+        "effort": 0.8
+      },
+      {
+        "t": 118053.216706247,
+        "position": 0.5,
+        "effort": 0.48999999999999994
+      },
+      {
+        "t": 118054.716739495,
+        "position": 0.15000000000000002,
+        "effort": 0.7
+      }
+    ],
+    "timeout_unix_s": 1790873075.53,
+    "timeout_monotonic_from_same_host_offset": 118177.80028915405,
+    "closest_timeout_sample": {
+      "sequence": 1253,
+      "physics_step": 14552,
+      "sim_time": 121.26666666666667,
+      "server_monotonic": 118177.659425312,
+      "client_finished_monotonic": 118177.912149221
+    },
+    "last_witness_after_timeout_s": 1.1677992919430835,
+    "tool_trace": {
+      "step": 1,
+      "t": 1790873076.2980628,
+      "skill": "pick_and_place",
+      "tier": "mcp-host",
+      "args": {
+        "object": "green cube",
+        "destination": "green square"
+      },
+      "context": {
+        "arm": "isaac_kitchen_gpu",
+        "held_object": null
+      },
+      "duration_ms": 298527.8,
+      "result": {
+        "destination": "green square",
+        "destination_kind": "configured_point",
+        "target": [
+          0.14,
+          -0.27
+        ],
+        "ok": false,
+        "stage": "place",
+        "error": "place failed after 1 attempts: SafetyViolation: simulation motion stopped (e-stop latched; not retrying)",
+        "note": "still holding 'green cube'; try place_at with explicit coordinates",
+        "grip_verified": true,
+        "postcondition": {
+          "skill": "pick_and_place",
+          "kind": "relocated",
+          "status": "refuted",
+          "evidence": "green cube ended 16.9 cm from where it was meant to go (at [0.239, -0.133], wanted [0.14, -0.27])",
+          "channel": "physics",
+          "measured": {
+            "moved_m": 0.1754,
+            "final": [
+              0.2393,
+              -0.1335,
+              0.1309
+            ],
+            "target_err_m": 0.1688
+          }
+        },
+        "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+      },
+      "keyframe_before": "keyframes/0001_pick_and_place_before.jpg",
+      "keyframe_after": "keyframes/0001_pick_and_place_after.jpg"
+    },
+    "native_cli_duration_s": 303.191,
+    "native_cli_aborted": false,
+    "native_tool_summary": {
+      "calls": 1,
+      "tools": [
+        "cascade__pick_and_place"
+      ],
+      "failures": 1
+    },
+    "timeout_extract_sha256": "03226a77c9b77856894afea45227a7d44e9d952dfa5c4dc330c6bb132f69ce9e"
+  },
+  "physical": {
+    "first_bilateral": {
+      "sequence": 749,
+      "physics_step": 13100,
+      "sim_time": 109.16666666666667,
+      "server_monotonic": 118055.28975167,
+      "client_finished_monotonic": 118055.591101494
+    },
+    "samples_from_first_bilateral": 510,
+    "bilateral_samples_from_first_bilateral": 510,
+    "post_grasp_observed_samples": 372,
+    "post_grasp_bilateral_samples": 372,
+    "last_contacts": [
+      12,
+      4
+    ],
+    "last_position_m": [
+      0.23896920680999756,
+      -0.13435444235801697,
+      0.13089174033306267
+    ],
+    "last_target_xy_error_m": 0.16791254034349135,
+    "max_lift_above_initial_m": 0.10089174099266528,
+    "last_jaws_m": [
+      0.019849561154842377,
+      0.020022140815854073
+    ],
+    "last_jaw_open_fractions": [
+      0.39699121718121744,
+      0.4004428103500186
+    ],
+    "last_q_asset": [
+      -0.4930160343647003,
+      -1.6535313129425049,
+      -1.5536856651306152,
+      1.4788215160369873,
+      0.0014743967913091183,
+      0.9731119275093079
+    ],
+    "last_dq_asset": [
+      -0.06696078181266785,
+      0.07821203768253326,
+      0.004530487582087517,
+      -0.015268738381564617,
+      0.013717819936573505,
+      -0.2801973819732666
+    ],
+    "last_home_error_rad": 1.4788215160369873,
+    "last_target_velocity_m_s": [
+      -0.036721762269735336,
+      0.005595138296484947,
+      0.04893777146935463
+    ],
+    "neighbors": {
+      "pink_cube": {
+        "maximum_displacement_from_first_m": 3.332000937312528e-08,
+        "final_displacement_from_first_m": 2.986047331594191e-08,
+        "peak": {
+          "sequence": 74,
+          "physics_step": 11018,
+          "sim_time": 91.81666666666666,
+          "server_monotonic": 117891.958594123,
+          "client_finished_monotonic": 117892.20085145
+        },
+        "first_position_m": [
+          0.27000001072883606,
+          0.11000000685453415,
+          0.02999999747775224
+        ],
+        "last_position_m": [
+          0.27000004053115845,
+          0.11000000685453415,
+          0.02999999934039739
+        ]
+      },
+      "green_cube": {
+        "maximum_displacement_from_first_m": 0.17612045198546988,
+        "final_displacement_from_first_m": 0.17612045198546988,
+        "peak": {
+          "sequence": 1258,
+          "physics_step": 14562,
+          "sim_time": 121.35,
+          "server_monotonic": 118178.968088446,
+          "client_finished_monotonic": 118179.015175942
+        },
+        "first_position_m": [
+          0.24000000953674316,
+          0.010000009089708328,
+          0.02999999934039739
+        ],
+        "last_position_m": [
+          0.23896920680999756,
+          -0.13435444235801697,
+          0.13089174033306267
+        ]
+      },
+      "tomato_can": {
+        "maximum_displacement_from_first_m": 9.490355255348233e-08,
+        "final_displacement_from_first_m": 3.332000937312528e-08,
+        "peak": {
+          "sequence": 318,
+          "physics_step": 11812,
+          "sim_time": 98.43333333333334,
+          "server_monotonic": 117947.069787588,
+          "client_finished_monotonic": 117947.097829119
+        },
+        "first_position_m": [
+          0.22499997913837433,
+          0.2150000035762787,
+          0.04125000910065797
+        ],
+        "last_position_m": [
+          0.22500000894069672,
+          0.2149999886751175,
+          0.04125000910065797
+        ]
+      },
+      "lemon": {
+        "maximum_displacement_from_first_m": 0.0,
+        "final_displacement_from_first_m": 0.0,
+        "peak": {
+          "sequence": 0,
+          "physics_step": 10748,
+          "sim_time": 89.56666666666666,
+          "server_monotonic": 117875.009634571,
+          "client_finished_monotonic": 117875.065557729
+        },
+        "first_position_m": [
+          0.3199999928474426,
+          0.004999999888241291,
+          0.021600000571233305
+        ],
+        "last_position_m": [
+          0.3199999928474426,
+          0.004999999888241291,
+          0.021600000571233305
+        ]
+      },
+      "orange": {
+        "maximum_displacement_from_first_m": 0.0,
+        "final_displacement_from_first_m": 0.0,
+        "peak": {
+          "sequence": 0,
+          "physics_step": 10748,
+          "sim_time": 89.56666666666666,
+          "server_monotonic": 117875.009634571,
+          "client_finished_monotonic": 117875.065557729
+        },
+        "first_position_m": [
+          0.18000000715255737,
+          0.11999999731779099,
+          0.02638023161492971
+        ],
+        "last_position_m": [
+          0.18000000715255737,
+          0.11999999731779099,
+          0.02638023161492971
+        ]
+      }
+    }
+  },
+  "camera_ages": {
+    "cam0": {
+      "samples": 1259,
+      "missing_or_invalid_samples": 0,
+      "first_invalid": null,
+      "all_sampled_records_valid": true,
+      "distinct_captures": 604,
+      "maximum_observed_capture_gap_s": 1.937923340999987,
+      "server_snapshot_age_s": {
+        "maximum": 2.2683936260000337,
+        "maximum_sample": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        },
+        "samples_over_2s": 1,
+        "first_over_2s": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        }
+      },
+      "client_delivery_age_s": {
+        "maximum": 2.3115021319972584,
+        "maximum_sample": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        },
+        "samples_over_2s": 1,
+        "first_over_2s": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        }
+      }
+    },
+    "side": {
+      "samples": 1259,
+      "missing_or_invalid_samples": 0,
+      "first_invalid": null,
+      "all_sampled_records_valid": true,
+      "distinct_captures": 604,
+      "maximum_observed_capture_gap_s": 1.937923340999987,
+      "server_snapshot_age_s": {
+        "maximum": 2.2683936260000337,
+        "maximum_sample": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        },
+        "samples_over_2s": 1,
+        "first_over_2s": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        }
+      },
+      "client_delivery_age_s": {
+        "maximum": 2.3115021319972584,
+        "maximum_sample": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        },
+        "samples_over_2s": 1,
+        "first_over_2s": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        }
+      }
+    },
+    "proof": {
+      "samples": 1259,
+      "missing_or_invalid_samples": 0,
+      "first_invalid": null,
+      "all_sampled_records_valid": true,
+      "distinct_captures": 604,
+      "maximum_observed_capture_gap_s": 1.937923340999987,
+      "server_snapshot_age_s": {
+        "maximum": 2.2683936260000337,
+        "maximum_sample": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        },
+        "samples_over_2s": 1,
+        "first_over_2s": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        }
+      },
+      "client_delivery_age_s": {
+        "maximum": 2.3115021319972584,
+        "maximum_sample": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        },
+        "samples_over_2s": 1,
+        "first_over_2s": {
+          "sample": {
+            "line": 15,
+            "sequence": 14,
+            "physics_step": 10788,
+            "sim_time": 89.9,
+            "server_monotonic": 117879.453108411,
+            "client_started_monotonic": 117877.910442028,
+            "client_finished_monotonic": 117879.496216917
+          },
+          "capture_monotonic": 117877.184714785,
+          "server_snapshot_age_s": 2.2683936260000337,
+          "client_delivery_age_s": 2.3115021319972584
+        }
+      }
+    }
+  },
+  "timing_limits": {
+    "whole_witness_sim_span_s": 31.78333333333333,
+    "whole_witness_wall_span_s": 303.9584538749914,
+    "sampled_effective_rtf": 0.10456472892313376,
+    "max_server_sample_gap_s": 1.6452640700008487,
+    "stale_initial_server_sample": {
+      "sample": {
+        "line": 15,
+        "sequence": 14,
+        "physics_step": 10788,
+        "sim_time": 89.9,
+        "server_monotonic": 117879.453108411,
+        "client_started_monotonic": 117877.910442028,
+        "client_finished_monotonic": 117879.496216917
+      },
+      "capture_monotonic": 117877.184714785,
+      "server_snapshot_age_s": 2.2683936260000337,
+      "client_delivery_age_s": 2.3115021319972584
+    },
+    "first_grasp_actuator_target_monotonic": 117892.620015083,
+    "stale_before_first_target_s": 13.166906671991455
+  },
+  "conclusions": [
+    "Observed grasp succeeds: bilateral lift and continued bilateral contact through final sampled pose. Placement is refuted, with the object still elevated away from destination.",
+    "MCP per-call timeout (-32001) causes client cancellation/e-stop during place; native CLI aborted=false is not tool success. Trace duration excludes some enclosing MCP overhead.",
+    "Separate camera violation: one initial sample in each camera exceeds the existing two-second server-age criterion. No causal attribution of this transient to the later timeout.",
+    "No pick_end/reset markers exist. Final velocities are nonzero; this witness does not attest settled safety after cancellation.",
+    "Witness sampling gives no continuous contact/freshness guarantee or exact unsampled substep event. Neighbor motion does not identify contacts or forces.",
+    "Occupancy disabled in this profile; NV retained attachment stream guard is not armed. No NV or ARM acceptance claim."
+  ],
+  "artifacts": {
+    "v2_sha256": "032634b765b928997b2204ea705f8bd86f146b2be9287e3d5a83d53fc392fdec",
+    "review_script_sha256": "a08278584bdcd232dc1e43e8ab7e23346c3ff75c4db60f7a0b70fe5d999fd85e"
+  }
+}

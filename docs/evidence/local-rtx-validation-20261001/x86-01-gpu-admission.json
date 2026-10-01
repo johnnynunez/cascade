@@ -1,0 +1,16 @@
+{
+  "pass": false,
+  "phase": "admission",
+  "scope": "x86 PC native launch.sh Spark-profile validation with occupancy disabled and borrowed Qwen. Not desktop/ARM/visitor UI acceptance. All phases require separate explicit invocation/review; no physical execution from preparation.",
+  "source": "27f2b0d7ab76f1c4e3bf246d1b23c636e570496f",
+  "plan_sha256": "1cfc7c75c203b48fed4eee1ccd0a7c3fdc0d42ae2554d16fdca2f735aa9948a6",
+  "script_sha256": "45c640abb216e05817db8c3e0ad6aca76aaae4632e9c80047260a336e9a7cb14",
+  "started_at": 1790871453.79392,
+  "errors": [
+    "Traceback (most recent call last):\n  File \"/tmp/cascade-x86-spark01-driver02.py\", line 135, in main\n    assert read(O/'startup/receipt.json')['pass'];owner,rows,roles,gpu=bound();report.update(owner=owner,owned_records=rows,gpu_bindings=gpu)\n                                                                       ^^^^^^^\n  File \"/tmp/cascade-x86-spark01-driver02.py\", line 87, in bound\n    if row['role']=='mcp' and row['pid'] in gpu:assert all(v['uuid']==p['gpu_uuid'] for v in gpu[row['pid']])\n                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n"
+  ],
+  "protected_and_source_after": true,
+  "finished_at": 1790871455.2217712,
+  "memory_sha256": null,
+  "cleanup": "No automatic signal/reset/recovery; any failed phase requires retained-state review. Own normal down is a separate reviewed action."
+}

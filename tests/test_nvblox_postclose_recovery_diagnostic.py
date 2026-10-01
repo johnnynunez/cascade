@@ -8,10 +8,39 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "benchmark/diagnostics"))
-from nvblox_postclose_recovery import PostCloseMapFault
+from nvblox_postclose_recovery import PostCloseMapFault, require_simulation_clock
 from cascade.perception.occupancy import OccupancyError
 from test_payload_close_barrier import capture, integrate
 from test_occupancy_payload import PROP, mapping
+
+
+def test_old_executor_cannot_enter_physical_probe():
+    runtime = SimpleNamespace(arm=SimpleNamespace(raw=SimpleNamespace()))
+    with pytest.raises(RuntimeError, match="executor is required before reset or motion"):
+        require_simulation_clock(runtime)
+
+
+def test_clock_preflight_preserves_validated_producer_identity_and_errors():
+    evidence = dict(version=1, source=("127.0.0.1", 8692), robot_id="rebot",
+                    engine="physx", clock="physics", epoch="epoch-1",
+                    sim_time=1., physics_step=120, physics_dt_s=1 / 120)
+    reads = []
+    raw = SimpleNamespace(validate_simulation_clock=lambda: reads.append(True) or evidence)
+    runtime = SimpleNamespace(arm=SimpleNamespace(raw=raw))
+    assert require_simulation_clock(runtime) == evidence and reads == [True]
+    def inconsistent_clock():
+        raise RuntimeError("producer physics epoch changed")
+    raw.validate_simulation_clock = inconsistent_clock
+    with pytest.raises(RuntimeError, match="producer physics epoch changed"):
+        require_simulation_clock(runtime)
+
+
+@pytest.mark.parametrize("result", [None, {}, {"version": True}, {"version": 2}])
+def test_unsupported_clock_validator_contract_fails_closed(result):
+    raw = SimpleNamespace(validate_simulation_clock=lambda: result)
+    runtime = SimpleNamespace(arm=SimpleNamespace(raw=raw))
+    with pytest.raises(RuntimeError, match="validation contract"):
+        require_simulation_clock(runtime)
 
 
 def fixture():

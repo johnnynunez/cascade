@@ -29,6 +29,23 @@ from nvblox_camera_recovery import (ROOT, OBJECTS, ActuatorTrace, close_without_
 from nvblox_contact_recovery import bilateral, rebuilt_camera_map, retained_retreat_phase, sha
 
 
+def require_simulation_clock(runtime):
+    """Require the new read-only executor preflight before any physical phase.
+
+    IsaacArm owns validation of source, robot, epoch and physics timestamps;
+    using that same validator binds this probe to the physical-time executor.
+    An older IsaacArm must not silently run the experiment on a wall clock.
+    """
+    validate = getattr(runtime.arm.raw, "validate_simulation_clock", None)
+    if not callable(validate):
+        raise RuntimeError("Isaac simulation-clock executor is required before reset or motion")
+    evidence = validate()
+    if (not isinstance(evidence, dict) or type(evidence.get("version")) is not int
+            or evidence["version"] != 1):
+        raise RuntimeError("unsupported Isaac simulation-clock validation contract")
+    return evidence
+
+
 class PostCloseMapFault:
     """Fail integrations after the actual close; leave every other RPC intact."""
     def __init__(self, runtime, out):
@@ -134,6 +151,7 @@ def run(args, out):
         runtime, _ = build_runtime(cfg, out / "runtime", lazy_arm=True)
         install_command_trace(runtime, out / "skills.jsonl")
         recorder = ActuatorTrace(runtime, out / "actuators.jsonl")
+        receipt["simulation_clock"] = require_simulation_clock(runtime)
         occ = runtime.arm.harness.occupancy
         receipt["occupancy_probe"] = occ.probe(timeout_ms=500)
         if (receipt["occupancy_probe"].get("backend") != "nvblox"

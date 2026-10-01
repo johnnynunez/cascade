@@ -1,0 +1,311 @@
+"""cuMotion 1.1.0 joint-space planning against a caller-owned static world.
+
+No arm, bridge, simulator or live occupancy connection is opened here. Native
+success and the checks below produce a candidate, never execution permission.
+SDK objects stay under one lock and retain their world/model owners.
+"""
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from hashlib import sha256
+from importlib import import_module, metadata
+import json
+import math
+from pathlib import Path
+from threading import RLock
+
+import numpy as np
+
+from . import PlanningError
+
+SDK_VERSION = "1.1.0"
+
+
+def _sdk():
+    try:
+        version = metadata.version("cumotion")
+        if version != SDK_VERSION:
+            raise PlanningError(f"cuMotion {SDK_VERSION} required; installed {version}")
+        return import_module("cumotion")
+    except (ImportError, OSError, metadata.PackageNotFoundError) as exc:
+        raise PlanningError(
+            "cuMotion SDK unavailable: install the NVIDIA cuMotion 1.1.0 wheel "
+            "matching this Python, platform and CUDA runtime; see docs/CUMOTION.md"
+        ) from exc
+
+
+def _number(value, name, *, positive=False):
+    if type(value) not in (int, float) or not math.isfinite(value):
+        raise PlanningError(f"{name} must be a finite number")
+    if positive and value <= 0:
+        raise PlanningError(f"{name} must be positive")
+    return float(value)
+
+
+def _vector(value, size, name):
+    try:
+        array = np.asarray(value, dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise PlanningError(f"{name} must contain {size} finite numbers") from exc
+    # Accept Eigen's native column vectors as well as the caller's flat vector.
+    if array.shape not in ((size,), (size, 1)) or not np.isfinite(array).all():
+        raise PlanningError(f"{name} must contain {size} finite numbers")
+    return array.reshape(size).copy()
+
+
+def _name(value, name):
+    if not isinstance(value, str) or not value.strip():
+        raise PlanningError(f"{name} must be a nonempty string")
+    return value
+
+
+def _digest(value):
+    return sha256(json.dumps(value, sort_keys=True, allow_nan=False,
+                             separators=(",", ":")).encode()).hexdigest()
+
+
+@dataclass(frozen=True)
+class MotionPlan:
+    """Copied samples in caller joint order/sign convention, SI units."""
+
+    joint_names: tuple[str, ...]
+    times_s: tuple[float, ...]
+    positions: tuple[tuple[float, ...], ...]
+    velocities: tuple[tuple[float, ...], ...]
+    base_frame: str
+    tool_frame: str
+    model_sha256: str
+    scene_sha256: str
+    request_sha256: str
+    sdk_version: str = SDK_VERSION
+
+    def as_dict(self):
+        return {"status": "candidate", "execution_authorized": False,
+                "backend": "cumotion", **asdict(self)}
+
+
+class CumotionPlanner:
+    """One immutable robot/world binding. Construct another for a new scene.
+
+    ``joint_signs[i]`` maps local joint i to the URDF convention. Joint order is
+    resolved by name, never inferred from URDF declaration or XRDF ordering.
+    Only static cuboids are supported; absent geometry cannot become an empty
+    world implicitly (``obstacles`` is required, even if explicitly empty).
+    """
+
+    def __init__(self, config):
+        cfg = config.as_dict() if hasattr(config, "as_dict") else dict(config)
+        allowed = {"type", "urdf", "xrdf", "joint_names", "joint_signs",
+                   "base_frame", "tool_frame", "obstacles", "sample_dt_s",
+                   "max_duration_s", "max_samples", "joint_margin",
+                   "endpoint_tolerance"}
+        if set(cfg) - allowed:
+            raise PlanningError(f"unknown cuMotion options: {sorted(set(cfg) - allowed)}")
+        if cfg.get("type") != "cumotion":
+            raise PlanningError("cuMotion configuration requires type: cumotion")
+        names = cfg.get("joint_names")
+        if not isinstance(names, (list, tuple)) or not names:
+            raise PlanningError("joint_names must explicitly list the controlled joints")
+        self.joint_names = tuple(_name(n, "joint name") for n in names)
+        self.n = len(names)
+        if len(set(names)) != self.n:
+            raise PlanningError("joint_names must be unique")
+        signs = cfg.get("joint_signs")
+        if (not isinstance(signs, (list, tuple)) or len(signs) != self.n
+                or any(type(s) not in (int, float) or s not in (-1, 1) for s in signs)):
+            raise PlanningError("joint_signs must explicitly contain one +1/-1 per joint")
+        self._signs = np.array(signs, dtype=float)
+        self.base_frame = _name(cfg.get("base_frame"), "base_frame")
+        self.tool_frame = _name(cfg.get("tool_frame"), "tool_frame")
+        self._dt = _number(cfg.get("sample_dt_s", 0.02), "sample_dt_s", positive=True)
+        self._max_duration = _number(cfg.get("max_duration_s", 60.0), "max_duration_s", positive=True)
+        self._max_samples = cfg.get("max_samples", 10000)
+        if type(self._max_samples) is not int or not 2 <= self._max_samples <= 100000:
+            raise PlanningError("max_samples must be an integer in [2, 100000]")
+        self._margin = _number(cfg.get("joint_margin", 0.025), "joint_margin")
+        if self._margin < 0:
+            raise PlanningError("joint_margin must be nonnegative")
+        self._endpoint_tol = _number(cfg.get("endpoint_tolerance", 1e-4), "endpoint_tolerance", positive=True)
+        boxes = self._boxes(cfg.get("obstacles"))
+        self.scene_sha256 = _digest({"base_frame": self.base_frame, "obstacles": boxes})
+        # Read once, hash and pass these very bytes to the SDK. No source-file
+        # reread can silently change the model behind the receipt.
+        try:
+            urdf = Path(cfg["urdf"]).read_text()
+            xrdf = Path(cfg["xrdf"]).read_text()
+        except (KeyError, TypeError, OSError, UnicodeError) as exc:
+            raise PlanningError("cuMotion requires readable UTF-8 urdf and xrdf files") from exc
+        self.model_sha256 = _digest({"urdf": urdf, "xrdf": xrdf})
+        self._lock = RLock()
+        self._closed = False
+        self._poisoned = False
+        self._cm = _sdk()
+        self._robot = self._world = self._view = self._inspector = self._optimizer = None
+        self._obstacles = []
+        try:
+            self._robot = self._cm.load_robot_from_memory(xrdf, urdf)
+            kin = self._robot.kinematics()
+            sdk_names = tuple(self._robot.cspace_coord_name(i)
+                              for i in range(self._robot.num_cspace_coords()))
+            if len(sdk_names) != self.n or set(sdk_names) != set(self.joint_names):
+                raise PlanningError("XRDF c-space joints do not match joint_names exactly")
+            if kin.base_frame_name() != self.base_frame:
+                raise PlanningError("cuMotion model base_frame mismatch")
+            if self.tool_frame not in self._robot.tool_frame_names():
+                raise PlanningError("tool_frame is not declared in the XRDF")
+            self._sdk_from_local = np.array([self.joint_names.index(n) for n in sdk_names])
+            self._local_from_sdk = np.argsort(self._sdk_from_local)
+            self._lo = np.array([kin.cspace_coord_limits(i).lower for i in range(self.n)])
+            self._hi = np.array([kin.cspace_coord_limits(i).upper for i in range(self.n)])
+            self._vmax = np.array([kin.cspace_coord_velocity_limit(i) for i in range(self.n)])
+            if (not np.isfinite([self._lo, self._hi, self._vmax]).all()
+                    or np.any(self._hi - self._lo <= 2 * self._margin)
+                    or np.any(self._vmax <= 0)):
+                raise PlanningError("cuMotion requires finite ordered position and positive velocity limits")
+            self._world = self._cm.create_world()
+            for box in boxes:
+                obstacle = self._cm.create_obstacle(self._cm.Obstacle.Type.CUBOID)
+                obstacle.set_attribute(self._cm.Obstacle.Attribute.SIDE_LENGTHS,
+                                       np.array(box["size_m"]))
+                self._world.add_obstacle(obstacle, self._cm.Pose3(np.array(box["T_base_box"])))
+                self._obstacles.append(obstacle)
+            self._view = self._world.add_world_view()
+            self._view.update()
+            self._inspector = self._cm.create_robot_world_inspector(self._robot, self._view)
+            if (self._inspector.num_world_collision_spheres() <= 0
+                    or self._inspector.num_self_collision_spheres() <= 0):
+                raise PlanningError("XRDF must provide world and self collision spheres")
+            sdk_cfg = self._cm.create_default_trajectory_optimizer_config(
+                self._robot, self.tool_frame, self._view)
+            for key in ("enable_self_collision", "enable_world_collision"):
+                if not sdk_cfg.set_param(key, True):
+                    raise PlanningError(f"cuMotion rejected required parameter {key}")
+            self._optimizer = self._cm.create_trajectory_optimizer(sdk_cfg)
+        except Exception as exc:
+            self.close()
+            if isinstance(exc, PlanningError):
+                raise
+            raise PlanningError(f"cuMotion initialization failed: {exc}") from exc
+
+    @staticmethod
+    def _boxes(value):
+        if not isinstance(value, (list, tuple)):
+            raise PlanningError("obstacles must explicitly be a list of static cuboids")
+        boxes, names = [], set()
+        for box in value:
+            if not isinstance(box, dict) or set(box) != {"name", "size_m", "T_base_box"}:
+                raise PlanningError("each cuboid requires name, size_m and T_base_box")
+            name = _name(box["name"], "obstacle name")
+            if name in names:
+                raise PlanningError("obstacle names must be unique")
+            names.add(name)
+            size = _vector(box["size_m"], 3, "cuboid size_m")
+            try:
+                T = np.asarray(box["T_base_box"], dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise PlanningError("cuboid pose must be a rigid 4x4 transform") from exc
+            if (np.any(size <= 0) or T.shape != (4, 4) or not np.isfinite(T).all()
+                    or not np.allclose(T[3], [0, 0, 0, 1], atol=1e-9, rtol=0)
+                    or not np.allclose(T[:3, :3].T @ T[:3, :3], np.eye(3), atol=1e-8, rtol=0)
+                    or not np.isclose(np.linalg.det(T[:3, :3]), 1, atol=1e-8, rtol=0)):
+                raise PlanningError("cuboid requires positive full dimensions and a rigid 4x4 pose")
+            boxes.append({"name": name, "size_m": size.tolist(), "T_base_box": T.tolist()})
+        return boxes
+
+    def _to_sdk(self, q):
+        return (q * self._signs)[self._sdk_from_local]
+
+    def _to_local(self, q):
+        return q[self._local_from_sdk] * self._signs
+
+    def _positions_valid(self, q):
+        return np.all(q >= self._lo + self._margin) and np.all(q <= self._hi - self._margin)
+
+    def plan(self, start, goal):
+        """Return copied samples. Native failures are not retried or substituted."""
+        start = _vector(start, self.n, "start")
+        goal = _vector(goal, self.n, "goal")
+        with self._lock:
+            if self._closed or self._poisoned:
+                raise PlanningError("cuMotion planner is closed or faulted; construct a new instance")
+            qs, qg = self._to_sdk(start), self._to_sdk(goal)
+            if not self._positions_valid(qs) or not self._positions_valid(qg):
+                raise PlanningError("start/goal violates model joint limits or margin")
+            try:
+                return self._plan(qs, qg, start, goal)
+            except Exception as exc:
+                # No assumptions about native scratch state after an exception.
+                self._poisoned = True
+                if isinstance(exc, PlanningError):
+                    raise
+                raise PlanningError(f"cuMotion planning failed: {exc}") from exc
+
+    def _plan(self, qs, qg, start, goal):
+        result = self._optimizer.plan_to_cspace_target(qs, self._cm.TrajectoryOptimizer.CSpaceTarget(qg))
+        status = result.status()
+        if status != self._cm.TrajectoryOptimizer.Results.Status.SUCCESS:
+            raise PlanningError(f"cuMotion returned {status}")
+        trajectory = result.trajectory()
+        if trajectory.num_cspace_coords() != self.n:
+            raise PlanningError("cuMotion trajectory joint count mismatch")
+        domain = trajectory.domain()
+        lower = _number(domain.lower, "trajectory domain lower")
+        upper = _number(domain.upper, "trajectory domain upper")
+        duration = upper - lower
+        if not 0 < duration <= self._max_duration:
+            raise PlanningError("cuMotion trajectory duration outside configured budget")
+        intervals = duration / self._dt
+        if not math.isfinite(intervals) or intervals > self._max_samples - 1:
+            raise PlanningError("cuMotion trajectory exceeds sample budget")
+        count = max(2, math.ceil(intervals) + 1)
+        min_q = _vector(trajectory.min_position(), self.n, "trajectory minima")
+        max_q = _vector(trajectory.max_position(), self.n, "trajectory maxima")
+        max_v = _vector(trajectory.max_velocity_magnitude(), self.n, "trajectory max velocity")
+        if (not self._positions_valid(min_q) or not self._positions_valid(max_q)
+                or np.any(min_q > max_q) or np.any(max_v < 0)
+                or np.any(max_v > self._vmax + 1e-8)):
+            raise PlanningError("cuMotion trajectory extrema violate model limits")
+        times = np.linspace(0, duration, count)
+        positions, velocities = [], []
+        for t in times:
+            q = _vector(trajectory.eval(lower + float(t), 0), self.n, "trajectory position")
+            v = _vector(trajectory.eval(lower + float(t), 1), self.n, "trajectory velocity")
+            if (not self._positions_valid(q) or np.any(np.abs(v) > self._vmax + 1e-8)
+                    or self._inspector.in_self_collision(q)
+                    or self._inspector.in_collision_with_obstacle(q)):
+                raise PlanningError("cuMotion trajectory sample violates limits or collision model")
+            positions.append(tuple(self._to_local(q).tolist()))
+            velocities.append(tuple(self._to_local(v).tolist()))
+        if (not np.allclose(positions[0], start, atol=self._endpoint_tol, rtol=0)
+                or not np.allclose(positions[-1], goal, atol=self._endpoint_tol, rtol=0)):
+            raise PlanningError("cuMotion trajectory endpoints do not match the request")
+        # A corrupt native result must not hide a jump behind a zero derivative.
+        local_vmax = self._vmax[self._local_from_sdk]
+        if np.any(np.abs(np.diff(positions, axis=0)) > np.diff(times)[:, None] * local_vmax + 1e-8):
+            raise PlanningError("cuMotion samples exceed velocity bounds between samples")
+        request = {"start": start.tolist(), "goal": goal.tolist(),
+                   "joint_names": self.joint_names, "joint_signs": self._signs.tolist(),
+                   "base_frame": self.base_frame, "tool_frame": self.tool_frame,
+                   "model_sha256": self.model_sha256, "scene_sha256": self.scene_sha256,
+                   "sample_dt_s": self._dt, "joint_margin": self._margin,
+                   "max_duration_s": self._max_duration, "max_samples": self._max_samples,
+                   "sdk_version": SDK_VERSION,
+                   "endpoint_tolerance": self._endpoint_tol}
+        return MotionPlan(self.joint_names, tuple(times.tolist()), tuple(positions),
+                          tuple(velocities), self.base_frame, self.tool_frame,
+                          self.model_sha256, self.scene_sha256, _digest(request))
+
+    def close(self):
+        """Release solver before the native owners it references."""
+        with self._lock:
+            self._closed = True
+            self._optimizer = self._inspector = self._view = None
+            self._world = None
+            self._obstacles = []
+            self._robot = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()

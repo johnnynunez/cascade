@@ -1,0 +1,18 @@
+# Optional standalone planner. Copy this file and point at your separately
+# installed cuMotion 1.1.0 SDK's Franka assets; these files are NOT bundled here.
+# Model paths resolve relative to this YAML when using cascade.apps.plan_motion.
+type: cumotion
+urdf: /absolute/path/to/cumotion/content/third_party/franka/franka.urdf
+xrdf: /absolute/path/to/cumotion/content/nvidia/shared/franka.xrdf
+base_frame: panda_link0
+tool_frame: right_gripper
+joint_names: [panda_joint1, panda_joint2, panda_joint3, panda_joint4, panda_joint5, panda_joint6, panda_joint7]
+joint_signs: [1, 1, 1, 1, 1, 1, 1]
+sample_dt_s: 0.02
+max_duration_s: 60
+max_samples: 10000
+joint_margin: 0.025
+endpoint_tolerance: 0.0001
+# Empty is an explicit empty environment, not a read of the current kitchen.
+# Only XRDF self-collision geometry participates until cuboids are supplied.
+obstacles: []

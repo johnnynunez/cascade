@@ -325,7 +325,10 @@ class NvbloxBackend:
             self._Sensor = Sensor
         except ImportError:
             pass
-        self.mapper = Mapper(voxel_sizes_m=float(voxel), mapper_parameters=params)
+        # Preserve the exact construction parameters across a logical reset.
+        self._mapper_factory = lambda: Mapper(
+            voxel_sizes_m=float(voxel), mapper_parameters=params)
+        self.mapper = self._mapper_factory()
         self.masked_depth = "mask_frame" in inspect.signature(self.mapper.add_depth_frame).parameters
         self.voxel = float(voxel)
         self.spec = GridSpec(region_min, region_max, self.voxel)
@@ -339,8 +342,22 @@ class NvbloxBackend:
         raise RuntimeError("nvblox integrates DEPTH FRAMES (ray casting); use integrate_depth")
 
     def clear(self) -> None:
-        self.mapper.clear()
+        # Upstream clear drops live blocks without returning them to its pool,
+        # whose historical allocation count then drives larger reallocations.
+        # Replace the mapper so a reset drops both observations and that history.
+        # Keep the backend unavailable until construction and synchronization
+        # succeed; failed clears must not expose the previous map to queries.
+        self.mapper = None
+        self.last_integrate_ms = 0.0
+        self.last_query_ms = 0.0
+        replacement = self._mapper_factory()
         self._torch.cuda.synchronize()
+        self.mapper = replacement
+
+    def _ready_mapper(self):
+        if self.mapper is None:
+            raise RuntimeError("nvblox map unavailable: clear must complete before reuse")
+        return self.mapper
 
     def integrate_depth(self, depth: np.ndarray, K: np.ndarray, T_base_cam: np.ndarray) -> None:
         self._integrate_depth(depth, K, T_base_cam)
@@ -363,6 +380,7 @@ class NvbloxBackend:
         self._integrate_depth(depth, K, T_base_cam, np.ascontiguousarray(mask, dtype=np.uint8))
 
     def _integrate_depth(self, depth, K, T_base_cam, active_mask=None) -> None:
+        mapper = self._ready_mapper()
         torch = self._torch
         t0 = time.perf_counter()
         h, w = depth.shape
@@ -370,15 +388,16 @@ class NvbloxBackend:
         d = torch.as_tensor(np.ascontiguousarray(depth, dtype=np.float32)).cuda()
         pose = torch.as_tensor(np.asarray(T_base_cam, dtype=np.float32))  # CPU, sensor->world
         if active_mask is None:
-            self.mapper.add_depth_frame(d, pose, sensor)
+            mapper.add_depth_frame(d, pose, sensor)
         else:
-            self.mapper.add_depth_frame(d, pose, sensor,
-                                        mask_frame=torch.as_tensor(active_mask).cuda())
-        self.mapper.update_esdf()
+            mapper.add_depth_frame(d, pose, sensor,
+                                   mask_frame=torch.as_tensor(active_mask).cuda())
+        mapper.update_esdf()
         torch.cuda.synchronize()
         self.last_integrate_ms = (time.perf_counter() - t0) * 1e3
 
     def query(self, region_min, region_max) -> dict[str, Any]:
+        mapper = self._ready_mapper()
         torch = self._torch
         t0 = time.perf_counter()
         spec = GridSpec(region_min, region_max, self.voxel, voxel_centres=True)
@@ -388,7 +407,7 @@ class NvbloxBackend:
         spheres = np.zeros((len(centres), 4), dtype=np.float32)
         spheres[:, :3] = centres
         query = torch.as_tensor(spheres).cuda()
-        sdf = self.mapper.query_layer(self._QueryType.ESDF, query).reshape(-1).cpu().numpy()
+        sdf = mapper.query_layer(self._QueryType.ESDF, query).reshape(-1).cpu().numpy()
         grid = sdf.reshape(spec.shape).astype(np.float32)
         unknown = grid == self._unknown
         # Keep the 3-D layout: a flat SDF mask cannot index this grid.

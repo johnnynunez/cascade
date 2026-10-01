@@ -1,8 +1,8 @@
 # Retained-payload capture refresh
 
 This recovery contract has passed offline tests and passive validation in a new
-owned environment. Physical held-camera recovery and the five-object normal
-campaign remain pending. The original scene on port 8691 remains unchanged; the
+owned environment. A later single held-camera recovery passed as recorded below; the five-object
+normal campaign remains pending. The original scene on port 8691 remains unchanged; the
 held scene on 8692 was paused without actuator commands after a separate captured
 state and process-identity review.
 
@@ -101,3 +101,57 @@ on disk from `87c55bd` to `d1c6a68` between 04:49:42 and 04:53:13 on 2026-10-01
 separate publication worktree. This NV agent sent zero RPC or actuator commands to the retained scenes
 during that interval; simulator physics continued advancing. The isolated environment
 remained frozen at `8b6b865`.
+
+
+A later environment, `isolated-clock-04`, used frozen source `1efa8e9` with the
+ordinary Isaac profile set to 30 Hz target sampling. Safety preserves every
+original 50 Hz edge together with the actual targets and intervening subedges.
+Both retained halt-generation checks remain in planned moves. The complete
+suite passed 2,829 tests, with 43 skipped and three deselected; independent
+review also ran 96 focused tests. The PR integration has identical production
+and test files. Rendering, camera rates, ROI, clearance, unknown-payload policy,
+and deadlines were unchanged. Its first passive interval passed, with RTF
+0.2287 and maximum age 0.628 s across all three cameras; sampled cam0 map-commit
+age still reached 2.190 s. This passive evidence is distinct from the physical
+run below.
+
+One `camera-held-01` diagnostic then passed. The can rose about 99.9 mm with
+observed bilateral contact. Freezing only the consumed side-camera producer
+caused the intended 5.002 s barrier failure; the pending public reset refused
+after 5.263 s without actuator calls. Restoring that producer let recovery
+retain all three original measured anchors, replay six measured frames, and
+commit all three new captures above the common floor under the same producer
+epoch. Home then completed, followed by one jaw-open command and one real
+five-prop reset. The later scene reset discarded old history and produced three
+new map commits. Final feedback was home with open jaws, no held object, and a
+fresh map without pending errors. Cleanup issued no commands.
+
+The five motion requests sent 45, 225, 60, 120, and 90 targets, taking 10.411,
+49.201, 12.858, 43.717, and 29.667 wall seconds. Each was below the unchanged
+120 s per-motion limit. The complete grasp phase took 140.377 s, including
+perception and multiple motions; it is not one motion budget. All 206 recorded
+return-home snapshots before release showed bilateral contacts, with the can
+at least 98.7 mm above its spawn height. Total diagnostic actuation was 540
+joint targets, four jaw commands, and one prop reset.
+
+The physical diagnostic's `GpuProofObserver` records continuous proof-camera
+frames only. Its 1,217 snapshots contained two frames older than 2 s at
+sequences 5 and 6, peaking at 3.548 s before the first actuator call. Across the
+931 fully enclosed joint-motion snapshots, maximum proof-frame age was
+0.590 s. Continuous cam0 and side ages are unavailable for this physical run;
+the generic three-camera summary consequently fails for missing fields.
+Three successful source commits at each recovery boundary do not prove
+continuous three-camera freshness. The normal campaign's separate observer
+must audit all three cameras.
+
+Ultralytics also downloaded the previously absent `mobileclip_blt.ts` during
+setup despite the offline environment flags. The 599,764,649-byte artifact
+matched the historical cached model exactly (SHA256
+`a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54`).
+The startup freeze included the two `.pt` models but not this `.ts` file; its
+hash is explicitly post-download evidence. Future campaign preparation includes
+that model before launch. All 17 physical artifacts, 242 diagnostic sources,
+and 257 startup source entries were checked unchanged. The
+[held-recovery receipt](../benchmark/results/nvblox-held-camera-anchor-refresh-20261001.json)
+links the complete physical evidence and these scope limits. No normal
+five-object result is claimed.

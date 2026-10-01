@@ -54,6 +54,12 @@ physics. Analytic RGBD passed on Linux x86_64 and DGX Spark aarch64; the public
 static camera profile also passed on x86. It does not replace the demo's Isaac
 cameras or provide an automatic Isaac/Newton state producer.
 
+The optional [cuMotion planner](docs/CUMOTION.md), added in PR #47 after runtime
+baseline `0e23870`, exports static-world trajectory candidates through a factory
+and CLI. Native planning passed on Linux x86_64 with the 1.1.0 GPU SDK; candidates
+have no actuator execution authority. [Screw manipulation research](docs/SCREW_MANIPULATION_RESEARCH.md)
+records assets and the missing thread/torque verification for a future assembly task.
+
 ```
 ┌──────────────────────────────────────────┐   ┌──────────────────────────────────────────┐
 │  chat host: OpenClaw / Hermes /          │   │  CLI: --task / --interactive REPL        │
@@ -721,7 +727,7 @@ they run (and the ones that record a memory frame + verdict afterwards).
 | `move_relative` | Nudge the gripper a few centimeters (forward/back/left/right/up/down) |
 | `open_gripper` / `close_gripper` | Open (drops what's held) / close with the default grip profile |
 | `move_home` | Return to the home configuration; also clears the camera view |
-| `turn_screw` | Rotate the held tool/object about the approach axis in place (wrist-roll sweeps, harness-vetted) |
+| `turn_screw` | Command harness-vetted wrist-roll strokes; actual thread advancement and tightening torque are not verified. [Assembly research](docs/SCREW_MANIPULATION_RESEARCH.md). |
 | `halt_motion` | Stop the in-flight motion because it's no longer the right action (wrong object, scene changed, subgoal already met) -- no motion itself |
 
 **Social / gesture (moves arm)**

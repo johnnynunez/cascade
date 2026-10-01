@@ -8,9 +8,19 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
+Latest MAIN `13ec4830c913f4da3c3c6d07c4a810f95a49f323` adds the optional
+[cuMotion planner](CUMOTION.md) in [PR #47](https://github.com/johnnynunez/cascade/pull/47).
+Its six new files leave the existing native runtime paths unchanged. The
+source-bound Spark and nvblox trials remain on baseline `0e23870`; this distinction
+also applies to the installation commands below. The standalone planner passed
+78 CPU tests and one real x86 GPU CLI/factory smoke, with no actuator execution.
+Its CI is recorded separately; the 3,365-test baseline result is not a full-suite
+measurement of the later addition.
+
 Runtime baseline `0e2387070c2b784ba864981f5c291a1b1e4d117a` merged
 [PR #46](https://github.com/johnnynunez/cascade/pull/46) after all five PR CI jobs
-passed. Its tree `de39bba7c65f466e7fce42179ed22c213cd256da` is identical to tested
+passed. All five merged-source CI jobs also passed. Its tree
+`de39bba7c65f466e7fce42179ed22c213cd256da` is identical to tested
 candidate `4999a754c1c71759ff25dcbda5867bb1b3513fa5`: **3,365 tests passed**,
 43 skipped and four deselected, in 342.63 seconds. This run includes the core
 suite and the separate Brev visitor/video/portable-bundle Python suites.
@@ -77,6 +87,7 @@ in the validation history.
 | [PR #44](https://github.com/johnnynunez/cascade/pull/44) | Optional [OVRTX RGBD rendering](OVRTX_RENDERER.md), the [PhysX envelope](physx-finger-envelope.md) admitted against x86 and ARM exports, and complete portable distribution of their runtime inputs. |
 | [PR #45](https://github.com/johnnynunez/cascade/pull/45) | Diagnostic recorders retain opaque callback metadata and forward the actual safety callback unchanged. |
 | [PR #46](https://github.com/johnnynunez/cascade/pull/46) | [Native host reserve](native-visitor-turn-budget.md): 360-second visitor/proof pick turns around the unchanged 300-second MCP call limit. |
+| [PR #47](https://github.com/johnnynunez/cascade/pull/47) | Optional [cuMotion 1.1.0 planning](CUMOTION.md), static-world candidate export, real x86 GPU smoke; no integration into native actuator execution. |
 
 ## Merged renderer and geometry integration
 
@@ -186,6 +197,13 @@ producer, robot/target masks or manipulation authority is supplied; those
 connections require their own implementation and acceptance. Cosmos,
 mobile-base navigation and new hardware validation retain separate roadmap
 scopes. Locally installed development skills are authoring tools, not runtime dependencies or substitutes for source-bound physical tests.
+
+[Screw manipulation research](SCREW_MANIPULATION_RESEARCH.md) identifies five
+SimReady USD catalogue assets and the Factory/Isaac Lab/Newton threading paths.
+The existing `turn_screw` commands wrist strokes; measured thread advancement,
+engagement, seating and tightening torque are not implemented. SimReady's listed
+CC BY-NC terms and the original Factory mesh BSD-3-Clause licence are distinct.
+No threaded asset or simulation was installed for this research.
 
 ## Operator evidence sequence
 

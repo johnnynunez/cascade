@@ -8,6 +8,12 @@ software validation and the current physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.
 Read this after the README and before `AGENTS.md`.
 
+The optional [cuMotion planner](CUMOTION.md) is a separate candidate-generation
+API/CLI, with caller-owned URDF/XRDF and static cuboids. It does not replace the
+current IK/SafeArm pipeline or consume live payload/recovery authority. The
+[screw assembly investigation](SCREW_MANIPULATION_RESEARCH.md) describes physical
+verification absent from the existing gestural `turn_screw` skill.
+
 ## Design position
 
 CASCADE is an *agentic* manipulation stack: an LLM (or a human in a chat

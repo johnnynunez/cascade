@@ -91,7 +91,12 @@
   },
   "main_ci": {
     "run_id": 36865381713,
-    "status": "pending"
+    "status": "success",
+    "jobs_passed": 5,
+    "receipt": {
+      "file": "pr-merge-readonly-audit-20261001/main0e238-ci-complete.json",
+      "sha256": "7e644dda1b3caf1c0e6813af53322b555b0cbbd0fe4e969b49400e07cd59115a"
+    }
   },
   "prior_failed_ci": {
     "run_id": 36862232725,

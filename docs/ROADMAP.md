@@ -23,6 +23,21 @@ or design scopes. The offline [Jev/Kev pilot](JEV_DECISIONS.md) has not demonstr
 a decision-quality advantage over the recorded-status rule baseline and is not
 part of presenter startup.
 
+## Optional cuMotion planning and assembly research (2026-10-01)
+
+[PR #47](https://github.com/johnnynunez/cascade/pull/47) adds a standalone
+[cuMotion planner](CUMOTION.md). Its factory and CLI export validated trajectory
+candidates; a real x86 GPU smoke passed with the 1.1.0 SDK. The native execution
+path is unchanged. Live scene/payload binding and trajectory-aware execution
+need separate implementation and physical validation; ARM is not locally tested.
+
+The [screw manipulation investigation](SCREW_MANIPULATION_RESEARCH.md) identifies
+SimReady tools/fasteners and permissively licensed original Factory meshes.
+The proposed first task is measured nut advancement on a fixed bolt, followed
+by seating/torque verification. Existing `turn_screw` counts commanded wrist
+travel; it does not establish physical tightening. No assembly task is implemented
+by this research entry.
+
 ## PhysX finger envelope (2026-10-01)
 
 The [observed-scene envelope](physx-finger-envelope.md) now combines the complete

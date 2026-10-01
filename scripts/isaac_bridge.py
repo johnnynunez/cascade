@@ -95,9 +95,10 @@ if not 0 < args.dt <= 1.0:
 
 # Ownership registration must see this final interpreter, not the adapter
 # before exec. This handshake runs before loading Kit or creating GPU state.
-from isaac_frame_history import FrameHistory, ClockDiscontinuity, reference_key
 from isaac_launch import publish_ready
 publish_ready()
+
+from isaac_frame_history import FrameHistory, ClockDiscontinuity, reference_key
 
 # Demo ready target in the ASSET joint convention; IsaacArm converts the
 # profile's local home_q with joint_signs before sending the same target.
@@ -1543,10 +1544,18 @@ def _step_with_frame_history():
 def _render_token(sensor):
     times = sensor.get_render_times()
     rp = times["rpFabricTime"]
-    reference = (rp["fabricFrameTimeNumerator"], rp["fabricFrameTimeDenominator"])
+    values = (rp["fabricFrameTimeNumerator"], rp["fabricFrameTimeDenominator"])
+    # SDK scalar int64/uint64 may be NumPy scalars. Never cast floats, bools,
+    # strings or arrays into apparently valid rational clock evidence.
+    if any(isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer))
+           for value in values):
+        raise ValueError("render reference requires integer scalars")
+    reference = tuple(int(value) for value in values)
     key = reference_key(reference)
     simulation_time = times["IsaacReadSimulationTime"]["simulationTime"]
-    if isinstance(simulation_time, bool) or not isinstance(simulation_time, (int, float)) or not math.isfinite(simulation_time):
+    if (isinstance(simulation_time, (bool, np.bool_))
+            or not isinstance(simulation_time, (int, float, np.integer, np.floating))
+            or not math.isfinite(simulation_time)):
         raise ValueError("invalid render simulation time")
     product = sensor.render_product_id
     if not isinstance(product, str) or not product:

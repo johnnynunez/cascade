@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "pass": false,
+  "scope": "Additional native confirmed-physics gate over unchanged saved full audits; no actuation or physics replay",
+  "trace_binding": "Owner-bound trace + unique step + exact arguments + observer/turn intervals; trace has no native run/order ID",
+  "proof": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-20261001/runs/.launch/profile-cascade-demo/proof.json",
+  "errors": [
+    "proof is incomplete or verified is not true"
+  ],
+  "proof_native_cases": [
+    {
+      "object": "green_cube",
+      "destination": "green square",
+      "pass": true,
+      "errors": [],
+      "pick_step": 1,
+      "pick_t": 1790810635.2316,
+      "reset_step": 2,
+      "reset_t": 1790810668.6772482,
+      "postcondition": {
+        "skill": "pick_and_place",
+        "kind": "relocated",
+        "status": "confirmed",
+        "evidence": "green_cube is fully contained in green square, supported, released by the actual jaws and settled across the observed window; the pick/lift was not observed",
+        "channel": "physics",
+        "measured": {
+          "scope": "post-placement containment, support, release and settling only; lift, transport, cameras and reset unverified",
+          "object": "green_cube",
+          "destination": "green square",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "engine": "physx",
+          "final_samples": 19,
+          "final_window_sim_s": 0.5,
+          "max_sample_gap_sim_s": 0.03333333333333499,
+          "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+          "max_final_xy_error_m": 0.005749307465317224,
+          "max_final_support_z_error_m": 2.186971631568113e-09,
+          "max_final_linear_speed_m_s": 2.6150324004003828e-05,
+          "max_final_angular_speed_rad_s": 0.0003153281015177138,
+          "max_final_position_spread_m": 3.332000937312528e-08,
+          "min_final_actual_open_fraction": 0.9999243021022632,
+          "min_inside_clearance_m": 0.045341489650132044,
+          "max_abs_support_gap_m": 3.630106825899815e-08,
+          "support_tolerance_m": 0.005,
+          "boundary_outward_tolerance_m": 0.0,
+          "checks": {
+            "actual_joints_within_limits": true,
+            "released_actual_jaws": true,
+            "destination_xy": true,
+            "supported_z": true,
+            "settled_linear_speed": true,
+            "settled_angular_speed": true,
+            "stable_final_position": true,
+            "support_geometry": true,
+            "whole_collider_contained": true,
+            "lowest_collider_point_supported": true
+          },
+          "failed_checks": [],
+          "observed_samples": 24,
+          "observation_wall_s": 7.155,
+          "evidence_path": "/home/spark/Projects/cascade-native-0fee56f-20261001/runs/mcp_542173_272af5ef2cf54f38a23458217dc0d82f/placement/6d57c6ba16c34f6ca0a73d21b43ad063.json",
+          "evidence_sha256": "ed828d417d4aad0f6f2ce294d631753be2b50314197a24cedc0d1b96a6b599de"
+        }
+      },
+      "pick_row_sha256": "94045baf4148a6c540af73440f538b3605e9ce47d6a2d423254e0986cbb308f5",
+      "reset_row_sha256": "41da8b3748de788e1fe46913efac0c18e6baceebcfa3d1e1dbe2d53f937490d3",
+      "run_ids": {
+        "pick_and_place": "c0790f3d-8523-40c5-a58b-162fde8c95d6",
+        "reset_scene": "74752bdd-6458-48eb-9214-58a2815e3c4e"
+      },
+      "phase_unix": {
+        "pick_begin": 1790810564.1599498,
+        "pick_end": 1790810647.872294,
+        "reset_begin": 1790810647.938918,
+        "reset_end": 1790810739.4423308
+      },
+      "full_physical_audit_pass": true
+    },
+    {
+      "object": "orange",
+      "destination": "open box",
+      "pass": false,
+      "errors": [
+        "EvidenceError: completed case receipt is missing from proof"
+      ]
+    }
+  ],
+  "campaign_native_cases": [],
+  "checker_sha256": "119872cc6c805499efd673e252ea7a7e844e3903fff58ea26913301d6825ffd3",
+  "evidence_root": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-20261001",
+  "proof_session": "cascade-proof-f56937ba4ce94ce69d535278615cdfb7",
+  "trace": "/home/spark/Projects/cascade-native-0fee56f-20261001/runs/mcp_542173_272af5ef2cf54f38a23458217dc0d82f/trace.jsonl",
+  "process": {
+    "repo": "/home/spark/Projects/cascade-native-0fee56f-20261001",
+    "profile": "cascade-demo",
+    "state_dir": "/home/spark/Projects/cascade-native-0fee56f-20261001/runs/.launch/profile-cascade-demo",
+    "owner": "a138c08b805341dab1a0d8af1116d40e",
+    "schema": 1,
+    "pid": 542173,
+    "birth": "32c5e705-4828-4f19-85b4-c6f0ece924ec:5642896",
+    "command": "/home/spark/Projects/cascade-native-0fee56f-20261001/.venv/bin/python -m cascade.apps.mcp_server --launch-owner a138c08b805341dab1a0d8af1116d40e --launch-state-dir /home/spark/Projects/cascade-native-0fee56f-20261001/runs/.launch/profile-cascade-demo",
+    "role": "mcp",
+    "instance_id": "33443ede4ab4432181c84a4b3a72b9cf",
+    "registered_at": 1790810535.214328,
+    "run_dir": "/home/spark/Projects/cascade-native-0fee56f-20261001/runs/mcp_542173_272af5ef2cf54f38a23458217dc0d82f"
+  },
+  "input_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-20261001/runs/.launch/profile-cascade-demo/proof.json": "a98f81e49c595b8254cb2c58f442a2c3d15a678e3e4fc42d1390134e1cebf6d4",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-20261001/runs/mcp_542173_272af5ef2cf54f38a23458217dc0d82f/trace.jsonl": "f91abbc0df1c65412db41b93b55b576b19202ee7f67659f1d2dc128063d0eb0e",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-20261001/runs/.launch/profile-cascade-demo/cascade-proof-f56937ba4ce94ce69d535278615cdfb7/case-1/physics/gpu-physical-audit.json": "80f1d76cd5d390cd1266c326978ff146b9887a0a792b8449730778a75dc6d95f",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-20261001/runs/.launch/profile-cascade-demo/cascade-proof-f56937ba4ce94ce69d535278615cdfb7/case-1/physics/phases.json": "b12b2497a0062358e5f4e5e168152ab417c082a5ae9906a909684e732ebbff6c",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-20261001/runs/.launch/profile-cascade-demo/cascade-proof-f56937ba4ce94ce69d535278615cdfb7/case-1/physics/metadata.json": "4116c1ce116d2ca0fe03a2b1b92fec4f36e88675b27a83299057dd13b9d500bf",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-20261001/runs/.launch/profile-cascade-demo/cascade-proof-f56937ba4ce94ce69d535278615cdfb7/case-1/02-pick.json": "61b09e72e39d3aab6ac48ffa0c85e81640fefad5650f8972c418bf904ad88d52",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/native-evidence-20261001/runs/.launch/profile-cascade-demo/cascade-proof-f56937ba4ce94ce69d535278615cdfb7/case-1/03-reset.json": "9a6522e3a76df59e4034ec32d996fcb0ca746f4f0308017903fb6cffdb336e93"
+  }
+}

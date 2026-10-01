@@ -205,6 +205,59 @@ acceptance, full desktop READY proof, fresh installation or deployment of the
 final source. The clean September installation and its pin remain unchanged;
 the install commands in the setup guide still select that tested release.
 
+## Native confirmation gate and failed follow-up, 1 October 2026
+
+The additional offline gate in
+[`spark_native_confirmed.py`](../benchmark/diagnostics/spark_native_confirmed.py)
+requires each native placement to report a case-bound `confirmed` physics
+postcondition and a successful return home. It also requires the existing full
+placement/camera/reset audit. A successful final placement alone cannot satisfy
+this gate. It reads saved evidence without issuing robot commands or rewriting
+the native outcome. Trace attribution uses the owning MCP process, unique step,
+exact arguments and observed turn intervals; trace rows do not contain native
+OpenClaw run or visitor order IDs.
+Native run IDs are reported as declared by the saved turn files. Swapping two
+otherwise valid envelopes from the same session cannot independently be
+detected from those IDs; physical case attribution still uses the exact
+arguments and observed trace intervals.
+
+Run it after the normal launcher proof, then again with the five-object native
+campaign receipt:
+
+```bash
+python3 benchmark/diagnostics/spark_native_confirmed.py \
+  --proof runs/.launch/profile-cascade-demo/proof.json \
+  --output runs/native-confirmed-proof.json
+python3 benchmark/diagnostics/spark_native_confirmed.py \
+  --proof runs/.launch/profile-cascade-demo/proof.json \
+  --campaign runs/native-campaign/campaign.json \
+  --output runs/native-confirmed-campaign.json
+```
+
+Outputs must be new files. For an archived repository layout, pass
+`--evidence-root /path/to/archive` and point `--proof` and `--campaign` inside
+that archive. The report records hashes of every input and the checker source;
+file modification times are not used as evidence.
+
+A normal desktop launch from clean source `0fee56f0c4891f6d85362d5cc38f6b58879c370f`
+passed the green-cube placement, native physics confirmation and full reset.
+The orange failed both grasp attempts, with the final attempt reporting an air
+grasp and a `refuted` placement. The launcher withheld READY and closed its
+owned services. The saved
+[negative gate report](../benchmark/results/spark_native_confirmed_negative_20261001.json)
+accepts the completed green case and rejects the incomplete orange case and
+proof. It is failure evidence, not a completed two-object acceptance.
+
+A subsequent normal launch of the unchanged September source `9cf5402` also
+failed the orange, this time ending with `did not settle at grasp pose`.
+Therefore the old successful September run is historical evidence, not a
+demonstration that restoration currently succeeds. Neither attempt completed
+the new five-object native campaign, UI acceptance or restart acceptance.
+The candidate reused the recorded baseline dependencies and assets in a
+separate application environment; it was not a fresh dependency installation.
+The grasp-memory file and failed receipts were preserved before diagnostic
+instrumentation. Root cause remains unestablished by these two attempts.
+
 ## Quick recovery during the demo
 
 Use the in-session reset for scene/task state. `scripts/booth_reset.sh

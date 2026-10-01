@@ -98,7 +98,11 @@ if _dynamic:
             try:
                 _view = _cache.get(_path)
                 if _view is None:
-                    _view = _RigidPrim(_path)
+                    # Verification must not normalize transforms or prepare
+                    # contact sensors (which authors a zero sleep threshold).
+                    # Both operations default to enabled in this API.
+                    _view = _RigidPrim(_path, reset_xform_properties=False,
+                                       prepare_contact_sensors=False)
                     _cache[_path] = _view
                 _pos, _ = _view.get_world_poses()
                 _out[_name] = [round(float(v), 5) for v in _pos[0]]

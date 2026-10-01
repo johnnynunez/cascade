@@ -1,0 +1,107 @@
+{
+  "scope": "Close only the failed NV15 simulation pair; preserve every terminal result.\n\nNo robot RPC, reset, home, opening, recovery, escalation or task-success claim.\nThe retained native retreat failure is terminal. Only exact pidfd SIGTERM to\nthe owned Kit and mapper is permitted; their launcher exits normally.\n",
+  "pass": true,
+  "errors": [],
+  "signals": [
+    {
+      "role": "bridge",
+      "pid": 2962541,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13287752",
+      "signal": "SIGTERM",
+      "attempted_monotonic": 133936.887119145,
+      "sent": true
+    },
+    {
+      "role": "mapper",
+      "pid": 2962469,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13287748",
+      "signal": "SIGTERM",
+      "attempted_monotonic": 133937.997157353,
+      "sent": true
+    }
+  ],
+  "actuator_commands": [],
+  "native_case_still_failed": true,
+  "administrative_close_adds_motion": false,
+  "administrative_action_adds_home_or_reset": false,
+  "plan_sha256": "d6f9804d5c4d10bd4d4424e996df2b9de637255da29c3ae9779c1864a8b98a22",
+  "script_sha256": "cde14e9e991b3deba078b9588be5db48859d611bc125c7b912832942eecaa548",
+  "sources_before": 289,
+  "protected_before": true,
+  "owned": {
+    "isaac": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical",
+      "profile": "nvblox-clock-15",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/ownership",
+      "owner": "3108d1d876814eebb24f27c75c368f1d",
+      "schema": 1,
+      "pid": 2962468,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13287748",
+      "command": "/usr/bin/python3 /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/scripts/isaac_launch.py --python /home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh --ready-file /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/isaac.ready.json -- /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/scripts/isaac_bridge.py --port 8704 --engine physx --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/demo/scene/kitchen_config.json --width 960 --height 540 --cam-every 6 --dt 0.008333333333333333",
+      "role": "isaac",
+      "instance_id": "ce6b956434b84b0bb0e3d32a02c40823",
+      "registered_at": 1790887775.2154694,
+      "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15",
+      "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical",
+      "process_group": 2962468
+    },
+    "mapper": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical",
+      "profile": "nvblox-clock-15",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/ownership",
+      "owner": "3108d1d876814eebb24f27c75c368f1d",
+      "schema": 1,
+      "pid": 2962469,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13287748",
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox-venv/bin/python /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/scripts/serve_occupancy_bridge.py --backend nvblox --port 25575 --voxel-size 0.005",
+      "role": "occupancy",
+      "instance_id": "7acdda6ce97046e48850ab12265709a3",
+      "registered_at": 1790887775.2164881,
+      "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15",
+      "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical",
+      "process_group": 2962469
+    },
+    "bridge": {
+      "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical",
+      "profile": "nvblox-clock-15",
+      "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/ownership",
+      "owner": "3108d1d876814eebb24f27c75c368f1d",
+      "schema": 1,
+      "pid": 2962541,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13287752",
+      "command": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/kit/python/bin/python3 /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/scripts/isaac_bridge.py --port 8704 --engine physx --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/demo/scene/kitchen_config.json --width 960 --height 540 --cam-every 6 --dt 0.008333333333333333",
+      "role": "isaac_bridge",
+      "instance_id": "a99d3fc672a84454b3237e1b99906ef9",
+      "registered_at": 1790887775.2996914,
+      "run_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15",
+      "cwd": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical",
+      "process_group": 2962533
+    }
+  },
+  "owner": {
+    "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical",
+    "profile": "nvblox-clock-15",
+    "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/ownership",
+    "owner": "3108d1d876814eebb24f27c75c368f1d",
+    "schema": 1
+  },
+  "listeners_before": "LISTEN 0      5      127.0.0.1:8704  0.0.0.0:* users:((\"python3\",pid=2962541,fd=421))\nLISTEN 0      100      0.0.0.0:25575 0.0.0.0:* users:((\"python\",pid=2962469,fd=45))  \n",
+  "still_live": {
+    "isaac": false,
+    "mapper": false,
+    "bridge": false
+  },
+  "listeners_after": "",
+  "protected_after": true,
+  "sources_after": 289,
+  "protected_final": true,
+  "sources_final": 289,
+  "owned_final": {
+    "isaac": false,
+    "mapper": false,
+    "bridge": false
+  },
+  "listeners_final": "",
+  "script_final_sha256": "cde14e9e991b3deba078b9588be5db48859d611bc125c7b912832942eecaa548",
+  "finished_monotonic": 133940.790212771
+}

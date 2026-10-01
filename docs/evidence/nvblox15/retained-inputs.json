@@ -1,0 +1,36 @@
+{
+  "scope": "Listed files are original copies. summary.json is a separately labelled derived selection with original input hashes.",
+  "files": [
+    {
+      "file": "readiness.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/truth-readiness-01/receipt.json",
+      "sha256": "36e7f936f9c4d1983705b46dc90da1e1cb22603750216a8bd3968a21a0b00a83",
+      "bytes": 11945
+    },
+    {
+      "file": "administrative-close.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/final-preservation-01/shutdown.json",
+      "sha256": "6703d110261236be8e8d86999a049efedc292dfe1b22a16f82fd8e3e88c29356",
+      "bytes": 6210
+    },
+    {
+      "file": "close-root-review.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox15-root-review-20261002/administrative-close-result.json",
+      "sha256": "b43250032ccaab54a3b894babae349f785442ed6d8ac4583ad51254b8a6b4e6e",
+      "bytes": 734
+    },
+    {
+      "file": "retention.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nvblox15-administrative-preservation-20261002/archive.json",
+      "sha256": "7d5ea1369000b075c9b8b3aa0ce06c594487dc24f540866b0aebee06cd3dab1f",
+      "bytes": 21856
+    },
+    {
+      "file": "release-analysis.json",
+      "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/nv15-release-code-review-20261002/receipt.json",
+      "sha256": "3d93aef74ebbcf41aa1d78bf111b42bb7614fa8439e561122715e8ee45088e3b",
+      "bytes": 12566
+    }
+  ],
+  "derived_summary_sha256": "6e2c9b740b44c1e584a5449bee35a331009d81c43337139555975f11adceb907"
+}

@@ -6,7 +6,7 @@ explicit MCP GPU selection, Isaac verifier startup readiness, localization
 freshness checks, [detector model reuse](docs/DETECTOR_MODEL_REUSE.md) and optional OVRTX/cuMotion adapters.
 [Project status](docs/PROJECT_STATUS_20261001.md) records the
 source-specific software checks. [Local dual-RTX Pro validation](docs/LOCAL_RTX_VALIDATION.md)
-retains four native timeouts and separate NV preflight/localization failures.
+retains four native timeouts and separate NV localization and release-geometry failures.
 The latest local profile proof (attempt 08) passed camera freshness and verified
 the grasp, but timed out during placement while still holding the object.
 Current physical proof, campaign and restart acceptance remain incomplete.

@@ -1,0 +1,19 @@
+{
+  "pass": true,
+  "utc": "2026-10-01T21:08:04.217219+00:00",
+  "closure_sha256": "6703d110261236be8e8d86999a049efedc292dfe1b22a16f82fd8e3e88c29356",
+  "closure_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/runs/nvblox-rtx/isolated-clock-15/final-preservation-01/shutdown.json",
+  "owned_pids_absent": [
+    2962468,
+    2962469,
+    2962541
+  ],
+  "ports_closed": [
+    8704,
+    25575
+  ],
+  "protected12_and_source08_guard": true,
+  "nv15_sources_rehashed": 289,
+  "negative_native_sha256": "036dbab60f71d605b18e1d2732488bee8355dc7568ea4cf87f7e3c3a0219bc47",
+  "scope": "Independent administrative closure verification; native retreat failure remains FAIL; no robot RPC or actions."
+}

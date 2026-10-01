@@ -1,0 +1,205 @@
+{
+  "pass": true,
+  "scope": "One bounded truth availability preparation; never motion/release authority.\n\nA dedicated 1s client submits the native probe once with a mainthread nonce.\nAfter a transport timeout a new connection polls only that nonce. The complete\n30s readiness evidence is retained, including timeouts. A later release launcher\nmust obtain its own NEW native atomic observation with the unchanged 1s deadline.\n",
+  "errors": [],
+  "commands": [],
+  "requests": [],
+  "readiness": {
+    "pass": true,
+    "scope": "Readiness only: one native probe, bounded observation of its completion token.\n\nThe caller supplies a dedicated client with connection timeout1s, binds the\nsource/epoch and supplies a\npure validator of the retained native reply. A later motion preflight MUST make\nits own new native observation; none of this module's snapshots is authority.\n",
+    "nonce": "018c310ab1634c578fe7fb4099952059",
+    "native_sha256": "2591035c0a06f62aa764c166a25aff347ebce50201f796ad654b51449072a844",
+    "started_monotonic": 133078.799630085,
+    "wall_budget_s": 30.0,
+    "rpc_timeout_s": 1.0,
+    "requests": [
+      {
+        "kind": "native",
+        "code_sha256": "432fd0dd038c0cb8d11c3eec8c8489b4f3270e616bf4472b177456dd14fea3ee",
+        "started_monotonic": 133078.799751079,
+        "timeout_s": 1.0,
+        "raw_reply": {
+          "ok": true,
+          "stdout": "NV_TRUTH_READINESS_Z1 eJyFV9tS40YQ/RXKz6yZ+yVvwJJkUyRsAdk8xFuqkTzGEySNV5JZnC3+PT0zsi0b29EDJXefPt3Tl2nxY9QWc1uZ0U9n+PxsVPu6sPA+QlgVFCOTY0FZwaWaWTnLGdJac4K4HgWw6dyLzdq5IVwEI8I1RpQXyCAxE8QYKViBhQC9mc0okzYvLEcE4ZnUwkwFZznHjGkkiVGMBdLCV4vSdnYKhF2ztCBqO9OAIKt87TtfuyIESymSaqwYV5RwyrbhNHZRrgDxY+SfhxxTv+xCkNeXD9eXH2+yx/s/H3/N7q4ebu6/XD5+uvvj7Mdk9GKb1vl6ktIxGS3mq9YVbVaUvngO0gMYWz+52oafCf86GQXxxmQyenDVsoTofP27qc2TbRLCLnwxTwipC66stmamGbM4V1YZTXOlZ3LKJJPJoPG57zI3TTYXXZ1lCJmmatrMtNULzea/iY8Xv1hf2a5ZXeSmtVnp6udk3boq61wVI5V0TIbnazu7CHIlFRvKp13WBjkaI6To7vMWgN/Ac2u7gPk7gBAmigqikVZQVYzp+dkHPCaIUNBJLKGdkBJRiLUSgnJNKFVcQDjRnhBKBIdmoFoSJkI4gYAgphjiWCAEzajsByRBQcbQRwGNJHQDwSTIv4a4/vGu7rLC1y+27vpqTUZ9rFuAq6eusG0K/zzUE+KAmMErH/DUpupBvQQPSMjgnQ7e2eCdD97FZBSpFx7KM2tM1ffOd9+U04SLlQO9C6FnvQK8kzEcV1AMgwODSLCG86ZkMow55VJKzDHkQ4BCg0KOYVA0RYDlnHHBNwmKLnzjID0meXld/Rud4DFkQowlw4xrGmaTwZQlQjpWBMqoQc4ZwgykHNyoseYSQBJRIQgReuMGOhHGJVvYJlvWLvZJ5Id2tA1M0naoJ9up1phwpQTfdqIpQzpSDWAEO1+ZzmeFqfvGI4Sj8CjNkNBCxm4iOGRJA5PkGEseO4zhCNUAlaGlY5SlrfyaimIdH6Jg8BgRqS9ZEiqlCDBoHKUktCM8XKDQ9SJy+cbUT7YnwyoCIGWccC6pDHa49yAplhImRScyQRWMCVBSDVaCpSaB8c2KZb4mJDLyYaiKApdIJMLkRSioMWU4nZQkL5oSuFOkZCm8p8baeoeRJWPNqZAM/Edj3LuBMyJoH0SPUL7t1sh088M1guvqr9DG2efGL9qLoXKnAHu4Xr6b1z3MWvEuXXu4ge59IvawQ+XuEV28UXyziumDc9abAd4/VMjG/5wduHcoBuc9Yt0j9g13knDYcg3ZN93LyxHrAWqfYJisEww7Of36Nql3N/Hnu4ebh9g4Ji/XzckwZWy9GcJNE1oz3cx+AWy5f12vnoiKf6J6VnrfrEc6GuKeiPQjP1tvLVhAQwBJgMY9zdcImIwDiFnj627HBUFyCMhN+gLY6JGkQ33KSPttaRp77BiuLI+oct9MbXNE+cW1S1NubqF4S5DNPRMhV3662l6f6cLkW4Zbk9vyhP66saa6MvX0BObKd9Dt9646gXn0i9OAWzf9VG+/MQ5zhJG6qaBxTjElwC18ZZ06ly9Lt/7AO5q8n5ul29S+/3YZBuQWt9sGOwy4HzbYe8QgzAPaz9aeru61KVevJxEP3SZZhwGHtuwwXWGVvl+fO7HChjy0FA95e7/p0mqLKHpsd6Vl1WPgTgmXEwxN7dr54f8Y4NtCEqqwePsPS52Kvg==\n"
+        },
+        "finished_monotonic": 133078.913061379,
+        "elapsed_s": 0.11331029998837039
+      }
+    ],
+    "reconnections": [],
+    "errors": [],
+    "native_submissions": 1,
+    "completion": {
+      "schema": 1,
+      "nonce": "018c310ab1634c578fe7fb4099952059",
+      "native_sha256": "2591035c0a06f62aa764c166a25aff347ebce50201f796ad654b51449072a844",
+      "completed": true,
+      "started_monotonic": 133078.845832534,
+      "native_reply": {
+        "ok": true,
+        "stdout": "CASCADE_TRUTH_OBSERVATION {\"version\": 1, \"physics_clock\": {\"version\": 1, \"engine\": \"physx\", \"clock\": \"SimulationManager\", \"epoch\": \"79c58e9eaf944e1b8e8a93b89f7d4747\", \"robot_id\": \"/tn__00armrs_asmv3_hJ6D/Geometry/base_link\", \"sim_time\": 73.2, \"physics_step\": 8784, \"physics_dt_s\": 0.008333333333333333}, \"q_asset\": [0.0001283629098907113, -1.2023000717163086, -1.198663592338562, 0.00022326584439724684, -1.2204840516005788e-07, -2.796658407078212e-07], \"joint_convention\": \"asset\", \"joint_indices\": [0, 1, 2, 3, 4, 5], \"joint_names\": [\"joint1\", \"joint2\", \"joint3\", \"joint4\", \"joint5\", \"joint6\"], \"pose_frame\": \"world\", \"base_position_world\": [2.966631654999219e-06, -1.4115357771515846e-09, -7.133930921554565e-07], \"base_orientation_wxyz\": [1.0, 6.741459390724458e-09, 3.82071993954014e-05, -8.957458703662269e-07], \"meters_per_unit\": 1.0, \"server_monotonic\": 133078.91258865, \"physical_poses\": {\"tomato_can\": [0.22500000894069672, 0.2149999886751175, 0.04125000908970833], \"lemon\": [0.3199999928474426, 0.004999999888241291, 0.02160000056028366], \"orange\": [0.18000000715255737, 0.11999999731779099, 0.026380231603980064], \"pink_cube\": [0.27000001072883606, 0.11000000685453415, 0.029999999329447746], \"green_cube\": [0.24000000953674316, 0.010000010021030903, 0.029999999329447746]}, \"physical_paths\": {\"tomato_can\": \"/World_Props/tomato_can\", \"lemon\": \"/World_Props/lemon\", \"orange\": \"/World_Props/orange\", \"pink_cube\": \"/World_Props/pink_cube\", \"green_cube\": \"/World_Props/green_cube\"}, \"physical_inventory\": [{\"name\": \"tomato_can\", \"path\": \"/World_Props/tomato_can\"}, {\"name\": \"lemon\", \"path\": \"/World_Props/lemon\"}, {\"name\": \"orange\", \"path\": \"/World_Props/orange\"}, {\"name\": \"pink_cube\", \"path\": \"/World_Props/pink_cube\"}, {\"name\": \"green_cube\", \"path\": \"/World_Props/green_cube\"}]}\nCASCADE_TRUTH_POSES {\"table\": [0.41344, 0.00025, -0.015], \"open_box\": [0.0, 0.0, 0.0], \"floor\": [0.3, -0.14, 0.002], \"left\": [0.233, -0.14, 0.022], \"right\": [0.367, -0.14, 0.022], \"front\": [0.3, -0.207, 0.022], \"back\": [0.3, -0.073, 0.022], \"green_square\": [0.0, 0.0, 0.0], \"fill\": [0.0, 0.0, 0.0], \"border\": [0.0, 0.0, 0.0], \"Visual\": [0.18, 0.12, 0.02638], \"Body\": [0.225, 0.215, 0.0], \"Label\": [0.225, 0.215, 0.0], \"CreamBand\": [0.225, 0.215, 0.0], \"BottomRim\": [0.225, 0.215, 0.0], \"TopRim\": [0.225, 0.215, 0.0], \"LidInset\": [0.225, 0.215, 0.0], \"TomatoEmblem\": [0.225, 0.215, 0.0], \"EmblemLeaf\": [0.225, 0.215, 0.0], \"Collision\": [0.18, 0.12, 0.02638], \"Fruit\": [0.32, 0.005, 0.0], \"TipLeft\": [0.32, 0.005, 0.0], \"TipRight\": [0.32, 0.005, 0.0], \"Leaf\": [0.32, 0.005, 0.0], \"Peel\": [0.18, 0.12, 0.02638], \"Calyx\": [0.18, 0.12, 0.02638], \"Stem\": [0.18, 0.12, 0.02638], \"tomato_can\": [0.225, 0.215, 0.04125], \"lemon\": [0.32, 0.005, 0.0216], \"orange\": [0.18, 0.12, 0.02638], \"pink_cube\": [0.27, 0.11, 0.03], \"green_cube\": [0.24, 0.01, 0.03]}\n"
+      },
+      "finished_monotonic": 133078.912723816
+    },
+    "availability": {
+      "pass": true,
+      "atomic_observation": {
+        "version": 1,
+        "physics_clock": {
+          "version": 1,
+          "engine": "physx",
+          "clock": "SimulationManager",
+          "epoch": "79c58e9eaf944e1b8e8a93b89f7d4747",
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "sim_time": 73.2,
+          "physics_step": 8784,
+          "physics_dt_s": 0.008333333333333333
+        },
+        "q_asset": [
+          0.0001283629098907113,
+          -1.2023000717163086,
+          -1.198663592338562,
+          0.00022326584439724684,
+          -1.2204840516005788e-07,
+          -2.796658407078212e-07
+        ],
+        "joint_convention": "asset",
+        "joint_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "joint_names": [
+          "joint1",
+          "joint2",
+          "joint3",
+          "joint4",
+          "joint5",
+          "joint6"
+        ],
+        "pose_frame": "world",
+        "base_position_world": [
+          2.966631654999219e-06,
+          -1.4115357771515846e-09,
+          -7.133930921554565e-07
+        ],
+        "base_orientation_wxyz": [
+          1.0,
+          6.741459390724458e-09,
+          3.82071993954014e-05,
+          -8.957458703662269e-07
+        ],
+        "meters_per_unit": 1.0,
+        "server_monotonic": 133078.91258865,
+        "resolved_name": "orange",
+        "position_m": [
+          0.18000000715255737,
+          0.11999999731779099,
+          0.026380231603980064
+        ],
+        "resolved_path": "/World_Props/orange",
+        "source": [
+          "127.0.0.1",
+          8704
+        ]
+      },
+      "q_local": [
+        -0.0001283629098907113,
+        1.2023000717163086,
+        1.198663592338562,
+        -0.00022326584439724684,
+        1.2204840516005788e-07,
+        2.796658407078212e-07
+      ],
+      "position_base_m": [
+        0.17999480913210117,
+        0.12000032154632477,
+        0.026394697659520305
+      ],
+      "clock": {
+        "version": 1,
+        "engine": "physx",
+        "clock": "SimulationManager",
+        "epoch": "79c58e9eaf944e1b8e8a93b89f7d4747",
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 73.2,
+        "physics_step": 8784,
+        "physics_dt_s": 0.008333333333333333,
+        "source": [
+          "127.0.0.1",
+          8704
+        ]
+      },
+      "scope": "Readiness availability only; this retained sample cannot authorize future motion or release."
+    },
+    "finished_monotonic": 133078.914064934,
+    "elapsed_s": 0.11443484900519252
+  },
+  "script_sha256": "92408bb38fb789eaafb03c193d3f2add15fe1b21fcbc400122cc1d1db75b6a5b",
+  "plan_sha256": "6c772e470beec38dafbfbbbf457176a0558bafdad7bfae9684aff14df422722a",
+  "argv": [
+    "/tmp/nvblox15-truth-readiness.py"
+  ],
+  "environment": {
+    "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-detector-main-physical/src",
+    "CUDA_VISIBLE_DEVICES": "1",
+    "CASCADE_OBSERVED_FINGER_GATE": "1"
+  },
+  "dedicated_client_scope": "Constructed only in this process, never shared with runtime/watchers or state client.",
+  "future_authority": false,
+  "sources_before": 289,
+  "listeners_before": "LISTEN 0      5      127.0.0.1:8704  0.0.0.0:* users:((\"python3\",pid=2962541,fd=421))\nLISTEN 0      100      0.0.0.0:25575 0.0.0.0:* users:((\"python\",pid=2962469,fd=45))  \n",
+  "clock_before": {
+    "version": 1,
+    "engine": "physx",
+    "clock": "SimulationManager",
+    "epoch": "79c58e9eaf944e1b8e8a93b89f7d4747",
+    "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+    "sim_time": 73.16666666666667,
+    "physics_step": 8780,
+    "physics_dt_s": 0.008333333333333333,
+    "source": [
+      "127.0.0.1",
+      8704
+    ]
+  },
+  "state_before": {
+    "version": 1,
+    "engine": "physx",
+    "clock": "SimulationManager",
+    "epoch": "79c58e9eaf944e1b8e8a93b89f7d4747",
+    "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+    "sim_time": 73.18333333333334,
+    "physics_step": 8782,
+    "physics_dt_s": 0.008333333333333333,
+    "source": [
+      "127.0.0.1",
+      8704
+    ]
+  },
+  "clock_after": {
+    "version": 1,
+    "engine": "physx",
+    "clock": "SimulationManager",
+    "epoch": "79c58e9eaf944e1b8e8a93b89f7d4747",
+    "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+    "sim_time": 73.21666666666667,
+    "physics_step": 8786,
+    "physics_dt_s": 0.008333333333333333,
+    "source": [
+      "127.0.0.1",
+      8704
+    ]
+  },
+  "sources_final": 289,
+  "listeners_final": "LISTEN 0      5      127.0.0.1:8704  0.0.0.0:* users:((\"python3\",pid=2962541,fd=421))\nLISTEN 0      100      0.0.0.0:25575 0.0.0.0:* users:((\"python\",pid=2962469,fd=45))  \n",
+  "artifacts_sha256": {
+    "nvblox_truth_preflight15.py": "801d84fb39b32d45e775c103c30f72cac515cd9b675c4e30fa2b76b855cd980f",
+    "nvblox15-truth-readiness-plan.json": "6c772e470beec38dafbfbbbf457176a0558bafdad7bfae9684aff14df422722a",
+    "nvblox15-truth-readiness.py": "92408bb38fb789eaafb03c193d3f2add15fe1b21fcbc400122cc1d1db75b6a5b",
+    "nvblox_truth_readiness.py": "e421e948db25f162d144fd1f96feb546e839656258ad90302ff39449b6f13b41"
+  }
+}

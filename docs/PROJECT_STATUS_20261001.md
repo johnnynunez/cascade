@@ -258,6 +258,17 @@ failures below. Documentation PR #43 preserved that earlier source distinction.
 
 ## Current physical acceptance
 
+**nvblox environment 15 on `c9147db8` failed during post-release retreat.**
+Unlike NV14, this detector revision reached actuation, verified the orange
+grasp and completed transport. The native case then rejected measured joint
+movement while waiting for release geometry. It took 352.74 seconds; home
+and reset were not attempted, and the postcondition remained unverified.
+All 1,994 witnesses per camera met the two-second age limit (maximum 0.940 s).
+This direct diagnostic does not validate the presenter MCP deadline of
+300 seconds. Its separate administrative closure passed.
+See [NV15](LOCAL_RTX_VALIDATION.md#nvblox-environment-15-release-feedback-movement)
+for retained results and the measured drift; no tolerance was relaxed.
+
 **Local dual-RTX Pro attempt 08 on `ff8d58b` failed during placement.**
 Read-only startup readiness and all three cameras passed; the grasp was
 verified in 171.835 seconds. The unchanged 300-second MCP request limit

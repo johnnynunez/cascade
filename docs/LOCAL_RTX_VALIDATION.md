@@ -157,6 +157,49 @@ sources plus protected processes remained intact. The
 the physical verdict. These observations motivated detector preparation work;
 the saved-image benchmark cannot isolate the entire historical delay.
 
+## nvblox environment 15: release feedback movement
+
+Environment 15 used `c9147db8`, the exact tested `ff8d58b` tree with detector
+preparation and reuse. Three-camera passive observation passed: 20.008 wall
+seconds, 3.783 simulation seconds (RTF 0.189), maximum server age 0.791 seconds
+and three final map commit ages of 0.556 seconds. All warmup records remain
+retained: initial mapping took 4.168 seconds with 42 incomplete samples, and
+later stale commits were not erased by final admission.
+One read-only native truth preparation passed in 114.43 ms; the subsequent
+case obtained its own independent observation in 20.76 ms under the unchanged
+one-second deadline.
+
+The single native orange case reached grasp, lift and transport, then failed
+at post-place retreat after 352.74 seconds. The error was
+`release feedback moved while waiting for geometry`. Home and reset were not
+attempted. The native postcondition remained unverified: the final center near
+the open box did not establish full containment or release. All 1,994 samples
+per camera passed the two-second server-age limit, with a maximum of 0.940 s.
+The [compact result](evidence/nvblox15/summary.json) explicitly identifies its
+original full receipts. This direct runtime diagnostic has no MCP transport;
+its duration does not pass the presenter's 300-second request limit.
+
+Offline [release analysis](evidence/nvblox15/release-analysis.json) found measured
+joint 6 movement from 1.46485424 to 1.46255064 radians across 14 physics steps,
+about 0.967 wall seconds. The 0.00230360-radian change exceeded the unchanged
+0.001-radian guard. Both readings showed open jaws and empty contacts, and
+matched the physical witness after joint-convention conversion. The last
+acknowledged joint target was 1.46077252 radians; no new joint target followed
+opening. The sequence is consistent with unloading and settling toward that
+held target, rather than an incoherent observation. Exact before/after call
+sites are reconstructed from source flow; the logs do not label those calls.
+This does not prove a unique cause or establish that a proposed settling check
+would make the task pass.
+
+All failure evidence and memory were preserved before
+[administrative closure](evidence/nvblox15/administrative-close.json). Only the
+owned Kit and mapper received SIGTERM; all three owned processes exited and
+both ports closed. There were no extra robot RPCs, motion, recovery commands or
+escalation. [Root verification](evidence/nvblox15/close-root-review.json) checked
+the closure, protected identities and 289 runtime/model sources. The
+[retained records](evidence/nvblox15/retained-inputs.json) keep the negative task
+verdict separate from successful cleanup.
+
 ## Profiling attempt 07: startup port mismatch
 
 Diagnostic attempt 07 used the unchanged `ff8d58b` product source with an

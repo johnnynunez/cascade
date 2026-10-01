@@ -185,11 +185,17 @@ records SafeArm requests, so it does not establish the exact number of backend
 targets sent during that failing request. Cleanup closed resources without
 movement; no external retry, opening, prop reset or parking was added.
 
-The scene remains at the post-release failed-retreat pose for diagnosis. A later
+The failed scene was initially preserved at the post-release pose. A later
 read-only capture saved three RGBD frames and three identical current ESDF
 queries, costing 35.74/36.36/29.36 ms for the existing map. Those later queries do
 not establish the cause of the earlier integration timeout or the freshness of
-all fused geometry. Recovery implementation and validation remain pending.
+all fused geometry. After a final state capture, only that scene's owned bridge
+and mapper were terminated normally, without withdrawal, home, opening or prop
+reset. This administrative close did not recover the failed trial or create a
+restorable checkpoint. The subsequent [release recovery implementation](NVBLOX_RELEASE_RETREAT.md)
+retains authority in its original runtime; the separate [mapper reset correction](NVBLOX_MAPPER_RESET.md)
+is included in candidate `7bdaf5a`. Neither change retroactively completes this
+first five-object campaign.
 
 Evidence: `benchmark/results/nvblox-normal-five-first-failure-20261001.json`;
 full local receipt SHA256 `45c0c91dab7a13d3e3a380004bfac57e92ef1dc7603cbf45ce88311ce5a2ceab`

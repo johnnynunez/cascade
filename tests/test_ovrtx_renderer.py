@@ -294,7 +294,8 @@ def test_factory_is_opt_in_and_sdk_is_lazy(monkeypatch):
 
 
 @pytest.mark.parametrize("changes", [{"scene_mode": "live"}, {"cx": 2}, {"depth": False},
-    {"fy": 250}, {"meters_per_unit": .01}, {"extrinsics": {"mode": "eye_in_hand", "T": np.eye(4).tolist()}}])
+    {"static_scene": False}, {"static_scene": None}, {"fy": 250}, {"meters_per_unit": .01},
+    {"extrinsics": {"mode": "eye_in_hand", "T": np.eye(4).tolist()}}])
 def test_profile_rejects_unsupported_capabilities(changes):
     cfg = load_profile("cameras", "ovrtx").as_dict()
     cfg.update(changes)
@@ -320,3 +321,12 @@ def test_future_snapshot_rejected_without_native_initialization(setup):
 def test_unequal_focal_lengths_rejected_before_native_sdk():
     with pytest.raises(OvrtxError, match="square pixels"):
         CameraSpec("unsupported", 160, 120, 180., 135., np.eye(4))
+
+
+def test_static_ovrtx_profile_abstains_in_real_motion_verification(monkeypatch):
+    from cascade.skills.runtime import SkillRuntime
+    from cascade.perception import visual_diff
+    cfg = load_profile("cameras", "ovrtx")
+    monkeypatch.setattr(visual_diff, "VisualDiffChannel", lambda: pytest.fail("static renderer used to judge motion"))
+    runtime = NS(cfg=Cfg({"camera": cfg.as_dict()}), _pre_motion_frame=object(), last_frame=object())
+    assert SkillRuntime._visual_diff(runtime, [0, 0, 0], [.1, .1, .1]) is None

@@ -2,6 +2,7 @@
 name: cam0
 type: ovrtx
 scene_mode: static
+static_scene: true        # Static pixels cannot witness motion of a robot.
 scene_usd: "${repo}/demo/ovrtx/rgbd.usda"
 meters_per_unit: 1.0
 device: 0                 # CUDA-visible ordinal; does not select physics device.

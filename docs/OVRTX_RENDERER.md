@@ -66,6 +66,8 @@ renderer in the capture thread. `close()` releases queries, mappings, stage
 and renderer; `keep_system_alive=False` prevents intentional global retention.
 An initialization or partial frame failure invalidates that owner. Close it
 and construct a new owner rather than retrying a partially applied scene.
+`static_scene: true` is mandatory for this profile, so Cascade's visual
+motion verifier abstains instead of treating static pixels as robot evidence.
 
 ## Frame and snapshot contract
 
@@ -142,12 +144,18 @@ reported separately from actual GPU rendering.
 
 | Platform | Package availability | Execution evidence |
 | --- | --- | --- |
-| Linux x86_64 | OVRTX 0.5.0.377615 / ovstage 0.2.0.377349 | RTX PRO 6000 Blackwell, Python 3.12: analytic RGBD smoke passed |
-| Linux aarch64 | Exact-version wheels found in NVIDIA's index | Pending isolated Spark execution |
+| Linux x86_64 | OVRTX 0.5.0.377615 / ovstage 0.2.0.377349 | RTX PRO 6000 Blackwell, Python 3.12: analytic RGBD and public static camera profile passed |
+| Linux aarch64 | Same pinned versions | DGX Spark GB10, Python 3.12: four analytic RGBD packets passed |
 | Windows | Listed by upstream | Not tested by this adapter |
 
-The x86 smoke's four frames have zero pixel bounding-box error and at most
-2.50 micrometres of interior Z-depth error against the analytic scene. This
+Both GPU smokes' four frames have zero pixel bounding-box error and at most
+2.50 micrometres of interior Z-depth error against the analytic scene. The
+additional x86 `make_camera` capture has zero pixel bounding-box error and
+less than 0.5 micrometres of interior depth error. ARM's first cold render
+exceeded the isolated 180-second startup budget while compiling shaders;
+that failure remains recorded. A new run with a 360-second startup budget
+completed in 65.4 seconds using the partial cache. This is not a guarantee
+about cold-start latency and changes no robot or service timeout. This
 does not validate a loaded kitchen, material realism, mapping, grasping,
 continuous sensor timing, motion safety or an Isaac/Newton producer. Those
 require an explicit physics-to-snapshot connection, matching masks and

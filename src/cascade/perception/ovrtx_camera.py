@@ -17,6 +17,8 @@ class OvrtxCamera(CameraBase):
         c = cfg.as_dict()
         if c.get("scene_mode") != "static":
             raise CameraError("ovrtx camera profiles require explicit scene_mode: static; use snapshot API for physics")
+        if c.get("static_scene") is not True:
+            raise CameraError("ovrtx static profiles must declare static_scene: true for motion-verification abstention")
         if c.get("depth", True) is not True:
             raise CameraError("ovrtx camera requires its paired RGB and metric-depth outputs")
         self._name = c.get("name", "cam0")

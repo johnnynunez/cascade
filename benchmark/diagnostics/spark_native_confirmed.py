@@ -343,6 +343,7 @@ def validate(proof_path, campaign_path=None, *, evidence_root=None):
     report = {"schema_version": 1, "pass": False,
               "scope": "Additional native confirmed-physics gate over unchanged saved full audits; no actuation or physics replay",
               "trace_binding": "Owner-bound trace + unique step + exact arguments + observer/turn intervals; trace has no native run/order ID",
+              "native_run_id_scope": "Declared by each saved turn file; same-session envelopes cannot independently prove a run ID belongs to a particular case",
               "proof": str(proof_path), "errors": [], "proof_native_cases": [], "campaign_native_cases": []}
     ids = set()
 
@@ -407,7 +408,7 @@ def validate(proof_path, campaign_path=None, *, evidence_root=None):
                 previous_end = times[-1]
                 run_ids = {required: native_turn(inputs, directory / filename, proof, required, ids)
                            for required, filename in (("pick_and_place", "02-pick.json"), ("reset_scene", "03-reset.json"))}
-                return {**native_outcome(rows, times, obj, destination), "run_ids": run_ids,
+                return {**native_outcome(rows, times, obj, destination), "declared_run_ids": run_ids,
                         "phase_unix": dict(zip(PHASES, times)), "full_physical_audit_pass": True}
             case_result(report["proof_native_cases"], obj, destination, check_proof_case)
 

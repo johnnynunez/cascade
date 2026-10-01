@@ -216,6 +216,10 @@ this gate. It reads saved evidence without issuing robot commands or rewriting
 the native outcome. Trace attribution uses the owning MCP process, unique step,
 exact arguments and observed turn intervals; trace rows do not contain native
 OpenClaw run or visitor order IDs.
+Native run IDs are reported as declared by the saved turn files. Swapping two
+otherwise valid envelopes from the same session cannot independently be
+detected from those IDs; physical case attribution still uses the exact
+arguments and observed trace intervals.
 
 Run it after the normal launcher proof, then again with the five-object native
 campaign receipt:

@@ -560,6 +560,7 @@ def launch_fixture(tmp_path, monkeypatch):
     monkeypatch.delenv("CASCADE_OPENCLAW_PROFILE", raising=False)
     monkeypatch.delenv("ISAACSIM_PATH", raising=False)
     monkeypatch.delenv("ISAACSIM_PYTHON_EXE", raising=False)
+    monkeypatch.delenv("CASCADE_ISAAC_CAM_EVERY", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     support = support_module()
     assert hasattr(support, "launch"), "installer launch supervision is missing"
@@ -596,7 +597,7 @@ time.sleep(60)
     monkeypatch.setattr(support, "model_health", lambda: fixture_model_health(repo))
     launcher = """
 import json,os,pathlib,sys
-pathlib.Path("launch-record.json").write_text(json.dumps({"args":sys.argv[1:], "env":{k:os.environ.get(k) for k in ("ISAACSIM_PYTHON_EXE","CASCADE_OPENCLAW_PROFILE","PY")}}))
+pathlib.Path("launch-record.json").write_text(json.dumps({"args":sys.argv[1:], "env":{k:os.environ.get(k) for k in ("ISAACSIM_PYTHON_EXE","CASCADE_OPENCLAW_PROFILE","CASCADE_ISAAC_CAM_EVERY","PY")}}))
 sys.exit(int(os.environ.get("BOUNDARY_LAUNCH_FAIL","0")))
 """
     import shlex
@@ -652,6 +653,7 @@ def test_launch_hands_exact_env_to_launcher_and_records_owned_qwen(
         assert record["env"] == {
             "ISAACSIM_PYTHON_EXE": str(repo / ".isaacsim/bin/python"),
             "CASCADE_OPENCLAW_PROFILE": "cascade-demo",
+            "CASCADE_ISAAC_CAM_EVERY": "6",
             "PY": str(repo / ".venv/bin/python"),
         }
         assert (state / "qwen.pid").exists(), "installer did not use the launcher's profile state"
@@ -688,6 +690,26 @@ def _stop_fixture_qwen(support):
             process.wait(timeout=0.2)
         except subprocess.TimeoutExpired:
             support.stop_group(process)
+
+
+@pytest.mark.parametrize("profile", ["spark", "laptop"])
+@pytest.mark.parametrize("camera_override", [None, "12"])
+def test_camera_cadence_reaches_launcher_with_profile_default_and_explicit_override(
+    tmp_path, monkeypatch, profile, camera_override
+):
+    support, repo = launch_fixture(tmp_path, monkeypatch)
+    if camera_override is not None:
+        monkeypatch.setenv("CASCADE_ISAAC_CAM_EVERY", camera_override)
+    try:
+        brain = "qwen" if profile == "spark" else "mock"
+        assert support.launch(repo, profile, brain, no_open=True, headless=True) == 0
+        record = json.loads((repo / "launch-record.json").read_text())
+        expected = camera_override or ("6" if profile == "spark" else None)
+        assert record["env"]["CASCADE_ISAAC_CAM_EVERY"] == expected
+        # The supervisor changes only its child environment.
+        assert os.environ.get("CASCADE_ISAAC_CAM_EVERY") == camera_override
+    finally:
+        _stop_fixture_qwen(support)
 
 
 def test_launch_finds_bootstrapped_uv_without_a_shell_profile(tmp_path, monkeypatch):

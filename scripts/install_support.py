@@ -387,6 +387,9 @@ def _launch(repo: Path, profile: str, brain: str, *, no_open: bool = False, head
         env.pop("ISAACSIM_PATH", None)
         env.update(isaac_environment(repo))
         env.update(model_environment(repo))
+        # Keep the desktop and shell installer on the same Spark camera
+        # cadence. An explicit operator override still takes precedence.
+        env.setdefault("CASCADE_ISAAC_CAM_EVERY", "6")
         env["CASCADE_INSTALL_PROFILE"] = "spark"
         env["CASCADE_OPENCLAW_PROFILE"] = "cascade-demo"
         env["CASCADE_QWEN_BASE_URL"] = f"http://127.0.0.1:{QWEN_PORT}/v1"

@@ -1,0 +1,33 @@
+{
+  "pass": true,
+  "blockers": [],
+  "scope": "Independent read-only peer of exact external observer10 instrumentation/harness; code remains inert until parent execution. No product edit, RPC, GPU or service start by this reviewer.",
+  "source": "6e1bc81a89039eaf585166310af54385a7f5e732",
+  "full_result_sha256": "4a1aef2b94c8f19c07f79b7d7a7d87c357bbce2f7bec6f6ec53e4af64548db2d",
+  "author_receipt_sha256": "b4d2433f787574ec9f95893b3614047c049adecde57958047119238b050cafb3",
+  "artifacts": {
+    "instrument_snapshot.py": "207efd36a9f7f085d0cb269f4511a7d117cf4cb06677294daad779b0d86e4efd",
+    "passive_observer.py": "f6691328ee4f2e4da921cebcf4bc6a97cbaddae2d8b2b2e35c2fd7f714221311",
+    "test_instrumentation.py": "1c8830226483ccc80be6a6179143ebbc538106c195a594fbf058cbe6ccbc8a4c",
+    "pytest-final.log": "0a5b221fde0356783245caf42a7c45aa19186c32985d542be0f381c9d939fd34",
+    "payload-instrumented-example.py": "ae32073949cc0e7c9e4cf3aaa5b163d84da662c23bf747a2d4d23b619b0f600b",
+    "instrumentation-map.json": "a31bbfb06c0f7263502a2b1420629d99d9154ba98db64aa21b866ca8eb6b88af"
+  },
+  "additional_cpu_sha256": "544bef7206bcc64f675312ea2569c1703a1e840eab9d9e4a4fcc9cce17ffa4e5",
+  "author_tests": "22 passed in 1.00s (retained log verified; not repeated)",
+  "independent_checks": [
+    "Restored serialized instrumented AST equals the exact original209-line snapshot without using the author unwrap helper.",
+    "Original getter order, normal output and native exception object survive diagnostic writer failure (success, q failure, geometry failure).",
+    "Only diagnostic contexts surround existing statements; no extra SDK getter, GPU sync, camera request, actuator request or mutation of native fallback flags.",
+    "Original _collect loop and its ping/exec/ping RPC protocol retained; BoundedStop enforces100 requests or30s before another request without supervisor scheduling dependence.",
+    "Original35s exec timeout,15s initial readiness and45s join retained; failed __enter__ calls stop once, no duplicate __exit__ join.",
+    "Joined/alive/pending fields are conservative; close refuses a live/potentially-pending worker; fewer100 samples remain incomplete and FAIL with timings retained.",
+    "Original geometry/inventory/camera freshness, identity and distinct-JPEG conditions remain; no invented native phases or physical acceptance.",
+    "Summary separates first/rest and excludes nested view_construct from residual sum; host elapsed only, no global speedup or GPU calibration claim."
+  ],
+  "limitations": [
+    "CPU stub fixtures do not validate SDK runtime behavior or native task success.",
+    "30s collection deadline is not a30s process-exit guarantee: existing in-flight RPC and45s join are retained."
+  ],
+  "created_at": 1790895083.159095
+}

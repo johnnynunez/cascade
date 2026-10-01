@@ -1,0 +1,54 @@
+{
+  "pass": true,
+  "scope": "Read-only arithmetic addendum; no new execution or exclusion of slow samples",
+  "comparison_sha256": "8ab7add632b47e1dce52c4753e4ea7905d8314dc6479c2245d8a3bd07a328f8c",
+  "outlier": {
+    "sequence_one_based": 85,
+    "payload_ms": 309.668142,
+    "capture_new": true,
+    "top_sections_ms": [
+      [
+        "geometry",
+        267.636292
+      ],
+      [
+        "camera_hashes",
+        21.620268
+      ],
+      [
+        "frame_hash",
+        10.638133
+      ],
+      [
+        "prop_velocities",
+        3.185192
+      ],
+      [
+        "prop_pack",
+        2.417033
+      ]
+    ],
+    "native_error": false,
+    "diagnostic_valid": true,
+    "interpretation": "Slow sample retained. A geometry section elapsed spike identifies location only; no claim about underlying USD/SDK cause or cache safety."
+  },
+  "aggregate": {
+    "baseline": {
+      "image_hash_sections_fraction": 0.7870066398338181,
+      "geometry_fraction": 0.1399143036470816,
+      "residual_fraction": 0.0017316551547315229,
+      "payload_ms_per_sample": 154.24419768
+    },
+    "candidate": {
+      "image_hash_sections_fraction": 0.30403374454024434,
+      "geometry_fraction": 0.4452419004552952,
+      "residual_fraction": 0.004398311573872614,
+      "payload_ms_per_sample": 53.79966972
+    }
+  },
+  "aggregate_reductions_pct": {
+    "payload_sum": 65.12045799504592,
+    "wall": 38.5113909213903
+  },
+  "finished_at": 1790896857.6929176
+}

@@ -27,6 +27,7 @@ does not change which code produced those measurements.
 - [Reject localization results after their image expires](LOCALIZATION_FRESHNESS.md)
 - [Detector preparation, bounded reuse and local GPU comparison](DETECTOR_MODEL_REUSE.md)
 - [Isaac camera frames bound to render history](isaac-render-frame-history.md)
+- [Independent RGB/depth encoding: passive profiles 10/11 and CPU evidence](ISAAC_FRAME_ENCODING.md)
 - [Observed-surface finger veto (experimental)](observed-finger-gate.md)
 - [PhysX finger envelope, provenance and local admission](physx-finger-envelope.md)
 - [Check the observed closing stroke before commanding it](observed-finger-closing.md)

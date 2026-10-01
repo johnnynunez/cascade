@@ -1,0 +1,20 @@
+{
+  "scope": "Software suite on the exact combined candidate; no physical acceptance follows.",
+  "head": "d1d54dcf078b3efefd9542d46947c77bd29afe7e",
+  "tree": "7b6b1015e768656a80faef6844beda1573b085ab",
+  "pass": true,
+  "passed": 3757,
+  "skipped": 43,
+  "deselected": 4,
+  "pytest_elapsed_s": 339.27,
+  "summary_line": "3757 passed, 43 skipped, 4 deselected in 339.27s (0:05:39)",
+  "log": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/lazy-frame-components-full-validation-20261002/pytest.log",
+    "sha256": "fdbdf87ed4a6ae3cbe9eeb06d999d8cdcaf0b648dace51fc0b147d4f185ef59b",
+    "size_bytes": 4299
+  },
+  "result_sha256": "83742be63b3c09c3d50ffa25a6aa0f207086808e3e6fe72fc094b5e74e226b16",
+  "files_verified": 1305,
+  "source_unchanged": true,
+  "native_task_attempted": false
+}

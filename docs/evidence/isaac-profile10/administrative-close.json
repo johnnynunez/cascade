@@ -1,0 +1,60 @@
+{
+  "pass": true,
+  "started_at": 1790895271.8365598,
+  "scope": "Administrative shutdown only. Terminal measurement verdict is retained; no task acceptance, robot commands or retry.",
+  "errors": [],
+  "terminal_sha256": "26a6c8f626cc8c0f41699624a4241a52840f514fd7277837adff62139462479a",
+  "owner": {
+    "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-10",
+    "profile": "observer-profile-10",
+    "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-10/runs/observer-profile-10/ownership/profile-observer-profile-10",
+    "owner": "82d79dd7fbf2428db3dde3c8910012b2",
+    "schema": 1
+  },
+  "owned_ancestry": [
+    {
+      "pid": 3129020,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13983408",
+      "command_sha256": "a77439c982107ebf83eae53a95962f3acde18224e267dd0c859a4b46f0af2c38",
+      "executable": "/home/johnny/.cache/packman/chk/kit-kernel/110.3.0+feature.manylinux_2_35_x86_64.release/python/bin/python3.12",
+      "require_stopped": false
+    },
+    {
+      "pid": 3129012,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13983407",
+      "command_sha256": "968dbd38ac8070d93672e73a45aaa89f713103f19c69675ff78692d2b20dc0a2",
+      "executable": "/usr/bin/bash",
+      "require_stopped": false
+    },
+    {
+      "pid": 3129011,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:13983405",
+      "command_sha256": "e24a57e9437332bacaa6b661a07af60fc1e5ca598b1081b9b39e82a0712c6505",
+      "executable": "/home/johnny/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/bin/python3.12",
+      "require_stopped": false
+    }
+  ],
+  "command": [
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-10/runs/observer-profile-10/python/bin/python",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-10/src/cascade/apps/process_owner.py",
+    "--repo",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-10",
+    "--state-root",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-10/runs/observer-profile-10/ownership",
+    "--profile",
+    "observer-profile-10",
+    "down"
+  ],
+  "exit_code": 0,
+  "owned_processes_closed": true,
+  "ports_closed": [
+    8611,
+    25577,
+    18795,
+    19088
+  ],
+  "terminal_unchanged": true,
+  "bridge_final_log_sha256": "cce77743c825fffe424a8e84e80943c52ee9ce32f020583bbf97fb59829d258c",
+  "source_and_protected_after": true,
+  "finished_at": 1790895273.6881151
+}

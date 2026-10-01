@@ -1,0 +1,123 @@
+{
+  "scope": "Compact passive profiles10/11, their source-bound comparison, separate CPU codec replay and software evidence. No native task acceptance or whole-task speedup claim.",
+  "measurement_source": "6e1bc81a89039eaf585166310af54385a7f5e732",
+  "codec_product_commit": "8935c0e0c33b7d6e3f38b584be730ad58da71026",
+  "combined_candidate": "d1d54dcf078b3efefd9542d46947c77bd29afe7e",
+  "combined_tree": "7b6b1015e768656a80faef6844beda1573b085ab",
+  "copied_originals": {
+    "observer.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-10/runs/observer-profile-10/observer/receipt.json",
+      "sha256": "26a6c8f626cc8c0f41699624a4241a52840f514fd7277837adff62139462479a",
+      "size_bytes": 5808,
+      "copy": "exact"
+    },
+    "analysis.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/observer-profile10-independent-analysis-20261002/analysis.json",
+      "sha256": "7a883d4dfcd546c2234c1a94490e0f9ade922c6457169c78a04f8aa7bb1c8cf6",
+      "size_bytes": 5096,
+      "copy": "exact"
+    },
+    "administrative-close.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-10/runs/observer-profile-10/runtime/administrative-close/receipt.json",
+      "sha256": "ee4d6a8ca29f53648ccf60e48d72531a6c6999610ca0829cdf2940265fe93dd2",
+      "size_bytes": 2530,
+      "copy": "exact"
+    },
+    "close-root-review.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/observer-profile10-root-review-20261002/terminal-and-close-review.json",
+      "sha256": "842e461fc7d01a74416d9081842423cc8b3e0bef19e458d289023f7baa05cb58",
+      "size_bytes": 598,
+      "copy": "exact"
+    },
+    "cpu-codec-comparison.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/observer-profile10-root-review-20261002/lazy-frame-corpus-comparison.json",
+      "sha256": "10798a0a6eb7681c943535891770f72e83112efe8aad4a6907743e5bb85902f9",
+      "size_bytes": 21053,
+      "copy": "exact"
+    },
+    "codec-focused.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/lazy-frame-components-focused-validation-20261002/receipt.json",
+      "sha256": "4a61e1ad4fdda8a5514aeb2af31dc95351f79f275138ba3b23eb18219a20dc51",
+      "size_bytes": 1702,
+      "copy": "exact"
+    },
+    "codec-peer.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/lazy-frame-components-independent-peer-20261002/receipt.json",
+      "sha256": "e5b928bd1becaa07a16672a7541cdd859697a329f0163cba08d3a48cef5edb99",
+      "size_bytes": 2783,
+      "copy": "exact"
+    },
+    "observer-instrumentation-peer.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/observer-profile10-spans-peer-20261002/receipt.json",
+      "sha256": "f0bbff99d95c88dd3639e17175f22283a8a1e7329f25074d179b37afdf6775a6",
+      "size_bytes": 2780,
+      "copy": "exact"
+    },
+    "pr63-ci-passed.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230527595819Z-terminal-summary.json",
+      "sha256": "e7034b15ea4a1e95c2218f80f4dc0c6cc8bd83a0b88f9f84986a3a27cd16cffc",
+      "size_bytes": 11187,
+      "copy": "exact"
+    },
+    "pr63-merge.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-main-f7a8823-20261001T230744160110Z-merge-identity.json",
+      "sha256": "4e37ec41e716ee05244b91549cd92503d0b5f8d0b508b33c578b1020938bef19",
+      "size_bytes": 1178,
+      "copy": "exact"
+    },
+    "combined-full.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/lazy-frame-components-full-validation-20261002/result.json",
+      "sha256": "83742be63b3c09c3d50ffa25a6aa0f207086808e3e6fe72fc094b5e74e226b16",
+      "size_bytes": 1302,
+      "copy": "exact"
+    },
+    "observer11.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-11/runs/observer-profile-11/observer/receipt.json",
+      "sha256": "fb3594d9af14ce7a49eff0f1ed1ffba4c0434e2ff89b3f20ae29ecf88b111e5d",
+      "size_bytes": 5809,
+      "copy": "exact"
+    },
+    "comparison10-11.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/observer-profile11-independent-analysis-20261002/comparison.json",
+      "sha256": "8ab7add632b47e1dce52c4753e4ea7905d8314dc6479c2245d8a3bd07a328f8c",
+      "size_bytes": 32452,
+      "copy": "exact"
+    },
+    "comparison10-11-arithmetic.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/observer-profile11-independent-analysis-20261002/arithmetic-addendum.json",
+      "sha256": "84adfa244ddd4050888ed931e3c2b9bc48868013ac4a9ad510994c4be873af69",
+      "size_bytes": 1455,
+      "copy": "exact"
+    },
+    "administrative-close11.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-11/runs/observer-profile-11/runtime/administrative-close/receipt.json",
+      "sha256": "89a873e6d2db008725c2deb956a188be49655428770b575d5d7f1f5dabb60314",
+      "size_bytes": 2530,
+      "copy": "exact"
+    },
+    "close11-root-review.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/observer-profile11-root-review-20261002/terminal-and-close-review.json",
+      "sha256": "810d72e2d253cf8b29388c38c4d537b6138a741f67c1b3babe861e00904fc7ad",
+      "size_bytes": 2083,
+      "copy": "exact"
+    },
+    "pr63-main-ci-passed.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-main-f7a8823-20261001T232219209663Z-terminal-summary.json",
+      "sha256": "0d082bf8f02a8e0d8ec3af1b7be8ba3293a464d3a627a2f9d1ec070f85ca6d69",
+      "size_bytes": 8242,
+      "copy": "exact"
+    }
+  },
+  "native_task_attempted": false,
+  "native_physical_acceptance": false,
+  "same_source_passive_repeat": "pass",
+  "combined_full_suite": "pass",
+  "derived": {
+    "combined-test-summary.json": {
+      "sha256": "784aa888af851f0ce1e98573c230c8d262ff4514c4a49b8825349eaed6c44687",
+      "size_bytes": 806
+    }
+  },
+  "passive_repeat_source": "d1d54dcf078b3efefd9542d46947c77bd29afe7e",
+  "main_ci": "5/5 pass at f7a88233cc80fccc1b02396d963086b1146d2078"
+}

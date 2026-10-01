@@ -373,6 +373,30 @@ protected process identities. Neither closure nor retention changes the
 failed native and strict outcomes. The [input index](evidence/isaac-profile09/retained-inputs.json)
 binds original records and the compact offline derivatives.
 
+## Passive observer profiles 10 and 11
+
+Profile 10 on release-open candidate `6e1bc81a` isolated observer costs with
+100 bounded samples and no actuator commands. Geometry, inventory, camera
+identity/freshness and CUDA checks passed; the owned observer joined and
+services closed normally. It did not run a native manipulation task.
+
+The [measurement report and encoding change](ISAAC_FRAME_ENCODING.md) retain
+the original 24.697-second observation, independent analysis and CPU replay.
+The RGB-only path unnecessarily encoded depth; component-specific encoding
+preserves complete packet bytes and capture metadata. Median RGB-only time
+fell from 44.323 to 2.196 ms on one retained CPU input, while the complete
+packet stayed near 44.1 ms.
+
+Profile 11 repeated the passive measurement on combined candidate `d1d54dc`:
+100 samples in 15.186 seconds, 50 new/50 repeated captures, and 50 JPEG hashes
+per camera. Original geometry, inventory, camera freshness/identity and physics
+checks passed. New-capture payload median was 68.170 ms against 272.239 ms in
+profile 10; repeated-capture median was 30.376 ms against 33.435 ms. The
+309.668 ms slow sample, including 267.636 ms in geometry, remains in the result.
+Owned administrative closure passed; 1,305 source inputs and 12 protected
+process identities were unchanged. The comparison covers one passive run per
+source; complete native proof remains pending. Earlier failures are retained.
+
 ## Retained local attempt 01
 
 Source `27f2b0d` completed native startup, including real GraspGen-X inference

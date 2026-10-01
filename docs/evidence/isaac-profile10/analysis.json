@@ -1,0 +1,161 @@
+{
+  "pass": true,
+  "scope": "Independent file-only analysis of passive10; no attribution of every active09 exec job and no optimization speedup claim",
+  "source": "6e1bc81a89039eaf585166310af54385a7f5e732",
+  "observer_receipt_sha256": "26a6c8f626cc8c0f41699624a4241a52840f514fd7277837adff62139462479a",
+  "timing_input_sha256": "1479f55d5b5082b5ef6eb7bf48c2d7fc24b299f3738b3d2b21d9485c1f032fde",
+  "sample_input_sha256": "2945de89ea10db3876c60ec4555b7e054eb667cb1bae47a0f59aade563d419a9",
+  "summary_input_sha256": "ca30e21a27aa9acbef994b1416f1e349e53deb168d5e8455c1f16a0929cba0bd",
+  "measured_wall_s": 24.69737148284912,
+  "samples": 100,
+  "pid": 3129020,
+  "section_sum_ns": {
+    "articulation_valid": 202095,
+    "geometry": 2158096951,
+    "limits": 89368465,
+    "attestation": 26767345,
+    "camera_hashes": 7297394092,
+    "payload": 15424419768,
+    "prop_pack": 103053892,
+    "json": 17804072,
+    "schemas": 2847475,
+    "frame_hash": 4841726681,
+    "q": 58246417,
+    "inventory": 10231977,
+    "state_pack": 5726520,
+    "view_construct": 1572931,
+    "dq": 69044877,
+    "prop_velocities": 155281637,
+    "contacts": 293285590,
+    "clock": 1712573,
+    "prop_valid": 654985,
+    "prop_poses": 247827558,
+    "transport": 16089853,
+    "views": 2346937
+  },
+  "section_fraction_of_payload": {
+    "articulation_valid": 1.3102275679716188e-05,
+    "geometry": 0.1399143036470816,
+    "limits": 0.005793959600698025,
+    "attestation": 0.0017353874831345293,
+    "camera_hashes": 0.47310655452592193,
+    "prop_pack": 0.006681216768607331,
+    "json": 0.0011542782333334122,
+    "schemas": 0.00018460824088225761,
+    "frame_hash": 0.31390008530789615,
+    "q": 0.0037762468783973254,
+    "inventory": 0.0006633621979886459,
+    "state_pack": 0.00037126323622755806,
+    "dq": 0.004476335449793887,
+    "prop_velocities": 0.010067259536216221,
+    "contacts": 0.019014367763023395,
+    "clock": 0.00011102997881015657,
+    "prop_valid": 4.246415812404516e-05,
+    "prop_poses": 0.016067220791938706,
+    "transport": 0.0010431415406225218,
+    "views": 0.00015215723089104664
+  },
+  "first_payload_ns": 278369009,
+  "after_first_payload": {
+    "n": 99,
+    "sum_ns": 15146050759,
+    "median_ns": 54522698,
+    "p95_ns": 282175336,
+    "max_ns": 301236974
+  },
+  "residual": {
+    "n": 100,
+    "sum_ns": 26709776,
+    "median_ns": 264195.0,
+    "p95_ns": 334539,
+    "max_ns": 366819
+  },
+  "grouped_by_capture_identity_change": {
+    "new_capture": {
+      "frame_hash": {
+        "n": 50,
+        "sum_ns": 4829438977,
+        "median_ns": 95994810.5,
+        "p95_ns": 99800191,
+        "max_ns": 103349687
+      },
+      "camera_hashes": {
+        "n": 50,
+        "sum_ns": 7267285239,
+        "median_ns": 144806692.0,
+        "p95_ns": 151513367,
+        "max_ns": 154032006
+      },
+      "payload": {
+        "n": 50,
+        "sum_ns": 13683931323,
+        "median_ns": 272239125.5,
+        "p95_ns": 285596607,
+        "max_ns": 301236974
+      }
+    },
+    "same_capture": {
+      "frame_hash": {
+        "n": 50,
+        "sum_ns": 12287704,
+        "median_ns": 214421.0,
+        "p95_ns": 248087,
+        "max_ns": 1695438
+      },
+      "camera_hashes": {
+        "n": 50,
+        "sum_ns": 30108853,
+        "median_ns": 599791.5,
+        "p95_ns": 649268,
+        "max_ns": 730220
+      },
+      "payload": {
+        "n": 50,
+        "sum_ns": 1740488445,
+        "median_ns": 33434659.0,
+        "p95_ns": 50386300,
+        "max_ns": 54522698
+      }
+    }
+  },
+  "camera": {
+    "cam0": {
+      "unique_capture_timestamps": 50,
+      "unique_jpeg_hashes": 50,
+      "min_age_s": 0.1145667500095442,
+      "max_age_s": 0.8950355839915574
+    },
+    "side": {
+      "unique_capture_timestamps": 50,
+      "unique_jpeg_hashes": 50,
+      "min_age_s": 0.1145667500095442,
+      "max_age_s": 0.8950355839915574
+    },
+    "proof": {
+      "unique_capture_timestamps": 50,
+      "unique_jpeg_hashes": 50,
+      "min_age_s": 0.1145667500095442,
+      "max_age_s": 0.8950355839915574
+    }
+  },
+  "physics": {
+    "step_first": 21644,
+    "step_last": 22210,
+    "all_strictly_advance": true,
+    "all_cuda_attestations": true,
+    "all_prop_and_contact_cuda0": true,
+    "fallback_count_zero": true
+  },
+  "candidate": {
+    "file": "scripts/isaac_bridge.py",
+    "class": "_LazyFrame",
+    "lines": [
+      1477,
+      1518
+    ],
+    "source_file_sha256": "f74ccd74b65b756579e52ba2f1714b99cc287ccec667512303e25a48e168dc08",
+    "change": "Separate RGB and depth lazy materialization by requested key; keep wire() complete and existing byte encoding/capture anchor/lock behavior. Measure A/B before speedup claim.",
+    "reason": "Current RGB-only lookup calls _encode which performs JPEG and depth zlib. The original observer requests RGB hashes but no depth payload. New capture lookups dominate measured host elapsed.",
+    "timing_limit": "Current sections bracket RGB lookup plus base64 decode/hash, not separate JPEG/depth/SHA subregions; source control flow establishes unnecessary depth work, timing does not directly isolate its individual share."
+  }
+}

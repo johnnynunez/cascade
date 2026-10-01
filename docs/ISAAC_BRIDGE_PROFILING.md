@@ -118,6 +118,15 @@ physical task follows from these timings. Exact source, trace, decode, failed
 analysis and closure records are
 [retained separately](evidence/isaac-profile09/retained-inputs.json).
 
+A later [passive observer diagnostic](ISAAC_FRAME_ENCODING.md) timed the
+snapshot's existing sections without a native task. It identified expensive
+image-hash paths and source inspection found unused depth encoding on RGB-only
+reads. A separate CPU replay supports independent component encoding for that
+case. Passive profile 11 on the new source passed the same 100-sample
+measurement, with new-capture payload median reduced from 272.239 to 68.170 ms
+across the two runs. This does not assign every active profile 09 job to the
+observer or prove a live task speedup; physical acceptance remains pending.
+
 Attempt 08 used the previous bridge without these Python spans. Its successful
 capture, failed native task and incomplete clock mapping remain separate
 [retained results](evidence/isaac-profile08/retained-inputs.json). This diagnostic

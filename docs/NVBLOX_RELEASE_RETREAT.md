@@ -26,11 +26,34 @@ captured bilateral-contact paths on every map camera. Mean opening and
 existing physics epoch and same atomic joint read, including individual fingers;
 old bridge snapshots without those fields fail closed.
 
-The payload-tracking release path waits for each actual finger under the
-profile's existing opening timeout (eight seconds in `isaac_kitchen`). Every
-state read retains the episode's clock, jaw limits, backend and halt guards;
-an invalid state is a failure, not another pending opening sample. The mean
-opening cannot end this wait while one finger remains below 98%.
+The payload-tracking release path waits for both actual fingers and stable
+measured arm positions under the profile's existing opening timeout (eight
+seconds in `isaac_kitchen`). That deadline starts on entry to `wait_open`, after
+the existing post-open dwell; it is not a total ACK-to-withdrawal budget.
+Each poll uses one atomic state reply with finite exact-DOF q/dq, the retained
+clock, joint convention, jaw limits, backend and halt guards. Invalid feedback
+is terminal. The mean opening cannot substitute for both individual fingers
+reaching 98%, and absent or malformed attachment metadata is not an empty hand.
+
+After both fingers are open and the same-step snapshot reports no bilateral
+attachment, at least three distinct physics samples must span the backend's
+existing `settle_hold_s` window (0.1 physical seconds here). Every observed arm
+position must stay within 1 mrad of one fixed copied anchor. Drift or an
+observation gap larger than the window starts a new candidate window under the
+same wall deadline. Gap and dwell comparisons use 1 ns of numerical slack to
+avoid rejecting exact physical-step boundaries due to floating-point rounding.
+Repeated steps cannot establish dwell; changed q, dq, jaws
+or attachment paths at the same step fail. Once open/no-attachment eligibility
+has been seen, jaw regression or reattachment is terminal even after a candidate
+window restarts. No new velocity threshold, target, gripper command or recovery
+is introduced. Empty bilateral paths do not establish zero unilateral contact.
+
+This observation does not mark the episode released or supply geometry
+authority. The geometry barrier still takes its own fresh before/after arm
+states and rejects movement over the unchanged 1 mrad bound. NV15 demonstrated
+2.304 mrad of measured joint-6 movement during that barrier after opening; its
+failed retreat remains a failure. The pending stability change has CPU coverage;
+it has not established a subsequent physical success within the existing limits.
 
 The subsequent five-second geometry barrier can receive a valid camera packet
 captured while the fingers were still opening. Before release is confirmed,

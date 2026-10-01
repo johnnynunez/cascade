@@ -5,18 +5,24 @@ render-bound cameras, release and carry guards, endpoint occlusion checks,
 explicit MCP GPU selection, Isaac verifier startup readiness, localization
 freshness checks, [detector model reuse](docs/DETECTOR_MODEL_REUSE.md) and optional OVRTX/cuMotion adapters.
 Optional [bridge Python profiling](docs/ISAAC_BRIDGE_PROFILING.md) subsequently
-merged in [PR #62](https://github.com/johnnynunez/cascade/pull/62); current main is
-`c5b2fd5` (tree `037d620e`).
+merged in [PR #62](https://github.com/johnnynunez/cascade/pull/62). Documentation
+[PR #63](https://github.com/johnnynunez/cascade/pull/63) then merged as current
+main `f7a8823` (tree `b1f5510f`).
 [Project status](docs/PROJECT_STATUS_20261001.md) records the
 source-specific software checks. [Local dual-RTX Pro validation](docs/LOCAL_RTX_VALIDATION.md)
 retains native timeouts and separate NV localization and release-geometry failures.
-The latest local profile proof ([attempt 09](docs/LOCAL_RTX_VALIDATION.md#profiling-attempt-09-python-spans-and-placement-timeout),
+The latest local native profile ([attempt 09](docs/LOCAL_RTX_VALIDATION.md#profiling-attempt-09-python-spans-and-placement-timeout),
 source `3ccdc2e8`) passed sampled camera freshness and verified the grasp, but
 timed out during placement while still holding the object. Its 120-second
 technical capture yielded a qualified 118.59-second CPU window; execution-queue
 work dominates the measured elapsed time, with its internal cause still under
 investigation. Successful capture and administrative closure do not establish
 successful manipulation or absolute GPU timing.
+Separate [passive observer measurements and CPU codec replay](docs/ISAAC_FRAME_ENCODING.md)
+identified unused depth compression during RGB-only reads. The independent
+component-encoding candidate preserves complete frame bytes. Its passive live
+repeat reduced new-capture observer median time from 272.239 to 68.170 ms;
+native task validation remains pending.
 Current physical proof, campaign and restart acceptance remain incomplete.
 
 <p align="center">

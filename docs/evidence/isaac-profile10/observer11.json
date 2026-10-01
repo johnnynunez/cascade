@@ -1,0 +1,169 @@
+{
+  "pass": true,
+  "source": "d1d54dcf078b3efefd9542d46947c77bd29afe7e",
+  "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-11",
+  "owner": {
+    "repo": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-11",
+    "profile": "observer-profile-11",
+    "state_dir": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-observer-profile-11/runs/observer-profile-11/ownership/profile-observer-profile-11",
+    "owner": "e71082d990524098898fc7666600c4bc",
+    "schema": 1
+  },
+  "startup_sha256": "e50ebed6a3060a35041a851d79a53f605ae7b330bbda578aaa17e1653f441e49",
+  "started_at": 1790896723.2715735,
+  "errors": [],
+  "collection_limit_samples": 100,
+  "collection_deadline_seconds": 30,
+  "exec_timeout_seconds": 35,
+  "join_timeout_seconds": 45,
+  "actuator_commands": [],
+  "scope": "Passive observer section timings only; no native physical acceptance or speedup claim",
+  "worker_joined": true,
+  "worker_alive": false,
+  "pending_rpc": false,
+  "collection_complete": true,
+  "passive_checks": {
+    "pass": true,
+    "geometry": {
+      "pass": true,
+      "checks": {
+        "scene_config_sha256_matches": true,
+        "prop_dimensions_match": true,
+        "cube_collider_geometry_matches": true,
+        "green_square_geometry_matches": true,
+        "scene_name_matches": true,
+        "scene_assets_sha256_matches": true,
+        "scene_content_sha256_matches": true,
+        "open_box_geometry_matches": true
+      },
+      "samples": 100,
+      "expected": {
+        "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+        "prop_dimensions_m": {
+          "pink_cube": [
+            0.0375,
+            0.0375,
+            0.06
+          ],
+          "green_cube": [
+            0.0375,
+            0.0375,
+            0.06
+          ],
+          "tomato_can": [
+            0.05445,
+            0.05445,
+            0.0825
+          ],
+          "lemon": [
+            0.0684,
+            0.0432,
+            0.0432
+          ],
+          "orange": [
+            0.05163983628153801,
+            0.05232211947441101,
+            0.05276046320796013
+          ]
+        },
+        "target_pad": {
+          "name": "green square",
+          "center_xy_m": [
+            0.14,
+            -0.27
+          ],
+          "outer_size_m": 0.16,
+          "border_width_m": 0.01,
+          "surface_z_m": 0.0006,
+          "support_top_z_m": 0.0
+        },
+        "scene_name": "paai-cocina-asier-v1",
+        "scene_assets_sha256": "ffda6a5deb3bf95e5a29af783005bd6d93438ff99a35a61cb0e8205db9654e14",
+        "scene_content_sha256": "9fc73ab23156df08d952f503760072f79205ff9abbe4b811b48652faf6eaa73f",
+        "convex_colliders": {
+          "tomato_can": {
+            "proxy": "cylinder",
+            "mass_kg": 0.067381875,
+            "dimensions_m": [
+              0.05445,
+              0.05445,
+              0.0825
+            ]
+          },
+          "lemon": {
+            "proxy": "ellipsoid",
+            "mass_kg": 0.047385,
+            "dimensions_m": [
+              0.0684,
+              0.0432,
+              0.0432
+            ]
+          },
+          "orange": {
+            "proxy": "ellipsoid",
+            "mass_kg": 0.0686,
+            "dimensions_m": [
+              0.05163983628153801,
+              0.05232211947441101,
+              0.05276046320796013
+            ]
+          }
+        },
+        "open_box": {
+          "name": "open box",
+          "center_xy_m": [
+            0.3,
+            -0.14
+          ],
+          "outer_dimensions_m": [
+            0.14,
+            0.14,
+            0.04
+          ],
+          "interior_dimensions_m": [
+            0.128,
+            0.128,
+            0.036
+          ],
+          "wall_thickness_m": 0.006,
+          "base_thickness_m": 0.004,
+          "support_top_z_m": 0.004,
+          "rim_top_z_m": 0.04
+        }
+      },
+      "geometry_readback_tolerance_m": 1e-06
+    },
+    "inventory": {
+      "live_prop_names_match_expected": true,
+      "spawn_prop_names_match_expected": true,
+      "spawn_positions_finite_and_unchanged": true
+    },
+    "camera_unique_jpeg_hashes": {
+      "cam0": 50,
+      "side": 50,
+      "proof": 50
+    },
+    "native_phases_present": false,
+    "native_physical_acceptance": false,
+    "scope": "Complete geometry/inventory and original per-frame age/identity checks; timestamp advancement in a stationary passive scene"
+  },
+  "samples": 100,
+  "timing_records": 100,
+  "finished_at": 1790896738.4576437,
+  "observer_errors": [],
+  "files_sha256": {
+    "ping-before.json": "f041fb0a395b63846ae208ce4484c34baacc0f2ec70b90d752d1f03fc66bd6a0",
+    "metadata.json": "cab4480bd4be15e9f59f00654cd7d8f0c06e8b6a8f656bea6351b51bffa4fcf3",
+    "first-scene-geometry.json": "81a7e10a220c6b525ab7e1a6599d4f966e38e09bd250b680e6cadaee9f1ce863",
+    "wire.jsonl": "fb698cc3e55dddd1d085f42b02fc4aefb1ca0f1805119317187daa67e3e8ef89",
+    "snapshot-original.py": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+    "snapshot-code.py": "76d1313ff4cb4ad6754e2e7952984e9e8a01ce93495fdfbfa847022f6df4781b",
+    "ping-after.json": "f041fb0a395b63846ae208ce4484c34baacc0f2ec70b90d752d1f03fc66bd6a0",
+    "timing-summary.json": "df67a3500f9a8906cfb31caa4c3e50035ac9e61e81241a98bbb6641508d76cdc",
+    "instrumentation.json": "d8568767d505bd3f582a7cbabc0ba77fd3dfdd04c8aa9c3a252d8f1effe12254",
+    "bridge-log-prefix.log": "5ce78f9260bd155173b87f8d3bdbd3a568e6fe5fcbe96153a36436baca73c16e",
+    "timings.json": "fd0f70babd962e7ffcc04fc5f90b78e6c0d963db9c39001481dc8196a1477741",
+    "samples.jsonl": "0a7b1911f8e5a268b40105ed8c3a09a49bc072d5d3922f917a3eb7ba21fb2d6e",
+    "passive-checks.json": "1897110a72336d98468f1e0e35606a50c38c0ed55952f5940fbb92cdd4f28655"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "pass": true,
+  "status": "frozen commit-ready product and tests; inventory/docs/full pending parent integration",
+  "source_base": "6e1bc81a89039eaf585166310af54385a7f5e732",
+  "worktree": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-lazy-frame-components",
+  "branch": "perf/lazy-frame-components",
+  "files": {
+    "scripts/isaac_bridge.py": "4a7c054fb97f97795548e2e514864ae1ab8e837795ca63c2f7ae29f0c1b18212",
+    "tests/test_isaac_lazy_frame.py": "e7e61f050662fd0065b6c69d2373bbc182f91003ebe1a61a3810c687f5e61452"
+  },
+  "product_patch_sha256": "ee3d6f628b45be2cef14b25d50908700961278fef26bd79091d0575557d50848",
+  "test_patch_sha256": "01b531a07634a6f171f2917e8aef7dac81bf9f931257fa1d81143738065fd813",
+  "only_LazyFrame_AST_changed": true,
+  "base_red": {
+    "receipt_sha256": "905e3a4e3529c2eb27d5c3cfbf2ccce5bbb1f96eecb933e96bd2a9926f4e34c1",
+    "summary": "3 failed in 2.11s (expected baseline regressions)"
+  },
+  "class_focused": {
+    "receipt_sha256": "4a848ed917073ffa180f75d15b5600ff34d9d81bdd197dc9dff39747ce7dae59",
+    "summary": "16 passed in 0.32s",
+    "raw_shell_log_retained": false,
+    "provenance": "Observed tool result retained explicitly; no invented raw log."
+  },
+  "existing_regressions": {
+    "receipt_sha256": "b2f09ecd1a40acb202186772c71c08681c24475c10f31ef0d28113d7e8501095",
+    "log_sha256": "7b6d6ecec3921dc5cf3adf97b86bc99c8d1f5c47ce23a2e014098ca80d5f4dc7",
+    "summary": "123 passed in 4.01s"
+  },
+  "frozen_at": 1790895692.8273046,
+  "runtime_parameters_changed": false,
+  "capture_or_observer_changed": false,
+  "gpu_or_rpc_executed": false,
+  "full_suite_executed": false,
+  "manifest_regenerated": false,
+  "commit_created": false
+}

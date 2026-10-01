@@ -1,0 +1,209 @@
+{
+  "audit_complete": true,
+  "pass": true,
+  "head": "909cae03f5a15c1a85efe97c2789c34445f02b24",
+  "base": "c5b2fd5173641613c4ee27d2f05e5eef8cd09430",
+  "tree": "b1f5510f32300c17e57f58e2e47eef0bb471dd6a",
+  "pr": 63,
+  "url": "https://github.com/johnnynunez/cascade/pull/63",
+  "source_identity_matches": true,
+  "draft": false,
+  "state": "open",
+  "mergeable": true,
+  "mergeable_state": "clean",
+  "checks": [
+    {
+      "id": 110620730403,
+      "name": "minimal install, no accelerator",
+      "head_sha": "909cae03f5a15c1a85efe97c2789c34445f02b24",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/johnnynunez/cascade/actions/runs/36937387410/job/110620730403"
+    },
+    {
+      "id": 110620730247,
+      "name": "ubuntu-latest / py3.12",
+      "head_sha": "909cae03f5a15c1a85efe97c2789c34445f02b24",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/johnnynunez/cascade/actions/runs/36937387410/job/110620730247"
+    },
+    {
+      "id": 110620730135,
+      "name": "ubuntu-24.04-arm / py3.12",
+      "head_sha": "909cae03f5a15c1a85efe97c2789c34445f02b24",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/johnnynunez/cascade/actions/runs/36937387410/job/110620730135"
+    },
+    {
+      "id": 110620730104,
+      "name": "booth pages and camera extension",
+      "head_sha": "909cae03f5a15c1a85efe97c2789c34445f02b24",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/johnnynunez/cascade/actions/runs/36937387410/job/110620730104"
+    },
+    {
+      "id": 110620729780,
+      "name": "macos-latest / py3.12",
+      "head_sha": "909cae03f5a15c1a85efe97c2789c34445f02b24",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/johnnynunez/cascade/actions/runs/36937387410/job/110620729780"
+    }
+  ],
+  "body_sha256": "4ab183489cd4eb8353fdc008c76a6803aeb1964de4006e0e66a2452cb89f9d6c",
+  "merge_performed": false,
+  "remote_mutations_by_monitor": [],
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225200678564Z-commit.json",
+      "sha256": "42a5648c452669a6e07af5a4da9e2d1fa6b92af3c349fa6d65616635114e4487"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225201977172Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225202997087Z-checks.json",
+      "sha256": "128ac387fd88075bb0e7098b9612210e5e470383d7dae76f1ad2b8addcc90ffa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225249298277Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225250294480Z-checks.json",
+      "sha256": "128ac387fd88075bb0e7098b9612210e5e470383d7dae76f1ad2b8addcc90ffa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225336576827Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225337572227Z-checks.json",
+      "sha256": "128ac387fd88075bb0e7098b9612210e5e470383d7dae76f1ad2b8addcc90ffa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225423863892Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225424862517Z-checks.json",
+      "sha256": "128ac387fd88075bb0e7098b9612210e5e470383d7dae76f1ad2b8addcc90ffa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225511208489Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225512181002Z-checks.json",
+      "sha256": "128ac387fd88075bb0e7098b9612210e5e470383d7dae76f1ad2b8addcc90ffa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225558481806Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225559489042Z-checks.json",
+      "sha256": "128ac387fd88075bb0e7098b9612210e5e470383d7dae76f1ad2b8addcc90ffa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225645747939Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225646755268Z-checks.json",
+      "sha256": "b8f498499c4d9520034963e8dbb24e3e59a073fb32af95b181ef11bf3f262f47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225733076283Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225734053388Z-checks.json",
+      "sha256": "b8f498499c4d9520034963e8dbb24e3e59a073fb32af95b181ef11bf3f262f47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225820372478Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225821387157Z-checks.json",
+      "sha256": "b8f498499c4d9520034963e8dbb24e3e59a073fb32af95b181ef11bf3f262f47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225907747750Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225908735177Z-checks.json",
+      "sha256": "b8f498499c4d9520034963e8dbb24e3e59a073fb32af95b181ef11bf3f262f47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225955018408Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T225955993074Z-checks.json",
+      "sha256": "b8f498499c4d9520034963e8dbb24e3e59a073fb32af95b181ef11bf3f262f47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230042359166Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230043364225Z-checks.json",
+      "sha256": "b8f498499c4d9520034963e8dbb24e3e59a073fb32af95b181ef11bf3f262f47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230129649752Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230130655807Z-checks.json",
+      "sha256": "b8f498499c4d9520034963e8dbb24e3e59a073fb32af95b181ef11bf3f262f47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230217144772Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230218206708Z-checks.json",
+      "sha256": "b8f498499c4d9520034963e8dbb24e3e59a073fb32af95b181ef11bf3f262f47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230304493384Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230305598928Z-checks.json",
+      "sha256": "b8f498499c4d9520034963e8dbb24e3e59a073fb32af95b181ef11bf3f262f47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230351884725Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230352918431Z-checks.json",
+      "sha256": "b8f498499c4d9520034963e8dbb24e3e59a073fb32af95b181ef11bf3f262f47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230439226870Z-pull.json",
+      "sha256": "9fe8b6dea88efef57ce52ce522cfb7e98fa331ab7cba1fe04412f7f659b2f37a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230440325299Z-checks.json",
+      "sha256": "b8f498499c4d9520034963e8dbb24e3e59a073fb32af95b181ef11bf3f262f47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230526596150Z-pull.json",
+      "sha256": "ed6445f33f30224ae47c457ee84e9fd58e0cdbdc7d3ffc19f0736b8cfe922bd2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/pr-merge-readonly-audit-20261001/pr63-909cae0-20261001T230527595067Z-checks.json",
+      "sha256": "d5a71ba33c2062de162098bc55923b924a901f3c77fe10da1bd6525579afdd91"
+    }
+  ]
+}

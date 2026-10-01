@@ -1470,50 +1470,69 @@ class _LazyFrame(dict):
 
     Camera buffers are copied on the main thread and bound through their
     render-product time to a historical joint/wrist snapshot. Encoding moves
-    to the thread that reads the packet and runs at most once per frame;
+    to the thread that reads each component and runs at most once per component;
     neither readback nor encoding renews its conservative capture anchor.
+    RGB-only observers must not compress depth or wait for its encoder.
     """
 
     _LAZY_KEYS = ("rgb_jpeg_b64", "depth_z_b64")
 
     def __init__(self, entry, rgb, depth):
         super().__init__(entry)
-        self._raw = (rgb, depth)
-        self._encode_lock = threading.Lock()
+        self._raw_rgb = rgb
+        self._raw_depth = depth
+        self._rgb_lock = threading.Lock()
+        self._depth_lock = threading.Lock()
 
-    def _encode(self):
-        with self._encode_lock:
-            if self._raw is None:
+    def _encode_rgb(self):
+        with self._rgb_lock:
+            if "rgb_jpeg_b64" in self:
                 return
-            rgb, depth = self._raw
-            bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+            bgr = cv2.cvtColor(self._raw_rgb, cv2.COLOR_RGB2BGR)
             ok, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
             if not ok:
                 raise RuntimeError("JPEG encode failed for a captured camera frame")
+            dict.__setitem__(self, "rgb_jpeg_b64", base64.b64encode(jpg.tobytes()).decode())
+            self._raw_rgb = None
+
+    def _encode_depth(self):
+        with self._depth_lock:
+            if "depth_z_b64" in self:
+                return
+            depth = self._raw_depth
             depth_b64 = None
             if depth is not None:
                 depth[~np.isfinite(depth)] = 0.0  # RTX far-clip returns inf
                 depth_b64 = base64.b64encode(zlib.compress(depth.tobytes(), 3)).decode()
-            dict.__setitem__(self, "rgb_jpeg_b64", base64.b64encode(jpg.tobytes()).decode())
             dict.__setitem__(self, "depth_z_b64", depth_b64)
-            self._raw = None
+            self._raw_depth = None
+
+    def _encode_key(self, key):
+        if key == "rgb_jpeg_b64":
+            self._encode_rgb()
+        elif key == "depth_z_b64":
+            self._encode_depth()
 
     def __missing__(self, key):
         if key not in self._LAZY_KEYS:
             raise KeyError(key)
-        self._encode()
+        self._encode_key(key)
         return dict.__getitem__(self, key)
 
     def get(self, key, default=None):
-        if key in self._LAZY_KEYS:
-            self._encode()
+        self._encode_key(key)
         return dict.get(self, key, default)
 
     def wire(self) -> dict:
         """The complete JSON-ready frame (json.dumps would not call
         __missing__, so the Handler serves this, never the object itself)."""
-        self._encode()
-        return dict(self)
+        self._encode_rgb()
+        self._encode_depth()
+        # Preserve the original complete wire order even after a depth-only read.
+        packet = {key: value for key, value in self.items() if key not in self._LAZY_KEYS}
+        packet["rgb_jpeg_b64"] = dict.__getitem__(self, "rgb_jpeg_b64")
+        packet["depth_z_b64"] = dict.__getitem__(self, "depth_z_b64")
+        return packet
 
 
 _last_camera_capture_started = None

@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "scope": "Retained synthetic renderer controls; no robot/kitchen/physical acceptance. Source runtime e3 remained unchanged during experiments.",
+  "artifact_root": "renderer-controls (outside source checkout)",
+  "artifacts": {
+    "control-01/script.py": {
+      "sha256": "e16db60525921f466a8b2c186af7a94a885a68300b130895637e4452693b535c",
+      "size_bytes": 13925
+    },
+    "control-01/receipt.json": {
+      "sha256": "87c2068e0cb1ad1d6b039fb9134137f7bc4d14eef4a70f0c7a5b62428b295969",
+      "size_bytes": 554530
+    },
+    "control-01/process-result.json": {
+      "sha256": "b6824dfaf95ac3fb1a09a18b0502280684d7c9335bc4150b5345eeb9c470e36b",
+      "size_bytes": 701
+    },
+    "control-02/script.py": {
+      "sha256": "0bd63584bb9ce3afe0fb0a09c3a523d8b207a5d7261c47bdb678e4f6b07907f3",
+      "size_bytes": 13994
+    },
+    "control-02/receipt.json": {
+      "sha256": "bd55f7f5b2412d19fe4a832179fedff335152232c08434515c49f4487fd0af2d",
+      "size_bytes": 610873
+    },
+    "control-02/process-result.json": {
+      "sha256": "d5ff8b9dd73554977d6fd8824150dc77220408fe07d6f15420bc0744b6b38820",
+      "size_bytes": 771
+    },
+    "control-03/script.py": {
+      "sha256": "6fe4d91986c6db57bc20037335736e32e0432b363911560f784d8a1ab0d0ab03",
+      "size_bytes": 16815
+    },
+    "control-03/receipt.json": {
+      "sha256": "d81a1f356792b6f0786c9d41d723d321d85e9c9c283b3324aa2de4c2a86c2666",
+      "size_bytes": 1251712
+    },
+    "control-03/quantized-history-analysis.json": {
+      "sha256": "e4a3b97d21e356ff338c9b833097263d9d68c69051ded55ea74b2c549c2782b9",
+      "size_bytes": 76336
+    },
+    "control-04/script.py": {
+      "sha256": "0a794b8d1395fdb9f96605902c04063038e012b2d1809105239b462bad85c3ba",
+      "size_bytes": 22119
+    },
+    "control-04/receipt.json": {
+      "sha256": "cc124be1da738a6fe1bc7b521da3050dda872fc11efbf18c6979d243f391845c",
+      "size_bytes": 3150014
+    },
+    "control-04/process-result.json": {
+      "sha256": "e0b122cee4acdb6a632831577f90600044413b4b9c4633bad0fdd35ce43c3c26",
+      "size_bytes": 507
+    },
+    "control-04/projection-history-analysis.py": {
+      "sha256": "f4c57adae0004c1990fd867f4859ca587a486900c23ff3536d40f02fa357aed4",
+      "size_bytes": 5536
+    },
+    "control-04/projection-history-analysis.json": {
+      "sha256": "7e0474b29781fee7f2a85cfbc2c8c170fd758e028b77990a0353c8478d0ef657",
+      "size_bytes": 571608
+    },
+    "independent-token-review.json": {
+      "sha256": "4869aaab71623d1a07f21e6c71267ffb8ac3a2df1bc4ad63c534f0c275e6b4ac",
+      "size_bytes": 54334
+    },
+    "independent-control03-review-v2.json": {
+      "sha256": "699ca299c163b3f4abd1a4618f9abc883b6f0ff90eac87c6d9bd0c9ff7312847",
+      "size_bytes": 78514
+    },
+    "independent-control04-review.json": {
+      "sha256": "8416c9fc95e41bf627161bfe63e9820b731c6dc2b5178d1897c07314e479d8a2",
+      "size_bytes": 250536
+    }
+  },
+  "correction08_archive_sha256": "8702563456b9915577e645a1bfabf93c38654fc4f39fd3fa298994cfb83d0024",
+  "control04": {
+    "script_sha256": "0a794b8d1395fdb9f96605902c04063038e012b2d1809105239b462bad85c3ba",
+    "exit_code": 0,
+    "rows": 220,
+    "npz_archives": 220,
+    "channel_hashes_verified": 660,
+    "static_marker_history_matches": 72,
+    "dynamic_depth_and_segmentation_exact_bounds": 144,
+    "moving_samples_rejecting_adjacent_substeps": 138,
+    "stationary_inconclusive_samples": 6,
+    "rgb_threshold_max_bound_difference_pixels": 2,
+    "kitchen_acceptance": false
+  }
+}

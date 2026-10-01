@@ -34,7 +34,7 @@ KITCHEN_SOURCE_FILES = (
 )
 RUNTIME_FILES = (
     "LICENSE", "pyproject.toml", "src/cascade/__init__.py",
-    "scripts/isaac_bridge.py", "scripts/isaac_runtime.py",
+    "scripts/isaac_bridge.py", "scripts/isaac_runtime.py", "scripts/isaac_frame_history.py",
     *KITCHEN_SOURCE_FILES, "demo/serve_isaac_view.py", "demo/scene/kitchen_config.json",
     "demo/scene/own_assets.json", "deploy/runtime/runtime.py", "deploy/runtime/brain.py",
     "deploy/runtime/brain_qwen.json", "deploy/runtime/web_runtime.py",

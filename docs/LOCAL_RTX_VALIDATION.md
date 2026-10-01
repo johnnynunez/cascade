@@ -178,6 +178,70 @@ separate from its failed startup. A future diagnostic must verify the effective
 producer and consumer endpoints before starting services; it must not modify
 frozen product files to hide this failed attempt.
 
+## Profiling attempt 08: placement timeout and real trace
+
+Attempt 08 ran the unchanged `ff8d58b` product source with an external launcher
+enabling Kit's Tracy profiler. Producer, three camera consumers and arm all
+used the shipped port 8611, verified before startup. The normal runtime check
+passed in 2.131 seconds; initial camera server ages were about 0.488 seconds.
+The simulator and MCP used local GPU 1. No Spark was contacted.
+
+The grasp completed and was verified after 171.835 seconds. The unchanged
+300-second MCP limit then cancelled `pick_and_place` during placement and
+latched the stop. The final cube center was near the destination in x/y but
+about 13 cm above the table, with jaw contacts still observed. The native
+postcondition explicitly remained unverified: release and containment were not
+established. There was no second case, reset, campaign, restart or recovery.
+The supervisor's later missing-gateway bookkeeping error is separate from
+this native timeout. Both the [native failure](evidence/isaac-profile08/native-failed.json)
+and [strict failure](evidence/isaac-profile08/strict-failed.json) are retained.
+
+Independent [throughput analysis](evidence/isaac-profile08/throughput.json)
+covered 1,324 witness samples per camera over 303.950 wall seconds and
+35.683 simulation seconds (RTF 0.117). Camera server age never exceeded
+0.828 seconds; delivery age never exceeded 0.855 seconds. These measurements
+include profiler and shared-machine load and do not establish a regression or
+speedup against earlier runs. Planning took 1.782 seconds, home 17.954 seconds,
+pregrasp 90.258 seconds, descent 25.112 seconds and lift 31.743 seconds.
+
+The [owned capture](evidence/isaac-profile08/capture.json) ran for 120.428 seconds,
+exited normally and retained a 34,869,014-byte trace. Offline decoding found
+4,105,715 CPU zones and 263,610 GPU zones from the exact Kit process; the
+calibrated Vulkan context identified GPU 1. The complete trace includes startup:
+its relative duration is 248.102 seconds. No sufficiently precise trace-origin
+mapping to the normal task clock was recorded, so `profile_validated` remains
+false. Real trace data alone does not establish 100 completed updates inside a
+proven normal-task window.
+
+The [profiling analysis](evidence/isaac-profile08/tracy-summary.json) and
+[integrity review](evidence/isaac-profile08/tracy-root-review.json) preserve
+an exploratory **trace-relative** 130–240 second slice:
+
+| Measurement | Relative slice result |
+|---|---:|
+| Completed `App Update` calls | 855 |
+| `App Update` inclusive time | 16.623 s |
+| `PhysXUpdateNonRender` inclusive / self time | 10.254 / 9.583 s |
+| Union of instrumented main-thread root intervals | 20.659 s of 110 s |
+| Complete graphics GPU zones | 61,758 |
+| Union of tracked GPU root intervals | 5.074 s |
+
+This slice is not an established normal-task window. Missing Python zones
+leave 89.341 seconds of main-thread elapsed time unattributed; no specific
+getter, lock, CUDA synchronization or contention source is proven responsible.
+GPU graphics intervals do not represent all CUDA work or total device busy
+time. CPU self elapsed time includes waits and scheduling delays. The installed
+SDK CSV exporter independently matched the full trace's 3,647 `App Update`
+calls and 77.205 seconds exactly.
+
+Normal [administrative closure](evidence/isaac-profile08/administrative-close.json)
+closed only this attempt's owned services. All four ports and owned processes
+were closed; frozen source, failure receipts, outcome memory and protected
+process identities stayed unchanged. [Root verification](evidence/isaac-profile08/close-root-review.json)
+confirmed this separately. Closure adds no placement, home or recovery result.
+The [retained inputs](evidence/isaac-profile08/retained-inputs.json) bind these
+records and the local raw-trace archive.
+
 ## Retained local attempt 01
 
 Source `27f2b0d` completed native startup, including real GraspGen-X inference

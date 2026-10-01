@@ -39,6 +39,7 @@ _SOURCE_FILES = (
     "src/cascade/grasping/planning_budget.py", "src/cascade/control/lazy_arm.py",
     "configs/arms/isaac_kitchen_gpu.yaml", "src/cascade/sim/bridge_client.py",
     "scripts/isaac_bridge.py", "scripts/isaac_frame_history.py", "scripts/isaac_camera_readback.py",
+    "scripts/isaac_python_spans.py", "scripts/isaac_launch.py",
     "src/cascade/control/motion_profile.py", "assets/grasp_geometry/rebot_rs_fingers.json",
     "assets/grasp_geometry/rebot_rs_fingers_physx.json",
     "assets/grasp_geometry/physx_finger_cooking_source.json",

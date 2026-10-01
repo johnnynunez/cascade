@@ -93,6 +93,7 @@ def wait_ready(pid: int, path: Path, *, timeout: float = 30) -> dict:
 def clean_environment(original: Mapping[str, str], *, source: str | None) -> dict[str, str]:
     # Keep desktop/device selection, not the caller's venv, Kit settings,
     # profiling injection, site packages, authentication tokens or PythonEXE.
+    # The explicit bridge-zone flag enables only our bounded diagnostic helper.
     keep = ("HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "DISPLAY", "WAYLAND_DISPLAY",
             "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS", "CUDA_VISIBLE_DEVICES",
             "NVIDIA_VISIBLE_DEVICES", "VK_ICD_FILENAMES", "__GLX_VENDOR_LIBRARY_NAME",
@@ -100,6 +101,7 @@ def clean_environment(original: Mapping[str, str], *, source: str | None) -> dic
             "CASCADE_BRIDGE_NO_TARGETS", "CASCADE_COMPANION_EXTS",
             "CASCADE_PROOF_CAMERA", "CASCADE_ISAAC_PIXEL_MASK", "CASCADE_ISAAC_CONTACT_MASK", "XDG_CACHE_HOME",
             "CASCADE_ISAAC_WIDTH", "CASCADE_ISAAC_HEIGHT", "CASCADE_ISAAC_CAM_EVERY", "CASCADE_ISAAC_DT",
+            "CASCADE_ISAAC_PYTHON_SPANS",
             "XDG_CONFIG_HOME", "CUDA_CACHE_PATH", "WARP_CACHE_PATH",
             "__GL_SHADER_DISK_CACHE_PATH")
     env = {key: original[key] for key in keep if key in original}

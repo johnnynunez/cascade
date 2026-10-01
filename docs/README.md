@@ -46,6 +46,7 @@ does not change which code produced those measurements.
 - [Retained withdrawal after release](NVBLOX_RELEASE_RETREAT.md)
 - [Retained attachment during NV transport](NVBLOX_CARRY_ATTACHMENT.md)
 - [Local RTX Pro validation and retained diagnostics](LOCAL_RTX_VALIDATION.md)
+- [Optional Isaac bridge Python profiling](ISAAC_BRIDGE_PROFILING.md)
 - [nvblox map reset and allocation history](NVBLOX_MAPPER_RESET.md)
 - [Read-only construction of truth-pose views](NVBLOX_TRUTH_READONLY.md)
 - [Optional OVRTX RGBD renderer: x86/ARM evidence and limits](OVRTX_RENDERER.md)

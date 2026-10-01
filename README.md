@@ -89,7 +89,7 @@ explains the prompts, result checks and recovery steps. See the
 
 ## Roadmap
 
-The immediate delivery work is source-bound Spark and nvblox acceptance of
+The delivery work is source-bound Spark and nvblox acceptance of
 the merged fixes, followed by the five-object campaign and same-version restart.
 See the [current status](docs/PROJECT_STATUS_20261001.md); future work includes:
 

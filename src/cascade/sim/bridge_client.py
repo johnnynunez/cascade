@@ -22,6 +22,7 @@ import copy
 import json
 import socket
 import threading
+import time
 import zlib
 
 import numpy as np
@@ -36,7 +37,6 @@ class BridgeClient:
         self._addr = (host, int(port))
         self._timeout = timeout_s
         self._sock: socket.socket | None = None
-        self._file = None
         self._lock = threading.Lock()  # one in-flight request at a time
 
     def connect(self) -> None:
@@ -52,26 +52,21 @@ class BridgeClient:
                 ) from e
             sock.settimeout(self._timeout)
             self._sock = sock
-            self._file = sock.makefile("rwb")
 
     def close(self) -> None:
         with self._lock:
-            if self._file is not None:
-                try:
-                    self._file.close()
-                except OSError:
-                    pass
-                self._file = None
-            if self._sock is not None:
-                try:
-                    self._sock.close()
-                except OSError:
-                    pass
-                self._sock = None
+            self._close_locked()
+
+    def _close_locked(self) -> None:
+        if self._sock is not None:
+            try:
+                self._sock.close()
+            except OSError:
+                pass
+            self._sock = None
 
     def request(self, payload: dict, timeout_s: float | None = None) -> dict:
-        """Send one request. `timeout_s` overrides the socket timeout for
-        this call only.
+        """Send one request within one wall-time budget, including lock wait.
 
         Some ops legitimately take much longer than a normal round trip:
         `reset_props` settles and verifies props on the simulation's main
@@ -79,25 +74,56 @@ class BridgeClient:
         leaves the caller reading a half-reset scene, which is how a sweep
         ends up measuring the previous episode's end state.
         """
-        with self._lock:
-            if self._file is None:
+        budget = self._timeout if timeout_s is None else timeout_s
+        if type(budget) not in (int, float) or not np.isfinite(budget) or budget <= 0:
+            raise BridgeError("request wall-time budget must be finite and positive")
+        deadline = time.monotonic() + budget
+        if not self._lock.acquire(timeout=budget):
+            raise BridgeError("bridge request deadline expired waiting for transport lock")
+        try:
+            if self._sock is None:
                 raise BridgeError("bridge not connected")
-            _prev = None
-            if timeout_s is not None and self._sock is not None:
-                _prev = self._sock.gettimeout()
-                self._sock.settimeout(timeout_s)
+            sock = self._sock
+            previous_timeout = sock.gettimeout()
+
+            def remaining():
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    raise TimeoutError("bridge request wall-time deadline expired")
+                sock.settimeout(left)
+
             try:
-                self._file.write(json.dumps(payload).encode() + b"\n")
-                self._file.flush()
-                line = self._file.readline()
-            except OSError as e:
+                wire = json.dumps(payload).encode() + b"\n"
+                remaining()
+                sock.sendall(wire)
+                chunks = bytearray()
+                while b"\n" not in chunks:
+                    remaining()  # slow-drip responses cannot renew the deadline
+                    part = sock.recv(65536)
+                    if not part:
+                        raise OSError("bridge closed the connection")
+                    chunks.extend(part)
+                    if len(chunks) > 128 * 1024 * 1024:
+                        raise ValueError("bridge response exceeds 128 MiB")
+                remaining()
+                line, extra = bytes(chunks).split(b"\n", 1)
+                if extra:
+                    raise ValueError("unsolicited data after bridge response")
+                resp = json.loads(line)
+                if not isinstance(resp, dict):
+                    raise ValueError("bridge response must be an object")
+                remaining()
+            except (OSError, ValueError) as e:
+                # A late response after timeout must never become the next
+                # request's response. Reconnect explicitly after the caller
+                # has handled the failed/possibly-delivered operation.
+                self._close_locked()
                 raise BridgeError(f"bridge I/O failed: {e}") from e
             finally:
-                if _prev is not None and self._sock is not None:
-                    self._sock.settimeout(_prev)
-        if not line:
-            raise BridgeError("bridge closed the connection")
-        resp = json.loads(line)
+                if self._sock is sock:
+                    sock.settimeout(previous_timeout)
+        finally:
+            self._lock.release()
         if not resp.get("ok", False):
             raise BridgeError(str(resp.get("error", "bridge error")))
         return resp
@@ -184,11 +210,12 @@ class BridgeClient:
                      "contact_paths": copy.deepcopy((r.get("robot_pixel_mask") or {}).get("contact_paths", []))},
         )
 
-    def state(self) -> dict:
-        return self.request({"op": "state"})
+    def state(self, *, timeout_s: float | None = None) -> dict:
+        return self.request({"op": "state"}, timeout_s=timeout_s)
 
-    def set_joints(self, q: np.ndarray) -> None:
-        self.request({"op": "set_joints", "q": [float(x) for x in np.asarray(q).ravel()]})
+    def set_joints(self, q: np.ndarray, *, timeout_s: float | None = None) -> None:
+        self.request({"op": "set_joints", "q": [float(x) for x in np.asarray(q).ravel()]},
+                     timeout_s=timeout_s)
 
     def gripper(self, pos: float, effort: float = 1.0) -> None:
         self.request({"op": "gripper", "pos": float(pos), "effort": float(effort)})

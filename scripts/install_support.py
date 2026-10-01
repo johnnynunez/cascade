@@ -41,7 +41,10 @@ MODEL_ASSETS = {
     "mobileclip_blt.ts": 599764649,
 }
 MODEL_RELEASE = "https://github.com/ultralytics/assets/releases/download/v8.3.0"
-SPARK_RUNTIME_DEFAULTS = {"CASCADE_ISAAC_CAM_EVERY": "6", "CASCADE_OBSERVED_FINGER_GATE": "1"}
+SPARK_RUNTIME_DEFAULTS = {
+    "CASCADE_ISAAC_CAM_EVERY": "6", "CASCADE_OBSERVED_FINGER_GATE": "1",
+    "CASCADE_ISAAC_DT": str(1.0 / 120.0),
+}
 ROBOT_ASSET_DIRS = ("assets/usd/RS-rebot-dev-arm", "assets/urdf/00-arm-rs_asm-v3")
 ROBOT_LFS_INCLUDE = ",".join(f"{directory}/**" for directory in ROBOT_ASSET_DIRS)
 

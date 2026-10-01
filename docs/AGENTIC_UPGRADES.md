@@ -342,4 +342,4 @@ who is watching but not clicking never gets reaped.
    `label`. Checking only `label` silently degraded every verification to
    `unverified`.
 5. **A missing `TOOL_SPECS` entry fails no test.** The skill simply never
-   becomes visible to the LLM/MCP (documented in CLAUDE.md; still true).
+   becomes visible to the LLM/MCP (documented in AGENTS.md; still true).

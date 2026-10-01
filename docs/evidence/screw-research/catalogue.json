@@ -1,0 +1,98 @@
+{
+  "date": "2026-10-01",
+  "scope": "research_only_no_asset_package_download_or_simulator_execution; selected public catalogue metadata only, no signed download URLs",
+  "queries": [
+    {
+      "query": "screw",
+      "api": "https://simready.com/api/open/asset/usd_search",
+      "method": "POST",
+      "raw_sha256": "14948e8ebf8fe01a7a17574aa8a4c10c68a8592c62d910771aca3c3e4ff87bb7",
+      "code": 200,
+      "records": [
+        {
+          "assetId": 1338,
+          "name": "plastic_bolt",
+          "deliverFileType": "USD",
+          "price": 0.0,
+          "isOpenSource": true,
+          "license": "cc-by-nc-4.0",
+          "displayName": "Lightwheel_plastic_bolt",
+          "fileSize": 916240,
+          "fileType": "zip",
+          "deployStatus": "PUBLISHED"
+        }
+      ],
+      "raw_archive_name": "simready-search-screw-20261001.json"
+    },
+    {
+      "query": "nut",
+      "api": "https://simready.com/api/open/asset/usd_search",
+      "method": "POST",
+      "raw_sha256": "014e8d920e02eb39b55ba4a51a2a507e42889f493ec92c4c5e6f54482eddccc9",
+      "code": 200,
+      "records": [
+        {
+          "assetId": 1292,
+          "name": "plastic_nut",
+          "deliverFileType": "USD",
+          "price": 0.0,
+          "isOpenSource": true,
+          "license": "cc-by-nc-4.0",
+          "displayName": "Lightwheel_plastic_nut",
+          "fileSize": 249883,
+          "fileType": "zip",
+          "deployStatus": "PUBLISHED"
+        }
+      ],
+      "raw_archive_name": "simready-search-nut-20261001.json"
+    },
+    {
+      "query": "screwdriver",
+      "api": "https://simready.com/api/open/asset/usd_search",
+      "method": "POST",
+      "raw_sha256": "e43334bedefa670681c3b62874aa571ae24c9dddcf316f0acd3e9d764383bbf1",
+      "code": 200,
+      "records": [
+        {
+          "assetId": 1411,
+          "name": "phillips_screwdriver",
+          "deliverFileType": "USD",
+          "price": 0.0,
+          "isOpenSource": true,
+          "license": "cc-by-nc-4.0",
+          "displayName": "Lightwheel_phillips_screwdriver",
+          "fileSize": 3837558,
+          "fileType": "zip",
+          "deployStatus": "PUBLISHED"
+        },
+        {
+          "assetId": 1429,
+          "name": "power_drill",
+          "deliverFileType": "USD",
+          "price": 0.0,
+          "isOpenSource": true,
+          "license": "cc-by-nc-4.0",
+          "displayName": "Lightwheel_power_drill",
+          "fileSize": 3019350,
+          "fileType": "zip",
+          "deployStatus": "PUBLISHED"
+        },
+        {
+          "assetId": 1439,
+          "name": "flat_screwdriver",
+          "deliverFileType": "USD",
+          "price": 0.0,
+          "isOpenSource": true,
+          "license": "cc-by-nc-4.0",
+          "displayName": "Lightwheel_flat_screwdriver",
+          "fileSize": 5778491,
+          "fileType": "zip",
+          "deployStatus": "PUBLISHED"
+        }
+      ],
+      "raw_archive_name": "simready-search-screwdriver-20261001.json"
+    }
+  ],
+  "newton_example_source_sha256": "1c6836e744a3b696e374137d16f3408b683f4e00d32f752895ae02b21b876913",
+  "original_research_report_sha256": "a7c2aadfd68be7267854dabc654ca640e1ac9af43e89e7ffd0a8c778e90cd7be"
+}

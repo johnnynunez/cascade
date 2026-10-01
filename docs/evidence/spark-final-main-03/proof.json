@@ -1,0 +1,539 @@
+{
+  "schema": 1,
+  "scope": "Completed two-object native desktop proof on Spark GB10, strict saved-evidence confirmation and existing Chromium UI. Campaign and restart are separate stages.",
+  "source": "28061a60c3ae8099e8a80ab0d1eb8511adbbab86",
+  "proof_session": "cascade-proof-7334f15385c24b908112806bbe136815",
+  "software_validation": "../render-geometry-integration/validation.json",
+  "proof_closure_association_sha256": "88e268a1f00c24df494c2f7d0b9baff39fbc65bbee7927ab336dc33d862c1613",
+  "closure_files_verified": 13,
+  "closure_files_sha256": {
+    "proof.json": "6e47c65b591a82a3a9279acfbfa94906c52d2015fdf084601299950b957c29b4",
+    "memory-after-proof.json": "f344831c8867e07269fd1b125c3f9a4762f4890caf77e0c7ab8e2090e33e899a",
+    "owner.json": "58e7065d362aaf86547a83673b45c8ee0db1c49e1bc456d941fca0ea060e7753",
+    "trace-proof.jsonl": "0fc288708f07604a63519f3be3f87ca90c45d4e1bc494939d3fa8be94f2ad7b2",
+    "observer-receipt.json": "964290b3afeb41bec103b46b7889cb0ba93247bd81a0bac612c6353f8a39e4e5",
+    "launch-final-main-03-driver.json": "72b5573891d79ce669bea10a4a0d9d1ec786046b31d4ef240c839d0bac818366",
+    "native-confirmed-final-main-03.json": "5b7a2b1f637a328df24d9b3da043baf3c1388ca48a76720f2294015656555b1f",
+    "spark-verify-final-main-03.json": "9f73a809e38c3799a84732efddb1a594e02dda30026cb85d48e28fa958def0dc",
+    "effective-runtime-final-main-03.json": "e947f43ea4efa4b6d8e6063def3a99ad7a884ea74d81c464573705b1924234a7",
+    "effective-runtime-final-main-03-attempt01-error.json": "cbcb2c9dec2e0b70bb9487afba0d2365febb9ddbc278e2be08234cd175ace30e",
+    "ui-final-main-03-attempt01-error.json": "1074578d6300159629f271d95d8d03972ac2edf43116a339405e5c2e5f730575",
+    "ui-final-main-03-command.json": "c1de0e89680874dfdbbfb21dcff74d6b92b79ef813c5b1d626b6a0cabac63805",
+    "final-main-03-transfer-receipt.json": "df2e16ac84b54d4dcf18978d87f598f2ee2bd685fe36b35d0e99833435b0f11d"
+  },
+  "defaults": {
+    "observed_finger_gate": "1",
+    "camera_every": 6,
+    "physics_dt_s": 0.008333333333333333,
+    "width": 1280,
+    "height": 720
+  },
+  "memory_preserved_before_launch": true,
+  "strict_native_confirmation_pass": true,
+  "spark_verify": "READY",
+  "cases": [
+    {
+      "object": "green_cube",
+      "destination": "green square",
+      "pass": true,
+      "association_sha256": "f0740d310b38748d70c902c19ba454ec6620e43baae36ffe8dd318ce3b7fbff8",
+      "associated_files_verified": 27,
+      "physical_audit_sha256": "21b53394e69f74499e9022f3907cd63dafb56e957dd365eb69745b8b740b3040",
+      "independent_phase_review_sha256": "bfc00605f111740c66cfa33653ea0f992bd50dcf94fef6a16ac5e18863e97497",
+      "attempt_id": "1790854301853138536-1042543-54af3a63a2604d3b90f27bea10e0f620",
+      "native_postcondition": "confirmed",
+      "witness_samples": 1808,
+      "full_pick_metrics": {
+        "samples": 1436,
+        "final_samples": 15,
+        "simulation_elapsed_s": 49.41666666666666,
+        "final_window_sim_s": 0.5,
+        "lift_m": 0.10122892446815966,
+        "xy_displacement_m": 0.2992960017419507,
+        "final_xy_error_m": 0.0020640355503216,
+        "max_final_xy_error_m": 0.0020640533354447004,
+        "max_final_support_z_error_m": 2.186971631568113e-09,
+        "max_final_linear_speed_m_s": 2.7205824948689913e-05,
+        "max_final_angular_speed_rad_s": 0.00044241219519879516,
+        "max_final_position_spread_m": 3.337203127736024e-08,
+        "max_final_tilt_deg": 9.298296659271045e-05,
+        "min_final_actual_open_fraction": 0.9999991804361466,
+        "max_frame_age_s": 1.2501560330128996,
+        "unique_jpeg_hashes": 515
+      },
+      "lift_phase": {
+        "samples": 97,
+        "bilateral_samples": 97,
+        "max_z_above_attempt_baseline_m": 0.04054482467472553
+      },
+      "grasp_phase_neighbor_max_displacement_m": {
+        "pink_cube": 3.337203127736024e-08,
+        "tomato_can": 7.679882693323606e-08,
+        "lemon": 0,
+        "orange": 0
+      },
+      "whole_witness_camera_ages": {
+        "cam0": {
+          "samples": 1808,
+          "missing_or_invalid_samples": 0,
+          "first_invalid": null,
+          "all_sampled_records_valid": true,
+          "distinct_captures": 649,
+          "maximum_observed_capture_gap_s": 6.757799449987942,
+          "server_snapshot_age_s": {
+            "maximum": 1.6231284500099719,
+            "maximum_sample": {
+              "sample": {
+                "line": 1701,
+                "sequence": 1700,
+                "physics_step": 10132,
+                "sim_time": 84.43333333333334,
+                "server_monotonic": 100498.177481371,
+                "client_started_monotonic": 100498.113654849,
+                "client_finished_monotonic": 100498.296698757
+              },
+              "capture_monotonic": 100496.554352921,
+              "server_snapshot_age_s": 1.6231284500099719,
+              "client_delivery_age_s": 1.7423458359990036
+            },
+            "samples_over_2s": 0,
+            "first_over_2s": null
+          },
+          "client_delivery_age_s": {
+            "maximum": 1.7423458359990036,
+            "maximum_sample": {
+              "sample": {
+                "line": 1701,
+                "sequence": 1700,
+                "physics_step": 10132,
+                "sim_time": 84.43333333333334,
+                "server_monotonic": 100498.177481371,
+                "client_started_monotonic": 100498.113654849,
+                "client_finished_monotonic": 100498.296698757
+              },
+              "capture_monotonic": 100496.554352921,
+              "server_snapshot_age_s": 1.6231284500099719,
+              "client_delivery_age_s": 1.7423458359990036
+            },
+            "samples_over_2s": 0,
+            "first_over_2s": null
+          }
+        },
+        "side": {
+          "samples": 1808,
+          "missing_or_invalid_samples": 0,
+          "first_invalid": null,
+          "all_sampled_records_valid": true,
+          "distinct_captures": 649,
+          "maximum_observed_capture_gap_s": 6.757799449987942,
+          "server_snapshot_age_s": {
+            "maximum": 1.6231284500099719,
+            "maximum_sample": {
+              "sample": {
+                "line": 1701,
+                "sequence": 1700,
+                "physics_step": 10132,
+                "sim_time": 84.43333333333334,
+                "server_monotonic": 100498.177481371,
+                "client_started_monotonic": 100498.113654849,
+                "client_finished_monotonic": 100498.296698757
+              },
+              "capture_monotonic": 100496.554352921,
+              "server_snapshot_age_s": 1.6231284500099719,
+              "client_delivery_age_s": 1.7423458359990036
+            },
+            "samples_over_2s": 0,
+            "first_over_2s": null
+          },
+          "client_delivery_age_s": {
+            "maximum": 1.7423458359990036,
+            "maximum_sample": {
+              "sample": {
+                "line": 1701,
+                "sequence": 1700,
+                "physics_step": 10132,
+                "sim_time": 84.43333333333334,
+                "server_monotonic": 100498.177481371,
+                "client_started_monotonic": 100498.113654849,
+                "client_finished_monotonic": 100498.296698757
+              },
+              "capture_monotonic": 100496.554352921,
+              "server_snapshot_age_s": 1.6231284500099719,
+              "client_delivery_age_s": 1.7423458359990036
+            },
+            "samples_over_2s": 0,
+            "first_over_2s": null
+          }
+        },
+        "proof": {
+          "samples": 1808,
+          "missing_or_invalid_samples": 0,
+          "first_invalid": null,
+          "all_sampled_records_valid": true,
+          "distinct_captures": 649,
+          "maximum_observed_capture_gap_s": 6.757799449987942,
+          "server_snapshot_age_s": {
+            "maximum": 1.6231284500099719,
+            "maximum_sample": {
+              "sample": {
+                "line": 1701,
+                "sequence": 1700,
+                "physics_step": 10132,
+                "sim_time": 84.43333333333334,
+                "server_monotonic": 100498.177481371,
+                "client_started_monotonic": 100498.113654849,
+                "client_finished_monotonic": 100498.296698757
+              },
+              "capture_monotonic": 100496.554352921,
+              "server_snapshot_age_s": 1.6231284500099719,
+              "client_delivery_age_s": 1.7423458359990036
+            },
+            "samples_over_2s": 0,
+            "first_over_2s": null
+          },
+          "client_delivery_age_s": {
+            "maximum": 1.7423458359990036,
+            "maximum_sample": {
+              "sample": {
+                "line": 1701,
+                "sequence": 1700,
+                "physics_step": 10132,
+                "sim_time": 84.43333333333334,
+                "server_monotonic": 100498.177481371,
+                "client_started_monotonic": 100498.113654849,
+                "client_finished_monotonic": 100498.296698757
+              },
+              "capture_monotonic": 100496.554352921,
+              "server_snapshot_age_s": 1.6231284500099719,
+              "client_delivery_age_s": 1.7423458359990036
+            },
+            "samples_over_2s": 0,
+            "first_over_2s": null
+          }
+        }
+      },
+      "maximum_observed_capture_gap": {
+        "capture_delta_s": 6.757799449987942,
+        "server_sample_delta_s": 6.914195691992063,
+        "prior_sequence": 1575,
+        "sequence": 1576,
+        "prior_server_monotonic": 100460.098316115,
+        "server_monotonic": 100467.012511807,
+        "within_reset_markers": true,
+        "limit": "Gap between observed producer stamps and server samples; not proof of stalled camera throughout missing interval."
+      },
+      "limits": [
+        "No contact force or unsensed neighbor-link attribution. Target contact sensors alone do not prove absent neighbor contact.",
+        "Phase displacement statistics retain sampled boundaries; no interpolation or hidden-frame claims.",
+        "Camera contract is server snapshot age<=2s. Client delivery ages are also reported separately.",
+        "Historical render producer qualification and shape admission are not being reclassified as physical acceptance."
+      ]
+    },
+    {
+      "object": "orange",
+      "destination": "open box",
+      "pass": true,
+      "association_sha256": "94cf872d98fed20f233d67f1a4c043ef9c8d0c581c0f56321a38cf37b0e7262b",
+      "associated_files_verified": 27,
+      "physical_audit_sha256": "c411975b2269c449b148757688dbdb843752f528849a500b95dfe7b450fd928c",
+      "independent_phase_review_sha256": "3cb0f835472d3520f1d382f18352f0ea3384ff35af43b02dcd1adcde74f928d7",
+      "attempt_id": "1790854647170676157-1042543-fdedd595efd2420ab12b4dfcdc9e42de",
+      "native_postcondition": "confirmed",
+      "witness_samples": 2102,
+      "full_pick_metrics": {
+        "samples": 1600,
+        "final_samples": 15,
+        "simulation_elapsed_s": 53.11666666666666,
+        "final_window_sim_s": 0.5,
+        "lift_m": 0.10787976719439028,
+        "xy_displacement_m": 0.29556661790208427,
+        "final_xy_error_m": 0.009256624948061731,
+        "max_final_xy_error_m": 0.009256637773106544,
+        "max_final_support_z_error_m": 7.957177126233228e-08,
+        "max_final_linear_speed_m_s": 0.0009994516833321805,
+        "max_final_angular_speed_rad_s": 0.035111075197535334,
+        "max_final_position_spread_m": 1.7572159193561605e-08,
+        "max_final_tilt_deg": 24.383476064250356,
+        "min_final_actual_open_fraction": 0.999999478459366,
+        "max_frame_age_s": 1.2041299409902422,
+        "unique_jpeg_hashes": 561
+      },
+      "lift_phase": {
+        "samples": 190,
+        "bilateral_samples": 190,
+        "max_z_above_attempt_baseline_m": 0.03869825787842274
+      },
+      "grasp_phase_neighbor_max_displacement_m": {
+        "pink_cube": 3.337203127736024e-08,
+        "green_cube": 1.5160833109263057e-08,
+        "tomato_can": 1.2780514954334827e-07,
+        "lemon": 0
+      },
+      "whole_witness_camera_ages": {
+        "cam0": {
+          "samples": 2102,
+          "missing_or_invalid_samples": 0,
+          "first_invalid": null,
+          "all_sampled_records_valid": true,
+          "distinct_captures": 734,
+          "maximum_observed_capture_gap_s": 7.322453157001291,
+          "server_snapshot_age_s": {
+            "maximum": 1.9250705910089891,
+            "maximum_sample": {
+              "sample": {
+                "line": 2053,
+                "sequence": 2052,
+                "physics_step": 18428,
+                "sim_time": 153.56666666666666,
+                "server_monotonic": 100916.670271319,
+                "client_started_monotonic": 100916.592080391,
+                "client_finished_monotonic": 100916.810532305
+              },
+              "capture_monotonic": 100914.745200728,
+              "server_snapshot_age_s": 1.9250705910089891,
+              "client_delivery_age_s": 2.065331577003235
+            },
+            "samples_over_2s": 0,
+            "first_over_2s": null
+          },
+          "client_delivery_age_s": {
+            "maximum": 2.065331577003235,
+            "maximum_sample": {
+              "sample": {
+                "line": 2053,
+                "sequence": 2052,
+                "physics_step": 18428,
+                "sim_time": 153.56666666666666,
+                "server_monotonic": 100916.670271319,
+                "client_started_monotonic": 100916.592080391,
+                "client_finished_monotonic": 100916.810532305
+              },
+              "capture_monotonic": 100914.745200728,
+              "server_snapshot_age_s": 1.9250705910089891,
+              "client_delivery_age_s": 2.065331577003235
+            },
+            "samples_over_2s": 1,
+            "first_over_2s": {
+              "sample": {
+                "line": 2053,
+                "sequence": 2052,
+                "physics_step": 18428,
+                "sim_time": 153.56666666666666,
+                "server_monotonic": 100916.670271319,
+                "client_started_monotonic": 100916.592080391,
+                "client_finished_monotonic": 100916.810532305
+              },
+              "capture_monotonic": 100914.745200728,
+              "server_snapshot_age_s": 1.9250705910089891,
+              "client_delivery_age_s": 2.065331577003235
+            }
+          }
+        },
+        "side": {
+          "samples": 2102,
+          "missing_or_invalid_samples": 0,
+          "first_invalid": null,
+          "all_sampled_records_valid": true,
+          "distinct_captures": 734,
+          "maximum_observed_capture_gap_s": 7.322453157001291,
+          "server_snapshot_age_s": {
+            "maximum": 1.9250705910089891,
+            "maximum_sample": {
+              "sample": {
+                "line": 2053,
+                "sequence": 2052,
+                "physics_step": 18428,
+                "sim_time": 153.56666666666666,
+                "server_monotonic": 100916.670271319,
+                "client_started_monotonic": 100916.592080391,
+                "client_finished_monotonic": 100916.810532305
+              },
+              "capture_monotonic": 100914.745200728,
+              "server_snapshot_age_s": 1.9250705910089891,
+              "client_delivery_age_s": 2.065331577003235
+            },
+            "samples_over_2s": 0,
+            "first_over_2s": null
+          },
+          "client_delivery_age_s": {
+            "maximum": 2.065331577003235,
+            "maximum_sample": {
+              "sample": {
+                "line": 2053,
+                "sequence": 2052,
+                "physics_step": 18428,
+                "sim_time": 153.56666666666666,
+                "server_monotonic": 100916.670271319,
+                "client_started_monotonic": 100916.592080391,
+                "client_finished_monotonic": 100916.810532305
+              },
+              "capture_monotonic": 100914.745200728,
+              "server_snapshot_age_s": 1.9250705910089891,
+              "client_delivery_age_s": 2.065331577003235
+            },
+            "samples_over_2s": 1,
+            "first_over_2s": {
+              "sample": {
+                "line": 2053,
+                "sequence": 2052,
+                "physics_step": 18428,
+                "sim_time": 153.56666666666666,
+                "server_monotonic": 100916.670271319,
+                "client_started_monotonic": 100916.592080391,
+                "client_finished_monotonic": 100916.810532305
+              },
+              "capture_monotonic": 100914.745200728,
+              "server_snapshot_age_s": 1.9250705910089891,
+              "client_delivery_age_s": 2.065331577003235
+            }
+          }
+        },
+        "proof": {
+          "samples": 2102,
+          "missing_or_invalid_samples": 0,
+          "first_invalid": null,
+          "all_sampled_records_valid": true,
+          "distinct_captures": 734,
+          "maximum_observed_capture_gap_s": 7.322453157001291,
+          "server_snapshot_age_s": {
+            "maximum": 1.9250705910089891,
+            "maximum_sample": {
+              "sample": {
+                "line": 2053,
+                "sequence": 2052,
+                "physics_step": 18428,
+                "sim_time": 153.56666666666666,
+                "server_monotonic": 100916.670271319,
+                "client_started_monotonic": 100916.592080391,
+                "client_finished_monotonic": 100916.810532305
+              },
+              "capture_monotonic": 100914.745200728,
+              "server_snapshot_age_s": 1.9250705910089891,
+              "client_delivery_age_s": 2.065331577003235
+            },
+            "samples_over_2s": 0,
+            "first_over_2s": null
+          },
+          "client_delivery_age_s": {
+            "maximum": 2.065331577003235,
+            "maximum_sample": {
+              "sample": {
+                "line": 2053,
+                "sequence": 2052,
+                "physics_step": 18428,
+                "sim_time": 153.56666666666666,
+                "server_monotonic": 100916.670271319,
+                "client_started_monotonic": 100916.592080391,
+                "client_finished_monotonic": 100916.810532305
+              },
+              "capture_monotonic": 100914.745200728,
+              "server_snapshot_age_s": 1.9250705910089891,
+              "client_delivery_age_s": 2.065331577003235
+            },
+            "samples_over_2s": 1,
+            "first_over_2s": {
+              "sample": {
+                "line": 2053,
+                "sequence": 2052,
+                "physics_step": 18428,
+                "sim_time": 153.56666666666666,
+                "server_monotonic": 100916.670271319,
+                "client_started_monotonic": 100916.592080391,
+                "client_finished_monotonic": 100916.810532305
+              },
+              "capture_monotonic": 100914.745200728,
+              "server_snapshot_age_s": 1.9250705910089891,
+              "client_delivery_age_s": 2.065331577003235
+            }
+          }
+        }
+      },
+      "maximum_observed_capture_gap": {
+        "capture_delta_s": 7.322453157001291,
+        "server_sample_delta_s": 6.986783235013718,
+        "prior_sequence": 1796,
+        "sequence": 1797,
+        "prior_server_monotonic": 100842.360263709,
+        "server_monotonic": 100849.347046944,
+        "within_reset_markers": true,
+        "limit": "Gap between observed producer stamps and server samples; not proof of stalled camera throughout missing interval."
+      },
+      "limits": [
+        "Verify phase has0samples; no contact or motion observation is inferred there.",
+        "No contact force or unsensed neighbor-link attribution. Target sensors alone do not prove absent neighbor contact.",
+        "Phase displacement statistics retain sampled boundaries; no interpolation or hidden-frame claims.",
+        "Camera contract is server snapshot age<=2s. Client delivery ages are separately reported, including one over2s per camera.",
+        "Historical producer qualification and shape admission are not reclassified as physical acceptance."
+      ]
+    }
+  ],
+  "ui": {
+    "pass": true,
+    "receipt_sha256": "c11edbd47654f19838b2a0b4dc7c689110976e04b6b69662318e04295d91d68e",
+    "same_browser_and_page": true,
+    "time_origin_ms": 1790823895332.8,
+    "before": {
+      "status": "Three cameras live",
+      "cameras": [
+        {
+          "name": "kitchen",
+          "frame_id": 241,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "worktop",
+          "frame_id": 241,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "side",
+          "frame_id": 241,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        }
+      ]
+    },
+    "after": {
+      "status": "Three cameras live",
+      "cameras": [
+        {
+          "name": "kitchen",
+          "frame_id": 245,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "worktop",
+          "frame_id": 245,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        },
+        {
+          "name": "side",
+          "frame_id": 245,
+          "live": true,
+          "width": 1280,
+          "height": 720
+        }
+      ]
+    },
+    "scope": "Actual Spark Chromium and shipped extension on an Xvfb virtual display; no GNOME login or visible Isaac editor validation",
+    "screenshot_sha256": "166610b9771bfd70288c8bccfbf6e5aabe228b14bb7882ca6676b10728722efb"
+  },
+  "limits": [
+    "Existing installation was upgraded; this is not a new fresh-install timing.",
+    "Outcome memory and prior failed runs were retained.",
+    "Server snapshot age <=2 seconds is the sampled camera gate; client delivery age is reported separately.",
+    "One orange reset delivery sample per camera exceeded 2 seconds (2.065332 seconds), while server age passed.",
+    "Capture gaps are observed gaps between samples, not proof that no intermediate frames existed.",
+    "Native trace binding uses owner, unique step, exact arguments and observed intervals; trace rows have no native run/order IDs.",
+    "Campaign, normal restart, RTX nvblox recovery and real hardware are not certified by this two-case result."
+  ]
+}

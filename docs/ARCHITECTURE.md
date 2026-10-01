@@ -1,12 +1,18 @@
 # Architecture
 
-Runtime contracts updated on 1 October 2026, including the later optional OVRTX
-renderer and PhysX finger envelope. The latest physical runs remain pinned to
-`477c88f`; see the
+Runtime contracts updated on 1 October 2026, including the merged optional OVRTX
+renderer, PhysX finger envelope, callback-safe diagnostics and native host reserve.
+The current runtime baseline is `0e23870`; see the
 [source and acceptance index](PROJECT_STATUS_20261001.md) for merged changes,
 software validation and the current physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.
-Read this after the README and before `CLAUDE.md`.
+Read this after the README and before `AGENTS.md`.
+
+The optional [cuMotion planner](CUMOTION.md) is a separate candidate-generation
+API/CLI, with caller-owned URDF/XRDF and static cuboids. It does not replace the
+current IK/SafeArm pipeline or consume live payload/recovery authority. The
+[screw assembly investigation](SCREW_MANIPULATION_RESEARCH.md) describes physical
+verification absent from the existing gestural `turn_screw` skill.
 
 ## Design position
 
@@ -490,7 +496,7 @@ tool names and the owned live process to its trace; a recent timestamp
 alone cannot establish identity. Reset must include the manipulated prop
 and a subsequent `world_state` read-back. `--no-robot-turn` is STARTED /
 UNVERIFIED, not READY. The MCP server is registered with
-`requestTimeoutMs: 300000`. Native visitor and proof turns share a 360-second
+`requestTimeoutMs: 300000`. Native visitor turns and proof pick turns share a 360-second
 whole-turn budget, including a 60-second host reserve around the per-tool limit,
 plus a 30-second CLI return margin; an expired motion still
 latches e-stop. See [turn budgets](native-visitor-turn-budget.md). Dead MCP entries are

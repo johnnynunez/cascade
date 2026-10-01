@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "source": "28061a60c3ae8099e8a80ab0d1eb8511adbbab86",
+  "scope": "Retained failures on isolated RTX nvblox environment 10; no successful release/recovery or five-object campaign.",
+  "second_failure_receipt_sha256": "05286d5633af20e940c64140c6e45fd9d11828e4b952b14eb64312ad47dfaf36",
+  "artifacts_verified": 20,
+  "startup_source_count": 282,
+  "source_unchanged": true,
+  "failure": {
+    "result": {
+      "ok": false,
+      "error": "bad arguments for pick_and_place: function",
+      "postcondition": {
+        "skill": "pick_and_place",
+        "kind": "relocated",
+        "status": "refuted",
+        "evidence": "orange is still within 0.0 cm of where it started",
+        "channel": "physics",
+        "measured": {
+          "moved_m": 0.0,
+          "final": [
+            0.18,
+            0.12,
+            0.0264
+          ]
+        }
+      },
+      "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+    },
+    "held": null,
+    "release_episode_present": false,
+    "fault_started": null,
+    "refusals": [],
+    "scope": "Native pick/place did not reach the reviewed post-open fault; no recovery or external retry is requested."
+  },
+  "exception_type": "TypeError",
+  "exception_message": "function",
+  "root_cause": "ActuatorTrace._record JSON serialization rejects public callback function in observed-scene move kwargs before original home motion is called. Checked-in kitchen_acceptance recorder has same unsupported-callable path. This is diagnostic instrumentation, not evidence of a controller or feasibility failure.",
+  "actuator_begin_counts": [
+    {
+      "phase": "setup_reset",
+      "layer": "request",
+      "call": "move_joints",
+      "count": 1
+    },
+    {
+      "phase": "setup_reset",
+      "layer": "actuator",
+      "call": "send_joint_target",
+      "count": 90
+    },
+    {
+      "phase": "setup_reset",
+      "layer": "actuator",
+      "call": "reset_props",
+      "count": 1
+    },
+    {
+      "phase": "pick",
+      "layer": "request",
+      "call": "set_gripper",
+      "count": 1
+    },
+    {
+      "phase": "pick",
+      "layer": "actuator",
+      "call": "set_gripper",
+      "count": 1
+    }
+  ],
+  "camera_age_summary": {
+    "pass": true,
+    "complete": true,
+    "observer_errors": [],
+    "source": [
+      "127.0.0.1",
+      8699
+    ],
+    "cameras": {
+      "cam0": {
+        "pass": true,
+        "samples": 286,
+        "valid_clock_samples": 286,
+        "maximum_age_s": 0.837316874996759,
+        "samples_over_2s": 0,
+        "distinct_captures": 100,
+        "maximum_observed_capture_gap_s": 6.276588734996039,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      },
+      "side": {
+        "pass": true,
+        "samples": 286,
+        "valid_clock_samples": 286,
+        "maximum_age_s": 0.837316874996759,
+        "samples_over_2s": 0,
+        "distinct_captures": 100,
+        "maximum_observed_capture_gap_s": 6.276588734996039,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      },
+      "proof": {
+        "pass": true,
+        "samples": 286,
+        "valid_clock_samples": 286,
+        "maximum_age_s": 0.837316874996759,
+        "samples_over_2s": 0,
+        "distinct_captures": 100,
+        "maximum_observed_capture_gap_s": 6.276588734996039,
+        "invalid_samples": 0,
+        "first_invalid_sample": null,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "producer_clock": "physics_loop_monotonic"
+      }
+    },
+    "scope": "Server monotonic minus capture in the same physical snapshot; observed capture gaps are sample gaps, not all producer frames."
+  },
+  "cleanup_calls": [],
+  "cleanup_errors": [],
+  "evidence_sha256": {
+    "receipt.json": "ce13e75ee333c4d414e92b0217185b5f158d58d614ce52cce6c69c3184504759",
+    "release-launch-02.json": "8af247a8a6b6bb4c9f3efe66ca35d6d6ae1f6880d86a7a895793c0b96d4e665a",
+    "actuators.jsonl": "373c9ccc2931af2ca3f035c5729ce7794735e3b59001717af1baaaf5c5ee7249",
+    "skills.jsonl": "270e4a6ca63f625d185006033c0b3b3ccdb68a814e5329217f57f01d60c4e7b5",
+    "1790856256828130555-2383062-ac80dae59c8d40d8985f1bc10704b858.json": "fc314e18b4754b62a09471feef2c6be26273c67decd856d548c06fdd2958cb50",
+    "1790856256828130555-2383062-ac80dae59c8d40d8985f1bc10704b858.npz": "763031ca8dfc721fe157e687aef52c4f01ef953afbd3bd05c1ac0264e5406e7f"
+  }
+}

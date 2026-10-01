@@ -8,7 +8,53 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
-The latest physical-run baseline,
+Latest MAIN `13ec4830c913f4da3c3c6d07c4a810f95a49f323` adds the optional
+[cuMotion planner](CUMOTION.md) in [PR #47](https://github.com/johnnynunez/cascade/pull/47).
+Its six new files leave the existing native runtime paths unchanged. The
+source-bound Spark and nvblox trials remain on baseline `0e23870`; this distinction
+also applies to the installation commands below. The standalone planner passed
+78 CPU tests and one real x86 GPU CLI/factory smoke, with no actuator execution.
+Its CI is recorded separately; the 3,365-test baseline result is not a full-suite
+measurement of the later addition.
+
+Runtime baseline `0e2387070c2b784ba864981f5c291a1b1e4d117a` merged
+[PR #46](https://github.com/johnnynunez/cascade/pull/46) after all five PR CI jobs
+passed. All five merged-source CI jobs also passed. Its tree
+`de39bba7c65f466e7fce42179ed22c213cd256da` is identical to tested
+candidate `4999a754c1c71759ff25dcbda5867bb1b3513fa5`: **3,365 tests passed**,
+43 skipped and four deselected, in 342.63 seconds. This run includes the core
+suite and the separate Brev visitor/video/portable-bundle Python suites.
+All 1,075 tracked files and eight release assets stayed unchanged; the new
+physical-run checkout matches every byte. The
+[validation receipt](evidence/native-host-budget-integration/validation.json)
+binds these checks. The preceding CI run exposed a stale bundle-test expectation
+of 300 seconds; the test now expects the implemented 360-second turn budget.
+That failed run is retained. The MCP call limit remains 300 seconds, with
+60 seconds reserved around it for host routing and response; expiry still stops
+motion. Physical proof, recovery and restart require their own receipts.
+
+Earlier baseline `28061a60c3ae8099e8a80ab0d1eb8511adbbab86` merged
+[PR #44](https://github.com/johnnynunez/cascade/pull/44) after all five CI jobs
+passed; all five jobs also passed on the merged source. Its tree
+`e571c787c5a195a1a02288adb6bf313df76a4f38` is identical to the
+tested integration `76410fcc01a07aa68307a593d126a558e81e31f0`: **3,295 tests passed**,
+43 were skipped and four deselected, in 340.20 seconds. All 1,073 tracked files
+and eight pinned kitchen release assets stayed unchanged.
+The [integration receipt](evidence/render-geometry-integration/validation.json)
+binds the test log, full source manifest, merge and CI. These results cover the
+combined geometry and optional renderer changes; they do not establish new
+physical acceptance.
+
+[PR #45](https://github.com/johnnynunez/cascade/pull/45) fixes diagnostic
+recording of the motion safety callbacks. It merged as `07670e2`, with all five
+PR and merged-source CI jobs passing. Its candidate `525ab80` passed
+**3,304 tests**, with 43 skipped and four deselected, in 334.95 seconds, plus
+81 focused checks. Both recorders now store opaque callback metadata while
+forwarding the original arguments unchanged; logging neither calls nor replaces
+the safety callbacks. This candidate's software result does not turn the failed
+nvblox run below into a recovery pass.
+
+The previous physical-run baseline,
 `477c88fe40092fdaad99c0f777a6f1c3b9a41224`, merges the reviewed integration
 `391436063c5dd98b0686202db02cefc9bdf294d1` with the same product tree
 `ff43ff758ddf39dac8e9661fe083fb5ac7943bcd`. The final suite passed **3,205 tests**,
@@ -37,8 +83,13 @@ in the validation history.
 | [PR #27](https://github.com/johnnynunez/cascade/pull/27) | Multicamera payload mapping, retained contact/release episodes, scoped recovery, [anchor refresh](NVBLOX_RETAINED_ANCHOR_REFRESH.md), [mapper reset](NVBLOX_MAPPER_RESET.md) and [read-only truth construction](NVBLOX_TRUTH_READONLY.md). |
 | [PR #41](https://github.com/johnnynunez/cascade/pull/41) | A deterministic recorder-clock test replaces an assumption about host scheduling overhead; recorder production is unchanged. |
 | [PR #42](https://github.com/johnnynunez/cascade/pull/42) | [Preserved grasp-memory ranking](grasp-memory-ranking.md) and [coherent held-object observations](HELD_OBJECT_OBSERVATION.md); a cached aiming estimate cannot authorize slip release. |
+| [PR #43](https://github.com/johnnynunez/cascade/pull/43) | Repository documentation reconciled with the installed profiles, software contracts and retained physical failures. |
+| [PR #44](https://github.com/johnnynunez/cascade/pull/44) | Optional [OVRTX RGBD rendering](OVRTX_RENDERER.md), the [PhysX envelope](physx-finger-envelope.md) admitted against x86 and ARM exports, and complete portable distribution of their runtime inputs. |
+| [PR #45](https://github.com/johnnynunez/cascade/pull/45) | Diagnostic recorders retain opaque callback metadata and forward the actual safety callback unchanged. |
+| [PR #46](https://github.com/johnnynunez/cascade/pull/46) | [Native host reserve](native-visitor-turn-budget.md): 360-second visitor/proof pick turns around the unchanged 300-second MCP call limit. |
+| [PR #47](https://github.com/johnnynunez/cascade/pull/47) | Optional [cuMotion 1.1.0 planning](CUMOTION.md), static-world candidate export, real x86 GPU smoke; no integration into native actuator execution. |
 
-## Subsequent renderer and geometry integration
+## Merged renderer and geometry integration
 
 The [PhysX finger envelope](physx-finger-envelope.md) retains all eight nominal
 components and adds sixteen derived cooking components from each of the x86
@@ -55,9 +106,10 @@ with 43 skipped and four deselected, in 326.74 seconds. Tracked source and eight
 release assets were unchanged. The first run failed because those ignored
 kitchen assets were missing; its failure is retained, and the successful rerun
 used the same code. The subsequent cross-platform geometry revision `d14b0c1`
-passed 74 focused tests and both representation audits. New physical acceptance
-remains pending. The joint renderer/geometry tree's software results are bound to its
-exact SHA in the integration PR and CI, rather than inherited from this count.
+passed 74 focused tests and both representation audits. The merged source then
+passed the two-object Spark proof recorded below. The joint renderer/geometry
+tree passed the separate 3,295-test
+run recorded above; it does not inherit its result from the earlier component count.
 
 The optional [OVRTX adapter](OVRTX_RENDERER.md) has real analytic RGBD execution
 on Linux x86_64 and Spark aarch64, plus a public static-camera factory capture
@@ -72,14 +124,20 @@ failures below. Documentation PR #43 preserved that earlier source distinction.
 
 ## Current physical acceptance
 
-**Physical acceptance of the corrections is incomplete.** Spark final-MAIN-02
-and the isolated RTX nvblox environment 09 are separate runs. Neither a completed five-object
-campaign nor same-version restart acceptance is claimed here until its own
-bound receipts pass. Preparation, software tests and passive observations do
-not replace those stages.
+**Spark final-MAIN-03 passed the two-object native proof, strict confirmation
+and READY on `28061a6`. Its subsequent five-object campaign failed, with four
+complete cases passing.** The tomato can reached confirmed placement, but the
+whole-turn deadline cancelled its return home; reset then refused the latched
+stop. The existing Chromium page retained its identity and three advancing
+1280 × 720 cameras. Normal restart and separate RTX nvblox recovery remain
+unaccepted stages. Preparation, software tests and passive observations do not
+replace them.
 
 | Source/run | Measured result and boundary |
 | --- | --- |
+| MAIN `28061a6`, Spark final-MAIN-03 | Green and orange completed native placement, return home and reset; both independent physical audits and the strict checker passed. Sampled camera server ages remained ≤2 s, and measured neighboring props remained stationary within 0.00013 mm during grasp. The [proof receipt](evidence/spark-final-main-03/proof.json) retains separate delivery ages, capture gaps and earlier helper failures. This is an upgraded existing installation, not a fresh-install measurement. |
+| MAIN `28061a6`, Spark final-MAIN-03 campaign | Green cube, orange, pink cube and lemon passed complete placement/home/reset audits. Tomato-can placement and retreat were confirmed, but the 300-second turn deadline cancelled return home. The reset refused e-stop without resetting props. Strict confirmation and the aggregate campaign remain FAIL; no restart followed. The [campaign receipt](evidence/spark-final-main-03/campaign.json) preserves all five verdicts, camera measurements and the independently verified 356-file archive. |
+| MAIN `28061a6`, nvblox environment 10 | Passive three-camera admission passed. Initial map warmup took 6.006 s; some later commits aged to 2.642 s, while all three final commits were ≤1.045 s. The first release launcher failed its read-only atomic-truth preflight before any actuator commands. A later native truth probe passed in 88 ms. The second diagnostic completed setup reset, then its recorder rejected a callback as non-JSON data before the first pick motion. No close, injected mapping fault or release episode occurred. Both failures are retained; no recovery or five-object pass is claimed. [Failure receipt](evidence/nvblox-environment-10/failures.json). |
 | September `9cf5402` delivery | A fresh-destination GB10 installation, two desktop proofs, a five-object visitor round and restart passed on that source. Download caches were reused. [Historical receipt](../benchmark/results/spark_clean_delivery_20260930.json). Later orange failures remain recorded; this is not the acceptance result for current MAIN. |
 | MAIN `6b5dad6`, Spark final-MAIN-01 | Green completed placement, return home and reset under the existing server-camera-age audit. Orange failed with an air grasp and no observed lift. The overall native proof failed; no five-object campaign or restart followed. [Ranking diagnosis](grasp-memory-ranking.md). |
 | MAIN `6b5dad6`, nvblox environment 08 | A slip verdict opened the gripper although the last measured sample still showed bilateral contact and a lifted orange. The intended post-release fault was never reached. The exact legacy offset branch was not logged. [Retained failure](HELD_OBJECT_OBSERVATION.md). |
@@ -139,6 +197,13 @@ producer, robot/target masks or manipulation authority is supplied; those
 connections require their own implementation and acceptance. Cosmos,
 mobile-base navigation and new hardware validation retain separate roadmap
 scopes. Locally installed development skills are authoring tools, not runtime dependencies or substitutes for source-bound physical tests.
+
+[Screw manipulation research](SCREW_MANIPULATION_RESEARCH.md) identifies five
+SimReady USD catalogue assets and the Factory/Isaac Lab/Newton threading paths.
+The existing `turn_screw` commands wrist strokes; measured thread advancement,
+engagement, seating and tightening torque are not implemented. SimReady's listed
+CC BY-NC terms and the original Factory mesh BSD-3-Clause licence are distinct.
+No threaded asset or simulation was installed for this research.
 
 ## Operator evidence sequence
 

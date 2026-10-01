@@ -43,6 +43,8 @@ does not change which code produced those measurements.
 - [nvblox map reset and allocation history](NVBLOX_MAPPER_RESET.md)
 - [Read-only construction of truth-pose views](NVBLOX_TRUTH_READONLY.md)
 - [Optional OVRTX RGBD renderer: x86/ARM evidence and limits](OVRTX_RENDERER.md)
+- [Optional cuMotion planner: native x86 GPU evidence and candidate-only API](CUMOTION.md)
+- [Screw manipulation research: SimReady/Factory assets and physical acceptance](SCREW_MANIPULATION_RESEARCH.md)
 - [Newton physics engine: setup and validation](NEWTON_ENGINE.md)
 - [Bridge degradation under sustained verification polling](BRIDGE_DEGRADATION.md)
 
@@ -92,7 +94,7 @@ above; automatic physics producers and its kitchen acceptance remain future work
 - [reBot provenance](../assets/REBOT_PROVENANCE.md), per-asset `PROVENANCE.md`,
   [kitchen notice](../demo/scene/NOTICE.md), licenses and vendored validation
   reports: ownership and original asset evidence are preserved.
-- [Repository development guide](../CLAUDE.md): factual runtime conventions and
+- [Repository development guide](../AGENTS.md): factual runtime conventions and
   existing contributor instructions. Locally installed authoring skills are
   not runtime dependencies.
 

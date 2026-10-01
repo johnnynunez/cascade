@@ -22,8 +22,9 @@ The [upstream requirements](https://github.com/nvidia-isaac/cumotion#system-requ
 list Python 3.10–3.14 wheels, Linux x86_64 with CUDA 12.6/13.0, aarch64 on
 Jetson Orin with CUDA 12.6 and Jetson Thor/DGX Spark with CUDA 13.0, and
 Windows x86_64 with CUDA 13.0. x86 requires an NVIDIA Turing GPU or newer.
-These are upstream platform claims; Cascade's CPU contract tests do not
-establish SDK/GPU or physical acceptance on those platforms.
+These are upstream platform claims. The native smoke below establishes one
+Linux x86_64 GPU planning result; ARM, Windows and physical task execution
+remain unvalidated in Cascade.
 
 Download the matching release archive and follow
 [NVIDIA's installation instructions](https://nvidia-isaac.github.io/cumotion/getting_started.html).
@@ -130,6 +131,23 @@ There is no claim that cuMotion improves the current kitchen campaign or has
 completed hardware/Isaac acceptance.
 
 ## Validation
+
+On source `81b2070` (merged in [PR #47](https://github.com/johnnynunez/cascade/pull/47)),
+the actual cuMotion 1.1.0 CUDA 13.0 wheel passed the public CLI/factory on Linux
+x86_64 with an RTX PRO 6000 Blackwell. One small Franka request with a distant
+static cuboid produced a 0.219-second trajectory with 12 samples in 0.732 wall
+seconds. Maximum endpoint error was 1.15e-7 rad. Only the selected GPU was
+observed, peaking at 582 MiB; the child exited normally and source/model hashes
+and existing process identities were unchanged. The
+[compact receipt](../benchmark/results/cumotion-planner-20261001.json) binds the
+candidate, supervisor, model metadata and independent review.
+
+This is one native integration smoke. It does not measure ARM support,
+continuous/live-world collision clearance, robot execution or kitchen success.
+The SDK was installed in a separate environment; no presenter environment or
+runtime source changed. Model parsing exposed stale frame names in an upstream
+example, which the shipped profile now corrects.
+
 
 `tests/test_cumotion_planner.py` uses a CPU SDK double matching the documented
 1.1.0 interfaces. It exercises joint order/sign conversion, nonzero trajectory

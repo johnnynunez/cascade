@@ -1,10 +1,10 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
-The latest acceptance runs use **`477c88f` (1 October 2026)**, whose software
-suite passed 3,205 tests. The subsequent PhysX finger envelope and optional OVRTX
-renderer have separate validation recorded in the
-[project status](docs/PROJECT_STATUS_20261001.md). Spark and nvblox physical
-acceptance remains incomplete; historical installation, campaign and restart
+The current tested runtime is **`0e23870` (1 October 2026)**, including the
+PhysX finger envelope, optional OVRTX renderer, callback-safe diagnostics and
+native host time reserve. Its identical integration tree passed 3,365 tests,
+and all five PR CI jobs passed. [Project status](docs/PROJECT_STATUS_20261001.md) records the separate
+Spark and nvblox physical stages; historical installation, campaign and restart
 results apply only to their stated pins.
 
 <p align="center">
@@ -46,13 +46,19 @@ multimodal traces + skill library) and
 advisor + experience memory), in the same
 service-oriented/composable spirit as [RPent](https://github.com/RLinf/RPent).
 
-[PAAI staff guide](docs/BOOTH_GUIDE.md) · [DGX Spark setup](docs/DGX_SPARK_SETUP.md) · [Spark delivery](docs/SPARK_DELIVERY.md) · [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Physical rig runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](CLAUDE.md)
+[PAAI staff guide](docs/BOOTH_GUIDE.md) · [DGX Spark setup](docs/DGX_SPARK_SETUP.md) · [Spark delivery](docs/SPARK_DELIVERY.md) · [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Physical rig runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](AGENTS.md)
 
 The optional [OVRTX renderer](docs/OVRTX_RENDERER.md) supplies calibrated
 RGB-D from static USD scenes or explicit scene snapshots, independently of
 physics. Analytic RGBD passed on Linux x86_64 and DGX Spark aarch64; the public
 static camera profile also passed on x86. It does not replace the demo's Isaac
 cameras or provide an automatic Isaac/Newton state producer.
+
+The optional [cuMotion planner](docs/CUMOTION.md), added in PR #47 after runtime
+baseline `0e23870`, exports static-world trajectory candidates through a factory
+and CLI. Native planning passed on Linux x86_64 with the 1.1.0 GPU SDK; candidates
+have no actuator execution authority. [Screw manipulation research](docs/SCREW_MANIPULATION_RESEARCH.md)
+records assets and the missing thread/torque verification for a future assembly task.
 
 ```
 ┌──────────────────────────────────────────┐   ┌──────────────────────────────────────────┐
@@ -721,7 +727,7 @@ they run (and the ones that record a memory frame + verdict afterwards).
 | `move_relative` | Nudge the gripper a few centimeters (forward/back/left/right/up/down) |
 | `open_gripper` / `close_gripper` | Open (drops what's held) / close with the default grip profile |
 | `move_home` | Return to the home configuration; also clears the camera view |
-| `turn_screw` | Rotate the held tool/object about the approach axis in place (wrist-roll sweeps, harness-vetted) |
+| `turn_screw` | Command harness-vetted wrist-roll strokes; actual thread advancement and tightening torque are not verified. [Assembly research](docs/SCREW_MANIPULATION_RESEARCH.md). |
 | `halt_motion` | Stop the in-flight motion because it's no longer the right action (wrong object, scene changed, subgoal already met) -- no motion itself |
 
 **Social / gesture (moves arm)**
@@ -851,7 +857,7 @@ runtime contracts, historical measurements and research notes.
   [PERCEPTION_AND_EXECUTION_RESEARCH](docs/PERCEPTION_AND_EXECUTION_RESEARCH.md),
   [SOTA_CONTRIBUTION_ANALYSIS](docs/SOTA_CONTRIBUTION_ANALYSIS.md),
   [SYNTHETIC_RGBD_PIPELINE](docs/SYNTHETIC_RGBD_PIPELINE.md)
-- [CLAUDE.md](CLAUDE.md) — working guide for AI coding agents (commands,
+- [AGENTS.md](AGENTS.md) — working guide for AI coding agents (commands,
   invariants, gotchas, doc status)
 
 ## Naming note

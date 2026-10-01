@@ -1,8 +1,10 @@
 # Build-a-Claw presenter card
 
 Use the [current source and acceptance status](PROJECT_STATUS_20261001.md)
-before rehearsal. The setup guide pins runtime baseline `477c88f`; its software suite
-passes, while its new physical campaign and restart must earn their own receipts.
+before rehearsal. The setup guide pins runtime baseline `0e23870`; its software
+suite passes. Native proof, campaign and restart remain separate acceptance
+stages. The [earlier two-object proof](SPARK_DELIVERY.md#current-two-object-proof-1-october-2026)
+applies to `28061a6`.
 The historical successes below do not mark a new checkout READY.
 
 **Use PhysX with the real GraspGen-X server on the presentation Spark.**

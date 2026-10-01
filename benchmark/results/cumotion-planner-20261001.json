@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "scope": "cuMotion native public CLI/factory planning candidate; no robot/simulator execution",
+  "source": "81b2070e0d539297796a0045fa092b40b7e48872",
+  "merged_source": "13ec4830c913f4da3c3c6d07c4a810f95a49f323",
+  "pr": 47,
+  "sdk": "cumotion1.1.0 CUDA13.0 Linux x86_64",
+  "sdk_archive_sha256": "14c72192c56d65042544acb31a683ca68e659551697bcc07e279a50abefb68ad",
+  "cpu_contract_tests": {
+    "passed": 78,
+    "new_planner_tests": 47,
+    "root_seconds": 1.16
+  },
+  "native": {
+    "pass": true,
+    "elapsed_s": 0.731703800993273,
+    "samples": 12,
+    "trajectory_duration_s": 0.21901892265304923,
+    "start_max_error": 1.1444091807533141e-07,
+    "goal_max_error": 1.1444091807533141e-07,
+    "max_sample_velocity": [
+      0.9827661093599805,
+      0.1364933921128921,
+      0.15397713983851133,
+      0.21638496459126313,
+      0.23008174454072672,
+      0.34259215180673613,
+      0.3341633495748909
+    ],
+    "execution_authorized": false,
+    "python_network_and_subprocess_forbidden": true
+  },
+  "gpu": {
+    "model": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "selected_index": 1,
+    "observed_other_gpus": [],
+    "sample_count": 8,
+    "peak_mib": 582
+  },
+  "inputs": {
+    "model": "bundled Franka URDF/XRDF,base_link/panda_leftfingertip",
+    "start": [
+      0,
+      -1.3,
+      0,
+      -2.87,
+      0,
+      2,
+      0.75
+    ],
+    "goal": [
+      0.1,
+      -1.3,
+      0,
+      -2.87,
+      0,
+      2,
+      0.75
+    ],
+    "world": "one0.1x0.2x0.3m cuboid centered at(3,3,3)m"
+  },
+  "cleanup": {
+    "child_exit_code": 0,
+    "child_absent": true,
+    "protected_processes_unchanged": 17,
+    "source_model_helper_hashes_unchanged": 21
+  },
+  "evidence_sha256": {
+    "receipt.json": "60e7fd4764141955d824daae711f225c9f78667d7ecd343312dc3906a7ba5e65",
+    "child-receipt.json": "8b7d5e29fc2b51d156c4b05d8bb305682fcc07f869738f6af7ba5c661f0115ed",
+    "candidate.json": "397406cbcab007bb8a0ea6dd0c22d2e530d5ae216ea92db057333cae687b8df5",
+    "root-review.json": "651fe2f62406d26fc4e30264064576e80b005e570ea2b25dea474375b032c958"
+  },
+  "model_metadata_sha256": "004ae0dbaf6a691b2795bd6c9530021ae5061a831779bbbb61cb901271073b6b",
+  "limits": [
+    "Single static-world x86 GPU smoke, not a performance benchmark",
+    "No native ARM, kitchen collision, actuator tracking, payload or physical task acceptance",
+    "Model spheres and sampled cuboids are not continuous/live-world clearance certification"
+  ],
+  "pr_ci": {
+    "run_id": 36866872326,
+    "status": "pending"
+  }
+}

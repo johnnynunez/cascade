@@ -7,8 +7,9 @@ Read top-down for status; the dated sections are history.
 ## Current delivery work (2026-10-01)
 
 [The source and acceptance index](PROJECT_STATUS_20261001.md) supersedes the
-historical status lists below. Runtime baseline `477c88f` integrates PRs #32–42 and #27;
-the combined immutable software suite passed 3,205 tests. Spark now uses the
+historical status lists below. Runtime baseline `0e23870` integrates PRs #27 and
+#32–46; its identical integration tree passed 3,365 tests, and all five PR CI jobs
+passed. Spark now uses the
 installed PhysX/Qwen/real-GGX profile, physical-time joint motion, render-bound
 camera state, observed-finger approach/closing preflight, bounded planning,
 preserved memory ranking and coherent held-object observations. These are
@@ -22,6 +23,21 @@ or design scopes. The offline [Jev/Kev pilot](JEV_DECISIONS.md) has not demonstr
 a decision-quality advantage over the recorded-status rule baseline and is not
 part of presenter startup.
 
+## Optional cuMotion planning and assembly research (2026-10-01)
+
+[PR #47](https://github.com/johnnynunez/cascade/pull/47) adds a standalone
+[cuMotion planner](CUMOTION.md). Its factory and CLI export validated trajectory
+candidates; a real x86 GPU smoke passed with the 1.1.0 SDK. The native execution
+path is unchanged. Live scene/payload binding and trajectory-aware execution
+need separate implementation and physical validation; ARM is not locally tested.
+
+The [screw manipulation investigation](SCREW_MANIPULATION_RESEARCH.md) identifies
+SimReady tools/fasteners and permissively licensed original Factory meshes.
+The proposed first task is measured nut advancement on a fixed bolt, followed
+by seating/torque verification. Existing `turn_screw` counts commanded wrist
+travel; it does not establish physical tightening. No assembly task is implemented
+by this research entry.
+
 ## PhysX finger envelope (2026-10-01)
 
 The [observed-scene envelope](physx-finger-envelope.md) now combines the complete
@@ -30,10 +46,14 @@ representations, giving forty components per finger.
 It preserves the opening feedback bound and observed target/non-target rules;
 it does not modify colliders or invent a contact margin. Candidate `26b6826`
 passed 3,238 software tests before the cross-platform extension. The final
-geometry passes both representation audits and 74 focused tests. New physical
-acceptance remains pending; the earlier orange failures and failed ARM coverage
-of the first artifact stay recorded. Joint
-integration validation is attributed to the exact tree in its PR/CI.
+geometry passes both representation audits and 74 focused tests. The merged
+source passed the [two-object Spark proof](SPARK_DELIVERY.md#current-two-object-proof-1-october-2026);
+campaign and restart acceptance are separate. The earlier orange failures and failed ARM coverage
+of the first artifact stay recorded. The combined renderer/geometry integration
+passed 3,295 tests and five CI jobs before merging as
+[PR #44](https://github.com/johnnynunez/cascade/pull/44); the
+[source and acceptance index](PROJECT_STATUS_20261001.md) binds those results to
+the tested and merged trees.
 
 ## Optional sensor backend: NVIDIA ovrtx (2026-10-01)
 
@@ -264,7 +284,7 @@ Open follow-ups from this work:
    Human-CLAW's verifier does. Reuses existing rate-limiting so it does not
    blow booth-clock budget. Deliberately not landed today: this touches the
    safety-critical motion-dispatch choke point in `SkillRuntime.execute()`,
-   and per CLAUDE.md the harness must remain the sole authority that
+   and per AGENTS.md the harness must remain the sole authority that
    refuses motion — a verifier here has to be advisory-only (same booth
    rule as envelopes), and that needs a live-rig or at minimum a
    MockLLM-scripted test pass before landing, not a speculative edit to the
@@ -684,7 +704,7 @@ Runtime findings, each from a measurement on this machine:
     -- `place_at` now raises "slipped out of the gripper" (`grasp.slip_drop_m`,
     6 cm) and releases the held state, so the persistence loop re-grasps
     immediately instead of after a refuted place.
-14. Tests now pin the reverse skill/spec mapping CLAUDE.md warned about for
+14. Tests now pin the reverse skill/spec mapping AGENTS.md warned about for
     months (a `skill_*` method without a `TOOL_SPECS` entry), that every
     `_MOTION_SKILLS` name is a real skill, and that README's headline skill
     and tool counts equal the derived numbers (they were 30/37 against
@@ -831,7 +851,7 @@ are synchronous by design here, noted for long-horizon work.
   `memory.persist_beliefs` / `CASCADE_BELIEFS`. Verified across two real
   processes: run 2 prints `recalled 1 object(s)` and the observation count
   accumulates instead of resetting. The monotonic→wall-clock conversion is
-  the load-bearing part (see CLAUDE.md); `LOADED_MIN_AGE_S` guarantees a
+  the load-bearing part (see AGENTS.md); `LOADED_MIN_AGE_S` guarantees a
   restored belief never reads as `visible`, and `_localize`'s existing
   3 s `belief_fallback_age_s` gate means it can never aim the jaws.
   STILL OPEN from this item: action↔object consolidation on top of

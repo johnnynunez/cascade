@@ -98,7 +98,7 @@ def test_halt_does_not_power_down_the_arm():
 def test_halt_skill_is_exposed_to_the_llm():
     """A skill missing from TOOL_SPECS is invisible and no test catches it.
 
-    CLAUDE.md documents this trap explicitly, so it is pinned here.
+    AGENTS.md documents this trap explicitly, so it is pinned here.
     """
     from cascade.skills.runtime import TOOL_SPECS
 

@@ -163,7 +163,7 @@ def _collect(runtime, targets, settle_s: float = 0.4):
     pts_cam, pts_base = [], []
     for i, target in enumerate(targets, 1):
         # Seeded from home_q, not the live pose: elbow-down IK branches dip
-        # links below the table (see CLAUDE.md's grasp-pipeline note).
+        # links below the table (see AGENTS.md's grasp-pipeline note).
         sol = _solve(target)
         if sol is None:
             print(f"  [{i:2d}/{len(targets)}] unreachable {np.round(target, 3)}; skipping")

@@ -154,7 +154,7 @@ def test_escaped_fill_fails_instead_of_returning_a_wrong_pose():
 
 
 def test_grasp_at_pixel_is_exposed_to_the_llm():
-    """A skill missing from TOOL_SPECS is invisible; CLAUDE.md flags this trap."""
+    """A skill missing from TOOL_SPECS is invisible; AGENTS.md flags this trap."""
     from cascade.skills.runtime import TOOL_SPECS
 
     assert "grasp_at_pixel" in {t["name"] for t in TOOL_SPECS}

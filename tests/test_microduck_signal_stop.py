@@ -13,13 +13,18 @@ REPO = Path(__file__).resolve().parents[1]
 
 @pytest.mark.parametrize('signum', [signal.SIGINT, signal.SIGTERM])
 @pytest.mark.parametrize('site', ['startup', 'inference', 'commit', 'upload', 'bam', 'capture', 'cleanup', 'sdk_constructor', 'sdk_after_boot',
+    'receipt_before', 'receipt_after', 'sdk_return', 'sdk_raise',
     pytest.param('blocked_inference', marks=pytest.mark.skipif(
         not sys.platform.startswith('linux'), reason='kernel pipe wait proof uses Linux procfs'))])
 def test_native_signal_unwinds_before_more_work(tmp_path, signum, site):
     env = {k: v for k, v in os.environ.items() if not k.startswith('CASCADE_')}
     stores = tmp_path / 'stores'
     stores.mkdir()
-    env.update(CASCADE_BELIEFS_PATH=str(stores/'beliefs.json'),
+    home, temporary = tmp_path / 'home', tmp_path / 'tmp'
+    home.mkdir()
+    temporary.mkdir()
+    env.update(HOME=str(home), TMPDIR=str(temporary), XDG_CACHE_HOME=str(home/'cache'),
+               CASCADE_BELIEFS_PATH=str(stores/'beliefs.json'),
                CASCADE_GRASP_MEMORY_PATH=str(stores/'grasp.json'),
                CASCADE_ENVELOPE_PATH=str(stores/'envelope.json'),
                PYTHONPATH=f'{REPO}/src:{REPO}/scripts:{REPO}/tests',
@@ -40,10 +45,15 @@ def test_native_signal_unwinds_before_more_work(tmp_path, signum, site):
     assert details['server_starts_after_signal'] == 0, details
     assert details['handlers_restored'] and not details['owned_threads'], details
     assert not details.get('foreign_handler_called', False), details
-    assert details['closed'] == 1 and details['shutdown_code'] == 128 + signum, details
+    # A signal arriving inside SDK.close cannot change its already-consumed
+    # argument. If it returns, process/result/receipt must still become 128+signal.
+    requested_exit = 0 if site in ('sdk_return', 'sdk_raise') else 128 + signum
+    assert details['closed'] == 1 and details['shutdown_code'] == requested_exit, details
     receipt = json.loads((tmp_path/'run/receipt.json').read_text())
     assert receipt['completed'] is False and receipt['signal'] == signum, receipt
-    assert receipt['physical_acceptance'] is False and not receipt['teardown_errors'], receipt
+    assert receipt['physical_acceptance'] is False, receipt
+    assert bool(receipt['teardown_errors']) is (site == 'sdk_raise'), receipt
+    assert receipt == details['returned_result'], (receipt, details)
     if site in ('inference', 'blocked_inference', 'commit', 'upload'):
         rows = [json.loads(x) for x in (tmp_path/'run/policy.jsonl').read_text().splitlines()]
         interrupted = rows[-1]
@@ -192,6 +202,11 @@ def _child(site, signum, directory):
         def shutdown(self, exit_code):
             assert (directory/'run/receipt.json').is_file()
             state['shutdown_code'] = exit_code
+            if site in ('sdk_return', 'sdk_raise'):
+                send()
+            if site == 'sdk_raise':
+                raise RuntimeError('software SDK close failure')
+            # This software adapter does not call an SDK: None means unknown.
 
     class Server(MobileBridgeServer):
         def __init__(self, controller, **kwargs):
@@ -231,11 +246,23 @@ def _child(site, signum, directory):
         policy_sha256='b'*64, python_extra_path=[], check_only=False)
     admission = dict(asset_sha256='a'*64, asset_receipt_sha256='c'*64,
                      bam_params={}, limits=software_limits(), experience_text='software fixture\n')
+    original_write = cli.write_json
+    def checked_write(path, value):
+        if Path(path).name == 'receipt.json' and site == 'receipt_before':
+            send()
+        original_write(path, value)
+        if Path(path).name == 'receipt.json' and site == 'receipt_after':
+            send()
+    cli.write_json = checked_write
     real_run = cli.run
+    def run(a, b, **kw):
+        result = real_run(a, b, backend_factory=Backend, policy_factory=policy_factory,
+                          server_factory=Server, **kw)
+        state['returned_result'] = result
+        return result
     cli.parse_args = lambda _argv: args
     cli.admit = lambda _args: admission
-    cli.run = lambda a, b, **kw: real_run(a, b, backend_factory=Backend,
-        policy_factory=policy_factory, server_factory=Server, **kw)
+    cli.run = run
     try:
         code = cli.main([])
     finally:

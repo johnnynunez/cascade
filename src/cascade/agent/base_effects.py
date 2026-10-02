@@ -62,6 +62,7 @@ class _Window:
     deadline: float
     finished: float | None = None
     samples: list = field(default_factory=list)
+    observations: list = field(default_factory=list)
     attempts: int = 0
     error: str | None = None
     duplicates: int = 0
@@ -203,12 +204,9 @@ class BasePostconditionChecker:
                     with op.lock:
                         if ended - started > self._limits["read_timeout_s"]:
                             self._reject(op, "reader_timeout")
-                        deadline = op.deadline if op.finished is None else min(
-                            op.deadline, op.finished + self._limits["settle_timeout_s"])
-                        if ended > deadline or op.cancel.is_set():
-                            op.late_reads += 1
-                        else:
-                            self._accept(op, value, started, ended)
+                        # An in-flight return can be ineligible for positive
+                        # evidence without losing its ability to veto a claim.
+                        self._accept(op, value, started, ended)
                 except Exception as exc:
                     with op.lock:
                         if time.monotonic() - started > self._limits["read_timeout_s"]:
@@ -234,8 +232,15 @@ class BasePostconditionChecker:
         op.error = op.error or reason
         op.channel_failed = True
         op.rejected.append({"attempt": op.attempts, "reason": reason})
+        if op.observations and op.observations[-1]["attempt"] == op.attempts:
+            op.observations[-1]["rejected_reason"] = reason
 
     def _accept(self, op, value, started, ended):
+        deadline = op.deadline if op.finished is None else min(
+            op.deadline, op.finished + self._limits["settle_timeout_s"])
+        late = ended > deadline or op.cancel.is_set()
+        if late:
+            op.late_reads += 1
         if value is None:
             self._reject(op, "missing_state")
             return
@@ -248,6 +253,10 @@ class BasePostconditionChecker:
         except (TypeError, ValueError) as exc:
             self._reject(op, "invalid_state: " + str(exc)[:200])
             return
+        observation = {"attempt": op.attempts, "read_started_monotonic_s": started,
+                       "observed_monotonic_s": ended, "state": state,
+                       "late": late, "valid": False, "confirmation_eligible": False}
+        op.observations.append(observation)
         if state["received_monotonic_s"] > ended:
             self._reject(op, "future receipt clock")
             return
@@ -337,6 +346,15 @@ class BasePostconditionChecker:
         if boundary is not None and state["generation"] != boundary["generation"]:
             self._reject(op, "post-ACK generation mismatch")
             return
+        if op.samples:
+            accepted_gap = state["sim_time_s"] - op.samples[-1]["state"]["sim_time_s"]
+            if accepted_gap > self._limits["max_sample_gap_s"]:
+                self._reject(op, "accepted simulation sampling gap exceeds limit")
+                return
+            if accepted_gap * self._limits["max_angular_speed_rad_s"] >= math.pi:
+                self._reject(op, "accepted interstep pose exceeds aliasing bound")
+                return
+        observation.update(valid=True, temporal_pending=pending, duplicate=duplicate)
         if op.first_generation is None:
             op.first_generation = state["generation"]
         op.last_generation = state["generation"]
@@ -348,16 +366,9 @@ class BasePostconditionChecker:
                                         "capture_margin_s": state["received_monotonic_s"] -
                                         state["producer_age_s"] - boundary["ack_monotonic_s"]})
             return
-        if duplicate:
+        if duplicate or late or op.error:
             return
-        if op.samples:
-            accepted_gap = state["sim_time_s"] - op.samples[-1]["state"]["sim_time_s"]
-            if accepted_gap > self._limits["max_sample_gap_s"]:
-                self._reject(op, "accepted simulation sampling gap exceeds limit")
-                return
-            if accepted_gap * self._limits["max_angular_speed_rad_s"] >= math.pi:
-                self._reject(op, "accepted interstep pose exceeds aliasing bound")
-                return
+        observation["confirmation_eligible"] = True
         phase = ("before" if not op.samples else
                  "after" if op.finished is not None and started >= op.finished else "during")
         op.samples.append({"phase": phase, "read_started_monotonic_s": started,
@@ -408,7 +419,8 @@ class BasePostconditionChecker:
                 "completion": {key: deepcopy(result.get("stop_ack", {}).get(key)) for key in
                                ("ok", "latched", "error", "delivery_uncertain", "robot_id", "source", "epoch", "model_identity_sha256", "generation")}
                 if isinstance(result, dict) and isinstance(result.get("stop_ack"), dict) else {},
-                "evidence": {"samples": deepcopy(op.samples), "attempts": op.attempts,
+                "evidence": {"samples": deepcopy(op.samples), "observations": deepcopy(op.observations),
+                             "attempts": op.attempts,
                              "started_monotonic_s": op.started,
                              "wall_deadline_monotonic_s": op.deadline,
                              "stop_boundary": deepcopy(op.stop_boundary),
@@ -453,16 +465,17 @@ class BasePostconditionChecker:
         # throughout the causally admitted interval as well as terminal rest.
         zero_twist = op.skill == "walk_velocity" and all(op.args.get(k) == 0 for k in ("vx", "vy", "wz"))
         balance_steps = {s["step"] for s in effect_states} if zero_twist else set()
-        support_results = [self._support(s, require_load=s["step"] in balance_steps) for s in states]
+        observed = [e["state"] for e in op.observations if e["valid"]]
+        support_results = [self._support(s, require_load=s["step"] in balance_steps) for s in observed]
         verdict["evidence"]["support_contract"] = deepcopy(self._support_contract)
         verdict["evidence"]["support_checks"] = [dict(step=s["step"], status=r[0], reason=r[1])
-                                                     for s, r in zip(states, support_results)]
+                                                     for s, r in zip(observed, support_results)]
         support_failure = next((r for r in support_results if r[0] == "refuted"), None)
         if support_failure is None and status == "confirmed":
             support_failure = next((r for r in support_results if r[0] == "unverified"), None)
         if support_failure is not None:
             status, reason = support_failure
-        for state in states:
+        for state in observed:
             if state["fallen"]:
                 status, reason = "refuted", "fallen in independently observed window"
                 break
@@ -555,18 +568,24 @@ class BasePostconditionChecker:
         metrics = {"settle_samples": len(window), "settle_sim_duration_s": duration}
         if len(window) < self._limits["min_settle_samples"] or duration < self._limits["settle_window_s"]:
             return "unverified", "insufficient advancing states captured after outcome", metrics
-        speed = max(math.hypot(*s["linear_velocity_world"]) for s in window)
-        angular = max(math.hypot(*s["angular_velocity_body"]) for s in window)
-        drift = sum(math.dist(a["position_world"], b["position_world"]) for a, b in zip(window, window[1:]))
-        rotation = sum(self._attitude_distance(a, b) for a, b in zip(window, window[1:]))
+        # The positive window alone supplies count/duration. Every validated
+        # observation in or after it may veto rest, even if pending, late or a
+        # duplicate. Only a full newer eligible quiet window can recover.
+        observed = [e["state"] for e in op.observations if e["valid"] and
+                    e["state"]["sim_time_s"] >= window[0]["sim_time_s"]]
+        metrics["settle_veto_observations"] = len(observed)
+        speed = max(math.hypot(*s["linear_velocity_world"]) for s in observed)
+        angular = max(math.hypot(*s["angular_velocity_body"]) for s in observed)
+        drift = sum(math.dist(a["position_world"], b["position_world"]) for a, b in zip(observed, observed[1:]))
+        rotation = sum(self._attitude_distance(a, b) for a, b in zip(observed, observed[1:]))
         metrics.update(settle_max_linear_speed_m_s=speed, settle_max_angular_speed_rad_s=angular,
                        settle_drift_m=drift, settle_drift_rad=rotation)
-        if (any(s["controller_status"] != "ready" for s in window) or
+        if (any(s["controller_status"] != "ready" for s in observed) or
                 speed > self._limits["stop_linear_speed_m_s"] or
                 angular > self._limits["stop_angular_speed_rad_s"] or
                 drift > self._limits["stop_drift_m"] or rotation > self._limits["stop_drift_rad"]):
             return "refuted", "did not settle: active controller, residual velocity or pose drift", metrics
-        support = [self._support(s, require_load=True) for s in window]
+        support = [self._support(s, require_load=True) for s in observed]
         failure = next((r for r in support if r[0] == "refuted"), None)
         if failure is None:
             failure = next((r for r in support if r[0] == "unverified"), None)

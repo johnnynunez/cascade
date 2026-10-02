@@ -101,6 +101,69 @@ def write_json(path, value):
         stream.write('\n')
 
 
+def _resolve_outcome(result, signals):
+    """Keep the first observed termination, including later close failures."""
+    if signals is not None:
+        result['signal_registration_attempts'] = signals.registration_attempts
+        if signals.signum is not None:
+            result.setdefault('signal', signals.signum)
+    if 'signal' in result:
+        result.update(completed=False, end_reason='signal/lifecycle shutdown')
+    if result['teardown_errors']:
+        result['completed'] = False
+    result['exit_code'] = 128 + result['signal'] if 'signal' in result else (0 if result['completed'] else 1)
+
+
+def _persist(result, label, action):
+    """Record a persistence failure without letting it skip mandatory steps.
+
+    Only the exact exception types the CLI treats as reportable are contained.
+    The receipt keeps the outcome already resolved in memory; the failure is
+    reported separately so it cannot be mistaken for a lifecycle result.
+    """
+    try:
+        return action()
+    except (OSError, ValueError, TypeError, RuntimeError) as exc:
+        result.setdefault('persistence_errors', []).append(f'{label}: {type(exc).__name__}: {exc}')
+        return None
+
+
+def _refresh_receipt(out, result, signals):
+    """Atomically reconcile an owned receipt, preserving prior exact bytes.
+
+    A first signal can arrive during read, encoding, comparison or publication.
+    Recheck the notification scalar after that work. Native close that never
+    returns still requires an external supervisor; no Python finalizer follows it.
+    """
+    import json
+    import os
+    path = out / 'receipt.json'
+    if not path.exists():
+        # The initial publication failed; publish the resolved outcome now.
+        _resolve_outcome(result, signals)
+        write_json(path, result)
+        return
+    for _ in range(3):
+        _resolve_outcome(result, signals)
+        def encode():
+            return (json.dumps(result, indent=2, sort_keys=True, allow_nan=False,
+                               default=json_default) + '\n').encode()
+        previous, desired = path.read_bytes(), encode()
+        if previous == desired:
+            if signals is None or signals.signum is None or 'signal' in result:
+                return
+            _resolve_outcome(result, signals)
+        revision = result.get('receipt_revision', 0)
+        with (out / f'receipt-history-{revision:03d}.json').open('xb') as stream:
+            stream.write(previous)
+        result['receipt_revision'] = revision + 1
+        temporary = out / '.receipt-update.json'
+        with temporary.open('xb') as stream:
+            stream.write(encode())
+        os.replace(temporary, path)
+    raise RuntimeError('receipt outcome did not stabilize within its bounded publication')
+
+
 def run(args, admission, *, backend_factory=None, policy_factory=None, server_factory=None,
         stop_requested=lambda: False, signals=None):
     """Execute a bounded lifecycle; injected CPU backends are test fixtures only."""
@@ -140,7 +203,12 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
         with defer():
             sys.path.extend(validate_extra_paths(args.python_extra_path))
             backend = (backend_factory or KitNewtonBackend)(args, admission, experience)
-            backend.open()
+            backend.signals = signals
+        if signals is not None:
+            signals.checkpoint()
+        # open owns only the passive SDK acquisition deferral. Active native
+        # initialization must not inherit a defer spanning the entire method.
+        backend.open()
         if signals is not None:
             signals.checkpoint()
         with defer():
@@ -272,23 +340,44 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
             result['wall_duration_s'] = time.monotonic() - started
             result['sdk_shutdown'] = 'requested_after_receipt; verify process exit externally'
             sys.path[:] = original_path
-            if signals is not None:
-                result['signal_registration_attempts'] = signals.registration_attempts
-            if signals is not None and signals.signum is not None:
-                result.update(completed=False, signal=signals.signum, end_reason='signal/lifecycle shutdown')
-            result['exit_code'] = 128 + result['signal'] if 'signal' in result else (0 if result['completed'] else 1)
-            write_json(out / 'receipt.json', result)
-            # SimulationApp.close fast-shutdown terminates the process, often without
-            # returning to Python. Preserve the failure exit code and receipt first.
+            result.update(receipt_revision=0, receipt_phase='before_sdk_shutdown')
+            _resolve_outcome(result, signals)
+            # Persistence failures are recorded, never allowed to skip the
+            # mandatory SDK shutdown or to override the resolved outcome.
+            _persist(result, 'initial receipt', lambda: write_json(out / 'receipt.json', result))
+            # A signal during initial persistence must affect the requested SDK
+            # exit, not merely a later Python return that the SDK may never allow.
+            _persist(result, 'receipt reconciliation', lambda: _refresh_receipt(out, result, signals))
+            _resolve_outcome(result, signals)
             if backend is not None:
                 try:
-                    backend.shutdown(exit_code=result['exit_code'])
-                    write_json(out / 'teardown.json', {'sdk_close_returned': True})
+                    sdk_returned = backend.shutdown(exit_code=result['exit_code'])
                 except Exception as exc:
-                    result['completed'] = False
-                    result['exit_code'] = 1
+                    result.update(completed=False, sdk_shutdown='failed', receipt_phase='sdk_shutdown_failed')
                     result['teardown_errors'].append(str(exc))
-                    write_json(out / 'teardown.json', {'sdk_close_returned': False, 'error': str(exc)})
+                    teardown = {'sdk_close_returned': False, 'error': str(exc)}
+                else:
+                    if sdk_returned is True:
+                        result.update(sdk_shutdown='returned', receipt_phase='sdk_shutdown_returned')
+                        teardown = {'sdk_close_called': True, 'sdk_close_returned': True}
+                    elif sdk_returned is False:
+                        result.update(sdk_shutdown='no_owned_app', receipt_phase='no_sdk_handle')
+                        teardown = {'sdk_close_called': False, 'sdk_close_returned': False,
+                                    'reason': 'no owned SimulationApp handle; partial startup cleanup unverified'}
+                    else:
+                        result.update(sdk_shutdown='unverified', receipt_phase='backend_shutdown_returned')
+                        teardown = {'sdk_close_called': None, 'sdk_close_returned': None,
+                                    'reason': 'backend returned without an explicit SDK-close attestation'}
+            else:
+                result.update(sdk_shutdown='no_owned_app', receipt_phase='no_sdk_handle')
+                teardown = {'sdk_close_called': False, 'sdk_close_returned': False,
+                            'reason': 'no backend/app handle acquired'}
+            # The SDK attestation is decided above; failing to persist it is a
+            # separate persistence error, never a false sdk_close_returned=false.
+            _persist(result, 'teardown record', lambda: write_json(out / 'teardown.json', teardown))
+            # Returning/failing close and teardown writes are also signal
+            # boundaries. Preserve earlier receipts instead of erasing evidence.
+            _persist(result, 'final receipt reconciliation', lambda: _refresh_receipt(out, result, signals))
     return result
 
 

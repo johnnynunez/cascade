@@ -58,7 +58,11 @@ are evaluated separately from rest windows.
 An emergency-stop acknowledgement always reports physical verification as
 pending/unverified. A separate observer can later confirm or refute that stop,
 with the same receipt ID. It cannot repair the outcome of an earlier failed
-motion. `reset_stop` only restores command permission; it does not reset the
+motion. Late, pending and duplicate observations cannot supply positive settling
+evidence, but their faults, residual motion and support failures still veto an
+earlier quiet window. See [stop verification and native finalization](MICRODUCK_STOP_VERIFICATION.md)
+for this distinction, signal handling and provisional SDK-shutdown receipts.
+`reset_stop` only restores command permission; it does not reset the
 physics world or prove a new scene epoch.
 
 ## Running the candidate

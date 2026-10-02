@@ -306,14 +306,21 @@ def test_a_motion_without_observations_during_execution_is_unknown():
 @pytest.mark.parametrize("scale,expected", [(0., "refuted"), (-1., "refuted"),
                                               (1., "confirmed"), (2., "refuted")])
 def test_turn_uses_signed_unwrapped_measured_yaw_not_integrated_wz(angle, scale, expected):
-    # Cross the -pi/pi cut in either direction.
+    # Exercise geometry/intent independently of the live sampler's wall clock.
+    # The zero gyro cannot establish this turn; quaternion poses cross -pi/pi.
     start = math.copysign(3.1, angle)
-    def make(n):
-        yaw = start + min(n - 1, 5) / 5 * angle * scale
-        return state(n, orientation_wxyz=(math.cos(yaw/2), 0., 0., math.sin(yaw/2)))
-    verdict = run_window(ScriptedReader(make), "turn", {"angle_rad": angle})
-    assert verdict["status"] == expected
-    assert verdict["metrics"]["yaw_change_rad"] == pytest.approx(angle * scale)
+    observations = []
+    for n in range(1, 7):
+        yaw = start + (n - 1) / 5 * angle * scale
+        observations.append(state(n, orientation_wxyz=(math.cos(yaw/2), 0., 0., math.sin(yaw/2))).as_dict())
+    checker = checker_for(ScriptedReader())
+    try:
+        metrics = checker._measure(observations)
+        status, reason = checker._motion_verdict("turn", {"angle_rad": angle}, metrics)
+        assert status == expected, reason
+        assert metrics["yaw_change_rad"] == pytest.approx(angle * scale)
+    finally:
+        checker.close()
 
 
 @pytest.mark.parametrize("skill", ["stop", "stop_navigation", "emergency_stop"])
@@ -837,7 +844,20 @@ def test_independent_checker_through_actual_mobile_rpc_with_scripted_publisher(s
         verdict = checker.finish(token, {"execution_ok": True, "ack": ack, "stop_ack": stop_ack})
         assert verdict["status"] == expected, verdict["reason"]
         assert verdict["evidence"]["provenance"]["epoch"] == controller.hello()["epoch"]
-        assert verdict["metrics"]["body_displacement_m"][0] == pytest.approx(0.01 * scale)
+        # The independent sampler need not observe both published endpoints.
+        # Check the known scripted geometry over its ACTUAL admitted interval;
+        # never credit an unobserved prefix/suffix or infer it from the target.
+        interval = verdict["evidence"]["effect_interval"]
+        samples = {row["state"]["step"]: row["state"]
+                   for row in verdict["evidence"]["samples"]}
+        baseline, last = (samples[interval[key]] for key in ("baseline_step", "last_step"))
+        assert (ack["start_sim_time_s"] <= baseline["sim_time_s"]
+                < last["sim_time_s"] <= ack["end_sim_time_s"])
+        expected_positions = [min(max(s["step"] - 1, 0), 20) * .0005 * scale
+                              for s in (baseline, last)]
+        assert [s["position_world"][0] for s in (baseline, last)] == pytest.approx(expected_positions)
+        assert verdict["metrics"]["body_displacement_m"][0] == pytest.approx(
+            expected_positions[1] - expected_positions[0])
         assert verdict["metrics"]["settle_samples"] >= 3
         fence = controller.hello()["generation"]
         checker.close()

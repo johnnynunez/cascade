@@ -1,0 +1,58 @@
+{
+  "base_commit": "f73686216deafbcb219be7cbc214d6dfbc0c0734",
+  "production_diff": [],
+  "tests": {
+    "tests/test_mobile_effects.py": {
+      "before_sha256": "a2bc94a4aa0303389e991bf65da6421e3aab78e390111007765bbce37e7e81ee",
+      "after_sha256": "d5e0360ef6414cf15cef8fdb213c7b22a1db84d9146dc52c965b253f5bc9f1dc"
+    },
+    "tests/test_mobile_observation_veto.py": {
+      "before_sha256": "8c1f82986ec951e9363064b5febe3526d5e07ea5ea566b1313bfa5cb5edf132f",
+      "after_sha256": "b4fdf7a9c44f47d54d3b15dadcd6c6404d653fd8c502fad612ad943401aec8c5"
+    },
+    "tests/test_mobile_late_read_regressions.py": {
+      "before_sha256": "3459db721971ee7bfdcbff2c7293bf56b0511c32a897fb524d3ec6923b3d9f1e",
+      "after_sha256": "3459db721971ee7bfdcbff2c7293bf56b0511c32a897fb524d3ec6923b3d9f1e"
+    }
+  },
+  "artifacts": {
+    "red02.log": "b2f0b6ea67040e38678f175e98d633d930326646c1f141b7775f32373abacd6d",
+    "red02.xml": "39be15611721711b95783eaa9512cded1b0e30d317236f0606ba2215a5d26e78",
+    "green.log": "066ee1c05963aaa8e63de4f4c68d9668eda0ee88d7e07147ea306a970097758d",
+    "green.xml": "296663c2e90fe97c40e6e16c1821247aa313cfc8f61d967d35d0a2e0f83bb127",
+    "controlled_transport_plugin.py": "0f927b6b7e2dc30f6d768caa8a0c09d43adc7522fe7fc3207bf0cf5e1a2ade90",
+    "../pr72-macos-110967468529.log": "19676901b873e0d56f99150924fb2ff234c70b800b504022803313ec89f22d75",
+    "../pr73-macos-110967794975.log": "6e98be1dce65c19b70f688d237a2b6ac1d8993238f1f0e1ce217a17ce5ba2359",
+    "focused.log": "5a9eda810a28152b6e5a0b86b8a2361752446785829263117f7a387c85468d55",
+    "focused.xml": "7f9d719ce2b0a4ea6242bad4972e78fad64acbd05e89327538b611c0e6f2469e"
+  },
+  "scope": "Software fixture synchronization and sampled-endpoint expectations only; no physical acceptance",
+  "causal_probe": "Explicit 30ms server state reply delay; movement reply held until scripted publisher crosses admitted endpoint. No global clock or production limit patches.",
+  "old_red": {
+    "failed": 4,
+    "seconds": 3.97,
+    "tcp_faults_injected": 0,
+    "movement_observed_m": 0.0085,
+    "old_expected_m": 0.01
+  },
+  "new_controlled_green": {
+    "passed": 6,
+    "seconds": 4.36
+  },
+  "limitations": [
+    "Controlled fixture timing reproduces the defect, but does not identify the exact CI scheduler/GC cause.",
+    "TCP tests cover causal packet propagation; precise late-window semantics are covered separately by unchanged actual-sampler regressions.",
+    "Ruff is unavailable in the read-only task interpreter; AST parsing and git diff --check pass."
+  ],
+  "focused": {
+    "passed": 342,
+    "seconds": 37.64,
+    "files": [
+      "tests/test_mobile_effects.py",
+      "tests/test_mobile_observation_veto.py",
+      "tests/test_mobile_late_read_regressions.py"
+    ]
+  },
+  "independent_review": "ovrtx_integration: no blocker; scope is real TCP post-finish propagation plus separate unchanged deterministic actual-sampler late-return tests.",
+  "external_receipt_sha256": "81f2a9843d098f8e9f46380f0a33cee1f1e6d0fb31af12262e2f73103c30f324"
+}

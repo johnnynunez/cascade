@@ -23,6 +23,8 @@ does not change which code produced those measurements.
 
 - [Architecture](ARCHITECTURE.md)
 - [Composable robots, typed sensors, skill graphs and Arena/VAB validation](ROBOT_MODULARITY.md)
+- [Local conversation gateway and typed robot speech tools](CONVERSATION.md)
+- [Capture-time frames, spatial memory and planar route replay](SPATIAL_PROVIDERS.md)
 - [Isaac motion clock](ISAAC_MOTION_CLOCK.md)
 - [Prepare Isaac verification before native proof](ISAAC_STARTUP_READINESS.md)
 - [Reject localization results after their image expires](LOCALIZATION_FRESHNESS.md)

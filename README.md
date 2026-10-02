@@ -22,6 +22,10 @@ bounded skill graphs and optional Arena/VAB validation adapters. Start with
 coordination and additional humanoid drivers still require embodiment-specific
 validation.
 
+The read-only [spatial replay](docs/SPATIAL_PROVIDERS.md) adds capture-time
+transforms, source-bound landmark memory and conservative planar route proposals
+through MCP. `--robot spatial_replay` is synthetic and does not execute navigation.
+
 ### Earlier merged and measured baseline
 
 The previous command baseline for physical validation is **`ff8d58b` (1 October 2026)**. It includes
@@ -872,6 +876,7 @@ silently vanishes.
 
 - [Detector preparation and GPU comparison](docs/DETECTOR_MODEL_REUSE.md) — bounded model/vocabulary reuse, unchanged image expiry and retained comparison results.
 - [Isaac bridge profiling](docs/ISAAC_BRIDGE_PROFILING.md) — optional Python zones, clock binding and limits of retained CPU/GPU measurements.
+- [Local conversation gateway](docs/CONVERSATION.md) — browser audio, HF-compatible Realtime transport and bounded typed robot tools; protocol tests use synthetic audio and sensors.
 - [MicroDuck design and conversation review](docs/MICRODUCK_DESIGN_REVIEW_20261002.md) — external implementation snapshot, open findings and a proposed hosted voice interface; physical acceptance remains pending.
 
 Browse the [documentation index](docs/README.md) for all operating guides,

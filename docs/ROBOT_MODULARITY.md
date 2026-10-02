@@ -199,9 +199,12 @@ measurement boundary, not cryptographic proof that measurements are truthful.
 See [the benchmark adapter guide](../benchmark/arena/README.md) for the concrete
 APIs, pinned manifests, source caveats and execution requirements.
 
-No native Arena or VAB episode is claimed by this change. Their simulator
-dependencies stay optional and isolated from the working MicroDuck native
-environment. The current Arena dependency recipe must be checked separately
+The initial composition refactor did not execute either simulator. The later
+[native VAB CPU preflight](VAB_NATIVE_PREFLIGHT.md) exercised ordinary CASCADE
+relative motion, independent physical readback and in-flight cancellation in
+the pinned Panda environment. It did not complete a benchmark task or execute
+Arena. Simulator dependencies remain optional and isolated from the working
+MicroDuck environment. The current Arena dependency recipe must be checked separately
 before installation; it is not interchangeable with the existing Newton recipe.
 
 ## Try the composed software path

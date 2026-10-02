@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CASCADE conversation</title><link rel="stylesheet" href="/app.css">
+<main><p class="eyebrow">CASCADE · LOCAL CONVERSATION</p><h1>Talk to your robot</h1>
+<p>Audio and tools use your configured provider. The robot keeps its own safety controls.</p>
+<p id="status" role="status">Loading local session…</p>
+<div class="controls"><button id="connect">Connect</button><button id="mic" disabled>Start microphone</button>
+<button id="disconnect" disabled>Disconnect</button></div>
+<form id="text-form"><label for="text">Or send a typed message</label><div class="controls">
+<input id="text" maxlength="4000" autocomplete="off" placeholder="What sensors are available?">
+<button id="send" disabled>Send</button></div></form>
+<div class="controls"><button id="stop" class="danger">Stop robot</button><button id="reset">Explicitly reset stop</button></div>
+<p class="note">Stop does not depend on speech. Disconnect stops the robot. Reset never repeats an earlier command.
+Synthetic sensors and protocol tests do not prove physical robot behavior.</p>
+<pre id="log" aria-live="polite"></pre></main><script src="/playback.js" defer></script><script type="module" src="/app.js"></script></html>

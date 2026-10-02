@@ -102,12 +102,18 @@ perception mode, and preserve SafeArm/SafetyHarness. Enabling depth changes the
 original task configuration and must be recorded as a variant. Oracle object
 poses must not enter benchmark policy observations.
 
-Native execution is optional and was not exercised here. It requires the
+Native execution remains optional. The later
+[VAB CPU preflight](../../docs/VAB_NATIVE_PREFLIGHT.md) runs an explicit
+floor/Panda runtime factory through real MuJoCo, ordinary CASCADE relative
+motion and an independent solved-state witness. It also exercises cancellation;
+it is not a grasp/placement task result. Reproduction requires the
 complete pinned VAB checkout/assets, compatible robosuite/MuJoCo packages and
 offscreen renderer, an explicit private `LIBERO_CONFIG_PATH/config.yaml`
 pointing at those assets, private CASCADE memory/output paths, and the reviewed
 runtime factory. The inspected VAB requirements pin robosuite1.4.0; the existing
 local legacy environment has1.4.1/MuJoCo3.2.3 and was not changed or certified.
+The preflight uses a separate locked environment with robosuite1.4.0 and
+MuJoCo2.3.7, preserving every original task byte and RGB-only observations.
 
 ## Independent admission
 

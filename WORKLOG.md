@@ -182,6 +182,30 @@ remains available independently. Skill graphs use the same atomic boundary.
 Deterministic regressions force stop/reset between graph validation and dispatch.
 This is a software admission fix, with no new physical acceptance claim.
 
+## Spatial providers and navigation replay — 2 October 2026
+
+Feature-to-skill map before foundations: `isaac-sim-orchestrator` and
+`isaac-sim-workflow` define evidence and admission boundaries;
+`navigation-primitives` informs conservative footprints and grid planning;
+`spatial-reasoning` supplies explicit transform conventions. This first increment
+uses a pure Python read-only replay: no simulator stage is edited and no robot
+is actuated. Unknown cells, transform epochs and capture/calibration provenance
+must survive through real composed-runtime/MCP reads and plans. Native navigation
+requires a separately admitted controller and fresh localization; a path is not
+physical acceptance. Shared learned stores and other agents' processes remain
+untouched.
+
+The spatial increment implements a bounded source/clock/epoch frame tree,
+source-bound landmark observations, immutable occupancy capture history, planar
+range integration and conservative cardinal route planning. The synthetic
+`spatial_replay` profile exercises these through normal runtime and real stdio
+MCP without actuator resources. Independent review caught subcell-ray
+ over-clearing and whole-map rejuvenation after one partial scan; both have
+specific regressions. Relative transforms also no longer depend on an unused
+common ancestor's age. Frozen source passed 53 focused cases with learned stores
+unchanged. See `docs/SPATIAL_PROVIDERS.md` and its evidence receipt. This does not
+admit SLAM, native navigation, world-frame grasps or whole-body manipulation.
+
 CI at `735591e` passed both Linux architectures, minimal install and browser
 checks; macOS retained one healthy-late failure. Its held response was already
 139 ms old at capture; the 78 ms transport hold correctly exceeded the unchanged
@@ -201,3 +225,261 @@ during validation and between admission and domain lookup; no domain call occurs
 Priority stop ignores an expired episode deadline. This coordinator check is not
 a real-time actuator guarantee: domain owners still enforce backend leases and
 last-moment cancellation. Provider/browser timestamps cannot supply this deadline.
+
+Root review integrated the generation/deadline fix from PR #70, preserving both
+passive embodiment metadata and atomic dispatch checks. The frozen integrated
+source passed 100 focused runtime/graph/embodiment/sensing/MCP cases; protected
+learned stores were unchanged. This follows the author's 193-case final suite.
+
+Integration with PR #70 passed 83 focused spatial/runtime/graph/MCP cases on
+frozen source, preserving all generation/deadline checks and learned stores.
+
+## macOS TCP fixture phase correction (2026-10-02)
+
+PR72/73 macOS logs exposed two test assumptions: a healthy transport might
+never enter an 83 ms selection window with a <=20 ms old packet, and the
+independent sampler might miss a published movement endpoint. The real TCP
+regression now injects a fault at the first post-finish request and checks the
+actual decoded packet. Six unchanged deterministic actual-sampler cases retain
+precise late-fresh/fault/stale discrimination. Movement expectations use the
+known scripted positions at the independently observed interval endpoints.
+
+No production source, limits or ACK semantics changed. A controlled transport
+delay reproduces four old failures; the corresponding revised six cases pass.
+The complete three affected test files pass 342 cases. This identifies fixture
+defects, not the exact scheduler/GC cause on the CI machine. Logs, old/new hashes
+and retained results are indexed in
+`docs/evidence/robot-modularity/macos-causal-fixtures.json`.
+
+## Turn geometry fixture separation (2026-10-02)
+
+PR77 Linux CI returned unverified for one scripted overshoot case; the original
+assertion did not include its reason, so the exact hosted cause is unknown.
+Eight known quaternion-path cases now exercise measurement and intent decisions
+directly: signed rotation across the ±pi cut, no effect, wrong sign, matching
+turn and overshoot with zero gyro. They no longer assume that a threaded sampler
+will observe every scripted endpoint inside its wall-clock admission budget.
+These are geometry unit cases, not additional full-window acceptance evidence.
+Actual sampler, TCP, freshness and stop tests remain, and all production limits
+are unchanged. The three affected/regression files passed 400 cases in 33.71s,
+with source and protected stores unchanged. A preceding command used a missing
+filename and ran no tests; it is retained separately. Receipt:
+`docs/evidence/robot-modularity/yaw-geometry-fixture.json`.
+
+## MicroDuck SDK callback signal consumption (2026-10-02)
+
+A native locomotion campaign required forced termination after Kit caught the
+`SignalRequest` raised by SIGTERM inside its callback. The recorded scalar
+signal survived, but the native runner did not check it after callback return.
+The CLI now uses persistent signal checkpoints after SDK initialization and
+capture, at loop boundaries, and before the stepper commits inference or submits
+new actuator/solver work. Existing interactive one-shot handling is unchanged;
+cleanup still runs outside the handler. This cannot interrupt an uncooperative
+native call, so the external owned-process supervisor remains necessary.
+
+Feature-to-skill map: `isaac-sim-troubleshooting` for the observed native hang,
+`isaac-sim-orchestrator` for owned process/source/closure evidence, and
+`isaac-sim-validator` for regression checks before native follow-up.
+
+Validation: 175 focused lifecycle/stepper/CLI tests passed. A retained old-bridge
+control failed all six new SIGINT/SIGTERM callback-consumption cases, showing
+additional solver work after the signal. The fixed six cases passed again with
+an explicit assertion that the SDK fixture consumed the signal. All test runs
+retained unchanged source snapshots and protected learned-store hashes. This
+is software evidence only; native shutdown validation is a separate follow-up.
+Receipt: `docs/evidence/robot-modularity/microduck-signal-checkpoint.json`.
+
+## Inner Kit capture and initialization fences (2026-10-02)
+
+Reviewed the user-supplied Hermes packet and verified the exact baseline, patch
+candidate and regression-test hashes before integration. Its capture regression
+found 15 additional cold updates or two warm updates plus RGB readback after
+a callback consumed the signal. Capture now rechecks immediately between native
+calls. The backend also checks camera-authoring synchronization, initialization
+phase boundaries, and before/after `play(commit=True)` and model preparation.
+No checkpoint is inserted into teardown; the SDK's already-running native call
+remains outside Python's interruption guarantees.
+
+The integrated software suite passed 202 cases; five USD cases skipped because
+that interpreter has no pxr. The ten Hermes render cases passed against the
+actual worktree. Eight additional OS-signal cases cover authoring synchronization
+and actual `_initialize` orchestration through camera, scene export and play.
+A retained old-source control reached stage acquisition after consuming signals;
+all six initialization cases failed instead of unwinding. An earlier red-harness
+import error is retained without regression credit. Source and protected memory
+were unchanged. Native Kit closure is still a separate required replay.
+
+Hashes and source-bound results: `docs/evidence/robot-modularity/microduck-inner-signal-fences.json`.
+
+## Shutdown PR full-suite environment check (2026-10-02)
+
+The isolated source at41307b8 ran the complete test directory: 5,073 passed,
+252 skipped and four deselected. All132 failures were the same missing pinned
+kitchen artwork prerequisite in the fresh worktree. Installed those eight
+release files from the already verified local bundle, then normal offline
+`kitchen_assets.py --check` passed. All139 tests in the five affected files then
+passed. Production code was unchanged; only two native-closure documentation
+files were added between runs. The initial failed full run remains preserved,
+not labelled as one green full run. Frozen source and protected stores remained
+unchanged in both executions. Detailed source/artifact records:
+`docs/evidence/robot-modularity/native-shutdown-suite.json`.
+
+## Robot-agnostic conversation implementation (2026-10-02)
+
+Implemented an optional local HTTP/browser/PCM vertical with lazy `aiohttp`,
+HF GA Realtime provider negotiation and `MediaIO`/provider boundaries. The
+configured robot catalog supplies only explicitly allowed typed tools. Complete
+provider responses produce session/robot/request/generation/deadline-bound
+intents into RobotRuntime; no raw joint interface or Reachy identity is added.
+Cancellation, tool budget, media backpressure, origin/authentication and process
+ownership are explicit. Timeout preserves a pending worker instead of inventing
+thread cancellation or physical success. CLI run stores are private.
+
+Independent review by the embodiment agent found and fixed: stop depending on
+media flush; a delayed `response.created` after barge-in before response birth;
+and simultaneous session POST requests overwriting the sole provider owner.
+Regression tests reproduce each interleaving with events/real local sockets.
+The entire connection retains its original runtime generation, so a late new
+response cannot refresh command authority after stop plus operator reset.
+
+The upstream wire contract was read at speech-to-speech revision
+411399d34555b2169823a6eaeb7f8ff192db89db, including the actual response handler's
+response_id/output_index fields and session acknowledgement. The browser and
+CASCADE code are original implementation. No provider allocator, paid service,
+model download or audio device was contacted by the software validation.
+
+Validation: 135 targeted conversation/runtime/graph/MCP/sensing tests passed;
+three optional-stack cases skipped in the task-private test environment.
+Conversation alone has 41 passing cases, including Node worklet execution.
+Ruff, uv lock consistency, documentation links and git diff checks pass.
+
+Root review on the integrated PR #70 source passed 97 focused conversation,
+runtime, graph and MCP tests, with three optional-stack skips. Source and shared
+learned stores were unchanged; all 41 conversation cases passed. The provider
+inference experiment is separate from these loopback protocol results.
+
+## MicroDuck conversation composition (2026-10-02)
+
+Added explicit robot profiles for the existing MicroDuck mock and native base
+domains. Both expose only base resources, preserving each backend's canonical
+robot identifier. Robot identity validation now uses the same bounded identifier
+contract as resource descriptors; profile filenames remain strict slugs. The
+native profile refuses to construct its bridge client without an explicit model
+identity pin. It does not mark a gait, provider, or physical episode admitted.
+
+Validation: 71 profile/conversation/runtime/MCP/config tests passed, with three
+optional-stack skips. The mock profile reads actual mock base state and exposes
+no arm; the native profile rejects missing identity before bridge I/O. Frozen
+source and protected learned stores stayed unchanged. An earlier failed identity
+mismatch test and an incorrect test assumption about validation timing are
+retained in the task's `microduck-profiles-02` results; the final run is
+`microduck-profiles-03`.
+## Owned native speech-provider validation (2026-10-02)
+
+Connected the committed conversation implementation to a private local HF
+speech-to-speech server on the authorized GPU1, with two CPU threads, a Torch
+allocator ceiling below 12 GiB and a 900-second supervisor watchdog. The first
+Whisper-tiny/SmolLM2 recipe produced real audio and a separate typed synthetic
+IMU read, while retaining a failed spoken read and malformed model output.
+Onset/sample-rate audit confirmed exact sent waveform bytes and preserved the
+uncertainty: full uncropped tiny ASR also misrecognized the phrases.
+
+The second Whisper-base/Qwen3-1.7B recipe completed three actual synthetic-audio
+STT/LLM/TTS paths. Greeting and sensor-catalog intents succeeded; requested
+sensor reading failed because the model only listed sensors and falsely narrated
+data retrieval. Its authoritative tool receipt records the mismatch. Upstream
+one-second streamer warmup failed first; the successful isolated provider uses a
+recorded one-line 10-second transport-wait patch, with CASCADE sources unchanged.
+Both owned servers closed, reaped and released their ports. No motion, audio
+hardware, physical acceptance or public/paid deployment is claimed.
+
+See `docs/CONVERSATION_NATIVE_20261002.md` and the hash-bound compact receipt
+`benchmark/results/conversation_native_20261002.json`. MMS voice/audio artifacts
+remain local under its model-card noncommercial license. No shared environment,
+learned store or foreign service was modified.
+
+Native audio timestamps exposed a frontend issue: ordinary provider bursts
+exceeded the original two-second playback limit. Added a bounded 15-second,
+512-object PCM queue with only two seconds scheduled ahead. Flush removes both
+queued and scheduled audio, and local revisions suppress pending context-resume
+audio after stop or reconnect. The actual stop button remains independent of
+audio resume. CPU Node replay covers all three native timestamp/length traces
+using generated samples; negative controls reproduce the original rejections.
+No native process or audio device is needed for this follow-up.
+Independent review found an adjacent pending-microphone-permission race. Capture
+now checks session/socket/revision after each asynchronous setup boundary and
+immediately stops tracks returned to a superseded session. Six Node controls
+stop or disconnect during context resume, worklet loading and permission.
+Root review additionally identified callbacks from superseded WebSockets and
+pending session creation. Socket/session/revision binding now prevents stale
+callbacks from muting or stopping a replacement connection. A stopped pending
+POST is cleaned up before another connect can begin; a reset superseded by stop
+cannot subsequently issue a reset. Three event-controlled Node cases cover
+these interleavings without changing backend stop/admission behavior.
+Final focused validation: 52 conversation tests passed, Ruff passed, and source
+hashes were unchanged during the run. The playback receipt binds the exact
+JavaScript, timing-only fixture, protocol tests and captured pytest output.
+
+## Reset request generation admission (2026-10-02)
+
+Root review found that frontend cancellation alone could not fence an already
+sent reset POST arriving after a newer stop. `RobotRuntime.reset_stop` now accepts
+an optional expected generation, checked atomically under its existing gate
+before any domain reset. Legacy direct callers may omit it. The authenticated
+conversation reset route requires an exact nonnegative JSON integer and passes
+it to that boundary. Browser reset reads status after closing its old session,
+rechecks its local revision, then sends that observed generation.
+
+Real HTTP regressions hold a partial reset body across a newer stop (zero domain
+resets) and hold a previously successful reply across a newer stop (the stop
+remains latched). A runtime gate interleaving verifies the comparison happens
+after acquiring the lock; stop during an admitted reset still relatches domains.
+Browser controls cover stop while the generation read or reset reply is pending.
+No speech provider, hardware or physical source evidence was modified.
+Validation: 128 runtime/graph/MCP/conversation tests passed; three optional-stack
+cases skipped. Conversation files pass full Ruff; runtime/test-runtime pass the
+repository's F/E9 check (unrelated existing full-rule findings remain). Git diff
+checks pass.
+
+## Actual Chromium conversation path (2026-10-02)
+
+Frozen source 4d8c350 passed an owned Chromium 153 AudioWorklet/AudioContext
+exercise through real HTTP/WebSocket and composed synthetic sensor runtime.
+Ten fake-microphone PCM chunks reached the provider; list_sensors returned the
+actual synthetic IMU descriptor. A 6.784 s burst drained 68 buffers without queue
+failure and stayed within the 2 s scheduling horizon. Stop flushed a second 4 s
+burst, stopped scheduled sources and latched the runtime; reset/reconnect/
+disconnect then passed. No page errors; both owned services closed and source/
+protected stores stayed unchanged. A prior probe failed because its Playwright
+string wait violated CSP; only the probe was corrected, preserving shipped CSP.
+This is synthetic-provider browser integration, not native speech inference or
+physical microphone/speaker acceptance. Root regression on the same source:
+130 passed, 3 skipped in 2.86 s. Evidence: docs/evidence/robot-modularity/conversation-chromium.json.
+
+## Native provider plus Chromium (2026-10-02)
+
+The frozen 4d8c350 gateway completed an actual CPU Whisper/Qwen/Kokoro greeting
+through Chromium fake microphone/AudioWorklet and AudioContext, then Stop.
+ASR matched input, reply spoke a greeting, all 70,656 output samples drained at
+24kHz, and owned processes closed with source/protected stores unchanged.
+Response 68.923 s includes 61.580 s CPU LLM time, longer than 60 s tool admission; no
+tool/actuator call occurred. This limitation and the earlier failed sensor-read
+intent remain explicit. Native provider log audio 2.20 s counts input, not output.
+Receipt: docs/evidence/robot-modularity/conversation-native-chromium.json.
+
+## Inert RPC geometry fixture (2026-10-02)
+
+The composed suite at d09489b retained 5,507 passes, one failure, 252 skips and
+four deselections. The inert-actor case correctly returned `unverified` after
+`missing_state` on observation attempt 169; its geometry assertion required a
+healthy channel and `refuted`. The original run did not log reader errors or GC
+activity, so it does not establish why that observation was lost.
+
+Apply the existing `healthy_episode_gc` fixture to this test only. Automatic
+cyclic collection is moved outside the bounded software TCP episode; original
+GC mode is restored. Clocks, limits, production code and assertions are unchanged.
+An external controlled automatic-GC pause reproduced `missing_state` in the
+original test; the patched test kept zero measured post-admission displacement
+and returned `refuted`. A separately injected TCP delay still returned
+`unverified` with GC disabled. These controls establish fixture behavior, not
+the unrecorded cause of the original suite failure or physical robot validation.

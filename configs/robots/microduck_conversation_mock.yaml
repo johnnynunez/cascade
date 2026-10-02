@@ -1,0 +1,7 @@
+# MicroDuck software conversation fixture, never a physical gait result.
+version: 1
+robot_id: microduck-mock
+domains:
+  locomotion:
+    kind: locomotion
+    bases: [microduck_mock]

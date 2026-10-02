@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from ..robotics.contracts import ResourceDescriptor, identifier
 from .hub import SensorHub
-from .models import ImuPayload, MeasurementMetadata, ProprioceptionPayload
+from .models import ImuPayload, MeasurementMetadata, ProprioceptionPayload, JointStatePayload
 from .providers import MobileRgbSensorProvider, MobileStateSensorProvider, SyntheticSensorProvider
 
 
@@ -54,7 +54,7 @@ class SensorDomain:
         return self.hub.close()
 
 
-def build_sensor_domain(domain_id, profile, *, providers=None):
+def build_sensor_domain(domain_id, profile, *, providers=None, embodiment=None):
     """Build declared passive providers; optional injected providers are prebuilt.
 
     Profiles never reference another domain's actuator or lazy runtime object.
@@ -91,10 +91,16 @@ def build_sensor_domain(domain_id, profile, *, providers=None):
             if set(entry) - (common | {"modality", "frame_id", "values", "period_s", "saturated"}):
                 raise ValueError("unknown synthetic sensor setting")
             metadata = MeasurementMetadata(entry["frame_id"], entry.get("calibration_id"), entry.get("saturated"))
-            classes = {"imu": ImuPayload, "proprioception": ProprioceptionPayload}
+            classes = {"imu": ImuPayload, "proprioception": ProprioceptionPayload, "joint_state": JointStatePayload}
             if entry.get("modality") not in classes or not isinstance(entry.get("values"), dict):
                 raise ValueError("synthetic sensor requires explicit supported modality and values")
-            payload = classes[entry["modality"]](metadata=metadata, **entry["values"])
+            values = dict(entry["values"])
+            if entry["modality"] == "joint_state":
+                if embodiment is None:
+                    raise ValueError("joint_state profiles require an embodiment declaration")
+                from ..robotics.embodiment import EmbodimentDescriptor
+                values.setdefault("embodiment_sha256", EmbodimentDescriptor.from_dict(embodiment).sha256)
+            payload = classes[entry["modality"]](metadata=metadata, **values)
             provider = SyntheticSensorProvider(name, robot_id, payload,
                                                period_s=entry.get("period_s", .02), **options)
         elif kind in ("mobile_state", "mobile_rgb"):
@@ -113,6 +119,11 @@ def build_sensor_domain(domain_id, profile, *, providers=None):
             raise ValueError("unknown sensor provider kind")
         if provider.descriptor.sensor_id != name or provider.descriptor.robot_id != robot_id:
             raise ValueError("injected sensor identity mismatch")
+        if embodiment is not None:
+            from .embodiment import EmbodimentBoundProvider
+            provider = EmbodimentBoundProvider(provider, domain_id, embodiment)
+            if kind == "synthetic":
+                provider.validate_payload(payload)
         hub.register(provider)
     if injected:
         raise ValueError("unused injected sensor provider")

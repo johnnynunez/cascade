@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "utc": "2026-10-02T19:08:36.178209+00:00",
+  "base_commit": "0bce050b3e69077314375734d9f2ec88e35a4d33",
+  "source_sha256": {
+    "src/cascade/conversation/static/app.js": "dcfe8ef08cc16121ce7f5ee22e81afac6f85e8be73d877511c33d91db568b626",
+    "src/cascade/conversation/static/playback.js": "cbae091b397133f4a14f2416a6b907e65b89322639f0767afed16e0c911e3626",
+    "src/cascade/conversation/static/index.html": "9b53ec54e1bd91e3a075dd70c39b5ec9b628950d1da9a109fb3a62acabd041b8",
+    "src/cascade/conversation/gateway.py": "f0ef55d71ce93783d6924dcb2c652a9c604aee646c212d1f55a95f01ddc6ec50",
+    "tests/test_conversation_frontend.py": "3afcec6dbb8660ba1f6ad96d275e10f78051cad639b6cf005db71d64ac6c8c22",
+    "tests/test_conversation_protocol.py": "48a9d0e6a8ac405a2a3fe35f146dcf8ce5cb93c71dbe1f56d69a1e65c2a0a20f",
+    "tests/fixtures/conversation_playback_timing_20261002.json": "810069e667786207673dec9e7f2428c126c13704c6d5bd9dbeed3596d8749a9f"
+  },
+  "source_unchanged_during_tests": true,
+  "command": [
+    "/home/johnny/Projects/demo/cascade-lab/CONVERSATION/venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/test_conversation_contracts.py",
+    "tests/test_conversation_protocol.py",
+    "tests/test_conversation_frontend.py",
+    "-q"
+  ],
+  "exit_code": 0,
+  "pytest_summary": "52 passed in 1.03s",
+  "wall_s": 1.2422602500009816,
+  "node_version": "v26.5.0",
+  "artifact_root_label": "CONVERSATION/provider-feasibility/playback-validation",
+  "artifact_sha256": {
+    "pytest.log": "b8332011c7081ee1bde5c667d1d85982476d66bb3266c4b0990ba4da114e9057"
+  },
+  "scope": "CPU Node execution of actual browser JavaScript with controlled WebAudio/DOM; real loopback HTTP/WebSocket protocol tests. No browser hardware, new GPU inference, or physical robot.",
+  "physical_acceptance": false,
+  "audio_hardware_used": false,
+  "native_timing_fixture": {
+    "path": "tests/fixtures/conversation_playback_timing_20261002.json",
+    "contains_audio_samples": false,
+    "negative_control": "All three recorded burst timings exceed the former2second scheduler limit.",
+    "positive_control": "All samples scheduled and drained with15second/512object boundedqueue,2secondschedulinghorizon.",
+    "synthetic_pcm_used": true
+  },
+  "controls": [
+    "duration overflow rejection",
+    "tiny chunk object overflow rejection",
+    "flush clears scheduled and queued audio and timer",
+    "old generation rejected",
+    "local playback revision across pending context resume and reconnect",
+    "actual stop button proceeds before context resume",
+    "stop/disconnect during microphone context resume, worklet loading and permission",
+    "late permission tracks stopped immediately",
+    "stale socket callbacks ignored after reconnect",
+    "pending session POST invalidated by stop is closed before another connect",
+    "superseded reset cannot issue reset after newer stop"
+  ]
+}

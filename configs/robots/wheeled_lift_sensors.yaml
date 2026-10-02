@@ -1,0 +1,99 @@
+# Observation-only software fixture. No wheel/lift controller is configured.
+# Passive means no declared actuator binding; it does not certify mechanical passivity.
+version: 1
+robot_id: wheeled_lift_sensors
+embodiment:
+  version: 1
+  robot_id: wheeled_lift_sensors
+  root_link: chassis
+  root_mode: floating
+  links:
+  - chassis
+  - left_wheel
+  - right_wheel
+  - lift
+  - camera
+  joints:
+  - joint_id: left_wheel
+    parent: chassis
+    child: left_wheel
+    type: continuous
+    axis:
+    - 0
+    - 1
+    - 0
+    units:
+      position: rad
+      velocity: rad/s
+      effort: N*m
+  - joint_id: right_wheel
+    parent: chassis
+    child: right_wheel
+    type: continuous
+    axis:
+    - 0
+    - 1
+    - 0
+    units:
+      position: rad
+      velocity: rad/s
+      effort: N*m
+  - joint_id: lift
+    parent: chassis
+    child: lift
+    type: prismatic
+    axis:
+    - 0
+    - 0
+    - 1
+    units:
+      position: m
+      velocity: m/s
+      effort: N
+    limits:
+      lower: 0.0
+      upper: 0.4
+  - joint_id: camera_mount
+    parent: lift
+    child: camera
+    type: fixed
+  sensors:
+  - sensor_id: joints
+    link_id: chassis
+    resource_id: sensing/joints
+    frame_id: wheeled_lift_sensors/chassis
+    joint_ids:
+    - left_wheel
+    - right_wheel
+    - lift
+domains:
+  sensing:
+    kind: sensors
+    providers:
+    - id: joints
+      kind: synthetic
+      modality: joint_state
+      frame_id: wheeled_lift_sensors/chassis
+      values:
+        joints:
+        - joint_id: left_wheel
+          joint_type: continuous
+          position: 0.2
+          velocity: 0.0
+          position_unit: rad
+          velocity_unit: rad/s
+          effort_unit: N*m
+        - joint_id: right_wheel
+          joint_type: continuous
+          position: -0.2
+          velocity: 0.0
+          position_unit: rad
+          velocity_unit: rad/s
+          effort_unit: N*m
+        - joint_id: lift
+          joint_type: prismatic
+          position: 0.1
+          velocity: 0.0
+          position_unit: m
+          velocity_unit: m/s
+          effort_unit: N

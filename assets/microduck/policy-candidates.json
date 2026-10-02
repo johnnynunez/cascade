@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "default_profile": "velstand",
+  "profiles": {
+    "rough_walk_e": {
+      "repository": "https://huggingface.co/RemiFabre/microduck-rough-walk-e",
+      "revision": "fa7b27eeb5610d3b351362f4bd71691ee8be3d7d",
+      "path": "policy.onnx",
+      "sha256": "5aa423bd693e431b19e2ead77f99cbae6184e40a529eb2f7c1b4f85bb7f57040",
+      "size": 793772,
+      "license": "Apache-2.0 (weight repository model card)",
+      "source_files": {
+        "README.md": "dff73e8e82dbaf1950e250c9d27f5037f5f194b86e8dbf593105eb4b152d8364",
+        "manifest.json": "f9b9cdbd7450de266ae1c7f6dd3ed1cc82fd5de01582bf073cc73d81cb2c0332"
+      },
+      "contract": {
+        "model_api": 1,
+        "obs": [1, 61],
+        "actions": [1, 14],
+        "dtype": "float32",
+        "policy_hz": 50,
+        "action_scale": 1.0,
+        "normalizer": "embedded",
+        "entry_pose": "standing",
+        "body_command": "zeros",
+        "mouth": "outside_policy"
+      },
+      "status": "opt_in_research_candidate_not_native_or_hardware_admitted",
+      "command_semantics": "Twist velocity command; geometric feedback may terminate before its physical deadline. Command value is not measured velocity.",
+      "upstream_limit": "Model card reports simulation only, never run on hardware. Geometry license remains separate."
+    }
+  }
+}

@@ -603,3 +603,27 @@ Initial development failures are retained: malformed YAML indentation (43 failed
 freshness/replay gates were unchanged. Shared envelope SHA-256 still matches the
 protected baseline and grasp memory remains absent. No GPU, native robot or
 hardware admission was tested. See benchmark/results/generalized_joints_20261003.json.
+
+
+
+## Explicit alternative walking checkpoint (2026-10-02)
+
+Primary-source comparison found that the pinned official CPU inference recipe
+also stalls VelStand below the geometric target during a three-second command;
+stiff friction alone is not established as its cause. Keep those failures and
+the official default. The alternative rough-walk-e checkpoint is selected only
+by an explicit profile, exact byte count/SHA and a reviewed 61-observation,
+14-action, 50 Hz contract. Its weight model card declares Apache-2.0 and
+simulation-only experience; robot geometry terms remain separate.
+
+The official CPU inference path demonstrated bounded 30 mm feedback episodes
+with rough-e, while 50 mm episodes violate the existing heading bound. This is
+diagnostic evidence, not native admission. No action deadline, pose/support
+threshold, rest window or velocity-tracking claim changes. Native follow-up
+must retain the same criteria, actual independent observations and closure.
+
+Feature-to-skill map remains physics-simulation, isaac-sim-robot-navigation and
+isaac-sim-validator. Validation: 208 policy/CLI/stepper/native BAM tests passed
+with CPU-only Newton 1.6 and the pinned PR source, using a private Warp cache.
+The new CLI and source inventory bind the selected checkpoint; weights are not
+downloaded or executed by offline admission and are not committed.

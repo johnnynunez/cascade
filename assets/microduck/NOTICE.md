@@ -72,6 +72,15 @@ ONNX files does not enable rollers, sit/stand, kicks or other skills. Their
 historical training recipe/geometry is not fully recoverable from metadata.
 No automatic checkpoint replacement or model tuning is performed.
 
+The separate `policy-candidates.json` pins the opt-in research checkpoint
+`RemiFabre/microduck-rough-walk-e@fa7b27eeb5610d3b351362f4bd71691ee8be3d7d`.
+Its [model card](https://huggingface.co/RemiFabre/microduck-rough-walk-e/blob/fa7b27eeb5610d3b351362f4bd71691ee8be3d7d/README.md)
+declares Apache-2.0 for weights and explicitly reports simulation-only use.
+No alternative weight bytes are committed. Selecting `--policy-profile
+rough_walk_e` admits only that exact digest and size; it neither changes the
+official default nor grants native locomotion or hardware admission. The
+converted robot geometry remains governed by its separate upstream terms.
+
 ## Numerical boundary
 
 `microduck_actuator.py` is a **numerical reference/golden validator only**, not

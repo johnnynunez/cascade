@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import re
 import threading
 import time
@@ -118,16 +119,23 @@ class RobotRuntime:
             raise ValueError("unknown tool arguments")
         descriptor.validate_arguments(args)
 
-    def execute(self, name, args=None, *, expected_generation=None):
+    def execute(self, name, args=None, *, expected_generation=None, deadline_monotonic_s=None):
+        """Admit a local episode token/deadline under the coordinator lock.
+
+        This is not a real-time guarantee. Actuating domain owners retain their
+        last-moment backend generation/lease/deadline checks. A provider's clock
+        must never be used for this local monotonic deadline.
+        """
         started = time.monotonic()
-        result = self._execute(name, args, expected_generation=expected_generation)
+        result = self._execute(name, args, expected_generation=expected_generation,
+                               deadline_monotonic_s=deadline_monotonic_s)
         if self.trace is not None:
             with self._record_lock:
                 self.trace.record(name, args or {}, result, (time.monotonic() - started) * 1000,
                                   tier=self.current_tier, context={"robot_mode": "composed", "task": self.current_task})
         return result
 
-    def _execute(self, name, args=None, *, expected_generation=None):
+    def _execute(self, name, args=None, *, expected_generation=None, deadline_monotonic_s=None):
         args = {} if args is None else args
         descriptor = None
         try:
@@ -137,21 +145,28 @@ class RobotRuntime:
             if descriptor is None:
                 raise ValueError(f"unsupported robot tool: {name!r}")
             self._arguments(descriptor, args)
-            if expected_generation is not None and (type(expected_generation) is not int or expected_generation < 0):
-                raise ValueError("expected_generation must be a nonnegative integer")
             if descriptor.effect == "stop":
                 return self.stop()
+            if expected_generation is not None and (type(expected_generation) is not int or expected_generation < 0):
+                raise ValueError("expected_generation must be a nonnegative integer")
+            if deadline_monotonic_s is not None and (type(deadline_monotonic_s) not in {float, int} or
+                                                     not math.isfinite(deadline_monotonic_s)):
+                raise ValueError("deadline_monotonic_s must be a finite local monotonic value")
             if name == "reset_stop":
-                if expected_generation is not None:
+                if expected_generation is not None or deadline_monotonic_s is not None:
                     raise ValueError("reset_stop requires an explicit operator request without an episode token")
                 return self.reset_stop()
             if name == "list_resources":
                 with self._gate:
+                    if deadline_monotonic_s is not None and time.monotonic() >= deadline_monotonic_s:
+                        raise ValueError("execution deadline expired")
                     if expected_generation is not None and expected_generation != self._generation:
                         raise ValueError("stale execution generation")
                 return {"ok": True, **self.resources.as_dict(), **copy.deepcopy(self._embodiment_metadata),
                         "metadata_source": "configured_profile"}
             with self._gate:
+                if deadline_monotonic_s is not None and time.monotonic() >= deadline_monotonic_s:
+                    raise ValueError("execution deadline expired")
                 if expected_generation is not None and expected_generation != self._generation:
                     raise ValueError("stale execution generation")
                 if self._closed:
@@ -173,6 +188,8 @@ class RobotRuntime:
                             "summary": args["summary"], "unverified": missing}
                 domain = self.domains[descriptor.domain]
                 with self._gate:
+                    if deadline_monotonic_s is not None and time.monotonic() >= deadline_monotonic_s:
+                        raise ValueError("execution deadline expired before domain dispatch")
                     if generation != self._generation or self._closed:
                         raise ValueError("dispatch invalidated by stop or close")
                 # Domain implementations perform their own last-moment backend

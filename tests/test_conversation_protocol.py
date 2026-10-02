@@ -167,7 +167,11 @@ def test_browser_gateway_roundtrip_audio_and_completed_typed_tool():
         async with rig(gateway=True) as (robot, runtime, _domain, wire, _, _, gate, origin):  # noqa: SIM117 — fixture bindings create client credentials
             async with aiohttp.ClientSession(headers={"Authorization": "Bearer " + gate.token}) as client:
                 async with client.get(origin + "/") as response:
-                    assert response.status == 200 and "Talk to your robot" in await response.text()
+                    page = await response.text()
+                    assert response.status == 200 and "Talk to your robot" in page
+                    assert '/playback.js' in page
+                async with client.get(origin + "/playback.js") as response:
+                    assert response.status == 200 and "PcmPlaybackQueue" in await response.text()
                 async with client.post(origin + "/api/session", json={"robot_id": "fixture"}) as response:
                     binding = await response.json()
                     assert response.status == 200

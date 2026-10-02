@@ -64,6 +64,16 @@ pending rather than falsely reported as cancelled.
   event count, queued PCM bytes and capture age. Browser sequence numbers must
   advance exactly. Gateway receipt timestamps use its local monotonic clock;
   no browser/provider timestamp is treated as the actuator clock.
+- Browser playback holds at most 15 seconds of audio and 512 audio objects,
+  with only two seconds scheduled ahead. Faster-than-playback TTS bursts can
+  drain without accumulating an unlimited queue. Overflow visibly stops the
+  session. Flush discards queued and scheduled audio; local stop and reconnect
+  also invalidate audio waiting for `AudioContext.resume()`.
+  Microphone setup is likewise bound to the current session and local capture
+  revision: a permission prompt completed after stop/disconnect immediately
+  releases its tracks instead of restarting capture.
+  Socket callbacks retain their session owner. A stopped pending connection
+  cannot become active later, and a superseded reset cannot undo a newer stop.
 - `RealtimeProvider` separates protocol transport. `RealtimeWebSocket` lazily
   imports `aiohttp`, negotiates PCM formats, limits message sizes and send/open
   time, and does not allocate endpoints or reconnect silently.
@@ -151,5 +161,9 @@ blocked workers, stop during provider handshake, stop before blocked playback
 flush, reconnect isolation, concurrent session admission, and a real CLI
 subprocess using the synthetic sensor profile. The Node worklet test verifies
 PCM saturation, endianness and chunking without claiming microphone validation.
+Playback tests replay the three native provider timing traces with generated
+sample bytes: the previous two-second limit rejects each burst, while the
+bounded queue preserves every sample. Overflow, flush, stale generations and
+pending audio-context resumes have separate controls.
 The regular three-platform CI enables the optional conversation extra; the
 minimal-install job remains unchanged.

@@ -1,0 +1,328 @@
+{
+  "scope": "CPU replay of received audio timestamps/lengths only. No browser audio device was used. No audio samples included.",
+  "sample_rate_hz": 24000,
+  "channels": 1,
+  "sample_width_bytes": 2,
+  "cases": [
+    {
+      "case": "probe2-hello",
+      "wire_sha256": "95e96d15e8da8fea1986aee1e1506a8d771a9878413c07616ffd284e06ecf61a",
+      "events": [
+        {
+          "arrival_s": 0.0,
+          "pcm_bytes": 9186
+        },
+        {
+          "arrival_s": 0.010556893015746027,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.021059573016827926,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.03155854801298119,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.04253020099713467,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.05299006702261977,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.06354845201713033,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.0739124109968543,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.08497416201862507,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.09542416202020831,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.10599221201846376,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.11650019101216458,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.12733057999867015,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.13781641400419176,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.14829819300211966,
+          "pcm_bytes": 4608
+        },
+        {
+          "arrival_s": 8.874148657021578,
+          "pcm_bytes": 30
+        }
+      ],
+      "old_two_second_scheduler_max_backlog_s": 2.6550768069978807,
+      "old_two_second_limit_would_reject": true
+    },
+    {
+      "case": "probe2-read_sensor",
+      "wire_sha256": "6db5483be388503b01fc8a23b1d9c33a0947021f63d0098b8f3118980812ecdc",
+      "events": [
+        {
+          "arrival_s": 0.0,
+          "pcm_bytes": 9186
+        },
+        {
+          "arrival_s": 0.010457162017701194,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.021053244010545313,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.031633072008844465,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.04221532301744446,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.05288647999987006,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.06375862201093696,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.0743781500204932,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.08498472900828347,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.09556268400046974,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.10619701401446946,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.11673391700605862,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.12716380701749586,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.13754610400064848,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.1481217149994336,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.1586072499922011,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.16913020101492293,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.1802236899966374,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.19069417100399733,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.20132735001971014,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.21166878499207087,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.22230075299739838,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.23257415401167236,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.24288291000993922,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.2533380780078005,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.26378934999229386,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.2742547439993359,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.28480610900442116,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.2953758910007309,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.30569078601547517,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.3159796209947672,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.32755202800035477,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.33783099899301305,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.3483241650101263,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.3586237959971186,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.368940554006258,
+          "pcm_bytes": 3072
+        },
+        {
+          "arrival_s": 8.399050119012827,
+          "pcm_bytes": 30
+        }
+      ],
+      "old_two_second_scheduler_max_backlog_s": 6.4344344459937455,
+      "old_two_second_limit_would_reject": true
+    },
+    {
+      "case": "probe2-sensor_names",
+      "wire_sha256": "e37dacb59c03981fa2827ae3ad23714896842e971819eb86060e791bbe498e75",
+      "events": [
+        {
+          "arrival_s": 0.0,
+          "pcm_bytes": 9186
+        },
+        {
+          "arrival_s": 0.010656985017703846,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.02151258199592121,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.032090416993014514,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.042579155997373164,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.052931167010683566,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.06365474400809035,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.07402282999828458,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.08457348300726153,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.09498080800403841,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.10545957300928421,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.11583143399911933,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.12614070999552496,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.1365928240120411,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.14739383800770156,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.1580142379971221,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.16870661699795164,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.1793390639941208,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.18998439199640416,
+          "pcm_bytes": 9216
+        },
+        {
+          "arrival_s": 0.200268098997185,
+          "pcm_bytes": 7680
+        },
+        {
+          "arrival_s": 0.2106221640133299,
+          "pcm_bytes": 30
+        }
+      ],
+      "old_two_second_scheduler_max_backlog_s": 3.6271069010028163,
+      "old_two_second_limit_would_reject": true
+    }
+  ]
+}

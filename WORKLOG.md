@@ -275,3 +275,25 @@ See `docs/CONVERSATION_NATIVE_20261002.md` and the hash-bound compact receipt
 `benchmark/results/conversation_native_20261002.json`. MMS voice/audio artifacts
 remain local under its model-card noncommercial license. No shared environment,
 learned store or foreign service was modified.
+
+Native audio timestamps exposed a frontend issue: ordinary provider bursts
+exceeded the original two-second playback limit. Added a bounded 15-second,
+512-object PCM queue with only two seconds scheduled ahead. Flush removes both
+queued and scheduled audio, and local revisions suppress pending context-resume
+audio after stop or reconnect. The actual stop button remains independent of
+audio resume. CPU Node replay covers all three native timestamp/length traces
+using generated samples; negative controls reproduce the original rejections.
+No native process or audio device is needed for this follow-up.
+Independent review found an adjacent pending-microphone-permission race. Capture
+now checks session/socket/revision after each asynchronous setup boundary and
+immediately stops tracks returned to a superseded session. Six Node controls
+stop or disconnect during context resume, worklet loading and permission.
+Root review additionally identified callbacks from superseded WebSockets and
+pending session creation. Socket/session/revision binding now prevents stale
+callbacks from muting or stopping a replacement connection. A stopped pending
+POST is cleaned up before another connect can begin; a reset superseded by stop
+cannot subsequently issue a reset. Three event-controlled Node cases cover
+these interleavings without changing backend stop/admission behavior.
+Final focused validation: 52 conversation tests passed, Ruff passed, and source
+hashes were unchanged during the run. The playback receipt binds the exact
+JavaScript, timing-only fixture, protocol tests and captured pytest output.

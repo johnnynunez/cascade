@@ -55,6 +55,7 @@ class ConversationGateway:
         app = web.Application(middlewares=[protect], client_max_size=262144)
         app.router.add_get("/", self._static)
         app.router.add_get("/app.js", self._static)
+        app.router.add_get("/playback.js", self._static)
         app.router.add_get("/capture.js", self._static)
         app.router.add_get("/app.css", self._static)
         app.router.add_post("/api/session", self._create)

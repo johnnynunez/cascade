@@ -155,3 +155,11 @@ bursts (maximum implied backlogs 2.655, 6.434 and 3.627 seconds). That finding
 is retained as `playback-timing.json`; inference success does not establish that
 the then-current browser could play these responses. A bounded playback-queue
 fix is a separate change and validation.
+
+The subsequent playback fix retains a two-second scheduling horizon and adds a
+15-second/512-object queue. Node executes the real browser scheduler against the
+three timestamp/length traces: all samples drain, and controls verify overflow
+rejection, flush and stale-context suppression. Generated sample bytes are used;
+the fixture contains no MMS audio. This is CPU scheduling evidence, still not
+a microphone/speaker-device test or another GPU inference run. See the
+[playback receipt](../benchmark/results/conversation_playback_20261002.json).

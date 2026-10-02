@@ -2186,7 +2186,7 @@ class SkillRuntime:
             close_state = carry_attachment.arm(self, episode)
             if getattr(self.arm, "motion_planner", None) is not None:
                 from ..planning.runtime import wait_for_contact_stability
-                generation = harness._halt_generation
+                generation = scene_halt_generation if scene_enabled else harness._halt_generation
                 def stability_guard():
                     harness.check_stream_start(halt_generation=generation)
                     carry_attachment.check(self)

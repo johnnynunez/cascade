@@ -345,3 +345,25 @@ def test_opt_in_failure_has_no_unguarded_rehome_or_retry(monkeypatch, composite,
     result = getattr(rt, composite)('orange')
     assert result['ok'] is False and result['home_skipped'] is True and len(attempts) == 1
     assert not [c for c in calls if c[0] != 'read']
+
+
+def test_postclose_stability_cannot_adopt_new_generation_after_halt_clear(monkeypatch):
+    from cascade.skills import carry_attachment
+    fake_gate(monkeypatch)
+    rt, calls, fix, frame = runtime(monkeypatch)
+    harness = real_harness(rt)
+    rt.cfg.arm._data.update(bridge_host='test', bridge_port=0, bridge_robot_id='/robot')
+    original = carry_attachment.arm
+    def after_close(runtime, episode):
+        state = original(runtime, episode)
+        runtime.arm.motion_planner = object()  # enable post-close branch only
+        harness.halt('cancelled after close')
+        harness.clear_halt()
+        return state
+    monkeypatch.setattr(carry_attachment, 'arm', after_close)
+    with pytest.raises(MotionHalted):
+        rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
+    assert rt._held_provisional is not None
+    close = [i for i,c in enumerate(calls) if c[0]=='gripper']
+    assert len(close) == 3
+    assert not [c for c in calls[close[-1]+1:] if c[0]=='joints']

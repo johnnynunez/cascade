@@ -181,3 +181,27 @@ reset cannot admit an older episode. Token-bound reset is refused; priority stop
 remains available independently. Skill graphs use the same atomic boundary.
 Deterministic regressions force stop/reset between graph validation and dispatch.
 This is a software admission fix, with no new physical acceptance claim.
+
+## Spatial providers and navigation replay — 2 October 2026
+
+Feature-to-skill map before foundations: `isaac-sim-orchestrator` and
+`isaac-sim-workflow` define evidence and admission boundaries;
+`navigation-primitives` informs conservative footprints and grid planning;
+`spatial-reasoning` supplies explicit transform conventions. This first increment
+uses a pure Python read-only replay: no simulator stage is edited and no robot
+is actuated. Unknown cells, transform epochs and capture/calibration provenance
+must survive through real composed-runtime/MCP reads and plans. Native navigation
+requires a separately admitted controller and fresh localization; a path is not
+physical acceptance. Shared learned stores and other agents' processes remain
+untouched.
+
+The spatial increment implements a bounded source/clock/epoch frame tree,
+source-bound landmark observations, immutable occupancy capture history, planar
+range integration and conservative cardinal route planning. The synthetic
+`spatial_replay` profile exercises these through normal runtime and real stdio
+MCP without actuator resources. Independent review caught subcell-ray
+ over-clearing and whole-map rejuvenation after one partial scan; both have
+specific regressions. Relative transforms also no longer depend on an unused
+common ancestor's age. Frozen source passed 53 focused cases with learned stores
+unchanged. See `docs/SPATIAL_PROVIDERS.md` and its evidence receipt. This does not
+admit SLAM, native navigation, world-frame grasps or whole-body manipulation.

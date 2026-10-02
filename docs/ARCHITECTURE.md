@@ -6,6 +6,11 @@ It adds namespaced MCP tools, bounded skill graphs and optional Arena/VAB
 validation adapters. Mixed physical actuation remains refused until shared
 frames and whole-body coordination are admitted; the example is synthetic.
 
+The optional [spatial domain](SPATIAL_PROVIDERS.md) resolves source-bound
+capture transforms and landmark memory and plans on immutable planar maps.
+Its synthetic replay uses the same composed MCP route without actuator resources;
+physical localization, SLAM and route execution remain separate admission work.
+
 The optional [MicroDuck path](MICRODUCK.md) selects `MobileRig`, `SafeBase` and
 `MobileSkillRuntime` before arm construction. It shares CASCADE's MCP, traces
 and episodic memory while exposing mobile capabilities. Its Newton bridge

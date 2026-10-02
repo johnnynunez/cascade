@@ -215,7 +215,7 @@ def load_robot_config(robot: str, *, llm: str = "mock", config_dir: Path | None 
             cfg = load_demo_config(bases=profile["bases"], llm=llm, config_dir=cdir,
                                    _ignore_robot_environment=True)
             profile["resolved"] = cfg.as_dict()
-        elif kind != "sensors":
+        elif kind not in {"sensors", "spatial"}:
             raise ValueError(f"unknown robot domain kind: {kind!r}")
         profile.setdefault("robot_id", data["robot_id"])
         resolved[name] = profile

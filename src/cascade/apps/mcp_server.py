@@ -675,9 +675,12 @@ class McpSkillServer:
                 return _text_result({"ok": False, "error": "list_resources takes no arguments"}, is_error=True)
             from .robot_runtime import describe_robot
             from ..robotics.resources import ResourceCatalog
-            domains = describe_robot(self._get_mobile_config())
+            from ..robotics.embodiment import embodiment_metadata
+            cfg = self._get_mobile_config()
+            domains = describe_robot(cfg)
+            catalog = ResourceCatalog([r for d in domains.values() for r in d.resources])
             return _text_result({"ok": True, "metadata_source": "configured_profile",
-                                 **ResourceCatalog([r for d in domains.values() for r in d.resources]).as_dict()})
+                                 **catalog.as_dict(), **embodiment_metadata(cfg.as_dict().get("embodiment"), catalog)})
         if name == "list_bases":
             if arguments:
                 return _text_result({"ok": False, "error": "list_bases takes no arguments"}, is_error=True)

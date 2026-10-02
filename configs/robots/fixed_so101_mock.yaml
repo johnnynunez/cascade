@@ -1,0 +1,259 @@
+# Declared geometry from vendored SO-101 URDF; axes are in joint-local frames.
+# Synthetic joint samples are fixtures, not feedback from the mock arm.
+# Direct ratios describe model coordinates, not a calibrated hardware motor map.
+version: 1
+robot_id: fixed_so101_mock
+embodiment:
+  version: 1
+  robot_id: fixed_so101_mock
+  root_link: base_link
+  root_mode: fixed
+  links:
+  - base_link
+  - shoulder_link
+  - upper_arm_link
+  - lower_arm_link
+  - wrist_link
+  - gripper_link
+  - gripper_frame_link
+  - moving_jaw_so101_v1_link
+  joints:
+  - joint_id: gripper_frame_joint
+    parent: gripper_link
+    child: gripper_frame_link
+    type: fixed
+  - joint_id: gripper
+    parent: gripper_link
+    child: moving_jaw_so101_v1_link
+    type: revolute
+    axis:
+    - 0.0
+    - 0.0
+    - 1.0
+    units:
+      position: rad
+      velocity: rad/s
+      effort: N*m
+    limits:
+      effort: 10.0
+      velocity: 10.0
+      lower: -0.174533
+      upper: 1.74533
+    actuation: actuated
+  - joint_id: wrist_roll
+    parent: wrist_link
+    child: gripper_link
+    type: revolute
+    axis:
+    - 0.0
+    - 0.0
+    - 1.0
+    units:
+      position: rad
+      velocity: rad/s
+      effort: N*m
+    limits:
+      effort: 10.0
+      velocity: 10.0
+      lower: -2.74385
+      upper: 2.84121
+    actuation: actuated
+  - joint_id: wrist_flex
+    parent: lower_arm_link
+    child: wrist_link
+    type: revolute
+    axis:
+    - 0.0
+    - 0.0
+    - 1.0
+    units:
+      position: rad
+      velocity: rad/s
+      effort: N*m
+    limits:
+      effort: 10.0
+      velocity: 10.0
+      lower: -1.65806
+      upper: 1.65806
+    actuation: actuated
+  - joint_id: elbow_flex
+    parent: upper_arm_link
+    child: lower_arm_link
+    type: revolute
+    axis:
+    - 0.0
+    - 0.0
+    - 1.0
+    units:
+      position: rad
+      velocity: rad/s
+      effort: N*m
+    limits:
+      effort: 10.0
+      velocity: 10.0
+      lower: -1.69
+      upper: 1.69
+    actuation: actuated
+  - joint_id: shoulder_lift
+    parent: shoulder_link
+    child: upper_arm_link
+    type: revolute
+    axis:
+    - 0.0
+    - 0.0
+    - 1.0
+    units:
+      position: rad
+      velocity: rad/s
+      effort: N*m
+    limits:
+      effort: 10.0
+      velocity: 10.0
+      lower: -1.74533
+      upper: 1.74533
+    actuation: actuated
+  - joint_id: shoulder_pan
+    parent: base_link
+    child: shoulder_link
+    type: revolute
+    axis:
+    - 0.0
+    - 0.0
+    - 1.0
+    units:
+      position: rad
+      velocity: rad/s
+      effort: N*m
+    limits:
+      effort: 10.0
+      velocity: 10.0
+      lower: -1.91986
+      upper: 1.91986
+    actuation: actuated
+  transmissions:
+  - transmission_id: gripper_direct
+    actuator_id: gripper_coordinate
+    resource_id: manipulation/so101_mock
+    actuator_unit: rad
+    couplings:
+    - joint_id: gripper
+      ratio: 1.0
+      ratio_unit: rad/rad
+  - transmission_id: wrist_roll_direct
+    actuator_id: wrist_roll_coordinate
+    resource_id: manipulation/so101_mock
+    actuator_unit: rad
+    couplings:
+    - joint_id: wrist_roll
+      ratio: 1.0
+      ratio_unit: rad/rad
+  - transmission_id: wrist_flex_direct
+    actuator_id: wrist_flex_coordinate
+    resource_id: manipulation/so101_mock
+    actuator_unit: rad
+    couplings:
+    - joint_id: wrist_flex
+      ratio: 1.0
+      ratio_unit: rad/rad
+  - transmission_id: elbow_flex_direct
+    actuator_id: elbow_flex_coordinate
+    resource_id: manipulation/so101_mock
+    actuator_unit: rad
+    couplings:
+    - joint_id: elbow_flex
+      ratio: 1.0
+      ratio_unit: rad/rad
+  - transmission_id: shoulder_lift_direct
+    actuator_id: shoulder_lift_coordinate
+    resource_id: manipulation/so101_mock
+    actuator_unit: rad
+    couplings:
+    - joint_id: shoulder_lift
+      ratio: 1.0
+      ratio_unit: rad/rad
+  - transmission_id: shoulder_pan_direct
+    actuator_id: shoulder_pan_coordinate
+    resource_id: manipulation/so101_mock
+    actuator_unit: rad
+    couplings:
+    - joint_id: shoulder_pan
+      ratio: 1.0
+      ratio_unit: rad/rad
+  effectors:
+  - effector_id: jaw
+    link_id: gripper_frame_link
+    kind: hinged_gripper
+    resource_id: manipulation/so101_mock
+    required_capabilities:
+    - gripper
+  sensors:
+  - sensor_id: joints
+    link_id: base_link
+    resource_id: sensing/joints
+    frame_id: fixed_so101_mock/base_link
+    joint_ids:
+    - shoulder_pan
+    - shoulder_lift
+    - elbow_flex
+    - wrist_flex
+    - wrist_roll
+    - gripper
+domains:
+  manipulation:
+    kind: manipulation
+    offline: true
+    arms:
+    - so101_mock
+    cameras:
+    - mock_small
+  sensing:
+    kind: sensors
+    providers:
+    - id: joints
+      kind: synthetic
+      modality: joint_state
+      frame_id: fixed_so101_mock/base_link
+      values:
+        joints:
+        - joint_id: shoulder_pan
+          joint_type: revolute
+          position: 0.0
+          velocity: 0.0
+          position_unit: rad
+          velocity_unit: rad/s
+          effort_unit: N*m
+        - joint_id: shoulder_lift
+          joint_type: revolute
+          position: -0.24
+          velocity: 0.0
+          position_unit: rad
+          velocity_unit: rad/s
+          effort_unit: N*m
+        - joint_id: elbow_flex
+          joint_type: revolute
+          position: 0.38
+          velocity: 0.0
+          position_unit: rad
+          velocity_unit: rad/s
+          effort_unit: N*m
+        - joint_id: wrist_flex
+          joint_type: revolute
+          position: 1.43
+          velocity: 0.0
+          position_unit: rad
+          velocity_unit: rad/s
+          effort_unit: N*m
+        - joint_id: wrist_roll
+          joint_type: revolute
+          position: -0.96
+          velocity: 0.0
+          position_unit: rad
+          velocity_unit: rad/s
+          effort_unit: N*m
+        - joint_id: gripper
+          joint_type: revolute
+          position: 0.6
+          velocity: 0.0
+          position_unit: rad
+          velocity_unit: rad/s
+          effort_unit: N*m

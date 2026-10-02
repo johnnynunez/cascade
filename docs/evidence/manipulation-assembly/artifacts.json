@@ -41,5 +41,20 @@
     "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/trial12-replay/runtime-before.py",
     "sha256": "b97fa55f7491370ae19c19e1ac177d8d1bd8efde669551122c6d087994871e49",
     "scope": "retained local replay implementation, no actuator connection"
+  },
+  "trial12-native-640.json": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/docs/evidence/manipulation-assembly/trial12-native-640.json",
+    "sha256": "cb5b71b01420beb6b3dbf99633001c1c392997d9708c7ff5a3384be64c7ad3b6",
+    "scope": "Explicit640x360 native diagnostic variant; original history and1280failure retained"
+  },
+  "trial12-native-640/campaign.json": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/campaign.json",
+    "sha256": "cfe6dbb36431165a5175fe2429a2108f7557e39fc82de095662f205a0295cf26",
+    "scope": "Original terminal campaign receipt"
+  },
+  "trial12-native-640/termination-640.json": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/termination-640.json",
+    "sha256": "57d7ce850eaf5df8b23ea2cf64305a863b2ca024f3a7696e4da1bcc87eddcc38",
+    "scope": "Birth-bound owned producer closure"
   }
 }

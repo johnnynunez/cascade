@@ -37,6 +37,9 @@ repeat reduced new-capture observer median time from 272.239 to 68.170 ms.
 Subsequent [trial 12](docs/LOCAL_RTX_VALIDATION.md#native-trial-12-and-route-preflight-follow-up)
 passed the green-cube physical case and failed orange route preflight; its
 complete kitchen proof, campaign and restart acceptance remain incomplete.
+The separate 640×360 follow-up passed both physical cases and resets, but its
+484/439-second skill times exceed the host's 300-second budget; it does not
+close the full host/MCP acceptance.
 
 <p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>

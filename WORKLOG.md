@@ -53,14 +53,23 @@ about one second by checking identical endpoint vetoes earlier. Both replay
 versions pass on this host. The fresh 1280 native follow-up passed that route
 stage and subsequently failed its 120-second physical streaming wall budget;
 fresh cameras did not imply sufficient simulation throughput. Its owned
-simulator was closed. A separate 640 variant retains all original motion,
-perception and geometry limits; its final result belongs in the integration
-report rather than overwriting trial 12.
+simulator was closed. A separate 640 variant retained all original motion,
+perception and geometry limits. After read-only exact-label warmup, orange and
+green both passed physical placement, home and reset with unchanged source.
+The earlier cold-perception rejection is retained. Skill times of 483.72 and
+438.83 seconds exceed the host's 300-second limit; this direct-skill diagnostic
+does not establish real-host/MCP proof2 or full campaign acceptance.
 
 The final production source `c07d922` passed 3,797 tests, 48 skipped and four
 deselected. The later fixture-import lint cleanup passed 12 trajectory tests;
 changed Python files pass Ruff F/E9. Documentation was reconciled after the
 native manipulation and assembly work, as requested.
+
+PR #65 publishes implementation and compact evidence. Its first three-platform
+CI run passed the main tests and found two portable-bundle inventory failures.
+The correction adds the OVRTX helper/identity files and the optional cuMotion
+XRDF/provenance. All 62 packaging tests pass locally on Python 3.12, including
+isolated profile resolution and missing-dependency rejection; no SDK is loaded.
 
 ## Reusable lessons and skill proposals (dry run)
 

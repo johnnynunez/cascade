@@ -26,6 +26,9 @@ BUNDLE_REQUIRED_FILES = frozenset({"cocina_asier.usdc", "geometry-audit.json", "
 ASSET_MANIFEST = Path(__file__).with_name("bundle_assets.json")
 KITCHEN_SOURCE_FILES = (
     "scripts/isaac_bridge.py",
+    "scripts/isaac_ovrtx.py",
+    "src/cascade/sim/ovrtx_renderer.py", "src/cascade/sim/ovrtx_masks.py",
+    "src/cascade/sim/ovrtx_process.py", "src/cascade/sim/ovrtx_worker.py",
     "scripts/isaac_python_spans.py",
     "demo/isaac_scene.py", "demo/own_kitchen.py", "demo/own_kitchen_props.py",
     "demo/cocina_asier.py", "scripts/build_cocina_asier.py",
@@ -40,6 +43,10 @@ RUNTIME_FILES = (
     "assets/grasp_geometry/rebot_rs_fingers.json",
     "assets/grasp_geometry/rebot_rs_fingers_physx.json",
     "assets/grasp_geometry/physx_finger_cooking_source.json",
+    "assets/cumotion/rebot/rebot.xrdf", "assets/cumotion/rebot/PROVENANCE.md",
+    "configs/arms/isaac.yaml", "configs/arms/isaac_cumotion.yaml",
+    "src/cascade/planning/__init__.py", "src/cascade/planning/cumotion.py",
+    "src/cascade/planning/runtime.py", "src/cascade/planning/trajectory.py",
     "src/cascade/perception/ovrtx_camera.py", "src/cascade/sim/ovrtx_renderer.py",
     "configs/cameras/ovrtx.yaml", "demo/ovrtx/rgbd.usda",
     "scripts/isaac_bridge.py", "scripts/isaac_runtime.py", "scripts/isaac_frame_history.py", "scripts/isaac_python_spans.py",

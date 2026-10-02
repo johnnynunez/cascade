@@ -418,6 +418,35 @@ the timed-out client had closed its socket; no reset actuator commands followed.
 Green was not attempted. The [1280 follow-up audit](evidence/manipulation-assembly/trial12-native-1280.json)
 records these failures and the owned process closure separately.
 
+The separate **640×360** variant kept the same source, physics timestep,
+camera cadence, geometry and motion/perception deadlines. Its cold first attempt
+failed image-analysis freshness before motion; explicit reset passed. A diagnostic
+wrapper then ran the existing read-only verifier and exact-label perception in
+the same runtime before each case. It recorded zero actuator commands during
+warmup; each task acquired its own newer images. This wrapper is a diagnostic,
+not a change to production startup or an extension of the task's freshness limit.
+
+Both subsequent native skill cases passed independent lift, bilateral contact,
+transport, full containment, support, actual-jaw release, settling, return-home,
+three-camera and reset checks. Receipts confirm required learned GraspGen-X on
+CUDA and disabled occupancy. The launch command enabled the observed-finger
+gate; no separate runtime flag/hook receipt was captured for that declaration.
+All campaign-bound source hashes were
+unchanged. The [640 follow-up audit](evidence/manipulation-assembly/trial12-native-640.json)
+retains the cold failure, warmup, physical measurements and raw artifact hashes.
+
+| Case | Skill duration | Lift | XY transport | Final XY error | Settling window |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Orange → open box | 483.72 s | 103.921 mm | 279.227 mm | 9.724 mm | 0.5 s / 31 samples |
+| Green cube → green square | 438.83 s | 100.528 mm | 298.961 mm | 6.076 mm | 0.5 s / 31 samples |
+
+Maximum sampled camera ages were 1.203 s and 1.115 s respectively. These are
+direct skill-path runs with a mock LLM and a passive physical witness, **not**
+the real host/MCP/strict-proof2 route. Both exceed the host's 300-second budget;
+the enclosing pick-call times were 499.684 s and 454.270 s. The five-object
+campaign, restart and original-resolution acceptance remain incomplete. Saved
+before/placed/reset stills were inspected; this run did not capture an MP4.
+
 The motion executor requires physical time between targets plus a newer step
 after each acknowledgement. Consequently a nominal 7.5-second, 225-target
 profile can consume more than 7.5 seconds of producer physics. Fresh cameras

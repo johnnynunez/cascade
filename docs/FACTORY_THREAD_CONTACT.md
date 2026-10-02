@@ -164,3 +164,11 @@ The complete 39-second, 1280 × 720, 60 fps replay renders saved solver body
 poses without stepping physics. Model hashes and body ordering must match the
 recording. Decoded start/middle/end video frames were inspected: the robot,
 nut, bolt and spacer remain visible, without startup or black-frame artifacts.
+
+These are decoded frames from that same solver-state replay, not a separate
+animated demonstration. Their hashes are recorded in the
+[artifact manifest](evidence/factory-thread-contact/artifacts.json).
+
+| Start (frame 0) | Middle (frame 1170) | Seated (frame 2339) |
+| --- | --- | --- |
+| ![Initial nut engagement](../benchmark/results/images/factory-threading-start-20261002.png) | ![Nut advancing along bolt](../benchmark/results/images/factory-threading-middle-20261002.png) | ![Nut retained at spacer seat](../benchmark/results/images/factory-threading-end-20261002.png) |

@@ -20,6 +20,12 @@ def expected(data):
             "provenance": "Licensed fixture"}
 
 
+def refresh_kitchen_manifest(checkout):
+    (checkout / "demo/scene/own_assets.json").write_text(json.dumps({
+        "schema": 1, "scene_name": bundle.SCENE_NAME,
+        "files": {name: expected((checkout / name).read_bytes()) for name in bundle.KITCHEN_SOURCE_FILES}}))
+
+
 @pytest.fixture
 def distribution(tmp_path, monkeypatch):
     checkout, assets, output = (tmp_path / name for name in ("checkout", "assets", "distribution"))
@@ -39,9 +45,7 @@ def distribution(tmp_path, monkeypatch):
         "schema": 1, "scene_name": bundle.SCENE_NAME, "root": bundle.BUNDLE_ROOT,
         "archive": {"url": bundle.BUNDLE_URL, **expected(b"archive fixture")},
         "files": {name: expected(raw) for name, raw in room.items()}}))
-    (checkout / "demo/scene/own_assets.json").write_text(json.dumps({
-        "schema": 1, "scene_name": bundle.SCENE_NAME,
-        "files": {name: expected((checkout / name).read_bytes()) for name in bundle.KITCHEN_SOURCE_FILES}}))
+    refresh_kitchen_manifest(checkout)
     data = {"assets/REBOT_UPSTREAM_LICENSE.txt": b"robot license fixture",
             "models/detector.pt": b"perception fixture"}
     for name, value in data.items():
@@ -162,6 +166,7 @@ def test_assembled_ovrtx_profile_resolves_its_scene_without_loading_sdk(distribu
     shutil.copytree(source / "src/cascade", checkout / "src/cascade", dirs_exist_ok=True)
     for name in ("configs/cameras/ovrtx.yaml", "demo/ovrtx/rgbd.usda"):
         shutil.copy2(source / name, checkout / name)
+    refresh_kitchen_manifest(checkout)
     assemble(distribution)
     code = """
 import hashlib, json, pathlib, socket, sys
@@ -196,8 +201,72 @@ print(json.dumps({'scene': str(scene.relative_to(root)),
 
 @pytest.mark.parametrize("name", ["demo/ovrtx/rgbd.usda", "configs/cameras/ovrtx.yaml",
                                  "src/cascade/perception/ovrtx_camera.py",
-                                 "src/cascade/sim/ovrtx_renderer.py"])
+                                 "scripts/isaac_ovrtx.py", "src/cascade/sim/ovrtx_renderer.py",
+                                 "src/cascade/sim/ovrtx_masks.py", "src/cascade/sim/ovrtx_process.py",
+                                 "src/cascade/sim/ovrtx_worker.py"])
 def test_missing_ovrtx_profile_dependency_prevents_publication(distribution, name):
+    checkout, _, output, _ = distribution
+    (checkout / name).unlink()
+    with pytest.raises(ValueError, match="incomplete"):
+        assemble(distribution)
+    assert not (output / "PORTABLE_BUNDLE.json").exists()
+
+
+def test_assembled_cumotion_profile_resolves_models_without_loading_sdk(distribution, tmp_path):
+    checkout, assets, output, _ = distribution
+    source = builder.HERE.parents[1]
+    shutil.copytree(source / "src/cascade", checkout / "src/cascade", dirs_exist_ok=True)
+    for name in ("configs/arms/isaac.yaml", "configs/arms/isaac_cumotion.yaml",
+                 "assets/cumotion/rebot/rebot.xrdf", "assets/cumotion/rebot/PROVENANCE.md"):
+        shutil.copy2(source / name, checkout / name)
+    refresh_kitchen_manifest(checkout)
+    # The URDF remains separately provisioned under the pinned robot licence.
+    # Use a small external fixture so this test needs no fetched robot or SDK.
+    urdf_name = "assets/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf"
+    urdf = assets / urdf_name
+    urdf.parent.mkdir(parents=True)
+    urdf.write_bytes(b'<robot name="portable-model-fixture"/>\n')
+    inventory = json.loads(bundle.ASSET_MANIFEST.read_text())
+    inventory['files'][urdf_name] = expected(urdf.read_bytes())
+    bundle.ASSET_MANIFEST.write_text(json.dumps(inventory))
+    assemble(distribution)
+    code = """
+import hashlib, json, pathlib, socket, sys
+root = pathlib.Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(root/'src'))
+def no_socket(*args, **kwargs):
+    raise AssertionError('No network or bridge access in portable profile admission')
+socket.socket = no_socket
+from cascade.config import load_profile
+import cascade.planning as planning
+assert pathlib.Path(planning.__file__).resolve().is_relative_to(root/'src')
+cfg = load_profile('arms', 'isaac_cumotion')
+assert cfg.type == 'isaac' and cfg.motion_planner.type == 'cumotion'
+assert pathlib.Path(cfg.model) == pathlib.Path(cfg.motion_planner.urdf)
+files = [pathlib.Path(cfg.motion_planner.urdf), pathlib.Path(cfg.motion_planner.xrdf)]
+files.append(files[1].with_name('PROVENANCE.md'))
+assert all(path.is_relative_to(root) and path.is_file() for path in files)
+assert not {'cumotion', 'warp', 'torch'} & set(sys.modules)
+print(json.dumps({str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+                  for path in files}))
+"""
+    completed = subprocess.run([sys.executable, "-I", "-c", code, str(output / "source")],
+                               cwd=tmp_path, capture_output=True, text=True, timeout=10, check=True)
+    manifest = json.loads((output / "PORTABLE_BUNDLE.json").read_text())
+    for name, digest in json.loads(completed.stdout).items():
+        assert manifest['files'][name]['sha256'] == digest
+    selected = set(builder.source_files(source))
+    pinned = json.loads((source / 'deploy/brev/bundle_assets.json').read_text())['files']
+    assert urdf_name not in selected and urdf_name in pinned
+    assert {'assets/REBOT_PROVENANCE.md', 'assets/REBOT_UPSTREAM_LICENSE.txt'} <= pinned.keys()
+
+
+@pytest.mark.parametrize("name", ["assets/cumotion/rebot/rebot.xrdf",
+                                 "assets/cumotion/rebot/PROVENANCE.md",
+                                 "configs/arms/isaac.yaml", "configs/arms/isaac_cumotion.yaml",
+                                 "src/cascade/planning/__init__.py", "src/cascade/planning/cumotion.py",
+                                 "src/cascade/planning/runtime.py", "src/cascade/planning/trajectory.py"])
+def test_missing_cumotion_profile_dependency_prevents_publication(distribution, name):
     checkout, _, output, _ = distribution
     (checkout / name).unlink()
     with pytest.raises(ValueError, match="incomplete"):

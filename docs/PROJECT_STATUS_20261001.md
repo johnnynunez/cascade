@@ -16,6 +16,10 @@ completed 15.365 turns, measured seating and two seconds of zero-motor retention
 These are source-bound local results, separate from the complete kitchen/Spark
 campaign. The [integration report](MANIPULATION_ASSEMBLY_20261002.md) includes
 the trial 12 failure, follow-up and remaining limits.
+The changes are published in [PR #65](https://github.com/johnnynunez/cascade/pull/65).
+Its separate 640×360 follow-up passed orange and green-cube physical placement,
+home and reset. Both exceeded the host's 300-second budget (483.72/438.83 s),
+so real-host/MCP proof2 and complete campaign acceptance remain incomplete.
 
 Previously recorded merged main was `f7a88233cc80fccc1b02396d963086b1146d2078`, the exact-tree
 [merge of documentation PR #63](evidence/isaac-profile10/pr63-merge.json).

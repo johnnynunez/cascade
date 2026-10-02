@@ -1,6 +1,7 @@
 # Manipulation and physical assembly — 2 October 2026
 
-Local branch: `feat/manipulation-assembly-runtime`, based on `1271d52d09feaa0edb4652d39a9ab21d69e4a686`.
+[PR #65](https://github.com/johnnynunez/cascade/pull/65), branch
+`feat/manipulation-assembly-runtime`, based on `1271d52d09feaa0edb4652d39a9ab21d69e4a686`.
 Production integration at `c07d9225f93ebe7cc1be5d65079ebcc141b60117` passed the
 full software suite. The native combined manipulation episode used runtime
 `f2b2186317a6eb6278bf7a57bf039c912e64dc18`; the later assembly commit changes
@@ -112,6 +113,24 @@ while all three cameras remained fresh. The orange was untouched; reset then
 failed because the timed-out client had closed its socket. The first attempt
 also retains a separate startup clock-RPC failure before any actuation.
 
+At **640×360**, orange and green cube subsequently passed independent physical
+pick/place/home/reset audits, with 103.921/100.528 mm lifts and 9.724/6.076 mm
+final XY errors. Each settled for 0.5 physical seconds across 31 samples.
+The diagnostic first warmed existing read-only readiness and exact-label
+perception; no warmup motion occurred and task images were freshly acquired.
+The earlier cold-perception rejection remains recorded. Required learned
+GraspGen-X ran on CUDA; occupancy was disabled. The launch command enabled the
+observed-finger gate, but this diagnostic did not retain a separate runtime
+flag/hook receipt. That declaration is distinct from the independently measured
+bilateral contact and physical outcome.
+
+Their skill durations were **483.72 and 438.83 seconds**, both above the real
+host's 300-second budget. This source-stable, two-case diagnostic used a mock
+LLM and direct skills. It does not establish real-host/MCP strict proof2,
+five-object campaign, restart or original-resolution acceptance. The
+[640 audit](evidence/manipulation-assembly/trial12-native-640.json) binds the
+receipts and inspected before/placed/reset stills; no MP4 was captured there.
+
 See [the full historical/follow-up account](LOCAL_RTX_VALIDATION.md#native-trial-12-and-route-preflight-follow-up)
 and the [audit receipts](evidence/manipulation-assembly/).
 
@@ -124,10 +143,16 @@ and the [audit receipts](evidence/manipulation-assembly/).
   are outside this result.
 - Fastening checks passed 59 tests across threading, seating and `turn_screw`.
   Native SDK/physics results above are separate from unit-test doubles and skips.
+- Initial PR CI passed the main suite on all three platforms but failed portable
+  bundle checks because the new OVRTX helper/identity files were omitted.
+  The corrected inventory also includes the optional cuMotion XRDF/provenance;
+  [62 packaging checks passed](evidence/manipulation-assembly/portable-bundle.json),
+  including SDK-free profile resolution and rejection of missing dependencies.
 - New simulators used owned launchers and private ports. Termination verifies
   process birth identity and preserves receipts; it does not close other sessions.
 
 The [regression receipt](evidence/manipulation-assembly/regression.json), native
 component receipts and asset manifests identify their actual tested sources.
 Raw captures and videos remain at the local paths recorded in those manifests.
-No merge, publication or remote deployment is claimed by this report.
+The changes and compact evidence are published in PR #65. No merge or remote
+deployment is claimed by this report.

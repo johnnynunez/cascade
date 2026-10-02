@@ -181,17 +181,20 @@
     "video-review-01.png": {
       "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/video-review-01.png",
       "sha256": "d4efec98443aac2bf7c4fe1596b1c8026cb9b88a1234703dcd9f6227c197b6c4",
-      "bytes": 142043
+      "bytes": 142043,
+      "committed_copy": "benchmark/results/images/factory-threading-start-20261002.png"
     },
     "video-review-02.png": {
       "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/video-review-02.png",
       "sha256": "dd35fe2d3ae6bf9056bbd692159a15fef8c2ed6517cb69eac8e5eaec762252cd",
-      "bytes": 144302
+      "bytes": 144302,
+      "committed_copy": "benchmark/results/images/factory-threading-middle-20261002.png"
     },
     "video-review-03.png": {
       "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/video-review-03.png",
       "sha256": "acbe1153fa8cbb0c59e6f7bec7a69696f9bd3488a036d5cc95cbab975b76234a",
-      "bytes": 138638
+      "bytes": 138638,
+      "committed_copy": "benchmark/results/images/factory-threading-end-20261002.png"
     },
     "visual-validation.json": {
       "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/visual-validation.json",

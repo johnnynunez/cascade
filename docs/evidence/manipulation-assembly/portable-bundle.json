@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "source_base": "ea0f46d3be637bd5761344ceac7ae454b235f825",
+  "source_sha256": {
+    "deploy/brev/build_bundle.py": "46cdc1accb2bcb69fb824d5eb7470f0137ae3f29a0019eb950113995290daf3e",
+    "deploy/brev/prepare_bundle.py": "ed6a231b7838b52c8e3818ae4b5968bdb65f861addac8c128d11375c99d3e8ab",
+    "deploy/brev/tests/test_build_bundle.py": "77d2a4ede47a66a5fac76774079201e0ef14d972dc8eff9df31675e2ef65a693",
+    "deploy/brev/tests/test_prepare_bundle.py": "e8bccc8affbbf61a6cad34cc3fbe3eeffafd0eb9bbd78e586ceb8c236547ed41"
+  },
+  "command": "PYTHONPATH=src ../runtime-venv/bin/python3.12 -m pytest deploy/brev/tests/test_build_bundle.py deploy/brev/tests/test_prepare_bundle.py -q",
+  "python": "3.12",
+  "passed": 62,
+  "wall_s": 1.15,
+  "pass": true,
+  "scope": "portable-source dependencies and assembled optional profiles; no SDK, network, deployment or physical execution"
+}

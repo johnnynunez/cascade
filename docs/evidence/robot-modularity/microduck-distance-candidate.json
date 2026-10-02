@@ -113,6 +113,12 @@
       "stop_drift_rad": 0.03
     }
   },
+  "turn_gate": {
+    "field": "verifier.max_lateral_drift_m",
+    "path_limit_m": 0.02,
+    "native_override": false,
+    "note": "The actual turn gate is20mm, not the15mm translation_tolerance_m used in the distance ratio/tolerance contract. Earlier draft prose conflated them; no configuration or verdict changed. CPU short negative turn path18.884mm is below20mm but has no native admission."
+  },
   "fresh_start_cases": [
     "native-rough-reuse-forward01",
     "native-rough-reuse-reverse02",
@@ -2059,8 +2065,8 @@
     },
     {
       "path": "build_publication_evidence.py",
-      "sha256": "589f133e30d6f9b955e4556ecd19b2164f201014288f9dc31617db9221436886",
-      "bytes": 14335
+      "sha256": "66a4c4c82a22cec9ad68ee42e060112950178d66f14e9f2375aa04382892642a",
+      "bytes": 14756
     }
   ],
   "lifecycle_scope": "Successful campaigns retained before_sdk_shutdown receipts and externally observed native child exit143, launcher exit1 and inactive owned scope. SimulationApp.close did not return; no SIGKILL was needed. The earlier slow campaign closure failure remains recorded.",

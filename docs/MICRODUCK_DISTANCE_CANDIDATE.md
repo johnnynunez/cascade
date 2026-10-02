@@ -42,8 +42,10 @@ Physical action duration stays at three seconds; rest still requires a
 support, drift, rest-speed or posture threshold was relaxed.
 
 The existing independent progress contract combines its 0.8–1.25 ratios with
-a 15 mm absolute translation tolerance. The controller’s tighter 5 mm target
-gate remains separate. Rest limits remain 0.02 m/s, 0.1 rad/s, 5 mm translation
+a 15 mm absolute translation tolerance. Turns instead use
+`max_lateral_drift_m=0.02` as their 20 mm translation-path bound; all archived
+native MCP profiles carry that exact value, without a turn-specific override.
+The controller’s tighter 5 mm target gate remains separate. Rest limits remain 0.02 m/s, 0.1 rad/s, 5 mm translation
 drift and 0.03 rad yaw drift. Only exact registered soles may support rest;
 walking permits a known flight phase, never an unavailable force channel.
 Any solved external non-sole contact retains its veto, including a zero-force row.
@@ -113,9 +115,11 @@ the independent result then remains **unverified**, rather than borrowing an ACK
 
 Earlier rough-e trials without the compute improvements reached distance targets
 but failed rest. Graph-only forward rest also failed. All measured ±0.2-rad turns
-in these campaigns exceeded the 15 mm permitted translation path; later rest
+in these campaigns exceeded the 20 mm permitted translation path; later rest
 does not repair that failure. Even separate ±0.1-rad CPU reference trials had
-34.94/18.88 mm translation paths. Longer-distance and longer-duration references,
+34.94/18.88 mm translation paths: the positive turn exceeds this bound, while
+the negative turn does not. That latter diagnostic remains without native
+admission. Longer-distance and longer-duration references,
 the original ±0.1 m/s failures, and the earlier forced-shutdown failure remain
 separate negative evidence. No command remapping or threshold adjustment makes
 them successful.

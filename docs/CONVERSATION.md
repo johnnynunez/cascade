@@ -115,6 +115,28 @@ pending rather than falsely reported as cancelled.
   reported as forcibly cancelled. Generation and deadline are checked under
   runtime admission and just before domain dispatch. Those checks are not a
   real-time guarantee; actuator owners retain their final backend checks.
+- An allowlisted tool declared `effect="stop"` uses the coalesced priority stop
+  path even while that action thread is busy; it does not replace the pending
+  action's future or claim that worker finished. Session/robot identity,
+  arguments, catalog, request deduplication, generation and local deadline still
+  gate model-originated stop admission. Once admitted, stop delivery is not
+  cancelled by later expiry. The independent operator stop has no speech token.
+  Each admitted stop tool uses the same internal trace recorder as
+  `RobotRuntime.execute`, after receiving the coalesced stop result. Its name,
+  arguments, result, duration and context remain in the trace even when joining
+  an operator's pending stop. Logging is separate from the priority stop task;
+  a dedicated single worker keeps stop delivery available even if loggers fill
+  asyncio's default executor. Each admitted tool retains its bounded recording
+  obligation after caller cancellation, with an independent result snapshot.
+  Pending/failed records prevent successful closure or a new session; closure
+  joins the idle stop worker only after records and the latest stop delivery
+  have drained. A newer concurrent operator stop keeps closure incomplete.
+  Successful close is terminal and idempotent; a later stop request is rejected
+  rather than presented with a cached ACK. The ACK remains
+  `physical_stop_verified=False`.
+  This dispatch contract does
+  not make the speech session execute concurrent response streams: response
+  ordering, interruption and the independent HTTP stop remain unchanged.
 - Default barge-in invalidates pending speech/tool contexts and stops active or
   pending robot work. Initial idle speech does not latch a stop. Optional
   `speech_only` interruption is available only without motion authority.

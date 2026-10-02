@@ -514,3 +514,20 @@ were admitted by a local WebSocket regression. Ruff and git diff checks pass.
 Compact source/log/fixture hashes are in
 benchmark/results/conversation_input_origin_20261002.json. All changes remain
 local while the integration coordinator owns GitHub publication.
+
+
+### 2026-10-03 — Priority stop follow-up on the coordinator integration
+
+Applied the reviewed aggregate stop correction from 4c7b4d7 to the existing
+92aa1e5 + support-flight fixture + input-origin composition, without importing
+unpublished gait or provider-hosting features. Declared stop tools retain their
+authority checks and bypass an outstanding action; a reserved worker prevents
+trace IO from starving stop delivery. Cancelled consumers retain one trace
+obligation. Close reports pending delivery/action/records, and terminal close
+is idempotent without presenting its old ACK as a new stop.
+
+The production diff applied unchanged. The synthetic Owner in the new stop
+fixture uses already-admitted walk_velocity instead of unpublished
+walk_distance; all priority, cancellation, identity, deadline and closure
+assertions are unchanged. Source-specific verification will be recorded in the
+external LOCAL_MERGE_REVIEW packet. No GitHub write or native run was performed.

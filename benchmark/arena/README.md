@@ -53,10 +53,14 @@ including a separate arm using the same whole-body DDS command. Failed
 construction releases acquired resources. The stop-only domain exposes no motion
 tools and its configured resource claims are not physical or safety admission.
 
-Arena's inspected dependency stack is Python 3.12/Linux x86_64, Isaac Lab 3.0,
-Isaac Sim 6.0, PyTorch 2.11/CUDA12.8 and Newton1.5.2. It has not been installed
-into CASCADE's environment. Source code is Apache-2.0; simulator components,
-models and assets retain their respective licenses.
+The committed lock selects Python3.12/Linux x86_64, Isaac Sim6.1.0.0,
+PyTorch2.11/CUDA12.8 and Newton1.5.2; README badges are not a dependency lock.
+The optional [native foundation](../../docs/ARENA_NATIVE_PREFLIGHT.md) exercised
+real Arena/PhysX through the ordinary CASCADE runtime on an explicitly different,
+existing6.1rc26 SDK. It preserves task-unverified results and tests cancellation
+at the final action consumer. It establishes no benchmark task success,
+SafeArm tracking, Newton parity or physical braking. Source code is Apache-2.0;
+simulator components, models and assets retain their respective licenses.
 
 ## VAB
 

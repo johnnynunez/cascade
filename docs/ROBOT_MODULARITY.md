@@ -158,6 +158,11 @@ multi-agent learning harness and does not copy its benchmark success claims.
 
 ## VAB, VABAR and Arena
 
+Follow-up: the optional [real Arena preflight](ARENA_NATIVE_PREFLIGHT.md) now
+exercises ordinary runtime dispatch, native PhysX observation and final-consumer
+cancellation. Its task and physical-stop verdicts remain unverified. The
+original software-contract validation below retains its historical scope.
+
 The supplied public repository is [Variational-Automation-Benchmark (VAB)](https://github.com/ehehee/Variational-Automation-Benchmark),
 inspected at `edcc4bf005446839c0c6f43f8a3bf416702af030`. The proposed name VABAR
 does not establish a public API or feature set; this integration targets the

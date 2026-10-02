@@ -27,8 +27,9 @@ def wait_for_contact_stability(safe, state, *, source, robot_id, timeout_s, chec
     started = time.monotonic()
     # Empirical contact jitter may exceed 0.25 mrad. Reserve half of the
     # unchanged 1 mrad final start-drift allowance; this is only a prefilter.
+    tolerance = PREFLIGHT_MAX_DRIFT_RAD / 2.
     progress.update(status="observing", required_window_physics_s=.5,
-                    limit_rad=PREFLIGHT_MAX_DRIFT_RAD / 2., distinct_samples=0)
+                    limit_rad=tolerance, distinct_samples=0)
     try:
         deadline = started + positive(timeout_s, "post-close stability timeout")
         rpc_timeout_s = positive(rpc_timeout_s, "post-close feedback RPC timeout")
@@ -65,7 +66,7 @@ def wait_for_contact_stability(safe, state, *, source, robot_id, timeout_s, chec
                 progress.update(window_physics_s=clock.time - samples[0][0],
                     max_joint_range_rad=spread, distinct_samples=len(samples),
                     last_q=q.tolist(), last_clock=dict(current.physics_clock))
-                if len(samples) >= 3 and clock.time - samples[0][0] >= .5 and spread <= progress['limit_rad']:
+                if len(samples) >= 3 and clock.time - samples[0][0] >= .5 and spread <= tolerance:
                     progress['status'] = 'passed'
                     return current, progress
             time.sleep(min(.01, max(0., deadline - time.monotonic())))

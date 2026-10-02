@@ -218,3 +218,18 @@ The complete three affected test files pass 342 cases. This identifies fixture
 defects, not the exact scheduler/GC cause on the CI machine. Logs, old/new hashes
 and retained results are indexed in
 `docs/evidence/robot-modularity/macos-causal-fixtures.json`.
+
+## Turn geometry fixture separation (2026-10-02)
+
+PR77 Linux CI returned unverified for one scripted overshoot case; the original
+assertion did not include its reason, so the exact hosted cause is unknown.
+Eight known quaternion-path cases now exercise measurement and intent decisions
+directly: signed rotation across the ±pi cut, no effect, wrong sign, matching
+turn and overshoot with zero gyro. They no longer assume that a threaded sampler
+will observe every scripted endpoint inside its wall-clock admission budget.
+These are geometry unit cases, not additional full-window acceptance evidence.
+Actual sampler, TCP, freshness and stop tests remain, and all production limits
+are unchanged. The three affected/regression files passed 400 cases in 33.71s,
+with source and protected stores unchanged. A preceding command used a missing
+filename and ran no tests; it is retained separately. Receipt:
+`docs/evidence/robot-modularity/yaw-geometry-fixture.json`.

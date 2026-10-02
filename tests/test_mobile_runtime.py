@@ -250,7 +250,7 @@ def test_stop_obligations_block_task_done_until_exact_physical_verdict(tmp_path,
     import threading
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    profile.update(timeout_s=.2, verifier=verifier_limits())
     profile.pop("cameras")
     ticks = SyntheticTicks(c, velocity=velocity)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
@@ -305,7 +305,7 @@ def test_new_task_boundary_cannot_adopt_an_old_stop_worker(tmp_path, frame_endpo
     import threading
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    profile.update(timeout_s=.2, verifier=verifier_limits())
     profile.pop("cameras")
     ticks = SyntheticTicks(c)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
@@ -408,7 +408,7 @@ def test_runtime_rpc_inert_actor_cannot_borrow_preflight_drift(tmp_path, frame_e
     import threading
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=0.03, verifier=verifier_limits())
+    profile.update(timeout_s=.2, verifier=verifier_limits())
     profile.pop('cameras')
     rt, rig = build_mobile_runtime(camera_cfg(profile), tmp_path)
     drift_started, drift_complete, halt = (threading.Event(), threading.Event(), threading.Event())
@@ -460,9 +460,11 @@ def test_runtime_rpc_inert_actor_cannot_borrow_preflight_drift(tmp_path, frame_e
 
 
 def verifier_limits():
-    # Software-integration limits only; not physical acceptance calibration.
-    return dict(sample_interval_s=.005, read_timeout_s=.04, max_wall_duration_s=1.,
-                settle_timeout_s=.10, settle_window_s=.04, min_motion_samples=2,
+    # Software-integration budgets, not physical acceptance calibration. A
+    # scheduler may publish a .005s synthetic solve every .03s of wall time;
+    # collecting the unchanged .04s physical rest window needs at least .24s.
+    return dict(sample_interval_s=.005, read_timeout_s=.25, max_wall_duration_s=3.,
+                settle_timeout_s=.8, settle_window_s=.04, min_motion_samples=2,
                 min_settle_samples=2, max_samples=200, max_history=8,
                 max_state_age_s=.2, max_sample_gap_s=.1, max_position_abs_m=10.,
                 max_linear_speed_m_s=1., max_angular_speed_rad_s=5., min_height_m=.1,
@@ -596,7 +598,7 @@ def test_actual_checker_refutes_scripted_inert_loopback_actor(tmp_path, admit_de
         assert ready.wait(1)
         cfg = load_demo_config(base="microduck_isaac")
         cfg._data["bases"][0].update(engine=c.hello()["engine"], asset_sha256="a" * 64, policy_sha256="b" * 64, model_identity_sha256="e" * 64,
-            bridge_port=server.address[1], timeout_s=.03, verifier=verifier_limits(),
+            bridge_port=server.address[1], timeout_s=.2, verifier=verifier_limits(),
             support_contract=support_contract())
         if not admit_device:
             with pytest.raises(ValueError, match="device"):
@@ -712,10 +714,11 @@ def test_invalid_runtime_camera_profile_fails_before_connect(tmp_path, frame_end
 
 class SyntheticTicks:
     """Completed-step software publisher; balance_active is synthetic, NOT physics."""
-    def __init__(self, controller, *, velocity=0., balance_active=True):
+    def __init__(self, controller, *, velocity=0., balance_active=True, wall_interval_s=.005):
         import threading
         self.controller = controller
         self.velocity, self.balance_active = velocity, balance_active
+        self.wall_interval_s = wall_interval_s
         self.halt = threading.Event()
         self.thread = threading.Thread(target=self.run, name="followup-synthetic-ticks")
         self.thread.start()
@@ -735,7 +738,7 @@ class SyntheticTicks:
             if self.balance_active is not None:
                 sample["balance_active"] = self.balance_active
             c.publish(sample)
-            self.halt.wait(.005)
+            self.halt.wait(self.wall_interval_s)
 
     def close(self):
         self.halt.set()
@@ -743,7 +746,7 @@ class SyntheticTicks:
         assert not self.thread.is_alive()
 
 
-def await_stop(rt, receipt_id, timeout=2.):
+def await_stop(rt, receipt_id, timeout=5.):
     import time
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -756,14 +759,15 @@ def await_stop(rt, receipt_id, timeout=2.):
 
 
 @pytest.mark.parametrize("velocity,expected", [(0., "confirmed"), (.05, "refuted")])
-def test_post_ack_stop_is_async_independent_and_preserves_original(tmp_path, frame_endpoint, velocity, expected):
+@pytest.mark.parametrize("wall_interval_s", [.005, .03], ids=["normal-producer", "slow-producer"])
+def test_post_ack_stop_is_async_independent_and_preserves_original(tmp_path, frame_endpoint, velocity, expected, wall_interval_s):
     import copy
     import time
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    profile.update(timeout_s=.2, verifier=verifier_limits())
     profile.pop("cameras")
-    ticks = SyntheticTicks(c, velocity=velocity)
+    ticks = SyntheticTicks(c, velocity=velocity, wall_interval_s=wall_interval_s)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
     try:
         assert rt.reset_stop()["ok"]  # explicit control session; read-only camera never acquires it
@@ -797,8 +801,10 @@ def test_blocked_stop_observation_has_deadline_no_spam_workers_and_reset_wins(tm
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
     limits = verifier_limits()
-    limits["max_wall_duration_s"] = .3
-    profile.update(timeout_s=.03, verifier=limits)
+    # This hostile-call test needs its reader/finish watchdog to run before
+    # the mailbox's overall deadline; it does not collect a physical window.
+    limits.update(read_timeout_s=.1, settle_timeout_s=.1, max_wall_duration_s=1.)
+    profile.update(timeout_s=.08, verifier=limits)
     profile.pop("cameras")
     ticks = SyntheticTicks(c)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
@@ -821,10 +827,10 @@ def test_blocked_stop_observation_has_deadline_no_spam_workers_and_reset_wins(tm
         started = time.monotonic()
         for _ in range(20):
             latest = rt.stop()
-        assert time.monotonic() - started < .2
+        assert time.monotonic() - started < limits["max_wall_duration_s"]
         assert len([t for t in threading.enumerate() if t.name == "mobile-stop-microduck_isaac"]) == 1
         assert first["receipt_id"] != latest["receipt_id"]
-        proof = await_stop(rt, latest["receipt_id"], timeout=.7)
+        proof = await_stop(rt, latest["receipt_id"], timeout=2.)
         assert proof["status"] == "unverified"
         if blocked_method == "reader":
             # The unified sampler's per-read watchdog can quarantine BEFORE
@@ -854,7 +860,7 @@ def test_blocked_stop_observation_has_deadline_no_spam_workers_and_reset_wins(tm
 def test_stop_rejects_malformed_receipt_before_independent_confirmation(tmp_path, frame_endpoint, monkeypatch, key, bad):
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    profile.update(timeout_s=.2, verifier=verifier_limits())
     profile.pop("cameras")
     ticks = SyntheticTicks(c)
     rt, rig = build_mobile_runtime(camera_cfg(profile), tmp_path)
@@ -878,7 +884,7 @@ def test_stop_rejects_malformed_receipt_before_independent_confirmation(tmp_path
 def test_reset_revokes_current_stop_confirmation_without_rewriting_ack(tmp_path, frame_endpoint):
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    profile.update(timeout_s=.2, verifier=verifier_limits())
     ticks = SyntheticTicks(c)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
     try:
@@ -922,7 +928,11 @@ def test_stop_prebaseline_sampling_has_an_attempt_budget(tmp_path, frame_endpoin
     _, server, profile, _, _, _ = frame_endpoint
     limits = verifier_limits()
     limits["max_samples"] = 8  # explicit software quota, not physical tolerance
-    profile.update(timeout_s=.03, verifier=limits)
+    # Isolate the attempt quota from a different rejection (wall-clock
+    # staleness) when eight real RPCs are scheduled slowly. Every capture is
+    # still pre-ACK and can never contribute physical-rest evidence.
+    limits["max_state_age_s"] = 2.
+    profile.update(timeout_s=.2, verifier=limits)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
     observer = rt.stop_observers["microduck_isaac"]
     calls, dispatch = [], server.dispatch
@@ -950,7 +960,9 @@ def test_superseded_stop_read_keeps_healthy_observer_reusable(tmp_path, frame_en
     import threading
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    limits = verifier_limits()
+    limits["read_timeout_s"] = .5
+    profile.update(timeout_s=.2, verifier=limits)
     profile.pop("cameras")
     ticks = SyntheticTicks(c)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
@@ -964,7 +976,7 @@ def test_superseded_stop_read_keeps_healthy_observer_reusable(tmp_path, frame_en
             if self.first:
                 self.first = False
                 entered.set()
-                assert release.wait(.03)
+                assert release.wait(.3)
             return original()
         @property
         def last_error(self):
@@ -998,7 +1010,7 @@ def test_out_of_order_stop_submission_cannot_replace_latest_mailbox(tmp_path, fr
     import threading
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    profile.update(timeout_s=.2, verifier=verifier_limits())
     ticks = SyntheticTicks(c)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
     observer = rt.stop_observers["microduck_isaac"]
@@ -1055,7 +1067,8 @@ def test_stop_never_confirms_missing_or_contradictory_evidence(tmp_path, frame_e
     c, server, profile, _, _, _ = frame_endpoint
     limits = verifier_limits()
     limits["max_wall_duration_s"] = .35
-    profile.update(timeout_s=.03, verifier=None if case == "no_limits" else limits)
+    limits["settle_timeout_s"] = .3
+    profile.update(timeout_s=.2, verifier=None if case == "no_limits" else limits)
     profile.pop("cameras")
     ticks = None if case == "frozen" else SyntheticTicks(c, balance_active=False if case == "disabled" else None if case == "health_absent" else True)
     rt, rig = build_mobile_runtime(camera_cfg(profile), tmp_path)
@@ -1093,7 +1106,8 @@ def test_late_stop_verifier_error_is_preserved_in_receipt(tmp_path, frame_endpoi
     c, _, profile, _, _, _ = frame_endpoint
     limits = verifier_limits()
     limits["max_wall_duration_s"] = .3
-    profile.update(timeout_s=.03, verifier=limits)
+    limits["settle_timeout_s"] = .3
+    profile.update(timeout_s=.2, verifier=limits)
     ticks = SyntheticTicks(c)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
     observer = rt.stop_observers["microduck_isaac"]
@@ -1133,7 +1147,8 @@ def test_shutdown_is_bounded_even_if_stop_checker_breaks_its_contract(tmp_path, 
     c, _, profile, _, _, _ = frame_endpoint
     limits = verifier_limits()
     limits["max_wall_duration_s"] = .3
-    profile.update(timeout_s=.03, verifier=limits)
+    limits["settle_timeout_s"] = .3
+    profile.update(timeout_s=.2, verifier=limits)
     ticks = SyntheticTicks(c)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
     observer = rt.stop_observers["microduck_isaac"]
@@ -1150,7 +1165,10 @@ def test_shutdown_is_bounded_even_if_stop_checker_breaks_its_contract(tmp_path, 
         assert entered.wait(1)
         started = time.monotonic()
         result = rt.close()
-        assert time.monotonic() - started < .8
+        # close() explicitly joins for wall + two read budgets. Allow host
+        # scheduling overhead while staying below the blocked callable's 3s.
+        close_budget = limits["max_wall_duration_s"] + 2 * limits["read_timeout_s"]
+        assert time.monotonic() - started < close_budget + .5
         assert not result["ok"] and "quarantined" in str(result["errors"])
         assert observer._thread.is_alive()  # never pretend Python killed a hostile callable
     finally:
@@ -1168,7 +1186,7 @@ def test_stop_checker_can_finish_while_motion_checker_is_blocked(tmp_path, frame
     from concurrent.futures import ThreadPoolExecutor
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    profile.update(timeout_s=.2, verifier=verifier_limits())
     profile.pop("cameras")
     entered, release = threading.Event(), threading.Event()
     class BlockedMotion:

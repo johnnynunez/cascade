@@ -158,13 +158,27 @@ def test_every_channel_requires_identity_attestation(bridge, monkeypatch, field,
     assert c.hello()["generation"] == 0
 
 
-def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(bridge):
+@pytest.mark.parametrize("wall_tick_s", [.005, .025])
+def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(bridge, monkeypatch, wall_tick_s):
     from cascade.control.isaac_base import IsaacBase
     from cascade.safety.base_harness import SafeBase
     c, server = bridge
+    # A synthetic 5 ms solve may take 25 ms of wall time on a scheduled
+    # producer. The 90-solve command tests renewal, not real-time performance.
+    # Keep the .3 s lease and freshness checks, but budget both endpoints for
+    # the deliberately slower producer before the client reads hello.
+    c.max_action_wall_s = 5.
+    renewals = []
+    dispatch = server.dispatch
+    def record(request):
+        response = dispatch(request)
+        if request["op"] == "renew" and response.get("ok"):
+            renewals.append(response)
+        return response
+    monkeypatch.setattr(server, "dispatch", record)
     raw = IsaacBase(profile(server.address[1]))
     limits = {"max_vx": .2, "max_vy": 0., "max_wz": .8, "max_duration_s": 1.,
-              "max_state_age_s": .2, "max_no_progress_s": .2, "max_wall_duration_s": 2.,
+              "max_state_age_s": .2, "max_no_progress_s": .2, "max_wall_duration_s": 5.,
               "poll_interval_s": .01, "turn_speed_rad_s": .3, "turn_tolerance_rad": .02,
               "max_turn_angle_rad": 1.}
     safe = SafeBase(raw, limits)
@@ -173,7 +187,7 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(br
     def completed_steps():
         step = 0
         try:
-            while not halt.wait(.005):
+            while not halt.wait(wall_tick_s):
                 step += 1
                 c.control_at(step * .005)
                 publish(c, step=step, sim_time=step * .005)
@@ -185,12 +199,16 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(br
         producer.start()
         wait_until(lambda: c.state()["feedback_available"])
         result = safe.walk_velocity(.1, 0., 0., .45)  # exceeds server's .3s wall lease
-        assert result["execution_ok"], result
+        assert result["execution_ok"], (
+            f"error={result.get('error')}; successful renewals={len(renewals)}; "
+            f"wall tick={wall_tick_s}; producer errors={errors}")
         assert result["ok"] is False and result["outcome"] == "unverified"
         samples = result["measured"]["samples"]
         assert samples[1]["step"] > samples[0]["step"]
         assert result["ack"]["generation"] == samples[1]["generation"] + 1
         assert result["stop_ack"]["generation"] == result["ack"]["generation"] + 1
+        assert len(renewals) >= 2
+        assert all(ack["generation"] == result["ack"]["generation"] for ack in renewals)
         assert all(s["position_world"] == [0., 0., .12] for s in samples)
         assert not errors
     finally:

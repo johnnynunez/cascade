@@ -107,6 +107,23 @@ CPU-only requirement when native tests actually run. A local reproduction with
 that variable absent then passed 2 cases and skipped the 96 unavailable ones;
 no runtime code or native recipe changed.
 
+Remote run `36981791068` then retained one Linux x86 failure (a mocked
+five-second deadline rounded to `5.000000000000057`), one ARM fixture timeout,
+and 25 macOS fixture timing failures. The follow-up test changes give real
+socket reads and deliberately slow synthetic producers appropriate wall-time
+budgets while preserving physical windows, rest/velocity/drift thresholds,
+explicit deadline failures and reader quarantine. Fast and slow renewal/stop
+cases are both exercised. The release test permits only `1e-12` absolute
+rounding while still requiring positive, decreasing budgets.
+
+The combined corrected mobile, MicroDuck, IsaacBase, BAM and release suite
+passed **1,187 cases with 182 skips** in 112.21 s, with tracked source and shared
+memory unchanged. The [portability record](../benchmark/results/microduck_ci_portability_20261002.json)
+binds all six edited test files and retained logs by hash. This targeted run
+is separate from the earlier full regression; remote checks must be assessed
+at the PR's current head. No production runtime, policy or native recipe
+changed in these test corrections.
+
 Earlier failed attempts are retained:
 
 - `native-foundation`: completed the physical episode, then the external

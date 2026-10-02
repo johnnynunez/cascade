@@ -16,6 +16,7 @@ class HeldTickProducer:
         self.c, self.velocity = controller, velocity
         self.ack, self.published, self.resume, self.halt = (threading.Event() for _ in range(4))
         self.job = None
+        self.captured_monotonic_s = None
         self.errors = []
         self.thread = threading.Thread(target=self.run, name="temporal-synthetic-ticks")
         self.thread.start()
@@ -23,9 +24,9 @@ class HeldTickProducer:
     def run(self):
         from mobile_support_fixture import support
         try:
-            if not self.ack.wait(1) or self.halt.is_set():
+            if not self.ack.wait(2) or self.halt.is_set():
                 return
-            if self.halt.wait(max(0., self.job["ack_monotonic_s"] + .004 - time.monotonic())):
+            if self.halt.wait(max(0., self.job["ack_monotonic_s"] + .06 - time.monotonic())):
                 return
             step = self.c.state()["state"]["step"]
             first = True
@@ -40,9 +41,10 @@ class HeldTickProducer:
                                 "support": support(step, step * .005)})
                 if first:
                     first = False
+                    self.captured_monotonic_s = time.monotonic()
                     self.published.set()
-                    if not self.resume.wait(.1):
-                        self.errors.append("two-read hold exceeded .1s")
+                    if not self.resume.wait(2.):
+                        self.errors.append("two-read hold was not released")
                         return
                 self.halt.wait(.005)
         except Exception as exc:  # noqa: BLE001 - fail teardown for ANY producer failure
@@ -63,7 +65,12 @@ def test_real_subtimeout_jitter_preserves_stop_discrimination(tmp_path, frame_en
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, server, profile, _, _, _ = frame_endpoint
     assert server.address[0] == "127.0.0.1"
-    profile.update(timeout_s=.03, verifier=verifier_limits())
+    # This fixture tests healthy but temporally ambiguous reads. Keep their
+    # real TCP latency/age inside an explicit budget on slower CI schedulers;
+    # physical sample windows and stop discrimination thresholds are unchanged.
+    test_limits = {**verifier_limits(), "read_timeout_s": .5,
+                   "settle_timeout_s": .8, "max_wall_duration_s": 3., "max_state_age_s": 1.}
+    profile.update(timeout_s=.5, verifier=test_limits)
     profile.pop("cameras")
     ticks = HeldTickProducer(c, velocity)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
@@ -77,7 +84,9 @@ def test_real_subtimeout_jitter_preserves_stop_discrimination(tmp_path, frame_en
         if payload["op"] == "state":
             calls[0] += 1
             if calls[0] == jitter_read:
-                time.sleep(.014)  # included in the REAL BaseTruthReader RTT
+                # Actual RTT must straddle the ACK even if publication was
+                # scheduled late. No fixture timestamp or wire field is forged.
+                time.sleep(ticks.captured_monotonic_s - ticks.job["ack_monotonic_s"] + .04)
         return request(payload, **kwargs)
     class Tap:
         def __call__(self):
@@ -96,7 +105,7 @@ def test_real_subtimeout_jitter_preserves_stop_discrimination(tmp_path, frame_en
     def scheduled(job):
         ticks.job = job
         ticks.ack.set()
-        assert ticks.published.wait(.03)
+        assert ticks.published.wait(2.)
         return observe(job)
     monkeypatch.setattr(original._client, "request", outgoing)
     monkeypatch.setattr(observer.reader, "reader", Tap())
@@ -107,9 +116,9 @@ def test_real_subtimeout_jitter_preserves_stop_discrimination(tmp_path, frame_en
         frozen = copy.deepcopy(ack)
         proof = await_stop(rt, ack["receipt_id"])
         assert proof["status"] == expected, proof
-        assert not observer._quarantined and observer.limits == verifier_limits()
+        assert not observer._quarantined and observer.limits == test_limits
         assert ack == frozen and not ack["physical_stop_verified"]
-        assert all(r["last_error"] is None and r["state"] is not None and r["end"] - r["start"] < .03 for r in reads)
+        assert all(r["last_error"] is None and r["state"] is not None and r["end"] - r["start"] < test_limits["read_timeout_s"] for r in reads)
         assert reads[0]["state"]["step"] == reads[1]["state"]["step"]
         excluded = reads[jitter_read - 1]["state"]
         assert excluded["received_monotonic_s"] - excluded["producer_age_s"] < ack["ack_monotonic_s"]
@@ -118,7 +127,7 @@ def test_real_subtimeout_jitter_preserves_stop_discrimination(tmp_path, frame_en
         assert evidence["temporal_pending"] and evidence["rejected"] == []
         assert evidence["samples"][0]["phase"] == "before"
         assert sum(s["phase"] == "before" for s in evidence["samples"]) == 1
-        assert evidence["wall_deadline_monotonic_s"] == ack["ack_monotonic_s"] + verifier_limits()["max_wall_duration_s"]
+        assert evidence["wall_deadline_monotonic_s"] == ack["ack_monotonic_s"] + test_limits["max_wall_duration_s"]
         for s in evidence["samples"]:
             assert s["state"]["received_monotonic_s"] - s["state"]["producer_age_s"] >= ack["ack_monotonic_s"]
         done = rt.execute("task_done", {"success": True, "summary": "socket fixture"})
@@ -307,11 +316,13 @@ def test_duplicates_cannot_supply_or_rejuvenate_baseline(prebaseline):
 
 
 def test_many_healthy_pending_reads_are_not_one_reader_timeout():
+    started = time.monotonic()
+    # Keep the first 25 captures before the ACK independently of OS sleep
+    # granularity; a constant .15s age could cross the fence partway through.
     reader = ScriptedReader(lambda n: state(n, sim_time_s=n * .005,
-                                            producer_age_s=.15 if n <= 25 else 0.))
-    checker = checker_for(reader)
+        producer_age_s=time.monotonic() - started + .01 if n <= 25 else 0.))
+    checker = checker_for(reader, max_state_age_s=3.)
     try:
-        started = time.monotonic()
         token = checker.begin("stop", {}, stop_boundary=boundary(started))
         assert time.monotonic() - started > checker._limits["read_timeout_s"]
         verdict = checker.finish(token, {"ok": True})
@@ -327,7 +338,7 @@ def test_many_healthy_pending_reads_are_not_one_reader_timeout():
 def test_ack_wall_deadline_is_not_restarted_by_begin_or_finish(baseline):
     fence = boundary(time.monotonic() - .08)
     reader = ScriptedReader(lambda n: state(n, producer_age_s=0. if baseline else .15))
-    checker = checker_for(reader, max_wall_duration_s=.1)
+    checker = checker_for(reader, max_wall_duration_s=.1, settle_timeout_s=.1)
     try:
         started = time.monotonic()
         token = checker.begin("stop", {}, stop_boundary=fence)

@@ -1,0 +1,82 @@
+{
+  "scope": "Software test portability; no production runtime or native recipe changes",
+  "base_head": "a9b409b4ff8820a18a0566b33f836f60fa04d5cc",
+  "tested_files": {
+    "tests/test_isaac_base.py": "af9bf701b14890c46c1b6ccaab7a557bbf0f061af2265a8c14b08bf26db9ac75",
+    "tests/test_mobile_effects.py": "a2bc94a4aa0303389e991bf65da6421e3aab78e390111007765bbce37e7e81ee",
+    "tests/test_mobile_mcp.py": "86276efb089abeec0c505cc6596d0ae6be17eeb8fa861ee1aead790773e3d7c3",
+    "tests/test_mobile_runtime.py": "490137b601c23ffbc429fb9d71dc089e4b26cf5d774022eab4b886f48571a855",
+    "tests/test_mobile_stop_temporal.py": "b669b1877ba151835e92569b7ea2484891f017445a98bd483d3d1f650c1762ab",
+    "tests/test_release_open_sync.py": "222d37b3e4270e37459370bb489d992a1a93deca6e5ea815321914cc38811ed1"
+  },
+  "combined_result": {
+    "passed": 1187,
+    "skipped": 182,
+    "seconds": 112.21,
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/runtime-venv/bin/python3.12",
+      "-m",
+      "pytest",
+      "-q",
+      "--junitxml=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-portability-combined/junit.xml",
+      "tests/test_isaac_base.py",
+      "tests/test_microduck_actuator.py",
+      "tests/test_microduck_assets.py",
+      "tests/test_microduck_bridge_cli.py",
+      "tests/test_microduck_camera_identity.py",
+      "tests/test_microduck_contact_support.py",
+      "tests/test_microduck_conversion.py",
+      "tests/test_microduck_policy.py",
+      "tests/test_microduck_signal_stop.py",
+      "tests/test_microduck_state.py",
+      "tests/test_microduck_stepper.py",
+      "tests/test_mobile_base.py",
+      "tests/test_mobile_bridge.py",
+      "tests/test_mobile_cli.py",
+      "tests/test_mobile_effects.py",
+      "tests/test_mobile_frames.py",
+      "tests/test_mobile_identity.py",
+      "tests/test_mobile_mcp.py",
+      "tests/test_mobile_runtime.py",
+      "tests/test_mobile_safety.py",
+      "tests/test_mobile_signal_stop.py",
+      "tests/test_mobile_stop_temporal.py",
+      "tests/test_mobile_support.py",
+      "tests/test_newton_bam.py",
+      "tests/test_release_open_sync.py"
+    ],
+    "exit_code": 0,
+    "source_unchanged": true,
+    "shared_memory_unchanged": true,
+    "shared_memory_after": {
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+      "/home/johnny/.cascade/grasp_memory.json": null
+    }
+  },
+  "artifacts": {
+    "ci-portability-combined/pytest.log": "b435716c3cb19105ecc1d31810b936ae537a8f37949fdc610fe979490095b5bf",
+    "ci-portability-combined/junit.xml": "91b4b4b036753760ed823a5947e75faf7b6abaff6928dd6c28e5a520ef65bf02",
+    "ci-portability-combined/result.json": "070e87bd245d6695e55841bb8c512a10b024f38525b1b33a32228920537ca55a",
+    "ci-portability-combined/source-sha256.json": "516f6260914226b1cff753fb78badb0244115324a1a2f480938bd2dd9b715de0"
+  },
+  "remote_previous_attempt": {
+    "run_url": "https://github.com/johnnynunez/cascade/actions/runs/36981791068",
+    "head": "a9b409b4ff8820a18a0566b33f836f60fa04d5cc",
+    "ubuntu_x86": "1 failed, 4952 passed, 269 skipped, 4 deselected",
+    "ubuntu_arm": "1 failed, 4952 passed, 269 skipped, 4 deselected",
+    "macos": "25 failed, 4894 passed, 303 skipped, 4 deselected",
+    "macos_log_sha256": "a1d4b1797d64e1567958c9eec120b5a9a8cb5aa9c910cb37d6c1e54f8755d3b4"
+  },
+  "changes": [
+    "Give real TCP and scheduled synthetic producers explicit wall-time headroom while retaining physical sample windows and velocity/drift thresholds.",
+    "Exercise fast and deliberately slow producers, and require successful renewals in the original command generation.",
+    "Use synchronization to prove stuck-reader completion before releasing the reader; retain explicit timeout and quarantine cases.",
+    "Bind synthetic pending captures and real jitter to the ACK boundary instead of scheduler-sensitive fixed ages.",
+    "Allow 1e-12 absolute float rounding in a mocked five-second release deadline, still requiring positive decreasing budgets."
+  ],
+  "limits": [
+    "Software fixtures do not establish physical locomotion success.",
+    "Full local regression remains separately pinned to 0fb8b18; this targeted run does not replace it.",
+    "Remote results for the corrected source must be read on the current PR head."
+  ]
+}

@@ -15,9 +15,11 @@ from cascade.control.mobile_base import BaseState
 
 
 def limits(**updates):
+    # Wall-clock slack for CI schedulers; synthetic time windows and motion
+    # tolerances below remain unchanged. Socket fixtures supply their own RTT budget.
     result = {
         "sample_interval_s": 0.002, "read_timeout_s": 0.04,
-        "max_wall_duration_s": 0.8, "settle_timeout_s": 0.1,
+        "max_wall_duration_s": 3., "settle_timeout_s": 0.3,
         "settle_window_s": 0.04, "min_motion_samples": 2,
         "min_settle_samples": 3, "max_samples": 180, "max_history": 3,
         "max_state_age_s": 0.2, "max_sample_gap_s": 0.1,
@@ -370,7 +372,8 @@ def test_stop_detects_drift_even_when_velocity_field_claims_zero():
 
 def test_old_producer_snapshots_received_after_finish_do_not_prove_settling():
     reader = ScriptedReader(lambda n: state(n, producer_age_s=0.15))
-    verdict = run_window(reader, "stop_navigation", {})
+    # The age must exceed this test's whole after-outcome window.
+    verdict = run_window(reader, "stop_navigation", {}, settle_timeout_s=.1)
     assert verdict["status"] == "unverified"
     assert "after" in verdict["reason"]
 
@@ -483,24 +486,41 @@ def test_lifecycle_refuses_overlap_replay_and_post_close_reads():
 
 
 def test_stuck_reader_is_quarantined_without_unbounded_thread_spawning():
-    released = threading.Event()
+    released, entered, completed = (threading.Event() for _ in range(3))
     def reader():
-        released.wait(2.)
+        entered.set()
+        released.wait()  # Only test cleanup can release this genuinely stuck read.
         return None
     checker = checker_for(reader)
+    results, errors = [], []
+    def observe():
+        try:
+            token = checker.begin("stop_navigation", {})
+            results.append(checker.finish(token, {"ok": True}))
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            completed.set()
+    worker = threading.Thread(target=observe, name="stuck-reader-test-driver")
+    worker.start()
     try:
-        start = time.monotonic()
-        token = checker.begin("stop_navigation", {})
-        verdict = checker.finish(token, {"ok": True})
+        assert entered.wait(2.)
+        # Completion must precede releasing the reader; a short stopwatch bound
+        # measured thread startup/CI scheduling rather than this property.
+        assert completed.wait(2.), "verifier waited for the blocked reader"
+        assert not errors, errors
+        assert not released.is_set()
+        verdict, = results
         assert verdict["status"] == "unverified"
         assert "timeout" in verdict["reason"]
-        assert time.monotonic() - start < 0.5
         with pytest.raises(RuntimeError):
             checker.begin("stop_navigation", {})
         assert sum(t.name == "base-postcondition-sampler" for t in threading.enumerate()) == 1
     finally:
         released.set()
         checker.close()
+        worker.join(2.)
+        assert not worker.is_alive()
     assert not any(t.name == "base-postcondition-sampler" for t in threading.enumerate())
 
 
@@ -724,7 +744,7 @@ def test_zero_twist_does_not_confirm_if_velocity_nonzero_during_balancing_then_s
 
 def test_expired_wall_window_cannot_use_new_after_outcome_snapshots():
     reader = ScriptedReader()
-    checker = checker_for(reader, max_wall_duration_s=0.1, max_samples=180)
+    checker = checker_for(reader, max_wall_duration_s=0.1, settle_timeout_s=0.1, max_samples=180)
     try:
         token = checker.begin("stop_navigation", {})
         time.sleep(0.13)
@@ -788,8 +808,10 @@ def test_independent_checker_through_actual_mobile_rpc_with_scripted_publisher(s
     server = MobileBridgeServer(controller, port=0)
     server.start()
     reader = BaseTruthReader({**identity, "bridge_host": server.address[0],
-                              "bridge_port": server.address[1], "timeout_s": 0.04})
-    checker = BasePostconditionChecker(reader, limits=limits(), support_contract=fixture_support_contract())
+                              "bridge_port": server.address[1], "timeout_s": 0.25})
+    checker = BasePostconditionChecker(reader, limits=limits(
+        read_timeout_s=.25, settle_timeout_s=.8, max_samples=600),
+        support_contract=fixture_support_contract())
     release = threading.Event()
     finished_script = threading.Event()
     def producer():

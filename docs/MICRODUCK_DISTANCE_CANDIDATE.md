@@ -3,8 +3,9 @@
 Four fresh-start native episodes confirmed signed 30 mm objectives: two forward
 and two reverse. A separate priority stop interrupted an independently observed
 moving robot and subsequently confirmed physical rest. These are local Newton
-results on flat ground, not general locomotion admission. Turns still fail the
-translation-path criterion, and reverse motion after a forward episode produced
+results on flat ground, not general locomotion admission. A subsequent single
+fresh −0.1-rad turn also confirmed; the larger measured ±0.2-rad turns still fail
+the translation-path criterion, and reverse motion after a forward episode produced
 a forbidden ankle-shell contact. The original velocity-tracking failures remain.
 
 The [compact evidence record](evidence/robot-modularity/microduck-distance-candidate.json)
@@ -118,8 +119,8 @@ but failed rest. Graph-only forward rest also failed. All measured ±0.2-rad tur
 in these campaigns exceeded the 20 mm permitted translation path; later rest
 does not repair that failure. Even separate ±0.1-rad CPU reference trials had
 34.94/18.88 mm translation paths: the positive turn exceeds this bound, while
-the negative turn does not. That latter diagnostic remains without native
-admission. Longer-distance and longer-duration references,
+the negative turn does not. That diagnostic justified the single native probe
+below; it did not itself establish native admission. Longer-distance and longer-duration references,
 the original ±0.1 m/s failures, and the earlier forced-shutdown failure remain
 separate negative evidence. No command remapping or threshold adjustment makes
 them successful.
@@ -140,6 +141,44 @@ standing contract requires. The post-ACK trajectory still travelled 14.818 mm;
 an ACK does not mean instantaneous motor-off or zero inertia. Independent rest
 then confirmed a 0.205-second physical window: maximum speed 0.00153 m/s and
 0.01353 rad/s, translation drift 0.155 mm and yaw drift 0.00217 rad.
+
+## Single negative-turn follow-up
+
+The preregistered `turn(angle_rad=-0.1)` in
+`native-rough-reuse-turn-negative03` confirmed measured yaw −0.0712782 rad
+within the unchanged 0.04-rad angle tolerance. Its measured path was 15.4787 mm
+against the existing **20 mm** bound, with lateral displacement −13.9175 mm.
+Rest confirmed a 0.205-second window with maximum speed 0.0008721 m/s and
+0.0072991 rad/s. Subsequent emergency-stop rest also confirmed. This is one
+small negative turn, not evidence for positive or larger turns.
+
+Source remained `d9f4766`, model identity remained `0227a46c…0e0da`, and the
+episode epoch was `f23ea0c575f74a9a8a02bdb778c14e74`. All 44 native solves in
+the generation-3 action interval, steps 330–373, had known support records and
+no forbidden external robot contact. The run retained 850 consecutive solves,
+43 force probes with zero reported difference, and 43 real frames. Those force
+probes compare two APIs of the same solver to check extraction/sign/frame
+mapping; they are not independent physics engines. The separate passive
+postcondition reader does not trust actor-reported progress. Process closure
+retained native exit 143, launcher exit 1 and inactive scope, with unchanged source.
+
+Attempts 01 and 02 failed during read-only preparation, before any turn command:
+state RPCs reached the 0.5-second limit at physical steps 42 and 62. Both retained
+zero travel intent and clean closure. A separate passive 240-solve profile then
+measured one capture at 1.5886 seconds; later captures took 53–75 ms. This
+supports explicit startup preparation but does not establish the internal cause
+of those two failures.
+
+The successful harness prepared a model/epoch-pinned passive reader **before**
+constructing MCP, within the existing 25-second preparation budget and unchanged
+0.5-second read/freshness bounds. Its 47 observations covered 1.525 physical
+seconds in 4.859 wall seconds. No read failed in this attempt; the preparation
+protocol records any failure and closes its socket before another bounded
+read-only handshake. It never retries an action or postcondition read. All
+thresholds and native recipe bytes remained unchanged. The
+[follow-up receipt](evidence/robot-modularity/microduck-negative-turn-probe.json)
+binds all three attempts, preregistrations, profile timings, exact values, raw
+samples and the inspected video. Earlier failed turns are unchanged.
 
 ## Reproduction and validation boundary
 

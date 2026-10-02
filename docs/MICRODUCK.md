@@ -5,7 +5,8 @@ not instantiate an arm, inverse kinematics, grasping, or the kitchen scene.
 The implementation is a candidate: general walking and turning have not passed
 physical admission. The optional [geometric distance candidate](MICRODUCK_DISTANCE_CANDIDATE.md)
 has four confirmed native fresh-start ±30 mm cases and a verified stop during
-movement; composed reverse motion and turns still have retained failures.
+movement, plus one small negative-turn case; composed reverse motion and larger
+or positive turns still have retained failures.
 PhysX BAM, scene reset, hardware, and hosted conversation
 are not delivered by this locomotion change.
 

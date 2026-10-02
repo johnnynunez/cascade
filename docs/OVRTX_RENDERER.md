@@ -44,6 +44,11 @@ double composition of nested links. The wrist optical transform is derived
 from the same captured wrist body and calibrated mount. Exported geometry is
 static; runtime additions/removals or deformable geometry need a new owner
 and inventory. The flattened scene hash does not attest external textures.
+Kit only reads and flattens its existing stage. All render-only USD edits
+occur in the child process: editing another stage with matching prim paths
+inside Kit emitted global USD notices and invalidated the live physics view
+in the first native trial. Static table/bin geometry also receives explicit
+semantic labels; an unmapped native identifier is still rejected.
 
 The SDK runs in a separately owned process over an inherited private socket;
 there is one outstanding request and no snapshot backlog. Normal shutdown,
@@ -72,6 +77,57 @@ nested reset transform, exact duplicate and stale-sequence rejection passed;
 the owned worker exited normally. This is a renderer/packet test using
 synthetic physical state, not a manipulation-success claim. Reproduce with
 `benchmark/diagnostics/ovrtx_runtime_smoke.py --python <SDK-python> --output <new-directory>`.
+
+## Native manipulation acceptance — 2 October 2026
+
+One normal `pick_and_place("green object")` completed with live OVRTX cameras,
+cuMotion planning, SafeArm execution and GPU PhysX at source
+`f2b2186317a6eb6278bf7a57bf039c912e64dc18`. The
+[compact evidence receipt](../benchmark/results/ovrtx-runtime-manipulation-20261002.json)
+preserves source, config, runner and raw-artifact hashes, earlier failures,
+the actual producer identity and its shutdown. This is a separate acceptance
+from the standalone analytic renderer tests.
+
+The run used cam0 and side at 640×360, required real GraspGenX and enabled
+the observed-finger gate. Eight task curves covered 529 sampled targets;
+the subsequent automatic park added 60. All nine native curves passed the
+existing runtime checks. Both closing stages, measured contact stability,
+lift, transport, release and return home completed. The observed task took
+126.19 s under concurrent GPU use; this is not a performance comparison.
+The post-close observer measured 0.482 mrad peak-to-peak over 0.5 physical
+seconds against its 0.5 mrad bound. The separate final pre-command drift
+limit remained 1 mrad; its measured-start check was not rebased or bypassed.
+
+Independent post-task sampling confirmed 24 advancing physical samples with
+open jaws and a stationary object. Its final center was
+`(0.19958, -0.15699, 0.04000)` m, 23.51 mm from the configured drop-zone center.
+Twelve further samples **after park** retained that position, with measured
+jaw openings at least 0.04999999 m. Support evidence is the stationary pose
+at the expected resting height; no table reaction force was measured. Held,
+provisional-held, contact-episode and carry-attachment state were all clear.
+Source hashes remained unchanged and the launcher, Kit interpreter and owned
+SDK child were confirmed absent after termination.
+
+![Decoded start, middle and end frames from the successful OVRTX manipulation video](../benchmark/results/images/ovrtx-runtime-green-20261002.png)
+
+The success does not replace these failed attempts:
+
+| Attempt | Observed outcome |
+| --- | --- |
+| Pink, native03 | First closure sent; second observed-finger guard rejected a border pixel excluded by the learned target mask. No lift. The historical native prop mask was not retained, so its exact semantic identity is not reconstructed retrospectively. |
+| Green, same native03 scene | The arm was still at the previous low pink pose after opening. Its proposed home sweep crossed pink; the gate rejected it before a task trajectory. Recorded same-frame native semantics confirmed pink at that pixel. |
+| Green, fresh native04 | Both closures passed. Contact motion had not satisfied the then-0.25 mrad observation window before its deadline; a final short RPC timeout obscured the reason. No lift. |
+| Green, fresh native05 | Full success above, with audited bounded contact stability and the unchanged final 1 mrad feedback-drift gate. |
+
+![Exact recorded pink frame and learned-mask boundary at the refused closing pixel](../benchmark/results/images/ovrtx-runtime-pink-rejection-20261002.png)
+
+No target-mask inflation, ground-truth contact exemption or simulator
+object-pose write was used. Native04 and native05 started independent fixtures
+after owned-process shutdown. The isolated fixture explicitly disabled
+occupancy; this result does not establish end-to-end nvblox use. Wrist pose binding was checked
+separately but did not authorize the grasp. This acceptance covers x86_64 RTX
+PRO 6000 and the standard two-prop PhysX scene, not Newton, kitchen trial 12,
+real hardware, or ARM manipulation.
 
 ## Install and run
 
@@ -218,5 +274,5 @@ does not validate a loaded kitchen, material realism, mapping, grasping,
 continuous sensor timing, motion safety or an Isaac/Newton producer. Those
 require an explicit physics-to-snapshot connection, matching masks and
 provenance where required, and separate end-to-end acceptance. The later live
-producer above supplies that software connection; physical manipulation
-acceptance must still be recorded separately from these analytic tests.
+producer above supplies that software connection; its dated green-object
+acceptance is recorded separately and does not broaden these analytic tests.

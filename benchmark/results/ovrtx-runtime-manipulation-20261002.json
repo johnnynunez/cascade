@@ -1,0 +1,601 @@
+{
+  "version": 1,
+  "date": "2026-10-02",
+  "scope": "Native live OVRTX RGBD/semantic rendering + cuMotion proposals + SafeArm + PhysX GPU; normal single green pick_and_place with actual release and home",
+  "validated_source_head": "f2b2186317a6eb6278bf7a57bf039c912e64dc18",
+  "pass": true,
+  "config_sha256": "c8334938da3cb259b98c36c58a7785c5803df8cf18b8f959537fe9568e1e415f",
+  "runner_sha256": "8dc2e97272a664bea24f6e06d624ee8cf11415ab5da9870f9ec39c25c46df71d",
+  "effective_flags": {
+    "observed_finger_gate": "1",
+    "grasp_backend": "graspgenx",
+    "graspgenx_required": true,
+    "occupancy_enabled": false,
+    "bridge_port": 8732
+  },
+  "physics_and_camera_endpoint": [
+    "127.0.0.1",
+    8732
+  ],
+  "producer_owner": {
+    "pid": 3346865,
+    "identity": {
+      "pid": 3346865,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14793515",
+      "state": "R"
+    },
+    "command": [
+      "python3",
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/scripts/isaac_launch.py",
+      "--python",
+      "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh",
+      "--ready-file",
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/ovrtx-native-05/interpreter.json",
+      "--",
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/scripts/isaac_bridge.py",
+      "--port",
+      "8732",
+      "--engine",
+      "physx",
+      "--width",
+      "640",
+      "--height",
+      "360"
+    ],
+    "source": "fb145f3c06a08ab90e362e9984afd65f8f79f4ac",
+    "source_hashes": {
+      "scripts/isaac_bridge.py": "4ad8a3a0f581684ca87976328ad224a207a9b4badababeae456bd7b43a74438b",
+      "scripts/isaac_ovrtx.py": "3b4b0048caf92416e4c261f25d9bc10ec1205ca2502a775faf45d03be4cf8568",
+      "scripts/isaac_launch.py": "0d1dd89370d37bfbdf3022fe6a80fe9a6f056122031bf9feee32121903807650",
+      "src/cascade/sim/ovrtx_renderer.py": "d6f968e61936373e765dbe0ba38a2e8ad72667bc57441abfec8da5614054d461",
+      "src/cascade/sim/ovrtx_masks.py": "6617df824187143ff9b87ad853369e9cc1836590cc57cd49ba7b99ecc439da19",
+      "src/cascade/sim/ovrtx_process.py": "d89f4506460f1795210ad8f37908cec12a37cb77b34575e26ea7192cc342b87a",
+      "src/cascade/sim/ovrtx_worker.py": "fe7502d4dd9f0e5aaea70c7a3fc26712b6fe012f2fcd1fa636c822f64ed1c09c"
+    },
+    "launched_at": 1790902832.891836,
+    "env": {
+      "CUDA_VISIBLE_DEVICES": "1",
+      "CASCADE_PHYSICS_DEVICE": "cuda:0",
+      "CASCADE_REQUIRE_CUDA": "1",
+      "CASCADE_ISAAC_PIXEL_MASK": "1",
+      "CASCADE_ISAAC_CONTACT_MASK": "1",
+      "CASCADE_CAMERA_RENDERER": "ovrtx",
+      "CASCADE_OVRTX_PYTHON": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-ovrtx-renderer/.venv-ovrtx312/bin/python",
+      "CASCADE_OVRTX_OUTPUT": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/ovrtx-native-05/render",
+      "CASCADE_OVRTX_DEVICE": "0",
+      "CASCADE_BRIDGE_BIND": "127.0.0.1",
+      "OMNI_KIT_ACCEPT_EULA": "YES"
+    },
+    "scope": "Fresh scene for independent green pick/place after native04 stability deadline rejection; no prior success claim"
+  },
+  "producer_source_matches_current": true,
+  "source_hashes_before": {
+    "src/cascade/apps/demo.py": "752cc5a0f0fd7486752d476c47e30a40ec0794625bf02c7b07cbac812e6a88e7",
+    "src/cascade/control/arm_base.py": "92239f4e45d554e01f7a88d6e3c44c092914081d0f13bbef783829042d47c498",
+    "configs/arms/isaac_cumotion.yaml": "aae423a738bbc530fccfcc098f1ae0ee6ea967f72f934ff222709dac774a0be7",
+    "src/cascade/planning/cumotion.py": "a9bec5fab682985c0b71f593973ff2e3b6c7dc87631a5cc641deec91766dc066",
+    "src/cascade/planning/runtime.py": "f761d51677188a21b51fe3d5967e5e1d41f90d87312f2cf12a2d821ffd2141b0",
+    "src/cascade/control/simulation_motion.py": "45d076d98ae6e18d9bd0b3a17cbd3adf6c18a267a92663c679a509f4c163d42f",
+    "src/cascade/safety/harness.py": "85bdf819c8f53fbdaeba337d0c8d38194e6f8291cfeaab4d5e0b1c1dd325ef50",
+    "src/cascade/skills/runtime.py": "6a847166d51ed0aebc31868860528ca09fe40a963201a0000b611012fd805371",
+    "src/cascade/grasping/observed_scene.py": "4316b86e7e5e189ef72ef401d955204841d3a2cb80c1ca70e374a269c8ba16cd",
+    "src/cascade/grasping/evidence.py": "0c110f1fc08a7c4059730a7cd45d1cd314be29ff5643002140bd492ca5567b6b",
+    "scripts/isaac_ovrtx.py": "3b4b0048caf92416e4c261f25d9bc10ec1205ca2502a775faf45d03be4cf8568",
+    "src/cascade/sim/ovrtx_renderer.py": "d6f968e61936373e765dbe0ba38a2e8ad72667bc57441abfec8da5614054d461",
+    "src/cascade/sim/ovrtx_masks.py": "6617df824187143ff9b87ad853369e9cc1836590cc57cd49ba7b99ecc439da19",
+    "src/cascade/sim/render_binding.py": "4d1ed6fa6b3e11af8039c0e63fa82e39efd2ce10a938c2c0979d4053e5c5034d",
+    "src/cascade/sim/startup_readiness.py": "8aaaa771ba3d14c9eed3752f9a4ea49ca38b1fe3101f3a8fc18c99c716da5676"
+  },
+  "source_hashes_after": {
+    "src/cascade/apps/demo.py": "752cc5a0f0fd7486752d476c47e30a40ec0794625bf02c7b07cbac812e6a88e7",
+    "src/cascade/control/arm_base.py": "92239f4e45d554e01f7a88d6e3c44c092914081d0f13bbef783829042d47c498",
+    "configs/arms/isaac_cumotion.yaml": "aae423a738bbc530fccfcc098f1ae0ee6ea967f72f934ff222709dac774a0be7",
+    "src/cascade/planning/cumotion.py": "a9bec5fab682985c0b71f593973ff2e3b6c7dc87631a5cc641deec91766dc066",
+    "src/cascade/planning/runtime.py": "f761d51677188a21b51fe3d5967e5e1d41f90d87312f2cf12a2d821ffd2141b0",
+    "src/cascade/control/simulation_motion.py": "45d076d98ae6e18d9bd0b3a17cbd3adf6c18a267a92663c679a509f4c163d42f",
+    "src/cascade/safety/harness.py": "85bdf819c8f53fbdaeba337d0c8d38194e6f8291cfeaab4d5e0b1c1dd325ef50",
+    "src/cascade/skills/runtime.py": "6a847166d51ed0aebc31868860528ca09fe40a963201a0000b611012fd805371",
+    "src/cascade/grasping/observed_scene.py": "4316b86e7e5e189ef72ef401d955204841d3a2cb80c1ca70e374a269c8ba16cd",
+    "src/cascade/grasping/evidence.py": "0c110f1fc08a7c4059730a7cd45d1cd314be29ff5643002140bd492ca5567b6b",
+    "scripts/isaac_ovrtx.py": "3b4b0048caf92416e4c261f25d9bc10ec1205ca2502a775faf45d03be4cf8568",
+    "src/cascade/sim/ovrtx_renderer.py": "d6f968e61936373e765dbe0ba38a2e8ad72667bc57441abfec8da5614054d461",
+    "src/cascade/sim/ovrtx_masks.py": "6617df824187143ff9b87ad853369e9cc1836590cc57cd49ba7b99ecc439da19",
+    "src/cascade/sim/render_binding.py": "4d1ed6fa6b3e11af8039c0e63fa82e39efd2ce10a938c2c0979d4053e5c5034d",
+    "src/cascade/sim/startup_readiness.py": "8aaaa771ba3d14c9eed3752f9a4ea49ca38b1fe3101f3a8fc18c99c716da5676"
+  },
+  "source_files_unchanged": true,
+  "result": {
+    "picked": "green object",
+    "placed_at": [
+      0.18,
+      -0.17,
+      0.05
+    ],
+    "destination": "drop zone",
+    "grip_profile": "rigid",
+    "grip_verified": true,
+    "grasp_attempts": 1,
+    "place_attempts": 1,
+    "duration_s": 126.19,
+    "timings": {
+      "grasp_attempt1_s": 70.38,
+      "place_s": 35.91
+    },
+    "return_home": {
+      "attempted": true,
+      "ok": true,
+      "at": "home"
+    },
+    "next_action": "Report this result, including any return_home failure, and await the next user order. Do not add another movement to this request.",
+    "destination_kind": "configured_point",
+    "ok": true,
+    "postcondition": {
+      "skill": "pick_and_place",
+      "kind": "relocated",
+      "status": "confirmed",
+      "evidence": "green object is 2.4 cm from the drop zone center (physics)",
+      "channel": "physics",
+      "measured": {
+        "moved_m": 0.3325,
+        "final": [
+          0.1996,
+          -0.157,
+          0.04
+        ],
+        "target_err_m": 0.0235,
+        "destination": "drop zone"
+      }
+    },
+    "verified": true
+  },
+  "task_pass": true,
+  "no_pending_payload_state": {
+    "held_object_after": null,
+    "held_provisional_after": null,
+    "contact_episode_active_after": false,
+    "carry_attachment_active_after": false
+  },
+  "plans": [
+    {
+      "index": 0,
+      "scope": "task",
+      "backend": "cumotion",
+      "duration_physics_s": 1.5,
+      "sampled_targets": 45,
+      "safety_edges": 210,
+      "candidate_execution_authorized": false,
+      "sdk_version": "1.1.0",
+      "path_constraint": "unconstrained",
+      "model_sha256": "282009bcd1811b9f64d46fb873a4f71f47825e8d509e480e36625d70af7520c5",
+      "request_sha256": "422ea2b0b4929fd076595e176620392bd0be00f6c71cc10efb313029f52da80d"
+    },
+    {
+      "index": 1,
+      "scope": "task",
+      "backend": "cumotion",
+      "duration_physics_s": 2.6411747697878765,
+      "sampled_targets": 79,
+      "safety_edges": 445,
+      "candidate_execution_authorized": false,
+      "sdk_version": "1.1.0",
+      "path_constraint": "unconstrained",
+      "model_sha256": "282009bcd1811b9f64d46fb873a4f71f47825e8d509e480e36625d70af7520c5",
+      "request_sha256": "af4cf53d94e867dc7c8af65abbdf020a6f0498c4dbef2cf6417fe5e046b74c92"
+    },
+    {
+      "index": 2,
+      "scope": "task",
+      "backend": "cumotion",
+      "duration_physics_s": 2.0,
+      "sampled_targets": 60,
+      "safety_edges": 280,
+      "candidate_execution_authorized": false,
+      "sdk_version": "1.1.0",
+      "path_constraint": "linear_tool",
+      "model_sha256": "282009bcd1811b9f64d46fb873a4f71f47825e8d509e480e36625d70af7520c5",
+      "request_sha256": "bbf24d0b7ed59a81ce782aced07e5779c14782481a012ad0c37c92d316bd24a9"
+    },
+    {
+      "index": 3,
+      "scope": "task",
+      "backend": "cumotion",
+      "duration_physics_s": 2.0,
+      "sampled_targets": 60,
+      "safety_edges": 280,
+      "candidate_execution_authorized": false,
+      "sdk_version": "1.1.0",
+      "path_constraint": "linear_tool",
+      "model_sha256": "282009bcd1811b9f64d46fb873a4f71f47825e8d509e480e36625d70af7520c5",
+      "request_sha256": "c95b970d625bcb9b5437fb2059645814e95c195b60ff2695e3df1b858f9ef945"
+    },
+    {
+      "index": 4,
+      "scope": "task",
+      "backend": "cumotion",
+      "duration_physics_s": 2.5,
+      "sampled_targets": 75,
+      "safety_edges": 350,
+      "candidate_execution_authorized": false,
+      "sdk_version": "1.1.0",
+      "path_constraint": "unconstrained",
+      "model_sha256": "282009bcd1811b9f64d46fb873a4f71f47825e8d509e480e36625d70af7520c5",
+      "request_sha256": "25315e070eab4c9c59cca118f84d568a94ecf839009a435cfdf05ae6bf6d56bb"
+    },
+    {
+      "index": 5,
+      "scope": "task",
+      "backend": "cumotion",
+      "duration_physics_s": 2.0,
+      "sampled_targets": 60,
+      "safety_edges": 280,
+      "candidate_execution_authorized": false,
+      "sdk_version": "1.1.0",
+      "path_constraint": "unconstrained",
+      "model_sha256": "282009bcd1811b9f64d46fb873a4f71f47825e8d509e480e36625d70af7520c5",
+      "request_sha256": "ecf3edc1136ddbcba242deee4a0dd82a89d5fe41f39d8eee71c65e8885f5454f"
+    },
+    {
+      "index": 6,
+      "scope": "task",
+      "backend": "cumotion",
+      "duration_physics_s": 2.0,
+      "sampled_targets": 60,
+      "safety_edges": 280,
+      "candidate_execution_authorized": false,
+      "sdk_version": "1.1.0",
+      "path_constraint": "unconstrained",
+      "model_sha256": "282009bcd1811b9f64d46fb873a4f71f47825e8d509e480e36625d70af7520c5",
+      "request_sha256": "5a6fcdd37ec8493562e488f50fe21699a0368011ce5a44027a768a6fd9d371f3"
+    },
+    {
+      "index": 7,
+      "scope": "task",
+      "backend": "cumotion",
+      "duration_physics_s": 3.0,
+      "sampled_targets": 90,
+      "safety_edges": 420,
+      "candidate_execution_authorized": false,
+      "sdk_version": "1.1.0",
+      "path_constraint": "unconstrained",
+      "model_sha256": "282009bcd1811b9f64d46fb873a4f71f47825e8d509e480e36625d70af7520c5",
+      "request_sha256": "bb17d76fd7e63ac22b75cc830d18185e83e030987a00ead70bcf36996eff6c5f"
+    },
+    {
+      "index": 8,
+      "scope": "automatic_park",
+      "backend": "cumotion",
+      "duration_physics_s": 2.0,
+      "sampled_targets": 60,
+      "safety_edges": 280,
+      "candidate_execution_authorized": false,
+      "sdk_version": "1.1.0",
+      "path_constraint": "unconstrained",
+      "model_sha256": "282009bcd1811b9f64d46fb873a4f71f47825e8d509e480e36625d70af7520c5",
+      "request_sha256": "5b05d893b42465ded555f7266fbbd6ee5a99ab2f889094c2c4edfcd8a0bb4ea8"
+    }
+  ],
+  "post_close_stability": {
+    "status": "passed",
+    "required_window_physics_s": 0.5,
+    "limit_rad": 0.0005,
+    "distinct_samples": 30,
+    "window_physics_s": 0.5,
+    "max_joint_range_rad": 0.0004820823669433594,
+    "last_q": [
+      -0.48307549953460693,
+      1.938926339149475,
+      1.5891770124435425,
+      -1.2352204322814941,
+      0.0005920006660744548,
+      -0.2634681165218353
+    ],
+    "last_clock": {
+      "version": 1,
+      "engine": "physx",
+      "clock": "SimulationManager",
+      "epoch": "d1b61e91623648ebbe2f582d96f60a4b",
+      "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+      "sim_time": 121.65,
+      "physics_step": 7299,
+      "physics_dt_s": 0.016666666666666666,
+      "source": [
+        "127.0.0.1",
+        8732
+      ]
+    },
+    "wall_elapsed_s": 4.548864602984395
+  },
+  "grasp_logging_ok": true,
+  "independent_release_settle": {
+    "scope": "Independent read-only physical truth and measured jaws after normal skill; exact green fixture and configured drop zone",
+    "position_range_m": 0.0,
+    "xy_error_m": 0.02350822196594207,
+    "jaws_open": true,
+    "limits": {
+      "range_m": 0.002,
+      "xy_error_m": 0.03,
+      "rest_center_z_m": [
+        0.035,
+        0.06
+      ]
+    },
+    "pass": true
+  },
+  "independent_release_settle_clocks": {
+    "sample_count": 24,
+    "first": {
+      "version": 1,
+      "engine": "physx",
+      "clock": "SimulationManager",
+      "epoch": "d1b61e91623648ebbe2f582d96f60a4b",
+      "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+      "sim_time": 138.11666666666667,
+      "physics_step": 8287,
+      "physics_dt_s": 0.016666666666666666,
+      "source": [
+        "127.0.0.1",
+        8732
+      ]
+    },
+    "last": {
+      "version": 1,
+      "engine": "physx",
+      "clock": "SimulationManager",
+      "epoch": "d1b61e91623648ebbe2f582d96f60a4b",
+      "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+      "sim_time": 139.4,
+      "physics_step": 8364,
+      "physics_dt_s": 0.016666666666666666,
+      "source": [
+        "127.0.0.1",
+        8732
+      ]
+    },
+    "last_object_base_m": [
+      0.19958,
+      -0.15699,
+      0.04
+    ]
+  },
+  "post_cleanup_proof": {
+    "scope": "Read-only validation after successful skill, independent settle proof, and automatic park all completed",
+    "position_range_m": 0.0,
+    "nominal_supported_center_z_m": 0.04,
+    "measured_final_xyz_m": [
+      0.19958,
+      -0.15699,
+      0.04
+    ],
+    "support_evidence": "Center at nominal tabletop/bin support height plus stationary pose across advancing physical clocks; no table reaction-force measurement",
+    "gripper_min_open_m": 0.04999999329447746,
+    "pass": true
+  },
+  "termination": {
+    "requested_at": 1790903541.3890266,
+    "action": "SIGTERM to birth-verified owned launcher after successful full task and park",
+    "launcher_identity": {
+      "pid": 3346865,
+      "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14793515",
+      "state": "S"
+    },
+    "bridge_expected": {
+      "launcher_pid": 3346865,
+      "launcher_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14793515",
+      "bridge_pid": 3346875,
+      "bridge_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14793519"
+    },
+    "renderer_expected": {
+      "identity": {
+        "pid": 3347878,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14794682",
+        "state": "R"
+      },
+      "parent": 3346875,
+      "command": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-ovrtx-renderer/.venv-ovrtx312/bin/python -m cascade.sim.ovrtx_worker --fd 339 ",
+      "observed_at": 1790903097.4812179,
+      "scope": "Read-only kernel ownership evidence for currently owned native renderer"
+    },
+    "scope": "Finish owned successful native05; no other session touched",
+    "launcher_absent": true,
+    "bridge_absent": true,
+    "renderer_absent": true,
+    "checked_at": 1790903565.5831776
+  },
+  "earlier_task_failures": [
+    {
+      "receipt": {
+        "path": "runs/ovrtx-native-03/pick-place-01/receipt.json",
+        "sha256": "0b11c8286be4905dcbd4e25c26a064705d6683eac6d899229da3cb6202cf04d1"
+      },
+      "scope": "Pink: first closure sent; second observed-finger gate rejected a learned-mask boundary; no lift.",
+      "pass": false,
+      "result": {
+        "destination": "drop zone",
+        "destination_kind": "configured_point",
+        "target": [
+          0.18,
+          -0.17
+        ],
+        "ok": false,
+        "stage": "grasp",
+        "error": "SafetyViolation: closing fingers intersects observed non-target surface: {'finger': 'joint_right', 'component': 8, 'surface': 'other observed surface', 'pixel_rc': [62, 355], 'point_base_m': [0.14503419057325173, 0.16918627246624207, 0.07999996457480696]}",
+        "home_skipped": true,
+        "grasp_attempts": 1,
+        "note": "observed-finger attempt failed; automatic recovery was not geometrically checked",
+        "postcondition": {
+          "skill": "pick_and_place",
+          "kind": "relocated",
+          "status": "refuted",
+          "evidence": "pink object is still within 0.1 cm of where it started",
+          "channel": "physics",
+          "measured": {
+            "moved_m": 0.0006,
+            "final": [
+              0.1705,
+              0.1503,
+              0.0401
+            ]
+          }
+        },
+        "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+      },
+      "task_plan_count": 3,
+      "cleanup_plan_count": 1,
+      "source_files_unchanged": true,
+      "held_provisional_after": [
+        "pink object",
+        "cube",
+        "pink"
+      ]
+    },
+    {
+      "receipt": {
+        "path": "runs/ovrtx-native-03/pick-place-green-02/receipt.json",
+        "sha256": "aeea86586e65955cf365db5bbcfca24d08e82959847abe1d3df3d63614e1a1e8"
+      },
+      "scope": "Green from previous low pink pose: observed home sweep rejected pink; no task plan sent.",
+      "pass": false,
+      "result": {
+        "destination": "drop zone",
+        "destination_kind": "configured_point",
+        "target": [
+          0.18,
+          -0.17
+        ],
+        "ok": false,
+        "stage": "grasp",
+        "error": "SafetyViolation: home finger trajectory intersects observed surface: {'sample_index': 10, 'finger': 'joint_right', 'component': 8, 'surface': 'other observed surface', 'pixel_rc': [62, 355], 'point_base_m': [0.14503427043472317, 0.16918620716669308, 0.08000002997670908]}",
+        "home_skipped": true,
+        "grasp_attempts": 1,
+        "note": "observed-finger attempt failed; automatic recovery was not geometrically checked",
+        "postcondition": {
+          "skill": "pick_and_place",
+          "kind": "relocated",
+          "status": "refuted",
+          "evidence": "green object is still within 0.0 cm of where it started",
+          "channel": "physics",
+          "measured": {
+            "moved_m": 0.0,
+            "final": [
+              0.3,
+              0.16,
+              0.04
+            ]
+          }
+        },
+        "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+      },
+      "task_plan_count": 0,
+      "cleanup_plan_count": 1,
+      "source_files_unchanged": true,
+      "held_provisional_after": null
+    },
+    {
+      "receipt": {
+        "path": "runs/ovrtx-native-04/pick-place-green-01/receipt.json",
+        "sha256": "5d61499d875a6f53c918fab960463f9822156b3dbc57375b9b465340aa9e2939"
+      },
+      "scope": "Fresh green: both closures passed; contact stability failed its then-0.25mrad window and short final RPC obscured deadline; no lift.",
+      "pass": false,
+      "result": {
+        "ok": false,
+        "error": "unexpected BridgeError: bridge I/O failed: timed out",
+        "hint": "hardware/runtime fault; consider task_done(success=false)",
+        "postcondition": {
+          "skill": "pick_and_place",
+          "kind": "relocated",
+          "status": "refuted",
+          "evidence": "green object is still within 0.1 cm of where it started",
+          "channel": "physics",
+          "measured": {
+            "moved_m": 0.0012,
+            "final": [
+              0.3009,
+              0.1606,
+              0.0403
+            ]
+          }
+        },
+        "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+      },
+      "task_plan_count": 3,
+      "cleanup_plan_count": 0,
+      "source_files_unchanged": true,
+      "held_provisional_after": [
+        "green object",
+        "hassock",
+        "green"
+      ]
+    }
+  ],
+  "startup_failures_retained": [
+    {
+      "run": "ovrtx-native-01",
+      "cause": "A second edited Usd.Stage in Kit emitted global notices and invalidated the physics tensor view. Fixed by read-only flatten/export and child-only USD overlay authoring; no motion."
+    },
+    {
+      "run": "ovrtx-native-02",
+      "cause": "Unlabelled static geometry yielded unmapped semantic ID1. Fixed explicit labels for all renderable static geometry; unknown-ID rejection retained; no motion."
+    }
+  ],
+  "evidence": {
+    "full_run": {
+      "path": "runs/ovrtx-native-05/pick-place-green-01/receipt.json",
+      "sha256": "5177766bb5b7c5e88ef8fae407c420d97c537763409e3fa563795dab85909e41"
+    },
+    "grasp": {
+      "path": "runs/ovrtx-native-05/grasp-evidence-green-01/1790903241006176835-3358182-5e92666abd004469b89a01253e6a006f.json",
+      "sha256": "c242d74a29834a91578877052692d1bdde50e8da69b54ea6ef341d8e31f3d5ac"
+    },
+    "grasp_arrays": {
+      "path": "runs/ovrtx-native-05/grasp-evidence-green-01/1790903241006176835-3358182-5e92666abd004469b89a01253e6a006f.npz",
+      "sha256": "2e7e1620a1c8eaa862ce9aa73200927618fc259edd88c3cad3c81b84ba266421"
+    },
+    "video": {
+      "path": "runs/ovrtx-native-05/pick-place-green-01/side.mp4",
+      "sha256": "454675c67b995aa38864815ff2cf2a51b867dba2fcf854f4872cd540d36ccdc9"
+    },
+    "video_audit": {
+      "path": "runs/ovrtx-native-05/pick-place-green-01/video-audit.json",
+      "sha256": "00cb5af23509aac23df589eb73e0dc3737f3d0f352fc5ae6070b77153bc98912"
+    },
+    "post_cleanup": {
+      "path": "runs/ovrtx-native-05/pick-place-green-01/post-cleanup-proof.json",
+      "sha256": "c44c6b5305b90cf56ee49a6c6152d352a55d895da7b05327dd4e9b951a013fed"
+    },
+    "capture_contract": {
+      "path": "runs/ovrtx-native-03/capture-receipt.json",
+      "sha256": "4a7d56315a7f78ce75013b5b0df00611cc86b221e1df0700c878673d4b51adfa"
+    },
+    "native_joint_transit": {
+      "path": "runs/ovrtx-native-03/curve-smoke.json",
+      "sha256": "3f3fac452b083c2fd99e6ea1047012f3b4735ab2e5eca38cfcba1d3394d7bc21"
+    },
+    "native_dynamic_analytic": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/ovrtx-runtime-validation-20261002/native-06/receipt.json",
+      "sha256": "c513582611b62ab34e347f45eee97a8035797a9bb89cc32c90ca4fe1f998c416"
+    },
+    "pink_boundary_audit": {
+      "path": "runs/ovrtx-native-03/pick-place-01/target-boundary.json",
+      "sha256": "607f4fea6a4a0ef45c240afdedac301f8064f50e93f56a35a70bcdaa49ff29a7"
+    },
+    "green_boundary_semantics": {
+      "path": "runs/ovrtx-native-03/pick-place-green-02/semantic-audit.json",
+      "sha256": "5f7ea2adccdffd5cbdfb9c77ca5ff4d1d82de16ba841bf34e0a0f7be18aa53a4"
+    }
+  },
+  "images_sha256": {
+    "ovrtx-runtime-green-20261002.png": "b3d0acb105fdce1e91ed6e61ad27984a1942fbcc74b363bff4ab204ed93b6ea0",
+    "ovrtx-runtime-pink-rejection-20261002.png": "b76637b98ec189bc1aa29936d9c203694966bde9d94a73e4f1770a2024cd6577"
+  },
+  "limits": [
+    "Single accepted green episode on the standard two-prop fixture at640x360; failed pink attempt remains failed.",
+    "Observed-finger gate ON and real required GraspGenX; occupancy explicitly disabled for this isolated fixture, so no end-to-end nvblox claim.",
+    "Selected manipulation cameras cam0 and side; wrist snapshot binding verified separately, not used to authorize this grasp.",
+    "Static USD geometry inventory; no runtime geometry changes or deformable scene synchronization.",
+    "Support is stationary pose at expected height, not independently measured table reaction force.",
+    "x86_64 RTX PRO6000 + PhysX GPU only here; not Newton, kitchen12, real hardware, or an ARM manipulation validation.",
+    "Task duration is observed under concurrent GPU use and is not a performance comparison.",
+    "Full raw video/NPZ/trajectory receipts remain in the named local run directories; this checked-in receipt is compact, with hashes."
+  ]
+}

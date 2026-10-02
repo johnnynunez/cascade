@@ -630,13 +630,13 @@ def _park_arm(runtime, duration_s: float = 2.0) -> None:
     "do not move"), and any arm that cannot move simply has its torque cut by
     the disconnect that follows.
     """
-    # Shutdown cannot replace task recovery or adjudicate a possible load.
-    # This applies even without an occupancy server/contact episode.
+    # A transport-only disconnect can retain the existing simulation drives
+    # without attempting task recovery. Other backends keep their existing
+    # park-before-disconnect policy: cutting hardware torque aloft can drop
+    # the arm and payload. Decide per arm, including in mixed backend rigs.
     retained = ("held_object", "_held_provisional", "_contact_episode",
                 "_carry_attachment", "_release_episode")
-    if any(getattr(runtime, name, None) is not None for name in retained):
-        print("[cascade] park skipped: retained or possible payload/contact/release")
-        return
+    possible_load = any(getattr(runtime, name, None) is not None for name in retained)
     rig = getattr(runtime, "arm_rig", None)
     arms = list(rig) if rig is not None and len(rig) > 1 else [runtime.arm]
     for arm in arms:
@@ -645,11 +645,13 @@ def _park_arm(runtime, duration_s: float = 2.0) -> None:
         try:
             if arm.harness.estopped:
                 continue
-            if (getattr(arm.harness, "_pending_contact_episode", None) is not None
-                    or getattr(arm.harness, "_pending_release_episode", None) is not None):
-                print("[cascade] park skipped: unresolved contact/release authority")
-                continue
             if not getattr(arm.raw, "connected", True):
+                continue
+            if getattr(arm.raw, "disconnect_preserves_drive_state", False) and (
+                    possible_load
+                    or getattr(arm.harness, "_pending_contact_episode", None) is not None
+                    or getattr(arm.harness, "_pending_release_episode", None) is not None):
+                print("[cascade] park skipped: retained or possible payload/contact/release")
                 continue
             print("[cascade] parking arm to safe rest pose before disconnect")
             # joint_margin=0 lets the park reach the mechanical stop (an exact

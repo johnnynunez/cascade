@@ -44,6 +44,12 @@ class LazyArm(ArmBase):
         return self._profile_type
 
     @property
+    def disconnect_preserves_drive_state(self) -> bool:
+        """Inspect only an existing backend; never energize an arm to decide teardown."""
+        arm = self._arm
+        return getattr(arm, "disconnect_preserves_drive_state", False) if arm is not None else False
+
+    @property
     def n_joints(self) -> int:  # type: ignore[override]
         return self._arm.n_joints if self._arm is not None else self._n_joints_default
 

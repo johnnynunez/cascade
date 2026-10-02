@@ -53,6 +53,13 @@ aloft. Other retained failures include target-mask border rejection and native
 contact trajectory/stability vetoes. One green-object success does not establish
 success for every object, the full kitchen campaign, Spark or hardware.
 
+The retained-load shutdown guard is specific to backends that explicitly
+preserve drive state when disconnecting. Isaac only closes its client transport;
+hardware retains the existing park-before-disconnect policy. This avoids a
+Feetech regression found during review: skipping park and then disabling torque
+would leave the arm and payload unsupported. The capability is checked per arm,
+including mixed rigs, and inspecting an unused LazyArm never connects it.
+
 ## Physical threading, seating and retention
 
 A separate SO-101 experiment drives a mounted motorized hex socket around a
@@ -148,6 +155,10 @@ and the [audit receipts](evidence/manipulation-assembly/).
   The corrected inventory also includes the optional cuMotion XRDF/provenance;
   [62 packaging checks passed](evidence/manipulation-assembly/portable-bundle.json),
   including SDK-free profile resolution and rejection of missing dependencies.
+- The shutdown correction passed 119 focused checks. Actual Feetech driver
+  register I/O against an in-memory bus confirms park targets precede torque-off;
+  Isaac, lazy Isaac and mixed-rig cases preserve their distinct teardown rules.
+  This is software regression evidence, not a new hardware execution.
 - New simulators used owned launchers and private ports. Termination verifies
   process birth identity and preserves receipts; it does not close other sessions.
 

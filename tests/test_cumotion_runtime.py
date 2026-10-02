@@ -29,6 +29,7 @@ class CurvePlanner:
 
 def safe_sim(monkeypatch):
     sim = Sim(monkeypatch)
+    sim.disconnect_preserves_drive_state = True
     get_state = sim.get_state
     sim.get_state = lambda **kw: get_state(timeout_s=kw.get('timeout_s', .2))
     sim.motion_rate_hz = 30.

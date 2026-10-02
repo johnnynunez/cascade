@@ -63,6 +63,11 @@ class IsaacArm(ArmBase):
     def disconnect(self) -> None:
         self._client.close()
 
+    @property
+    def disconnect_preserves_drive_state(self) -> bool:
+        """Closing this client leaves the simulator's targets and drives intact."""
+        return True
+
     def get_state(self, *, timeout_s: float | None = None) -> RobotState:
         sample = self._client.state() if timeout_s is None else self._client.state(timeout_s=timeout_s)
         state = self._decode_state(sample)

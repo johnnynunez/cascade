@@ -71,6 +71,14 @@ The correction adds the OVRTX helper/identity files and the optional cuMotion
 XRDF/provenance. All 62 packaging tests pass locally on Python 3.12, including
 isolated profile resolution and missing-dependency rejection; no SDK is loaded.
 
+Final review found that the new retained-payload shutdown guard also skipped
+Feetech parking before its torque-off disconnect. The correction scopes that
+guard per arm to explicit `disconnect_preserves_drive_state` capability, which
+only Isaac currently declares. Hardware keeps its prior controlled parking,
+and LazyArm does not connect when queried. All 119 focused shutdown/runtime
+checks pass, including the actual Feetech driver against an in-memory register
+bus, loaded Isaac, standby lazy arms and both mixed-rig orders.
+
 ## Reusable lessons and skill proposals (dry run)
 
 This records the `skill-distillation` pass in project documentation. No installed

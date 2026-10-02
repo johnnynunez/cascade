@@ -217,8 +217,13 @@ class McpSkillServer:
         self._arm = None
         # Morphology is selected once for this connection; catalog and dispatch
         # must agree even before a (possibly slow) runtime exists.
+        self._robot_profile = os.environ.get("CASCADE_ROBOT")
+        self._composed = self._robot_profile is not None
         self._base_profile = os.environ.get("CASCADE_BASE")
+        if self._composed and self._base_profile is not None:
+            raise ValueError("CASCADE_ROBOT and CASCADE_BASE are mutually exclusive")
         self._mobile = self._base_profile is not None
+        self._bounded = self._mobile or self._composed
         self._mobile_config = None
         self._input_closed = False
         self._stop_serial = 0
@@ -275,10 +280,10 @@ class McpSkillServer:
             try:
                 # Anything the stack prints must not corrupt the protocol stream.
                 with contextlib.redirect_stdout(sys.stderr):
-                    cfg = (self._get_mobile_config() if self._mobile else
+                    cfg = (self._get_mobile_config() if self._bounded else
                            load_demo_config(cameras=cameras, arm=arm, llm="mock"))
                     det_model = os.environ.get("CASCADE_DETECTOR_MODEL")
-                    if det_model and not self._mobile:
+                    if det_model and not self._bounded:
                         cfg._data["detector"]["model"] = det_model
                     classes = os.environ.get("CASCADE_DETECT_CLASSES")
                     if classes:
@@ -319,7 +324,9 @@ class McpSkillServer:
                     if self._stop_pending:
                         # a stop acknowledged during the build: latch now,
                         # before any queued motion call can run
-                        if self._mobile:
+                        if self._composed and self._input_closed:
+                            self._runtime.request_shutdown()
+                        elif self._bounded:
                             self._runtime.stop()
                         else:
                             self._runtime.arm.stop()
@@ -327,8 +334,9 @@ class McpSkillServer:
                     self._runtime.stream_server.url
                     if self._runtime.stream_server is not None else "disabled"
                 )
-                if self._mobile:
-                    names = ",".join(p["name"] for p in self._runtime.cfg.bases)
+                if self._bounded:
+                    names = (self._runtime.cfg.robot_id if self._composed else
+                             ",".join(p["name"] for p in self._runtime.cfg.bases))
                     print(f"[cascade-mcp] mobile runtime up: bases={names}", file=sys.stderr)
                 else:
                     print(
@@ -361,7 +369,9 @@ class McpSkillServer:
         threading.Thread(target=_warm, daemon=True, name="wrc-prewarm").start()
 
     def shutdown(self):
-        if self._mobile:
+        if self._composed:
+            self._request_composed_shutdown()
+        elif self._mobile:
             self.stop_now()
         # taking _init_lock waits out an in-flight prewarm build, so a
         # runtime that finishes building after EOF is still torn down
@@ -384,7 +394,7 @@ class McpSkillServer:
             self._stop_serial += 1
             stop_serial = self._stop_serial
         rt = self._runtime
-        if self._mobile:
+        if self._bounded:
             if rt is None:
                 import uuid
                 return _text_result({"ok": True, "stopped": True, "latched": True,
@@ -415,7 +425,7 @@ class McpSkillServer:
     def reset_now(self) -> dict:
         """Clear the e-stop (reset_stop tool, or SIGUSR1 -- the staff
         channel when reset_stop is hidden from attendees)."""
-        if self._mobile:
+        if self._bounded:
             rt = self._runtime
             if rt is None or self._input_closed:
                 return _text_result({"ok": False, "error": "runtime starting or input closed; reset refused"}, is_error=True)
@@ -508,8 +518,8 @@ class McpSkillServer:
                 return
         name = inflight[1]
         if name is not None:
-            if self._mobile:
-                from ..skills.mobile_runtime import MOTION_SKILLS as motion_skills
+            if self._bounded:
+                motion_skills = self._motion_tools()
             else:
                 from ..skills.runtime import _MOTION_SKILLS as motion_skills
 
@@ -530,11 +540,29 @@ class McpSkillServer:
         if self._mobile_config is None:
             from ..config import load_demo_config
 
-            self._mobile_config = load_demo_config(base=self._base_profile, llm="mock")
+            self._mobile_config = load_demo_config(base=self._base_profile, robot=self._robot_profile, llm="mock")
         return self._mobile_config
 
+    def _motion_tools(self):
+        if self._composed:
+            from .robot_runtime import robot_tool_descriptors
+            return frozenset(n for n, t in robot_tool_descriptors(self._get_mobile_config()).items()
+                             if t.effect == "motion")
+        from ..skills.mobile_runtime import MOTION_SKILLS
+        return MOTION_SKILLS
+
+    def _stop_tools(self):
+        if self._composed:
+            from .robot_runtime import robot_tool_descriptors
+            return frozenset(n for n, t in robot_tool_descriptors(self._get_mobile_config()).items()
+                             if t.effect == "stop")
+        return frozenset({"emergency_stop", "stop_navigation"} if self._mobile else {"emergency_stop"})
+
     def list_tools(self) -> list[dict]:
-        if self._mobile:
+        if self._composed:
+            from .robot_runtime import robot_tool_descriptors
+            candidates = [t.as_spec() for t in robot_tool_descriptors(self._get_mobile_config()).values()]
+        elif self._mobile:
             from ..skills.mobile_runtime import tool_specs_for_profiles
 
             candidates = tool_specs_for_profiles(self._get_mobile_config().bases)
@@ -563,7 +591,7 @@ class McpSkillServer:
                           "(CASCADE_HIDE_TOOLS); ask the booth staff"},
                 is_error=True,
             )
-        if self._mobile:
+        if self._bounded:
             return self._call_mobile_tool(name, arguments)
         runtime = self._ensure_runtime()
         with contextlib.redirect_stdout(sys.stderr):
@@ -636,12 +664,20 @@ class McpSkillServer:
         allowed = {s["name"] for s in self.list_tools()}
         if name not in allowed:
             return _text_result({"ok": False, "error": f"unsupported mobile tool: {name!r}"}, is_error=True)
-        if name in {"emergency_stop", "stop_navigation"}:
+        if name in self._stop_tools():
             return self.stop_now(navigation=name == "stop_navigation")
         if name == "reset_stop":
             if not isinstance(arguments, dict) or arguments:
                 return _text_result({"ok": False, "error": "reset_stop takes no arguments"}, is_error=True)
             return self.reset_now()
+        if self._composed and name == "list_resources":
+            if not isinstance(arguments, dict) or arguments:
+                return _text_result({"ok": False, "error": "list_resources takes no arguments"}, is_error=True)
+            from .robot_runtime import describe_robot
+            from ..robotics.resources import ResourceCatalog
+            domains = describe_robot(self._get_mobile_config())
+            return _text_result({"ok": True, "metadata_source": "configured_profile",
+                                 **ResourceCatalog([r for d in domains.values() for r in d.resources]).as_dict()})
         if name == "list_bases":
             if arguments:
                 return _text_result({"ok": False, "error": "list_bases takes no arguments"}, is_error=True)
@@ -650,9 +686,7 @@ class McpSkillServer:
                  "measurement_kind": "kinematic_mock" if p["type"] == "mock" else "physics",
                  "capabilities": p["capabilities"], "admission": p.get("admission", "pending_physical_admission")}
                 for p in self._get_mobile_config().bases]})
-        from ..skills.mobile_runtime import MOTION_SKILLS
-
-        if self._input_closed and name in MOTION_SKILLS:
+        if self._input_closed and name in self._motion_tools():
             return _text_result({"ok": False, "execution_ok": False, "error": "input closed; pending motion invalidated"}, is_error=True)
         runtime = self._ensure_runtime()
         with self._exec_lock, contextlib.redirect_stdout(sys.stderr):
@@ -677,8 +711,18 @@ class McpSkillServer:
     def input_closed(self):
         """EOF is a safety event on the READER, never queued behind motion."""
         self._input_closed = True
-        if self._mobile:
+        if self._composed:
+            self._request_composed_shutdown()
+        elif self._mobile:
             self.stop_now()
+
+    def _request_composed_shutdown(self):
+        with self._stop_lock:
+            self._stop_pending = True
+            self._stop_serial += 1
+        if self._runtime is not None:
+            return self._runtime.request_shutdown()
+        return {"ok": True, "shutdown_pending": True}
 
     def _robot_knowledge(self, runtime) -> dict:
         """Everything the robot has learned from past runs, as text.
@@ -1097,8 +1141,8 @@ def _serve_stdio(server, signals):
                             params = m.get("params") or {}
                             if (method == "tools/call"
                                     and (params.get("name") == "emergency_stop"
-                                         or (server._mobile and params.get("name") == "stop_navigation"
-                                             and "stop_navigation" not in _hidden_tools()))):
+                                         or (params.get("name") in server._stop_tools()
+                                             and params.get("name") not in _hidden_tools()))):
                                 result = server.stop_now(navigation=params.get("name") == "stop_navigation")
                                 if m.get("id") is not None:
                                     _send(_response(m["id"], result))
@@ -1110,7 +1154,7 @@ def _serve_stdio(server, signals):
                                 # host keepalives must not starve behind a motion
                                 _send(_response(m["id"], {}))
                                 continue
-                            if server._mobile:
+                            if server._bounded:
                                 # Server-owned receive-time fence; never trust a
                                 # caller-provided value on the wire.
                                 with server._stop_lock:
@@ -1152,11 +1196,11 @@ def _serve_stdio(server, signals):
                     continue  # client gave up before we started; never move
                 try:
                     stale_motion = False
-                    if server._mobile and is_call:
-                        from ..skills.mobile_runtime import MOTION_SKILLS
+                    if server._bounded and is_call:
+                        motion_skills = server._motion_tools()
 
                         with server._stop_lock:
-                            stale_motion = ((msg.get("params") or {}).get("name") in MOTION_SKILLS
+                            stale_motion = ((msg.get("params") or {}).get("name") in motion_skills
                                             and msg.get("_mobile_stop_serial") != server._stop_serial)
                     if stale_motion:
                         resp = _response(req_id, _text_result(
@@ -1189,7 +1233,9 @@ def _serve_stdio(server, signals):
     finally:
         # Event.set is safe HERE, after the signal handler has returned.
         with signals.defer():
-            if server._mobile or signals.signum is not None:
+            if server._composed and signals.signum is None:
+                server._request_composed_shutdown()
+            elif server._mobile or signals.signum is not None:
                 server.stop_now()
             reader_halt.set()
             reader.join()

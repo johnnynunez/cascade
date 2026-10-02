@@ -121,3 +121,28 @@ Proposed library additions, pending a separately requested skill update:
 
 These proposals contain no embedded implementation and require no change to the
 completed project work. Existing specialist references remain authoritative.
+
+## Composable robot foundation — 2 October 2026
+
+Continued from merged MicroDuck and stop-lifecycle fixes (`0a65887`), in an
+isolated worktree. Research and concrete boundaries are in
+`docs/ROBOT_MODULARITY.md`: capability domains, command endpoint ownership,
+passive typed sensing, bounded skill graphs, and optional VAB/Arena adapters.
+The real composed MCP software route uses mock arm/base and synthetic IMU;
+physical mobile manipulation remains refused pending shared-frame and
+whole-body admission. No simulator/policy assets or heavy optional frameworks
+were installed into the production environment.
+
+Cross-review caught and fixed graph finalization after stop, undeclared motion
+writes, blocked-domain stop fanout, external Arena controller stop/reset,
+partial factory cleanup, pending sensor shutdown and graceful arm teardown.
+The local full suite retained 5,178 passes, 252 skips, four deselections and
+three existing mobile observer read-deadline failures. The five affected cases
+passed unchanged in isolation; this is a separate rerun, not a replacement for
+the failed receipt. Packaging: 62 passes. See
+`docs/evidence/robot-modularity/software-validation.json` for source bindings.
+Shared envelope bytes and the absence of active grasp memory were preserved.
+
+Native Arena/VAB rollouts, tactile device calibration, whole-body humanoid
+control and hosted speech deployment remain separate measured integrations.
+MicroDuck's retained gait/turn findings are unchanged by software composition.

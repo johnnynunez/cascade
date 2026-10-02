@@ -84,8 +84,12 @@ class AgentOrchestrator:
     ):
         self.llm = llm
         self.runtime = runtime
-        self._mobile = getattr(runtime, "robot_mode", None) == "mobile"
-        if self._mobile:
+        self._composed = getattr(runtime, "robot_mode", None) == "composed"
+        self._mobile = getattr(runtime, "robot_mode", None) in {"mobile", "composed"}
+        if self._composed:
+            self.system_prompt = runtime.system_prompt
+            self.tool_specs = runtime.tool_specs
+        elif self._mobile:
             from ..skills.mobile_runtime import SYSTEM_PROMPT as MOBILE_PROMPT
 
             self.system_prompt = MOBILE_PROMPT

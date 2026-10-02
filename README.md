@@ -15,6 +15,13 @@ commands, a native Newton policy loop, independent support verification and
 MCP traces. It remains a candidate pending physical locomotion admission;
 the mobile profile does not expose manipulation tools.
 
+The opt-in [composed robot runtime](docs/ROBOT_MODULARITY.md) provides separate
+manipulation, locomotion and sensor domains, controller ownership checks,
+bounded skill graphs and optional Arena/VAB validation adapters. Start with
+`--robot mixed_mock` for the synthetic integration example. Physical whole-body
+coordination and additional humanoid drivers still require embodiment-specific
+validation.
+
 ### Earlier merged and measured baseline
 
 The previous command baseline for physical validation is **`ff8d58b` (1 October 2026)**. It includes

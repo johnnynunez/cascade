@@ -22,6 +22,7 @@ does not change which code produced those measurements.
 ## Runtime contracts
 
 - [Architecture](ARCHITECTURE.md)
+- [Composable robots, typed sensors, skill graphs and Arena/VAB validation](ROBOT_MODULARITY.md)
 - [Isaac motion clock](ISAAC_MOTION_CLOCK.md)
 - [Prepare Isaac verification before native proof](ISAAC_STARTUP_READINESS.md)
 - [Reject localization results after their image expires](LOCALIZATION_FRESHNESS.md)

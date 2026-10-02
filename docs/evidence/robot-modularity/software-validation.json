@@ -1,0 +1,82 @@
+{
+  "base_commit": "0a65887c14605186dc1bc6a4b4084d0582418076",
+  "scope": "Software only; no native Arena/VAB episode or new physical locomotion validation",
+  "full_source_manifest_sha256": "60538394fce630df78e87764cc25d4a047a94d2a86c58091056461418a547740",
+  "implementation_sha256": {
+    "benchmark/arena/import_results.py": "2a28db3ba86fb58ca3bae54adf1438d022328369e6b4e24f66aa8245052c0f4f",
+    "benchmark/vab/inspect_trials.py": "74dc74bc3692c62736733dcc3475320455fd549924e438dd3dac08c3e6a4378e",
+    "configs/graphs/inspect_sensors.json": "91ef67585841911b466e4aff6bb60062997ad6067dcd8d48804a74c6383e30f2",
+    "configs/robots/mixed_mock.yaml": "f7d38bf68a9a8adfef09523dde7fa80b572a31971d2114134efd0df071b15cbc",
+    "src/cascade/agent/orchestrator.py": "617459b2d997a37faec3e1f7ef171356b39bf049f1173dd7e700cfc14cf7c540",
+    "src/cascade/apps/demo.py": "6e1be7f4da332bae1267ae9855a133cc2f24e593de38e1249e951fc8715a5491",
+    "src/cascade/apps/mcp_server.py": "b6b037c0bcaa5320a98aee771ed0a99ba108a366682a55f39dc108c0a7e431e5",
+    "src/cascade/apps/robot_runtime.py": "b14cd208212c246d5c10611511fb88461916181413fb6179effa836663b45697",
+    "src/cascade/apps/skill_graph.py": "d7efd8d4af7aad208bf76e3eb7b0cc5f7c95d9a6310a667ca13311d4adafecc7",
+    "src/cascade/config.py": "52c90bf23c3c04b2b785488cf52c829ecfaba7fa3584631a95e13d78866b2cc1",
+    "src/cascade/eval/arena.py": "482b0da1770918b583ef750598d86013a6889b446d88e0c03f6c176210c188f4",
+    "src/cascade/eval/trials.py": "e687daf9eb82fc114f4a4333a9cadf2d6a15d2527ddb74ea64940743a0ccf9df",
+    "src/cascade/eval/vab.py": "4d26ab57080783ccfa225b057276c83d674410a68f00fc90c2410978bbf59f74",
+    "src/cascade/robotics/__init__.py": "22ee8e68f5c7577c3fff4da72e2c6cdc29b9a2380e8de2d687b25e0d01004a15",
+    "src/cascade/robotics/contracts.py": "62effa67a985ae11d4e51416ce3be779ea51be21dcb8df64c0bf9a606cb6397d",
+    "src/cascade/robotics/graph.py": "d885caa82a3e8dc1fa3cfa6a7647cb41afca37c43995ef03ff4cb8be0a2f00b4",
+    "src/cascade/robotics/resources.py": "df4fcb205c13a646102854f6454328dc3fdfc1149389962348ad81f322f4b5bb",
+    "src/cascade/robotics/runtime.py": "5bf5809f8875b9a4f86d726ed724b07c814f1ba39d2452a87cc63cb4ed3bbd92",
+    "src/cascade/sensing/__init__.py": "23ee63391982c967031dd9f535d69654ea2936c45031c067e162bb72a98c8dd2",
+    "src/cascade/sensing/domain.py": "8b34ec97914f752a47c8f5bb6503eb73fea7aa929a4d28d8887eab206c30366b",
+    "src/cascade/sensing/hub.py": "74a6c5533777362fa6c7d3c85bb59df02b98810dde6563108c61bd75f973da86",
+    "src/cascade/sensing/models.py": "f245f1ebc6d023dec06c737b48a75dd8f2cb812079fa95d94b1f4ddce4e6a8d1",
+    "src/cascade/sensing/providers.py": "fad86592b5bc9e0b55ce6ec8bc0deea6f4f09927875961c5fe283d4661dd586e",
+    "tests/test_arena_adapters.py": "a92f63cb1642fda02dfdb862ac848584697dbdcd83e906414225f26759699b5f",
+    "tests/test_robot_contracts.py": "8d0449b8be456af3d37496bdbebc41e5f428dc165c88324d39687a68c48eb511",
+    "tests/test_robot_mcp.py": "b24f3a010728116c86702514d26a28bdb1eba6ee84537b74e2976fcba5f13d5e",
+    "tests/test_robot_runtime.py": "bdb44f7f6a326acf07529b8b48e2f14ac34b1c501553b420da7303b3e7fc7678",
+    "tests/test_sensing_hub.py": "1e6c55d6e0925fbcee769c9e9999aa4f4fd0903e832b0c6c6ed5e3912151a90d",
+    "tests/test_sensing_models.py": "8607d2a439edbecf21952d784972799845735e8f58aa352a73271633be70576e",
+    "tests/test_sensing_providers.py": "cd470f6862bb1d742a247891bfedb87c13431c96591b6338a5851e1c8074c75c",
+    "tests/test_skill_graph.py": "80e75eab5499d32d650d371d836c6cd92fec88d5b5725dae44aa1ac5d80de087",
+    "tests/test_vab_adapter.py": "3b418c1f4f4f8423ff330be8a577d4f190eff0b6a2afc7d294bd6d26ad41f7e1"
+  },
+  "runs": {
+    "full": {
+      "exit_code": 1,
+      "tests": 5433,
+      "failed": 3,
+      "errors": 0,
+      "skipped": 252,
+      "duration_s": 455.166,
+      "source_unchanged": true,
+      "shared_memory_unchanged": true,
+      "failed_cases": [
+        "tests.test_mobile_mcp::test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion[normal-producer-0.0-confirmed]",
+        "tests.test_mobile_mcp::test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion[slow-producer-0.05-refuted]",
+        "tests.test_mobile_runtime::test_superseded_stop_read_keeps_healthy_observer_reusable"
+      ],
+      "log_sha256": "7f9da68d0723c9900bbe068c461e8f1158fd125e46be09d30c76f1f9477cc8de"
+    },
+    "packaging": {
+      "exit_code": 0,
+      "tests": 62,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_s": 1.334,
+      "source_unchanged": true,
+      "shared_memory_unchanged": true,
+      "failed_cases": [],
+      "log_sha256": "f0ba6a0805a145d724401616a9fde9bd6392e1ad3c04fe3dc9faf741051ba521"
+    },
+    "isolated_read_deadline_cases": {
+      "exit_code": 0,
+      "tests": 5,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "duration_s": 10.038,
+      "source_unchanged": true,
+      "shared_memory_unchanged": true,
+      "failed_cases": [],
+      "log_sha256": "028b872a9735c592c0af66cfda7f91f6bfd7ecbb838c916deb67c39cfb6ad30e"
+    }
+  },
+  "interpretation": "Three full-run mobile loopback read deadlines remained unverified; five corresponding isolated cases passed unchanged. The rerun does not establish the scheduler/GC cause or erase the retained failures."
+}

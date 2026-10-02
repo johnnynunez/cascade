@@ -84,6 +84,8 @@ Three properties that are load-bearing and easy to break: (1) the distance is SE
 
 ## Contracts & invariants
 
+- **Composed robots:** `--robot` / `CASCADE_ROBOT` is opt-in. Read `docs/ROBOT_MODULARITY.md` before adding a domain. Describe resources from configuration without probing lazy drivers; claim the whole command endpoint, not just selected joints. Keep domain verifiers and physics clocks authoritative. Mixed physical actuation and mobile-mounted arms remain refused until shared-frame/whole-body admission exists. Sensor reads are passive and preserve epoch, capture time, provenance and modality; estimated tactile force is not solved support. Skill graphs use registered runtime tools and cannot reset stop permission or convert synthetic/unverified motion into physical success.
+
 - **Units/frames:** positions in meters in the ROBOT BASE frame; joints in radians (degrees only in `get_observation` output). Base frame: +x away from robot, +y left; "left" = larger y. OBB convention everywhere: extents sorted descending, axes as matrix columns — never use `extent[2]` as height, use `top_z`.
 - **`Frame.rgb` is BGR** (OpenCV) despite the name; `depth_m` is float32 metric meters aligned to color, 0 = invalid. `Frame.size` is (w, h) — opposite of numpy shape.
 - **In-process perception/state timestamps (`Frame.t`, `RobotState.t`, belief ages, `MemoryEvent.t`) are `time.monotonic()`**, never wall clock — belief freshness math depends on it. Persisted/reporting timestamps (trace.jsonl, grasp-memory `saved_at`, dashboard status) are wall-clock `time.time()`; never mix the two.

@@ -13,6 +13,8 @@ import stat
 
 REPO = Path(__file__).resolve().parents[3]
 MODEL_PREFIX = 'microduck_rl/src/mjlab_microduck/robot/microduck/'
+OVERVIEW_CAMERA = '/World/Overview'
+OVERVIEW_RENDER_PRODUCT = '/World/OverviewRenderProduct'
 
 
 def sha256(path):
@@ -311,6 +313,36 @@ def disable_source_actuators(stage):
     return records
 
 
+def create_overview_sensor(stage, camera, sensor_factory):
+    """Author a stable product for CameraSensor's supported asset-RP path.
+
+    Isaac Sim 6.1 SensorRuntime._find_asset_render_product discovers a
+    RenderProduct outside /Render with a camera relationship to this sensor.
+    CameraSensor adopts its authored resolution. Its default creation path
+    instead embeds hash(self), making otherwise identical scene hashes vary.
+    Verify adoption: the SDK's attachment fallback must not silently create a
+    different random product. No scene-text normalization or SDK patching.
+    """
+    from pxr import Gf, Sdf
+    if stage.GetPrimAtPath(OVERVIEW_RENDER_PRODUCT).IsValid():
+        raise ValueError('overview render product path is already occupied')
+    if (tuple(camera.paths) != (OVERVIEW_CAMERA,)
+            or stage.GetPrimAtPath(OVERVIEW_CAMERA).GetTypeName() != 'Camera'):
+        raise ValueError('overview requires the exact owned camera prim')
+    product = stage.DefinePrim(OVERVIEW_RENDER_PRODUCT, 'RenderProduct')
+    product.CreateRelationship('camera', custom=False).SetTargets([Sdf.Path(OVERVIEW_CAMERA)])
+    product.CreateAttribute('resolution', Sdf.ValueTypeNames.Int2, custom=False,
+                            variability=Sdf.VariabilityUniform).Set(Gf.Vec2i(640, 480))
+    sensor = sensor_factory(camera, resolution=(480, 640), annotators=['rgb'])
+    actual = sensor.render_product.GetPrim()
+    if (str(actual.GetPath()) != OVERVIEW_RENDER_PRODUCT
+            or actual.GetRelationship('camera').GetTargets() != [Sdf.Path(OVERVIEW_CAMERA)]
+            or tuple(actual.GetAttribute('resolution').Get()) != (640, 480)
+            or tuple(sensor.resolution) != (480, 640)):
+        raise RuntimeError('CameraSensor did not adopt the exact authored overview render product')
+    return sensor
+
+
 class KitNewtonBackend:
     """Kit main-thread lifecycle. Constructing this object imports no SDK.
 
@@ -482,14 +514,14 @@ class KitNewtonBackend:
         sun.AddRotateXYZOp().Set(Gf.Vec3f(-50., 20., 0.))
         eye, target = Gf.Vec3d(.50, .45, .32), Gf.Vec3d(.06, 0., .10)
         quat = Gf.Matrix4d().SetLookAt(eye, target, Gf.Vec3d(0., 0., 1.)).GetInverse().ExtractRotationQuat()
-        camera = RtxCamera('/World/Overview', tick_rate=0., translations=list(eye),
+        camera = RtxCamera(OVERVIEW_CAMERA, tick_rate=0., translations=list(eye),
                            orientations=[quat.GetReal(), *quat.GetImaginary()])
         camera.camera.set_clipping_ranges(.005, 20.)
-        optics = UsdGeom.Camera(stage.GetPrimAtPath('/World/Overview'))
+        optics = UsdGeom.Camera(stage.GetPrimAtPath(OVERVIEW_CAMERA))
         optics.GetFocalLengthAttr().Set(18.)
         optics.GetHorizontalApertureAttr().Set(20.955)
         optics.GetVerticalApertureAttr().Set(20.955 * 480 / 640)
-        sensor = CameraSensor(camera, resolution=(480, 640), annotators=['rgb'])
+        sensor = create_overview_sensor(stage, camera, CameraSensor)
         product = str(sensor.render_product.GetPath())
         self.readback = CpuCameraReadback(sensor, render_product_id=product)
         times = self.readback._render_times

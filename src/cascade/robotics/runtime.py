@@ -10,6 +10,7 @@ from collections import deque
 
 from .contracts import ToolDescriptor
 from .resources import ResourceCatalog
+from .embodiment import embodiment_metadata
 
 
 SYSTEM_PROMPT = """You operate an explicitly configured robot composition.
@@ -52,6 +53,8 @@ class RobotRuntime:
         self.domains = dict(domains)
         self.cfg, self.memory, self.trace = cfg, memory, trace
         self.resources = ResourceCatalog([r for d in self.domains.values() for r in d.resources])
+        self._embodiment_metadata = embodiment_metadata(
+            cfg.as_dict().get("embodiment") if cfg is not None else None, self.resources)
         self.tool_descriptors = {t.name: t for t in _global_tools()}
         for name, domain in self.domains.items():
             if not re.fullmatch(r"[a-z][a-z0-9_]{0,23}", name) or domain.domain_id != name:
@@ -139,7 +142,8 @@ class RobotRuntime:
             if name == "reset_stop":
                 return self.reset_stop()
             if name == "list_resources":
-                return {"ok": True, **self.resources.as_dict(), "metadata_source": "configured_profile"}
+                return {"ok": True, **self.resources.as_dict(), **copy.deepcopy(self._embodiment_metadata),
+                        "metadata_source": "configured_profile"}
             with self._gate:
                 if self._closed:
                     raise ValueError("robot runtime closed")

@@ -108,7 +108,6 @@ def test_resource_binding_uses_existing_owner_and_capabilities(changes):
 
 def test_descriptor_cannot_hide_conflicting_controller_writers():
     c = catalog()
-    from cascade.robotics.contracts import ResourceDescriptor
     with pytest.raises(ValueError, match="writer"):
         ResourceCatalog([c.require("control/lift"), ResourceDescriptor(
             "another/motor", "motor", "fixture", controller_id="fixture:bus", writer_id="another:owner")])
@@ -126,3 +125,15 @@ def test_missing_or_misframed_sensor_and_duplicate_transmission_refused():
     raw["transmissions"].append(other)
     with pytest.raises(ValueError, match="exclusively"):
         EmbodimentDescriptor.from_dict(raw)
+
+
+def test_sensor_identity_is_scoped_by_resource_not_local_name():
+    raw = body_dict()
+    other = {**raw["sensors"][0], "resource_id": "auxiliary/joints"}
+    raw["sensors"].append(other)
+    body = EmbodimentDescriptor.from_dict(raw)
+    resources = list(catalog()) + [ResourceDescriptor(
+        resource_id="auxiliary/joints", kind="sensor", robot_id="fixture", capabilities=("joint_state",),
+        metadata={"sensor_id": "joints", "frame_id": "fixture/base"})]
+    body.validate_resources(ResourceCatalog(resources))
+    assert body.sensor_attachment("auxiliary/joints")["sensor_id"] == "joints"

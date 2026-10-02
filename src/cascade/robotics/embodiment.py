@@ -10,15 +10,16 @@ from dataclasses import dataclass
 import hashlib
 import json
 import math
+from types import MappingProxyType
 
 from .contracts import freeze_json, identifier, plain_json
 
 
-JOINT_UNITS = {
+JOINT_UNITS = MappingProxyType({
     "revolute": ("rad", "rad/s", "N*m"),
     "continuous": ("rad", "rad/s", "N*m"),
     "prismatic": ("m", "m/s", "N"),
-}
+})
 
 
 def _object(value, allowed, required, label):
@@ -148,7 +149,7 @@ class EmbodimentDescriptor:
         joints = _records(self.joints, "joint_id", _joint, "joints")
         transmissions = _records(self.transmissions, "transmission_id", _transmission, "transmissions")
         effectors = _records(self.effectors, "effector_id", lambda v: _attachment(v, sensor=False), "effectors")
-        sensors = _records(self.sensors, "sensor_id", lambda v: _attachment(v, sensor=True), "sensors")
+        sensors = _records(self.sensors, "resource_id", lambda v: _attachment(v, sensor=True), "sensors")
         for key, value in (("links", links), ("joints", joints), ("transmissions", transmissions), ("effectors", effectors), ("sensors", sensors)):
             object.__setattr__(self, key, value)
         if self.root_link not in links:

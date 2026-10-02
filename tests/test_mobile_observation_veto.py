@@ -146,6 +146,7 @@ def test_real_tcp_inflight_fault_must_block_task_done(
     observer = rt.stop_observers["microduck_isaac"]
     dispatch = server.dispatch
     captured = []
+    deferred_captures = []
     reads = []
     original = observer.reader.reader
 
@@ -181,11 +182,24 @@ def test_real_tcp_inflight_fault_must_block_task_done(
             deadline = min(op.deadline, op.finished + lim["settle_timeout_s"])
             remaining = deadline - time.monotonic()
             if 0.0 < remaining < lim["read_timeout_s"] / 3:
-                if kind.startswith("fault"):
-                    c.fault("canonical controlled fault BEFORE settle deadline")
                 dispatch_started = time.monotonic()
                 value = dispatch(req)
                 dispatch_returned = time.monotonic()
+                # The deliberate late-but-fresh case needs a recently
+                # published packet before holding it. A healthy transport can
+                # return an older cached solve: adding the hold to that age
+                # would correctly turn this into the stale-response case.
+                # Return old packets normally and let the real publisher
+                # advance; never refresh their age or manufacture a step.
+                age = value["state"]["producer_age_s"] + dispatch_returned - dispatch_started
+                if age > ticks.wall_interval_s or dispatch_returned >= deadline:
+                    deferred_captures.append({"age_s": age, "remaining_s": deadline - dispatch_returned,
+                                              "step": value["state"]["step"]})
+                    return value
+                if kind.startswith("fault"):
+                    c.fault("canonical controlled fault BEFORE settle deadline")
+                    value = dispatch(req)
+                    dispatch_returned = time.monotonic()
                 # MobileBridgeController.state() returns a detached snapshot.
                 # Retain that exact reply: a second deepcopy here can collect
                 # unrelated suite garbage while a fresh packet is being held.
@@ -193,6 +207,7 @@ def test_real_tcp_inflight_fault_must_block_task_done(
                     {
                         "capture": dispatch_returned,
                         "dispatch_started": dispatch_started,
+                        "selected_age_s": age,
                         "deadline": deadline,
                         "wire": value,
                     }
@@ -223,6 +238,7 @@ def test_real_tcp_inflight_fault_must_block_task_done(
             "proof": proof,
             "task_done": done,
             "captured": captured,
+            "deferred_captures": deferred_captures,
             "reads": reads,
             "actual_controller_state_at_verdict": current,
             "quarantined": observer._quarantined,
@@ -235,6 +251,7 @@ def test_real_tcp_inflight_fault_must_block_task_done(
         assert (
             len(captured) == 1 and captured[0]["capture"] < captured[0]["deadline"]
         ), record
+        assert captured[0]["selected_age_s"] <= ticks.wall_interval_s, record
         assert all(r["error"] is None for r in reads), record
         assert max(r["end"] - r["start"] for r in reads) < lim["read_timeout_s"], record
         # The retained snapshot must still match the packet actually decoded
@@ -276,6 +293,7 @@ def test_real_tcp_inflight_fault_must_block_task_done(
                     ),
                     "wire_producer_age_s": packet["producer_age_s"],
                     "capture_timing": {key: value for key, value in captured[0].items() if key != "wire"},
+                    "deferred_captures": deferred_captures,
                     "late_return_after_deadline_s": captured[0]["return"] - captured[0]["deadline"],
                     "record_path": str(tmp_path / (kind + "_" + skill + ".json")),
                 },

@@ -84,10 +84,11 @@ def test_stop_and_reset_between_graph_check_and_runtime_admission(pair, monkeypa
     domain, runtime = pair
     original_execute = runtime.execute
 
-    def race(name, args, *, expected_generation):
+    def race(name, args, *, expected_generation, deadline_monotonic_s):
         assert runtime.stop()["ok"]
         assert runtime.reset_stop()["ok"]
-        return original_execute(name, args, expected_generation=expected_generation)
+        return original_execute(name, args, expected_generation=expected_generation,
+                                deadline_monotonic_s=deadline_monotonic_s)
 
     monkeypatch.setattr(runtime, "execute", race)
     result = run_skill_graph(SkillGraph(graph_data()), runtime)

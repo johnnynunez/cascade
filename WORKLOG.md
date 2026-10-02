@@ -205,3 +205,23 @@ specific regressions. Relative transforms also no longer depend on an unused
 common ancestor's age. Frozen source passed 53 focused cases with learned stores
 unchanged. See `docs/SPATIAL_PROVIDERS.md` and its evidence receipt. This does not
 admit SLAM, native navigation, world-frame grasps or whole-body manipulation.
+
+CI at `735591e` passed both Linux architectures, minimal install and browser
+checks; macOS retained one healthy-late failure. Its held response was already
+139 ms old at capture; the 78 ms transport hold correctly exceeded the unchanged
+200 ms age limit. The test now selects a genuinely recent published packet before
+its deliberate hold, returning older replies normally without restamping them.
+A 170 ms publisher-pause comparison reproduces old-fail/new-pass. An earlier
+190 ms experiment made the channel itself stale and both variants failed; that
+receipt is retained. The precise hosted producer scheduling cause remains unknown.
+500 focused regressions passed, including stop, MCP, runtime and graph admission;
+source and protected memory identities stayed unchanged. See
+`docs/evidence/robot-modularity/macos-fresh-capture-fix.json`.
+
+The same optional admission boundary now accepts a **local monotonic** deadline,
+checked under the lock both at admission and immediately before domain dispatch.
+Graph deadlines use this boundary. Tests deterministically expire the deadline
+during validation and between admission and domain lookup; no domain call occurs.
+Priority stop ignores an expired episode deadline. This coordinator check is not
+a real-time actuator guarantee: domain owners still enforce backend leases and
+last-moment cancellation. Provider/browser timestamps cannot supply this deadline.

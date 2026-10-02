@@ -699,3 +699,32 @@ private ports/caches, source binding, deadline and birth-bound termination.
 Initial protected envelope SHA256 is
 `56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2`;
 shared `grasp_memory.json` is absent. Both conditions must remain unchanged.
+
+
+
+## Native distance checkpoint and publication (2026-10-02)
+
+Frozen native source `d9f4766` confirmed two forward and two reverse 30 mm
+fresh-start MCP episodes with the configured independent motion/support/rest
+checks. A separate priority stop during observed motion cancelled the distance
+call, fenced later policy input to zero travel intent and confirmed post-ACK
+rest. Balancing targets continue; this is neither instantaneous motor-off nor
+general gait admission. The combined reverse ankle-shell contact veto, turn
+translation-path failures and earlier velocity/rest/closure failures remain.
+
+Publication uses a separate worktree based on the reviewed native shutdown
+branch. All 22 identity-bound native sources and mobile production files remain
+byte-identical to the measured tree; newer composed-runtime admission safeguards
+from the base are preserved. No native episode ran in the publication worktree.
+Corrected contact-test fixtures now initialize the full uncaptured solver
+contract and exercise production guards. The resulting 37-file CPU suite passed
+1,508 cases with eight explicit dependency/source skips. Separate compatible
+USD conversion passed 77 cases with three external-asset skips. F/E9 checks
+passed, and successful suites kept source and protected shared stores unchanged.
+
+The initial six fixture failures, 74 missing-OpenUSD setup errors and private
+USD wheel overlap/import aborts are retained. `usd-exchange` supplies its own
+OpenUSD libraries; the successful private conversion recipe avoids coinstalling
+another wheel over those `pxr` paths. No shared dependency environment changed.
+Report and raw artifact hashes: `docs/MICRODUCK_DISTANCE_CANDIDATE.md` and
+`docs/evidence/robot-modularity/microduck-distance-candidate.json`.

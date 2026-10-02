@@ -2,8 +2,11 @@
 
 MicroDuck is an opt-in mobile base with a bounded velocity interface. It does
 not instantiate an arm, inverse kinematics, grasping, or the kitchen scene.
-The implementation is a candidate: walking and turning have not passed
-physical admission. PhysX BAM, scene reset, hardware, and hosted conversation
+The implementation is a candidate: general walking and turning have not passed
+physical admission. The optional [geometric distance candidate](MICRODUCK_DISTANCE_CANDIDATE.md)
+has four confirmed native fresh-start ±30 mm cases and a verified stop during
+movement; composed reverse motion and turns still have retained failures.
+PhysX BAM, scene reset, hardware, and hosted conversation
 are not delivered by this locomotion change.
 
 The implementation continues the [approved design](superpowers/plans/2026-10-01-microduck.md)
@@ -11,7 +14,7 @@ and the [dated review](MICRODUCK_DESIGN_REVIEW_20261002.md). That review describ
 an earlier source snapshot; the current continuation adds inference cancellation
 fencing, explicit solved support, and complete effective-model identity.
 The [continuation report](MICRODUCK_CONTINUATION_20261002.md) records the current
-native MCP outcomes, software checks, retained failures and video provenance.
+original native MCP outcomes, software checks, retained failures and video provenance.
 
 ## Runtime and clocks
 

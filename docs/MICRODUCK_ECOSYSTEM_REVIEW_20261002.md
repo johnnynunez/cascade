@@ -36,6 +36,11 @@ one reverse trial to pass all unchanged independent gates; forward rest and
 turn translation still failed. This remains a candidate, not general gait
 admission. Separate final stop success does not revise an earlier failed task.
 
+The subsequent [native distance report](MICRODUCK_DISTANCE_CANDIDATE.md) adds
+same-solve read reuse, four confirmed fresh-start ±30 mm repetitions and a
+priority stop during measured motion. It also retains the composed reverse
+contact veto and all failed turns; this does not establish general gait admission.
+
 Code transfers are in `control/microduck_policy.py`,
 `sim/microduck_policy_admission.py`, `sim/microduck_solver_graph.py`,
 `safety/base_harness.py` and `agent/base_effects.py`. The exact native BAM source

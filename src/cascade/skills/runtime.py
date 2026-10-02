@@ -3404,12 +3404,20 @@ class SkillRuntime:
         directions = {"tighten": +1.0, "loosen": -1.0}
         if direction not in directions:
             raise SkillError(f"direction must be one of {sorted(directions)}")
-        turns = float(np.clip(turns, 0.05, 6.0))
+        try:
+            requested_turns = float(turns)
+        except (TypeError, ValueError):
+            raise SkillError("turns must be a finite number in [0.05, 6]") from None
+        if isinstance(turns, bool) or not np.isfinite(requested_turns) or not 0.05 <= requested_turns <= 6:
+            raise SkillError("turns must be a finite number in [0.05, 6]")
+        turns = requested_turns
         scfg = self.cfg.get("screw", {})
         sign = directions[direction] * float(
             (scfg.get("tighten_sign") if scfg else None) or 1.0
         )
         joint = self._screw_joint
+        if not 0 <= joint < int(self.cfg.arm.get("n_joints", 6)):
+            raise SkillError("screw_joint is outside the configured arm joints")
 
         _, fix = self._localize(label)
         gcfg = self.cfg.grasp
@@ -3433,12 +3441,14 @@ class SkillRuntime:
         self.arm.set_gripper(self._grip_open, effort=0.8)
         yaw0 = float(np.arctan2(engage[1], engage[0]))
         ik_hover = None
+        engage_yaw = yaw0
         for yaw in (yaw0, 0.0, np.pi / 4, -np.pi / 4):
             cand = self.kin.ik(
                 make_transform(_yaw_rotation(yaw, axis_order=self._tool_axis_order),
                                hover), home)
             if cand.success:
                 ik_hover = cand
+                engage_yaw = yaw
                 break
         if ik_hover is None:
             raise SkillError(f"cannot reach a pose above {label!r} to work the screw")
@@ -3458,13 +3468,11 @@ class SkillRuntime:
         profile = select_profile(label, None)
 
         ik_engage = self.kin.ik(
-            make_transform(_yaw_rotation(yaw0, axis_order=self._tool_axis_order),
+            make_transform(_yaw_rotation(engage_yaw, axis_order=self._tool_axis_order),
                            engage), ik_hover.q)
-        if ik_engage.success:
-            q_engage = ik_engage.q.copy()
-        # else: work at the hover pose -- an engage IK miss must not abort
-        # the whole task when the hover pose already reaches the head on
-        # short screws.
+        if not ik_engage.success:
+            raise SkillError(f"cannot reach the engagement pose of {label!r}; no screw stroke sent")
+        q_engage = ik_engage.q.copy()
 
         while done < want and strokes < max_strokes:
             room_fwd = (hi[joint] - margin - q_engage[joint]) if sign > 0 else (
@@ -3509,20 +3517,27 @@ class SkillRuntime:
         applied = done / (2.0 * np.pi)
         self.memory.add(
             "action",
-            f"{direction}ed {label!r} by {applied:.2f} turns ({strokes} strokes)",
+            f"commanded {direction} wrist travel for {label!r}: {applied:.2f} turns "
+            f"({strokes} strokes); fastener outcome not measured",
         )
         if applied <= 0.0:
             raise SkillError(
                 f"no roll travel available to {direction} {label!r} "
                 f"(joint {joint} pinned by its limits at this pose)"
             )
+        if done < want - 1e-6:
+            raise SkillError(f"only {applied:.2f} of {turns:.2f} requested wrist turns completed")
         return {
             "screw": label,
             "direction": direction,
             "turns_requested": round(turns, 2),
             "turns_applied": round(applied, 2),
+            "turns_commanded": round(applied, 2),
             "strokes": strokes,
-            "note": "ratchet regrip: engage-turn-release per stroke, harness-vetted",
+            "physical_verification": {"status": "unverified", "fastener_turns": None,
+                                      "axial_advance_m": None, "seating_verified": False},
+            "note": "harness-vetted wrist strokes; turns_applied is commanded travel, "
+                    "not measured fastener rotation or tightening torque",
         }
 
     def skill_sort_by_color(self, max_objects: int = 6) -> dict:

@@ -150,3 +150,46 @@ def test_turn_screw_error_shapes(rig):
     assert "direction" in res["error"]
     res = runtime.execute("turn_screw", {"label": "unobtainium fastener"})
     assert res["ok"] is False
+
+
+@needs_pin
+@pytest.mark.parametrize("turns", [float("nan"), float("inf"), -1, 0, True, 7, "invalid"])
+def test_invalid_turn_count_fails_before_any_motion(rig, turns, monkeypatch):
+    runtime, _ = rig
+    moves = []
+    monkeypatch.setattr(runtime.arm, "move_joints", lambda *a, **kw: moves.append(a) or True)
+    result = runtime.execute("turn_screw", {"label": "red object", "turns": turns})
+    assert result["ok"] is False
+    assert "turns" in result["error"]
+    assert not moves
+
+
+@needs_pin
+def test_unreachable_engagement_never_closes_or_spins_at_hover(rig, monkeypatch):
+    from types import SimpleNamespace
+
+    runtime, _ = rig
+    calls, closes = [], []
+
+    def ik(*args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(success=len(calls) == 1, q=runtime._profile_q("home_q", "test"))
+
+    monkeypatch.setattr(runtime.kin, "ik", ik)
+    monkeypatch.setattr(runtime, "_close_two_stage", lambda *a, **kw: closes.append(a))
+    result = runtime.execute("turn_screw", {"label": "red object", "turns": 0.5})
+    assert result["ok"] is False
+    assert "engagement pose" in result["error"]
+    assert not closes
+
+
+@needs_pin
+def test_wrist_rotation_does_not_claim_measured_threading(rig):
+    runtime, _ = rig
+    result = runtime.execute("turn_screw", {"label": "red object", "turns": 0.5})
+    assert result["ok"], result
+    assert result["turns_commanded"] >= 0.5
+    assert result["physical_verification"] == {
+        "status": "unverified", "fastener_turns": None,
+        "axial_advance_m": None, "seating_verified": False,
+    }

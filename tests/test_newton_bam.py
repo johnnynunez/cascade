@@ -12,8 +12,8 @@ import pytest
 @pytest.fixture(scope="module")
 def runtime():
     wp = pytest.importorskip("warp", reason="native BAM tests require Warp")
-    assert os.environ.get("CUDA_VISIBLE_DEVICES") == "-1", "run native BAM tests CPU-only"
     newton = pytest.importorskip("newton", reason="native BAM tests require Newton >=1.6")
+    assert os.environ.get("CUDA_VISIBLE_DEVICES") == "-1", "run native BAM tests CPU-only"
     return wp, newton
 
 

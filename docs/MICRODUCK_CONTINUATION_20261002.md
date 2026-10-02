@@ -99,6 +99,14 @@ bundle was fetched and those fixtures now pin their own declared engine.
 Runtime Python did not change. Ruff F/E9 has no new diagnostics against
 `69037b7`; its 57 existing findings are not claimed clean.
 
+The first remote CI exposed another test-admission error: its environment had
+Warp but no Newton and no `CUDA_VISIBLE_DEVICES`. The BAM fixture checked the
+CPU-only variable before skipping the absent optional Newton dependency,
+causing 96 setup errors. Moving the dependency check first preserves the
+CPU-only requirement when native tests actually run. A local reproduction with
+that variable absent then passed 2 cases and skipped the 96 unavailable ones;
+no runtime code or native recipe changed.
+
 Earlier failed attempts are retained:
 
 - `native-foundation`: completed the physical episode, then the external

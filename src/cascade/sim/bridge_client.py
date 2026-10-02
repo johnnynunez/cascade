@@ -206,6 +206,7 @@ class BridgeClient:
             payload_mask=payload_mask,
             prop_masks=prop_masks,
             capture={"backend": "isaac", "source": self._addr, "camera": camera,
+                     "renderer": r.get("renderer", "isaac"),
                      "t": r.get("t"), "proprioception": copy.deepcopy(r.get("proprioception")),
                      "render_reference": copy.deepcopy(r.get("render_reference")),
                      "contact_paths": copy.deepcopy((r.get("robot_pixel_mask") or {}).get("contact_paths", []))},

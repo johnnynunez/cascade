@@ -9,6 +9,7 @@ import numpy as np
 
 from ..control.simulation_motion import PhysicsClock
 from ..sim.truth import _match_label
+from ..sim.render_binding import valid_render_binding
 from ..types import SkillError, SafetyViolation
 
 
@@ -226,7 +227,7 @@ def measure(runtime, localize) -> HeldOffset:
             reference = capture["render_reference"]
             if (tuple(capture["source"]) != endpoint
                     or type(reference.get("version")) is not int or reference["version"] != 1
-                    or reference.get("source") != "rpFabricTime"
+                    or not valid_render_binding(capture)
                     or capture["t"] != reference["snapshot_started_monotonic"]
                     or capture["proprioception"]["robot_id"] != robot
                     or capture["proprioception"]["producer_epoch"] != now["epoch"]

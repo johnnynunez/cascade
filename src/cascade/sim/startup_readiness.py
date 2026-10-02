@@ -127,16 +127,19 @@ def _packet(frame, endpoint, robot, epoch, n):
              "camera finger measurements missing")
     step = ref.get("history_physics_step")
     sim = ref.get("history_simulation_time")
+    from .render_binding import valid_render_binding
+    native_token = (ref.get("source") == "rpFabricTime"
+                    and type(ref.get("numerator")) is int and ref["numerator"] >= 0
+                    and type(ref.get("denominator")) is int and ref["denominator"] > 0
+                    and _number(ref.get("render_simulation_time")))
     _require(type(step) is int and step >= 0 and _number(sim)
              and type(ref.get("version")) is int and ref["version"] == 1
-             and ref.get("source") == "rpFabricTime" and ref.get("producer_epoch") == epoch
+             and valid_render_binding(capture) and (native_token or ref.get("source") == "ovrtx_snapshot")
+             and ref.get("producer_epoch") == epoch
              and ref.get("snapshot_started_monotonic") == stamp
              and _number(ref.get("snapshot_finished_monotonic"))
              and ref["snapshot_finished_monotonic"] >= stamp
-             and isinstance(ref.get("product"), str) and ref["product"]
-             and type(ref.get("numerator")) is int and ref["numerator"] >= 0
-             and type(ref.get("denominator")) is int and ref["denominator"] > 0
-             and _number(ref.get("render_simulation_time")), "invalid render/state association")
+             and isinstance(ref.get("product"), str) and ref["product"], "invalid render/state association")
     rgb, depth = getattr(frame, "rgb", None), getattr(frame, "depth_m", None)
     _require(isinstance(rgb, np.ndarray) and rgb.dtype == np.uint8
              and rgb.ndim == 3 and rgb.shape[2] == 3 and rgb.size

@@ -5,18 +5,73 @@ renderer. It produces real RTX RGB and metric depth through NVIDIA OVRTX 0.5
 and `ovstage`, without starting Kit or selecting a physics engine. Existing
 Isaac, MuJoCo, hardware and desktop defaults are unchanged.
 
-There are two entry points:
+There are three entry points:
 
 - `make_camera(load_profile("cameras", "ovrtx"))` renders the explicitly static
   example USD scene through the existing `CameraBase` interface.
 - `OvrtxRenderer.render(SceneSnapshot(...))` applies a caller-provided scene
   and camera pose sample, then returns a dictionary of complete `Frame`s.
   This is an integration API, not an automatic Isaac or Newton state producer.
+- `CASCADE_CAMERA_RENDERER=ovrtx` selects the live Isaac producer described
+  below; existing Isaac camera profiles and the bridge protocol remain in use.
 
-Neither entry point is a replacement for the kitchen demo's Isaac cameras.
-The adapter does not provide robot masks, target masks, contact identity,
-joint feedback or physical attachment evidence. It does not step a simulator,
-read current joints, connect to a robot, or grant motion authority.
+The standalone renderer can return semantic body masks for an explicit
+geometry inventory. Joint and contact measurements belong to the physics
+producer; rendering never steps physics or infers physical attachment.
+
+## Live manipulation selection
+
+The owned Isaac launcher forwards these explicit environment settings:
+
+```bash
+export CASCADE_CAMERA_RENDERER=ovrtx
+export CASCADE_OVRTX_PYTHON=/absolute/path/to/ovrtx-env/bin/python
+export CASCADE_OVRTX_OUTPUT=/absolute/path/to/new-run/render
+export CASCADE_OVRTX_DEVICE=0  # CUDA-visible ordinal, same device visibility as Isaac
+./run.sh isaac
+```
+
+The bridge's equivalent arguments are `--camera-renderer ovrtx`,
+`--ovrtx-python`, `--ovrtx-output`, and `--ovrtx-device`. The normal Isaac
+camera profiles remain selected, so `BridgeClient.observation()` and
+`IsaacArm.state_from_frame()` consume the existing atomic frame contract.
+The static `ovrtx.yaml` profile remains viewing-only.
+
+`scripts/isaac_ovrtx.py` exports a private flattened, metre-authored Z-up USD
+and a scene manifest. Every physics rigid body, including nested robot links
+and fingers, receives its captured tensor pose. Reset xform stacks prevent
+double composition of nested links. The wrist optical transform is derived
+from the same captured wrist body and calibrated mount. Exported geometry is
+static; runtime additions/removals or deformable geometry need a new owner
+and inventory. The flattened scene hash does not attest external textures.
+
+The SDK runs in a separately owned process over an inherited private socket;
+there is one outstanding request and no snapshot backlog. Normal shutdown,
+render errors and response deadlines close that child. A partial native
+transaction cannot produce a new apparently fresh packet. The bridge retains
+the original snapshot age on duplicate reads, rejects contradictory physical
+repeats, and rebuilds the renderer across physics epochs.
+
+RGB, optical Z depth and body segmentation come from the same sensor frame.
+The opaque body labels encode case-sensitive USD paths because OVRTX
+lowercases semantic class strings. Robot and per-prop masks combine with
+captured contact state only when that channel is configured and available;
+an unavailable contact channel produces an explicit mask error. Existing
+pixel/contact-mask opt-ins still select the bridge's physical contact readers.
+
+`render_reference.source=ovrtx_snapshot` binds the exact scene-state digest,
+captured joints, physics step/epoch/time and renderer ordinal/sensor interval.
+The ordinal is never presented as `rpFabricTime`. Readiness and held-object
+guards validate this distinct binding while retaining their physical clock,
+identity, age and measured-joint requirements.
+
+The 2 October native dynamic smoke passed on RTX PRO 6000 with SDK 0.5:
+target masks changed from 2,196 to 3,140 pixels and median optical depth from
+1.85000026 to 1.60000026 m for a measured 0.25 m scene translation. The
+nested reset transform, exact duplicate and stale-sequence rejection passed;
+the owned worker exited normally. This is a renderer/packet test using
+synthetic physical state, not a manipulation-success claim. Reproduce with
+`benchmark/diagnostics/ovrtx_runtime_smoke.py --python <SDK-python> --output <new-directory>`.
 
 ## Install and run
 
@@ -138,7 +193,7 @@ freshness barrier binds camera/source/renderer epoch; duplicate packets cannot
 satisfy a request for a newer capture. A slow first render retains its original
 capture time and can correctly be considered stale by downstream consumers.
 
-## Validation and remaining integration
+## Original standalone validation
 
 The [dated evidence receipt](../benchmark/results/ovrtx-renderer-20261001.json)
 records exact SDK versions, source hashes and failed attempts as well as the
@@ -162,5 +217,6 @@ about cold-start latency and changes no robot or service timeout. This
 does not validate a loaded kitchen, material realism, mapping, grasping,
 continuous sensor timing, motion safety or an Isaac/Newton producer. Those
 require an explicit physics-to-snapshot connection, matching masks and
-provenance where required, and separate end-to-end acceptance. No demo profile
-switch is part of this change.
+provenance where required, and separate end-to-end acceptance. The later live
+producer above supplies that software connection; physical manipulation
+acceptance must still be recorded separately from these analytic tests.

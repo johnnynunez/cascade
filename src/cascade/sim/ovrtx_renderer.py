@@ -146,7 +146,7 @@ def _matrix_usda(matrix):
                             for row in matrix.T) + ")"
 
 
-def _camera_layer(scene, specs, device):
+def _camera_layer(scene, specs, device, semantic_paths=None):
     # No pxr/Kit import and no edits to the source scene. Paths are local files;
     # disallow USD asset delimiters rather than interpolating untrusted syntax.
     if any(c in str(scene) for c in "@\n\r"):
@@ -168,6 +168,16 @@ def _camera_layer(scene, specs, device):
         matrix4d xformOp:transform = {_matrix_usda(c.T_base_cam @ optical_to_usd)}
         uniform token[] xformOpOrder = ["xformOp:transform"]
     }}''')
+        semantic_vars = (f', </CascadeRender/{c.name}/Semantic>, </CascadeRender/{c.name}/Labels>'
+                         if semantic_paths else '')
+        semantic_defs = '''
+        def RenderVar "Semantic" {
+            string sourceName = "SemanticSegmentation"
+        }
+        def RenderVar "Labels" {
+            string sourceName = "SemanticIdMap"
+        }
+''' if semantic_paths else ''
         products.append(f'''    def RenderProduct "{c.name}" {{
         int2 resolution = ({c.width}, {c.height})
         uniform token aspectRatioConformPolicy = "expandAperture"
@@ -175,29 +185,33 @@ def _camera_layer(scene, specs, device):
         uint[] deviceIds = [{device}]
         rel camera = </CascadeCameras/{c.name}>
         token omni:rtx:rendermode = "RealTimePathTracing"
-        rel orderedVars = [</CascadeRender/{c.name}/Color>, </CascadeRender/{c.name}/Depth>]
+        rel orderedVars = [</CascadeRender/{c.name}/Color>, </CascadeRender/{c.name}/Depth>{semantic_vars}]
         def RenderVar "Color" {{
             string sourceName = "LdrColor"
         }}
         def RenderVar "Depth" {{
             string sourceName = "DistanceToImagePlaneSD"
         }}
+        {semantic_defs}
     }}''')
+    from .ovrtx_masks import semantic_layer
     return ('#usda 1.0\n(\n    metersPerUnit = 1\n    upAxis = "Z"\n'
             f'    subLayers = [@{scene}@]\n)\n'
             'def "CascadeCameras" {\n' + "\n".join(cameras) + '\n}\n'
-            'def "CascadeRender" {\n' + "\n".join(products) + '\n}\n')
+            'def "CascadeRender" {\n' + "\n".join(products) + '\n}\n'
+            + (semantic_layer(semantic_paths) if semantic_paths else ''))
 
 
 class OvrtxRenderer:
     """Own one isolated stage and produce copied, coherent RGB-D packets.
 
-    No robot, sockets, USD physics stepping, masks, or attachment inference.
+    No robot transport, physics stepping, or attachment inference. Optional
+    semantic outputs identify explicitly inventoried visible body geometry.
     Synchronous native calls may compile shaders; use a process supervisor for
     a hard startup deadline. Errors poison the owner until close, no retries.
     """
     def __init__(self, scene, cameras, *, dynamic_paths=(), device=0, render_dt=1/30,
-                 meters_per_unit=1., _modules=None):
+                 meters_per_unit=1., semantic_paths=None, _modules=None):
         self.scene = Path(scene).expanduser().resolve(strict=True)
         if not self.scene.is_file() or meters_per_unit != 1.:
             raise OvrtxError("OVRTX scenes must be local files authored in metres (meters_per_unit=1)")
@@ -212,6 +226,10 @@ class OvrtxRenderer:
         if type(device) is not int or not 0 <= device < 64:
             raise OvrtxError("device must be a CUDA-visible integer index in [0,63]")
         self.device = device
+        self.semantic_paths = copy.deepcopy(semantic_paths or {})
+        if self.semantic_paths:
+            from .ovrtx_masks import semantic_layer
+            semantic_layer(self.semantic_paths)  # Validate before native creation.
         self.render_dt = _finite(render_dt, "render_dt", positive=True)
         self._modules = _modules  # Dependency injection for CPU contract tests only.
         self._lock = threading.RLock()
@@ -248,7 +266,7 @@ class OvrtxRenderer:
                 self._stage = self._ovstage.Stage(f"cascade.ovrtx.{self._epoch}")
                 self._renderer.attach_ovstage(self._stage)
                 self._ovstage.population.open_usd_from_string(
-                    self._stage, _camera_layer(self.scene, self.cameras, self.device), ordinal=1)
+                    self._stage, _camera_layer(self.scene, self.cameras, self.device, self.semantic_paths), ordinal=1)
                 self._stage.advance_write_floor(1, self._ovstage.Scope.ALL).wait()
                 if hashlib.sha256(self.scene.read_bytes()).hexdigest() != self.scene_sha256:
                     raise OvrtxError("Root USD changed while loading its recorded source")
@@ -334,20 +352,30 @@ class OvrtxRenderer:
                     # depth. Never synthesize depth from RGB or a different frame.
                     valid = np.isfinite(depth) & (depth >= c.near_m) & (depth < c.far_m)
                     depth[~valid] = 0
+                    masks = None
+                    semantic_labels = None
+                    if self.semantic_paths:
+                        from .ovrtx_masks import body_masks, decode_id_map
+                        semantic_buffer = self._read(frame.render_vars[f"{product_path}/Labels"])
+                        semantic_labels = decode_id_map(semantic_buffer)
+                        masks = body_masks(self._read(frame.render_vars[f"{product_path}/Semantic"]), semantic_buffer,
+                            (c.height, c.width), sorted(set(self.semantic_paths.values())))
                     capture = {"backend": "ovrtx", "source": str(self.scene), "camera": c.name,
                                "producer_epoch": self._epoch, "t": state["captured_monotonic"],
                                "time_source": "snapshot_monotonic", "scene_sha256": self.scene_sha256,
                                "scene_hash_scope": "root USD file only; referenced assets are not attested",
                                "scene_state": copy.deepcopy(state), "scene_state_sha256": digest,
+                               "semantic_labels": semantic_labels,
                                "render_reference": {"ordinal": self._ordinal,
                                    "sensor_start_s": start, "sensor_end_s": end,
                                    "step_start_s": step_start, "step_end_s": step_end},
                                "capabilities": {"metric_depth": True, "robot_mask": False,
-                                   "payload_mask": False, "physics_step": False}}
+                                   "payload_mask": False, "physics_step": False,
+                                   "body_masks": masks is not None}}
                     frames[c.name] = Frame(color[..., 2::-1].copy(), depth, c.K,
                         t=state["captured_monotonic"], frame_id=state["sequence"],
                         depth_source="sensor", T_base_cam=camera_poses.get(c.name, c.T_base_cam).copy(),
-                        capture=capture)
+                        capture=capture, prop_masks=masks)
                 self._last_state, self._last_digest = state, digest
                 self._last_frames = copy.deepcopy(frames)
                 return frames

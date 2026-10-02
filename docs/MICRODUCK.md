@@ -105,6 +105,9 @@ failed tracking in an earlier upstream reference. The
 related upstream issue and its limits; the
 [BAM follow-up](research/microduck-bam-2026-10-02.md) distinguishes the pinned
 actuator from incompatible newer fits. Neither establishes a remedy.
+The [full-mjlab diagnostic](research/microduck-fullenv-startup-2026-10-02.md)
+also records negligible +0.1 m/s motion from rest and after a +0.3 phase,
+with the same official policy and unchanged production limits.
 
 Required acceptance includes current-source equilibrium, forward/reverse
 tracking, turns, interruption, disconnect, reset, repeated starts, and video

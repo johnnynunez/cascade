@@ -5,6 +5,11 @@ and sustaining an established gait. It does not establish a remedy for the
 current candidate or explain its negative-command failures. This note records
 source research, not new physical experiments or locomotion admission.
 
+A subsequent [local full-environment diagnostic](microduck-fullenv-startup-2026-10-02.md)
+tests cold +0.1 and the sequence +0.3 → +0.1 with the official policy. It
+retains negligible low-speed motion in both cases; the report separates those
+measurements from the upstream author's different +0.15 sustained-motion claim.
+
 The deployed reference remains Pollen's `velstand.onnx`, SHA-256
 `1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45`.
 The [published file](https://huggingface.co/pollen-robotics/microduck-policies/blob/d5a8b55033e157f1af2ed6bd5c1e435b770a8ee0/velstand.onnx)

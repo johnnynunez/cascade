@@ -138,6 +138,16 @@ actuator implementation from newer fits and battery-sag semantics. A future
 full-environment comparison must distinguish startup from sustained walking,
 record actual sampled commands and pushes, and preserve failed episodes.
 
+The subsequent [full-mjlab comparison](research/microduck-fullenv-startup-2026-10-02.md)
+completed with the same official ONNX and a separately frozen upstream stack.
+Across 32 worlds, a cold +0.1 m/s command produced mean body speed
+0.000077 m/s; +0.3 produced 0.143978 m/s. Reducing that command to +0.1
+produced mean 0.001737 m/s, median 0.000028 m/s. No world exceeded the
+descriptive 0.05 m/s phase-mean threshold at +0.1, while one averaged
+0.048689 m/s. This supports the low-speed failure in that full environment;
+it does not validate our native actuator/model equivalence or establish a
+remedy. Production limits, source and physical-admission status are unchanged.
+
 PhysX needs its own faithful actuator/load contract and native campaign.
 World reset, full gait admission, hardware and the
 [hosted conversation implementation](MICRODUCK_CONVERSATION_DESIGN.md) remain

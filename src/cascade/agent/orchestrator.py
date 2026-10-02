@@ -84,6 +84,15 @@ class AgentOrchestrator:
     ):
         self.llm = llm
         self.runtime = runtime
+        self._mobile = getattr(runtime, "robot_mode", None) == "mobile"
+        if self._mobile:
+            from ..skills.mobile_runtime import SYSTEM_PROMPT as MOBILE_PROMPT
+
+            self.system_prompt = MOBILE_PROMPT
+            self.tool_specs = runtime.tool_specs
+        else:
+            self.system_prompt = SYSTEM_PROMPT
+            self.tool_specs = TOOL_SPECS
         self.advisor = advisor
         self.max_steps = max_steps
         self.decompose = decompose
@@ -94,8 +103,10 @@ class AgentOrchestrator:
         #: ablation scores lowest: the planner over-trusts the text and keeps
         #: "continuing the current task"). Needs a vision model.
         self.memory_frames_k = int(memory_frames_k) if self.attach_images else 0
-        self.fast_planner = fast_planner
-        self.skill_library = skill_library
+        # Existing reflexes/experience encode arm keyframes and grasps; never
+        # consult that library for another morphology.
+        self.fast_planner = None if self._mobile else fast_planner
+        self.skill_library = None if self._mobile else skill_library
         #: Pigey/Agentic-VLA milestone verification. The symbolic tier reads
         #: the belief store directly (free); the visual tier costs one VLM
         #: turn and is rate-limited inside the tracker.
@@ -107,7 +118,7 @@ class AgentOrchestrator:
                     make_vlm_verifier(llm, VERIFY_USER) if llm.supports_vision else None
                 ),
             )
-            if verify_milestones
+            if verify_milestones and not self._mobile
             else None
         )
 
@@ -115,6 +126,8 @@ class AgentOrchestrator:
         # One persistence budget for the WHOLE task, across tiers: the reflex
         # tier's pick_and_place, then the LLM tier's retry of the same call,
         # share it instead of each bringing a fresh `persist_seconds`.
+        if self._mobile:
+            self.runtime.begin_task()
         begin = getattr(self.runtime, "begin_task_budget", None)
         if begin is not None:
             begin()
@@ -190,9 +203,9 @@ class AgentOrchestrator:
         stalled_turns = 0
         for step in range(1, self.max_steps + 1):
             resp = self.llm.chat(
-                system=SYSTEM_PROMPT,
+                system=self.system_prompt,
                 messages=self._with_memory_harness(messages),
-                tools=TOOL_SPECS,
+                tools=self.tool_specs,
                 max_tokens=1024,
             )
             if not resp.tool_calls:
@@ -226,7 +239,10 @@ class AgentOrchestrator:
                 # before it is accepted. Unverified milestones downgrade the
                 # claim rather than riding along with it.
                 status, unverified = self._final_check(success)
-                if success and unverified:
+                if self._mobile:
+                    unverified = self.runtime.unverified_actions()
+                    success = success and result.get("success") is True and not unverified
+                if unverified and (success or self._mobile):
                     summary += (
                         "\n[verification] could not confirm: "
                         + "; ".join(unverified)
@@ -498,8 +514,10 @@ class AgentOrchestrator:
     def _decompose(self, task: str) -> list[str]:
         try:
             resp: LLMResponse = self.llm.chat(
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": DECOMPOSE_PROMPT.format(task=task)}],
+                system=self.system_prompt,
+                messages=[{"role": "user", "content": (
+                    f"List bounded, independently checkable mobile milestones for: {task}"
+                    if self._mobile else DECOMPOSE_PROMPT.format(task=task))}],
                 max_tokens=300,
             )
         except Exception:

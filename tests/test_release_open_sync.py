@@ -122,7 +122,9 @@ def test_intermediate_capture_is_pending_and_never_a_map_floor(monkeypatch, atta
     rt.camera.get_fresh_frame = camera
     evidence = release.wait_geometry(rt, ep)
     assert calls[0][0] is None and calls[1][0] is first
-    assert calls[1][1] < calls[0][1] <= 5.
+    assert 0 < calls[1][1] < calls[0][1]
+    # Subtracting an absolute float deadline can round a few ULPs above 5 s.
+    assert calls[0][1] == pytest.approx(5., rel=0., abs=1e-12)
     assert [f['t'] for f in evidence['floors']] == [10.1, 10., 10.]
     assert all(f['t'] > 10.1 for f in evidence['integrated'])
     assert evidence['contact_paths'] == [] and ep['released'] and not events

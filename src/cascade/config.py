@@ -104,7 +104,30 @@ def _load_profile_raw(kind: str, name: str, cdir: Path,
 def load_profile(kind: str, name: str, config_dir: Path | None = None) -> Cfg:
     """Load one profile, e.g. load_profile('cameras', 'l515')."""
     cdir = Path(config_dir) if config_dir else CONFIG_DIR
-    return Cfg(_resolve_paths(_load_profile_raw(kind, name, cdir), cdir))
+    data = _resolve_paths(_load_profile_raw(kind, name, cdir), cdir)
+    if kind == "bases" and data.get("type") == "isaac":
+        _mobile_environment(data)
+    return Cfg(data)
+
+
+def _mobile_environment(profile):
+    """Only explicit mobile overrides; no arm sidecar ports or hash wildcards."""
+    for key in ("asset_sha256", "policy_sha256", "model_identity_sha256", "bridge_port", "engine", "device"):
+        env = "CASCADE_MICRODUCK_" + key.upper()
+        if env in os.environ:
+            value = os.environ[env]
+            if key == "bridge_port":
+                if not value.isascii() or not value.isdecimal() or not 1 <= int(value) <= 65535:
+                    raise ValueError(f"{env} must be an explicit port in 1..65535")
+                value = int(value)
+            profile[key] = value
+    for key in ("asset_sha256", "policy_sha256", "model_identity_sha256"):
+        value = profile.get(key)
+        if value is not None and (not isinstance(value, str) or len(value) != 64
+                                  or any(c not in "0123456789abcdef" for c in value)):
+            raise ValueError(f"{key} must be an exact lowercase SHA256 digest")
+    if profile.get("engine") not in {"physx", "newton"}:
+        raise ValueError("mobile engine must be physx or newton")
 
 
 def _deep_merge(base: dict, overlay: dict) -> None:
@@ -114,6 +137,33 @@ def _deep_merge(base: dict, overlay: dict) -> None:
             _deep_merge(base[k], v)
         else:
             base[k] = v
+
+
+def _mobile_config(cdir, main, base, bases, llm) -> Cfg:
+    """Opt-in morphology: only shared memory/brain settings cross this boundary."""
+    names = bases if bases is not None else [base]
+    if (not isinstance(names, list) or not names
+            or any(not isinstance(n, str) or not n or n.strip() != n
+                   or Path(n).name != n for n in names)):
+        raise ValueError("nonempty exact base profile names required")
+    if len(set(names)) != len(names):
+        raise ValueError("duplicate base profiles; use separately named profiles")
+    profiles = []
+    for name in names:
+        prof = load_profile("bases", name, cdir).as_dict()
+        prof.setdefault("name", name)
+        # Never merge arm/table limits into a base. Each profile owns its view.
+        from .safety.base_harness import BaseSafetyHarness
+
+        BaseSafetyHarness(prof.get("safety", {}))
+        prof["resolved"] = {"safety": copy.deepcopy(prof["safety"])}
+        profiles.append(prof)
+    identifiers = [p["name"] for p in profiles]
+    if len(set(identifiers)) != len(identifiers):
+        raise ValueError("duplicate base names")
+    return Cfg({"robot_mode": "mobile", "base": profiles[0], "bases": profiles,
+                "memory": copy.deepcopy(main.get("memory", {})),
+                "llm": load_profile("llm", llm, cdir).as_dict()})
 
 
 def booth_mode_enabled() -> bool:
@@ -133,6 +183,8 @@ def load_demo_config(
     config_dir: Path | None = None,
     cameras: list[str] | None = None,
     arms: list[str] | None = None,
+    base: str | None = None,
+    bases: list[str] | None = None,
 ) -> Cfg:
     """`cameras` (ordered, first = manipulation camera) supersedes `camera`;
     both populate cfg.camera (primary) and cfg.cameras (all). `arms` does the
@@ -164,6 +216,12 @@ def load_demo_config(
     build_runtime hands to that arm's SafetyHarness."""
     cdir = Path(config_dir) if config_dir else CONFIG_DIR
     main = _resolve_paths(_load_yaml(cdir / "demo.yaml"), cdir)
+    if base is None and bases is None:
+        base = os.environ.get("CASCADE_BASE")
+    if base is not None or bases is not None:
+        if arms is not None or arm != "mock":
+            raise ValueError("base-only configuration cannot also select arms")
+        return _mobile_config(cdir, main, base, bases, llm)
     if booth_mode_enabled():
         booth_path = cdir / "booth.yaml"
         if not booth_path.exists():

@@ -1,5 +1,11 @@
 # MicroDuck / Hermes mobile architecture review — 2 October 2026
 
+Continuation: the implementation has since been imported from a preserved
+handoff into the repository. [MicroDuck runtime documentation](MICRODUCK.md)
+describes the current contract. The findings and counts below retain their
+original snapshot scope; they are not assertions that every finding remains
+open in the later implementation.
+
 **Assessment: the design direction is suitable for approval; complete physical integration remains pending.** The reviewed work already includes a mobile implementation and native Newton trials. The earlier description, “design only, not implemented,” no longer describes that external worktree. The evidence does not establish a complete PhysX and Newton delivery, accepted locomotion through Hermes/MCP, or a completed general humanoid controller.
 
 This document reviews a collaborator's implementation separately from the code shipped in this repository. The external corpus root is `/home/johnny/Projects/demo/cascade-lab/MICRODUCK`; all source and receipt paths below are relative to that root unless linked explicitly. These paths identify reviewed external files and are not links to committed implementation in this repository.

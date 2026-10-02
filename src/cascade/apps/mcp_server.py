@@ -215,6 +215,14 @@ class McpSkillServer:
     def __init__(self):
         self._runtime = None
         self._arm = None
+        # Morphology is selected once for this connection; catalog and dispatch
+        # must agree even before a (possibly slow) runtime exists.
+        self._base_profile = os.environ.get("CASCADE_BASE")
+        self._mobile = self._base_profile is not None
+        self._mobile_config = None
+        self._input_closed = False
+        self._stop_serial = 0
+        self._stop_lock = threading.Lock()
         self._init_error: str | None = None
         self._init_lock = threading.Lock()
         # (request id, tool name) the worker is executing right now; read by
@@ -267,9 +275,10 @@ class McpSkillServer:
             try:
                 # Anything the stack prints must not corrupt the protocol stream.
                 with contextlib.redirect_stdout(sys.stderr):
-                    cfg = load_demo_config(cameras=cameras, arm=arm, llm="mock")
+                    cfg = (self._get_mobile_config() if self._mobile else
+                           load_demo_config(cameras=cameras, arm=arm, llm="mock"))
                     det_model = os.environ.get("CASCADE_DETECTOR_MODEL")
-                    if det_model:
+                    if det_model and not self._mobile:
                         cfg._data["detector"]["model"] = det_model
                     classes = os.environ.get("CASCADE_DETECT_CLASSES")
                     if classes:
@@ -285,9 +294,14 @@ class McpSkillServer:
                     serve = os.environ.get("CASCADE_STREAM", "1") != "0"
                     # lazy_arm: perception comes up now; motors stay untouched
                     # until the first motion command.
-                    self._runtime, self._arm = build_runtime(
-                        cfg, run_dir, view=view, lazy_arm=True, serve=serve
-                    )
+                    signals = (getattr(self, "_signals", None)
+                               if threading.current_thread() is threading.main_thread() else None)
+                    with signals.defer() if signals is not None else contextlib.nullcontext():
+                        self._runtime, self._arm = build_runtime(
+                            cfg, run_dir, view=view, lazy_arm=True, serve=serve
+                        )
+                    if signals is not None and threading.current_thread() is threading.main_thread():
+                        signals.checkpoint()
                     if self._runtime.stream_server is not None:
                         # Staff stop channel that bypasses stdio entirely:
                         # the dashboard STOP button freezes the arm from any
@@ -305,16 +319,23 @@ class McpSkillServer:
                     if self._stop_pending:
                         # a stop acknowledged during the build: latch now,
                         # before any queued motion call can run
-                        self._runtime.arm.stop()
+                        if self._mobile:
+                            self._runtime.stop()
+                        else:
+                            self._runtime.arm.stop()
                 url = (
                     self._runtime.stream_server.url
                     if self._runtime.stream_server is not None else "disabled"
                 )
-                print(
-                    f"[cascade-mcp] runtime up: cameras={cameras} arm={arm} (lazy) "
-                    f"livestream={url}",
-                    file=sys.stderr,
-                )
+                if self._mobile:
+                    names = ",".join(p["name"] for p in self._runtime.cfg.bases)
+                    print(f"[cascade-mcp] mobile runtime up: bases={names}", file=sys.stderr)
+                else:
+                    print(
+                        f"[cascade-mcp] runtime up: cameras={cameras} arm={arm} (lazy) "
+                        f"livestream={url}",
+                        file=sys.stderr,
+                    )
             except Exception as e:
                 if _poison:
                     self._init_error = f"{type(e).__name__}: {e}"
@@ -340,6 +361,8 @@ class McpSkillServer:
         threading.Thread(target=_warm, daemon=True, name="wrc-prewarm").start()
 
     def shutdown(self):
+        if self._mobile:
+            self.stop_now()
         # taking _init_lock waits out an in-flight prewarm build, so a
         # runtime that finishes building after EOF is still torn down
         with self._init_lock, contextlib.redirect_stdout(sys.stderr):
@@ -350,14 +373,28 @@ class McpSkillServer:
 
     # ── out-of-band stop/reset (called from the stdin thread / signals) ──
 
-    def stop_now(self) -> dict:
+    def stop_now(self, *, navigation=False) -> dict:
         """Latch the e-stop from any thread, without ever building the
         runtime. Ordering matters: _stop_pending is set BEFORE reading
         _runtime, and _ensure_runtime checks it AFTER assigning _runtime,
         so a stop concurrent with the build is caught by one side or the
         other in every interleaving."""
-        self._stop_pending = True
+        with self._stop_lock:
+            self._stop_pending = True
+            self._stop_serial += 1
+            stop_serial = self._stop_serial
         rt = self._runtime
+        if self._mobile:
+            if rt is None:
+                import uuid
+                return _text_result({"ok": True, "stopped": True, "latched": True,
+                                     "receipt_id": uuid.uuid4().hex, "serial": stop_serial,
+                                     "receipt_scope": "mcp_startup_local", "physical_stop_verified": False,
+                                     "outcome": "unverified", "note": "Local startup stop latched; no physical rest claim."})
+            # No runtime build / execution lock; the runtime invalidates a
+            # pending lazy connect as well as an already-admitted command.
+            result = rt.execute("stop_navigation" if navigation else "emergency_stop", {})
+            return _text_result(result, is_error=not result.get("ok", False))
         if rt is None:
             print("[cascade-mcp] EMERGENCY STOP latched (runtime still starting)",
                   file=sys.stderr)
@@ -378,6 +415,21 @@ class McpSkillServer:
     def reset_now(self) -> dict:
         """Clear the e-stop (reset_stop tool, or SIGUSR1 -- the staff
         channel when reset_stop is hidden from attendees)."""
+        if self._mobile:
+            rt = self._runtime
+            if rt is None or self._input_closed:
+                return _text_result({"ok": False, "error": "runtime starting or input closed; reset refused"}, is_error=True)
+            with self._stop_lock:
+                serial = self._stop_serial
+            result = rt.execute("reset_stop", {})
+            with self._stop_lock:
+                raced = serial != self._stop_serial
+                if result.get("ok") is True and not raced:
+                    self._stop_pending = False
+            if raced:
+                rt.stop()
+                result = {"ok": False, "latched": True, "error": "stop raced reset"}
+            return _text_result(result, is_error=not result.get("ok", False))
         self._stop_pending = False
         rt = self._runtime
         if rt is None:
@@ -456,9 +508,12 @@ class McpSkillServer:
                 return
         name = inflight[1]
         if name is not None:
-            from ..skills.runtime import _MOTION_SKILLS
+            if self._mobile:
+                from ..skills.mobile_runtime import MOTION_SKILLS as motion_skills
+            else:
+                from ..skills.runtime import _MOTION_SKILLS as motion_skills
 
-            if name in _MOTION_SKILLS:
+            if name in motion_skills:
                 print(
                     f"[cascade-mcp] client cancelled {name!r} mid-motion -> e-stop. "
                     "If this arrived at a round number of seconds the HOST's "
@@ -471,12 +526,24 @@ class McpSkillServer:
 
     # ── tool surface ─────────────────────────────────────────────────────
 
-    def list_tools(self) -> list[dict]:
-        from ..skills.runtime import TOOL_SPECS
+    def _get_mobile_config(self):
+        if self._mobile_config is None:
+            from ..config import load_demo_config
 
+            self._mobile_config = load_demo_config(base=self._base_profile, llm="mock")
+        return self._mobile_config
+
+    def list_tools(self) -> list[dict]:
+        if self._mobile:
+            from ..skills.mobile_runtime import tool_specs_for_profiles
+
+            candidates = tool_specs_for_profiles(self._get_mobile_config().bases)
+        else:
+            from ..skills.runtime import TOOL_SPECS
+
+            candidates = TOOL_SPECS + _EXTRA_TOOLS
         dropped = _EXCLUDED_TOOLS | _hidden_tools()
-        specs = [t for t in TOOL_SPECS if t["name"] not in dropped]
-        specs = specs + [t for t in _EXTRA_TOOLS if t["name"] not in dropped]
+        specs = [t for t in candidates if t["name"] not in dropped]
         return [
             {
                 "name": t["name"],
@@ -496,6 +563,8 @@ class McpSkillServer:
                           "(CASCADE_HIDE_TOOLS); ask the booth staff"},
                 is_error=True,
             )
+        if self._mobile:
+            return self._call_mobile_tool(name, arguments)
         runtime = self._ensure_runtime()
         with contextlib.redirect_stdout(sys.stderr):
             if name == "camera_snapshot":
@@ -562,6 +631,54 @@ class McpSkillServer:
                         runtime, runtime.last_annotated_frame, annotations=result,
                     )
         return _text_result(result, is_error=not result.get("ok", False))
+
+    def _call_mobile_tool(self, name, arguments):
+        allowed = {s["name"] for s in self.list_tools()}
+        if name not in allowed:
+            return _text_result({"ok": False, "error": f"unsupported mobile tool: {name!r}"}, is_error=True)
+        if name in {"emergency_stop", "stop_navigation"}:
+            return self.stop_now(navigation=name == "stop_navigation")
+        if name == "reset_stop":
+            if not isinstance(arguments, dict) or arguments:
+                return _text_result({"ok": False, "error": "reset_stop takes no arguments"}, is_error=True)
+            return self.reset_now()
+        if name == "list_bases":
+            if arguments:
+                return _text_result({"ok": False, "error": "list_bases takes no arguments"}, is_error=True)
+            return _text_result({"ok": True, "metadata_source": "configured_profile", "bases": [
+                {"name": p["name"], "robot_id": p["robot_id"], "source": p["source"],
+                 "measurement_kind": "kinematic_mock" if p["type"] == "mock" else "physics",
+                 "capabilities": p["capabilities"], "admission": p.get("admission", "pending_physical_admission")}
+                for p in self._get_mobile_config().bases]})
+        from ..skills.mobile_runtime import MOTION_SKILLS
+
+        if self._input_closed and name in MOTION_SKILLS:
+            return _text_result({"ok": False, "execution_ok": False, "error": "input closed; pending motion invalidated"}, is_error=True)
+        runtime = self._ensure_runtime()
+        with self._exec_lock, contextlib.redirect_stdout(sys.stderr):
+            runtime.current_tier = "mcp-host"
+            try:
+                result = runtime.execute(name, arguments)
+            finally:
+                runtime.current_tier = None
+            runtime.last_path = "mcp-host"
+        # Mobile bytes are already validated JPEG from the passive mobile RPC,
+        # never run them through the arm/depth/scene image helpers.
+        summary = {k: v for k, v in result.items() if k not in {"image_jpeg_b64", "image_before_jpeg_b64", "frame_images"}}
+        content = []
+        for frame in result.get("frame_images", []):
+            content.append({"type": "text", "text": json.dumps({"caption": frame["caption"], "frame": frame["frame"]})})
+            content.append({"type": "image", "data": frame["image_jpeg_b64"], "mimeType": "image/jpeg"})
+        if result.get("ok") and result.get("image_jpeg_b64"):
+            content.append({"type": "image", "data": result["image_jpeg_b64"], "mimeType": "image/jpeg"})
+        content.append({"type": "text", "text": json.dumps(summary)})
+        return {"content": content, "isError": not result.get("ok", False)}
+
+    def input_closed(self):
+        """EOF is a safety event on the READER, never queued behind motion."""
+        self._input_closed = True
+        if self._mobile:
+            self.stop_now()
 
     def _robot_knowledge(self, runtime) -> dict:
         """Everything the robot has learned from past runs, as text.
@@ -858,8 +975,7 @@ def handle_message(server: McpSkillServer, msg: dict) -> dict | None:
 
 def main() -> int:
     import argparse
-    import queue
-    import signal
+    from .signal_stop import StopSignals
 
     parser = argparse.ArgumentParser(description="CASCADE stdio MCP server")
     parser.add_argument("--launch-owner")
@@ -882,135 +998,202 @@ def main() -> int:
         register_process(args.launch_state_dir, owner, os.getpid(), "mcp", run_dir=run_dir)
 
     server = McpSkillServer()
-    # The prewarm thread wraps its build in redirect_stdout(sys.stderr),
-    # which swaps the PROCESS-GLOBAL sys.stdout. Protocol frames must go
-    # through a reference captured before that thread starts, or the
-    # initialize/tools/list responses land on stderr and the client hangs.
-    protocol_out = sys.stdout
-    out_lock = threading.Lock()  # reader + worker both write frames now
-
-    def _send(resp: dict) -> None:
-        with out_lock:
-            protocol_out.write(json.dumps(resp) + "\n")
-            protocol_out.flush()
-
-    # Mirror stderr to a file. A chat host swallows an MCP child's stderr
-    # (OpenClaw shows only a failure count), so on a shared machine the only
-    # way to answer "why did that tool call fail?" is this log. Same folder
-    # as the run's trace.jsonl / keyframes.
-    from ..config import PACKAGE_ROOT
-
-    run_dir = Path(os.environ.get("CASCADE_RUN_DIR", PACKAGE_ROOT / "runs" / f"mcp_{os.getpid()}"))
-    try:
-        run_dir.mkdir(parents=True, exist_ok=True)
-        sys.stderr = _Tee(sys.stderr, open(run_dir / "server.log", "a", buffering=1))
-    except Exception:  # noqa: BLE001 -- a read-only checkout must not kill the server
-        pass
-    print(f"[cascade-mcp] cascade MCP server on stdio (log: {run_dir / 'server.log'})", file=sys.stderr)
-    if os.environ.get("CASCADE_PREWARM", "1") != "0":
-        server.prewarm_async()
-
-    # First SIGINT freezes (latch e-stop), second exits. Exit disables
-    # torque on the RS arm and a loaded arm falls -- same contract as the
-    # demo CLI, and the reason SIGINT must never be the routine stop path.
-    # Stop FIRST, then print: stderr can raise on reentrant use inside a
-    # signal handler and must never cost the latch.
-    def _sigint(_sig, _frm):
-        server.stop_now()
-        signal.signal(signal.SIGINT, signal.default_int_handler)
-        with contextlib.suppress(Exception):
-            print("\n[cascade-mcp] SIGINT: e-stop latched (Ctrl+C again to exit; "
-                  "exit disables torque -- park the arm first)", file=sys.stderr)
-
-    signal.signal(signal.SIGINT, _sigint)
-
-    # SIGUSR1 clears the e-stop: the staff reset channel when reset_stop is
-    # hidden from the attendee session (shell access to the rig == staff).
-    def _sigusr1(_sig, _frm):
-        server.reset_now()
-        with contextlib.suppress(Exception):
-            print("[cascade-mcp] SIGUSR1: e-stop cleared by staff", file=sys.stderr)
-
-    signal.signal(signal.SIGUSR1, _sigusr1)
-
-    inbox: queue.Queue = queue.Queue()
-    _EOF = object()
-
-    def _read_stdin() -> None:
-        """Feed the worker; short-circuit anything that must not queue
-        behind a running tool call (see "Stop channel" in the docstring).
-        This thread IS the stop channel: no single frame may kill it."""
+    previous_stderr = sys.stderr
+    with StopSignals(staff_reset=True) as signals:
+        server._signals = signals
         try:
-            for line in sys.stdin:
-                try:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        msg = json.loads(line)
-                    except json.JSONDecodeError:
-                        print(f"[cascade-mcp] bad JSON frame: {line[:120]}",
-                              file=sys.stderr)
-                        continue
-                    # some clients batch JSON-RPC frames; unwrap them
-                    for m in (msg if isinstance(msg, list) else [msg]):
-                        if not isinstance(m, dict):
-                            print(f"[cascade-mcp] non-object frame skipped: "
-                                  f"{str(m)[:120]}", file=sys.stderr)
-                            continue
-                        method = m.get("method")
-                        params = m.get("params") or {}
-                        if (method == "tools/call"
-                                and params.get("name") == "emergency_stop"):
-                            result = server.stop_now()
-                            if m.get("id") is not None:
-                                _send(_response(m["id"], result))
-                            continue
-                        if method == "notifications/cancelled":
-                            server.cancel_request(params.get("requestId"))
-                            continue
-                        if method == "ping" and m.get("id") is not None:
-                            # host keepalives must not starve behind a motion
-                            _send(_response(m["id"], {}))
-                            continue
-                        inbox.put(m)
-                except Exception as e:
-                    print(f"[cascade-mcp] reader error (frame skipped): {e}",
-                          file=sys.stderr)
+            return _serve_stdio(server, signals)
+        except KeyboardInterrupt:
+            return 130
         finally:
-            inbox.put(_EOF)
+            try:
+                with signals.defer():
+                    server.shutdown()
+            finally:
+                if isinstance(sys.stderr, _Tee) and sys.stderr is not previous_stderr:
+                    log = sys.stderr._streams[-1]
+                    sys.stderr = previous_stderr
+                    log.close()
 
-    threading.Thread(target=_read_stdin, daemon=True, name="wrc-stdin").start()
+
+def _serve_stdio(server, signals):
+    import queue
+    import select
+    import signal
+    from .signal_stop import SignalRequest
+
+    with signals.defer():
+        # The prewarm thread wraps its build in redirect_stdout(sys.stderr),
+        # which swaps the PROCESS-GLOBAL sys.stdout. Protocol frames must go
+        # through a reference captured before that thread starts, or the
+        # initialize/tools/list responses land on stderr and the client hangs.
+        protocol_out = sys.stdout
+        out_lock = threading.Lock()  # reader + worker both write frames now
+
+        def _send(resp: dict) -> None:
+            with out_lock:
+                protocol_out.write(json.dumps(resp) + "\n")
+                protocol_out.flush()
+
+        # Mirror stderr to a file. A chat host swallows an MCP child's stderr
+        # (OpenClaw shows only a failure count), so on a shared machine the only
+        # way to answer "why did that tool call fail?" is this log. Same folder
+        # as the run's trace.jsonl / keyframes.
+        from ..config import PACKAGE_ROOT
+
+        run_dir = Path(os.environ.get("CASCADE_RUN_DIR", PACKAGE_ROOT / "runs" / f"mcp_{os.getpid()}"))
+        try:
+            run_dir.mkdir(parents=True, exist_ok=True)
+            sys.stderr = _Tee(sys.stderr, open(run_dir / "server.log", "a", buffering=1))
+        except Exception:  # noqa: BLE001 -- a read-only checkout must not kill the server
+            pass
+        print(f"[cascade-mcp] cascade MCP server on stdio (log: {run_dir / 'server.log'})", file=sys.stderr)
+        inbox: queue.Queue = queue.Queue()
+        _EOF = object()
+        reader_halt = threading.Event()
+        input_fd = os.dup(sys.stdin.fileno())
+
+        def _lines():
+            # Unlike `for line in sys.stdin`, this can be joined on signal exit
+            # even when the host keeps its stdin pipe open indefinitely.
+            pending = b""
+            while not reader_halt.is_set():
+                ready, _, _ = select.select([input_fd], [], [], .05)
+                if not ready:
+                    continue
+                data = os.read(input_fd, 4096)
+                if not data:
+                    if pending:
+                        yield pending.decode("utf-8")
+                    return
+                pending += data
+                while b"\n" in pending and not reader_halt.is_set():
+                    line, pending = pending.split(b"\n", 1)
+                    yield line.decode("utf-8")
+
+        def _read_stdin() -> None:
+            """Feed the worker; short-circuit anything that must not queue
+            behind a running tool call (see "Stop channel" in the docstring).
+            This thread IS the stop channel: no single frame may kill it."""
+            try:
+                for line in _lines():
+                    try:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            msg = json.loads(line)
+                        except json.JSONDecodeError:
+                            print(f"[cascade-mcp] bad JSON frame: {line[:120]}",
+                                  file=sys.stderr)
+                            continue
+                        # some clients batch JSON-RPC frames; unwrap them
+                        for m in (msg if isinstance(msg, list) else [msg]):
+                            if not isinstance(m, dict):
+                                print(f"[cascade-mcp] non-object frame skipped: "
+                                      f"{str(m)[:120]}", file=sys.stderr)
+                                continue
+                            method = m.get("method")
+                            params = m.get("params") or {}
+                            if (method == "tools/call"
+                                    and (params.get("name") == "emergency_stop"
+                                         or (server._mobile and params.get("name") == "stop_navigation"
+                                             and "stop_navigation" not in _hidden_tools()))):
+                                result = server.stop_now(navigation=params.get("name") == "stop_navigation")
+                                if m.get("id") is not None:
+                                    _send(_response(m["id"], result))
+                                continue
+                            if method == "notifications/cancelled":
+                                server.cancel_request(params.get("requestId"))
+                                continue
+                            if method == "ping" and m.get("id") is not None:
+                                # host keepalives must not starve behind a motion
+                                _send(_response(m["id"], {}))
+                                continue
+                            if server._mobile:
+                                # Server-owned receive-time fence; never trust a
+                                # caller-provided value on the wire.
+                                with server._stop_lock:
+                                    m["_mobile_stop_serial"] = server._stop_serial
+                            inbox.put(m)
+                    except Exception as e:
+                        print(f"[cascade-mcp] reader error (frame skipped): {e}",
+                              file=sys.stderr)
+            finally:
+                try:
+                    server.input_closed()
+                finally:
+                    inbox.put(_EOF)
+
+        reader = threading.Thread(target=_read_stdin, daemon=True, name="wrc-stdin")
+        reader.start()
+        if os.environ.get("CASCADE_PREWARM", "1") != "0":
+            server.prewarm_async()
     try:
         while True:
-            msg = inbox.get()
-            if msg is _EOF:
-                break
-            req_id = msg.get("id")
-            is_call = msg.get("method") == "tools/call"
-            with server._cancel_lock:
-                cancelled = req_id is not None and req_id in server._cancelled_ids
-                if cancelled:
-                    server._cancelled_ids.discard(req_id)
-                else:
-                    server._inflight = (
-                        req_id,
-                        (msg.get("params") or {}).get("name") if is_call else None,
-                    )
-            if cancelled:
-                continue  # client gave up before we started; never move
+            msg = None
             try:
-                resp = handle_message(server, msg)
-            finally:
+                signals.checkpoint()
+                msg = inbox.get()
+                if msg is _EOF:
+                    break
+                req_id = msg.get("id")
+                is_call = msg.get("method") == "tools/call"
                 with server._cancel_lock:
-                    server._inflight = None
-                    if req_id is not None:
-                        # a cancel that raced with completion is spent now
+                    cancelled = req_id is not None and req_id in server._cancelled_ids
+                    if cancelled:
                         server._cancelled_ids.discard(req_id)
-            if resp is not None:
-                _send(resp)
+                    else:
+                        server._inflight = (
+                            req_id,
+                            (msg.get("params") or {}).get("name") if is_call else None,
+                        )
+                if cancelled:
+                    continue  # client gave up before we started; never move
+                try:
+                    stale_motion = False
+                    if server._mobile and is_call:
+                        from ..skills.mobile_runtime import MOTION_SKILLS
+
+                        with server._stop_lock:
+                            stale_motion = ((msg.get("params") or {}).get("name") in MOTION_SKILLS
+                                            and msg.get("_mobile_stop_serial") != server._stop_serial)
+                    if stale_motion:
+                        resp = _response(req_id, _text_result(
+                            {"ok": False, "execution_ok": False,
+                             "error": "queued motion invalidated by stop; re-issue a new command explicitly"},
+                            is_error=True))
+                    else:
+                        resp = handle_message(server, msg)
+                finally:
+                    with server._cancel_lock:
+                        server._inflight = None
+                        if req_id is not None:
+                            # a cancel that raced with completion is spent now
+                            server._cancelled_ids.discard(req_id)
+                if resp is not None:
+                    _send(resp)
+            except SignalRequest as request:
+                # All interrupted locks (including runtime._gate, _stop_lock,
+                # _cancel_lock and out_lock) have unwound. Never resume that
+                # tool call. Stop invalidation precedes reset/logging/replies.
+                server.stop_now()
+                if request.signum == signal.SIGTERM:
+                    return 128 + signal.SIGTERM
+                if request.signum == getattr(signal, "SIGUSR1", None):
+                    server.reset_now()
+                if isinstance(msg, dict) and msg.get("id") is not None:
+                    _send(_response(msg["id"], _text_result(
+                        {"ok": False, "execution_ok": False, "error": "interrupted by signal; re-issue explicitly"},
+                        is_error=True)))
     finally:
-        server.shutdown()
+        # Event.set is safe HERE, after the signal handler has returned.
+        with signals.defer():
+            if server._mobile or signals.signum is not None:
+                server.stop_now()
+            reader_halt.set()
+            reader.join()
+            os.close(input_fd)
     return 0
 
 

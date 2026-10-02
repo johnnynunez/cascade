@@ -1,0 +1,117 @@
+{
+  "scope": "Absolute scheduling of software-only publishers; production runtime and native evidence unchanged",
+  "base_commit": "3c3543bbbc69e14bac8dd32157d5640378bce443",
+  "source_sha256": {
+    "tests/test_isaac_base.py": "2d7504e00cbffcc087e39ef838a2811ca7a742fd7e72d1158abde50902c0cd55",
+    "tests/test_mobile_mcp.py": "fd3c3db0efec71eb07bdae5a0465cdbd472839d5ecda528c2aab5083fec5b63c",
+    "tests/test_mobile_runtime.py": "cbc219a8b8db0deba0c3673dfaed3730dcf9658520ae5d1046f325787daa5e98",
+    "tests/mobile_tick_fixture.py": "56e8bdcce952546837e6d3a5b6dddaae59a61e5edd444f8ad478d26186e775da",
+    "tests/test_mobile_tick_fixture.py": "82fe322d44dd7a1d59f2b8e8b6352732f1027c4f6444d862cf38f6a74e2cecc7"
+  },
+  "combined_validation": {
+    "passed": 1190,
+    "skipped": 182,
+    "seconds": 111.98,
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/runtime-venv/bin/python3.12",
+      "-m",
+      "pytest",
+      "-q",
+      "--junitxml=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-absolute-schedule-combined/junit.xml",
+      "tests/test_isaac_base.py",
+      "tests/test_microduck_actuator.py",
+      "tests/test_microduck_assets.py",
+      "tests/test_microduck_bridge_cli.py",
+      "tests/test_microduck_camera_identity.py",
+      "tests/test_microduck_contact_support.py",
+      "tests/test_microduck_conversion.py",
+      "tests/test_microduck_policy.py",
+      "tests/test_microduck_signal_stop.py",
+      "tests/test_microduck_state.py",
+      "tests/test_microduck_stepper.py",
+      "tests/test_mobile_base.py",
+      "tests/test_mobile_bridge.py",
+      "tests/test_mobile_cli.py",
+      "tests/test_mobile_effects.py",
+      "tests/test_mobile_frames.py",
+      "tests/test_mobile_identity.py",
+      "tests/test_mobile_mcp.py",
+      "tests/test_mobile_runtime.py",
+      "tests/test_mobile_safety.py",
+      "tests/test_mobile_signal_stop.py",
+      "tests/test_mobile_stop_temporal.py",
+      "tests/test_mobile_support.py",
+      "tests/test_mobile_tick_fixture.py",
+      "tests/test_newton_bam.py",
+      "tests/test_release_open_sync.py"
+    ],
+    "exit_code": 0,
+    "source_unchanged": true,
+    "shared_memory_unchanged": true,
+    "shared_memory_after": {
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+      "/home/johnny/.cascade/grasp_memory.json": null
+    }
+  },
+  "prior_remote_run": {
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/36983972491",
+    "head": "3c3543bbbc69e14bac8dd32157d5640378bce443",
+    "linux_x86": "4958 passed, 269 skipped, 4 deselected; packaging 62 passed",
+    "linux_arm": "4958 passed, 269 skipped, 4 deselected; packaging 62 passed",
+    "macos": "6 failed, 4918 passed, 303 skipped, 4 deselected",
+    "booth": "88 passed",
+    "minimal": "success; mock composition only, not physical manipulation"
+  },
+  "observed_cause": {
+    "macos_rpc_rtt_ms": [
+      1.4,
+      4.6
+    ],
+    "macos_publication_gaps_ms": [
+      55,
+      186
+    ],
+    "interpretation": "Relative waits add publication cost and wakeup delay to every interval. The trace does not separate scheduler, lock and publication cost; no OS-specific cause is established."
+  },
+  "correction": "A fixed wall origin yields each due synthetic step, checking cancellation between steps and rejecting backlog above 100. Each step still invokes control_at and publish. No dt, physical rest window, freshness, lease or deadline was changed.",
+  "controls": [
+    {
+      "scope": "IsaacBase renewal and two MCP stop outcomes",
+      "absolute": "3 passed in 6.34 s",
+      "previous_relative_semantics": "3 expected failures in 8.85 s",
+      "injected_wait_floor_s": 0.14,
+      "source_note": "The retained comparison predates only two added assertions in the unrelated preflight-drift test. Removing those two assertions exactly reproduces the recorded runtime-test file hash; all other compared file hashes are unchanged.",
+      "receipt": "ci-portability-cadence-agent/final-source-comparison.json"
+    },
+    {
+      "scope": "Runtime preflight drift and two slow stop outcomes on final source",
+      "absolute": "3 passed in 3.43 s",
+      "previous_relative_semantics": "3 expected failures in 3.72 s",
+      "injected_wait_floors_s": [
+        0.06,
+        0.14
+      ],
+      "receipt": "test-runs/mac-cadence/receipt.json"
+    }
+  ],
+  "strengthened_assertions": [
+    "Every completed synthetic step is consecutive; renewal remains active in the original generation.",
+    "Stop evidence spans at least .04 seconds of synthetic physical time.",
+    "Preflight baseline x=0 precedes ACK; all post-admission x=.01, valid same-step support, displacement [0,0], refuted for no effect or wrong sign on vx."
+  ],
+  "artifacts": {
+    "ci-absolute-schedule-combined/pytest.log": "4b3e1fd0e9223b99ff8230b8608355ef3cdc81eff81b868e12ce0311fff65537",
+    "ci-absolute-schedule-combined/junit.xml": "1907cc923b73601136a4417a847af11b0eb7d48edae2641181c3e8fed22e1bfd",
+    "ci-absolute-schedule-combined/result.json": "d4abbbeaa300c87cb8a0a0c549d855714894ffcfa4754d9b726d0987318d7844",
+    "ci-absolute-schedule-combined/source-sha256.json": "00965d20222d786993e0e67fa06df46fce1d1fa9d6918d569604942073d81238",
+    "ci-pr67-3c3543b-summary.json": "7c601229573bd1e1671857ad83aa2c81921a738eb4c206b542a3097e8a7ff812",
+    "ci-portability-cadence-agent/final-source-comparison.json": "a49eb4aa81f0e8cf2a8c6a85da2cfb90a5e240988fdc3fc4a8c0e61f58d89df2",
+    "test-runs/mac-cadence/receipt.json": "4209f0ad8ab638d041d2b24c5bfb624debaedcc13d3c95baaf3579aceab43270"
+  },
+  "limits": [
+    "Software fixtures are not physical locomotion evidence.",
+    "External fault injection leaves real production clocks unchanged and is not added as another scheduler-dependent CI case.",
+    "The three committed helper regressions use a private clock; CI retains normal/slow real socket integration cases.",
+    "Remote validation of the corrected source remains a separate PR check."
+  ]
+}

@@ -1,0 +1,58 @@
+# Opt-in preconverted USD + native BAM. No full/base experience inheritance.
+# The bridge appends extension folders derived solely from --release.
+[package]
+title = "CASCADE MicroDuck Newton"
+description = "Manual physics and read-only RTX camera bridge (not acceptance)"
+version = "0.1.0"
+
+[dependencies]
+"isaacsim.simulation_app" = {}
+"isaacsim.core.simulation_manager" = {}
+"isaacsim.core.experimental.prims" = {}
+"isaacsim.core.experimental.utils" = {}
+"isaacsim.core.rendering_manager" = {}
+"isaacsim.core.nodes" = {}
+"isaacsim.physics.newton" = {}
+"isaacsim.physics.newton.tensors" = {}
+"isaacsim.sensors.experimental.rtx" = {}
+"omni.replicator.core" = {}
+"omni.kit.loop-isaac" = {}
+"omni.kit.viewport.window" = {}
+"omni.hydra.rtx" = {}
+"omni.hydra.usdrt_delegate" = {}
+"omni.warp.core" = {}
+"omni.pip.compute" = {}
+
+[settings]
+rtx.spg.enabled = true
+rtx.hydra.supportMultiTickRate = true
+rtx.rendering.perSensorTickTlas = true
+rtx.hydra.mdlMaterialWarmup = true
+rtx-transient.dlssg.enabled = false
+omni.replicator.asyncRendering = false
+renderer.gpuEnumeration.glInterop.enabled = false
+exts."omni.kit.renderer.core".present.enabled = false
+exts."omni.usd".locking.onClose = false
+exts."isaacsim.physics.newton".auto_switch_on_startup = false
+exts."isaacsim.physics.newton".capture_graph_physics_step = false
+exts."isaacsim.core.simulation_manager".default_engine = "newton"
+
+[settings.app]
+name = "CASCADE-MicroDuck-Newton"
+settings.persistent = false
+settings.fabricDefaultStageFrameHistoryCount = 3
+window.title = "CASCADE MicroDuck"
+vulkan = true
+fastShutdown = true
+file.ignoreUnsavedStage = true
+useFabricSceneDelegate = true
+runLoops.main.manualModeEnabled = true
+runLoops.main.rateLimitEnabled = false
+player.useFixedTimeStepping = true
+
+# Stock noninteractive notice handling; no IOMMU/OS/GPU checks changed.
+[settings.persistent]
+renderer.startupMessageDisplayed = true
+app.stage.upAxis = "Z"
+simulation.defaultMetersPerUnit = 1.0
+omni.replicator.captureOnPlay = true

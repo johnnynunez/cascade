@@ -10,7 +10,7 @@ from cascade.control.mobile_support import support_contract
 from test_mobile_effects import (
     ScriptedReader, fixture_support, fixture_support_contract, limits, run_window, state,
 )
-from test_mobile_effects import truth_server  # noqa: F401
+from test_mobile_effects import truth_server as truth_server
 
 
 def supported(n, *, contacts=None, **changes):

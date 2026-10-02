@@ -595,7 +595,7 @@ def test_actual_checker_refutes_scripted_inert_loopback_actor(tmp_path, admit_de
         thread.start()
         assert ready.wait(1)
         cfg = load_demo_config(base="microduck_isaac")
-        cfg._data["bases"][0].update(asset_sha256="a" * 64, policy_sha256="b" * 64, model_identity_sha256="e" * 64,
+        cfg._data["bases"][0].update(engine=c.hello()["engine"], asset_sha256="a" * 64, policy_sha256="b" * 64, model_identity_sha256="e" * 64,
             bridge_port=server.address[1], timeout_s=.03, verifier=verifier_limits(),
             support_contract=support_contract())
         if not admit_device:

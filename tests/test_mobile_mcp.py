@@ -269,6 +269,7 @@ def test_real_isaac_mcp_observation_uses_only_read_only_loopback_channel(tmp_pat
                      CASCADE_MICRODUCK_ASSET_SHA256="a" * 64,
                      CASCADE_MICRODUCK_POLICY_SHA256="b" * 64,
                      CASCADE_MICRODUCK_MODEL_IDENTITY_SHA256="e" * 64,
+                     CASCADE_MICRODUCK_ENGINE=controller.hello()["engine"],
                      CASCADE_MICRODUCK_DEVICE=controller.hello()["device"],
                      CASCADE_MICRODUCK_BRIDGE_PORT=str(server.address[1]))
     try:

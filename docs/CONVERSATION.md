@@ -54,8 +54,13 @@ unverified physical postcondition.
 Stop uses an authenticated HTTP route independent of provider completion,
 playback flushing and the action worker. Disconnect also requests stop. After a
 stop, use **Explicitly reset stop**, then connect a new session. Reset closes the
-old conversation first and never replays a command. Runtime reset refusal is
-preserved. Shutdown writes `closure.json`; a still-running action is reported as
+old conversation first, reads the current generation from `/api/status`, and
+posts exactly `{"generation": <observed integer>}` to `/api/reset`. The runtime
+checks this generation under its admission lock before resetting any domain.
+A delayed request cannot clear a newer stop; a stop during reset still triggers
+the existing relatch behavior. A delayed successful reply does not reactivate
+the browser or replay a command. Runtime reset refusal is preserved.
+Shutdown writes `closure.json`; a still-running action is reported as
 pending rather than falsely reported as cancelled.
 
 ## Boundaries and lifecycle

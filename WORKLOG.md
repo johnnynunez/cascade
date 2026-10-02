@@ -297,3 +297,24 @@ these interleavings without changing backend stop/admission behavior.
 Final focused validation: 52 conversation tests passed, Ruff passed, and source
 hashes were unchanged during the run. The playback receipt binds the exact
 JavaScript, timing-only fixture, protocol tests and captured pytest output.
+
+## Reset request generation admission (2026-10-02)
+
+Root review found that frontend cancellation alone could not fence an already
+sent reset POST arriving after a newer stop. `RobotRuntime.reset_stop` now accepts
+an optional expected generation, checked atomically under its existing gate
+before any domain reset. Legacy direct callers may omit it. The authenticated
+conversation reset route requires an exact nonnegative JSON integer and passes
+it to that boundary. Browser reset reads status after closing its old session,
+rechecks its local revision, then sends that observed generation.
+
+Real HTTP regressions hold a partial reset body across a newer stop (zero domain
+resets) and hold a previously successful reply across a newer stop (the stop
+remains latched). A runtime gate interleaving verifies the comparison happens
+after acquiring the lock; stop during an admitted reset still relatches domains.
+Browser controls cover stop while the generation read or reset reply is pending.
+No speech provider, hardware or physical source evidence was modified.
+Validation: 128 runtime/graph/MCP/conversation tests passed; three optional-stack
+cases skipped. Conversation files pass full Ruff; runtime/test-runtime pass the
+repository's F/E9 check (unrelated existing full-rule findings remain). Git diff
+checks pass.

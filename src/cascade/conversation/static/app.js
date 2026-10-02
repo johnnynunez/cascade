@@ -136,7 +136,11 @@ async function operatorAction(action) {
     await api('session', 'DELETE');
     if (revision !== connectionRevision) return;
     if (action === 'reset') {
-      const result = await api('reset'); log(JSON.stringify(result));
+      const observed = await api('status', 'GET');
+      if (revision !== connectionRevision) return;
+      if (!Number.isSafeInteger(observed.generation) || observed.generation < 0)
+        throw new Error('Invalid robot generation');
+      const result = await api('reset', 'POST', {generation: observed.generation}); log(JSON.stringify(result));
       if (revision === connectionRevision) status(result.ok ? 'Stop reset. Connect a new conversation to continue.' : 'Reset refused; inspect stop receipt.');
     } else status(action === 'stop' ? 'Stopped. Explicitly reset before reconnecting.' : 'Disconnected. Robot stop requested.');
   } catch (error) { if (revision === connectionRevision) status(error.message); }

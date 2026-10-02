@@ -192,12 +192,13 @@ check().catch(error=>{console.error(error);process.exitCode=1;});
 
 
 @pytest.mark.skipif(NODE is None, reason="Node is optional for browser connection lifecycle validation")
-@pytest.mark.parametrize("case", ["old_socket", "pending_connect_stop", "pending_reset_stop"])
+@pytest.mark.parametrize("case", ["old_socket", "pending_connect_stop", "pending_reset_stop",
+                                 "pending_reset_status_stop", "pending_reset_reply_stop"])
 def test_browser_connection_ownership_survives_late_callbacks_and_operator_stop(case):
     script = r"""
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const kind=process.argv[2], elements=new Map(), sockets=[], requests=[];
-let release, next=0, deleteCount=0;
+let release, next=0, deleteCount=0, statusCount=0;
 class Socket {
   static OPEN=1;
   constructor(){this.readyState=1;this.bufferedAmount=0;sockets.push(this);}
@@ -208,7 +209,11 @@ const sandbox={Uint8Array,DataView,Math,Set,Map,JSON,atob,WebSocket:Socket,
   location:{hash:'#private',pathname:'/',origin:'http://127.0.0.1:8780'},history:{replaceState(){}},
   document:{getElementById:id=>{if(!elements.has(id))elements.set(id,{textContent:'',value:''});return elements.get(id);}},
   fetch:async(url,options)=>{
-    requests.push({url,method:options.method});let value={robot_id:'test',tools:[],ok:true};
+    requests.push({url,method:options.method,body:options.body});
+    let value={robot_id:'test',tools:[],ok:true,generation:17};
+    if(url==='/api/status' && ++statusCount>1 && kind==='pending_reset_status_stop')
+      await new Promise(r=>release=r);
+    if(url==='/api/reset' && kind==='pending_reset_reply_stop')await new Promise(r=>release=r);
     if(url==='/api/session' && options.method==='POST') {
       value={session_id:'session-'+(++next),ticket:'ticket'};
       if(kind==='pending_connect_stop')await new Promise(r=>release=r);
@@ -234,6 +239,8 @@ async function check(){
     assert.equal(vm.runInContext('playbackRevision',sandbox),revision);
     assert.equal(elements.get('mic').disabled,false);
     assert.equal(current.closed,undefined);
+    const reset=requests.find(r=>r.url==='/api/reset');
+    assert.deepEqual(JSON.parse(reset.body),{generation:17});
   } else if(kind==='pending_connect_stop') {
     const pending=click('connect');await waitGate();
     await click('stop');assert(requests.some(r=>r.url==='/api/stop'));
@@ -244,6 +251,12 @@ async function check(){
     assert.equal(sockets.length,0,'stopped pending connect must not construct a socket');
     assert.equal(vm.runInContext('socket',sandbox),undefined);
     assert.equal(elements.get('connect').disabled,false);
+  } else if(kind==='pending_reset_reply_stop') {
+    const pending=click('reset');await waitGate();await click('stop');release();await pending;
+    assert.equal(vm.runInContext('playbackAllowed',sandbox),false);
+    assert.equal(vm.runInContext('socket',sandbox),undefined);
+    assert.equal(sockets.length,0);
+    assert(elements.get('status').textContent.startsWith('Stopped.'));
   } else {
     const pending=click('reset');await waitGate();await click('stop');release();await pending;
     assert(!requests.some(r=>r.url==='/api/reset'),'superseded reset must not undo a newer stop');

@@ -66,6 +66,96 @@ def test_old_episode_cannot_dispatch_after_operator_stop_and_reset():
     assert runtime.close()["ok"]
 
 
+@pytest.mark.parametrize("expected", [True, False, 0.0, "0", -1, []])
+def test_reset_generation_must_be_an_exact_nonnegative_integer(expected):
+    domain = Domain()
+    runtime = RobotRuntime({domain.domain_id: domain})
+    resets = []
+    domain.reset_stop = lambda: resets.append(True) or {"ok": True}
+    try:
+        assert runtime.stop()["ok"]
+        assert not runtime.reset_stop(expected_generation=expected)["ok"]
+        assert not resets and runtime.stopped
+    finally:
+        assert runtime.close()["ok"]
+
+
+def test_reset_generation_is_checked_inside_admission_gate_after_newer_stop():
+    domain = Domain()
+    runtime = RobotRuntime({domain.domain_id: domain})
+    resets, results = [], []
+    domain.reset_stop = lambda: resets.append(True) or {"ok": True}
+    waiting, release = threading.Event(), threading.Event()
+    original_gate = runtime._gate
+    worker = None
+
+    class HeldAdmission:
+        def __enter__(self):
+            if threading.current_thread() is worker:
+                waiting.set()
+                assert release.wait(3), "test did not release reset admission"
+            original_gate.acquire()
+
+        def __exit__(self, *_args):
+            original_gate.release()
+
+    try:
+        assert runtime.stop()["ok"]
+        observed = runtime.cancellation_token
+        # stop's condition still uses the same underlying lock. Only delay the
+        # reset thread before acquiring it, then send an actual priority stop.
+        runtime._gate = HeldAdmission()
+        worker = threading.Thread(target=lambda: results.append(
+            runtime.reset_stop(expected_generation=observed)))
+        worker.start()
+        assert waiting.wait(2)
+        newer = runtime.stop()
+        assert newer["ok"] and newer["generation"] > observed
+        release.set(); worker.join(3)
+        assert not worker.is_alive()
+        assert results == [{"ok": False, "error": "stale reset generation",
+                            "generation": newer["generation"], "latched": True}]
+        assert not resets and runtime.stopped
+        assert runtime.reset_stop(expected_generation=newer["generation"])["ok"]
+        assert resets == [True] and not runtime.stopped
+    finally:
+        release.set()
+        if worker is not None:
+            worker.join(3)
+        runtime._gate = original_gate
+        assert runtime.close()["ok"]
+
+
+def test_new_stop_during_admitted_generation_reset_still_relatches_domains():
+    domain = Domain()
+    runtime = RobotRuntime({domain.domain_id: domain})
+    entered, release = threading.Event(), threading.Event()
+    results = []
+
+    def reset():
+        entered.set()
+        assert release.wait(3)
+        return {"ok": True}
+
+    domain.reset_stop = reset
+    worker = None
+    try:
+        assert runtime.stop()["ok"]
+        observed = runtime.cancellation_token
+        worker = threading.Thread(target=lambda: results.append(
+            runtime.reset_stop(expected_generation=observed)))
+        worker.start(); assert entered.wait(2)
+        assert runtime.stop()["ok"]
+        release.set(); worker.join(3)
+        assert not worker.is_alive() and results[0]["ok"] is False
+        assert runtime.stopped and domain.stops >= 3
+    finally:
+        release.set()
+        if worker is not None:
+            worker.join(3)
+        assert runtime.close()["ok"]
+
+
 @pytest.mark.parametrize("args", [{}, {"distance": "1"}, {"distance": True}, {"distance": 1, "extra": 2}, []])
 def test_arguments_refused_before_domain_io(args):
     domain = Domain()

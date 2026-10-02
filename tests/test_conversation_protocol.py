@@ -318,13 +318,90 @@ def test_gateway_auth_cross_origin_media_replay_and_reconnect():
                 await asyncio.wait_for(gate.session.done.wait(), 3)
                 assert runtime.stopped and robot.calls == []
                 await ws.close()
-                assert (await (await client.post(origin + "/api/reset", headers=headers)).json())["ok"]
+                status = await (await client.get(origin + "/api/status", headers=headers)).json()
+                assert (await (await client.post(origin + "/api/reset", headers=headers,
+                                                json={"generation": status["generation"]})).json())["ok"]
                 two = await (await client.post(origin + "/api/session", headers=headers, json={"robot_id": "fixture"})).json()
                 assert one["session_id"] != two["session_id"]
                 async with client.ws_connect(origin + "/api/media?ticket=" + two["ticket"]) as ws2:
                     await ws2.send_json({"type": "text", "session_id": one["session_id"], "text": "old"})
                     await asyncio.wait_for(gate.session.done.wait(), 3)
                     assert runtime.stopped and robot.calls == []
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("body", [{}, {"generation": True}, {"generation": 1.0},
+                                 {"generation": "1"}, {"generation": -1},
+                                 {"generation": None}, {"generation": 1, "extra": 0}, []])
+def test_http_reset_requires_exact_observed_generation_before_domain_io(body):
+    async def scenario():
+        async with rig(gateway=True) as (robot, runtime, _, _, _, _, gate, origin):
+            resets = []
+            robot.reset_stop = lambda: resets.append(True) or {"ok": True}
+            async with aiohttp.ClientSession(headers={"Authorization": "Bearer " + gate.token}) as client:
+                await client.post(origin + "/api/stop")
+                response = await client.post(origin + "/api/reset", json=body)
+                assert response.status == 400
+                assert resets == [] and runtime.stopped
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("held", ["body", "reply"])
+def test_http_reset_held_across_newer_stop_cannot_clear_that_stop(monkeypatch, held):
+    async def scenario():
+        entered, release = asyncio.Event(), asyncio.Event()
+        original_json, original_prepare = web.Request.json, web.Response.prepare
+
+        async def observe_json(request, *args, **kwargs):
+            if request.path == "/api/reset" and held == "body":
+                entered.set()
+            return await original_json(request, *args, **kwargs)
+
+        async def hold_reply(response, request):
+            if request.path == "/api/reset" and held == "reply" and not release.is_set():
+                entered.set()
+                await release.wait()
+            return await original_prepare(response, request)
+
+        monkeypatch.setattr(web.Request, "json", observe_json)
+        monkeypatch.setattr(web.Response, "prepare", hold_reply)
+        async with rig(gateway=True) as (robot, runtime, _, _, _, _, gate, origin):
+            resets = []
+            robot.reset_stop = lambda: resets.append(True) or {"ok": True}
+            async with aiohttp.ClientSession(headers={"Authorization": "Bearer " + gate.token}) as client:
+                await client.post(origin + "/api/stop")
+                observed = (await (await client.get(origin + "/api/status")).json())["generation"]
+
+                async def partial_body():
+                    yield b'{"generation":'
+                    await release.wait()
+                    yield str(observed).encode() + b'}'
+
+                pending = asyncio.create_task(client.post(origin + "/api/reset",
+                    data=partial_body() if held == "body" else json.dumps({"generation": observed}),
+                    headers={"Content-Type": "application/json"}))
+                try:
+                    await asyncio.wait_for(entered.wait(), 3)
+                    if held == "reply":
+                        assert resets == [True] and not runtime.stopped
+                    newer = await (await client.post(origin + "/api/stop")).json()
+                    assert newer["generation"] > observed and runtime.stopped
+                    release.set()
+                    response = await asyncio.wait_for(pending, 3)
+                    result = await response.json()
+                    assert response.status == 200 and runtime.stopped
+                    if held == "body":
+                        assert not result["ok"] and result["error"] == "stale reset generation"
+                        assert resets == []
+                    else:
+                        # It reset the older episode before the newer stop. Its
+                        # delayed successful reply has no authority over that stop.
+                        assert result["ok"] and resets == [True]
+                    assert runtime.cancellation_token == newer["generation"]
+                    assert robot.calls == []
+                finally:
+                    release.set()
+                    await asyncio.wait_for(pending, 3)
     asyncio.run(scenario())
 
 

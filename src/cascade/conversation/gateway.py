@@ -140,7 +140,15 @@ class ConversationGateway:
     async def _reset(self, request):
         from aiohttp import web
         # Explicit authenticated operator route, absent from the model tool list.
-        return web.json_response(await asyncio.to_thread(self.domain.runtime.reset_stop))
+        try:
+            body = await request.json()
+        except (ValueError, UnicodeError) as exc:
+            raise web.HTTPBadRequest(text="reset requires a JSON generation") from exc
+        if (type(body) is not dict or set(body) != {"generation"}
+                or type(body["generation"]) is not int or body["generation"] < 0):
+            raise web.HTTPBadRequest(text="reset requires an exact nonnegative integer generation")
+        return web.json_response(await asyncio.to_thread(
+            self.domain.runtime.reset_stop, expected_generation=body["generation"]))
 
     async def _disconnect(self, request):
         from aiohttp import web

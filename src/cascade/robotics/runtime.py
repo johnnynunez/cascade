@@ -286,8 +286,15 @@ class RobotRuntime:
         return {"ok": all(r.get("ok") is True for r in results.values()), "latched": True,
                 "generation": generation, "domains": results, "physical_stop_verified": False}
 
-    def reset_stop(self):
+    def reset_stop(self, *, expected_generation=None):
+        """Reset an operator-observed stop episode, optionally fencing delayed IO."""
         with self._gate:
+            if expected_generation is not None:
+                if type(expected_generation) is not int or expected_generation < 0:
+                    return {"ok": False, "error": "expected_generation must be a nonnegative integer"}
+                if expected_generation != self._generation:
+                    return {"ok": False, "error": "stale reset generation",
+                            "generation": self._generation, "latched": self._latched}
             if (self._active or self._resetting or self._closed or
                     any(s["active"] or s["pending"] is not None for s in self._stop_slots.values())):
                 return {"ok": False, "error": "active or closed runtime cannot reset stop"}

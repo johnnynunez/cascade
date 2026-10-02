@@ -21,6 +21,9 @@ perception = ["ultralytics>=8.3"]
 # LLM backends. The OpenAI client also covers llama.cpp / vLLM local servers
 # and any OpenAI-compatible gateway (Nous Portal -- see configs/llm/hermes.yaml).
 llm = ["openai>=1.50", "anthropic>=0.40"]
+# Local browser/media gateway and HF-compatible Realtime JSON transport only.
+# Speech models and device audio libraries remain external.
+conversation = ["aiohttp>=3.10,<4"]
 # Kinematics (FK/IK on the arm URDF).
 kinematics = ["pin>=3.0"]
 # Real arm transports, one extra per bus. Separate because they share nothing:
@@ -58,6 +61,7 @@ cascade = "cascade.apps.demo:main"
 cascade-record = "cascade.apps.record:main"
 cascade-mcp = "cascade.apps.mcp_server:main"
 cascade-view = "cascade.apps.viewer:main"
+cascade-conversation = "cascade.apps.conversation:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -65,6 +69,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"cascade.conversation" = ["static/*.html", "static/*.js", "static/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

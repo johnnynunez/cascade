@@ -201,3 +201,32 @@ during validation and between admission and domain lookup; no domain call occurs
 Priority stop ignores an expired episode deadline. This coordinator check is not
 a real-time actuator guarantee: domain owners still enforce backend leases and
 last-moment cancellation. Provider/browser timestamps cannot supply this deadline.
+
+## Robot-agnostic conversation implementation (2026-10-02)
+
+Implemented an optional local HTTP/browser/PCM vertical with lazy `aiohttp`,
+HF GA Realtime provider negotiation and `MediaIO`/provider boundaries. The
+configured robot catalog supplies only explicitly allowed typed tools. Complete
+provider responses produce session/robot/request/generation/deadline-bound
+intents into RobotRuntime; no raw joint interface or Reachy identity is added.
+Cancellation, tool budget, media backpressure, origin/authentication and process
+ownership are explicit. Timeout preserves a pending worker instead of inventing
+thread cancellation or physical success. CLI run stores are private.
+
+Independent review by the embodiment agent found and fixed: stop depending on
+media flush; a delayed `response.created` after barge-in before response birth;
+and simultaneous session POST requests overwriting the sole provider owner.
+Regression tests reproduce each interleaving with events/real local sockets.
+The entire connection retains its original runtime generation, so a late new
+response cannot refresh command authority after stop plus operator reset.
+
+The upstream wire contract was read at speech-to-speech revision
+411399d34555b2169823a6eaeb7f8ff192db89db, including the actual response handler's
+response_id/output_index fields and session acknowledgement. The browser and
+CASCADE code are original implementation. No provider allocator, paid service,
+model download or audio device was contacted by the software validation.
+
+Validation: 135 targeted conversation/runtime/graph/MCP/sensing tests passed;
+three optional-stack cases skipped in the task-private test environment.
+Conversation alone has 41 passing cases, including Node worklet execution.
+Ruff, uv lock consistency, documentation links and git diff checks pass.

@@ -1,0 +1,13 @@
+version: 1
+robot_id: conversation_mock
+domains:
+  sensing:
+    kind: sensors
+    providers:
+      - id: imu
+        kind: synthetic
+        modality: imu
+        frame_id: conversation_mock/base
+        values:
+          angular_velocity_rad_s: [0.0, 0.0, 0.0]
+          linear_acceleration_m_s2: [0.0, 0.0, 9.81]

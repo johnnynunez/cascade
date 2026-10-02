@@ -303,6 +303,11 @@ def build_runtime(
     lazy_arm: bool = False,
     serve: bool = False,
 ) -> tuple[SkillRuntime, object]:
+    if cfg.get("robot_mode") == "mobile":
+        from .mobile_runtime import build_mobile_runtime
+
+        return build_mobile_runtime(cfg, run_dir)
+
     from ..perception.occupancy import OccupancyMap
 
     # ── the arm rig: N arms, first = manipulation arm ───────────────────
@@ -707,6 +712,10 @@ def shutdown_runtime(runtime, arm) -> None:
     """
     import contextlib
 
+    if getattr(runtime, "robot_mode", None) == "mobile":
+        runtime.close()
+        return
+
     threads = owned_threads(runtime)
 
     def _save_beliefs():
@@ -819,6 +828,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--arms", default=None,
                    help="comma-separated arm profiles; first = manipulation "
                         "arm (e.g. so101_mock,so101_mock). Overrides --arm.")
+    p.add_argument("--base", default=None, help="opt-in base-only profile (or CASCADE_BASE)")
+    p.add_argument("--bases", default=None, help="ordered comma-separated distinct base profiles")
     p.add_argument("--llm", default="auto",
                    help="llm profile, or `auto` (default): Hermes/Nous Portal, "
                         "then Anthropic, then OpenAI, whichever has its key in "
@@ -837,58 +848,80 @@ def main(argv: list[str] | None = None) -> int:
     cameras = [c.strip() for c in args.cameras.split(",")] if args.cameras else None
     arms = [a.strip() for a in args.arms.split(",")] if args.arms else None
     llm = resolve_llm_profile(args.llm)
+    bases = args.bases.split(",") if args.bases is not None else None
     cfg = load_demo_config(camera=args.camera, cameras=cameras, arm=args.arm,
-                           arms=arms, llm=llm)
+                           arms=arms, llm=llm, base=args.base, bases=bases)
+    mobile = cfg.get("robot_mode") == "mobile"
     run_dir = Path(args.run_dir) if args.run_dir else (
         PACKAGE_ROOT / "runs" / time.strftime("%Y%m%d_%H%M%S")
     )
     import os
 
     view = not args.no_view and bool(os.environ.get("DISPLAY"))
-    print(f"[cascade] cameras={cameras or [args.camera]} "
-          f"arms={arms or [args.arm]} "
-          f"llm={llm}{' (auto)' if llm != args.llm else ''} view={view}")
+    if mobile:
+        print(f"[cascade] base-only bases={[b['name'] for b in cfg.bases]} llm={llm}; "
+              "physical admission pending (mock is kinematic only)")
+    else:
+        print(f"[cascade] cameras={cameras or [args.camera]} "
+              f"arms={arms or [args.arm]} "
+              f"llm={llm}{' (auto)' if llm != args.llm else ''} view={view}")
     print(f"[cascade] traces -> {run_dir}")
 
-    runtime, arm = build_runtime(cfg, run_dir, view=view, serve=not args.no_serve)
-    if runtime.stream_server is not None:
-        print(f"[cascade] LIVESTREAM dashboard: {runtime.stream_server.url}")
-
-    # Ctrl+C = graceful stop: halt the in-flight motion and unwind to the
-    # `finally` below, where shutdown_runtime parks the arm to zero before
-    # cutting torque. A second Ctrl+C restores the default handler and is the
-    # hard kill (for when teardown ever hangs).
+    from .signal_stop import SignalRequest, StopSignals
     import signal
 
-    def _sigint(_sig, _frm):
-        print("\n[cascade] SIGINT: parking the arm to zero (Ctrl+C again to force-exit)")
-        # No e-stop latch here: the arm must still be able to move to its safe
-        # pose. halt() stops the in-flight motion at the next waypoint; the
-        # SystemExit abandons it immediately and unwinds to shutdown_runtime
-        # (which parks, then disconnects), then exits cleanly with code 0.
+    runtime = arm = None
+    status = 0
+    with StopSignals() as signals:
         try:
-            runtime.arm.harness.halt("SIGINT: graceful shutdown")
-        except Exception:
-            pass
-        signal.signal(signal.SIGINT, signal.default_int_handler)
-        raise SystemExit(0)
+            # Construction is passive (no command dispatch). Publish ownership
+            # before acting on a first signal so cleanup cannot lose resources.
+            with signals.defer():
+                runtime, arm = build_runtime(cfg, run_dir, view=view, serve=not args.no_serve)
+            signals.checkpoint()
+            status = _run_demo(args, cfg, runtime, mobile)
+        except SignalRequest:
+            # Interrupted with-blocks have released their locks. Invalidate
+            # before any logging/teardown. Arm CLI retains halt -> park, not
+            # e-stop -> torque-off; apply halt to every configured arm.
+            if runtime is not None:
+                if mobile:
+                    runtime.stop()
+                else:
+                    rig = getattr(runtime, "arm_rig", None)
+                    for safe_arm in (list(rig) if rig is not None else [runtime.arm]):
+                        try:
+                            safe_arm.harness.halt("signal: graceful shutdown")
+                        except Exception:
+                            pass
+        finally:
+            with signals.defer():
+                if runtime is not None:
+                    shutdown_runtime(runtime, arm)
+        if signals.signum is not None:
+            return 0 if not mobile and signals.signum == signal.SIGINT else 128 + signals.signum
+    return status
 
-    signal.signal(signal.SIGINT, _sigint)
+
+def _run_demo(args, cfg, runtime, mobile):
+    """Run only after signal handling and runtime ownership are established."""
+    if runtime.stream_server is not None:
+        print(f"[cascade] LIVESTREAM dashboard: {runtime.stream_server.url}")
     from ..agent.llm import MockLLM
 
     llm = make_llm(cfg.llm)
     is_mock = isinstance(llm, MockLLM)
     advisor = Advisor(llm) if (llm.supports_vision and not is_mock) else None
-    experience = ExperienceMemory(PACKAGE_ROOT / "runs" / "experience.json")
+    experience = None if mobile else ExperienceMemory(PACKAGE_ROOT / "runs" / "experience.json")
     # ASPIRE: validated repairs distilled from earlier runs, retrieved into
     # context at task start. This is the loop the ROADMAP listed as open --
     # `scripts/learn_from_runs.py` writes the entries, the agent reads them.
     from ..skills.library import SkillLibrary
 
-    library = SkillLibrary(PACKAGE_ROOT / "skills_library")
+    library = None if mobile else SkillLibrary(PACKAGE_ROOT / "skills_library")
     agent = AgentOrchestrator(
         llm, runtime, advisor=advisor, max_steps=args.max_steps,
-        decompose=not is_mock, fast_planner=FastPlanner(experience),
+        decompose=not is_mock, fast_planner=None if mobile else FastPlanner(experience),
         skill_library=library, verify_milestones=not is_mock,
         memory_frames_k=int(cfg.memory.get("frames_k", 4)),
     )
@@ -907,24 +940,27 @@ def main(argv: list[str] | None = None) -> int:
         _srv.set_task_fn(lambda t: _print_report(_run(t)))
         _srv.set_cancel_fn(runtime.arm.stop)
 
-    try:
-        if args.interactive:
-            print("Type a task (empty line to quit).")
-            while True:
-                try:
-                    task = input("task> ").strip()
-                except EOFError:
-                    break
-                if not task:
-                    break
-                _print_report(_run(task))
-        else:
-            task = args.task or "look at the table and report what objects you see"
-            report = _run(task)
-            _print_report(report)
-            return 0 if report.success else 1
-    finally:
-        shutdown_runtime(runtime, arm)
+    if args.interactive and mobile:
+        from .mobile_runtime import run_mobile_interactive
+
+        print("Type a task; stop/emergency_stop are immediate; EOF or empty line cancels and exits.")
+        run_mobile_interactive(runtime, _run, _print_report)
+    elif args.interactive:
+        print("Type a task (empty line to quit).")
+        while True:
+            try:
+                task = input("task> ").strip()
+            except EOFError:
+                break
+            if not task:
+                break
+            _print_report(_run(task))
+    else:
+        task = args.task or ("observe the mobile base" if mobile else
+                             "look at the table and report what objects you see")
+        report = _run(task)
+        _print_report(report)
+        return 0 if report.success else 1
     return 0
 
 

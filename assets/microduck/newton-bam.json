@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "revision": "28aa1fca5843208ff9a67935695a4d5376e44d50",
+  "upstream_pr": "https://github.com/isaac-sim/IsaacLab/pull/8161",
+  "files": [
+    {
+      "path": "source/isaaclab/isaaclab/actuators/newton/bam_component.py",
+      "sha256": "0313338887f32fa36040b63768007bfb15ce050921c841b0f0a0f82ec8e7ab90",
+      "url": "https://raw.githubusercontent.com/AntoineRichard/IsaacLab/28aa1fca5843208ff9a67935695a4d5376e44d50/source/isaaclab/isaaclab/actuators/newton/bam_component.py",
+      "bytes": 23208
+    },
+    {
+      "path": "source/isaaclab/isaaclab/actuators/newton/bam_kernels.py",
+      "sha256": "cf0043556f299ee3eeaca81e98a76ecaf658137444f86a48ddce1ba2c0c1a089",
+      "url": "https://raw.githubusercontent.com/AntoineRichard/IsaacLab/28aa1fca5843208ff9a67935695a4d5376e44d50/source/isaaclab/isaaclab/actuators/newton/bam_kernels.py",
+      "bytes": 8236
+    },
+    {
+      "path": "source/isaaclab_newton/isaaclab_newton/physics/mjwarp_actuator_bridge.py",
+      "sha256": "ea935557a274aedf280c915f9cf24fb760e1fd75e8616327aa77b4b465a8add7",
+      "url": "https://raw.githubusercontent.com/AntoineRichard/IsaacLab/28aa1fca5843208ff9a67935695a4d5376e44d50/source/isaaclab_newton/isaaclab_newton/physics/mjwarp_actuator_bridge.py",
+      "bytes": 12762
+    }
+  ],
+  "license": {
+    "spdx": "BSD-3-Clause",
+    "url": "https://raw.githubusercontent.com/AntoineRichard/IsaacLab/28aa1fca5843208ff9a67935695a4d5376e44d50/LICENSE",
+    "sha256": "6acf26ea8f8c42c454e30e9ad4206bd90d8fce85a54c011568faaf10c7ccab61",
+    "text": "Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).\n\nAll rights reserved.\n\nSPDX-License-Identifier: BSD-3-Clause\n\nRedistribution and use in source and binary forms, with or without modification,\nare permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice,\n   this list of conditions and the following disclaimer.\n\n2. Redistributions in binary form must reproduce the above copyright notice,\n   this list of conditions and the following disclaimer in the documentation\n   and/or other materials provided with the distribution.\n\n3. Neither the name of the copyright holder nor the names of its contributors\n   may be used to endorse or promote products derived from this software without\n   specific prior written permission.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND\nANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED\nWARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE\nDISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR\nANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES\n(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;\nLOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND\nON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\n(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS\nSOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n"
+  },
+  "admission": "Only the three compiled-in SHA-256 hashes may execute; this manifest is documentation, never an execution allowlist supplied by a caller.",
+  "loading": "External source_root containing source/. No automatic fetch, external package initializers, bytecode cache, Torch, or wholesale IsaacLab imports.",
+  "adaptation": "Only MjWarpActuatorBridge._model_friction_solver_attributes is overridden to use the passed Newton model instead of NewtonManager.",
+  "minimum_newton": "1.6.0",
+  "tested_cpu_versions": {
+    "newton": "1.6.0",
+    "warp-lang": "1.17.0",
+    "mujoco": "3.12.0",
+    "mujoco-warp": "3.12.0"
+  },
+  "coefficient_contract": "cascade.control.microduck_actuator.M6_PARAMETERS from Rhoban/bam@62bd8ce12154340be97e06f7f41a0ca8f116d967 (q_offset intentionally excluded)",
+  "friction_reference": "bam_mjlab",
+  "default_profile": null,
+  "profiles": {
+    "nominal_no_current_limit_no_delay": {
+      "kp_fw": 200.0,
+      "vin": 7.4,
+      "max_current": null,
+      "vin_drop_gain": 0.0,
+      "vin_min": 6.0,
+      "min_delay": 0,
+      "max_delay": 0,
+      "delay_hold_prob": 0.0,
+      "delay_update_period": 0,
+      "delay_seed": 17,
+      "max_effort": 0.96,
+      "joint_effort_limit": 0.96,
+      "stiff_frictionloss": false,
+      "physics_dt": 0.005
+    },
+    "nominal_current_limited_no_delay": {
+      "kp_fw": 200.0,
+      "vin": 7.4,
+      "max_current": 1.75,
+      "vin_drop_gain": 0.0,
+      "vin_min": 6.0,
+      "min_delay": 0,
+      "max_delay": 0,
+      "delay_hold_prob": 0.0,
+      "delay_update_period": 0,
+      "delay_seed": 17,
+      "max_effort": 0.96,
+      "joint_effort_limit": 0.96,
+      "stiff_frictionloss": false,
+      "physics_dt": 0.005
+    },
+    "nominal_current_limited_delay_3_6": {
+      "kp_fw": 200.0,
+      "vin": 7.4,
+      "max_current": 1.75,
+      "vin_drop_gain": 0.0,
+      "vin_min": 6.0,
+      "min_delay": 3,
+      "max_delay": 6,
+      "delay_hold_prob": 0.0,
+      "delay_update_period": 0,
+      "delay_seed": 17,
+      "max_effort": 0.96,
+      "joint_effort_limit": 0.96,
+      "stiff_frictionloss": false,
+      "physics_dt": 0.005
+    }
+  },
+  "limits": [
+    "One 14-revolute-DOF battery group, one MJWarp world, explicit q and DOF indices.",
+    "No other MJWarp/Newton actuator pipelines; model gains/target_mode must already be zero on owned joints.",
+    "Exactly one before_step call per consecutive stage.simulation_step_count and cfg.num_substeps=1; physics_dt is explicit.",
+    "Caller must synchronize model properties before before_step; no notification between friction publish and solve.",
+    "Host checks run outside CUDA graph capture; CUDA/Kit performance and MicroDuck locomotion require independent integration evidence.",
+    "No PhysX or MuJoCo-C support; no body-wrench contribution in upstream load estimator.",
+    "Profiles are named candidate configurations, not historical ONNX-training provenance or physically admitted defaults.",
+    "Model/mesh/weight licenses are separate; this BSD notice does not relicense MicroDuck assets."
+  ]
+}

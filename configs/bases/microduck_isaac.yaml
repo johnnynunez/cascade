@@ -1,0 +1,36 @@
+# Candidate transport profile, NOT physical admission / READY.
+# Supply exact converted-USD and policy hashes externally before connecting.
+# CASCADE_MICRODUCK_{ASSET_SHA256,POLICY_SHA256,BRIDGE_PORT,ENGINE,DEVICE}
+# are validated overrides; missing values never become wildcards/default ports.
+type: isaac
+robot_id: microduck
+source: isaac-microduck
+engine: physx
+# Exact remote physics identity, supplied from the checked bridge receipt via
+# CASCADE_MICRODUCK_DEVICE. Do not pin a workstation GPU or resolve `auto` on
+# the MCP client's unrelated compute host. Missing identity fails before I/O.
+device: null
+asset_sha256: null
+policy_sha256: null
+bridge_host: 127.0.0.1
+bridge_port: null
+timeout_s: 0.5
+physics_dt: 0.005
+policy_dt: 0.020
+capabilities: [walk_velocity, turn, stop_navigation]
+admission: pending_physical_admission
+# Parent must supply measured/frozen verifier limits (VERIFIER_REPORT contract).
+# Missing limits mean UNVERIFIED; no numeric test fixtures promoted to physics.
+verifier: null
+safety:
+  max_vx: 0.15
+  max_vy: 0.0
+  max_wz: 0.6
+  max_duration_s: 3.0
+  max_state_age_s: 0.5
+  max_no_progress_s: 0.4
+  max_wall_duration_s: 8.0
+  poll_interval_s: 0.01
+  turn_speed_rad_s: 0.4
+  turn_tolerance_rad: 0.03
+  max_turn_angle_rad: 1.0

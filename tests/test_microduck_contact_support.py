@@ -204,12 +204,30 @@ def test_contract_admits_exact_collision_shapes_not_ankle_body_or_visual():
                 support_contract([replacement if x == old else x for x in labels])
 
 
+def bound_backend():
+    """Complete the uncaptured backend contract; retain its actual guards."""
+    from cascade.sim.microduck_newton import KitNewtonBackend
+    from cascade.sim.microduck_solver_graph import SolverGraphContract
+    backend = KitNewtonBackend(None, {'limits': {'max_contacts': 4, 'max_constraints': 12}}, None)
+    backend.ns = fixture()
+    backend.ns.initialized = True
+    backend.ns.cfg = NS(time_step_app=False, num_substeps=1, use_cuda_graph=False)
+    backend.ns.graph = None
+    backend.ns.model.joint_label = ['fixture_joint']
+    backend.ns.model.body_label = ['fixture_body']
+    backend._model = backend.ns.model
+    backend._layout = tuple(tuple(getattr(backend.ns.model, key))
+                            for key in ('joint_label', 'body_label', 'shape_label'))
+    backend._dt = float(np.float32(.005))
+    backend.SM = NS(get_physics_dt=lambda: .005, get_active_physics_engine=lambda: 'newton')
+    backend._solver_graph = SolverGraphContract(backend.ns, enabled=False, wp=None,
+                                                dt=backend._dt, source_path=None)
+    return backend
+
+
 @pytest.mark.parametrize('bad', [None, 'exception', 'no_solve', 'two_solves', 'wrong_time'])
 def test_backend_only_marks_successful_single_solve_for_support(bad):
-    from cascade.sim.microduck_newton import KitNewtonBackend
-    backend = KitNewtonBackend(None, None, None)
-    backend.ns = fixture()
-    backend._dt = float(np.float32(.005))
+    backend = bound_backend()
     assert backend._last_support_solve is None
     def step(*, steps):
         assert steps == 1
@@ -219,7 +237,7 @@ def test_backend_only_marks_successful_single_solve_for_support(bad):
             return
         backend.ns.simulation_step_count += 2 if bad == 'two_solves' else 1
         backend.ns.sim_time += .02 if bad == 'wrong_time' else backend._dt
-    backend.SM = NS(step=step)
+    backend.SM.step = step
     if bad:
         backend._last_support_solve = (20, .1)
         with pytest.raises(RuntimeError):
@@ -232,11 +250,9 @@ def test_backend_only_marks_successful_single_solve_for_support(bad):
 
 def test_backend_read_delivers_support_from_matching_solve(monkeypatch):
     from cascade.sim import microduck_newton
-    backend = microduck_newton.KitNewtonBackend(None, {'limits': {'max_contacts': 4, 'max_constraints': 12}}, None)
-    backend.ns = fixture()
+    backend = bound_backend()
     backend.q_indices, backend.dof_indices, backend.root_index = [], [], 0
     backend.receipt['support_extraction'] = {'source_admitted': True}
-    backend._guard = lambda: None
     monkeypatch.setattr(microduck_newton, 'read_native_state', lambda ns, **kwargs:
                         {'step': ns.simulation_step_count, 'sim_time': ns.sim_time})
     assert backend.read()['support']['status'] == 'unavailable'  # HOME bootstrap is not solved evidence
@@ -244,6 +260,7 @@ def test_backend_read_delivers_support_from_matching_solve(monkeypatch):
     value = backend.read()
     assert value['support']['status'] == 'known'
     assert value['support']['step'] == value['step']
+    assert value['solver_graph']['enabled'] is False
 
 
 @pytest.mark.parametrize('bad', [None, 'mass_nan', 'mass_negative', 'mass_count', 'gravity_mismatch', 'gravity_direction'])

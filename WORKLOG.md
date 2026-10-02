@@ -193,3 +193,11 @@ receipt is retained. The precise hosted producer scheduling cause remains unknow
 500 focused regressions passed, including stop, MCP, runtime and graph admission;
 source and protected memory identities stayed unchanged. See
 `docs/evidence/robot-modularity/macos-fresh-capture-fix.json`.
+
+The same optional admission boundary now accepts a **local monotonic** deadline,
+checked under the lock both at admission and immediately before domain dispatch.
+Graph deadlines use this boundary. Tests deterministically expire the deadline
+during validation and between admission and domain lookup; no domain call occurs.
+Priority stop ignores an expired episode deadline. This coordinator check is not
+a real-time actuator guarantee: domain owners still enforce backend leases and
+last-moment cancellation. Provider/browser timestamps cannot supply this deadline.

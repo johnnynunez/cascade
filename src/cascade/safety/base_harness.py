@@ -184,7 +184,8 @@ class SafeBase:
                 raise ValueError("distance control forbidden external robot contact")
             sign = -1 if a in robot else 1
             upward = sign * sum(f * u for f, u in zip(contact.force_on_b_world_n, up))
-            loaded |= contact.normal_force_n > 0 and upward > 0
+            normal_up = sign * sum(n * u for n, u in zip(contact.normal_a_to_b_world, up))
+            loaded |= contact.normal_force_n > 0 and upward > 0 and normal_up > 0
         if require_load and not loaded:
             raise ValueError("distance control preflight requires positive solved sole support")
 
@@ -437,6 +438,10 @@ class SafeBase:
                 samples.append(state)
                 if distance is not None:
                     self._distance_state(state)
+                    # Inspect late samples for safety, but never count motion
+                    # first observed after the admitted command expired.
+                    if state.sim_time_s > end:
+                        break
                     # Exclude all preflight/ACK delivery drift. The first
                     # completed admitted state is an observed baseline, never
                     # positive travel credit. Subsequent increments use measured

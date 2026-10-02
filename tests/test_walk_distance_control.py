@@ -201,3 +201,48 @@ def test_known_empty_contact_solve_is_allowed_during_swing_not_counted_as_rest()
     # This is only the moving-phase veto. Independent rest still needs load.
     with pytest.raises(ValueError, match="positive solved sole support"):
         safe._distance_state(BaseState.from_dict(fields), require_load=True)
+
+
+def test_side_face_friction_cannot_substitute_for_upward_sole_normal():
+    from cascade.control.mobile_base import BaseState
+
+    safe = SafeBase(MockMobileBase(wall_lease_s=2.), limits(),
+                    distance_control=distance_limits(), support_contract=support_contract())
+    fields = state_fields()
+    fields.update(measurement_kind="physics", model_identity_sha256='e'*64)
+    fields['support'] = {**support(fields['step'], fields['sim_time_s']),
+                         'epoch': fields['epoch'], 'model_identity_sha256': 'e'*64}
+    fields['support']['contacts'][0].update(normal_a_to_b_world=[1., 0., 0.],
+        force_on_b_world_n=[1., 0., 1.], normal_force_n=1.)
+    with pytest.raises(ValueError, match="positive solved sole support"):
+        safe._distance_state(BaseState.from_dict(fields), require_load=True)
+
+
+def test_motion_only_observed_after_command_expiry_has_no_distance_credit():
+    class LateMotion(MockMobileBase):
+        end = None
+
+        def command_velocity(self, command, *, generation):
+            ack = super().command_velocity(command, generation=generation)
+            self.end = ack['end_sim_time_s']
+            return ack
+
+        def get_state(self):
+            self.advance(.03)
+            state = super().get_state()
+            late = self.end is not None and state.sim_time_s > self.end
+            return replace(state, position_world=(.02 if late else 0., 0., .2),
+                           linear_velocity_world=(0., 0., 0.))
+
+    raw = LateMotion(wall_lease_s=2., auto_step=False)
+    safe = configured(raw)
+    safe.connect()
+    try:
+        result = safe.walk_distance(.02)
+        assert not result['execution_ok'] and 'before simulation deadline' in result['error']
+        assert result['measured_distance_m'] == 0.
+        assert result['measured']['after']['position_world'][0] == .02
+        assert result['measured']['after']['sim_time_s'] > raw.end
+        assert raw.get_state().latched
+    finally:
+        safe.disconnect()

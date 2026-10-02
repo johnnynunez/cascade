@@ -1,0 +1,238 @@
+{
+  "base_commit": "735591eff4eab48923376a1de6145200c4c00673",
+  "scope": "Test-only capture selection; runtime age/timeout gates unchanged. Independent atomic generation admission fix is commit2f90c86. No physical acceptance.",
+  "prior_ci": {
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/37039255559",
+    "commit": "735591eff4eab48923376a1de6145200c4c00673",
+    "passed_jobs": [
+      "Linux x86",
+      "Linux ARM",
+      "minimal install",
+      "browser checks"
+    ],
+    "macos": {
+      "failed": 1,
+      "passed": 5139,
+      "skipped": 303,
+      "deselected": 4,
+      "failure": "healthy_late-stop_navigation rejected stale independent state",
+      "wire_producer_age_s": 0.138609375,
+      "max_received_state_age_s": 0.216188375,
+      "max_read_duration_s": 0.077613625,
+      "late_return_after_deadline_s": 0.005003375,
+      "log_sha256": "9bb284ddefbf50698c79db9410835c8d39beb8966ac3ca74c2383fbf77af6ad3"
+    }
+  },
+  "change": "Only hold a genuinely fresh independently published state; return older cached packets normally until a fresh publication. Never restamp, synthesize a step, or loosen observer limits.",
+  "controlled_pair": {
+    "injection": "170 ms real publisher pause near settle deadline, no clock or payload rewriting. Older cached response is initially valid but becomes stale if deliberately held until the deadline.",
+    "plugin_sha256": "cb77a2dc87f90f251e556ada9e7b379574fc7f13fc50def3964e417bd762595a",
+    "old": {
+      "exit_code": 1,
+      "status": "unverified",
+      "reason": "stale independent state",
+      "captures": 1,
+      "deferred_captures": [],
+      "wire_producer_age_s": 0.14111826597945765,
+      "max_received_state_age_s": 0.22722175598028116,
+      "max_read_duration_s": 0.08610710501670837,
+      "late_reads": 1,
+      "raw_receipt_sha256": "b35df866c1eb561760381723ec6a40a178fa61fbb076a854e3b158ba61d90a55",
+      "log_sha256": "6eec8d5ea3f763a8d9d7e50ab45e9bcdf5385005a51729e7ce5dfa1eca3cdca3",
+      "source_sha256": "a450f3fef86fb3706cbc0b445725a375e62e288d3e05c2e5de832c637bce397e",
+      "pause_events": [
+        {
+          "start": 208097.258792527,
+          "end": 208097.428800282,
+          "settle_deadline": 208097.48038232198
+        }
+      ]
+    },
+    "new": {
+      "exit_code": 0,
+      "status": "confirmed",
+      "reason": "independent rest check required",
+      "captures": 1,
+      "deferred_captures": [
+        {
+          "age_s": 0.14045795096899383,
+          "remaining_s": 0.08305753199965693,
+          "step": 32
+        },
+        {
+          "age_s": 0.1462722430296708,
+          "remaining_s": 0.07724110697745346,
+          "step": 32
+        },
+        {
+          "age_s": 0.15222505503334105,
+          "remaining_s": 0.07128766397363506,
+          "step": 32
+        },
+        {
+          "age_s": 0.15797272400232032,
+          "remaining_s": 0.06553824199363589,
+          "step": 32
+        },
+        {
+          "age_s": 0.16355355098494329,
+          "remaining_s": 0.05995729498681612,
+          "step": 32
+        },
+        {
+          "age_s": 0.16929920800612308,
+          "remaining_s": 0.05421237999689765,
+          "step": 32
+        },
+        {
+          "age_s": 0.1751047559955623,
+          "remaining_s": 0.04840755299665034,
+          "step": 32
+        },
+        {
+          "age_s": 0.1808865279890597,
+          "remaining_s": 0.042625389993190765,
+          "step": 32
+        },
+        {
+          "age_s": 0.186612964986125,
+          "remaining_s": 0.036897840996971354,
+          "step": 32
+        }
+      ],
+      "wire_producer_age_s": 0.000932117021875456,
+      "max_received_state_age_s": 0.1869198520143982,
+      "max_read_duration_s": 0.0368952130083926,
+      "late_reads": 1,
+      "raw_receipt_sha256": "ff608a25ae8bb99fda642d30031f98f23219be160f57a68595e11ac6926ae5c0",
+      "log_sha256": "106e2242acc92dbbe0317802bbe2046a9d0be71b46ef14dc833068c0a34e7939",
+      "source_sha256": "8c1f82986ec951e9363064b5febe3526d5e07ea5ea566b1313bfa5cb5edf132f",
+      "pause_events": [
+        {
+          "start": 208098.519051597,
+          "end": 208098.689056337,
+          "settle_deadline": 208098.742555983
+        }
+      ]
+    },
+    "interpretation": "Shows fixture capture precondition, not the actual CI producer scheduling cause."
+  },
+  "retained_failed_experiment": {
+    "injection": "190 ms pause plus the ordinary wait makes the channel itself stale before recovery; both fixtures correctly fail.",
+    "old": {
+      "exit_code": 1,
+      "status": "unverified",
+      "reason": "stale independent state",
+      "captures": 1,
+      "deferred_captures": [],
+      "wire_producer_age_s": 0.14508149199537002,
+      "max_received_state_age_s": 0.22890316197299398,
+      "max_read_duration_s": 0.08382447398616932,
+      "late_reads": 1,
+      "raw_receipt_sha256": "b345304bc5c72ce6524e6c17e221ff0d678c5ff0c4fc852f20daf31c5ff1600c",
+      "log_sha256": "225bcc338ab2a8a957d42bba6d5a685734536d8425abddb5285b040eceb0f5c3",
+      "source_sha256": "a450f3fef86fb3706cbc0b445725a375e62e288d3e05c2e5de832c637bce397e",
+      "pause_events": [
+        {
+          "start": 207713.584096657,
+          "end": 207713.774112116,
+          "settle_deadline": 207713.807440299
+        }
+      ]
+    },
+    "new": {
+      "exit_code": 1,
+      "status": "unverified",
+      "reason": "stale independent state",
+      "captures": 0,
+      "deferred_captures": [
+        {
+          "age_s": 0.14382789604132995,
+          "remaining_s": 0.08175911699072458,
+          "step": 32
+        },
+        {
+          "age_s": 0.14943991001928225,
+          "remaining_s": 0.07614560099318624,
+          "step": 32
+        },
+        {
+          "age_s": 0.15546178698423319,
+          "remaining_s": 0.07012825101264752,
+          "step": 32
+        },
+        {
+          "age_s": 0.16132681601447985,
+          "remaining_s": 0.06425942698842846,
+          "step": 32
+        },
+        {
+          "age_s": 0.16693475301144645,
+          "remaining_s": 0.058650647988542914,
+          "step": 32
+        },
+        {
+          "age_s": 0.17250898899510503,
+          "remaining_s": 0.05307644201093353,
+          "step": 32
+        },
+        {
+          "age_s": 0.1780571450071875,
+          "remaining_s": 0.04752847598865628,
+          "step": 32
+        },
+        {
+          "age_s": 0.18385609300457872,
+          "remaining_s": 0.041730599012225866,
+          "step": 32
+        },
+        {
+          "age_s": 0.18947398601449095,
+          "remaining_s": 0.03611155500402674,
+          "step": 32
+        },
+        {
+          "age_s": 0.19507002501632087,
+          "remaining_s": 0.030516456987243146,
+          "step": 32
+        },
+        {
+          "age_s": 0.20085530300275423,
+          "remaining_s": 0.024731479992624372,
+          "step": 32
+        }
+      ],
+      "wire_producer_age_s": null,
+      "max_received_state_age_s": 0.20144861500011757,
+      "max_read_duration_s": 0.0011634890106506646,
+      "late_reads": 0,
+      "raw_receipt_sha256": "5ebbe8ae71fa727ef1aaebe647ffde6c35c48c321a2da403cb58cbe713133c5d",
+      "log_sha256": "f39de24b47b5d1bafe531782704a1e7100dfa0514fdb5be775fb443376ff6f9d",
+      "source_sha256": "8c1f82986ec951e9363064b5febe3526d5e07ea5ea566b1313bfa5cb5edf132f",
+      "pause_events": [
+        {
+          "start": 207714.980204649,
+          "end": 207715.170213228,
+          "settle_deadline": 207715.205782348
+        }
+      ]
+    }
+  },
+  "focused_validation": {
+    "tests": 500,
+    "failures": 0,
+    "errors": 0,
+    "duration_s": 78.41,
+    "source_manifest_sha256": "9c8a55d7c6fcc55af1784c68215763e56690eba2f2d27601a6f897cb89ff7ac5",
+    "log_sha256": "45ac367598094b8deebba63f755a9e0ca13a386058c4236a9f1192490e599a68",
+    "source_unchanged": true,
+    "source_files": 1495,
+    "shared_memory_unchanged": true,
+    "shared_memory_after": {
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+      "/home/johnny/.cascade/grasp_memory.json": null
+    }
+  },
+  "test_sha256": "8c1f82986ec951e9363064b5febe3526d5e07ea5ea566b1313bfa5cb5edf132f",
+  "hosted_ci": "This follow-up still needs its own hosted macOS CI result."
+}

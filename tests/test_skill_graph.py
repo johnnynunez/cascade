@@ -80,6 +80,23 @@ def test_graph_binds_data_through_real_runtime_and_preserves_receipt(pair):
     assert len(result["catalog_sha256"]) == len(result["graph_sha256"]) == 64
 
 
+def test_stop_and_reset_between_graph_check_and_runtime_admission(pair, monkeypatch):
+    domain, runtime = pair
+    original_execute = runtime.execute
+
+    def race(name, args, *, expected_generation, deadline_monotonic_s):
+        assert runtime.stop()["ok"]
+        assert runtime.reset_stop()["ok"]
+        return original_execute(name, args, expected_generation=expected_generation,
+                                deadline_monotonic_s=deadline_monotonic_s)
+
+    monkeypatch.setattr(runtime, "execute", race)
+    result = run_skill_graph(SkillGraph(graph_data()), runtime)
+    assert not result["ok"]
+    assert domain.calls == []
+    assert "stale execution generation" in result["steps"][0]["result"]["error"]
+
+
 @pytest.mark.parametrize("reply", [
     {"ok": True},
     {"ok": True, "postcondition": {"status": "unverified"}},

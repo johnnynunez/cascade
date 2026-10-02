@@ -1,0 +1,392 @@
+{
+  "schema": "cascade.microduck.readonly_review.v1",
+  "snapshot_started_utc": "2026-10-02T01:44:55.358251+00:00",
+  "snapshot_finished_utc": "2026-10-02T01:44:55.369943+00:00",
+  "scope": "Read-only partner source and existing receipt audit; only these review outputs written; no simulations/tests/services executed",
+  "partner_root": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK",
+  "git": {
+    "repository": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/cascade",
+    "head": "5359405a607a14e9d30182309c40d30c3b95f80b",
+    "branch": "feat/microduck-isaac",
+    "status_porcelain_v1": "M src/cascade/agent/orchestrator.py\n M src/cascade/apps/demo.py\n M src/cascade/apps/mcp_server.py\n M src/cascade/config.py\n?? assets/microduck/\n?? configs/bases/\n?? configs/isaac/\n?? docs/superpowers/plans/2026-10-01-microduck.md\n?? docs/superpowers/specs/2026-10-01-microduck-design.md\n?? scripts/convert_microduck.py\n?? scripts/isaac_microduck_bridge.py\n?? scripts/microduck_assets.py\n?? src/cascade/agent/base_effects.py\n?? src/cascade/apps/mobile_runtime.py\n?? src/cascade/control/isaac_base.py\n?? src/cascade/control/microduck_actuator.py\n?? src/cascade/control/microduck_policy.py\n?? src/cascade/control/mobile_base.py\n?? src/cascade/control/mobile_rig.py\n?? src/cascade/control/mock_base.py\n?? src/cascade/control/newton_bam.py\n?? src/cascade/safety/base_harness.py\n?? src/cascade/sim/base_truth.py\n?? src/cascade/sim/microduck_newton.py\n?? src/cascade/sim/microduck_state.py\n?? src/cascade/sim/microduck_stepper.py\n?? src/cascade/sim/mobile_bridge.py\n?? src/cascade/sim/mobile_frames.py\n?? src/cascade/skills/mobile_runtime.py\n?? tests/test_isaac_base.py\n?? tests/test_microduck_actuator.py\n?? tests/test_microduck_assets.py\n?? tests/test_microduck_bridge_cli.py\n?? tests/test_microduck_conversion.py\n?? tests/test_microduck_policy.py\n?? tests/test_microduck_state.py\n?? tests/test_microduck_stepper.py\n?? tests/test_mobile_base.py\n?? tests/test_mobile_bridge.py\n?? tests/test_mobile_cli.py\n?? tests/test_mobile_effects.py\n?? tests/test_mobile_frames.py\n?? tests/test_mobile_mcp.py\n?? tests/test_mobile_runtime.py\n?? tests/test_mobile_safety.py\n?? tests/test_newton_bam.py"
+  },
+  "warning": "Active partner worktree; HEAD is only base revision. Hashes identify reviewed bytes. Existing validation receipts are not rebound to current source by this review.",
+  "sources": [
+    {
+      "path": "DESIGN.md",
+      "sha256": "c9f03e3c3dc60f1e54e17760a0a387b5b35a000068eaf7167414291793237cb6",
+      "bytes": 16405,
+      "mtime_utc": "2026-10-01T22:00:11.916402+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "POLICY_PROVENANCE_REPORT.md",
+      "sha256": "898af1fa312655319ef57585047422c5c71ed3fdcf34d89a2fcf5e83ba3b5c43",
+      "bytes": 20795,
+      "mtime_utc": "2026-10-02T01:13:17.224574+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "PHYSX_REPRESENTABILITY_REPORT.md",
+      "sha256": "c6fae6cc387d84a8f188aee6c0b4cf457a7dc4b56eb705a0dae63d8a8034f1a3",
+      "bytes": 30488,
+      "mtime_utc": "2026-10-02T01:06:34.157149+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/AGENTS.md",
+      "sha256": "e275ac6ca16430d3476e66b0fe362cb4a3c9b4135b5205e983c6abbe81d7e77e",
+      "bytes": 55894,
+      "mtime_utc": "2026-10-01T21:28:16.873859+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/README.md",
+      "sha256": "8d2b42243b4466127e5e586aa6528c76e785b29f704996289bc4aa51ec1527b2",
+      "bytes": 56167,
+      "mtime_utc": "2026-10-01T21:28:16.873859+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/docs/ARCHITECTURE.md",
+      "sha256": "e743ad824e3abf7ebbb2cae81b0bffd80ef924f0b9b41c7837bbd43ff9a62d7a",
+      "bytes": 41376,
+      "mtime_utc": "2026-10-01T21:28:17.057219+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/docs/superpowers/specs/2026-10-01-microduck-design.md",
+      "sha256": "c9f03e3c3dc60f1e54e17760a0a387b5b35a000068eaf7167414291793237cb6",
+      "bytes": 16405,
+      "mtime_utc": "2026-10-01T22:00:11.981404+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/assets/microduck/manifest.json",
+      "sha256": "56678bc8dbbc4aba6ca99944a37d495badb1157093b728348700739896383faa",
+      "bytes": 52391,
+      "mtime_utc": "2026-10-01T21:46:53.160702+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/assets/microduck/NOTICE.md",
+      "sha256": "d94bd3bd2a998d37f48f108998fe28bdbbc07270e5cc6eee78692704d6a0d6e1",
+      "bytes": 17372,
+      "mtime_utc": "2026-10-01T21:53:04.248460+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/assets/microduck/newton-bam.json",
+      "sha256": "39d524690f94d0dcc414c4c95c77f2bdb1a5b31928e7a374217e3092370ba184",
+      "bytes": 6285,
+      "mtime_utc": "2026-10-01T22:51:25.228655+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/configs/bases/microduck_isaac.yaml",
+      "sha256": "3234210dde922cec72d7a80ba5db7a26f46f55e6eb6d7c1e167d24edc5bb57a6",
+      "bytes": 1026,
+      "mtime_utc": "2026-10-01T22:23:18.368391+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/scripts/isaac_microduck_bridge.py",
+      "sha256": "55739f0fcba84a98d29f271a5f774d3c5f79d4a58df0aa95b45086768d8c95eb",
+      "bytes": 18729,
+      "mtime_utc": "2026-10-02T01:09:45.810155+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/apps/demo.py",
+      "sha256": "97858e3006cb78dbad5c26e7d546bc98a8a4ef2421973cd39826932203e2e5b6",
+      "bytes": 42348,
+      "mtime_utc": "2026-10-01T22:32:00.315304+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/apps/mobile_runtime.py",
+      "sha256": "9541c96175d3a4088f235df54d05d969860c09351ba3b635663977833f7d8ec8",
+      "bytes": 5966,
+      "mtime_utc": "2026-10-01T23:20:54.991647+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/apps/mcp_server.py",
+      "sha256": "0398b4ce9ed61c133c53dd528e5ad7240107432d7fcef1d276963d9faf30fea4",
+      "bytes": 54711,
+      "mtime_utc": "2026-10-01T23:37:15.397139+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/control/microduck_policy.py",
+      "sha256": "4ad2a91ea21b4ff8937c5d8007e075831eb1a3baa90395daa6bca3a0e1d2bf6d",
+      "bytes": 7010,
+      "mtime_utc": "2026-10-01T21:43:21.373273+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/control/microduck_actuator.py",
+      "sha256": "77216426cefc311237fa6854f06aa98a90d4f9f53b080a93c886d67f14961a0e",
+      "bytes": 8709,
+      "mtime_utc": "2026-10-01T21:52:36.444879+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/control/newton_bam.py",
+      "sha256": "2870033e4f60adef06d2ae1ef8ecdf05bb1408646b84142ce5afda8609884307",
+      "bytes": 26063,
+      "mtime_utc": "2026-10-01T22:58:34.022618+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/control/isaac_base.py",
+      "sha256": "8ae0408cc0bebfdde4d56a19e6ca8bb2267d61fb802ec9460c30c2310180596c",
+      "bytes": 15070,
+      "mtime_utc": "2026-10-01T22:23:42.390893+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/control/mobile_base.py",
+      "sha256": "a3e85de1fc65bcef3931d40e51106df0478df862cd831ec8d4c7fb44bd2be27c",
+      "bytes": 7322,
+      "mtime_utc": "2026-10-01T21:38:39.190373+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/safety/base_harness.py",
+      "sha256": "5cb4ec13a1d2be7485a592fa8884386b8d466e51735c62fc0c33b3e1826b71a5",
+      "bytes": 18830,
+      "mtime_utc": "2026-10-01T21:56:53.260249+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/sim/microduck_stepper.py",
+      "sha256": "b164138b6513fa25db54ad81d03faa6e4833fd9b9d410dbe62e108447c395d49",
+      "bytes": 14126,
+      "mtime_utc": "2026-10-02T01:12:20.777394+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/sim/microduck_newton.py",
+      "sha256": "5f77efdcf503b8f3db075d0b207bc8a151e5e1ed050349ee391d34a10251ebca",
+      "bytes": 29230,
+      "mtime_utc": "2026-10-02T01:40:33.937780+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/sim/mobile_bridge.py",
+      "sha256": "948031ec823014fc11a193f5506d62d7f982a19b7049285613836c8bf2133c39",
+      "bytes": 29247,
+      "mtime_utc": "2026-10-01T23:00:56.603598+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/sim/base_truth.py",
+      "sha256": "172e6d8b194dd1e4dc9ee7b96d46c31b38d44ce8dd030f8307483fcf38f35cf2",
+      "bytes": 6773,
+      "mtime_utc": "2026-10-01T22:25:43.188419+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/agent/base_effects.py",
+      "sha256": "5e963e1af2a560225ec05122377cae34e59c2b45b2ef91827eb9752585589dbb",
+      "bytes": 24055,
+      "mtime_utc": "2026-10-01T22:37:42.126450+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/src/cascade/skills/mobile_runtime.py",
+      "sha256": "17b508495887c889252edb0f6b18fefde4f81e2d9a635cdaeeccf7aa4ae18734",
+      "bytes": 33891,
+      "mtime_utc": "2026-10-01T23:46:40.947960+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/tests/test_microduck_stepper.py",
+      "sha256": "a8eeba253b25a5a4e799b0f2bd4665571bd8cb868a4150132943ffe760461914",
+      "bytes": 24537,
+      "mtime_utc": "2026-10-02T01:40:34.253787+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "cascade/tests/test_mobile_effects.py",
+      "sha256": "21e3dfc9b1f7d5921b0545f8e654be6e95d314d0081533975b4293c362e44f55",
+      "bytes": 35191,
+      "mtime_utc": "2026-10-01T22:36:54.889463+00:00",
+      "stable_during_read": true
+    }
+  ],
+  "receipts": [
+    {
+      "path": "production-live/newton-product1/receipt.json",
+      "sha256": "0f3c14d2780a69fd994815caeabed1a0c29f031db99bf449b19c761a2c2c6dbe",
+      "bytes": 5749,
+      "mtime_utc": "2026-10-02T01:30:23.326020+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "production-live/newton-product2/receipt.json",
+      "sha256": "9c30f2cee04989cd31128aae4e5c3b0bd5689d61fce6821d055fac1f7a957bab",
+      "bytes": 44600,
+      "mtime_utc": "2026-10-02T01:35:08.354976+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "production-live/newton-product2/startup.json",
+      "sha256": "a9a9b0c2964b066d7969bfb4fa325e2f4f16447951ec1b6de8e98164ed14b63b",
+      "bytes": 104320,
+      "mtime_utc": "2026-10-02T01:34:53.017656+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "production-live/newton-product2/runtime.json",
+      "sha256": "a3c5a3be4a3496fadc7a8525e4421e8ff3cf4cb3e816a5e72254968ea58bed32",
+      "bytes": 32253,
+      "mtime_utc": "2026-10-02T01:35:06.614940+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "production-live/newton-product2/physics.jsonl",
+      "sha256": "cb768ce2f21aa50e647cc52791afc6450bcc5eb1d217c18ef0f6b1c2faa939fe",
+      "bytes": 504193,
+      "mtime_utc": "2026-10-02T01:35:08.272974+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "production-live/newton-product2/policy.jsonl",
+      "sha256": "aa245c31437a63e926be95e89b6a856afea1499125485a61e2d573a9fbcfeb80",
+      "bytes": 19831,
+      "mtime_utc": "2026-10-02T01:35:08.201973+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "production-live/newton-product2/frames.jsonl",
+      "sha256": "e4e0b3efd5a59b782f6f0bff791d1f984419f4969af906ab9acdbd9f340e7062",
+      "bytes": 2350,
+      "mtime_utc": "2026-10-02T01:35:08.331662+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "parent-preflight/kit-dedicated-live2/receipt.json",
+      "sha256": "f9aca6ae069508549511e47834168dc98d02fce70281367f167a8c4f64c8310b",
+      "bytes": 28344,
+      "mtime_utc": "2026-10-02T00:36:03.056507+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "parent-preflight/kit-native-vx-0.0-trial1/receipt.json",
+      "sha256": "f9a471a3a1e7613a90765bcd98236b34a912a9e5c75798bbd8f4707a9acc54ea",
+      "bytes": 26505,
+      "mtime_utc": "2026-10-02T00:04:29.081142+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "parent-preflight/kit-native-vx-0.15-trial1/receipt.json",
+      "sha256": "a15540e47a352905689a583424159616aacd3336aef85d104b28851a775f2e22",
+      "bytes": 26497,
+      "mtime_utc": "2026-10-02T00:04:59.974605+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "parent-preflight/kit-native-vx-0.3-trial1/receipt.json",
+      "sha256": "0d5b647411a64647fd88091c5db8764299985739c5a1b378bcd689c7f77236d0",
+      "bytes": 26489,
+      "mtime_utc": "2026-10-02T00:05:30.080645+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "parent-preflight/kit-native-vx--0.3-trial1/receipt.json",
+      "sha256": "989a8e79b2edd894d3874622a05a2ff2b72569f3f6d4dfd624af4b4f5c61d896",
+      "bytes": 26502,
+      "mtime_utc": "2026-10-02T00:06:00.455321+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "parent-preflight/kit-native-vx0.3-video1/receipt.json",
+      "sha256": "c30c88de01add21884b632525e4b4ebbad61de8b384b65b56aa4a29e879bd559",
+      "bytes": 37512,
+      "mtime_utc": "2026-10-02T00:13:49.315646+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "parent-preflight/kit-native-vx0.3-video1/video-verification.json",
+      "sha256": "0ad52bda1c2b2bad6837c856231423468322e06f464695940686c334df92989a",
+      "bytes": 493,
+      "mtime_utc": "2026-10-02T00:15:00.430234+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "parent-preflight/kit-physx-capability2.json",
+      "sha256": "660942ad48abd61567bb9b50ca755fac1f56f56e7fde59b005aa6d5c7882c002",
+      "bytes": 2777,
+      "mtime_utc": "2026-10-01T22:39:27.310875+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "policy-followup/parent-verify/verification.json",
+      "sha256": "b97785cced21d30c30f3cfb2670d355a5fba043ab6214a8e13135726b59a6848",
+      "bytes": 16619,
+      "mtime_utc": "2026-10-02T00:48:29.613662+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "solver-contrast/campaign1/parent-verification.json",
+      "sha256": "3fbb575095065382965299db519837016300cf253645e16bee4a56ceff16b6e9",
+      "bytes": 4421,
+      "mtime_utc": "2026-10-02T01:23:16.728631+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "parent-balance-status-green.xml",
+      "sha256": "62ff5b74e9648277f89a1022e11314e420706c662a49f1bd72e273df25a4e8fc",
+      "bytes": 114597,
+      "mtime_utc": "2026-10-01T23:02:27.163491+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "parent-bridge-production.log",
+      "sha256": "c9de7a66d631222f9bb2095e911ecb0c2cddf7a0cafe6b1b4b6cf30bea480362",
+      "bytes": 340,
+      "mtime_utc": "2026-10-02T01:27:42.582661+00:00",
+      "stable_during_read": true
+    },
+    {
+      "path": "parent-native-bam.log",
+      "sha256": "eb7bb8a41bf1f5732b0e499b113ee6b6ccc8d5dda1ae26265a384eacb6b04715",
+      "bytes": 11163,
+      "mtime_utc": "2026-10-01T23:47:52.675460+00:00",
+      "stable_during_read": true
+    }
+  ],
+  "source_changed_during_capture": [],
+  "receipt_changed_during_capture": [],
+  "finding_files": {
+    "P1_inflight_inference_after_stop": "cascade/src/cascade/sim/microduck_stepper.py",
+    "P2_external_configuration_binding": [
+      "cascade/src/cascade/control/isaac_base.py",
+      "cascade/src/cascade/sim/mobile_bridge.py",
+      "cascade/src/cascade/sim/base_truth.py"
+    ],
+    "P2_support_contact_verifier": "cascade/src/cascade/agent/base_effects.py"
+  },
+  "historical_fix": {
+    "issue": "nominal decimal versus native float32 timestep bootstrap comparison",
+    "current_source": "cascade/src/cascade/sim/microduck_newton.py",
+    "failed_receipt": "production-live/newton-product1/receipt.json",
+    "later_completed_smoke": "production-live/newton-product2/receipt.json",
+    "later_physical_acceptance": false
+  },
+  "review_sha256": "0dc7c739975518feb96c5e2654cb4b333b56e71cdf7d5d28c7b672da3ae6c48e",
+  "original_draft_sha256": "72a88c967afe613a35035e699cde3c56fe5f55426cf7ceabd4ba96ff6826e15e",
+  "review_document": "docs/MICRODUCK_DESIGN_REVIEW_20261002.md",
+  "conversation_document": "docs/MICRODUCK_CONVERSATION_DESIGN.md",
+  "original_voice_draft_sha256": "4b587fee75310e565c7aede32116058df10d2eb5457d2f8813f6790a17400bee",
+  "publication_scope": "Documentation-only adaptation of the recorded review. External source and receipt bytes are not vendored; original snapshot timestamps and hashes are retained, not remeasured or rebound.",
+  "conversation_sha256": "c180f7e8dc60868bf8d6f66befe46e68ed1a0a373fa780c2f0aad55ee73b32ca",
+  "voice_primary_revisions": {
+    "pollen-robotics/reachy_mini_conversation_app": "ddc309630448a664b0283812ff80048c36966c35",
+    "pollen-robotics/reachy-mini-realtime-url": "6a2c558d205ee8ca144fdc6d702dfe9e857d911c",
+    "huggingface/speech-to-speech": "411399d34555b2169823a6eaeb7f8ff192db89db",
+    "pollen-robotics/reachy_mini_v1.10.0rc5": "221b3c3ce1aadae3c0eed97a8712d83bd205e13e"
+  }
+}

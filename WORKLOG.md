@@ -230,3 +230,8 @@ Validation: 135 targeted conversation/runtime/graph/MCP/sensing tests passed;
 three optional-stack cases skipped in the task-private test environment.
 Conversation alone has 41 passing cases, including Node worklet execution.
 Ruff, uv lock consistency, documentation links and git diff checks pass.
+
+Root review on the integrated PR #70 source passed 97 focused conversation,
+runtime, graph and MCP tests, with three optional-stack skips. Source and shared
+learned stores were unchanged; all 41 conversation cases passed. The provider
+inference experiment is separate from these loopback protocol results.

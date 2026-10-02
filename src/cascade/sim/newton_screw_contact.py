@@ -22,6 +22,7 @@ class ThreadingScene:
     frame_dt = 1 / 60
     substeps = 10
     motor_limit_nm = 0.05
+    requested_speed_rad_s = 1.5
     arm_joints = ('shoulder_pan', 'shoulder_lift', 'elbow_flex', 'wrist_flex', 'wrist_roll')
     socket_offset = np.array([0.012, 0.0, -0.110])
 
@@ -105,6 +106,7 @@ class ThreadingScene:
                 self.nut_body = body
             color = (.65, .70, .76) if name == 'bolt' else (.15, .55, .40)
             builder.add_shape_mesh(body, xform=pose, mesh=mesh, cfg=cfg, label=name, color=color)
+        self._add_fixture(builder, cache)
         builder.add_shape_box(-1, xform=wp.transform(wp.vec3(.15, 0, -.015), wp.quat_identity()),
                               hx=.4, hy=.25, hz=.015, label='bench', color=(.24,.27,.3))
         self.model = builder.finalize(device=device)
@@ -214,15 +216,14 @@ class ThreadingScene:
     def step(self):
         for _ in range(self.substeps):
             pose = self.state.body_q.numpy()[self.nut_body]
-            fraction = float(np.clip((self._initial_nut_z-pose[2])/.024, 0., 1.))
-            target = self.entry*(1-fraction) + self.bottom*fraction
+            target = self._arm_target(pose)
             ctrl = self.control.mujoco.ctrl.numpy()
             for name, value in zip(self.arm_joints, target, strict=True):
                 ctrl[self._actuators[name]] = value
             ctrl[self._actuators['gripper']] = .6
             speed = float(self.state.joint_qd.numpy()[self._motor_qd_index])
             sign = 1 if self.direction == 'tighten' else -1
-            requested_speed = sign * 1.5 if self.drive and self._active else 0.
+            requested_speed = sign * self.requested_speed_rad_s if self.drive and self._active else 0.
             # Disabled drive is exactly zero actuator effort. The authored
             # spindle's passive viscous damping remains physical in both cases.
             # A completed enabled drive commands a velocity brake explicitly.
@@ -251,6 +252,18 @@ class ThreadingScene:
             self._last_angle = angle
             if self._active and -sign*(self._unwrapped-self._started_angle) >= self.requested_turns*2*math.pi:
                 self._active = False
+            if self._on_substep(p):
+                break
+
+    def _add_fixture(self, builder, cache):
+        pass
+
+    def _on_substep(self, nut_pose):
+        return False
+
+    def _arm_target(self, nut_pose):
+        fraction = float(np.clip((self._initial_nut_z-nut_pose[2])/.024, 0., 1.))
+        return self.entry*(1-fraction) + self.bottom*fraction
 
     def observe(self):
         poses = self.state.body_q.numpy()

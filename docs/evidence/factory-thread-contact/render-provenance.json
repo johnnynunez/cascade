@@ -1,0 +1,15 @@
+{
+  "mode": "saved_solver_body_poses_only_no_solver_steps",
+  "samples_sha256": "9712f8638887736363cd99b1909f3bd7a51d79c77194e16dc28255c831eb48c6",
+  "summary_sha256": "f40a6f30396b1048b476beaf65447bfde1fcdc18b23fc8949fbf6da10c056d9f",
+  "renderer_sha256": "7fb2d6929b45641e071848d084756828aa3f6026f015afd9c383c59480c9ebe8",
+  "model_sources_sha256": {
+    "src/cascade/sim/newton_screw_contact.py": "d0ad84027d28ff8dcfb9c7036c55fa5d2888adf2a2bb53d9b4a3a705e46ccec3",
+    "src/cascade/sim/newton_screw_seating.py": "3f3465319cada30a37612abffe38a5fa5abdca89ff08e13fa32475e9e9320883"
+  },
+  "frames": 2340,
+  "resolution": [
+    1280,
+    720
+  ]
+}

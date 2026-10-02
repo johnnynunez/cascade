@@ -96,5 +96,295 @@
       "sha256": "2aac341898c72ce73da58788b597d89dba48dadff589246ed70b1d87c8e9599f",
       "bytes": 5151
     }
+  },
+  "final-seating": {
+    "approach-threading.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/approach-threading.json",
+      "sha256": "f72c3a453c744efcec433d36dfbc4febda81bd2de228d82d923bcb98931ad78f",
+      "bytes": 876
+    },
+    "end.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/end.png",
+      "sha256": "8fef2980c56b4025bf18153f7d4298ee5784ee79d5011b6dd50563e923b698fe",
+      "bytes": 101524
+    },
+    "middle.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/middle.png",
+      "sha256": "b71b8dfbb6a1d17b226feeb5587c56bd79fd7f2430ef619e040bd4cf22bc9334",
+      "bytes": 101294
+    },
+    "render-provenance.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/render-provenance.json",
+      "sha256": "3b2e09a28e6882f0e7b62f00da08f3af1133daf46e089c88f1486cc8981ee059",
+      "bytes": 647
+    },
+    "samples.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/samples.jsonl",
+      "sha256": "9712f8638887736363cd99b1909f3bd7a51d79c77194e16dc28255c831eb48c6",
+      "bytes": 20729589
+    },
+    "seat-measurements.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/seat-measurements.json",
+      "sha256": "7d1077da1b9429a36057c442c56ec61da1243cc44e22ade135ee8bd6be31ba3c",
+      "bytes": 519
+    },
+    "source-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/source-before.json",
+      "sha256": "6a5dee8778933f51e17e5c530b07747dc351df25d93c8d332ba36a3da23489cf",
+      "bytes": 564
+    },
+    "sources/scripts/validate_screw_seating.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/sources/scripts/validate_screw_seating.py",
+      "sha256": "595068912afd8f1e14d01d3b926b4fcaf2a5f312a3040d5b5def0649b5286041",
+      "bytes": 6981
+    },
+    "sources/src/cascade/sim/newton_screw_contact.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/sources/src/cascade/sim/newton_screw_contact.py",
+      "sha256": "d0ad84027d28ff8dcfb9c7036c55fa5d2888adf2a2bb53d9b4a3a705e46ccec3",
+      "bytes": 16125
+    },
+    "sources/src/cascade/sim/newton_screw_seating.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/sources/src/cascade/sim/newton_screw_seating.py",
+      "sha256": "3f3465319cada30a37612abffe38a5fa5abdca89ff08e13fa32475e9e9320883",
+      "bytes": 9942
+    },
+    "sources/src/cascade/sim/seating_verification.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/sources/src/cascade/sim/seating_verification.py",
+      "sha256": "01845faf010d48a818de320297fbba33548998c4a2ecca7bd43523faa8f0a565",
+      "bytes": 4829
+    },
+    "sources/src/cascade/sim/threading_verification.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/sources/src/cascade/sim/threading_verification.py",
+      "sha256": "23a0fe46271251f087962bedbe055157f52463ed9fb69415597a24cd16979c22",
+      "bytes": 8890
+    },
+    "start.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/start.png",
+      "sha256": "f287b513d165f206a8b80e6f698415b02699201c26d77e20e71dde5dd0681d26",
+      "bytes": 104632
+    },
+    "substeps.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/substeps.jsonl",
+      "sha256": "c76a043ea68f673018dfba5182e68de33a7a6e8ce5c9d9f45a0a09f9a50a349f",
+      "bytes": 12124095
+    },
+    "summary.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/summary.json",
+      "sha256": "f40a6f30396b1048b476beaf65447bfde1fcdc18b23fc8949fbf6da10c056d9f",
+      "bytes": 7496
+    },
+    "threading.mp4": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/threading.mp4",
+      "sha256": "23d070321c067b8282b5f465b4da06d7f66e77e372d0a2d6b7460f29ac770dbf",
+      "bytes": 1224578
+    },
+    "video-review-01.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/video-review-01.png",
+      "sha256": "d4efec98443aac2bf7c4fe1596b1c8026cb9b88a1234703dcd9f6227c197b6c4",
+      "bytes": 142043
+    },
+    "video-review-02.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/video-review-02.png",
+      "sha256": "dd35fe2d3ae6bf9056bbd692159a15fef8c2ed6517cb69eac8e5eaec762252cd",
+      "bytes": 144302
+    },
+    "video-review-03.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/video-review-03.png",
+      "sha256": "acbe1153fa8cbb0c59e6f7bec7a69696f9bd3488a036d5cc95cbab975b76234a",
+      "bytes": 138638
+    },
+    "visual-validation.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating/visual-validation.json",
+      "sha256": "a9863c23ef6864ae0d39736f4158d85787744d9aff3d0f35be167ae4779e3e4e",
+      "bytes": 817
+    }
+  },
+  "final-seating-zero-drive": {
+    "samples.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-zero-drive/samples.jsonl",
+      "sha256": "7e493052925b3d60fa218f2768fa281bdc9609a9ad6255bfa54b5485306986e0",
+      "bytes": 4538258
+    },
+    "source-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-zero-drive/source-before.json",
+      "sha256": "2d6cbe53c30c7b229f18f60236903fa366fe188aeb1f5d1c17fb89eab30f4975",
+      "bytes": 459
+    },
+    "sources/scripts/validate_screw_seating_control.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-zero-drive/sources/scripts/validate_screw_seating_control.py",
+      "sha256": "b25303b72d1a9c30815e95a162a4126962641b2446bd20a10e93fd36de2e8ff7",
+      "bytes": 4209
+    },
+    "sources/src/cascade/sim/newton_screw_contact.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-zero-drive/sources/src/cascade/sim/newton_screw_contact.py",
+      "sha256": "d0ad84027d28ff8dcfb9c7036c55fa5d2888adf2a2bb53d9b4a3a705e46ccec3",
+      "bytes": 16125
+    },
+    "sources/src/cascade/sim/newton_screw_seating.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-zero-drive/sources/src/cascade/sim/newton_screw_seating.py",
+      "sha256": "3f3465319cada30a37612abffe38a5fa5abdca89ff08e13fa32475e9e9320883",
+      "bytes": 9942
+    },
+    "sources/src/cascade/sim/threading_verification.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-zero-drive/sources/src/cascade/sim/threading_verification.py",
+      "sha256": "23a0fe46271251f087962bedbe055157f52463ed9fb69415597a24cd16979c22",
+      "bytes": 8890
+    },
+    "substeps.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-zero-drive/substeps.jsonl",
+      "sha256": "a3fa1c740f6627b9ac07e924ee29eef9d66341a8329549b1b0aff8dbbc0eb4a7",
+      "bytes": 2485974
+    },
+    "summary.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-zero-drive/summary.json",
+      "sha256": "d2419d8e354e8c565b13a7b027d8ba8409b37d20e0bfb3223a0e309f761a7680",
+      "bytes": 6002
+    }
+  },
+  "final-seating-dt1200": {
+    "samples.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-dt1200/samples.jsonl",
+      "sha256": "3527fe272a5a0057402d9281a4dbf673ec82137074aba294e95d87fbe09940eb",
+      "bytes": 2678149
+    },
+    "source-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-dt1200/source-before.json",
+      "sha256": "6a5dee8778933f51e17e5c530b07747dc351df25d93c8d332ba36a3da23489cf",
+      "bytes": 564
+    },
+    "sources/scripts/validate_screw_seating.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-dt1200/sources/scripts/validate_screw_seating.py",
+      "sha256": "595068912afd8f1e14d01d3b926b4fcaf2a5f312a3040d5b5def0649b5286041",
+      "bytes": 6981
+    },
+    "sources/src/cascade/sim/newton_screw_contact.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-dt1200/sources/src/cascade/sim/newton_screw_contact.py",
+      "sha256": "d0ad84027d28ff8dcfb9c7036c55fa5d2888adf2a2bb53d9b4a3a705e46ccec3",
+      "bytes": 16125
+    },
+    "sources/src/cascade/sim/newton_screw_seating.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-dt1200/sources/src/cascade/sim/newton_screw_seating.py",
+      "sha256": "3f3465319cada30a37612abffe38a5fa5abdca89ff08e13fa32475e9e9320883",
+      "bytes": 9942
+    },
+    "sources/src/cascade/sim/seating_verification.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-dt1200/sources/src/cascade/sim/seating_verification.py",
+      "sha256": "01845faf010d48a818de320297fbba33548998c4a2ecca7bd43523faa8f0a565",
+      "bytes": 4829
+    },
+    "sources/src/cascade/sim/threading_verification.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-dt1200/sources/src/cascade/sim/threading_verification.py",
+      "sha256": "23a0fe46271251f087962bedbe055157f52463ed9fb69415597a24cd16979c22",
+      "bytes": 8890
+    },
+    "substeps.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-dt1200/substeps.jsonl",
+      "sha256": "3270611f986631fb89ba7a44b23b71a5a2ba57d992a47f5a10df005654bfe85b",
+      "bytes": 4958349
+    },
+    "summary.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-dt1200/summary.json",
+      "sha256": "12a2e53cc48f9b0bfd092e6317798e61c16a22ff9a2d6a48fa33e65729aa436a",
+      "bytes": 7465
+    },
+    "threading-probe.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-seating-dt1200/threading-probe.json",
+      "sha256": "f872c78bcc5a3ea8b864bc778e98ecff713729c6753f6dcc329b33ada4bc3b84",
+      "bytes": 1614
+    }
+  },
+  "seating01": {
+    "negative-analysis.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating01/negative-analysis.json",
+      "sha256": "31e681a085fb83adbdc0b74a71d123908b1b2390692a8a6ba206e3f33d55fff7",
+      "bytes": 606
+    },
+    "samples.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating01/samples.jsonl",
+      "sha256": "0be15bf80596dc717f90a361bd507ad40749bbc837c0a231ab50bc0446fe4ecb",
+      "bytes": 14078639
+    },
+    "source-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating01/source-before.json",
+      "sha256": "cdbc1797a45c94789736cb4d6c241529fa9c35765fa76467d09301ebdc7f8c94",
+      "bytes": 451
+    },
+    "sources/scripts/validate_screw_seating.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating01/sources/scripts/validate_screw_seating.py",
+      "sha256": "b3f4c5b2b180dfe015b42fdd4cd995448caec49d62f26ad1a7156167a52bd775",
+      "bytes": 6643
+    },
+    "sources/src/cascade/sim/newton_screw_contact.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating01/sources/src/cascade/sim/newton_screw_contact.py",
+      "sha256": "349279eb0a32dbb1729f7f52150e115b2833dd9c5d33aa25d715d4d80bb60f15",
+      "bytes": 15908
+    },
+    "sources/src/cascade/sim/newton_screw_seating.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating01/sources/src/cascade/sim/newton_screw_seating.py",
+      "sha256": "d3103fa57a49b0a139ba632045ad956071cd423c6a832dc1b63354af5d2a0956",
+      "bytes": 5172
+    },
+    "sources/src/cascade/sim/threading_verification.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating01/sources/src/cascade/sim/threading_verification.py",
+      "sha256": "23a0fe46271251f087962bedbe055157f52463ed9fb69415597a24cd16979c22",
+      "bytes": 8890
+    },
+    "summary.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating01/summary.json",
+      "sha256": "0122d1d4ae7386adefaf6e1fe2d46ca1368d572e5a99a6b6cb6580268482088d",
+      "bytes": 568
+    }
+  },
+  "seating-clearance01": {
+    "samples.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating-clearance01/samples.jsonl",
+      "sha256": "fb24ab0cd3acc85779972a1600973c18e4a9811ddafca275bd2fbda38b85da8a",
+      "bytes": 3364402
+    },
+    "source-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating-clearance01/source-before.json",
+      "sha256": "ae6c7add0e1efbdd51b1dd553ab21203e63657e8b22146edbd7332c41013eed3",
+      "bytes": 564
+    },
+    "sources/scripts/validate_screw_seating.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating-clearance01/sources/scripts/validate_screw_seating.py",
+      "sha256": "595068912afd8f1e14d01d3b926b4fcaf2a5f312a3040d5b5def0649b5286041",
+      "bytes": 6981
+    },
+    "sources/src/cascade/sim/newton_screw_contact.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating-clearance01/sources/src/cascade/sim/newton_screw_contact.py",
+      "sha256": "d0ad84027d28ff8dcfb9c7036c55fa5d2888adf2a2bb53d9b4a3a705e46ccec3",
+      "bytes": 16125
+    },
+    "sources/src/cascade/sim/newton_screw_seating.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating-clearance01/sources/src/cascade/sim/newton_screw_seating.py",
+      "sha256": "a587643de9dacfb4a26bcb86ddb77b81f1c0fdd903004db65563d8a57bc5208f",
+      "bytes": 9721
+    },
+    "sources/src/cascade/sim/seating_verification.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating-clearance01/sources/src/cascade/sim/seating_verification.py",
+      "sha256": "01845faf010d48a818de320297fbba33548998c4a2ecca7bd43523faa8f0a565",
+      "bytes": 4829
+    },
+    "sources/src/cascade/sim/threading_verification.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating-clearance01/sources/src/cascade/sim/threading_verification.py",
+      "sha256": "23a0fe46271251f087962bedbe055157f52463ed9fb69415597a24cd16979c22",
+      "bytes": 8890
+    },
+    "substeps.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating-clearance01/substeps.jsonl",
+      "sha256": "c10cbf46afcb574f7f9a0ca294e35f8af1bc47a84b860eab57f3173ba466926d",
+      "bytes": 2480067
+    },
+    "summary.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating-clearance01/summary.json",
+      "sha256": "ef1b8deca92f1ee80d42ba3a542abaa6b9615db779f039437dd90387f352b581",
+      "bytes": 7463
+    },
+    "threading-probe.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/seating-clearance01/threading-probe.json",
+      "sha256": "26d731a846d05e449fb70017f47d299bacf9e7a7ef6d559e5a38701f8b03215e",
+      "bytes": 1436
+    }
   }
 }

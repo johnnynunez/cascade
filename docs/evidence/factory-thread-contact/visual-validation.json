@@ -1,0 +1,38 @@
+{
+  "video": "threading.mp4",
+  "decoded_frame_indices": [
+    0,
+    1170,
+    2339
+  ],
+  "frames": {
+    "video-review-01.png": {
+      "mean_rgb": 71.56279947916667,
+      "pixel_std": 43.06039297247723,
+      "max_rgb": 255,
+      "resolution": [
+        1280,
+        720
+      ]
+    },
+    "video-review-02.png": {
+      "mean_rgb": 71.33254810474537,
+      "pixel_std": 42.83178485901376,
+      "max_rgb": 255,
+      "resolution": [
+        1280,
+        720
+      ]
+    },
+    "video-review-03.png": {
+      "mean_rgb": 71.23368706597222,
+      "pixel_std": 42.75589107384375,
+      "max_rgb": 255,
+      "resolution": [
+        1280,
+        720
+      ]
+    }
+  },
+  "visual_inspection": "Decoded start, middle and end inspected: robot, nut, bolt and spacer visible; no black frames or startup artifacts"
+}

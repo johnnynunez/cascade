@@ -1,0 +1,13 @@
+{
+  "status": "refuted",
+  "seating_verified": false,
+  "reason": "Thread/runout stall without any shoulder contact; exploratory process stopped explicitly after persistent stall",
+  "termination": "operator_SIGINT_after_runout_stall",
+  "source_snapshot": "sources/",
+  "time_s": 43.09999999996892,
+  "nut_bottom_gap_m": 0.001061425477266311,
+  "motor_torque_nm": 0.05000000074505806,
+  "shoulder_contacts_over_run": 0,
+  "tool_fixture_contacts_at_recorded_frames": 0,
+  "limits": "Tool collision was not yet latched per substep; this is a negative seat counterexample, not a completed acceptance run."
+}

@@ -1,0 +1,19 @@
+{
+  "first_shoulder_contact_s": 35.933333333316895,
+  "loaded_torque_min_max_nm": [
+    0.05000000074505806,
+    0.05000000074505806
+  ],
+  "loaded_shoulder_force_min_max_n": [
+    5.8704531490802765,
+    7.624607175588608
+  ],
+  "last_rest_force_min_max_n": [
+    4.737720459699631,
+    5.8430735766887665
+  ],
+  "last_rest_max_angular_speed_rad_s": 0.0036330153234302998,
+  "last_rest_max_linear_speed_m_s": 1.845432780100964e-05,
+  "last_rest_axial_range_m": 2.4959444999694824e-07,
+  "observed_extra_contacts": 0
+}

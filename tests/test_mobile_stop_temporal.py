@@ -202,13 +202,13 @@ def test_real_socket_timeout_quarantines_even_superseded_reader(tmp_path, frame_
         server.close()
 
 
-@pytest.mark.parametrize("bad", ["missing", "malformed", "robot_id", "source", "epoch", "generation", "stale", "frozen"])
+@pytest.mark.parametrize("bad", ["missing", "malformed", "robot_id", "source", "epoch", "generation", "stale", "frozen", "frozen_aged"])
 def test_real_invalid_stop_channel_is_unverified_and_stays_quarantined(tmp_path, frame_endpoint, monkeypatch, bad):  # noqa: F811
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, server, profile, _, _, _ = frame_endpoint
     profile.update(timeout_s=.03, verifier=verifier_limits())
     profile.pop("cameras")
-    ticks = None if bad == "frozen" else SyntheticTicks(c)
+    ticks = None if bad in ("frozen", "frozen_aged") else SyntheticTicks(c)
     rt, _ = build_mobile_runtime(camera_cfg(profile), tmp_path)
     observer = rt.stop_observers["microduck_isaac"]
     dispatch = server.dispatch
@@ -225,6 +225,10 @@ def test_real_invalid_stop_channel_is_unverified_and_stays_quarantined(tmp_path,
                 value["state"]["generation"] += 1
             elif bad == "stale":
                 value["state"]["producer_age_s"] = .3
+            elif bad == "frozen_aged":
+                # Model setup consuming the freshness budget before the first
+                # read, without sleeping or advancing the frozen producer.
+                value["state"]["producer_age_s"] += .3
         return value
     try:
         assert rt.reset_stop()["ok"]
@@ -233,9 +237,12 @@ def test_real_invalid_stop_channel_is_unverified_and_stays_quarantined(tmp_path,
         proof = await_stop(rt, ack["receipt_id"])
         assert proof["status"] == "unverified", proof
         assert proof["postcondition"]["evidence"]["channel_failed"] and observer._quarantined
-        if bad == "frozen":
+        if bad in ("frozen", "frozen_aged"):
             assert "stale" in proof["reason"]
-            assert proof["postcondition"]["evidence"]["temporal_pending"]
+            # A frozen snapshot may already be stale at the first read. Healthy
+            # pre-ACK pending reads are not required for rejection/quarantine.
+            if bad == "frozen_aged":
+                assert proof["postcondition"]["evidence"]["temporal_pending"] == []
             assert proof["postcondition"]["evidence"]["samples"] == []
         assert not rt.execute("task_done", {"success": True, "summary": "invalid"})["success"]
         monkeypatch.setattr(server, "dispatch", dispatch)  # a later healthy packet cannot clear quarantine

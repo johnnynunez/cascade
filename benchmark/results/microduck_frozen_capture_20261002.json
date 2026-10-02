@@ -1,0 +1,38 @@
+{
+  "base_commit": "957f5033e722f21e188d216cc88d9cb8960b284f",
+  "scope": "Correct a software test assertion; no runtime, safety-limit or native-recipe change",
+  "source_sha256": {
+    "tests/test_mobile_stop_temporal.py": "24cfd83c587ba21c33ec8a84e5d7981661686517be1a78f6bd1a3a0c64c44350"
+  },
+  "previous_ci": {
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/36987227626",
+    "linux_x86": "4961 passed, 269 skipped, 4 deselected; packaging 62 passed",
+    "linux_arm": "4961 passed, 269 skipped, 4 deselected; packaging 62 passed",
+    "macos": "1 failed, 4926 passed, 303 skipped, 4 deselected",
+    "other_checks": "booth and minimal-install succeeded",
+    "failing_case": "test_real_invalid_stop_channel_is_unverified_and_stays_quarantined[frozen]"
+  },
+  "finding": "The frozen snapshot was already stale at its first read. Unverified, stale reason, channel failure, quarantine and zero accepted samples were correct. Requiring an earlier temporal-pending entry incorrectly assumed setup finished before snapshot expiry.",
+  "change": "The natural frozen case permits immediate stale rejection. A deterministic frozen_aged case increases transmitted snapshot age by .3 seconds without sleeps or advancing the producer, and explicitly requires zero pending and accepted samples. Rejection and quarantine remain mandatory.",
+  "existing_transition_coverage": "test_temporal_exclusion_never_hides_invalid_channel[stale-True] supplies age .15 then .3, requires rejection at attempt 2, exactly two reads and zero accepted samples; it passed in the previous macOS CI.",
+  "validation": {
+    "negative_control": "One expected failure with the old assertion on an already-aged frozen capture",
+    "complete_changed_file": "78 passed in 6.73 seconds",
+    "diff_check": "passed",
+    "syntax": "passed"
+  },
+  "artifacts": {
+    "frozen-ack-before.log": "9ba99193e71b3d7e07af69e294f9bdfa974a120f7419c2d425916c9c4c4d8912",
+    "frozen-ack-after.log": "a6278599711ae7822a2945d0367666e93a178a5fd87a03482441b71910dcdeb3",
+    "ci-pr67-957f503-summary.json": "1918993e1b5d2823e1887dc210aed6ec8765714a00d44a0f27bb2bd1485347b9",
+    "ci-pr67-957f503-macos.log": "a709805d6b26c265928b2cddc860fd80e5992fc9fcd343bebb54ff8d8dc0772e"
+  },
+  "shared_memory": {
+    "envelope_sha256": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "grasp_memory_exists": false
+  },
+  "limitations": [
+    "This verifies software rejection behavior, not physical locomotion.",
+    "The corrected source requires its own remote CI result."
+  ]
+}

@@ -145,6 +145,19 @@ cancellation and excess backlog. The combined suite passed **1,190 cases,
 retains exact file hashes, controls and the previous CI result. Production
 runtime and native recipe are unchanged; the new remote checks remain separate.
 
+Remote `957f503` passed Linux x86/ARM (4,961 cases plus 62 packaging
+cases each), booth and minimal installation. All six previous macOS failures
+passed; one incidental assertion remained among 4,926 passed cases. A frozen
+snapshot was already stale at its first read, so correctly reached quarantine
+without first producing a temporal-pending entry. The corrected test accepts
+that immediate rejection and adds a deterministic already-aged frozen case;
+it still requires an unverified result, stale reason, quarantine and no
+accepted samples. The existing deterministic fresh-pre-ACK → stale test
+continues to require rejection on its second read. All **78 tests** in the
+changed file pass; the [frozen-capture record](../benchmark/results/microduck_frozen_capture_20261002.json)
+retains the negative reproduction, previous CI and exact source/log hashes.
+No production behavior or limits changed.
+
 Earlier failed attempts are retained:
 
 - `native-foundation`: completed the physical episode, then the external

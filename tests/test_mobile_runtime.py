@@ -4,7 +4,7 @@ import json
 
 import pytest
 from mobile_support_fixture import support_contract
-from mobile_tick_fixture import scheduled_tick_steps
+from mobile_tick_fixture import NORMAL_WALL_INTERVAL_S, scheduled_tick_steps
 
 from cascade.config import load_demo_config
 import test_mobile_frames
@@ -406,11 +406,19 @@ def test_verifier_confirmed_can_upgrade_only_clean_execution(tmp_path):
 
 
 def test_runtime_rpc_inert_actor_cannot_borrow_preflight_drift(tmp_path, frame_endpoint):
+    import math
     import threading
     from mobile_support_fixture import support
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
-    profile.update(timeout_s=.2, verifier=verifier_limits())
+    limits = verifier_limits()
+    # This episode includes preflight drift, command duration and settling.
+    # Size its attempt quota from the existing wall budget, so sampling does
+    # not terminate before the geometric postcondition can be evaluated.
+    limits['max_samples'] = math.ceil(limits['max_wall_duration_s'] / limits['sample_interval_s']) + 1
+    wall_tick_s, drift_steps_required = NORMAL_WALL_INTERVAL_S, 10
+    drift_timeout_s = drift_steps_required * wall_tick_s + limits['read_timeout_s']
+    profile.update(timeout_s=.2, verifier=limits)
     profile.pop('cameras')
     rt, rig = build_mobile_runtime(camera_cfg(profile), tmp_path)
     drift_started, drift_complete, halt = (threading.Event(), threading.Event(), threading.Event())
@@ -421,15 +429,15 @@ def test_runtime_rpc_inert_actor_cannot_borrow_preflight_drift(tmp_path, frame_e
         try:
             step, distance, drift_steps = (c.state()['state']['step'], 0.0, 0)
             for step in scheduled_tick_steps(halt, first_step=step + 1,
-                                             wall_interval_s=.005):
+                                             wall_interval_s=wall_tick_s):
                 c.control_at(step * 0.005)
-                moving = drift_started.is_set() and drift_steps < 10
+                moving = drift_started.is_set() and drift_steps < drift_steps_required
                 if moving:
                     drift_steps += 1
                     distance = drift_steps * 0.001
                 c.publish({'step': step, 'sim_time': step * 0.005, 'position': [distance, 0.0, 0.3], 'orientation_wxyz': [1.0, 0.0, 0.0, 0.0], 'linear_velocity': [0.2 if moving else 0.0, 0.0, 0.0], 'angular_velocity': [0.0, 0.0, 0.0], 'q': [0.0] * 14, 'dq': [0.0] * 14, 'joint_names': [f'fixture-{i}' for i in range(14)], 'contacts': [], 'fallen': False, 'balance_active': True, 'support': support(step, step * .005)})
                 published_steps.append(step)
-                if drift_steps == 10:
+                if drift_steps == drift_steps_required:
                     drift_complete.set()
         except Exception as exc:
             tick_errors.append(str(exc))
@@ -443,7 +451,7 @@ def test_runtime_rpc_inert_actor_cannot_borrow_preflight_drift(tmp_path, frame_e
         if not delayed:
             delayed = True
             drift_started.set()
-            assert drift_complete.wait(0.3)
+            assert drift_complete.wait(drift_timeout_s)
         return raw_get()
     rig.primary.raw.get_state = scheduled_preflight
     try:
@@ -725,7 +733,11 @@ def test_invalid_runtime_camera_profile_fails_before_connect(tmp_path, frame_end
 
 class SyntheticTicks:
     """Completed-step software publisher; balance_active is synthetic, NOT physics."""
-    def __init__(self, controller, *, velocity=0., balance_active=True, wall_interval_s=.005, wait=None):
+    # At .02 wall seconds per .005 simulated solve, a budgeted observation
+    # interval ceil((.25 read + .005 poll) / .02) spans at most .065 simulated
+    # seconds, below the unchanged .1 sampling-gap limit. A 1x publisher can
+    # violate that limit during a valid read or a catch-up burst.
+    def __init__(self, controller, *, velocity=0., balance_active=True, wall_interval_s=NORMAL_WALL_INTERVAL_S, wait=None):
         import threading
         self.controller = controller
         self.velocity, self.balance_active = velocity, balance_active
@@ -780,7 +792,7 @@ def await_stop(rt, receipt_id, timeout=5.):
 
 
 @pytest.mark.parametrize("velocity,expected", [(0., "confirmed"), (.05, "refuted")])
-@pytest.mark.parametrize("wall_interval_s", [.005, .03], ids=["normal-producer", "slow-producer"])
+@pytest.mark.parametrize("wall_interval_s", [NORMAL_WALL_INTERVAL_S, .03], ids=["normal-producer", "slow-producer"])
 def test_post_ack_stop_is_async_independent_and_preserves_original(tmp_path, frame_endpoint, velocity, expected, wall_interval_s):
     import copy
     import time

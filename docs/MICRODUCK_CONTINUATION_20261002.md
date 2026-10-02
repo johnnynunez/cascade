@@ -211,3 +211,35 @@ PhysX needs its own faithful actuator/load contract and native campaign.
 World reset, full gait admission, hardware and the
 [hosted conversation implementation](MICRODUCK_CONVERSATION_DESIGN.md) remain
 separate unfinished work; none are certified by this report.
+
+## CI observation-gap budget
+
+Remote `90c381d` passed macOS: **4,928 passed, 303 skipped, 4 deselected**,
+plus 62 packaging cases. Linux x86 and ARM each had **one failure, 4,961
+passed, 269 skipped, 4 deselected**; packaging did not run. Booth's 88 cases
+and minimal installation passed. Both failures rejected a simulation sampling
+gap. Their receipts omit the rejected candidate, so the exact remote gap and
+its cause cannot be reconstructed from those logs.
+
+A controlled, real TCP reader pause of 0.13 s after baseline retained both
+snapshots. The old synthetic publisher produced a 0.135 s simulation gap and
+was correctly rejected; the new cadence produced a 0.035 s gap and confirmed
+rest over 0.045 s. Reads took under 0.131 s and sample ages stayed below
+0.006 s; identity and all seven source hashes were preserved. This establishes
+the controlled comparison, not the missing remote candidate or physical gait.
+
+The normal fixture now publishes each 0.005 s synthetic step every 0.02 s of
+wall time; the slower case remains 0.03 s. Under the declared read/poll
+budgets, `ceil((0.25 + 0.005) / 0.02) * 0.005 = 0.065 s`, below the unchanged
+0.1 s sampling-gap limit. This does not promise tolerance of arbitrary host
+stalls. Physical thresholds, freshness and deadlines remain enforced. The
+longer preflight-drift test derives its 601-attempt quota from the existing
+three-second wall budget and retains baseline x=0 before ACK, post-admission
+x=0.01, zero measured displacement and the exact no-effect refutation.
+
+The corrected combined suite passed **1,191 cases, 182 skipped**, in
+111.01 s, with source and shared memory unchanged. The
+[gap-budget record](../benchmark/results/microduck_ci_gap_budget_20261002.json)
+binds the controls, terminal CI logs and combined receipt by hash. Production
+runtime is unchanged. A remote CI pass for this correction and physical gait
+admission remain separate requirements.

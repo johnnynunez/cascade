@@ -2,6 +2,8 @@
 import math
 import time
 
+NORMAL_WALL_INTERVAL_S = .02
+
 
 def scheduled_tick_steps(halt, *, first_step, wall_interval_s, wait=None,
                          clock=time.monotonic, max_backlog_steps=100):

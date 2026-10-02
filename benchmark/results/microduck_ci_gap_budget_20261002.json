@@ -1,0 +1,391 @@
+{
+  "scope": "Software-fixture observation-gap budgets; no production behavior or native physical-admission change",
+  "base_commit": "90c381dc5265353ac08b6f9ab6554bba353e5723",
+  "source_sha256": {
+    "src/cascade/agent/base_effects.py": "f1ec00a4857c50061d2aee27211e684b61a94c89e2f862b2ec05cb0b2fdd6ab7",
+    "src/cascade/sim/base_truth.py": "ab1e13f3d19e7c64e641e3be01f6cb7366f174374c773b2b636ee5d4482e75c3",
+    "src/cascade/sim/mobile_bridge.py": "9bf40a9253945b80e8c44ec34cdb45a6424c3f768455333b110b916db3df37b4",
+    "src/cascade/skills/mobile_runtime.py": "43b085208af13910edb5a0d21470dcd08e2a49e3891de252cc725f5838cb763f",
+    "tests/mobile_tick_fixture.py": "04116edbf302dbe8b71958c62f3e838aed5f575ed84c95e8a4f0b9886de92d4a",
+    "tests/test_mobile_mcp.py": "7cb1e353581435786e176bd017d2a455938f5b7ec67a435e42f5cb7a8175b612",
+    "tests/test_mobile_runtime.py": "d453013adc38b8a1e9630499919c1799c555a3487b7dc9be651eced43057743e"
+  },
+  "production_src_and_scripts_unchanged_from": {
+    "90c381d": true,
+    "dcdb386": true
+  },
+  "prior_remote_run": {
+    "run_id": 36989573480,
+    "head_sha": "90c381dc5265353ac08b6f9ab6554bba353e5723",
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/36989573480",
+    "conclusion": "failure",
+    "job_counts": {
+      "total": 5,
+      "success": 3,
+      "failure": 2
+    },
+    "jobs": [
+      {
+        "name": "booth pages and camera extension",
+        "id": 110782372866,
+        "conclusion": "success",
+        "pytest_summaries": [],
+        "failures": []
+      },
+      {
+        "name": "macos-latest / py3.12",
+        "id": 110782373025,
+        "conclusion": "success",
+        "pytest_summaries": [
+          "4928 passed, 303 skipped, 4 deselected in 1021.50s (0:17:01)",
+          "62 passed in 3.83s"
+        ],
+        "failures": []
+      },
+      {
+        "name": "ubuntu-latest / py3.12",
+        "id": 110782373134,
+        "conclusion": "failure",
+        "pytest_summaries": [
+          "1 failed, 4961 passed, 269 skipped, 4 deselected in 475.28s (0:07:55)"
+        ],
+        "failures": [
+          {
+            "nodeid": "tests/test_mobile_mcp.py::test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion[normal-producer-0.0-confirmed]",
+            "status": "unverified",
+            "reason": "simulation sampling gap exceeds limit",
+            "attempts": 46,
+            "rejected": [
+              {
+                "attempt": 46,
+                "reason": "simulation sampling gap exceeds limit"
+              }
+            ],
+            "accepted_samples": 45,
+            "accepted_first": {
+              "step": 206,
+              "sim_time_s": 1.03
+            },
+            "accepted_last": {
+              "step": 303,
+              "sim_time_s": 1.5150000000000001
+            }
+          }
+        ]
+      },
+      {
+        "name": "minimal install, no accelerator",
+        "id": 110782373174,
+        "conclusion": "success",
+        "pytest_summaries": [],
+        "failures": []
+      },
+      {
+        "name": "ubuntu-24.04-arm / py3.12",
+        "id": 110782373295,
+        "conclusion": "failure",
+        "pytest_summaries": [
+          "1 failed, 4961 passed, 269 skipped, 4 deselected in 479.93s (0:07:59)"
+        ],
+        "failures": [
+          {
+            "nodeid": "tests/test_mobile_runtime.py::test_post_ack_stop_is_async_independent_and_preserves_original[normal-producer-0.0-confirmed]",
+            "status": "unverified",
+            "reason": "simulation sampling gap exceeds limit",
+            "attempts": 35,
+            "rejected": [
+              {
+                "attempt": 35,
+                "reason": "simulation sampling gap exceeds limit"
+              }
+            ],
+            "accepted_samples": 33,
+            "accepted_first": {
+              "step": 6,
+              "sim_time_s": 0.03
+            },
+            "accepted_last": {
+              "step": 46,
+              "sim_time_s": 0.23
+            }
+          }
+        ]
+      }
+    ],
+    "booth_tests_passed": 88,
+    "minimal_install": "passed: nine optional modules absent; mock observation/stop wiring only",
+    "packaging": "macOS 62 passed; x86 and ARM packaging skipped after pytest failures"
+  },
+  "observed_remote_failures": {
+    "reason": "simulation sampling gap exceeds limit",
+    "max_simulation_gap_s": 0.1,
+    "rejected_candidate_retained_in_remote_receipt": false,
+    "exact_remote_gap_s": null,
+    "limitation": "The CI receipt omits the rejected candidate. It establishes the veto but not the exact gap, wakeup mechanism or whether a binary rounding boundary contributed."
+  },
+  "correction": {
+    "fixture_simulation_dt_s": 0.005,
+    "old_normal_wall_interval_s": 0.005,
+    "normal_wall_interval_s": 0.02,
+    "slow_wall_interval_s": 0.03,
+    "unchanged_limits": {
+      "read_timeout_s": 0.25,
+      "sample_interval_s": 0.005,
+      "max_sample_gap_s": 0.1,
+      "max_state_age_s": 0.2,
+      "settle_window_s": 0.04,
+      "settle_timeout_s": 0.8,
+      "max_wall_duration_s": 3.0
+    },
+    "conditional_budget": {
+      "formula": "ceil((read_timeout_s + sample_interval_s) / normal_wall_interval_s) * simulation_dt_s",
+      "normal_simulation_gap_s": 0.065,
+      "slow_simulation_gap_s": 0.045,
+      "condition": "Assumes the declared read/poll budgets. This is not a guarantee against arbitrary scheduler stalls; normal freshness, gap and wall-deadline vetoes still apply."
+    },
+    "preflight_drift_fixture": {
+      "derived_barrier_timeout_s": 0.45,
+      "barrier_formula": "10 * .02 wall seconds + .25 read budget",
+      "max_samples": 601,
+      "quota_formula": "ceil(3 wall seconds / .005 sample interval) + 1",
+      "quota_scope": "Only this longer preflight/action/settling test; not production or other quota tests.",
+      "required_evidence": [
+        "Baseline x=0 before delayed preflight and ACK/admission.",
+        "Each post-admission pose x=.01 with same-step synthetic solved support.",
+        "Post-admission body_displacement_m exactly [0,0].",
+        "status refuted and reason no effect or wrong sign on vx."
+      ]
+    }
+  },
+  "controlled_reader_pause": {
+    "evidence_class": "Software fixture / real loopback TCP; no physics or native acceptance",
+    "injection": "One real time.sleep(.13) in the test reader adapter after checker._active.first is set; original passive BaseTruthReader called afterward. No production clocks patched.",
+    "test_node": "tests/test_mobile_runtime.py::test_post_ack_stop_is_async_independent_and_preserves_original[normal-producer-0.0-confirmed]",
+    "only_case_difference": "synthetic fixture wall interval .005 versus .02",
+    "cases": {
+      "new": {
+        "actual_pause_s": 0.13005566500942223,
+        "candidate": {
+          "sim_time_s": 0.05,
+          "step": 10
+        },
+        "effective_age_s": 0.00543387999641709,
+        "epoch_unchanged": true,
+        "expected_pytest_exit_code": 0,
+        "generation_unchanged": true,
+        "previous": {
+          "sim_time_s": 0.015,
+          "step": 3
+        },
+        "read_duration_s": 0.13062413901207037,
+        "reason": "independent rest check required",
+        "settle_sim_duration_s": 0.044999999999999984,
+        "sim_delta_s": 0.035,
+        "source_unchanged": true,
+        "status": "confirmed",
+        "step_delta": 7,
+        "verdict_sample_gap_limit_s": 0.1,
+        "wall_interval_s": 0.02
+      },
+      "old": {
+        "actual_pause_s": 0.13006892500561662,
+        "candidate": {
+          "sim_time_s": 0.17500000000000002,
+          "step": 35
+        },
+        "effective_age_s": 0.0031672249897383153,
+        "epoch_unchanged": true,
+        "expected_pytest_exit_code": 1,
+        "generation_unchanged": true,
+        "previous": {
+          "sim_time_s": 0.04,
+          "step": 8
+        },
+        "read_duration_s": 0.1309779669973068,
+        "reason": "simulation sampling gap exceeds limit",
+        "settle_sim_duration_s": null,
+        "sim_delta_s": 0.135,
+        "source_unchanged": true,
+        "status": "unverified",
+        "step_delta": 27,
+        "verdict_sample_gap_limit_s": 0.1,
+        "wall_interval_s": 0.005
+      }
+    },
+    "limits_unchanged": true,
+    "seven_source_hashes_equal_before_after_and_between_cases": true,
+    "raw_previous_and_candidate_retained": true,
+    "interpretation": "The controlled comparison demonstrates a .135s rejected gap at 1x and a .035s accepted gap at 1/4 speed for a .13s reader pause within the .25s read budget. It does not reconstruct the missing remote candidate.",
+    "limitations": [
+      "One controlled comparison, not an OS scheduler reliability bound.",
+      "The original CI receipt omits the rejected candidate, so its exact gap is unknown; this control records both snapshots.",
+      "The positive fixture retains physical gap, freshness, and wall limits and can still reject delays outside their contracts."
+    ]
+  },
+  "targeted_validation": {
+    "runtime_and_helper": {
+      "passed": 79,
+      "seconds": 21.32
+    },
+    "mcp": {
+      "duration_s": 13.42,
+      "outcome": "passed",
+      "tests": 20
+    },
+    "ruff_F_E9_owned_files": "passed"
+  },
+  "combined_validation": {
+    "passed": 1191,
+    "skipped": 182,
+    "seconds": 111.01,
+    "test_files": 26,
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/runtime-venv/bin/python3.12",
+      "-m",
+      "pytest",
+      "-q",
+      "--junitxml=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-gap-budget-combined/junit.xml",
+      "tests/test_isaac_base.py",
+      "tests/test_microduck_actuator.py",
+      "tests/test_microduck_assets.py",
+      "tests/test_microduck_bridge_cli.py",
+      "tests/test_microduck_camera_identity.py",
+      "tests/test_microduck_contact_support.py",
+      "tests/test_microduck_conversion.py",
+      "tests/test_microduck_policy.py",
+      "tests/test_microduck_signal_stop.py",
+      "tests/test_microduck_state.py",
+      "tests/test_microduck_stepper.py",
+      "tests/test_mobile_base.py",
+      "tests/test_mobile_bridge.py",
+      "tests/test_mobile_cli.py",
+      "tests/test_mobile_effects.py",
+      "tests/test_mobile_frames.py",
+      "tests/test_mobile_identity.py",
+      "tests/test_mobile_mcp.py",
+      "tests/test_mobile_runtime.py",
+      "tests/test_mobile_safety.py",
+      "tests/test_mobile_signal_stop.py",
+      "tests/test_mobile_stop_temporal.py",
+      "tests/test_mobile_support.py",
+      "tests/test_mobile_tick_fixture.py",
+      "tests/test_newton_bam.py",
+      "tests/test_release_open_sync.py"
+    ],
+    "exit_code": 0,
+    "source_unchanged": true,
+    "shared_memory_unchanged": true,
+    "shared_memory_after": {
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+      "/home/johnny/.cascade/grasp_memory.json": null
+    }
+  },
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-pr67-90c381d-summary.json",
+      "sha256": "c08474a64a7b08ef605b940ba6416368449c25155e71c037215104269cf08c85",
+      "bytes": 14011
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-pr67-90c381d-booth.log",
+      "sha256": "f67b944863becf11703f265017855e75d9548cfb299aee1a9a75459835056dc1",
+      "bytes": 53522
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-pr67-90c381d-minimal.log",
+      "sha256": "05f7fdca2801733059622d92a4ce9b56d94352cb7dc9b9d40b827ddd61351aef",
+      "bytes": 21684
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-pr67-90c381d-x86.log",
+      "sha256": "70252193cf2c2caf289e5be97f9fa82a89a816fe4d4bb584be20f5e88d7c7db3",
+      "bytes": 179869
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-pr67-90c381d-arm.log",
+      "sha256": "7d28c11ed7ddc0df1821b1aa8887417a40d54bd904462a6caa4f49cff10c75f1",
+      "bytes": 143631
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-pr67-90c381d-macos.log",
+      "sha256": "4a68fede2cc234ea301da7afb66738d1f0517c055d0c0184c2705d64497d9a97",
+      "bytes": 30187
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-portability-gap/comparison.json",
+      "sha256": "7c57c134e230269d0fb8774a1b4749b241fc4cd349630c6c6bfb0406dd09512f",
+      "bytes": 4852
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-portability-gap/reader_pause_plugin.py",
+      "sha256": "46463cb052ff38c18838edbae300bd3f25bdc9ba6fe46cdbf37ab620c5f24d16",
+      "bytes": 4058
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-portability-gap/old-receipt.json",
+      "sha256": "88abb87d0dc642ffe89d3448ca5d146339be4aec7b750aca429cfffb979c2520",
+      "bytes": 19606
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-portability-gap/new-receipt.json",
+      "sha256": "01c6889af5cd3bdc53bf7770560345a36bf7f2fb56dc37aa55ea67fae0cd1df1",
+      "bytes": 139813
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-portability-gap/old.log",
+      "sha256": "e5550dea999f22c8618a7c01b2d150ca806387123a0b0c9a7d61206c98ba531b",
+      "bytes": 7834
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-portability-gap/new.log",
+      "sha256": "e14daf961f7200a789a02c48847aa46265a689a9b6f7e88173595d0a3186ab76",
+      "bytes": 98
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-portability-gap/mcp-suite.log",
+      "sha256": "f7faeeff6b5c9b8b4a25c47817f58e46d0c11a708da11bb38ceaf122e113bfc7",
+      "bytes": 100
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-gap-budget-combined/result.json",
+      "sha256": "e1626b772762df1954f5d74bf7d803e3e7add72c7de8abecff804176578e31a4",
+      "bytes": 1510
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-gap-budget-combined/pytest.log",
+      "sha256": "a876cefd9e32be014c94b27fba31e3499fc94ef4f303a316e76943647a5f29e9",
+      "bytes": 1646
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-gap-budget-combined/junit.xml",
+      "sha256": "3925de642eb3f014daea399780d1c2eaba2108942b21c1998a7abaa6d8725545",
+      "bytes": 363597
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/ci-gap-budget-combined/source-sha256.json",
+      "sha256": "54168d6ebbf557ff5dbb79368c4b733dec4ed291fcdc83a1297cb128669f665b",
+      "bytes": 165957
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/test-runs/mac-cadence/budget-receipt.json",
+      "sha256": "55990784add734a028413bfa0de192949ae5872deeb5e3ed234d6e99fd8de8c8",
+      "bytes": 4206
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/test-runs/mac-cadence/budget-final.log",
+      "sha256": "0f4729c56597e141df16fda712427f1eceff433fb7e53f729af19409363d4d43",
+      "bytes": 180
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK_CODEX/test-runs/mac-cadence/budget-final.xml",
+      "sha256": "d54cfdb2b354aeb157a1c7d36135f017acc0894b0fc0afbb31f2cba49d02ebe3",
+      "bytes": 11135
+    }
+  ],
+  "limits": [
+    "The latest recorded remote head here has three successful jobs and two failed jobs; the corrected source requires its own CI result.",
+    "All publishers, support records and policy-free snapshots in the controlled comparison are synthetic software fixtures, not native physics.",
+    "Physical gait admission remains unconfirmed; no hardware or PhysX campaign is established by these tests.",
+    "These documentation files were added after the combined suite completed."
+  ]
+}

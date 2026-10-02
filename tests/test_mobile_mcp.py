@@ -10,6 +10,7 @@ import time
 
 import pytest
 from mobile_support_fixture import support_contract
+from mobile_tick_fixture import NORMAL_WALL_INTERVAL_S
 import test_mobile_frames
 
 frame_endpoint = test_mobile_frames.frame_endpoint
@@ -369,13 +370,14 @@ def test_mobile_camera_mcp_subprocess_returns_actual_jpeg_and_history(tmp_path, 
 
 
 @pytest.mark.parametrize("velocity,expected", [(0., "confirmed"), (.05, "refuted")])
-@pytest.mark.parametrize("wall_tick_s", [.005, .03], ids=["normal-producer", "slow-producer"])
+@pytest.mark.parametrize("wall_tick_s", [NORMAL_WALL_INTERVAL_S, .03], ids=["normal-producer", "slow-producer"])
 def test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion(
         tmp_path, frame_endpoint, velocity, expected, wall_tick_s):
     from test_mobile_runtime import SyntheticTicks, verifier_limits
     c, _, profile, _, _, _ = frame_endpoint
-    # Keep the physical rest window and existing wall budgets. SyntheticTicks
-    # completes every due step after late wakeups; no production clock changes.
+    # Read + poll budget ceil((.25 + .005) / .02) spans at most .065 simulated
+    # seconds, below the unchanged .1 sample-gap limit. The .005 s solve and
+    # .04 s rest window remain unchanged; no production clock changes.
     limits = verifier_limits()
     profile.update(timeout_s=.2, verifier=limits)
     profile.pop("cameras")

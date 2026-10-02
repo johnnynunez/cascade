@@ -245,6 +245,16 @@ healthy-channel functions. Their focused suite passed 192 cases, including
 unchanged stale/timeout negatives. macOS gains a compact failure diagnostic.
 Neither adjustment establishes the original CI cause or a green full rerun.
 
+The next CI (`3dae06a`) passed both Linux architectures; macOS's new diagnostics
+identified stale held replies in the two late-read tests. The
+[bounded-wait follow-up](evidence/robot-modularity/macos-late-read-fix.json)
+retains that failure and a controlled before/after comparison. The TCP fixture
+now yields until its fixed target and retains the original detached packet;
+production timing and freshness checks are unchanged. Six deterministic cases
+exercise the actual sampler's late fresh/fault/stale returns, including the
+stale channel's quarantine. All 198 focused cases passed with source and shared
+learned state unchanged. Hosted CI remains a separate result on the PR.
+
 ## Admission work for an actual humanoid
 
 The next physical vertical must select one real embodiment and controller,

@@ -161,3 +161,13 @@ isolation in two healthy-channel test functions; 192 focused cases pass without
 relaxing any runtime gate. macOS gets a compact assertion diagnostic. Actual CI
 root causes remain unproven; the initial failures are retained in
 `docs/evidence/robot-modularity/ci-followup.json`.
+
+CI on `3dae06a` passed Linux x86/ARM, minimal install and browser checks, but
+macOS rejected two held late replies as stale. The fixture now yields to an
+absolute target and retains its detached wire snapshot without a redundant
+copy in that timed path. A controlled 150 ms timer delay reproduces the old
+failure; it does not identify the actual CI scheduler/GC cause. Six additional
+tests exercise the real sampler with module-local logical clocks and distinguish
+late fresh, faulty and stale returns. The focused suite passed 198 cases;
+production sources, limits and shared learned stores remain unchanged. Evidence:
+`docs/evidence/robot-modularity/macos-late-read-fix.json`.

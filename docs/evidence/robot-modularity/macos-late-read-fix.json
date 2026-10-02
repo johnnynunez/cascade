@@ -1,0 +1,81 @@
+{
+  "base_commit": "3dae06ae2fa7dd45e232e519f272bd3c97f5f78a",
+  "scope": "Test fixture and sampler regression coverage only; no production changes or physical admission",
+  "prior_ci": {
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/37034741402",
+    "passed_jobs": [
+      "Linux x86",
+      "Linux ARM",
+      "minimal install",
+      "browser checks"
+    ],
+    "macos": {
+      "failed": 2,
+      "passed": 5132,
+      "skipped": 303,
+      "deselected": 4,
+      "failure": "Both healthy_late stop tools rejected a stale independent state",
+      "late_return_after_deadline_s": [
+        0.15305083400005515,
+        0.11476704200003951
+      ],
+      "max_read_duration_s": [
+        0.21372554200002014,
+        0.17165620800005854
+      ],
+      "log_sha256": "eb68e360f58575704d83be48163e5f9a016683ec048ef3d40e4e1345de234b2b"
+    }
+  },
+  "change": "Retain the detached TCP reply, replace the deliberate positive-duration timer with zero-duration yields until its fixed absolute target, and bind the retained snapshot to the actual decoded packet. No timestamps are restamped.",
+  "limits": {
+    "read_timeout_s": 0.25,
+    "max_state_age_s": 0.2,
+    "settle_window_s": 0.04,
+    "settle_timeout_s": 0.8,
+    "max_sample_gap_s": 0.1
+  },
+  "controlled_pair": {
+    "injection": "150ms extra only on positive-duration sleeps in the test module time facade; no production module or global time patch. Passive generation2GC and snapshot-copy timing retained.",
+    "old": {
+      "status": "unverified",
+      "last_checked_age_s": 0.23933800801751204,
+      "max_read_duration_s": 0.2358429039886687,
+      "late_return_after_deadline_s": 0.15505839901743457,
+      "raw_receipt_sha256": "1fc07021d2ed295856e37e6583943804428451ae4754171891b90112c634ba73"
+    },
+    "new": {
+      "status": "confirmed",
+      "last_checked_age_s": 0.0915284050279297,
+      "max_read_duration_s": 0.08566183302900754,
+      "late_return_after_deadline_s": 0.005042539007263258,
+      "settle_sim_duration_s": 0.04000000000000001,
+      "raw_receipt_sha256": "7e1807e487fb66b260f387363aebee02b90bc3d58e88ef8f14b409bfcdfb4baa"
+    },
+    "receipt_sha256": "b5ba4e8a39aea03eefe6c19fec2972bec39274d1333afd4ac531231d25f3858e",
+    "interpretation": "Old held-packet fixture converts one bounded overslept timer into a stale packet and correctly receives unverified. New fixture avoids that positive-duration timer, keeps the original detached packet, yields until its absolute deadline, and receives confirmed with no late positive sample credit. This causal pair demonstrates the fixture failure mechanism, not the original CI scheduler or GC cause."
+  },
+  "deterministic_regressions": {
+    "cases": 6,
+    "path": "Actual _StopObserver._observe, single _sample worker and state_from_wire; module-local logical clocks only",
+    "late_fresh": "confirmed from six earlier eligible states; seventh late state adds no positive credit",
+    "late_fault": "refuted on a valid observation channel",
+    "late_stale": "unverified and quarantined; another observe makes no new read",
+    "global_clock_unchanged": true
+  },
+  "focused_validation": {
+    "tests": 198,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration_s": 47.525,
+    "source_unchanged": true,
+    "shared_memory_unchanged": true,
+    "source_manifest_sha256": "a2cb9eb01d12e59e469c0c7295395063e087d822faab3ab4f631ce79e51ad34b",
+    "log_sha256": "b68ada50adcbd625817d8f4f658ff425fa1f42a6f97cbade7daba17bf9897aba"
+  },
+  "test_sha256": {
+    "tests/test_mobile_observation_veto.py": "a450f3fef86fb3706cbc0b445725a375e62e288d3e05c2e5de832c637bce397e",
+    "tests/test_mobile_late_read_regressions.py": "3459db721971ee7bfdcbff2c7293bf56b0511c32a897fb524d3ec6923b3d9f1e"
+  },
+  "hosted_ci": "Follow-up commit requires its own CI; consult the PR checks. The original OS/GC cause is not established by the controlled injection."
+}

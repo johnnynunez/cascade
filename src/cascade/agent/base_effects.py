@@ -306,7 +306,7 @@ class BasePostconditionChecker:
                 if state[key] != previous[key]:
                     self._reject(op, f"conflicting {key}")
                     return
-            generation_budget = 2 if op.skill in ("walk_velocity", "turn") else 1
+            generation_budget = 2 if op.skill in ("walk_velocity", "walk_distance", "turn") else 1
             if current and (state["generation"] < op.last_generation or
                             state["generation"] > op.first_generation + generation_budget):
                 self._reject(op, "generation regressed or unrelated operation invalidated window")
@@ -441,12 +441,12 @@ class BasePostconditionChecker:
             return verdict
         if not any(entry["phase"] == "before" for entry in op.samples):
             return verdict
-        if (op.skill in ("walk_velocity", "turn") and
+        if (op.skill in ("walk_velocity", "walk_distance", "turn") and
                 sum(entry["phase"] == "during" for entry in op.samples) < self._limits["min_motion_samples"]):
             verdict["reason"] = "insufficient advancing samples during execution"
             return verdict
         effect_states = states
-        if op.skill in ("walk_velocity", "turn"):
+        if op.skill in ("walk_velocity", "walk_distance", "turn"):
             try:
                 effect_states = self._admitted_states(op, verdict, states)
             except (ValueError, TypeError, KeyError) as exc:
@@ -533,8 +533,8 @@ class BasePostconditionChecker:
         effect = [s for s in states if start <= s["sim_time_s"] <= end and
                   (s["generation"] == generation or
                    (s["sim_time_s"] == start and s["generation"] == generation - 1))]
-        # A turn may deliberately stop early. The first completed-generation
-        # sample bounds that end, not any later quiet-window motion.
+        # A geometric turn/distance goal may deliberately stop early. The first
+        # completed-generation sample bounds that end, not later quiet-window motion.
         stopped = next((s for s in states if s["generation"] == completed and
                         start < s["sim_time_s"] <= end), None)
         if stopped is not None:
@@ -669,6 +669,8 @@ class BasePostconditionChecker:
                 value = finite_real(args["angle_rad"], "angle_rad")
                 if abs(value) > math.pi:
                     raise ValueError("ambiguous requested turn")
+            elif skill == "walk_distance":
+                finite_real(args["distance_m"], "distance_m")
             elif skill == "walk_velocity":
                 values = {key: finite_real(args[key], key) for key in ("vx", "vy", "wz", "duration_s")}
                 if values["duration_s"] <= 0:
@@ -689,12 +691,19 @@ class BasePostconditionChecker:
                 return "confirmed", "independent measured yaw matches requested angle"
             except (KeyError, TypeError):
                 return "unverified", "invalid caller intent"
-        if skill != "walk_velocity":
+        if skill == "walk_distance":
+            # The target is geometric caller intent, not the internal speed times
+            # its timeout cap. Actor-reported travel never supplies evidence.
+            expected = [args["distance_m"], 0., 0.]
+            if abs(expected[0]) * self._limits["min_progress_ratio"] <= self._limits["translation_tolerance_m"]:
+                return "unverified", "requested effect below configured resolution"
+        elif skill == "walk_velocity":
+            try:
+                expected = [args[key] * args["duration_s"] for key in ("vx", "vy", "wz")]
+            except (KeyError, TypeError):
+                return "unverified", "invalid caller intent"
+        else:
             return "unverified", "unsupported skill"
-        try:
-            expected = [args[key] * args["duration_s"] for key in ("vx", "vy", "wz")]
-        except (KeyError, TypeError):
-            return "unverified", "invalid caller intent"
         if not any(expected):
             if (metrics["path_length_m"] > self._limits["max_lateral_drift_m"] or
                     metrics["rotation_path_rad"] > self._limits["max_heading_drift_rad"]):

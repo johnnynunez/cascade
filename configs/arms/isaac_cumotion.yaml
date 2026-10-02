@@ -1,6 +1,10 @@
 # Explicit opt-in: normal skills use cuMotion curves through SafeArm.
 # Missing SDK, model mismatch or unsafe/faulted plan fails without fallback.
 extends: isaac
+# This Isaac-only rest pose passes the reBot sphere model. The mechanical
+# folded zero pose self-collides in that model and must never bypass its veto.
+# Isaac disconnect closes the client; it does not remove articulation drives.
+park_q: [0.0, 1.2, 1.2, 0.0, 0.0, 0.0]
 motion_planner:
   type: cumotion
   urdf: ${assets}/urdf/00-arm-rs_asm-v3/urdf/00-arm-rs_asm-v3.urdf

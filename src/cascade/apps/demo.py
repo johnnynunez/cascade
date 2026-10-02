@@ -630,6 +630,13 @@ def _park_arm(runtime, duration_s: float = 2.0) -> None:
     "do not move"), and any arm that cannot move simply has its torque cut by
     the disconnect that follows.
     """
+    # Shutdown cannot replace task recovery or adjudicate a possible load.
+    # This applies even without an occupancy server/contact episode.
+    retained = ("held_object", "_held_provisional", "_contact_episode",
+                "_carry_attachment", "_release_episode")
+    if any(getattr(runtime, name, None) is not None for name in retained):
+        print("[cascade] park skipped: retained or possible payload/contact/release")
+        return
     rig = getattr(runtime, "arm_rig", None)
     arms = list(rig) if rig is not None and len(rig) > 1 else [runtime.arm]
     for arm in arms:
@@ -637,6 +644,10 @@ def _park_arm(runtime, duration_s: float = 2.0) -> None:
             continue
         try:
             if arm.harness.estopped:
+                continue
+            if (getattr(arm.harness, "_pending_contact_episode", None) is not None
+                    or getattr(arm.harness, "_pending_release_episode", None) is not None):
+                print("[cascade] park skipped: unresolved contact/release authority")
                 continue
             if not getattr(arm.raw, "connected", True):
                 continue

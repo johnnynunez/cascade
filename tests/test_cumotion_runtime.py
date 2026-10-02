@@ -247,3 +247,24 @@ def test_contact_stability_requires_fresh_physical_window_and_keeps_vetoes(monke
         with pytest.raises(SafetyViolation, match='deadline|changed|cancelled'):
             call()
     assert reads[0] < 25
+
+
+@pytest.mark.parametrize('scope,name', [
+    ('runtime','held_object'), ('runtime','_held_provisional'),
+    ('runtime','_contact_episode'), ('runtime','_carry_attachment'),
+    ('runtime','_release_episode'), ('harness','_pending_contact_episode'),
+    ('harness','_pending_release_episode'), (None,None)])
+def test_shutdown_park_never_moves_a_retained_or_possible_payload(monkeypatch, scope, name):
+    from cascade.apps.demo import _park_arm
+    arm, sim, planner = safe_sim(monkeypatch)
+    sim.connected = True
+    arm.harness.park_q = np.zeros(2)
+    runtime = NS(arm=arm)
+    if scope is not None:
+        setattr(runtime if scope == 'runtime' else arm.harness, name, object())
+    _park_arm(runtime, duration_s=.5)
+    if scope is not None:
+        assert not sim.sent and not planner.calls
+    else:
+        assert len(sim.sent) == 15
+        assert planner.calls[0][2]['joint_margin'] == 0.

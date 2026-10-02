@@ -186,6 +186,28 @@ def test_endpoint_occlusion_rejects_before_any_actuation(monkeypatch):
     assert all(c[0] == 'read' for c in calls)
 
 
+def test_occluded_candidate_does_not_spend_budget_on_route_profiles(monkeypatch):
+    fake_gate(monkeypatch)
+    rt, calls, fix, frame = runtime(monkeypatch)
+    from cascade.grasping import observed_scene
+    factory = observed_scene.for_runtime
+    profiles = []
+    def make(*args):
+        gate = factory(*args)
+        gate.profile = lambda *a, **kw: profiles.append(a)
+        gate.occluded_pose = lambda *a, **kw: {'surface': 'hidden finger'}
+        return gate
+    monkeypatch.setattr(observed_scene, 'for_runtime', make)
+    def rejected_route(*args, **kwargs):
+        pytest.fail('an occluded endpoint must reject before expensive route checks')
+    monkeypatch.setattr('cascade.safety.trajectory.vet_segment', rejected_route)
+    with pytest.raises(SkillError, match='endpoint occluded'):
+        rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
+    # The initial current-to-home check still precedes candidate selection.
+    assert len(profiles) == 1
+    assert all(c[0] == 'read' for c in calls)
+
+
 @pytest.mark.parametrize('task_budget', [False, True])
 def test_preclose_occlusion_deadline_prevents_jaw_command(monkeypatch, task_budget):
     fake_gate(monkeypatch)

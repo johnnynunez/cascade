@@ -1919,6 +1919,17 @@ class SkillRuntime:
                     grasp_evidence.event("observed_finger_candidate_rejected", phase_name="close",
                                          conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
                     return f"closing fingers intersects observed non-target surface: {conflict}"
+                # Endpoints use the same immutable frame as the profiles.
+                # Reject hidden fingers before spending the shared planning
+                # budget sampling a route that cannot be accepted anyway.
+                for endpoint, q, closing in (("pregrasp", q_pre, False),
+                                             ("grasp_open", q_grasp, False),
+                                             ("grasp_closing", q_grasp, True)):
+                    conflict = scene_gate.occluded_pose(q, closing=closing, check=endpoint_check)
+                    if conflict:
+                        grasp_evidence.event("observed_finger_candidate_rejected", phase_name=endpoint,
+                                             conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
+                        return f"{endpoint} finger endpoint occluded by non-target depth: {conflict}"
             with geometry_guard(harness, deadline=approach_deadline):
                 reason = vet_segment(
                     harness, _seed, q_pre,
@@ -1958,14 +1969,6 @@ class SkillRuntime:
                         grasp_evidence.event("observed_finger_candidate_rejected", phase_name=phase,
                                              conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
                         return f"{phase} finger intersects observed surface: {conflict}"
-                for endpoint, q, closing in (("pregrasp", q_pre, False),
-                                             ("grasp_open", q_grasp, False),
-                                             ("grasp_closing", q_grasp, True)):
-                    conflict = scene_gate.occluded_pose(q, closing=closing, check=endpoint_check)
-                    if conflict:
-                        grasp_evidence.event("observed_finger_candidate_rejected", phase_name=endpoint,
-                                             conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
-                        return f"{endpoint} finger endpoint occluded by non-target depth: {conflict}"
             if bool(gcfg.get("pre_carry_lift", False)) and gcfg.get("carry_height_m") is not None:
                 # A learned tilted grasp can solve at pickup height yet have
                 # no IK at the carry height. Reject it before closing on the

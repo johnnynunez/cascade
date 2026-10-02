@@ -1,0 +1,41 @@
+{
+  "status": "confirmed",
+  "threading_verified": true,
+  "seating_verified": false,
+  "measured": {
+    "turns": 3.102182806979975,
+    "axial_advance_m": 0.007748767733573914,
+    "max_pitch_error_m": 1.363927451982546e-05,
+    "max_radial_offset_m": 9.127676034121623e-05,
+    "max_axis_tilt_rad": 0.004098761914274833,
+    "max_fixture_translation_m": 0.0,
+    "max_fixture_rotation_rad": 0.0,
+    "contact_rotation_fraction": 1.0,
+    "samples": 8641,
+    "elapsed_s": 7.200000000000832
+  },
+  "checks": {
+    "requested_fastener_rotation": true,
+    "axial_advance": true,
+    "thread_pitch": true,
+    "axis_alignment": true,
+    "fixed_fixture": true,
+    "thread_and_tool_contact": true
+  },
+  "reason": "measured fastener advancement follows thread pitch",
+  "contract": {
+    "requested_turns": 1.0,
+    "pitch_m": 0.0025
+  },
+  "scope": "8 second threading sensitivity probe, not a full seating run",
+  "source_sha256": {
+    "scripts/validate_screw_seating.py": "595068912afd8f1e14d01d3b926b4fcaf2a5f312a3040d5b5def0649b5286041",
+    "src/cascade/sim/newton_screw_contact.py": "d0ad84027d28ff8dcfb9c7036c55fa5d2888adf2a2bb53d9b4a3a705e46ccec3",
+    "src/cascade/sim/newton_screw_seating.py": "3f3465319cada30a37612abffe38a5fa5abdca89ff08e13fa32475e9e9320883",
+    "src/cascade/sim/threading_verification.py": "23a0fe46271251f087962bedbe055157f52463ed9fb69415597a24cd16979c22",
+    "src/cascade/sim/seating_verification.py": "01845faf010d48a818de320297fbba33548998c4a2ecca7bd43523faa8f0a565"
+  },
+  "source_unchanged": true,
+  "maximum_nut_angular_speed_rad_s": 2.9498088359832764,
+  "substeps": 20
+}

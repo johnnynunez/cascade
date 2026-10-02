@@ -13,7 +13,7 @@ import time
 import numpy as np
 
 from ..types import SafetyViolation
-from .arm_base import PREFLIGHT_MAX_DRIFT_RAD, prepare_stream
+from .arm_base import PREFLIGHT_MAX_DRIFT_RAD, PREFLIGHT_REBIND_BUDGET_S, prepare_stream
 from .motion_profile import nominal_profile, profile_counts
 
 
@@ -154,11 +154,53 @@ class SimulationMotion:
         # Same bounded feedback rebind and callback ordering as planned NV
         # routes; get_state here additionally applies the total wall budget.
         start, target = prepare_stream(self, target, duration_s, preflight, self.check_start)
+        return self._stream_targets(start, target,
+                                    nominal_profile(start, target, duration_s, rate_hz),
+                                    settle_tol, settle_timeout_s)
+
+    def stream_profile(self, profile, planned_state, settle_tol, settle_timeout_s, preflight):
+        """Stream a frozen planner curve once; drift cannot rebase that curve."""
+        from ..planning.trajectory import TrajectoryProfile
+        if not isinstance(profile, TrajectoryProfile):
+            raise SafetyViolation("a frozen trajectory profile is required")
+        positive(profile.duration_s, "trajectory duration")
+        positive(settle_tol, "settle position tolerance")
+        positive(settle_timeout_s, "simulation settle timeout")
+        expected = np.asarray(planned_state.q, dtype=float)
+        if (expected.shape != (self.arm.n_joints,) or not np.isfinite(expected).all()
+                or profile.start.shape != expected.shape
+                or np.max(np.abs(profile.start - expected)) > PREFLIGHT_MAX_DRIFT_RAD):
+            raise SafetyViolation("trajectory start differs from its planning feedback")
+        # Bind producer identity before observing current feedback. A reset
+        # during the solver call cannot be hidden by an identical joint pose.
+        self.clock.observe(planned_state.physics_clock)
+        self.last_state = planned_state
+        self.check_start()
+        deadline = time.monotonic() + PREFLIGHT_REBIND_BUDGET_S
+        start = self.get_state().q.copy()
+        if np.max(np.abs(start - expected)) > PREFLIGHT_MAX_DRIFT_RAD:
+            raise SafetyViolation("joint feedback changed after trajectory planning; no motion sent")
+        if preflight is not None:
+            preflight(start, profile)
+        self.check_start()
+        observed = self.get_state().q
+        if (time.monotonic() >= deadline
+                or np.max(np.abs(observed - start)) > PREFLIGHT_MAX_DRIFT_RAD
+                or np.max(np.abs(observed - expected)) > PREFLIGHT_MAX_DRIFT_RAD):
+            raise SafetyViolation("trajectory preflight feedback expired or moved; no motion sent")
+        return self._stream_targets(start, profile.end, profile, settle_tol, settle_timeout_s,
+                                    bind_first_edge=True)
+
+    def _stream_targets(self, start, target, targets, settle_tol, settle_timeout_s,
+                        *, bind_first_edge=False):
         self.q_previous = start
         last_command_time = self.clock.time
-        for waypoint in nominal_profile(start, target, duration_s, rate_hz):
+        for index, waypoint in enumerate(targets):
             command = waypoint.q
+            self.dt = positive(waypoint.dt, "trajectory interval")
             self.approval_edges = waypoint.checks
+            if bind_first_edge and index == 0:
+                self.approval_edges = ((start, command, self.dt), *self.approval_edges)
             while True:
                 self.get_state()
                 if self.fresh and self.clock.time - last_command_time >= self.dt - 1e-9:

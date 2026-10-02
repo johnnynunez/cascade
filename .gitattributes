@@ -15,3 +15,6 @@ assets/**/Textures/*.jpg filter=lfs diff=lfs merge=lfs -text
 # prims reachable" (see the 2026-08-27 CI incident this comment documents).
 *.usda -filter -diff -merge text
 *.usdc -filter -diff -merge text
+
+# Preserve upstream Factory bytes recorded in manifest.json.
+assets/factory/nut_bolt/factory_asset_info_nut_bolt.yaml -text whitespace=cr-at-eol

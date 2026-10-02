@@ -215,6 +215,9 @@ def test_rgbd_masks_and_effective_calibration_are_copied_from_existing_frame(mon
     frame.depth_m = np.full((3, 3), .7, np.float32)
     frame.depth_source = 'sensor'
     frame.robot_mask = np.eye(3, dtype=bool)
+    frame.prop_masks = {"/World/pink": np.eye(3, dtype=bool),
+                        "/World/green": np.fliplr(np.eye(3, dtype=bool)).copy()}
+    frame.payload_mask = np.eye(3, dtype=bool)
     fix.detection.mask = np.fliplr(np.eye(3, dtype=bool)).copy()
     T = np.eye(4); T[0, 3] = .3
     extrinsics = SimpleNamespace(mode='eye_to_hand', T=T)
@@ -224,6 +227,9 @@ def test_rgbd_masks_and_effective_calibration_are_copied_from_existing_frame(mon
         frame.rgb[:] = 99
         frame.depth_m[:] = 4
         frame.robot_mask[:] = False
+        for mask in frame.prop_masks.values():
+            mask[:] = False
+        frame.payload_mask[:] = False
         fix.detection.mask[:] = False
         frame.K[:] = 0
         T[:] = 0
@@ -237,6 +243,13 @@ def test_rgbd_masks_and_effective_calibration_are_copied_from_existing_frame(mon
         np.testing.assert_allclose(values['frame_depth_m'], .7)
         np.testing.assert_array_equal(values['frame_robot_mask'], np.eye(3, dtype=bool))
         np.testing.assert_array_equal(values['frame_target_mask'], np.fliplr(np.eye(3, dtype=bool)))
+        prop_event = next(e['data'] for e in doc['events'] if e['kind'] == 'frame_prop_masks')
+        assert prop_event['frame_id'] == frame.frame_id
+        assert prop_event['capture'] == frame.capture
+        assert prop_event['scope'] == 'audit only; not a target-contact exemption'
+        np.testing.assert_array_equal(arrays[prop_event['arrays']['/World/pink']], np.eye(3, dtype=bool))
+        np.testing.assert_array_equal(arrays[prop_event['arrays']['/World/green']], np.fliplr(np.eye(3, dtype=bool)))
+        np.testing.assert_array_equal(values['frame_payload_mask'], np.eye(3, dtype=bool))
         np.testing.assert_array_equal(values['frame_K'], np.eye(3))
         assert values['frame_T_base_cam'][0, 3] == .3
     assert next(e['data'] for e in doc['events'] if e['kind'] == 'localized')['effective_T_base_cam'][0][3] == .3

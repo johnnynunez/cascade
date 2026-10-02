@@ -1,0 +1,402 @@
+{
+  "scope": "Offline recorded candidates + immutable RGB-D through exact runtime AST and production selector/harness; no service, actuator or physical acceptance",
+  "runtime_sha256": "b97fa55f7491370ae19c19e1ac177d8d1bd8efde669551122c6d087994871e49",
+  "evidence_sha256": "220d78a3d9905a5c25bc0fb11942026e94c055ff5fb71dbdddc426a96d02e546",
+  "arrays_sha256": "b96b06c5a89abd6955e6ad0bbf0f4ea1ffe8a5df08fe33c857066001a85cdbd4",
+  "profile_sha256": {
+    "configs/demo.yaml": "06cba8688a3f52a092d7736d10077db1f27ab01105a1986f49a7f7fafbb0d9f9",
+    "configs/arms/isaac.yaml": "5523941aabe11ff31973532f15eba198f808b51d63e39be450d5c3cea27f6212",
+    "configs/arms/isaac_kitchen.yaml": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+    "configs/arms/isaac_kitchen_gpu.yaml": "83424052cf1231cb7956cabebb38cc857c60bc132e00345f9f73a47085fffcc3"
+  },
+  "actuator_calls": 0,
+  "route_budget_s": 3.0,
+  "batches": [
+    {
+      "batch": 1,
+      "recorded_interbatch_delay_s": 0,
+      "candidates": 3,
+      "selected": false,
+      "error": "no executable grasp: orange: grasp_open finger endpoint occluded by non-target depth: {'finger': 'joint_right', 'component': 1, 'surface': 'occluded behind observed non-target depth', 'pixel_rc': [223, 748], 'observed_depth_z_m': 0.8821029663085938, 'finger_ray_near_z_m': 0.9176511043858543, 'finger_ray_far_z_m': 0.9205032506754744}; orange: grasp_open finger endpoint occluded by non-target depth: {'finger': 'joint_left', 'component': 6, 'surface': 'occluded behind observed non-target depth', 'pixel_rc': [223, 748], 'observed_depth_z_m': 0.8821029663085938, 'finger_ray_near_z_m': 0.9176515996004315, 'finger_ray_far_z_m': 0.9205032830902362}; orange: closing fingers intersects observed non-target surface: {'finger': 'joint_left', 'component': 6, 'surface': 'other observed surface', 'pixel_rc': [230, 738], 'point_base_m': [0.2540533238142053, 0.11337485929801433, 0.06028432979425302]}; orange: closing fingers intersects observed non-target surface: {'finger': 'joint_right', 'component': 1, 'surface': 'other observed surface', 'pixel_rc': [230, 738], 'point_base_m': [0.2540533238142053, 0.11337485929801433, 0.06028432979425302]}",
+      "selection_wall_s": 0.5334284720011055,
+      "elapsed_s": 0.7924599039833993,
+      "rejections": [
+        {
+          "kind": "observed_finger_candidate_rejected",
+          "phase_name": "grasp_open",
+          "conflict": {
+            "finger": "joint_right",
+            "component": 1,
+            "surface": "occluded behind observed non-target depth",
+            "pixel_rc": [
+              223,
+              748
+            ],
+            "observed_depth_z_m": 0.8821029663085938,
+            "finger_ray_near_z_m": 0.9176511043858543,
+            "finger_ray_far_z_m": 0.9205032506754744
+          },
+          "q_pre": [
+            -0.7211779096844089,
+            1.4879277505295456,
+            1.1075515656421597,
+            -1.2613823640423845,
+            -0.12887099983102884,
+            -1.76584556102065
+          ],
+          "q_grasp": [
+            -0.698944884964759,
+            1.5015452558029683,
+            0.9529985094188826,
+            -1.0902928849774622,
+            -0.13037296195895867,
+            -1.7434847470288266
+          ]
+        },
+        {
+          "kind": "observed_finger_candidate_rejected",
+          "phase_name": "grasp_open",
+          "conflict": {
+            "finger": "joint_left",
+            "component": 6,
+            "surface": "occluded behind observed non-target depth",
+            "pixel_rc": [
+              223,
+              748
+            ],
+            "observed_depth_z_m": 0.8821029663085938,
+            "finger_ray_near_z_m": 0.9176515996004315,
+            "finger_ray_far_z_m": 0.9205032830902362
+          },
+          "q_pre": [
+            -0.7211964332320261,
+            1.4879669186420246,
+            1.1076266350138844,
+            -1.2613285999128425,
+            -0.1287817734682921,
+            1.3757162821692226
+          ],
+          "q_grasp": [
+            -0.6989386599879489,
+            1.5015432507704842,
+            0.9529976653636517,
+            -1.0902917884113088,
+            -0.1303659828319593,
+            1.3981143113137668
+          ]
+        },
+        {
+          "kind": "observed_finger_candidate_rejected",
+          "phase_name": "close",
+          "conflict": {
+            "finger": "joint_left",
+            "component": 6,
+            "surface": "other observed surface",
+            "pixel_rc": [
+              230,
+              738
+            ],
+            "point_base_m": [
+              0.2540533238142053,
+              0.11337485929801433,
+              0.06028432979425302
+            ]
+          },
+          "q_pre": [
+            -0.43350448019484356,
+            1.4662281794063425,
+            1.1060464219193111,
+            -1.2532368789435022,
+            0.10954315762693005,
+            1.249861503895019
+          ],
+          "q_grasp": [
+            -0.45250454455054673,
+            1.4817159740809336,
+            0.9526585230167893,
+            -1.082314405568502,
+            0.11028862479672101,
+            1.2307801193614376
+          ]
+        },
+        {
+          "kind": "observed_finger_candidate_rejected",
+          "phase_name": "close",
+          "conflict": {
+            "finger": "joint_right",
+            "component": 1,
+            "surface": "other observed surface",
+            "pixel_rc": [
+              230,
+              738
+            ],
+            "point_base_m": [
+              0.2540533238142053,
+              0.11337485929801433,
+              0.06028432979425302
+            ]
+          },
+          "q_pre": [
+            -0.433471876115425,
+            1.4662089126742173,
+            1.10599860279612,
+            -1.2532891696548116,
+            0.10944812380456569,
+            -1.8916709660007716
+          ],
+          "q_grasp": [
+            -0.45251052936810454,
+            1.48171868000028,
+            0.9526614675229785,
+            -1.0823165950947171,
+            0.11028177655557916,
+            -1.9108182259209947
+          ]
+        },
+        {
+          "kind": "observed_finger_candidate_rejected",
+          "phase_name": "close",
+          "conflict": {
+            "finger": "joint_left",
+            "component": 6,
+            "surface": "other observed surface",
+            "pixel_rc": [
+              266,
+              714
+            ],
+            "point_base_m": [
+              0.25373797645472684,
+              0.0910818776474751,
+              0.03359020332449736
+            ]
+          },
+          "q_pre": [
+            -0.4080313331352014,
+            1.8090178643251715,
+            1.3805042250654846,
+            -1.4274671435671777,
+            0.13908603612905235,
+            0.6951874988406873
+          ],
+          "q_grasp": [
+            -0.42793166769797775,
+            1.7943909921058387,
+            1.2007507724815871,
+            -1.2596728155055188,
+            0.14464066202966286,
+            0.6759071374818698
+          ]
+        },
+        {
+          "kind": "observed_finger_candidate_rejected",
+          "phase_name": "close",
+          "conflict": {
+            "finger": "joint_left",
+            "component": 6,
+            "surface": "other observed surface",
+            "pixel_rc": [
+              185,
+              688
+            ],
+            "point_base_m": [
+              0.1680193247383559,
+              0.12851371966041342,
+              0.04731554501006541
+            ]
+          },
+          "q_pre": [
+            -0.4080289186193696,
+            1.8090007886741395,
+            1.3804254066124713,
+            -1.4275113198712261,
+            0.138992239516955,
+            -2.4463849276867604
+          ],
+          "q_grasp": [
+            -0.42793497657727636,
+            1.794397831385834,
+            1.2007576610092139,
+            -1.259678367450941,
+            0.14463678847661174,
+            -2.4656878600736207
+          ]
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "recorded_interbatch_delay_s": 0.585861133004073,
+      "candidates": 2,
+      "selected": false,
+      "error": "no executable grasp: orange: grasp_open finger endpoint occluded by non-target depth: {'finger': 'joint_left', 'component': 6, 'surface': 'occluded behind observed non-target depth', 'pixel_rc': [223, 748], 'observed_depth_z_m': 0.8821029663085938, 'finger_ray_near_z_m': 0.9016437607576813, 'finger_ray_far_z_m': 0.9064697379406668}; orange: grasp_open finger endpoint occluded by non-target depth: {'finger': 'joint_right', 'component': 1, 'surface': 'occluded behind observed non-target depth', 'pixel_rc': [223, 748], 'observed_depth_z_m': 0.8821029663085938, 'finger_ray_near_z_m': 0.9016428125542031, 'finger_ray_far_z_m': 0.9064697042512672}; orange: closing fingers intersects observed non-target surface: {'finger': 'joint_right', 'component': 1, 'surface': 'other observed surface', 'pixel_rc': [208, 658], 'point_base_m': [0.1635660988948392, 0.10033296868142033, 0.03232942425953733]}; orange: closing fingers intersects observed non-target surface: {'finger': 'joint_left', 'component': 6, 'surface': 'other observed surface', 'pixel_rc': [208, 658], 'point_base_m': [0.1635660988948392, 0.10033296868142033, 0.03232942425953733]}",
+      "selection_wall_s": 0.47670390698476695,
+      "elapsed_s": 1.8552168349851854,
+      "rejections": [
+        {
+          "kind": "observed_finger_candidate_rejected",
+          "phase_name": "grasp_open",
+          "conflict": {
+            "finger": "joint_left",
+            "component": 6,
+            "surface": "occluded behind observed non-target depth",
+            "pixel_rc": [
+              223,
+              748
+            ],
+            "observed_depth_z_m": 0.8821029663085938,
+            "finger_ray_near_z_m": 0.9016437607576813,
+            "finger_ray_far_z_m": 0.9064697379406668
+          },
+          "q_pre": [
+            -0.4589665855610255,
+            1.4099990159309752,
+            1.0729703711349168,
+            -1.2349917201672007,
+            0.12552188426066857,
+            1.3784702946831573
+          ],
+          "q_grasp": [
+            -0.48147777316653506,
+            1.4285948918539317,
+            0.9220007677935387,
+            -1.0626325871218232,
+            0.12546831771109976,
+            1.355799430683837
+          ]
+        },
+        {
+          "kind": "observed_finger_candidate_rejected",
+          "phase_name": "grasp_open",
+          "conflict": {
+            "finger": "joint_right",
+            "component": 1,
+            "surface": "occluded behind observed non-target depth",
+            "pixel_rc": [
+              223,
+              748
+            ],
+            "observed_depth_z_m": 0.8821029663085938,
+            "finger_ray_near_z_m": 0.9016428125542031,
+            "finger_ray_far_z_m": 0.9064697042512672
+          },
+          "q_pre": [
+            -0.45890954029101816,
+            1.409974210938727,
+            1.0729119383318828,
+            -1.2350577036371873,
+            0.12538633402515376,
+            -1.763026011563509
+          ],
+          "q_grasp": [
+            -0.4814841245749386,
+            1.4285963856285582,
+            0.9220027434846659,
+            -1.0626340322398418,
+            0.1254608874718304,
+            -1.7857993505833412
+          ]
+        },
+        {
+          "kind": "observed_finger_candidate_rejected",
+          "phase_name": "close",
+          "conflict": {
+            "finger": "joint_right",
+            "component": 1,
+            "surface": "other observed surface",
+            "pixel_rc": [
+              208,
+              658
+            ],
+            "point_base_m": [
+              0.1635660988948392,
+              0.10033296868142033,
+              0.03232942425953733
+            ]
+          },
+          "q_pre": [
+            -0.25505393329312326,
+            1.425910337875153,
+            1.0111595664085158,
+            -1.1682817753372046,
+            0.3042250621358577,
+            2.0065403274679476
+          ],
+          "q_grasp": [
+            -0.30862052642176196,
+            1.4509360443852073,
+            0.8706737680078563,
+            -0.9859501917039629,
+            0.3043423249959305,
+            1.9504057441765423
+          ]
+        },
+        {
+          "kind": "observed_finger_candidate_rejected",
+          "phase_name": "close",
+          "conflict": {
+            "finger": "joint_left",
+            "component": 6,
+            "surface": "other observed surface",
+            "pixel_rc": [
+              208,
+              658
+            ],
+            "point_base_m": [
+              0.1635660988948392,
+              0.10033296868142033,
+              0.03232942425953733
+            ]
+          },
+          "q_pre": [
+            -0.2549589666343964,
+            1.425913917341861,
+            1.011145894644866,
+            -1.1682839205111828,
+            0.3040642180936203,
+            -1.1349384421615265
+          ],
+          "q_grasp": [
+            -0.3086261920778374,
+            1.450931325173147,
+            0.8706713509496493,
+            -0.9859478677718008,
+            0.30433518522772307,
+            -1.1911936667975223
+          ]
+        }
+      ]
+    },
+    {
+      "batch": 3,
+      "recorded_interbatch_delay_s": 0.4769183429889381,
+      "candidates": 4,
+      "selected": true,
+      "q_pre": [
+        -0.802375382205056,
+        1.0164048689233882,
+        0.7355218246165118,
+        -1.0541614117837201,
+        -0.18095311907266481,
+        0.8701068372359764
+      ],
+      "q_grasp": [
+        -0.7588150652779446,
+        1.073449560414174,
+        0.6034260297105153,
+        -0.857556610532183,
+        -0.17062174618141415,
+        0.9130965391499928
+      ],
+      "position": [
+        0.17727589540455319,
+        0.12134147543478237,
+        0.035602655388135215
+      ],
+      "selection_wall_s": 0.5015061929880176,
+      "elapsed_s": 2.833769595978083,
+      "rejections": []
+    }
+  ],
+  "selected": true,
+  "elapsed_s": 2.833772209996823
+}

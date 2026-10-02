@@ -15,8 +15,10 @@ HERE = Path(__file__).resolve().parent
 SOURCE_PATTERNS = (
     "LICENSE", "pyproject.toml", "uv.lock", "src/cascade/**/*.py", "configs/**/*.yaml",
     "assets/grasp_geometry/*.json",
+    "assets/cumotion/rebot/rebot.xrdf", "assets/cumotion/rebot/PROVENANCE.md",
     "scripts/isaac_bridge.py", "scripts/isaac_runtime.py", "scripts/isaac_camera_readback.py", "scripts/isaac_frame_history.py", "scripts/isaac_python_spans.py",
     "scripts/isaac_materials.py", "scripts/isaac_self_mask.py", "scripts/isaac_launch.py",
+    "scripts/isaac_ovrtx.py",
     "scripts/newton_mesh_compat.py",
     "scripts/demo_proof.py", "scripts/native_turn_budget.py", "scripts/judge_run.py", "scripts/install_support.py", "scripts/kitchen_assets.py",
     "scripts/build_cocina_asier.py",

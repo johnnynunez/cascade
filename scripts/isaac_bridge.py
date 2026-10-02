@@ -89,7 +89,14 @@ p.add_argument("--width", type=int, default=int(os.environ.get("CASCADE_ISAAC_WI
 p.add_argument("--height", type=int, default=int(os.environ.get("CASCADE_ISAAC_HEIGHT", "720")))
 p.add_argument("--dt", type=float, default=float(os.environ.get("CASCADE_ISAAC_DT", str(1.0 / 60.0))))
 p.add_argument("--cam-every", type=int, default=int(os.environ.get("CASCADE_ISAAC_CAM_EVERY", "2")), help="refresh camera cache every N bridge iterations (also poll after .5 wall seconds)")
+p.add_argument("--camera-renderer", choices=["isaac", "ovrtx"],
+               default=os.environ.get("CASCADE_CAMERA_RENDERER", "isaac"))
+p.add_argument("--ovrtx-python", default=os.environ.get("CASCADE_OVRTX_PYTHON"))
+p.add_argument("--ovrtx-output", default=os.environ.get("CASCADE_OVRTX_OUTPUT"))
+p.add_argument("--ovrtx-device", type=int, default=int(os.environ.get("CASCADE_OVRTX_DEVICE", "0")))
 args = p.parse_args()
+if args.camera_renderer == "ovrtx" and (not args.ovrtx_python or not args.ovrtx_output):
+    p.error("OVRTX requires --ovrtx-python (SDK environment) and --ovrtx-output (fresh evidence directory)")
 if not 0 < args.dt <= 1.0:
     p.error("--dt / CASCADE_ISAAC_DT must be finite and in (0, 1] seconds")
 
@@ -677,7 +684,7 @@ def _camera(path, eye, target, up, focal_mm=18.0, haperture_mm=20.955):
     usd_cam.GetFocalLengthAttr().Set(focal_mm)
     usd_cam.GetHorizontalApertureAttr().Set(haperture_mm)
     usd_cam.GetVerticalApertureAttr().Set(haperture_mm * args.height / args.width)
-    sensor = CameraSensor(
+    sensor = None if args.camera_renderer == "ovrtx" else CameraSensor(
         cam,
         resolution=(args.height, args.width),  # (H, W) convention
         annotators=["rgb", "distance_to_image_plane"],
@@ -700,6 +707,8 @@ def _camera(path, eye, target, up, focal_mm=18.0, haperture_mm=20.955):
           flush=True)
     for row in rows:
         print(f"[bridge]     - {row}", flush=True)
+    if args.camera_renderer == "ovrtx":
+        return None, K  # Own-stage OVRTX products are created in a child process.
     from isaac_camera_readback import CpuCameraReadback
 
     import omni.replicator.core as rep
@@ -830,7 +839,8 @@ if _PIXEL_MASK_ENABLED:
     _bilateral_contact_paths = _mask_helpers["bilateral_contact_paths"]
 
     for _sensor, _K in _annotators.values():
-        _sensor.attach_annotators("instance_id_segmentation")
+        if _sensor is not None:
+            _sensor.attach_annotators("instance_id_segmentation")
 
 def _frame_gui_viewport():
     """Frame the presentation camera after Kit's stage/camera warmup.
@@ -1616,6 +1626,9 @@ def _invalidate_frame_history():
     _pending_camera_publications.clear()
     _motion_clock_epoch = uuid.uuid4().hex
     _last_camera_capture_started = None
+    if globals().get("_ovrtx") is not None:
+        _ovrtx.latest = None
+        _ovrtx.error = "physical clock epoch invalidated; awaiting a new capture"
 
 
 def _step_with_frame_history():
@@ -1628,12 +1641,18 @@ def _step_with_frame_history():
     with _profile_zone("bridge.history"):
         try:
             current = SimulationManager._simulation_manager_interface.get_current_time()
+            payload = _capture_frame_state(started, wrist_T)
             _frame_history.record(
                 reference=(current.numerator, current.denominator),
                 simulation_time=float(SimulationManager.get_simulation_time()),
                 physics_step=int(SimulationManager.get_num_physics_steps()),
                 started_monotonic=started, finished_monotonic=finished,
-                epoch=_motion_clock_epoch, payload=_capture_frame_state(started, wrist_T))
+                epoch=_motion_clock_epoch, payload=payload)
+            if globals().get("_ovrtx") is not None:
+                _ovrtx.capture(epoch=_motion_clock_epoch,
+                    physics_step=int(SimulationManager.get_num_physics_steps()),
+                    simulation_time=float(SimulationManager.get_simulation_time()),
+                    started=started, payload=payload)
             Handler.scene_identity.pop("camera_history_error", None)
         except ClockDiscontinuity as exc:
             _invalidate_frame_history()
@@ -1668,6 +1687,22 @@ def _render_token(sensor):
 
 
 def _refresh_frames():
+    if globals().get("_ovrtx") is not None:
+        try:
+            for name, (entry, rgb, depth) in _ovrtx.render().items():
+                token = (entry["render_reference"]["producer_epoch"],
+                         entry["render_reference"]["history_physics_step"])
+                if _published_frame_tokens.get(name) != token:
+                    _frames[name] = _LazyFrame(entry, rgb, depth)
+                    _published_frame_tokens[name] = token
+                _camera_frame_errors.pop(name, None)
+                _pending_camera_publications.discard(name)
+        except Exception as exc:
+            if not _camera_frame_errors:
+                print(f"[bridge] OVRTX capture failed: {exc}", flush=True)
+            _camera_frame_errors.update({name: str(exc) for name in _annotators})
+        Handler.scene_identity["camera_frame_errors"] = dict(_camera_frame_errors)
+        return
     with _profile_zone("bridge.refresh"):
         # rpFabricTime is render-product-specific. Generic ReferenceTime can
         # advance while tick-limited RGB/depth/segmentation remain unchanged.
@@ -2033,6 +2068,19 @@ def _reset_props_verified() -> dict:
     return result
 
 
+_ovrtx = None
+if args.camera_renderer == "ovrtx":
+    sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
+    from isaac_ovrtx import IsaacOvrtx
+    _ovrtx = IsaacOvrtx(stage, CAM_DEFS, python=args.ovrtx_python, output=args.ovrtx_output,
+        robot_id=args.prim, base_z=BASE_Z, width=args.width, height=args.height, device=args.ovrtx_device,
+        wrist_link=_wrist_rp.paths[0] if _wrist_rp is not None else None, wrist_mount=_WRIST_MOUNT.copy())
+    Handler.scene_identity["camera_renderer"] = "ovrtx"
+    # Register before startup capture too: exceptions during warmup must not
+    # orphan a native renderer child before the main loop's finally exists.
+    import atexit
+    atexit.register(_ovrtx.close)
+
 _settle_props()
 print("[bridge] props settled onto the table", flush=True)
 _frame_gui_viewport()
@@ -2069,6 +2117,8 @@ for prop_name, *_ in PROPS:
         print(f"[bridge] prop {prop_name} world bound: min={rng.GetMin()} "
               f"max={rng.GetMax()}  (base plane at z={BASE_Z:.3f})", flush=True)
 for cam_name, (sensor, _) in _annotators.items():
+    if sensor is None:
+        continue
     d_data, _info = sensor.get_data("distance_to_image_plane")
     if d_data is not None:
         d = np.squeeze(np.asarray(d_data.numpy() if hasattr(d_data, "numpy") else d_data))
@@ -2227,8 +2277,11 @@ finally:
         cleanup.callback(_python_spans.report)
         cleanup.callback(signal.signal, signal.SIGTERM, _previous_sigterm)
         cleanup.callback(app.close)
+        if _ovrtx is not None:
+            cleanup.callback(_ovrtx.close)
         for sensor, _ in _annotators.values():
-            cleanup.callback(sensor.detach_render_times)
+            if sensor is not None:
+                cleanup.callback(sensor.detach_render_times)
         cleanup.callback(app_utils.stop)
         if _gpu_log_consumer is not None:
             cleanup.callback(lambda: omni.log.get_log().remove_message_consumer(_gpu_log_consumer))

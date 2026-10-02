@@ -1,0 +1,13 @@
+{
+  "source": "c07d9225f93ebe7cc1be5d65079ebcc141b60117",
+  "command": "PYTHONPATH=src ../runtime-venv/bin/python3.12 -m pytest tests/ -q",
+  "pass": true,
+  "passed": 3797,
+  "skipped": 48,
+  "deselected": 4,
+  "wall_s": 312.57,
+  "log": "runs/manipulation-final-regression.log",
+  "log_sha256": "07f78e9cbea78302f9858e2c97f92e66b22ceb53866f7f9983eb8544dbbf9157",
+  "tracked_tree_unchanged_during_run": true,
+  "note": "Only untracked WORKLOG.md existed during the run; no tracked files were edited. Native tests/evidence are separate from this CPU-oriented suite."
+}

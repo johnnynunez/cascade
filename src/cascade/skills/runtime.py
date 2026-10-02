@@ -1869,8 +1869,23 @@ class SkillRuntime:
             def before_stream():
                 _scene_cancel()
                 harness.check_stream_start(halt_generation=scene_halt_generation)
+            def trajectory_preflight(start, profile, check):
+                _scene_cancel()
+                # The native planner's curve replaces the min-jerk profile,
+                # so every actual command/50 Hz safety endpoint must pass the
+                # same immutable observed-finger geometry before streaming.
+                for item in profile:
+                    for previous, following, _dt in item.checks:
+                        for q in (previous, following):
+                            check()
+                            _scene_cancel()
+                            conflict = scene_gate.pose(q)
+                            if conflict:
+                                raise SafetyViolation(f"planned finger trajectory intersects observed surface: {conflict}")
+                _scene_cancel()
             return {"preflight": preflight, "before_stream": before_stream,
-                    "feedback_guard": scene_gate.feedback, "_halt_generation": scene_halt_generation}
+                    "feedback_guard": scene_gate.feedback, "_halt_generation": scene_halt_generation,
+                    "_trajectory_preflight": trajectory_preflight}
         from ..safety.trajectory import PLAN_BUDGET_S, geometry_guard, vet_segment
         approach_deadline = time.monotonic() + PLAN_BUDGET_S
 
@@ -1904,6 +1919,17 @@ class SkillRuntime:
                     grasp_evidence.event("observed_finger_candidate_rejected", phase_name="close",
                                          conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
                     return f"closing fingers intersects observed non-target surface: {conflict}"
+                # Endpoints use the same immutable frame as the profiles.
+                # Reject hidden fingers before spending the shared planning
+                # budget sampling a route that cannot be accepted anyway.
+                for endpoint, q, closing in (("pregrasp", q_pre, False),
+                                             ("grasp_open", q_grasp, False),
+                                             ("grasp_closing", q_grasp, True)):
+                    conflict = scene_gate.occluded_pose(q, closing=closing, check=endpoint_check)
+                    if conflict:
+                        grasp_evidence.event("observed_finger_candidate_rejected", phase_name=endpoint,
+                                             conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
+                        return f"{endpoint} finger endpoint occluded by non-target depth: {conflict}"
             with geometry_guard(harness, deadline=approach_deadline):
                 reason = vet_segment(
                     harness, _seed, q_pre,
@@ -1943,14 +1969,6 @@ class SkillRuntime:
                         grasp_evidence.event("observed_finger_candidate_rejected", phase_name=phase,
                                              conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
                         return f"{phase} finger intersects observed surface: {conflict}"
-                for endpoint, q, closing in (("pregrasp", q_pre, False),
-                                             ("grasp_open", q_grasp, False),
-                                             ("grasp_closing", q_grasp, True)):
-                    conflict = scene_gate.occluded_pose(q, closing=closing, check=endpoint_check)
-                    if conflict:
-                        grasp_evidence.event("observed_finger_candidate_rejected", phase_name=endpoint,
-                                             conflict=conflict, q_pre=q_pre, q_grasp=q_grasp)
-                        return f"{endpoint} finger endpoint occluded by non-target depth: {conflict}"
             if bool(gcfg.get("pre_carry_lift", False)) and gcfg.get("carry_height_m") is not None:
                 # A learned tilted grasp can solve at pickup height yet have
                 # no IK at the carry height. Reject it before closing on the
@@ -2106,7 +2124,8 @@ class SkillRuntime:
         try:
             if not self.arm.move_joints(q_grasp,
                                         duration_s=float(gcfg.get("descend_duration_s", 2.0)),
-                                        bias_compensate=True, **_scene_motion(q_grasp)):
+                                        bias_compensate=True, _linear_tool_path=True,
+                                        **_scene_motion(q_grasp)):
                 raise SkillError("did not settle at grasp pose")
 
             # 3. close with the material profile (two-stage, stall-aware).
@@ -2165,6 +2184,24 @@ class SkillRuntime:
             # Approximate aiming compensation uses the closed grasp pose,
             # before lift. It is not an independent measurement of a held body.
             close_state = carry_attachment.arm(self, episode)
+            if getattr(self.arm, "motion_planner", None) is not None:
+                from ..planning.runtime import wait_for_contact_stability
+                generation = scene_halt_generation if scene_enabled else harness._halt_generation
+                def stability_guard():
+                    harness.check_stream_start(halt_generation=generation)
+                    carry_attachment.check(self)
+                stability = {}
+                try:
+                    close_state, stability = wait_for_contact_stability(self.arm, close_state,
+                        source=(str(self.cfg.arm.get("bridge_host", "127.0.0.1")),
+                                int(self.cfg.arm.get("bridge_port", 8611))),
+                        robot_id=self.cfg.arm.bridge_robot_id,
+                        timeout_s=gcfg.get("close_feedback_timeout_s") or self.cfg.arm.get("settle_timeout_s", 6.),
+                        rpc_timeout_s=self.cfg.arm.get("motion_rpc_timeout_s", 1.), progress=stability,
+                        check=stability_guard, observe=lambda state: carry_attachment.observe(self, state))
+                finally:
+                    grasp_evidence.event("post_close_stability", **stability)
+
             tcp_close = self.kin.fk(close_state.q)[:3, 3]
             try:
                 held_offset_at_close = np.asarray(fix.position, float) - tcp_close
@@ -2184,8 +2221,13 @@ class SkillRuntime:
             # 4. lift back to pregrasp (speed scaled by profile)
             lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
             grasp_evidence.phase("lift")
-            grasp_evidence.event("move_target", q=q_pre, duration_s=lift_dur)
-            if not carry_attachment.move(self, q_pre, duration_s=lift_dur,
+            q_lift = q_pre
+            if getattr(self.arm, "motion_planner", None) is not None:
+                from ..planning.runtime import contact_lift_target
+                q_lift = contact_lift_target(self.kin, close_state.q, q_pre)
+            grasp_evidence.event("move_target", q=q_lift, duration_s=lift_dur)
+            if not carry_attachment.move(self, q_lift, duration_s=lift_dur,
+                    _linear_tool_path=True,
                     **({"_halt_generation": scene_halt_generation} if scene_enabled else {})):
                 raise SkillError("did not settle at grasp lift pose")
             contact_completed = True
@@ -2201,6 +2243,7 @@ class SkillRuntime:
                     if scene_gate is not None:
                         settled = self.arm.move_joints(q_pre,
                             duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                            _linear_tool_path=True,
                             **_scene_motion(q_pre))
                     else:
                         settled = self.arm.move_planned(
@@ -3389,12 +3432,20 @@ class SkillRuntime:
         directions = {"tighten": +1.0, "loosen": -1.0}
         if direction not in directions:
             raise SkillError(f"direction must be one of {sorted(directions)}")
-        turns = float(np.clip(turns, 0.05, 6.0))
+        try:
+            requested_turns = float(turns)
+        except (TypeError, ValueError):
+            raise SkillError("turns must be a finite number in [0.05, 6]") from None
+        if isinstance(turns, bool) or not np.isfinite(requested_turns) or not 0.05 <= requested_turns <= 6:
+            raise SkillError("turns must be a finite number in [0.05, 6]")
+        turns = requested_turns
         scfg = self.cfg.get("screw", {})
         sign = directions[direction] * float(
             (scfg.get("tighten_sign") if scfg else None) or 1.0
         )
         joint = self._screw_joint
+        if not 0 <= joint < int(self.cfg.arm.get("n_joints", 6)):
+            raise SkillError("screw_joint is outside the configured arm joints")
 
         _, fix = self._localize(label)
         gcfg = self.cfg.grasp
@@ -3418,12 +3469,14 @@ class SkillRuntime:
         self.arm.set_gripper(self._grip_open, effort=0.8)
         yaw0 = float(np.arctan2(engage[1], engage[0]))
         ik_hover = None
+        engage_yaw = yaw0
         for yaw in (yaw0, 0.0, np.pi / 4, -np.pi / 4):
             cand = self.kin.ik(
                 make_transform(_yaw_rotation(yaw, axis_order=self._tool_axis_order),
                                hover), home)
             if cand.success:
                 ik_hover = cand
+                engage_yaw = yaw
                 break
         if ik_hover is None:
             raise SkillError(f"cannot reach a pose above {label!r} to work the screw")
@@ -3443,13 +3496,11 @@ class SkillRuntime:
         profile = select_profile(label, None)
 
         ik_engage = self.kin.ik(
-            make_transform(_yaw_rotation(yaw0, axis_order=self._tool_axis_order),
+            make_transform(_yaw_rotation(engage_yaw, axis_order=self._tool_axis_order),
                            engage), ik_hover.q)
-        if ik_engage.success:
-            q_engage = ik_engage.q.copy()
-        # else: work at the hover pose -- an engage IK miss must not abort
-        # the whole task when the hover pose already reaches the head on
-        # short screws.
+        if not ik_engage.success:
+            raise SkillError(f"cannot reach the engagement pose of {label!r}; no screw stroke sent")
+        q_engage = ik_engage.q.copy()
 
         while done < want and strokes < max_strokes:
             room_fwd = (hi[joint] - margin - q_engage[joint]) if sign > 0 else (
@@ -3494,20 +3545,27 @@ class SkillRuntime:
         applied = done / (2.0 * np.pi)
         self.memory.add(
             "action",
-            f"{direction}ed {label!r} by {applied:.2f} turns ({strokes} strokes)",
+            f"commanded {direction} wrist travel for {label!r}: {applied:.2f} turns "
+            f"({strokes} strokes); fastener outcome not measured",
         )
         if applied <= 0.0:
             raise SkillError(
                 f"no roll travel available to {direction} {label!r} "
                 f"(joint {joint} pinned by its limits at this pose)"
             )
+        if done < want - 1e-6:
+            raise SkillError(f"only {applied:.2f} of {turns:.2f} requested wrist turns completed")
         return {
             "screw": label,
             "direction": direction,
             "turns_requested": round(turns, 2),
             "turns_applied": round(applied, 2),
+            "turns_commanded": round(applied, 2),
             "strokes": strokes,
-            "note": "ratchet regrip: engage-turn-release per stroke, harness-vetted",
+            "physical_verification": {"status": "unverified", "fastener_turns": None,
+                                      "axial_advance_m": None, "seating_verified": False},
+            "note": "harness-vetted wrist strokes; turns_applied is commanded travel, "
+                    "not measured fastener rotation or tightening torque",
         }
 
     def skill_sort_by_color(self, max_objects: int = 6) -> dict:

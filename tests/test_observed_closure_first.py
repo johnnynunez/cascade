@@ -103,9 +103,9 @@ def test_accepted_candidate_runs_all_checks_and_preserves_selector_result(monkey
         assert actual[0] is expected[0]
         np.testing.assert_array_equal(actual[1], expected[1])
         np.testing.assert_array_equal(actual[2], expected[2])
-        per_orientation = (['pregrasp_pose', 'closing', 'harness_route']
-                           + ['descent_pose'] * 7 + ['scene_profile'] * 2
-                           + ['occlusion'] * 3)
+        per_orientation = (['pregrasp_pose', 'closing'] + ['occlusion'] * 3
+                           + ['harness_route'] + ['descent_pose'] * 7
+                           + ['scene_profile'] * 2)
         assert events == per_orientation * 2
         raise SelectionComplete
     monkeypatch.setattr(module, 'select_grasp', selecting)

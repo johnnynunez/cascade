@@ -83,6 +83,17 @@ class ArmBase(abc.ABC):
     #: from config (`arm.settle_timeout_s`).
     settle_timeout_s = 2.0
 
+    @property
+    def disconnect_preserves_drive_state(self) -> bool:
+        """Whether disconnect only releases transport, without drive commands.
+
+        False keeps the existing park-before-disconnect policy. Only the
+        Isaac backend currently declares this capability; it is not inferred
+        from another driver's lack of explicit torque-off, nor does it prove
+        that a payload remains held.
+        """
+        return False
+
     @abc.abstractmethod
     def connect(self) -> None: ...
 

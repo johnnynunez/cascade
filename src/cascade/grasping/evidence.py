@@ -122,6 +122,7 @@ class Attempt:
         self.arrays[key] = value.copy()
         self.array_bytes += value.nbytes
         self.record("array", {"key": key, "shape": list(value.shape), "dtype": str(value.dtype)})
+        return key
 
     def finish(self):
         """Publish a receipt even if array writing failed; surface failures."""
@@ -196,7 +197,7 @@ def array(name, value):
     attempt = _ACTIVE.get()
     if attempt is not None:
         try:
-            attempt.array(name, value)
+            return attempt.array(name, value)
         except Exception as exc:
             attempt.error(f"array:{name}", exc)
 
@@ -215,6 +216,16 @@ def localized(frame, fix, extrinsics=None):
             array("frame_robot_mask", frame.robot_mask)
         if getattr(fix.detection, "mask", None) is not None:
             array("frame_target_mask", fix.detection.mask)
+        # Keep native semantic identity available for AFTER-attempt audits of
+        # learned-mask boundaries. These copies never authorize target contact.
+        prop_keys = {}
+        for index, (path, mask) in enumerate(sorted((getattr(frame, "prop_masks", None) or {}).items())):
+            prop_keys[path] = array(f"frame_prop_mask_{index}", mask)
+        if prop_keys:
+            event("frame_prop_masks", arrays=prop_keys, frame_id=frame.frame_id,
+                  capture=frame.capture, scope="audit only; not a target-contact exemption")
+        if getattr(frame, "payload_mask", None) is not None:
+            array("frame_payload_mask", frame.payload_mask)
         T = frame.T_base_cam
         if T is None and extrinsics is not None:
             if getattr(extrinsics, "mode", None) == "eye_to_hand":

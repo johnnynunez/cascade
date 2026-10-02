@@ -1,5 +1,12 @@
 # Architecture
 
+Local integration contracts updated on 2 October 2026: live OVRTX bridge
+snapshots, native cuMotion execution through SafeArm, post-close stability and
+load-preserving shutdown, plus a separate Newton contact assembly experiment.
+The [integration report](MANIPULATION_ASSEMBLY_20261002.md) binds these changes
+to their physical results and software checks. The merged baseline described
+below remains a historical source pin.
+
 Runtime contracts updated on 1 October 2026, including the merged optional OVRTX
 renderer, cuMotion candidate planning, PhysX finger envelope, native host reserve,
 release-opening synchronization, pending-camera publication, retained NV carry
@@ -14,11 +21,26 @@ software validation and the current physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.
 Read this after the README and before `AGENTS.md`.
 
-The optional [cuMotion planner](CUMOTION.md) is a separate candidate-generation
-API/CLI, with caller-owned URDF/XRDF and static cuboids. It does not replace the
-current IK/SafeArm pipeline or consume live payload/recovery authority. The
-[screw assembly investigation](SCREW_MANIPULATION_RESEARCH.md) describes physical
-verification absent from the existing gestural `turn_screw` skill.
+The optional [cuMotion planner](CUMOTION.md) retains its candidate API/CLI and
+adds `planning/runtime.py` at the arm composition boundary. `isaac_cumotion`
+binds the model, joint ordering/signs, base and tool to the selected arm.
+`SafeArm` approves the native trajectory; the Isaac executor preserves its
+shape while uniformly slowing it and checking its sampled edges. Contact
+segments require a linear TCP corridor. A bounded post-close observation
+window precedes lift planning, while the final 1 mrad start-drift veto remains
+unchanged. Shutdown skips park/open commands when load or contact state remains.
+
+The [OVRTX bridge producer](OVRTX_RENDERER.md) reads completed physics tensors
+and sends immutable snapshots to an isolated renderer. Only that worker edits
+its private USD stage: editing another live `UsdStage` inside Kit can emit global
+PhysX notices and invalidate the simulator. RGB-D, semantic masks and captured
+joint/contact metadata share an epoch, physical step and snapshot digest.
+
+The separate [Factory assembly controller](FACTORY_THREAD_CONTACT.md) drives
+SO-101 joints and a motorized hex socket in Newton; the nut moves through solved
+thread/tool contacts. Read-only verifiers measure advancement, actual seating
+contact and zero-motor retention. This experiment does not change the ordinary
+`turn_screw` skill into an autonomous tool-acquisition or preload controller.
 
 ## Design position
 

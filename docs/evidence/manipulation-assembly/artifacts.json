@@ -1,0 +1,60 @@
+{
+  "regression.json": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/manipulation-final-regression.json",
+    "sha256": "1ea177ef415b152377f6e27ca6aea9418fc2bba3aada899180670bb285a548c0"
+  },
+  "regression.log": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/manipulation-final-regression.log",
+    "sha256": "07f78e9cbea78302f9858e2c97f92e66b22ceb53866f7f9983eb8544dbbf9157"
+  },
+  "changed-python-lint.log": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/manipulation-changed-lint-final.log",
+    "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+  },
+  "trial12-history.json": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/trial12-replay/audit.json",
+    "sha256": "ca8b0fab61962cb75c4427270a79b63f440a6f63641fdbd328b65331b3b423fc"
+  },
+  "trial12-native-1280.json": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/trial12-replay/native-1280-audit.json",
+    "sha256": "e022ed0517560dfd70e4dcb49e757603ca86078d6c745eb677dd19cb0eb3f5e5"
+  },
+  "selector-before.json": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/trial12-replay/selection-before.json",
+    "sha256": "c3256bdde408f0d202d1090da11a124a7e102eb2308abc660e52f62b61bdef63"
+  },
+  "selector-after.json": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/trial12-replay/selection-after.json",
+    "sha256": "82e0958a5cc790acbb3146e5256fcb15f5c67c400462481c7c13f81e550d5b55"
+  },
+  "runs/trial12-replay/selection.py": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/trial12-replay/selection.py",
+    "sha256": "fecdb2d284e790da02047062bf37af43a9152483f56a58c86d4a92183ebcee82",
+    "scope": "retained local replay implementation, no actuator connection"
+  },
+  "runs/trial12-replay/replay_endpoints.py": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/trial12-replay/replay_endpoints.py",
+    "sha256": "f0e51b49f296ee1f2817e590f68f714b651c46636a4da2787a6688b0c98ea327",
+    "scope": "retained local replay implementation, no actuator connection"
+  },
+  "runs/trial12-replay/runtime-before.py": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/runs/trial12-replay/runtime-before.py",
+    "sha256": "b97fa55f7491370ae19c19e1ac177d8d1bd8efde669551122c6d087994871e49",
+    "scope": "retained local replay implementation, no actuator connection"
+  },
+  "trial12-native-640.json": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/docs/evidence/manipulation-assembly/trial12-native-640.json",
+    "sha256": "b7a4e0ce45c1ffa1f8bac7259700dd642d2cd697cfe08f5f9e8238410067eb7b",
+    "scope": "Explicit640x360 native diagnostic variant; original history and1280failure retained"
+  },
+  "trial12-native-640/campaign.json": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/campaign.json",
+    "sha256": "cfe6dbb36431165a5175fe2429a2108f7557e39fc82de095662f205a0295cf26",
+    "scope": "Original terminal campaign receipt"
+  },
+  "trial12-native-640/termination-640.json": {
+    "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/termination-640.json",
+    "sha256": "57d7ce850eaf5df8b23ea2cf64305a863b2ca024f3a7696e4da1bcc87eddcc38",
+    "scope": "Birth-bound owned producer closure"
+  }
+}

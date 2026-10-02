@@ -102,6 +102,7 @@ def clean_environment(original: Mapping[str, str], *, source: str | None) -> dic
             "CASCADE_PROOF_CAMERA", "CASCADE_ISAAC_PIXEL_MASK", "CASCADE_ISAAC_CONTACT_MASK", "XDG_CACHE_HOME",
             "CASCADE_ISAAC_WIDTH", "CASCADE_ISAAC_HEIGHT", "CASCADE_ISAAC_CAM_EVERY", "CASCADE_ISAAC_DT",
             "CASCADE_ISAAC_PYTHON_SPANS",
+            "CASCADE_CAMERA_RENDERER", "CASCADE_OVRTX_PYTHON", "CASCADE_OVRTX_OUTPUT", "CASCADE_OVRTX_DEVICE",
             "XDG_CONFIG_HOME", "CUDA_CACHE_PATH", "WARP_CACHE_PATH",
             "__GL_SHADER_DISK_CACHE_PATH")
     env = {key: original[key] for key in keep if key in original}

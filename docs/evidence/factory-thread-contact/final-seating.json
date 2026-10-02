@@ -1,0 +1,149 @@
+{
+  "status": "confirmed",
+  "seating_verified": true,
+  "preload_verified": false,
+  "reason": null,
+  "checks": {
+    "threading": true,
+    "loaded_shoulder_contact_half_second": true,
+    "no_tool_fixture_contact": true,
+    "exact_zero_motor_after_stop": true,
+    "two_second_rest": true,
+    "retained_shoulder_seat": true,
+    "sampling_speed_bound": true
+  },
+  "termination": "motor_off_rest_completed",
+  "threading": {
+    "status": "confirmed",
+    "threading_verified": true,
+    "seating_verified": false,
+    "measured": {
+      "turns": 15.365321376671938,
+      "axial_advance_m": 0.03815476782619953,
+      "max_pitch_error_m": 0.00025853561548031673,
+      "max_radial_offset_m": 0.00016167346730904954,
+      "max_axis_tilt_rad": 0.007586558721729553,
+      "max_fixture_translation_m": 0.0,
+      "max_fixture_rotation_rad": 0.0,
+      "contact_rotation_fraction": 0.9940972126806151,
+      "samples": 21720,
+      "elapsed_s": 36.19833333331594
+    },
+    "checks": {
+      "requested_fastener_rotation": true,
+      "axial_advance": true,
+      "thread_pitch": true,
+      "axis_alignment": true,
+      "fixed_fixture": true,
+      "thread_and_tool_contact": true
+    },
+    "reason": "measured fastener advancement follows thread pitch"
+  },
+  "illustrative_motor_limit_nm": 0.05,
+  "motor_off_time_s": 36.98333333331594,
+  "final_nut_position_m": [
+    0.23999875783920288,
+    -6.449474909686614e-08,
+    0.03098408319056034
+  ],
+  "final_nut_bottom_gap_m": -1.5916809439658897e-05,
+  "loaded_seat_samples": 32,
+  "retained_rest_samples": 61,
+  "maximum_nut_angular_speed_rad_s": 3.2357254028320312,
+  "elapsed_simulation_s": 38.99999999998077,
+  "wall_s": 322.09111223800573,
+  "source_sha256": {
+    "scripts/validate_screw_seating.py": "595068912afd8f1e14d01d3b926b4fcaf2a5f312a3040d5b5def0649b5286041",
+    "src/cascade/sim/newton_screw_contact.py": "d0ad84027d28ff8dcfb9c7036c55fa5d2888adf2a2bb53d9b4a3a705e46ccec3",
+    "src/cascade/sim/newton_screw_seating.py": "3f3465319cada30a37612abffe38a5fa5abdca89ff08e13fa32475e9e9320883",
+    "src/cascade/sim/threading_verification.py": "23a0fe46271251f087962bedbe055157f52463ed9fb69415597a24cd16979c22",
+    "src/cascade/sim/seating_verification.py": "01845faf010d48a818de320297fbba33548998c4a2ecca7bd43523faa8f0a565"
+  },
+  "source_unchanged": true,
+  "asset_hashes": {
+    "factory_bolt_m20_loose.obj": "83915bb229635c4e822fc45d721f502b54cbfbe6c76736e5fd4cfb53a24f572a",
+    "factory_nut_m20_loose_subdiv_3x.obj": "ed64a5f282c4abe680ef112c6085704ee7ba0637a2cda0659fd1f1025fa8ab94"
+  },
+  "device": "cuda:0",
+  "substeps": 10,
+  "scene": "factory_seating_v3",
+  "seat_fixture": {
+    "id": "fixed_annular_seat_3mm",
+    "inner_radius_m": 0.011,
+    "outer_radius_m": 0.018,
+    "thickness_m": 0.003,
+    "top_z_m": 0.023,
+    "fixed_to_bolt_fixture": true
+  },
+  "thread_friction_coefficient": 0.1,
+  "socket_radial_clearance_m": 0.0003,
+  "socket_contact_solref": [
+    0.015,
+    1.0
+  ],
+  "socket_offset_m": [
+    0.012,
+    0.0,
+    -0.115
+  ],
+  "socket_inserts": {
+    "count": 6,
+    "passive_only": true,
+    "mass_kg_each": 0.002,
+    "stiffness_n_m": 2000.0,
+    "damping_n_s_m": 4.0,
+    "spring_reference_m": -0.00035,
+    "range_m": [
+      -0.0006,
+      0.0008
+    ],
+    "nominal_contact_preload_n_each": 0.1
+  },
+  "body_labels": [
+    "so101/worldbody/base",
+    "so101/worldbody/base/shoulder",
+    "so101/worldbody/base/shoulder/upper_arm",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist/gripper",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist/gripper/camera_mount",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist/gripper/moving_jaw_so101_v1",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist/gripper/socket_housing",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist/gripper/socket_housing/socket_spindle",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist/gripper/socket_housing/socket_spindle/socket_insert_0",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist/gripper/socket_housing/socket_spindle/socket_insert_1",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist/gripper/socket_housing/socket_spindle/socket_insert_2",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist/gripper/socket_housing/socket_spindle/socket_insert_3",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist/gripper/socket_housing/socket_spindle/socket_insert_4",
+    "so101/worldbody/base/shoulder/upper_arm/lower_arm/wrist/gripper/socket_housing/socket_spindle/socket_insert_5",
+    "nut"
+  ],
+  "robot_source_sha256": {
+    "CHANGELOG.md": "d9ba6fe2c0d9cd4b536600d354111fd7a3d60c6f0a7bf46eb70f2106af14ec81",
+    "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "README.md": "e2344e7c14290bed85c7907247aecb8bf6cb4392e3de0d7c45680efe9bb9b5a9",
+    "assets/base_motor_holder_so101_v1.stl": "8cd2f241037ea377af1191fffe0dd9d9006beea6dcc48543660ed41647072424",
+    "assets/base_so101_v2.stl": "bb12b7026575e1f70ccc7240051f9d943553bf34e5128537de6cd86fae33924d",
+    "assets/motor_holder_so101_base_v1.stl": "31242ae6fb59d8b15c66617b88ad8e9bded62d57c35d11c0c43a70d2f4caa95b",
+    "assets/motor_holder_so101_wrist_v1.stl": "887f92e6013cb64ea3a1ab8675e92da1e0beacfd5e001f972523540545e08011",
+    "assets/moving_jaw_so101_gripper_part0_v1.stl": "3a92e115d1934d4c45cff808c4eff2ea10361a137a7f89940033a1f8a821b88c",
+    "assets/moving_jaw_so101_gripper_part1_v1.stl": "d10f6c671d26f62988ec95efee9370a0657b5833b3c5f8aad59fd69a87ef2aee",
+    "assets/moving_jaw_so101_gripper_v1.stl": "e8a5dc040b98e27453a5b74f9087d1dbca14589cf9a17c4de7868d5ab98413cd",
+    "assets/moving_jaw_so101_v1.stl": "785a9dded2f474bc1d869e0d3dae398a3dcd9c0c345640040472210d2861fa9d",
+    "assets/rotation_pitch_so101_v1.stl": "9be900cc2a2bf718102841ef82ef8d2873842427648092c8ed2ca1e2ef4ffa34",
+    "assets/sts3215_03a_no_horn_v1.stl": "75ef3781b752e4065891aea855e34dc161a38a549549cd0970cedd07eae6f887",
+    "assets/sts3215_03a_v1.stl": "a37c871fb502483ab96c256baf457d36f2e97afc9205313d9c5ab275ef941cd0",
+    "assets/under_arm_so101_v1.stl": "d01d1f2de365651dcad9d6669e94ff87ff7652b5bb2d10752a66a456a86dbc71",
+    "assets/upper_arm_so101_v1.stl": "475056e03a17e71919b82fd88ab9a0b898ab50164f2a7943652a6b2941bb2d4f",
+    "assets/waveshare_mounting_plate_so101_v2.stl": "e197e24005a07d01bbc06a8c42311664eaeda415bf859f68fa247884d0f1a6e9",
+    "assets/wrist_roll_follower_so101_camera_mount.stl": "58c457b33a26d9c9bb337aa351173e7123f84719a93f486541adef6eba57ae21",
+    "assets/wrist_roll_follower_so101_gripper_part0_v1.stl": "370eb470a6ab48b08febcaeb5274d2bcc91246692532ce12c795fb82977def72",
+    "assets/wrist_roll_follower_so101_gripper_v1.stl": "65f32debcf265420c0160afe004f8befc5df4b3e578fd59ebaa62eade0371224",
+    "assets/wrist_roll_follower_so101_v1.stl": "4b17b410a12d64ec39554abc3e8054d8a97384b2dc4a8d95a5ecb2a93670f5f4",
+    "assets/wrist_roll_pitch_so101_v2.stl": "6c7ec5525b4d8b9e397a30ab4bb0037156a5d5f38a4adf2c7d943d6c56eda5ae",
+    "scene.xml": "d3037f0fd36b61a9b6805b2c79831e7a392276d0f490145d01f718542eee9150",
+    "scene_box.xml": "14c3826f23889587e63b88ef9a0e7d72318ffe13078fad8287c56dbdb9ba9ad8",
+    "so101.png": "fca552381f318dab5b1f9a69007e79d905d91c9d1bebbfdf267b78d924a9c46d",
+    "so101.xml": "5ad49f2b45c083baac9ffe5d4d3213a5da7eac8039095bb2df177a697aae8308"
+  }
+}

@@ -1,4 +1,4 @@
-"""Optional motion-plan candidates, separate from actuator execution."""
+"""Optional motion candidates; runtime execution remains gated by SafeArm."""
 
 
 class PlanningError(RuntimeError):
@@ -8,8 +8,8 @@ class PlanningError(RuntimeError):
 def make_motion_planner(config):
     """Construct an explicitly selected planner; never substitute another backend.
 
-    This factory is not called by the demo or SafeArm. A returned plan is not
-    authority to move a robot; see docs/CUMOTION.md.
+    The optional runtime binding also uses this factory. A returned plan alone
+    is not authority to move a robot; see docs/CUMOTION.md.
     """
     if config.get("type") != "cumotion":
         raise PlanningError("motion planner type must explicitly be 'cumotion'")

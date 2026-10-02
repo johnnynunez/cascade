@@ -1,0 +1,27 @@
+{
+  "status": "confirmed",
+  "threading_verified": true,
+  "seating_verified": false,
+  "measured": {
+    "turns": 15.251112610925015,
+    "axial_advance_m": 0.0381164476275444,
+    "max_pitch_error_m": 2.563712709771626e-05,
+    "max_radial_offset_m": 0.00016167346730904954,
+    "max_axis_tilt_rad": 0.007586558721729553,
+    "max_fixture_translation_m": 0.0,
+    "max_fixture_rotation_rad": 0.0,
+    "contact_rotation_fraction": 1.0,
+    "samples": 21070,
+    "elapsed_s": 35.114999999983574
+  },
+  "checks": {
+    "requested_fastener_rotation": true,
+    "axial_advance": true,
+    "thread_pitch": true,
+    "axis_alignment": true,
+    "fixed_fixture": true,
+    "thread_and_tool_contact": true
+  },
+  "reason": "measured fastener advancement follows thread pitch",
+  "window_definition": "after 0.8 s until preceding 60 Hz frame before first solved nut/spacer contact"
+}

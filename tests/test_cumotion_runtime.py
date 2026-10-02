@@ -1,0 +1,323 @@
+"""Opt-in SafeArm execution: native-shaped paths retain live motion authority."""
+from types import SimpleNamespace as NS
+
+import numpy as np
+import pytest
+
+from cascade.config import Cfg
+from cascade.control.simulation_motion import SimulationMotion
+from cascade.planning import PlanningError
+from cascade.planning.runtime import RuntimeMotionPlanner
+from cascade.planning.trajectory import TrajectoryProfile
+from cascade.safety.harness import SafeArm, SafetyHarness
+from cascade.types import SafetyViolation
+from test_isaac_simulation_motion import Sim
+from test_safety import limits
+
+
+class CurvePlanner:
+    def __init__(self):
+        self.calls = []
+
+    def plan_profile(self, start, target, **kwargs):
+        self.calls.append((start.copy(), np.asarray(target).copy(), kwargs))
+        return TrajectoryProfile.from_curve(
+            lambda s: start + (target - start) * float(s)
+            + np.array([0., .025 * np.sin(np.pi * float(s))]),
+            kwargs['duration_s'], kwargs['rate_hz'], None)
+
+
+def safe_sim(monkeypatch):
+    sim = Sim(monkeypatch)
+    sim.disconnect_preserves_drive_state = True
+    get_state = sim.get_state
+    sim.get_state = lambda **kw: get_state(timeout_s=kw.get('timeout_s', .2))
+    sim.motion_rate_hz = 30.
+    sim.stream_profile = lambda profile, planned_state, preflight, **kwargs: SimulationMotion(
+        sim, **kwargs).stream_profile(profile, planned_state, .045, 1., preflight)
+    sim.stream_to = lambda *a, **kw: pytest.fail('planner failure must never fall back')
+    harness = SafetyHarness(limits())
+    planner = CurvePlanner()
+    return SafeArm(sim, harness, motion_planner=planner), sim, planner
+
+
+def test_ordinary_motion_streams_one_original_curve_and_live_edges(monkeypatch):
+    arm, sim, planner = safe_sim(monkeypatch)
+    edges, scene_checks, feedback = [], [], []
+    approve = arm.harness.approve
+    def gate(a, b, dt, **kwargs):
+        edges.append((a.copy(), b.copy(), dt))
+        return approve(a, b, dt, **kwargs)
+    monkeypatch.setattr(arm.harness, 'approve', gate)
+    def scene(start, profile, check):
+        for item in profile:
+            check()
+            scene_checks.append(item.q.copy())
+    assert arm.move_joints(np.array([.1, 0.]), .5,
+        _trajectory_preflight=scene, feedback_guard=lambda state: feedback.append(state.q.copy()))
+    assert len(planner.calls) == 1
+    assert len(sim.sent) == 15
+    assert max(q[1] for _, _, q in sim.sent) > .024
+    np.testing.assert_allclose(sim.sent[-1][2], [.1, 0.], atol=1e-12)
+    np.testing.assert_array_equal(scene_checks, [q for _, _, q in sim.sent])
+    assert len(edges) > len(sim.sent) and len(feedback) > len(sim.sent)
+    assert not arm.harness._motion_active
+
+
+@pytest.mark.parametrize('stage', ['solver', 'scene', 'feedback', 'stream'])
+def test_errors_never_retry_and_always_restore_watchdog(monkeypatch, stage):
+    arm, sim, planner = safe_sim(monkeypatch)
+    def fail(*args, **kwargs):
+        raise TypeError('deliberate failure')
+    options = {}
+    if stage == 'solver':
+        planner.plan_profile = fail
+    elif stage == 'scene':
+        options['_trajectory_preflight'] = fail
+    elif stage == 'feedback':
+        options['feedback_guard'] = fail
+    else:
+        sim.stream_profile = fail
+    with pytest.raises((SafetyViolation, TypeError)):
+        arm.move_joints(np.array([.1, 0.]), .5, **options)
+    assert not sim.sent
+    assert not arm.harness._motion_active
+
+
+def test_legacy_callback_cannot_silently_validate_different_curve(monkeypatch):
+    arm, sim, planner = safe_sim(monkeypatch)
+    with pytest.raises(SafetyViolation, match='does not support the planned curve'):
+        arm.move_joints(np.array([.1, 0.]), _preflight=lambda *a: None)
+    assert not sim.sent and not planner.calls
+
+
+def test_release_and_contact_episodes_keep_authority_before_solving(monkeypatch):
+    arm, sim, planner = safe_sim(monkeypatch)
+    arm.harness._pending_release_episode = {'episode': 'retained'}
+    with pytest.raises(SafetyViolation, match='release'):
+        arm.move_joints(np.array([.1, 0.]), .5)
+    assert not sim.sent and not planner.calls
+
+
+def test_halt_while_solver_runs_invalidates_unchanged_feedback(monkeypatch):
+    arm, sim, planner = safe_sim(monkeypatch)
+    plan = planner.plan_profile
+    def halted(*a, **kw):
+        value = plan(*a, **kw)
+        arm.harness.halt('cancelled while planning')
+        return value
+    planner.plan_profile = halted
+    with pytest.raises(SafetyViolation, match='cancel|halt'):
+        arm.move_joints(np.array([.1, 0.]), .5)
+    assert not sim.sent and len(planner.calls) == 1
+    assert not arm.harness._motion_active
+
+
+def model_binding(tmp_path):
+    model = tmp_path / 'arm.urdf'
+    model.write_text('<robot name="arm"><link name="base"/><link name="tip"/>'
+                     '<joint name="a"><child link="tip"/></joint></robot>')
+    config = dict(type='cumotion', urdf=str(model), xrdf='explicit.xrdf',
+        joint_names=['a', 'b'], joint_signs=[-1, 1], base_frame='base', tool_frame='tip',
+        obstacles=[])
+    arm = Cfg(dict(type='isaac', model=str(model), ee_frame='tip', joint_signs=[-1, 1]))
+    kin = NS(n=2, ee_frame='tip', model=NS(names=['universe', 'a', 'b'], joints=[
+        NS(idx_q=0, nq=0, nv=0), NS(idx_q=0, nq=1, nv=1), NS(idx_q=1, nq=1, nv=1)]))
+    return config, arm, kin
+
+
+def test_runtime_binding_is_lazy_and_rechecks_urdf_bytes(tmp_path, monkeypatch):
+    config, arm, kin = model_binding(tmp_path)
+    factory = []
+    monkeypatch.setattr('cascade.planning.runtime.make_motion_planner', lambda cfg: factory.append(cfg))
+    bound = RuntimeMotionPlanner(config, arm, kin)
+    assert not factory
+    # Exact model binding cannot drift between app composition and first motion.
+    from pathlib import Path
+    Path(arm.model).write_text('<robot name="changed"/>')
+    with pytest.raises(PlanningError, match='model changed'):
+        bound.plan_profile([0, 0], [0, .1])
+    assert not factory
+    bound.close()
+
+
+@pytest.mark.parametrize('key,value', [('joint_names', ['b', 'a']),
+    ('joint_signs', [1, 1]), ('tool_frame', 'flange'), ('base_frame', 'world')])
+def test_runtime_rejects_wrong_joint_or_frame_binding(tmp_path, key, value):
+    config, arm, kin = model_binding(tmp_path)
+    config[key] = value
+    with pytest.raises(PlanningError, match='differ'):
+        RuntimeMotionPlanner(config, arm, kin)
+
+
+def test_runtime_rejects_nonphysical_backend(tmp_path):
+    config, arm, kin = model_binding(tmp_path)
+    arm._data['type'] = 'mock'
+    with pytest.raises(PlanningError, match='physical-clock'):
+        RuntimeMotionPlanner(config, arm, kin)
+
+
+def test_enabled_composition_prepares_sdk_before_arm_factory(tmp_path, monkeypatch):
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+    config, arm, kin = model_binding(tmp_path)
+    arm._data['motion_planner'] = config
+    monkeypatch.setattr(demo, 'Kinematics', lambda **kwargs: kin)
+    monkeypatch.setattr(demo, 'make_arm', lambda *a, **kw: pytest.fail('actuator created before SDK ready'))
+    def missing(cfg):
+        raise PlanningError('SDK missing at startup')
+    monkeypatch.setattr('cascade.planning.runtime.make_motion_planner', missing)
+    cfg = load_demo_config(arm='mock', camera='mock', llm='mock')
+    with pytest.raises(PlanningError, match='SDK missing at startup'):
+        demo._build_arm(arm, False, None, cfg)
+
+
+def test_default_composition_never_initializes_native_sdk(monkeypatch):
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+    monkeypatch.setattr(demo, 'Kinematics', lambda **kwargs: NS())
+    monkeypatch.setattr('cascade.planning.runtime.make_motion_planner',
+                        lambda *a: pytest.fail('optional planner was implicitly enabled'))
+    monkeypatch.setattr(demo, 'make_arm', lambda *a, **kw: pytest.fail('lazy backend was materialized'))
+    cfg = load_demo_config(arm='mock', camera='mock', llm='mock')
+    raw, safe, _kin = demo._build_arm(cfg.arm, True, None, cfg)
+    assert safe.motion_planner is None and not raw.connected
+    safe.disconnect()
+
+
+@pytest.mark.parametrize('failure', [None, 'ik', 'fk'])
+def test_contact_lift_preserves_measured_rotation_and_checks_ik(failure):
+    from cascade.planning.runtime import contact_lift_target
+    measured = np.array([.02, .031])
+    pregrasp = np.array([.06, 0.])
+    def fk(q):
+        pose = np.eye(4)
+        c, s = np.cos(q[1]), np.sin(q[1])
+        pose[:2, :2] = [[c, -s], [s, c]]
+        pose[2, 3] = q[0]
+        return pose
+    def ik(pose, start):
+        np.testing.assert_array_equal(start, measured)
+        np.testing.assert_allclose(pose[:3, :3], fk(measured)[:3, :3])
+        assert pose[2, 3] == pregrasp[0]
+        return NS(success=failure != 'ik', q=np.array([
+            pose[2, 3] + (.002 if failure == 'fk' else 0.), measured[1]]))
+    kin = NS(fk=fk, ik=ik)
+    if failure:
+        with pytest.raises(SafetyViolation, match='contact lift'):
+            contact_lift_target(kin, measured, pregrasp)
+    else:
+        np.testing.assert_allclose(contact_lift_target(kin, measured, pregrasp), [.06, .031])
+
+
+@pytest.mark.parametrize('mode', ['settles', 'never_settles', 'paused', 'reset', 'halt'])
+def test_contact_stability_requires_fresh_physical_window_and_keeps_vetoes(monkeypatch, mode):
+    from cascade.planning.runtime import wait_for_contact_stability
+    from test_isaac_simulation_motion import clock
+    from cascade.types import RobotState
+    wall = [0.]
+    reads = [0]
+    observed = []
+    def state(step, q, **kw):
+        return RobotState(q=np.array([q, 0.]), dq=np.zeros(2), physics_clock=clock(step, **kw))
+    initial = state(0, 0.)
+    def read(**kwargs):
+        reads[0] += 1
+        wall[0] += .05
+        step = reads[0] * 10
+        q = .002 if reads[0] < 3 else .005
+        if mode == 'never_settles':
+            q = reads[0] * .001
+        return state(0 if mode == 'paused' else step, q,
+                     **({'epoch':'changed'} if mode == 'reset' else {}))
+    def check():
+        if mode == 'halt' and reads[0] >= 3:
+            raise SafetyViolation('contact cancelled')
+    monkeypatch.setattr('cascade.planning.runtime.time.monotonic', lambda: wall[0])
+    monkeypatch.setattr('cascade.planning.runtime.time.sleep', lambda dt: None)
+    call = lambda: wait_for_contact_stability(NS(get_state=read), initial,
+        source=('fake',1), robot_id='/robot', timeout_s=1., check=check, observe=observed.append)
+    if mode == 'settles':
+        current, receipt = call()
+        assert reads[0] >= 8
+        assert receipt['window_physics_s'] >= .5
+        assert receipt['max_joint_range_rad'] <= .0005
+        assert receipt['distinct_samples'] >= 3
+        assert current is observed[-1]
+    else:
+        with pytest.raises(SafetyViolation, match='deadline|changed|cancelled'):
+            call()
+    assert reads[0] < 25
+
+
+@pytest.mark.parametrize('scope,name', [
+    ('runtime','held_object'), ('runtime','_held_provisional'),
+    ('runtime','_contact_episode'), ('runtime','_carry_attachment'),
+    ('runtime','_release_episode'), ('harness','_pending_contact_episode'),
+    ('harness','_pending_release_episode'), (None,None)])
+def test_shutdown_park_never_moves_a_retained_or_possible_payload(monkeypatch, scope, name):
+    from cascade.apps.demo import _park_arm
+    arm, sim, planner = safe_sim(monkeypatch)
+    sim.connected = True
+    arm.harness.park_q = np.zeros(2)
+    runtime = NS(arm=arm)
+    if scope is not None:
+        setattr(runtime if scope == 'runtime' else arm.harness, name, object())
+    _park_arm(runtime, duration_s=.5)
+    if scope is not None:
+        assert not sim.sent and not planner.calls
+    else:
+        assert len(sim.sent) == 15
+        assert planner.calls[0][2]['joint_margin'] == 0.
+
+
+@pytest.mark.parametrize('spread,expected', [(.00035,True),(.00075,False)])
+def test_contact_jitter_prefilter_reserves_half_of_final_drift_bound(monkeypatch, spread, expected):
+    from cascade.planning.runtime import wait_for_contact_stability
+    from cascade.types import RobotState
+    from test_isaac_simulation_motion import clock
+    wall = [0.]
+    reads = [0]
+    def state(step, q):
+        return RobotState(q=np.array([q,0.]),dq=np.zeros(2),physics_clock=clock(step))
+    def read(**kw):
+        reads[0] += 1
+        wall[0] += .05
+        assert kw['timeout_s'] <= 1.
+        return state(reads[0]*10, spread * (reads[0] % 2))
+    monkeypatch.setattr('cascade.planning.runtime.time.monotonic',lambda:wall[0])
+    monkeypatch.setattr('cascade.planning.runtime.time.sleep',lambda dt:None)
+    progress = {}
+    call = lambda:wait_for_contact_stability(NS(get_state=read),state(0,0.),
+        source=('fake',1),robot_id='/robot',timeout_s=1.,rpc_timeout_s=1.,
+        check=lambda:None,observe=lambda s:None,progress=progress)
+    if expected:
+        call()
+        assert progress['status']=='passed'
+    else:
+        with pytest.raises(SafetyViolation,match='wall deadline'):call()
+        assert progress['status']=='failed'
+    assert progress['max_joint_range_rad']==pytest.approx(spread)
+    assert progress['limit_rad']==.0005
+    assert progress['window_physics_s']>=.5
+
+
+def test_contact_stability_uses_configured_rpc_budget_and_records_deadline(monkeypatch):
+    from cascade.planning.runtime import wait_for_contact_stability
+    from cascade.types import RobotState
+    from test_isaac_simulation_motion import clock
+    wall = [0.]
+    budgets = []
+    def read(**kw):
+        budgets.append(kw['timeout_s'])
+        wall[0] += kw['timeout_s']
+        raise RuntimeError('transport expired at wall deadline')
+    monkeypatch.setattr('cascade.planning.runtime.time.monotonic',lambda:wall[0])
+    progress = {}
+    initial = RobotState(q=np.zeros(2),dq=np.zeros(2),physics_clock=clock())
+    with pytest.raises(SafetyViolation,match='wall deadline'):
+        wait_for_contact_stability(NS(get_state=read),initial,source=('fake',1),
+            robot_id='/robot',timeout_s=.8,rpc_timeout_s=1.,progress=progress,
+            check=lambda:None,observe=lambda s:None)
+    assert budgets==[.8]  # no artificial 0.5-second RPC cap
+    assert progress['wall_elapsed_s']==.8 and progress['status']=='failed'

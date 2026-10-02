@@ -63,6 +63,11 @@ class IsaacArm(ArmBase):
     def disconnect(self) -> None:
         self._client.close()
 
+    @property
+    def disconnect_preserves_drive_state(self) -> bool:
+        """Closing this client leaves the simulator's targets and drives intact."""
+        return True
+
     def get_state(self, *, timeout_s: float | None = None) -> RobotState:
         sample = self._client.state() if timeout_s is None else self._client.state(timeout_s=timeout_s)
         state = self._decode_state(sample)
@@ -163,6 +168,16 @@ class IsaacArm(ArmBase):
         from .simulation_motion import SimulationMotion
 
         return SimulationMotion(self).settle(q_target, tol, timeout_s)
+
+    def stream_profile(self, profile, *, planned_state, approve, preflight,
+                       before_stream=None, feedback_guard=None):
+        """Execute exact sampled planner targets under the same physics gates."""
+        from .simulation_motion import SimulationMotion
+
+        motion = SimulationMotion(self, approve=approve, before_stream=before_stream,
+                                  feedback_guard=feedback_guard)
+        return motion.stream_profile(profile, planned_state, self.settle_tol,
+                                     self.settle_timeout_s, preflight)
 
     def validate_simulation_clock(self) -> dict:
         """Read-only capability check using the motion executor's validator.

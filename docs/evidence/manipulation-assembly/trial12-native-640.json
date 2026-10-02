@@ -1,0 +1,1721 @@
+{
+  "schema": "cascade.trial12.native640.audit.v1",
+  "audited_at_utc": "2026-10-02T01:55:48.797034+00:00",
+  "scope": "Explicit640x360 variant on fresh owned PhysX CUDA producer; diagnostic pick/place/reset via production skills and mock LLM. Not full chat/MCP proof2, Spark, or original1280 acceptance.",
+  "pass": true,
+  "campaign": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/campaign.json",
+  "source_binding": {
+    "head": "b31f2dfbb8d254665d94fa8172b182bf582b143f",
+    "git_status_porcelain": "",
+    "campaign_source_files_checked": 273,
+    "mismatches": [],
+    "campaign_source_unchanged": true,
+    "hash_map_location": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/campaign.json#/source_sha256",
+    "hash_map_sha256": "d14d072a54d84e58f93fe32c5f7c8eac0b0452608e91aa45735771e0571c74de",
+    "checked_utc": "2026-10-02T01:55:47.762361+00:00",
+    "post_shutdown_mismatches": []
+  },
+  "producer": {
+    "engine": "physx",
+    "device": "cuda:0",
+    "port": 8733,
+    "resolution": [
+      640,
+      360
+    ],
+    "physics_dt_s": 0.008333333333333333,
+    "cam_every": 6,
+    "witness_cameras": [
+      "cam0",
+      "side",
+      "proof"
+    ],
+    "owner": {
+      "pid": 3384006,
+      "command": [
+        "python3",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/scripts/isaac_launch.py",
+        "--python",
+        "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh",
+        "--ready-file",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/interpreter.json",
+        "--",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/scripts/isaac_bridge.py",
+        "--port",
+        "8733",
+        "--engine",
+        "physx",
+        "--width",
+        "640",
+        "--height",
+        "360",
+        "--dt",
+        "0.008333333333333333",
+        "--cam-every",
+        "6",
+        "--scene-config",
+        "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/demo/scene/kitchen_config.json"
+      ],
+      "source": "b31f2dfbb8d254665d94fa8172b182bf582b143f",
+      "launched_at": 1790903951.0717144,
+      "scope": "explicit 640x360 variant of trial12 followup; fresh owned8733; safety and timing limits unchanged"
+    },
+    "kernel_identity_before_close": {
+      "launcher": {
+        "pid": 3384006,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14905334",
+        "state": "S",
+        "ppid": 1,
+        "process_group": 3384006,
+        "uid": 1000,
+        "cmdline": "python3 /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/scripts/isaac_launch.py --python /home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh --ready-file /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/interpreter.json -- /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/scripts/isaac_bridge.py --port 8733 --engine physx --width 640 --height 360 --dt 0.008333333333333333 --cam-every 6 --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/demo/scene/kitchen_config.json "
+      },
+      "bridge": {
+        "pid": 3384016,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14905337",
+        "state": "R",
+        "ppid": 3384008,
+        "process_group": 3384008,
+        "uid": 1000,
+        "cmdline": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/kit/python/bin/python3 /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/scripts/isaac_bridge.py --port 8733 --engine physx --width 640 --height 360 --dt 0.008333333333333333 --cam-every 6 --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/demo/scene/kitchen_config.json "
+      }
+    },
+    "ancestor_chain": [
+      {
+        "pid": 3384008,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14905336",
+        "ppid": 3384006
+      },
+      {
+        "pid": 3384006,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14905334",
+        "ppid": 1
+      }
+    ],
+    "allowlisted_live_producer_environment": {
+      "launcher": {
+        "CUDA_VISIBLE_DEVICES": "0",
+        "CASCADE_REQUIRE_CUDA": "1",
+        "CASCADE_ISAAC_PIXEL_MASK": "1",
+        "CASCADE_ISAAC_CONTACT_MASK": "1",
+        "CASCADE_PROOF_CAMERA": "1"
+      },
+      "bridge": {
+        "CUDA_VISIBLE_DEVICES": "0",
+        "CASCADE_REQUIRE_CUDA": "1",
+        "CASCADE_ISAAC_PIXEL_MASK": "1",
+        "CASCADE_ISAAC_CONTACT_MASK": "1",
+        "CASCADE_PROOF_CAMERA": "1"
+      }
+    }
+  },
+  "runtime_launch_declaration": {
+    "source": "Root operator retained execution-tool invocation; no separate runtime env receipt",
+    "environment": {
+      "CASCADE_OBSERVED_FINGER_GATE": "1",
+      "CASCADE_REQUIRE_CUDA": "1",
+      "CASCADE_GRASPGENX_PORT": "25556",
+      "CUDA_VISIBLE_DEVICES": "0",
+      "PYTHONPATH": "src"
+    },
+    "independently_receipted": [
+      "CUDA perception required",
+      "learned GraspGen-X required and used",
+      "400 diffusion candidates per case"
+    ],
+    "not_independently_receipted": [
+      "observed-finger runtime environment flag",
+      "GraspGen-X endpoint port"
+    ],
+    "scope": "Declared launch values are distinct from receipt attestation; opt-in observed-finger evidence hooks were not retained"
+  },
+  "setup": {
+    "wrapper": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/warm_acceptance.py",
+    "same_runtime": true,
+    "sequence": [
+      "read-only readiness",
+      "get_observation",
+      "localize_object",
+      "unchanged native witness/task",
+      "explicit reset"
+    ],
+    "actuator_begin_events_during_warmup": 0,
+    "criteria_changes": false,
+    "resolution_change": true,
+    "localization_image_age_limit_s": 3,
+    "pregrasp_leaf_wall_limit_s": 120,
+    "outer_host_timeout_s": 300,
+    "warmup_retry_contract": "At most one read-only retry for explicit perception-analysis expiry; neither positive warmup needed retry"
+  },
+  "cases": [
+    {
+      "object": "orange",
+      "destination": "open box",
+      "pass": true,
+      "independent_checks": {
+        "complete_observation": true,
+        "all_phase_boundaries": true,
+        "live_prop_names_match_expected": true,
+        "spawn_prop_names_match_expected": true,
+        "spawn_positions_finite_and_unchanged": true,
+        "all_props_physically_reset_and_settled": true,
+        "scene_config_sha256_matches": true,
+        "prop_dimensions_match": true,
+        "cube_collider_geometry_matches": true,
+        "green_square_geometry_matches": true,
+        "scene_name_matches": true,
+        "scene_assets_sha256_matches": true,
+        "scene_content_sha256_matches": true,
+        "open_box_geometry_matches": true,
+        "convex_body_identity": true,
+        "authored_convex_vertices_match": true,
+        "convex_topology_matches": true,
+        "convex_body_and_collider_enabled": true,
+        "convex_body_and_child_transforms_match": true,
+        "convex_tensor_mass_and_com_match": true,
+        "convex_tensor_inertia_valid": true,
+        "physx_support_live_identity": true,
+        "physx_support_source_matches": true,
+        "physx_support_solid_subset": true,
+        "physx_support_geometry_unchanged": true,
+        "ordered_phases": true,
+        "strict_pick_place_and_cameras": true,
+        "whole_convex_collider_inside_open_box_and_supported": true,
+        "all_physics_tensors_cuda": true,
+        "single_supported_engine": true,
+        "gpu_backend_no_fallback": true,
+        "contact_sensor_and_actual_jaws_bound": true,
+        "two_jaw_contacts_during_real_lift": true,
+        "reset_settle_window": true,
+        "whole_footprint_enters_destination_with_bilateral_support": true,
+        "all_event_cameras_advance": true,
+        "all_three_camera_age_series_complete": true,
+        "requested_engine_matches_every_sample": true,
+        "pick_skill_completed": true,
+        "home_after_place_completed": true,
+        "reset_skill_completed": true,
+        "harness_has_no_errors": true
+      },
+      "skill_reported_duration_s": 483.72,
+      "pick_wall_seconds": 499.68396084199776,
+      "reset_wall_seconds": 66.03399967600126,
+      "pick_real_time_factor_over_witness_wall": 0.10163090535817947,
+      "outer_host_300s_met": false,
+      "metrics": {
+        "samples": 2982,
+        "final_samples": 31,
+        "simulation_elapsed_s": 50.78333333333333,
+        "final_window_sim_s": 0.5,
+        "lift_m": 0.10392128862440585,
+        "xy_displacement_m": 0.27922747766810324,
+        "final_xy_error_m": 0.009724278608522083,
+        "max_final_xy_error_m": 0.009724329933711173,
+        "max_final_support_z_error_m": 1.3629810793197583e-07,
+        "max_final_linear_speed_m_s": 0.00033618315912688256,
+        "max_final_angular_speed_rad_s": 0.01429015777993403,
+        "max_final_position_spread_m": 2.489611813047394e-07,
+        "max_final_tilt_deg": 24.666624063946035,
+        "min_final_actual_open_fraction": 0.999999478459366,
+        "max_frame_age_s": 1.202744210982928,
+        "unique_jpeg_hashes": 1009
+      },
+      "criteria": {
+        "xy_tolerance_m": 0.04,
+        "z_tolerance_m": 0.005,
+        "settle_sim_s": 0.5,
+        "min_final_samples": 4,
+        "max_linear_speed_m_s": 0.02,
+        "max_angular_speed_rad_s": 0.2,
+        "max_position_spread_m": 0.005,
+        "min_open_fraction": 0.9,
+        "max_tilt_deg": 5,
+        "min_lift_m": 0.015,
+        "min_xy_displacement_m": 0.02,
+        "max_frame_age_s": 2
+      },
+      "footprint": {
+        "geometry_pass": true,
+        "checks": {
+          "settle_window_complete": true,
+          "bounded_sample_gaps": true,
+          "whole_collider_inside_square_at_every_recorded_pose": true,
+          "actual_lowest_vertex_supported_at_every_recorded_pose": true
+        },
+        "scope": "geometry only, at recorded settle poses; not a campaign pass",
+        "geometry_source_verified_by_this_function": false,
+        "method": "all authored vertices for XY; minimum transformed support vertex for Z",
+        "object_name": "orange",
+        "vertex_count": 266,
+        "support_vertex_count": 34,
+        "inner_bounds_xy_m": [
+          [
+            0.236,
+            -0.204
+          ],
+          [
+            0.364,
+            -0.076
+          ]
+        ],
+        "support_top_z_m": 0.004,
+        "settle_window_sim_s": 0.5,
+        "final_samples": 31,
+        "max_sample_gap_sim_s": 0.01666666666667993,
+        "min_inside_margin_m": 0.0,
+        "boundary_outward_tolerance_m": 0.0,
+        "max_support_gap_m": 0.001,
+        "max_penetration_m": 0.001,
+        "min_inside_clearance_m": 0.028567478373805827,
+        "max_abs_support_gap_m": 1.3629810793197583e-07,
+        "samples": {
+          "retained_in_raw_evidence": true,
+          "count": 31,
+          "first": {
+            "sample_index": 2951,
+            "physics_step": 16606,
+            "sim_time": 138.38333333333333,
+            "min_inside_clearance_m": 0.028567478408259947,
+            "worst_boundary": "back",
+            "worst_boundary_vertex_index": 127,
+            "footprint_bounds_xy_m": [
+              [
+                0.27709185340258197,
+                -0.15687485505159418
+              ],
+              [
+                0.32872737190869733,
+                -0.10456747840825995
+              ]
+            ],
+            "support_vertex_index": 26,
+            "support_vertex_body_m": [
+              0.009128719568252563,
+              0.009249331429600716,
+              -0.022845949977636337
+            ],
+            "support_vertex_world_m": [
+              0.30189096361588896,
+              -0.12144513210722693,
+              0.003999873646729529
+            ],
+            "lowest_vertex_world_z_m": 0.003999873646729529,
+            "support_gap_m": -1.2635327047150202e-07,
+            "inside": true,
+            "supported": true
+          },
+          "last": {
+            "sample_index": 2981,
+            "physics_step": 16666,
+            "sim_time": 138.88333333333333,
+            "min_inside_clearance_m": 0.02856760022162176,
+            "worst_boundary": "back",
+            "worst_boundary_vertex_index": 127,
+            "footprint_bounds_xy_m": [
+              [
+                0.27709204540866755,
+                -0.15687497165681147
+              ],
+              [
+                0.32872759713512517,
+                -0.10456760022162176
+              ]
+            ],
+            "support_vertex_index": 26,
+            "support_vertex_body_m": [
+              0.009128719568252563,
+              0.009249331429600716,
+              -0.022845949977636337
+            ],
+            "support_vertex_world_m": [
+              0.3018910335951084,
+              -0.12144517369433733,
+              0.003999972028493094
+            ],
+            "lowest_vertex_world_z_m": 0.003999972028493094,
+            "support_gap_m": -2.7971506905838384e-08,
+            "inside": true,
+            "supported": true
+          },
+          "raw_artifact": {
+            "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/gpu-physical-audit.json",
+            "sha256": "1b5556751b5bc6771f3a32816b51ef78526f17c0a1fbf16cd2f5cf1cd07b2dbf",
+            "bytes": 892505
+          },
+          "raw_json_pointer": "/convex_footprint/samples"
+        }
+      },
+      "supported_destination_entry": {
+        "pass": true,
+        "check": "whole_footprint_enters_destination_while_lifted_with_bilateral_support",
+        "object_name": "orange",
+        "destination_name": "open box",
+        "samples": 2982,
+        "criteria": {
+          "jaw_force_exclusive_min_n": 0.01,
+          "min_lift_m": 0.015,
+          "min_distinct_supported_inside_steps": 2,
+          "boundary_tolerance_m": 0.0
+        },
+        "inner_bounds_xy_m": [
+          [
+            0.236,
+            -0.204
+          ],
+          [
+            0.364,
+            -0.076
+          ]
+        ],
+        "collider_vertices": 266,
+        "supported_lift_samples": 1262,
+        "supported_inside_distinct_steps": 352,
+        "best_supported_inner_clearance_m": 0.03571730221549997,
+        "first_supported_inside": {
+          "index": 2094,
+          "sequence": 2136,
+          "physics_step": 14850,
+          "sim_time": 123.75,
+          "position_m": [
+            0.30073902010917664,
+            -0.10245164483785629,
+            0.1255903095116439
+          ],
+          "lift_m": 0.0992100778967142,
+          "inner_clearance_m": 0.00034289037543359935,
+          "jaw_force_norm_n": [
+            72.07679897866112,
+            58.30570841148218
+          ],
+          "jaw_contact_counts": [
+            4,
+            4
+          ],
+          "footprint_bounds_xy_m": [
+            [
+              0.2749403982268457,
+              -0.128560399300279
+            ],
+            [
+              0.3265376419915076,
+              -0.0763428903754336
+            ]
+          ]
+        },
+        "last_supported_inside": {
+          "index": 2445,
+          "sequence": 2487,
+          "physics_step": 15552,
+          "sim_time": 129.6,
+          "position_m": [
+            0.29728683829307556,
+            -0.1375245600938797,
+            0.04372499139211801
+          ],
+          "lift_m": 0.0173447597771883,
+          "inner_clearance_m": 0.03539128859439582,
+          "jaw_force_norm_n": [
+            72.11106735847645,
+            58.31920607415481
+          ],
+          "jaw_contact_counts": [
+            4,
+            4
+          ],
+          "footprint_bounds_xy_m": [
+            [
+              0.27149944062008446,
+              -0.16365783159336358
+            ],
+            [
+              0.32307423596606666,
+              -0.11139128859439582
+            ]
+          ]
+        },
+        "supported_inside": {
+          "retained_in_raw_evidence": true,
+          "count": 352,
+          "first": {
+            "index": 2094,
+            "sequence": 2136,
+            "physics_step": 14850,
+            "sim_time": 123.75,
+            "position_m": [
+              0.30073902010917664,
+              -0.10245164483785629,
+              0.1255903095116439
+            ],
+            "lift_m": 0.0992100778967142,
+            "inner_clearance_m": 0.00034289037543359935,
+            "jaw_force_norm_n": [
+              72.07679897866112,
+              58.30570841148218
+            ],
+            "jaw_contact_counts": [
+              4,
+              4
+            ],
+            "footprint_bounds_xy_m": [
+              [
+                0.2749403982268457,
+                -0.128560399300279
+              ],
+              [
+                0.3265376419915076,
+                -0.0763428903754336
+              ]
+            ]
+          },
+          "last": {
+            "index": 2445,
+            "sequence": 2487,
+            "physics_step": 15552,
+            "sim_time": 129.6,
+            "position_m": [
+              0.29728683829307556,
+              -0.1375245600938797,
+              0.04372499139211801
+            ],
+            "lift_m": 0.0173447597771883,
+            "inner_clearance_m": 0.03539128859439582,
+            "jaw_force_norm_n": [
+              72.11106735847645,
+              58.31920607415481
+            ],
+            "jaw_contact_counts": [
+              4,
+              4
+            ],
+            "footprint_bounds_xy_m": [
+              [
+                0.27149944062008446,
+                -0.16365783159336358
+              ],
+              [
+                0.32307423596606666,
+                -0.11139128859439582
+              ]
+            ]
+          },
+          "raw_artifact": {
+            "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/gpu-physical-audit.json",
+            "sha256": "1b5556751b5bc6771f3a32816b51ef78526f17c0a1fbf16cd2f5cf1cd07b2dbf",
+            "bytes": 892505
+          },
+          "raw_json_pointer": "/supported_destination_entry/supported_inside"
+        },
+        "inside_lifted_without_bilateral_support_samples": 1,
+        "scope": "Positive sampled grip at full destination entry; no continuous retention or commanded-release timing assertion"
+      },
+      "bilateral_lift_samples": 1262,
+      "reset_all_five_props": {
+        "pink_cube": {
+          "max_spawn_error_m": 4.305546243245479e-08,
+          "max_speed_m_s": 2.7338874418394725e-05,
+          "max_spin_rad_s": 0.0004490113407692819,
+          "max_spread_m": 3.077594869184923e-08,
+          "pass": true
+        },
+        "green_cube": {
+          "max_spawn_error_m": 1.4537489213722366e-08,
+          "max_speed_m_s": 1.5213788359326776e-05,
+          "max_spin_rad_s": 0.0004510670876455873,
+          "max_spread_m": 1.4930236657970956e-08,
+          "pass": true
+        },
+        "tomato_can": {
+          "max_spawn_error_m": 7.395330407078263e-08,
+          "max_speed_m_s": 0.00012017170480233592,
+          "max_spin_rad_s": 0.0010391335813419022,
+          "max_spread_m": 7.459888009168501e-08,
+          "pass": true
+        },
+        "lemon": {
+          "max_spawn_error_m": 7.176201959695758e-09,
+          "max_speed_m_s": 2.641669105685196e-10,
+          "max_spin_rad_s": 0.0,
+          "max_spread_m": 0.0,
+          "pass": true
+        },
+        "orange": {
+          "max_spawn_error_m": 7.638942475269053e-09,
+          "max_speed_m_s": 1.2222169942788241e-09,
+          "max_spin_rad_s": 0.0,
+          "max_spread_m": 0.0,
+          "pass": true
+        }
+      },
+      "retreat": {
+        "ok": true,
+        "tcp_at": [
+          0.296,
+          -0.138,
+          0.14
+        ]
+      },
+      "return_home": {
+        "attempted": true,
+        "ok": true,
+        "at": "home"
+      },
+      "non_target_max_observed_translation_from_first_pick_sample_m": {
+        "pink_cube": 3.725290298461914e-08,
+        "green_cube": 1.5160833109263057e-08,
+        "tomato_can": 1.210576058124894e-07,
+        "lemon": 0.0
+      },
+      "non_target_metric_scope": "Euclidean translation at recorded pick samples only; no orientation or continuous no-contact claim",
+      "sample_recheck": {
+        "pick_rows": 2982,
+        "step_first": 10572,
+        "step_last": 16666,
+        "sim_time_first": 88.1,
+        "sim_time_last": 138.88333333333333,
+        "devices": [
+          "cuda:0"
+        ]
+      },
+      "simulation_clock": {
+        "version": 1,
+        "engine": "physx",
+        "clock": "SimulationManager",
+        "epoch": "91ab4f90638c44b0840454f7270765bc",
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 87.38333333333334,
+        "physics_step": 10486,
+        "physics_dt_s": 0.008333333333333333,
+        "source": [
+          "127.0.0.1",
+          8733
+        ]
+      },
+      "camera_age_summary": {
+        "pass": true,
+        "complete": true,
+        "observer_errors": [],
+        "source": [
+          "127.0.0.1",
+          8733
+        ],
+        "cameras": {
+          "cam0": {
+            "pass": true,
+            "samples": 3347,
+            "valid_clock_samples": 3347,
+            "maximum_age_s": 1.202744210982928,
+            "samples_over_2s": 0,
+            "distinct_captures": 1134,
+            "maximum_observed_capture_gap_s": 12.716530232981313,
+            "invalid_samples": 0,
+            "first_invalid_sample": null,
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "producer_clock": "physics_loop_monotonic"
+          },
+          "side": {
+            "pass": true,
+            "samples": 3347,
+            "valid_clock_samples": 3347,
+            "maximum_age_s": 1.202744210982928,
+            "samples_over_2s": 0,
+            "distinct_captures": 1134,
+            "maximum_observed_capture_gap_s": 12.716530232981313,
+            "invalid_samples": 0,
+            "first_invalid_sample": null,
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "producer_clock": "physics_loop_monotonic"
+          },
+          "proof": {
+            "pass": true,
+            "samples": 3347,
+            "valid_clock_samples": 3347,
+            "maximum_age_s": 1.202744210982928,
+            "samples_over_2s": 0,
+            "distinct_captures": 1134,
+            "maximum_observed_capture_gap_s": 12.716530232981313,
+            "invalid_samples": 0,
+            "first_invalid_sample": null,
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "producer_clock": "physics_loop_monotonic"
+          }
+        },
+        "scope": "Server monotonic minus capture in the same physical snapshot; observed capture gaps are sample gaps, not all producer frames."
+      },
+      "graspgenx": {
+        "required": true,
+        "status": {
+          "status": "ok",
+          "learned": true,
+          "device": "cuda:0",
+          "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+          "capability": [
+            12,
+            0
+          ],
+          "torch": "2.7.0+cu128",
+          "cuda": "12.8",
+          "architecture": "x86_64"
+        },
+        "branch_counts": {
+          "diff": 400
+        },
+        "last_latency_s": 1.025
+      },
+      "backend": {
+        "grasp_planner": "graspgenx (learned 6-DoF)",
+        "occupancy": "disabled",
+        "occupancy_live": false
+      },
+      "warmup": {
+        "pass": true,
+        "wall_s": 5.277800899988506,
+        "readiness_pass": true,
+        "skills": [
+          {
+            "skill": "get_observation",
+            "ok": true
+          },
+          {
+            "skill": "localize_object",
+            "ok": true
+          }
+        ],
+        "actuator_begin_events": [],
+        "arm_control_standby": true,
+        "wrapper_sha256": "f55794afd525229b970b3cb62e42358d39621be4e34f529d65fc2c319a37731f"
+      },
+      "frames": [
+        {
+          "phase": "placed",
+          "camera": "cam0",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/placed-cam0.jpg",
+          "sha256": "c7f9f78dd1fc12662afcb0b5cbc1211c5ad005f36490f1db78a1b92c8c8f1948",
+          "capture_monotonic": 149990.403681595
+        },
+        {
+          "phase": "placed",
+          "camera": "side",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/placed-side.jpg",
+          "sha256": "b900d88b082e6ebfa4340692db73614f6316987ab4a88d4b8f7b6d4d3b1e76e5",
+          "capture_monotonic": 149990.403681595
+        },
+        {
+          "phase": "placed",
+          "camera": "proof",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/placed-proof.jpg",
+          "sha256": "c22007e36520c9972cef95b1ec18e8be9e5c05c471465a484f6d79b44f397dac",
+          "capture_monotonic": 149990.403681595
+        },
+        {
+          "phase": "reset",
+          "camera": "cam0",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/reset-cam0.jpg",
+          "sha256": "0e7035c63e664819fe8073446763327bf43d1620d879f2faa1d44f66ef2d47a9",
+          "capture_monotonic": 150056.192372743
+        },
+        {
+          "phase": "reset",
+          "camera": "side",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/reset-side.jpg",
+          "sha256": "1e4ef93356e6fa0f55a49cbbd11eac28285ed7bd199b5181061742475c509d08",
+          "capture_monotonic": 150056.192372743
+        },
+        {
+          "phase": "reset",
+          "camera": "proof",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/reset-proof.jpg",
+          "sha256": "df1d6b2c4cee6a3765d51f3e60f8c49de2bb7b5eb6c32f7d58a68c6e3ed84dbd",
+          "capture_monotonic": 150056.192372743
+        }
+      ]
+    },
+    {
+      "object": "green_cube",
+      "destination": "green square",
+      "pass": true,
+      "independent_checks": {
+        "complete_observation": true,
+        "all_phase_boundaries": true,
+        "live_prop_names_match_expected": true,
+        "spawn_prop_names_match_expected": true,
+        "spawn_positions_finite_and_unchanged": true,
+        "all_props_physically_reset_and_settled": true,
+        "scene_config_sha256_matches": true,
+        "prop_dimensions_match": true,
+        "cube_collider_geometry_matches": true,
+        "green_square_geometry_matches": true,
+        "scene_name_matches": true,
+        "scene_assets_sha256_matches": true,
+        "scene_content_sha256_matches": true,
+        "open_box_geometry_matches": true,
+        "ordered_phases": true,
+        "strict_pick_place_and_cameras": true,
+        "whole_cube_inside_green_square_throughout_settle": true,
+        "all_physics_tensors_cuda": true,
+        "single_supported_engine": true,
+        "gpu_backend_no_fallback": true,
+        "contact_sensor_and_actual_jaws_bound": true,
+        "two_jaw_contacts_during_real_lift": true,
+        "reset_settle_window": true,
+        "whole_footprint_enters_destination_with_bilateral_support": true,
+        "all_event_cameras_advance": true,
+        "all_three_camera_age_series_complete": true,
+        "requested_engine_matches_every_sample": true,
+        "pick_skill_completed": true,
+        "home_after_place_completed": true,
+        "reset_skill_completed": true,
+        "harness_has_no_errors": true
+      },
+      "skill_reported_duration_s": 438.83,
+      "pick_wall_seconds": 454.2702488079958,
+      "reset_wall_seconds": 63.30983616999583,
+      "pick_real_time_factor_over_witness_wall": 0.10529708573002064,
+      "outer_host_300s_met": false,
+      "metrics": {
+        "samples": 2741,
+        "final_samples": 31,
+        "simulation_elapsed_s": 47.83333333333334,
+        "final_window_sim_s": 0.5,
+        "lift_m": 0.10052801854908465,
+        "xy_displacement_m": 0.29896094912926713,
+        "final_xy_error_m": 0.006075794850818619,
+        "max_final_xy_error_m": 0.006075811836517678,
+        "max_final_support_z_error_m": 3.243264823371561e-10,
+        "max_final_linear_speed_m_s": 1.4455168343988715e-05,
+        "max_final_angular_speed_rad_s": 0.0004570215190086765,
+        "max_final_position_spread_m": 2.9802322387695312e-08,
+        "max_final_tilt_deg": 0.00010941301648914893,
+        "min_final_actual_open_fraction": 0.9999994039535611,
+        "max_frame_age_s": 1.1150550020101946,
+        "unique_jpeg_hashes": 949
+      },
+      "criteria": {
+        "xy_tolerance_m": 0.04,
+        "z_tolerance_m": 0.005,
+        "settle_sim_s": 0.5,
+        "min_final_samples": 4,
+        "max_linear_speed_m_s": 0.02,
+        "max_angular_speed_rad_s": 0.2,
+        "max_position_spread_m": 0.005,
+        "min_open_fraction": 0.9,
+        "max_tilt_deg": 5,
+        "min_lift_m": 0.015,
+        "min_xy_displacement_m": 0.02,
+        "max_frame_age_s": 2
+      },
+      "footprint": {
+        "pass": true,
+        "destination_name": "green square",
+        "method": "all eight rotated cuboid corners",
+        "dimensions_m": [
+          0.0375,
+          0.0375,
+          0.06
+        ],
+        "final_samples": 31,
+        "final_window_sim_s": 0.5,
+        "settle_window_complete": true,
+        "inner_bounds_xy_m": [
+          [
+            0.07,
+            -0.34
+          ],
+          [
+            0.21000000000000002,
+            -0.2
+          ]
+        ],
+        "observed_footprint_bounds_xy_m": [
+          [
+            0.12586501001115308,
+            -0.29259024376420373
+          ],
+          [
+            0.16411975265745654,
+            -0.254335498564105
+          ]
+        ],
+        "min_final_bottom_z_m": -5.120121519472387e-08,
+        "max_final_bottom_z_m": -4.055380776329942e-08,
+        "min_inner_clearance_m": 0.04588024734254348,
+        "max_final_center_error_m": 0.006075811836517678,
+        "center_tolerance_m": 0.04,
+        "boundary_tolerance_m": 0.0
+      },
+      "supported_destination_entry": {
+        "pass": true,
+        "check": "whole_footprint_enters_destination_while_lifted_with_bilateral_support",
+        "object_name": "green_cube",
+        "destination_name": "green square",
+        "samples": 2741,
+        "criteria": {
+          "jaw_force_exclusive_min_n": 0.01,
+          "min_lift_m": 0.015,
+          "min_distinct_supported_inside_steps": 2,
+          "boundary_tolerance_m": 0.0
+        },
+        "inner_bounds_xy_m": [
+          [
+            0.07000000029802322,
+            -0.3400000035762787
+          ],
+          [
+            0.20999999344348907,
+            -0.20000000298023224
+          ]
+        ],
+        "collider_vertices": 8,
+        "supported_lift_samples": 1134,
+        "supported_inside_distinct_steps": 380,
+        "best_supported_inner_clearance_m": 0.047991379491075625,
+        "first_supported_inside": {
+          "index": 1813,
+          "sequence": 1854,
+          "physics_step": 21748,
+          "sim_time": 181.23333333333332,
+          "position_m": [
+            0.18788279592990875,
+            -0.22392326593399048,
+            0.12904503942630913
+          ],
+          "lift_m": 0.09904504008591174,
+          "inner_clearance_m": 0.0004715245593872319,
+          "jaw_force_norm_n": [
+            59.725679721733364,
+            63.6367900295406
+          ],
+          "jaw_contact_counts": [
+            10,
+            4
+          ],
+          "footprint_bounds_xy_m": [
+            [
+              0.16623712297571566,
+              -0.24446504521420545
+            ],
+            [
+              0.20952846888410184,
+              -0.2033814866537755
+            ]
+          ]
+        },
+        "last_supported_inside": {
+          "index": 2192,
+          "sequence": 2233,
+          "physics_step": 22512,
+          "sim_time": 187.6,
+          "position_m": [
+            0.14038820564746857,
+            -0.26981332898139954,
+            0.04517108203075555
+          ],
+          "lift_m": 0.015171082690358162,
+          "inner_clearance_m": 0.0479629619530699,
+          "jaw_force_norm_n": [
+            59.748948248998445,
+            63.688822982649036
+          ],
+          "jaw_contact_counts": [
+            10,
+            4
+          ],
+          "footprint_bounds_xy_m": [
+            [
+              0.11873937980451796,
+              -0.2910246260635865
+            ],
+            [
+              0.16203703149041918,
+              -0.24860203189921262
+            ]
+          ]
+        },
+        "supported_inside": {
+          "retained_in_raw_evidence": true,
+          "count": 380,
+          "first": {
+            "index": 1813,
+            "sequence": 1854,
+            "physics_step": 21748,
+            "sim_time": 181.23333333333332,
+            "position_m": [
+              0.18788279592990875,
+              -0.22392326593399048,
+              0.12904503942630913
+            ],
+            "lift_m": 0.09904504008591174,
+            "inner_clearance_m": 0.0004715245593872319,
+            "jaw_force_norm_n": [
+              59.725679721733364,
+              63.6367900295406
+            ],
+            "jaw_contact_counts": [
+              10,
+              4
+            ],
+            "footprint_bounds_xy_m": [
+              [
+                0.16623712297571566,
+                -0.24446504521420545
+              ],
+              [
+                0.20952846888410184,
+                -0.2033814866537755
+              ]
+            ]
+          },
+          "last": {
+            "index": 2192,
+            "sequence": 2233,
+            "physics_step": 22512,
+            "sim_time": 187.6,
+            "position_m": [
+              0.14038820564746857,
+              -0.26981332898139954,
+              0.04517108203075555
+            ],
+            "lift_m": 0.015171082690358162,
+            "inner_clearance_m": 0.0479629619530699,
+            "jaw_force_norm_n": [
+              59.748948248998445,
+              63.688822982649036
+            ],
+            "jaw_contact_counts": [
+              10,
+              4
+            ],
+            "footprint_bounds_xy_m": [
+              [
+                0.11873937980451796,
+                -0.2910246260635865
+              ],
+              [
+                0.16203703149041918,
+                -0.24860203189921262
+              ]
+            ]
+          },
+          "raw_artifact": {
+            "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/gpu-physical-audit.json",
+            "sha256": "a5e20f15c28ca967b8758586a8af94bcb590599279c9cf4af469e82e9fdf4065",
+            "bytes": 811646
+          },
+          "raw_json_pointer": "/supported_destination_entry/supported_inside"
+        },
+        "inside_lifted_without_bilateral_support_samples": 0,
+        "scope": "Positive sampled grip at full destination entry; no continuous retention or commanded-release timing assertion"
+      },
+      "bilateral_lift_samples": 1134,
+      "reset_all_five_props": {
+        "pink_cube": {
+          "max_spawn_error_m": 4.305546243245479e-08,
+          "max_speed_m_s": 2.7338874418394725e-05,
+          "max_spin_rad_s": 0.0004490113407692819,
+          "max_spread_m": 3.077594869184923e-08,
+          "pass": true
+        },
+        "green_cube": {
+          "max_spawn_error_m": 1.4537489213722366e-08,
+          "max_speed_m_s": 1.5213788359326776e-05,
+          "max_spin_rad_s": 0.0004510670876455873,
+          "max_spread_m": 1.4901161193847656e-08,
+          "pass": true
+        },
+        "tomato_can": {
+          "max_spawn_error_m": 7.395330407078263e-08,
+          "max_speed_m_s": 0.00012017170480233592,
+          "max_spin_rad_s": 0.0010391335813419022,
+          "max_spread_m": 8.024520884654677e-08,
+          "pass": true
+        },
+        "lemon": {
+          "max_spawn_error_m": 7.176201959695758e-09,
+          "max_speed_m_s": 2.641669105685196e-10,
+          "max_spin_rad_s": 0.0,
+          "max_spread_m": 0.0,
+          "pass": true
+        },
+        "orange": {
+          "max_spawn_error_m": 7.638942475269053e-09,
+          "max_speed_m_s": 1.2222169942788241e-09,
+          "max_spin_rad_s": 0.0,
+          "max_spread_m": 0.0,
+          "pass": true
+        }
+      },
+      "retreat": {
+        "ok": true,
+        "tcp_at": [
+          0.151,
+          -0.269,
+          0.14
+        ]
+      },
+      "return_home": {
+        "attempted": true,
+        "ok": true,
+        "at": "home"
+      },
+      "non_target_max_observed_translation_from_first_pick_sample_m": {
+        "pink_cube": 3.7299440045842505e-08,
+        "tomato_can": 9.453726962543667e-08,
+        "lemon": 0.0,
+        "orange": 0.0
+      },
+      "non_target_metric_scope": "Euclidean translation at recorded pick samples only; no orientation or continuous no-contact claim",
+      "sample_recheck": {
+        "pick_rows": 2742,
+        "step_first": 17944,
+        "step_last": 23686,
+        "sim_time_first": 149.53333333333333,
+        "sim_time_last": 197.38333333333333,
+        "devices": [
+          "cuda:0"
+        ]
+      },
+      "simulation_clock": {
+        "version": 1,
+        "engine": "physx",
+        "clock": "SimulationManager",
+        "epoch": "91ab4f90638c44b0840454f7270765bc",
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 148.83333333333334,
+        "physics_step": 17860,
+        "physics_dt_s": 0.008333333333333333,
+        "source": [
+          "127.0.0.1",
+          8733
+        ]
+      },
+      "camera_age_summary": {
+        "pass": true,
+        "complete": true,
+        "observer_errors": [],
+        "source": [
+          "127.0.0.1",
+          8733
+        ],
+        "cameras": {
+          "cam0": {
+            "pass": true,
+            "samples": 3093,
+            "valid_clock_samples": 3093,
+            "maximum_age_s": 1.1150550020101946,
+            "samples_over_2s": 0,
+            "distinct_captures": 1072,
+            "maximum_observed_capture_gap_s": 13.304886676982278,
+            "invalid_samples": 0,
+            "first_invalid_sample": null,
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "producer_clock": "physics_loop_monotonic"
+          },
+          "side": {
+            "pass": true,
+            "samples": 3093,
+            "valid_clock_samples": 3093,
+            "maximum_age_s": 1.1150550020101946,
+            "samples_over_2s": 0,
+            "distinct_captures": 1072,
+            "maximum_observed_capture_gap_s": 13.304886676982278,
+            "invalid_samples": 0,
+            "first_invalid_sample": null,
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "producer_clock": "physics_loop_monotonic"
+          },
+          "proof": {
+            "pass": true,
+            "samples": 3093,
+            "valid_clock_samples": 3093,
+            "maximum_age_s": 1.1150550020101946,
+            "samples_over_2s": 0,
+            "distinct_captures": 1072,
+            "maximum_observed_capture_gap_s": 13.304886676982278,
+            "invalid_samples": 0,
+            "first_invalid_sample": null,
+            "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+            "producer_clock": "physics_loop_monotonic"
+          }
+        },
+        "scope": "Server monotonic minus capture in the same physical snapshot; observed capture gaps are sample gaps, not all producer frames."
+      },
+      "graspgenx": {
+        "required": true,
+        "status": {
+          "status": "ok",
+          "learned": true,
+          "device": "cuda:0",
+          "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+          "capability": [
+            12,
+            0
+          ],
+          "torch": "2.7.0+cu128",
+          "cuda": "12.8",
+          "architecture": "x86_64"
+        },
+        "branch_counts": {
+          "diff": 400
+        },
+        "last_latency_s": 1.076
+      },
+      "backend": {
+        "grasp_planner": "graspgenx (learned 6-DoF)",
+        "occupancy": "disabled",
+        "occupancy_live": false
+      },
+      "warmup": {
+        "pass": true,
+        "wall_s": 3.309971064009005,
+        "readiness_pass": true,
+        "skills": [
+          {
+            "skill": "get_observation",
+            "ok": true
+          },
+          {
+            "skill": "localize_object",
+            "ok": true
+          }
+        ],
+        "actuator_begin_events": [],
+        "arm_control_standby": true,
+        "wrapper_sha256": "f55794afd525229b970b3cb62e42358d39621be4e34f529d65fc2c319a37731f"
+      },
+      "frames": [
+        {
+          "phase": "placed",
+          "camera": "cam0",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/placed-cam0.jpg",
+          "sha256": "b0a8cc16f233ad6e668a84a585243ca1df6e49040d992b4761179e658d31a46c",
+          "capture_monotonic": 150524.770151287
+        },
+        {
+          "phase": "placed",
+          "camera": "side",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/placed-side.jpg",
+          "sha256": "86782a7bab0c42429b92b8ce8ee7d26248deaec9f63ceca152e1ad99610196d8",
+          "capture_monotonic": 150524.770151287
+        },
+        {
+          "phase": "placed",
+          "camera": "proof",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/placed-proof.jpg",
+          "sha256": "43b6520cafacda5673a3de389493d2c129e23d70ce4a5a6863b68f1945dbbe47",
+          "capture_monotonic": 150524.770151287
+        },
+        {
+          "phase": "reset",
+          "camera": "cam0",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/reset-cam0.jpg",
+          "sha256": "535c7aa1f0ae42386ee5d2c3acf707feb9ec52e80db96db03a07675c508c7522",
+          "capture_monotonic": 150587.697513484
+        },
+        {
+          "phase": "reset",
+          "camera": "side",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/reset-side.jpg",
+          "sha256": "f062ed582fcea02b50f17370bcdba20ff3e7155cddcb068d4828014522b05175",
+          "capture_monotonic": 150587.697513484
+        },
+        {
+          "phase": "reset",
+          "camera": "proof",
+          "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/reset-proof.jpg",
+          "sha256": "9ddc28772596619c42562227b81b8c4025bcaa265b570e8412f322ed060f30ac",
+          "capture_monotonic": 150587.697513484
+        }
+      ]
+    }
+  ],
+  "visual_review": {
+    "inspected_at_utc": "2026-10-02T01:55:48.797060+00:00",
+    "reviewer": "audit_trial12",
+    "green_images": [
+      "runtime/keyframes/0002_pick_and_place_before.jpg",
+      "witness/placed-proof.jpg",
+      "witness/reset-proof.jpg"
+    ],
+    "observations": [
+      "Before: green cube near props; destination pad empty",
+      "Placed: green cube on green square, arm away",
+      "Reset: green square empty, cube back with initial props"
+    ],
+    "dimensions": [
+      640,
+      360
+    ],
+    "video_found": false,
+    "limitation": "Retained stills only; no MP4 or continuous trajectory video in campaign"
+  },
+  "preserved_failures": {
+    "original_trial12": "Existing trial12-history.json remains unchanged",
+    "native_1280": "Existing trial12-native-1280.json remains unchanged",
+    "native640_cold_first_attempt": {
+      "receipt": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-01/orange_r1/receipt.json",
+      "pass": false,
+      "reason": "Perception took6.5s; localization result expired before actuation",
+      "explicit_reset_pass": true
+    }
+  },
+  "limitations": [
+    "Both skill durations exceed300s outer host deadline; full LLM/MCP proof2 not tested",
+    "Occupancy disabled; configured occupancy dictionary does not attest live backend",
+    "Sampled grip proves supported full-footprint destination entry, not continuous retention or commanded-release timing; orange has one lifted-inside sample without bilateral support",
+    "12.72/13.30s observed camera capture gaps are sparse observer gaps, not complete producer-frame history",
+    "Runtime postcondition covers placement; full lift/transport/reset evidence comes from separate passive witness",
+    "Actual-jaw readback and settled support establish release; no direct calibrated release-force claim"
+  ],
+  "raw_artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/campaign.json",
+      "sha256": "cfe6dbb36431165a5175fe2429a2108f7557e39fc82de095662f205a0295cf26",
+      "bytes": 30305
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/commands.jsonl",
+      "sha256": "28f9ff8256efc5a7dfb3f65f76b3742dddf5cfe2538d72b1ed441d4af93d4764",
+      "bytes": 13660
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/execution.log",
+      "sha256": "b9c45353e8184fb99805ed43c3eab707ce1b6790e860665b379d79c24fb567b0",
+      "bytes": 281
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/grasp-memory.json",
+      "sha256": "4e9a133add20ee34e5ff43e0263747702e9b526c4dcab21a858a49f72f97d45f",
+      "bytes": 373
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/receipt.json",
+      "sha256": "2d85e01324fc553fea2c66c31103d97b959cc5835ba76bb8ddf1e438d0c5b7f2",
+      "bytes": 912594
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/runtime/keyframes/0000_get_observation_after.jpg",
+      "sha256": "b729c3a98488ca4e6de481706e17a0422cd559376d5c082016ce5d2446e3f680",
+      "bytes": 65335
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/runtime/keyframes/0000_get_observation_before.jpg",
+      "sha256": "3625514f6ebae3cd0b8dd43c3f6d89dacb5b6cfa98e13ca2d0ac80ccd88bb726",
+      "bytes": 65414
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/runtime/keyframes/0001_localize_object_after.jpg",
+      "sha256": "b4779317ee3ece38f313592e8509c38061415479a948f73496d4ec0e224f9f94",
+      "bytes": 65396
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/runtime/keyframes/0001_localize_object_before.jpg",
+      "sha256": "b729c3a98488ca4e6de481706e17a0422cd559376d5c082016ce5d2446e3f680",
+      "bytes": 65335
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/runtime/keyframes/0002_pick_and_place_after.jpg",
+      "sha256": "02d8cee975952c1431c116c46e99b28d823363a34dbf4dc1b6fa2b264022b11b",
+      "bytes": 64558
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/runtime/keyframes/0002_pick_and_place_before.jpg",
+      "sha256": "b4779317ee3ece38f313592e8509c38061415479a948f73496d4ec0e224f9f94",
+      "bytes": 65396
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/runtime/keyframes/0003_reset_scene_after.jpg",
+      "sha256": "0c38f270618334af617e2a0292e4c40ee101e08ca75ae29da7c0f566476454f0",
+      "bytes": 64915
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/runtime/keyframes/0003_reset_scene_before.jpg",
+      "sha256": "02d8cee975952c1431c116c46e99b28d823363a34dbf4dc1b6fa2b264022b11b",
+      "bytes": 64558
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/runtime/placement/6235b23fc90d48e498ed0acb4c232750.json",
+      "sha256": "bcacf08637b703984b2745f5ed145ae15d7d67ca02bee3a3ca3e0de7e5a84ce2",
+      "bytes": 215455
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/runtime/trace.jsonl",
+      "sha256": "5bf891db68d2ad1e4253326defab0bb3970b2291b72dd4a9b85610702fdf2976",
+      "bytes": 10459
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/startup-warmup.json",
+      "sha256": "1b494fb20ec2036eba29f9137acd12b022edcd47c62bc1ec293beaee9f9b869e",
+      "bytes": 9933
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/first-scene-geometry.json",
+      "sha256": "c940633d89865fe4625dca7afd372e8ad998fe16847c27e97c7cf2ec6cc0eb3e",
+      "bytes": 2583
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/gpu-physical-audit.json",
+      "sha256": "a5e20f15c28ca967b8758586a8af94bcb590599279c9cf4af469e82e9fdf4065",
+      "bytes": 811646
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/metadata.json",
+      "sha256": "ecd2002e10987f1f7f3732f616012531d52ad6e56ba176a26a77de98ecafff70",
+      "bytes": 2920
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/phases.json",
+      "sha256": "4ff48dd2bbb3ca53daa8b9fe8e91aad876cccc0f2b59bb8783c331a7f0029a52",
+      "bytes": 355
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/ping-after.json",
+      "sha256": "4eb14f02235727bd8aac8dff7a38ef429b3720ecc51b820885100b92623e2bf5",
+      "bytes": 1182
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/ping-before.json",
+      "sha256": "4eb14f02235727bd8aac8dff7a38ef429b3720ecc51b820885100b92623e2bf5",
+      "bytes": 1182
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/placed-cam0.jpg",
+      "sha256": "b0a8cc16f233ad6e668a84a585243ca1df6e49040d992b4761179e658d31a46c",
+      "bytes": 47551
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/placed-frames.json",
+      "sha256": "ffd51916e409886c78660a211a9e41c1fe1b94de1fa65f0a89d61cea6c8e8e54",
+      "bytes": 3233
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/placed-proof.jpg",
+      "sha256": "43b6520cafacda5673a3de389493d2c129e23d70ce4a5a6863b68f1945dbbe47",
+      "bytes": 44691
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/placed-side.jpg",
+      "sha256": "86782a7bab0c42429b92b8ce8ee7d26248deaec9f63ceca152e1ad99610196d8",
+      "bytes": 37024
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/reset-cam0.jpg",
+      "sha256": "535c7aa1f0ae42386ee5d2c3acf707feb9ec52e80db96db03a07675c508c7522",
+      "bytes": 47731
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/reset-frames.json",
+      "sha256": "ee134ef1b74c1813f395b05688baa81ea68bd6b60e2778374586de439d43926a",
+      "bytes": 3227
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/reset-proof.jpg",
+      "sha256": "9ddc28772596619c42562227b81b8c4025bcaa265b570e8412f322ed060f30ac",
+      "bytes": 45236
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/reset-side.jpg",
+      "sha256": "f062ed582fcea02b50f17370bcdba20ff3e7155cddcb068d4828014522b05175",
+      "bytes": 37264
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/samples.jsonl",
+      "sha256": "595abb69a3ca2608c0a1c16ed94f90506d65c6f357bd01893f2f3326379a5090",
+      "bytes": 25812330
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/snapshot-code.py",
+      "sha256": "42ed39655a14e56861c99ac100814340b4296c58d7e8e823e711b5c4f8348341",
+      "bytes": 13955
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/green_cube_r1/witness/wire.jsonl",
+      "sha256": "22f21e842957c72ffc8a895f90fb7862b9e5b5e7570a460630252d2dd2838ea3",
+      "bytes": 11693242
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/commands.jsonl",
+      "sha256": "ef07c43a17e1e84b77ad8aeffd6277f7cf073fede9a5ffcab41eae496ebd2065",
+      "bytes": 13550
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/execution.log",
+      "sha256": "b9c45353e8184fb99805ed43c3eab707ce1b6790e860665b379d79c24fb567b0",
+      "bytes": 281
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/grasp-memory.json",
+      "sha256": "3a0e1b57a1a731b368e167c07249bcc2263db91acacea2d0fac2f44e888d988b",
+      "bytes": 369
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/receipt.json",
+      "sha256": "15e10c8bde6652f32ab53063a553fbfe747a9f4c16a49f74d19f2bae6c3e1046",
+      "bytes": 1001353
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/runtime/keyframes/0000_get_observation_after.jpg",
+      "sha256": "ea36c57566968c54dbd7fa188ee2e9f96488096f1357165ae49b4a6b7540de7e",
+      "bytes": 67149
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/runtime/keyframes/0000_get_observation_before.jpg",
+      "sha256": "d1ce41ae8220aa5f8e17309ea4fafe3b7b8ee4280ef2729adb0a56c849ecb4b0",
+      "bytes": 67147
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/runtime/keyframes/0001_localize_object_after.jpg",
+      "sha256": "4dbceb511b8683db2815b327354cd9f5424fac03a0bbeb194ad7e422f974103b",
+      "bytes": 67182
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/runtime/keyframes/0001_localize_object_before.jpg",
+      "sha256": "ea36c57566968c54dbd7fa188ee2e9f96488096f1357165ae49b4a6b7540de7e",
+      "bytes": 67149
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/runtime/keyframes/0002_pick_and_place_after.jpg",
+      "sha256": "af0c35bfae7152da7c688db567e56e0e4b286a4af62451dca06c6780dd0a9c53",
+      "bytes": 64799
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/runtime/keyframes/0002_pick_and_place_before.jpg",
+      "sha256": "4dbceb511b8683db2815b327354cd9f5424fac03a0bbeb194ad7e422f974103b",
+      "bytes": 67182
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/runtime/keyframes/0003_reset_scene_after.jpg",
+      "sha256": "3c326c472c868d3f9f773c59051062de436fd69040b3bdb10b563238ff446a88",
+      "bytes": 65135
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/runtime/keyframes/0003_reset_scene_before.jpg",
+      "sha256": "af0c35bfae7152da7c688db567e56e0e4b286a4af62451dca06c6780dd0a9c53",
+      "bytes": 64799
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/runtime/placement/bb8d7374c2334c49b85dd1dad16ad53e.json",
+      "sha256": "c3628972554149b16abee6c0b7104c468266e20b8972dba11533a6f7bddbd4ec",
+      "bytes": 846700
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/runtime/trace.jsonl",
+      "sha256": "e69c193699041fc3eda1d2e6afec357bba72940dfca6640dfd56c33729d13fac",
+      "bytes": 10635
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/startup-warmup.json",
+      "sha256": "daff7c188ac6dc67e70ac45a434b6ccc326787996d1a1927ed9a5e0f34740f69",
+      "bytes": 9921
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/first-scene-geometry.json",
+      "sha256": "c940633d89865fe4625dca7afd372e8ad998fe16847c27e97c7cf2ec6cc0eb3e",
+      "bytes": 2583
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/gpu-physical-audit.json",
+      "sha256": "1b5556751b5bc6771f3a32816b51ef78526f17c0a1fbf16cd2f5cf1cd07b2dbf",
+      "bytes": 892505
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/metadata.json",
+      "sha256": "73b41598dad6d615154502ac4ec434427c6d2161fa4412fd4e4c1cf316a30bc8",
+      "bytes": 2912
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/phases.json",
+      "sha256": "2c3616849035b682f21432d39df0f9767b65ae3b24fb55b2da975c250677ded3",
+      "bytes": 355
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/ping-after.json",
+      "sha256": "4eb14f02235727bd8aac8dff7a38ef429b3720ecc51b820885100b92623e2bf5",
+      "bytes": 1182
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/ping-before.json",
+      "sha256": "4eb14f02235727bd8aac8dff7a38ef429b3720ecc51b820885100b92623e2bf5",
+      "bytes": 1182
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/placed-cam0.jpg",
+      "sha256": "c7f9f78dd1fc12662afcb0b5cbc1211c5ad005f36490f1db78a1b92c8c8f1948",
+      "bytes": 47682
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/placed-frames.json",
+      "sha256": "5aef2cdeda125df6d97262be2a7647f01a1dede8d8dba4f163f66f127e12610a",
+      "bytes": 3236
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/placed-proof.jpg",
+      "sha256": "c22007e36520c9972cef95b1ec18e8be9e5c05c471465a484f6d79b44f397dac",
+      "bytes": 44773
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/placed-side.jpg",
+      "sha256": "b900d88b082e6ebfa4340692db73614f6316987ab4a88d4b8f7b6d4d3b1e76e5",
+      "bytes": 37004
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/reset-cam0.jpg",
+      "sha256": "0e7035c63e664819fe8073446763327bf43d1620d879f2faa1d44f66ef2d47a9",
+      "bytes": 47933
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/reset-frames.json",
+      "sha256": "e8560defe417c8de9df1f76ad7fc747876b1545ed2032de1956504b81fd73d95",
+      "bytes": 3224
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/reset-proof.jpg",
+      "sha256": "df1d6b2c4cee6a3765d51f3e60f8c49de2bb7b5eb6c32f7d58a68c6e3ed84dbd",
+      "bytes": 45497
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/reset-side.jpg",
+      "sha256": "1e4ef93356e6fa0f55a49cbbd11eac28285ed7bd199b5181061742475c509d08",
+      "bytes": 37229
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/samples.jsonl",
+      "sha256": "7d65c7c22fdc04f2a4eb14dfeba53e341cf768f4de440df9143a314b44b9e3a3",
+      "bytes": 112518380
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/snapshot-code.py",
+      "sha256": "43a0031e46cd0a1a07db43f44a9db9b26a132824590dcf551f41ce38e489972a",
+      "bytes": 23542
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02/orange_r1/witness/wire.jsonl",
+      "sha256": "f9fd8ecf2b051c3238e193bf150b2ce14e9656bf8d58202bda6c02c3522aa8dc",
+      "bytes": 20726618
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/owner.json",
+      "sha256": "12488f9798fed5ce244f5fccc0cfc77c159886a74e94990dbe52e5ef9f5b3db8",
+      "bytes": 1044
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/interpreter.json",
+      "sha256": "514c260efd28306727abee6cc58ad3dbe591f985afbbccfd3f7aecb299d72fba",
+      "bytes": 180
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/launch.py",
+      "sha256": "b3937f7ce252618ee6a6425db9a7f6b8b421155c0b80c918ac4368ad795d6add",
+      "bytes": 1389
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/warm_acceptance.py",
+      "sha256": "f55794afd525229b970b3cb62e42358d39621be4e34f529d65fc2c319a37731f",
+      "bytes": 2271
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/readiness.py",
+      "sha256": "fb714dc2f2a7e945274086aa13c0ee74221235660109cbae42e43dc67f1c6bcf",
+      "bytes": 836
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/readiness.json",
+      "sha256": "7ce55c671188d38a0f41faa7c1ae357d237c41c10ba352a40a057c8e62b53daa",
+      "bytes": 2595
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-02.log",
+      "sha256": "de0f7833151948e7b61aac2fb2aa3789af2e92015a9f83cc0af4e10afe4c59bf",
+      "bytes": 154
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-01.log",
+      "sha256": "4e67419edd5ec30bf7d8c59dade095c6036890f118155c69dc6e8192689c4cd3",
+      "bytes": 311
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-01/campaign.json",
+      "sha256": "2576de8460d49bdec42fb63d47fd19ab6497cd621e893477b19e2120839e1eff",
+      "bytes": 30314
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/native-01/orange_r1/receipt.json",
+      "sha256": "8a1b21fe6d847749ff2048c03bb0ab8d236debef293e26e0b7abc92538e01e98",
+      "bytes": 81024
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/demo/scene/kitchen_config.json",
+      "sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+      "bytes": 3404
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/termination-640.json",
+      "sha256": "57d7ce850eaf5df8b23ea2cf64305a863b2ca024f3a7696e4da1bcc87eddcc38",
+      "bytes": 2637
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/bridge.log",
+      "sha256": "24d4ec6967db5c8cd1e1f1032e2d8cf13210dca9d29822c760ddadd6b89c5451",
+      "bytes": 39992
+    }
+  ],
+  "closure": {
+    "requested_at_utc": "2026-10-02T01:55:48.801125+00:00",
+    "scope": "Authorized closure of owned8733 640x360 producer after terminal two-case campaign and evidence binding",
+    "action": "SIGTERM through launcher pidfd; kernel birth verified after fd open",
+    "expected": {
+      "launcher_pid": 3384006,
+      "launcher_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14905334",
+      "bridge_pid": 3384016,
+      "bridge_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14905337"
+    },
+    "before": {
+      "launcher": {
+        "pid": 3384006,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14905334",
+        "state": "S",
+        "ppid": 1,
+        "process_group": 3384006,
+        "uid": 1000,
+        "cmdline": "python3 /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/scripts/isaac_launch.py --python /home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/python.sh --ready-file /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup-640/interpreter.json -- /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/scripts/isaac_bridge.py --port 8733 --engine physx --width 640 --height 360 --dt 0.008333333333333333 --cam-every 6 --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/demo/scene/kitchen_config.json "
+      },
+      "bridge": {
+        "pid": 3384016,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14905337",
+        "state": "R",
+        "ppid": 3384008,
+        "process_group": 3384008,
+        "uid": 1000,
+        "cmdline": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/kit/python/bin/python3 /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/scripts/isaac_bridge.py --port 8733 --engine physx --width 640 --height 360 --dt 0.008333333333333333 --cam-every 6 --scene-config /home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/demo/scene/kitchen_config.json "
+      }
+    },
+    "ancestor_chain": [
+      {
+        "pid": 3384008,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14905336",
+        "ppid": 3384006
+      },
+      {
+        "pid": 3384006,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14905334",
+        "ppid": 1
+      }
+    ],
+    "pass": true,
+    "after": {
+      "launcher": {
+        "state": "gone"
+      },
+      "bridge": {
+        "pid": 3384016,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14905337",
+        "state": "Z",
+        "ppid": 1,
+        "process_group": 3384008,
+        "uid": 1000,
+        "cmdline": ""
+      }
+    },
+    "port8733_connect_refused": true,
+    "checked_at_utc": "2026-10-02T01:55:49.802864+00:00"
+  },
+  "raw_artifact_recheck_mismatches": [],
+  "audited_finished_utc": "2026-10-02T01:55:49.912011+00:00"
+}

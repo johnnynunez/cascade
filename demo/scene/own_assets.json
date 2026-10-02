@@ -3,8 +3,28 @@
   "scene_name": "paai-cocina-asier-v1",
   "files": {
     "scripts/isaac_bridge.py": {
-      "sha256": "4a7c054fb97f97795548e2e514864ae1ab8e837795ca63c2f7ae29f0c1b18212",
-      "size_bytes": 112634
+      "sha256": "4ad8a3a0f581684ca87976328ad224a207a9b4badababeae456bd7b43a74438b",
+      "size_bytes": 115720
+    },
+    "scripts/isaac_ovrtx.py": {
+      "sha256": "3b4b0048caf92416e4c261f25d9bc10ec1205ca2502a775faf45d03be4cf8568",
+      "size_bytes": 13949
+    },
+    "src/cascade/sim/ovrtx_renderer.py": {
+      "sha256": "d6f968e61936373e765dbe0ba38a2e8ad72667bc57441abfec8da5614054d461",
+      "size_bytes": 22900
+    },
+    "src/cascade/sim/ovrtx_masks.py": {
+      "sha256": "6617df824187143ff9b87ad853369e9cc1836590cc57cd49ba7b99ecc439da19",
+      "size_bytes": 6085
+    },
+    "src/cascade/sim/ovrtx_process.py": {
+      "sha256": "d89f4506460f1795210ad8f37908cec12a37cb77b34575e26ea7192cc342b87a",
+      "size_bytes": 3300
+    },
+    "src/cascade/sim/ovrtx_worker.py": {
+      "sha256": "fe7502d4dd9f0e5aaea70c7a3fc26712b6fe012f2fcd1fa636c822f64ed1c09c",
+      "size_bytes": 1465
     },
     "scripts/isaac_python_spans.py": {
       "sha256": "6f89d58e9eeddf5a9ef5055352e0dbf93768c43c013d0e7042e3c29b29835b40",
@@ -31,8 +51,8 @@
       "size_bytes": 12797
     },
     "demo/scene_identity.py": {
-      "sha256": "beef6a7caadd955ed94b7118a76953080fd21000d592d10f014eefc184afe25d",
-      "size_bytes": 9912
+      "sha256": "5c0e5755df2d7a965e153441f8ffb95ec6f4aa73ecc288b9e8046d5eae0b5f0b",
+      "size_bytes": 10100
     },
     "demo/scene/cocina_asier_sources.json": {
       "sha256": "c7c51f4d606cff2aab8984856512d65799a16e4172e69671b63b615f8ce0eae9",

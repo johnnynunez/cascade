@@ -8,7 +8,20 @@ a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation
 
 ## Source and software validation
 
-Current main is `f7a88233cc80fccc1b02396d963086b1146d2078`, the exact-tree
+Local integration `feat/manipulation-assembly-runtime`, production source
+`c07d9225f93ebe7cc1be5d65079ebcc141b60117`, passed **3,797 tests**, with 48
+skipped and four deselected in 312.57 seconds. Live OVRTX plus cuMotion completed
+one full pick/place/home episode on x86 PhysX GPU. Newton Factory fastening
+completed 15.365 turns, measured seating and two seconds of zero-motor retention.
+These are source-bound local results, separate from the complete kitchen/Spark
+campaign. The [integration report](MANIPULATION_ASSEMBLY_20261002.md) includes
+the trial 12 failure, follow-up and remaining limits.
+The changes are published in [PR #65](https://github.com/johnnynunez/cascade/pull/65).
+Its separate 640×360 follow-up passed orange and green-cube physical placement,
+home and reset. Both exceeded the host's 300-second budget (483.72/438.83 s),
+so real-host/MCP proof2 and complete campaign acceptance remain incomplete.
+
+Previously recorded merged main was `f7a88233cc80fccc1b02396d963086b1146d2078`, the exact-tree
 [merge of documentation PR #63](evidence/isaac-profile10/pr63-merge.json).
 All five [PR checks](evidence/isaac-profile10/pr63-ci-passed.json) passed;
 all five [merged-source checks](evidence/isaac-profile10/pr63-main-ci-passed.json)
@@ -24,8 +37,10 @@ remained unchanged. The
 [encoding measurements and contract](ISAAC_FRAME_ENCODING.md) separate
 100 passive observations on each of `6e1bc81a` and `d1d54dc`, a CPU comparison
 on one retained frame and the new implementation's focused checks. The new-source
-passive repeat and administrative closure passed. This integration remains
-unmerged; native physical validation is pending.
+passive repeat and administrative closure passed. This candidate subsequently
+ran [native trial 12](LOCAL_RTX_VALIDATION.md#native-trial-12-and-route-preflight-follow-up):
+the green-cube physical audit passed, orange preflight failed, and the full
+proof/campaign remained incomplete.
 
 Optional [Isaac bridge Python profiling](ISAAC_BRIDGE_PROFILING.md) at
 `3ccdc2e82815cca2a462b49770f58bb6e522789a` passed **3,685 tests**, 43 skipped
@@ -538,20 +553,24 @@ rules, with no demonstrated decision-quality benefit over the rule baseline.
 That comparison has no motion authority and is not integrated into presenter
 startup. Official TypeSafe Jev was not evaluated without its API credential.
 
-[NVIDIA ovrtx](OVRTX_RENDERER.md) is now an optional camera and scene renderer,
-with execution evidence on both Linux architectures as described above. It was
-not included in physical baseline `477c88f`. No automatic Isaac/Newton snapshot
-producer, robot/target masks or manipulation authority is supplied; those
-connections require their own implementation and acceptance. Cosmos,
+[NVIDIA ovrtx](OVRTX_RENDERER.md) began as an optional camera and scene renderer,
+with standalone execution evidence on both Linux architectures. It was not
+included in physical baseline `477c88f`. The local integration now adds an
+automatic Isaac physics-snapshot producer and robot/prop masks, with one full
+OVRTX/cuMotion manipulation episode validated on x86 PhysX GPU. This does not
+establish the same runtime result on Spark or Newton. Cosmos,
 mobile-base navigation and new hardware validation retain separate roadmap
 scopes. Locally installed development skills are authoring tools, not runtime dependencies or substitutes for source-bound physical tests.
 
 [Screw manipulation research](SCREW_MANIPULATION_RESEARCH.md) identifies five
 SimReady USD catalogue assets and the Factory/Isaac Lab/Newton threading paths.
-The existing `turn_screw` commands wrist strokes; measured thread advancement,
-engagement, seating and tightening torque are not implemented. SimReady's listed
+The ordinary `turn_screw` still commands wrist strokes and reports physical
+verification as unknown. The separate [Factory implementation](FACTORY_THREAD_CONTACT.md)
+now validates contact-driven advancement, actual seating and zero-spindle-motor
+retention; its arm servos and mounted socket remain engaged. SimReady's listed
 CC BY-NC terms and the original Factory mesh BSD-3-Clause licence are distinct.
-No threaded asset or simulation was installed for this research.
+The original research installed no simulation; the later implementation and
+its pinned assets are recorded separately.
 
 ## Operator evidence sequence
 

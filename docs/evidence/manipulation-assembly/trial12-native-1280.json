@@ -1,0 +1,500 @@
+{
+  "schema": "cascade.readonly_trial12_native_audit.v1",
+  "created_utc": "2026-10-02T01:21:02.390568+00:00",
+  "reviewer": "audit_trial12",
+  "scope": "Read-only audit of independent skill-path followup native-02 at 1280x720; historical trial12 remains a distinct failed run. This file records evidence, not a rerun.",
+  "source": {
+    "checkout": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup",
+    "commit": "b31f2dfbb8d254665d94fa8172b182bf582b143f",
+    "campaign_frozen_sources_unchanged": true,
+    "git_status_short": ""
+  },
+  "producer": {
+    "port": 8733,
+    "engine": "physx",
+    "width": 1280,
+    "height": 720,
+    "dt_s": 0.008333333333333333,
+    "cam_every": 6,
+    "renderer": "isaac",
+    "cuda_visible_devices": "0",
+    "physics_clock": {
+      "version": 1,
+      "engine": "physx",
+      "clock": "SimulationManager",
+      "epoch": "e0ddd30bb7eb4a7d8bb56385eab3caeb",
+      "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+      "sim_time": 33.38333333333333,
+      "physics_step": 4006,
+      "physics_dt_s": 0.008333333333333333,
+      "source": [
+        "127.0.0.1",
+        8733
+      ]
+    },
+    "launch_receipt_path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/owner.json"
+  },
+  "result": {
+    "pass": false,
+    "attempted_objects": [
+      "orange"
+    ],
+    "green_cube_attempted": false,
+    "stop_policy": "--fail-fast stops after the first failed case and its one explicit reset; cleanup sends no commands",
+    "source_unchanged": true,
+    "failed_checks": [
+      "strict_pick_place_and_cameras",
+      "whole_convex_collider_inside_open_box_and_supported",
+      "two_jaw_contacts_during_real_lift",
+      "whole_footprint_enters_destination_with_bilateral_support",
+      "pick_skill_completed",
+      "home_after_place_completed",
+      "reset_skill_completed"
+    ],
+    "cleanup_errors": []
+  },
+  "configuration_review": {
+    "required_learned_grasp_backend": {
+      "required": true,
+      "status": {
+        "status": "ok",
+        "learned": true,
+        "device": "cuda:0",
+        "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+        "capability": [
+          12,
+          0
+        ],
+        "torch": "2.7.0+cu128",
+        "cuda": "12.8",
+        "architecture": "x86_64"
+      },
+      "branch_counts": {
+        "diff": 400
+      },
+      "last_latency_s": 0.749
+    },
+    "observed_finger_gate": {
+      "env_value": "1",
+      "observed_in_live_process": 3376298,
+      "command_feedback_guard": {
+        "diagnostic_kind": "opaque_callback",
+        "module": "cascade.grasping.observed_scene",
+        "qualname": "ObservedFingerGate.feedback"
+      },
+      "env_evidence_scope": "reviewer read of /proc while process was alive; command callback binding is preserved in commands.jsonl"
+    },
+    "graspgenx_port": 25556,
+    "camera_ports": [
+      8733,
+      8733,
+      8733
+    ],
+    "extrinsic_max_abs_error_by_camera": {
+      "cam0": 4.854043832436261e-07,
+      "side": 4.083093614881683e-07,
+      "proof": 4.538687065624991e-07
+    },
+    "occupancy_backend": "disabled",
+    "diagnostic_profile": {
+      "llm": "mock",
+      "occupancy": "none",
+      "belief_persistence": false,
+      "fresh_grasp_memory": true,
+      "held_xy_slip_feedback": "production truth lookup with perception fallback",
+      "release_height_feedback": "FK and configured support plane",
+      "cuda_perception_required": true,
+      "acceptance": "independent passive physics proof; skill ok alone is insufficient"
+    }
+  },
+  "timeline": {
+    "phases": {
+      "pick_begin": {
+        "monotonic": 148757.247811388,
+        "unix": 1790903654.9775226
+      },
+      "pick_end": {
+        "monotonic": 148927.329449838,
+        "unix": 1790903825.0591612
+      },
+      "reset_begin": {
+        "monotonic": 148927.340481679,
+        "unix": 1790903825.0701928
+      },
+      "reset_end": {
+        "monotonic": 148935.767617327,
+        "unix": 1790903833.4973283
+      }
+    },
+    "pick_wall_seconds_including_observer_settle_capture": 170.08146929202485,
+    "reset_wall_seconds_including_observer_settle_capture": 8.426928233006038,
+    "failed_move": {
+      "id": 148797627076267,
+      "begin_monotonic": 148797.627078751,
+      "exception_monotonic": 148917.820436921,
+      "elapsed_wall_s": 120.19335817001411,
+      "nominal_duration_s": 7.5,
+      "motion_wall_timeout_s": 120.0,
+      "motion_rpc_timeout_s": 1.0,
+      "exception": "BridgeError: bridge I/O failed: timed out",
+      "location": "SimulationMotion._stream_targets line205 -> get_state line122",
+      "phase": "streaming waypoints before final settle",
+      "inference": "Occurrence at120.193s matches total120s motion wall budget; no evidence of frozen producer. Exact remaining RPC budget is not separately logged."
+    }
+  },
+  "physics_rate": {
+    "nearest_samples_to_failed_move_boundaries": {
+      "samples": 2,
+      "first_server_monotonic": 148797.626678673,
+      "last_server_monotonic": 148917.839869934,
+      "first_simulation_time_s": 37.38333333333333,
+      "last_simulation_time_s": 47.25,
+      "physics_step_delta": 1184,
+      "wall_elapsed_s": 120.21319126099115,
+      "simulation_elapsed_s": 9.866666666666667,
+      "real_time_factor": 0.08207640578516422
+    },
+    "strictly_contained_failed_move_samples": {
+      "samples": 588,
+      "first_server_monotonic": 148797.818527029,
+      "last_server_monotonic": 148917.580535021,
+      "first_simulation_time_s": 37.4,
+      "last_simulation_time_s": 47.233333333333334,
+      "physics_step_delta": 1180,
+      "wall_elapsed_s": 119.76200799198705,
+      "simulation_elapsed_s": 9.833333333333336,
+      "real_time_factor": 0.0821072850915397
+    },
+    "entire_witness": {
+      "samples": 907,
+      "first_server_monotonic": 148748.705647369,
+      "last_server_monotonic": 148935.869652646,
+      "first_simulation_time_s": 33.416666666666664,
+      "last_simulation_time_s": 48.65,
+      "physics_step_delta": 1828,
+      "wall_elapsed_s": 187.16400527700898,
+      "simulation_elapsed_s": 15.233333333333334,
+      "real_time_factor": 0.08139029355985138
+    },
+    "pacing_note": "SimulationMotion requires a newer physics step after each command ACK and discards surplus simulated time; nominal7.5s profile can require more than7.5s producer time."
+  },
+  "cameras": {
+    "freshness_audit": {
+      "pass": true,
+      "complete": true,
+      "observer_errors": [],
+      "source": [
+        "127.0.0.1",
+        8733
+      ],
+      "cameras": {
+        "cam0": {
+          "pass": true,
+          "samples": 907,
+          "valid_clock_samples": 907,
+          "maximum_age_s": 1.1228958370047621,
+          "samples_over_2s": 0,
+          "distinct_captures": 306,
+          "maximum_observed_capture_gap_s": 0.9741383790096734,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        },
+        "side": {
+          "pass": true,
+          "samples": 907,
+          "valid_clock_samples": 907,
+          "maximum_age_s": 1.1228958370047621,
+          "samples_over_2s": 0,
+          "distinct_captures": 306,
+          "maximum_observed_capture_gap_s": 0.9741383790096734,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        },
+        "proof": {
+          "pass": true,
+          "samples": 907,
+          "valid_clock_samples": 907,
+          "maximum_age_s": 1.1228958370047621,
+          "samples_over_2s": 0,
+          "distinct_captures": 306,
+          "maximum_observed_capture_gap_s": 0.9741383790096734,
+          "invalid_samples": 0,
+          "first_invalid_sample": null,
+          "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+          "producer_clock": "physics_loop_monotonic"
+        }
+      },
+      "scope": "Server monotonic minus capture in the same physical snapshot; observed capture gaps are sample gaps, not all producer frames."
+    },
+    "failed_move": {
+      "cam0": {
+        "observed_distinct_captures": 198,
+        "observed_capture_rate_hz": 1.641284029634933,
+        "median_observed_capture_interval_s": 0.5981743829906918,
+        "maximum_observed_capture_interval_s": 0.9459139009995852,
+        "distinct_rgb_hashes": 198
+      },
+      "side": {
+        "observed_distinct_captures": 198,
+        "observed_capture_rate_hz": 1.641284029634933,
+        "median_observed_capture_interval_s": 0.5981743829906918,
+        "maximum_observed_capture_interval_s": 0.9459139009995852,
+        "distinct_rgb_hashes": 198
+      },
+      "proof": {
+        "observed_distinct_captures": 198,
+        "observed_capture_rate_hz": 1.641284029634933,
+        "median_observed_capture_interval_s": 0.5981743829906918,
+        "maximum_observed_capture_interval_s": 0.9459139009995852,
+        "distinct_rgb_hashes": 198
+      }
+    },
+    "entire_witness": {
+      "cam0": {
+        "observed_distinct_captures": 306,
+        "observed_capture_rate_hz": 1.6328020686983233,
+        "median_observed_capture_interval_s": 0.6053285179950763,
+        "maximum_observed_capture_interval_s": 0.9741383790096734,
+        "distinct_rgb_hashes": 306
+      },
+      "side": {
+        "observed_distinct_captures": 306,
+        "observed_capture_rate_hz": 1.6328020686983233,
+        "median_observed_capture_interval_s": 0.6053285179950763,
+        "maximum_observed_capture_interval_s": 0.9741383790096734,
+        "distinct_rgb_hashes": 306
+      },
+      "proof": {
+        "observed_distinct_captures": 306,
+        "observed_capture_rate_hz": 1.6328020686983233,
+        "median_observed_capture_interval_s": 0.6053285179950763,
+        "maximum_observed_capture_interval_s": 0.9741383790096734,
+        "distinct_rgb_hashes": 306
+      }
+    },
+    "scope": "Observed capture timestamps from witness samples, not an exhaustive producer frame counter."
+  },
+  "physical_outcome": {
+    "orange_max_translation_m": 0.0,
+    "orange_lift_m": 0.0,
+    "maximum_sum_of_jaw_contact_counts": 0,
+    "pick_result": {
+      "ok": false,
+      "error": "unexpected BridgeError: bridge I/O failed: timed out",
+      "hint": "hardware/runtime fault; consider task_done(success=false)",
+      "postcondition": {
+        "skill": "pick_and_place",
+        "kind": "relocated",
+        "status": "refuted",
+        "evidence": "orange is still within 0.0 cm of where it started",
+        "channel": "physics",
+        "measured": {
+          "moved_m": 0.0,
+          "final": [
+            0.18,
+            0.12,
+            0.0264
+          ]
+        }
+      },
+      "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates."
+    },
+    "reset_result": {
+      "ok": false,
+      "error": "unexpected BridgeError: bridge not connected",
+      "hint": "hardware/runtime fault; consider task_done(success=false)"
+    },
+    "reset_command_emitted": false,
+    "reset_failure_mechanism": "BridgeClient closes its socket after transport timeout to prevent late-reply aliasing. Explicit reset used that disconnected client; trace records0.5ms skill duration and no reset actuator command. Props near spawn do not prove reset succeeded."
+  },
+  "visual_inspection": {
+    "files": [
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-02/orange_r1/runtime/keyframes/0000_pick_and_place_before.jpg",
+      "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-02/orange_r1/runtime/keyframes/0000_pick_and_place_after.jpg"
+    ],
+    "finding": "Both rendered images were viewed. Robot approaches from home; open fingers remain above the unchanged orange. No grasp, lift, or placement visible."
+  },
+  "scene_binding": {
+    "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+    "scene_assets_sha256": "7ecdc142c7cfbd355ae15bcbde4f5d5e36ad67afcdf3956a0252aa8078c535cf",
+    "scene_content_sha256": "87c4801939f57d0ea4bf48e0eb5e28997d0b47aca57500446533b8778bf8098b",
+    "scene_name": "paai-cocina-asier-v1"
+  },
+  "provenance_limits": [
+    "regression.json records suite3766pass on6ddf812f, not current b31f2df; do not present it as exact-head validation.",
+    "Campaign source hashes cover scripts/src/config and gripper hull but not every USD payload/external model weight. Scene observer independently binds prop scene assets/content; robot USD and weights listed below are point-in-time reviewer hashes.",
+    "mobileclip_blt.ts is a symlink to /home/johnny/Projects/demo/cascade/models/mobileclip_blt.ts.",
+    "Historical trial12 orange preflight3s rejection remains separate; this followup passed preflight and failed during active streaming."
+  ],
+  "lower_resolution_variant_assessment": {
+    "proposed_width": 640,
+    "proposed_height": 360,
+    "pixel_count_fraction": 0.25,
+    "compatible_calibration": "Bridge recomputes K from width/height; client consumes wire K and HxW depth. Same extrinsics and mask shape checks remain.",
+    "scope": "Explicit new producer configuration variant, not an unchanged rerun. Keep dt120Hz/cam_every6/all3cameras/observed-finger/physical and freshness gates/120s wall unchanged.",
+    "hypothesis": "Reduced renderer/readback/mask/wire load may improve wall throughput; measured RTF alone does not isolate the bottleneck or predict success."
+  },
+  "raw_evidence": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-02/campaign.json",
+      "sha256": "9d7889f4d392457cec63be4e5e6c4e867bd6fcba2e55f69da2e43bbecf46ba60",
+      "bytes": 30339
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-02/orange_r1/receipt.json",
+      "sha256": "b0d98d597504f64fd9111a7fc3e91a51ccf9699d01680037d6fa6395ab3f5e95",
+      "bytes": 75434
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-02/orange_r1/commands.jsonl",
+      "sha256": "865865a459c5657b0ec15207360e0f4b9dd6aa27a493ef2d0d660d5e1f2dd761",
+      "bytes": 6434
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-02/orange_r1/runtime/trace.jsonl",
+      "sha256": "c6c1c286906edeb2279aa571d6a4e4f5c409db97c01fa45e6118780454bd5749",
+      "bytes": 1383
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-02/orange_r1/witness/samples.jsonl",
+      "sha256": "7fe12f636f9cacb0d48261b9a7c0074f624667f9628b4e5f7d7d4ae9b2f0cca1",
+      "bytes": 30348779
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-02/orange_r1/witness/phases.json",
+      "sha256": "4d4b8f1e728d1a7abbf16a3d9960279b5235adf1ee26b71c1aa6e093fb8bc25f",
+      "bytes": 357
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-02/orange_r1/witness/first-scene-geometry.json",
+      "sha256": "c940633d89865fe4625dca7afd372e8ad998fe16847c27e97c7cf2ec6cc0eb3e",
+      "bytes": 2583
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/owner.json",
+      "sha256": "418c16da47337cb342c6f3bf0b94109d4c583377099389a6e26d3b91a9502692",
+      "bytes": 1013
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/interpreter.json",
+      "sha256": "da92d5de33cc75c28c1f5be35a710fc21b543791c24e0e4e150e5f02f644fe50",
+      "bytes": 180
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/readiness.json",
+      "sha256": "dfc327ca7a10fe73639e82d4402218fe15e4539eb66799c3bc5bc6bede71d8dc",
+      "bytes": 2590
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-01/orange_r1/receipt.json",
+      "sha256": "d8d0627edacd6692b2b65adae8d306fb10d1c2ab937156fb985c3580bad9b67c",
+      "bytes": 7553
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/bridge.log",
+      "sha256": "d084f7f13ad89ba29e8b2fa95f011090dd05bd342d97d7612f0898406f1b919b",
+      "bytes": 39819
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/launch.py",
+      "sha256": "123c75c7b1552ca481885f65969a84c998446467c0aecd2cb0d8a92d6df2ed25",
+      "bytes": 1359
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-02/orange_r1/runtime/keyframes/0000_pick_and_place_before.jpg",
+      "sha256": "c57f4cb389c326f7272d66209cee17361c7a7c21d1b14c3b689e687d146cf241",
+      "bytes": 242979
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/native-02/orange_r1/runtime/keyframes/0000_pick_and_place_after.jpg",
+      "sha256": "8bd42087cd28a1d098fe1057e6ef8aaf5bcda99a3f5c946110d3e62cd269c66a",
+      "bytes": 240427
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/runs/trial12-followup/termination-1280.json",
+      "sha256": "deaa6bb8ac2d7354d7422553ba3b315d084d4004ae0003ba9baebed7efbc6fea",
+      "bytes": 781
+    }
+  ],
+  "source_and_asset_point_in_time_hashes": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/configs/arms/isaac.yaml",
+      "sha256": "5523941aabe11ff31973532f15eba198f808b51d63e39be450d5c3cea27f6212",
+      "bytes": 1762
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/configs/arms/isaac_kitchen.yaml",
+      "sha256": "d7480e493c3f05c4ea9883e17b61df73908119b48a559689db1870cb188ca157",
+      "bytes": 1770
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/configs/arms/isaac_kitchen_gpu.yaml",
+      "sha256": "83424052cf1231cb7956cabebb38cc857c60bc132e00345f9f73a47085fffcc3",
+      "bytes": 846
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/configs/cameras/isaac.yaml",
+      "sha256": "d2816b4e30b4a4e8c62d80b84d5985c5a6c1cc007b641be87009a150e6517fc4",
+      "bytes": 736
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/configs/cameras/isaac_side.yaml",
+      "sha256": "3bdb043d3d0d9b155f8ad8cdd75b988ba2af88b7b5a59daa83c97a1177fac555",
+      "bytes": 655
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/configs/cameras/isaac_proof.yaml",
+      "sha256": "850316c42f0e087af2f1e45e2d5856eb5db0d7458262cb41ab062adecf298fd4",
+      "bytes": 412
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/src/cascade/control/simulation_motion.py",
+      "sha256": "45d076d98ae6e18d9bd0b3a17cbd3adf6c18a267a92663c679a509f4c163d42f",
+      "bytes": 13384
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/src/cascade/sim/bridge_client.py",
+      "sha256": "18c567926a308351f0b921acc521f4e054a5529612fca0dc43eefe593c2ce173",
+      "bytes": 10469
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/benchmark/diagnostics/kitchen_acceptance.py",
+      "sha256": "fd74e2624903fc71ecf177c18e6a5b900e1c87a5cc62c99b3730eea6f5bb46c0",
+      "bytes": 29627
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/scripts/isaac_bridge.py",
+      "sha256": "4ad8a3a0f581684ca87976328ad224a207a9b4badababeae456bd7b43a74438b",
+      "bytes": 115720
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/demo/scene/kitchen_config.json",
+      "sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+      "bytes": 3404
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/assets/usd/RS-rebot-dev-arm/RS-rebot-dev-arm.usda",
+      "sha256": "05f6a56536c3eaaa18e6885ca25bb7459830c7868118b4798cbc19d4cf0eca91",
+      "bytes": 7368
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/assets/newton/rebot_gripper_hulls.usda",
+      "sha256": "46fd39d7f4ad948a9a7e6d67f2f7fde5a92333972e1f4ff2014dcba1449462de",
+      "bytes": 257744
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/models/mobileclip_blt.ts",
+      "sha256": "a67804d1b0f07b8b9a20c1761ec0847f34660f5fa338ec70e8f3fce68ed95e54",
+      "bytes": 599764649
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-trial12-followup/models/yoloe-11s-seg.pt",
+      "sha256": "8e439445c87338b79d9ce21dec109f4621e26df67e94d26ea1a98c1e64dce3e3",
+      "bytes": 27803986
+    }
+  ]
+}

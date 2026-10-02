@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "scope": "Native SIGTERM lifecycle only; no locomotion admission",
+  "source_head": "9240770",
+  "lifecycle_commits": [
+    "401fad0",
+    "0607aa6"
+  ],
+  "native_recipe_context": {
+    "policy": "rough_walk_e opt-in research checkpoint",
+    "bam_profile": "official_infer_nominal_no_delay",
+    "model_identity_sha256": "2d967c72cded8f9d11eafa635023da2737c6bc058d98956d2193cf758f9e59ac",
+    "source_inventory": "0a32fbf17ea64def7d0054e6a697bd68595b073b31a081d59da788239a21d6cb"
+  },
+  "external_run_directory": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/native-rough-foundation01",
+  "observed": {
+    "pre_close_receipt_signal": 15,
+    "receipt_phase": "before_sdk_shutdown",
+    "sdk_close_python_returned": false,
+    "native_child_exit": 143,
+    "launcher_exit": 1,
+    "launcher_mapping": "Isaac python.sh maps every nonzero child status to1; wrapper records actual143",
+    "scope": "inactive/dead",
+    "SIGKILL_used": false,
+    "teardown_errors": [],
+    "source_unchanged": true,
+    "signal_request_record": {
+      "after_completed_records": 801,
+      "last_step": 803,
+      "signum": 15
+    },
+    "pid": 119855,
+    "proc_start_ticks": 21247626,
+    "final_completed_records": 807,
+    "final_solved_step": 809,
+    "policy_commits": 202,
+    "force_probes": 41,
+    "force_probe_max_difference": 0.0
+  },
+  "file_mtime_utc_not_signal_delivery_timestamp": {
+    "signal-request.json": "2026-10-02T18:57:23.663445+00:00",
+    "kit/receipt.json": "2026-10-02T18:57:23.711518+00:00",
+    "native-exit.json": "2026-10-02T18:57:24.289790+00:00",
+    "lifecycle.json": "2026-10-02T18:57:24.504133+00:00"
+  },
+  "limits": [
+    "No exact pidfd-send timestamp or per-solve wall timestamp was recorded; do not infer number of solves after signal delivery from request-record versus final-step counts.",
+    "The SDK exits from SimulationApp.close; external process status establishes closure, not a returned Python close call.",
+    "Grounded native closure applies to this exact source/recipe. Motion admission remains separate."
+  ],
+  "artifacts": {
+    "campaign.json": "5e8eb97cc88dca7323e9a59b44501089c5e0978babfb3f7d9cdbc9a6d47b9631",
+    "campaign-harness.py": "82cd869169ace3d529fc212706c1a59e450adbe0cf0476afa53f0f2667e5d6bb",
+    "lifecycle.json": "f8de74ba4e488d0918ab2124b5599abc3d421f20ea877916be19b621a1dd6924",
+    "signal-request.json": "c8d0d81148aeaf6512d309bbd8d9e8954b68e604d59513bd3833fc59f70bea3f",
+    "native-exit.json": "1f31fb9d7c0d695c6c19102dbedc15ba143038f918df070bfccce009bba53a6a",
+    "kit/receipt.json": "28abdf333ff2386a0e0cebb4d2863a4108a5472cc85f3bf73b2092bbf320c219",
+    "kit/startup.json": "226f8ad37198747ef3e480b64c477cf385b0e8372d231ed7945fb43d86c7d7fc",
+    "kit/runtime.json": "4c3690135643d39a4ca48fffa64e7299b01502dd334667e7ac906a5439a4f138",
+    "kit/model-identity.json": "17e0f774edf8cb7cc5e69dbb8b22183e03f1a5a91511a513cc62798a25e1554f",
+    "kit/physics.jsonl": "c27e55f5af564914f6f8b4cf9b254f966335f193ee305bdc28333ea796bfd448",
+    "kit/policy.jsonl": "c45587368bf00b35d65ecb99771c53377fc93327f5e85b224c608ca064b1a1b5",
+    "kit/support-probe.jsonl": "5b2a062a986f7a772b860ea39998a988be1aade14c5eedc78485ccd74353cf77",
+    "kit/frames.jsonl": "3ee899b1aa821577e0df02fffe03c96d91d2c7943b7031b0f524d7b277b59d63",
+    "source-sha256.json": "0a32fbf17ea64def7d0054e6a697bd68595b073b31a081d59da788239a21d6cb"
+  },
+  "independent_audit_sha256": "d28e68998085a9f5dd6a9df97d96b67c7dd4d6b1c5b6f42c986de60e5bd8a141",
+  "protected_envelope_sha256": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2"
+}

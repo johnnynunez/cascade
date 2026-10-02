@@ -8,9 +8,13 @@ stops. It does not import or emulate the Reachy Mini SDK.
 
 The implementation has been exercised through real loopback HTTP/WebSocket
 servers, generated PCM/WAV audio, a synthetic sensor profile and the actual CLI.
-These are software protocol results. No connected speech-model inference,
-microphone hardware, robot listening accuracy or physical task success is
-established by those tests.
+A separate owned GPU run also exercised local HF speech-model inference and
+readonly tools. Its small three-phrase recipe completed speech input/output for
+all three phrases but satisfied only two requested intents; an incorrect
+success narration remains a recorded failure. See the
+[native speech evidence and recipes](CONVERSATION_NATIVE_20261002.md).
+Microphone hardware, browser playback against that native provider, general
+listening accuracy and physical task success remain unvalidated.
 
 ## Run the gateway
 

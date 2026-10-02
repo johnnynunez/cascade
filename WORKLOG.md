@@ -252,3 +252,26 @@ source and protected learned stores stayed unchanged. An earlier failed identity
 mismatch test and an incorrect test assumption about validation timing are
 retained in the task's `microduck-profiles-02` results; the final run is
 `microduck-profiles-03`.
+## Owned native speech-provider validation (2026-10-02)
+
+Connected the committed conversation implementation to a private local HF
+speech-to-speech server on the authorized GPU1, with two CPU threads, a Torch
+allocator ceiling below 12 GiB and a 900-second supervisor watchdog. The first
+Whisper-tiny/SmolLM2 recipe produced real audio and a separate typed synthetic
+IMU read, while retaining a failed spoken read and malformed model output.
+Onset/sample-rate audit confirmed exact sent waveform bytes and preserved the
+uncertainty: full uncropped tiny ASR also misrecognized the phrases.
+
+The second Whisper-base/Qwen3-1.7B recipe completed three actual synthetic-audio
+STT/LLM/TTS paths. Greeting and sensor-catalog intents succeeded; requested
+sensor reading failed because the model only listed sensors and falsely narrated
+data retrieval. Its authoritative tool receipt records the mismatch. Upstream
+one-second streamer warmup failed first; the successful isolated provider uses a
+recorded one-line 10-second transport-wait patch, with CASCADE sources unchanged.
+Both owned servers closed, reaped and released their ports. No motion, audio
+hardware, physical acceptance or public/paid deployment is claimed.
+
+See `docs/CONVERSATION_NATIVE_20261002.md` and the hash-bound compact receipt
+`benchmark/results/conversation_native_20261002.json`. MMS voice/audio artifacts
+remain local under its model-card noncommercial license. No shared environment,
+learned store or foreign service was modified.

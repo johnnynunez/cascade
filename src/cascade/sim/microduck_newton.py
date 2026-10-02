@@ -313,15 +313,37 @@ def disable_source_actuators(stage):
     return records
 
 
-def create_overview_sensor(stage, camera, sensor_factory):
+def synchronize_camera_authoring(app, timeline, manager, native_stage):
+    """Absorb authored USD once, before any physical initialization or solve."""
+    def clocks():
+        return dict(stopped=bool(timeline.is_stopped()), timeline_time_s=float(timeline.get_current_time()),
+                    manager_step=int(manager.get_num_physics_steps()),
+                    manager_time_s=float(manager.get_simulation_time()),
+                    native_initialized=bool(native_stage.initialized),
+                    native_step=int(native_stage.simulation_step_count), native_time_s=float(native_stage.sim_time))
+    expected = dict(stopped=True, timeline_time_s=0., manager_step=0, manager_time_s=0.,
+                    native_initialized=False, native_step=0, native_time_s=0.)
+    before = clocks()
+    if before != expected:
+        raise RuntimeError('camera authoring requires stopped zero clocks: ' + json.dumps(before, sort_keys=True))
+    app.update()
+    after = clocks()
+    if after != before:
+        raise RuntimeError('camera authoring advanced physics: ' + json.dumps(after, sort_keys=True))
+    return dict(app_updates=1, before=before, after=after)
+
+
+def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer):
     """Author a stable product for CameraSensor's supported asset-RP path.
 
     Isaac Sim 6.1 SensorRuntime._find_asset_render_product discovers a
     RenderProduct outside /Render with a camera relationship to this sensor.
     CameraSensor adopts its authored resolution. Its default creation path
     instead embeds hash(self), making otherwise identical scene hashes vary.
-    Verify adoption: the SDK's attachment fallback must not silently create a
-    different random product. No scene-text normalization or SDK patching.
+    Hydra's USD ABI requires a complete product, including its RenderVar, and
+    one update to absorb the edits before attachment (omni.kit.hydra_texture's
+    test_hydra_texture.setup_custom_product). Run that update while stopped.
+    Verify adoption: no fallback product or scene-text normalization.
     """
     from pxr import Gf, Sdf
     if stage.GetPrimAtPath(OVERVIEW_RENDER_PRODUCT).IsValid():
@@ -333,13 +355,24 @@ def create_overview_sensor(stage, camera, sensor_factory):
     product.CreateRelationship('camera', custom=False).SetTargets([Sdf.Path(OVERVIEW_CAMERA)])
     product.CreateAttribute('resolution', Sdf.ValueTypeNames.Int2, custom=False,
                             variability=Sdf.VariabilityUniform).Set(Gf.Vec2i(640, 480))
+    color_path = Sdf.Path(OVERVIEW_RENDER_PRODUCT + '/LdrColor')
+    color = stage.DefinePrim(color_path, 'RenderVar')
+    color.CreateAttribute('sourceName', Sdf.ValueTypeNames.String, custom=False,
+                          variability=Sdf.VariabilityUniform).Set('LdrColor')
+    product.CreateRelationship('orderedVars', custom=False).SetTargets([color_path])
+    sync_renderer()
     sensor = sensor_factory(camera, resolution=(480, 640), annotators=['rgb'])
     actual = sensor.render_product.GetPrim()
-    if (str(actual.GetPath()) != OVERVIEW_RENDER_PRODUCT
-            or actual.GetRelationship('camera').GetTargets() != [Sdf.Path(OVERVIEW_CAMERA)]
-            or tuple(actual.GetAttribute('resolution').Get()) != (640, 480)
-            or tuple(sensor.resolution) != (480, 640)):
-        raise RuntimeError('CameraSensor did not adopt the exact authored overview render product')
+    resolution = actual.GetAttribute('resolution').Get()
+    observed = dict(path=str(actual.GetPath()),
+                    camera_targets=[str(p) for p in actual.GetRelationship('camera').GetTargets()],
+                    render_resolution=None if resolution is None else list(resolution),
+                    sensor_resolution=None if sensor.resolution is None else list(sensor.resolution),
+                    ordered_vars=[str(p) for p in actual.GetRelationship('orderedVars').GetTargets()])
+    if (observed['path'] != OVERVIEW_RENDER_PRODUCT or observed['camera_targets'] != [OVERVIEW_CAMERA]
+            or observed['render_resolution'] != [640, 480] or observed['sensor_resolution'] != [480, 640]):
+        raise RuntimeError('CameraSensor did not adopt the exact authored overview render product: '
+                           + json.dumps(observed, sort_keys=True))
     return sensor
 
 
@@ -506,6 +539,7 @@ class KitNewtonBackend:
     def _create_camera(self, stage):
         from pxr import Gf, UsdGeom, UsdLux
         from isaacsim.sensors.experimental.rtx import RtxCamera, CameraSensor
+        from isaacsim.physics.newton import acquire_stage
         from isaac_camera_readback import CpuCameraReadback
         import omni.replicator.core as rep
         UsdLux.DomeLight.Define(stage, '/World/DomeLight').CreateIntensityAttr(300.)
@@ -521,7 +555,10 @@ class KitNewtonBackend:
         optics.GetFocalLengthAttr().Set(18.)
         optics.GetHorizontalApertureAttr().Set(20.955)
         optics.GetVerticalApertureAttr().Set(20.955 * 480 / 640)
-        sensor = create_overview_sensor(stage, camera, CameraSensor)
+        def sync_renderer():
+            self.receipt['camera_authoring_sync'] = synchronize_camera_authoring(
+                self.app, self.timeline, self.SM, acquire_stage())
+        sensor = create_overview_sensor(stage, camera, CameraSensor, sync_renderer=sync_renderer)
         product = str(sensor.render_product.GetPath())
         self.readback = CpuCameraReadback(sensor, render_product_id=product)
         times = self.readback._render_times

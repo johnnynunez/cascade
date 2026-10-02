@@ -2203,8 +2203,12 @@ class SkillRuntime:
             # 4. lift back to pregrasp (speed scaled by profile)
             lift_dur = float(gcfg.get("descend_duration_s", 2.0)) / max(profile.lift_speed_scale, 0.2)
             grasp_evidence.phase("lift")
-            grasp_evidence.event("move_target", q=q_pre, duration_s=lift_dur)
-            if not carry_attachment.move(self, q_pre, duration_s=lift_dur,
+            q_lift = q_pre
+            if getattr(self.arm, "motion_planner", None) is not None:
+                from ..planning.runtime import contact_lift_target
+                q_lift = contact_lift_target(self.kin, close_state.q, q_pre)
+            grasp_evidence.event("move_target", q=q_lift, duration_s=lift_dur)
+            if not carry_attachment.move(self, q_lift, duration_s=lift_dur,
                     _linear_tool_path=True,
                     **({"_halt_generation": scene_halt_generation} if scene_enabled else {})):
                 raise SkillError("did not settle at grasp lift pose")

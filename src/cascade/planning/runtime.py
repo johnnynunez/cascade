@@ -19,6 +19,21 @@ from . import PlanningError, make_motion_planner
 from .trajectory import TrajectoryProfile
 
 
+def contact_lift_target(kin, measured_q, pregrasp_q):
+    """Lift to the vetted position without undoing measured contact rotation."""
+    pose = kin.fk(measured_q).copy()
+    pose[:3, 3] = kin.fk(pregrasp_q)[:3, 3]
+    solution = kin.ik(pose, measured_q)
+    if not solution.success:
+        raise SafetyViolation("cuMotion contact lift cannot preserve measured orientation")
+    actual = kin.fk(solution.q)
+    position_error = float(np.linalg.norm(actual[:3, 3] - pose[:3, 3]))
+    angle = float(np.arccos(np.clip((np.trace(pose[:3, :3].T @ actual[:3, :3]) - 1.) / 2., -1., 1.)))
+    if (not np.isfinite(actual).all() or position_error > 1e-4 or angle > 1e-4):
+        raise SafetyViolation("cuMotion contact lift IK failed independent FK validation")
+    return solution.q
+
+
 class RuntimeMotionPlanner:
     """Model-bound lazy SDK owner; constructing this never connects an arm."""
 

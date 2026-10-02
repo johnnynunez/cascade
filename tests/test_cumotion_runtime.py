@@ -182,3 +182,28 @@ def test_default_composition_never_initializes_native_sdk(monkeypatch):
     raw, safe, _kin = demo._build_arm(cfg.arm, True, None, cfg)
     assert safe.motion_planner is None and not raw.connected
     safe.disconnect()
+
+
+@pytest.mark.parametrize('failure', [None, 'ik', 'fk'])
+def test_contact_lift_preserves_measured_rotation_and_checks_ik(failure):
+    from cascade.planning.runtime import contact_lift_target
+    measured = np.array([.02, .031])
+    pregrasp = np.array([.06, 0.])
+    def fk(q):
+        pose = np.eye(4)
+        c, s = np.cos(q[1]), np.sin(q[1])
+        pose[:2, :2] = [[c, -s], [s, c]]
+        pose[2, 3] = q[0]
+        return pose
+    def ik(pose, start):
+        np.testing.assert_array_equal(start, measured)
+        np.testing.assert_allclose(pose[:3, :3], fk(measured)[:3, :3])
+        assert pose[2, 3] == pregrasp[0]
+        return NS(success=failure != 'ik', q=np.array([
+            pose[2, 3] + (.002 if failure == 'fk' else 0.), measured[1]]))
+    kin = NS(fk=fk, ik=ik)
+    if failure:
+        with pytest.raises(SafetyViolation, match='contact lift'):
+            contact_lift_target(kin, measured, pregrasp)
+    else:
+        np.testing.assert_allclose(contact_lift_target(kin, measured, pregrasp), [.06, .031])

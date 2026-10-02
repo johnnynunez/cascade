@@ -163,3 +163,26 @@ rejection, flush and stale-context suppression. Generated sample bytes are used;
 the fixture contains no MMS audio. This is CPU scheduling evidence, still not
 a microphone/speaker-device test or another GPU inference run. See the
 [playback receipt](../benchmark/results/conversation_playback_20261002.json).
+
+## Native CPU provider and actual Chromium in one episode
+
+A later isolated run bound CASCADE `4d8c350` to a pinned local Whisper-base /
+Qwen3-1.7B / Kokoro-82M provider and Chromium 153. A generated `bm_fable` WAV
+entered Chromium's fake microphone and actual AudioWorklet; the ASR returned
+“Hello, please say hello back.” The model replied “Hello! How can I assist you
+today?” Actual AudioContext playback consumed all 70,656 mono 24 kHz samples
+(**2.944 s**), drained its queue, and the browser Stop latched the runtime.
+No page errors occurred. Gateway/runtime and the provider closed; independent
+checks found both provider/supervisor PIDs absent and its port bindable.
+
+Total response time was **68.923 s**, including 61.580 s of CPU LLM inference.
+This exceeds the unchanged maximum 60 s tool-intent deadline; no tool was requested
+or executed in this greeting. It is evidence of the complete voice path, not
+responsive interaction, CPU tool admission or physical microphone/speaker proof.
+The provider log's 2.20 s audio field counts segmented input, not generated output;
+source inspection confirms negotiated 24 kHz output. The previous failed
+sensor-read intent is unchanged. No public deployment is claimed.
+
+[Source/model/version/closure receipt](evidence/robot-modularity/conversation-native-chromium.json)
+and [actual browser screenshot](evidence/robot-modularity/conversation-native-chromium.png).
+Waveforms and authenticated browser trace remain local, indexed by their hashes.

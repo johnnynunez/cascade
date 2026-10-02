@@ -21,8 +21,13 @@ with at most a two-second scheduling horizon; Stop cleared a subsequent burst,
 latched the runtime, and explicit reset/reconnect/disconnect passed. See the
 [Chromium receipt](evidence/robot-modularity/conversation-chromium.json) and
 [screenshot](evidence/robot-modularity/conversation-chromium.png).
-Microphone/speaker hardware, browser playback against the native HF provider,
-general listening accuracy and physical task success remain unvalidated.
+A subsequent same-episode CPU HF/Chromium greeting also completed actual
+ASR, LLM, TTS and playback in 68.923 s; its [native browser receipt](
+evidence/robot-modularity/conversation-native-chromium.json) preserves exact
+source/model bindings. The 61.580 s LLM interval exceeds the 60 s tool-intent
+deadline, so this does not admit CPU speech tools or practical interactive
+latency. Hardware audio, general listening accuracy and physical task success
+remain unvalidated.
 
 ## Run the gateway
 

@@ -333,3 +333,14 @@ string wait violated CSP; only the probe was corrected, preserving shipped CSP.
 This is synthetic-provider browser integration, not native speech inference or
 physical microphone/speaker acceptance. Root regression on the same source:
 130 passed, 3 skipped in 2.86 s. Evidence: docs/evidence/robot-modularity/conversation-chromium.json.
+
+## Native provider plus Chromium (2026-10-02)
+
+The frozen 4d8c350 gateway completed an actual CPU Whisper/Qwen/Kokoro greeting
+through Chromium fake microphone/AudioWorklet and AudioContext, then Stop.
+ASR matched input, reply spoke a greeting, all 70,656 output samples drained at
+24kHz, and owned processes closed with source/protected stores unchanged.
+Response 68.923 s includes 61.580 s CPU LLM time, longer than 60 s tool admission; no
+tool/actuator call occurred. This limitation and the earlier failed sensor-read
+intent remain explicit. Native provider log audio 2.20 s counts input, not output.
+Receipt: docs/evidence/robot-modularity/conversation-native-chromium.json.

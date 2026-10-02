@@ -1,0 +1,436 @@
+{
+  "schema": "cascade.microduck.continuation-evidence.v1",
+  "date": "2026-10-02",
+  "physical_admission": false,
+  "native_source_commit": "dcdb3866e1d56801f263b7663152e33746216ac9",
+  "candidate_profile_correction": "047a06a",
+  "artifact_root_local": "MICRODUCK_CODEX/ beside the worktree",
+  "model_identity_sha256": "43a814f055e9fc4ff410cdaea09b4eb399c8956f5b7b18835d88eb6bd3cf5165",
+  "runs": {
+    "native-foundation3": {
+      "steps": 800,
+      "policy_commits": 200,
+      "support_probe_count": 41,
+      "wall_duration_s": 38.89076165398001,
+      "support_counts": {
+        "direct_api_probes": 41,
+        "forbidden_loaded_contact_records": 0,
+        "known_empty_rows": 8,
+        "known_rows": 800,
+        "known_rows_without_positive_sole_load": 8,
+        "missing_raw_support": 0,
+        "physics_rows": 800,
+        "sole_contacts_with_nonupward_reaction": 0,
+        "solved_contact_records": 6384,
+        "unavailable_rows": 0,
+        "zero_force_contact_records": 95
+      },
+      "support_errors": [],
+      "force_probe_max_component_error_n": 0.0,
+      "mass_kg": 0.7372431745752692,
+      "weight_n": 7.2323558519429385,
+      "last_100_mean_support_to_weight_ratio": 1.000024465678658,
+      "lifecycle": {
+        "kit_exit": 0,
+        "native_child_exit": 0,
+        "expected_native_child_exit": 0,
+        "closure_ok": true,
+        "unit_state": "ActiveState=inactive\nSubState=dead\n",
+        "error": null,
+        "source_unchanged": true
+      },
+      "artifact_sha256": {
+        "campaign.json": "7c026ae096eb728c8e88429a3393786fda4df377a6261f5bca073f0256dc3878",
+        "source-sha256.json": "f5e8aaad45633da46092b3f38e092cc562d7709830571340d29e1f65f3d101e3",
+        "kit/model-identity.json": "d55053400a52564eb93873738f492ce28816ab053f5be306b5866508cc86f500",
+        "kit/receipt.json": "580e6fa52d6b4f713b9d4bd8935ac320bb9f0f4e3bcbffcbd1aaf2468e71fc74",
+        "kit/physics.jsonl": "275f9f1ac16a30e1446a02fe67304291b0c4eb73264078bd5322968d964b53ed",
+        "kit/policy.jsonl": "76fdfb9fbc1ab33fd46424f7bad6b4af6c3627358dc4e781826a456587165eb8",
+        "kit/frames.jsonl": "daddba9ec7f83366b26144f601e17cdff9ea28f9c4b33f6788f6f82beb4c3439",
+        "kit/support-probe.jsonl": "5253bb5afac50e7a0a13d17db884fcc04572f3ae6d06ceef5bd0cf7e066cc69a",
+        "lifecycle.json": "f771afec87973fa7675ef42691582a3328aa4aff96f12f398fd60c5ec5364f77",
+        "support-analysis.json": "c2fdebe01fb77e1f9c27ab5b74ff2ccd25db845c9d31bc61c83b2c87f4c622f6",
+        "kit/runtime.json": "375c22b731a4312e810ab168900e367a6341e613f8379aaf040e19deb5378e01"
+      },
+      "video": {
+        "file": "foundation-simtime.mp4",
+        "sha256": "e95cb711a6900c60a234fa729f92375a074a047ba88df621f573ff4244a2b0c4",
+        "source_frames_sha256": "daddba9ec7f83366b26144f601e17cdff9ea28f9c4b33f6788f6f82beb4c3439",
+        "source_frame_count": 41,
+        "encoded_frame_count": 42,
+        "timeline": "simulation time; zero origin at first recorded frame",
+        "first_source_time_s": 0.014999999664723873,
+        "last_source_time_s": 4.009999910369515,
+        "maximum_timestamp_rounding_error_s": 8.929520856071349e-08,
+        "final_repeated_endpoint_hold_s": 0.005,
+        "visual_interpolation": false,
+        "pixel_edits": false,
+        "local_only": true,
+        "external_asset_license_not_relicensed": true,
+        "video_stream": {
+          "codec_name": "h264",
+          "width": 640,
+          "height": 480,
+          "pix_fmt": "yuvj420p",
+          "time_base": "1/1000000",
+          "duration": "4.001000",
+          "nb_frames": "42"
+        }
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frame_count": 41
+      }
+    },
+    "native-mcp2": {
+      "steps": 2400,
+      "policy_commits": 600,
+      "support_probe_count": 121,
+      "wall_duration_s": 94.6694877060072,
+      "support_counts": {
+        "direct_api_probes": 121,
+        "forbidden_loaded_contact_records": 0,
+        "known_empty_rows": 8,
+        "known_rows": 2400,
+        "known_rows_without_positive_sole_load": 8,
+        "missing_raw_support": 0,
+        "physics_rows": 2400,
+        "sole_contacts_with_nonupward_reaction": 0,
+        "solved_contact_records": 19145,
+        "unavailable_rows": 0,
+        "zero_force_contact_records": 100
+      },
+      "support_errors": [],
+      "force_probe_max_component_error_n": 0.0,
+      "mass_kg": 0.7372431745752692,
+      "weight_n": 7.2323558519429385,
+      "last_100_mean_support_to_weight_ratio": 1.0000071991656077,
+      "lifecycle": {
+        "kit_exit": 1,
+        "native_child_exit": 143,
+        "expected_native_child_exit": 143,
+        "closure_ok": true,
+        "unit_state": "ActiveState=inactive\nSubState=dead\n",
+        "error": null,
+        "source_unchanged": true
+      },
+      "artifact_sha256": {
+        "campaign.json": "6baefcf538d72c3f3dffc45f70cdabb97c4612ede669a23ea65ce3c5ad75bdcd",
+        "source-sha256.json": "f5e8aaad45633da46092b3f38e092cc562d7709830571340d29e1f65f3d101e3",
+        "kit/model-identity.json": "d55053400a52564eb93873738f492ce28816ab053f5be306b5866508cc86f500",
+        "kit/receipt.json": "c3a865e40ce8a64e272bf17805746dc71a07595e7a7cf2675d3ffc787ebd6f95",
+        "kit/physics.jsonl": "fe2c5e1b1ecd452009e637e8a94e73dd4c7e25dc8d03789df2a82ef2acca261c",
+        "kit/policy.jsonl": "0070105aa88c26773cd2d49cd0c68d9a62e0e68497e26caeb255d9680d65baf1",
+        "kit/frames.jsonl": "4f119c82115d38113520a7ad17a2b3f10867af6bac95c1bcd4a29a72680dc830",
+        "kit/support-probe.jsonl": "2e6c9db969920c818edaca74e7cf6be18efbbc0986597093771b93b6d83877c8",
+        "lifecycle.json": "8450fb09a5adf249091deff83254421b71af1f0426ddd30dfa2fc4f9b227677e",
+        "support-analysis.json": "88213d917b6f475af63be79af7ce246fed958ec71254ef754323fb16bb30a804",
+        "outcomes.json": "5584100d8acb0f4963133938aa7d8f6c284a96e2a8b207a986de02407c4831f5",
+        "interruption.json": "bdbb679dbb4d1de3abbc285f3d8b5e5676dc5bd3da2e28ce0d73886fc90e22d5",
+        "mcp.jsonl": "8c900b7d01d186c7723c3ae3c780121d5a543817962f5e5c2862179e8e2a7987",
+        "mcp-lifecycle.json": "81868a6e94ffc0178bf833deb1c9013d9fab4ee95ddb876a5e8ec4f1d26376d2",
+        "kit/runtime.json": "13a9ee98d2cb508ae2cb35d28a6d392167ad3c59eea384e41c39a667fd90eff6",
+        "mcp-profile.json": "b318f3e991c42c8fd90056439099b303d83a6e341eb7e5acad493343334e0571",
+        "mcp-simtime.mp4": "a1c6a33e0a1d61d9b8aa9793435bd4e1e7adda8c7a26a2c65d92b86eb6d40509",
+        "mcp-simtime-metadata.json": "3aa45d1b81485c5904b5add42b393f8ead5088a311e78e5484cb208227cd6b91",
+        "runtime/trace.jsonl": "4c3401494be8e8e0afa5fe4a6e837afa2896c6a98716f9d5fdb7d86851a44abd",
+        "independent-outcomes-audit.json": "5c9e8b5f99f2052ddd624c12501aff6b7312651fca0fe8233eaab32472ca2616",
+        "independent-review.md": "24df78d42fe56feda98cfd50b28f25c7f3593e319889e331108b1e5e270b64a5",
+        "independent-review-artifacts.json": "1c0e9b073251ba2ad42d65eb7ac3c81cea19970f0745746385f310934adc56e0"
+      },
+      "video": {
+        "file": "mcp-simtime.mp4",
+        "sha256": "a1c6a33e0a1d61d9b8aa9793435bd4e1e7adda8c7a26a2c65d92b86eb6d40509",
+        "source_frames_sha256": "4f119c82115d38113520a7ad17a2b3f10867af6bac95c1bcd4a29a72680dc830",
+        "source_receipt_sha256": "c3a865e40ce8a64e272bf17805746dc71a07595e7a7cf2675d3ffc787ebd6f95",
+        "model_identity_sha256": "43a814f055e9fc4ff410cdaea09b4eb399c8956f5b7b18835d88eb6bd3cf5165",
+        "source_frame_count": 120,
+        "encoded_frame_count": 121,
+        "timeline": "simulation time; zero origin at first recorded frame",
+        "first_source_time_s": 0.014999999664723873,
+        "last_source_time_s": 11.909999733790755,
+        "final_physics_time_s": 12.009999731555581,
+        "final_unpictured_physics_s": 0.09999999776482582,
+        "maximum_timestamp_rounding_error_s": 2.6587396817490117e-07,
+        "final_repeated_endpoint_hold_s": 0.005,
+        "metadata_completed_from_existing_owned_video": true,
+        "visual_interpolation": false,
+        "overlays": false,
+        "crop": false,
+        "local_only": true,
+        "external_asset_license_not_relicensed": true,
+        "video_stream": {
+          "codec_name": "h264",
+          "width": 640,
+          "height": 480,
+          "pix_fmt": "yuvj420p",
+          "time_base": "1/1000000",
+          "duration": "11.901000",
+          "nb_frames": "121"
+        }
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frame_count": 120
+      }
+    }
+  },
+  "software_checks": {
+    "optional_cpu": {
+      "source_commit": "1883d4dee7bdd184935236b39e854d4703c83897",
+      "unique_outcomes": {
+        "passed": 268
+      },
+      "modules": {
+        "tests.test_microduck_conversion": {
+          "passed": 80
+        },
+        "tests.test_newton_bam": {
+          "passed": 98
+        },
+        "tests.test_microduck_policy": {
+          "passed": 30
+        },
+        "tests.test_microduck_actuator": {
+          "passed": 23
+        },
+        "tests.test_microduck_assets": {
+          "passed": 37
+        }
+      },
+      "overlaps_normal_suite": true,
+      "summary_sha256": "d9b7acd812958c9185580f77a99158f2a8068002765bcfac14c3db6e4830f75c"
+    },
+    "first_full_suite": {
+      "source_commit": "047a06a",
+      "passed": 4835,
+      "failed": 134,
+      "skipped": 253,
+      "deselected": 4,
+      "source_unchanged": true,
+      "shared_memory_unchanged": true,
+      "failure_causes": {
+        "missing_kitchen_bundle": 132,
+        "scripted_engine_implicit_default": 2
+      },
+      "retained": true
+    },
+    "auxiliary": {
+      "packaging_passed": 62,
+      "booth_ui_passed": 88,
+      "source_unchanged": true,
+      "shared_memory_unchanged": true,
+      "result_sha256": "e2735ae0f56fd81850de2c1e18aca158bd0340cf5cd36a4d503e332498b40cad"
+    },
+    "ruff": {
+      "selection": [
+        "F",
+        "E9"
+      ],
+      "new_diagnostics_vs_69037b7": 0,
+      "preexisting_diagnostics": 57
+    },
+    "full_regression": {
+      "source_commit": "0fb8b180ad48a15319a16e5ea982a471b1b8cee8",
+      "passed": 4969,
+      "skipped": 253,
+      "deselected": 4,
+      "seconds": 389.09,
+      "source_unchanged": true,
+      "shared_memory_unchanged": true,
+      "artifacts_sha256": {
+        "result.json": "0ef39d9f389255f4d1e5c0c85892528e3dd8cd4cd41fffbfd8c2dda923e004c3",
+        "junit.xml": "a6e61c475fc335e9fdc8897d64ec9c6fdfc730be8a558eb765324c951d0bf4c3",
+        "pytest.log": "9f65d10bc9f725a6d77d237cd223e284d8730d8cbdac72e743623a6a1e7e9703",
+        "source-sha256.json": "a03703da765cb29de9c4a745c879a95316cbf3626349272661e03dd6bc2b2e97"
+      }
+    }
+  },
+  "retained_failures": [
+    "native-foundation (external pidfd cleanup harness)",
+    "native-mcp (nondeterministic camera identity)",
+    "native-foundation2 (incomplete Hydra product)",
+    "optional-cpu-20261002-01 (private import/fixture setup)"
+  ],
+  "motion_outcomes": [
+    {
+      "tool": "walk_velocity",
+      "arguments": {
+        "vx": 0.0,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 0.6
+      },
+      "execution_ok": true,
+      "outcome": "confirmed",
+      "reason": "independent measured motion matches caller intent",
+      "error": null,
+      "body_displacement_m": [
+        -7.581573542631784e-05,
+        -1.159387380411475e-05
+      ],
+      "yaw_change_rad": 0.0007096695589524186,
+      "controller_measured_angle_rad": null,
+      "sim_duration_s": 0.5999999865889549
+    },
+    {
+      "tool": "walk_velocity",
+      "arguments": {
+        "vx": 0.1,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 1.0
+      },
+      "execution_ok": true,
+      "outcome": "refuted",
+      "reason": "insufficient progress on vx",
+      "error": null,
+      "body_displacement_m": [
+        0.0034319035471806307,
+        0.0010026850966097115
+      ],
+      "yaw_change_rad": -0.0024114117668603396,
+      "controller_measured_angle_rad": null,
+      "sim_duration_s": 0.9999999776482582
+    },
+    {
+      "tool": "walk_velocity",
+      "arguments": {
+        "vx": -0.1,
+        "vy": 0.0,
+        "wz": 0.0,
+        "duration_s": 1.0
+      },
+      "execution_ok": true,
+      "outcome": "refuted",
+      "reason": "insufficient progress on vx",
+      "error": null,
+      "body_displacement_m": [
+        -0.001070845529706313,
+        -0.0001550858956423714
+      ],
+      "yaw_change_rad": -0.002446373058749368,
+      "controller_measured_angle_rad": null,
+      "sim_duration_s": 0.9999999776482582
+    },
+    {
+      "tool": "turn",
+      "arguments": {
+        "angle_rad": 0.2
+      },
+      "execution_ok": false,
+      "outcome": "unverified",
+      "reason": "unbound command evidence: missing/failed admission or completion receipt",
+      "error": "wall deadline expired",
+      "body_displacement_m": null,
+      "yaw_change_rad": null,
+      "controller_measured_angle_rad": 0.04341326632281498,
+      "sim_duration_s": null
+    },
+    {
+      "tool": "turn",
+      "arguments": {
+        "angle_rad": -0.2
+      },
+      "execution_ok": false,
+      "outcome": "unverified",
+      "reason": "unbound command evidence: missing/failed admission or completion receipt",
+      "error": "wall deadline expired",
+      "body_displacement_m": null,
+      "yaw_change_rad": null,
+      "controller_measured_angle_rad": -0.05022046629035523,
+      "sim_duration_s": null
+    }
+  ],
+  "post_ack_stop": {
+    "receipt_id": "5f9bc56d8955456996a4b62f539d2658",
+    "pending": false,
+    "status": "confirmed",
+    "physical_stop_verified": true
+  },
+  "interruption": [
+    {
+      "mode": "emergency_stop",
+      "active_observed": true,
+      "active_step": 2160,
+      "active_generation": 19,
+      "committed_active_policy_count": 0,
+      "committed_active_commands": [],
+      "first_new_generation_zero_command_observation_step": 2162,
+      "subsequent_policy_commands_all_zero": true,
+      "after_step": 2255,
+      "after_generation": 20,
+      "after_latched": true,
+      "after_fallen": false,
+      "recorded_permission_invalidated": true,
+      "responses": [
+        {
+          "ok": true,
+          "execution_ok": null,
+          "outcome": "unverified",
+          "error": null,
+          "physical_stop_verified": false
+        },
+        {
+          "ok": false,
+          "execution_ok": false,
+          "outcome": "unverified",
+          "error": "cancelled by stop",
+          "physical_stop_verified": null
+        }
+      ],
+      "scored_rest_window": false,
+      "established_gait": false,
+      "nonzero_policy_commits": 0
+    },
+    {
+      "mode": "disconnect",
+      "active_observed": true,
+      "active_step": 2307,
+      "active_generation": 22,
+      "committed_active_policy_count": 1,
+      "committed_active_commands": [
+        [
+          0.10000000149011612,
+          0.0,
+          0.0
+        ]
+      ],
+      "first_new_generation_zero_command_observation_step": 2310,
+      "subsequent_policy_commands_all_zero": true,
+      "after_step": 2400,
+      "after_generation": 28,
+      "after_latched": true,
+      "after_fallen": false,
+      "recorded_permission_invalidated": true,
+      "responses": [
+        {
+          "ok": false,
+          "execution_ok": false,
+          "outcome": "unverified",
+          "error": "cancelled by stop",
+          "physical_stop_verified": null
+        }
+      ],
+      "scored_rest_window": false,
+      "established_gait": false,
+      "nonzero_policy_commits": 1
+    }
+  ],
+  "canonical_identity_documents_equal": true,
+  "recipe": {
+    "bam_profile": "nominal_no_current_limit_no_delay",
+    "bam_revision": "28aa1fca5843208ff9a67935695a4d5376e44d50",
+    "max_current_a": null,
+    "vin_v": 7.4,
+    "drive_effort_limit_nm": 0.96,
+    "joint_effort_limit_nm": 0.96,
+    "policy_sha256": "1c659be55da94bc5753b707de5c6a3e7c49931e05ca3b6991615cef1a8ba9a45",
+    "nominal_physics_dt_s": 0.005,
+    "actual_physics_dt_s": 0.004999999888241291,
+    "policy_decimation": 4,
+    "actual_policy_dt_s": 0.019999999552965164
+  }
+}

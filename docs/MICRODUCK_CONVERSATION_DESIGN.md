@@ -2,6 +2,12 @@
 
 Research snapshot: 2 October 2026.
 
+This is the earlier documentation-only snapshot. The later
+[mobile implementation](MICRODUCK.md) is now present as a candidate, with
+[source-bound native results](MICRODUCK_CONTINUATION_20261002.md). Hosted speech
+and voice-to-MicroDuck control remain unimplemented; the historical pins and
+findings below are not silently rebound to the new runtime.
+
 The Reachy voice interface can be adapted through a MicroDuck media client and mobile command supervisor. This is a design proposal: the documentation branch adds no runtime or deployment, and this review performed no speech session, robot command or latency benchmark.
 
 The [MicroDuck design review](MICRODUCK_DESIGN_REVIEW_20261002.md) records the external implementation snapshot, three open findings and retained physical evidence. Its [source and receipt manifest](evidence/microduck-review/source-receipt-hashes.json) identifies the reviewed bytes. MicroDuck code paths below name that external corpus, not files present in this documentation branch.

@@ -10,6 +10,8 @@ The implementation continues the [approved design](superpowers/plans/2026-10-01-
 and the [dated review](MICRODUCK_DESIGN_REVIEW_20261002.md). That review describes
 an earlier source snapshot; the current continuation adds inference cancellation
 fencing, explicit solved support, and complete effective-model identity.
+The [continuation report](MICRODUCK_CONTINUATION_20261002.md) records the current
+native MCP outcomes, software checks, retained failures and video provenance.
 
 ## Runtime and clocks
 
@@ -94,11 +96,15 @@ owned-resource teardown separately from the receipt. Keep failed episodes.
 
 ## Remaining admission work
 
-The previous real MCP campaign demonstrates the route through policy and
-native physics, but its historical motion outcomes predate the verifier fixes.
-Small forward and reverse commands also failed tracking in the separately
-executed upstream reference. This is not evidence that a policy is intrinsically
-defective, nor permission to substitute another actuator or checkpoint.
+The current real MCP campaign confirms supported standing and a separately
+observed stop. Forward/reverse tracking is refuted and both turns expire.
+Interruption and disconnect invalidate admitted commands; braking from an
+established gait remains unproved. Small forward and reverse commands also
+failed tracking in an earlier upstream reference. The
+[startup research](research/microduck-policy-startup-2026-10-02.md) reports a
+related upstream issue and its limits; the
+[BAM follow-up](research/microduck-bam-2026-10-02.md) distinguishes the pinned
+actuator from incompatible newer fits. Neither establishes a remedy.
 
 Required acceptance includes current-source equilibrium, forward/reverse
 tracking, turns, interruption, disconnect, reset, repeated starts, and video

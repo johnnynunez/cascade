@@ -4,6 +4,7 @@ import json
 
 import pytest
 from mobile_support_fixture import support_contract
+from mobile_tick_fixture import scheduled_tick_steps
 
 from cascade.config import load_demo_config
 import test_mobile_frames
@@ -406,6 +407,7 @@ def test_verifier_confirmed_can_upgrade_only_clean_execution(tmp_path):
 
 def test_runtime_rpc_inert_actor_cannot_borrow_preflight_drift(tmp_path, frame_endpoint):
     import threading
+    from mobile_support_fixture import support
     from cascade.apps.mobile_runtime import build_mobile_runtime
     c, _, profile, _, _, _ = frame_endpoint
     profile.update(timeout_s=.2, verifier=verifier_limits())
@@ -413,18 +415,20 @@ def test_runtime_rpc_inert_actor_cannot_borrow_preflight_drift(tmp_path, frame_e
     rt, rig = build_mobile_runtime(camera_cfg(profile), tmp_path)
     drift_started, drift_complete, halt = (threading.Event(), threading.Event(), threading.Event())
     tick_errors = []
+    published_steps = []
 
     def ticks():
         try:
             step, distance, drift_steps = (c.state()['state']['step'], 0.0, 0)
-            while not halt.wait(0.005):
-                step += 1
+            for step in scheduled_tick_steps(halt, first_step=step + 1,
+                                             wall_interval_s=.005):
                 c.control_at(step * 0.005)
                 moving = drift_started.is_set() and drift_steps < 10
                 if moving:
                     drift_steps += 1
                     distance = drift_steps * 0.001
-                c.publish({'step': step, 'sim_time': step * 0.005, 'position': [distance, 0.0, 0.3], 'orientation_wxyz': [1.0, 0.0, 0.0, 0.0], 'linear_velocity': [0.2 if moving else 0.0, 0.0, 0.0], 'angular_velocity': [0.0, 0.0, 0.0], 'q': [0.0] * 14, 'dq': [0.0] * 14, 'joint_names': [f'fixture-{i}' for i in range(14)], 'contacts': [], 'fallen': False, 'balance_active': True})
+                c.publish({'step': step, 'sim_time': step * 0.005, 'position': [distance, 0.0, 0.3], 'orientation_wxyz': [1.0, 0.0, 0.0, 0.0], 'linear_velocity': [0.2 if moving else 0.0, 0.0, 0.0], 'angular_velocity': [0.0, 0.0, 0.0], 'q': [0.0] * 14, 'dq': [0.0] * 14, 'joint_names': [f'fixture-{i}' for i in range(14)], 'contacts': [], 'fallen': False, 'balance_active': True, 'support': support(step, step * .005)})
+                published_steps.append(step)
                 if drift_steps == 10:
                     drift_complete.set()
         except Exception as exc:
@@ -445,18 +449,25 @@ def test_runtime_rpc_inert_actor_cannot_borrow_preflight_drift(tmp_path, frame_e
     try:
         result = rt.execute('walk_velocity', {'vx': 0.1, 'vy': 0.0, 'wz': 0.0, 'duration_s': 0.1})
         assert not tick_errors, tick_errors
-        assert result['execution_ok'], result
+        assert result['execution_ok'], json.dumps(result)
         admitted = result['ack']['start_sim_time_s']
         samples = result['postcondition']['evidence']['samples']
+        assert samples[0]['phase'] == 'before'
+        assert samples[0]['state']['position_world'][0] == 0.
+        assert samples[0]['state']['sim_time_s'] < admitted
         post_admission = [e['state'] for e in samples if e['state']['sim_time_s'] >= admitted]
         positions = sorted({s['position_world'][0] for s in post_admission})
         assert positions == [0.01], positions
+        assert result['postcondition']['status'] == 'refuted', json.dumps(result)
+        assert result['postcondition']['metrics']['body_displacement_m'] == [0., 0.]
+        assert result['postcondition']['reason'] == 'no effect or wrong sign on vx'
         assert result['ok'] is False, 'real RPC + SafeBase + checker counted only pre-admission drift as motion success'
     finally:
         rt.close()
         halt.set()
         worker.join(1)
         assert not worker.is_alive()
+        assert published_steps == list(range(published_steps[0], published_steps[-1] + 1))
 
 
 def verifier_limits():
@@ -714,21 +725,30 @@ def test_invalid_runtime_camera_profile_fails_before_connect(tmp_path, frame_end
 
 class SyntheticTicks:
     """Completed-step software publisher; balance_active is synthetic, NOT physics."""
-    def __init__(self, controller, *, velocity=0., balance_active=True, wall_interval_s=.005):
+    def __init__(self, controller, *, velocity=0., balance_active=True, wall_interval_s=.005, wait=None):
         import threading
         self.controller = controller
         self.velocity, self.balance_active = velocity, balance_active
         self.wall_interval_s = wall_interval_s
+        self.wait = wait
+        self.errors = []
+        self.published_steps = []
         self.halt = threading.Event()
         self.thread = threading.Thread(target=self.run, name="followup-synthetic-ticks")
         self.thread.start()
 
     def run(self):
+        try:
+            self._publish_steps()
+        except Exception as error:
+            self.errors.append(str(error))
+
+    def _publish_steps(self):
         from mobile_support_fixture import support
         c = self.controller
         step = c.state()["state"]["step"]
-        while not self.halt.is_set():
-            step += 1
+        for step in scheduled_tick_steps(self.halt, first_step=step + 1,
+                                         wall_interval_s=self.wall_interval_s, wait=self.wait):
             c.control_at(step * .005)
             sample = {"step": step, "sim_time": step * .005, "position": [0., 0., .3],
                       "orientation_wxyz": [1., 0., 0., 0.], "linear_velocity": [self.velocity, 0., 0.],
@@ -738,12 +758,13 @@ class SyntheticTicks:
             if self.balance_active is not None:
                 sample["balance_active"] = self.balance_active
             c.publish(sample)
-            self.halt.wait(self.wall_interval_s)
+            self.published_steps.append(step)
 
     def close(self):
         self.halt.set()
         self.thread.join(1)
         assert not self.thread.is_alive()
+        assert not self.errors, self.errors
 
 
 def await_stop(rt, receipt_id, timeout=5.):
@@ -778,7 +799,8 @@ def test_post_ack_stop_is_async_independent_and_preserves_original(tmp_path, fra
         assert ack["physical_stop_verified"] is False
         original = copy.deepcopy(ack)
         proof = await_stop(rt, ack["receipt_id"])
-        assert proof["status"] == expected, proof
+        assert proof["status"] == expected, json.dumps(proof)
+        assert proof["postcondition"]["metrics"]["settle_sim_duration_s"] >= .04
         assert proof["ack"] == ack["bases"]["microduck_isaac"]
         assert proof["serial"] == ack["serial"]
         assert proof["postcondition"]["evidence"]["samples"]
@@ -791,6 +813,7 @@ def test_post_ack_stop_is_async_independent_and_preserves_original(tmp_path, fra
     finally:
         result = rt.close()
         ticks.close()
+    assert ticks.published_steps == list(range(ticks.published_steps[0], ticks.published_steps[-1] + 1))
     assert result["ok"], result
 
 

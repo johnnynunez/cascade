@@ -369,12 +369,13 @@ def test_mobile_camera_mcp_subprocess_returns_actual_jpeg_and_history(tmp_path, 
 
 
 @pytest.mark.parametrize("velocity,expected", [(0., "confirmed"), (.05, "refuted")])
-@pytest.mark.parametrize("wall_tick_s", [.005, .03])
-def test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion(tmp_path, frame_endpoint, velocity, expected, wall_tick_s):
+@pytest.mark.parametrize("wall_tick_s", [.005, .03], ids=["normal-producer", "slow-producer"])
+def test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion(
+        tmp_path, frame_endpoint, velocity, expected, wall_tick_s):
     from test_mobile_runtime import SyntheticTicks, verifier_limits
     c, _, profile, _, _, _ = frame_endpoint
-    # The independent verifier still requires the same physical rest window;
-    # socket delivery and synthetic producer scheduling get CI wall-time room.
+    # Keep the physical rest window and existing wall budgets. SyntheticTicks
+    # completes every due step after late wakeups; no production clock changes.
     limits = verifier_limits()
     profile.update(timeout_s=.2, verifier=limits)
     profile.pop("cameras")
@@ -398,6 +399,7 @@ def test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion(tmp_path, f
             time.sleep(.01)
         assert proof["receipt_id"] == ack["receipt_id"]
         assert proof["status"] == expected, json.dumps(proof, sort_keys=True)
+        assert proof["postcondition"]["metrics"]["settle_sim_duration_s"] >= limits["settle_window_s"]
         assert proof["postcondition"]["evidence"]["provenance"]["source"] == "isaac-microduck"
         assert any(r["skill"] == "walk_velocity" and not r["execution_ok"] for r in verification["recent"])
         assert client.call("reset_stop")["ok"]
@@ -406,8 +408,10 @@ def test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion(tmp_path, f
         assert next(r for r in rows if r["skill"] == "emergency_stop")["result"]["outcome"] == "unverified"
         assert next(r for r in rows if r["skill"] == "stop_verification")["result"]["status"] == expected
     finally:
-        client.close()
-        ticks.close()
+        try:
+            client.close()
+        finally:
+            ticks.close()
     assert client.proc.returncode == 0
 
 

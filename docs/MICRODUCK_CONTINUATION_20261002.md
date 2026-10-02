@@ -124,6 +124,27 @@ is separate from the earlier full regression; remote checks must be assessed
 at the PR's current head. No production runtime, policy or native recipe
 changed in these test corrections.
 
+At `3c3543b`, remote Linux x86 and ARM each passed 4,958 cases (269
+skipped, 4 deselected) plus 62 packaging cases; booth and minimal-install
+checks also passed. macOS retained six failures, with 4,918 passed and 303
+skipped. Its receipts show fast TCP reads but too few synthetic steps: relative
+post-publication waits accumulated publication/wakeup overhead. The log does
+not identify a particular operating-system mechanism.
+
+The follow-up uses absolute fixture deadlines, completes every due step and
+checks cancellation between steps; excessive backlog fails explicitly. It
+preserves all physical windows, freshness, lease and deadline limits. With the
+same injected delays, the new scheduler passed all six affected cases in two
+separate controls; replacing only the scheduler with the old relative pattern
+reproduced all six failures. The preflight case now also supplies valid support
+and requires zero post-admission displacement with the specific motion veto.
+Three deterministic helper regressions cover late wakeups, publication cost,
+cancellation and excess backlog. The combined suite passed **1,190 cases,
+182 skipped**, in 111.98 s with source and shared memory unchanged. The
+[scheduling record](../benchmark/results/microduck_ci_schedule_20261002.json)
+retains exact file hashes, controls and the previous CI result. Production
+runtime and native recipe are unchanged; the new remote checks remain separate.
+
 Earlier failed attempts are retained:
 
 - `native-foundation`: completed the physical episode, then the external

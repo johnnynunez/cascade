@@ -158,15 +158,18 @@ def test_every_channel_requires_identity_attestation(bridge, monkeypatch, field,
     assert c.hello()["generation"] == 0
 
 
-@pytest.mark.parametrize("wall_tick_s", [.005, .025])
-def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(bridge, monkeypatch, wall_tick_s):
+@pytest.mark.parametrize("wall_tick_s", [.005, .025], ids=["normal-producer", "slow-producer"])
+def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
+        bridge, monkeypatch, wall_tick_s):
     from cascade.control.isaac_base import IsaacBase
     from cascade.safety.base_harness import SafeBase
+    from mobile_tick_fixture import scheduled_tick_steps
     c, server = bridge
-    # A synthetic 5 ms solve may take 25 ms of wall time on a scheduled
-    # producer. The 90-solve command tests renewal, not real-time performance.
-    # Keep the .3 s lease and freshness checks, but budget both endpoints for
-    # the deliberately slower producer before the client reads hello.
+    # Execute each synthetic 5 ms solve on an absolute wall schedule. Relative
+    # waits accumulate publish/scheduler overhead; on macOS, gaps between
+    # publications were 141--182 ms with 30 ms requested waits. Coalesced
+    # wakeups must execute every due solve, not lengthen the 90-solve command.
+    # Lease, freshness, physical duration and wall budgets stay unchanged.
     c.max_action_wall_s = 5.
     renewals = []
     dispatch = server.dispatch
@@ -184,13 +187,13 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(br
     safe = SafeBase(raw, limits)
     halt = threading.Event()
     errors = []
+    completed = []
     def completed_steps():
-        step = 0
         try:
-            while not halt.wait(wall_tick_s):
-                step += 1
+            for step in scheduled_tick_steps(halt, first_step=1, wall_interval_s=wall_tick_s):
                 c.control_at(step * .005)
                 publish(c, step=step, sim_time=step * .005)
+                completed.append((step, step * .005))
         except Exception as e:
             errors.append(e)
     producer = threading.Thread(target=completed_steps)
@@ -201,14 +204,20 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(br
         result = safe.walk_velocity(.1, 0., 0., .45)  # exceeds server's .3s wall lease
         assert result["execution_ok"], (
             f"error={result.get('error')}; successful renewals={len(renewals)}; "
-            f"wall tick={wall_tick_s}; producer errors={errors}")
+            f"wall tick={wall_tick_s}; "
+            f"completed solves={len(completed)}; producer errors={errors}")
         assert result["ok"] is False and result["outcome"] == "unverified"
         samples = result["measured"]["samples"]
         assert samples[1]["step"] > samples[0]["step"]
         assert result["ack"]["generation"] == samples[1]["generation"] + 1
         assert result["stop_ack"]["generation"] == result["ack"]["generation"] + 1
         assert len(renewals) >= 2
+        assert sum(ack["active"] for ack in renewals) >= 2
         assert all(ack["generation"] == result["ack"]["generation"] for ack in renewals)
+        solves = tuple(completed)
+        assert len(solves) >= 90
+        assert solves == tuple((step, step * .005) for step in range(1, len(solves) + 1))
+        assert samples[-1]["sim_time_s"] >= result["ack"]["end_sim_time_s"]
         assert all(s["position_world"] == [0., 0., .12] for s in samples)
         assert not errors
     finally:

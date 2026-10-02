@@ -1,0 +1,83 @@
+{
+  "scope": "software test verification; no physical admission",
+  "full_source": "41307b8",
+  "full": {
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "--tb=short",
+      "--junitxml=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHUTDOWN_REVIEW/full-after-fixture-fix/junit.xml",
+      "--basetemp=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHUTDOWN_REVIEW/full-after-fixture-fix/tmp",
+      "tests/"
+    ],
+    "exit_code": 1,
+    "source_unchanged": true,
+    "source_files": 1500,
+    "shared_memory_unchanged": true,
+    "shared_memory_after": {
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+      "/home/johnny/.cascade/grasp_memory.json": null
+    }
+  },
+  "full_counts": {
+    "passed": 5073,
+    "failed": 132,
+    "skipped": 252,
+    "deselected": 4
+  },
+  "all_failures": "Missing pinned kitchen asset bundle in fresh isolated worktree; same ValueError in all132 XML failure records",
+  "asset_fix": "Copied already installed eight release files from verified ROBOT_MODULARITY/cascade; normal kitchen_assets.py --check passed; production unchanged",
+  "asset_sha256": {
+    "NOTICE.md": "afae350de8e942115d3f906d4ce08f1df5b722eeeb389e1303eef2095ca38d1e",
+    "cocina_asier.usdc": "7cf14a77293aeae53b1f07a4f06d8f5d10b09494425e15ed7b2c8cd19331eca2",
+    "geometry-audit.json": "c66cbfd7b1acb87badce8bc246c758c26bc4af78bc2e16233915e4a4b5c8414e",
+    "sources.json": "c7c51f4d606cff2aab8984856512d65799a16e4172e69671b63b615f8ce0eae9",
+    "textures/Wood044_2K-JPG_Color.jpg": "d4063b53baf806eada501feb7d0763c181bce44ffbc980d3508f158cc57edfe5",
+    "textures/Wood044_2K-JPG_Roughness.jpg": "ccd2764bcf715df2ea309da85e0862a7a6f3f8b2a07f09a59cd9af075b7fc11c",
+    "textures/WoodFloor051_2K-JPG_Color.jpg": "cd20f4039f62ca2b2430b8a4521774572a31ee586babac058a3afe178ed9ef5f",
+    "textures/WoodFloor051_2K-JPG_Roughness.jpg": "136fafdf901678e5959d4690b812ad4ef654c53db05295eb07e1efa24337cd61"
+  },
+  "recheck": {
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "--tb=short",
+      "--junitxml=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHUTDOWN_REVIEW/kitchen-assets-recheck/junit.xml",
+      "--basetemp=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_SHUTDOWN_REVIEW/kitchen-assets-recheck/tmp",
+      "tests/test_convex_support_geometry.py",
+      "tests/test_kitchen_placement_verdict.py",
+      "tests/test_placement_reader.py",
+      "tests/test_spark_placement_proof.py",
+      "tests/test_spark_placement_proof_newton.py"
+    ],
+    "exit_code": 0,
+    "source_unchanged": true,
+    "source_files": 1502,
+    "shared_memory_unchanged": true,
+    "shared_memory_after": {
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+      "/home/johnny/.cascade/grasp_memory.json": null
+    }
+  },
+  "recheck_counts": {
+    "passed": 139,
+    "failed": 0
+  },
+  "note": "Rechecked all five affected files; 132 originally failed cases and7controls. Full run is retained as failed, not relabelled as a single green full run. Two native-closure documentation files were added before recheck; runtime code unchanged.",
+  "full-after-fixture-fix_artifacts": {
+    "result.json": "3f8b41cb0793678209c8076090750d92053237bf6b3887c8faf49592c4c61523",
+    "source-sha256.json": "747808937ad6d3982e498be8f092e83ae44f5644697936ef4ac108c07dad9dde",
+    "pytest.log": "1eeb5013dbd7365fd97521cc2ebe928dd5296535077700528de449e925b1e092",
+    "junit.xml": "d2c10f284cc8bfdcb55f75f0608c44fe7bdd073e5c753b793c5251183c9b0d57"
+  },
+  "kitchen-assets-recheck_artifacts": {
+    "result.json": "b1328d4a7d969278af2675d5914872befdf03d9069868cb0ab18f9f95ce2001f",
+    "source-sha256.json": "52ccf6ca5af7742801c66d1085dde88f9f749a75ea9134fe9ee7fbec3a7e59e5",
+    "pytest.log": "7231c106a22ec12223baef31824076c40cfc880638d9327afdb26bcfcca5aa21",
+    "junit.xml": "6614d460afbc87fbe1981b82d8616da0160fcad5a80d660ac112a7a16f203b3d"
+  }
+}

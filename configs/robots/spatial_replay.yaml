@@ -1,0 +1,115 @@
+# Synthetic capture replay. No localization provider or robot actuator.
+version: 1
+robot_id: spatial_replay
+domains:
+  spatial:
+    kind: spatial
+    replay:
+      version: 1
+      map_id: room
+      epoch: episode-1
+      clock_id: replay-seconds
+      map_frame: world/map
+      time_s: 2.0
+      calibration_id: map-v1
+      transforms:
+      - parent: world/map
+        child: spatial_replay/torso
+        translation_m:
+        - 0.5
+        - 0.5
+        - 1
+        rotation_wxyz:
+        - 1
+        - 0
+        - 0
+        - 0
+        time_s: 1.0
+        calibration_id: odom-v1
+      - parent: spatial_replay/torso
+        child: spatial_replay/camera
+        translation_m:
+        - 0
+        - 0
+        - 0
+        rotation_wxyz:
+        - 1
+        - 0
+        - 0
+        - 0
+        time_s: 1.0
+        calibration_id: camera-v1
+        static: true
+      - parent: world/map
+        child: spatial_replay/torso
+        translation_m:
+        - 1.5
+        - 0.5
+        - 1
+        rotation_wxyz:
+        - 1
+        - 0
+        - 0
+        - 0
+        time_s: 2.0
+        calibration_id: odom-v1
+      grid:
+        resolution_m: 0.1
+        origin_xy_m:
+        - 0
+        - 0
+        width: 31
+        height: 21
+        cells: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      observations:
+      - observation_id: cup-view-1
+        label: cup
+        frame_id: spatial_replay/camera
+        point_m:
+        - 1.5
+        - 0
+        - -0.8
+        time_s: 1.0
+        calibration_id: camera-v1
+        confidence: 0.9
+      - observation_id: cup-view-2
+        label: cup
+        frame_id: spatial_replay/camera
+        point_m:
+        - 0.5
+        - 0
+        - -0.8
+        time_s: 2.0
+        calibration_id: camera-v1
+        confidence: 0.9
+      - observation_id: other-cup-view
+        label: cup
+        frame_id: spatial_replay/camera
+        point_m:
+        - 0.5
+        - 1
+        - -0.8
+        time_s: 2.0
+        calibration_id: camera-v1
+        confidence: 0.9

@@ -22,6 +22,10 @@ bounded skill graphs and optional Arena/VAB validation adapters. Start with
 coordination and additional humanoid drivers still require embodiment-specific
 validation.
 
+The read-only [spatial replay](docs/SPATIAL_PROVIDERS.md) adds capture-time
+transforms, source-bound landmark memory and conservative planar route proposals
+through MCP. `--robot spatial_replay` is synthetic and does not execute navigation.
+
 ### Earlier merged and measured baseline
 
 The previous command baseline for physical validation is **`ff8d58b` (1 October 2026)**. It includes

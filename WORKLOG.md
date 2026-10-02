@@ -182,6 +182,30 @@ remains available independently. Skill graphs use the same atomic boundary.
 Deterministic regressions force stop/reset between graph validation and dispatch.
 This is a software admission fix, with no new physical acceptance claim.
 
+## Spatial providers and navigation replay — 2 October 2026
+
+Feature-to-skill map before foundations: `isaac-sim-orchestrator` and
+`isaac-sim-workflow` define evidence and admission boundaries;
+`navigation-primitives` informs conservative footprints and grid planning;
+`spatial-reasoning` supplies explicit transform conventions. This first increment
+uses a pure Python read-only replay: no simulator stage is edited and no robot
+is actuated. Unknown cells, transform epochs and capture/calibration provenance
+must survive through real composed-runtime/MCP reads and plans. Native navigation
+requires a separately admitted controller and fresh localization; a path is not
+physical acceptance. Shared learned stores and other agents' processes remain
+untouched.
+
+The spatial increment implements a bounded source/clock/epoch frame tree,
+source-bound landmark observations, immutable occupancy capture history, planar
+range integration and conservative cardinal route planning. The synthetic
+`spatial_replay` profile exercises these through normal runtime and real stdio
+MCP without actuator resources. Independent review caught subcell-ray
+ over-clearing and whole-map rejuvenation after one partial scan; both have
+specific regressions. Relative transforms also no longer depend on an unused
+common ancestor's age. Frozen source passed 53 focused cases with learned stores
+unchanged. See `docs/SPATIAL_PROVIDERS.md` and its evidence receipt. This does not
+admit SLAM, native navigation, world-frame grasps or whole-body manipulation.
+
 CI at `735591e` passed both Linux architectures, minimal install and browser
 checks; macOS retained one healthy-late failure. Its held response was already
 139 ms old at capture; the 78 ms transport hold correctly exceeded the unchanged
@@ -206,3 +230,96 @@ Root review integrated the generation/deadline fix from PR #70, preserving both
 passive embodiment metadata and atomic dispatch checks. The frozen integrated
 source passed 100 focused runtime/graph/embodiment/sensing/MCP cases; protected
 learned stores were unchanged. This follows the author's 193-case final suite.
+
+Integration with PR #70 passed 83 focused spatial/runtime/graph/MCP cases on
+frozen source, preserving all generation/deadline checks and learned stores.
+
+## macOS TCP fixture phase correction (2026-10-02)
+
+PR72/73 macOS logs exposed two test assumptions: a healthy transport might
+never enter an 83 ms selection window with a <=20 ms old packet, and the
+independent sampler might miss a published movement endpoint. The real TCP
+regression now injects a fault at the first post-finish request and checks the
+actual decoded packet. Six unchanged deterministic actual-sampler cases retain
+precise late-fresh/fault/stale discrimination. Movement expectations use the
+known scripted positions at the independently observed interval endpoints.
+
+No production source, limits or ACK semantics changed. A controlled transport
+delay reproduces four old failures; the corresponding revised six cases pass.
+The complete three affected test files pass 342 cases. This identifies fixture
+defects, not the exact scheduler/GC cause on the CI machine. Logs, old/new hashes
+and retained results are indexed in
+`docs/evidence/robot-modularity/macos-causal-fixtures.json`.
+
+## Turn geometry fixture separation (2026-10-02)
+
+PR77 Linux CI returned unverified for one scripted overshoot case; the original
+assertion did not include its reason, so the exact hosted cause is unknown.
+Eight known quaternion-path cases now exercise measurement and intent decisions
+directly: signed rotation across the ±pi cut, no effect, wrong sign, matching
+turn and overshoot with zero gyro. They no longer assume that a threaded sampler
+will observe every scripted endpoint inside its wall-clock admission budget.
+These are geometry unit cases, not additional full-window acceptance evidence.
+Actual sampler, TCP, freshness and stop tests remain, and all production limits
+are unchanged. The three affected/regression files passed 400 cases in 33.71s,
+with source and protected stores unchanged. A preceding command used a missing
+filename and ran no tests; it is retained separately. Receipt:
+`docs/evidence/robot-modularity/yaw-geometry-fixture.json`.
+
+## MicroDuck SDK callback signal consumption (2026-10-02)
+
+A native locomotion campaign required forced termination after Kit caught the
+`SignalRequest` raised by SIGTERM inside its callback. The recorded scalar
+signal survived, but the native runner did not check it after callback return.
+The CLI now uses persistent signal checkpoints after SDK initialization and
+capture, at loop boundaries, and before the stepper commits inference or submits
+new actuator/solver work. Existing interactive one-shot handling is unchanged;
+cleanup still runs outside the handler. This cannot interrupt an uncooperative
+native call, so the external owned-process supervisor remains necessary.
+
+Feature-to-skill map: `isaac-sim-troubleshooting` for the observed native hang,
+`isaac-sim-orchestrator` for owned process/source/closure evidence, and
+`isaac-sim-validator` for regression checks before native follow-up.
+
+Validation: 175 focused lifecycle/stepper/CLI tests passed. A retained old-bridge
+control failed all six new SIGINT/SIGTERM callback-consumption cases, showing
+additional solver work after the signal. The fixed six cases passed again with
+an explicit assertion that the SDK fixture consumed the signal. All test runs
+retained unchanged source snapshots and protected learned-store hashes. This
+is software evidence only; native shutdown validation is a separate follow-up.
+Receipt: `docs/evidence/robot-modularity/microduck-signal-checkpoint.json`.
+
+## Inner Kit capture and initialization fences (2026-10-02)
+
+Reviewed the user-supplied Hermes packet and verified the exact baseline, patch
+candidate and regression-test hashes before integration. Its capture regression
+found 15 additional cold updates or two warm updates plus RGB readback after
+a callback consumed the signal. Capture now rechecks immediately between native
+calls. The backend also checks camera-authoring synchronization, initialization
+phase boundaries, and before/after `play(commit=True)` and model preparation.
+No checkpoint is inserted into teardown; the SDK's already-running native call
+remains outside Python's interruption guarantees.
+
+The integrated software suite passed 202 cases; five USD cases skipped because
+that interpreter has no pxr. The ten Hermes render cases passed against the
+actual worktree. Eight additional OS-signal cases cover authoring synchronization
+and actual `_initialize` orchestration through camera, scene export and play.
+A retained old-source control reached stage acquisition after consuming signals;
+all six initialization cases failed instead of unwinding. An earlier red-harness
+import error is retained without regression credit. Source and protected memory
+were unchanged. Native Kit closure is still a separate required replay.
+
+Hashes and source-bound results: `docs/evidence/robot-modularity/microduck-inner-signal-fences.json`.
+
+## Shutdown PR full-suite environment check (2026-10-02)
+
+The isolated source at41307b8 ran the complete test directory: 5,073 passed,
+252 skipped and four deselected. All132 failures were the same missing pinned
+kitchen artwork prerequisite in the fresh worktree. Installed those eight
+release files from the already verified local bundle, then normal offline
+`kitchen_assets.py --check` passed. All139 tests in the five affected files then
+passed. Production code was unchanged; only two native-closure documentation
+files were added between runs. The initial failed full run remains preserved,
+not labelled as one green full run. Frozen source and protected stores remained
+unchanged in both executions. Detailed source/artifact records:
+`docs/evidence/robot-modularity/native-shutdown-suite.json`.

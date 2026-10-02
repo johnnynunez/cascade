@@ -65,7 +65,7 @@ def validated_sample(sample, *, min_height_m, max_height_m, max_tilt_rad):
 class MicroduckStepper:
     def __init__(self, backend, controller, policy, actuator, *, max_steps,
                  max_wall_s, min_height_m, max_height_m, max_tilt_rad,
-                 clock=time.monotonic):
+                 clock=time.monotonic, checkpoint=None):
         self.backend, self.controller = backend, controller
         self.policy, self.actuator = policy, actuator
         if type(max_steps) is not int or max_steps <= 0:
@@ -78,6 +78,9 @@ class MicroduckStepper:
         if min_height_m >= max_height_m or max_tilt_rad >= math.pi:
             raise ValueError('invalid fall limits')
         self.clock = clock
+        if checkpoint is not None and not callable(checkpoint):
+            raise ValueError('checkpoint must be callable or absent')
+        self.checkpoint = checkpoint
         self.dt = positive(backend.dt, 'actual physics dt')
         if not math.isclose(self.dt, float(np.float32(.005)), rel_tol=0, abs_tol=1e-12):
             raise ValueError('MicroDuck requires the measured float32 0.005 timestep')
@@ -136,6 +139,8 @@ class MicroduckStepper:
         # Gate new work after a slow call returns; this cannot interrupt an
         # already-running native operation. An external process timeout is
         # still required to bound uncooperative inference/GPU calls.
+        if self.checkpoint is not None:
+            self.checkpoint()
         elapsed = self.clock() - self.start_wall
         if not math.isfinite(elapsed) or elapsed < 0 or elapsed >= self.max_wall_s:
             raise RuntimeError('wall duration limit reached/clock regressed')

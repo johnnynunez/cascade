@@ -1,0 +1,52 @@
+{
+  "scope": "Source-bound CPU spatial replay, conservative planar planning and real stdio MCP; no physical admission, SLAM or navigation execution.",
+  "validation": {
+    "tests": 53,
+    "failures": 0,
+    "errors": 0,
+    "duration_s": 3.32,
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+      "-m",
+      "pytest",
+      "-q",
+      "--tb=short",
+      "--junitxml=/home/johnny/Projects/demo/cascade-lab/SPATIAL_NAVIGATION/spatial-review-fixes-03/junit.xml",
+      "--basetemp=/home/johnny/Projects/demo/cascade-lab/SPATIAL_NAVIGATION/spatial-review-fixes-03/tmp",
+      "tests/test_spatial_providers.py",
+      "tests/test_spatial_mcp.py",
+      "tests/test_robot_runtime.py",
+      "tests/test_robot_mcp.py"
+    ],
+    "exit_code": 0,
+    "source_unchanged": true,
+    "source_files": 1503,
+    "shared_memory_unchanged": true,
+    "shared_memory_after": {
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+      "/home/johnny/.cascade/grasp_memory.json": null
+    },
+    "source_manifest_sha256": "1689160fa202cc060365ede63d1c72db911a881518b740f70acea7cc7137f60c",
+    "log_sha256": "90be7257dde870638ed85284c646e137f164824e39f508d4488142b314c2148f"
+  },
+  "review_fixes": [
+    "Continuous-coordinate DDA never clears corner-only or unvisited subcells.",
+    "Partial scan retains old capture ages and transform provenance; route freshness checks oldest retained contribution.",
+    "Relative frame lookup evaluates only path to common ancestor."
+  ],
+  "source_sha256": {
+    "configs/robots/spatial_replay.yaml": "88406a4ba2f165ffe8d163e39bad50dd522f94c7eddcdfb64c4a6ccd4a0a8574",
+    "src/cascade/spatial/__init__.py": "927fc16488f8013186da991c94060015c8631dfef69f5b32a28135243e66fcee",
+    "src/cascade/spatial/domain.py": "c57b345a6c65fb97cb0eaa9a4c6ae36a88ce0dddd42942ced884478c536fb7f3",
+    "src/cascade/spatial/frames.py": "6e81ba8689631a7e8118e049b892418ac99c6531c5c213bcd1b22c3c5eba0811",
+    "src/cascade/spatial/grid.py": "1189ffdab17af32d844abec64e0caa2951c011598f06abaac361bacfbbca1c40",
+    "src/cascade/spatial/memory.py": "02195d9489e924a176c1550fd73ee2d9c42f66e89bb173cb6b6677e741f19fb2",
+    "tests/test_spatial_mcp.py": "8e2dc805bdceddcdbdf42d1d59830ead5f25ea9be46f7c112946b7737fafd6fb",
+    "tests/test_spatial_providers.py": "2615a273b607dba3d3f390e541767c4334647710627546ac3b75a4a78c06b934"
+  },
+  "limits": [
+    "Synthetic replay only in configured MCP domain",
+    "No per-cell aging or persistent restart-age recovery",
+    "No uncertainty propagation, ground support or 3D clearance claim"
+  ]
+}

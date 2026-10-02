@@ -14,6 +14,7 @@ REPO = Path(__file__).resolve().parents[1]
 @pytest.mark.parametrize('signum', [signal.SIGINT, signal.SIGTERM])
 @pytest.mark.parametrize('site', ['startup', 'inference', 'commit', 'upload', 'bam', 'capture', 'cleanup', 'sdk_constructor', 'sdk_after_boot',
     'receipt_before', 'receipt_after', 'sdk_return', 'sdk_raise',
+    'sdk_boot_swallowed', 'capture_swallowed', 'inference_swallowed',
     pytest.param('blocked_inference', marks=pytest.mark.skipif(
         not sys.platform.startswith('linux'), reason='kernel pipe wait proof uses Linux procfs'))])
 def test_native_signal_unwinds_before_more_work(tmp_path, signum, site):
@@ -38,6 +39,8 @@ def test_native_signal_unwinds_before_more_work(tmp_path, signum, site):
         result = subprocess.run(command, cwd=REPO, env=env, capture_output=True, text=True, timeout=6)
     details = json.loads((tmp_path/'signal-result.json').read_text())
     assert details['sent'], (result.stdout, result.stderr, details)
+    if site.endswith('_swallowed'):
+        assert details['callback_swallowed_signal'] is True, details
     assert result.returncode == 128 + signum, (result.stdout, result.stderr, details)
     assert details['solves_after_signal'] == 0, details
     assert details['uploads_after_signal'] == 0, details
@@ -54,7 +57,7 @@ def test_native_signal_unwinds_before_more_work(tmp_path, signum, site):
     assert receipt['physical_acceptance'] is False, receipt
     assert bool(receipt['teardown_errors']) is (site == 'sdk_raise'), receipt
     assert receipt == details['returned_result'], (receipt, details)
-    if site in ('inference', 'blocked_inference', 'commit', 'upload'):
+    if site in ('inference', 'inference_swallowed', 'blocked_inference', 'commit', 'upload'):
         rows = [json.loads(x) for x in (tmp_path/'run/policy.jsonl').read_text().splitlines()]
         interrupted = rows[-1]
         assert interrupted['status'] == 'interrupted', interrupted
@@ -64,7 +67,7 @@ def test_native_signal_unwinds_before_more_work(tmp_path, signum, site):
         else:
             assert interrupted['committed'] is (site == 'upload'), interrupted
         assert 'first_step_after_commit' not in interrupted, interrupted
-        if site in ('inference', 'blocked_inference'):
+        if site in ('inference', 'inference_swallowed', 'blocked_inference'):
             assert interrupted['commands'][0] > 0
             assert details['raw_history_changed_after_signal'] is False
 
@@ -147,6 +150,15 @@ def _child(site, signum, directory):
             else:
                 os.kill(os.getpid(), signum)
 
+    def swallowed_callback():
+        # Kit/async callbacks can catch an exception delivered by a real OS
+        # signal. The recorded signum must still fence the next operation.
+        from cascade.apps.signal_stop import SignalRequest
+        try:
+            send()
+        except SignalRequest:
+            state['callback_swallowed_signal'] = True
+
     class Actuator(SoftwareActuator):
         def set_targets(self, q):
             if site == 'upload' and len(self.targets) == 1:
@@ -180,6 +192,8 @@ def _child(site, signum, directory):
                 signal.signal(signal.SIGINT, sdk_handler)
             if site in ('startup', 'sdk_constructor'):
                 send()
+            if site == 'sdk_boot_swallowed':
+                swallowed_callback()
 
         def step(self):
             if state['sent']:
@@ -190,6 +204,8 @@ def _child(site, signum, directory):
             self.captures += 1
             if site == 'capture' and self.captures == 2:
                 send()
+            if site == 'capture_swallowed' and self.captures == 2:
+                swallowed_callback()
             return dict(rgb=np.zeros((24, 32, 3), np.uint8), step=self.step_count,
                         sim_time_s=self.sim_time, captured_at=0., render_times=render_times(self.sim_time))
 
@@ -229,6 +245,8 @@ def _child(site, signum, directory):
             if site in ('inference', 'blocked_inference', 'sdk_after_boot') and obs[0, 48] != 0:
                 with owners['controller']._lock:
                     send()
+            if site == 'inference_swallowed' and obs[0, 48] != 0:
+                swallowed_callback()
             return np.full(14, obs[0, 48], np.float32)
         p.infer = infer
         commit = p.commit

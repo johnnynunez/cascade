@@ -51,6 +51,11 @@ def _controller(profile, domain, name):
 def _describe_domain(domain_id, profile, *, embodiment=None):
     """Return a domain's static resources/tools without constructing actuators."""
     kind = profile["kind"]
+    if kind == "spatial":
+        from ..spatial.domain import build_spatial_domain
+        spatial = build_spatial_domain(domain_id, profile)
+        return DomainAdapter(domain_id, profile, tuple(spatial.resources), spatial.tool_specs,
+                             frozenset(), runtime=spatial)
     if kind == "sensors":
         from ..sensing.domain import build_sensor_domain
         sensor = build_sensor_domain(domain_id, profile, embodiment=embodiment)
@@ -180,7 +185,7 @@ def build_robot_runtime(cfg, run_dir, **_kwargs):
         for name, domain in domains.items():
             directory = Path(run_dir) / "domains" / name
             directory.mkdir(parents=True, exist_ok=True)
-            if domain.profile["kind"] == "sensors":
+            if domain.profile["kind"] in {"sensors", "spatial"}:
                 built.append(domain)
                 continue
             domain_cfg = Cfg(copy.deepcopy(domain.profile["resolved"]))

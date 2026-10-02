@@ -538,3 +538,36 @@ passed. Details and hashes: benchmark/results/fastening_postcondition_20261003.j
 No simulator, model or service was started. The physical fixture integration
 remains a separate explicit profile/controller/observer/lifecycle task, described
 in docs/FASTENING_RUNTIME_GAP.md; this correction grants no physical admission.
+
+### 2026-10-03 — mounted Factory runtime implementation, stage one
+
+Authorized scope: optional pre-engaged fastening domain through RobotRuntime,
+one measured tightening turn and independently observed rest. Apply the
+physics-simulation and manipulation-ik skills: actual solved state/contact
+readback, no pose assistance, no pickup or seating inference. First implement
+immutable model/epoch/solve contracts, a per-write lease/generation guard, a
+passive bounded solve journal and the independent domain verifier. The native
+adapter must then provide joint velocities/efforts, tool poses and complete
+contact coverage from each solve. RobotRuntime supplies coordination, not these
+physical guards. No physical profile is enabled by the CPU stage.
+
+Bounds are explicit and identity-bound: 0.8 rad/s SO-101 arm limit, imported
+joint/effort limits, 0.05 Nm spindle cap, 10 rad/s measured nut/spindle bound,
+Factory M20 pitch 2.5 mm and unchanged ThreadContract geometry/contact gates.
+Synthetic adversarial fixtures will cover expired/stopped writes, stale/missing
+or discontinuous observations, forbidden contact, wrist-only motion and failure
+to rest. GPU0 and voice ports remain reserved for Hermes. No native launch or
+publication is authorized by this stage; CPU suites are coordinated separately.
+
+Stage one implemented in control/fastening.py and skills/fastening_runtime.py,
+with direct ordinary RobotRuntime composition and a single arm/spindle command
+resource. Initial 41 and 108 CPU checks passed. Independent review then added
+deadline-after-read, pre-ACK capture and replay guards. Final 115 passed in
+2.19 s (56 new synthetic cases); 658 source hashes and protected memory were
+unchanged. One intermediate fixture failure is retained: its stop-prefence
+timestamp accidentally reversed the capture clock; adding modeled ACK latency
+isolated the intended exclusion without relaxing limits. Ruff F/E9 and diff
+checks pass. See docs/FACTORY_FASTENING_RUNTIME.md and the source-bound receipt
+benchmark/results/factory_runtime_stage1_20261003.json. Stage two will connect
+native per-solve measurements and exact zero-spindle stop. This checkpoint has
+no physical profile/launch/admission and has not modified the old native scene.

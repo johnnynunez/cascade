@@ -1,0 +1,55 @@
+{
+  "scope": "software SDK-boundary regression with real POSIX signals; native Kit replay pending",
+  "hermes_packet": {
+    "report_sha256": "e41c86a3b06bdb5649c6417357c7582f16686fa23fcd047143032be20ccaf8c8",
+    "patch_sha256": "0b9315acd051cfc4db3257b3e607af4e6cf7228accc526c9abe2211bec8543c1",
+    "baseline_native_sha256": "c53134224476c98cfdeb0ff90e26e1d32d23189a42cc0ce68452d9244ad2a935",
+    "exact_patch_candidate_sha256": "9092f89b64f97b2ad9eb0dffe63ebfea1fbe7a24ab4d45ba6de5f3ed5a30c5c3",
+    "all_checked_before_porting": true,
+    "original_render_results": {
+      "baseline_failed": 8,
+      "baseline_controls_passed": 2,
+      "patched_passed": 10
+    }
+  },
+  "root_followup": {
+    "receipt": {
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--tb=short",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_LIFECYCLE/inner-fences-01/junit.xml",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_LIFECYCLE/inner-fences-01/tmp",
+        "tests/test_native_render_signal_fence.py",
+        "tests/test_microduck_initialization_signal_fence.py",
+        "tests/test_microduck_signal_stop.py",
+        "tests/test_microduck_bridge_cli.py",
+        "tests/test_microduck_receipt_finalization.py",
+        "tests/test_microduck_stepper.py",
+        "tests/test_mobile_signal_stop.py",
+        "tests/test_microduck_camera_identity.py"
+      ],
+      "exit_code": 0,
+      "source_unchanged": true,
+      "source_files": 1502,
+      "shared_memory_unchanged": true,
+      "shared_memory_after": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      }
+    },
+    "passed": 202,
+    "skipped": 5,
+    "skip_reason": "pxr/USD unavailable in focused test interpreter",
+    "artifacts": {
+      "result.json": "fee144772c31bed61ef08050d7db84c014e01a080419ad8ddbbd2e45e086b984",
+      "pytest.log": "e2d918ba0a3b8182279989d728284fb0000b5616bd5aea214b87c1a26b6b3357",
+      "junit.xml": "f77995dfe024f54a21ccad2e12edb89b5be2671ba53d902c463ca32b276cda1c",
+      "source-sha256.json": "0d6a342be8da35e39ef2eb74be01ed71732b23577f8370680b0dce0d56b50044"
+    },
+    "initialization_old_source_red": "6 expected signal tests instead continued into native stage acquisition and failed at inert SDK timestep; inner-initialize-red02 retained",
+    "earlier_red_harness_error": "inner-initialize-red retained; import setup error, not regression credit"
+  }
+}

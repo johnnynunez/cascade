@@ -1,0 +1,1139 @@
+{
+  "kind": "native VAB integration preflight; not a benchmark score",
+  "base_revision": "563b615fd255cc7ff4bd934cbbf3d496672accef",
+  "vab_revision": "edcc4bf005446839c0c6f43f8a3bf416702af030",
+  "retained_artifact_root": "/home/johnny/Projects/demo/cascade-lab/VALIDATION_NEXT",
+  "episodes": {
+    "native07": {
+      "summary": {
+        "native_interface_preflight_pass": true,
+        "benchmark_verdict": {
+          "status": "unverified",
+          "reason": "required independent checks missing or unverified",
+          "benchmark_success": false,
+          "independent_channel": "mujoco_readonly"
+        },
+        "native_cancellation_preflight_pass": false,
+        "source_unchanged": true,
+        "benchmark_success": false,
+        "binding": {
+          "trial_id": "vab:libero_object_all_variance.pick_up_the_alphabet_soup_and_place_it_in_the_basket:0:a8e0db6ef1db4ca9899df996ef55425b",
+          "configuration_sha256": "76834f53774c40e70b7dfca6b218e8fe19fa1e2e09f7027625583245837cec5d",
+          "model_identity_sha256": "db93e7664593744636328c63713177926c1befb8d8b525581e1a37621efb5546",
+          "epoch": "b470f28929dd4d6e85d25e103d26e1dc",
+          "first_step": 0,
+          "last_step": 42,
+          "first_sim_time_s": 0.0,
+          "last_sim_time_s": 2.0999999999999903,
+          "first_snapshot_sha256": "2a175436001ec985090fda7f56ca6f8d19a26f0dbc7ed5525ed4aa529679284f",
+          "last_snapshot_sha256": "32770422e51e723f072cd16efcc3dbc664559ac687cd2bdf9d1ad0bf825d3222"
+        },
+        "steps": 42,
+        "argv": [
+          "/home/johnny/Projects/demo/cascade-lab/VALIDATION_NEXT/cascade/benchmark/vab/native_preflight.py",
+          "/home/johnny/Projects/demo/cascade-lab/VALIDATION_NEXT/VAB",
+          "/home/johnny/Projects/demo/cascade-lab/VALIDATION_NEXT/runs/native07"
+        ],
+        "scope": "real VAB + ordinary CASCADE move_relative; no grasp or benchmark score"
+      },
+      "process_exit_code": 0,
+      "solver_steps": 1050,
+      "control_steps": 42,
+      "state_samples": 43,
+      "stop_probe": {
+        "stop": {
+          "ok": true,
+          "latched": true,
+          "generation": 2,
+          "domains": {
+            "manipulation": {
+              "ok": true,
+              "physical_stop_verified": false,
+              "semantics": "no further synchronous environment steps"
+            }
+          },
+          "physical_stop_verified": false
+        },
+        "denied": {
+          "ok": false,
+          "error": "ValueError: robot stopped; explicit reset_stop required"
+        },
+        "state_unchanged": true,
+        "control_step": 42,
+        "sim_time_s": 2.0999999999999903,
+        "physical_braking_verified": false,
+        "lease": "not applicable: synchronous local step owner"
+      },
+      "runtime_close": {
+        "ok": true,
+        "domains": {
+          "manipulation": {
+            "ok": true
+          }
+        }
+      },
+      "environment_close": {
+        "ok": true,
+        "steps": 42,
+        "semantics": "native VAB close returned; standalone runner subsequently exits"
+      },
+      "runtime_trace": [
+        {
+          "step": 0,
+          "t": 1790966238.5260468,
+          "skill": "manipulation.move_relative",
+          "tier": null,
+          "args": {
+            "direction": "up",
+            "distance_m": 0.04
+          },
+          "context": {
+            "robot_mode": "composed",
+            "task": null
+          },
+          "duration_ms": 2486.4,
+          "result": {
+            "moved": "up",
+            "distance_m": 0.04,
+            "tcp_xyz": [
+              -0.148,
+              0.0,
+              0.3
+            ],
+            "ok": true,
+            "postcondition": {
+              "skill": "move_relative",
+              "kind": "tcp_displacement",
+              "status": "confirmed",
+              "evidence": "completed-solve TCP displacement and orientation",
+              "channel": "mujoco_readonly",
+              "measured": {
+                "delta_m": [
+                  6.403889201309076e-05,
+                  1.6942322661020572e-10,
+                  0.0384881474955695
+                ],
+                "error_m": 0.0015132081730029954,
+                "orientation_error_rad": 0.00017880372449392278,
+                "tolerance_m": 0.005,
+                "first_step": 0,
+                "last_step": 21
+              }
+            },
+            "verified": true
+          },
+          "keyframe_before": null,
+          "keyframe_after": null
+        },
+        {
+          "step": 1,
+          "t": 1790966240.9960706,
+          "skill": "manipulation.move_relative",
+          "tier": null,
+          "args": {
+            "direction": "down",
+            "distance_m": 0.04
+          },
+          "context": {
+            "robot_mode": "composed",
+            "task": null
+          },
+          "duration_ms": 2469.9,
+          "result": {
+            "moved": "down",
+            "distance_m": 0.04,
+            "tcp_xyz": [
+              -0.149,
+              -0.0,
+              0.261
+            ],
+            "ok": true,
+            "postcondition": {
+              "skill": "move_relative",
+              "kind": "tcp_displacement",
+              "status": "confirmed",
+              "evidence": "completed-solve TCP displacement and orientation",
+              "channel": "mujoco_readonly",
+              "measured": {
+                "delta_m": [
+                  -0.00018469603293860826,
+                  -2.2791887611741715e-10,
+                  -0.038617235628397084
+                ],
+                "error_m": 0.0013950447777608145,
+                "orientation_error_rad": 0.0008309098873048087,
+                "tolerance_m": 0.005,
+                "first_step": 21,
+                "last_step": 42
+              }
+            },
+            "verified": true
+          },
+          "keyframe_before": null,
+          "keyframe_after": null
+        },
+        {
+          "step": 2,
+          "t": 1790966240.9976537,
+          "skill": "manipulation.move_relative",
+          "tier": null,
+          "args": {
+            "direction": "up",
+            "distance_m": 0.01
+          },
+          "context": {
+            "robot_mode": "composed",
+            "task": null
+          },
+          "duration_ms": 1.0,
+          "result": {
+            "ok": false,
+            "error": "ValueError: robot stopped; explicit reset_stop required"
+          },
+          "keyframe_before": null,
+          "keyframe_after": null
+        }
+      ],
+      "artifacts": {
+        "agentview.mp4": {
+          "path": "runs/native07/agentview.mp4",
+          "bytes": 36790,
+          "sha256": "6e4257bb01d92b58caab637663d0cc7ffae9a33bb34749a841299d11d8fe314d"
+        },
+        "envelope.json": {
+          "path": "runs/native07/envelope.json",
+          "bytes": 389,
+          "sha256": "33b6d7a7c1c75b51731fb633866ed54bb430b911515012fb91f26420d9b01c20"
+        },
+        "environment-close.json": {
+          "path": "runs/native07/environment-close.json",
+          "bytes": 114,
+          "sha256": "3d0286f50b7c1cf904b7399fb6c2cbcc7cb0942fa5f465fa2b0b056e5b1fbee1"
+        },
+        "episode.json": {
+          "path": "runs/native07/episode.json",
+          "bytes": 1468,
+          "sha256": "5df50ff345d0026d5e3a4fe5f963546952299e38f962468df8381f6106b7962b"
+        },
+        "launch.json": {
+          "path": "runs/native07/launch.json",
+          "bytes": 2043,
+          "sha256": "a67086a528913ad486cefd18ef56a8b288aca0a4ef9bf4592cd16cf01cb47a9d"
+        },
+        "model-identity.json": {
+          "path": "runs/native07/model-identity.json",
+          "bytes": 2338,
+          "sha256": "11cae5da8ad3aaee59dea04f55e08d8c41b99d009a68bd4ccf64159727b2fb67"
+        },
+        "physics.jsonl": {
+          "path": "runs/native07/physics.jsonl",
+          "bytes": 152651,
+          "sha256": "452f522b329d45d8632416ea9dd310b15961ce9621068b4e7c1dedd17835b598"
+        },
+        "runtime/trace.jsonl": {
+          "path": "runs/native07/runtime/trace.jsonl",
+          "bytes": 1957,
+          "sha256": "e39db8876afd98b18710b07b692b32b32d3dced5e01a17c005ad608de0adc4fc"
+        },
+        "runtime-close.json": {
+          "path": "runs/native07/runtime-close.json",
+          "bytes": 82,
+          "sha256": "c7cca3d9473653ee2db2a56207ef0ab5d6d4d58348e53d145329cb81124e342c"
+        },
+        "runtime-contract.json": {
+          "path": "runs/native07/runtime-contract.json",
+          "bytes": 1050,
+          "sha256": "2ee480f6e04d2f25b1b0247f4f85fefb3f31f50f321af895c7f6cb75cbf6b1cd"
+        },
+        "skills/keyframes/0000_move_relative_after.jpg": {
+          "path": "runs/native07/skills/keyframes/0000_move_relative_after.jpg",
+          "bytes": 7639,
+          "sha256": "ea8e452d31bee210b9a8bbe64e9adcd5c4d5ef1c2a1e55ad509e44e3e589c294"
+        },
+        "skills/keyframes/0000_move_relative_before.jpg": {
+          "path": "runs/native07/skills/keyframes/0000_move_relative_before.jpg",
+          "bytes": 7641,
+          "sha256": "9ace1365383579de6529405ef903e4894db8da49a5501be15ffad7da999756fb"
+        },
+        "skills/keyframes/0001_move_relative_after.jpg": {
+          "path": "runs/native07/skills/keyframes/0001_move_relative_after.jpg",
+          "bytes": 7777,
+          "sha256": "d172720640d19783b5c114f3334d44ffe7de919ce05493ab3a36738bfc746d56"
+        },
+        "skills/keyframes/0001_move_relative_before.jpg": {
+          "path": "runs/native07/skills/keyframes/0001_move_relative_before.jpg",
+          "bytes": 7639,
+          "sha256": "ea8e452d31bee210b9a8bbe64e9adcd5c4d5ef1c2a1e55ad509e44e3e589c294"
+        },
+        "skills/trace.jsonl": {
+          "path": "runs/native07/skills/trace.jsonl",
+          "bytes": 833,
+          "sha256": "7eb5a21639b4cac0d256f9478c2c357661dec633a906c1b379e6866deab2d7d4"
+        },
+        "sources-after.json": {
+          "path": "runs/native07/sources-after.json",
+          "bytes": 50115,
+          "sha256": "14b7dad46f181334d980259d22d53d639420c16143fb3bbd2fa5cc417e44c064"
+        },
+        "sources-before.json": {
+          "path": "runs/native07/sources-before.json",
+          "bytes": 50115,
+          "sha256": "14b7dad46f181334d980259d22d53d639420c16143fb3bbd2fa5cc417e44c064"
+        },
+        "stop-probe.json": {
+          "path": "runs/native07/stop-probe.json",
+          "bytes": 584,
+          "sha256": "a6b3a8f93ebdf702c30a8ea3800547b4a4e9d7b6f71fe7fe95e92170811eba29"
+        },
+        "summary.json": {
+          "path": "runs/native07/summary.json",
+          "bytes": 1421,
+          "sha256": "5b1676b4d381094b9d7bbc0287ce122ed87ad8894022090cd7ffc587cd177ec2"
+        }
+      },
+      "compiled_model": {
+        "path": "runs/native07/effective-model.mjb",
+        "bytes": 243029812,
+        "sha256": "ac3e644c63a0e330476f03eef83dbe25d1bec7172d36d13f1b94d3955eacf755"
+      },
+      "public_frames": {
+        "0000-agentview.png": {
+          "path": "runs/native07/0000-agentview.png",
+          "bytes": 24650,
+          "sha256": "d5344801003057855795953e3137fab14a41bb41b84ebf3f32df20f1eb2d6b1c"
+        },
+        "0000-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0000-robot0_eye_in_hand.png",
+          "bytes": 18836,
+          "sha256": "0cfc87f8401280737132e59ef783d8dd87362add5e456e2ca643ceb39bb09bba"
+        },
+        "0001-agentview.png": {
+          "path": "runs/native07/0001-agentview.png",
+          "bytes": 24723,
+          "sha256": "14548de5f8664510e92d6a1838386e334cf14213197efebac506cb4c71e948d7"
+        },
+        "0001-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0001-robot0_eye_in_hand.png",
+          "bytes": 19057,
+          "sha256": "5b614130080a0ef85b546af6c74cc7fd35e7953db2650f9652ece8da423a49ea"
+        },
+        "0002-agentview.png": {
+          "path": "runs/native07/0002-agentview.png",
+          "bytes": 24617,
+          "sha256": "768211426dbda2d70b0ee7f0a43c60013cbfc012b9fc63415fbbb9510811bf59"
+        },
+        "0002-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0002-robot0_eye_in_hand.png",
+          "bytes": 19017,
+          "sha256": "f216d854b74d514377a54b0f256a4fb4881bd3455f15fbf17b028dc9fe043410"
+        },
+        "0003-agentview.png": {
+          "path": "runs/native07/0003-agentview.png",
+          "bytes": 24691,
+          "sha256": "521e7c010ac7ff63380c20e74e89b43049a19c4c331676bcda9c7bb2a4033628"
+        },
+        "0003-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0003-robot0_eye_in_hand.png",
+          "bytes": 19019,
+          "sha256": "77e06a074bee9623fc785f76c70bd0a901e3e62e210a71180a3b460ad1342fb6"
+        },
+        "0004-agentview.png": {
+          "path": "runs/native07/0004-agentview.png",
+          "bytes": 24736,
+          "sha256": "6117eeda67b4ef4d92e496bc9d36777019d893d0b177087d4d9928cef53ebd64"
+        },
+        "0004-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0004-robot0_eye_in_hand.png",
+          "bytes": 19173,
+          "sha256": "adaa7d22cad437a27475127b6ba8e867025f880adc283139830a089ad0371d73"
+        },
+        "0005-agentview.png": {
+          "path": "runs/native07/0005-agentview.png",
+          "bytes": 24759,
+          "sha256": "5a150395ff7f22c7fbf79614d1df35a6080286818e1ae8fcf26705e44f36e702"
+        },
+        "0005-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0005-robot0_eye_in_hand.png",
+          "bytes": 19387,
+          "sha256": "57d21196eba00cf5a9d8e368af56820ac03dc64248e69899a353dd1ade76d82c"
+        },
+        "0006-agentview.png": {
+          "path": "runs/native07/0006-agentview.png",
+          "bytes": 24691,
+          "sha256": "90c3b9b3309d29e77f07c99481f9fe1618eeb7d7813f61bf5533a9845121177f"
+        },
+        "0006-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0006-robot0_eye_in_hand.png",
+          "bytes": 19480,
+          "sha256": "f875b34cebe499594d7628a062d7f0be6913d96c1a642fedf1c6a32743b2aeef"
+        },
+        "0007-agentview.png": {
+          "path": "runs/native07/0007-agentview.png",
+          "bytes": 24654,
+          "sha256": "61bc855b418692481f18f797cb38feebac13304b5699dcd027a32f2d5a0a8ca3"
+        },
+        "0007-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0007-robot0_eye_in_hand.png",
+          "bytes": 19618,
+          "sha256": "d3844e7d4be99e3b477a1c87e2605983785f5798f730ce7bc6c3cac5cd79c73a"
+        },
+        "0008-agentview.png": {
+          "path": "runs/native07/0008-agentview.png",
+          "bytes": 24752,
+          "sha256": "91a2c766eabdbfa62f85a19f259e9a826a04940bce30605830b5f3a9d2baa7f7"
+        },
+        "0008-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0008-robot0_eye_in_hand.png",
+          "bytes": 19519,
+          "sha256": "ddd28dea4158cca6a3661bfa2bf3f2fe096cbebf7b7807719df4931c8381db69"
+        },
+        "0009-agentview.png": {
+          "path": "runs/native07/0009-agentview.png",
+          "bytes": 24695,
+          "sha256": "1e5d5f747efa066c49cbb1f058a6326c45b8fe2021c4245f5fbf0c2fdb234952"
+        },
+        "0009-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0009-robot0_eye_in_hand.png",
+          "bytes": 19598,
+          "sha256": "fa46a524b4f1328a17ab1ebe483ab0d77ab9dc40f73cd9709ba9371de1657678"
+        },
+        "0010-agentview.png": {
+          "path": "runs/native07/0010-agentview.png",
+          "bytes": 24649,
+          "sha256": "02e9dfaf66ca32893b8be6102ffdad59164687cb4395756df8824b42c63e28fa"
+        },
+        "0010-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0010-robot0_eye_in_hand.png",
+          "bytes": 19561,
+          "sha256": "4016ea89dcd0703e7ba4c7025ca6118178748fc2b333871f279be98952f97c66"
+        },
+        "0011-agentview.png": {
+          "path": "runs/native07/0011-agentview.png",
+          "bytes": 24673,
+          "sha256": "4bb51f2e3f23e8426de401d8648169a1323293ae12ea378fbbb3c086bcbf0157"
+        },
+        "0011-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0011-robot0_eye_in_hand.png",
+          "bytes": 19706,
+          "sha256": "4229d0eb88ec74fb7a3e16d5759883dcfc3227380090f4b6440ada39d00cc8a3"
+        },
+        "0012-agentview.png": {
+          "path": "runs/native07/0012-agentview.png",
+          "bytes": 24659,
+          "sha256": "be0da29f11af166630ea4b174e061d6fba412512cd85307beea6787fb11ac1b7"
+        },
+        "0012-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0012-robot0_eye_in_hand.png",
+          "bytes": 19761,
+          "sha256": "e2a060c251fb8cdd37064c3a0fab4341515cf9d52ad5b5554e331986faa4178d"
+        },
+        "0013-agentview.png": {
+          "path": "runs/native07/0013-agentview.png",
+          "bytes": 24691,
+          "sha256": "c6ae9fd03eb02bcb58f6efea1ffcd39d40b7a3146894d584aea6504b0026703e"
+        },
+        "0013-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0013-robot0_eye_in_hand.png",
+          "bytes": 19781,
+          "sha256": "11b89662d8b24617ede7a091a1408e11e33a8dcf64114d99d6bd8a6a3aebd40f"
+        },
+        "0014-agentview.png": {
+          "path": "runs/native07/0014-agentview.png",
+          "bytes": 24639,
+          "sha256": "5b9f72b7cf5722ae1f165c342f66bc7248c58b9c6dae2a35a352985e9e6c7cf6"
+        },
+        "0014-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0014-robot0_eye_in_hand.png",
+          "bytes": 19705,
+          "sha256": "e9c7d4d3d7dd274e51d0c32c285f925c42df821a9313ab3827094414065d6707"
+        },
+        "0015-agentview.png": {
+          "path": "runs/native07/0015-agentview.png",
+          "bytes": 24560,
+          "sha256": "8ad594cdecf6644a00e68252bef2d3ee6fa1e44af81fc5e0fbf77b1882edb75c"
+        },
+        "0015-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0015-robot0_eye_in_hand.png",
+          "bytes": 19759,
+          "sha256": "11d242fd610b7ebeb8a19b710eff1215bdc6b32c90ddcbd29738927f03907e5a"
+        },
+        "0016-agentview.png": {
+          "path": "runs/native07/0016-agentview.png",
+          "bytes": 24603,
+          "sha256": "bfe72627d654fe1701540738f987d0b82f18ad8ae79f3d176a06af1a62e7cdc7"
+        },
+        "0016-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0016-robot0_eye_in_hand.png",
+          "bytes": 19837,
+          "sha256": "1b31f06b2f69b19aa29551549fcdeec62d00dc941fdca41bee2d752f6e0a1a80"
+        },
+        "0017-agentview.png": {
+          "path": "runs/native07/0017-agentview.png",
+          "bytes": 24586,
+          "sha256": "918f7c2c6dc98a488230265adfc4f16f383e45b5af18b05cf5df3bc1c24f7502"
+        },
+        "0017-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0017-robot0_eye_in_hand.png",
+          "bytes": 19870,
+          "sha256": "885284ad6d3054135ce5772e5e2b22020b4d4c376f906d56d093aaec3c074ee6"
+        },
+        "0018-agentview.png": {
+          "path": "runs/native07/0018-agentview.png",
+          "bytes": 24526,
+          "sha256": "95cd44eb9b74747ed5270c8a4dc9dd45b75e7a61796941d16268b8e3d0c2999f"
+        },
+        "0018-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0018-robot0_eye_in_hand.png",
+          "bytes": 19864,
+          "sha256": "11b1eb6b1adff391c66202565d9e4df3aea7b8a2781954813b270338f69fd05f"
+        },
+        "0019-agentview.png": {
+          "path": "runs/native07/0019-agentview.png",
+          "bytes": 24522,
+          "sha256": "71a82c6bd1fbfd7f505e387ed9d12e944cba7a5836a9cfab78d8064b61a0d78d"
+        },
+        "0019-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0019-robot0_eye_in_hand.png",
+          "bytes": 19848,
+          "sha256": "ed780166d5379e662b9b8512f4c8b99d204bacb208e212e3746dd8afb1f6dd24"
+        },
+        "0020-agentview.png": {
+          "path": "runs/native07/0020-agentview.png",
+          "bytes": 24548,
+          "sha256": "6b860ba8926242d3fc96f5efef2b4c6d9dc34cc6e59c039d636a0c91cca621c7"
+        },
+        "0020-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0020-robot0_eye_in_hand.png",
+          "bytes": 19818,
+          "sha256": "fb2b606c589ebfc2c747413888fe6145e9e4c1f95ff1ec4042a06b24f979e634"
+        },
+        "0021-agentview.png": {
+          "path": "runs/native07/0021-agentview.png",
+          "bytes": 24489,
+          "sha256": "8ca352408c689bef3e2469877065654f29c1c440cb2187c67e9ad40468d8fb79"
+        },
+        "0021-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0021-robot0_eye_in_hand.png",
+          "bytes": 19902,
+          "sha256": "1c478f6325146fa7c00cfc7b52a32052c9a6d1f303d5c0475978ae5d5854b72e"
+        },
+        "0022-agentview.png": {
+          "path": "runs/native07/0022-agentview.png",
+          "bytes": 24530,
+          "sha256": "cb278f83626be03fb6fc1c774f2db6ccb2bc786cb182f4c4b9ecfd27f647b424"
+        },
+        "0022-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0022-robot0_eye_in_hand.png",
+          "bytes": 19865,
+          "sha256": "15ebf3bc19a078b38c11b2f32cd64fbca4959925ec9a3356d8bf71185bc4f373"
+        },
+        "0023-agentview.png": {
+          "path": "runs/native07/0023-agentview.png",
+          "bytes": 24521,
+          "sha256": "9de562ce42a1bb3018b0adfe17305a0f523706fce623d4c74a1b6e4d6e7f1206"
+        },
+        "0023-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0023-robot0_eye_in_hand.png",
+          "bytes": 19844,
+          "sha256": "6b1c80b05ec6cc0c8859bc7fb1a1664508196cdadd8a1de67b17c47e83edd9bc"
+        },
+        "0024-agentview.png": {
+          "path": "runs/native07/0024-agentview.png",
+          "bytes": 24490,
+          "sha256": "a4b0d6cc0c3e294f3e231fec5cd41b8fc674868a2dfe43890a5a414f8c93b337"
+        },
+        "0024-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0024-robot0_eye_in_hand.png",
+          "bytes": 19830,
+          "sha256": "d5e466662c9c590ee6f7af6505c58f8a53a4f5f413935c6b955ae64d8d99660e"
+        },
+        "0025-agentview.png": {
+          "path": "runs/native07/0025-agentview.png",
+          "bytes": 24500,
+          "sha256": "3f54dc73ca8c64fe42e2bd1ce2406928f3d337f9ba5eab731e69dae75f37e763"
+        },
+        "0025-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0025-robot0_eye_in_hand.png",
+          "bytes": 19771,
+          "sha256": "b570b3c3c1a95518756c69d52f38521af8b3b7483bd5b0fdc4d33febb6ead554"
+        },
+        "0026-agentview.png": {
+          "path": "runs/native07/0026-agentview.png",
+          "bytes": 24540,
+          "sha256": "47d071f2abeacc48f8ac6c23bb6e51a702d209f095b966a0b11575dd3a73f5fa"
+        },
+        "0026-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0026-robot0_eye_in_hand.png",
+          "bytes": 19854,
+          "sha256": "4c6544101654cbe6e2c0c377af96d0e208a45f017d58c7415c3835aac125cbb2"
+        },
+        "0027-agentview.png": {
+          "path": "runs/native07/0027-agentview.png",
+          "bytes": 24505,
+          "sha256": "173749491516bbd2f78f904f9c2208a1584a725efeea0232a29821417d58a3c0"
+        },
+        "0027-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0027-robot0_eye_in_hand.png",
+          "bytes": 19829,
+          "sha256": "071711acdec5abb730a7403710166980a677bb15688e8fae53f307b28c487b7e"
+        },
+        "0028-agentview.png": {
+          "path": "runs/native07/0028-agentview.png",
+          "bytes": 24507,
+          "sha256": "1874955a2ffbdd47a8823c08fe63db38cbf5a124c6807360aafa7548de70b3c4"
+        },
+        "0028-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0028-robot0_eye_in_hand.png",
+          "bytes": 19874,
+          "sha256": "482308a0f0bdff0596f0b8b8b5b5cc4007cf91576541fb9b258ee0cb2c594845"
+        },
+        "0029-agentview.png": {
+          "path": "runs/native07/0029-agentview.png",
+          "bytes": 24543,
+          "sha256": "337f26c6b8dfa0136ccab3ed980ed35098e65164576947ecd4766ce652d7ac00"
+        },
+        "0029-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0029-robot0_eye_in_hand.png",
+          "bytes": 19865,
+          "sha256": "122787b35fbbdb8c8242054d615b0340f832f5c47a9b5eb12efb1b6118b74bb4"
+        },
+        "0030-agentview.png": {
+          "path": "runs/native07/0030-agentview.png",
+          "bytes": 24548,
+          "sha256": "364c144e4dc140f9268eb33515db11e7a3532fa68a14800371dcca48513e7d46"
+        },
+        "0030-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0030-robot0_eye_in_hand.png",
+          "bytes": 19917,
+          "sha256": "3027f24c4a1f782e6fc8b8d8be46a8eb6cf99fce00f2ce95a294159d77d3e76f"
+        },
+        "0031-agentview.png": {
+          "path": "runs/native07/0031-agentview.png",
+          "bytes": 24602,
+          "sha256": "c598e10f36dec543f3bc9bb761dd7f53e1f102ea54c76b77aa158729f53f6e46"
+        },
+        "0031-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0031-robot0_eye_in_hand.png",
+          "bytes": 19736,
+          "sha256": "bb1c516f406e69b65834fd6147cdd8328d6ded89fd178908fc8d2b088a91e427"
+        },
+        "0032-agentview.png": {
+          "path": "runs/native07/0032-agentview.png",
+          "bytes": 24673,
+          "sha256": "55f0e4644a910b0e89de399695de6a987825940ffa627aa4f98896cd559ddb18"
+        },
+        "0032-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0032-robot0_eye_in_hand.png",
+          "bytes": 19664,
+          "sha256": "0add20f31fe527ada97133f8e0983375290eff3cd4d77116a76ae41136e27f0e"
+        },
+        "0033-agentview.png": {
+          "path": "runs/native07/0033-agentview.png",
+          "bytes": 24654,
+          "sha256": "d693179ed84d265cec0850d9c427c51faf0632eefe5338e0c286ab4dc550437f"
+        },
+        "0033-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0033-robot0_eye_in_hand.png",
+          "bytes": 19673,
+          "sha256": "da43d9105475ff464c18bbb00c91af49412b95bc7f782daf557647521126cc00"
+        },
+        "0034-agentview.png": {
+          "path": "runs/native07/0034-agentview.png",
+          "bytes": 24705,
+          "sha256": "d3a07c086ed2945b03c9af07d2b31520ec428c686360f71d2d941e43d8fbe99a"
+        },
+        "0034-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0034-robot0_eye_in_hand.png",
+          "bytes": 19668,
+          "sha256": "53b68a798124ec1e73f25ac206cbb793c9d0d1fc51cbd097059e4b05c64a094f"
+        },
+        "0035-agentview.png": {
+          "path": "runs/native07/0035-agentview.png",
+          "bytes": 24662,
+          "sha256": "9f7b49d6977f8336f0ecc3ce3357b23e26f25673217928e986d711b5fe32d9d3"
+        },
+        "0035-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0035-robot0_eye_in_hand.png",
+          "bytes": 19668,
+          "sha256": "5153e7cc38514fbf3ae349586e3fee39e67c5c459569df685d7efd323ed75e44"
+        },
+        "0036-agentview.png": {
+          "path": "runs/native07/0036-agentview.png",
+          "bytes": 24689,
+          "sha256": "2702076652c3b94c708f597ad2ee4237fd13fea6c60c1b0d877836f43d96ec81"
+        },
+        "0036-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0036-robot0_eye_in_hand.png",
+          "bytes": 19638,
+          "sha256": "269fbede34c3d325ed5f6c22316453c14016bed089a6f6f22b7f5e6bac90b340"
+        },
+        "0037-agentview.png": {
+          "path": "runs/native07/0037-agentview.png",
+          "bytes": 24700,
+          "sha256": "a5165c8d6309ff104e53568f0af87722a37d8fbc72e9260c47f8291f9f258bb6"
+        },
+        "0037-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0037-robot0_eye_in_hand.png",
+          "bytes": 19595,
+          "sha256": "8bb01e700abe7ddd290570cc36877d643cce123c708a154191a3cad1860b423a"
+        },
+        "0038-agentview.png": {
+          "path": "runs/native07/0038-agentview.png",
+          "bytes": 24689,
+          "sha256": "47b904525e7ad1de0d5194918859ae68c59d3da12c4d37bbac922a6d0b01315b"
+        },
+        "0038-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0038-robot0_eye_in_hand.png",
+          "bytes": 19576,
+          "sha256": "1b3968865df11e470bdb8a958da3e6962d597f7266c19e2162f0e8e75e6a6c5d"
+        },
+        "0039-agentview.png": {
+          "path": "runs/native07/0039-agentview.png",
+          "bytes": 24690,
+          "sha256": "60336974ed42752d34253350f9ee5f40edc707ea886c0fdc097460963caacb3a"
+        },
+        "0039-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0039-robot0_eye_in_hand.png",
+          "bytes": 19574,
+          "sha256": "564881e911ddf59f315348f63e3e812a7d4b39e639ddd7f2816c7df15cc96e9a"
+        },
+        "0040-agentview.png": {
+          "path": "runs/native07/0040-agentview.png",
+          "bytes": 24742,
+          "sha256": "58336b9330852c7d949e3b8e0b461123f7ad7858f2037a4e021f4eb7049201ab"
+        },
+        "0040-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0040-robot0_eye_in_hand.png",
+          "bytes": 19567,
+          "sha256": "1e27e0c046ef2cf0a7980e4515447c2a7afb0bc7a34d62e06b7c171e5ae5b2e4"
+        },
+        "0041-agentview.png": {
+          "path": "runs/native07/0041-agentview.png",
+          "bytes": 24744,
+          "sha256": "30845e9546120cecf530ccd1a258e82b7755290b3e64a353ccc5d958f4362270"
+        },
+        "0041-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0041-robot0_eye_in_hand.png",
+          "bytes": 19434,
+          "sha256": "94aecf96c9dff66bf85f71d6fe41f652660438945b86431777dd1e75cbd1672b"
+        },
+        "0042-agentview.png": {
+          "path": "runs/native07/0042-agentview.png",
+          "bytes": 24760,
+          "sha256": "f5a39531a9f1b6f92a5a12d945eaf5f668868351ac6e6146b17aa7f327317873"
+        },
+        "0042-robot0_eye_in_hand.png": {
+          "path": "runs/native07/0042-robot0_eye_in_hand.png",
+          "bytes": 19431,
+          "sha256": "de016b9cc388df7d98ee9a9d0381bc85ccc943979a89ac1d552b14a0f6080fe2"
+        },
+        "start-middle-end.png": {
+          "path": "runs/native07/start-middle-end.png",
+          "bytes": 47205,
+          "sha256": "70e452c56d47755bba636347907aafe9dfa01c6283a82e6bc48ec34accc5c1ec"
+        }
+      }
+    },
+    "native08-cancel": {
+      "summary": {
+        "native_interface_preflight_pass": false,
+        "benchmark_verdict": {
+          "status": "refuted",
+          "reason": "independent measurement refuted",
+          "benchmark_success": false,
+          "independent_channel": "mujoco_readonly"
+        },
+        "native_cancellation_preflight_pass": true,
+        "source_unchanged": true,
+        "benchmark_success": false,
+        "binding": {
+          "trial_id": "vab:libero_object_all_variance.pick_up_the_alphabet_soup_and_place_it_in_the_basket:0:ba3fdc84fe0946b285ee06b34622a260",
+          "configuration_sha256": "76834f53774c40e70b7dfca6b218e8fe19fa1e2e09f7027625583245837cec5d",
+          "model_identity_sha256": "db93e7664593744636328c63713177926c1befb8d8b525581e1a37621efb5546",
+          "epoch": "2e15db5d5003403e9dbb3f1d8418e42a",
+          "first_step": 0,
+          "last_step": 8,
+          "first_sim_time_s": 0.0,
+          "last_sim_time_s": 0.4000000000000003,
+          "first_snapshot_sha256": "707ec8f0ef8263b09a70f0031c3e1b1ecd7527b632ecbcf7d0808d53f4689b2e",
+          "last_snapshot_sha256": "d15953f7ae22c41bf84cc89d9dbfde60602404c9fd6632303f7a5977372c787b"
+        },
+        "steps": 8,
+        "argv": [
+          "/home/johnny/Projects/demo/cascade-lab/VALIDATION_NEXT/cascade/benchmark/vab/native_preflight.py",
+          "/home/johnny/Projects/demo/cascade-lab/VALIDATION_NEXT/VAB",
+          "/home/johnny/Projects/demo/cascade-lab/VALIDATION_NEXT/runs/native08-cancel",
+          "--cancel-after-step",
+          "8"
+        ],
+        "scope": "real VAB + ordinary CASCADE move_relative; no grasp or benchmark score"
+      },
+      "process_exit_code": 0,
+      "solver_steps": 200,
+      "control_steps": 8,
+      "state_samples": 9,
+      "stop_probe": {
+        "stop": {
+          "ok": true,
+          "latched": true,
+          "generation": 3,
+          "domains": {
+            "manipulation": {
+              "ok": true,
+              "physical_stop_verified": false,
+              "semantics": "no further synchronous environment steps"
+            }
+          },
+          "physical_stop_verified": false
+        },
+        "denied": {
+          "ok": false,
+          "error": "ValueError: robot stopped; explicit reset_stop required"
+        },
+        "state_unchanged": true,
+        "control_step": 8,
+        "sim_time_s": 0.4000000000000003,
+        "physical_braking_verified": false,
+        "lease": "not applicable: synchronous local step owner"
+      },
+      "runtime_close": {
+        "ok": true,
+        "domains": {
+          "manipulation": {
+            "ok": true
+          }
+        }
+      },
+      "environment_close": {
+        "ok": true,
+        "steps": 8,
+        "semantics": "native VAB close returned; standalone runner subsequently exits"
+      },
+      "runtime_trace": [
+        {
+          "step": 0,
+          "t": 1790966301.1785598,
+          "skill": "manipulation.move_relative",
+          "tier": null,
+          "args": {
+            "direction": "up",
+            "distance_m": 0.04
+          },
+          "context": {
+            "robot_mode": "composed",
+            "task": null
+          },
+          "duration_ms": 1066.1,
+          "result": {
+            "ok": false,
+            "execution_ok": false,
+            "error": "operation superseded by stop",
+            "domain_result": {
+              "ok": false,
+              "error": "SafetyViolation: e-stop latched",
+              "postcondition": {
+                "skill": "move_relative",
+                "kind": "tcp_displacement",
+                "status": "refuted",
+                "evidence": "completed-solve TCP displacement and orientation",
+                "channel": "mujoco_readonly",
+                "measured": {
+                  "delta_m": [
+                    -0.0001669936167171815,
+                    7.665050780795721e-11,
+                    0.005464757252616581
+                  ],
+                  "error_m": 0.03453564649009373,
+                  "orientation_error_rad": 0.001996550462915452,
+                  "tolerance_m": 0.005,
+                  "first_step": 0,
+                  "last_step": 8
+                }
+              }
+            }
+          },
+          "keyframe_before": null,
+          "keyframe_after": null
+        },
+        {
+          "step": 1,
+          "t": 1790966301.179617,
+          "skill": "manipulation.move_relative",
+          "tier": null,
+          "args": {
+            "direction": "up",
+            "distance_m": 0.01
+          },
+          "context": {
+            "robot_mode": "composed",
+            "task": null
+          },
+          "duration_ms": 0.8,
+          "result": {
+            "ok": false,
+            "error": "ValueError: robot stopped; explicit reset_stop required"
+          },
+          "keyframe_before": null,
+          "keyframe_after": null
+        }
+      ],
+      "artifacts": {
+        "envelope.json": {
+          "path": "runs/native08-cancel/envelope.json",
+          "bytes": 297,
+          "sha256": "4b90b88852a9dd1ed818d162901bc891d5de12f25d326f9cdb1bb70f4ceef1e1"
+        },
+        "environment-close.json": {
+          "path": "runs/native08-cancel/environment-close.json",
+          "bytes": 113,
+          "sha256": "01c1c1d3a6a7419d271d5b93bd2247036814cf1d030bee96c513b3d5b535493c"
+        },
+        "episode.json": {
+          "path": "runs/native08-cancel/episode.json",
+          "bytes": 1385,
+          "sha256": "cabc9ef6e99fe2c79b7d2accf455d2a1de531419f06eb08b370fc2cf16887a32"
+        },
+        "inflight-stop.json": {
+          "path": "runs/native08-cancel/inflight-stop.json",
+          "bytes": 318,
+          "sha256": "33c9b3be978f7b4ff0dd0284fb9b7ae89d9ed7656fd6f51f3088d58dc962f0e7"
+        },
+        "launch.json": {
+          "path": "runs/native08-cancel/launch.json",
+          "bytes": 2086,
+          "sha256": "26c5e6fc09736c47376e88b0e8d1f3830b16c8b08a523f76f24bd609d970807e"
+        },
+        "model-identity.json": {
+          "path": "runs/native08-cancel/model-identity.json",
+          "bytes": 2338,
+          "sha256": "11cae5da8ad3aaee59dea04f55e08d8c41b99d009a68bd4ccf64159727b2fb67"
+        },
+        "physics.jsonl": {
+          "path": "runs/native08-cancel/physics.jsonl",
+          "bytes": 30044,
+          "sha256": "1be9cad49b199890881d27f175e3e28330e06f436cfa9c6a4210750494e0448e"
+        },
+        "runtime/trace.jsonl": {
+          "path": "runs/native08-cancel/runtime/trace.jsonl",
+          "bytes": 1200,
+          "sha256": "09815711c7159ef7b1f8c5828e1e5a70ea7e6db6965cabcb9caf975ce0107fa6"
+        },
+        "runtime-close.json": {
+          "path": "runs/native08-cancel/runtime-close.json",
+          "bytes": 82,
+          "sha256": "c7cca3d9473653ee2db2a56207ef0ab5d6d4d58348e53d145329cb81124e342c"
+        },
+        "runtime-contract.json": {
+          "path": "runs/native08-cancel/runtime-contract.json",
+          "bytes": 1050,
+          "sha256": "46db23182e14c88502602378cfe0971e7a1274164a25632eff0672c15b9bc3f2"
+        },
+        "skills/keyframes/0000_move_relative_after.jpg": {
+          "path": "runs/native08-cancel/skills/keyframes/0000_move_relative_after.jpg",
+          "bytes": 7779,
+          "sha256": "8fc8437e409d8883e90f64fe65015b8e8f4f9fcb1991f021ef07895c6e4fff82"
+        },
+        "skills/keyframes/0000_move_relative_before.jpg": {
+          "path": "runs/native08-cancel/skills/keyframes/0000_move_relative_before.jpg",
+          "bytes": 7641,
+          "sha256": "9ace1365383579de6529405ef903e4894db8da49a5501be15ffad7da999756fb"
+        },
+        "skills/trace.jsonl": {
+          "path": "runs/native08-cancel/skills/trace.jsonl",
+          "bytes": 392,
+          "sha256": "9021362cbfd0533e7256bce6c1aeaa400c9cb5e7ab0c9acfa7bde9e4bb5dbd03"
+        },
+        "sources-after.json": {
+          "path": "runs/native08-cancel/sources-after.json",
+          "bytes": 50115,
+          "sha256": "14b7dad46f181334d980259d22d53d639420c16143fb3bbd2fa5cc417e44c064"
+        },
+        "sources-before.json": {
+          "path": "runs/native08-cancel/sources-before.json",
+          "bytes": 50115,
+          "sha256": "14b7dad46f181334d980259d22d53d639420c16143fb3bbd2fa5cc417e44c064"
+        },
+        "stop-probe.json": {
+          "path": "runs/native08-cancel/stop-probe.json",
+          "bytes": 583,
+          "sha256": "fc4a6ac5fbd3c9554c832c6277c7c954c16dee7891701596e9933d600b8b855f"
+        },
+        "summary.json": {
+          "path": "runs/native08-cancel/summary.json",
+          "bytes": 1441,
+          "sha256": "4d351bff5fdce5580d0b7ccc8c917c30516a6650793eab3452f81b0dd8ee7fd0"
+        }
+      },
+      "compiled_model": {
+        "path": "runs/native08-cancel/effective-model.mjb",
+        "bytes": 243029812,
+        "sha256": "ac3e644c63a0e330476f03eef83dbe25d1bec7172d36d13f1b94d3955eacf755"
+      },
+      "public_frames": {
+        "0000-agentview.png": {
+          "path": "runs/native08-cancel/0000-agentview.png",
+          "bytes": 24650,
+          "sha256": "d5344801003057855795953e3137fab14a41bb41b84ebf3f32df20f1eb2d6b1c"
+        },
+        "0000-robot0_eye_in_hand.png": {
+          "path": "runs/native08-cancel/0000-robot0_eye_in_hand.png",
+          "bytes": 18836,
+          "sha256": "0cfc87f8401280737132e59ef783d8dd87362add5e456e2ca643ceb39bb09bba"
+        },
+        "0001-agentview.png": {
+          "path": "runs/native08-cancel/0001-agentview.png",
+          "bytes": 24723,
+          "sha256": "14548de5f8664510e92d6a1838386e334cf14213197efebac506cb4c71e948d7"
+        },
+        "0001-robot0_eye_in_hand.png": {
+          "path": "runs/native08-cancel/0001-robot0_eye_in_hand.png",
+          "bytes": 19057,
+          "sha256": "5b614130080a0ef85b546af6c74cc7fd35e7953db2650f9652ece8da423a49ea"
+        },
+        "0002-agentview.png": {
+          "path": "runs/native08-cancel/0002-agentview.png",
+          "bytes": 24617,
+          "sha256": "768211426dbda2d70b0ee7f0a43c60013cbfc012b9fc63415fbbb9510811bf59"
+        },
+        "0002-robot0_eye_in_hand.png": {
+          "path": "runs/native08-cancel/0002-robot0_eye_in_hand.png",
+          "bytes": 19017,
+          "sha256": "f216d854b74d514377a54b0f256a4fb4881bd3455f15fbf17b028dc9fe043410"
+        },
+        "0003-agentview.png": {
+          "path": "runs/native08-cancel/0003-agentview.png",
+          "bytes": 24691,
+          "sha256": "521e7c010ac7ff63380c20e74e89b43049a19c4c331676bcda9c7bb2a4033628"
+        },
+        "0003-robot0_eye_in_hand.png": {
+          "path": "runs/native08-cancel/0003-robot0_eye_in_hand.png",
+          "bytes": 19019,
+          "sha256": "77e06a074bee9623fc785f76c70bd0a901e3e62e210a71180a3b460ad1342fb6"
+        },
+        "0004-agentview.png": {
+          "path": "runs/native08-cancel/0004-agentview.png",
+          "bytes": 24736,
+          "sha256": "6117eeda67b4ef4d92e496bc9d36777019d893d0b177087d4d9928cef53ebd64"
+        },
+        "0004-robot0_eye_in_hand.png": {
+          "path": "runs/native08-cancel/0004-robot0_eye_in_hand.png",
+          "bytes": 19173,
+          "sha256": "adaa7d22cad437a27475127b6ba8e867025f880adc283139830a089ad0371d73"
+        },
+        "0005-agentview.png": {
+          "path": "runs/native08-cancel/0005-agentview.png",
+          "bytes": 24759,
+          "sha256": "5a150395ff7f22c7fbf79614d1df35a6080286818e1ae8fcf26705e44f36e702"
+        },
+        "0005-robot0_eye_in_hand.png": {
+          "path": "runs/native08-cancel/0005-robot0_eye_in_hand.png",
+          "bytes": 19387,
+          "sha256": "57d21196eba00cf5a9d8e368af56820ac03dc64248e69899a353dd1ade76d82c"
+        },
+        "0006-agentview.png": {
+          "path": "runs/native08-cancel/0006-agentview.png",
+          "bytes": 24691,
+          "sha256": "90c3b9b3309d29e77f07c99481f9fe1618eeb7d7813f61bf5533a9845121177f"
+        },
+        "0006-robot0_eye_in_hand.png": {
+          "path": "runs/native08-cancel/0006-robot0_eye_in_hand.png",
+          "bytes": 19480,
+          "sha256": "f875b34cebe499594d7628a062d7f0be6913d96c1a642fedf1c6a32743b2aeef"
+        },
+        "0007-agentview.png": {
+          "path": "runs/native08-cancel/0007-agentview.png",
+          "bytes": 24654,
+          "sha256": "61bc855b418692481f18f797cb38feebac13304b5699dcd027a32f2d5a0a8ca3"
+        },
+        "0007-robot0_eye_in_hand.png": {
+          "path": "runs/native08-cancel/0007-robot0_eye_in_hand.png",
+          "bytes": 19618,
+          "sha256": "d3844e7d4be99e3b477a1c87e2605983785f5798f730ce7bc6c3cac5cd79c73a"
+        },
+        "0008-agentview.png": {
+          "path": "runs/native08-cancel/0008-agentview.png",
+          "bytes": 24752,
+          "sha256": "91a2c766eabdbfa62f85a19f259e9a826a04940bce30605830b5f3a9d2baa7f7"
+        },
+        "0008-robot0_eye_in_hand.png": {
+          "path": "runs/native08-cancel/0008-robot0_eye_in_hand.png",
+          "bytes": 19519,
+          "sha256": "ddd28dea4158cca6a3661bfa2bf3f2fe096cbebf7b7807719df4931c8381db69"
+        }
+      }
+    }
+  },
+  "scope_limits": [
+    "No object perception or pick/place task completed",
+    "Upstream benchmark success remains false",
+    "Synchronous cancellation is not independent-world physical braking",
+    "No physical hardware or Arena validation",
+    "Only Panda OSC_POSE on pinned floor RGB128 geometry; no SO101 substitution"
+  ],
+  "startup_and_development_failures": {
+    "startup01": {
+      "reason": "termcolor missing",
+      "log": {
+        "path": "runs/startup01/output.log",
+        "bytes": 1320,
+        "sha256": "f23811b71e6724247d0639e6fe370326deb014cbcbd79a15c0fde69865a90413"
+      }
+    },
+    "startup02": {
+      "reason": "started before private dependency installation completed",
+      "log": {
+        "path": "runs/startup02/output.log",
+        "bytes": 1456,
+        "sha256": "cdc230bfae82b4c834d3938f3f7c56253d29de740113da8c954ec9c300676a72"
+      }
+    },
+    "startup03": {
+      "reason": "easydict missing",
+      "log": {
+        "path": "runs/startup03/output.log",
+        "bytes": 1598,
+        "sha256": "4e3186d58c6efe73a238cfac6cd0564b6901d2d9bd00ed45b16c00c10dce40a0"
+      }
+    },
+    "native01": {
+      "reason": "recipe serialized simulator handle",
+      "log": {
+        "path": "runs/native01.log",
+        "bytes": 2304,
+        "sha256": "0184290f8ec0db11c25b2b3c85af142014a69d5df0f3dec01fcef632fed53170"
+      }
+    },
+    "native02": {
+      "reason": "optional camera utility import h5py missing",
+      "log": {
+        "path": "runs/native02.log",
+        "bytes": 1856,
+        "sha256": "7f2d284a0bc791c6435c1b1d75853666019e40010eb34e67f00474b77912a713"
+      }
+    },
+    "native03": {
+      "reason": "scratch Jacobian prerequisites stale; IK refused before actuation",
+      "log": {
+        "path": "runs/native03.log",
+        "bytes": 1843,
+        "sha256": "83721caf8587cdf518cb7f7faa949f406ea058c715826a7f69cc7a7bb47e9ea1"
+      }
+    }
+  },
+  "installation_receipt": {
+    "path": "native-install-receipt.json",
+    "bytes": 2085,
+    "sha256": "837b281c70ac6a15df72666aee551a4192707aafffc42c4e74b5a21620264a31"
+  },
+  "test_receipt": {
+    "command": "PYTHONPATH=<repo>/src:<repo> CUDA_VISIBLE_DEVICES=-1 <private-venv>/bin/python -m pytest tests/test_vab_native_preflight.py tests/test_vab_adapter.py tests/test_arena_adapters.py -q --basetemp=<private>/test-runs/targeted04",
+    "result": "60 passed in 0.38s",
+    "artifact": {
+      "path": "test-targeted04.log",
+      "bytes": 99,
+      "sha256": "613e6b6406e78303c261c14dd0df9cd7443cfc11e8f09739aaaa629cb53ef394"
+    }
+  },
+  "runner_sha256": "6fad1b1fdd2370a57b11d7f789927e61725194a88fcac29be1eb477df92389ce",
+  "upstream_clean": true
+}

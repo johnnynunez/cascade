@@ -125,6 +125,57 @@ class ProprioceptionPayload(Payload):
 
 
 @dataclass(frozen=True)
+class JointMeasurement:
+    """One movable coordinate; effort is unknown when the producer omits it."""
+    joint_id: str
+    joint_type: str
+    position: float
+    velocity: float
+    position_unit: str
+    velocity_unit: str
+    effort_unit: str
+    effort: float | None = None
+
+    def __post_init__(self):
+        from ..robotics.embodiment import JOINT_UNITS
+        token(self.joint_id, "joint_id")
+        expected = JOINT_UNITS.get(self.joint_type)
+        if expected is None or (self.position_unit, self.velocity_unit, self.effort_unit) != expected:
+            raise ValueError("joint measurement type/units disagree")
+        for key in ("position", "velocity", "effort"):
+            if key != "effort" or self.effort is not None:
+                object.__setattr__(self, key, number(getattr(self, key), key))
+
+
+@dataclass(frozen=True)
+class JointStatePayload(Payload):
+    """Mixed angular/linear proprioception bound to a structural declaration.
+
+    The declaration digest is separate from ObservationEnvelope's physical model
+    identity. Neither units nor this digest certify hardware or control admission.
+    """
+    metadata: MeasurementMetadata
+    joints: tuple
+    embodiment_sha256: str
+    modality: ClassVar[str] = "joint_state"
+    units: ClassVar[tuple] = (("joints", "explicit_per_coordinate"),)
+
+    def __post_init__(self):
+        self._metadata()
+        if self.embodiment_sha256 is None:
+            raise ValueError("joint state requires an embodiment digest")
+        digest(self.embodiment_sha256)
+        if not isinstance(self.joints, (tuple, list)) or not 1 <= len(self.joints) <= 512:
+            raise ValueError("joint state must contain 1..512 coordinates")
+        joints = tuple(JointMeasurement(**j) if isinstance(j, dict) else j for j in self.joints)
+        if any(type(j) is not JointMeasurement for j in joints):
+            raise ValueError("typed joint measurements required")
+        if len({j.joint_id for j in joints}) != len(joints):
+            raise ValueError("duplicate joint measurements")
+        object.__setattr__(self, "joints", joints)
+
+
+@dataclass(frozen=True)
 class SolvedContactPayload(Payload):
     metadata: MeasurementMetadata
     observation: object
@@ -252,7 +303,7 @@ class RgbdPayload(Payload):
         object.__setattr__(self, "intrinsics", k)
 
 
-PAYLOAD_TYPES = (ImuPayload, ProprioceptionPayload, SolvedContactPayload, EstimatedTactilePayload,
+PAYLOAD_TYPES = (ImuPayload, ProprioceptionPayload, JointStatePayload, SolvedContactPayload, EstimatedTactilePayload,
                  RgbPayload, RgbdPayload, TactileImagePayload)
 
 

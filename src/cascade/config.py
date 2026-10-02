@@ -174,8 +174,8 @@ def load_robot_config(robot: str, *, llm: str = "mock", config_dir: Path | None 
     if not isinstance(robot, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", robot):
         raise ValueError("robot must be an exact profile slug")
     data = load_profile("robots", robot, cdir).as_dict()
-    if set(data) - {"version", "robot_id", "domains"} or type(data.get("version")) is not int or data.get("version") != 1:
-        raise ValueError("robot profile requires version 1, robot_id and domains only")
+    if set(data) - {"version", "robot_id", "domains", "embodiment"} or type(data.get("version")) is not int or data.get("version") != 1:
+        raise ValueError("robot profile requires version 1, robot_id, domains and optional embodiment")
     # A robot identity is not a profile filename. Preserve the exact identifier
     # used by its backend (for example microduck-mock) without relabeling it.
     from .robotics.contracts import identifier
@@ -217,12 +217,19 @@ def load_robot_config(robot: str, *, llm: str = "mock", config_dir: Path | None 
             cfg = load_demo_config(bases=profile["bases"], llm=llm, config_dir=cdir,
                                    _ignore_robot_environment=True)
             profile["resolved"] = cfg.as_dict()
-        elif kind != "sensors":
+        elif kind not in {"sensors", "spatial"}:
             raise ValueError(f"unknown robot domain kind: {kind!r}")
         profile.setdefault("robot_id", data["robot_id"])
         resolved[name] = profile
-    return Cfg({"robot_mode": "composed", "robot_id": data["robot_id"], "domains": resolved,
-                "llm": load_profile("llm", llm, cdir).as_dict(), "memory": {}})
+    result = {"robot_mode": "composed", "robot_id": data["robot_id"], "domains": resolved,
+              "llm": load_profile("llm", llm, cdir).as_dict(), "memory": {}}
+    if "embodiment" in data:
+        from .robotics.embodiment import EmbodimentDescriptor
+        body = EmbodimentDescriptor.from_dict(data["embodiment"])
+        if body.robot_id != data["robot_id"]:
+            raise ValueError("embodiment robot_id must match robot profile")
+        result["embodiment"] = body.as_dict()
+    return Cfg(result)
 
 
 def booth_mode_enabled() -> bool:

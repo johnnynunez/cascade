@@ -483,3 +483,34 @@ original test; the patched test kept zero measured post-admission displacement
 and returned `refuted`. A separately injected TCP delay still returned
 `unverified` with GC disabled. These controls establish fixture behavior, not
 the unrecorded cause of the original suite failure or physical robot validation.
+
+
+### 2026-10-02 — preserve utterance authority across delayed VAD and continuations
+
+Native Kokoro greeting traces showed that the pinned provider emits
+`speech_stopped` late, after much of model inference. The previous session
+started its tool deadline there, admitted unsolicited `response.created`, and
+renewed deadlines for tool continuations. Two deterministic replays of the exact
+native event payloads against archived 80d0122 actually admitted an injected
+expired readonly tool; both now reject it at the real domain/runtime boundary.
+The original greetings requested no tool and remain speech-only evidence.
+
+InputContext is immutable and bound at local text submission or receipt of a
+unique `speech_started` item. Stopped events only confirm that item. Text and
+tool-continuation requests carry a nonce echoed in response metadata; every
+continuation retains its original turn, runtime generation and deadline.
+Ambiguous automatic responses after cancellation cannot reacquire authority;
+the UI mutes/disables input and asks for explicit disconnect/reconnect. This
+revocation sends no robot stop in speech_only mode. Initial idle speech remains
+benign. The source does not pretend the pinned server honors manual VAD
+create_response=False, nor equate provider event receipt with microphone age.
+
+104 conversation/hosting CPU tests pass, including real local WebSockets/HTTP,
+old/stale/replayed IDs, nonce mismatch, two onsets before old stopped/created,
+operator-stop/disconnect during flush, text-send cancellation, browser status
+and unchanged earlier safety cases. An isolated actual pinned HF handler
+(no models, network or inference) emitted exact nonce-echo JSON bytes which
+were admitted by a local WebSocket regression. Ruff and git diff checks pass.
+Compact source/log/fixture hashes are in
+benchmark/results/conversation_input_origin_20261002.json. All changes remain
+local while the integration coordinator owns GitHub publication.

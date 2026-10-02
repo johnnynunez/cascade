@@ -11,12 +11,26 @@ from .domain import ToolIntent
 from .media import decode_pcm
 
 
-@dataclass
-class ResponseContext:
-    response_id: str
+@dataclass(frozen=True)
+class InputContext:
+    """Authority starts at local input onset and is never renewed by the model."""
     runtime_generation: int
     turn: int
     deadline: float
+    item_id: str | None = None
+
+
+@dataclass
+class PendingResponse:
+    origin: InputContext
+    nonce: str | None = None
+    speech_stopped: bool = False
+
+
+@dataclass
+class ResponseContext:
+    response_id: str
+    origin: InputContext | None
     calls: dict = field(default_factory=dict)
     valid: bool = True
     done: bool = False
@@ -34,8 +48,9 @@ class ConversationSession:
         self.calls_seen = set()
         self._tasks = set()
         self._action = None
-        self._input_pending = False
-        self._input_deadline = None
+        self._pending = None
+        self._speech_items = set()
+        self.authority_revoked = False
         self.closed = False
         self.ready = False
         self._close_lock = asyncio.Lock()
@@ -94,16 +109,43 @@ class ConversationSession:
         except Exception:  # noqa: BLE001 — fail closed at the external protocol boundary
             await self.close("provider_disconnected_or_invalid_event")
 
+    def _active(self):
+        return (self._pending is not None or any(c.valid and not c.done for c in self.responses.values()) or
+                (self._action is not None and not self._action.done()))
+
     async def text(self, text):
         if not self.ready or self.closed or not isinstance(text, str) or not 0 < len(text) <= 4000:
             raise ValueError("text request unavailable or invalid")
-        if self._input_pending:
-            raise ValueError("an input is already awaiting its response")
-        self._input_pending = True
-        self._input_deadline = time.monotonic() + self.domain.intent_timeout_s
+        if self.authority_revoked:
+            raise ValueError("conversation authority revoked; disconnect and reconnect")
+        if self._active():
+            raise ValueError("an input or response is already in flight")
+        self.turn += 1
+        origin = InputContext(self.runtime_generation, self.turn,
+                              time.monotonic() + self.domain.intent_timeout_s)
+        pending = self._pending = PendingResponse(origin, uuid.uuid4().hex)
         await self.provider.send({"type": "conversation.item.create", "item": {
             "type": "message", "role": "user", "content": [{"type": "input_text", "text": text}]}})
-        await self.provider.send({"type": "response.create"})
+        # An operator interrupt during the send cannot create a fresh request.
+        if not self.closed and self._pending is pending:
+            await self._request_response(pending)
+
+    async def _request_response(self, pending):
+        # The pinned HF provider echoes response metadata. This nonce is only a
+        # transport correlation key; it never enters a robot tool's arguments.
+        await self.provider.send({"type": "response.create", "response": {
+            "metadata": {"cascade_request_id": pending.nonce}}})
+
+    async def _speech_started(self, event):
+        item = event.get("item_id")
+        if not isinstance(item, str) or not 0 < len(item) <= 128 or item in self._speech_items or len(self._speech_items) >= 256:
+            raise ValueError("invalid/replayed speech item or input budget exhausted")
+        self._speech_items.add(item)
+        # Capture before any flush/network await; speech_stopped can be delayed
+        # until after STT/LLM inference by the pinned provider.
+        deadline = time.monotonic() + self.domain.intent_timeout_s
+        origin = InputContext(self.runtime_generation, self.turn + 1, deadline, item)
+        await self.interrupt("barge_in", send_cancel=False, _speech_origin=origin)
 
     def _context(self, event):
         rid = event.get("response_id")
@@ -116,19 +158,38 @@ class ConversationSession:
             return
         kind = event["type"]
         if kind == "input_audio_buffer.speech_started":
-            await self.interrupt("barge_in", send_cancel=False)
+            await self._speech_started(event)
         elif kind == "input_audio_buffer.speech_stopped":
-            self._input_pending = True
-            self._input_deadline = time.monotonic() + self.domain.intent_timeout_s
+            if self.authority_revoked:
+                return
+            pending = self._pending
+            if (pending is None or pending.origin.item_id is None or pending.speech_stopped or
+                    event.get("item_id") != pending.origin.item_id):
+                raise ValueError("speech stop has no current, unique input origin")
+            pending.speech_stopped = True
         elif kind == "response.created":
-            rid = event.get("response", {}).get("id")
+            response = event.get("response", {})
+            rid = response.get("id")
             if not isinstance(rid, str) or not 0 < len(rid) <= 128 or rid in self.responses or len(self.responses) >= 256:
                 raise ValueError("response replay, invalid identity or session response budget exhausted")
-            deadline = time.monotonic() + self.domain.intent_timeout_s
-            if self._input_pending and self._input_deadline is not None:
-                deadline = min(deadline, self._input_deadline)
-            self._input_pending = False
-            self.responses[rid] = ResponseContext(rid, self.runtime_generation, self.turn, deadline)
+            if self.authority_revoked:
+                # Keep consuming bounded late events without granting authority
+                # or stopping unrelated robot control in speech_only mode.
+                self.responses[rid] = ResponseContext(rid, None, valid=False)
+                return
+            pending = self._pending
+            metadata = response.get("metadata")
+            if metadata is None:
+                metadata = {}
+            if not isinstance(metadata, dict) or pending is None:
+                raise ValueError("response has no admitted input origin")
+            if pending.nonce is not None:
+                if metadata.get("cascade_request_id") != pending.nonce:
+                    raise ValueError("response does not match its explicit input request")
+            elif not pending.speech_stopped or "cascade_request_id" in metadata:
+                raise ValueError("automatic response has no completed speech origin")
+            self._pending = None
+            self.responses[rid] = ResponseContext(rid, pending.origin)
         elif kind == "response.function_call_arguments.done":
             context = self._context(event)
             if not context.valid:
@@ -170,7 +231,7 @@ class ConversationSession:
                 self._action = self._spawn(self._execute(context))
         elif kind == "response.output_audio.delta":
             context = self._context(event)
-            if context.valid and context.turn == self.turn:
+            if context.valid and context.origin.turn == self.turn:
                 if context.done:
                     raise ValueError("audio received after response terminal")
                 await self.media.playback(decode_pcm(event.get("delta")), response_id=context.response_id)
@@ -191,13 +252,13 @@ class ConversationSession:
     async def _execute(self, context):
         try:
             for index in sorted(context.calls):
-                if self.closed or not context.valid or context.turn != self.turn:
+                if self.closed or not context.valid or context.origin.turn != self.turn:
                     return
                 request, name, args = context.calls[index]
                 intent = ToolIntent(self.session_id, self.domain.robot_id, context.response_id, request,
-                                    context.runtime_generation, context.deadline, name, args)
+                                    context.origin.runtime_generation, context.origin.deadline, name, args)
                 result = await self.domain.dispatch(intent)
-                if self.closed or not context.valid or context.turn != self.turn:
+                if self.closed or not context.valid or context.origin.turn != self.turn:
                     return
                 output = json.dumps(result, allow_nan=False)
                 if len(output.encode()) > 32768:
@@ -206,22 +267,30 @@ class ConversationSession:
                     "type": "function_call_output", "call_id": request, "output": output}})
                 await self.media.emit({"type": "tool_result", "tool": name, "request_id": request,
                                        "result": json.loads(output)})
-            if not self.closed and context.valid and context.turn == self.turn:
-                self._input_pending = True
-                self._input_deadline = time.monotonic() + self.domain.intent_timeout_s
-                await self.provider.send({"type": "response.create"})
+            if not self.closed and context.valid and context.origin.turn == self.turn:
+                # A model continuation is part of the same user intent, even
+                # when its preceding tool took most of the admission budget.
+                pending = self._pending = PendingResponse(context.origin, uuid.uuid4().hex)
+                await self._request_response(pending)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 — fail closed at the external protocol boundary
             await self.close("tool_dispatch_failed")
 
-    async def interrupt(self, reason="operator_interrupt", *, send_cancel=True, force_stop=False):
-        active = (self._input_pending or any(c.valid and not c.done for c in self.responses.values()) or
-                  (self._action is not None and not self._action.done()))
-        self._input_pending = False
+    async def interrupt(self, reason="operator_interrupt", *, send_cancel=True, force_stop=False,
+                        _speech_origin=None):
+        active = self._active()
+        # Automatic VAD responses have no input-item correlation on this wire.
+        # After cancellation we cannot tell an old response from a newer one:
+        # this connection must never acquire another tool authority.
+        revoked_now = not self.authority_revoked and (active or reason != "barge_in")
+        self.authority_revoked = self.authority_revoked or revoked_now
+        self._pending = None
         self.turn += 1
         for context in self.responses.values():
             context.valid = False
+        if _speech_origin is not None and not self.authority_revoked and not self.closed:
+            self._pending = PendingResponse(_speech_origin)
         # Issue stop before the provider/network operation; blocked networking
         # cannot hold up robot cancellation.
         if force_stop or (self.domain.barge_in == "stop_robot" and (active or reason != "barge_in")):
@@ -233,6 +302,9 @@ class ConversationSession:
             receipt = {**receipt, "media_flush_ok": True}
         except (TimeoutError, ValueError, asyncio.QueueFull):
             receipt = {**receipt, "media_flush_ok": False}
+        if self.authority_revoked and not self.closed:
+            await self.media.emit({"type": "authority_revoked", "reconnect_required": True,
+                                   "reason": "input origin became ambiguous or was cancelled"})
         if send_cancel and not self.closed:
             await self.provider.send({"type": "response.cancel"})
         return receipt

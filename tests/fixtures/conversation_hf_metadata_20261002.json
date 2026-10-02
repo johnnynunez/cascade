@@ -1,0 +1,7 @@
+{
+  "scope": "Actual pinned upstream RealtimeService/ResponseHandler queue and JSON serialization; no network/model/inference/tool execution.",
+  "provider_revision": "411399d34555b2169823a6eaeb7f8ff192db89db",
+  "source_sha256": "a21b358d4e20ef30902e2b4db38aa6568e3de9615083877a3e077a1009c1bccc",
+  "request_json": "{\"type\":\"response.create\",\"response\":{\"metadata\":{\"cascade_request_id\":\"standalone-upstream-correlation-probe\"}}}",
+  "response_json": "{\"event_id\":\"event_d3ebf0d505b0410cb9f0e6e2567da32e\",\"response\":{\"id\":\"resp_601d09afdc194af8b4197188b1e1dbd0\",\"audio\":{\"output\":{\"format\":null,\"voice\":null}},\"conversation_id\":\"conv_af0582db751f415f812626506757d358\",\"max_output_tokens\":null,\"metadata\":{\"cascade_request_id\":\"standalone-upstream-correlation-probe\"},\"object\":\"realtime.response\",\"output\":[],\"output_modalities\":[\"audio\"],\"status\":\"in_progress\",\"status_details\":null,\"usage\":{\"input_token_details\":{\"audio_tokens\":0,\"cached_tokens\":0,\"cached_tokens_details\":null,\"image_tokens\":0,\"text_tokens\":0},\"input_tokens\":0,\"output_token_details\":{\"audio_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"total_tokens\":0}},\"type\":\"response.created\"}"
+}

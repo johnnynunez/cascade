@@ -19,6 +19,14 @@ import numpy as np
 from . import PlanningError
 
 SDK_VERSION = "1.1.0"
+LINEAR_PATH_TOLERANCE_M = .001
+ORIENTATION_PATH_TOLERANCE_RAD = .025
+# SDK path constraints are soft penalties. These documented weights enforce
+# the small reBot contact corridor; the independent FK check remains decisive.
+PATH_POSITION_WEIGHTS = {
+    "trajopt/pbo/cost/path_position_error_penalty/weight": 600000.,
+    "trajopt/lbfgs/cost/path_position_error_penalty/weight": 50000000.,
+}
 
 
 def _sdk():
@@ -78,6 +86,7 @@ class MotionPlan:
     scene_sha256: str
     request_sha256: str
     sdk_version: str = SDK_VERSION
+    path_constraint: str = "unconstrained"
 
     def as_dict(self):
         return {"status": "candidate", "execution_authorized": False,
@@ -177,8 +186,9 @@ class CumotionPlanner:
                 raise PlanningError("XRDF must provide world and self collision spheres")
             sdk_cfg = self._cm.create_default_trajectory_optimizer_config(
                 self._robot, self.tool_frame, self._view)
-            for key in ("enable_self_collision", "enable_world_collision"):
-                if not sdk_cfg.set_param(key, True):
+            for key, value in {"enable_self_collision": True, "enable_world_collision": True,
+                               **PATH_POSITION_WEIGHTS}.items():
+                if not sdk_cfg.set_param(key, value):
                     raise PlanningError(f"cuMotion rejected required parameter {key}")
             self._optimizer = self._cm.create_trajectory_optimizer(sdk_cfg)
         except Exception as exc:
@@ -225,7 +235,8 @@ class CumotionPlanner:
         """Return copied samples. Native failures are not retried or substituted."""
         return self._request(start, goal)
 
-    def plan_profile(self, start, goal, *, duration_s, rate_hz, max_velocity):
+    def plan_profile(self, start, goal, *, duration_s, rate_hz, max_velocity,
+                     linear_tool_path=False):
         """Copy the original native curve at every command and safety time.
 
         Uniform slowing preserves the geometric curve. It grants no actuator
@@ -234,9 +245,12 @@ class CumotionPlanner:
         options = (_number(duration_s, "requested duration", positive=True),
                    _number(rate_hz, "command rate", positive=True),
                    _number(max_velocity, "host velocity limit", positive=True))
-        return self._request(start, goal, profile_options=options)
+        if type(linear_tool_path) is not bool:
+            raise PlanningError("linear_tool_path must be a boolean")
+        return self._request(start, goal, profile_options=options,
+                             linear_tool_path=linear_tool_path)
 
-    def _request(self, start, goal, *, profile_options=None):
+    def _request(self, start, goal, *, profile_options=None, linear_tool_path=False):
         start = _vector(start, self.n, "start")
         goal = _vector(goal, self.n, "goal")
         with self._lock:
@@ -246,7 +260,8 @@ class CumotionPlanner:
             if not self._positions_valid(qs) or not self._positions_valid(qg):
                 raise PlanningError("start/goal violates model joint limits or margin")
             try:
-                return self._plan(qs, qg, start, goal, profile_options=profile_options)
+                return self._plan(qs, qg, start, goal, profile_options=profile_options,
+                                  linear_tool_path=linear_tool_path)
             except Exception as exc:
                 # No assumptions about native scratch state after an exception.
                 self._poisoned = True
@@ -254,8 +269,37 @@ class CumotionPlanner:
                     raise
                 raise PlanningError(f"cuMotion planning failed: {exc}") from exc
 
-    def _plan(self, qs, qg, start, goal, *, profile_options=None):
-        result = self._optimizer.plan_to_cspace_target(qs, self._cm.TrajectoryOptimizer.CSpaceTarget(qg))
+    def _plan(self, qs, qg, start, goal, *, profile_options=None, linear_tool_path=False):
+        target_type = self._cm.TrajectoryOptimizer.CSpaceTarget
+        path_check = lambda q: None
+        if linear_tool_path:
+            target = target_type(qg,
+                # Leave interpolation headroom; independently enforce the
+                # 1 mm corridor on every exported command and safety sample.
+                target_type.TranslationPathConstraint.linear(LINEAR_PATH_TOLERANCE_M / 10.),
+                target_type.OrientationPathConstraint.constant(ORIENTATION_PATH_TOLERANCE_RAD))
+            kin = self._robot.kinematics()
+            first = np.asarray(kin.pose(qs, self.tool_frame).matrix(), dtype=float)
+            last = np.asarray(kin.pose(qg, self.tool_frame).matrix(), dtype=float)
+            delta = last[:3, 3] - first[:3, 3]
+            length_squared = float(delta @ delta)
+            def path_check(q):
+                pose = np.asarray(kin.pose(q, self.tool_frame).matrix(), dtype=float)
+                if pose.shape != (4, 4) or not np.isfinite(pose).all():
+                    raise PlanningError("cuMotion returned invalid constrained-path FK")
+                fraction = (float((pose[:3, 3] - first[:3, 3]) @ delta) / length_squared
+                            if length_squared > 1e-16 else 0.)
+                closest = first[:3, 3] + np.clip(fraction, 0., 1.) * delta
+                error = np.linalg.norm(pose[:3, 3] - closest)
+                angle = np.arccos(np.clip((np.trace(last[:3, :3].T @ pose[:3, :3]) - 1.) / 2., -1., 1.))
+                if error > LINEAR_PATH_TOLERANCE_M + 1e-8 or angle > ORIENTATION_PATH_TOLERANCE_RAD + 1e-8:
+                    raise PlanningError("cuMotion curve violates the requested linear tool path "
+                                        f"(translation={error:.9g} m, orientation={angle:.9g} rad)")
+            path_check(qs)
+            path_check(qg)
+        else:
+            target = target_type(qg)
+        result = self._optimizer.plan_to_cspace_target(qs, target)
         status = result.status()
         if status != self._cm.TrajectoryOptimizer.Results.Status.SUCCESS:
             raise PlanningError(f"cuMotion returned {status}")
@@ -304,10 +348,13 @@ class CumotionPlanner:
                    "sample_dt_s": self._dt, "joint_margin": self._margin,
                    "max_duration_s": self._max_duration, "max_samples": self._max_samples,
                    "sdk_version": SDK_VERSION,
-                   "endpoint_tolerance": self._endpoint_tol}
+                   "endpoint_tolerance": self._endpoint_tol,
+                   "linear_tool_path": linear_tool_path,
+                   "path_position_weights": PATH_POSITION_WEIGHTS}
         plan = MotionPlan(self.joint_names, tuple(times.tolist()), tuple(positions),
                           tuple(velocities), self.base_frame, self.tool_frame,
-                          self.model_sha256, self.scene_sha256, _digest(request))
+                          self.model_sha256, self.scene_sha256, _digest(request),
+                          path_constraint="linear_tool" if linear_tool_path else "unconstrained")
         if profile_options is None:
             return plan
         from .trajectory import TrajectoryProfile
@@ -324,6 +371,7 @@ class CumotionPlanner:
                 if (not self._positions_valid(q) or self._inspector.in_self_collision(q)
                         or self._inspector.in_collision_with_obstacle(q)):
                     raise PlanningError("cuMotion safety sample violates limits or collision model")
+                path_check(q)
                 cache[fraction] = self._to_local(q)
             return cache[fraction]
         return TrajectoryProfile.from_curve(evaluate, execution_duration, rate, plan,

@@ -680,13 +680,15 @@ class SafeArm:
                     joint_margin: float | None = None, _preflight=None,
                     _halt_generation: int | None = None,
                     _trajectory_preflight=None,
+                    _linear_tool_path=False,
                     **backend_kw) -> bool:
         if self.motion_planner is not None:
             from ..planning.runtime import execute
             try:
                 return execute(self, q_target, duration_s, joint_margin=joint_margin,
                                legacy_preflight=_preflight, trajectory_preflight=_trajectory_preflight,
-                               halt_generation=_halt_generation, **backend_kw)
+                               halt_generation=_halt_generation, linear_tool_path=_linear_tool_path,
+                               **backend_kw)
             finally:
                 self.harness.end_motion()
         if _preflight is not None and any(key in backend_kw for key in ("preflight", "before_stream")):

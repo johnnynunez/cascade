@@ -116,7 +116,8 @@ def test_public_factory_maps_names_signs_and_nonzero_time_origin(setup):
         np.testing.assert_allclose(result.velocities, np.tile([-.4, .1], (6, 1)))
         assert result.times_s == pytest.approx([0, .2, .4, .6, .8, 1])
         assert record["execution_authorized"] is False and record["status"] == "candidate"
-        assert sdk.parameters == [("enable_self_collision", True), ("enable_world_collision", True)]
+        assert sdk.parameters == [("enable_self_collision", True), ("enable_world_collision", True),
+                                  *list(adapter.PATH_POSITION_WEIGHTS.items())]
     assert planner._optimizer is None and planner._world is None and planner._robot is None
     with pytest.raises(PlanningError, match="closed"):
         planner.plan(start, goal)

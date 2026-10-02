@@ -2124,7 +2124,8 @@ class SkillRuntime:
         try:
             if not self.arm.move_joints(q_grasp,
                                         duration_s=float(gcfg.get("descend_duration_s", 2.0)),
-                                        bias_compensate=True, **_scene_motion(q_grasp)):
+                                        bias_compensate=True, _linear_tool_path=True,
+                                        **_scene_motion(q_grasp)):
                 raise SkillError("did not settle at grasp pose")
 
             # 3. close with the material profile (two-stage, stall-aware).
@@ -2204,6 +2205,7 @@ class SkillRuntime:
             grasp_evidence.phase("lift")
             grasp_evidence.event("move_target", q=q_pre, duration_s=lift_dur)
             if not carry_attachment.move(self, q_pre, duration_s=lift_dur,
+                    _linear_tool_path=True,
                     **({"_halt_generation": scene_halt_generation} if scene_enabled else {})):
                 raise SkillError("did not settle at grasp lift pose")
             contact_completed = True
@@ -2219,6 +2221,7 @@ class SkillRuntime:
                     if scene_gate is not None:
                         settled = self.arm.move_joints(q_pre,
                             duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                            _linear_tool_path=True,
                             **_scene_motion(q_pre))
                     else:
                         settled = self.arm.move_planned(

@@ -4,6 +4,7 @@ import pytest
 
 from cascade.control.simulation_motion import SimulationMotion
 from cascade.planning import make_motion_planner
+from cascade.planning import PlanningError
 from cascade.planning.trajectory import TrajectoryProfile
 from cascade.types import RobotState, SafetyViolation
 from test_cumotion_planner import setup
@@ -106,3 +107,34 @@ def test_paused_physics_cannot_advance_planned_curve(monkeypatch):
     with pytest.raises(SafetyViolation, match='wall-time'):
         SimulationMotion(sim).stream_profile(curved_profile(), planned_state(), .045, 1., None)
     assert not sim.sent
+
+
+@pytest.mark.parametrize('deviates', [False, True])
+def test_linear_tool_constraint_is_requested_and_independently_checked(setup, deviates):
+    from types import SimpleNamespace as NS
+    cfg, sdk = setup
+    constraints = []
+    class Target:
+        TranslationPathConstraint = NS(linear=lambda tolerance: ('line', tolerance))
+        OrientationPathConstraint = NS(constant=lambda tolerance: ('orientation', tolerance))
+        def __new__(cls, q, translation, orientation):
+            constraints.append((translation, orientation))
+            return q.copy()
+    sdk.TrajectoryOptimizer = NS(CSpaceTarget=Target, Results=sdk.TrajectoryOptimizer.Results)
+    def pose(q, frame):
+        matrix = np.eye(4)
+        matrix[:2, 3] = q
+        if deviates:
+            matrix[2, 3] = .01 * np.sin(np.pi * q[0] / .1)
+        return NS(matrix=lambda: matrix)
+    sdk.kin.pose = pose
+    with make_motion_planner(cfg) as planner:
+        if deviates:
+            with pytest.raises(PlanningError, match='violates the requested linear tool path'):
+                planner.plan_profile([0, 0], [.2, .1], duration_s=2., rate_hz=30.,
+                                     max_velocity=1., linear_tool_path=True)
+        else:
+            profile = planner.plan_profile([0, 0], [.2, .1], duration_s=2., rate_hz=30.,
+                                           max_velocity=1., linear_tool_path=True)
+            assert profile.plan.path_constraint == 'linear_tool'
+    assert constraints == [(('line', .0001), ('orientation', .025))]

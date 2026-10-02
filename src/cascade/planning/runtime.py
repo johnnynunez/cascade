@@ -85,7 +85,7 @@ class RuntimeMotionPlanner:
 
 
 def execute(safe, target, duration_s, *, joint_margin=None, legacy_preflight=None,
-            trajectory_preflight=None, halt_generation=None, **kwargs):
+            trajectory_preflight=None, halt_generation=None, linear_tool_path=False, **kwargs):
     """One solve and one physical stream; every error remains terminal."""
     allowed = {'preflight', 'before_stream', 'feedback_guard', 'rate_hz', 'bias_compensate'}
     if set(kwargs) - allowed:
@@ -115,7 +115,8 @@ def execute(safe, target, duration_s, *, joint_margin=None, legacy_preflight=Non
     started = time.monotonic()
     profile = safe.motion_planner.plan_profile(state.q, target, duration_s=duration_s,
         rate_hz=resolve_motion_rate(safe.raw, kwargs.get('rate_hz')),
-        max_velocity=h.limits.max_joint_vel)
+        max_velocity=h.limits.max_joint_vel,
+        **({'linear_tool_path': True} if linear_tool_path else {}))
     guard()
     if time.monotonic() - started >= PLAN_BUDGET_S:
         raise SafetyViolation("cuMotion planning exceeded its time budget; no motion sent")

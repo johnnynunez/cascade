@@ -154,3 +154,31 @@ def test_runtime_rejects_nonphysical_backend(tmp_path):
     arm._data['type'] = 'mock'
     with pytest.raises(PlanningError, match='physical-clock'):
         RuntimeMotionPlanner(config, arm, kin)
+
+
+def test_enabled_composition_prepares_sdk_before_arm_factory(tmp_path, monkeypatch):
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+    config, arm, kin = model_binding(tmp_path)
+    arm._data['motion_planner'] = config
+    monkeypatch.setattr(demo, 'Kinematics', lambda **kwargs: kin)
+    monkeypatch.setattr(demo, 'make_arm', lambda *a, **kw: pytest.fail('actuator created before SDK ready'))
+    def missing(cfg):
+        raise PlanningError('SDK missing at startup')
+    monkeypatch.setattr('cascade.planning.runtime.make_motion_planner', missing)
+    cfg = load_demo_config(arm='mock', camera='mock', llm='mock')
+    with pytest.raises(PlanningError, match='SDK missing at startup'):
+        demo._build_arm(arm, False, None, cfg)
+
+
+def test_default_composition_never_initializes_native_sdk(monkeypatch):
+    from cascade.apps import demo
+    from cascade.config import load_demo_config
+    monkeypatch.setattr(demo, 'Kinematics', lambda **kwargs: NS())
+    monkeypatch.setattr('cascade.planning.runtime.make_motion_planner',
+                        lambda *a: pytest.fail('optional planner was implicitly enabled'))
+    monkeypatch.setattr(demo, 'make_arm', lambda *a, **kw: pytest.fail('lazy backend was materialized'))
+    cfg = load_demo_config(arm='mock', camera='mock', llm='mock')
+    raw, safe, _kin = demo._build_arm(cfg.arm, True, None, cfg)
+    assert safe.motion_planner is None and not raw.connected
+    safe.disconnect()

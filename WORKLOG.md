@@ -466,3 +466,20 @@ Response 68.923 s includes 61.580 s CPU LLM time, longer than 60 s tool admissio
 tool/actuator call occurred. This limitation and the earlier failed sensor-read
 intent remain explicit. Native provider log audio 2.20 s counts input, not output.
 Receipt: docs/evidence/robot-modularity/conversation-native-chromium.json.
+
+## Inert RPC geometry fixture (2026-10-02)
+
+The composed suite at d09489b retained 5,507 passes, one failure, 252 skips and
+four deselections. The inert-actor case correctly returned `unverified` after
+`missing_state` on observation attempt 169; its geometry assertion required a
+healthy channel and `refuted`. The original run did not log reader errors or GC
+activity, so it does not establish why that observation was lost.
+
+Apply the existing `healthy_episode_gc` fixture to this test only. Automatic
+cyclic collection is moved outside the bounded software TCP episode; original
+GC mode is restored. Clocks, limits, production code and assertions are unchanged.
+An external controlled automatic-GC pause reproduced `missing_state` in the
+original test; the patched test kept zero measured post-admission displacement
+and returned `refuted`. A separately injected TCP delay still returned
+`unverified` with GC disabled. These controls establish fixture behavior, not
+the unrecorded cause of the original suite failure or physical robot validation.

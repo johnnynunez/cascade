@@ -240,7 +240,7 @@ def test_contact_stability_requires_fresh_physical_window_and_keeps_vetoes(monke
         current, receipt = call()
         assert reads[0] >= 8
         assert receipt['window_physics_s'] >= .5
-        assert receipt['max_joint_range_rad'] <= .00025
+        assert receipt['max_joint_range_rad'] <= .0005
         assert receipt['distinct_samples'] >= 3
         assert current is observed[-1]
     else:
@@ -268,3 +268,55 @@ def test_shutdown_park_never_moves_a_retained_or_possible_payload(monkeypatch, s
     else:
         assert len(sim.sent) == 15
         assert planner.calls[0][2]['joint_margin'] == 0.
+
+
+@pytest.mark.parametrize('spread,expected', [(.00035,True),(.00075,False)])
+def test_contact_jitter_prefilter_reserves_half_of_final_drift_bound(monkeypatch, spread, expected):
+    from cascade.planning.runtime import wait_for_contact_stability
+    from cascade.types import RobotState
+    from test_isaac_simulation_motion import clock
+    wall = [0.]
+    reads = [0]
+    def state(step, q):
+        return RobotState(q=np.array([q,0.]),dq=np.zeros(2),physics_clock=clock(step))
+    def read(**kw):
+        reads[0] += 1
+        wall[0] += .05
+        assert kw['timeout_s'] <= 1.
+        return state(reads[0]*10, spread * (reads[0] % 2))
+    monkeypatch.setattr('cascade.planning.runtime.time.monotonic',lambda:wall[0])
+    monkeypatch.setattr('cascade.planning.runtime.time.sleep',lambda dt:None)
+    progress = {}
+    call = lambda:wait_for_contact_stability(NS(get_state=read),state(0,0.),
+        source=('fake',1),robot_id='/robot',timeout_s=1.,rpc_timeout_s=1.,
+        check=lambda:None,observe=lambda s:None,progress=progress)
+    if expected:
+        call()
+        assert progress['status']=='passed'
+    else:
+        with pytest.raises(SafetyViolation,match='wall deadline'):call()
+        assert progress['status']=='failed'
+    assert progress['max_joint_range_rad']==pytest.approx(spread)
+    assert progress['limit_rad']==.0005
+    assert progress['window_physics_s']>=.5
+
+
+def test_contact_stability_uses_configured_rpc_budget_and_records_deadline(monkeypatch):
+    from cascade.planning.runtime import wait_for_contact_stability
+    from cascade.types import RobotState
+    from test_isaac_simulation_motion import clock
+    wall = [0.]
+    budgets = []
+    def read(**kw):
+        budgets.append(kw['timeout_s'])
+        wall[0] += kw['timeout_s']
+        raise RuntimeError('transport expired at wall deadline')
+    monkeypatch.setattr('cascade.planning.runtime.time.monotonic',lambda:wall[0])
+    progress = {}
+    initial = RobotState(q=np.zeros(2),dq=np.zeros(2),physics_clock=clock())
+    with pytest.raises(SafetyViolation,match='wall deadline'):
+        wait_for_contact_stability(NS(get_state=read),initial,source=('fake',1),
+            robot_id='/robot',timeout_s=.8,rpc_timeout_s=1.,progress=progress,
+            check=lambda:None,observe=lambda s:None)
+    assert budgets==[.8]  # no artificial 0.5-second RPC cap
+    assert progress['wall_elapsed_s']==.8 and progress['status']=='failed'

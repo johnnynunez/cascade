@@ -19,41 +19,61 @@ from . import PlanningError, make_motion_planner
 from .trajectory import TrajectoryProfile
 
 
-def wait_for_contact_stability(safe, state, *, source, robot_id, timeout_s, check, observe):
+def wait_for_contact_stability(safe, state, *, source, robot_id, timeout_s, check, observe,
+                               rpc_timeout_s=1., progress=None):
     """Observe a bounded, physically advancing hold; never command or rebase."""
     from ..control.simulation_motion import PhysicsClock, positive
-    clock = PhysicsClock(source, robot_id)
-    clock.observe(state.physics_clock)
+    progress = {} if progress is None else progress
     started = time.monotonic()
-    deadline = started + positive(timeout_s, "post-close stability timeout")
-    window_s = .5
-    tolerance = PREFLIGHT_MAX_DRIFT_RAD / 4.
-    q = np.asarray(state.q, float)
-    if q.ndim != 1 or not len(q) or not np.isfinite(q).all():
-        raise SafetyViolation("invalid initial post-close joint feedback")
-    samples = [(clock.time, q.copy())]
-    while True:
-        check()
-        left = deadline - time.monotonic()
-        if left <= 0:
-            raise SafetyViolation("post-close joints did not stabilize before the wall deadline")
-        current = safe.get_state(timeout_s=min(left, .5))
-        check()
-        observe(current)
-        if clock.observe(current.physics_clock):
-            q = np.asarray(current.q, float)
-            if q.shape != samples[0][1].shape or not np.isfinite(q).all():
-                raise SafetyViolation("invalid post-close joint feedback")
-            samples.append((clock.time, q.copy()))
-            # Retain one sample at/before the exact window boundary.
-            while len(samples) > 2 and samples[1][0] <= clock.time - window_s:
-                samples.pop(0)
-            spread = float(np.max(np.ptp([item[1] for item in samples], axis=0)))
-            if len(samples) >= 3 and clock.time - samples[0][0] >= window_s and spread <= tolerance:
-                return current, {"window_physics_s": clock.time - samples[0][0],
-                    "max_joint_range_rad": spread, "limit_rad": tolerance,
-                    "distinct_samples": len(samples), "wall_elapsed_s": time.monotonic() - started}
-        time.sleep(min(.01, max(0., deadline - time.monotonic())))
+    # Empirical contact jitter may exceed 0.25 mrad. Reserve half of the
+    # unchanged 1 mrad final start-drift allowance; this is only a prefilter.
+    progress.update(status="observing", required_window_physics_s=.5,
+                    limit_rad=PREFLIGHT_MAX_DRIFT_RAD / 2., distinct_samples=0)
+    try:
+        deadline = started + positive(timeout_s, "post-close stability timeout")
+        rpc_timeout_s = positive(rpc_timeout_s, "post-close feedback RPC timeout")
+        clock = PhysicsClock(source, robot_id)
+        clock.observe(state.physics_clock)
+        q = np.asarray(state.q, float)
+        if q.ndim != 1 or not len(q) or not np.isfinite(q).all():
+            raise SafetyViolation("invalid initial post-close joint feedback")
+        samples = [(clock.time, q.copy())]
+        while True:
+            check()
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise SafetyViolation("post-close joints did not stabilize before the wall deadline")
+            try:
+                current = safe.get_state(timeout_s=min(left, rpc_timeout_s))
+            except Exception as exc:
+                if time.monotonic() >= deadline:
+                    raise SafetyViolation("post-close joints did not stabilize before the wall deadline") from exc
+                raise
+            if time.monotonic() >= deadline:
+                raise SafetyViolation("post-close joints did not stabilize before the wall deadline")
+            check()
+            observe(current)
+            if clock.observe(current.physics_clock):
+                q = np.asarray(current.q, float)
+                if q.shape != samples[0][1].shape or not np.isfinite(q).all():
+                    raise SafetyViolation("invalid post-close joint feedback")
+                samples.append((clock.time, q.copy()))
+                # Retain one sample at/before the exact window boundary.
+                while len(samples) > 2 and samples[1][0] <= clock.time - .5:
+                    samples.pop(0)
+                spread = float(np.max(np.ptp([item[1] for item in samples], axis=0)))
+                progress.update(window_physics_s=clock.time - samples[0][0],
+                    max_joint_range_rad=spread, distinct_samples=len(samples),
+                    last_q=q.tolist(), last_clock=dict(current.physics_clock))
+                if len(samples) >= 3 and clock.time - samples[0][0] >= .5 and spread <= progress['limit_rad']:
+                    progress['status'] = 'passed'
+                    return current, progress
+            time.sleep(min(.01, max(0., deadline - time.monotonic())))
+    except Exception as exc:
+        progress.update(status='failed', error=f'{type(exc).__name__}: {exc}')
+        raise
+    finally:
+        progress['wall_elapsed_s'] = time.monotonic() - started
 
 
 def contact_lift_target(kin, measured_q, pregrasp_q):

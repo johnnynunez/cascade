@@ -171,3 +171,13 @@ tests exercise the real sampler with module-local logical clocks and distinguish
 late fresh, faulty and stale returns. The focused suite passed 198 cases;
 production sources, limits and shared learned stores remain unchanged. Evidence:
 `docs/evidence/robot-modularity/macos-late-read-fix.json`.
+
+## Conversation admission foundation (2026-10-02)
+
+The new conversation service needs delayed provider intents bound to the runtime
+cancellation generation. `RobotRuntime.execute(expected_generation=...)` now
+checks that token under its admission lock; stop followed by an explicit operator
+reset cannot admit an older episode. Token-bound reset is refused; priority stop
+remains available independently. Skill graphs use the same atomic boundary.
+Deterministic regressions force stop/reset between graph validation and dispatch.
+This is a software admission fix, with no new physical acceptance claim.

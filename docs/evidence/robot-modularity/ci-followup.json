@@ -1,0 +1,166 @@
+{
+  "scope": "Software-only CI follow-up; no runtime gates or physical claims changed",
+  "initial_commit": "d7f706c05ea0e12108e79669c13a33851051d765",
+  "initial_ci": {
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/37031554258",
+    "passed_jobs": [
+      "ubuntu-latest / py3.12",
+      "minimal install, no accelerator",
+      "booth pages and camera extension"
+    ],
+    "arm": {
+      "failed": 1,
+      "passed": 5163,
+      "skipped": 269,
+      "deselected": 4,
+      "node": "test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion[slow-producer-0.0-confirmed]",
+      "reason": "stale independent state",
+      "log_sha256": "fb1d1dcfa5f961673e8370e226dec3ff6c7723f44763756b0b92318736ddfa50"
+    },
+    "macos": {
+      "counts": {
+        "failed": 2,
+        "passed": 5128,
+        "skipped": 303,
+        "deselected": 4,
+        "duration_s": 1026.15
+      },
+      "failed_nodeids": [
+        "tests/test_mobile_observation_veto.py::test_real_tcp_inflight_fault_must_block_task_done[healthy_late-stop_navigation]",
+        "tests/test_mobile_observation_veto.py::test_real_tcp_inflight_fault_must_block_task_done[healthy_late-emergency_stop]"
+      ],
+      "reason_known": false,
+      "log_sha256": "e9d7e53c2d03f4768da5dc0fe0368375c393474889dc710ce55f3e8254a8b3c4"
+    }
+  },
+  "main_comparison": {
+    "commit": "0a65887c14605186dc1bc6a4b4084d0582418076",
+    "run_url": "https://github.com/johnnynunez/cascade/actions/runs/37027328609",
+    "same_failure": "healthy_late-emergency_stop at line226 expectedconfirmed actualunverified",
+    "counts": {
+      "failed": 1,
+      "passed": 4973,
+      "skipped": 303,
+      "deselected": 4,
+      "duration_s": 1044.59
+    },
+    "log_sha256": "3f92bf839b2caaa1fba12bcf9dca1a029e3d39c16a25fcf14efd9f1f09dc9a31",
+    "bound_sources": [
+      {
+        "path": "src/cascade/agent/base_effects.py",
+        "main_sha256": "1785276e72c76021be1cc8c2e834c971719012dd9ae00832eb2553da2b3f9b80",
+        "pr_sha256": "1785276e72c76021be1cc8c2e834c971719012dd9ae00832eb2553da2b3f9b80",
+        "unchanged": true
+      },
+      {
+        "path": "src/cascade/skills/mobile_runtime.py",
+        "main_sha256": "43b085208af13910edb5a0d21470dcd08e2a49e3891de252cc725f5838cb763f",
+        "pr_sha256": "43b085208af13910edb5a0d21470dcd08e2a49e3891de252cc725f5838cb763f",
+        "unchanged": true
+      },
+      {
+        "path": "src/cascade/apps/mobile_runtime.py",
+        "main_sha256": "8e4788b7eb69fb3b5c9548f88dd3d350387dbeb85e77044399250f58728a48e6",
+        "pr_sha256": "8e4788b7eb69fb3b5c9548f88dd3d350387dbeb85e77044399250f58728a48e6",
+        "unchanged": true
+      },
+      {
+        "path": "src/cascade/control/isaac_base.py",
+        "main_sha256": "b44edaf75a48d96b70318e58775add3785dd6647d9d4db30db1fb1bd48bf4378",
+        "pr_sha256": "b44edaf75a48d96b70318e58775add3785dd6647d9d4db30db1fb1bd48bf4378",
+        "unchanged": true
+      },
+      {
+        "path": "src/cascade/sim/mobile_bridge.py",
+        "main_sha256": "9bf40a9253945b80e8c44ec34cdb45a6424c3f768455333b110b916db3df37b4",
+        "pr_sha256": "9bf40a9253945b80e8c44ec34cdb45a6424c3f768455333b110b916db3df37b4",
+        "unchanged": true
+      },
+      {
+        "path": "tests/test_mobile_observation_veto.py",
+        "main_sha256": "b374d7cab929cb4810ff27672533b696fcf257eeff0536744e02ed80c024f169",
+        "pr_sha256": "b374d7cab929cb4810ff27672533b696fcf257eeff0536744e02ed80c024f169",
+        "unchanged": true
+      },
+      {
+        "path": "tests/test_mobile_runtime.py",
+        "main_sha256": "d453013adc38b8a1e9630499919c1799c555a3487b7dc9be651eced43057743e",
+        "pr_sha256": "d453013adc38b8a1e9630499919c1799c555a3487b7dc9be651eced43057743e",
+        "unchanged": true
+      },
+      {
+        "path": "tests/test_mobile_frames.py",
+        "main_sha256": "8246e089d0f841cc889c44e97944d566b44c3cb0ead72f89b48352fc7c213c3f",
+        "pr_sha256": "8246e089d0f841cc889c44e97944d566b44c3cb0ead72f89b48352fc7c213c3f",
+        "unchanged": true
+      },
+      {
+        "path": "tests/mobile_support_fixture.py",
+        "main_sha256": "cbb6418b76b17d643218ccf996b2e7ef90ad3d96a3ee0275df4a31bcf2bc8088",
+        "pr_sha256": "cbb6418b76b17d643218ccf996b2e7ef90ad3d96a3ee0275df4a31bcf2bc8088",
+        "unchanged": true
+      },
+      {
+        "path": "tests/mobile_tick_fixture.py",
+        "main_sha256": "04116edbf302dbe8b71958c62f3e838aed5f575ed84c95e8a4f0b9886de92d4a",
+        "pr_sha256": "04116edbf302dbe8b71958c62f3e838aed5f575ed84c95e8a4f0b9886de92d4a",
+        "unchanged": true
+      }
+    ]
+  },
+  "controlled_gc_pair": {
+    "same_retained_cycles": 2000000,
+    "trigger": "fifth state request after stop, parent server worker",
+    "forced": {
+      "result": "expected assertion failure: unverified, bridge request wall-time deadline expired",
+      "gc_duration_s": 0.1944509670138359
+    },
+    "quiescent": {
+      "result": "passed, confirmed",
+      "settle_sim_duration_s": 0.044999999999999984,
+      "max_publisher_gap_s": 0.03522699201130308
+    },
+    "limits_changed": false,
+    "conclusion": "Injected cyclic-GC blocking can violate independent-reader contract; quiescence removes this injected interruption. Actual CI origin remains unproven."
+  },
+  "diagnostic_receipt_sha256": "afbf417b154a94e018e5fd03b7e35321ffd7b37c7a21ef61e360fa6953eaa284",
+  "test_only_changes": {
+    "cyclic_gc_scope": "Two opt-in healthy-channel test functions, five parametrized episodes. Collect before episode, suppress automatic cyclic collection, restore exact prior GC mode in finally. Reference counting stays active.",
+    "macos": "Failure-message detail only; same confirmed and task_done success assertions.",
+    "runtime_changed": false,
+    "thresholds_changed": false,
+    "source_sha256": {
+      "tests/mobile_tick_fixture.py": "ef1c4d0a5ba6718f6a1874eae4ebf330e46db4b7807e0f19dd5afb85fa336752",
+      "tests/test_mobile_mcp.py": "315d0ad39b885cd4e285fadf229757b011bb28fb947824d51554cbc84a531444",
+      "tests/test_mobile_runtime.py": "37c18c34d86d1a2d27656bdb6ea1b6385c5342a4460db78ce8c33f546f0b39fe",
+      "tests/test_mobile_tick_fixture.py": "d675c43a9b242b83cd966f7a0234a94ccec62c07d329062761acc656781ad1e7",
+      "tests/test_mobile_observation_veto.py": "ee8875ac63ecc1f92e1044cf08056bd3d34956326cf150d28a1244ee9ee652ed"
+    }
+  },
+  "focused_validation": [
+    {
+      "files": [
+        "tests/test_mobile_tick_fixture.py",
+        "tests/test_mobile_mcp.py",
+        "tests/test_mobile_runtime.py",
+        "tests/test_mobile_stop_temporal.py",
+        "tests/test_mobile_observation_veto.py"
+      ],
+      "passed": 192,
+      "duration_s": 48.16,
+      "scope": "After GC isolation; before macOS diagnostic-only edit",
+      "log_sha256": "58679234fd1c25dafbc6de563d73f630889f64ba58d1c08a745fc24036c74f2c"
+    },
+    {
+      "files": [
+        "tests/test_mobile_observation_veto.py"
+      ],
+      "passed": 11,
+      "duration_s": 5.59,
+      "scope": "After macOS diagnostic-only edit",
+      "result_sha256": "9625fce956c9e2d1b9d803488ddbbb1298d129eab54b78ebcddf005c0c40f732",
+      "log_sha256": "c4591877cdf35fb97e6a02f35f1cb0fbf9fcb9ea4a17579db2ac1693f6e6130d"
+    }
+  ],
+  "interpretation": "Injected GC establishes a possible test interruption, not the cause of actual CI failures. Prior-main failure and identical source do not establish a root cause. Follow-up requires separate hosted CI; initial failures remain retained."
+}

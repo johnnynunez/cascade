@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "entry": "inspect",
+  "max_steps": 2,
+  "timeout_s": 5,
+  "nodes": {
+    "inspect": {
+      "tool": "sensing.list_sensors",
+      "arguments": {},
+      "edges": {"success": "capture", "error": "$failure"}
+    },
+    "capture": {
+      "tool": "sensing.read_sensor",
+      "arguments": {"sensor_id": "imu"},
+      "edges": {"success": "$success", "error": "$failure"}
+    }
+  }
+}

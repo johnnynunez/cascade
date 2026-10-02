@@ -1,0 +1,509 @@
+{
+  "captured_utc": "2026-10-02T15:35:06.243362+00:00",
+  "vab_revision": "edcc4bf005446839c0c6f43f8a3bf416702af030",
+  "scope": "CPU source/YAML inspection only; no simulator imports or execution",
+  "tasks": 62,
+  "initial_states": 3052,
+  "admitted_task_manifests": 40,
+  "native_vab_run": false,
+  "native_arena_run": false,
+  "physical_admission": "unverified",
+  "rows": [
+    {
+      "task": "tasks/libero_crate_washing/crate_washing_scene0_lift_crate.yaml",
+      "sha256": "9778d7e164f57528023ca39003ad36881d74aa721d9e6593529e049fd7fe9530",
+      "inits": 2,
+      "predicate": "lifted_above",
+      "status": "excluded",
+      "reason": "adapter admits only single Panda OSC_POSE tasks"
+    },
+    {
+      "task": "tasks/libero_object_all_variance/pick_up_the_alphabet_soup_and_place_it_in_the_basket.yaml",
+      "sha256": "55199074119e12d7789b5c7a114139027412d561934bbeea16a3c4418949f99f",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_all_variance/pick_up_the_bbq_sauce_and_place_it_in_the_basket.yaml",
+      "sha256": "a1e763706db6733e37852a3fafef2eca8a9a10030791c5d952e2819feae791c2",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_all_variance/pick_up_the_butter_and_place_it_in_the_basket.yaml",
+      "sha256": "09b97a233156c068f540807d137a2fe105d0b99447cb7b4aa7408670c491a1d7",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_all_variance/pick_up_the_chocolate_pudding_and_place_it_in_the_basket.yaml",
+      "sha256": "a1240b88b992360f8a7e86f072fdd6a82ecdc52804c368b7bd2a16acae572300",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_all_variance/pick_up_the_cream_cheese_and_place_it_in_the_basket.yaml",
+      "sha256": "f263f585b5787f1459edc2a5199ce57e449c487e0be4c397aea9f4c7983343af",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_all_variance/pick_up_the_ketchup_and_place_it_in_the_basket.yaml",
+      "sha256": "2bcb1f7f7bb9953dacf263adc0e812f78a28561502b46de30f8ba858445f27ff",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_all_variance/pick_up_the_milk_and_place_it_in_the_basket.yaml",
+      "sha256": "5e2ff214ad6ac730bf452538594ce62638d38f9ed1ef1ec9f84b385e73504373",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_all_variance/pick_up_the_orange_juice_and_place_it_in_the_basket.yaml",
+      "sha256": "c7ef0a52cd5f43a3044e3b259976b70a7fc632165c07b92b0be7d7414ce86bb8",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_all_variance/pick_up_the_salad_dressing_and_place_it_in_the_basket.yaml",
+      "sha256": "3fa8381e47f22906ea4a217136be0cd5c8c5fd388ad5003a486dc1c000615615",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_all_variance/pick_up_the_tomato_sauce_and_place_it_in_the_basket.yaml",
+      "sha256": "9b5055b17cab72851dcf8e26f0174da985cfe58d416c1430acbedc7954edca16",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_packing/pack_all_objects_v00.yaml",
+      "sha256": "92d9811556f618d8d8196ac9202e1ebd5ac6fd2abdf06d2b02bda3e0928e02a0",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/libero_object_packing/pack_all_objects_v01.yaml",
+      "sha256": "74e02d8e18542e886d8b0c8f95fa673d9d4088b348361fd9e7d98e41bb9fb822",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/libero_object_packing/pack_all_objects_v02.yaml",
+      "sha256": "8a4ab81a698ed0657a16f91d18661d18f256ba2409f63feaa281196dcc0d7376",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/libero_object_packing/pack_all_objects_v03.yaml",
+      "sha256": "fdf5f02a98d77378106dfe65102ad0810aee2af0f46d7343145de17fcda85f00",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/libero_object_packing/pack_all_objects_v04.yaml",
+      "sha256": "4ba75385298fb827468647564ed5fe98f626455a351dd8f769921e719e8b4c64",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/libero_object_packing/pack_all_objects_v05.yaml",
+      "sha256": "94111357d8ddeb41398d32ede75635935d2d56520b23e8cb04b4a68f14f6fc97",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/libero_object_packing/pack_all_objects_v06.yaml",
+      "sha256": "c96c115a69eb1962fe5d987bbe62422faceb21edc0a1dca18dd49d240aed05a9",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/libero_object_packing/pack_all_objects_v07.yaml",
+      "sha256": "b15def909a1d3e0908b212dc1a2eae8f2fe88d408b3a7a2a3a0b190d8b985943",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/libero_object_packing/pack_all_objects_v08.yaml",
+      "sha256": "7dc4cd6be05711c88436aeed2c33ddf389676f504ab07a2397f9822862655374",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/libero_object_packing/pack_all_objects_v09.yaml",
+      "sha256": "5856751886ec4ab8637524cccdbef31cb1d2cb59eeebfd010a9651ba0b5fa22b",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/libero_object_target_basket_swap_variance/pick_up_the_alphabet_soup_and_place_it_in_the_basket.yaml",
+      "sha256": "a5a825b18493fff570835bee411aa4f650072ce73d54174472bfef108ed9c19d",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_basket_swap_variance/pick_up_the_bbq_sauce_and_place_it_in_the_basket.yaml",
+      "sha256": "94ebe2bc3c9ac34079777e76dcba06d59de2e617987cfba6a20b961c3a481301",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_basket_swap_variance/pick_up_the_butter_and_place_it_in_the_basket.yaml",
+      "sha256": "39a781a8dbe9dba2c50c0a33bedd54eaf19526daa82a6d62a6b2136572b51c1b",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_basket_swap_variance/pick_up_the_chocolate_pudding_and_place_it_in_the_basket.yaml",
+      "sha256": "208e53f152961822d160c72e0acef8ef3938f9fbed462af156d47b6b29dee912",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_basket_swap_variance/pick_up_the_cream_cheese_and_place_it_in_the_basket.yaml",
+      "sha256": "8b8be23d3519efcf9e6e223e98c46cdd4690a88fbb96ea2d5474cc2965bb4aba",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_basket_swap_variance/pick_up_the_ketchup_and_place_it_in_the_basket.yaml",
+      "sha256": "f2d8db4fe5a4c02cace4b64b8feb3642c527c7147981fccac30306c6aeeacae4",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_basket_swap_variance/pick_up_the_milk_and_place_it_in_the_basket.yaml",
+      "sha256": "2adadb91824e5cfeb5733975b8a35075d7b67ed76e5547b8c4c2d91527df5b53",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_basket_swap_variance/pick_up_the_orange_juice_and_place_it_in_the_basket.yaml",
+      "sha256": "006c778311869f02fd25f40ed21319914abcaf52392e3214f54d3aaf1e149f2d",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_basket_swap_variance/pick_up_the_salad_dressing_and_place_it_in_the_basket.yaml",
+      "sha256": "dbeefeb2ae5b06a2e02bb0987f658036169aeada445f121ba2d563bc8fde8f79",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_basket_swap_variance/pick_up_the_tomato_sauce_and_place_it_in_the_basket.yaml",
+      "sha256": "046fd2bb565875a10c44678e336eb7d780a6d86727732111042d01f2f149b30e",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_permutation_variance/pick_up_the_alphabet_soup_and_place_it_in_the_basket.yaml",
+      "sha256": "1f23782128807312fa45fd28c99b7f310f51797699cbff7d53b4498a2b04f747",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_permutation_variance/pick_up_the_bbq_sauce_and_place_it_in_the_basket.yaml",
+      "sha256": "117f6f82a09fc09da58ee3e1df7bea447f90eb8f26f40cbf092ce9ceaa2f14e9",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_permutation_variance/pick_up_the_butter_and_place_it_in_the_basket.yaml",
+      "sha256": "e402c15b09e75b008817da00f0b7fa39def5258f493fa3d4025bf4ff89cc4fb3",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_permutation_variance/pick_up_the_chocolate_pudding_and_place_it_in_the_basket.yaml",
+      "sha256": "b8c6ba3ecce425f7209be89769d4aa7a3d429b076517e6aab5d5aed21f8707a3",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_permutation_variance/pick_up_the_cream_cheese_and_place_it_in_the_basket.yaml",
+      "sha256": "944f362d5f43fd217780c135027c88770397b30ec8e613d2dc7afc79c3ec5194",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_permutation_variance/pick_up_the_ketchup_and_place_it_in_the_basket.yaml",
+      "sha256": "a6c2ddd4bada3e9a4d0ea7dfeef05fa761566819eb2bc57440ba1e8fec491090",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_permutation_variance/pick_up_the_milk_and_place_it_in_the_basket.yaml",
+      "sha256": "8d938bcf651cb9d33a85549e8c8d8f698284faec5dad850f28fa77fd4888f0ea",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_permutation_variance/pick_up_the_orange_juice_and_place_it_in_the_basket.yaml",
+      "sha256": "0fb172c7a9080898095e837bff4a4d191d2c3b091c2a697e1bc1d7f34ae2de24",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_permutation_variance/pick_up_the_salad_dressing_and_place_it_in_the_basket.yaml",
+      "sha256": "e6116f532aaf2683a0ec5dd616f573e4c35c703f65af994156ea94ac47d1d271",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_permutation_variance/pick_up_the_tomato_sauce_and_place_it_in_the_basket.yaml",
+      "sha256": "0df39cb992dadd2e20afd715a898eca84f452f9b9e39a04460770734a57ff691",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_pos_var20x20/pick_up_the_alphabet_soup_and_place_it_in_the_basket.yaml",
+      "sha256": "b936fdc3738c7014a70c3b89f6b4c3718e7ec22ab92a8b0b8195c6e1de924822",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_pos_var20x20/pick_up_the_bbq_sauce_and_place_it_in_the_basket.yaml",
+      "sha256": "b88e03a1fcf11fe2f8a94acaca84d2cc7de627d7f0fb95fa725c64dff96a90ad",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_pos_var20x20/pick_up_the_butter_and_place_it_in_the_basket.yaml",
+      "sha256": "753e6cfe39a81127fa6dfea43abb58309b106b8dbc98e60edf8272f48fa00d43",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_pos_var20x20/pick_up_the_chocolate_pudding_and_place_it_in_the_basket.yaml",
+      "sha256": "e567082e7d52b46fc35b4e38f1ce7543ae2d063fa57735129e50b2f6ccb2a41d",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_pos_var20x20/pick_up_the_cream_cheese_and_place_it_in_the_basket.yaml",
+      "sha256": "0e128752ca9312de2210f10f0cda64b4dc2969884831af06be0e31eb037bf742",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_pos_var20x20/pick_up_the_ketchup_and_place_it_in_the_basket.yaml",
+      "sha256": "af514a5aae746ab306e0e8cc0b5ba7f5612d49618e4e8a89986d73a1eab89314",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_pos_var20x20/pick_up_the_milk_and_place_it_in_the_basket.yaml",
+      "sha256": "92a4fe85549a17b0c67a1f4f40368739c6d05f88024065e80257b6d578e681e3",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_pos_var20x20/pick_up_the_orange_juice_and_place_it_in_the_basket.yaml",
+      "sha256": "4a31b4a78b2e38e50b89f1dcbeb5c84fd37b91ece9cbd223f4fb61a23f64dba6",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_pos_var20x20/pick_up_the_salad_dressing_and_place_it_in_the_basket.yaml",
+      "sha256": "b68addbee8f5627aee2f31ee5acb504d06ab1f3eaff68e61eb8fc482a1736677",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_object_target_pos_var20x20/pick_up_the_tomato_sauce_and_place_it_in_the_basket.yaml",
+      "sha256": "37ba9e15e343b710122d8f7062d9f9296900fb5220d181f33362c6dd0871d252",
+      "inits": 50,
+      "predicate": "contained_in",
+      "status": "admitted_manifest_only",
+      "reason": null
+    },
+    {
+      "task": "tasks/libero_popcorn_production/kitchen_scene9_popcorn_production.yaml",
+      "sha256": "2d57f62781b78da3d75c83c42903f782f61b32b61124a7d1de11b97e8608ffaf",
+      "inits": 50,
+      "predicate": "on_top_of",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/permutation_packing/pack_all_alphabet_soup_scene.yaml",
+      "sha256": "1d51a1c1e24eba42b9861ee127e88e7cb20c071100db4396be7300c80bb87fc9",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/permutation_packing/pack_all_bbq_sauce_scene.yaml",
+      "sha256": "81204e2e81965a8611f1d54fa3e3f4b2878b7bbdf81b76807cd5bcca4198270b",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/permutation_packing/pack_all_butter_scene.yaml",
+      "sha256": "6619b110bbffac9bb25ad0f562a5006059dd1e48787ddd5c1f49409034cda2ae",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/permutation_packing/pack_all_chocolate_pudding_scene.yaml",
+      "sha256": "67ec69e6270d45780eeadda4f0344d3c348c8d0e8037317376bb897393fa8e6d",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/permutation_packing/pack_all_cream_cheese_scene.yaml",
+      "sha256": "cad5ed5f01f902c824ff7dd3a7727ab5cd4496c8301efffb7d334948b60e91de",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/permutation_packing/pack_all_ketchup_scene.yaml",
+      "sha256": "2e4f2ec5099a08aeef793ce37355e29d799c2228edc04f3708393daf32e7e33e",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/permutation_packing/pack_all_milk_scene.yaml",
+      "sha256": "502ad74ecfd47bd22519f5f3d761ea624a81b36ba425bc8ddf2deee17649f006",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/permutation_packing/pack_all_orange_juice_scene.yaml",
+      "sha256": "df5931e59976532a8776ae3af3d4e42447e9406f463bbb81aed5d4c8aed4578c",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/permutation_packing/pack_all_salad_dressing_scene.yaml",
+      "sha256": "ce2b80565fbe0747b6d280bfd184675f53f6995ad137ba57e0d12c500d237051",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    },
+    {
+      "task": "tasks/permutation_packing/pack_all_tomato_sauce_scene.yaml",
+      "sha256": "c4eea8b74af377e7160710a386c1a15e72c19f52a56df38c183ee2299b7c9343",
+      "inits": 50,
+      "predicate": "pack_all_into",
+      "status": "excluded",
+      "reason": "adapter excludes mutating packing and partial multistage predicates"
+    }
+  ]
+}

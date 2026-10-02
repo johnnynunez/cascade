@@ -1,5 +1,11 @@
 # Architecture
 
+The opt-in [composed robot runtime](ROBOT_MODULARITY.md) separates manipulation,
+locomotion and passive sensing behind explicit capability/resource contracts.
+It adds namespaced MCP tools, bounded skill graphs and optional Arena/VAB
+validation adapters. Mixed physical actuation remains refused until shared
+frames and whole-body coordination are admitted; the example is synthetic.
+
 The optional [MicroDuck path](MICRODUCK.md) selects `MobileRig`, `SafeBase` and
 `MobileSkillRuntime` before arm construction. It shares CASCADE's MCP, traces
 and episodic memory while exposing mobile capabilities. Its Newton bridge

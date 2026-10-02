@@ -303,6 +303,9 @@ def build_runtime(
     lazy_arm: bool = False,
     serve: bool = False,
 ) -> tuple[SkillRuntime, object]:
+    if cfg.get("robot_mode") == "composed":
+        from .robot_runtime import build_robot_runtime
+        return build_robot_runtime(cfg, run_dir)
     if cfg.get("robot_mode") == "mobile":
         from .mobile_runtime import build_mobile_runtime
 
@@ -712,7 +715,7 @@ def shutdown_runtime(runtime, arm) -> None:
     """
     import contextlib
 
-    if getattr(runtime, "robot_mode", None) == "mobile":
+    if getattr(runtime, "robot_mode", None) in {"mobile", "composed"}:
         runtime.close()
         return
 
@@ -829,6 +832,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="comma-separated arm profiles; first = manipulation "
                         "arm (e.g. so101_mock,so101_mock). Overrides --arm.")
     p.add_argument("--base", default=None, help="opt-in base-only profile (or CASCADE_BASE)")
+    p.add_argument("--robot", default=None, help="explicit robot composition profile (or CASCADE_ROBOT)")
     p.add_argument("--bases", default=None, help="ordered comma-separated distinct base profiles")
     p.add_argument("--llm", default="auto",
                    help="llm profile, or `auto` (default): Hermes/Nous Portal, "
@@ -850,15 +854,18 @@ def main(argv: list[str] | None = None) -> int:
     llm = resolve_llm_profile(args.llm)
     bases = args.bases.split(",") if args.bases is not None else None
     cfg = load_demo_config(camera=args.camera, cameras=cameras, arm=args.arm,
-                           arms=arms, llm=llm, base=args.base, bases=bases)
-    mobile = cfg.get("robot_mode") == "mobile"
+                           arms=arms, llm=llm, base=args.base, bases=bases, robot=args.robot)
+    composed = cfg.get("robot_mode") == "composed"
+    mobile = cfg.get("robot_mode") in {"mobile", "composed"}
     run_dir = Path(args.run_dir) if args.run_dir else (
         PACKAGE_ROOT / "runs" / time.strftime("%Y%m%d_%H%M%S")
     )
     import os
 
     view = not args.no_view and bool(os.environ.get("DISPLAY"))
-    if mobile:
+    if composed:
+        print(f"[cascade] composed robot={cfg.robot_id} llm={llm}; declared capabilities are not physical admission")
+    elif mobile:
         print(f"[cascade] base-only bases={[b['name'] for b in cfg.bases]} llm={llm}; "
               "physical admission pending (mock is kinematic only)")
     else:
@@ -885,7 +892,9 @@ def main(argv: list[str] | None = None) -> int:
             # before any logging/teardown. Arm CLI retains halt -> park, not
             # e-stop -> torque-off; apply halt to every configured arm.
             if runtime is not None:
-                if mobile:
+                if composed:
+                    runtime.request_shutdown()
+                elif mobile:
                     runtime.stop()
                 else:
                     rig = getattr(runtime, "arm_rig", None)
@@ -907,10 +916,19 @@ def _run_demo(args, cfg, runtime, mobile):
     """Run only after signal handling and runtime ownership are established."""
     if runtime.stream_server is not None:
         print(f"[cascade] LIVESTREAM dashboard: {runtime.stream_server.url}")
-    from ..agent.llm import MockLLM
+    from ..agent.llm import MockLLM, LLMResponse, ToolCall
 
     llm = make_llm(cfg.llm)
     is_mock = isinstance(llm, MockLLM)
+    if is_mock and cfg.get("robot_mode") == "composed":
+        # The legacy mock script names an arm-only get_observation. The new
+        # mode's offline check is explicitly a passive catalog check, with
+        # no implied sensor capture or physical task completion.
+        llm = MockLLM([
+            LLMResponse(tool_calls=[ToolCall("list_resources", {})]),
+            LLMResponse(tool_calls=[ToolCall("task_done", {"success": True,
+                "summary": "mock wiring check: inspected declared resources; no physical task executed"})]),
+        ])
     advisor = Advisor(llm) if (llm.supports_vision and not is_mock) else None
     experience = None if mobile else ExperienceMemory(PACKAGE_ROOT / "runs" / "experience.json")
     # ASPIRE: validated repairs distilled from earlier runs, retrieved into

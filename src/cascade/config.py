@@ -166,6 +166,63 @@ def _mobile_config(cdir, main, base, bases, llm) -> Cfg:
                 "llm": load_profile("llm", llm, cdir).as_dict()})
 
 
+def load_robot_config(robot: str, *, llm: str = "mock", config_dir: Path | None = None) -> Cfg:
+    """Resolve an explicit composition without constructing devices or opening IO."""
+    import re
+
+    cdir = Path(config_dir) if config_dir else CONFIG_DIR
+    if not isinstance(robot, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", robot):
+        raise ValueError("robot must be an exact profile slug")
+    data = load_profile("robots", robot, cdir).as_dict()
+    if set(data) - {"version", "robot_id", "domains"} or type(data.get("version")) is not int or data.get("version") != 1:
+        raise ValueError("robot profile requires version 1, robot_id and domains only")
+    if not isinstance(data.get("robot_id"), str) or not re.fullmatch(r"[a-z][a-z0-9_]*", data["robot_id"]):
+        raise ValueError("robot_id must be an exact slug")
+    domains = data.get("domains")
+    if not isinstance(domains, dict) or not domains or len(domains) > 16:
+        raise ValueError("robot domains must be a nonempty mapping of at most 16 entries")
+    resolved = {}
+    for name, profile in domains.items():
+        if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,23}", name):
+            raise ValueError("domain id must be an ASCII slug of at most 24 characters")
+        if not isinstance(profile, dict):
+            raise ValueError("domain profile must be an object")
+        profile = copy.deepcopy(profile)
+        kind = profile.get("kind")
+        if "mounted_on" in profile:
+            raise ValueError("mobile-mounted domains need measured dynamic transforms and validated shared control; unsupported")
+        if kind == "manipulation":
+            if set(profile) - {"kind", "arms", "cameras", "robot_id", "offline"}:
+                raise ValueError("unknown manipulation domain fields")
+            if type(profile.get("offline", False)) is not bool:
+                raise ValueError("offline must be boolean")
+            for key in ("arms", "cameras"):
+                if not isinstance(profile.get(key), list) or not profile[key] or any(
+                        not isinstance(v, str) or not v or Path(v).name != v for v in profile[key]):
+                    raise ValueError(f"manipulation domain requires explicit {key} profile names")
+            cfg = load_demo_config(arms=profile["arms"], cameras=profile["cameras"], llm=llm,
+                                   config_dir=cdir, _ignore_robot_environment=True)
+            if profile.get("offline", False):
+                if any(p["type"] != "mock" for p in (*cfg.arms, *cfg.cameras)):
+                    raise ValueError("offline manipulation requires only explicit mock arms and cameras")
+                for view in (cfg._data, *(p["resolved"] for p in cfg.arms)):
+                    view.setdefault("grasp", {})["backend"] = "obb"
+                    view.setdefault("occupancy", {})["enabled"] = False
+            profile["resolved"] = cfg.as_dict()
+        elif kind == "locomotion":
+            if set(profile) - {"kind", "bases", "robot_id"} or "bases" not in profile:
+                raise ValueError("locomotion domain requires kind and bases only")
+            cfg = load_demo_config(bases=profile["bases"], llm=llm, config_dir=cdir,
+                                   _ignore_robot_environment=True)
+            profile["resolved"] = cfg.as_dict()
+        elif kind != "sensors":
+            raise ValueError(f"unknown robot domain kind: {kind!r}")
+        profile.setdefault("robot_id", data["robot_id"])
+        resolved[name] = profile
+    return Cfg({"robot_mode": "composed", "robot_id": data["robot_id"], "domains": resolved,
+                "llm": load_profile("llm", llm, cdir).as_dict(), "memory": {}})
+
+
 def booth_mode_enabled() -> bool:
     """CASCADE_BOOTH=1 selects the booth tuning overlay (configs/booth.yaml).
     Whitespace-stripped; the usual negatives all disable it."""
@@ -185,6 +242,8 @@ def load_demo_config(
     arms: list[str] | None = None,
     base: str | None = None,
     bases: list[str] | None = None,
+    robot: str | None = None,
+    _ignore_robot_environment: bool = False,
 ) -> Cfg:
     """`cameras` (ordered, first = manipulation camera) supersedes `camera`;
     both populate cfg.camera (primary) and cfg.cameras (all). `arms` does the
@@ -215,8 +274,14 @@ def load_demo_config(
     own resolved view under `cfg.arms[i].resolved` -- which is what
     build_runtime hands to that arm's SafetyHarness."""
     cdir = Path(config_dir) if config_dir else CONFIG_DIR
+    selected_robot = robot if robot is not None else (
+        None if _ignore_robot_environment else os.environ.get("CASCADE_ROBOT"))
+    if selected_robot is not None:
+        if base is not None or bases is not None or arms is not None or arm != "mock" or cameras is not None or camera != "mock":
+            raise ValueError("robot composition cannot also select legacy arms, bases or cameras")
+        return load_robot_config(selected_robot, llm=llm, config_dir=cdir)
     main = _resolve_paths(_load_yaml(cdir / "demo.yaml"), cdir)
-    if base is None and bases is None:
+    if base is None and bases is None and not _ignore_robot_environment:
         base = os.environ.get("CASCADE_BASE")
     if base is not None or bases is not None:
         if arms is not None or arm != "mock":

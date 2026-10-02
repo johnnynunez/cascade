@@ -1,8 +1,39 @@
 """Wall scheduling for software-only publishers; never a physics clock."""
+from contextlib import contextmanager
+import gc
 import math
 import time
 
+import pytest
+
 NORMAL_WALL_INTERVAL_S = .02
+
+
+@contextmanager
+def quiescent_cyclic_gc():
+    """Keep unrelated suite heap collection outside a bounded healthy episode.
+
+    Cyclic GC holds the GIL and can stall both this process's software
+    publisher and its RPC server. Readers must still reject a real stale or
+    delayed response; this helper changes neither clocks nor those limits.
+    Reference counting remains active, and the previous GC mode is restored.
+    """
+    was_enabled = gc.isenabled()
+    gc.collect()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if was_enabled:
+            gc.enable()
+        else:
+            gc.disable()
+
+
+@pytest.fixture
+def healthy_episode_gc():
+    with quiescent_cyclic_gc():
+        yield
 
 
 def scheduled_tick_steps(halt, *, first_step, wall_interval_s, wait=None,

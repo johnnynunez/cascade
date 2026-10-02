@@ -5,6 +5,7 @@ import json
 import pytest
 from mobile_support_fixture import support_contract
 from mobile_tick_fixture import NORMAL_WALL_INTERVAL_S, scheduled_tick_steps
+from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc
 
 from cascade.config import load_demo_config
 import test_mobile_frames
@@ -990,6 +991,7 @@ def test_stop_prebaseline_sampling_has_an_attempt_budget(tmp_path, frame_endpoin
         rt.close()
 
 
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_superseded_stop_read_keeps_healthy_observer_reusable(tmp_path, frame_endpoint):
     """Real loopback reader; only scheduling/physical ticks are CPU fixtures."""
     import threading

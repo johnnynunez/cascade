@@ -20,6 +20,18 @@ def save(directory, name, data):
         json.dump(data, f, indent=2, allow_nan=False)
 
 
+def yield_until(deadline):
+    """Hold a test reply to a fixed deadline without a positive-duration timer.
+
+    The requested hold is at most read_timeout / 3 + sample_interval here.
+    Zero-duration yields let the producer run without accumulating timer
+    overshoot. Actual transport time and state age remain subject to all
+    production checks; this is not a real-time scheduling guarantee.
+    """
+    while time.monotonic() < deadline:
+        time.sleep(0)
+
+
 @pytest.mark.parametrize(
     "case",
     [
@@ -171,18 +183,25 @@ def test_real_tcp_inflight_fault_must_block_task_done(
             if 0.0 < remaining < lim["read_timeout_s"] / 3:
                 if kind.startswith("fault"):
                     c.fault("canonical controlled fault BEFORE settle deadline")
+                dispatch_started = time.monotonic()
                 value = dispatch(req)
+                dispatch_returned = time.monotonic()
+                # MobileBridgeController.state() returns a detached snapshot.
+                # Retain that exact reply: a second deepcopy here can collect
+                # unrelated suite garbage while a fresh packet is being held.
                 captured.append(
                     {
-                        "capture": time.monotonic(),
+                        "capture": dispatch_returned,
+                        "dispatch_started": dispatch_started,
                         "deadline": deadline,
-                        "wire": copy.deepcopy(value),
+                        "wire": value,
                     }
                 )
+                captured[-1]["record_ready"] = time.monotonic()
                 if kind.endswith("late"):
-                    time.sleep(
-                        max(0.0, deadline + lim["sample_interval_s"] - time.monotonic())
-                    )
+                    captured[-1]["wait_target"] = deadline + lim["sample_interval_s"]
+                    captured[-1]["wait_started"] = time.monotonic()
+                    yield_until(captured[-1]["wait_target"])
                 captured[-1]["return"] = time.monotonic()
                 return value
         return dispatch(req)
@@ -218,12 +237,50 @@ def test_real_tcp_inflight_fault_must_block_task_done(
         ), record
         assert all(r["error"] is None for r in reads), record
         assert max(r["end"] - r["start"] for r in reads) < lim["read_timeout_s"], record
+        # The retained snapshot must still match the packet actually decoded
+        # by the reader. Only the reader's local receipt/age fields may differ.
+        packet = captured[0]["wire"]["state"]
+        packet_keys = packet.keys() - {"received_monotonic_s", "producer_age_s"}
+        packet_json = json.dumps({key: packet[key] for key in packet_keys}, sort_keys=True)
+        assert any(
+            r["state"] is not None and packet_json == json.dumps(
+                {key: r["state"][key] for key in packet_keys}, sort_keys=True
+            )
+            for r in reads
+        ), "retained snapshot differs from the packet actually received"
         assert observer.limits == verifier_limits()
         if kind.endswith("late"):
             assert captured[0]["return"] > captured[0]["deadline"], record
             assert proof["postcondition"]["evidence"]["late_reads"] == 1, record
         if kind == "healthy_late":
-            assert proof["status"] == "confirmed" and done["success"], record
+            # A large record is truncated by pytest's dict repr, hiding the
+            # reason we need when this real-TCP timing probe fails on CI.
+            assert proof["status"] == "confirmed" and done["success"], json.dumps(
+                {
+                    "status": proof["status"],
+                    "reason": proof.get("reason"),
+                    "task_done_success": done["success"],
+                    "postcondition": {
+                        key: proof["postcondition"].get(key)
+                        for key in ("status", "reason", "metrics")
+                    },
+                    "evidence": {
+                        key: proof["postcondition"]["evidence"].get(key)
+                        for key in ("rejected", "attempts", "late_reads", "channel_failed")
+                    },
+                    "eligible_samples": len(proof["postcondition"]["evidence"]["samples"]),
+                    "max_read_duration_s": max(r["end"] - r["start"] for r in reads),
+                    "max_received_state_age_s": max(
+                        r["state"]["producer_age_s"] + r["end"] - r["state"]["received_monotonic_s"]
+                        for r in reads if r["state"] is not None
+                    ),
+                    "wire_producer_age_s": packet["producer_age_s"],
+                    "capture_timing": {key: value for key, value in captured[0].items() if key != "wire"},
+                    "late_return_after_deadline_s": captured[0]["return"] - captured[0]["deadline"],
+                    "record_path": str(tmp_path / (kind + "_" + skill + ".json")),
+                },
+                sort_keys=True,
+            )
         else:
             assert (
                 current["controller_status"]

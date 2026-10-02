@@ -121,3 +121,53 @@ Proposed library additions, pending a separately requested skill update:
 
 These proposals contain no embedded implementation and require no change to the
 completed project work. Existing specialist references remain authoritative.
+
+## Composable robot foundation — 2 October 2026
+
+Continued from merged MicroDuck and stop-lifecycle fixes (`0a65887`), in an
+isolated worktree. Research and concrete boundaries are in
+`docs/ROBOT_MODULARITY.md`: capability domains, command endpoint ownership,
+passive typed sensing, bounded skill graphs, and optional VAB/Arena adapters.
+The real composed MCP software route uses mock arm/base and synthetic IMU;
+physical mobile manipulation remains refused pending shared-frame and
+whole-body admission. No simulator/policy assets or heavy optional frameworks
+were installed into the production environment.
+
+Cross-review caught and fixed graph finalization after stop, undeclared motion
+writes, blocked-domain stop fanout, external Arena controller stop/reset,
+partial factory cleanup, pending sensor shutdown and graceful arm teardown.
+The local full suite retained 5,178 passes, 252 skips, four deselections and
+three existing mobile observer read-deadline failures. The five affected cases
+passed unchanged in isolation; this is a separate rerun, not a replacement for
+the failed receipt. Packaging: 62 passes. See
+`docs/evidence/robot-modularity/software-validation.json` for source bindings.
+Shared envelope bytes and the absence of active grasp memory were preserved.
+
+Native Arena/VAB rollouts, tactile device calibration, whole-body humanoid
+control and hosted speech deployment remain separate measured integrations.
+MicroDuck's retained gait/turn findings are unchanged by software composition.
+
+The requested HomeBody review is in `docs/HOMEBODY_COMPARISON.md`, with pinned
+primary sources and separately inspected component contracts. It proposes
+grounded memory and transform replay first, followed by local correction,
+actuator health and later whole-body admission. The inspected HomeBody
+repository has not released its robot implementation; this review does not
+claim a port or measured physical integration.
+
+Initial PR #69 CI passed Linux x86, minimal install and browser checks, but
+failed one ARM freshness case and two macOS healthy late-read cases. A matching
+macOS failure predates this refactor. A bounded injected-GC comparison motivated
+isolation in two healthy-channel test functions; 192 focused cases pass without
+relaxing any runtime gate. macOS gets a compact assertion diagnostic. Actual CI
+root causes remain unproven; the initial failures are retained in
+`docs/evidence/robot-modularity/ci-followup.json`.
+
+CI on `3dae06a` passed Linux x86/ARM, minimal install and browser checks, but
+macOS rejected two held late replies as stale. The fixture now yields to an
+absolute target and retains its detached wire snapshot without a redundant
+copy in that timed path. A controlled 150 ms timer delay reproduces the old
+failure; it does not identify the actual CI scheduler/GC cause. Six additional
+tests exercise the real sampler with module-local logical clocks and distinguish
+late fresh, faulty and stale returns. The focused suite passed 198 cases;
+production sources, limits and shared learned stores remain unchanged. Evidence:
+`docs/evidence/robot-modularity/macos-late-read-fix.json`.

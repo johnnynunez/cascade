@@ -44,7 +44,7 @@
   },
   "trial12-native-640.json": {
     "source": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-manipulation-assembly/docs/evidence/manipulation-assembly/trial12-native-640.json",
-    "sha256": "cb5b71b01420beb6b3dbf99633001c1c392997d9708c7ff5a3384be64c7ad3b6",
+    "sha256": "b7a4e0ce45c1ffa1f8bac7259700dd642d2cd697cfe08f5f9e8238410067eb7b",
     "scope": "Explicit640x360 native diagnostic variant; original history and1280failure retained"
   },
   "trial12-native-640/campaign.json": {

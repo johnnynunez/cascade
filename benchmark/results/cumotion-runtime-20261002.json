@@ -1,0 +1,591 @@
+{
+  "schema": "cascade.cumotion-runtime-validation.v1",
+  "date": "2026-10-02",
+  "scope": "Optional native cuMotion 1.1.0 in normal Isaac manipulation with real OVRTX camera frames, CUDA perception, required GraspGenX, observed-finger gate and physical release/settle verification",
+  "acceptance": {
+    "pass": true,
+    "task_pass": true,
+    "application_source": "f2b2186317a6eb6278bf7a57bf039c912e64dc18",
+    "physics": "Isaac Sim PhysX CUDA",
+    "cuda_visible_devices": "1",
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+    "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+    "effective_flags": {
+      "observed_finger_gate": "1",
+      "grasp_backend": "graspgenx",
+      "graspgenx_required": true,
+      "occupancy_enabled": false,
+      "bridge_port": 8732
+    },
+    "source_files_unchanged": true,
+    "source_hashes": {
+      "src/cascade/apps/demo.py": "752cc5a0f0fd7486752d476c47e30a40ec0794625bf02c7b07cbac812e6a88e7",
+      "src/cascade/control/arm_base.py": "92239f4e45d554e01f7a88d6e3c44c092914081d0f13bbef783829042d47c498",
+      "configs/arms/isaac_cumotion.yaml": "aae423a738bbc530fccfcc098f1ae0ee6ea967f72f934ff222709dac774a0be7",
+      "src/cascade/planning/cumotion.py": "a9bec5fab682985c0b71f593973ff2e3b6c7dc87631a5cc641deec91766dc066",
+      "src/cascade/planning/runtime.py": "f761d51677188a21b51fe3d5967e5e1d41f90d87312f2cf12a2d821ffd2141b0",
+      "src/cascade/control/simulation_motion.py": "45d076d98ae6e18d9bd0b3a17cbd3adf6c18a267a92663c679a509f4c163d42f",
+      "src/cascade/safety/harness.py": "85bdf819c8f53fbdaeba337d0c8d38194e6f8291cfeaab4d5e0b1c1dd325ef50",
+      "src/cascade/skills/runtime.py": "6a847166d51ed0aebc31868860528ca09fe40a963201a0000b611012fd805371",
+      "src/cascade/grasping/observed_scene.py": "4316b86e7e5e189ef72ef401d955204841d3a2cb80c1ca70e374a269c8ba16cd",
+      "src/cascade/grasping/evidence.py": "0c110f1fc08a7c4059730a7cd45d1cd314be29ff5643002140bd492ca5567b6b",
+      "scripts/isaac_ovrtx.py": "3b4b0048caf92416e4c261f25d9bc10ec1205ca2502a775faf45d03be4cf8568",
+      "src/cascade/sim/ovrtx_renderer.py": "d6f968e61936373e765dbe0ba38a2e8ad72667bc57441abfec8da5614054d461",
+      "src/cascade/sim/ovrtx_masks.py": "6617df824187143ff9b87ad853369e9cc1836590cc57cd49ba7b99ecc439da19",
+      "src/cascade/sim/render_binding.py": "4d1ed6fa6b3e11af8039c0e63fa82e39efd2ce10a938c2c0979d4053e5c5034d",
+      "src/cascade/sim/startup_readiness.py": "8aaaa771ba3d14c9eed3752f9a4ea49ca38b1fe3101f3a8fc18c99c716da5676"
+    },
+    "result": {
+      "picked": "green object",
+      "placed_at": [
+        0.18,
+        -0.17,
+        0.05
+      ],
+      "destination": "drop zone",
+      "grip_profile": "rigid",
+      "grip_verified": true,
+      "grasp_attempts": 1,
+      "place_attempts": 1,
+      "duration_s": 126.19,
+      "timings": {
+        "grasp_attempt1_s": 70.38,
+        "place_s": 35.91
+      },
+      "return_home": {
+        "attempted": true,
+        "ok": true,
+        "at": "home"
+      },
+      "destination_kind": "configured_point",
+      "ok": true,
+      "postcondition": {
+        "skill": "pick_and_place",
+        "kind": "relocated",
+        "status": "confirmed",
+        "evidence": "green object is 2.4 cm from the drop zone center (physics)",
+        "channel": "physics",
+        "measured": {
+          "moved_m": 0.3325,
+          "final": [
+            0.1996,
+            -0.157,
+            0.04
+          ],
+          "target_err_m": 0.0235,
+          "destination": "drop zone"
+        }
+      },
+      "verified": true
+    },
+    "task_plans": 8,
+    "shutdown_plans": 1,
+    "task_command_targets": 529,
+    "all_command_targets": 589,
+    "plans": [
+      {
+        "sequence": 0,
+        "constraint": "unconstrained",
+        "request_sha256": "422ea2b0b4929fd076595e176620392bd0be00f6c71cc10efb313029f52da80d",
+        "duration_physics_s": 1.5,
+        "command_targets": 45,
+        "safety_edges": 210,
+        "native_plan_wall_s": 1.0346343590063043
+      },
+      {
+        "sequence": 1,
+        "constraint": "unconstrained",
+        "request_sha256": "af4cf53d94e867dc7c8af65abbdf020a6f0498c4dbef2cf6417fe5e046b74c92",
+        "duration_physics_s": 2.6411747697878765,
+        "command_targets": 79,
+        "safety_edges": 445,
+        "native_plan_wall_s": 0.8527164190018084
+      },
+      {
+        "sequence": 2,
+        "constraint": "linear_tool",
+        "request_sha256": "bbf24d0b7ed59a81ce782aced07e5779c14782481a012ad0c37c92d316bd24a9",
+        "duration_physics_s": 2.0,
+        "command_targets": 60,
+        "safety_edges": 280,
+        "native_plan_wall_s": 0.8103847439924721
+      },
+      {
+        "sequence": 3,
+        "constraint": "linear_tool",
+        "request_sha256": "c95b970d625bcb9b5437fb2059645814e95c195b60ff2695e3df1b858f9ef945",
+        "duration_physics_s": 2.0,
+        "command_targets": 60,
+        "safety_edges": 280,
+        "native_plan_wall_s": 0.8866243770171423
+      },
+      {
+        "sequence": 4,
+        "constraint": "unconstrained",
+        "request_sha256": "25315e070eab4c9c59cca118f84d568a94ecf839009a435cfdf05ae6bf6d56bb",
+        "duration_physics_s": 2.5,
+        "command_targets": 75,
+        "safety_edges": 350,
+        "native_plan_wall_s": 0.944593113992596
+      },
+      {
+        "sequence": 5,
+        "constraint": "unconstrained",
+        "request_sha256": "ecf3edc1136ddbcba242deee4a0dd82a89d5fe41f39d8eee71c65e8885f5454f",
+        "duration_physics_s": 2.0,
+        "command_targets": 60,
+        "safety_edges": 280,
+        "native_plan_wall_s": 0.90069899399532
+      },
+      {
+        "sequence": 6,
+        "constraint": "unconstrained",
+        "request_sha256": "5a6fcdd37ec8493562e488f50fe21699a0368011ce5a44027a768a6fd9d371f3",
+        "duration_physics_s": 2.0,
+        "command_targets": 60,
+        "safety_edges": 280,
+        "native_plan_wall_s": 0.9196599290007725
+      },
+      {
+        "sequence": 7,
+        "constraint": "unconstrained",
+        "request_sha256": "bb17d76fd7e63ac22b75cc830d18185e83e030987a00ead70bcf36996eff6c5f",
+        "duration_physics_s": 3.0,
+        "command_targets": 90,
+        "safety_edges": 420,
+        "native_plan_wall_s": 0.7886312429909594
+      },
+      {
+        "sequence": 8,
+        "constraint": "unconstrained",
+        "request_sha256": "5b05d893b42465ded555f7266fbbd6ee5a99ab2f889094c2c4edfcd8a0bb4ea8",
+        "duration_physics_s": 2.0,
+        "command_targets": 60,
+        "safety_edges": 280,
+        "native_plan_wall_s": 0.8553709039988462
+      }
+    ],
+    "post_close_prefilter": {
+      "window_physics_s": 0.5,
+      "max_range_rad": 0.0005,
+      "final_stream_start_drift_limit_rad": 0.001,
+      "basis": "Half the existing 1 mrad start-drift bound. Earlier newly introduced 0.25 mrad prefilter rejected 0.356 mrad measured contact jitter; no existing admission threshold changed."
+    },
+    "release_settle": {
+      "pass": true,
+      "samples": 24,
+      "physics_span_s": 1.2833333333333314,
+      "position_range_m": 0.0,
+      "xy_error_m": 0.02350822196594207,
+      "jaws_open": true,
+      "limits": {
+        "range_m": 0.002,
+        "xy_error_m": 0.03,
+        "rest_center_z_m": [
+          0.035,
+          0.06
+        ]
+      },
+      "post_shutdown_pass": true,
+      "post_shutdown_samples": 12,
+      "final_xyz_m": [
+        0.19958,
+        -0.15699,
+        0.04
+      ],
+      "support_evidence": "Center at nominal tabletop/bin support height plus stationary pose across advancing physical clocks; no table reaction-force measurement",
+      "gripper_min_open_m": 0.04999999329447746
+    },
+    "raw": [
+      {
+        "path": "runs/ovrtx-native-05/pick-place-green-01/receipt.json",
+        "sha256": "5177766bb5b7c5e88ef8fae407c420d97c537763409e3fa563795dab85909e41",
+        "bytes": 385288
+      },
+      {
+        "path": "runs/ovrtx-native-05/pick-place-green-01/runner.py",
+        "sha256": "8dc2e97272a664bea24f6e06d624ee8cf11415ab5da9870f9ec39c25c46df71d",
+        "bytes": 10389
+      },
+      {
+        "path": "runs/ovrtx-native-05/pick-place-green-01/side.mp4",
+        "sha256": "454675c67b995aa38864815ff2cf2a51b867dba2fcf854f4872cd540d36ccdc9",
+        "bytes": 1033961
+      },
+      {
+        "path": "runs/ovrtx-native-05/pick-place-green-01/post-cleanup-proof.json",
+        "sha256": "c44c6b5305b90cf56ee49a6c6152d352a55d895da7b05327dd4e9b951a013fed",
+        "bytes": 35549
+      },
+      {
+        "path": "runs/ovrtx-native-05/pick-place-green-01/main-start.png",
+        "sha256": "1c22cdc7c0ade3304c569706e6a87d2cf1e90b8dab6baec96208a784c9a32a3f",
+        "bytes": 104561
+      },
+      {
+        "path": "runs/ovrtx-native-05/pick-place-green-01/main-end.png",
+        "sha256": "7d58367cf1b43d9450ec483f9341f0e7d5f8faab84262864704b765248161981",
+        "bytes": 91952
+      },
+      {
+        "path": "runs/ovrtx-native-05/pick-place-green-01/side-start.png",
+        "sha256": "c7018d807e129e518188c9b6ea3600a280ca3e716cfca41e29f353c2d98cf967",
+        "bytes": 81666
+      },
+      {
+        "path": "runs/ovrtx-native-05/pick-place-green-01/side-end.png",
+        "sha256": "f48e3fbdeea0d822db66c438d0371249da94214423ab26a6506a164846d68539",
+        "bytes": 76894
+      }
+    ],
+    "companion_receipt": "benchmark/results/ovrtx-runtime-manipulation-20261002.json",
+    "native_model_binding": {
+      "sdk_version": "1.1.0",
+      "joint_names": [
+        "joint1",
+        "joint2",
+        "joint3",
+        "joint4",
+        "joint5",
+        "joint6"
+      ],
+      "base_frame": "base_link",
+      "tool_frame": "gripper_end",
+      "model_sha256": "282009bcd1811b9f64d46fb873a4f71f47825e8d509e480e36625d70af7520c5",
+      "scene_sha256": "d5d03fc1feffae12bfb14d8db45b52a87636f3bfb1b480b50f3b1bd211cdae16",
+      "coordinate_signs": [
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1
+      ],
+      "urdf_sha256": "72b4a40aeb78f1229c782e7501c3be26ea093562cf960a0ca1c2e4a966b4e4e3",
+      "xrdf_sha256": "0a55636621e97123c5ad6cb9a9db0c59417405b51c4284d071d752444af99edf",
+      "external_obstacles": []
+    },
+    "all_safety_edges": 2825,
+    "task_safety_edges": 2545
+  },
+  "arm_only_smoke": {
+    "pass": true,
+    "cases": [
+      {
+        "index": 0,
+        "pass": true,
+        "targets_acknowledged": 60,
+        "elapsed_s": 7.788061867991928
+      },
+      {
+        "index": 1,
+        "pass": true,
+        "targets_acknowledged": 60,
+        "elapsed_s": 7.896554093982559
+      },
+      {
+        "index": 2,
+        "pass": true,
+        "targets_acknowledged": 60,
+        "elapsed_s": 7.950405880983453
+      }
+    ],
+    "raw": {
+      "path": "runs/manipulation-native-01/curve-smoke.json",
+      "sha256": "3a03bc07bee9d4acfc029532aa80738e3b7b5e9954cdc4c8938ea48e5b100944",
+      "bytes": 44715
+    }
+  },
+  "preserved_failures": [
+    {
+      "run": "02",
+      "acceptance_valid": true,
+      "explanation": "Unconstrained native descent rejected by exact observed-finger target surface before close.",
+      "result": {
+        "ok": false,
+        "stage": "grasp",
+        "error": "SafetyViolation: planned finger trajectory intersects observed surface: {'finger': 'joint_right', 'component': 8, 'surface': 'target', 'pixel_rc': [91, 334], 'point_base_m': [0.14453903862854578, 0.12463556584271723, 0.03836874690985026]}; pre-close retreat completed",
+        "home_skipped": true,
+        "postcondition": {
+          "skill": "pick_and_place",
+          "kind": "relocated",
+          "status": "refuted",
+          "evidence": "pink object is still within 0.0 cm of where it started",
+          "channel": "physics",
+          "measured": {
+            "moved_m": 0.0,
+            "final": [
+              0.17,
+              0.15,
+              0.04
+            ]
+          }
+        }
+      },
+      "held_provisional_after": null,
+      "source_files_unchanged": null,
+      "raw": {
+        "path": "runs/manipulation-native-01/pick-place-02/receipt.json",
+        "sha256": "74c25948151913c6dc2daa525545e4d32c984b8fff5026931301f50426e3ad25",
+        "bytes": 162240
+      }
+    },
+    {
+      "run": "03",
+      "acceptance_valid": false,
+      "explanation": "INVALID for observed-finger acceptance: runner omitted the required environment flag; independent native closed-segment veto stopped descent. Original receipt retained.",
+      "result": {
+        "ok": false,
+        "error": "unexpected PlanningError: cuMotion curve violates the requested linear tool path (translation=0.00102997725 m, orientation=0.00804637609 rad)",
+        "postcondition": {
+          "skill": "pick_and_place",
+          "kind": "relocated",
+          "status": "refuted",
+          "evidence": "pink object is still within 0.0 cm of where it started",
+          "channel": "physics",
+          "measured": {
+            "moved_m": 0.0,
+            "final": [
+              0.17,
+              0.15,
+              0.04
+            ]
+          }
+        }
+      },
+      "held_provisional_after": null,
+      "source_files_unchanged": null,
+      "raw": {
+        "path": "runs/manipulation-native-01/pick-place-03/receipt.json",
+        "sha256": "adf220a3536951f69589e7fec1a50a3bee63d53076af1c5e4eca564a98ab6357",
+        "bytes": 133724
+      }
+    },
+    {
+      "run": "04",
+      "acceptance_valid": true,
+      "explanation": "Native constrained descent and both guarded closes executed; lift orientation endpoint mismatch vetoed before lift.",
+      "result": {
+        "ok": false,
+        "error": "unexpected PlanningError: cuMotion curve violates the requested linear tool path (translation=0 m, orientation=0.0308544768 rad)",
+        "postcondition": {
+          "skill": "pick_and_place",
+          "kind": "relocated",
+          "status": "refuted",
+          "evidence": "pink object is still within 0.1 cm of where it started",
+          "channel": "physics",
+          "measured": {
+            "moved_m": 0.0009,
+            "final": [
+              0.1701,
+              0.1491,
+              0.04
+            ]
+          }
+        }
+      },
+      "held_provisional_after": null,
+      "source_files_unchanged": true,
+      "raw": {
+        "path": "runs/manipulation-native-01/pick-place-04/receipt.json",
+        "sha256": "7a894076caaab1f5b32b5412ac1b8b74f526d35f1928cbfedc21482c09cd64f0",
+        "bytes": 142754
+      }
+    },
+    {
+      "run": "05",
+      "acceptance_valid": true,
+      "explanation": "Native constrained lift admitted, but 1 mrad start-feedback drift vetoed streaming after physical close.",
+      "result": {
+        "ok": false,
+        "stage": "grasp",
+        "error": "SafetyViolation: joint feedback changed after trajectory planning; no motion sent",
+        "home_skipped": true,
+        "postcondition": {
+          "skill": "pick_and_place",
+          "kind": "relocated",
+          "status": "refuted",
+          "evidence": "pink object is still within 0.0 cm of where it started",
+          "channel": "physics",
+          "measured": {
+            "moved_m": 0.0005,
+            "final": [
+              0.1711,
+              0.1479,
+              0.0403
+            ]
+          }
+        }
+      },
+      "held_provisional_after": [
+        "pink object",
+        "cube",
+        "pink"
+      ],
+      "source_files_unchanged": true,
+      "raw": {
+        "path": "runs/manipulation-native-01/pick-place-05/receipt.json",
+        "sha256": "1b20df9e88c49c87519a7eaa150d589d69908032d9856281f9c6327029ad4e47",
+        "bytes": 168135
+      }
+    },
+    {
+      "run": "06",
+      "acceptance_valid": true,
+      "explanation": "Fresh observed-finger scene rejected diagonal home withdrawal; no task targets; SDK then rejected self-colliding old park pose.",
+      "result": {
+        "ok": false,
+        "stage": "grasp",
+        "error": "SafetyViolation: home finger trajectory intersects observed surface: {'sample_index': 10, 'finger': 'joint_right', 'component': 8, 'surface': 'other observed surface', 'pixel_rc': [196, 433], 'point_base_m': [0.1456949558816255, 0.16939719836537326, 0.08088984369605173]}",
+        "home_skipped": true,
+        "postcondition": {
+          "skill": "pick_and_place",
+          "kind": "relocated",
+          "status": "refuted",
+          "evidence": "pink object is still within 0.0 cm of where it started",
+          "channel": "physics",
+          "measured": {
+            "moved_m": 0.0,
+            "final": [
+              0.1716,
+              0.1478,
+              0.04
+            ]
+          }
+        }
+      },
+      "held_provisional_after": null,
+      "source_files_unchanged": true,
+      "raw": {
+        "path": "runs/manipulation-native-01/pick-place-06/receipt.json",
+        "sha256": "3419a8186f27bbe5a2713d65f479e900dee06b05ae69acc4d3a1ad39c44440f4",
+        "bytes": 6261
+      }
+    },
+    {
+      "run": "07",
+      "acceptance_valid": true,
+      "explanation": "Native lift physically raised pink cube 40.5 mm; following error on joint6 was 0.04876244 rad, above unchanged 0.045 rad settle tolerance. Possible payload retained, shutdown park skipped.",
+      "result": {
+        "ok": false,
+        "stage": "grasp",
+        "error": "SkillError: did not settle at grasp lift pose",
+        "home_skipped": true,
+        "postcondition": {
+          "skill": "pick_and_place",
+          "kind": "relocated",
+          "status": "refuted",
+          "evidence": "pink object is still within 4.0 cm of where it started",
+          "channel": "physics",
+          "measured": {
+            "moved_m": 0.0405,
+            "final": [
+              0.1753,
+              0.1481,
+              0.0803
+            ]
+          }
+        }
+      },
+      "held_provisional_after": [
+        "pink object",
+        "cube",
+        "pink"
+      ],
+      "source_files_unchanged": true,
+      "raw": {
+        "path": "runs/manipulation-native-01/pick-place-07/receipt.json",
+        "sha256": "13e6642e3c2bd09b380826bd10e30c9557a9658691e08b83935d133f4c6474b6",
+        "bytes": 141719
+      }
+    }
+  ],
+  "validation_limits": [
+    "One full green-object pick/place plus home and shutdown park in an isolated tabletop scene; not a success-rate or comparative performance benchmark.",
+    "Occupancy was explicitly disabled by the supported isolated runtime policy; this is not live nvblox/payload-geometry or kitchen-campaign acceptance.",
+    "Real hardware, unobserved free space and continuous swept-volume clearance remain unvalidated.",
+    "SDK spheres at fixed finger stroke are auxiliary; calibrated observed-finger geometry retains veto authority."
+  ],
+  "pink07_drive_observation": {
+    "scope": "Measured following error under retained bilateral contact; no unique controller/plant root cause claimed and no gains or tolerances retuned",
+    "joint6_command_asset_rad": -0.7728169560432434,
+    "joint6_measured_asset_rad": -0.8215793371200562,
+    "steady_position_error_rad": 0.0487623810768128,
+    "settle_tolerance_rad": 0.045,
+    "runtime_kp_joint6": 2864.7890625,
+    "runtime_kd_joint6": 401.0704650878906,
+    "max_effort_joint6_nm": 14.0,
+    "authored_angular_drive": {
+      "stiffness_per_degree": 50.0,
+      "damping_per_degree": 7.0
+    },
+    "notes": [
+      "Native endpoint equals live articulation target with the expected mirrored sign.",
+      "get_dof_efforts is the applied effort channel and is not presented as measured drive output.",
+      "Nonzero reported dq with fixed successive positions does not prove physical angular motion."
+    ],
+    "raw": [
+      {
+        "path": "runs/manipulation-native-01/load-state-07.json",
+        "sha256": "2f265f17ab32a769b54678557b753e4cd05a4295319b8cced7f1046d2a05e84c",
+        "bytes": 4486
+      },
+      {
+        "path": "runs/manipulation-native-01/drive-state-07.json",
+        "sha256": "2835782a032c7629193d4dab4e76915094c31fe712c2b6de322c3d767ef51f81",
+        "bytes": 1549
+      },
+      {
+        "path": "runs/manipulation-native-01/close-owned-8731.json",
+        "sha256": "58d0285f2e5bdcf3f61be6b39e8142e564db0d08d53fa4cf6b46863e07b0e2b5",
+        "bytes": 4070
+      }
+    ]
+  },
+  "cleanup": {
+    "empty_withdrawal": {
+      "pass": true,
+      "scope": "Fresh observed-finger gate admitted 4 cm vertical native empty withdrawal then home; 560+812 surface checks",
+      "raw": {
+        "path": "runs/manipulation-native-01/empty-withdraw-06.json",
+        "sha256": "ff13c4c68e99a096e19d3e23874cd01a2180ce80abf44af716f862b45ed0360e",
+        "bytes": 56571
+      }
+    },
+    "retained_payload_simulator_termination": {
+      "pass": true,
+      "scope": "Authorized termination of only retained-payload test simulator8731; no opening, target changes or object pose writes",
+      "identities": {
+        "launcher_pid": 3241581,
+        "launcher_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14458638",
+        "bridge_pid": 3241591,
+        "bridge_birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:14458642"
+      },
+      "signal": "SIGTERM to birth-bound owned launcher",
+      "after": {
+        "launcher": "gone",
+        "bridge": "Z"
+      },
+      "last_pink_position_m": [
+        0.17529,
+        0.14813,
+        0.08031
+      ],
+      "raw": {
+        "path": "runs/manipulation-native-01/close-owned-8731.json",
+        "sha256": "58d0285f2e5bdcf3f61be6b39e8142e564db0d08d53fa4cf6b46863e07b0e2b5",
+        "bytes": 4070
+      }
+    },
+    "runner_threshold_correction": {
+      "path": "runs/manipulation-native-01/release-cleanup-05-verification.json",
+      "sha256": "e2b38dc7e2b06c924b6b7832f1c2d2b035e9c9442059fc922b1a0abf6d2aa3fe",
+      "bytes": 572
+    }
+  },
+  "cpu_contract_tests": {
+    "passed": 265,
+    "scope": "planner/native-curve adapter, live physical-clock execution, cancellation, per-call margins, contact stability, grasp/contact/carry and park contracts; SDK doubles are not GPU acceptance",
+    "command": "PYTHONPATH=$PWD/src /home/johnny/Projects/demo/.demo/bin/python -m pytest -q tests/test_cumotion_planner.py tests/test_planned_trajectory.py tests/test_cumotion_runtime.py tests/test_observed_finger_runtime.py tests/test_safety.py tests/test_motion_profile.py tests/test_isaac_simulation_motion.py tests/test_grasp_contact_recovery.py tests/test_carry_attachment.py tests/test_pre_carry_lift.py tests/test_park_pose.py"
+  }
+}

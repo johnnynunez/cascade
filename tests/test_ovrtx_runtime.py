@@ -236,6 +236,7 @@ def test_export_flattens_private_scene_and_resets_nested_body_stacks(bridge, mon
         UsdGeom.Cube.Define(stage, path + "/mesh")
     cam = UsdGeom.Camera.Define(stage, "/World_Cams/cam0")
     cam.AddTranslateOp().Set(Gf.Vec3d(0, 0, 2))
+    UsdGeom.Cube.Define(stage, "/Table")
     before = stage.GetRootLayer().ExportToString()
     created = []
     def bodies(paths):
@@ -259,6 +260,7 @@ def test_export_flattens_private_scene_and_resets_nested_body_stacks(bridge, mon
     for path in source.paths:
         assert UsdGeom.Xformable(render_stage.GetPrimAtPath(path)).GetResetXformStack()
     assert source.config["semantic_paths"]["/World/Robot/Link/mesh"] == "/World/Robot/Link"
+    assert source.config["semantic_paths"]["/Table"] == "/Table"
     assert (tmp_path / "scene-manifest.json").exists()
 
 
@@ -275,3 +277,21 @@ def test_tensor_view_uses_its_actual_path_order_without_usd_authoring(bridge, mo
     np.testing.assert_array_equal(q, [[0, 0, 0, 1], [1, 0, 0, 0]])
     manager._physics_sim_view__warp = NS(is_valid=False)
     assert not bodies.is_physics_tensor_entity_valid()
+
+
+def test_first_native_failure_survives_later_physical_captures(bridge, packet_source):
+    source = bridge.IsaacOvrtx.__new__(bridge.IsaacOvrtx)
+    source.latest = packet_source[0]
+    source._epoch = source.latest.epoch
+    source._render_error = source.error = None
+    calls = []
+    def fail(snapshot):
+        calls.append(snapshot)
+        raise ValueError("semantic output missing")
+    source._owner = NS(render=fail)
+    with pytest.raises(ValueError, match="semantic output missing"):
+        source.render()
+    source.error = None  # A later successful physical capture clears capture errors only.
+    with pytest.raises(ValueError, match="semantic output missing"):
+        source.render()
+    assert len(calls) == 1

@@ -1698,6 +1698,8 @@ def _refresh_frames():
                 _camera_frame_errors.pop(name, None)
                 _pending_camera_publications.discard(name)
         except Exception as exc:
+            if not _camera_frame_errors:
+                print(f"[bridge] OVRTX capture failed: {exc}", flush=True)
             _camera_frame_errors.update({name: str(exc) for name in _annotators})
         Handler.scene_identity["camera_frame_errors"] = dict(_camera_frame_errors)
         return

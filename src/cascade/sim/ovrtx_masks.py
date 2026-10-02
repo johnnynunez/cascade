@@ -121,6 +121,7 @@ def body_masks(ids, label_buffer, shape, body_paths):
             selected[matches[0]].append(identity)
     # The renderer must identify every ID it actually used, including classes
     # outside the robot/prop inventory. Zero is the documented background.
-    if set(map(int, np.unique(ids))) - {0} - set(lookup):
-        raise ValueError("SemanticSegmentation contains an unmapped visible ID")
+    unknown = set(map(int, np.unique(ids))) - {0} - set(lookup)
+    if unknown:
+        raise ValueError(f"SemanticSegmentation contains unmapped visible IDs: {sorted(unknown)}; map IDs: {sorted(lookup)}")
     return {path: np.isin(ids[..., 0], values) for path, values in selected.items()}

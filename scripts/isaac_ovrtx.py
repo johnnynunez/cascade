@@ -152,6 +152,7 @@ class IsaacOvrtx:
         self._epoch = None
         self.latest = None
         self.error = None
+        self._render_error = None
         # Kit's PhysX notice handlers can react to same-path edits even on a
         # second Usd.Stage. Only read/flatten here; stronger reset/instance
         # opinions are authored by the isolated renderer process.
@@ -173,8 +174,10 @@ class IsaacOvrtx:
             if prim.IsA(UsdGeom.Gprim):
                 path = str(prim.GetPath())
                 owners = [p for p in self.paths if path == p or path.startswith(p + "/")]
-                if owners:
-                    semantics[path] = max(owners, key=len)
+                # Static table/furniture geometry also needs an explicit
+                # semantic identity: native ID 1 otherwise means unlabelled
+                # geometry and has no SemanticIdMap record to attest it.
+                semantics[path] = max(owners, key=len) if owners else path
         scene = self.output / "render-scene.usda"
         if scene.exists():
             raise ValueError("OVRTX output already contains a scene; use a fresh run directory")
@@ -238,18 +241,21 @@ class IsaacOvrtx:
         self.error = None
 
     def render(self):
+        if self._render_error is not None and self.latest is not None and self._epoch == self.latest.epoch:
+            raise ValueError(self._render_error)
         if self.error or self.latest is None:
             raise ValueError(self.error or "OVRTX physical snapshot unavailable")
         if self._epoch != self.latest.epoch:
             self.close()
             self._owner = self._factory(self._python, self.config, frame_timeout_s=self._frame_timeout_s)
             self._epoch = self.latest.epoch
+            self._render_error = None
         try:
             frames = self._owner.render(self.latest)
             return {name: (bridge_packet(frame, self.latest, robot_id=self.robot_id, base_z=self.base_z),
                            frame.rgb[..., ::-1].copy(), frame.depth_m) for name, frame in frames.items()}
         except Exception as exc:
-            self.error = str(exc)
+            self._render_error = self.error = str(exc)
             raise
 
     def close(self):

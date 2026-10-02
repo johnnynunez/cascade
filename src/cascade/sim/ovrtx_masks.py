@@ -16,7 +16,7 @@ def body_label(path):
     return "cascade_body_" + path.encode("utf-8").hex()
 
 
-def semantic_layer(paths):
+def semantic_layer(paths, *, world_paths=(), instance_paths=()):
     """Private stronger USD opinions: renderable prim -> exact body identity.
 
     The producer must inventory every renderable descendant of each body.
@@ -25,13 +25,22 @@ def semantic_layer(paths):
     if not isinstance(paths, dict) or not paths:
         raise ValueError("OVRTX masks require a nonempty renderable-path inventory")
     root = {}
-    for path, label in paths.items():
-        if not all(isinstance(v, str) and _PATH.fullmatch(v) for v in (path, label)):
-            raise ValueError("Semantic geometry and body identities must be absolute prim paths")
+    def node_for(path):
+        if not isinstance(path, str) or not _PATH.fullmatch(path):
+            raise ValueError("Scene overrides require absolute prim paths")
         node = root
         for component in path.strip("/").split("/"):
             node = node.setdefault(component, {})
-        node[None] = label
+        return node.setdefault(None, {})
+
+    for path, label in paths.items():
+        if not all(isinstance(v, str) and _PATH.fullmatch(v) for v in (path, label)):
+            raise ValueError("Semantic geometry and body identities must be absolute prim paths")
+        node_for(path)["label"] = label
+    for path in world_paths:
+        node_for(path)["world"] = True
+    for path in instance_paths:
+        node_for(path)["instance"] = True
 
     def emit(children, depth=0):
         result = []
@@ -39,11 +48,20 @@ def semantic_layer(paths):
         for name, node in children.items():
             if name is None:
                 continue
-            schema = ' (prepend apiSchemas = ["SemanticsAPI:class"])' if None in node else ""
+            attrs = node.get(None, {})
+            metadata = []
+            if "label" in attrs:
+                metadata.append('prepend apiSchemas = ["SemanticsAPI:class"]')
+            if attrs.get("instance"):
+                metadata.append('instanceable = false')
+            schema = ' (\n' + '\n'.join(indent + '    ' + m for m in metadata) + '\n' + indent + ')' if metadata else ''
             result.append(f'{indent}over "{name}"{schema} {{')
-            if None in node:
+            if "label" in attrs:
                 result.extend((f'{indent}    string semantic:class:params:semanticType = "class"',
-                               f'{indent}    string semantic:class:params:semanticData = "{body_label(node[None])}"'))
+                               f'{indent}    string semantic:class:params:semanticData = "{body_label(attrs["label"])}"'))
+            if attrs.get("world"):
+                result.extend((f'{indent}    matrix4d xformOp:transform = ((1,0,0,0),(0,1,0,0),(0,0,1,0),(0,0,0,1))',
+                               f'{indent}    uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:transform"]'))
             result.extend(emit(node, depth + 1))
             result.append(indent + "}")
         return result

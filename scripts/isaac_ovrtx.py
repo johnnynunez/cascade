@@ -103,12 +103,42 @@ def bridge_packet(frame, snapshot, *, robot_id, base_z):
     return result
 
 
+class PhysicsBodies:
+    """Read the existing tensor scene without authoring any live USD schema."""
+    def __init__(self, paths):
+        self.paths = tuple(paths)
+        self._simulation = self._view = None
+        if not self.is_physics_tensor_entity_valid():
+            raise ValueError("Physical rigid-body tensor view unavailable")
+
+    def is_physics_tensor_entity_valid(self):
+        from isaacsim.core.simulation_manager import SimulationManager
+        simulation = SimulationManager._physics_sim_view__warp
+        if simulation is None or not simulation.is_valid:
+            return False
+        if simulation is not self._simulation:
+            view = simulation.create_rigid_body_view(list(self.paths))
+            if view is None or not view.check() or set(view.prim_paths) != set(self.paths):
+                return False
+            self._simulation, self._view = simulation, view
+        return self._view is not None and self._view.check()
+
+    def get_world_poses(self):
+        if not self.is_physics_tensor_entity_valid():
+            raise ValueError("Physical tensor view lost during snapshot")
+        data = self._view.get_transforms().numpy()
+        order = {path: i for i, path in enumerate(self._view.prim_paths)}
+        data = data[[order[p] for p in self.paths]]
+        if data.shape != (len(self.paths), 7):
+            raise ValueError("Physical tensor pose inventory changed")
+        return data[:, :3].copy(), data[:, [6, 3, 4, 5]].copy()  # tensor xyzw -> wxyz
+
+
 class IsaacOvrtx:
     def __init__(self, stage, cameras, *, python, output, robot_id, base_z, width, height,
                  wrist_link=None, wrist_mount=None, device=0, frame_timeout_s=15.,
                  process_factory=OvrtxProcess):
-        from pxr import Gf, Usd, UsdGeom, UsdPhysics
-        from isaacsim.core.experimental.prims import RigidPrim
+        from pxr import Usd, UsdGeom, UsdPhysics
 
         if UsdGeom.GetStageMetersPerUnit(stage) != 1. or str(UsdGeom.GetStageUpAxis(stage)) != "Z":
             raise ValueError("Live OVRTX producer requires a metre-authored Z-up stage")
@@ -122,33 +152,24 @@ class IsaacOvrtx:
         self._epoch = None
         self.latest = None
         self.error = None
-        frozen = Usd.Stage.Open(stage.Flatten())
-        # Materialize instances only in our exported render stage; semantic
-        # labels must belong to exact visible mesh paths, not shared prototypes.
-        for prim in list(frozen.Traverse()):
-            if prim.IsInstanceable():
-                prim.SetInstanceable(False)
-        paths = [str(p.GetPath()) for p in frozen.Traverse() if p.HasAPI(UsdPhysics.RigidBodyAPI)]
+        # Kit's PhysX notice handlers can react to same-path edits even on a
+        # second Usd.Stage. Only read/flatten here; stronger reset/instance
+        # opinions are authored by the isolated renderer process.
+        prims = list(stage.Traverse(Usd.TraverseInstanceProxies()))
+        paths = [str(p.GetPath()) for p in prims if p.HasAPI(UsdPhysics.RigidBodyAPI)]
         if not paths or robot_id not in paths:
             raise ValueError("OVRTX scene has no complete physical robot inventory")
-        self._bodies = RigidPrim(paths, resolve_paths=False, reset_xform_op_properties=False)
+        self._bodies = PhysicsBodies(paths)
         self.paths = tuple(self._bodies.paths)
         if set(self.paths) != set(paths):
             raise ValueError("Physics tensor inventory differs from render scene")
         cache = UsdGeom.XformCache()
         for path in self.paths:
-            prim = frozen.GetPrimAtPath(path)
+            prim = stage.GetPrimAtPath(path)
             # Reject inherited nonrigid scale/shear rather than altering shape.
-            T = _transform(np.asarray(cache.GetLocalToWorldTransform(prim)).T, path)
-            xf = UsdGeom.Xformable(prim)
-            xf.ClearXformOpOrder()
-            op = xf.GetPrim().GetAttribute("xformOp:transform")
-            if op:
-                xf.GetPrim().RemoveProperty("xformOp:transform")
-            xf.AddTransformOp().Set(Gf.Matrix4d(T.T.tolist()))
-            xf.SetResetXformStack(True)
+            _transform(np.asarray(cache.GetLocalToWorldTransform(prim)).T, path)
         semantics = {}
-        for prim in frozen.Traverse():
+        for prim in prims:
             if prim.IsA(UsdGeom.Gprim):
                 path = str(prim.GetPath())
                 owners = [p for p in self.paths if path == p or path.startswith(p + "/")]
@@ -157,14 +178,15 @@ class IsaacOvrtx:
         scene = self.output / "render-scene.usda"
         if scene.exists():
             raise ValueError("OVRTX output already contains a scene; use a fresh run directory")
-        frozen.GetRootLayer().Export(str(scene))
+        stage.Flatten().Export(str(scene))
         self.specs = []
         optical = np.diag([1., -1., -1., 1.])
         for name, (_, K) in cameras.items():
             T = np.asarray(cache.GetLocalToWorldTransform(stage.GetPrimAtPath("/World_Cams/" + name))).T @ optical
             self.specs.append(CameraSpec(name, width, height, float(K[0][0]), float(K[0][0]), T))
         self.config = dict(scene=str(scene), cameras=self.specs, dynamic_paths=self.paths,
-                           semantic_paths=semantics, device=device)
+                           semantic_paths=semantics, world_paths=self.paths,
+                           instance_paths=[str(p.GetPath()) for p in prims if p.IsInstance()], device=device)
         manifest = {"version": 1, "scene": str(scene), "scene_sha256": hashlib.sha256(scene.read_bytes()).hexdigest(),
                     "hash_scope": "flattened USD only; external textures/material files are not attested",
                     "source": stage.GetRootLayer().identifier, "dynamic_paths": list(self.paths),
@@ -172,7 +194,6 @@ class IsaacOvrtx:
         (self.output / "scene-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
     def capture(self, *, epoch, physics_step, simulation_time, started, payload):
-        from isaacsim.core.experimental.utils.backend import use_backend
         repeated = False
         if self.latest is not None and self.latest.epoch == epoch:
             repeated = physics_step == self.latest.sequence
@@ -180,10 +201,11 @@ class IsaacOvrtx:
                 raise ValueError("OVRTX physical clock regressed")
         if not self._bodies.is_physics_tensor_entity_valid():
             raise ValueError("OVRTX physical body tensor view unavailable; USD fallback forbidden")
-        with use_backend("tensor"):
-            positions, quaternions = self._bodies.get_world_poses()
+        positions, quaternions = self._bodies.get_world_poses()
+        positions = positions.numpy() if hasattr(positions, "numpy") else np.asarray(positions)
+        quaternions = quaternions.numpy() if hasattr(quaternions, "numpy") else np.asarray(quaternions)
         transforms = {path: pose_matrix(p, q) for path, p, q in
-                      zip(self.paths, positions.numpy(), quaternions.numpy(), strict=True)}
+                      zip(self.paths, positions, quaternions, strict=True)}
         cameras = {c.name: c.T_base_cam.copy() for c in self.specs}
         if "wrist" in cameras:
             if self.wrist_link not in transforms or self.wrist_mount is None:

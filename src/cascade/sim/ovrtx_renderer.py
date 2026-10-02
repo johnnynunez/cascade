@@ -146,7 +146,7 @@ def _matrix_usda(matrix):
                             for row in matrix.T) + ")"
 
 
-def _camera_layer(scene, specs, device, semantic_paths=None):
+def _camera_layer(scene, specs, device, semantic_paths=None, world_paths=(), instance_paths=()):
     # No pxr/Kit import and no edits to the source scene. Paths are local files;
     # disallow USD asset delimiters rather than interpolating untrusted syntax.
     if any(c in str(scene) for c in "@\n\r"):
@@ -199,7 +199,8 @@ def _camera_layer(scene, specs, device, semantic_paths=None):
             f'    subLayers = [@{scene}@]\n)\n'
             'def "CascadeCameras" {\n' + "\n".join(cameras) + '\n}\n'
             'def "CascadeRender" {\n' + "\n".join(products) + '\n}\n'
-            + (semantic_layer(semantic_paths) if semantic_paths else ''))
+            + (semantic_layer(semantic_paths, world_paths=world_paths, instance_paths=instance_paths)
+               if semantic_paths else ''))
 
 
 class OvrtxRenderer:
@@ -211,7 +212,7 @@ class OvrtxRenderer:
     a hard startup deadline. Errors poison the owner until close, no retries.
     """
     def __init__(self, scene, cameras, *, dynamic_paths=(), device=0, render_dt=1/30,
-                 meters_per_unit=1., semantic_paths=None, _modules=None):
+                 meters_per_unit=1., semantic_paths=None, world_paths=(), instance_paths=(), _modules=None):
         self.scene = Path(scene).expanduser().resolve(strict=True)
         if not self.scene.is_file() or meters_per_unit != 1.:
             raise OvrtxError("OVRTX scenes must be local files authored in metres (meters_per_unit=1)")
@@ -226,6 +227,10 @@ class OvrtxRenderer:
         if type(device) is not int or not 0 <= device < 64:
             raise OvrtxError("device must be a CUDA-visible integer index in [0,63]")
         self.device = device
+        self.world_paths = tuple(_prim_path(p) for p in world_paths)
+        self.instance_paths = tuple(_prim_path(p) for p in instance_paths)
+        if set(self.world_paths) - set(self.paths) or ((self.world_paths or self.instance_paths) and not semantic_paths):
+            raise OvrtxError("World-pose overrides require inventoried dynamic paths and semantic geometry")
         self.semantic_paths = copy.deepcopy(semantic_paths or {})
         if self.semantic_paths:
             from .ovrtx_masks import semantic_layer
@@ -266,7 +271,8 @@ class OvrtxRenderer:
                 self._stage = self._ovstage.Stage(f"cascade.ovrtx.{self._epoch}")
                 self._renderer.attach_ovstage(self._stage)
                 self._ovstage.population.open_usd_from_string(
-                    self._stage, _camera_layer(self.scene, self.cameras, self.device, self.semantic_paths), ordinal=1)
+                    self._stage, _camera_layer(self.scene, self.cameras, self.device, self.semantic_paths,
+                                              self.world_paths, self.instance_paths), ordinal=1)
                 self._stage.advance_write_floor(1, self._ovstage.Scope.ALL).wait()
                 if hashlib.sha256(self.scene.read_bytes()).hexdigest() != self.scene_sha256:
                     raise OvrtxError("Root USD changed while loading its recorded source")

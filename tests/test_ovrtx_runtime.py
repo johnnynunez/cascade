@@ -61,7 +61,7 @@ def test_corrupt_identifier_map_fails_closed(mutate):
 
 def test_semantics_override_private_geometry_and_validate_paths():
     layer = semantic_layer({"/robot/link/mesh": "/robot/link"})
-    assert 'over "mesh" (prepend apiSchemas = ["SemanticsAPI:class"])' in layer
+    assert 'over "mesh" (' in layer and 'prepend apiSchemas = ["SemanticsAPI:class"]' in layer
     assert f'semanticData = "{body_label("/robot/link")}"' in layer
     assert body_label("/Robot") != body_label("/robot")
     with pytest.raises(ValueError):
@@ -238,18 +238,40 @@ def test_export_flattens_private_scene_and_resets_nested_body_stacks(bridge, mon
     cam.AddTranslateOp().Set(Gf.Vec3d(0, 0, 2))
     before = stage.GetRootLayer().ExportToString()
     created = []
-    def bodies(paths, **kwargs):
-        created.append(kwargs)
+    def bodies(paths):
+        created.append(paths)
         return NS(paths=paths)
-    monkeypatch.setitem(sys.modules, "isaacsim.core.experimental.prims", NS(RigidPrim=bodies))
+    monkeypatch.setattr(bridge, "PhysicsBodies", bodies)
     source = bridge.IsaacOvrtx(stage, {"cam0": (None, [[100., 0, 20], [0, 100., 20], [0, 0, 1]])},
         python="unused", output=tmp_path, robot_id="/World/Robot", base_z=0., width=40, height=40)
     assert stage.GetRootLayer().ExportToString() == before
-    assert created == [{"resolve_paths": False, "reset_xform_op_properties": False}]
+    assert created == [["/World/Robot", "/World/Robot/Link"]]
     frozen = Usd.Stage.Open(str(tmp_path / "render-scene.usda"))
-    for path, x in (("/World/Robot", .7), ("/World/Robot/Link", .8)):
+    for path, x in (("/World/Robot", .2), ("/World/Robot/Link", .1)):
         xf = UsdGeom.Xformable(frozen.GetPrimAtPath(path))
-        assert xf.GetResetXformStack()
+        assert not xf.GetResetXformStack()  # Kit only exports the unedited layer.
         assert xf.GetLocalTransformation().ExtractTranslation()[0] == pytest.approx(x)
+    from cascade.sim.ovrtx_renderer import _camera_layer
+    layer = __import__("pxr.Sdf", fromlist=["Layer"]).Layer.CreateAnonymous()
+    layer.ImportFromString(_camera_layer(source.config["scene"], source.specs, 0,
+        source.config["semantic_paths"], source.config["world_paths"], source.config["instance_paths"]))
+    render_stage = Usd.Stage.Open(layer)
+    for path in source.paths:
+        assert UsdGeom.Xformable(render_stage.GetPrimAtPath(path)).GetResetXformStack()
     assert source.config["semantic_paths"]["/World/Robot/Link/mesh"] == "/World/Robot/Link"
     assert (tmp_path / "scene-manifest.json").exists()
+
+
+def test_tensor_view_uses_its_actual_path_order_without_usd_authoring(bridge, monkeypatch):
+    values = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 1, 0]], np.float32)
+    view = NS(prim_paths=["/b", "/a"], check=lambda: True,
+              get_transforms=lambda: NS(numpy=lambda: values.copy()))
+    simulation = NS(is_valid=True, create_rigid_body_view=lambda paths: view)
+    manager = NS(_physics_sim_view__warp=simulation)
+    monkeypatch.setitem(sys.modules, "isaacsim.core.simulation_manager", NS(SimulationManager=manager))
+    bodies = bridge.PhysicsBodies(["/a", "/b"])
+    p, q = bodies.get_world_poses()
+    np.testing.assert_array_equal(p, [[4, 5, 6], [1, 2, 3]])
+    np.testing.assert_array_equal(q, [[0, 0, 0, 1], [1, 0, 0, 0]])
+    manager._physics_sim_view__warp = NS(is_valid=False)
+    assert not bodies.is_physics_tensor_entity_valid()

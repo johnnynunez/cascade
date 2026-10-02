@@ -40,7 +40,7 @@ def Xform "World" {
         double size = .3
         color3f[] primvars:displayColor = [(0.1,0.4,0.9)]
         matrix4d xformOp:transform = ((1,0,0,0),(0,1,0,0),(0,0,1,0),(-.3,0,0,1))
-        uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:transform"]
+        uniform token[] xformOpOrder = ["xformOp:transform"]
     }
 }
 def Xform "World_Props" {
@@ -48,7 +48,7 @@ def Xform "World_Props" {
         double size = .3
         color3f[] primvars:displayColor = [(0.9,0.1,0.05)]
         matrix4d xformOp:transform = ((1,0,0,0),(0,1,0,0),(0,0,1,0),(.3,0,0,1))
-        uniform token[] xformOpOrder = ["!resetXformStack!", "xformOp:transform"]
+        uniform token[] xformOpOrder = ["xformOp:transform"]
     }
 }
 def DomeLight "Dome" {
@@ -68,11 +68,15 @@ def DistantLight "Key" {
                "scene_sha256": hashlib.sha256(scene.read_bytes()).hexdigest(),
                "source": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                           for p in [ROOT / "src/cascade/sim/ovrtx_renderer.py",
+                                    ROOT / "src/cascade/sim/ovrtx_masks.py",
+                                    ROOT / "src/cascade/sim/ovrtx_process.py",
+                                    ROOT / "src/cascade/sim/ovrtx_worker.py",
+                                    ROOT / "src/cascade/sim/render_binding.py",
                                     ROOT / "scripts/isaac_ovrtx.py", Path(__file__)]}}
     owner = None
     try:
         owner = OvrtxProcess(args.python, dict(scene=str(scene), cameras=[camera], dynamic_paths=paths,
-                            semantic_paths={p: p for p in paths}, device=args.device))
+                            semantic_paths={p: p for p in paths}, world_paths=paths, device=args.device))
         receipt["worker_pid"] = owner.process.pid
         captures = []
         for step in (1, 2):

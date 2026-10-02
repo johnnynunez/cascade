@@ -327,11 +327,15 @@ class McpSkillServer:
                     self._runtime.stream_server.url
                     if self._runtime.stream_server is not None else "disabled"
                 )
-                print(
-                    f"[cascade-mcp] runtime up: cameras={cameras} arm={arm} (lazy) "
-                    f"livestream={url}",
-                    file=sys.stderr,
-                )
+                if self._mobile:
+                    names = ",".join(p["name"] for p in self._runtime.cfg.bases)
+                    print(f"[cascade-mcp] mobile runtime up: bases={names}", file=sys.stderr)
+                else:
+                    print(
+                        f"[cascade-mcp] runtime up: cameras={cameras} arm={arm} (lazy) "
+                        f"livestream={url}",
+                        file=sys.stderr,
+                    )
             except Exception as e:
                 if _poison:
                     self._init_error = f"{type(e).__name__}: {e}"

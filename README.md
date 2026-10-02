@@ -1,7 +1,7 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
-The local integration branch `feat/manipulation-assembly-runtime` now executes
-normal manipulation with **live OVRTX cameras and cuMotion through SafeArm**.
+The manipulation integration merged in [PR #65](https://github.com/johnnynunez/cascade/pull/65)
+executes normal manipulation with **live OVRTX cameras and cuMotion through SafeArm**.
 A native PhysX GPU episode completed grasp, lift, placement and return home,
 with independent release/settling observations. The SO-101 Factory assembly
 experiment also completed contact-driven threading, measured seating and
@@ -9,6 +9,11 @@ motor-off retention. See the [integration report](docs/MANIPULATION_ASSEMBLY_202
 for exact source bindings, tests, videos, retained failures and the trial 12
 follow-up. These local results do not establish the complete kitchen campaign,
 Spark runtime acceptance, hardware fastening or calibrated preload.
+
+The optional [MicroDuck mobile runtime](docs/MICRODUCK.md) adds bounded base
+commands, a native Newton policy loop, independent support verification and
+MCP traces. It remains a candidate pending physical locomotion admission;
+the mobile profile does not expose manipulation tools.
 
 ### Earlier merged and measured baseline
 

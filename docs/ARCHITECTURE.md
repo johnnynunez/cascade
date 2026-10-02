@@ -1,5 +1,13 @@
 # Architecture
 
+The optional [MicroDuck path](MICRODUCK.md) selects `MobileRig`, `SafeBase` and
+`MobileSkillRuntime` before arm construction. It shares CASCADE's MCP, traces
+and episodic memory while exposing mobile capabilities. Its Newton bridge
+runs the policy on physical steps; independently sampled pose and solved
+support determine outcomes. Canonical model identity binds state, frames and
+verifier profiles to the effective recipe. Physical locomotion admission is
+still pending.
+
 Local integration contracts updated on 2 October 2026: live OVRTX bridge
 snapshots, native cuMotion execution through SafeArm, post-close stability and
 load-preserving shutdown, plus a separate Newton contact assembly experiment.

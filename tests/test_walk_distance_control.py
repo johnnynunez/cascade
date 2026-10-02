@@ -63,6 +63,22 @@ def test_profile_is_opt_in_and_original_velocity_semantics_are_unchanged():
     assert configured(raw).harness.limits["max_vx"] == default.harness.limits["max_vx"]
 
 
+def test_slow_native_validation_changes_only_compute_capacity_not_physical_bounds():
+    from cascade.config import load_profile
+
+    original = load_profile('bases', 'microduck_isaac').as_dict()
+    candidate = load_profile('bases', 'microduck_distance_candidate').as_dict()
+    slow = load_profile('bases', 'microduck_distance_native_slow').as_dict()
+    assert original['safety']['max_wall_duration_s'] == candidate['safety']['max_wall_duration_s'] == 8.
+    assert slow['safety'] == {**candidate['safety'], 'max_wall_duration_s': 25.}
+    assert slow['distance_control'] == candidate['distance_control']
+    assert slow['safety']['max_duration_s'] == 3.
+    assert slow['verifier']['settle_timeout_s'] == 3.
+    assert slow['verifier']['max_state_age_s'] == .5
+    assert slow['verifier']['max_samples'] == math.ceil(29/.02)+1
+    assert slow['model_identity_sha256'] is None  # Never trust a live hello as admission.
+
+
 @pytest.mark.parametrize("bad", [None, True, 0., .001, .051, float("nan"), float("inf")])
 def test_invalid_distance_refused_before_connect_or_motion(bad):
     raw = MockMobileBase(wall_lease_s=2.)

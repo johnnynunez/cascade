@@ -389,6 +389,7 @@ class KitNewtonBackend:
         self._closed = False
         self._captures = 0
         self._last_support_solve = None
+        self.signals = None
 
     def open(self):
         import sys
@@ -398,9 +399,15 @@ class KitNewtonBackend:
                     '--/exts/omni.services.transport.server.http/http/enabled=false',
                     '--/exts/omni.services.transport.server.http/https/enabled=false']
         try:
-            self.app = SimulationApp({'headless': True, 'disable_viewport_updates': True,
-                'multi_gpu': False, 'width': 320, 'height': 240, 'renderer': 'RayTracedLighting',
-                'physics_gpu': int(self.args.device.split(':')[1])}, experience=str(self.experience))
+            from contextlib import nullcontext
+            defer = self.signals.defer if self.signals is not None else nullcontext
+            with defer():
+                # Acquire the handle so cleanup can find it even if interrupted.
+                self.app = SimulationApp({'headless': True, 'disable_viewport_updates': True,
+                    'multi_gpu': False, 'width': 320, 'height': 240, 'renderer': 'RayTracedLighting',
+                    'physics_gpu': int(self.args.device.split(':')[1])}, experience=str(self.experience))
+            if self.signals is not None:
+                self.signals.checkpoint()
             self._initialize()
         except BaseException:
             self.close()
@@ -662,9 +669,11 @@ class KitNewtonBackend:
             raise RuntimeError('backend teardown errors: ' + '; '.join(errors))
 
     def shutdown(self, exit_code):
-        """Final SDK call AFTER receipts; fast shutdown can terminate this process."""
+        """Attest an actual SDK.close return; fast shutdown may never return."""
         if not self._closed:
             raise RuntimeError('close owned resources before final SDK shutdown')
-        if self.app is not None:
-            app, self.app = self.app, None
-            app.close(exit_code=exit_code)
+        if self.app is None:
+            return False
+        app, self.app = self.app, None
+        app.close(exit_code=exit_code)
+        return True

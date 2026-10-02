@@ -621,7 +621,14 @@ def test_manifest_matches_static_admission_and_has_no_implicit_profile():
     assert manifest["license"]["spdx"] == "BSD-3-Clause"
     assert "THIS SOFTWARE IS PROVIDED" in manifest["license"]["text"]
     assert manifest["default_profile"] is None
-    assert len(manifest["profiles"]) == 3
+    assert len(manifest["profiles"]) == 4
     for profile in manifest["profiles"].values():
         assert set(profile) == set(params())
         module()._validated_params(profile)
+    reference = manifest['profiles']['official_infer_nominal_no_delay']
+    assert reference['stiff_frictionloss'] is True
+    assert reference['vin_drop_gain'] == .1 and reference['max_current'] is None
+    assert reference['min_delay'] == reference['max_delay'] == 0
+    assert reference['kp_fw'] == 200. and reference['vin'] == 7.4
+    assert reference['max_effort'] == reference['joint_effort_limit'] == 7.4*.36601349688984386/2.8113923539223227
+    assert manifest['profiles']['nominal_no_current_limit_no_delay']['stiff_frictionloss'] is False

@@ -211,13 +211,23 @@ def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, m
                 contact_pairs=[[shapes[int(pairs[0][i])], shapes[int(pairs[1][i])]] for i in active])
 
 
-def prepare_native_model(ns, dof_indices, *, source_cap, newton):
+def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None):
     """Explicit startup-only XML -> BAM replacements, with fail-closed readback."""
     import math
     import numpy as np
     from cascade.control.microduck_actuator import M6_PARAMETERS
     if not math.isclose(source_cap, .96, rel_tol=0, abs_tol=1e-12):
         raise ValueError('verified XML effort cap must be 0.96 Nm')
+    # The official inference loader explicitly replaces the XML position
+    # actuator with a motor bounded by V*kt/R. Preserve the old XML-cap recipe
+    # separately; neither setting is chosen from observed motion quality.
+    if effort_cap is None:
+        effort_cap = source_cap
+    official_cap = 7.4 * M6_PARAMETERS['kt'] / M6_PARAMETERS['R']
+    if (type(effort_cap) not in (int, float) or not math.isfinite(effort_cap)
+            or not any(math.isclose(effort_cap, cap, rel_tol=0, abs_tol=1e-12)
+                       for cap in (source_cap, official_cap))):
+        raise ValueError('effort cap must match the XML or pinned official nominal inference recipe')
     expected = {'joint_damping': .053, 'joint_armature': .0018, 'joint_effort_limit': 1e6,
                 'joint_friction': .0048, 'joint_target_mode': 0, 'joint_target_ke': 0, 'joint_target_kd': 0}
     before, arrays = {}, {}
@@ -230,7 +240,7 @@ def prepare_native_model(ns, dof_indices, *, source_cap, newton):
             raise ValueError(f'unexpected native source property: {name}')
         before[name], arrays[name] = a[dof_indices].tolist(), a
     overrides = {'joint_damping': M6_PARAMETERS['friction_viscous'],
-                 'joint_armature': M6_PARAMETERS['armature'], 'joint_effort_limit': source_cap}
+                 'joint_armature': M6_PARAMETERS['armature'], 'joint_effort_limit': effort_cap}
     for name, value in overrides.items():
         arrays[name][dof_indices] = value
         getattr(ns.model, name).assign(arrays[name])
@@ -544,7 +554,8 @@ class KitNewtonBackend:
         self.receipt['support_contract']['gravity_world_m_s2'] = self.receipt['native_body_properties']['gravity_world_m_s2'][:]
         self.receipt['support_extraction'] = extraction_provenance()
         self._checkpoint()
-        self.receipt['native_model_properties'] = prepare_native_model(ns, ds, source_cap=.96, newton=newton)
+        self.receipt['native_model_properties'] = prepare_native_model(ns, ds, source_cap=.96, newton=newton,
+            effort_cap=self.admission['bam_params']['joint_effort_limit'])
         self._checkpoint()
         self.bam = NewtonBamAdapter(ns, source_root=self.args.bam_source_root,
                                     q_indices=qs, dof_indices=ds, params=self.admission['bam_params'])

@@ -240,6 +240,31 @@ def prepare_native_model(ns, dof_indices, *, source_cap, newton):
     return {'before': before, 'overrides': overrides, 'after': after}
 
 
+def read_native_body_properties(ns):
+    """Startup-only measurements for model identity and load diagnostics."""
+    import numpy as np
+    labels = list(ns.model.body_label)
+    masses = ns.model.body_mass.numpy()
+    gravity = ns.model.gravity.numpy()
+    solver_gravity = ns.solver.mjw_model.opt.gravity.numpy()
+    if (not labels or len(labels) != len(set(labels)) or masses.dtype != np.float32
+            or masses.shape != (len(labels),) or not np.isfinite(masses).all()
+            or (masses < 0).any()):
+        raise ValueError('invalid measured native body mass/label layout')
+    if (gravity.dtype != np.float32 or gravity.ndim != 2 or gravity.shape[1] != 3
+            or len(gravity) not in (1, 2) or not np.isfinite(gravity).all()
+            or solver_gravity.dtype != np.float32 or solver_gravity.shape != (1, 3)
+            or not np.array_equal(gravity, np.repeat(solver_gravity, len(gravity), axis=0))
+            or not np.array_equal(solver_gravity[0], np.array([0., 0., -9.81], np.float32))):
+        raise ValueError('native Newton/MJWarp gravity differs from the declared single-world scene')
+    robot = [i for i, label in enumerate(labels) if label.startswith('/World/MicroDuck/')]
+    if not robot or float(np.sum(masses[robot], dtype=np.float64)) <= 0:
+        raise ValueError('native MicroDuck mass unavailable')
+    return dict(body_labels=labels, body_mass_kg=masses.astype(float).tolist(),
+                gravity_world_m_s2=solver_gravity[0].astype(float).tolist(),
+                newton_gravity_vectors_m_s2=gravity.astype(float).tolist())
+
+
 def capture_bound_rgb(ns, app, readback, *, updates):
     """Main-thread capture with both physical clocks held fixed during render."""
     import time
@@ -422,7 +447,9 @@ class KitNewtonBackend:
         self._model = ns.model
         self._layout = (tuple(ns.model.joint_label), tuple(ns.model.body_label), tuple(ns.model.shape_label))
         self.receipt['native_labels'] = dict(zip(('joints', 'bodies', 'shapes'), self._layout))
+        self.receipt['native_body_properties'] = read_native_body_properties(ns)
         self.receipt['support_contract'] = support_contract(ns.model.shape_label)
+        self.receipt['support_contract']['gravity_world_m_s2'] = self.receipt['native_body_properties']['gravity_world_m_s2'][:]
         self.receipt['support_extraction'] = extraction_provenance()
         self.receipt['native_model_properties'] = prepare_native_model(ns, ds, source_cap=.96, newton=newton)
         self.bam = NewtonBamAdapter(ns, source_root=self.args.bam_source_root,

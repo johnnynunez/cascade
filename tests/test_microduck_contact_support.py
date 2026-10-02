@@ -244,3 +244,27 @@ def test_backend_read_delivers_support_from_matching_solve(monkeypatch):
     value = backend.read()
     assert value['support']['status'] == 'known'
     assert value['support']['step'] == value['step']
+
+
+@pytest.mark.parametrize('bad', [None, 'mass_nan', 'mass_negative', 'mass_count', 'gravity_mismatch', 'gravity_direction'])
+def test_native_mass_and_gravity_are_measured_not_assumed(bad):
+    from cascade.sim.microduck_newton import read_native_body_properties
+    ns = fixture()
+    ns.model.body_label = ['/World/MicroDuck/trunk', '/World/MicroDuck/foot']
+    ns.model.body_mass = Buffer([.6, .14])
+    ns.model.gravity = Buffer([[0., 0., -9.81]])
+    ns.solver.mjw_model.opt.gravity = Buffer([[0., 0., -9.81]])
+    if bad == 'mass_nan': ns.model.body_mass.value[0] = np.nan
+    elif bad == 'mass_negative': ns.model.body_mass.value[0] = -.6
+    elif bad == 'mass_count': ns.model.body_mass.value = np.array([.6], np.float32)
+    elif bad == 'gravity_mismatch': ns.solver.mjw_model.opt.gravity.value[0, 2] = -1.
+    elif bad == 'gravity_direction':
+        ns.model.gravity.value[0] = [0., -9.81, 0.]
+        ns.solver.mjw_model.opt.gravity.value[0] = [0., -9.81, 0.]
+    if bad:
+        with pytest.raises(ValueError):
+            read_native_body_properties(ns)
+    else:
+        record = read_native_body_properties(ns)
+        np.testing.assert_allclose(record['body_mass_kg'], [.6, .14])
+        assert record['gravity_world_m_s2'][2] == float(np.float32(-9.81))

@@ -13,8 +13,16 @@ readonly tools. Its small three-phrase recipe completed speech input/output for
 all three phrases but satisfied only two requested intents; an incorrect
 success narration remains a recorded failure. See the
 [native speech evidence and recipes](CONVERSATION_NATIVE_20261002.md).
-Microphone hardware, browser playback against that native provider, general
-listening accuracy and physical task success remain unvalidated.
+A separate Chromium 153 run on source `4d8c350` exercises the actual browser,
+AudioWorklet, AudioContext, HTTP/WebSocket gateway and composed sensor runtime.
+A fake microphone WAV produced ten nonzero PCM chunks; an explicit tool call
+listed the synthetic IMU. A 6.784-second audio burst drained all 68 buffers,
+with at most a two-second scheduling horizon; Stop cleared a subsequent burst,
+latched the runtime, and explicit reset/reconnect/disconnect passed. See the
+[Chromium receipt](evidence/robot-modularity/conversation-chromium.json) and
+[screenshot](evidence/robot-modularity/conversation-chromium.png).
+Microphone/speaker hardware, browser playback against the native HF provider,
+general listening accuracy and physical task success remain unvalidated.
 
 ## Run the gateway
 

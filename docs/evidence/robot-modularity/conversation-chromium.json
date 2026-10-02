@@ -1,0 +1,114 @@
+{
+  "status": "passed",
+  "origin": "http://127.0.0.1:37255",
+  "source_commit": "4d8c3501cb4868b3ada07b9b64d562a62ab85cbb",
+  "scope": "Real Chromium AudioContext/AudioWorklet/HTTP/WebSocket/runtime with synthetic provider and microphone WAV; no native speech inference, audible speaker check or robot physics",
+  "capture": {
+    "chunks": 10,
+    "bytes": 19200,
+    "pcm_sha256": "6d2da8035d01ea47fed24817b44b4d9bea2243c9ef096502fe4afab03a40601c",
+    "nonzero_samples": 8060,
+    "rms": 1776.761063148569
+  },
+  "tool_output": {
+    "ok": true,
+    "sensors": [
+      {
+        "sensor_id": "imu",
+        "robot_id": "conversation_mock",
+        "source": "synthetic:imu",
+        "modality": "imu",
+        "frame_id": "conversation_mock/base",
+        "clock_domain": "monotonic",
+        "measurement_kind": "synthetic",
+        "model_identity_sha256": null,
+        "epoch": "69936c614421454687065a92dfb730d8",
+        "calibration_id": null,
+        "max_age_s": 0.5,
+        "read_timeout_s": 0.25
+      }
+    ]
+  },
+  "playback": {
+    "acceptedSamples": 162816,
+    "maxPending": 6.046666666666668,
+    "stops": [],
+    "sampleRate": 24000,
+    "contextState": "running",
+    "pending": 0,
+    "scheduled_buffers": 68,
+    "scheduled_duration_s": 6.784000000000001,
+    "max_scheduled_horizon_s": 1.9999999999999987
+  },
+  "stop": {
+    "pending": 0,
+    "sources": 0,
+    "timer": null,
+    "stopCalls": 20,
+    "micDisabled": true,
+    "runtime_stopped": true
+  },
+  "reset_reconnect_disconnect": "passed",
+  "browser_version": "153.0.8010.12",
+  "page_errors": [],
+  "browser_status": "Disconnected. Robot stop requested.",
+  "gateway_close": {
+    "ok": true,
+    "action_pending": false,
+    "stop": {
+      "ok": true,
+      "latched": true,
+      "generation": 4,
+      "domains": {
+        "sensing": {
+          "ok": true,
+          "actuation": false
+        }
+      },
+      "physical_stop_verified": false
+    }
+  },
+  "runtime_close": {
+    "ok": true,
+    "domains": {
+      "sensing": {
+        "ok": true,
+        "pending_providers": [],
+        "errors": {}
+      }
+    }
+  },
+  "source_unchanged": true,
+  "protected_unchanged": true,
+  "protected_after": {
+    "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "/home/johnny/.cascade/grasp_memory.json": null
+  },
+  "artifact_sha256": {
+    "result.json": "0f4b1e172315d075247ffed7ec902c73ea4e519472d4166d6eeb5c04f0cfecdf",
+    "source-sha256.json": "8614a51a3291155599bf0db79baa11c4bb908393cb3ac9556aab95f97b4c8eac",
+    "browser-playback.png": "92bc75c5e6ca4c6fc7cc03b85b844661bec5ee8d8b023e0b187602459d6b9a8a",
+    "browser-final.png": "af6342a0bfcb9c8606462d6cfd6aa13b2a4ac07c5f90e24effc459c796afbf3e",
+    "browser-trace.zip": "8386b23f58a3ab54f7c803b2cf7bbcc7146f1414ec9789bd663fa0851483d0d5",
+    "synthetic-microphone.wav": "bf4154d04149bda244f3c4da4235f869bb9ec6a48844c9e0867ddd9e1df46537"
+  },
+  "probe_sha256": "c2b611a8dbf776b94e79b5f8dc0825090eed280597adc89a9255e52b8cd5fc80",
+  "retained_prior_failure": "chromium-01: Playwright string wait used eval forbidden by application CSP. Probe now polls via DevTools function evaluation; shipped sources and CSP unchanged.",
+  "software_regression": {
+    "source_commit": "4d8c3501cb4868b3ada07b9b64d562a62ab85cbb",
+    "passed": 130,
+    "skipped": 3,
+    "seconds": 2.86,
+    "scope": "runtime, graph, MCP, conversation protocol/frontend and MicroDuck profiles",
+    "source_unchanged": true,
+    "shared_memory_unchanged": true,
+    "retained_no_test_run": "browser-reset-01 requested a nonexistent filename; no tests ran"
+  },
+  "limitations": [
+    "Synthetic provider emits known tool calls; no new language understanding score.",
+    "Fake microphone WAV exercises actual Chromium media/capture path, not physical microphone.",
+    "Headless AudioContext completed playback buffers; no human listening or physical speaker verification.",
+    "Native HF ASR/LLM/TTS run remains separately source-bound; not a single combined native speech/browser episode.",
+    "Browser trace contains ephemeral local session credentials and remains local; only hash is committed."
+  ]
+}

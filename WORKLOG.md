@@ -318,3 +318,18 @@ Validation: 128 runtime/graph/MCP/conversation tests passed; three optional-stac
 cases skipped. Conversation files pass full Ruff; runtime/test-runtime pass the
 repository's F/E9 check (unrelated existing full-rule findings remain). Git diff
 checks pass.
+
+## Actual Chromium conversation path (2026-10-02)
+
+Frozen source 4d8c350 passed an owned Chromium 153 AudioWorklet/AudioContext
+exercise through real HTTP/WebSocket and composed synthetic sensor runtime.
+Ten fake-microphone PCM chunks reached the provider; list_sensors returned the
+actual synthetic IMU descriptor. A 6.784 s burst drained 68 buffers without queue
+failure and stayed within the 2 s scheduling horizon. Stop flushed a second 4 s
+burst, stopped scheduled sources and latched the runtime; reset/reconnect/
+disconnect then passed. No page errors; both owned services closed and source/
+protected stores stayed unchanged. A prior probe failed because its Playwright
+string wait violated CSP; only the probe was corrected, preserving shipped CSP.
+This is synthetic-provider browser integration, not native speech inference or
+physical microphone/speaker acceptance. Root regression on the same source:
+130 passed, 3 skipped in 2.86 s. Evidence: docs/evidence/robot-modularity/conversation-chromium.json.

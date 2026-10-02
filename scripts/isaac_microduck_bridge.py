@@ -123,7 +123,7 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
         out.mkdir(parents=True, exist_ok=False)
         started = time.monotonic()
         result: dict[str, Any] = dict(completed=False, physical_acceptance=False, steps=0, policy_evaluations=0,
-                      frame_count=0, teardown_errors=[])
+                      frame_count=0, support_probe_count=0, teardown_errors=[])
         backend = controller = stepper = server = cache = None
         original_path = list(sys.path)
         configuration = {'arguments': vars(args), 'admission': admission}
@@ -144,10 +144,18 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
         if signals is not None:
             signals.checkpoint()
         with defer():
+            from cascade.sim.mobile_identity import build_model_identity
+
+            model_identity = build_model_identity(admission, backend.receipt, repo=REPO,
+                                                   runtime_scene=out / 'runtime-scene.usda')
+            result['model_identity_sha256'] = model_identity['model_identity_sha256']
+            write_json(out / 'model-identity.json', model_identity)
             policy = (policy_factory or MicroduckPolicy)(args.policy, args.policy_sha256)
             controller = MobileBridgeController(robot_id=args.robot_id, source=args.source,
                 engine='newton', device=args.device, asset_sha256=admission['asset_sha256'],
                 policy_sha256=args.policy_sha256,
+                model_identity_sha256=model_identity['model_identity_sha256'],
+                support_contract=model_identity['support_contract'],
                 # Wire v1 nominal dt is retained for existing strict clients; the
                 # measured float32 dt is separately frozen in the runtime receipt.
                 physics_dt=.005, policy_dt=.020,
@@ -177,7 +185,10 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                                           'actual_physics_dt': stepper.dt, 'actual_policy_dt': 4*stepper.dt})
         (out / 'frames').mkdir()
         last_policy_attempt = -1
-        with (out / 'physics.jsonl').open('x') as trace, (out / 'policy.jsonl').open('x') as policies, (out / 'frames.jsonl').open('x') as frames:
+        with ((out / 'physics.jsonl').open('x') as trace,
+              (out / 'policy.jsonl').open('x') as policies,
+              (out / 'frames.jsonl').open('x') as frames,
+              (out / 'support-probe.jsonl').open('x') as probes):
             def row(stream, value):
                 stream.write(json.dumps(value, allow_nan=False, default=json_default) + '\n')
                 stream.flush()
@@ -201,6 +212,15 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                 row(trace, {**sample, 'episode_step': stepper.steps, 'bam': backend.bam.telemetry(),
                             'controller': controller.state()['state']})
                 if stepper.steps == 1 or stepper.steps % args.camera_every == 0 or stepper.steps == args.max_steps:
+                    probe = getattr(backend, 'support_probe', None)
+                    if probe is not None:  # Software lifecycle doubles have no native solver.
+                        evidence = probe()
+                        row(probes, {**evidence, 'model_identity_sha256': result['model_identity_sha256'],
+                                     'epoch': controller.hello()['epoch']})
+                        result['support_probe_count'] += 1
+                        if (evidence.get('passed') is not True or evidence.get('step') != sample['step']
+                                or evidence.get('sim_time_s') != sample['sim_time']):
+                            raise RuntimeError('support-force probe failed or belongs to another completed step')
                     capture = backend.capture()
                     if capture['step'] != sample['step'] or capture['sim_time_s'] != sample['sim_time']:
                         raise RuntimeError('capture not bound to last published completed state')
@@ -332,7 +352,9 @@ def admit(args):
     files = ('scripts/isaac_microduck_bridge.py', 'scripts/isaac_runtime.py', 'scripts/isaac_camera_readback.py',
              'scripts/convert_microduck.py', 'src/cascade/sim/microduck_newton.py',
              'src/cascade/sim/microduck_stepper.py', 'src/cascade/sim/microduck_state.py',
-             'src/cascade/sim/mobile_bridge.py', 'src/cascade/control/mobile_base.py',
+             'src/cascade/sim/mobile_bridge.py', 'src/cascade/sim/mobile_identity.py',
+             'src/cascade/sim/microduck_contact_support.py', 'src/cascade/control/mobile_base.py',
+             'src/cascade/control/mobile_support.py',
              'src/cascade/apps/signal_stop.py',
              'src/cascade/control/newton_bam.py', 'src/cascade/control/microduck_policy.py',
              'src/cascade/control/microduck_actuator.py', 'assets/microduck/manifest.json',

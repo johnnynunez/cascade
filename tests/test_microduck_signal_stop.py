@@ -17,11 +17,11 @@ REPO = Path(__file__).resolve().parents[1]
         not sys.platform.startswith('linux'), reason='kernel pipe wait proof uses Linux procfs'))])
 def test_native_signal_unwinds_before_more_work(tmp_path, signum, site):
     env = {k: v for k, v in os.environ.items() if not k.startswith('CASCADE_')}
-    home = tmp_path / 'home'
-    home.mkdir()
-    env.update(HOME=str(home), CASCADE_BELIEFS_PATH=str(home/'beliefs.json'),
-               CASCADE_GRASP_MEMORY_PATH=str(home/'grasp.json'),
-               CASCADE_ENVELOPE_PATH=str(home/'envelope.json'),
+    stores = tmp_path / 'stores'
+    stores.mkdir()
+    env.update(CASCADE_BELIEFS_PATH=str(stores/'beliefs.json'),
+               CASCADE_GRASP_MEMORY_PATH=str(stores/'grasp.json'),
+               CASCADE_ENVELOPE_PATH=str(stores/'envelope.json'),
                PYTHONPATH=f'{REPO}/src:{REPO}/scripts:{REPO}/tests',
                CUDA_VISIBLE_DEVICES='-1', OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1',
                PYTHONDONTWRITEBYTECODE='1')
@@ -103,7 +103,10 @@ def _child(site, signum, directory):
         spec.loader.exec_module(cli)
         cli.REPO = REPO
     from cascade.sim.mobile_bridge import MobileBridgeServer
-    from test_microduck_bridge_cli import software_limits
+    from test_microduck_bridge_cli import software_limits, software_model_identity
+    from cascade.sim import mobile_identity
+    # This child tests signals with a synthetic backend, never native admission.
+    mobile_identity.build_model_identity = software_model_identity
     from test_microduck_stepper import SoftwareBackend, SoftwarePolicy, SoftwareActuator, render_times
 
     directory = Path(directory)

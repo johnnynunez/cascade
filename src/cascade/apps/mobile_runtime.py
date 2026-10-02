@@ -16,7 +16,7 @@ def make_base(profile: dict):
                               robot_id=profile["robot_id"], source=profile["source"],
                               dt_s=profile["dt_s"])
     if profile["type"] == "isaac":
-        for key in ("asset_sha256", "policy_sha256"):
+        for key in ("asset_sha256", "policy_sha256", "model_identity_sha256"):
             if not profile.get(key):
                 raise ValueError(f"explicit {key} required; physical admission is pending")
         from ..control.isaac_base import IsaacBase
@@ -65,7 +65,8 @@ def build_mobile_runtime(cfg, run_dir, *, checkers=None):
             else:
                 # Never substitute the actor's kinematic feedback for truth.
                 reader = lambda: None
-            rt.checkers[name] = BasePostconditionChecker(reader, limits=profile["verifier"])
+            rt.checkers[name] = BasePostconditionChecker(
+                reader, limits=profile["verifier"], support_contract=profile.get("support_contract"))
         except Exception as exc:
             rt.verifier_errors[name] = f"independent verifier unavailable: {exc}"
             if reader is not None and hasattr(reader, "close"):

@@ -156,6 +156,13 @@ def software_limits():
                 max_height_m=.3, max_tilt_rad=.7, max_contacts=512, max_constraints=2400)
 
 
+def software_model_identity(*args, **kwargs):
+    """Synthetic CLI lifecycle only. Actual recipe construction has separate tests."""
+    from mobile_support_fixture import support_contract
+    return {'model_identity_sha256': 'e'*64, 'recipe': {'software_fixture': True},
+            'support_contract': support_contract()}
+
+
 def test_limits_require_complete_explicit_positive_contract(tmp_path):
     p = tmp_path / 'limits.json'
     p.write_text(json.dumps(software_limits()))
@@ -184,13 +191,20 @@ def test_python_extra_path_cannot_inject_foreign_numpy_usd_or_venv(tmp_path):
         cli().validate_extra_paths([extras])
 
 
-@pytest.mark.parametrize('mode', ['normal', 'stop_race', 'inference', 'boot', 'capture'])
-def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, capsys):
+@pytest.mark.parametrize('mode', ['normal', 'stop_race', 'inference', 'boot', 'capture', 'identity',
+                                'probe_fail', 'probe_stale'])
+def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, capsys, monkeypatch):
     import numpy as np
     from types import SimpleNamespace as NS
     from test_microduck_stepper import SoftwareBackend, SoftwareActuator, SoftwarePolicy, render_times
     from cascade.sim.mobile_bridge import MobileBridgeServer
     from cascade.sim.bridge_client import BridgeClient, BridgeError
+    from cascade.sim import mobile_identity
+    def model_identity(*args, **kwargs):
+        if mode == 'identity':
+            raise ValueError('effective native recipe changed during bootstrap')
+        return software_model_identity(*args, **kwargs)
+    monkeypatch.setattr(mobile_identity, 'build_model_identity', model_identity)
     output = tmp_path / 'run'
     args = NS(out=output, device='cuda:0', robot_id='microduck', source='software-only',
               max_wall_s=3., max_steps=9, port=0, camera_every=4, max_jpeg_bytes=100000,
@@ -217,6 +231,10 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
                 raise RuntimeError('test capture failure')
             return dict(rgb=np.zeros((24, 32, 3), np.uint8), step=self.step_count,
                         sim_time_s=self.sim_time, captured_at=0., render_times=render_times(self.sim_time))
+        def support_probe(self):
+            # Exercise runner discrimination only; this is NOT a solver probe.
+            return dict(passed=mode != 'probe_fail', step=self.step_count - (mode == 'probe_stale'),
+                        sim_time_s=self.sim_time, max_force_torque_difference=0.)
     controlled = {}
     def policy_factory(*unused):
         p = SoftwarePolicy(created[0])
@@ -291,9 +309,21 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
         assert (output / 'BRIDGE_LISTENING.json').exists()
         assert 'BRIDGE_LISTENING' in capsys.readouterr().out
         assert saved['steps'] == 9
+        probes = [json.loads(x) for x in (output / 'support-probe.jsonl').read_text().splitlines()]
+        assert saved['support_probe_count'] == len(probes) == 4
+        assert [p['step'] for p in probes] == [3, 6, 10, 11]
+        assert all(p['model_identity_sha256'] == 'e'*64 for p in probes)
     else:
         assert saved['error']
         assert not (output / 'BRIDGE_LISTENING.json').exists()
+        if mode == 'identity':
+            assert not created[0].bam.targets
+            assert not [e for e in created[0].events if e[0] == 'solve']
+            assert not servers
+        if mode.startswith('probe_'):
+            assert saved['support_probe_count'] == 1
+            assert 'support-force probe' in saved['error']
+            assert not servers
         if mode == 'inference':
             inputs = [json.loads(x) for x in (output / 'policy.jsonl').read_text().splitlines()]
             assert len(inputs) == 1 and inputs[0]['status'] == 'failed'

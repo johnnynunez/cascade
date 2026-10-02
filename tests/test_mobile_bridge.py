@@ -6,6 +6,7 @@ import math
 from pathlib import Path
 
 import pytest
+from mobile_support_fixture import support_contract
 
 
 MODULE = Path(__file__).resolve().parents[1] / "src/cascade/sim/mobile_bridge.py"
@@ -32,7 +33,7 @@ def control():
     clock = Clock()
     c = module.MobileBridgeController(
         robot_id="duck", source="isolated-bridge", engine="physx", device="cuda:0",
-        asset_sha256="a" * 64, policy_sha256="b" * 64,
+        asset_sha256="a" * 64, policy_sha256="b" * 64, model_identity_sha256="e" * 64, support_contract=support_contract(),
         max_linear_speed=0.2, max_angular_speed=0.8, max_duration_s=10.0,
         lease_s=0.5, max_state_age_s=0.5, clock=clock,
     )
@@ -40,12 +41,14 @@ def control():
 
 
 def publish(c, *, step=1, sim_time=0.005, **changes):
+    from mobile_support_fixture import support
     state = {
         "step": step, "sim_time": sim_time,
         "position": [0.0, 0.0, 0.12], "orientation_wxyz": [1.0, 0.0, 0.0, 0.0],
         "linear_velocity": [0.0, 0.0, 0.0], "angular_velocity": [0.0, 0.0, 0.0],
         "q": [0.0] * 14, "dq": [0.0] * 14, "fallen": False,
         "joint_names": [f"joint_{i}" for i in range(14)], "contacts": ["left_foot"],
+        "support": support(step, sim_time),
     }
     state.update(changes)
     c.publish(state)

@@ -112,7 +112,7 @@ def load_profile(kind: str, name: str, config_dir: Path | None = None) -> Cfg:
 
 def _mobile_environment(profile):
     """Only explicit mobile overrides; no arm sidecar ports or hash wildcards."""
-    for key in ("asset_sha256", "policy_sha256", "bridge_port", "engine", "device"):
+    for key in ("asset_sha256", "policy_sha256", "model_identity_sha256", "bridge_port", "engine", "device"):
         env = "CASCADE_MICRODUCK_" + key.upper()
         if env in os.environ:
             value = os.environ[env]
@@ -121,7 +121,7 @@ def _mobile_environment(profile):
                     raise ValueError(f"{env} must be an explicit port in 1..65535")
                 value = int(value)
             profile[key] = value
-    for key in ("asset_sha256", "policy_sha256"):
+    for key in ("asset_sha256", "policy_sha256", "model_identity_sha256"):
         value = profile.get(key)
         if value is not None and (not isinstance(value, str) or len(value) != 64
                                   or any(c not in "0123456789abcdef" for c in value)):

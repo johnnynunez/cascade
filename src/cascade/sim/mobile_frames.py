@@ -14,7 +14,7 @@ from .base_truth import BaseTruthReader
 
 
 FRAME_KEYS = frozenset({"robot_id", "source", "epoch", "engine", "device", "asset_sha256",
-                        "policy_sha256", "camera", "step", "sim_time_s", "width", "height",
+                        "policy_sha256", "model_identity_sha256", "camera", "step", "sim_time_s", "width", "height",
                         "rgb_jpeg_b64", "producer_age_s"})
 
 
@@ -171,7 +171,7 @@ class MobileFrameReader:
         if set(response) != {"ok", "frame"} or not isinstance(response["frame"], dict) or set(response["frame"]) != FRAME_KEYS:
             raise ValueError("invalid mobile frame schema")
         meta = copy.deepcopy(response["frame"])
-        for key in ("robot_id", "source", "engine", "device", "asset_sha256", "policy_sha256"):
+        for key in ("robot_id", "source", "engine", "device", "asset_sha256", "policy_sha256", "model_identity_sha256"):
             if meta[key] != self._profile[key]:
                 raise ValueError(f"frame {key} mismatch")
         if meta["epoch"] != self._identity._epoch or meta["camera"] != camera:

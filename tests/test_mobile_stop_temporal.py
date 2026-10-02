@@ -21,6 +21,7 @@ class HeldTickProducer:
         self.thread.start()
 
     def run(self):
+        from mobile_support_fixture import support
         try:
             if not self.ack.wait(1) or self.halt.is_set():
                 return
@@ -35,7 +36,8 @@ class HeldTickProducer:
                                 "orientation_wxyz": [1., 0., 0., 0.], "linear_velocity": [self.velocity, 0., 0.],
                                 "angular_velocity": [0., 0., 0.], "q": [0.] * 14, "dq": [0.] * 14,
                                 "joint_names": [f"fixture-{i}" for i in range(14)],
-                                "contacts": [], "fallen": False, "balance_active": True})
+                                "contacts": [], "fallen": False, "balance_active": True,
+                                "support": support(step, step * .005)})
                 if first:
                     first = False
                     self.published.set()
@@ -418,7 +420,7 @@ def no_temporal_thread_leaks():
 def boundary(ack_time=None):
     return {"ack_monotonic_s": time.monotonic() if ack_time is None else ack_time,
             "robot_id": "synthetic-microduck", "source": "scripted-software-fixture",
-            "epoch": "fixture-epoch", "generation": 0}
+            "epoch": "fixture-epoch", "generation": 0, "model_identity_sha256": "e" * 64}
 
 
 @pytest.mark.parametrize("velocity,expected", [(0., "confirmed"), (.05, "refuted")])

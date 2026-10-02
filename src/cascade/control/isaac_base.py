@@ -44,21 +44,25 @@ def state_from_wire(payload, *, received_monotonic_s, round_trip_s) -> BaseState
 
 class IsaacBase(MobileBase):
     REQUIRED = frozenset({"robot_id", "source", "engine", "device", "asset_sha256",
-                          "policy_sha256", "bridge_host", "bridge_port", "timeout_s"})
+                          "policy_sha256", "model_identity_sha256", "support_contract",
+                          "bridge_host", "bridge_port", "timeout_s"})
 
     def __init__(self, profile: dict):
         if not isinstance(profile, dict) or not self.REQUIRED <= profile.keys():
             missing = sorted(self.REQUIRED - profile.keys()) if isinstance(profile, dict) else sorted(self.REQUIRED)
             raise ValueError(f"IsaacBase requires explicit fields: {missing}")
         self._expected = {key: identifier(profile[key], key) for key in
-                          ("robot_id", "source", "engine", "device", "asset_sha256", "policy_sha256")}
+                          ("robot_id", "source", "engine", "device", "asset_sha256", "policy_sha256", "model_identity_sha256")}
         if self._expected["engine"] not in {"physx", "newton"}:
             raise ValueError("engine must be physx or newton")
-        for key in ("asset_sha256", "policy_sha256"):
+        for key in ("asset_sha256", "policy_sha256", "model_identity_sha256"):
             digest = self._expected[key]
             if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
                 raise ValueError(f"{key} must be 64 lowercase hexadecimal characters")
         self._expected.update(protocol=1, kind="microduck", measurement_kind="physics")
+        from ..sim.mobile_identity import support_contract_digest
+        self._expected['support_contract_sha256'] = support_contract_digest(
+            profile['support_contract'], self._expected['model_identity_sha256'])
         for key, default in (("physics_dt", .005), ("policy_dt", .020)):
             self._expected[key] = _positive(profile.get(key, default), key)
         host = loopback_address(profile["bridge_host"])
@@ -86,7 +90,7 @@ class IsaacBase(MobileBase):
 
     @property
     def metadata(self):
-        return {key: self._expected[key] for key in ("robot_id", "source", "measurement_kind")}
+        return {key: self._expected[key] for key in ("robot_id", "source", "measurement_kind", "model_identity_sha256")}
 
     @property
     def capabilities(self):
@@ -185,7 +189,7 @@ class IsaacBase(MobileBase):
     def _ack(self, response, *, epoch, generation=None):
         if not isinstance(response, dict) or response.get("ok") is not True:
             raise BridgeError("invalid mobile ACK")
-        for key in ("robot_id", "source"):
+        for key in ("robot_id", "source", "model_identity_sha256"):
             if response.get(key) != self._expected[key]:
                 raise BridgeError(f"ACK {key} mismatch")
         if response.get("epoch") != epoch:

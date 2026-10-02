@@ -27,7 +27,8 @@ class BaseTruthReader:
 
     def __init__(self, profile: dict):
         required = {"robot_id", "source", "engine", "device", "asset_sha256",
-                    "policy_sha256", "bridge_host", "bridge_port", "timeout_s"}
+                    "policy_sha256", "model_identity_sha256", "support_contract",
+                    "bridge_host", "bridge_port", "timeout_s"}
         if not isinstance(profile, dict) or not required <= profile.keys():
             raise ValueError("truth reader requires explicit identity, hashes and endpoint")
         profile = deepcopy(profile)
@@ -35,7 +36,7 @@ class BaseTruthReader:
             identifier(profile[key], key)
         if profile["engine"] not in ("physx", "newton"):
             raise ValueError("unsupported engine")
-        for key in ("asset_sha256", "policy_sha256"):
+        for key in ("asset_sha256", "policy_sha256", "model_identity_sha256"):
             if not isinstance(profile[key], str) or not re.fullmatch(r"[0-9a-f]{64}", profile[key]):
                 raise ValueError(f"{key} must be an exact lowercase sha256")
         try:
@@ -54,6 +55,8 @@ class BaseTruthReader:
             profile[key] = finite_real(profile.get(key, default), key)
             if profile[key] <= 0:
                 raise ValueError(f"{key} must be positive")
+        from .mobile_identity import support_contract_digest
+        self._support_contract_sha256 = support_contract_digest(profile['support_contract'], profile['model_identity_sha256'])
         self._profile = profile
         self._timeout_s = timeout
         self._client = BridgeClient(host=profile["bridge_host"], port=port, timeout_s=timeout)
@@ -66,11 +69,13 @@ class BaseTruthReader:
     def _hello(self, response):
         if response.get("ok") is not True:
             raise ValueError("truth hello requires boolean ok=true")
+        if response.get('support_contract_sha256') != self._support_contract_sha256:
+            raise ValueError('truth hello support_contract mismatch')
         if type(response.get("protocol")) is not int or response["protocol"] != 1:
             raise ValueError("truth protocol mismatch")
         if response.get("kind") != "microduck" or response.get("measurement_kind") != "physics":
             raise ValueError("truth requires MicroDuck physics, not another robot or mock")
-        for key in ("robot_id", "source", "engine", "device", "asset_sha256", "policy_sha256"):
+        for key in ("robot_id", "source", "engine", "device", "asset_sha256", "policy_sha256", "model_identity_sha256"):
             if response.get(key) != self._profile[key]:
                 raise ValueError(f"truth hello {key} mismatch")
         for key in ("physics_dt", "policy_dt"):
@@ -113,7 +118,8 @@ class BaseTruthReader:
             value = state_from_wire(payload, received_monotonic_s=received,
                                     round_trip_s=received - started)
             if (value.robot_id != self._profile["robot_id"] or value.source != self._profile["source"]
-                    or value.epoch != self._epoch or value.measurement_kind != "physics"):
+                    or value.epoch != self._epoch or value.measurement_kind != "physics"
+                    or value.model_identity_sha256 != self._profile["model_identity_sha256"]):
                 raise ValueError("truth state identity/source/epoch/measurement_kind mismatch")
             if self._closed.is_set():
                 raise ValueError("truth reader closed during read")

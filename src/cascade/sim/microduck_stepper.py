@@ -109,7 +109,7 @@ class MicroduckStepper:
         try:
             self.start_wall = self.clock()
             hello = self.controller.hello()
-            self.identity = {k: hello[k] for k in ('robot_id', 'source', 'epoch', 'engine', 'device', 'asset_sha256', 'policy_sha256')}
+            self.identity = {k: hello[k] for k in ('robot_id', 'source', 'epoch', 'engine', 'device', 'asset_sha256', 'policy_sha256', 'model_identity_sha256')}
             self.last = self._read()
             self.initial_step = self.last['step']
             self.initial_time = self.last['sim_time']
@@ -155,7 +155,7 @@ class MicroduckStepper:
             self._check_wall()
             obs = observation(sample['q'], sample['dq'], sample['angular_velocity'],
                               sample['gravity_body'], previous, command)
-            record = {k: identity[k] for k in ('robot_id', 'source', 'epoch', 'generation')}
+            record = {k: identity[k] for k in ('robot_id', 'source', 'epoch', 'generation', 'model_identity_sha256')}
             record.update(observation_step=sample['step'], observation_sim_time_s=sample['sim_time'],
                           observation=obs[0].tolist(), commands=command.tolist(), status='pending',
                           attempt=self.policy_attempts, policy_slot=self.steps // 4,
@@ -295,7 +295,7 @@ class FrameCache:
     def __init__(self, identity, *, max_jpeg_bytes, max_pixels, clock=time.monotonic):
         import threading
         self.identity = {k: identity[k] for k in ('robot_id', 'source', 'epoch', 'engine', 'device',
-                                                 'asset_sha256', 'policy_sha256')}
+                                                 'asset_sha256', 'policy_sha256', 'model_identity_sha256')}
         for value, cap in ((max_jpeg_bytes, 4 * 1024**2), (max_pixels, 16 * 1024**2)):
             if type(value) is not int or not 0 < value <= cap:
                 raise ValueError('invalid frame resource bound')

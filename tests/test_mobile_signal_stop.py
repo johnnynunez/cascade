@@ -17,6 +17,9 @@ def run_child(tmp_path, entrypoint, site="gate", signum=signal.SIGINT):
     env.update(PYTHONPATH=str(REPO / "src"), CUDA_VISIBLE_DEVICES="-1", OMP_NUM_THREADS="1",
                CASCADE_BASE="microduck_mock", CASCADE_LLM="mock", CASCADE_PREWARM="0",
                CASCADE_STREAM="0", CASCADE_VIEW="0", CASCADE_BELIEFS="0",
+               CASCADE_BELIEFS_PATH=str(tmp_path / "beliefs.json"),
+               CASCADE_GRASP_MEMORY_PATH=str(tmp_path / "grasp.json"),
+               CASCADE_ENVELOPE_PATH=str(tmp_path / "envelope.json"),
                CASCADE_RUN_DIR=str(tmp_path / "run"))
     if entrypoint == "mcp_arm":
         env.pop("CASCADE_BASE")
@@ -144,7 +147,9 @@ raise SystemExit(demo.main(["--arm", "mock", "--camera", "mock", "--llm", "mock"
 '''
     env = {k: v for k, v in os.environ.items() if not k.startswith("CASCADE_")}
     env.update(CUDA_VISIBLE_DEVICES="-1", OMP_NUM_THREADS="1", PYTHONPATH=str(REPO / "src"),
-               CASCADE_BELIEFS="0")
+               CASCADE_BELIEFS="0", CASCADE_BELIEFS_PATH=str(tmp_path / "beliefs.json"),
+               CASCADE_GRASP_MEMORY_PATH=str(tmp_path / "grasp.json"),
+               CASCADE_ENVELOPE_PATH=str(tmp_path / "envelope.json"))
     result = subprocess.run([sys.executable, "-c", code, str(tmp_path), str(int(signum))],
                             env=env, cwd=REPO, capture_output=True, text=True, timeout=8)
     receipt = json.loads((tmp_path / "arm-receipt.json").read_text())

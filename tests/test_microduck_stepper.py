@@ -6,6 +6,7 @@ import importlib
 
 import numpy as np
 import pytest
+from mobile_support_fixture import support_contract
 
 from cascade.control.microduck_policy import HOME_Q, POLICY_JOINTS
 from cascade.sim.mobile_bridge import MobileBridgeController
@@ -108,7 +109,7 @@ class SoftwareActuator:
 def controller(clock=lambda: 1.):
     return MobileBridgeController(
         robot_id='microduck', source='software-test-not-physics', engine='newton', device='cuda:0',
-        asset_sha256='a'*64, policy_sha256='b'*64, max_linear_speed=.3,
+        asset_sha256='a'*64, policy_sha256='b'*64, model_identity_sha256='e'*64, support_contract=support_contract(), max_linear_speed=.3,
         max_angular_speed=.5, max_duration_s=10., lease_s=.3,
         max_state_age_s=1., max_action_wall_s=10., clock=clock)
 
@@ -460,7 +461,7 @@ def test_camera_cache_binds_render_clocks_and_never_encodes_on_rpc(monkeypatch):
     second = cache({'camera': 'overview'})
     assert set(second) == {'frame'}
     assert set(second['frame']) == {'robot_id', 'source', 'epoch', 'engine', 'device',
-        'asset_sha256', 'policy_sha256', 'camera', 'step', 'sim_time_s', 'width', 'height',
+        'asset_sha256', 'policy_sha256', 'model_identity_sha256', 'camera', 'step', 'sim_time_s', 'width', 'height',
         'rgb_jpeg_b64', 'producer_age_s'}
     assert second['frame']['producer_age_s'] > first['frame']['producer_age_s']
     assert second['frame']['step'] == 2
@@ -752,6 +753,21 @@ def test_epoch_change_during_episode_is_not_an_automatic_reset():
     with pytest.raises(RuntimeError, match='identity|epoch'):
         stepper.tick()
     assert backend.step_count == before
+
+
+def test_effective_recipe_change_during_inference_never_commits():
+    stepper, backend, ctrl, policy, actuator = make_stepper()
+    stepper.start()
+    def changed(obs):
+        ctrl._identity['model_identity_sha256'] = 'f'*64
+        return np.full(14, .1, np.float32)
+    policy.infer = changed
+    with pytest.raises(RuntimeError, match='identity'):
+        stepper.tick()
+    assert not actuator.targets
+    assert backend.step_count == 2
+    np.testing.assert_array_equal(policy.previous_action, np.zeros(14, np.float32))
+    stepper.close()
 
 
 def test_before_step_cannot_mutate_clocks_then_solve_again():

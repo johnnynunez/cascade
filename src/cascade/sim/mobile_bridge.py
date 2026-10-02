@@ -55,7 +55,7 @@ class MobileBridgeController:
 
     def __init__(
         self, *, robot_id: str, source: str, engine: str, device: str,
-        asset_sha256: str, policy_sha256: str,
+        asset_sha256: str, policy_sha256: str, model_identity_sha256: str, support_contract: dict,
         max_linear_speed: float, max_angular_speed: float, max_duration_s: float,
         lease_s: float, max_state_age_s: float, physics_dt: float = 0.005,
         policy_dt: float = 0.020, max_action_wall_s: float = 120.0,
@@ -63,18 +63,22 @@ class MobileBridgeController:
     ):
         if engine not in {"physx", "newton"}:
             raise ValueError("engine must be physx or newton")
-        for label, digest in (("asset", asset_sha256), ("policy", policy_sha256)):
+        for label, digest in (("asset", asset_sha256), ("policy", policy_sha256),
+                              ("model_identity", model_identity_sha256)):
             if (not isinstance(digest, str) or len(digest) != 64
                     or any(c not in "0123456789abcdef" for c in digest)):
                 raise ValueError(f"{label} sha256 must be 64 lowercase hexadecimal characters")
+        from cascade.sim.mobile_identity import support_contract_digest
+
         self._identity = {
             "protocol": 1, "kind": "microduck", "robot_id": _token(robot_id, "robot_id"),
             "source": _token(source, "source"), "engine": engine,
             "device": _token(device, "device"), "asset_sha256": asset_sha256,
-            "policy_sha256": policy_sha256, "physics_dt": _positive(physics_dt, "physics_dt"),
+            "policy_sha256": policy_sha256, "model_identity_sha256": model_identity_sha256, "physics_dt": _positive(physics_dt, "physics_dt"),
             "policy_dt": _positive(policy_dt, "policy_dt"),
             "capabilities": ["state", "velocity", "stop", "reset_stop"],
             "measurement_kind": "physics",
+            "support_contract_sha256": support_contract_digest(support_contract, model_identity_sha256),
         }
         self.max_linear_speed = _positive(max_linear_speed, "max_linear_speed")
         self.max_angular_speed = _positive(max_angular_speed, "max_angular_speed")
@@ -130,9 +134,19 @@ class MobileBridgeController:
     def _ack(self) -> dict:
         return {"ok": True, "robot_id": self._identity["robot_id"],
                 "source": self._identity["source"], "epoch": self._epoch,
-                "generation": self._generation, "latched": self._latched}
+                "generation": self._generation, "latched": self._latched,
+                "model_identity_sha256": self._identity["model_identity_sha256"]}
 
     def _snapshot(self, state: dict, age: float) -> dict:
+        support = copy.deepcopy(state.get("support"))
+        if support is not None:
+            # Native step/time are measurement fields; only controller-owned
+            # provenance is attached here. Never restamp a stale solve.
+            for key, expected in (("epoch", self._epoch),
+                                  ("model_identity_sha256", self._identity["model_identity_sha256"])):
+                if key in support and support[key] != expected:
+                    raise ValueError("support " + key + " mismatch")
+                support[key] = expected
         return BaseState(
             robot_id=self._identity["robot_id"], source=self._identity["source"],
             epoch=self._epoch, step=state["step"], sim_time_s=state["sim_time"],
@@ -144,6 +158,7 @@ class MobileBridgeController:
             joint_velocities=state["dq"], controller_status=self._mobile_status(),
             generation=self._generation, contacts=state["contacts"], fallen=state["fallen"],
             latched=self._latched, measurement_kind="physics",
+            model_identity_sha256=self._identity["model_identity_sha256"], support=support,
         ).as_dict()
 
     def state(self) -> dict:
@@ -192,7 +207,7 @@ class MobileBridgeController:
                     raise ValueError("physics state has no boolean fall observation")
                 if "balance_active" in state and type(state["balance_active"]) is not bool:
                     raise ValueError("balance_active must be an explicit boolean")
-                for key in ("robot_id", "source", "engine"):
+                for key in ("robot_id", "source", "engine", "model_identity_sha256"):
                     if key in state and state[key] != self._identity[key]:
                         raise ValueError(f"physics {key} changed")
                 if "epoch" in state and state["epoch"] != self._epoch:

@@ -9,6 +9,7 @@ import threading
 import time
 
 import pytest
+from mobile_support_fixture import support_contract
 import test_mobile_frames
 
 frame_endpoint = test_mobile_frames.frame_endpoint
@@ -23,6 +24,11 @@ class MobileClient:
                    CASCADE_STREAM="0", CASCADE_VIEW="0", CASCADE_RUN_DIR=str(tmp_path),
                    CUDA_VISIBLE_DEVICES="-1", PYTHONPATH=str(REPO / "src"))
         env.update(env_extra)
+        # The child does not inherit pytest's autouse memory fixtures after
+        # CASCADE_* is scrubbed above. Keep all persistent stores private.
+        env.update(CASCADE_BELIEFS_PATH=str(tmp_path / "beliefs.json"),
+                   CASCADE_GRASP_MEMORY_PATH=str(tmp_path / "grasp.json"),
+                   CASCADE_ENVELOPE_PATH=str(tmp_path / "envelope.json"))
         command = [sys.executable, "-m", "cascade.apps.mcp_server"]
         if config_dir is not None:
             # Real MCP main, with isolated profiles only; no server substitute.
@@ -243,7 +249,7 @@ def test_real_isaac_mcp_observation_uses_only_read_only_loopback_channel(tmp_pat
     from cascade.sim.mobile_bridge import MobileBridgeController, MobileBridgeServer
 
     controller = MobileBridgeController(robot_id="microduck", source="isaac-microduck", engine="physx",
-        device="cuda:0", asset_sha256="a" * 64, policy_sha256="b" * 64,
+        device="cuda:0", asset_sha256="a" * 64, policy_sha256="b" * 64, model_identity_sha256="e" * 64, support_contract=support_contract(),
         max_linear_speed=.15, max_angular_speed=.6, max_duration_s=3., lease_s=.5,
         max_state_age_s=2., max_action_wall_s=8.)
     controller.publish({"step": 1, "sim_time": .005, "position": [0., 0., .3],
@@ -258,9 +264,11 @@ def test_real_isaac_mcp_observation_uses_only_read_only_loopback_channel(tmp_pat
         return dispatch(request)
     server.dispatch = record
     server.start()
-    c = MobileClient(tmp_path, CASCADE_BASE="microduck_isaac",
+    config = write_mobile_config(tmp_path / "config", {"support_contract": support_contract()})
+    c = MobileClient(tmp_path, config_dir=config, CASCADE_BASE="microduck_isaac",
                      CASCADE_MICRODUCK_ASSET_SHA256="a" * 64,
                      CASCADE_MICRODUCK_POLICY_SHA256="b" * 64,
+                     CASCADE_MICRODUCK_MODEL_IDENTITY_SHA256="e" * 64,
                      CASCADE_MICRODUCK_DEVICE=controller.hello()["device"],
                      CASCADE_MICRODUCK_BRIDGE_PORT=str(server.address[1]))
     try:
@@ -469,4 +477,3 @@ def test_real_mcp_ack_and_eof_do_not_wait_for_blocked_stop_reader(tmp_path, fram
         if client.proc.poll() is None:
             client.close()
         ticks.close()
-

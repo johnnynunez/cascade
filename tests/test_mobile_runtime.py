@@ -3,6 +3,7 @@ import base64
 import json
 
 import pytest
+from mobile_support_fixture import support_contract
 
 from cascade.config import load_demo_config
 import test_mobile_frames
@@ -200,7 +201,7 @@ def test_isaac_profile_requires_external_hashes_endpoint_and_remote_device(tmp_p
     import socket
     from cascade.apps.mobile_runtime import build_mobile_runtime
 
-    for key in ("ASSET_SHA256", "POLICY_SHA256", "BRIDGE_PORT", "DEVICE"):
+    for key in ("ASSET_SHA256", "POLICY_SHA256", "MODEL_IDENTITY_SHA256", "BRIDGE_PORT", "DEVICE"):
         monkeypatch.delenv("CASCADE_MICRODUCK_" + key, raising=False)
     cfg = load_demo_config(base="microduck_isaac")
     assert cfg.base.admission == "pending_physical_admission"
@@ -214,6 +215,7 @@ def test_isaac_profile_requires_external_hashes_endpoint_and_remote_device(tmp_p
         build_mobile_runtime(cfg, tmp_path)
     monkeypatch.setenv("CASCADE_MICRODUCK_ASSET_SHA256", "a" * 64)
     monkeypatch.setenv("CASCADE_MICRODUCK_POLICY_SHA256", "b" * 64)
+    monkeypatch.setenv("CASCADE_MICRODUCK_MODEL_IDENTITY_SHA256", "e" * 64)
     monkeypatch.setenv("CASCADE_MICRODUCK_BRIDGE_PORT", "23456")
     cfg = load_demo_config(base="microduck_isaac")
     # Even valid hashes/port must not invent a device or probe the MCP host.
@@ -222,6 +224,7 @@ def test_isaac_profile_requires_external_hashes_endpoint_and_remote_device(tmp_p
         unexpected.close()  # avoid leaks if the negative unexpectedly succeeds
     monkeypatch.setenv("CASCADE_MICRODUCK_DEVICE", "cuda:3")
     cfg = load_demo_config(base="microduck_isaac")
+    cfg._data["bases"][0]["support_contract"] = support_contract()
     rt, rig = build_mobile_runtime(cfg, tmp_path)
     try:
         assert cfg.base.device == "cuda:3"  # exact remote identity, no local fallback
@@ -529,6 +532,8 @@ class Ban(importlib.abc.MetaPathFinder):
         if fullname.split(".")[0] in blocked:
             raise AssertionError("optional dependency imported: " + fullname)
 sys.meta_path.insert(0, Ban())
+# -I deliberately ignores PYTHONPATH and any unrelated editable checkout.
+sys.path.insert(0, str(Path(sys.argv[2]) / "src"))
 import cascade
 from cascade.config import load_demo_config
 from cascade.apps.demo import build_runtime, shutdown_runtime
@@ -546,7 +551,8 @@ print(json.dumps({"cascade": cascade.__file__, "optional_imports": [], "leaked_t
                   "execution_ok": out["execution_ok"], "postcondition": out["postcondition"]}))
 '''
     env = dict(os.environ, CUDA_VISIBLE_DEVICES="-1")
-    proc = subprocess.run([sys.executable, "-I", "-c", code, str(tmp_path)],
+    proc = subprocess.run([sys.executable, "-I", "-c", code, str(tmp_path),
+                           str(Path(__file__).resolve().parents[1])],
                           env=env, capture_output=True, text=True, timeout=10)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     data = json.loads(proc.stdout)
@@ -560,9 +566,10 @@ def test_actual_checker_refutes_scripted_inert_loopback_actor(tmp_path, admit_de
     import threading
     from cascade.sim.mobile_bridge import MobileBridgeController, MobileBridgeServer
     from cascade.apps.mobile_runtime import build_mobile_runtime
+    from mobile_support_fixture import support, support_contract
 
     c = MobileBridgeController(robot_id="microduck", source="isaac-microduck", engine="physx",
-        device="cuda:0", asset_sha256="a" * 64, policy_sha256="b" * 64,
+        device="cuda:0", asset_sha256="a" * 64, policy_sha256="b" * 64, model_identity_sha256="e" * 64, support_contract=support_contract(),
         max_linear_speed=.15, max_angular_speed=.6, max_duration_s=3., lease_s=.3,
         max_state_age_s=.3, max_action_wall_s=2.)
     server = MobileBridgeServer(c, port=0)
@@ -578,7 +585,8 @@ def test_actual_checker_refutes_scripted_inert_loopback_actor(tmp_path, admit_de
             c.publish({"step": step, "sim_time": sim_time, "position": [0., 0., .3],
                        "orientation_wxyz": [1., 0., 0., 0.], "linear_velocity": [0., 0., 0.],
                        "angular_velocity": [0., 0., 0.], "q": [0.] * 14, "dq": [0.] * 14,
-                       "joint_names": [f"fixture-{i}" for i in range(14)], "contacts": [], "fallen": False})
+                       "joint_names": [f"fixture-{i}" for i in range(14)], "contacts": [], "fallen": False,
+                       "support": support(step, sim_time)})
             ready.set()
             stop.wait(.005)
     thread = threading.Thread(target=producer, name="runtime-inert-producer")
@@ -587,8 +595,9 @@ def test_actual_checker_refutes_scripted_inert_loopback_actor(tmp_path, admit_de
         thread.start()
         assert ready.wait(1)
         cfg = load_demo_config(base="microduck_isaac")
-        cfg._data["bases"][0].update(asset_sha256="a" * 64, policy_sha256="b" * 64,
-            bridge_port=server.address[1], timeout_s=.03, verifier=verifier_limits())
+        cfg._data["bases"][0].update(asset_sha256="a" * 64, policy_sha256="b" * 64, model_identity_sha256="e" * 64,
+            bridge_port=server.address[1], timeout_s=.03, verifier=verifier_limits(),
+            support_contract=support_contract())
         if not admit_device:
             with pytest.raises(ValueError, match="device"):
                 rt, _ = build_mobile_runtime(cfg, tmp_path)
@@ -712,6 +721,7 @@ class SyntheticTicks:
         self.thread.start()
 
     def run(self):
+        from mobile_support_fixture import support
         c = self.controller
         step = c.state()["state"]["step"]
         while not self.halt.is_set():
@@ -720,7 +730,8 @@ class SyntheticTicks:
             sample = {"step": step, "sim_time": step * .005, "position": [0., 0., .3],
                       "orientation_wxyz": [1., 0., 0., 0.], "linear_velocity": [self.velocity, 0., 0.],
                       "angular_velocity": [0., 0., 0.], "q": [0.] * 14, "dq": [0.] * 14,
-                      "joint_names": [f"fixture-{i}" for i in range(14)], "contacts": [], "fallen": False}
+                      "joint_names": [f"fixture-{i}" for i in range(14)], "contacts": [], "fallen": False,
+                      "support": support(step, step * .005)}
             if self.balance_active is not None:
                 sample["balance_active"] = self.balance_active
             c.publish(sample)
@@ -1191,6 +1202,3 @@ def test_stop_checker_can_finish_while_motion_checker_is_blocked(tmp_path, frame
         release.set()
         rt.close()
         ticks.close()
-
-
-

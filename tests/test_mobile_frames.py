@@ -7,6 +7,7 @@ import time
 import cv2
 import numpy as np
 import pytest
+from mobile_support_fixture import support_contract
 
 from cascade.sim.mobile_bridge import MobileBridgeController, MobileBridgeServer
 
@@ -19,18 +20,19 @@ def jpeg_fixture(width=24, height=16, value=80):
 
 @pytest.fixture
 def frame_endpoint():
+    from mobile_support_fixture import support
     c = MobileBridgeController(robot_id="microduck", source="isaac-microduck", engine="physx",
-        device="cuda:0", asset_sha256="a" * 64, policy_sha256="b" * 64,
+        device="cuda:0", asset_sha256="a" * 64, policy_sha256="b" * 64, model_identity_sha256="e" * 64, support_contract=support_contract(),
         max_linear_speed=.15, max_angular_speed=.6, max_duration_s=3., lease_s=.5,
         max_state_age_s=2., max_action_wall_s=8.)
     c.publish({"step": 1, "sim_time": .005, "position": [0., 0., .3],
                "orientation_wxyz": [1., 0., 0., 0.], "linear_velocity": [0., 0., 0.],
                "angular_velocity": [0., 0., 0.], "q": [0.] * 14, "dq": [0.] * 14,
                "joint_names": [f"fixture-{i}" for i in range(14)], "contacts": [],
-               "fallen": False, "balance_active": True})
+               "fallen": False, "balance_active": True, "support": support(1, .005)})
     jpeg = jpeg_fixture()
     packet = {key: c.hello()[key] for key in ("robot_id", "source", "epoch", "engine", "device",
-                                             "asset_sha256", "policy_sha256")}
+                                             "asset_sha256", "policy_sha256", "model_identity_sha256")}
     packet.update(camera="side", step=1, sim_time_s=.005, width=24, height=16,
                   rgb_jpeg_b64=base64.b64encode(jpeg).decode(), producer_age_s=0.)
     operations = []
@@ -42,8 +44,9 @@ def frame_endpoint():
     server.dispatch = record
     server.start()
     profile = {key: c.hello()[key] for key in ("robot_id", "source", "engine", "device",
-                                              "asset_sha256", "policy_sha256")}
+                                              "asset_sha256", "policy_sha256", "model_identity_sha256")}
     profile.update(type="isaac", bridge_host=server.address[0], bridge_port=server.address[1], timeout_s=.2,
+                   support_contract=support_contract(),
                    cameras={"side": dict(max_age_s=.3, max_jpeg_bytes=65536, max_pixels=4096)})
     try:
         yield c, server, profile, packet, jpeg, operations
@@ -78,7 +81,7 @@ def test_frame_reader_real_rpc_is_passive_and_keeps_exact_provenance(frame_endpo
 
 @pytest.mark.parametrize("key,value", [
     ("robot_id", "other"), ("source", "other"), ("epoch", "old"), ("engine", "newton"),
-    ("device", "cpu"), ("asset_sha256", "c" * 64), ("policy_sha256", "c" * 64),
+    ("device", "cpu"), ("asset_sha256", "c" * 64), ("policy_sha256", "c" * 64), ("model_identity_sha256", "f" * 64),
     ("camera", "other"), ("step", True), ("step", -1), ("step", 1.5),
     ("sim_time_s", True), ("sim_time_s", -1.), ("sim_time_s", float("nan")),
     ("producer_age_s", True), ("producer_age_s", -1.), ("producer_age_s", .31),
@@ -174,7 +177,7 @@ def test_slow_frame_age_includes_whole_rtt_and_close_joins(frame_endpoint):
 
 @pytest.mark.parametrize("key,value", [("protocol", True), ("kind", "rebot"), ("measurement_kind", "kinematic_mock"),
     ("robot_id", "wrong"), ("source", "wrong"), ("engine", "newton"), ("device", "cpu"),
-    ("asset_sha256", "c" * 64), ("policy_sha256", "c" * 64), ("physics_dt", .01),
+    ("asset_sha256", "c" * 64), ("policy_sha256", "c" * 64), ("model_identity_sha256", "f" * 64), ("physics_dt", .01),
     ("policy_dt", True), ("capabilities", []), ("epoch", "wrong")])
 def test_frame_hello_is_bound_like_truth_reader(frame_endpoint, monkeypatch, key, value):
     from cascade.sim.mobile_frames import MobileFrameReader
@@ -261,4 +264,3 @@ def test_jpeg_duplicate_sof_cannot_bypass_allocation_bound(frame_endpoint, monke
         assert reader("side") is None
     finally:
         reader.close()
-

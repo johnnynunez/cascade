@@ -6,6 +6,7 @@ import threading
 import time
 
 import pytest
+from mobile_support_fixture import support_contract
 
 from cascade.control.mobile_base import BaseState, VelocityCommand
 from cascade.sim.mobile_bridge import MobileBridgeController, MobileBridgeServer
@@ -23,7 +24,7 @@ def no_mobile_transport_thread_leaks():
 
 def profile(port=45678, **changes):
     return {"robot_id": "duck", "source": "isolated-bridge", "engine": "physx",
-            "device": "cuda:0", "asset_sha256": "a" * 64, "policy_sha256": "b" * 64,
+            "device": "cuda:0", "asset_sha256": "a" * 64, "policy_sha256": "b" * 64, "model_identity_sha256": "e" * 64, "support_contract": support_contract(),
             "bridge_host": "127.0.0.1", "bridge_port": port, "timeout_s": 0.3, **changes}
 
 
@@ -31,7 +32,7 @@ def profile(port=45678, **changes):
 def bridge():
     c = MobileBridgeController(
         robot_id="duck", source="isolated-bridge", engine="physx", device="cuda:0",
-        asset_sha256="a" * 64, policy_sha256="b" * 64,
+        asset_sha256="a" * 64, policy_sha256="b" * 64, model_identity_sha256="e" * 64, support_contract=support_contract(),
         max_linear_speed=0.2, max_angular_speed=0.8, max_duration_s=5.,
         lease_s=0.3, max_state_age_s=1., max_action_wall_s=2.,
     )
@@ -50,7 +51,7 @@ def test_construct_metadata_and_capabilities_do_not_dial(monkeypatch):
         raise AssertionError("metadata must not connect")
     monkeypatch.setattr(socket, "create_connection", forbidden)
     raw = IsaacBase(profile())
-    assert raw.metadata == {"robot_id": "duck", "source": "isolated-bridge", "measurement_kind": "physics"}
+    assert raw.metadata == {"robot_id": "duck", "source": "isolated-bridge", "measurement_kind": "physics", "model_identity_sha256": "e" * 64}
     assert raw.capabilities == frozenset({"walk_velocity", "turn", "stop_navigation"})
     assert not raw.connected
     with pytest.raises(RuntimeError):
@@ -133,7 +134,7 @@ def test_real_client_socket_command_stop_reset_and_passive_state(bridge):
 @pytest.mark.parametrize("field,bad", [
     ("protocol", 2), ("kind", "rebot"), ("robot_id", "other"), ("source", "other"),
     ("engine", "newton"), ("device", "cpu"), ("asset_sha256", "c" * 64),
-    ("policy_sha256", "c" * 64), ("physics_dt", .01), ("policy_dt", .01),
+    ("policy_sha256", "c" * 64), ("model_identity_sha256", "f" * 64), ("support_contract_sha256", "f" * 64), ("physics_dt", .01), ("policy_dt", .01),
 ])
 def test_every_channel_requires_identity_attestation(bridge, monkeypatch, field, bad):
     from cascade.control.isaac_base import IsaacBase
@@ -346,6 +347,7 @@ def test_lost_command_response_is_uncertain_not_retried_or_revived(bridge, monke
 @pytest.mark.parametrize("field,bad", [
     ("robot_id", "wrong"), ("source", "wrong"), ("epoch", "old"), ("generation", True),
     ("generation", 0), ("latched", "false"), ("accepted", False),
+    ("model_identity_sha256", "f" * 64), ("model_identity_sha256", None),
     ("end_sim_time_s", .005), ("start_sim_time_s", float("nan")),
 ])
 def test_malformed_command_ack_never_authorizes_retry(bridge, monkeypatch, field, bad):
@@ -371,6 +373,63 @@ def test_malformed_command_ack_never_authorizes_retry(bridge, monkeypatch, field
         assert c.control_at(.01) == (0., 0., 0.)
     finally:
         raw.disconnect()
+
+
+@pytest.mark.parametrize('hello_index', [1, 2, 3, 4])
+@pytest.mark.parametrize('bad', [None, 'f'*64])
+def test_effective_recipe_bound_on_every_connection(bridge, monkeypatch, hello_index, bad):
+    from cascade.control.isaac_base import IsaacBase
+    c, server = bridge
+    dispatch = server.dispatch
+    count = 0
+    def changed(request):
+        nonlocal count
+        result = dispatch(request)
+        if request['op'] == 'hello':
+            count += 1
+            if count == hello_index:
+                result['model_identity_sha256'] = bad
+        return result
+    monkeypatch.setattr(server, 'dispatch', changed)
+    raw = IsaacBase(profile(server.address[1]))
+    try:
+        with pytest.raises(RuntimeError, match='model_identity_sha256'):
+            raw.connect()
+        assert not raw.connected
+        assert c.hello()['generation'] == 0
+    finally:
+        raw.disconnect()
+
+
+@pytest.mark.parametrize('consumer', ['actor', 'truth'])
+def test_state_cannot_change_effective_recipe_after_a_valid_hello(bridge, monkeypatch, consumer):
+    from cascade.control.isaac_base import IsaacBase
+    from cascade.sim.base_truth import BaseTruthReader
+    c, server = bridge
+    publish(c)
+    dispatch = server.dispatch
+    def changed(request):
+        result = dispatch(request)
+        if request['op'] == 'state':
+            result['state']['model_identity_sha256'] = 'f'*64
+            result['state']['support']['model_identity_sha256'] = 'f'*64
+        return result
+    monkeypatch.setattr(server, 'dispatch', changed)
+    if consumer == 'actor':
+        raw = IsaacBase(profile(server.address[1]))
+        try:
+            raw.connect()
+            with pytest.raises(RuntimeError, match='identity'):
+                raw.get_state()
+        finally:
+            raw.disconnect()
+    else:
+        reader = BaseTruthReader(profile(server.address[1]))
+        try:
+            assert reader() is None
+            assert 'identity' in reader.last_error
+        finally:
+            reader.close()
 
 
 def test_stop_ack_requires_new_invalidation_not_a_replayed_generation(bridge, monkeypatch):

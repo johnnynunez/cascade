@@ -108,7 +108,8 @@ class _StopObserver:
     def __init__(self, profile, current, publish):
         from ..agent.base_effects import BasePostconditionChecker
         self.reader = _StopTruth(profile)
-        self.checker = BasePostconditionChecker(self.reader, limits=profile["verifier"])
+        self.checker = BasePostconditionChecker(
+            self.reader, limits=profile["verifier"], support_contract=profile.get("support_contract"))
         self.limits = copy.deepcopy(profile["verifier"])
         if profile["timeout_s"] > self.limits["read_timeout_s"]:
             raise ValueError("stop reader timeout_s exceeds verifier read_timeout_s")
@@ -139,7 +140,8 @@ class _StopObserver:
         deadline = job["ack_monotonic_s"] + self.limits["max_wall_duration_s"]
         # Baseline acquisition and settling share ONE sampler, attempt budget
         # and ACK-anchored deadline. No prewarm observation is discarded/reused.
-        boundary = {key: job["ack"][key] for key in ("robot_id", "source", "epoch", "generation")}
+        boundary = {key: job["ack"][key] for key in
+                    ("robot_id", "source", "epoch", "generation", "model_identity_sha256")}
         boundary["ack_monotonic_s"] = job["ack_monotonic_s"]
         token = self.checker.begin(job["skill"], {"base": job["base"]}, stop_boundary=boundary,
                                    is_current=lambda: not self._closed and self._current(job))

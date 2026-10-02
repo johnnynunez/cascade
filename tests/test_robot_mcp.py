@@ -22,9 +22,9 @@ def unpack(response):
 
 
 class Client:
-    def __init__(self, directory):
+    def __init__(self, directory, *, robot="mixed_mock"):
         env = {k: v for k, v in os.environ.items() if not k.startswith("CASCADE_")}
-        env.update(CASCADE_ROBOT="mixed_mock", CASCADE_PREWARM="0", CASCADE_STREAM="0",
+        env.update(CASCADE_ROBOT=robot, CASCADE_PREWARM="0", CASCADE_STREAM="0",
                    CASCADE_VIEW="0", CASCADE_RUN_DIR=str(directory),
                    CASCADE_BELIEFS_PATH=str(directory / "beliefs.json"),
                    CASCADE_GRASP_MEMORY_PATH=str(directory / "grasp.json"),

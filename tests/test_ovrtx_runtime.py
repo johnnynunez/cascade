@@ -223,7 +223,7 @@ def test_startup_readiness_accepts_complete_ovrtx_physics_binding(bridge, packet
 
 def test_export_flattens_private_scene_and_resets_nested_body_stacks(bridge, monkeypatch, tmp_path):
     pytest.importorskip("pxr", reason="Native OpenUSD serialization contract")
-    from pxr import Gf, Usd, UsdGeom, UsdPhysics
+    from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageMetersPerUnit(stage, 1.)
     UsdGeom.SetStageUpAxis(stage, "Z")
@@ -243,8 +243,14 @@ def test_export_flattens_private_scene_and_resets_nested_body_stacks(bridge, mon
         created.append(paths)
         return NS(paths=paths)
     monkeypatch.setattr(bridge, "PhysicsBodies", bodies)
-    source = bridge.IsaacOvrtx(stage, {"cam0": (None, [[100., 0, 20], [0, 100., 20], [0, 0, 1]])},
-        python="unused", output=tmp_path, robot_id="/World/Robot", base_z=0., width=40, height=40)
+    changes = []
+    listener = Tf.Notice.RegisterGlobally(Usd.Notice.ObjectsChanged, lambda notice, sender: changes.append(sender))
+    try:
+        source = bridge.IsaacOvrtx(stage, {"cam0": (None, [[100., 0, 20], [0, 100., 20], [0, 0, 1]])},
+            python="unused", output=tmp_path, robot_id="/World/Robot", base_z=0., width=40, height=40)
+    finally:
+        listener.Revoke()
+    assert not changes, "Even edits on a second Usd.Stage can invalidate Kit's live physics views"
     assert stage.GetRootLayer().ExportToString() == before
     assert created == [["/World/Robot", "/World/Robot/Link"]]
     frozen = Usd.Stage.Open(str(tmp_path / "render-scene.usda"))

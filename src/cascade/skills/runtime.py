@@ -1869,8 +1869,23 @@ class SkillRuntime:
             def before_stream():
                 _scene_cancel()
                 harness.check_stream_start(halt_generation=scene_halt_generation)
+            def trajectory_preflight(start, profile, check):
+                _scene_cancel()
+                # The native planner's curve replaces the min-jerk profile,
+                # so every actual command/50 Hz safety endpoint must pass the
+                # same immutable observed-finger geometry before streaming.
+                for item in profile:
+                    for previous, following, _dt in item.checks:
+                        for q in (previous, following):
+                            check()
+                            _scene_cancel()
+                            conflict = scene_gate.pose(q)
+                            if conflict:
+                                raise SafetyViolation(f"planned finger trajectory intersects observed surface: {conflict}")
+                _scene_cancel()
             return {"preflight": preflight, "before_stream": before_stream,
-                    "feedback_guard": scene_gate.feedback, "_halt_generation": scene_halt_generation}
+                    "feedback_guard": scene_gate.feedback, "_halt_generation": scene_halt_generation,
+                    "_trajectory_preflight": trajectory_preflight}
         from ..safety.trajectory import PLAN_BUDGET_S, geometry_guard, vet_segment
         approach_deadline = time.monotonic() + PLAN_BUDGET_S
 

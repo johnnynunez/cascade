@@ -1,0 +1,108 @@
+"""A planned curve is streamed once, with physical and safety clocks intact."""
+import numpy as np
+import pytest
+
+from cascade.control.simulation_motion import SimulationMotion
+from cascade.planning import make_motion_planner
+from cascade.planning.trajectory import TrajectoryProfile
+from cascade.types import RobotState, SafetyViolation
+from test_cumotion_planner import setup
+from test_isaac_simulation_motion import Sim, clock
+
+
+def curved_profile():
+    return TrajectoryProfile.from_curve(
+        lambda s: np.array([.1 * float(s), .05 * np.sin(np.pi * float(s))]),
+        .2, 30., None)
+
+
+def planned_state():
+    return RobotState(q=np.zeros(2), dq=np.zeros(2), physics_clock=clock())
+
+
+def test_native_curve_keeps_shape_names_and_signs_after_uniform_slowing(setup):
+    cfg, sdk = setup
+    def curve(t):
+        old_eval = t.eval
+        t.eval = lambda x, derivative_order=0: old_eval(x, derivative_order) + np.array([
+            .1 * np.sin(np.pi * (x - 7)) if derivative_order == 0
+            else .1 * np.pi * np.cos(np.pi * (x - 7)), 0.])
+        t.min_position = lambda: np.array([0., -.2])
+        t.max_position = lambda: np.array([.2, 0.])
+        t.max_velocity_magnitude = lambda: np.array([.42, .2])
+    sdk.mutate_trajectory = curve
+    with make_motion_planner(cfg) as planner:
+        profile = planner.plan_profile([0, 0], [.2, .1], duration_s=2.,
+                                       rate_hz=30., max_velocity=1.)
+    # The native owner has been released. All execution samples remain copied.
+    assert profile.duration_s == 2.
+    assert len(sdk.requests) == 1
+    midpoint = profile.targets[29].q
+    np.testing.assert_allclose(midpoint, [.1, .15], atol=1e-12)
+    np.testing.assert_allclose(profile.end, [.2, .1], atol=1e-12)
+    assert not profile.plan.as_dict()['execution_authorized']
+    with pytest.raises(ValueError):
+        profile.targets[0].q.setflags(write=True)
+    # 50 Hz times not on the 30 Hz command grid are retained from this curve.
+    edge = profile.targets[0].checks[1]
+    np.testing.assert_allclose(edge[1], [.002, .001 + .1*np.sin(.01*np.pi)])
+
+
+def test_frozen_curve_executes_exact_targets_without_minjerk_between_them(monkeypatch):
+    sim = Sim(monkeypatch)
+    profile = curved_profile()
+    edges, preflights = [], []
+    motion = SimulationMotion(sim, approve=lambda a,b,dt: edges.append((a.copy(),b.copy(),dt)))
+    assert motion.stream_profile(profile, planned_state(), .045, 1.,
+                                 lambda start,p: preflights.append(p))
+    assert preflights == [profile]
+    np.testing.assert_array_equal([row[2] for row in sim.sent], [p.q for p in profile])
+    assert len(sim.sent) == 6
+    assert max(row[2][1] for row in sim.sent) == pytest.approx(.05)
+    assert all(b[1] > a[1] for a,b in zip(sim.sent,sim.sent[1:]))
+    assert any(np.allclose(b,[.01,.05*np.sin(.1*np.pi)]) for a,b,dt in edges)
+
+
+@pytest.mark.parametrize('when', ['planning', 'preflight'])
+def test_feedback_drift_rejects_without_replanning_or_rebasing(monkeypatch, when):
+    sim = Sim(monkeypatch)
+    if when == 'planning':
+        sim.q[0] = .002
+    def preflight(start, profile):
+        sim.q[0] = .002
+    with pytest.raises(SafetyViolation, match='changed|moved'):
+        SimulationMotion(sim).stream_profile(curved_profile(), planned_state(), .045, 1., preflight)
+    assert sim.sent == []
+
+
+def test_epoch_change_during_planning_is_not_hidden_by_same_joint_pose(monkeypatch):
+    sim = Sim(monkeypatch)
+    state = planned_state()
+    state.physics_clock['epoch'] = 'before-reset'
+    with pytest.raises(SafetyViolation, match='changed'):
+        SimulationMotion(sim).stream_profile(curved_profile(), state, .045, 1., None)
+    assert not sim.sent
+
+
+@pytest.mark.parametrize('guard', ['raw', 'feedback', 'edge'])
+def test_stop_or_live_veto_stops_the_single_stream_without_retry(monkeypatch, guard):
+    sim = Sim(monkeypatch)
+    def check():
+        if len(sim.sent) >= 2:
+            raise SafetyViolation('retained live veto')
+    if guard == 'raw':
+        sim.on_read = lambda s: setattr(s, '_stopped', len(s.sent) >= 2)
+    motion = SimulationMotion(sim,
+        approve=(lambda *a: check()) if guard == 'edge' else None,
+        feedback_guard=(lambda state: check()) if guard == 'feedback' else None)
+    with pytest.raises(SafetyViolation, match='stopped|live veto'):
+        motion.stream_profile(curved_profile(), planned_state(), .045, 1., None)
+    assert len(sim.sent) == 2
+
+
+def test_paused_physics_cannot_advance_planned_curve(monkeypatch):
+    sim = Sim(monkeypatch, step_advance=0)
+    sim.motion_wall_timeout_s = .12
+    with pytest.raises(SafetyViolation, match='wall-time'):
+        SimulationMotion(sim).stream_profile(curved_profile(), planned_state(), .045, 1., None)
+    assert not sim.sent

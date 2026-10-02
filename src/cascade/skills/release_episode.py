@@ -390,9 +390,19 @@ def withdraw(runtime, episode):
         _guard(runtime, episode)
         if reason:
             raise SafetyViolation(f"original release withdrawal became unsafe: {reason}")
+    def trajectory_preflight(start, profile, check):
+        _guard(runtime, episode)
+        if np.max(abs(start-episode["withdrawal_start"])) > .001:
+            raise SafetyViolation("release feedback changed before withdrawal stream")
+        # SafeArm checks every edge against the current harness/map. The
+        # episode's target/duration and fresh geometry authority stay bound;
+        # no alternate release, retry or clearing of retained failure occurs.
+        check()
+        _guard(runtime, episode)
     try:
         return runtime.arm.move_joints(episode["q_retreat"], duration_s=episode["duration_s"],
-                    _halt_generation=episode["halt_generation"], _preflight=preflight)
+                    _halt_generation=episode["halt_generation"], _preflight=preflight,
+                    _trajectory_preflight=trajectory_preflight)
     finally:
         harness._release_scope.value = None
 

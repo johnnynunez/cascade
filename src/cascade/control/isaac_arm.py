@@ -164,6 +164,16 @@ class IsaacArm(ArmBase):
 
         return SimulationMotion(self).settle(q_target, tol, timeout_s)
 
+    def stream_profile(self, profile, *, planned_state, approve, preflight,
+                       before_stream=None, feedback_guard=None):
+        """Execute exact sampled planner targets under the same physics gates."""
+        from .simulation_motion import SimulationMotion
+
+        motion = SimulationMotion(self, approve=approve, before_stream=before_stream,
+                                  feedback_guard=feedback_guard)
+        return motion.stream_profile(profile, planned_state, self.settle_tol,
+                                     self.settle_timeout_s, preflight)
+
     def validate_simulation_clock(self) -> dict:
         """Read-only capability check using the motion executor's validator.
 

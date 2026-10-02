@@ -89,6 +89,9 @@ class LazyArm(ArmBase):
     def wait_settled(self, *args, **kwargs) -> bool:
         return self._ensure().wait_settled(*args, **kwargs)
 
+    def stream_profile(self, *args, **kwargs) -> bool:
+        return self._ensure().stream_profile(*args, **kwargs)
+
     def resume(self) -> None:
         """Clear a soft stop on the underlying arm, whatever its idiom."""
         if self._arm is None:

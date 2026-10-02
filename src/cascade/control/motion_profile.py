@@ -55,17 +55,40 @@ def profile_counts(duration_s, rate_hz, *, max_steps=MAX_PROFILE_STEPS):
 
 def nominal_profile(start, target, duration_s, rate_hz=50.0, *, max_steps=MAX_PROFILE_STEPS):
     """Keep original edges too: escape tolerances apply per complete edge."""
-    count, legacy = profile_counts(duration_s, rate_hz, max_steps=max_steps)
     start, target = np.asarray(start, dtype=float), np.asarray(target, dtype=float)
     if (start.ndim != 1 or start.shape != target.shape or not start.size
             or not np.isfinite(start).all() or not np.isfinite(target).all()):
         raise SafetyViolation("motion profile requires finite matching joint vectors")
+    def evaluate(fraction):
+        return start + (target - start) * min_jerk(float(fraction))
+
+    yield from curve_profile(evaluate, duration_s, rate_hz, max_steps=max_steps)
+
+
+def curve_profile(evaluate, duration_s, rate_hz=50.0, *, max_steps=MAX_PROFILE_STEPS):
+    """Sample one curve, retaining command, 50 Hz and union safety edges.
+
+    ``evaluate`` receives a normalized rational time. It must evaluate the
+    original curve, not interpolate exported samples or solve another route.
+    The caller owns its lifetime; execution callers freeze the result first.
+    """
+    count, legacy = profile_counts(duration_s, rate_hz, max_steps=max_steps)
     dt = duration_s / count
-    previous = start.copy()
+    previous = np.asarray(evaluate(Fraction(0)), dtype=float).copy()
+    shape = previous.shape
+    if previous.ndim != 1 or not previous.size or not np.isfinite(previous).all():
+        raise SafetyViolation("trajectory requires finite joint vectors")
+
+    def position(fraction):
+        q = np.asarray(evaluate(fraction), dtype=float)
+        if q.shape != shape or not np.isfinite(q).all():
+            raise SafetyViolation("trajectory requires finite matching joint vectors")
+        return q.copy()
+
     lower = Fraction(0)
     for index in range(1, count + 1):
         upper = Fraction(index, count)
-        q = start + (target - start) * min_jerk(float(upper))
+        q = position(upper)
         checks = [(previous, q, dt)]
         seen_edges = {(lower, upper)}
 
@@ -73,8 +96,8 @@ def nominal_profile(start, target, duration_s, rate_hz=50.0, *, max_steps=MAX_PR
             if (a, b) in seen_edges:
                 return
             seen_edges.add((a, b))
-            qa = start + (target - start) * min_jerk(float(a))
-            qb = start + (target - start) * min_jerk(float(b))
+            qa = position(a)
+            qb = position(b)
             checks.append((qa, qb, edge_dt))
 
         inner = []

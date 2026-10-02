@@ -154,6 +154,13 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
         joint_signs=acfg.get("joint_signs"),
         ik_task_weights=acfg.get("ik_task_weights"),
     )
+    motion_planner = None
+    if acfg.get("motion_planner") is not None:
+        from ..planning.runtime import RuntimeMotionPlanner
+        motion_planner = RuntimeMotionPlanner(acfg.motion_planner, acfg, kin)
+        # An explicitly selected SDK must be ready before an actuator exists.
+        # CUDA/model startup is not charged to a later live route's deadline.
+        motion_planner.prepare()
     if lazy_arm:
         # Perception pre-warms at startup; motors stay untouched until the
         # first motion command materializes the arm (see LazyArm).
@@ -228,7 +235,7 @@ def _build_arm(acfg, lazy_arm: bool, occupancy, fallback_cfg):
                 pose = _kin.fk(IsaacArm(_cfg).state_from_frame(frame).q)
                 return pose if _T is None else _T @ pose
             occupancy.track_payload(frame_tcp_pose)
-    return arm, SafeArm(arm, harness), kin
+    return arm, SafeArm(arm, harness, motion_planner=motion_planner), kin
 
 
 def _base_transform(acfg):
@@ -701,7 +708,7 @@ def shutdown_runtime(runtime, arm) -> None:
 
     def _disconnect_arms():
         rig = getattr(runtime, "arm_rig", None)
-        if rig is not None and len(rig) > 1:
+        if rig is not None:
             rig.disconnect()   # includes the primary; never raises
         else:
             arm.disconnect()

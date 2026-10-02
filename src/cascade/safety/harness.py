@@ -643,9 +643,10 @@ class SafeArm:
     leak upward to the agent layer.
     """
 
-    def __init__(self, arm, harness: SafetyHarness):
+    def __init__(self, arm, harness: SafetyHarness, motion_planner=None):
         self._arm = arm
         self.harness = harness
+        self.motion_planner = motion_planner
 
     @property
     def n_joints(self) -> int:
@@ -666,7 +667,11 @@ class SafeArm:
     def disconnect(self) -> None:
         """Release the backend. On a real arm this disables torque, so the
         caller must have parked the arm first (see move_home)."""
-        self._arm.disconnect()
+        try:
+            self._arm.disconnect()
+        finally:
+            if self.motion_planner is not None:
+                self.motion_planner.close()
 
     def get_state(self, **kwargs):
         return self._arm.get_state(**kwargs)
@@ -674,7 +679,16 @@ class SafeArm:
     def move_joints(self, q_target: np.ndarray, duration_s: float = 2.0,
                     joint_margin: float | None = None, _preflight=None,
                     _halt_generation: int | None = None,
+                    _trajectory_preflight=None,
                     **backend_kw) -> bool:
+        if self.motion_planner is not None:
+            from ..planning.runtime import execute
+            try:
+                return execute(self, q_target, duration_s, joint_margin=joint_margin,
+                               legacy_preflight=_preflight, trajectory_preflight=_trajectory_preflight,
+                               halt_generation=_halt_generation, **backend_kw)
+            finally:
+                self.harness.end_motion()
         if _preflight is not None and any(key in backend_kw for key in ("preflight", "before_stream")):
             # Route validation and observed-scene callbacks have distinct
             # targets. Never replace one safety callback with the other.
@@ -742,6 +756,9 @@ class SafeArm:
     def move_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *,
                      _halt_generation=None, rate_hz=None) -> bool:
         """Execute a fully vetted deterministic route, retaining live gates."""
+        if self.motion_planner is not None:
+            return self.move_joints(q_target, duration_s, _halt_generation=_halt_generation,
+                                    rate_hz=rate_hz)
         from .trajectory import (PLAN_BUDGET_S, geometry_guard, plan_route,
                                  vet_route, vet_segment)
         from ..control.motion_profile import resolve_motion_rate

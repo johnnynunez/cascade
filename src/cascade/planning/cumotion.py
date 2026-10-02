@@ -223,6 +223,20 @@ class CumotionPlanner:
 
     def plan(self, start, goal):
         """Return copied samples. Native failures are not retried or substituted."""
+        return self._request(start, goal)
+
+    def plan_profile(self, start, goal, *, duration_s, rate_hz, max_velocity):
+        """Copy the original native curve at every command and safety time.
+
+        Uniform slowing preserves the geometric curve. It grants no actuator
+        authority and never replaces SafeArm's live validation or feedback.
+        """
+        options = (_number(duration_s, "requested duration", positive=True),
+                   _number(rate_hz, "command rate", positive=True),
+                   _number(max_velocity, "host velocity limit", positive=True))
+        return self._request(start, goal, profile_options=options)
+
+    def _request(self, start, goal, *, profile_options=None):
         start = _vector(start, self.n, "start")
         goal = _vector(goal, self.n, "goal")
         with self._lock:
@@ -232,7 +246,7 @@ class CumotionPlanner:
             if not self._positions_valid(qs) or not self._positions_valid(qg):
                 raise PlanningError("start/goal violates model joint limits or margin")
             try:
-                return self._plan(qs, qg, start, goal)
+                return self._plan(qs, qg, start, goal, profile_options=profile_options)
             except Exception as exc:
                 # No assumptions about native scratch state after an exception.
                 self._poisoned = True
@@ -240,7 +254,7 @@ class CumotionPlanner:
                     raise
                 raise PlanningError(f"cuMotion planning failed: {exc}") from exc
 
-    def _plan(self, qs, qg, start, goal):
+    def _plan(self, qs, qg, start, goal, *, profile_options=None):
         result = self._optimizer.plan_to_cspace_target(qs, self._cm.TrajectoryOptimizer.CSpaceTarget(qg))
         status = result.status()
         if status != self._cm.TrajectoryOptimizer.Results.Status.SUCCESS:
@@ -291,9 +305,29 @@ class CumotionPlanner:
                    "max_duration_s": self._max_duration, "max_samples": self._max_samples,
                    "sdk_version": SDK_VERSION,
                    "endpoint_tolerance": self._endpoint_tol}
-        return MotionPlan(self.joint_names, tuple(times.tolist()), tuple(positions),
+        plan = MotionPlan(self.joint_names, tuple(times.tolist()), tuple(positions),
                           tuple(velocities), self.base_frame, self.tool_frame,
                           self.model_sha256, self.scene_sha256, _digest(request))
+        if profile_options is None:
+            return plan
+        from .trajectory import TrajectoryProfile
+        minimum_duration, rate, velocity_limit = profile_options
+        execution_duration = max(duration, minimum_duration,
+                                 duration * float(np.max(max_v)) / (.9 * velocity_limit))
+        if execution_duration > self._max_duration:
+            raise PlanningError("slowed cuMotion trajectory exceeds duration budget")
+        cache = {}
+        def evaluate(fraction):
+            if fraction not in cache:
+                q = _vector(trajectory.eval(lower + float(fraction) * duration, 0),
+                            self.n, "trajectory safety position")
+                if (not self._positions_valid(q) or self._inspector.in_self_collision(q)
+                        or self._inspector.in_collision_with_obstacle(q)):
+                    raise PlanningError("cuMotion safety sample violates limits or collision model")
+                cache[fraction] = self._to_local(q)
+            return cache[fraction]
+        return TrajectoryProfile.from_curve(evaluate, execution_duration, rate, plan,
+                                             max_steps=min(10000, self._max_samples - 1))
 
     def close(self):
         """Release solver before the native owners it references."""

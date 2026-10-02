@@ -617,3 +617,28 @@ Evidence: eight baseline causal tests fail in0.17s; final eight-file selection16
 Independent review of cfff2f2 reproduced a real composed owner whose read outlasted the unchanged five-second drain budget. After the reader returned, shutdown_runtime and MCP caches prevented its close from running. Explicit repeat calls now resume only incomplete delegated cleanup; legacy park/disconnect and the first MCP stop are not repeated. RobotRuntime propagates current complete separately from sticky historical ok, preserves direct and nested attempts, and never recasts a cached failed receipt as successful. Composed domains still require dictionary receipts; legacy synchronous drivers keep None.
 
 Causal baseline: 3 failures/1 passing no-repeat control in10.16s; a separate source export adds2 causal failures/.19s for direct history and nested completion. Final six-file selection139PASS/45.74s,568source/test/config hashes and protected stores unchanged. Added explicit persistence-error history controls; intermediate74PASS/30.53s retained as earlier limited evidence. Ruff F/E9 and diff checks pass. No native model, GPU, service, host campaign, publication or shared environment writes. Receipt: benchmark/results/runtime_teardown_retry_20261003.json. Earlier lifecycle failure remains failed even after cleanup becomes complete.
+
+### 2026-10-03 — ordinary fastening postcondition
+
+The ordinary `turn_screw` routine counts commanded wrist strokes. Its nested
+`physical_verification: unverified` was absent from the standard postcondition
+registry, so trace/memory and the reflex path could record success without
+observing fastener motion. This isolated branch starts at coordinator
+2067019b8d7397110d0f139f11e116ff5f1bd9b6. The planned correction now adds an explicit
+unverified fastening postcondition, preserves execution/failure information, and
+prevents unobserved fastening from receiving success credit. No pose-only, wrist-only or
+self-reported result will prove threading or seating. The Factory contact
+scene/controller is not connected by this correction.
+
+Adversarial checks exercise ordinary dispatch, memory, trace and reflex learning,
+alongside existing error/command regressions. Tests were deferred until the
+coordinator closed the native voice window. Final validation: 154 passed in
+20.88 s; the 15 new cases alone passed in 0.25 s, while the same cases on base206
+gave 14 expected failures and one unchanged-convention pass. The initial extended
+run's sole failure was a 900-character static source guard; shortening its nearby
+comment preserved the guard and runtime semantics. Sources (649 files) and
+protected memory stayed unchanged during every run. Ruff F/E9 and diff checks
+passed. Details and hashes: benchmark/results/fastening_postcondition_20261003.json.
+No simulator, model or service was started. The physical fixture integration
+remains a separate explicit profile/controller/observer/lifecycle task, described
+in docs/FASTENING_RUNTIME_GAP.md; this correction grants no physical admission.

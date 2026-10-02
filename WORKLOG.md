@@ -513,3 +513,28 @@ Initial development failures are retained: malformed YAML indentation (43 failed
 freshness/replay gates were unchanged. Shared envelope SHA-256 still matches the
 protected baseline and grasp memory remains absent. No GPU, native robot or
 hardware admission was tested. See benchmark/results/generalized_joints_20261003.json.
+
+### 2026-10-03 — ordinary fastening postcondition
+
+The ordinary `turn_screw` routine counts commanded wrist strokes. Its nested
+`physical_verification: unverified` was absent from the standard postcondition
+registry, so trace/memory and the reflex path could record success without
+observing fastener motion. This isolated branch starts at coordinator
+2067019b8d7397110d0f139f11e116ff5f1bd9b6. The planned correction now adds an explicit
+unverified fastening postcondition, preserves execution/failure information, and
+prevents unobserved fastening from receiving success credit. No pose-only, wrist-only or
+self-reported result will prove threading or seating. The Factory contact
+scene/controller is not connected by this correction.
+
+Adversarial checks exercise ordinary dispatch, memory, trace and reflex learning,
+alongside existing error/command regressions. Tests were deferred until the
+coordinator closed the native voice window. Final validation: 154 passed in
+20.88 s; the 15 new cases alone passed in 0.25 s, while the same cases on base206
+gave 14 expected failures and one unchanged-convention pass. The initial extended
+run's sole failure was a 900-character static source guard; shortening its nearby
+comment preserved the guard and runtime semantics. Sources (649 files) and
+protected memory stayed unchanged during every run. Ruff F/E9 and diff checks
+passed. Details and hashes: benchmark/results/fastening_postcondition_20261003.json.
+No simulator, model or service was started. The physical fixture integration
+remains a separate explicit profile/controller/observer/lifecycle task, described
+in docs/FASTENING_RUNTIME_GAP.md; this correction grants no physical admission.

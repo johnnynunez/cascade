@@ -222,7 +222,8 @@ def run_skill_graph(graph: SkillGraph, runtime, *, cancel_event=None):
                 # while its fixed input schemas and ownership are being used.
                 if catalog_hash != _digest({n: d.as_dict() for n, d in runtime.tool_descriptors.items()}):
                     raise ValueError("runtime tool catalog changed during episode")
-                result = runtime.execute(descriptor.name, args)
+                result = runtime.execute(descriptor.name, args, expected_generation=token,
+                                         deadline_monotonic_s=start + spec["timeout_s"])
                 if not isinstance(result, dict):
                     raise ValueError("tool returned a non-object result")
                 descriptor.validate_result(result)

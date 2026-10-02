@@ -50,6 +50,22 @@ class Domain:
         return {"ok": True}
 
 
+def test_old_episode_cannot_dispatch_after_operator_stop_and_reset():
+    domain = Domain()
+    runtime = RobotRuntime({domain.domain_id: domain})
+    original_token = runtime.cancellation_token
+    assert runtime.stop()["ok"]
+    assert runtime.reset_stop()["ok"]
+    assert not runtime.stopped
+    rejected = runtime.execute("locomotion.move", {"distance": .1}, expected_generation=original_token)
+    assert not rejected["ok"] and "stale execution generation" in rejected["error"]
+    assert domain.calls == []
+    assert runtime.execute("locomotion.move", {"distance": .1},
+                           expected_generation=runtime.cancellation_token)["ok"]
+    assert len(domain.calls) == 1
+    assert runtime.close()["ok"]
+
+
 @pytest.mark.parametrize("args", [{}, {"distance": "1"}, {"distance": True}, {"distance": 1, "extra": 2}, []])
 def test_arguments_refused_before_domain_io(args):
     domain = Domain()
@@ -275,3 +291,42 @@ def test_graceful_shutdown_cannot_weaken_a_previous_explicit_estop():
     assert rt.request_shutdown()["ok"]
     assert domain.stops == 2 and not graceful
     rt.close()
+
+
+@pytest.mark.parametrize("boundary", ["validation", "last_dispatch"])
+def test_local_deadline_is_rechecked_at_admission_and_last_dispatch(monkeypatch, boundary):
+    from types import SimpleNamespace
+    import cascade.robotics.runtime as module
+    domain = Domain()
+    runtime = RobotRuntime({domain.domain_id: domain})
+    clock = [1.0]
+    # Only this module's time reference is replaced. No global clock or sleep
+    # change; a deterministic scheduling delay crosses the actual admission gate.
+    monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    if boundary == "validation":
+        original = runtime._arguments
+        def delayed_validation(descriptor, args):
+            original(descriptor, args)
+            clock[0] = 3.0
+        monkeypatch.setattr(runtime, "_arguments", delayed_validation)
+    else:
+        class DelayedLookup(dict):
+            def __getitem__(self, name):
+                clock[0] = 3.0
+                return super().__getitem__(name)
+        runtime.domains = DelayedLookup(runtime.domains)
+    result = runtime.execute("locomotion.move", {"distance": .1}, expected_generation=0,
+                             deadline_monotonic_s=2.0)
+    assert not result["ok"] and "deadline expired" in result["error"]
+    assert domain.calls == []
+    assert runtime.execute("emergency_stop", {}, expected_generation=0, deadline_monotonic_s=2.0)["ok"]
+    runtime.close()
+
+
+@pytest.mark.parametrize("deadline", [True, "3", float("inf"), float("nan")])
+def test_invalid_episode_deadline_is_not_admitted(deadline):
+    domain = Domain()
+    runtime = RobotRuntime({domain.domain_id: domain})
+    assert not runtime.execute("locomotion.move", {"distance": .1}, deadline_monotonic_s=deadline)["ok"]
+    assert domain.calls == []
+    runtime.close()

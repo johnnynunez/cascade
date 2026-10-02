@@ -251,22 +251,34 @@ class ConversationSession:
 
     async def _execute(self, context):
         try:
-            for index in sorted(context.calls):
+            calls = [context.calls[index] for index in sorted(context.calls)]
+            pending_outputs = []
+            for position, (request, name, args) in enumerate(calls):
                 if self.closed or not context.valid or context.origin.turn != self.turn:
                     return
-                request, name, args = context.calls[index]
                 intent = ToolIntent(self.session_id, self.domain.robot_id, context.response_id, request,
                                     context.origin.runtime_generation, context.origin.deadline, name, args)
                 result = await self.domain.dispatch(intent)
                 if self.closed or not context.valid or context.origin.turn != self.turn:
                     return
-                output = json.dumps(result, allow_nan=False)
-                if len(output.encode()) > 32768:
-                    output = json.dumps({"ok": False, "error": "tool receipt exceeds speech transport bound; inspect runtime trace"})
-                await self.provider.send({"type": "conversation.item.create", "item": {
-                    "type": "function_call_output", "call_id": request, "output": output}})
-                await self.media.emit({"type": "tool_result", "tool": name, "request_id": request,
-                                       "result": json.loads(output)})
+                pending_outputs.append((request, name, result))
+                next_tool = self.domain.tools.get(calls[position + 1][1]) if position + 1 < len(calls) else None
+                if next_tool is not None and next_tool.effect == "stop":
+                    # Preserve action order and the original authority checks,
+                    # but deliver an adjacent, actually staged stop before a
+                    # slow provider or media consumer can hold the prior output.
+                    continue
+                for output_request, output_name, output_result in pending_outputs:
+                    if self.closed or not context.valid or context.origin.turn != self.turn:
+                        return
+                    output = json.dumps(output_result, allow_nan=False)
+                    if len(output.encode()) > 32768:
+                        output = json.dumps({"ok": False, "error": "tool receipt exceeds speech transport bound; inspect runtime trace"})
+                    await self.provider.send({"type": "conversation.item.create", "item": {
+                        "type": "function_call_output", "call_id": output_request, "output": output}})
+                    await self.media.emit({"type": "tool_result", "tool": output_name, "request_id": output_request,
+                                           "result": json.loads(output)})
+                pending_outputs.clear()
             if not self.closed and context.valid and context.origin.turn == self.turn:
                 # A model continuation is part of the same user intent, even
                 # when its preceding tool took most of the admission budget.

@@ -531,3 +531,26 @@ fixture uses already-admitted walk_velocity instead of unpublished
 walk_distance; all priority, cancellation, identity, deadline and closure
 assertions are unchanged. Source-specific verification will be recorded in the
 external LOCAL_MERGE_REVIEW packet. No GitHub write or native run was performed.
+
+## Adjacent staged stop before provider output (2026-10-03)
+
+When a completed model response staged an operation followed by a declared stop,
+Session sent the operation's result to the provider before dispatching that stop.
+A retained send could therefore delay a stop that the model had already requested.
+Session now retains results only while the next staged tool is declared `effect=stop`.
+It dispatches each original call in its existing order through ConversationDomain,
+with the same input context, request ID, generation and deadline, then emits the
+retained function outputs in their original order. It does not synthesize a stop,
+move one ahead of an unfinished operation, or skip any admission gate. An ordinary
+sequence without an adjacent stop keeps its prior dispatch/output ordering.
+
+The exact final regression fails on isolated source 4c7b4d7 because the synthetic
+owner's stop event is unset when a held provider send starts; it passes on this
+change before that send is released. Seven further controls cover preceding
+operation completion, expiry, catalog/generation changes, context cancellation,
+ordinary sequencing and a stop after an intervening operation. The focused
+conversation/priority/composed-runtime suite passes 158 tests in 3.85 s; Ruff and
+whitespace checks pass. Source/store snapshots and causal logs are retained
+outside the repo in CONVERSATION_STOP_ORDER/evidence. No model inference, browser,
+simulator, physical actuation or publication was performed. Demo snapshots remain
+unchanged; this is a software dispatch-order correction, not physical stop proof.

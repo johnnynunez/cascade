@@ -844,6 +844,7 @@ silently vanishes.
 
 - [Detector preparation and GPU comparison](docs/DETECTOR_MODEL_REUSE.md) — bounded model/vocabulary reuse, unchanged image expiry and retained comparison results.
 - [Isaac bridge profiling](docs/ISAAC_BRIDGE_PROFILING.md) — optional Python zones, clock binding and limits of retained CPU/GPU measurements.
+- [MicroDuck design and conversation review](docs/MICRODUCK_DESIGN_REVIEW_20261002.md) — external implementation snapshot, open findings and a proposed hosted voice interface; physical acceptance remains pending.
 
 Browse the [documentation index](docs/README.md) for all operating guides,
 runtime contracts, historical measurements and research notes.

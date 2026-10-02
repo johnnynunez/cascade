@@ -662,3 +662,40 @@ timestep/mode drift, closure, failed solver invalidation and consumer mutation.
 The combined actual Newton CPU suite passed 255 cases. Physical parameters and
 all task/rest gates remain unchanged; the next native recipe separately binds
 this compute option and must revalidate trace, force channel and gait outcomes.
+
+## MicroDuck locomotion admission continuation — 2 October 2026
+
+Task branch `fix/microduck-locomotion-admission`, based on `735591e`, in the
+owned `LOCOMOTION_NEXT/cascade` worktree. The user authorizes continued
+implementation and native validation. The target is commanded forward/reverse
+walking, turning and independently measured stop through CASCADE, without
+relaxing existing criteria or substituting animated/pose-written motion.
+Standing, the old gait failures and prior native source recipes remain retained.
+
+Feature-to-skill map (before foundation execution):
+
+| Feature / stage | Skill / source | Planned evidence |
+| --- | --- | --- |
+| Deliverable and admission contract | `isaac-sim-workflow` | Explicit command matrix, unchanged verifier limits, scoped simulation claims |
+| Ordered foundation and integration | `isaac-sim-orchestrator` | Source/asset/model hashes, one-variable comparisons, bounded owned processes |
+| Native BAM, articulation and contact | `physics-simulation` | Effective actuator/solver identity and same-solve support; no state animation |
+| Existing policy execution | `isaac-sim-robot-navigation` plus audited upstream policy/runtime | Observation/action/command/time parity; gait measured from native state |
+| Existing camera and replay capture | `isaac-camera`, `isaac-sim-rendering` when capture changes are needed | Same-episode frames and inspected start/middle/end video |
+| Final admission and packaging | `isaac-sim-validator` before delivery | Focused regressions, native task/verifier receipts, teardown and visual review |
+
+Plan: (1) pin the requested awesome-microduck registry and inspect primary
+official/benchmark sources; (2) compare current model/policy/actuator contracts
+to measured upstream baselines; (3) implement only discrepancies supported by
+that evidence, with regression coverage; (4) run isolated native foundations
+and then actual MCP command admission, retaining failures; (5) record exact
+scope, uncertainty and proposed skill lessons. No generic navigation/SLAM or
+voice success is inferred from locomotion work.
+
+Environment safeguards: read existing validated dependencies without modifying
+them, or create a separate task environment. Never mutate the collaborator's
+MICRODUCK checkout. Foreign GPU services were observed on both GPUs and must
+not be stopped or reconfigured. Each new process gets an owned output directory,
+private ports/caches, source binding, deadline and birth-bound termination.
+Initial protected envelope SHA256 is
+`56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2`;
+shared `grasp_memory.json` is absent. Both conditions must remain unchanged.

@@ -207,3 +207,43 @@ def test_contact_lift_preserves_measured_rotation_and_checks_ik(failure):
             contact_lift_target(kin, measured, pregrasp)
     else:
         np.testing.assert_allclose(contact_lift_target(kin, measured, pregrasp), [.06, .031])
+
+
+@pytest.mark.parametrize('mode', ['settles', 'never_settles', 'paused', 'reset', 'halt'])
+def test_contact_stability_requires_fresh_physical_window_and_keeps_vetoes(monkeypatch, mode):
+    from cascade.planning.runtime import wait_for_contact_stability
+    from test_isaac_simulation_motion import clock
+    from cascade.types import RobotState
+    wall = [0.]
+    reads = [0]
+    observed = []
+    def state(step, q, **kw):
+        return RobotState(q=np.array([q, 0.]), dq=np.zeros(2), physics_clock=clock(step, **kw))
+    initial = state(0, 0.)
+    def read(**kwargs):
+        reads[0] += 1
+        wall[0] += .05
+        step = reads[0] * 10
+        q = .002 if reads[0] < 3 else .005
+        if mode == 'never_settles':
+            q = reads[0] * .001
+        return state(0 if mode == 'paused' else step, q,
+                     **({'epoch':'changed'} if mode == 'reset' else {}))
+    def check():
+        if mode == 'halt' and reads[0] >= 3:
+            raise SafetyViolation('contact cancelled')
+    monkeypatch.setattr('cascade.planning.runtime.time.monotonic', lambda: wall[0])
+    monkeypatch.setattr('cascade.planning.runtime.time.sleep', lambda dt: None)
+    call = lambda: wait_for_contact_stability(NS(get_state=read), initial,
+        source=('fake',1), robot_id='/robot', timeout_s=1., check=check, observe=observed.append)
+    if mode == 'settles':
+        current, receipt = call()
+        assert reads[0] >= 8
+        assert receipt['window_physics_s'] >= .5
+        assert receipt['max_joint_range_rad'] <= .00025
+        assert receipt['distinct_samples'] >= 3
+        assert current is observed[-1]
+    else:
+        with pytest.raises(SafetyViolation, match='deadline|changed|cancelled'):
+            call()
+    assert reads[0] < 25

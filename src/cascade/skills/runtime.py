@@ -2184,6 +2184,19 @@ class SkillRuntime:
             # Approximate aiming compensation uses the closed grasp pose,
             # before lift. It is not an independent measurement of a held body.
             close_state = carry_attachment.arm(self, episode)
+            if getattr(self.arm, "motion_planner", None) is not None:
+                from ..planning.runtime import wait_for_contact_stability
+                generation = harness._halt_generation
+                def stability_guard():
+                    harness.check_stream_start(halt_generation=generation)
+                    carry_attachment.check(self)
+                close_state, stability = wait_for_contact_stability(self.arm, close_state,
+                    source=(str(self.cfg.arm.get("bridge_host", "127.0.0.1")),
+                            int(self.cfg.arm.get("bridge_port", 8611))),
+                    robot_id=self.cfg.arm.bridge_robot_id,
+                    timeout_s=gcfg.get("close_feedback_timeout_s") or self.cfg.arm.get("settle_timeout_s", 6.),
+                    check=stability_guard, observe=lambda state: carry_attachment.observe(self, state))
+                grasp_evidence.event("post_close_stable", state=close_state, **stability)
             tcp_close = self.kin.fk(close_state.q)[:3, 3]
             try:
                 held_offset_at_close = np.asarray(fix.position, float) - tcp_close

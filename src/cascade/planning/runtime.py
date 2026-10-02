@@ -19,6 +19,43 @@ from . import PlanningError, make_motion_planner
 from .trajectory import TrajectoryProfile
 
 
+def wait_for_contact_stability(safe, state, *, source, robot_id, timeout_s, check, observe):
+    """Observe a bounded, physically advancing hold; never command or rebase."""
+    from ..control.simulation_motion import PhysicsClock, positive
+    clock = PhysicsClock(source, robot_id)
+    clock.observe(state.physics_clock)
+    started = time.monotonic()
+    deadline = started + positive(timeout_s, "post-close stability timeout")
+    window_s = .5
+    tolerance = PREFLIGHT_MAX_DRIFT_RAD / 4.
+    q = np.asarray(state.q, float)
+    if q.ndim != 1 or not len(q) or not np.isfinite(q).all():
+        raise SafetyViolation("invalid initial post-close joint feedback")
+    samples = [(clock.time, q.copy())]
+    while True:
+        check()
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise SafetyViolation("post-close joints did not stabilize before the wall deadline")
+        current = safe.get_state(timeout_s=min(left, .5))
+        check()
+        observe(current)
+        if clock.observe(current.physics_clock):
+            q = np.asarray(current.q, float)
+            if q.shape != samples[0][1].shape or not np.isfinite(q).all():
+                raise SafetyViolation("invalid post-close joint feedback")
+            samples.append((clock.time, q.copy()))
+            # Retain one sample at/before the exact window boundary.
+            while len(samples) > 2 and samples[1][0] <= clock.time - window_s:
+                samples.pop(0)
+            spread = float(np.max(np.ptp([item[1] for item in samples], axis=0)))
+            if len(samples) >= 3 and clock.time - samples[0][0] >= window_s and spread <= tolerance:
+                return current, {"window_physics_s": clock.time - samples[0][0],
+                    "max_joint_range_rad": spread, "limit_rad": tolerance,
+                    "distinct_samples": len(samples), "wall_elapsed_s": time.monotonic() - started}
+        time.sleep(min(.01, max(0., deadline - time.monotonic())))
+
+
 def contact_lift_target(kin, measured_q, pregrasp_q):
     """Lift to the vetted position without undoing measured contact rotation."""
     pose = kin.fk(measured_q).copy()

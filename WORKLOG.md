@@ -246,3 +246,16 @@ import error is retained without regression credit. Source and protected memory
 were unchanged. Native Kit closure is still a separate required replay.
 
 Hashes and source-bound results: `docs/evidence/robot-modularity/microduck-inner-signal-fences.json`.
+
+## Shutdown PR full-suite environment check (2026-10-02)
+
+The isolated source at41307b8 ran the complete test directory: 5,073 passed,
+252 skipped and four deselected. All132 failures were the same missing pinned
+kitchen artwork prerequisite in the fresh worktree. Installed those eight
+release files from the already verified local bundle, then normal offline
+`kitchen_assets.py --check` passed. All139 tests in the five affected files then
+passed. Production code was unchanged; only two native-closure documentation
+files were added between runs. The initial failed full run remains preserved,
+not labelled as one green full run. Frozen source and protected stores remained
+unchanged in both executions. Detailed source/artifact records:
+`docs/evidence/robot-modularity/native-shutdown-suite.json`.

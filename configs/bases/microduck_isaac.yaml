@@ -5,7 +5,8 @@
 type: isaac
 robot_id: microduck
 source: isaac-microduck
-engine: physx
+# The native BAM bridge currently supports only Newton/MJWarp.
+engine: newton
 # Exact remote physics identity, supplied from the checked bridge receipt via
 # CASCADE_MICRODUCK_DEVICE. Do not pin a workstation GPU or resolve `auto` on
 # the MCP client's unrelated compute host. Missing identity fails before I/O.

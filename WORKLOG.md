@@ -201,3 +201,20 @@ during validation and between admission and domain lookup; no domain call occurs
 Priority stop ignores an expired episode deadline. This coordinator check is not
 a real-time actuator guarantee: domain owners still enforce backend leases and
 last-moment cancellation. Provider/browser timestamps cannot supply this deadline.
+
+## macOS TCP fixture phase correction (2026-10-02)
+
+PR72/73 macOS logs exposed two test assumptions: a healthy transport might
+never enter an 83 ms selection window with a <=20 ms old packet, and the
+independent sampler might miss a published movement endpoint. The real TCP
+regression now injects a fault at the first post-finish request and checks the
+actual decoded packet. Six unchanged deterministic actual-sampler cases retain
+precise late-fresh/fault/stale discrimination. Movement expectations use the
+known scripted positions at the independently observed interval endpoints.
+
+No production source, limits or ACK semantics changed. A controlled transport
+delay reproduces four old failures; the corresponding revised six cases pass.
+The complete three affected test files pass 342 cases. This identifies fixture
+defects, not the exact scheduler/GC cause on the CI machine. Logs, old/new hashes
+and retained results are indexed in
+`docs/evidence/robot-modularity/macos-causal-fixtures.json`.

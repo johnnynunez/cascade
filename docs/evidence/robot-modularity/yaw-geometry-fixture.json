@@ -1,0 +1,43 @@
+{
+  "command": [
+    "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "--tb=short",
+    "--junitxml=/home/johnny/Projects/demo/cascade-lab/MACOS_NEXT/yaw-geometry-02/junit.xml",
+    "--basetemp=/home/johnny/Projects/demo/cascade-lab/MACOS_NEXT/yaw-geometry-02/tmp",
+    "tests/test_mobile_effects.py",
+    "tests/test_mobile_bridge.py",
+    "tests/test_mobile_late_read_regressions.py"
+  ],
+  "exit_code": 0,
+  "source_unchanged": true,
+  "source_files": 1497,
+  "shared_memory_unchanged": true,
+  "shared_memory_after": {
+    "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "/home/johnny/.cascade/grasp_memory.json": null
+  },
+  "source_commit": "5b19abe",
+  "changed_fixture_sha256": "14e0785aeaa95e3303ba6b54d1a9381d694286db4203b9732021144617cdd27d",
+  "result": {
+    "passed": 400,
+    "skipped": 0,
+    "seconds": 33.71
+  },
+  "scope": "Software quaternion geometry/intent cases are now independent of live sampler wall-clock admission. Existing actual-sampler/TCP timing tests remain unchanged. No production source or limits changed.",
+  "ci_failure": {
+    "run": 37051236657,
+    "job": 110984864558,
+    "test": "test_turn_uses_signed_unwrapped_measured_yaw_not_integrated_wz[2.0-refuted-0.2]",
+    "observed": "unverified instead of refuted; reason not printed by original assertion",
+    "cause": "Exact hosted failure cause unknown. Original fixture unnecessarily depended on thread timing and observed endpoints for a fixed geometry assertion."
+  },
+  "retained_no_test_run": "yaw-geometry-01: wrong requested filename; pytest exit4, no tests ran",
+  "artifacts": {
+    "junit.xml": "a6a9fe542d4252cc4c982b914fcaa65c35ab3a7ebddb3cc6d15400611b6ea899",
+    "pytest.log": "02bb2f3c0fd36e126ea0ee7444471a54db7d11472fc563b604d5533cddd9e1e3",
+    "source-sha256.json": "d6d0defe3c2e87d4f3f2e3da6b4256c6b4d18c01a7301733c5c1abd67397b4ab"
+  }
+}

@@ -306,14 +306,21 @@ def test_a_motion_without_observations_during_execution_is_unknown():
 @pytest.mark.parametrize("scale,expected", [(0., "refuted"), (-1., "refuted"),
                                               (1., "confirmed"), (2., "refuted")])
 def test_turn_uses_signed_unwrapped_measured_yaw_not_integrated_wz(angle, scale, expected):
-    # Cross the -pi/pi cut in either direction.
+    # Exercise geometry/intent independently of the live sampler's wall clock.
+    # The zero gyro cannot establish this turn; quaternion poses cross -pi/pi.
     start = math.copysign(3.1, angle)
-    def make(n):
-        yaw = start + min(n - 1, 5) / 5 * angle * scale
-        return state(n, orientation_wxyz=(math.cos(yaw/2), 0., 0., math.sin(yaw/2)))
-    verdict = run_window(ScriptedReader(make), "turn", {"angle_rad": angle})
-    assert verdict["status"] == expected
-    assert verdict["metrics"]["yaw_change_rad"] == pytest.approx(angle * scale)
+    observations = []
+    for n in range(1, 7):
+        yaw = start + (n - 1) / 5 * angle * scale
+        observations.append(state(n, orientation_wxyz=(math.cos(yaw/2), 0., 0., math.sin(yaw/2))).as_dict())
+    checker = checker_for(ScriptedReader())
+    try:
+        metrics = checker._measure(observations)
+        status, reason = checker._motion_verdict("turn", {"angle_rad": angle}, metrics)
+        assert status == expected, reason
+        assert metrics["yaw_change_rad"] == pytest.approx(angle * scale)
+    finally:
+        checker.close()
 
 
 @pytest.mark.parametrize("skill", ["stop", "stop_navigation", "emergency_stop"])

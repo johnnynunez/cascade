@@ -20,17 +20,6 @@ def save(directory, name, data):
         json.dump(data, f, indent=2, allow_nan=False)
 
 
-def yield_until(deadline):
-    """Hold a test reply to a fixed deadline without a positive-duration timer.
-
-    The requested hold is at most read_timeout / 3 + sample_interval here.
-    Zero-duration yields let the producer run without accumulating timer
-    overshoot. Actual transport time and state age remain subject to all
-    production checks; this is not a real-time scheduling guarantee.
-    """
-    while time.monotonic() < deadline:
-        time.sleep(0)
-
 
 @pytest.mark.parametrize(
     "case",
@@ -131,10 +120,18 @@ def test_excluded_states_veto_but_never_supply_positive_rest(case, tmp_path):
 
 
 @pytest.mark.parametrize("skill", ["stop_navigation", "emergency_stop"])
-@pytest.mark.parametrize("kind", ["healthy_late", "fault_timely", "fault_late"])
-def test_real_tcp_inflight_fault_must_block_task_done(
+@pytest.mark.parametrize("kind", ["healthy", "fault"])
+def test_real_tcp_post_finish_fault_must_block_task_done(
     tmp_path, frame_endpoint, monkeypatch, skill, kind
 ):
+    """Inject at a causal lifecycle boundary, not a narrow wall-clock window.
+
+    This test checks controller -> real TCP -> independent reader -> task_done.
+    The actual sampler's precise late-fresh/fault/stale discrimination remains
+    covered by test_mobile_late_read_regressions with a module-local clock.
+    Requiring TCP dispatch inside the last 83 ms AND a <=20 ms old publication
+    could skip injection entirely on a valid, slower transport.
+    """
     from cascade.apps.mobile_runtime import build_mobile_runtime
 
     c, server, profile, *_ = frame_endpoint
@@ -146,7 +143,6 @@ def test_real_tcp_inflight_fault_must_block_task_done(
     observer = rt.stop_observers["microduck_isaac"]
     dispatch = server.dispatch
     captured = []
-    deferred_captures = []
     reads = []
     original = observer.reader.reader
 
@@ -173,52 +169,22 @@ def test_real_tcp_inflight_fault_must_block_task_done(
 
     def scheduled(req):
         op = observer.checker._active
-        if (
-            req["op"] == "state"
-            and op is not None
-            and op.finished is not None
-            and not captured
-        ):
-            deadline = min(op.deadline, op.finished + lim["settle_timeout_s"])
-            remaining = deadline - time.monotonic()
-            if 0.0 < remaining < lim["read_timeout_s"] / 3:
-                dispatch_started = time.monotonic()
-                value = dispatch(req)
-                dispatch_returned = time.monotonic()
-                # The deliberate late-but-fresh case needs a recently
-                # published packet before holding it. A healthy transport can
-                # return an older cached solve: adding the hold to that age
-                # would correctly turn this into the stale-response case.
-                # Return old packets normally and let the real publisher
-                # advance; never refresh their age or manufacture a step.
-                age = value["state"]["producer_age_s"] + dispatch_returned - dispatch_started
-                if age > ticks.wall_interval_s or dispatch_returned >= deadline:
-                    deferred_captures.append({"age_s": age, "remaining_s": deadline - dispatch_returned,
-                                              "step": value["state"]["step"]})
-                    return value
-                if kind.startswith("fault"):
-                    c.fault("canonical controlled fault BEFORE settle deadline")
-                    value = dispatch(req)
-                    dispatch_returned = time.monotonic()
-                # MobileBridgeController.state() returns a detached snapshot.
-                # Retain that exact reply: a second deepcopy here can collect
-                # unrelated suite garbage while a fresh packet is being held.
-                captured.append(
-                    {
-                        "capture": dispatch_returned,
-                        "dispatch_started": dispatch_started,
-                        "selected_age_s": age,
-                        "deadline": deadline,
-                        "wire": value,
-                    }
-                )
-                captured[-1]["record_ready"] = time.monotonic()
-                if kind.endswith("late"):
-                    captured[-1]["wait_target"] = deadline + lim["sample_interval_s"]
-                    captured[-1]["wait_started"] = time.monotonic()
-                    yield_until(captured[-1]["wait_target"])
-                captured[-1]["return"] = time.monotonic()
-                return value
+        if (req["op"] == "state" and op is not None
+                and op.finished is not None and not captured):
+            # finish() has started its unchanged observation window. Inject on
+            # its first state request, unconditionally; never wait for a lucky
+            # scheduler phase, edit an ACK, restamp age or fabricate a solve.
+            dispatch_started = time.monotonic()
+            if kind == "fault":
+                c.fault("controlled fault on the first post-finish state request")
+            value = dispatch(req)
+            captured.append({
+                "capture": time.monotonic(), "dispatch_started": dispatch_started,
+                "finished": op.finished,
+                "deadline": min(op.deadline, op.finished + lim["settle_timeout_s"]),
+                "wire": value,
+            })
+            return value
         return dispatch(req)
 
     try:
@@ -230,32 +196,26 @@ def test_real_tcp_inflight_fault_must_block_task_done(
         proof = await_stop(rt, ack["receipt_id"])
         done = rt.execute(
             "task_done",
-            {"success": True, "summary": "canonical late-read CPU TCP probe"},
+            {"success": True, "summary": "causal post-finish CPU TCP probe"},
         )
         current = c.state()["state"]
         record = {
-            "ack": ack,
-            "proof": proof,
-            "task_done": done,
-            "captured": captured,
-            "deferred_captures": deferred_captures,
-            "reads": reads,
+            "ack": ack, "proof": proof, "task_done": done,
+            "captured": captured, "reads": reads,
             "actual_controller_state_at_verdict": current,
-            "quarantined": observer._quarantined,
-            "limits": lim,
+            "quarantined": observer._quarantined, "limits": lim,
             "evidence": "real TCP and synthetic states, NOT Kit/physics",
             "physical_acceptance": False,
         }
         save(tmp_path, kind + "_" + skill, record)
         assert ack == ack_before and ack["physical_stop_verified"] is False
-        assert (
-            len(captured) == 1 and captured[0]["capture"] < captured[0]["deadline"]
-        ), record
-        assert captured[0]["selected_age_s"] <= ticks.wall_interval_s, record
+        assert len(captured) == 1, record
+        assert (captured[0]["finished"] <= captured[0]["dispatch_started"]
+                <= captured[0]["capture"] < captured[0]["deadline"]), record
         assert all(r["error"] is None for r in reads), record
         assert max(r["end"] - r["start"] for r in reads) < lim["read_timeout_s"], record
-        # The retained snapshot must still match the packet actually decoded
-        # by the reader. Only the reader's local receipt/age fields may differ.
+        # The detached controller reply must be the actual decoded packet,
+        # including its fault status. Only local receipt/age fields may differ.
         packet = captured[0]["wire"]["state"]
         packet_keys = packet.keys() - {"received_monotonic_s", "producer_age_s"}
         packet_json = json.dumps({key: packet[key] for key in packet_keys}, sort_keys=True)
@@ -266,45 +226,11 @@ def test_real_tcp_inflight_fault_must_block_task_done(
             for r in reads
         ), "retained snapshot differs from the packet actually received"
         assert observer.limits == verifier_limits()
-        if kind.endswith("late"):
-            assert captured[0]["return"] > captured[0]["deadline"], record
-            assert proof["postcondition"]["evidence"]["late_reads"] == 1, record
-        if kind == "healthy_late":
-            # A large record is truncated by pytest's dict repr, hiding the
-            # reason we need when this real-TCP timing probe fails on CI.
-            assert proof["status"] == "confirmed" and done["success"], json.dumps(
-                {
-                    "status": proof["status"],
-                    "reason": proof.get("reason"),
-                    "task_done_success": done["success"],
-                    "postcondition": {
-                        key: proof["postcondition"].get(key)
-                        for key in ("status", "reason", "metrics")
-                    },
-                    "evidence": {
-                        key: proof["postcondition"]["evidence"].get(key)
-                        for key in ("rejected", "attempts", "late_reads", "channel_failed")
-                    },
-                    "eligible_samples": len(proof["postcondition"]["evidence"]["samples"]),
-                    "max_read_duration_s": max(r["end"] - r["start"] for r in reads),
-                    "max_received_state_age_s": max(
-                        r["state"]["producer_age_s"] + r["end"] - r["state"]["received_monotonic_s"]
-                        for r in reads if r["state"] is not None
-                    ),
-                    "wire_producer_age_s": packet["producer_age_s"],
-                    "capture_timing": {key: value for key, value in captured[0].items() if key != "wire"},
-                    "deferred_captures": deferred_captures,
-                    "late_return_after_deadline_s": captured[0]["return"] - captured[0]["deadline"],
-                    "record_path": str(tmp_path / (kind + "_" + skill + ".json")),
-                },
-                sort_keys=True,
-            )
+        if kind == "healthy":
+            assert proof["status"] == "confirmed" and done["success"], record
+            assert proof["postcondition"]["metrics"]["settle_sim_duration_s"] >= lim["settle_window_s"]
         else:
-            assert (
-                current["controller_status"]
-                == captured[0]["wire"]["state"]["controller_status"]
-                == "fault"
-            )
+            assert current["controller_status"] == packet["controller_status"] == "fault"
             assert proof["status"] != "confirmed" and done["success"] is False, record
     finally:
         rt.close()

@@ -267,25 +267,32 @@ def read_native_body_properties(ns):
                 newton_gravity_vectors_m_s2=gravity.astype(float).tolist())
 
 
-def capture_bound_rgb(ns, app, readback, *, updates):
+def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None):
     """Main-thread capture with both physical clocks held fixed during render."""
     import time
     import numpy as np
     from cascade.sim.microduck_stepper import validate_render_times
+    checkpoint()
     before = (ns.simulation_step_count, float(ns.sim_time))
     captured_at = time.monotonic()  # conservative: includes render and encoding latency
     ns.update_fabric()
     for _ in range(updates):
+        checkpoint()
         app.update()
+        # Kit can consume a SignalRequest inside its callbacks. Fence each
+        # native return, not only the return of this whole capture operation.
+        checkpoint()
         if (ns.simulation_step_count, float(ns.sim_time)) != before:
             raise RuntimeError('render advanced uncontrolled physics')
     data, _ = readback.get_data('rgb')
+    checkpoint()
     if data is None:
         raise RuntimeError('overview RGB unavailable')
     rgb = np.asarray(data.numpy() if hasattr(data, 'numpy') else data).copy()
     if rgb.dtype != np.uint8 or rgb.shape != (480, 640, 3):
         raise ValueError('overview must produce uint8 RGB[480,640,3]')
     times = readback.get_render_times()
+    checkpoint()
     validate_render_times(times, before[1])
     if (ns.simulation_step_count, float(ns.sim_time)) != before:
         raise RuntimeError('camera read advanced physics')
@@ -313,7 +320,7 @@ def disable_source_actuators(stage):
     return records
 
 
-def synchronize_camera_authoring(app, timeline, manager, native_stage):
+def synchronize_camera_authoring(app, timeline, manager, native_stage, *, checkpoint=lambda: None):
     """Absorb authored USD once, before any physical initialization or solve."""
     def clocks():
         return dict(stopped=bool(timeline.is_stopped()), timeline_time_s=float(timeline.get_current_time()),
@@ -323,10 +330,12 @@ def synchronize_camera_authoring(app, timeline, manager, native_stage):
                     native_step=int(native_stage.simulation_step_count), native_time_s=float(native_stage.sim_time))
     expected = dict(stopped=True, timeline_time_s=0., manager_step=0, manager_time_s=0.,
                     native_initialized=False, native_step=0, native_time_s=0.)
+    checkpoint()
     before = clocks()
     if before != expected:
         raise RuntimeError('camera authoring requires stopped zero clocks: ' + json.dumps(before, sort_keys=True))
     app.update()
+    checkpoint()
     after = clocks()
     if after != before:
         raise RuntimeError('camera authoring advanced physics: ' + json.dumps(after, sort_keys=True))
@@ -391,6 +400,10 @@ class KitNewtonBackend:
         self._last_support_solve = None
         self.signals = None
 
+    def _checkpoint(self):
+        if self.signals is not None:
+            self.signals.checkpoint(persistent=True)
+
     def open(self):
         import sys
         from isaacsim import SimulationApp
@@ -406,8 +419,7 @@ class KitNewtonBackend:
                 self.app = SimulationApp({'headless': True, 'disable_viewport_updates': True,
                     'multi_gpu': False, 'width': 320, 'height': 240, 'renderer': 'RayTracedLighting',
                     'physics_gpu': int(self.args.device.split(':')[1])}, experience=str(self.experience))
-            if self.signals is not None:
-                self.signals.checkpoint()
+            self._checkpoint()
             self._initialize()
         except BaseException:
             self.close()
@@ -416,6 +428,7 @@ class KitNewtonBackend:
             sys.argv = saved
 
     def _initialize(self):
+        self._checkpoint()
         import copy
         import math
         import numpy as np
@@ -437,6 +450,7 @@ class KitNewtonBackend:
         from cascade.sim.microduck_state import newton_joint_indices
         from cascade.sim.microduck_contact_support import extraction_provenance, support_contract
 
+        self._checkpoint()
         self.SM = SM
         self.timeline = omni.timeline.get_timeline_interface()
         manager = self.app._app.get_extension_manager()
@@ -446,7 +460,9 @@ class KitNewtonBackend:
         if enabled:
             raise RuntimeError(f'unexpected importer/UI dependencies enabled: {enabled}')
         SM.switch_physics_engine('newton')
+        self._checkpoint()
         omni.usd.get_context().new_stage()
+        self._checkpoint()
         stage = omni.usd.get_context().get_stage()
         UsdGeom.SetStageMetersPerUnit(stage, 1.)
         UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
@@ -475,9 +491,11 @@ class KitNewtonBackend:
         cfg.collision_cfg.rigid_contact_max = 512
         cfg.solver_cfg.use_mujoco_contacts = True
         configure_newton(cfg)
+        self._checkpoint()
         self.receipt['configuration'] = dict(num_substeps=1, use_cuda_graph=False, time_step_app=False,
                                              nconmax=512, njmax=2400, rigid_contact_max=512, use_mujoco_contacts=True)
         self._create_camera(stage)
+        self._checkpoint()
         ensure_time_code_range(stage)
         layers = []
         allowed = {str((Path(self.admission['bundle']) / row['path']).resolve()): row['sha256']
@@ -492,7 +510,9 @@ class KitNewtonBackend:
         runtime_layer = Path(self.args.out) / 'runtime-scene.usda'
         stage.GetRootLayer().Export(str(runtime_layer))
         self.receipt['runtime_layer_sha256'] = sha256(runtime_layer)
+        self._checkpoint()
         app_utils.play(commit=True)
+        self._checkpoint()
         self.ns = ns = acquire_stage()
         if not ns.initialized:
             raise RuntimeError('Newton did not initialize')
@@ -523,9 +543,12 @@ class KitNewtonBackend:
         self.receipt['support_contract'] = support_contract(ns.model.shape_label)
         self.receipt['support_contract']['gravity_world_m_s2'] = self.receipt['native_body_properties']['gravity_world_m_s2'][:]
         self.receipt['support_extraction'] = extraction_provenance()
+        self._checkpoint()
         self.receipt['native_model_properties'] = prepare_native_model(ns, ds, source_cap=.96, newton=newton)
+        self._checkpoint()
         self.bam = NewtonBamAdapter(ns, source_root=self.args.bam_source_root,
                                     q_indices=qs, dof_indices=ds, params=self.admission['bam_params'])
+        self._checkpoint()
         # INITIALIZATION ONLY, outside all command admission/episode loops.
         q0 = ns.model.joint_q.numpy().copy()
         q0[qs] = HOME_Q
@@ -535,6 +558,7 @@ class KitNewtonBackend:
         start = int(ns.model.joint_q_start.numpy()[free[0]])
         q0[start:start+7] = [0., 0., .125, 0., 0., 0., 1.]
         for state in (ns.state_0, ns.state_1):
+            self._checkpoint()
             state.joint_q.assign(q0)
             state.joint_qd.zero_()
             newton.eval_fk(ns.model, state.joint_q, state.joint_qd, state)
@@ -544,6 +568,7 @@ class KitNewtonBackend:
         self.receipt['bam'] = self.bam.telemetry()
 
     def _create_camera(self, stage):
+        self._checkpoint()
         from pxr import Gf, UsdGeom, UsdLux
         from isaacsim.sensors.experimental.rtx import RtxCamera, CameraSensor
         from isaacsim.physics.newton import acquire_stage
@@ -564,8 +589,9 @@ class KitNewtonBackend:
         optics.GetVerticalApertureAttr().Set(20.955 * 480 / 640)
         def sync_renderer():
             self.receipt['camera_authoring_sync'] = synchronize_camera_authoring(
-                self.app, self.timeline, self.SM, acquire_stage())
+                self.app, self.timeline, self.SM, acquire_stage(), checkpoint=self._checkpoint)
         sensor = create_overview_sensor(stage, camera, CameraSensor, sync_renderer=sync_renderer)
+        self._checkpoint()
         product = str(sensor.render_product.GetPath())
         self.readback = CpuCameraReadback(sensor, render_product_id=product)
         times = self.readback._render_times
@@ -634,8 +660,10 @@ class KitNewtonBackend:
         return compare_native_force_api(self.ns)
 
     def capture(self):
+        self._checkpoint()
         self._guard()
-        result = capture_bound_rgb(self.ns, self.app, self.readback, updates=16 if self._captures == 0 else 3)
+        result = capture_bound_rgb(self.ns, self.app, self.readback,
+            updates=16 if self._captures == 0 else 3, checkpoint=self._checkpoint)
         self._captures += 1
         return result
 

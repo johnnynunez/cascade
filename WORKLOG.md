@@ -224,3 +224,25 @@ an explicit assertion that the SDK fixture consumed the signal. All test runs
 retained unchanged source snapshots and protected learned-store hashes. This
 is software evidence only; native shutdown validation is a separate follow-up.
 Receipt: `docs/evidence/robot-modularity/microduck-signal-checkpoint.json`.
+
+## Inner Kit capture and initialization fences (2026-10-02)
+
+Reviewed the user-supplied Hermes packet and verified the exact baseline, patch
+candidate and regression-test hashes before integration. Its capture regression
+found 15 additional cold updates or two warm updates plus RGB readback after
+a callback consumed the signal. Capture now rechecks immediately between native
+calls. The backend also checks camera-authoring synchronization, initialization
+phase boundaries, and before/after `play(commit=True)` and model preparation.
+No checkpoint is inserted into teardown; the SDK's already-running native call
+remains outside Python's interruption guarantees.
+
+The integrated software suite passed 202 cases; five USD cases skipped because
+that interpreter has no pxr. The ten Hermes render cases passed against the
+actual worktree. Eight additional OS-signal cases cover authoring synchronization
+and actual `_initialize` orchestration through camera, scene export and play.
+A retained old-source control reached stage acquisition after consuming signals;
+all six initialization cases failed instead of unwinding. An earlier red-harness
+import error is retained without regression credit. Source and protected memory
+were unchanged. Native Kit closure is still a separate required replay.
+
+Hashes and source-bound results: `docs/evidence/robot-modularity/microduck-inner-signal-fences.json`.

@@ -50,6 +50,22 @@ class Domain:
         return {"ok": True}
 
 
+def test_old_episode_cannot_dispatch_after_operator_stop_and_reset():
+    domain = Domain()
+    runtime = RobotRuntime({domain.domain_id: domain})
+    original_token = runtime.cancellation_token
+    assert runtime.stop()["ok"]
+    assert runtime.reset_stop()["ok"]
+    assert not runtime.stopped
+    rejected = runtime.execute("locomotion.move", {"distance": .1}, expected_generation=original_token)
+    assert not rejected["ok"] and "stale execution generation" in rejected["error"]
+    assert domain.calls == []
+    assert runtime.execute("locomotion.move", {"distance": .1},
+                           expected_generation=runtime.cancellation_token)["ok"]
+    assert len(domain.calls) == 1
+    assert runtime.close()["ok"]
+
+
 @pytest.mark.parametrize("args", [{}, {"distance": "1"}, {"distance": True}, {"distance": 1, "extra": 2}, []])
 def test_arguments_refused_before_domain_io(args):
     domain = Domain()

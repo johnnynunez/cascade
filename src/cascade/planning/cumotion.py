@@ -150,6 +150,7 @@ class CumotionPlanner:
         self._poisoned = False
         self._cm = _sdk()
         self._robot = self._world = self._view = self._inspector = self._optimizer = None
+        self._contact_optimizer = None
         self._obstacles = []
         try:
             self._robot = self._cm.load_robot_from_memory(xrdf, urdf)
@@ -184,13 +185,20 @@ class CumotionPlanner:
             if (self._inspector.num_world_collision_spheres() <= 0
                     or self._inspector.num_self_collision_spheres() <= 0):
                 raise PlanningError("XRDF must provide world and self collision spheres")
-            sdk_cfg = self._cm.create_default_trajectory_optimizer_config(
-                self._robot, self.tool_frame, self._view)
-            for key, value in {"enable_self_collision": True, "enable_world_collision": True,
-                               **PATH_POSITION_WEIGHTS}.items():
-                if not sdk_cfg.set_param(key, value):
-                    raise PlanningError(f"cuMotion rejected required parameter {key}")
-            self._optimizer = self._cm.create_trajectory_optimizer(sdk_cfg)
+            def optimizer(extra):
+                sdk_cfg = self._cm.create_default_trajectory_optimizer_config(
+                    self._robot, self.tool_frame, self._view)
+                for key, value in {"enable_self_collision": True, "enable_world_collision": True,
+                                   **extra}.items():
+                    if not sdk_cfg.set_param(key, value):
+                        raise PlanningError(f"cuMotion rejected required parameter {key}")
+                return self._cm.create_trajectory_optimizer(sdk_cfg)
+            self._optimizer = optimizer({})
+            # A declared contact policy, selected before planning: initialize
+            # L-BFGS with the direct joint path instead of particle exploration.
+            # Both optimizers still return native curves and retain all gates.
+            self._contact_optimizer = optimizer({"trajopt/pbo/enabled": False,
+                                                 **PATH_POSITION_WEIGHTS})
         except Exception as exc:
             self.close()
             if isinstance(exc, PlanningError):
@@ -299,7 +307,8 @@ class CumotionPlanner:
             path_check(qg)
         else:
             target = target_type(qg)
-        result = self._optimizer.plan_to_cspace_target(qs, target)
+        optimizer = self._contact_optimizer if linear_tool_path else self._optimizer
+        result = optimizer.plan_to_cspace_target(qs, target)
         status = result.status()
         if status != self._cm.TrajectoryOptimizer.Results.Status.SUCCESS:
             raise PlanningError(f"cuMotion returned {status}")
@@ -350,7 +359,8 @@ class CumotionPlanner:
                    "sdk_version": SDK_VERSION,
                    "endpoint_tolerance": self._endpoint_tol,
                    "linear_tool_path": linear_tool_path,
-                   "path_position_weights": PATH_POSITION_WEIGHTS}
+                   "path_position_weights": PATH_POSITION_WEIGHTS if linear_tool_path else {},
+                   "particle_seed": not linear_tool_path}
         plan = MotionPlan(self.joint_names, tuple(times.tolist()), tuple(positions),
                           tuple(velocities), self.base_frame, self.tool_frame,
                           self.model_sha256, self.scene_sha256, _digest(request),
@@ -381,7 +391,7 @@ class CumotionPlanner:
         """Release solver before the native owners it references."""
         with self._lock:
             self._closed = True
-            self._optimizer = self._inspector = self._view = None
+            self._optimizer = self._contact_optimizer = self._inspector = self._view = None
             self._world = None
             self._obstacles = []
             self._robot = None

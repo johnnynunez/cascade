@@ -129,6 +129,8 @@ def test_linear_tool_constraint_is_requested_and_independently_checked(setup, de
         return NS(matrix=lambda: matrix)
     sdk.kin.pose = pose
     with make_motion_planner(cfg) as planner:
+        planner._optimizer.plan_to_cspace_target = lambda *a: pytest.fail(
+            'contact must select its declared native optimizer before solving')
         if deviates:
             with pytest.raises(PlanningError, match='violates the requested linear tool path'):
                 planner.plan_profile([0, 0], [.2, .1], duration_s=2., rate_hz=30.,

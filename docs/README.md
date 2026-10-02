@@ -85,6 +85,7 @@ above; automatic physics producers and its kitchen acceptance remain future work
 - [Perception and Execution: what to change, and what the measurements say](PERCEPTION_AND_EXECUTION_RESEARCH.md)
 - [Synthetic-Augmented RGB-D → 3D Object Localization](SYNTHETIC_RGBD_PIPELINE.md)
 - [Design: mobility, humanoids and navigation (`MobileBase`)](MOBILITY_AND_NAVIGATION_DESIGN.md)
+- [HomeBody comparison: grounded memory, local recovery and whole-body ownership](HOMEBODY_COMPARISON.md)
 - [Design brief: `type: ros2` backend for cascade — findings from ros-claw/rosclaw](ROS2_BACKEND_BRIEF.md)
 - [OpenClaw 2.0 Integration Brief (for `scripts/openclaw_demo.sh`)](OPENCLAW_2.0_INTEGRATION_BRIEF.md)
 

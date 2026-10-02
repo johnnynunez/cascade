@@ -122,6 +122,14 @@ Reachy's motion blending and head poses cannot be transferred to policy-owned
 MicroDuck joints. A hosted voice deployment and microphone/audio validation are
 still separate implementation work; this refactor does not deploy that service.
 
+The [HomeBody comparison](HOMEBODY_COMPARISON.md) extends this design with six
+proposed increments: source-bound spatial memory, dynamic transforms,
+auditable reconstruction, bounded local correction, actuator health and one
+whole-body command owner. The first increment should be passive exploration
+replay with explicit map/transform invalidation. These are design additions,
+not enabled robot features; the comparison separates HomeBody's presentation
+from its pending robot-code release and separately available components.
+
 ## Graph-as-policy: useful above the domain runtimes
 
 The relevant paper is [GaP: A Graph-as-Policy Multi-Agent Self-Learning Harness
@@ -226,6 +234,16 @@ synthetic sensor graph were exercised directly; no native Arena/VAB episode or
 new physical sensor/locomotion result is included. Source hashes and protected
 shared learned state were unchanged during the retained test runs. PR CI
 provides the separate checks against the committed source on supported runners.
+
+Initial CI at `d7f706c` passed Linux x86, minimal installation and browser checks;
+ARM failed one freshness case and macOS failed two healthy late-read cases. The
+same macOS failure also occurred on the base with unchanged relevant code.
+The [CI follow-up receipt](evidence/robot-modularity/ci-followup.json) retains
+those results. A controlled cyclic-GC injection reproduced a reader veto;
+test-only isolation now keeps such collection outside two bounded
+healthy-channel functions. Their focused suite passed 192 cases, including
+unchanged stale/timeout negatives. macOS gains a compact failure diagnostic.
+Neither adjustment establishes the original CI cause or a green full rerun.
 
 ## Admission work for an actual humanoid
 

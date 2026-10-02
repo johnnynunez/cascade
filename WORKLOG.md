@@ -146,3 +146,18 @@ Shared envelope bytes and the absence of active grasp memory were preserved.
 Native Arena/VAB rollouts, tactile device calibration, whole-body humanoid
 control and hosted speech deployment remain separate measured integrations.
 MicroDuck's retained gait/turn findings are unchanged by software composition.
+
+The requested HomeBody review is in `docs/HOMEBODY_COMPARISON.md`, with pinned
+primary sources and separately inspected component contracts. It proposes
+grounded memory and transform replay first, followed by local correction,
+actuator health and later whole-body admission. The inspected HomeBody
+repository has not released its robot implementation; this review does not
+claim a port or measured physical integration.
+
+Initial PR #69 CI passed Linux x86, minimal install and browser checks, but
+failed one ARM freshness case and two macOS healthy late-read cases. A matching
+macOS failure predates this refactor. A bounded injected-GC comparison motivated
+isolation in two healthy-channel test functions; 192 focused cases pass without
+relaxing any runtime gate. macOS gets a compact assertion diagnostic. Actual CI
+root causes remain unproven; the initial failures are retained in
+`docs/evidence/robot-modularity/ci-followup.json`.

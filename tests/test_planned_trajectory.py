@@ -7,8 +7,10 @@ from cascade.planning import make_motion_planner
 from cascade.planning import PlanningError
 from cascade.planning.trajectory import TrajectoryProfile
 from cascade.types import RobotState, SafetyViolation
-from test_cumotion_planner import setup as setup
+import test_cumotion_planner
 from test_isaac_simulation_motion import Sim, clock
+
+setup = test_cumotion_planner.setup
 
 
 def curved_profile():

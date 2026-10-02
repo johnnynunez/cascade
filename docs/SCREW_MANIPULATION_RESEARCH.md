@@ -1,5 +1,9 @@
 # Screw manipulation research — 2026-10-01
 
+Follow-up, 2 October: the [Factory implementation and native evidence](FACTORY_THREAD_CONTACT.md)
+now cover physical threading, measured seating and motor-off retention. The
+investigation below retains its original source and research-only scope.
+
 **Reusable assets and physical threading examples exist. The strongest first demonstration is a Factory nut on a fixed bolt, with measured thread advancement; seating and tightening torque require a separate validation stage.** A screwdriver task additionally needs a compatible bit/head, axial force control and slip detection. This investigation did not install or run simulators, download asset packages, or modify Cascade.
 
 **SimReady.com: verified catalogue entries, unverified physical geometry**
@@ -31,9 +35,16 @@ The original Factory nut/bolt meshes have an explicit licence chain: [Factory ac
 
 **What Cascade already does**
 
-Reviewed current `src/cascade/skills/runtime.py:3224–3370` and `tests/test_turn_screw.py`: `turn_screw` understands tighten/loosen, localizes a head, approaches, then opens, winds back the wrist, closes and rotates. `turns_applied` accumulates commanded last-joint travel. If contact-pose IK fails, it can continue at the hover pose. It does not measure fastener rotation, axial advancement, tightening torque, preload, engagement or bit slip. Tests use camera/arm doubles, not physical threaded fasteners. Its own docstring calls it geometric/gestural. [Pinned implementation](https://github.com/johnnynunez/cascade/blob/0e2387070c2b784ba864981f5c291a1b1e4d117a/src/cascade/skills/runtime.py#L3224), [tests](https://github.com/johnnynunez/cascade/blob/0e2387070c2b784ba864981f5c291a1b1e4d117a/tests/test_turn_screw.py).
+Reviewed the pinned `src/cascade/skills/runtime.py:3224–3370` and `tests/test_turn_screw.py`: `turn_screw` understands tighten/loosen, localizes a head, approaches, then opens, winds back the wrist, closes and rotates. `turns_applied` accumulates commanded last-joint travel. In that version, failed contact-pose IK could continue at the hover pose. It did not measure fastener rotation, axial advancement, tightening torque, preload, engagement or bit slip. Tests used camera/arm doubles, not physical threaded fasteners. Its docstring called it geometric/gestural. [Pinned implementation](https://github.com/johnnynunez/cascade/blob/0e2387070c2b784ba864981f5c291a1b1e4d117a/src/cascade/skills/runtime.py#L3224), [tests](https://github.com/johnnynunez/cascade/blob/0e2387070c2b784ba864981f5c291a1b1e4d117a/tests/test_turn_screw.py).
 
-Intent parsing, profiles, localization, IK, limits and evidence infrastructure are reusable. A dedicated assembly controller and outcome verifier are missing. The current return value must not be presented as proof that a screw was tightened.
+That pinned implementation remains historical evidence. The 2 October local
+integration now refuses failed contact-pose IK and partial commanded strokes,
+and explicitly returns `physical_verification.status: unverified` for ordinary
+`turn_screw`. A separate [Factory assembly controller and measured outcome
+verifier](FACTORY_THREAD_CONTACT.md) now demonstrate contact-driven threading,
+actual seating and zero-motor retention. This uses a mounted hex socket and
+initially engaged nut on a fixed bolt/spacer fixture; autonomous screwdriver
+pickup, bit engagement and calibrated preload remain outside that experiment.
 
 **Proposed physical validation — not implemented**
 

@@ -1,5 +1,17 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
+The local integration branch `feat/manipulation-assembly-runtime` now executes
+normal manipulation with **live OVRTX cameras and cuMotion through SafeArm**.
+A native PhysX GPU episode completed grasp, lift, placement and return home,
+with independent release/settling observations. The SO-101 Factory assembly
+experiment also completed contact-driven threading, measured seating and
+motor-off retention. See the [integration report](docs/MANIPULATION_ASSEMBLY_20261002.md)
+for exact source bindings, tests, videos, retained failures and the trial 12
+follow-up. These local results do not establish the complete kitchen campaign,
+Spark runtime acceptance, hardware fastening or calibrated preload.
+
+### Earlier merged and measured baseline
+
 The previous command baseline for physical validation is **`ff8d58b` (1 October 2026)**. It includes
 render-bound cameras, release and carry guards, endpoint occlusion checks,
 explicit MCP GPU selection, Isaac verifier startup readiness, localization
@@ -11,7 +23,7 @@ main `f7a8823` (tree `b1f5510f`).
 [Project status](docs/PROJECT_STATUS_20261001.md) records the
 source-specific software checks. [Local dual-RTX Pro validation](docs/LOCAL_RTX_VALIDATION.md)
 retains native timeouts and separate NV localization and release-geometry failures.
-The latest local native profile ([attempt 09](docs/LOCAL_RTX_VALIDATION.md#profiling-attempt-09-python-spans-and-placement-timeout),
+An earlier local native profile ([attempt 09](docs/LOCAL_RTX_VALIDATION.md#profiling-attempt-09-python-spans-and-placement-timeout),
 source `3ccdc2e8`) passed sampled camera freshness and verified the grasp, but
 timed out during placement while still holding the object. Its 120-second
 technical capture yielded a qualified 118.59-second CPU window; execution-queue
@@ -21,9 +33,10 @@ successful manipulation or absolute GPU timing.
 Separate [passive observer measurements and CPU codec replay](docs/ISAAC_FRAME_ENCODING.md)
 identified unused depth compression during RGB-only reads. The independent
 component-encoding candidate preserves complete frame bytes. Its passive live
-repeat reduced new-capture observer median time from 272.239 to 68.170 ms;
-native task validation remains pending.
-Current physical proof, campaign and restart acceptance remain incomplete.
+repeat reduced new-capture observer median time from 272.239 to 68.170 ms.
+Subsequent [trial 12](docs/LOCAL_RTX_VALIDATION.md#native-trial-12-and-route-preflight-follow-up)
+passed the green-cube physical case and failed orange route preflight; its
+complete kitchen proof, campaign and restart acceptance remain incomplete.
 
 <p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
@@ -68,18 +81,18 @@ service-oriented/composable spirit as [RPent](https://github.com/RLinf/RPent).
 
 [PAAI staff guide](docs/BOOTH_GUIDE.md) · [DGX Spark setup](docs/DGX_SPARK_SETUP.md) · [Spark delivery](docs/SPARK_DELIVERY.md) · [Architecture](docs/ARCHITECTURE.md) · [Quickstart](docs/QUICKSTART.md) · [Physical rig runbook](docs/BOOTH_RUNBOOK.md) · [Roadmap](docs/ROADMAP.md) · [Agent guide](AGENTS.md)
 
-The optional [OVRTX renderer](docs/OVRTX_RENDERER.md) supplies calibrated
-RGB-D from static USD scenes or explicit scene snapshots, independently of
-physics. Analytic RGBD passed on Linux x86_64 and DGX Spark aarch64; the public
-static camera profile also passed on x86. It does not replace the demo's Isaac
-cameras or provide an automatic Isaac/Newton state producer.
+The optional [OVRTX renderer](docs/OVRTX_RENDERER.md) can now supply the Isaac
+bridge's live RGB-D and robot/prop masks from physics-owned snapshots. Rendering
+runs in a separate SDK process; capture metadata binds pixels, joints, contacts
+and body transforms to the same physical step.
 
-The optional [cuMotion planner](docs/CUMOTION.md), added in PR #47 after runtime
-baseline `0e23870`, exports static-world trajectory candidates through a factory
-and CLI. Native planning passed on Linux x86_64 and DGX Spark aarch64 with the
-1.1.0 GPU SDK; candidates
-have no actuator execution authority. [Screw manipulation research](docs/SCREW_MANIPULATION_RESEARCH.md)
-records assets and the missing thread/torque verification for a future assembly task.
+The optional [cuMotion planner](docs/CUMOTION.md) now participates in ordinary
+skills through the `isaac_cumotion` arm profile. SafeArm vets and streams its
+native curves with the existing motion, contact and cancellation gates.
+The [Factory fastening experiment](docs/FACTORY_THREAD_CONTACT.md) provides
+physical thread and seating evidence using a mounted hex socket and a fixed
+bolt fixture. The ordinary `turn_screw` skill still reports physical tightening
+as unverified; its commanded wrist travel is not a thread measurement.
 
 ```
 ┌──────────────────────────────────────────┐   ┌──────────────────────────────────────────┐

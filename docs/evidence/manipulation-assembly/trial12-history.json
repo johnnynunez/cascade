@@ -1,0 +1,41 @@
+{
+  "scope": "Historical trial12 audit and same-frame offline selector replay; no fresh physical acceptance",
+  "historical_source": "d1d54dcf078b3efefd9542d46947c77bd29afe7e",
+  "strict_acceptance_pass": false,
+  "native_cases": [
+    {
+      "object": "green_cube",
+      "pass": true,
+      "full_physical_audit_pass": true
+    },
+    {
+      "object": "orange",
+      "pass": false,
+      "full_physical_audit_pass": null
+    }
+  ],
+  "failure": {
+    "object": "orange",
+    "phase": "route preflight before actuation",
+    "shared_deadline_s": 3.0,
+    "error": "route preflight exceeded its time budget; no route authorized",
+    "separate_terminal_binding_error": "gateway_child missing; isaac_bridge and graspgenx retained"
+  },
+  "offline_replay": {
+    "before": {
+      "selected": true,
+      "elapsed_s": 2.833772209996823
+    },
+    "after": {
+      "selected": true,
+      "elapsed_s": 1.8314353309979197
+    }
+  },
+  "interpretation": "Both offline versions pass on this host. The reordered identical endpoint vetoes save about one second; the old native timeout was not reproduced offline. Safety checks and three-second deadline remain unchanged.",
+  "input_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-acceptance-12/runs/x86-acceptance-12/strict-proof2.json": "f34322ae3cdcc6ad4a15720fdc16e90c4f6c1f7d6918909f46bbff51067f3961",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-acceptance-12/runs/x86-acceptance-12/proof/receipt.json": "f35e1562a32264f859ca06cbc64686e4117ae6c91f5cf27c14ebf6e7b00f3b5a",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-acceptance-12/runs/.launch/profile-cascade-demo/proof.json": "23562981c9c85e764db2e3de5b45b9c85441e35d5a6790772427097175080c5d",
+    "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/cascade-x86-acceptance-12/runs/x86-acceptance-12/grasp-evidence/1790897375221162213-3194335-37fb2f7871264df8aa6255eda6715da7.json": "220d78a3d9905a5c25bc0fb11942026e94c055ff5fb71dbdddc426a96d02e546"
+  }
+}

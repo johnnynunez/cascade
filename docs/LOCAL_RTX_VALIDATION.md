@@ -373,6 +373,60 @@ protected process identities. Neither closure nor retention changes the
 failed native and strict outcomes. The [input index](evidence/isaac-profile09/retained-inputs.json)
 binds original records and the compact offline derivatives.
 
+## Native trial 12 and route-preflight follow-up
+
+Trial 12 used `d1d54dcf078b3efefd9542d46947c77bd29afe7e` on 2 October,
+01:23:20–01:29:43 CEST. The launcher exited 1; proof and strict proof2 failed.
+The [historical audit](evidence/manipulation-assembly/trial12-history.json)
+preserves exact raw receipt and trace hashes.
+
+Green-cube placement passed the full physical audit: 94.553 mm lift,
+295.864 mm XY transport, 1.473 mm final XY error and a 0.516667-second settling
+window across 13 samples. Release, support, containment, cameras and reset
+passed. This successful first case does not make the overall trial successful.
+
+The orange then failed **before actuation**. Three learned GraspGen-X batches
+of 400 candidates retained 3, 2 and 4 candidates respectively. The first two
+batches exhausted geometric checks; the third hit the shared **3.0-second
+route-preflight budget**, while checking endpoint occlusion. The skill took
+4.2425 seconds overall. The orange did not move, HOME was skipped and the
+five-object campaign did not run. This was not the 300-second host timeout
+seen in earlier attempts. A separate final ownership check could not bind
+`gateway_child` and retained only `graspgenx` and `isaac_bridge`; it is not a
+planning diagnosis or proof of administrative closure.
+
+The local route change moves the same endpoint occlusion checks ahead of
+expensive route sampling. All accepted candidates still require every original
+check; ranking, physical geometry and the 3-second budget remain unchanged.
+The same retained-frame replay selected the same candidate in **2.833772 s
+before** and **1.831435 s after** the reorder. Both offline versions passed on
+this host. The replay therefore measures roughly one second of saved work;
+it does not reproduce or erase the historical native timeout. Full replay
+receipts and source references are in [the evidence directory](evidence/manipulation-assembly/).
+
+An isolated native follow-up on `b31f2dfbb8d254665d94fa8172b182bf582b143f`
+used port 8733, PhysX CUDA, dt=1/120, camera cadence 6, required GraspGen-X,
+the observed-finger gate and independent three-camera physics auditing.
+At **1280×720**, the first startup state read timed out before motion. After
+existing read-only readiness passed (1.087 s, maximum bounded camera age
+0.829 s), the second attempt passed route selection and began approaching the
+orange. It then exhausted the unchanged **120-second motion wall budget** while
+streaming to pregrasp: 120.193 s elapsed, roughly 9.867 s of physics, RTF about
+0.082. All three camera freshness checks passed (maximum age 1.123 s); the
+orange remained untouched, without bilateral contact. Reset failed because
+the timed-out client had closed its socket; no reset actuator commands followed.
+Green was not attempted. The [1280 follow-up audit](evidence/manipulation-assembly/trial12-native-1280.json)
+records these failures and the owned process closure separately.
+
+The motion executor requires physical time between targets plus a newer step
+after each acknowledgement. Consequently a nominal 7.5-second, 225-target
+profile can consume more than 7.5 seconds of producer physics. Fresh cameras
+alone do not establish adequate motion throughput.
+
+The complete OVRTX/cuMotion two-object-scene manipulation and Newton fastening
+results are recorded in the [integration report](MANIPULATION_ASSEMBLY_20261002.md).
+They do not substitute for the kitchen launcher's strict proof2 or full campaign.
+
 ## Passive observer profiles 10 and 11
 
 Profile 10 on release-open candidate `6e1bc81a` isolated observer costs with

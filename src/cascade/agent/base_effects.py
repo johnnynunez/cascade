@@ -274,6 +274,18 @@ class BasePostconditionChecker:
                             self._tilt(state) > self._limits["max_tilt_rad"]):
                 self._reject(op, "unsafe pre-ACK state: controller/posture fault")
                 return
+            if pending:
+                support_status, support_reason = self._support(state, require_load=False)
+                if support_status != "confirmed":
+                    # A temporally excluded reading cannot prove rest, but
+                    # exclusion must not hide a failed/unsafe support channel.
+                    op.temporal_pending.append({
+                        "attempt": op.attempts, "state": state,
+                        "capture_margin_s": state["received_monotonic_s"] -
+                        state["producer_age_s"] - boundary["ack_monotonic_s"],
+                        "support_status": support_status, "support_reason": support_reason})
+                    self._reject(op, "unsafe pre-ACK support: " + support_reason)
+                    return
         current = op.is_current is None or op.is_current()
         duplicate = False
         if op.last_state is not None:

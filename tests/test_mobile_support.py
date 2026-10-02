@@ -8,8 +8,9 @@ from cascade.agent.base_effects import BasePostconditionChecker
 from cascade.control.mobile_base import BaseState
 from cascade.control.mobile_support import support_contract
 from test_mobile_effects import (
-    ScriptedReader, fixture_support, fixture_support_contract, limits, run_window, state, truth_server,
+    ScriptedReader, fixture_support, fixture_support_contract, limits, run_window, state,
 )
+from test_mobile_effects import truth_server  # noqa: F401
 
 
 def supported(n, *, contacts=None, **changes):
@@ -205,3 +206,57 @@ def test_truth_admission_rejects_registry_changes_with_unchanged_model_digest(tr
         assert requests == [{"op": "hello", "role": "reader"}]
     finally:
         reader.close()
+
+
+@pytest.mark.parametrize("pending_step", [1, 3])
+@pytest.mark.parametrize("support_kind", ["forbidden", "unavailable", "missing"])
+def test_pending_stop_support_failure_is_retained_before_later_healthy_readings(pending_step, support_kind):
+    import time
+    def make(n):
+        support = fixture_support(n)
+        if n == pending_step:
+            if support_kind == "forbidden":
+                support["contacts"] = [contact(shape_b="/Fixture/Robot/body", shape_b_id=3)]
+            elif support_kind == "unavailable":
+                support.update(status="unavailable", reason="incomplete solved rows", contacts=[])
+            else:
+                support = None
+        return state(n, support=support, producer_age_s=.15 if n == pending_step else 0.)
+    reader = ScriptedReader(make)
+    checker = BasePostconditionChecker(reader, limits=limits(), support_contract=fixture_support_contract())
+    try:
+        token = checker.begin("stop_navigation", {}, stop_boundary=dict(
+            ack_monotonic_s=time.monotonic(), robot_id="synthetic-microduck", source="scripted-software-fixture",
+            epoch="fixture-epoch", generation=0, model_identity_sha256="e" * 64))
+        verdict = checker.finish(token, {"ok": True})
+        assert verdict["status"] == "unverified", verdict["reason"]
+        assert "unsafe pre-ACK support" in verdict["reason"]
+        assert verdict["evidence"]["channel_failed"] is True
+        pending = verdict["evidence"]["temporal_pending"]
+        assert len(pending) == 1
+        assert pending[0]["state"]["step"] == pending_step
+        assert pending[0]["support_status"] == ("refuted" if support_kind == "forbidden" else "unverified")
+        assert pending[0]["capture_margin_s"] < 0
+        assert all(e["state"]["step"] != pending_step for e in verdict["evidence"]["samples"])
+        assert reader.calls == pending_step  # quarantine before the scripted recovery can mask it
+    finally:
+        checker.close()
+
+
+def test_pending_stop_flight_does_not_receive_or_require_rest_credit():
+    import time
+    reader = ScriptedReader(lambda n: state(n,
+        support={**fixture_support(n), "contacts": []} if n == 1 else fixture_support(n),
+        producer_age_s=.15 if n == 1 else 0.))
+    checker = BasePostconditionChecker(reader, limits=limits(), support_contract=fixture_support_contract())
+    try:
+        token = checker.begin("stop_navigation", {}, stop_boundary=dict(
+            ack_monotonic_s=time.monotonic(), robot_id="synthetic-microduck", source="scripted-software-fixture",
+            epoch="fixture-epoch", generation=0, model_identity_sha256="e" * 64))
+        verdict = checker.finish(token, {"ok": True})
+        assert verdict["status"] == "confirmed", verdict["reason"]
+        assert verdict["evidence"]["temporal_pending"][0]["state"]["support"]["contacts"] == ()
+        assert verdict["evidence"]["samples"][0]["state"]["step"] == 2
+        assert verdict["metrics"]["settle_samples"] >= 3
+    finally:
+        checker.close()

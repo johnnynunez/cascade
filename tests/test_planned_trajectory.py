@@ -7,7 +7,7 @@ from cascade.planning import make_motion_planner
 from cascade.planning import PlanningError
 from cascade.planning.trajectory import TrajectoryProfile
 from cascade.types import RobotState, SafetyViolation
-from test_cumotion_planner import setup
+from test_cumotion_planner import setup as setup
 from test_isaac_simulation_motion import Sim, clock
 
 
@@ -140,3 +140,22 @@ def test_linear_tool_constraint_is_requested_and_independently_checked(setup, de
                                            max_velocity=1., linear_tool_path=True)
             assert profile.plan.path_constraint == 'linear_tool'
     assert constraints == [(('line', .0001), ('orientation', .025))]
+
+
+def test_authorized_zero_margin_is_per_request_and_keeps_hard_limits(setup):
+    cfg, sdk = setup
+    with make_motion_planner(cfg) as planner:
+        with pytest.raises(PlanningError, match='margin'):
+            planner.plan_profile([1.9, 0.], [2., 0.], duration_s=2., rate_hz=30., max_velocity=1.)
+        permitted = planner.plan_profile([1.9, 0.], [2., 0.], duration_s=2., rate_hz=30.,
+                                         max_velocity=1., joint_margin=0.)
+        np.testing.assert_allclose(permitted.end, [2., 0.])
+        with pytest.raises(PlanningError, match='margin'):
+            planner.plan_profile([1.9, 0.], [2., 0.], duration_s=2., rate_hz=30., max_velocity=1.)
+        with pytest.raises(PlanningError, match='limits'):
+            planner.plan_profile([1.9, 0.], [2.001, 0.], duration_s=2., rate_hz=30.,
+                                 max_velocity=1., joint_margin=0.)
+        default = planner.plan_profile([0., 0.], [.1, 0.], duration_s=2., rate_hz=30., max_velocity=1.)
+        override = planner.plan_profile([0., 0.], [.1, 0.], duration_s=2., rate_hz=30.,
+                                        max_velocity=1., joint_margin=0.)
+        assert default.plan.request_sha256 != override.plan.request_sha256

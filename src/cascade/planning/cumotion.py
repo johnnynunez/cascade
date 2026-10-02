@@ -236,15 +236,15 @@ class CumotionPlanner:
     def _to_local(self, q):
         return q[self._local_from_sdk] * self._signs
 
-    def _positions_valid(self, q):
-        return np.all(q >= self._lo + self._margin) and np.all(q <= self._hi - self._margin)
+    def _positions_valid(self, q, margin):
+        return np.all(q >= self._lo + margin) and np.all(q <= self._hi - margin)
 
     def plan(self, start, goal):
         """Return copied samples. Native failures are not retried or substituted."""
         return self._request(start, goal)
 
     def plan_profile(self, start, goal, *, duration_s, rate_hz, max_velocity,
-                     linear_tool_path=False):
+                     linear_tool_path=False, joint_margin=None):
         """Copy the original native curve at every command and safety time.
 
         Uniform slowing preserves the geometric curve. It grants no actuator
@@ -256,20 +256,24 @@ class CumotionPlanner:
         if type(linear_tool_path) is not bool:
             raise PlanningError("linear_tool_path must be a boolean")
         return self._request(start, goal, profile_options=options,
-                             linear_tool_path=linear_tool_path)
+                             linear_tool_path=linear_tool_path, joint_margin=joint_margin)
 
-    def _request(self, start, goal, *, profile_options=None, linear_tool_path=False):
+    def _request(self, start, goal, *, profile_options=None, linear_tool_path=False,
+                 joint_margin=None):
+        margin = self._margin if joint_margin is None else _number(joint_margin, "joint_margin")
+        if margin < 0 or np.any(self._hi - self._lo <= 2 * margin):
+            raise PlanningError("joint_margin must be nonnegative and leave a valid joint interval")
         start = _vector(start, self.n, "start")
         goal = _vector(goal, self.n, "goal")
         with self._lock:
             if self._closed or self._poisoned:
                 raise PlanningError("cuMotion planner is closed or faulted; construct a new instance")
             qs, qg = self._to_sdk(start), self._to_sdk(goal)
-            if not self._positions_valid(qs) or not self._positions_valid(qg):
+            if not self._positions_valid(qs, margin) or not self._positions_valid(qg, margin):
                 raise PlanningError("start/goal violates model joint limits or margin")
             try:
                 return self._plan(qs, qg, start, goal, profile_options=profile_options,
-                                  linear_tool_path=linear_tool_path)
+                                  linear_tool_path=linear_tool_path, margin=margin)
             except Exception as exc:
                 # No assumptions about native scratch state after an exception.
                 self._poisoned = True
@@ -277,7 +281,7 @@ class CumotionPlanner:
                     raise
                 raise PlanningError(f"cuMotion planning failed: {exc}") from exc
 
-    def _plan(self, qs, qg, start, goal, *, profile_options=None, linear_tool_path=False):
+    def _plan(self, qs, qg, start, goal, *, profile_options=None, linear_tool_path=False, margin):
         target_type = self._cm.TrajectoryOptimizer.CSpaceTarget
         path_check = lambda q: None
         if linear_tool_path:
@@ -328,7 +332,7 @@ class CumotionPlanner:
         min_q = _vector(trajectory.min_position(), self.n, "trajectory minima")
         max_q = _vector(trajectory.max_position(), self.n, "trajectory maxima")
         max_v = _vector(trajectory.max_velocity_magnitude(), self.n, "trajectory max velocity")
-        if (not self._positions_valid(min_q) or not self._positions_valid(max_q)
+        if (not self._positions_valid(min_q, margin) or not self._positions_valid(max_q, margin)
                 or np.any(min_q > max_q) or np.any(max_v < 0)
                 or np.any(max_v > self._vmax + 1e-8)):
             raise PlanningError("cuMotion trajectory extrema violate model limits")
@@ -337,7 +341,7 @@ class CumotionPlanner:
         for t in times:
             q = _vector(trajectory.eval(lower + float(t), 0), self.n, "trajectory position")
             v = _vector(trajectory.eval(lower + float(t), 1), self.n, "trajectory velocity")
-            if (not self._positions_valid(q) or np.any(np.abs(v) > self._vmax + 1e-8)
+            if (not self._positions_valid(q, margin) or np.any(np.abs(v) > self._vmax + 1e-8)
                     or self._inspector.in_self_collision(q)
                     or self._inspector.in_collision_with_obstacle(q)):
                 raise PlanningError("cuMotion trajectory sample violates limits or collision model")
@@ -354,7 +358,7 @@ class CumotionPlanner:
                    "joint_names": self.joint_names, "joint_signs": self._signs.tolist(),
                    "base_frame": self.base_frame, "tool_frame": self.tool_frame,
                    "model_sha256": self.model_sha256, "scene_sha256": self.scene_sha256,
-                   "sample_dt_s": self._dt, "joint_margin": self._margin,
+                   "sample_dt_s": self._dt, "joint_margin": margin,
                    "max_duration_s": self._max_duration, "max_samples": self._max_samples,
                    "sdk_version": SDK_VERSION,
                    "endpoint_tolerance": self._endpoint_tol,
@@ -378,7 +382,7 @@ class CumotionPlanner:
             if fraction not in cache:
                 q = _vector(trajectory.eval(lower + float(fraction) * duration, 0),
                             self.n, "trajectory safety position")
-                if (not self._positions_valid(q) or self._inspector.in_self_collision(q)
+                if (not self._positions_valid(q, margin) or self._inspector.in_self_collision(q)
                         or self._inspector.in_collision_with_obstacle(q)):
                     raise PlanningError("cuMotion safety sample violates limits or collision model")
                 path_check(q)

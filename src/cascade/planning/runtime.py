@@ -131,7 +131,8 @@ def execute(safe, target, duration_s, *, joint_margin=None, legacy_preflight=Non
     profile = safe.motion_planner.plan_profile(state.q, target, duration_s=duration_s,
         rate_hz=resolve_motion_rate(safe.raw, kwargs.get('rate_hz')),
         max_velocity=h.limits.max_joint_vel,
-        **({'linear_tool_path': True} if linear_tool_path else {}))
+        **({'linear_tool_path': True} if linear_tool_path else {}),
+        **({'joint_margin': joint_margin} if joint_margin is not None else {}))
     guard()
     if time.monotonic() - started >= PLAN_BUDGET_S:
         raise SafetyViolation("cuMotion planning exceeded its time budget; no motion sent")

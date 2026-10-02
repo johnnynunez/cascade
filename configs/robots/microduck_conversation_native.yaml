@@ -1,0 +1,8 @@
+# Candidate only. The base profile requires externally supplied, reviewed native pins.
+# This composition adds no new capabilities or physical admission.
+version: 1
+robot_id: microduck
+domains:
+  locomotion:
+    kind: locomotion
+    bases: [microduck_isaac]

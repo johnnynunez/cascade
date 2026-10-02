@@ -406,7 +406,11 @@ def test_verifier_confirmed_can_upgrade_only_clean_execution(tmp_path):
         fixture_rt.close()
 
 
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_runtime_rpc_inert_actor_cannot_borrow_preflight_drift(tmp_path, frame_endpoint):
+    # This negative geometry case needs a healthy observation channel. Keep
+    # unrelated suite-heap collections outside its bounded real TCP episode;
+    # delayed/missing observation tests retain their separate fault injection.
     import math
     import threading
     from mobile_support_fixture import support

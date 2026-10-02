@@ -48,7 +48,7 @@ def _controller(profile, domain, name):
     raise ValueError(f"composition has no controller ownership mapping for {kind!r}")
 
 
-def _describe_domain(domain_id, profile):
+def _describe_domain(domain_id, profile, *, embodiment=None):
     """Return a domain's static resources/tools without constructing actuators."""
     kind = profile["kind"]
     if kind == "spatial":
@@ -58,7 +58,7 @@ def _describe_domain(domain_id, profile):
                              frozenset(), runtime=spatial)
     if kind == "sensors":
         from ..sensing.domain import build_sensor_domain
-        sensor = build_sensor_domain(domain_id, profile)
+        sensor = build_sensor_domain(domain_id, profile, embodiment=embodiment)
         return DomainAdapter(domain_id, profile, tuple(sensor.resources), sensor.tool_specs,
                              frozenset(), runtime=sensor)
     cfg = profile["resolved"]
@@ -155,9 +155,16 @@ class DomainAdapter:
 
 def describe_robot(cfg):
     """Validate the entire resource graph before opening any domain."""
-    domains = {name: _describe_domain(name, profile) for name, profile in cfg.domains.as_dict().items()}
-    ResourceCatalog([r for d in domains.values() for r in d.resources])
+    from ..robotics.embodiment import embodiment_metadata
+    body = cfg.as_dict().get("embodiment")
+    domains = {name: _describe_domain(name, profile, embodiment=body) for name, profile in cfg.domains.as_dict().items()}
+    catalog = ResourceCatalog([r for d in domains.values() for r in d.resources])
+    embodiment_metadata(body, catalog)
     actuating = [d for d in domains.values() if d.motion_skills]
+    if body is not None and body["root_mode"] == "floating" and any(
+            d.profile["kind"] == "manipulation" and any(not r.synthetic for r in d.resources)
+            for d in actuating):
+        raise ValueError("floating-root physical manipulation requires validated dynamic frames and shared control")
     if len(actuating) > 1 and any(not r.synthetic for d in actuating for r in d.resources):
         raise ValueError("mixed physical actuation needs validated shared-frame/control admission; only mixed mock domains are supported")
     return domains

@@ -298,6 +298,7 @@ class KitNewtonBackend:
         self.receipt = {}
         self._closed = False
         self._captures = 0
+        self._last_support_solve = None
 
     def open(self):
         import sys
@@ -323,10 +324,13 @@ class KitNewtonBackend:
         import numpy as np
         import warp as wp
         import newton
+        import mujoco
+        import mujoco_warp
         import omni.usd
         import omni.timeline
         from pxr import Gf, UsdGeom, UsdPhysics, UsdShade
         from isaacsim.core.simulation_manager import SimulationManager as SM
+        from isaacsim.core.version import get_version
         from isaacsim.core.experimental.utils import app as app_utils
         from isaacsim.physics.newton import acquire_stage, get_newton_config, configure_newton, MuJoCoSolverConfig
         from isaac_runtime import setup_physics, ensure_time_code_range, physics_device_identity, physics_timestep_identity
@@ -334,6 +338,7 @@ class KitNewtonBackend:
         from cascade.control.microduck_policy import HOME_Q
         from cascade.control.newton_bam import NewtonBamAdapter
         from cascade.sim.microduck_state import newton_joint_indices
+        from cascade.sim.microduck_contact_support import extraction_provenance, support_contract
 
         self.SM = SM
         self.timeline = omni.timeline.get_timeline_interface()
@@ -409,12 +414,16 @@ class KitNewtonBackend:
         self.receipt.update(newton_version=newton.__version__, warp_version=wp.__version__,
                             solver=type(ns.solver).__name__, actual_physics_dt=self._dt,
                             bootstrap_step=ns.simulation_step_count, bootstrap_time_s=float(ns.sim_time))
+        self.receipt['runtime_versions'] = dict(isaac_sim=list(get_version()),
+                                               mujoco=mujoco.__version__, mujoco_warp=mujoco_warp.__version__)
         qs, ds = newton_joint_indices(ns.model.joint_label, ns.model.joint_q_start.numpy(), ns.model.joint_qd_start.numpy())
         self.q_indices, self.dof_indices = qs, ds
         self.root_index = list(ns.model.body_label).index('/World/MicroDuck/Geometry/trunk_base')
         self._model = ns.model
         self._layout = (tuple(ns.model.joint_label), tuple(ns.model.body_label), tuple(ns.model.shape_label))
         self.receipt['native_labels'] = dict(zip(('joints', 'bodies', 'shapes'), self._layout))
+        self.receipt['support_contract'] = support_contract(ns.model.shape_label)
+        self.receipt['support_extraction'] = extraction_provenance()
         self.receipt['native_model_properties'] = prepare_native_model(ns, ds, source_cap=.96, newton=newton)
         self.bam = NewtonBamAdapter(ns, source_root=self.args.bam_source_root,
                                     q_indices=qs, dof_indices=ds, params=self.admission['bam_params'])
@@ -488,14 +497,38 @@ class KitNewtonBackend:
             raise RuntimeError('frozen Newton model/clock/manual-step contract changed')
 
     def read(self):
+        from cascade.sim.microduck_contact_support import read_support
         self._guard()
-        return read_native_state(self.ns, q_indices=self.q_indices, dof_indices=self.dof_indices,
+        clock = self.physics_clock
+        sample = read_native_state(self.ns, q_indices=self.q_indices, dof_indices=self.dof_indices,
             root_index=self.root_index, max_contacts=self.admission['limits']['max_contacts'],
             max_constraints=self.admission['limits']['max_constraints'])
+        sample['support'] = read_support(self.ns, last_solved_clock=self._last_support_solve,
+            source_admitted=self.receipt['support_extraction']['source_admitted'])
+        if self.physics_clock != clock:
+            raise RuntimeError('physics advanced during native state/support read')
+        return sample
 
     def step(self):
         # No app update, target write, model notification or rendering here.
+        import math
+        from cascade.sim.microduck_stepper import clock_tolerance
+        before = self.physics_clock
+        self._last_support_solve = None
         self.SM.step(steps=1)
+        after = self.physics_clock
+        if (after[0] != before[0] + 1 or not math.isclose(after[1], before[1] + self._dt,
+                                                       rel_tol=0, abs_tol=clock_tolerance(after[1]))):
+            raise RuntimeError('native step did not complete exactly one physical solve')
+        self._last_support_solve = after
+
+    def support_probe(self):
+        """Read-only comparison with the SDK force API for native validation."""
+        from cascade.sim.microduck_contact_support import compare_native_force_api
+        self._guard()
+        if self._last_support_solve != self.physics_clock:
+            raise RuntimeError('support diagnostic requires a completed physical solve')
+        return compare_native_force_api(self.ns)
 
     def capture(self):
         self._guard()

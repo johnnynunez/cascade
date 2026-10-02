@@ -1,0 +1,31 @@
+{
+  "repository": "https://github.com/isaac-sim/IsaacGymEnvs",
+  "commit": "aeed298638a1f7b5421b38f5f3cc2d1079b6d9c3",
+  "files": {
+    "factory_bolt_m20_loose.obj": {
+      "upstream_path": "assets/factory/mesh/factory_nut_bolt/factory_bolt_m20_loose.obj",
+      "sha256": "83915bb229635c4e822fc45d721f502b54cbfbe6c76736e5fd4cfb53a24f572a",
+      "bytes": 3550732
+    },
+    "factory_nut_m20_loose_subdiv_3x.obj": {
+      "upstream_path": "assets/factory/mesh/factory_nut_bolt/factory_nut_m20_loose_subdiv_3x.obj",
+      "sha256": "ed64a5f282c4abe680ef112c6085704ee7ba0637a2cda0659fd1f1025fa8ab94",
+      "bytes": 1129307
+    },
+    "factory-acknowledgments.txt": {
+      "upstream_path": "assets/licenses/factory-acknowledgments.txt",
+      "sha256": "f8520878a42bff077613732b9aa2bf8c18402f38bef4c0ad66bef1302a3fd89d",
+      "bytes": 347
+    },
+    "LICENSE.txt": {
+      "upstream_path": "LICENSE.txt",
+      "sha256": "68f7ce6ed43e93e5d6404a9b05f97c0864a32b373548dba93a2c262e81561931",
+      "bytes": 1615
+    },
+    "factory_asset_info_nut_bolt.yaml": {
+      "upstream_path": "assets/factory/yaml/factory_asset_info_nut_bolt.yaml",
+      "sha256": "53f378bb850523f3396f0c412ef79abd182dee808ac74cc9534990e044087a48",
+      "bytes": 3940
+    }
+  }
+}

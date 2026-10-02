@@ -1,0 +1,100 @@
+{
+  "final-positive": {
+    "end.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-positive/end.png",
+      "sha256": "14c187c7e1d26450a69aa21b8fa248714dc35c3465d4888afe15e4c06c20d9df",
+      "bytes": 103594
+    },
+    "middle.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-positive/middle.png",
+      "sha256": "97f6fc5354488f61db44ed484841b6b8491442c62ad9dbd33b89db942b2d0910",
+      "bytes": 103986
+    },
+    "samples.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-positive/samples.jsonl",
+      "sha256": "6afe45eca7c15f63372a881ddcd8e8cce98dea794cf08e415636a8d2638d9d40",
+      "bytes": 1132663
+    },
+    "source-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-positive/source-before.json",
+      "sha256": "3bad7435c0ce933a55bc32504f308362ed1fa1a0f7bc733dd36b56e001e750ff",
+      "bytes": 338
+    },
+    "start.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-positive/start.png",
+      "sha256": "0d03b66a61a14b9b4e253d43815ee66e646a2930d8fdb5d421b5abcb5add2800",
+      "bytes": 103960
+    },
+    "summary.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-positive/summary.json",
+      "sha256": "baa39ffdf777923786d6324ddef52f1d0dc882579530f0a161bbb6975ced0689",
+      "bytes": 5283
+    },
+    "threading.mp4": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-positive/threading.mp4",
+      "sha256": "53c171a424ee823d540ba833400c08a3be78890c26ffb763ccaf951fee23bb7b",
+      "bytes": 134449
+    }
+  },
+  "final-zero-drive": {
+    "samples.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-zero-drive/samples.jsonl",
+      "sha256": "27c9dd8b84a9fa7da0d6140c9a1566e395de427d1bbbb93cebbd29534155f6df",
+      "bytes": 1123634
+    },
+    "source-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-zero-drive/source-before.json",
+      "sha256": "3bad7435c0ce933a55bc32504f308362ed1fa1a0f7bc733dd36b56e001e750ff",
+      "bytes": 338
+    },
+    "summary.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-zero-drive/summary.json",
+      "sha256": "871f409870ad83f715be90f11215f506897d1d28110a6baeca5d3bd68260b7af",
+      "bytes": 5254
+    }
+  },
+  "final-misaligned": {
+    "samples.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-misaligned/samples.jsonl",
+      "sha256": "6b12c2b26750f2b021f256686058c2ffc9a5b9945086fed61a78cb1850de34c3",
+      "bytes": 559663
+    },
+    "source-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-misaligned/source-before.json",
+      "sha256": "3bad7435c0ce933a55bc32504f308362ed1fa1a0f7bc733dd36b56e001e750ff",
+      "bytes": 338
+    },
+    "summary.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/final-misaligned/summary.json",
+      "sha256": "2b043744fd5e9282fe826a72efd0059515fed2cdae0fbef84f6c42878b20d110",
+      "bytes": 4695
+    }
+  },
+  "robot-dt1200": {
+    "end.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/robot-dt1200/end.png",
+      "sha256": "273a84ae3fdca1ca300e61e28477bd06ef2c619fd1e705cb37c518ae59531320",
+      "bytes": 100080
+    },
+    "middle.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/robot-dt1200/middle.png",
+      "sha256": "3fc55a115fd67c712d0a9bed0d043889eb797ffe8f537e9a107e1d7968456d13",
+      "bytes": 100424
+    },
+    "samples.jsonl": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/robot-dt1200/samples.jsonl",
+      "sha256": "9a355362619e12faa26752aeb67339ae3d36b7a1250d27435ad07f33aecd6e6e",
+      "bytes": 1106177
+    },
+    "start.png": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/robot-dt1200/start.png",
+      "sha256": "185904164327aebff3d12337c24b3a91ba130eaced8f5bcede1d4f88a840f558",
+      "bytes": 100798
+    },
+    "summary.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/CODEX_NEWTON/screw-contact-evidence/robot-dt1200/summary.json",
+      "sha256": "2aac341898c72ce73da58788b597d89dba48dadff589246ed70b1d87c8e9599f",
+      "bytes": 5151
+    }
+  }
+}

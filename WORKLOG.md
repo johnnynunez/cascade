@@ -225,3 +225,6 @@ during validation and between admission and domain lookup; no domain call occurs
 Priority stop ignores an expired episode deadline. This coordinator check is not
 a real-time actuator guarantee: domain owners still enforce backend leases and
 last-moment cancellation. Provider/browser timestamps cannot supply this deadline.
+
+Integration with PR #70 passed 83 focused spatial/runtime/graph/MCP cases on
+frozen source, preserving all generation/deadline checks and learned stores.

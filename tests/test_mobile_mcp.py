@@ -11,6 +11,7 @@ import time
 import pytest
 from mobile_support_fixture import support_contract
 from mobile_tick_fixture import NORMAL_WALL_INTERVAL_S
+from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc
 import test_mobile_frames
 
 frame_endpoint = test_mobile_frames.frame_endpoint
@@ -371,6 +372,7 @@ def test_mobile_camera_mcp_subprocess_returns_actual_jpeg_and_history(tmp_path, 
 
 @pytest.mark.parametrize("velocity,expected", [(0., "confirmed"), (.05, "refuted")])
 @pytest.mark.parametrize("wall_tick_s", [NORMAL_WALL_INTERVAL_S, .03], ids=["normal-producer", "slow-producer"])
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_real_mcp_stop_post_ack_evidence_never_repairs_failed_motion(
         tmp_path, frame_endpoint, velocity, expected, wall_tick_s):
     from test_mobile_runtime import SyntheticTicks, verifier_limits

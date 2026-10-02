@@ -223,7 +223,28 @@ def test_real_tcp_inflight_fault_must_block_task_done(
             assert captured[0]["return"] > captured[0]["deadline"], record
             assert proof["postcondition"]["evidence"]["late_reads"] == 1, record
         if kind == "healthy_late":
-            assert proof["status"] == "confirmed" and done["success"], record
+            # A large record is truncated by pytest's dict repr, hiding the
+            # reason we need when this real-TCP timing probe fails on CI.
+            assert proof["status"] == "confirmed" and done["success"], json.dumps(
+                {
+                    "status": proof["status"],
+                    "reason": proof.get("reason"),
+                    "task_done_success": done["success"],
+                    "postcondition": {
+                        key: proof["postcondition"].get(key)
+                        for key in ("status", "reason", "metrics")
+                    },
+                    "evidence": {
+                        key: proof["postcondition"]["evidence"].get(key)
+                        for key in ("rejected", "attempts", "late_reads", "channel_failed")
+                    },
+                    "eligible_samples": len(proof["postcondition"]["evidence"]["samples"]),
+                    "max_read_duration_s": max(r["end"] - r["start"] for r in reads),
+                    "late_return_after_deadline_s": captured[0]["return"] - captured[0]["deadline"],
+                    "record_path": str(tmp_path / (kind + "_" + skill + ".json")),
+                },
+                sort_keys=True,
+            )
         else:
             assert (
                 current["controller_status"]

@@ -57,3 +57,24 @@ def test_excessive_backlog_fails_without_skipping_or_spinning():
     assert next(ticks) == 1
     with pytest.raises(AssertionError, match="synthetic tick backlog"):
         next(ticks)
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("interrupt", [False, True])
+def test_healthy_episode_restores_previous_gc_mode(enabled, interrupt):
+    import gc
+    from mobile_tick_fixture import quiescent_cyclic_gc
+
+    original = gc.isenabled()
+    try:
+        (gc.enable if enabled else gc.disable)()
+        try:
+            with quiescent_cyclic_gc():
+                assert not gc.isenabled()
+                if interrupt:
+                    raise RuntimeError("episode failed")
+        except RuntimeError:
+            assert interrupt
+        assert gc.isenabled() is enabled
+    finally:
+        (gc.enable if original else gc.disable)()

@@ -201,3 +201,8 @@ during validation and between admission and domain lookup; no domain call occurs
 Priority stop ignores an expired episode deadline. This coordinator check is not
 a real-time actuator guarantee: domain owners still enforce backend leases and
 last-moment cancellation. Provider/browser timestamps cannot supply this deadline.
+
+Root review integrated the generation/deadline fix from PR #70, preserving both
+passive embodiment metadata and atomic dispatch checks. The frozen integrated
+source passed 100 focused runtime/graph/embodiment/sensing/MCP cases; protected
+learned stores were unchanged. This follows the author's 193-case final suite.

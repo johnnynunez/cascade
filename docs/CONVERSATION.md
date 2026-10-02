@@ -93,6 +93,19 @@ No speech timing enters a robot's high-rate control loop. MicroDuck's locomotion
 policy retains ownership of its head and leg actions; no speech head/mouth
 controller is created by this feature.
 
+`--robot microduck_conversation_mock` selects a base-only MicroDuck software
+fixture for the same gateway. It exposes `locomotion.get_base_state` and the
+existing bounded mobile tools, with no arm/gripper claims. The state is explicitly
+`kinematic_mock`; successful transport cannot turn it into physical evidence.
+For a passive first connection, allow only `locomotion.get_base_state`.
+
+`microduck_conversation_native` composes the existing `microduck_isaac` candidate.
+It requires the reviewed asset/policy/effective-model hashes, device identity,
+support contract and verifier configuration documented in [MicroDuck](MICRODUCK.md).
+Missing pins fail before connecting. The profile adds no gait admission and does
+not use speech to circumvent the mobile verifier. Start with observation-only
+tools; no speech-initiated native movement was validated in this increment.
+
 ## Provider contract and self-hosting
 
 The target is the HF speech-to-speech GA WebSocket subset at revision

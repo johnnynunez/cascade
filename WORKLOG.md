@@ -235,3 +235,20 @@ Root review on the integrated PR #70 source passed 97 focused conversation,
 runtime, graph and MCP tests, with three optional-stack skips. Source and shared
 learned stores were unchanged; all 41 conversation cases passed. The provider
 inference experiment is separate from these loopback protocol results.
+
+## MicroDuck conversation composition (2026-10-02)
+
+Added explicit robot profiles for the existing MicroDuck mock and native base
+domains. Both expose only base resources, preserving each backend's canonical
+robot identifier. Robot identity validation now uses the same bounded identifier
+contract as resource descriptors; profile filenames remain strict slugs. The
+native profile refuses to construct its bridge client without an explicit model
+identity pin. It does not mark a gait, provider, or physical episode admitted.
+
+Validation: 71 profile/conversation/runtime/MCP/config tests passed, with three
+optional-stack skips. The mock profile reads actual mock base state and exposes
+no arm; the native profile rejects missing identity before bridge I/O. Frozen
+source and protected learned stores stayed unchanged. An earlier failed identity
+mismatch test and an incorrect test assumption about validation timing are
+retained in the task's `microduck-profiles-02` results; the final run is
+`microduck-profiles-03`.

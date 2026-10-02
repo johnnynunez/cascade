@@ -176,8 +176,10 @@ def load_robot_config(robot: str, *, llm: str = "mock", config_dir: Path | None 
     data = load_profile("robots", robot, cdir).as_dict()
     if set(data) - {"version", "robot_id", "domains"} or type(data.get("version")) is not int or data.get("version") != 1:
         raise ValueError("robot profile requires version 1, robot_id and domains only")
-    if not isinstance(data.get("robot_id"), str) or not re.fullmatch(r"[a-z][a-z0-9_]*", data["robot_id"]):
-        raise ValueError("robot_id must be an exact slug")
+    # A robot identity is not a profile filename. Preserve the exact identifier
+    # used by its backend (for example microduck-mock) without relabeling it.
+    from .robotics.contracts import identifier
+    identifier(data.get("robot_id"), "robot_id")
     domains = data.get("domains")
     if not isinstance(domains, dict) or not domains or len(domains) > 16:
         raise ValueError("robot domains must be a nonempty mapping of at most 16 entries")

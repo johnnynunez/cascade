@@ -180,6 +180,9 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
     from cascade.sim.microduck_stepper import FrameCache, MicroduckStepper
 
     defer = signals.defer if signals is not None else nullcontext
+    def checkpoint():
+        if signals is not None:
+            signals.checkpoint(persistent=True)
     with defer():
         # Exclusive creation is the ownership boundary; never truncate old receipts.
         out = Path(args.out)
@@ -198,19 +201,16 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
             stream.write(admission['experience_text'])
         result['experience_sha256'] = hashlib.sha256(experience.read_bytes()).hexdigest()
     try:
-        if signals is not None:
-            signals.checkpoint()
+        checkpoint()
         with defer():
             sys.path.extend(validate_extra_paths(args.python_extra_path))
             backend = (backend_factory or KitNewtonBackend)(args, admission, experience)
             backend.signals = signals
-        if signals is not None:
-            signals.checkpoint()
+        checkpoint()
         # open owns only the passive SDK acquisition deferral. Active native
         # initialization must not inherit a defer spanning the entire method.
         backend.open()
-        if signals is not None:
-            signals.checkpoint()
+        checkpoint()
         with defer():
             from cascade.sim.mobile_identity import build_model_identity
 
@@ -232,17 +232,18 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
             if remaining <= 0:
                 raise RuntimeError('wall deadline expired during bootstrap')
             stepper = MicroduckStepper(backend, controller, policy, backend.bam, max_steps=args.max_steps,
-                max_wall_s=remaining, **{k: admission['limits'][k] for k in FALL_LIMITS})
+                max_wall_s=remaining, checkpoint=checkpoint,
+                **{k: admission['limits'][k] for k in FALL_LIMITS})
             cache = FrameCache(controller.hello(), max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=640*480)
             server = (server_factory or MobileBridgeServer)(controller, port=args.port, frame_callback=cache)
             stepper.start()
-        if signals is not None:
-            signals.checkpoint()
+        checkpoint()
         # Cold RTX initialization can outlast the consumer's frame-age bound.
         # Prime it on unscored HOME/bootstrap state, then DISCARD these pixels.
         # The first published image still follows a new controlled solve;
         # neither old pixels nor their timestamps are rejuvenated.
         warmup = backend.capture()
+        checkpoint()
         if (warmup['step'] != stepper.initial_step or warmup['sim_time_s'] != stepper.initial_time
                 or backend.physics_clock != (stepper.initial_step, stepper.initial_time)):
             raise RuntimeError('camera warmup advanced physics or returned mismatched clocks')
@@ -261,6 +262,7 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                 stream.write(json.dumps(value, allow_nan=False, default=json_default) + '\n')
                 stream.flush()
             while stepper.steps < args.max_steps:
+                checkpoint()
                 if stop_requested():
                     result['end_reason'] = 'signal/lifecycle shutdown'
                     break
@@ -277,6 +279,7 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                             raise RuntimeError('policy attempt trace repeated/regressed')
                         row(policies, record)
                         last_policy_attempt = record['attempt']
+                checkpoint()
                 row(trace, {**sample, 'episode_step': stepper.steps, 'bam': backend.bam.telemetry(),
                             'controller': controller.state()['state']})
                 if stepper.steps == 1 or stepper.steps % args.camera_every == 0 or stepper.steps == args.max_steps:
@@ -290,6 +293,7 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                                 or evidence.get('sim_time_s') != sample['sim_time']):
                             raise RuntimeError('support-force probe failed or belongs to another completed step')
                     capture = backend.capture()
+                    checkpoint()
                     if capture['step'] != sample['step'] or capture['sim_time_s'] != sample['sim_time']:
                         raise RuntimeError('capture not bound to last published completed state')
                     cache.publish(**capture)

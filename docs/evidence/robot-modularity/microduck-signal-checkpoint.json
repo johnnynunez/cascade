@@ -1,0 +1,99 @@
+{
+  "scope": "software OS-signal lifecycle regression; no native simulation or physical stop claim",
+  "baseline_bridge_revision": "0f0ed40",
+  "native_trigger": "LOCOMOTION_NEXT/native-distance-slow01 required forced termination after Kit consumed SignalRequest",
+  "retained_runs": {
+    "swallowed-signal-01": {
+      "receipt": {
+        "command": [
+          "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+          "-m",
+          "pytest",
+          "-q",
+          "--tb=short",
+          "--junitxml=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_LIFECYCLE/swallowed-signal-01/junit.xml",
+          "--basetemp=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_LIFECYCLE/swallowed-signal-01/tmp",
+          "tests/test_microduck_signal_stop.py",
+          "tests/test_microduck_bridge_cli.py",
+          "tests/test_microduck_receipt_finalization.py",
+          "tests/test_microduck_stepper.py",
+          "tests/test_mobile_signal_stop.py"
+        ],
+        "exit_code": 0,
+        "source_unchanged": true,
+        "source_files": 1499,
+        "shared_memory_unchanged": true,
+        "shared_memory_after": {
+          "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+          "/home/johnny/.cascade/grasp_memory.json": null
+        }
+      },
+      "artifacts": {
+        "result.json": "b0813f81d8a1a7fb4e47f177156cc01bc76eea5d46535d80710f12b434c01632",
+        "pytest.log": "02e5dc63af7da83e6bbddbd67aa88b27fba07dc9baf01a69aa70eeb56dc2d854",
+        "junit.xml": "aff50bafcc5f8152aa4c8ad25b570b71dfdebc4ad004329438fd0e9a3b965323",
+        "source-sha256.json": "30ab7bd286ee0fa40ba782fd4e3e54a1267b9d58dd4aa103ba4054afcd1c4771"
+      }
+    },
+    "swallowed-signal-red-01": {
+      "receipt": {
+        "command": [
+          "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+          "-m",
+          "pytest",
+          "-q",
+          "--tb=short",
+          "--junitxml=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_LIFECYCLE/swallowed-signal-red-01/junit.xml",
+          "--basetemp=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_LIFECYCLE/swallowed-signal-red-01/tmp",
+          "tests/test_microduck_signal_stop.py",
+          "-k",
+          "swallowed"
+        ],
+        "exit_code": 1,
+        "source_unchanged": true,
+        "source_files": 1499,
+        "shared_memory_unchanged": true,
+        "shared_memory_after": {
+          "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+          "/home/johnny/.cascade/grasp_memory.json": null
+        }
+      },
+      "artifacts": {
+        "result.json": "f6abfc4e591dcda94ed1038f07cf435b2052303da260898d5a45368caf94c81d",
+        "pytest.log": "2258251819fab2289dc0b75b371ddda776d1cf41df42215a0525888baeaebdc7",
+        "junit.xml": "aaaaa6d8bd6012215525dd2818fb5177954fac2b5662cb79e46e0de48490028f",
+        "source-sha256.json": "30ab7bd286ee0fa40ba782fd4e3e54a1267b9d58dd4aa103ba4054afcd1c4771"
+      }
+    },
+    "swallowed-signal-02": {
+      "receipt": {
+        "command": [
+          "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+          "-m",
+          "pytest",
+          "-q",
+          "--tb=short",
+          "--junitxml=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_LIFECYCLE/swallowed-signal-02/junit.xml",
+          "--basetemp=/home/johnny/Projects/demo/cascade-lab/MICRODUCK_LIFECYCLE/swallowed-signal-02/tmp",
+          "tests/test_microduck_signal_stop.py",
+          "-k",
+          "swallowed"
+        ],
+        "exit_code": 0,
+        "source_unchanged": true,
+        "source_files": 1499,
+        "shared_memory_unchanged": true,
+        "shared_memory_after": {
+          "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+          "/home/johnny/.cascade/grasp_memory.json": null
+        }
+      },
+      "artifacts": {
+        "result.json": "795ca0d57ba26ed3207fc85699843c832e427ee2127a1af6b8092c4d3c163433",
+        "pytest.log": "1d6aa34b82a8155a1a147814e9d7140f52fb1420ac79fc099fe9449a4f23264d",
+        "junit.xml": "6019c9339e1714df09d7e5e0da79e24fac4be4cda9d88c4d2f702eafc8484e69",
+        "source-sha256.json": "5721bcc63136c13a8ccf65aa48b8562f10d6e77181fd0260983648742c9847af"
+      }
+    }
+  }
+}

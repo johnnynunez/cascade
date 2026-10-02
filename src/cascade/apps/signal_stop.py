@@ -98,7 +98,16 @@ class StopSignals:
         finally:
             self._deferred -= 1
 
-    def checkpoint(self):
+    def checkpoint(self, *, persistent=False):
+        """Unwind deferred signals; optionally recheck a recorded exit signal.
+
+        Native event frameworks may catch BaseException in a callback. Their
+        owned lifecycle must recheck the scalar signum at safe boundaries even
+        after the initial exception was consumed. Ordinary interactive callers
+        retain the default one-shot behavior, including staff reset semantics.
+        """
         if self._pending is not None:
             signum, self._pending = self._pending, None
             raise SignalRequest(signum)
+        if persistent and self.signum is not None:
+            raise SignalRequest(self.signum)

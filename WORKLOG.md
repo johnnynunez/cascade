@@ -201,3 +201,26 @@ during validation and between admission and domain lookup; no domain call occurs
 Priority stop ignores an expired episode deadline. This coordinator check is not
 a real-time actuator guarantee: domain owners still enforce backend leases and
 last-moment cancellation. Provider/browser timestamps cannot supply this deadline.
+
+## MicroDuck SDK callback signal consumption (2026-10-02)
+
+A native locomotion campaign required forced termination after Kit caught the
+`SignalRequest` raised by SIGTERM inside its callback. The recorded scalar
+signal survived, but the native runner did not check it after callback return.
+The CLI now uses persistent signal checkpoints after SDK initialization and
+capture, at loop boundaries, and before the stepper commits inference or submits
+new actuator/solver work. Existing interactive one-shot handling is unchanged;
+cleanup still runs outside the handler. This cannot interrupt an uncooperative
+native call, so the external owned-process supervisor remains necessary.
+
+Feature-to-skill map: `isaac-sim-troubleshooting` for the observed native hang,
+`isaac-sim-orchestrator` for owned process/source/closure evidence, and
+`isaac-sim-validator` for regression checks before native follow-up.
+
+Validation: 175 focused lifecycle/stepper/CLI tests passed. A retained old-bridge
+control failed all six new SIGINT/SIGTERM callback-consumption cases, showing
+additional solver work after the signal. The fixed six cases passed again with
+an explicit assertion that the SDK fixture consumed the signal. All test runs
+retained unchanged source snapshots and protected learned-store hashes. This
+is software evidence only; native shutdown validation is a separate follow-up.
+Receipt: `docs/evidence/robot-modularity/microduck-signal-checkpoint.json`.

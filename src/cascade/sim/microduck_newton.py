@@ -410,6 +410,11 @@ class KitNewtonBackend:
         self._last_support_solve = None
         self.signals = None
         self._solver_graph = None
+        self._solved_read = None
+        self._reuse_solved_read = getattr(args, 'reuse_solved_read', False)
+        if type(self._reuse_solved_read) is not bool or (self._reuse_solved_read
+                and getattr(args, 'solver_cuda_graph', False) is not True):
+            raise ValueError('same-solve read reuse requires explicit bound solver graph mode')
 
     def _checkpoint(self):
         if self.signals is not None:
@@ -439,6 +444,7 @@ class KitNewtonBackend:
             sys.argv = saved
 
     def _initialize(self):
+        self._solved_read = None
         self._checkpoint()
         import copy
         import math
@@ -586,6 +592,7 @@ class KitNewtonBackend:
             source_path=inspect.getfile(type(ns)))
         self.receipt['configuration']['use_cuda_graph'] = self._solver_graph.enabled
         self.receipt['configuration']['solver_graph_stage_sha256'] = self._solver_graph.source_sha256
+        self.receipt['configuration']['reuse_solved_read'] = self._reuse_solved_read
 
     def _create_camera(self, stage):
         self._checkpoint()
@@ -639,7 +646,7 @@ class KitNewtonBackend:
 
     def _guard(self):
         ns = self.ns
-        if (not ns.initialized or ns.model is not self._model or ns.cfg.time_step_app
+        if (self._closed or not ns.initialized or ns.model is not self._model or ns.cfg.time_step_app
                 or ns.cfg.num_substeps != 1
                 or self.dt != self._dt or str(self.SM.get_active_physics_engine()).lower() != 'newton'
                 or self._layout != (tuple(ns.model.joint_label), tuple(ns.model.body_label), tuple(ns.model.shape_label))):
@@ -649,9 +656,17 @@ class KitNewtonBackend:
         self._solver_graph.check()
 
     def read(self):
+        # This backend has a single main-thread state writer and exposes no
+        # pose/reset API between solves. The duplicate pre-tick read can reuse
+        # the preceding post-solve payload after guards revalidate clock/model/
+        # buffer ownership. This never publishes or refreshes a sample's age.
+        import copy
         from cascade.sim.microduck_contact_support import read_support
         self._guard()
         clock = self.physics_clock
+        key = (clock, self._last_support_solve)
+        if self._reuse_solved_read and self._solved_read is not None and self._solved_read[0] == key:
+            return copy.deepcopy(self._solved_read[1])
         sample = read_native_state(self.ns, q_indices=self.q_indices, dof_indices=self.dof_indices,
             root_index=self.root_index, max_contacts=self.admission['limits']['max_contacts'],
             max_constraints=self.admission['limits']['max_constraints'])
@@ -660,6 +675,8 @@ class KitNewtonBackend:
         sample['solver_graph'] = self._solver_graph.telemetry()
         if self.physics_clock != clock:
             raise RuntimeError('physics advanced during native state/support read')
+        if self._reuse_solved_read:
+            self._solved_read = (key, copy.deepcopy(sample))
         return sample
 
     def step(self):
@@ -669,6 +686,7 @@ class KitNewtonBackend:
         self._checkpoint()
         self._guard()
         before = self.physics_clock
+        self._solved_read = None
         self._last_support_solve = None
         self.SM.step(steps=1)
         self._guard()
@@ -695,6 +713,7 @@ class KitNewtonBackend:
         return result
 
     def contain(self, reason):
+        self._solved_read = None
         self.receipt['containment'] = str(reason)
         if self.timeline is not None:
             self.timeline.pause()  # no stop/reset callback or pose write

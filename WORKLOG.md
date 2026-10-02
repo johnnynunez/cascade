@@ -644,3 +644,21 @@ remains uncaptured. Sixteen new buffer/mode regressions and the combined actual
 Newton CPU suite passed (242 cases). GPU capture remains an experiment until
 source-bound foundation and MCP receipts validate actual one-solve cadence,
 force extraction, policy responsiveness and process closure.
+
+## Same-solve read reuse (2026-10-02)
+
+The actual graph profile reduced solver calls from 3.689 to 0.102 seconds over
+240 steps; duplicate native state/support reads still consumed 1.512 seconds.
+The explicit `--reuse-solved-read` option reuses a detached payload only for the
+same completed solve and only with graph-bound state/control/contact buffers.
+Every read still checks model, layout, timestep, mode and current clocks. Every
+solve, initialization and containment invalidates the cache. Consumers receive
+separate copies; no capture/receipt timestamp is refreshed and no new sample is
+published by a cache hit. This backend owns its state on one thread and exposes
+no pose/reset writes between solves. Actual BAM state checks remain per step.
+
+Thirteen regressions cover changed clocks/support solve, buffer/model/layout/
+timestep/mode drift, closure, failed solver invalidation and consumer mutation.
+The combined actual Newton CPU suite passed 255 cases. Physical parameters and
+all task/rest gates remain unchanged; the next native recipe separately binds
+this compute option and must revalidate trace, force channel and gait outcomes.

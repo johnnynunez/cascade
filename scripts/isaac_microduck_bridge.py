@@ -42,6 +42,8 @@ def parse_args(argv=None):
     p.add_argument('--max-jpeg-bytes', type=int, default=2*1024**2)
     p.add_argument('--solver-cuda-graph', action='store_true',
                    help='explicit reviewed SDK solver graph; BAM/checkpoints stay outside capture')
+    p.add_argument('--reuse-solved-read', action='store_true',
+                   help='reuse detached same-solve state/support; requires bound solver graph buffers')
     p.add_argument('--check-only', action='store_true', help='offline admission only; no Kit, socket or writes')
     return p.parse_args(argv)
 
@@ -399,6 +401,8 @@ def admit(args):
     from cascade.sim.microduck_policy_admission import admit_policy
     if args.engine != 'newton':
         raise ValueError('PhysX BAM unsupported; no fallback')
+    if args.reuse_solved_read and not args.solver_cuda_graph:
+        raise ValueError('same-solve read reuse requires bound solver graph buffers')
     if type(args.port) is not int or not 0 <= args.port <= 65535:
         raise ValueError('explicit port must be in 0..65535')
     if re.fullmatch(r'cuda:\d+', args.device) is None:

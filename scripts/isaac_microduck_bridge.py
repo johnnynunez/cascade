@@ -40,6 +40,8 @@ def parse_args(argv=None):
     p.add_argument('--max-steps', type=int, required=True)
     p.add_argument('--camera-every', type=int, default=20, help='overview capture interval in completed steps')
     p.add_argument('--max-jpeg-bytes', type=int, default=2*1024**2)
+    p.add_argument('--solver-cuda-graph', action='store_true',
+                   help='explicit reviewed SDK solver graph; BAM/checkpoints stay outside capture')
     p.add_argument('--check-only', action='store_true', help='offline admission only; no Kit, socket or writes')
     return p.parse_args(argv)
 
@@ -449,6 +451,7 @@ def admit(args):
              'src/cascade/apps/signal_stop.py',
              'src/cascade/control/newton_bam.py', 'src/cascade/control/microduck_policy.py',
              'src/cascade/sim/microduck_policy_admission.py', 'assets/microduck/policy-candidates.json',
+             'src/cascade/sim/microduck_solver_graph.py',
              'src/cascade/control/microduck_actuator.py', 'assets/microduck/manifest.json',
              'assets/microduck/newton-bam.json', 'configs/isaac/microduck.newton.kit')
     admitted.update(limits=load_limits(args.limits), limits_sha256=sha256(args.limits),

@@ -627,3 +627,20 @@ isaac-sim-validator. Validation: 208 policy/CLI/stepper/native BAM tests passed
 with CPU-only Newton 1.6 and the pinned PR source, using a private Warp cache.
 The new CLI and source inventory bind the selected checkpoint; weights are not
 downloaded or executed by offline admission and are not committed.
+
+## Explicit solver graph experiment (2026-10-02)
+
+The rough-e native trial reached signed distance targets but failed the unchanged
+three-second wall rest gate. A separate SDK solver-only CUDA-graph option now
+addresses measured per-step compute cost. The reviewed NewtonStage source is
+hash-pinned. Capture is enabled only after model preparation and initial HOME;
+the SDK warms once, captures its solver work and launches one solve per step.
+BAM computation, controller fencing, signal checkpoints, force extraction and
+rendering remain outside capture. State/control/contact buffer replacement,
+changed capture timestep, silent mode changes and graph replacement fail closed.
+
+No physical/action/rest timeout or acceptance threshold changes. The default
+remains uncaptured. Sixteen new buffer/mode regressions and the combined actual
+Newton CPU suite passed (242 cases). GPU capture remains an experiment until
+source-bound foundation and MCP receipts validate actual one-solve cadence,
+force extraction, policy responsiveness and process closure.

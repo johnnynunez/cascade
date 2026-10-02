@@ -409,6 +409,7 @@ class KitNewtonBackend:
         self._captures = 0
         self._last_support_solve = None
         self.signals = None
+        self._solver_graph = None
 
     def _checkpoint(self):
         if self.signals is not None:
@@ -577,6 +578,14 @@ class KitNewtonBackend:
         self.bam.reset()  # no armed target until successful ONNX inference
         self.receipt['initialization'] = {'root_z_m': .125, 'home_q': HOME_Q.tolist(), 'pose_writes_in_episode': False}
         self.receipt['bam'] = self.bam.telemetry()
+        self._checkpoint()
+        import inspect
+        from cascade.sim.microduck_solver_graph import SolverGraphContract
+        self._solver_graph = SolverGraphContract(ns,
+            enabled=getattr(self.args, 'solver_cuda_graph', False), wp=wp, dt=self._dt,
+            source_path=inspect.getfile(type(ns)))
+        self.receipt['configuration']['use_cuda_graph'] = self._solver_graph.enabled
+        self.receipt['configuration']['solver_graph_stage_sha256'] = self._solver_graph.source_sha256
 
     def _create_camera(self, stage):
         self._checkpoint()
@@ -631,10 +640,13 @@ class KitNewtonBackend:
     def _guard(self):
         ns = self.ns
         if (not ns.initialized or ns.model is not self._model or ns.cfg.time_step_app
-                or ns.cfg.use_cuda_graph or ns.cfg.num_substeps != 1 or ns.graph is not None
+                or ns.cfg.num_substeps != 1
                 or self.dt != self._dt or str(self.SM.get_active_physics_engine()).lower() != 'newton'
                 or self._layout != (tuple(ns.model.joint_label), tuple(ns.model.body_label), tuple(ns.model.shape_label))):
             raise RuntimeError('frozen Newton model/clock/manual-step contract changed')
+        if self._solver_graph is None:
+            raise RuntimeError('solver execution mode was not bound during initialization')
+        self._solver_graph.check()
 
     def read(self):
         from cascade.sim.microduck_contact_support import read_support
@@ -645,6 +657,7 @@ class KitNewtonBackend:
             max_constraints=self.admission['limits']['max_constraints'])
         sample['support'] = read_support(self.ns, last_solved_clock=self._last_support_solve,
             source_admitted=self.receipt['support_extraction']['source_admitted'])
+        sample['solver_graph'] = self._solver_graph.telemetry()
         if self.physics_clock != clock:
             raise RuntimeError('physics advanced during native state/support read')
         return sample
@@ -653,9 +666,12 @@ class KitNewtonBackend:
         # No app update, target write, model notification or rendering here.
         import math
         from cascade.sim.microduck_stepper import clock_tolerance
+        self._checkpoint()
+        self._guard()
         before = self.physics_clock
         self._last_support_solve = None
         self.SM.step(steps=1)
+        self._guard()
         after = self.physics_clock
         if (after[0] != before[0] + 1 or not math.isclose(after[1], before[1] + self._dt,
                                                        rel_tol=0, abs_tol=clock_tolerance(after[1]))):

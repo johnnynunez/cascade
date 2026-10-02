@@ -14,6 +14,7 @@ import time
 import uuid
 
 from ..control.mobile_base import BaseState, finite_real, identifier, nonnegative_int
+from ..control.mobile_support import digest, support_contract as validate_support_contract
 
 
 LIMIT_KEYS = frozenset({
@@ -88,10 +89,14 @@ class BasePostconditionChecker:
     I/O. At most ONE sampler is created; an uncooperative reader is quarantined
     rather than spawning replacement workers. Python cannot kill a stuck callable.
     ``finish`` never reads ``result.measured`` or any actuator target.
+    Physical readers must independently admit the configured support registry
+    against the producer's hello contract hash. A model digest copied into an
+    arbitrary registry does not prove that registry belongs to the model.
     """
 
-    def __init__(self, reader, *, limits: dict):
+    def __init__(self, reader, *, limits: dict, support_contract=None):
         self._limits = _validate_limits(limits)
+        self._support_contract = validate_support_contract(support_contract)
         if not callable(reader):
             raise ValueError("reader must be callable")
         self._reader = reader
@@ -104,7 +109,7 @@ class BasePostconditionChecker:
     def begin(self, skill: str, args: dict, *, stop_boundary=None, is_current=None) -> str:
         """Acquire a baseline with the same sampler that observes the outcome.
 
-        A stop_boundary is the exact ACK fence (robot_id/source/epoch/generation
+        A stop_boundary is the exact ACK fence (robot_id/source/epoch/model/generation
         plus local ack_monotonic_s), for stop skills ONLY. Valid pre-ACK states
         consume attempts/cadence but not the baseline. The wall deadline is
         anchored to that ACK, never restarted by baseline acquisition or finish.
@@ -112,12 +117,13 @@ class BasePostconditionChecker:
         """
         boundary = deepcopy(stop_boundary)
         if boundary is not None:
-            keys = {"ack_monotonic_s", "robot_id", "source", "epoch", "generation"}
+            keys = {"ack_monotonic_s", "robot_id", "source", "epoch", "generation", "model_identity_sha256"}
             if (skill not in ("stop", "stop_navigation", "emergency_stop") or
                     not isinstance(boundary, dict) or set(boundary) != keys):
                 raise ValueError("stop_boundary requires an exact stop ACK fence")
             for key in ("robot_id", "source", "epoch"):
                 identifier(boundary[key], key)
+            digest(boundary["model_identity_sha256"])
             nonnegative_int(boundary["generation"], "generation")
             stamp = finite_real(boundary["ack_monotonic_s"], "ack_monotonic_s")
             if not 0 <= stamp <= time.monotonic():
@@ -258,7 +264,7 @@ class BasePostconditionChecker:
         pending = (boundary is not None and
                    state["received_monotonic_s"] - state["producer_age_s"] < boundary["ack_monotonic_s"])
         if boundary is not None:
-            for key in ("robot_id", "source", "epoch"):
+            for key in ("robot_id", "source", "epoch", "model_identity_sha256"):
                 if state[key] != boundary[key]:
                     self._reject(op, f"post-ACK {key} mismatch")
                     return
@@ -275,7 +281,7 @@ class BasePostconditionChecker:
             if state["received_monotonic_s"] < previous["received_monotonic_s"]:
                 self._reject(op, "local receipt clock regressed")
                 return
-            for key in ("robot_id", "source", "epoch", "measurement_kind", "joint_names"):
+            for key in ("robot_id", "source", "epoch", "measurement_kind", "joint_names", "model_identity_sha256"):
                 if state[key] != previous[key]:
                     self._reject(op, f"conflicting {key}")
                     return
@@ -292,7 +298,7 @@ class BasePostconditionChecker:
                     self._reject(op, "controller fault/disabled without a new completed step")
                     return
                 physical = ("position_world", "orientation_wxyz", "linear_velocity_world",
-                            "angular_velocity_body", "joint_positions", "joint_velocities", "contacts", "fallen")
+                            "angular_velocity_body", "joint_positions", "joint_velocities", "contacts", "fallen", "support")
                 if any(state[key] != previous[key] for key in physical):
                     self._reject(op, "conflicting values in duplicate completed step")
                     return
@@ -384,11 +390,11 @@ class BasePostconditionChecker:
                 "execution_failed": failed, "metrics": {},
                 # Protocol metadata delimits evidence; actor poses are NEVER copied.
                 "admission": {key: deepcopy(result.get("ack", {}).get(key)) for key in
-                              ("ok", "accepted", "latched", "error", "delivery_uncertain", "robot_id", "source", "epoch", "generation",
+                              ("ok", "accepted", "latched", "error", "delivery_uncertain", "robot_id", "source", "epoch", "model_identity_sha256", "generation",
                                "start_sim_time_s", "end_sim_time_s")}
                 if isinstance(result, dict) and isinstance(result.get("ack"), dict) else {},
                 "completion": {key: deepcopy(result.get("stop_ack", {}).get(key)) for key in
-                               ("ok", "latched", "error", "delivery_uncertain", "robot_id", "source", "epoch", "generation")}
+                               ("ok", "latched", "error", "delivery_uncertain", "robot_id", "source", "epoch", "model_identity_sha256", "generation")}
                 if isinstance(result, dict) and isinstance(result.get("stop_ack"), dict) else {},
                 "evidence": {"samples": deepcopy(op.samples), "attempts": op.attempts,
                              "started_monotonic_s": op.started,
@@ -405,7 +411,7 @@ class BasePostconditionChecker:
             return verdict
         states = [entry["state"] for entry in op.samples]
         verdict["evidence"]["provenance"] = {
-            key: states[0][key] for key in ("robot_id", "source", "epoch", "measurement_kind")}
+            key: states[0][key] for key in ("robot_id", "source", "epoch", "measurement_kind", "model_identity_sha256")}
         if states[0]["measurement_kind"] == "kinematic_mock":
             verdict["reason"] = "kinematic_mock is not physical evidence"
             return verdict
@@ -429,6 +435,21 @@ class BasePostconditionChecker:
         status, reason = self._motion_verdict(op.skill, op.args, metrics)
         if settle_status == "unverified" or (status == "confirmed" and settle_status == "refuted"):
             status, reason = settle_status, settle_reason
+        # Entire observed episode retains forbidden support and unavailable
+        # channels. Swing/flight during locomotion does not require ground load;
+        # its terminal settle window does. Zero-twist balance requires support
+        # throughout the causally admitted interval as well as terminal rest.
+        zero_twist = op.skill == "walk_velocity" and all(op.args.get(k) == 0 for k in ("vx", "vy", "wz"))
+        balance_steps = {s["step"] for s in effect_states} if zero_twist else set()
+        support_results = [self._support(s, require_load=s["step"] in balance_steps) for s in states]
+        verdict["evidence"]["support_contract"] = deepcopy(self._support_contract)
+        verdict["evidence"]["support_checks"] = [dict(step=s["step"], status=r[0], reason=r[1])
+                                                     for s, r in zip(states, support_results)]
+        support_failure = next((r for r in support_results if r[0] == "refuted"), None)
+        if support_failure is None and status == "confirmed":
+            support_failure = next((r for r in support_results if r[0] == "unverified"), None)
+        if support_failure is not None:
+            status, reason = support_failure
         for state in states:
             if state["fallen"]:
                 status, reason = "refuted", "fallen in independently observed window"
@@ -460,7 +481,7 @@ class BasePostconditionChecker:
             if (receipt.get("ok") is not True or receipt.get("latched") is not False or
                     receipt.get("error") or receipt.get("delivery_uncertain")):
                 raise ValueError("missing/failed admission or completion receipt")
-            for key in ("robot_id", "source", "epoch"):
+            for key in ("robot_id", "source", "epoch", "model_identity_sha256"):
                 if receipt.get(key) != states[0][key]:
                     raise ValueError(f"receipt {key} mismatch")
         generation = nonnegative_int(ack.get("generation"), "admission generation")
@@ -533,7 +554,41 @@ class BasePostconditionChecker:
                 angular > self._limits["stop_angular_speed_rad_s"] or
                 drift > self._limits["stop_drift_m"] or rotation > self._limits["stop_drift_rad"]):
             return "refuted", "did not settle: active controller, residual velocity or pose drift", metrics
-        return "confirmed", "advancing post-outcome states prove measured rest", metrics
+        support = [self._support(s, require_load=True) for s in window]
+        failure = next((r for r in support if r[0] == "refuted"), None)
+        if failure is None:
+            failure = next((r for r in support if r[0] == "unverified"), None)
+        if failure is not None:
+            return failure[0], failure[1], metrics
+        return "confirmed", "advancing post-outcome states prove supported measured rest", metrics
+
+    def _support(self, state, *, require_load):
+        contract, observed = self._support_contract, state["support"]
+        if contract is None or observed is None:
+            return "unverified", "missing independent solved support contract/evidence"
+        if contract["model_identity_sha256"] != state["model_identity_sha256"]:
+            return "unverified", "support model identity differs from admitted contract"
+        if observed["status"] != "known":
+            return "unverified", "solved support unavailable: " + observed["reason"]
+        gravity = contract["gravity_world_m_s2"]
+        up = tuple(-x / math.hypot(*gravity) for x in gravity)
+        robot, feet, ground = (set(contract[k]) for k in ("robot_shapes", "foot_shapes", "ground_shapes"))
+        loaded_sole = False
+        for contact in observed["contacts"]:
+            a, b = contact["shape_a"], contact["shape_b"]
+            if (a in robot) == (b in robot):
+                continue  # Self contact / contacts between external bodies are not support.
+            body, other, sign = (a, b, -1.) if a in robot else (b, a, 1.)
+            if contact["normal_force_n"] <= 0:
+                continue
+            if body not in feet or other not in ground:
+                return "refuted", "forbidden external robot contact in independent support evidence"
+            force_up = sign * sum(x*y for x, y in zip(contact["force_on_b_world_n"], up))
+            normal_up = sign * sum(x*y for x, y in zip(contact["normal_a_to_b_world"], up))
+            loaded_sole |= force_up > 0 and normal_up > 0
+        if require_load and not loaded_sole:
+            return "refuted", "no admitted sole has positive upward solved reaction"
+        return "confirmed", "complete solved contacts satisfy the phase support contract"
 
     @staticmethod
     def _attitude_distance(before, after):

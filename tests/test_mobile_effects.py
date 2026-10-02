@@ -34,6 +34,24 @@ def limits(**updates):
     return result
 
 
+def fixture_support_contract():
+    return dict(version=1, model_identity_sha256="e" * 64,
+                robot_shapes=["/Fixture/Robot/left_sole", "/Fixture/Robot/right_sole", "/Fixture/Robot/body"],
+                foot_shapes=["/Fixture/Robot/left_sole", "/Fixture/Robot/right_sole"],
+                ground_shapes=["/Fixture/Ground"], gravity_world_m_s2=[0., 0., -9.81])
+
+
+def fixture_support(n, *, sim_time_s=None, epoch="fixture-epoch", model_identity_sha256="e" * 64):
+    # Synthetic unit force for schema/decision testing; NOT a physical receipt.
+    return dict(version=1, status="known", reason="", epoch=epoch, step=n,
+                sim_time_s=n * .02 if sim_time_s is None else sim_time_s,
+                model_identity_sha256=model_identity_sha256,
+                contacts=[dict(shape_a_id=0, shape_b_id=1,
+                               shape_a="/Fixture/Ground", shape_b="/Fixture/Robot/left_sole",
+                               force_on_b_world_n=[0., 0., 1.], normal_force_n=1.,
+                               normal_a_to_b_world=[0., 0., 1.], point_world_m=[0., 0., 0.])])
+
+
 def state(n, **updates):
     values = dict(
         robot_id="synthetic-microduck", source="scripted-software-fixture",
@@ -43,9 +61,12 @@ def state(n, **updates):
         linear_velocity_world=(0., 0., 0.), angular_velocity_body=(0., 0., 0.),
         joint_names=("fixture_joint",), joint_positions=(0.,), joint_velocities=(0.,),
         controller_status="ready", generation=0, contacts=("fixture-foot",),
-        fallen=False, latched=False, measurement_kind="physics",
+        fallen=False, latched=False, measurement_kind="physics", model_identity_sha256="e" * 64,
     )
     values.update(updates)
+    if "support" not in values:
+        values["support"] = fixture_support(values["step"], sim_time_s=values["sim_time_s"],
+            epoch=values["epoch"], model_identity_sha256=values["model_identity_sha256"])
     return BaseState(**values)
 
 
@@ -73,7 +94,7 @@ class ScriptedReader:
 
 def checker_for(reader, **updates):
     from cascade.agent.base_effects import BasePostconditionChecker
-    return BasePostconditionChecker(reader, limits=limits(**updates))
+    return BasePostconditionChecker(reader, limits=limits(**updates), support_contract=fixture_support_contract())
 
 
 def test_pre_admission_travel_never_confirms_an_inert_command():
@@ -92,10 +113,10 @@ def test_pre_admission_travel_never_confirms_an_inert_command():
         result = {"execution_ok": True,
                   "ack": {"ok": True, "accepted": True, "latched": False, "generation": 1,
                           "robot_id": "synthetic-microduck", "source": "scripted-software-fixture",
-                          "epoch": "fixture-epoch", "start_sim_time_s": start, "end_sim_time_s": start + .1},
+                          "epoch": "fixture-epoch", "model_identity_sha256": "e" * 64, "start_sim_time_s": start, "end_sim_time_s": start + .1},
                   "stop_ack": {"ok": True, "latched": False, "generation": 2,
                                "robot_id": "synthetic-microduck", "source": "scripted-software-fixture",
-                               "epoch": "fixture-epoch"}}
+                               "epoch": "fixture-epoch", "model_identity_sha256": "e" * 64}}
         verdict = checker.finish(token, result)
         assert verdict["status"] == "refuted", verdict["reason"]
         assert verdict["metrics"]["body_displacement_m"] == [0., 0.]
@@ -126,7 +147,7 @@ def test_actor_measured_and_ack_cannot_replace_missing_truth():
 
 def fixture_motion_receipt():
     # Explicit synthetic protocol schedule for the scripted decision fixtures.
-    identity = dict(robot_id="synthetic-microduck", source="scripted-software-fixture", epoch="fixture-epoch")
+    identity = dict(robot_id="synthetic-microduck", source="scripted-software-fixture", epoch="fixture-epoch", model_identity_sha256="e" * 64)
     return {"execution_ok": True,
             "ack": dict(ok=True, accepted=True, latched=False, generation=1,
                         start_sim_time_s=.02, end_sim_time_s=.12, **identity),
@@ -406,7 +427,7 @@ def test_history_limits_and_begin_args_are_defensive_snapshots():
     reader = ScriptedReader()
     configured = limits(max_history=2)
     from cascade.agent.base_effects import BasePostconditionChecker
-    checker = BasePostconditionChecker(reader, limits=configured)
+    checker = BasePostconditionChecker(reader, limits=configured, support_contract=fixture_support_contract())
     try:
         for index in range(4):
             args = {"base": f"fixture-{index}"}
@@ -488,13 +509,15 @@ def truth_server():
     """Real loopback TCP, scripted JSON fixture; NEVER a simulator."""
     import json
     import socketserver
+    from cascade.sim.mobile_identity import support_contract_digest
     profile = dict(robot_id="synthetic-microduck", source="scripted-software-fixture",
                    engine="physx", device="cpu", asset_sha256="a" * 64,
-                   policy_sha256="b" * 64, bridge_host="127.0.0.1", timeout_s=0.15)
+                   policy_sha256="b" * 64, model_identity_sha256="e" * 64, support_contract=fixture_support_contract(), bridge_host="127.0.0.1", timeout_s=0.15)
     hello = dict(ok=True, protocol=1, kind="microduck", epoch="fixture-epoch",
                  capabilities=["state", "velocity", "stop"], measurement_kind="physics",
                  physics_dt=0.005, policy_dt=0.02,
-                 **{k: profile[k] for k in ("robot_id", "source", "engine", "device", "asset_sha256", "policy_sha256")})
+                 support_contract_sha256=support_contract_digest(profile["support_contract"]),
+                 **{k: profile[k] for k in ("robot_id", "source", "engine", "device", "asset_sha256", "policy_sha256", "model_identity_sha256")})
     requests = []
     payload = {"hello": hello, "state": {"ok": True, "state": state(1).as_dict()}}
 
@@ -750,22 +773,23 @@ def test_independent_checker_through_actual_mobile_rpc_with_scripted_publisher(s
     from cascade.sim.base_truth import BaseTruthReader
     from cascade.sim.mobile_bridge import MobileBridgeController, MobileBridgeServer
     identity = dict(robot_id="synthetic-microduck", source="scripted-software-fixture",
-                    engine="physx", device="cpu", asset_sha256="a" * 64, policy_sha256="b" * 64)
+                    engine="physx", device="cpu", asset_sha256="a" * 64, policy_sha256="b" * 64, model_identity_sha256="e" * 64, support_contract=fixture_support_contract())
     controller = MobileBridgeController(**identity, max_linear_speed=0.2, max_angular_speed=1.,
                                         max_duration_s=1., lease_s=1., max_state_age_s=1.)
     def publish(n):
+        support = fixture_support(n, sim_time_s=n * .005, epoch=controller.hello()["epoch"])
         controller.publish(dict(step=n, sim_time=n * 0.005,
                                 position=[min(max(n - 1, 0), 20) * 0.0005 * scale, 0., 0.3],
                                 orientation_wxyz=[1., 0., 0., 0.], linear_velocity=[0., 0., 0.],
                                 angular_velocity=[0., 0., 0.], q=[0.] * 14, dq=[0.] * 14,
                                 joint_names=[f"fixture_joint_{j}" for j in range(14)],
-                                contacts=["fixture-foot"], fallen=False))
+                                contacts=["fixture-foot"], fallen=False, support=support))
     publish(1)
     server = MobileBridgeServer(controller, port=0)
     server.start()
     reader = BaseTruthReader({**identity, "bridge_host": server.address[0],
                               "bridge_port": server.address[1], "timeout_s": 0.04})
-    checker = BasePostconditionChecker(reader, limits=limits())
+    checker = BasePostconditionChecker(reader, limits=limits(), support_contract=fixture_support_contract())
     release = threading.Event()
     finished_script = threading.Event()
     def producer():
@@ -784,7 +808,7 @@ def test_independent_checker_through_actual_mobile_rpc_with_scripted_publisher(s
         token = checker.begin("walk_velocity", dict(vx=0.1, vy=0., wz=0., duration_s=0.1))
         ack = controller.command_velocity(dict(vx=.1, vy=0., wz=0., duration_s=.1,
             robot_id=identity["robot_id"], source=identity["source"], epoch=controller.hello()["epoch"],
-            generation=0, owner="fixture-owner", command_id="fixture-command"))
+            generation=0, model_identity_sha256=identity["model_identity_sha256"], owner="fixture-owner", command_id="fixture-command"))
         worker.start()
         assert finished_script.wait(2.)
         stop_ack = controller.stop(latch=False)

@@ -12,6 +12,8 @@ import math
 from numbers import Integral, Real
 from typing import Mapping
 
+from .mobile_support import SupportObservation, digest
+
 
 def finite_real(value, name: str) -> float:
     """Reject booleans, strings, non-finite values; do not silently coerce JSON."""
@@ -78,7 +80,9 @@ class BaseState:
     ``received_monotonic_s`` is stamped by the CLIENT after receipt; it is not
     a remote monotonic clock. ``producer_age_s`` is the producer's age at send,
     conservatively including transport latency at the adapter. Both are seconds.
-    Contacts are names of observed contacting bodies, not commanded contacts.
+    ``contacts`` is legacy body-name telemetry and never proves support.
+    ``support`` carries versioned solved shape-pair forces from this exact
+    epoch, step, simulation clock and model identity. Missing means unknown.
     ``generation`` is the backend cancellation/admission fence, not a step ID.
     """
 
@@ -102,6 +106,8 @@ class BaseState:
     fallen: bool
     latched: bool
     measurement_kind: str
+    model_identity_sha256: str | None = None
+    support: SupportObservation | None = None
 
     def __post_init__(self):
         for key in ("robot_id", "source", "epoch"):
@@ -129,6 +135,14 @@ class BaseState:
             raise ValueError("unknown controller_status")
         if self.measurement_kind not in ("physics", "hardware", "kinematic_mock"):
             raise ValueError("unknown measurement_kind")
+        if self.model_identity_sha256 is not None:
+            digest(self.model_identity_sha256)
+        if self.support is not None:
+            support = SupportObservation.from_dict(self.support)
+            for key in ("epoch", "step", "sim_time_s", "model_identity_sha256"):
+                if getattr(support, key) != getattr(self, key):
+                    raise ValueError(f"support {key} differs from completed BaseState")
+            object.__setattr__(self, "support", support)
 
     def as_dict(self) -> dict:
         return {key: list(value) if isinstance(value, tuple) else value
@@ -136,8 +150,9 @@ class BaseState:
 
     @classmethod
     def from_dict(cls, data: Mapping) -> BaseState:
-        required = {f.name for f in fields(cls)}
-        if not isinstance(data, Mapping) or set(data) != required:
+        allowed = {f.name for f in fields(cls)}
+        required = allowed - {"model_identity_sha256", "support"}
+        if not isinstance(data, Mapping) or not required <= set(data) <= allowed:
             raise ValueError("BaseState requires the exact wire schema")
         return cls(**data)
 
@@ -155,7 +170,8 @@ class MobileBase(ABC):
     replays motion. Backends must enforce a local wall lease even during pauses.
 
     Command/stop/reset ACKs contain ok (bool), robot_id, source, epoch,
-    generation (int), latched (bool). Command ACKs additionally contain
+    generation (int), latched (bool), and physical endpoints bind
+    model_identity_sha256. Command ACKs additionally contain
     accepted (bool), start_sim_time_s and end_sim_time_s (finite seconds).
     An ACK is admission information, NOT physical completion.
     """

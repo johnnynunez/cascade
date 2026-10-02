@@ -837,7 +837,20 @@ def test_independent_checker_through_actual_mobile_rpc_with_scripted_publisher(s
         verdict = checker.finish(token, {"execution_ok": True, "ack": ack, "stop_ack": stop_ack})
         assert verdict["status"] == expected, verdict["reason"]
         assert verdict["evidence"]["provenance"]["epoch"] == controller.hello()["epoch"]
-        assert verdict["metrics"]["body_displacement_m"][0] == pytest.approx(0.01 * scale)
+        # The independent sampler need not observe both published endpoints.
+        # Check the known scripted geometry over its ACTUAL admitted interval;
+        # never credit an unobserved prefix/suffix or infer it from the target.
+        interval = verdict["evidence"]["effect_interval"]
+        samples = {row["state"]["step"]: row["state"]
+                   for row in verdict["evidence"]["samples"]}
+        baseline, last = (samples[interval[key]] for key in ("baseline_step", "last_step"))
+        assert (ack["start_sim_time_s"] <= baseline["sim_time_s"]
+                < last["sim_time_s"] <= ack["end_sim_time_s"])
+        expected_positions = [min(max(s["step"] - 1, 0), 20) * .0005 * scale
+                              for s in (baseline, last)]
+        assert [s["position_world"][0] for s in (baseline, last)] == pytest.approx(expected_positions)
+        assert verdict["metrics"]["body_displacement_m"][0] == pytest.approx(
+            expected_positions[1] - expected_positions[0])
         assert verdict["metrics"]["settle_samples"] >= 3
         fence = controller.hello()["generation"]
         checker.close()

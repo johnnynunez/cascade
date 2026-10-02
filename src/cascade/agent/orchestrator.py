@@ -130,8 +130,9 @@ class AgentOrchestrator:
         # One persistence budget for the WHOLE task, across tiers: the reflex
         # tier's pick_and_place, then the LLM tier's retry of the same call,
         # share it instead of each bringing a fresh `persist_seconds`.
-        if self._mobile:
-            self.runtime.begin_task()
+        begin_task = getattr(self.runtime, "begin_task", None)
+        if begin_task is not None:
+            begin_task()
         begin = getattr(self.runtime, "begin_task_budget", None)
         if begin is not None:
             begin()
@@ -243,10 +244,11 @@ class AgentOrchestrator:
                 # before it is accepted. Unverified milestones downgrade the
                 # claim rather than riding along with it.
                 status, unverified = self._final_check(success)
-                if self._mobile:
-                    unverified = self.runtime.unverified_actions()
+                task_verifier = getattr(self.runtime, "unverified_actions", None)
+                if task_verifier is not None:
+                    unverified = list(dict.fromkeys([*unverified, *task_verifier()]))
                     success = success and result.get("success") is True and not unverified
-                if unverified and (success or self._mobile):
+                if unverified:
                     summary += (
                         "\n[verification] could not confirm: "
                         + "; ".join(unverified)
@@ -419,13 +421,15 @@ class AgentOrchestrator:
             finally:
                 self.runtime.current_tier = None
             tool_log.append({"step": i, "tool": name, "args": args, "result": result})
-            if not result.get("ok", False):
+            task_verifier = getattr(self.runtime, "unverified_actions", None)
+            unverified = task_verifier() if task_verifier is not None else []
+            if not result.get("ok", False) or unverified:
                 self.fast_planner.note_outcome(
                     task, plan.calls, False, time.monotonic() - t_start
                 )
                 note = (
                     f"(A fast {plan.source} plan was tried first and FAILED at "
-                    f"{name}({json.dumps(args)}): {str(result.get('error', ''))[:200]}. "
+                    f"{name}({json.dumps(args)}): {str(result.get('error') or '; '.join(unverified))[:200]}. "
                     "Diagnose before retrying the same thing.)"
                 )
                 return None, note

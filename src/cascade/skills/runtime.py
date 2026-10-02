@@ -225,6 +225,8 @@ class SkillRuntime:
         # against a channel the actuator does not own. Wired lazily by the
         # app (needs the sim bridge / belief store) via attach_verifier().
         self.effects = None
+        from ..agent.task_effects import TaskEffects
+        self._task_effects = TaskEffects()
         g = cfg.arm.gripper
         self._grip_open = float(g.get("open_pos", 0.0))
         self._grip_closed = float(g.get("closed_pos", 1.0))
@@ -485,8 +487,43 @@ class SkillRuntime:
         if hasattr(self.camera, "set_overlay"):
             self.camera.set_overlay(detections=dets)
 
+    def begin_task(self) -> str:
+        """Trusted host boundary; does not reset the world, payload or stop latch."""
+        return self._task_effects.begin_task()
+
+    def unverified_actions(self) -> list[str]:
+        return self._task_effects.unverified_actions()
+
+    def task_effects(self) -> dict:
+        """Detached task/actor-bound evidence for inspection, never an agent reset."""
+        return self._task_effects.snapshot()
+
     def execute(self, name: str, args: dict) -> dict:
-        """Dispatch one skill call with tracing. Never raises."""
+        """Dispatch with task obligations covering all tiers and preparation faults."""
+        from ..agent.effects import POSTCONDITIONS
+
+        kind = POSTCONDITIONS.get(name)
+        if kind is None:
+            return self._execute_skill(name, args)
+        # Registry-only identity: do not probe/materialize a LazyArm for bookkeeping.
+        try:
+            selected = self._select_arm(args.get("arm"))
+            effective = self._arm if selected is None else selected
+            actor = (next(key for key, arm in self.arm_rig.arms.items() if arm is effective)
+                     if self.arm_rig is not None else "default")
+        except (SkillError, StopIteration):
+            actor = f"unresolved:{args.get('arm')!r}"
+        obligation = self._task_effects.begin(actor=actor, skill=name, kind=kind)
+        observation = {"postcondition": None}
+        result = None
+        try:
+            result = self._execute_skill(name, args, _effect_observation=observation)
+            return result
+        finally:
+            self._task_effects.finish(obligation, result, observation["postcondition"])
+
+    def _execute_skill(self, name: str, args: dict, *, _effect_observation=None) -> dict:
+        """Existing actuator/checker/trace path; completion is owned by execute()."""
         fn = getattr(self, f"skill_{name}", None)
         if fn is None:
             return {"ok": False, "error": f"unknown skill {name!r}"}
@@ -639,6 +676,8 @@ class SkillRuntime:
                 )
                 print(f"[cascade] postcondition verifier for {name} raised: {e!r}", file=sys.stderr)
             result = annotate_result(result, pc)
+            if _effect_observation is not None:
+                _effect_observation["postcondition"] = pc
         if name == "pick_and_place" and result.get("ok") is False:
             result["next_action"] = (
                 "If the user said 'then stop', report this failure and end the turn. "
@@ -4189,7 +4228,10 @@ class SkillRuntime:
     def skill_task_done(self, success: bool, summary: str) -> dict:
         if isinstance(success, str):  # schema-lax backends send "false"
             success = success.strip().lower() in ("true", "yes", "1")
-        return {"ok": True, "task_complete": True, "success": bool(success), "summary": summary}
+        unverified = self.unverified_actions()
+        return {"ok": True, "task_complete": True,
+                "success": bool(success) and not unverified, "summary": summary,
+                "unverified": unverified, "task_effects": self.task_effects()}
 
 
 def _short(args: dict) -> str:

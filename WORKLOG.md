@@ -642,3 +642,11 @@ passed. Details and hashes: benchmark/results/fastening_postcondition_20261003.j
 No simulator, model or service was started. The physical fixture integration
 remains a separate explicit profile/controller/observer/lifecycle task, described
 in docs/FASTENING_RUNTIME_GAP.md; this correction grants no physical admission.
+
+## Legacy completion obligations — 3 October 2026
+
+- Baseline `8a62a49`: real legacy dispatch marked `turn_screw` unverified, but both direct LLM and failed-reflex→LLM `task_done(success=true)` produced a successful TaskReport. The original three-control probe is retained outside the checkout; the two causal acceptance tests fail on that baseline and the read-only control passes.
+- Added a task/arm/action ledger only for the existing `POSTCONDITIONS` registry. Local checker verdicts, rather than actor/LLM fields, settle obligations. Unknown/failed effects remain cumulative across later calls and model-accessible resets; only the trusted host opens a new task. Preparation failures and cancellation release active ownership without success credit.
+- `task_done`, TaskReport and fast-path credit now consult that ledger. Individual actuator/checker contracts remain unchanged, including the limited historical commanded-home check. Passive sensor domains do not implement or need an effect boundary.
+- Retained the first wiring run (265 passed, 8 failed): one adapter bug, four `__new__` fixture initialization omissions, and three obsolete static-mock success expectations. Fixed the adapter/fixtures; the mock E2E and memory checks preserve all execution assertions while reporting unverified, and the positive fast-path fixture uses independently read open-jaw feedback.
+- No GPU, physical processes, protected learned-store mutation or voice/video changes. Final targeted tests and inventories are linked from `benchmark/results/legacy_task_completion_20261003.json`; no new full-suite claim.

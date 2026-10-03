@@ -603,3 +603,23 @@ Initial development failures are retained: malformed YAML indentation (43 failed
 freshness/replay gates were unchanged. Shared envelope SHA-256 still matches the
 protected baseline and grasp memory remains absent. No GPU, native robot or
 hardware admission was tested. See benchmark/results/generalized_joints_20261003.json.
+
+### 2026-10-03 — isolate healthy support semantics from cyclic GC
+
+The local post-merge check on dfa0af2 returned reader_timeout for a supported
+rest episode. Its log does not include GC or read timing; its cause remains
+unknown. A separate external injection of 80 ms automatic-GC callback work at
+read four reproduces 11 failures among 12 semantic cases. Existing test-only
+healthy_episode_gc isolation restores all 12 without changing the sampler,
+40 ms read budget, clocks, support contract or required verdicts. Six semantic
+functions opt in; the unknown-support control now also asserts its reason so a
+transport timeout cannot satisfy it accidentally. A bounded delayed-reader
+negative now covers both walking and stationary stop, alongside the unchanged
+TCP-negative control. All three continue to require unverified/reader_timeout.
+This is software fixture coverage, not native locomotion admission.
+
+The final support/helper/effects selection on main 075c08c passes 395 tests in
+40.12 s, with source and protected stores unchanged. No runtime diff exists.
+The controlled original 12 verdicts all timed out; one test accidentally
+accepted unverified without its reason, now strengthened. Raw source-bound
+receipts are linked from benchmark/results/mobile_support_rest_fixture_20261003.json.

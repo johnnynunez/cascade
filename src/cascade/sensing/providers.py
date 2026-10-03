@@ -9,7 +9,7 @@ import uuid
 from .hub import SensorDescriptor, SensorError
 from .models import (ImuPayload, MeasurementMetadata, ObservationEnvelope,
                      ProprioceptionPayload, JointStatePayload, GeneralizedJointStatePayload,
-                     RgbPayload, SolvedContactPayload, number)
+                     RgbPayload, RgbdPayload, SolvedContactPayload, number)
 
 
 class BufferedSensorProvider:
@@ -171,6 +171,45 @@ class MobileRgbSensorProvider:
             producer_age_s=metadata["producer_age_s"],
             model_identity_sha256=metadata["model_identity_sha256"],
             measurement_kind="physics", payload=payload)
+
+    def close(self):
+        self._reader.close()
+
+
+class MobileRgbdSensorProvider:
+    """Opt-in registered capture from the independent mobile RGB-D channel.
+
+    The explicit calibration pin is compared with the producer's complete
+    calibration on every capture. Reading opens only a reader-role socket.
+    """
+    def __init__(self, sensor_id, profile, camera, *, calibration_sha256,
+                 max_pixels=640*480, max_age_s=.5, read_timeout_s=.25):
+        from ..sim.mobile_rgbd import MobileRgbdReader
+        self._reader = MobileRgbdReader(profile, camera, calibration_sha256=calibration_sha256,
+                                        max_pixels=max_pixels, max_age_s=max_age_s)
+        self.descriptor = SensorDescriptor(
+            sensor_id=sensor_id, robot_id=profile['robot_id'], source=profile['source'],
+            modality='rgbd', frame_id=f'camera:{camera}', clock_domain='simulation',
+            measurement_kind='physics', model_identity_sha256=profile['model_identity_sha256'],
+            epoch=profile.get('epoch'), calibration_id=calibration_sha256,
+            max_age_s=max_age_s, read_timeout_s=read_timeout_s)
+        if profile['timeout_s'] > read_timeout_s:
+            raise ValueError('reader timeout exceeds sensor deadline')
+
+    def read(self):
+        frame = self._reader()
+        if frame is None:
+            raise SensorError(f'RGB-D unavailable: {self._reader.last_error}')
+        m = frame.metadata
+        c = m['calibration']
+        payload = RgbdPayload(MeasurementMetadata(c['frame_id'], m['calibration_sha256']),
+            m['width'], m['height'], frame.rgb8, frame.depth_m_f32le, c['intrinsics'],
+            c['world_from_camera'], c['world_frame_id'])
+        return ObservationEnvelope(source=m['source'], sensor_id=self.descriptor.sensor_id,
+            epoch=m['epoch'], sequence=m['step'], clock_domain='simulation',
+            capture_time_s=m['sim_time_s'], received_monotonic_s=frame.received_monotonic_s,
+            producer_age_s=m['producer_age_s'], model_identity_sha256=m['model_identity_sha256'],
+            measurement_kind='physics', payload=payload)
 
     def close(self):
         self._reader.close()

@@ -1,5 +1,38 @@
 # Manipulation and assembly integration
 
+## 2026-10-03: passive, calibrated RGB-D without an arm
+
+The configured sensing domain could expose independent mobile state and JPEG
+observations, but could not consume a registered RGB-D producer through the
+ordinary robot runtime/MCP path. An exact passive catalog probe on `2b1d8e4`
+rejects the new provider kind; the same probe and configuration succeed with
+the implementation in this branch, without opening a socket or an actuator.
+
+The opt-in `--camera-rgbd` producer now captures the existing static overview
+camera's RGB8, metric optical-axis depth, actual USD calibration and rigid
+optical-to-world transform. The new source/calibration become part of the
+effective model identity. Independent reader-role TCP, a bounded registered
+capture cache and `mobile_rgbd` sensing expose it through ordinary MCP. Legacy
+RGB replies and RGB-D serialization without extrinsics retain their schemas.
+No camera mounted on a robot, tactile hardware, mapping, or navigation is
+added. See [the usable configuration and exact limits](docs/OBSERVED_RGBD.md).
+
+Validation: 358 CPU tests passed, nine optional-dependency tests skipped; Ruff
+F/E9 and diff checks passed. Tests include real TCP/MCP routing, full 640×480
+lossless channels, identity/epoch/calibration mismatch, stale/replay/timeout,
+bounded decompression, AOV-reference mismatch, a retained signal during depth
+readback and legacy protocol compatibility. A separate OpenUSD-only SDK check
+passed camera optics and coordinate transforms without loading Kit or physics.
+Its first prototype failure exposed a single time sample overriding the default
+despite `ValueMightBeTimeVarying()` returning false; the producer now rejects
+any authored time sample. The original failure is retained in local evidence.
+
+Independent read-only review found no remaining material blocker. Render-product
+tokens around each AOV are software provenance, not a new native proof of pixel
+alignment. The new recipe still needs GPU/native validation and admission;
+existing MicroDuck model hashes and frozen voice/video candidates are untouched.
+No simulation, provider, GPU or audiovisual process was launched for this work.
+
 Base: `1271d52d09feaa0edb4652d39a9ab21d69e4a686`.
 
 User priority (2026-10-02): implement OVRTX/cuMotion in manipulation and

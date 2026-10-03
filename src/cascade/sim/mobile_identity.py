@@ -133,6 +133,13 @@ locomotion, fidelity of a solver, contact support or any physical outcome.
         "bam": {k: bam[k] for k in bam_fields},
         "native": {k: native[k] for k in native_fields},
     }
+    if 'rgbd_camera' in native:
+        from .mobile_rgbd import calibration_record
+        camera = native['rgbd_camera']
+        _, digest = calibration_record(camera['calibration'])
+        if digest != camera['calibration_sha256']:
+            raise ValueError('effective RGB-D calibration digest mismatch')
+        recipe['native']['rgbd_camera'] = copy.deepcopy(camera)
     # Copy by canonical serialization: callers cannot change a nested receipt
     # after its digest is published, and all values have one JSON meaning.
     payload = canonical_bytes(recipe)

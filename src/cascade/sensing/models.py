@@ -51,8 +51,14 @@ def vector(value, length, name):
 
 def wire(value):
     if isinstance(value, Payload):
-        return {"modality": value.modality, "units": dict(value.units),
-                **{f.name: wire(getattr(value, f.name)) for f in fields(value)}}
+        result = {"modality": value.modality, "units": dict(value.units),
+                  **{f.name: wire(getattr(value, f.name)) for f in fields(value)}}
+        if isinstance(value, RgbdPayload) and value.world_from_camera is None:
+            # Preserve the original v1 payload byte shape unless the calibrated
+            # optical-to-world extension is explicitly present.
+            result.pop('world_from_camera')
+            result.pop('world_frame_id')
+        return result
     if is_dataclass(value):
         return {f.name: wire(getattr(value, f.name)) for f in fields(value)}
     if isinstance(value, bytes):
@@ -340,6 +346,8 @@ class RgbdPayload(Payload):
     rgb8: bytes
     depth_m_f32le: bytes
     intrinsics: tuple
+    world_from_camera: tuple | None = None
+    world_frame_id: str | None = None
     modality: ClassVar[str] = "rgbd"
     units: ClassVar[tuple] = (("rgb8", "uint8"), ("depth_m_f32le", "m"), ("intrinsics", "pixel"))
 
@@ -358,6 +366,18 @@ class RgbdPayload(Payload):
         if k[0] <= 0 or k[4] <= 0 or k[6:] != (0., 0., 1.):
             raise ValueError("invalid pinhole intrinsics")
         object.__setattr__(self, "intrinsics", k)
+        if (self.world_from_camera is None) != (self.world_frame_id is None):
+            raise ValueError("RGB-D transform and target frame must be supplied together")
+        if self.world_from_camera is not None:
+            import numpy as np
+            token(self.world_frame_id, "world_frame_id")
+            values = vector(self.world_from_camera, 16, "world_from_camera")
+            t = np.array(values).reshape(4, 4)
+            if (not np.array_equal(t[3], [0, 0, 0, 1])
+                    or not np.allclose(t[:3, :3].T @ t[:3, :3], np.eye(3), rtol=0, atol=1e-7)
+                    or not math.isclose(np.linalg.det(t[:3, :3]), 1., abs_tol=1e-7)):
+                raise ValueError("RGB-D transform must be rigid")
+            object.__setattr__(self, "world_from_camera", values)
 
 
 PAYLOAD_TYPES = (ImuPayload, ProprioceptionPayload, JointStatePayload, GeneralizedJointStatePayload, SolvedContactPayload, EstimatedTactilePayload,

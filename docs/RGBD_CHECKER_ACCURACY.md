@@ -8,11 +8,11 @@ API, flags, pattern, grayscale conversion and actual OpenCV package, separately
 from its ArUco declaration. A changed/missing declaration is refused before
 image inspection. Declaring another SDK's consumer does not claim it ran there.
 
-This remains a candidate with CPU validation. The layout-A producer now offers
-explicit schema5 selection, but it has no new native episode or physical model
-admission and does not establish that the earlier native failure is corrected.
-Neither retained native images nor camera K/T/depth were inputs to candidate
-selection or synthetic evaluation.
+This remains a candidate. Explicit schema5 producer selection has now run on
+a fresh current-SDK episode, and all five saved captures still fail the original
+held-out pixel gate. It has no physical model admission and does not correct
+the earlier native failure. Neither retained native images nor camera K/T/depth
+were inputs to candidate selection or the frozen synthetic evaluation.
 
 The [implementation](../benchmark/rgbd/checker_accuracy.py) returns the upstream
 coordinates unchanged. OpenCV documents ACCURACY as internal upsampling to
@@ -74,7 +74,7 @@ and the candidate does not support every nominal condition.
 
 ## Validation and reproduction
 
-The focused software suite passes185 tests; nine existing OpenUSD tests skip
+The initial CPU study passed185 focused software tests; nine existing OpenUSD tests skip
 because `pxr` is absent from the ordinary CPU environment(five layout-A native,
 one binary native, one planar and two Ground-texture tests). No SDK or GPU
 was launched for this change. The legacy extraction path is compared with a
@@ -140,5 +140,42 @@ inconsistency, but cannot separate native sampling/filtering from localization
 bias. Changing camera calibration or fitting corrections to these failed
 held-outs is not justified. The schema5 candidate was not evaluated on them.
 Local recovery/check-only artifacts are under
-`RGBD_LAYOUT_A_ACCURACY_20261004`; a separately frozen, new native episode is
-still required, retaining every capture and all failures.
+`RGBD_LAYOUT_A_ACCURACY_20261004`; the subsequent native result follows.
+
+## Fresh current-SDK episode: geometry remains FAIL
+
+The [compact native receipt](../benchmark/results/rgbd_checker_accuracy_native_20261004.json)
+binds source `75451f1d47baea3b380b29b954847e5333d1f57e` and the explicit
+`isaac62_48b2d951` recipe for current SDK source `48b2d951`. A new ordinary
+RGB-D baseline was measured on that SDK before schema5: model `fbcdb853`.
+Its native episode completed 80 solves, 20 policy evaluations and five captures
+and closed naturally. The outer harness remains **FAIL** because its post-close
+bookkeeping read `port` from `hello` instead of the containing marker. A separate
+CPU audit verified all saved captures, identity, clocks, state health, input
+hashes, closed port and ordinary scope closure. That audit admits a reference
+for exact comparison; it does not relabel the original receipt or establish
+locomotion, balanced rest or geometry accuracy.
+
+The schema5 candidate, model `9ce4373c`, also completed all 80/20/5 records. Its
+complete native physics/calibration comparison and both Ground appearance
+checks passed against the new baseline. Inputs remained unchanged, both native
+and scope exits were zero, and closure required no signals or forced cleanup.
+Twelve foreign GPU process births were observed before launch and remained
+present afterward. No foreign process was controlled.
+
+Two independent failures are retained. The consumer used a Python environment
+missing `jsonschema`: all 56 ordinary read attempts failed before any reader RPC,
+so there were zero live geometry evaluations or annotations. Separately, CPU
+analysis of **all five saved schema5 RGB images**, with the frozen flags34,
+18/17 split and unchanged gates, rejected every reference: RMS
+**0.158779–0.164282 px > 0.15 px**, maxima **0.254681–0.299271 px < 0.35 px**.
+Offline evaluation is not a fresh sensor read. Because the SDK changed, these
+numbers are not a causal paired comparison with the historical five failures.
+
+The future external campaign now exercises actual MCP schema validation,
+including `jsonschema`, before creating output or launching a producer. The
+missing-dependency environment is rejected; the tested `.demo` environment
+passes that CPU preflight. Neither check retries or changes the native result.
+Further localizer or rendering work needs a separately declared variant,
+independent CPU validation and a fresh native episode; the pixel gates remain
+unchanged.

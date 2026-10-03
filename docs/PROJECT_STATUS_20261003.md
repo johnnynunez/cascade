@@ -387,8 +387,21 @@ homography is not proof of absolute accuracy. No pixel gate was relaxed.
 
 The 2026-10-04 CPU follow-up reproduced those five failures exactly and added
 explicit schema-5 producer/consumer binding with the same geometry and gates.
-All 286 RGB-D tests passed; consumer/SDK check-only descriptors matched. No new
-native render or accepted annotation is claimed.
+All 286 RGB-D tests passed; consumer/SDK check-only descriptors matched.
+The subsequent source `75451f1` episode used current SDK `48b2d951` and a newly
+observed baseline; exact native physics/calibration and Ground checks passed.
+All 80 solves, 20 policy evaluations and five captures were retained and both
+scopes closed naturally. The baseline's original post-close `port` bookkeeping
+FAIL remains; a separate CPU audit verified its saved data and closure.
+
+The new result is still **FAIL** for two distinct reasons: all 56 live read
+attempts stopped before RPC because the consumer lacked `jsonschema`, while
+all five saved schema5 images independently failed the unchanged 0.15 px gate
+(RMS **0.158779–0.164282 px**). There were zero live geometry evaluations or
+annotations. A future consumer dependency preflight now rejects that incomplete
+environment before launching Kit. No cross-SDK causal comparison, physical
+admission or threshold change is claimed.
+[Fresh native result and artifact hashes](../benchmark/results/rgbd_checker_accuracy_native_20261004.json).
 [Producer selection and diagnostic limits](RGBD_CHECKER_ACCURACY.md#explicit-producer-selection-2026-10-04).
 
 The delivered **61.056 s** continuous video retains 915 frames. Labelled

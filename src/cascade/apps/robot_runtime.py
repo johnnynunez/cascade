@@ -156,15 +156,18 @@ class DomainAdapter:
 def describe_robot(cfg):
     """Validate the entire resource graph before opening any domain."""
     from ..robotics.embodiment import embodiment_metadata
+    from ..robotics.joint_coordinates import MULTI_DOF_JOINTS
     body = cfg.as_dict().get("embodiment")
     domains = {name: _describe_domain(name, profile, embodiment=body) for name, profile in cfg.domains.as_dict().items()}
     catalog = ResourceCatalog([r for d in domains.values() for r in d.resources])
     embodiment_metadata(body, catalog)
     actuating = [d for d in domains.values() if d.motion_skills]
-    if body is not None and body["root_mode"] == "floating" and any(
+    dynamic_structure = body is not None and (body["root_mode"] == "floating" or
+        any(joint["type"] in MULTI_DOF_JOINTS for joint in body.get("joints", ())))
+    if dynamic_structure and any(
             d.profile["kind"] == "manipulation" and any(not r.synthetic for r in d.resources)
             for d in actuating):
-        raise ValueError("floating-root physical manipulation requires validated dynamic frames and shared control")
+        raise ValueError("floating-root or multi-DoF physical manipulation requires validated dynamic frames and shared control")
     if len(actuating) > 1 and any(not r.synthetic for d in actuating for r in d.resources):
         raise ValueError("mixed physical actuation needs validated shared-frame/control admission; only mixed mock domains are supported")
     return domains

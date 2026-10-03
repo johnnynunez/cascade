@@ -73,6 +73,31 @@ def _obs_collect():
         if _obs_view is None or not _obs_view.is_physics_tensor_entity_valid():
             _obs_view = _obs_RP(_obs_path, reset_xform_op_properties=False)
             _obs_cache[_obs_path] = _obs_view
+    # Keep the individual views for the convex mass/inertia witness, while
+    # reading poses and velocities in one bounded tensor batch. Exact paths
+    # have already passed the existing-schema guard above; no regex expansion
+    # or transform/schema authoring is permitted here.
+    _obs_batch_record = globals().get("_kitchen_passive_observer_batch_v1")
+    if (_obs_batch_record is None or _obs_batch_record["paths"] != tuple(_obs_paths)
+            or not _obs_batch_record["view"].is_physics_tensor_entity_valid()):
+        _obs_batch_record = {"paths": tuple(_obs_paths), "view": _obs_RP(
+            _obs_paths, resolve_paths=False, reset_xform_op_properties=False)}
+        globals()["_kitchen_passive_observer_batch_v1"] = _obs_batch_record
+    _obs_batch = _obs_batch_record["view"]
+    if tuple(_obs_batch.paths) != tuple(_obs_paths) or len(_obs_batch) != len(_obs_paths):
+        raise RuntimeError("Observer tensor batch path/count binding mismatch")
+    # RigidPrim.paths is the requested order, not an independent tensor-row
+    # identity. Its native view exposes the actual backend paths/count. Fail
+    # closed if this experimental SDK binding is unavailable or incomplete;
+    # never infer row ownership from the request or from nearby positions.
+    _obs_native_view = getattr(_obs_batch, "_physics_rigid_body_view", None)
+    _obs_native_paths = tuple(getattr(_obs_native_view, "prim_paths", ()))
+    if (getattr(_obs_native_view, "count", None) != len(_obs_paths)
+            or len(_obs_native_paths) != len(_obs_paths)
+            or len(set(_obs_native_paths)) != len(_obs_native_paths)
+            or set(_obs_native_paths) != set(_obs_paths)):
+        raise RuntimeError("Observer native tensor row identity mismatch")
+    _obs_row = {path: index for index, path in enumerate(_obs_native_paths)}
     with _obs_backend("tensor", raise_on_unsupported=True, raise_on_fallback=True):
         if not art.is_physics_tensor_entity_valid():
             raise RuntimeError("Articulation tensor view is invalid")
@@ -92,18 +117,27 @@ def _obs_collect():
             "gripper":{"indices":_obs_gi,"q":_obs_q[_obs_gi].tolist(),"qd":_obs_dq[_obs_gi].tolist(),
                 "lower":_obs_lo[_obs_gi].tolist(),"upper":_obs_hi[_obs_gi].tolist(),
                 "open_fractions":_obs_frac,"open_fraction":float(_obs_np.mean(_obs_frac))},"props":{}}
+        if not _obs_batch.is_physics_tensor_entity_valid():
+            raise RuntimeError("Rigid-body tensor batch is invalid")
+        _obs_pos, _obs_quat = _obs_batch.get_world_poses()
+        _obs_vel, _obs_ang = _obs_batch.get_velocities()
+        _obs_positions, _obs_orientations, _obs_velocities, _obs_angular = [
+            _obs_array(value) for value in (_obs_pos, _obs_quat, _obs_vel, _obs_ang)]
+        for _obs_values, _obs_width in ((_obs_positions, 3), (_obs_orientations, 4),
+                                       (_obs_velocities, 3), (_obs_angular, 3)):
+            if _obs_values.shape != (len(_obs_paths), _obs_width):
+                raise RuntimeError("Observer tensor batch has an unexpected shape")
         for _obs_name,_obs_path in zip(PROPS_LITERAL,_obs_paths):
             _obs_view = _obs_cache[_obs_path]
             if not _obs_view.is_physics_tensor_entity_valid():
                 raise RuntimeError("Rigid-body tensor view is invalid: " + _obs_path)
-            _obs_pos,_obs_quat = _obs_view.get_world_poses()
-            _obs_vel,_obs_ang = _obs_view.get_velocities()
-            _obs_p = _obs_array(_obs_pos).reshape(3).copy()
+            _obs_i = _obs_row[_obs_path]
+            _obs_p = _obs_positions[_obs_i].copy()
             _obs_p[2] -= float(BASE_Z)
             _obs_result["props"][_obs_name] = {"position_m":_obs_p.tolist(),
-                "orientation_wxyz":_obs_array(_obs_quat).reshape(4).tolist(),
-                "linear_velocity_m_s":_obs_array(_obs_vel).reshape(3).tolist(),
-                "angular_velocity_rad_s":_obs_array(_obs_ang).reshape(3).tolist(),
+                "orientation_wxyz":_obs_orientations[_obs_i].tolist(),
+                "linear_velocity_m_s":_obs_velocities[_obs_i].tolist(),
+                "angular_velocity_rad_s":_obs_angular[_obs_i].tolist(),
                 "tensor_device":str(getattr(_obs_pos,"device","unknown"))}
     _obs_frame = _frames.get(CAMERA_LITERAL)
     if _obs_frame is None:

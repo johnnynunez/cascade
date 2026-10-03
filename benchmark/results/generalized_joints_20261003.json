@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-02T22:17:55.562035+00:00",
+  "scope": "Passive generalized joint observations only; software and synthetic stdio MCP evidence, no physical controller admission.",
+  "repository": "/home/johnny/Projects/demo/cascade-lab/GENERALIZED_JOINTS/cascade",
+  "branch": "feat/generalized-joint-observations",
+  "base_commit": "5f50b8b67600123f02488b6c721e685ac051b10e",
+  "source_snapshot": {
+    "timing": "Captured after the successful run. No code changed during or after that invocation; docs/receipt completed afterward. No pre-run independent hash snapshot was captured.",
+    "files": {
+      "WORKLOG.md": "64ab0605b72f894c81f07b8a3b0d612b8777afca55f6ea62bad79c795f3db644",
+      "configs/robots/generalized_joint_sensors.yaml": "9d1fcf5c9911a8ff2daf47f338bc02913d1390d932df6b2236cfd01821193843",
+      "docs/EMBODIMENT.md": "623daa0f4bbc33a5c7e2ca87abb54a4fbdb9e6d981955ea0f8f7b2453a317a8f",
+      "src/cascade/apps/robot_runtime.py": "0a6599b82d792f685b87ec6f589b4054df442dd01bf71f32ddcaac2e4584329d",
+      "src/cascade/robotics/embodiment.py": "bdca8726e2be1528c8262e136151a379640067fae0a31d03b43561f8dccf5c83",
+      "src/cascade/robotics/joint_coordinates.py": "8f57b806124213e86be7d4d5803fab3950feb2c8ca9d8e1d35527184296f8892",
+      "src/cascade/sensing/__init__.py": "7e6aca8616c4351716ed14229a68431d38aeb8c4f8d199c399def2beac63db88",
+      "src/cascade/sensing/domain.py": "05499332dfc7d62e25d0881e3191eee55c1d2b6e88386e89deeeeef80ad48bf0",
+      "src/cascade/sensing/embodiment.py": "98f8832ad47c8e0fa0b3fa40fd72fc9917ec336c815ebb4fed5ee0b1b5c3bec1",
+      "src/cascade/sensing/models.py": "2e3706036414c96e577a4ad664fbdda5aeaadb4cbc672d4bb1139258e337fa79",
+      "src/cascade/sensing/providers.py": "2b6d11788646844a5b16133f22d341eda654ec5296c9ad84a7dec034a3387343",
+      "tests/fixtures/generalized_joints/README.md": "b1a5f13ec6ed9a51b0801d9018d5b769affabc8cf54bfe66db491737163518ce",
+      "tests/fixtures/generalized_joints/v1-wire.json": "21aaf41b8c8633c0b410d05adf3b63c58715f4ea179097d90472f9ab9d3afd3b",
+      "tests/test_generalized_joint_mcp.py": "0ee989f102e4e29555f3f4c7ee24a214a5e7adf65caacc91ec68d61039dd5b64",
+      "tests/test_generalized_joints.py": "8247c7e2a912df5f222d2c1d5aadaeb67866125278cc8c0444ee657fc4a8a81d",
+      "tests/test_robot_mcp.py": "41db5265b7280e20f4850f7f2eb9946b1babfb8fb3547967d3e69e3635b9baab"
+    }
+  },
+  "validation": {
+    "pytest": {
+      "command": "PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES=-1 PYTHONPATH=src /home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python -m pytest tests/test_generalized_joints.py tests/test_generalized_joint_mcp.py tests/test_embodiment_sensing.py tests/test_embodiment_contracts.py tests/test_embodiment_mcp.py tests/test_sensing_hub.py tests/test_sensing_models.py tests/test_sensing_providers.py tests/test_robot_runtime.py tests/test_robot_mcp.py -q --basetemp=/home/johnny/Projects/demo/cascade-lab/GENERALIZED_JOINTS/test-tmp-targeted --junitxml=/home/johnny/Projects/demo/cascade-lab/GENERALIZED_JOINTS/targeted-junit.xml",
+      "passed": 177,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "elapsed_s": 4.73,
+      "log": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/GENERALIZED_JOINTS/targeted-pytest.log",
+        "sha256": "8803e48622f69b5f6d7b7cff889d2107c97c66f0cf77a99dee045231ac5879d0"
+      },
+      "junit": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/GENERALIZED_JOINTS/targeted-junit.xml",
+        "sha256": "abcc42789e5bf70da681e1f61e15a5a3eb8dc9cae1bfcaf5c9ec5636b9e347ad"
+      }
+    },
+    "ruff": {
+      "version": "0.16.10",
+      "select": [
+        "F",
+        "E9"
+      ],
+      "result": "passed",
+      "cache": "disabled",
+      "scope": "Changed production modules, complete sensing package, new tests and modified MCP helper"
+    },
+    "git_diff_check": "passed"
+  },
+  "retained_development_failures": [
+    {
+      "result": "43 failed, 6 passed in 17.43 s",
+      "cause": "New motion_relation edit indented two YAML keys incorrectly; corrected indentation.",
+      "log": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/GENERALIZED_JOINTS/first-pytest.log",
+        "sha256": "15a6ea0056843866d4403a02af68f5ea67ab42327ed6b2eac648b8a893ed85c7"
+      },
+      "junit": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/GENERALIZED_JOINTS/first-junit.xml",
+        "sha256": "afa69f20ac3cc3456a939dd5a9b7372f59e48bdd0632c1489f96cd34a3c222ed"
+      }
+    },
+    {
+      "result": "2 failed, 47 passed in 0.92 s",
+      "cause": "New runtime/MCP tests requested replay within a synthetic sensor period; tests now wait one existing period, replay gate unchanged.",
+      "log": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/GENERALIZED_JOINTS/second-pytest.log",
+        "sha256": "484b7ead5e74301a5523643a59dcd796f4f850bbc5ffa6514557dd4ec880c681"
+      },
+      "junit": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/GENERALIZED_JOINTS/second-junit.xml",
+        "sha256": "c9fec7dd951e306dd2822a1c70988c2986b1ffe6353b0813eae1aec50d3c994b"
+      }
+    }
+  ],
+  "compatibility": {
+    "baseline_commit": "5f50b8b67600123f02488b6c721e685ac051b10e",
+    "fixture": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GENERALIZED_JOINTS/cascade/tests/fixtures/generalized_joints/v1-wire.json",
+      "sha256": "21aaf41b8c8633c0b410d05adf3b63c58715f4ea179097d90472f9ab9d3afd3b"
+    },
+    "full_declarations_payloads_and_digests_equal": true
+  },
+  "safety_scope": {
+    "new_multi_dof_actuation": "rejected",
+    "new_motion_tools": [],
+    "physical_legacy_arm_with_internal_multi_dof": "rejected for all three types, including fixed-root declarations",
+    "physical_driver_added": false,
+    "gpu_runs": 0,
+    "measurement_kind_of_shipped_profile": "synthetic",
+    "physical_model_identity_of_shipped_profile": null,
+    "effort_absent": "unknown, not zero",
+    "capture_binding": "original envelope returned unchanged; stale capture still rejected"
+  },
+  "protected_store_terminal_check": {
+    "envelope": {
+      "path": "/home/johnny/.cascade/envelope.json",
+      "sha256": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2"
+    },
+    "matches_prior_protected_sha256": true,
+    "grasp_memory_exists": false
+  },
+  "limitations": [
+    "No native generalized-coordinate producer is supplied.",
+    "No root observer, coordinate conversion, kinematics, transmission allocation, whole-body control or robot admission is inferred.",
+    "Tests use the real repository conftest and private stores; they do not prove a physical quaternion, torque or motion.",
+    "Publication is not authorized; changes remain local."
+  ]
+}

@@ -105,6 +105,12 @@ class SafetyHarness:
         self._estopped = False
         self._halt: str | None = None
         self._halt_generation = 0
+        # A passive goal ledger can commit under this short lock after doing
+        # all geometry, SDK reads and I/O outside it. Lock order: world then
+        # this lock; stop/reset never acquire a world lock. This token also
+        # remembers estop -> reset without changing legacy halt generations.
+        self._observation_lock = threading.Lock()
+        self._observation_cancel_generation = 0
         self._pending_contact_episode = None
         self._contact_scope = threading.local()
         self._pending_release_episode = None
@@ -125,11 +131,14 @@ class SafetyHarness:
         self._last_heartbeat = time.monotonic()
 
     def estop(self, reason: str = "manual") -> None:
-        self._estopped = True
+        with self._observation_lock:
+            self._estopped = True
+            self._observation_cancel_generation += 1
         self.violations.append(f"ESTOP: {reason}")
 
     def reset_estop(self) -> None:
-        self._estopped = False
+        with self._observation_lock:
+            self._estopped = False
 
     # ── halt / redirect (VoLo's monitor-halt-redirect) ───────────────────
 
@@ -152,12 +161,15 @@ class SafetyHarness:
         Checked inside `approve()`, so it takes effect within one 50 Hz
         waypoint (20 ms) rather than at the end of the trajectory.
         """
-        self._halt = reason
-        self._halt_generation += 1
+        with self._observation_lock:
+            self._halt = reason
+            self._halt_generation += 1
+            self._observation_cancel_generation += 1
         self.violations.append(f"HALT: {reason}")
 
     def clear_halt(self) -> None:
-        self._halt = None
+        with self._observation_lock:
+            self._halt = None
 
     @property
     def halted(self) -> str | None:
@@ -341,12 +353,13 @@ class SafetyHarness:
             raise SafetyViolation("e-stop latched")
         # A halt before the caller started is recoverable; a new halt during
         # route planning or between its segments must cancel that same route.
-        self._check_halt_generation(halt_generation)
         # A halt applies to the motion that was in flight when it was raised,
         # not to every future one. Clearing here (rather than making the caller
         # remember) is what keeps halt recoverable and distinct from e-stop:
         # forget this and the first halt of the session bricks the arm.
-        self._halt = None
+        with self._observation_lock:
+            self._check_halt_generation(halt_generation)
+            self._halt = None
         age = time.monotonic() - self._last_heartbeat
         if age > self.limits.watchdog_s:
             self._reject(f"perception watchdog: last observation {age:.1f}s old")

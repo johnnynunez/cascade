@@ -32,3 +32,6 @@ engine: warp
 # edit. An explicit `cuda:0` the host lacks WARNS and falls back to CPU rather
 # than killing the run (same contract as the perception device selector).
 device: auto
+
+# The passive placement journal is specific to the shared C-world owner.
+mj_delivery_area: null

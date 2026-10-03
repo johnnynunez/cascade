@@ -79,6 +79,9 @@ class MujocoWorld:
         m, mj = self.model, self.mj
         names = []
         with self.lock:
+            history = getattr(self, "placement_history", None)
+            if history is not None:
+                history.reset()
             for j in range(m.njnt):
                 if m.jnt_type[j] != mj.mjtJoint.mjJNT_FREE:
                     continue

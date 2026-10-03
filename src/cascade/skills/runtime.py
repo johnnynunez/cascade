@@ -338,20 +338,25 @@ class SkillRuntime:
 
     def _verify_configured_placement(self, label, destination):
         """Resolve the requested area in configuration, then read physics only."""
-        # The current truth reader is bound to the first configured arm. It
-        # cannot adjudicate another arm's world in a multi-arm runtime.
-        if self.arm_rig is not None and len(self.arm_rig.arms) > 1:
-            return None
-        reader = getattr(self._object_pose, "placement", None)
-        if reader is None:
-            return None
-        if not destination or _names_drop_zone(destination):
+        region = self.cfg.arm.get("mj_delivery_area")
+        region_requested = region is not None and (not destination or _names_drop_zone(destination))
+        if region_requested:
+            from ..sim.mujoco_placement import Region
+            canonical = Region.parse(region).name
+        elif not destination or _names_drop_zone(destination):
             canonical = self.cfg.grasp.get("drop_zone_name", "drop zone")
         elif str(destination).strip().lower() in _OPEN_BOX_WORDS:
             canonical = "open box"
         else:
             return None
-        if canonical not in {"green square", "open box"}:
+        if not region_requested and canonical not in {"green square", "open box"}:
+            return None
+        reader = getattr(self._object_pose, "placement", None)
+        # A configured region cannot fall back to the weaker point channel.
+        if reader is None or (self.arm_rig is not None and len(self.arm_rig.arms) > 1):
+            if region_requested:
+                return {"status": "unverified", "evidence": "configured region lacks an independent bound reader",
+                        "measured": {"destination": canonical}}
             return None
         return reader(label, canonical, evidence_dir=self.trace.run_dir / "placement")
 
@@ -564,6 +569,16 @@ class SkillRuntime:
                     or None
                 )
             pre_state = self.effects.snapshot(target_label)
+        region_context = None
+        region_context_error = None
+        if name == "place_at":
+            from .mujoco_region import explicit_context
+            try:
+                region_context = explicit_context(effective_arm, self.held_object, args)
+            except Exception as exc:
+                # Goal bookkeeping failure never grants a different motion or
+                # clears a physical obligation. The original point path remains.
+                region_context_error = f"{type(exc).__name__}: {exc}"
         t0 = time.monotonic()
         try:
             import contextlib
@@ -635,6 +650,11 @@ class SkillRuntime:
                 )
                 print(f"[cascade] postcondition verifier for {name} raised: {e!r}", file=sys.stderr)
             result = annotate_result(result, pc)
+        if region_context_error is not None:
+            result["region_obligation"] = {"retired": False, "reason": region_context_error}
+        if name == "place_at" and region_context is not None:
+            from .mujoco_region import finish_explicit
+            finish_explicit(region_context, result)
         if name == "pick_and_place" and result.get("ok") is False:
             result["next_action"] = (
                 "If the user said 'then stop', report this failure and end the turn. "
@@ -2550,93 +2570,13 @@ class SkillRuntime:
                 f"[{target[0]:.3f}, {target[1]:.3f}] so the OBJECT lands on "
                 f"[{x:.3f}, {y:.3f}]",
             )
-        from ..grasping.obb_grasp import _yaw_rotation
-
         q_now = (carry_state if carry_state is not None else self.arm.get_state()).q
-        tcp_now = self.kin.fk(q_now)
-        hover = target + np.array([0.0, 0.0, float(gcfg.get("pregrasp_offset_m", 0.12))])
-        # Finish the horizontal carry before lowering the held object. A
-        # low release target must not also lower a can through the worktop's
-        # other props while it is still crossing to that target.
-        hover[2] = max(hover[2], float(tcp_now[2, 3]))
-        hover[2] = min(hover[2], z_cap)  # same wrist ceiling as the release
-        carry_height = gcfg.get("carry_height_m")
-        if carry_height is not None:
-            carry_height = float(carry_height)
-            if not np.isfinite(carry_height) or not table_z < carry_height <= z_cap:
-                raise _PreCarryLiftError("carry height must be above the table and within the wrist ceiling")
-            # Release height controls the final descent, independently of
-            # the clearance needed while crossing other objects.
-            hover[2] = max(hover[2], carry_height)
-        lift = None
-        carry_start = q_now
-        if (bool(gcfg.get("pre_carry_lift", False))
-                and float(hover[2]) > float(tcp_now[2, 3]) + .001):
-            # Reaching the clearance height only at the far end of the
-            # horizontal chord can catch a tall payload on a low platform.
-            # First reach the SAME already-planned height at the current XY
-            # and orientation. Plan and vet this phase before any motion.
-            lift_pose = tcp_now.copy()
-            lift_pose[2, 3] = float(hover[2])
-            lift = self.kin.ik(lift_pose, q_now)
-            if (not lift.success or np.max(np.abs(lift.q - q_now)) > np.pi):
-                raise _PreCarryLiftError("pre-carry lift is unreachable; keeping the grasp")
-            for fraction in (.15, .3, .45, .6, .75, .9, 1.):
-                reason = self.arm.harness.vet_pose(q_now + fraction * (lift.q - q_now))
-                if reason:
-                    raise _PreCarryLiftError(f"pre-carry lift is unsafe: {reason}")
-            carry_start = lift.q
-        # Plan empty-gripper clearance before release so the trip home cannot
-        # tip the placed object. Keep release yaw and XY through retraction.
-        retreat_target = None
-        retreat_offset = gcfg.get("post_place_retreat_offset_m")
-        if retreat_offset is not None:
-            retreat_offset = float(retreat_offset)
-            if not np.isfinite(retreat_offset) or retreat_offset <= 0:
-                raise _PostPlaceRetreatPlanError("post-place retreat offset must be finite and positive")
-            retreat_target = target.copy()
-            retreat_target[2] = max(float(hover[2]), release_z + retreat_offset)
-        # Preserve held yaw to avoid loading an off-center grasp. Nearby yaws
-        # avoid wrist unwinding when the original yaw approaches joint limits.
-        radial = float(np.arctan2(y, x))
-        yaws = [radial, 0.0, np.pi / 4, -np.pi / 4, np.pi / 2, -np.pi / 2]
-        approach_col = 0 if self._tool_axis_order == "down_open" else 2
-        opening_col = 0 if self._tool_axis_order == "open_down" else 1
-        if float(-tcp_now[2, approach_col]) > 0.95:
-            held_yaw = float(np.arctan2(tcp_now[1, opening_col], tcp_now[0, opening_col]))
-            near_yaws = [held_yaw]
-            for delta in (np.pi / 4, np.pi / 2, 3 * np.pi / 4, np.pi):
-                near_yaws.extend((held_yaw - delta, held_yaw + delta))
-            yaws = near_yaws + yaws
-        pre = low = retreat = None
-        for yaw in yaws:
-            R = _yaw_rotation(yaw, axis_order=self._tool_axis_order)
-            cand_pre = self.kin.ik(make_transform(R, hover), carry_start)
-            if (not cand_pre.success
-                    or np.max(np.abs(cand_pre.q - carry_start)) > np.pi):
-                continue
-            cand_low = self.kin.ik(make_transform(R, target), cand_pre.q)
-            if (cand_low.success
-                    and np.max(np.abs(cand_low.q - cand_pre.q)) <= np.pi):
-                cand_retreat = None
-                if retreat_target is not None:
-                    # Reuse the existing pose exactly when the hover already
-                    # provides this clearance (e.g. the kitchen pink cube).
-                    cand_retreat = (cand_pre if np.array_equal(retreat_target, hover)
-                                    else self.kin.ik(make_transform(R, retreat_target), cand_low.q))
-                    if (not cand_retreat.success
-                            or np.max(np.abs(cand_retreat.q - cand_low.q)) > np.pi):
-                        continue
-                pre, low, retreat = cand_pre, cand_low, cand_retreat
-                break
-        if pre is None or low is None:
-            retreat_detail = (f", post-place retreat {retreat_target.round(3).tolist()}"
-                              if retreat_target is not None else "")
-            error_type = _PostPlaceRetreatPlanError if retreat_target is not None else SkillError
-            raise error_type(
-                f"place pose unreachable at {target.round(3).tolist()} "
-                f"(hover {hover.round(3).tolist()}{retreat_detail}, all yaws tried)"
-            )
+        from .place_geometry import plan as plan_geometry
+        geometry = plan_geometry(self, q_now, target, x=x, y=y,
+                                 release_z=release_z, z_cap=z_cap)
+        lift, pre, low = geometry.lift, geometry.pre, geometry.low
+        retreat, retreat_target = geometry.retreat, geometry.retreat_target
+        R, hover = geometry.rotation, geometry.hover
 
         retreat_error = None
         release_error = None
@@ -2994,6 +2934,11 @@ class SkillRuntime:
             failure_destination = {"destination": destination_name,
                 "destination_kind": "configured_point",
                 "target": [float(dz[0]), float(dz[1])]}
+            if self.cfg.arm.get("mj_delivery_area") is not None:
+                from ..sim.mujoco_placement import Region
+                region = Region.parse(self.cfg.arm.get("mj_delivery_area"))
+                failure_destination = {"destination": region.name, "destination_kind": "configured_region",
+                                       "region": region.as_dict()}
         elif (str(destination).strip().lower() in _OPEN_BOX_WORDS
                 and gcfg.get("open_box") is not None):
             box = gcfg.get("open_box")
@@ -3138,8 +3083,14 @@ class SkillRuntime:
                     if destination and not _names_drop_zone(destination):
                         res = self.skill_place_on_object(destination)
                     else:
-                        dz = gcfg.get("drop_zone", [0.30, -0.20])
+                        from .mujoco_region import select as select_region
+                        region_selection = select_region(self)
+                        dz = (region_selection["target"] if region_selection is not None
+                              else gcfg.get("drop_zone", [0.30, -0.20]))
                         res = self.skill_place_at(float(dz[0]), float(dz[1]))
+                        if region_selection is not None:
+                            res.update(destination=region_selection["destination"],
+                                       destination_kind="configured_region", region_selection=region_selection)
                     if (res.get("placed") and not self.held_object
                             and (res.get("home_skipped") is True
                                  or res.get("post_place_retreat", {}).get("ok") is False)):
@@ -3241,6 +3192,9 @@ class SkillRuntime:
         if (not destination or _names_drop_zone(destination)
                 or placed.get("destination_kind") == "configured_point"):
             result["destination_kind"] = "configured_point"
+        if placed.get("destination_kind") == "configured_region":
+            result["destination_kind"] = "configured_region"
+            result["region_selection"] = placed["region_selection"]
         if "post_place_retreat" in placed:
             result["post_place_retreat"] = placed["post_place_retreat"]
         if "release_clearance" in placed:

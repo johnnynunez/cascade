@@ -13,6 +13,9 @@ from cascade.types import SafetyViolation
 @needs_gl
 def test_withdrawal_home_preserves_first_cube_and_occupied_target_refuses_before_carry(two_prop_runtime):
     cfg, runtime, arm = two_prop_runtime
+    # This is the exact-point occupied-destination contract, independently
+    # retained when the profile also offers an explicit default region.
+    cfg.arm._data['mj_delivery_area'] = None
     first = runtime.execute('pick_and_place', {'object': 'red cube'})
     assert first['ok'] and first['postcondition']['status'] == 'confirmed', first
     assert first['postcondition']['channel'] == 'physics', first
@@ -31,6 +34,9 @@ def test_withdrawal_home_preserves_first_cube_and_occupied_target_refuses_before
 def test_explicit_reset_replans_new_generation_but_retains_debt_until_physical_reset_and_observation(
         two_prop_runtime, monkeypatch):
     cfg, runtime, arm = two_prop_runtime
+    # This is the exact-point occupied-destination contract, independently
+    # retained when the profile also offers an explicit default region.
+    cfg.arm._data['mj_delivery_area'] = None
     cfg.grasp._data['home_after_place'] = False
     spawn = {name: arm.world.body_pos(name) for name in arm.world.free_body_names()}
     result = runtime.execute('pick_and_place', {'object': 'red cube'})

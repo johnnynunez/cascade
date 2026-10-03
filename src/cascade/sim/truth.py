@@ -593,6 +593,12 @@ class LazyTruthPoseFn:
         """
         reader = self._resolve()
         cfg = self._arm_cfg
+        if cfg is not None and cfg.get("mj_delivery_area") is not None:
+            from .mujoco_placement import read_placement
+            # Missing C-world/history is an explicit unknown; do not fall back
+            # to center-only relocation for a configured region.
+            scene = reader._scene if isinstance(reader, MujocoTruthReader) else ""
+            return read_placement(scene, cfg, label, destination, evidence_dir=evidence_dir)
         if not isinstance(reader, TruthPoseReader) or cfg is None or cfg.get("type") != "isaac":
             return None
         robot_id = cfg.get("bridge_robot_id")

@@ -83,3 +83,14 @@ settle_timeout_s: 4.0
 # Set to open a MuJoCo viewer window alongside the run. Off by default: it
 # needs a display, and the framework's own dashboard already shows the cameras.
 view: false
+
+# Semantic drop area on the explicitly declared horizontal support, within
+# this profile's workspace. Reachability is checked for each measured payload;
+# the rectangle does not promise that every point has a feasible 5-DoF pose.
+# Boundary erosion uses payload footprint only; 20 mm safety separation is
+# between physical objects/robot, not an additional semantic-border margin.
+mj_delivery_area:
+  version: 1
+  name: drop zone
+  frame: robot_base
+  bounds_xy_m: [[0.15, -0.16], [0.24, -0.08]]

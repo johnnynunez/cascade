@@ -130,8 +130,15 @@ class _MjcEngine:
         self.data.ctrl[:] = ctrl
 
     def step(self, n: int) -> None:
-        for _ in range(n):
+        history = getattr(self._world, "placement_history", None)
+        before = None
+        for index in range(n):
+            if history is not None and index == n-1:
+                before = {"qpos": self.data.qpos.copy(), "qvel": self.data.qvel.copy(),
+                          "time_s": float(self.data.time)}
             self._mj.mj_step(self.model, self.data)
+        if history is not None and n > 0:
+            history.capture(n, before)
         if self._viewer is not None:
             try:
                 self._viewer.sync()
@@ -537,6 +544,14 @@ class MujocoArm(ArmBase):
                 engine.set_qpos(self._grip_qadr, self._grip_open)
             engine.realize(view=self._view)
             self._hold_current()
+            if self._cfg.get("mj_delivery_area") is not None:
+                if engine.kind == "mjc":
+                    from ..sim.mujoco_placement import PlacementHistory
+                    engine._world.placement_history = PlacementHistory(engine._world, self)
+                else:
+                    # A forced engine override can still run ordinary joint
+                    # control. It gets no C-world observer or region admission.
+                    self._placement_history_error = "placement regions require the native MuJoCo C observer"
         self._connected = True
         self._stopped = False
         logger.info(

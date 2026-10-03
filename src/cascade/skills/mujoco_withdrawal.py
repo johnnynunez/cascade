@@ -18,16 +18,16 @@ from ..safety.trajectory import PLAN_BUDGET_S, motion_duration, plan_route, vet_
 from ..types import SafetyViolation, SkillError
 
 
-def prepare(runtime, release_pose, *, carry_goals=None):
+def prepare(runtime, release_pose, *, carry_goals=None, deadline=None):
     raw = getattr(runtime.arm, "raw", None)
     name = getattr(raw, "_cfg", {}).get("mj_release_tool_body")
     if name is None:
         return None
-    return Withdrawal(runtime, str(name), release_pose, carry_goals=carry_goals)
+    return Withdrawal(runtime, str(name), release_pose, carry_goals=carry_goals, deadline=deadline)
 
 
 class Withdrawal:
-    def __init__(self, runtime, tool_body, release_pose, *, carry_goals=None):
+    def __init__(self, runtime, tool_body, release_pose, *, carry_goals=None, deadline=None):
         self.runtime, self.arm = runtime, runtime.arm
         self.raw, self.kin, self.harness = self.arm.raw, runtime.kin, self.arm.harness
         self.world = self.raw.world
@@ -84,7 +84,7 @@ class Withdrawal:
         bounds = self.model.geom_aabb
         if bounds.shape != (self.model.ngeom, 6) or not np.isfinite(bounds).all() or (bounds[:, 3:] < 0).any():
             raise SkillError("release collision bounds unavailable")
-        self.deadline = time.monotonic() + PLAN_BUDGET_S
+        self.deadline = min(time.monotonic() + PLAN_BUDGET_S, deadline if deadline is not None else float("inf"))
         self.data = self._snapshot()
         self.q_start = self.data.qpos[self.raw._qadr].copy()
         self._pose(self.q_start)

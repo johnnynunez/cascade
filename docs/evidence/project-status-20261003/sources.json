@@ -10,6 +10,12 @@
       "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/factory-contact-writer-cpu.json",
       "sha256": "988d66d446be1da13848fa77e0fb89cdc78383e62aa984a0c5eaea2e7a939a57"
     },
+    "factory-final-outcome-cpu.json": {
+      "bytes": 3654,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FINAL_OUTCOME/cascade/benchmark/results/factory_final_outcome_20261003.json",
+      "sha256": "4524567ccd471353d1f92baa6ff1596c87f54aed16f810b794ee1c23df4ccee4",
+      "source_commit": "cce88808d4bded97a84c02a562cb3ceb997de954"
+    },
     "factory-native-v3-prepare.json": {
       "bytes": 3637,
       "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/ROOT_NATIVE01_REVIEW.json",
@@ -55,10 +61,33 @@
       "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/microduck-video-root-review.json",
       "sha256": "b0d2a139ebdf35686066bf7c60c0db7ef964739178be20d2489bd8707e410d25"
     },
+    "mobile-distance-final-outcome-cpu.json": {
+      "bytes": 14293,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_OUTCOME_20261003/cascade/benchmark/results/mobile_distance_outcome_20261003.json",
+      "sha256": "698a351a212ef1d9d8c0cf54e84139755b36d9645555516f5b670c83cd3e0575",
+      "source_commit": "09650fd5ded039637e39982d262b905b02ee2533"
+    },
+    "mujoco-reset-callback-cancellation-cpu.json": {
+      "bytes": 2990,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/WITHDRAWAL_RESET_BOUNDARIES_20261003/cascade/benchmark/results/mujoco_reset_callback_cancellation_20261003.json",
+      "sha256": "3c81d83f33453909f5abb04decd9b8250bd539410941f58a8c238592a403b5f8",
+      "source_commit": "7b765a6e8fe3ca48ed356cf5c6767aa96f20f7ca"
+    },
     "mujoco-two-pick.json": {
       "bytes": 22703,
       "origin": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/ATTACHMENT_PHYSICAL01_AUDIT.json",
       "sha256": "865f53e565a02f6f3b02d31b2abc6a64fc54ed9671fbbfa7b147b6794d6e4782"
+    },
+    "mujoco-withdrawal-cancellation-cpu.json": {
+      "bytes": 4085,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/WITHDRAWAL_CANCEL_FIX_20261003/cascade/benchmark/results/mujoco_withdrawal_cancellation_20261003.json",
+      "sha256": "03d8606473fd186084bc2abc4565704f2ccfce285f15e243e30aa1c3a1007e9b",
+      "source_commit": "fe0a49ee66e382de5865de46d483b271ac868c82"
+    },
+    "mujoco-withdrawal-publication.json": {
+      "bytes": 1326,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/WITHDRAWAL_RESET_BOUNDARIES_20261003/PUBLICATION_CHECKPOINT_01.json",
+      "sha256": "fbc9606122564824a0e5b9dc8197ee2c0e7a49a7e328ea528f83e81b7b4311ca"
     },
     "realhost-trial12-command-audit.json": {
       "bytes": 61404,
@@ -84,6 +113,17 @@
       "bytes": 1450,
       "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/rgbd-native02-review.json",
       "sha256": "c035f6249391e1dafcce65c5da269df242770b923a7bd42e2b41412e573319e5"
+    },
+    "task-terminal-obligations-cpu.json": {
+      "bytes": 4055,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/cascade/benchmark/results/task_terminal_obligations_20261003.json",
+      "sha256": "5b659032af9a6f1aefcafa2f91e89f6a44dee3697eab84ea253790f06e4357ad",
+      "source_commit": "3e696d492f76cb45ad752637d7ff8895748b3cfd"
+    },
+    "terminal-fixes-composition.json": {
+      "bytes": 6289,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_TERMINAL_20261003/RESULT_01.json",
+      "sha256": "0ebfc7f953fbbd29ad5d2241ca6a04afc2e2876ec66fb4d7dec41795152b3708"
     },
     "vab-native-preflight-20261002.json": {
       "bytes": 45676,

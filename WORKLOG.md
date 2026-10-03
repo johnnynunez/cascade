@@ -654,3 +654,16 @@ failure and all prior portable receipts remain intact. Separate software
 closure from missing task/home/rest acceptance. No code, tests, model inference,
 GPU, physical action, shared environment or learned store changed; validation
 is limited to relative links, source/evidence hashes and documentation diff.
+
+### 2026-10-03 — Source-bound published software corrections
+
+Added four concise status rows for PR85 final threading through rest, PR87
+post-completion distance veto, PR90 terminal task obligations/cancellation and
+PR93 withdrawal/reset callback fences. Copied five original CPU receipts and
+the PR93 publication checkpoint byte-exactly, with source commits and hashes.
+A separate composition receipt retains the 985/3 result and 264-pass follow-up;
+its 1044-case union is not a single full-suite/final-head result.
+The 151/183/122 selections overlap and are not summed. Historical physical
+failures and all prior receipts remain unchanged; no CI-wide or new physical
+admission is inferred. Documentation validation only: links, hashes, exact Git
+receipt versions and diff checks; no test/runtime/SDK/GPU execution.

@@ -1,0 +1,82 @@
+{
+  "base_commit": "b7a0deee544911daf220c7b65ed3d8014783666c",
+  "changed_sources": {
+    "src/cascade/skills/fastening_runtime.py": "42f1d2af1b6a1b415314e5c1250bcc25affe1b6ff03d5b6ec10fb7d1c00f13ec",
+    "tests/test_factory_final_outcome.py": "6a36685951f158f583fa35263107d9f5fd82e67ce11a2dd974c6c4df20b96010"
+  },
+  "checks": {
+    "baseline_01": {
+      "failed": 6,
+      "note": "One extra failure was wrong expected timeout wording; preserved.",
+      "passed": 3
+    },
+    "baseline_02": {
+      "failed": 5,
+      "passed": 4,
+      "seconds": 0.7
+    },
+    "final": {
+      "failed": 0,
+      "files": 7,
+      "inputs_unchanged": 589,
+      "passed": 402,
+      "protected_stores_unchanged": true,
+      "seconds": 2.26,
+      "skipped": 0
+    }
+  },
+  "contract_preserved": {
+    "capture_rest_exclusions_unchanged": true,
+    "control_or_owner_changed": false,
+    "freshness_s": 0.2,
+    "late_positive_credit": false,
+    "original_turn_baseline": true,
+    "quiet_window_sim_s": 0.5,
+    "rest_timeout_sim_s": 3,
+    "rest_timeout_wall_s": 30,
+    "threading_verifier_changed": false
+  },
+  "date": "2026-10-03",
+  "external_artifact_root": "FACTORY_FINAL_OUTCOME task-local directory, not checked-in evidence",
+  "external_artifacts_sha256": {
+    "evidence/baseline-01/pytest.log": "ca3aec0cfeb35a953900dcfdfabe1d4c07490569b8a8baa61343a58bcba6f37f",
+    "evidence/baseline-01/receipt.json": "669ece7a8dff7cea9a404f01cb927de0fb27574fbae4385cf0d836a80a0934c6",
+    "evidence/baseline-02/pytest.log": "8be93a78553b7b3b713f04811fbf24c0d9fccafd0755457c85aefc67980fc5a6",
+    "evidence/baseline-02/receipt.json": "4c30b6e7449b0b141809ddeb56c134c5559793a301512fc9de6e0e06a7d97913",
+    "evidence/candidate-01/receipt.json": "49f213db75cf641c62abc42ac28d8b0a5fa49d2f3447ec0ad9c9262b4e07c8ad",
+    "evidence/focused-final/junit.xml": "62b281706215b6054df93e90cb5f8efb07522dfac16866ade78146b94beaf96d",
+    "evidence/focused-final/pytest.log": "febd0ab280a11bf1e024d12497f64cecb5bb5f19a6271959c444ce43f011a08d",
+    "evidence/focused-final/receipt.json": "aae8a040233ff245bad3499f36859ef96ac17bdd95b3c0c73f8362454a340108",
+    "evidence/reported-baseline/repro-unwind.json": "00b6839bdba052d17fee6121edfcbed108c244114b963906593eb40a72fe8f9a",
+    "evidence/reported-baseline/repro_unwind.py": "436bae6dd0f3f11cc6f5283ce9a22ff40eb0438f8626691acd64cf91c8e69281",
+    "retained-source-01/src/cascade/skills/fastening_runtime.py": "5f1320f4064c41acc68c0c4e29012ac340d8dde1c0918dc72d4409ddbb50bb9d",
+    "retained-source-01/tests/test_factory_final_outcome.py": "33b71df1eaf69cf8429f1791fddff6f97777f29a9fe8aab979cb984c3ee38aec"
+  },
+  "limitations": [
+    "CPU scripted observations do not establish native physical rollback or task success.",
+    "Changed source participates in model identity; no prior native model pin is transferred."
+  ],
+  "provided_repro": {
+    "copied_byte_exact": true,
+    "results_on_base": [
+      {
+        "domain_ok": true,
+        "final_step": 242,
+        "scenario": "positive_control",
+        "whole_interval_status": "confirmed",
+        "whole_interval_turns": 0.9500000000000002
+      },
+      {
+        "domain_ok": true,
+        "final_step": 432,
+        "scenario": "passive_unwind_after_stop",
+        "whole_interval_status": "refuted",
+        "whole_interval_turns": -0.004999999999999999
+      }
+    ],
+    "reviewed_before_execution": true,
+    "source_original_sha256": "436bae6dd0f3f11cc6f5283ce9a22ff40eb0438f8626691acd64cf91c8e69281"
+  },
+  "schema": 1,
+  "scope": "Retain threaded outcome through unchanged stop/rest checks. Synthetic CPU controls; no native rollback or acceptance claim."
+}

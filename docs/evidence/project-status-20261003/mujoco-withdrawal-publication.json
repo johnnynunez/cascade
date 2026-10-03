@@ -1,0 +1,24 @@
+{
+  "head": "7b765a6e8fe3ca48ed356cf5c6767aa96f20f7ca",
+  "base": "fe0a49ee66e382de5865de46d483b271ac868c82",
+  "clean": true,
+  "files": {
+    "WORKLOG.md": "7b7e37d7a10dcd8237703d68df09302b428687a362074bbc7888787e6cece733",
+    "benchmark/results/mujoco_reset_callback_cancellation_20261003.json": "3c81d83f33453909f5abb04decd9b8250bd539410941f58a8c238592a403b5f8",
+    "docs/MUJOCO_POSTRELEASE_WITHDRAWAL.md": "cd8a807d8c0bca7102c2f07f713250421366638345ddfd85172b38fc6af8eb89",
+    "src/cascade/skills/runtime.py": "9fd4a2d207b0286d85e8f3f77a7a4cb2997e624126f6cf12f0d4189690822fc6",
+    "tests/test_mujoco_postrelease.py": "004e979c8261c538ee5e98eaf42dbcba3e8dde1479b71575790130338c26c815",
+    "tests/test_mujoco_withdrawal_reset_boundaries.py": "7810208b21afabdc1fe327119f723b9a05aa65a2b62db60b7af0d7cdcde1b545"
+  },
+  "independent_review": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/WITHDRAWAL_RESET_BOUNDARIES_REVIEW_20261003/review.json",
+    "sha256": "e7ef426680b4e6d06160b4bc1dc70fd3e859d5c55f3cebdef09c076459a1797e"
+  },
+  "callback_selection": {
+    "passed": 183,
+    "deselected_physical_reset": 1,
+    "receipt_sha256": "92559e6108c7c5ef3ea895941e739d111c1d4fba604d6b6879d262fc3949d501"
+  },
+  "fixture_source_commit": "a86cfca4a6c483566d8c8e4ddfba9b1fcea173ab",
+  "fixture_selection_passed": 122
+}

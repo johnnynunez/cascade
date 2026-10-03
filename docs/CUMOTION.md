@@ -143,6 +143,13 @@ they do not represent measured jaw strokes, a live scene or a held payload.
 `obstacles: []` explicitly adds no static obstacles. Existing table, workspace,
 observed-finger and configured occupancy/payload vetoes retain authority.
 
+Before choosing a grasp, the runtime checks its pregrasp, grasp and configured
+carry-lift endpoints against the same cuMotion model's joint limits, margin,
+self collision and static obstacles. A rejected endpoint lets selection examine
+another independently vetted candidate before any gripper or joint command.
+Inspector failure is terminal. Endpoint admission is not a trajectory check;
+the selected motion still needs a valid native curve and every existing veto.
+
 Ordinary `SafeArm.move_joints` and `move_planned` requests obtain one native
 curve, uniformly slow it to the requested duration/host velocity bound, copy
 its original values at both the 30 Hz command grid and existing 50 Hz safety

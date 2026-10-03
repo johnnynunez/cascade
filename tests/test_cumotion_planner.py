@@ -128,6 +128,41 @@ def test_public_factory_maps_names_signs_and_nonzero_time_origin(setup):
     json.dumps(record, allow_nan=False)
 
 
+def test_candidate_filter_maps_coordinates_and_does_not_solve_or_fault_on_rejection(setup):
+    cfg, sdk = setup
+    with make_motion_planner(cfg) as planner:
+        seen = []
+        planner._inspector.in_self_collision = lambda q: seen.append(q.copy()) or q[1] < 0
+        assert 'self collision' in planner.configuration_rejection([.2, .3])
+        np.testing.assert_allclose(seen[-1], [.3, -.2])
+        assert planner.configuration_rejection([-.2, .3]) is None
+        planner._inspector.in_collision_with_obstacle = lambda q: q[0] > .4
+        assert 'obstacle collision' in planner.configuration_rejection([-.2, .5])
+        before = len(seen)
+        assert 'margin' in planner.configuration_rejection([1.99, 0])
+        assert len(seen) == before and not sdk.requests
+        # Rejected endpoints leave the owner usable for another candidate.
+        planner.plan([0, 0], [-.1, .1])
+        assert len(sdk.requests) == 1
+    with pytest.raises(PlanningError, match='closed'):
+        planner.configuration_rejection([0, 0])
+
+
+def test_candidate_inspector_fault_is_terminal(setup):
+    cfg, sdk = setup
+    with make_motion_planner(cfg) as planner:
+        def broken(q):
+            raise RuntimeError('native inspector failure')
+        planner._inspector.in_self_collision = broken
+        with pytest.raises(PlanningError, match='native inspector failure'):
+            planner.configuration_rejection([0, 0])
+        with pytest.raises(PlanningError, match='faulted'):
+            planner.configuration_rejection([0, 0])
+        with pytest.raises(PlanningError, match='faulted'):
+            planner.plan([0, 0], [.1, .1])
+        assert not sdk.requests
+
+
 def test_obstacles_model_and_result_are_copied_and_hashed(setup):
     cfg, sdk = setup
     box = dict(name="table", size_m=[1., 2., .1], T_base_box=np.eye(4).tolist())

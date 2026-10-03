@@ -239,6 +239,28 @@ class CumotionPlanner:
     def _positions_valid(self, q, margin):
         return np.all(q >= self._lo + margin) and np.all(q <= self._hi - margin)
 
+    def configuration_rejection(self, position):
+        """Reject candidate endpoints against this planner's exact model.
+
+        This is passive candidate filtering, not a trajectory or permission to
+        move. Native plan failure still remains terminal at execution time.
+        """
+        q = self._to_sdk(_vector(position, self.n, "candidate position"))
+        with self._lock:
+            if self._closed or self._poisoned:
+                raise PlanningError("cuMotion planner is closed or faulted; construct a new instance")
+            if not self._positions_valid(q, self._margin):
+                return "cuMotion model joint limits or margin"
+            try:
+                if self._inspector.in_self_collision(q):
+                    return "cuMotion model self collision"
+                if self._inspector.in_collision_with_obstacle(q):
+                    return "cuMotion model obstacle collision"
+            except Exception as exc:
+                self._poisoned = True
+                raise PlanningError(f"cuMotion candidate inspection failed: {exc}") from exc
+        return None
+
     def plan(self, start, goal):
         """Return copied samples. Native failures are not retried or substituted."""
         return self._request(start, goal)

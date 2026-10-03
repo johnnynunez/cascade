@@ -1,5 +1,6 @@
 """Release observation uses one bounded window and never commands settling."""
 import copy
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -9,6 +10,52 @@ from cascade.types import RobotState, SafetyViolation, SkillError
 from test_occupancy_payload import PROP
 from test_release_episode import atomic_attachment, case, jaws
 from test_release_open_sync import Clock
+
+
+@pytest.mark.parametrize('fault', [None, 'moving', 'jaw', 'epoch', 'generation', 'same_step', 'budget', 'rpc'])
+def test_planned_open_observes_joint_hold_with_original_deadline(monkeypatch, fault):
+    from cascade.config import Cfg
+    from cascade.planning import runtime as planning
+    from test_isaac_simulation_motion import clock as physics_clock
+    wall = Clock()
+    start = wall.now
+    monkeypatch.setattr(release, 'time', wall)
+    monkeypatch.setattr(planning, 'time', wall)
+    calls, generation = [], [4]
+
+    def guard(*, halt_generation):
+        if halt_generation != generation[0]:
+            raise SafetyViolation('halt generation changed')
+
+    def read(*, timeout_s):
+        i = len(calls)
+        assert 0 < timeout_s <= .4
+        # Opening spends most of the budget in the negative control. The
+        # stability phase must not receive a fresh wall-clock allowance.
+        wall.sleep(min(timeout_s, .35 if fault == 'budget' and i < 2 else .05))
+        q = .002 * min(i, 3) if fault != 'moving' else .002*i
+        state = RobotState(q=np.array([q, 0.]), dq=np.zeros(2),
+            gripper_joints=jaws(.04 if i == 0 else .05), physics_clock=physics_clock(i*10))
+        if i == 2:
+            if fault == 'rpc': raise RuntimeError('feedback transport disconnected')
+            if fault == 'jaw': state.gripper_joints['position_m'][0] = .048
+            if fault == 'epoch': state.physics_clock['epoch'] = 'new'
+            if fault == 'generation': generation[0] += 1
+            if fault == 'same_step': state.physics_clock = physics_clock(10)
+        calls.append(state)
+        return state
+
+    rt = SimpleNamespace(cfg=Cfg({'arm': {'bridge_host': 'fake', 'bridge_port': 1,
+        'bridge_robot_id': '/robot', 'motion_rpc_timeout_s': .4}}),
+        arm=SimpleNamespace(get_state=read, harness=SimpleNamespace(check_stream_start=guard)))
+    if fault is None:
+        release.wait_planned_open(rt, timeout_s=1., halt_generation=4)
+        assert len(calls) >= 9  # both jaws alone opened at the second sample
+        assert calls[-1].physics_clock['sim_time'] - calls[3].physics_clock['sim_time'] >= .5
+    else:
+        with pytest.raises((SafetyViolation, SkillError), match='deadline|open|changed|epoch|feedback unavailable'):
+            release.wait_planned_open(rt, timeout_s=1., halt_generation=4)
+    assert wall.now-start <= 1. + 1e-9
 
 
 def stream(monkeypatch, produce):

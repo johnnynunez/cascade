@@ -141,6 +141,41 @@ def test_unconfirmed_opening_skips_retreat_and_home():
     assert rt.held_object is None
 
 
+@pytest.mark.parametrize('fail', [False, True])
+def test_cumotion_retreat_waits_after_release_and_retains_halt_generation(monkeypatch, fail):
+    from cascade.skills import release_episode
+    rt, moves, opens, _ = runtime()
+    rt.cfg.arm = {'type': 'isaac'}
+    rt.cfg.grasp['release_open_timeout_s'] = 8.
+    rt.arm.motion_planner = object()
+    rt.arm.harness._halt_generation = 7
+    rt.arm.harness._check_halt_generation = lambda generation: None
+    observed = []
+    move = rt.arm.move_joints
+
+    def wait(runtime, *, timeout_s, halt_generation):
+        assert runtime is rt and len(moves) == 2 and len(opens) == 1
+        assert timeout_s == 8. and halt_generation == 7
+        assert opens[0][1]['_halt_generation'] == 7
+        observed.append(True)
+        if fail:
+            raise SafetyViolation('post-release stability deadline expired')
+
+    def motion(goal, **kwargs):
+        if len(moves) == 2:
+            assert observed and kwargs['_halt_generation'] == 7
+        return move(goal, **kwargs)
+
+    rt.arm.move_joints = motion
+    monkeypatch.setattr(release_episode, 'wait_planned_open', wait)
+    result = rt.skill_place_at(.14, -.27, .075)
+    assert observed == [True] and rt.held_object is None
+    if fail:
+        assert len(moves) == 2 and result['stage'] == 'release' and result['home_skipped']
+    else:
+        assert len(moves) == 3 and result['post_place_retreat']['ok']
+
+
 @pytest.mark.parametrize('offset', [None, .025])
 def test_pick_and_place_preserves_release_failure_without_optional_retreat(offset):
     rt, moves, opens, _ = runtime(offset=offset)

@@ -5,9 +5,11 @@ Research snapshot: 2 October 2026.
 This is the earlier documentation-only snapshot. The later
 [mobile implementation](MICRODUCK.md) is now present as a candidate, with
 [source-bound native results](MICRODUCK_CONTINUATION_20261002.md). The later [conversation gateway](CONVERSATION.md) implements browser media and
-provider/tool protocol integration with software fixtures. Connected speech
-inference and voice-to-MicroDuck physical acceptance remain unvalidated; the
-historical pins below are not silently rebound to a deployed provider.
+provider/tool protocol integration. Later [local speech inference](CONVERSATION_NATIVE_20261002.md)
+and a [synthetic-input native-motion recording](PROJECT_STATUS_20261003.md#rgb-d-geometry-speech-and-evaluation)
+have separate, bounded results. General speech/action reliability, hardware
+audio and a public hosted service remain unvalidated; the historical pins and
+proposed requirements below describe this earlier review, not current feature absence.
 
 The Reachy voice interface can be adapted through a MicroDuck media client and mobile command supervisor. This is a design proposal: the documentation branch adds no runtime or deployment, and this review performed no speech session, robot command or latency benchmark.
 

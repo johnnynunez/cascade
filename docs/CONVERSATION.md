@@ -29,6 +29,13 @@ deadline, so this does not admit CPU speech tools or practical interactive
 latency. Hardware audio, general listening accuracy and physical task success
 remain unvalidated.
 
+The later [voice-to-MicroDuck recording](PROJECT_STATUS_20261003.md#rgb-d-geometry-speech-and-evaluation)
+binds synthetic input speech, a real provider tool decision and a short native
+motion in one episode. That recording has no spoken robot reply and does not
+establish general walking or dialogue reliability. The [architecture diagram](ROBOT_MODULARITY.md)
+places this supervisor above a single robot runtime; fleet conversation routing
+remains separate work.
+
 ## Run the gateway
 
 From a checkout, install the optional transport and start a new private run:

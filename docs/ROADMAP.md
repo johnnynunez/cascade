@@ -2,9 +2,12 @@
 
 This file is a dated log: each "Landed <date>" section records what shipped,
 the work that motivated it, and what was deliberately not adopted.
-Read top-down for status; the dated sections are history.
+The [current capability index](PROJECT_STATUS_20261003.md) and
+[modular architecture](ROBOT_MODULARITY.md) distinguish implemented interfaces,
+source-bound results and remaining fleet, SLAM and whole-body work. The dated
+sections below preserve their original scope.
 
-## Current delivery work (2026-10-02)
+## Delivery plan recorded on 2026-10-02
 
 [The source and acceptance index](PROJECT_STATUS_20261001.md) supersedes the
 historical status lists below. Previous command baseline for physical validation `ff8d58b` includes the

@@ -14,8 +14,11 @@ The implementation continues the [approved design](superpowers/plans/2026-10-01-
 and the [dated review](MICRODUCK_DESIGN_REVIEW_20261002.md). That review describes
 an earlier source snapshot; the current continuation adds inference cancellation
 fencing, explicit solved support, and complete effective-model identity.
-The [continuation report](MICRODUCK_CONTINUATION_20261002.md) records the current
-original native MCP outcomes, software checks, retained failures and video provenance.
+The [continuation report](MICRODUCK_CONTINUATION_20261002.md) preserves its
+original native MCP outcomes and failures. The [current capability index](PROJECT_STATUS_20261003.md)
+links later distance and conversation results, with their source/model limits.
+The [modular architecture](ROBOT_MODULARITY.md) separates single-robot control
+from the proposed shared-scene fleet; the current native bridge owns one robot.
 
 ## Runtime and clocks
 
@@ -126,5 +129,6 @@ alone do not provide that contract. The native CLI rejects PhysX explicitly.
 
 Models remain external: their notices declare BY-SA-NC without a version;
 code, weights and the BAM implementation retain their separate notices.
-This change does not vendor meshes, USD or ONNX files. The later conversation
-layer is specified in [the hosted conversation design](MICRODUCK_CONVERSATION_DESIGN.md).
+This change does not vendor meshes, USD or ONNX files. The implemented
+[conversation gateway](CONVERSATION.md) retains the ownership boundary from the
+[earlier hosted conversation design](MICRODUCK_CONVERSATION_DESIGN.md).

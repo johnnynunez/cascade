@@ -1,17 +1,14 @@
 # Composable robots, observations and validation
 
-For current implementation, measured results and pending physical admission, see
-the [3 October capability index](PROJECT_STATUS_20261003.md). This architecture
-document retains its original research/source context. Passive multi-DoF
-observations do not admit a whole-body controller; mixed physical actuation
-remains refused.
+The diagram and module table describe the implemented composition, with proposed
+extensions marked explicitly. The [capability and acceptance index](PROJECT_STATUS_20261003.md)
+holds source-bound physical results; this page describes interfaces rather than
+repeating campaign history. The research references and dated software results
+below retain their original 2 October scope.
 
-Research and implementation review: 2 October 2026. Based on merged MicroDuck
-and stop-lifecycle fixes, commit `0a65887c14605186dc1bc6a4b4084d0582418076`.
-This adds an opt-in composed
-runtime. Existing arm and mobile profiles continue to select their existing
-runtime. The new mixed profile is explicitly synthetic; this change does not
-establish physical humanoid or MicroDuck locomotion admission.
+Existing arm and mobile entrypoints remain available alongside the opt-in
+composed runtime. Passive multi-DoF observations do not admit whole-body control;
+mixed physical actuation remains refused. `mixed_mock` is a synthetic example.
 
 ## Architecture and the implemented boundary
 
@@ -21,33 +18,85 @@ domains actually implement. Perception, locomotion, manipulation and tactile
 measurements can therefore evolve independently while retaining the existing
 runtime, MCP, traces and memory.
 
+[Architecture image (SVG)](assets/architecture.svg) · [PNG](assets/architecture.png)
+
 ```mermaid
 flowchart TD
-  Intent[Human, conversation app or task planner] --> MCP[MCP / orchestrator]
-  Graph[Reviewed bounded skill graph] --> Runtime
-  MCP --> Runtime[RobotRuntime: capabilities, dispatch, cancellation]
-  Runtime --> Arm[Manipulation domain: SkillRuntime and SafeArm]
-  Runtime --> Base[Locomotion domain: MobileSkillRuntime and SafeBase]
-  Runtime --> Sensors[Sensor domain: passive SensorHub]
-  Arm --> Control[Exclusive low-level controller ownership]
+  Intent[Human / task agent] --> MCP[MCP / orchestrator]
+  Voice[Audio and Realtime provider] --> Conversation[Conversation supervisor]
+  Graph[Bounded skill graph] --> Runtime
+  MCP --> Runtime[RobotRuntime: one robot's dispatch and cancellation]
+  Conversation --> Runtime
+  MCP -. proposed multi-robot routing .-> Fleet[Fleet coordinator: pending]
+  Fleet -. independent robot runtimes .-> Runtime
+  Structure[Embodiment declaration and resource catalog] --> Runtime
+  Runtime --> Arm[Manipulation]
+  Runtime --> Base[Locomotion]
+  Runtime --> Fastening[Fastening]
+  Runtime --> Sensors[Passive sensing]
+  Runtime --> Spatial[Read-only spatial tools]
+  Arm --> Control[Exclusive controller / policy owner and watchdog]
   Base --> Control
-  Sensors --> Evidence[Timestamped independent observations]
-  Control --> Physics[Simulator or hardware]
-  Physics --> Evidence
-  Evidence --> Verify[Domain-specific effect verifiers]
+  Fastening --> Control
+  Control --> Physics[Physics or hardware clock]
+  Physics --> Evidence[Independent observations: identity, epoch, time]
+  Evidence --> Sensors
+  Sensors --> Spatial
+  Spatial --> Frames[Measured frame tree and spatial memory]
+  Evidence --> Verify[Domain effect verifiers]
   Verify --> Runtime
-  Arena[Arena / VAB episodes] --> Gate[Bound independent validation receipts]
+  Arena[Arena / VAB episodes] --> Gate[Source/model/episode-bound evidence]
   Evidence --> Gate
 ```
 
+Solid arrows describe existing interfaces, not admission of every combination.
+The fleet layer is proposed; the native MicroDuck bridge currently owns one
+robot. Twelve independent agents require isolated runtime contexts above a
+shared scene owner: read one physical step, evaluate each robot's policy/BAM,
+perform one scene solve, then publish observations bound to each robot. Calling
+twelve current steppers would advance the shared scene twelve times. Per-robot
+policy history, cancellation and balance-preserving stop must remain separate.
+There is no measured twelve-robot episode or real-time performance guarantee.
+
 | Module | Implemented responsibility | Deliberate boundary |
 | --- | --- | --- |
-| `robotics/contracts.py`, `resources.py` | Immutable descriptors, JSON schemas, static controller ownership | Descriptors never connect a lazy actuator or certify a robot |
+| `robotics/contracts.py`, `resources.py`, `embodiment.py` | Immutable tools/resources, joint/link/transmission and sensor declarations, static controller ownership | Declarations never connect a lazy actuator, supply measured transforms or certify a robot |
 | `robotics/runtime.py` | Namespaced dispatch, global stop latch, generation invalidation, domain lifecycle | Domain controllers retain transport leases, physical timing and safety |
-| `apps/robot_runtime.py` | Explicit `--robot` / `CASCADE_ROBOT` composition | Multiple physical actuation domains and mobile-mounted arms are refused |
+| `apps/robot_runtime.py` | Explicit manipulation, locomotion, fastening, sensing and spatial composition through `--robot` / `CASCADE_ROBOT` | Multiple physical actuation domains and mobile-mounted arms are refused |
+| `conversation/`, `apps/conversation.py` | Browser media, Realtime provider, allowlisted semantic intents, deadlines and priority interruption | Supervisor above one robot runtime; no joint writer, implicit stop reset or hosted-service deployment |
 | `sensing/` | Typed passive observations, provenance, freshness, bounded readers/history | Reading cannot step physics or claim actuator ownership |
+| `spatial/` | Capture-time frame lookup, source-bound memory, synthetic planar route proposals and observed RGB-D annotations | No physical localization/SLAM provider or navigation executor; annotations are not a collision map |
+| `control/microduck_policy.py`, `sim/microduck_stepper.py` | Pinned ONNX contract and physics-clock policy application | Robot-specific implementation; no generic humanoid policy loader or second writer to head joints |
 | `robotics/graph.py` | Immutable bounded DAG of registered skills, outcome and data edges | No graph-generated code, online self-editing or automatic stop reset |
 | `eval/vab.py`, `eval/arena.py`, `eval/trials.py` | Optional external API adapters and bound independent verdicts | Upstream success alone does not grant physical admission |
+| Fleet coordinator — proposed | Route agent tasks to independent robot runtimes, with per-robot and global stop | Software coordination and shared-scene physics both require implementation and validation |
+
+## Capability boundaries
+
+| Capability | Present in the code | Still required |
+| --- | --- | --- |
+| Talk and understand tool intents | Local browser/provider/session path with bounded audio and curated tools | Reliable general dialogue, hardware audio and public service operation |
+| Interact with objects | Arm skills, SafeArm, grasp/release observations, optional cuMotion and OVRTX | Validation for each body/tool/scene; whole-body mobile manipulation |
+| Turn a fastener | Mounted Factory domain with per-solve observations and final rest checks | Successful configured full task, acquisition/engagement/withdrawal and calibrated preload |
+| Walk or turn | MicroDuck MobileBase, pinned policy, BAM, command leases and independent support/rest checks | General gait, longer paths and other robot/model/controller combinations |
+| Perceive and remember space | Passive sensors, measured-frame contracts and retained RGB-D surface annotations | Physical SLAM/localization, metric reconstruction admission and execution of planned routes |
+| Describe different bodies | Fixed/floating roots, links, transmissions and typed scalar/generalized joint observations | Drivers and control mappings for each mechanism; dynamic whole-body control |
+| Sense touch | Contact, estimated-force and tactile-image contracts | Calibrated tactile device drivers and task-specific tactile verification |
+| Coordinate twelve robots | Per-robot composition is available; fleet and shared native scene are proposed | Concurrent routing, independent ownership/state, collision interaction and measured fleet stop/reset |
+
+`ResourceDescriptor.admission` is declared metadata (for example `unvalidated`
+or `software_only`), not an automatic certificate state
+machine. Keep capability declaration, software execution and physical evidence
+distinct. A future fleet must preserve each robot's source/model/epoch and
+unresolved outcomes; a successful aggregate response cannot promote another
+robot's unverified result.
+
+The agent clock chooses goals and semantic tools. The controller clock applies
+bounded actions and watchdogs. For the current MicroDuck recipe, the measured
+physics step is 5 ms and policy evaluation occurs every four completed solves;
+rendering and LLM latency cannot manufacture extra solves. Speech never writes
+the policy-owned neck/head joints. These contracts must be rebound for each new
+robot rather than imposing MicroDuck's rates on every humanoid.
 
 Tools are namespaced, for example `manipulation.open_gripper`,
 `locomotion.get_base_state` and `sensing.read_sensor`. Global resource discovery,
@@ -127,19 +176,22 @@ The requested [Reachy conversation app](https://github.com/pollen-robotics/reach
 separates realtime conversation, vision/tools and choreographed motion. Its
 local endpoint mode connects to the independently hostable
 [Hugging Face speech-to-speech server](https://github.com/huggingface/speech-to-speech/tree/411399d34555b2169823a6eaeb7f8ff192db89db).
-For MicroDuck, the proposed boundary is a conversation client translating tool
-calls into this capability catalog, with speech interruption/disconnection
-propagating cancellation. Audio timing remains separate from the policy clock.
+The implemented [conversation client and supervisor](CONVERSATION.md) translate
+selected tool calls into this capability catalog, with speech interruption and
+disconnection propagating cancellation. Audio timing remains separate from the policy clock.
 Reachy's motion blending and head poses cannot be transferred to policy-owned
-MicroDuck joints. A hosted voice deployment and microphone/audio validation are
-still separate implementation work; this refactor does not deploy that service.
+MicroDuck joints. Local inference/browser and a synthetic-input native-motion
+recording have [separate measured results](PROJECT_STATUS_20261003.md#rgb-d-geometry-speech-and-evaluation).
+A public hosted voice service, hardware audio and general task reliability remain
+unvalidated; the recorded motion episode has no spoken robot reply.
 
 The [HomeBody comparison](HOMEBODY_COMPARISON.md) extends this design with six
 proposed increments: source-bound spatial memory, dynamic transforms,
 auditable reconstruction, bounded local correction, actuator health and one
-whole-body command owner. The first increment should be passive exploration
-replay with explicit map/transform invalidation. These are design additions,
-not enabled robot features; the comparison separates HomeBody's presentation
+whole-body command owner. The first increment now has [passive spatial replay](SPATIAL_PROVIDERS.md)
+and [retained RGB-D annotations](RGBD_SPATIAL_OBSERVATIONS.md), with explicit
+map/transform invalidation. Physical SLAM, reconstruction and whole-body
+execution remain design work; the comparison separates HomeBody's presentation
 from its pending robot-code release and separately available components.
 
 ## Graph-as-policy: useful above the domain runtimes
@@ -294,6 +346,7 @@ rather than assert support for all humanoids at once. Required work includes:
    Arena can organize variation; independent measurements and video must bind
    to the same episode. Physical deployment requires its own staged validation.
 
-MicroDuck's latest retained native results still refute the tested walking
-commands and leave turning unverified. This refactor preserves those findings;
-software composition and a new benchmark adapter do not resolve them.
+MicroDuck's [current evidence index](PROJECT_STATUS_20261003.md#fastening-and-locomotion)
+includes historical short-distance passes alongside retained failed commands.
+Those episode-specific results do not establish general walking, twelve-robot
+operation or admission of a later source/model combination.

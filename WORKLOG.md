@@ -643,3 +643,14 @@ historical index/architecture entry points. Portable receipts retain original
 bytes and hashes; GitHub publication state is a dated read-only API snapshot.
 No current publication freeze or old video-resource reservation is introduced.
 No code, unit test, benchmark, model, SDK, physical scene or learned store changed.
+
+### 2026-10-03 — Retain instrumented trial 12 failure and partial command evidence
+
+Documentation-only follow-up to a1977d3. Added the unchanged offline audit of
+the ef773697 real-host episode: MCP timeout after a 303.910-second agent turn,
+partial 16 MiB diagnostics with 1102 dropped events, and measured command/physics
+clock costs without OS/GPU attribution or changed gates. The earlier f674fa64
+failure and all prior portable receipts remain intact. Separate software
+closure from missing task/home/rest acceptance. No code, tests, model inference,
+GPU, physical action, shared environment or learned store changed; validation
+is limited to relative links, source/evidence hashes and documentation diff.

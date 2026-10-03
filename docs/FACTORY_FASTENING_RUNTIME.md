@@ -1,9 +1,71 @@
 # Mounted Factory fastening runtime
 
-Implementation checkpoints, 2026-10-03. The optional mounted domain now has
-an ordinary configuration/MCP route and an inert shipped profile with unresolved
-device and model pin. CPU contracts pass; no native result admits this new runtime yet.
-The [ordinary wrist routine](FASTENING_RUNTIME_GAP.md) remains unverified.
+The optional mounted domain passed one native turn-and-rest episode on
+2026-10-04 through the ordinary configuration/MCP route. The explicit SDK recipe,
+source/model identity and measured limits are recorded below. Shipped profiles
+remain inert with unresolved device/model pins. The separate
+[ordinary wrist routine](FASTENING_RUNTIME_GAP.md) remains unverified.
+
+## Native mounted turn and rest, 2026-10-04
+
+Source `c7f6ec3b3495b961060033e919f148e743d6d3dd` and model
+`fe61b52ae92f0080398a5a0f9b59e72f88ae3429b9468504f008648dc35acf8d`
+completed a fresh preparation and a distinct task epoch
+`cc282224897e40f48f13ec1399fd14a4`. Preparation loaded all 39 finite compiler
+variants and passed all 22 predicates with scene/native steps and clocks zero.
+Fresh ordinary readiness supplied 0.500000012 simulated seconds of quiet in
+6.7573 wall seconds, within the unchanged 10-second budget.
+
+One ordinary `reset_stop` and `fastening.turn_screw(turns=1.0,
+direction="tighten")` then passed the existing verifier:
+
+| Measurement | This episode |
+| --- | --- |
+| Rotation before stop | 0.950691 turns; existing one-turn tolerance is 0.05 |
+| Final rotation / axial advance | 0.958650 turns / 2.398416 mm |
+| Maximum pitch residual / radial offset | 0.028865 mm / 0.150427 mm |
+| Contact-supported angular travel | 100% |
+| Observed rest | 0.500000012 simulated seconds, exact zero spindle command/effort |
+| Command admission to stop ACK | 39.848196 wall seconds, within 40 seconds |
+| Complete retained native stream | 2,047 solves and 554,646 candidate/solved contact records |
+
+Threading remained confirmed through the rest endpoint; execution, verification
+and physical stop were confirmed by the live simulation domain. Runtime and
+owner closure completed, the owned scope exited naturally with code zero, and
+source/SDK/assets/protected input inventories were unchanged. The command margin
+was only **0.151804 seconds**. This single shared-GPU episode establishes no
+repeatability or isolated performance result. The retained phase trace contains
+three generation-2 GC pauses on the calling thread; GC remained enabled with
+unchanged thresholds. The maximum recorded controller-acceptance age was
+0.108428 seconds under the existing 0.2-second limit. No freshness, rest,
+physical or host budget was relaxed.
+
+The source includes the previously reviewed bounded reuse of immutable zero-load
+contact values. Every candidate and native readback remains in the journal.
+Both that change and the explicit SDK selection were present in this episode;
+the result does not isolate a causal speedup or claim that GC was eliminated.
+
+The private profile selected
+`sdk_recipe: isaacsim_48b2d951_newton_1_6_1rc1` with the existing
+`precompile: factory_nv19_contact_writer_compile_v3`. This optional recipe binds
+the Isaac Sim source build `48b2d951919bbb7330de3c2aad54e15369fa0183`,
+Newton 1.6.1rc1, MJWarp/MuJoCo 3.12 and Warp 1.17. The new whole-source pin set
+includes Newton's same-body broad-phase helper; the contact conversion and
+MJWarp/Warp implementations are unchanged from the previous pin. Selection
+reaches the pre-construction guard, compiler, model identity and observer.
+Unknown selections and mixed source sets reject; the old default is retained.
+The pin JSON is included in the built wheel. The focused CPU suite passed
+472 tests, including explicit selection and mixed-source refusal.
+
+The MCP production handler ran in-process, with no stdio or LLM in this episode.
+The socket was mounted and the nut pre-engaged: pickup, initial engagement,
+seating, withdrawal, calibrated preload and hardware remain unproved. A scene
+video was not captured. The [measurement figure](evidence/factory-turn-rest-20261004/measurements.png)
+uses this episode's retained observations. The [compact receipt](evidence/factory-turn-rest-20261004/receipt.json)
+retains the live verdicts, original source/model/epoch, closure and local artifact
+hashes, including the earlier pre-launch refusal for a new GPU occupant.
+
+## Historical implementation checkpoints, 2026-10-03
 
 `FasteningDomain` in `skills/fastening_runtime.py` can be passed directly to the
 ordinary `RobotRuntime({"fastening": domain})`. It declares one command resource

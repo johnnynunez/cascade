@@ -20,6 +20,12 @@ def select(runtime):
         return None
     deadline = time.monotonic()+PLAN_BUDGET_S
     region = Region.parse(cfg)
+    if region.version == 2:
+        bounds = np.asarray(region.bounds_xy_m)
+        limits = runtime.arm.harness.limits
+        if ((bounds[0] < limits.workspace_min[:2]).any()
+                or (bounds[1] > limits.workspace_max[:2]).any()):
+            raise _PostPlaceRetreatPlanError('configured region exceeds this arm base-frame workspace')
     raw = runtime.arm.raw
     from ..control.lazy_arm import LazyArm
     backend = raw.__dict__.get('_arm') if isinstance(raw, LazyArm) else raw
@@ -39,6 +45,8 @@ def select(runtime):
     rejected = []
     with world.lock:
         history.guard()
+        if region.version == 2 and history.prefix_faults:
+            raise _PostPlaceRetreatPlanError('previous region placement was disturbed; keeping the grasp')
         snapshot = state_digest(world.data)
         epoch = history.epoch
         lower, upper = history.geometry()
@@ -54,7 +62,29 @@ def select(runtime):
         tcp = runtime.kin.fk(q)
         offset = center-tcp[:3, 3]
         clearance = float(runtime.arm.harness.limits.table_clearance)
-        candidates = region.candidates(offsets, clearance)
+        capacity_inventory = []
+        capacity_layouts = {}
+        if region.version == 2:
+            from .placement_packing import pack_rows
+            for obj, obj_geoms in history.objects.items():
+                obj_lo, obj_hi = lower[obj_geoms].min(axis=0), upper[obj_geoms].max(axis=0)
+                capacity_inventory.append({'id': history.bodies[obj][0], 'lower': obj_lo[:2], 'upper': obj_hi[:2],
+                    'fixed': obj != name and (obj in history.confirmed_prefix or region.contains(obj_lo, obj_hi))})
+            try:
+                layouts = pack_rows(region.bounds_xy_m, capacity_inventory,
+                                    margin=region.planning_margin_m, separation=clearance)
+            except ValueError as exc:
+                raise _PostPlaceRetreatPlanError('region capacity unavailable: '+str(exc)) from exc
+            candidates = []
+            for layout in layouts:
+                planned = np.asarray(layout['footprints'][body])
+                point = tuple((planned.mean(axis=0)+center[:2]-(lo[:2]+hi[:2])/2).tolist())
+                if point not in capacity_layouts:
+                    candidates.append(point)
+                    capacity_layouts[point] = layout
+            guard()
+        else:
+            candidates = region.candidates(offsets, clearance)
         if not candidates:
             raise _PostPlaceRetreatPlanError('measured payload footprint cannot fit in the configured region')
         gcfg = runtime.cfg.grasp
@@ -78,6 +108,24 @@ def select(runtime):
                 projected_lo, projected_hi = (centers-half)[geoms].min(axis=0), (centers+half)[geoms].max(axis=0)
                 if not region.contains(projected_lo, projected_hi):
                     raise SkillError('predicted oriented footprint leaves the region')
+                final_capacity = None
+                if region.version == 2:
+                    bounds = np.asarray(region.bounds_xy_m)
+                    margin = region.planning_margin_m
+                    if ((projected_lo[:2] < bounds[0]+margin).any()
+                            or (projected_hi[:2] > bounds[1]-margin).any()):
+                        raise SkillError('predicted oriented footprint violates planned boundary margin')
+                    inventory = [dict(obj) for obj in capacity_inventory]
+                    for obj in inventory:
+                        if obj['id'] == body:
+                            obj.update(lower=projected_lo[:2], upper=projected_hi[:2], fixed=True)
+                    residual = pack_rows(region.bounds_xy_m, inventory, margin=margin, separation=clearance)
+                    if not residual:
+                        raise SkillError('oriented release leaves insufficient whole-inventory capacity')
+                    final_capacity = {'scope': 'all free bodies; current measured footprint reservations',
+                        'planning_margin_m': margin, 'bodies': {str(history.bodies[n][0]): n for n in history.objects},
+                        'initial_layout': capacity_layouts[(x, y)], 'after_oriented_release': residual[0],
+                        'future_task_admission': False}
                 for other, other_geoms in history.objects.items():
                     if other == name:
                         continue
@@ -92,7 +140,9 @@ def select(runtime):
                 return {'destination': region.name, 'destination_kind': 'configured_region',
                         'region': region.as_dict(), 'target': [x, y], 'model_sha256': history.identity,
                         'epoch': epoch, 'generation': generation, 'physical_task_verdict': False,
-                        'planning_method': 'measured footprint edge packing and existing full carry/release/home checks',
+                        'planning_method': ('interior row capacity and existing full carry/release/home checks'
+                            if region.version == 2 else 'measured footprint edge packing and existing full carry/release/home checks'),
+                        'capacity': final_capacity,
                         'object_separation_m': clearance, 'rejected_candidates': rejected}
             except SkillError as exc:
                 rejected.append({'target': [x, y], 'reason': str(exc)})

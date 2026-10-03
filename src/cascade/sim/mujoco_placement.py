@@ -27,23 +27,39 @@ def mapping(value):
 class Region:
     name: str
     bounds_xy_m: tuple
+    version: int = 1
+    planning_margin_m: float = 0.
 
     @classmethod
     def parse(cls, value):
         value = mapping(value)
-        if (not isinstance(value, dict) or set(value) != {'version', 'name', 'frame', 'bounds_xy_m'}
-                or type(value['version']) is not int or value['version'] != 1
+        base = {'version', 'name', 'frame', 'bounds_xy_m'}
+        if not isinstance(value, dict):
+            raise ValueError('placement region requires its explicit version/name/base-frame contract')
+        version = value.get('version')
+        keys = base if version == 1 else base | {'planning_margin_m', 'capacity_scope'}
+        if (set(value) != keys or type(version) is not int or version not in (1, 2)
                 or value['frame'] != 'robot_base' or not isinstance(value['name'], str)
                 or not value['name'].strip()):
             raise ValueError('placement region requires its explicit version/name/base-frame contract')
         bounds = np.asarray(value['bounds_xy_m'], float)
         if bounds.shape != (2, 2) or not np.isfinite(bounds).all() or (bounds[1] <= bounds[0]).any():
             raise ValueError('placement region requires finite increasing XY bounds')
-        return cls(value['name'], tuple(tuple(float(x) for x in row) for row in bounds))
+        margin = 0.
+        if version == 2:
+            margin = value['planning_margin_m']
+            if (type(margin) not in (int, float) or not np.isfinite(margin) or margin <= 0
+                    or value['capacity_scope'] != 'all_free_bodies'
+                    or (bounds[1]-bounds[0] <= 2*margin).any()):
+                raise ValueError('region2 requires positive interior margin and complete free-body capacity')
+        return cls(value['name'], tuple(tuple(float(x) for x in row) for row in bounds), version, float(margin))
 
     def as_dict(self):
-        return {'version': 1, 'name': self.name, 'frame': 'robot_base',
-                'bounds_xy_m': [list(row) for row in self.bounds_xy_m]}
+        value = {'version': self.version, 'name': self.name, 'frame': 'robot_base',
+                 'bounds_xy_m': [list(row) for row in self.bounds_xy_m]}
+        if self.version == 2:
+            value.update(planning_margin_m=self.planning_margin_m, capacity_scope='all_free_bodies')
+        return value
 
     def contains(self, lower, upper):
         bounds = np.asarray(self.bounds_xy_m)
@@ -57,6 +73,8 @@ class Region:
         footprint alone. Separation is between objects, not a border margin.
         Remaining gaps are tested with measured geometry and full-path checks.
         """
+        if self.version != 1:
+            raise ValueError('region2 requires measured whole-inventory capacity planning')
         offsets, bounds = np.asarray(offsets, float), np.asarray(self.bounds_xy_m)
         if (offsets.shape != (2, 2) or not np.isfinite(offsets).all()
                 or (offsets[1] <= offsets[0]).any()

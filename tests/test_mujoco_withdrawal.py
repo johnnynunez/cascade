@@ -23,12 +23,15 @@ CAPTURE = json.loads((ROOT/'tests/fixtures/mujoco_release_states.json').read_tex
 
 
 @pytest.fixture
-def model_runtime():
+def model_runtime(request):
     pytest.importorskip('mujoco')
     pytest.importorskip('pinocchio')
     if not (ROOT/'assets/mjcf/so101/scene.xml').exists():
         pytest.skip('requires fetched SO-101 collision assets')
-    cfg = load_demo_config(camera='mujoco_scene_two', arm='so101_mujoco', llm='mock')
+    # Static legacy controls pin their original region; region2 is explicit in
+    # its own indirect fixture cases below. Model/physics assets are identical.
+    profile = getattr(request, 'param', 'so101_mujoco_region_v1')
+    cfg = load_demo_config(camera='mujoco_scene_two', arm=profile, llm='mock')
     kin = Kinematics(cfg.arm.model, cfg.arm.ee_frame, 5, cfg.arm.get('joint_signs'))
     raw = MujocoArm(cfg.arm, kin)
     raw.connect()

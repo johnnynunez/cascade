@@ -1,3 +1,4 @@
+# Historical region1 profile: retained geometric refusal recipe, not task admission.
 # SO-101 in MuJoCo: real rigid-body physics, no robot and no GPU.
 #
 #   python scripts/fetch_robot_assets.py so101      # one-off: MJCF + meshes
@@ -87,14 +88,10 @@ view: false
 # Semantic drop area on the explicitly declared horizontal support, within
 # this profile's workspace. Reachability is checked for each measured payload;
 # the rectangle does not promise that every point has a feasible 5-DoF pose.
-# Region2 reserves 20 mm planned boundary margin plus 20 mm physical object
-# separation for the complete measured free-body inventory. The outer region
-# is centered on the existing drop-zone point, sized for geometry/capacity;
-# the actual verifier still requires containment, support, release and rest.
+# Boundary erosion uses payload footprint only; 20 mm safety separation is
+# between physical objects/robot, not an additional semantic-border margin.
 mj_delivery_area:
-  version: 2
+  version: 1
   name: drop zone
   frame: robot_base
-  bounds_xy_m: [[0.13, -0.18], [0.27, -0.06]]
-  planning_margin_m: 0.02
-  capacity_scope: all_free_bodies
+  bounds_xy_m: [[0.15, -0.16], [0.24, -0.08]]

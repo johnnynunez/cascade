@@ -1,9 +1,11 @@
 # Explicit destination region for the shared MuJoCo C world
 
-Status: local Stage2 candidate; static/contract tests only so far. The original
-two-pick task has not yet been run on this candidate. Stage1 withdrawal and
-occupied-point refusal remain frozen at22cac914; its physical evidence does
-not validate this new selector or observer.
+This page records the retained version1 design and its original validation
+plan. Its07080fa physical trial subsequently failed exterior containment on
+red; blue was not attempted. See [the failure/cost checkpoint](MUJOCO_PLACEMENT_CAPTURE_COST.md)
+and [the separate version2 candidate](MUJOCO_DESTINATION_REGION_V2.md). The
+historical recipe is `so101_mujoco_region_v1`; current `so101_mujoco` declares
+version2. Neither version inherits task admission from Stage1 at22cac914.
 
 The SO-101 MuJoCo profile declares a90×80mm semantic table area in robot-base
 coordinates: x[.15,.24], y[-.16,-.08]. This lies within its workspace on the
@@ -96,7 +98,7 @@ monotonic cancellation token preserves estop-then-reset history without changing
 the existing halt-generation semantics. Stop never waits for the world/audit
 lock, and a cancellation before the commit keeps the old obligation intact.
 
-## Planned next validation, not yet executed
+## Original validation plan, retained for provenance
 
 1. Two bounded MuJoCo C CPU microfixtures establish contact sign, solve/final
    phase, reset invalidation and no extra steps. Synthetic malformed records

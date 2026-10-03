@@ -23,8 +23,15 @@ extends: so101_mujoco
 
 engine: warp
 
+# The inherited release-clearance capability requires a shared native C
+# world. Warp currently has no admitted equivalent; placement fails closed
+# instead of claiming that C-only clearance validation establishes parity.
+
 # Warp device. `auto` (default) picks CUDA when Warp reports it, else CPU -- so
 # this one profile runs on the GPU on the DGX and on the CPU on a laptop with no
 # edit. An explicit `cuda:0` the host lacks WARNS and falls back to CPU rather
 # than killing the run (same contract as the perception device selector).
 device: auto
+
+# The passive placement journal is specific to the shared C-world owner.
+mj_delivery_area: null

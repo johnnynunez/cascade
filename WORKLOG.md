@@ -1087,6 +1087,48 @@ Normal merge 43928e6c01b438c02ebb5d417c21a40713ce2fe3 preserves latest teardown 
 logs. Focused runtime/MCP/close composition: 103PASS/0SKIP, 13.11s;
 1662 source inputs and protected stores unchanged. Prior freezes archived;
 no physics, GPU, limits, or admission changed. Receipt: benchmark/results/rgbd_teardown_composition_20261003.json.
+### 2026-10-03 — measured attachment frames in placement aiming (in progress)
+
+Apply `manipulation-ik` to the optional MuJoCo region adapter: bind the measured
+tool-to-object transform and use the destination orientation when aiming XY.
+Share the resulting pose between geometric preview and ordinary `place_at`,
+rejecting snapshot drift before consumption. Preserve the release height,
+three-second planning budget, IK candidates, collision paths and physical
+verifiers. The 7a52 physical episode and scratch diagnosis remain frozen outside
+this worktree. CPU contract/causal controls precede review; no new dynamics,
+renderer, GPU run, physical attachment or publication is authorized here.
+
+The completed candidate passes 313 targeted checks in 38.35 s, including 44 new
+frame/binding/ordinary-skill controls. Tracked inputs and protected stores stayed
+unchanged during validation. The first combined check retained 308 PASS and one
+incorrect test assertion: it compared the selector deadline against a timestamp
+before function entry (17.8 microseconds difference). The corrected control
+records the selector's actual first clock read; the three-second production
+budget did not change. Existing no-attachment pose vectors remain covered.
+The ordinary point path consumes the same measured pose as region preview,
+and its private handoff is an in-call guard, not single-use actuation authority.
+No physical episode, GPU, renderer or publication was launched for this change.
+See docs/MUJOCO_PLACEMENT_ATTACHMENT.md and the source-bound benchmark receipt.
+
+The 313-test checkpoint is retained in local commit 326720e7, before independent
+review exposed a stop/reset race inside SafeArm's first start-state read.
+The original external control reaches backend dispatch after cancellation;
+the corrected consumer keeps the original token through all carry segments and
+checks it around reads, stream start and waypoint approvals. The real release
+owner must retain that token before opening. No SDK/callback runs under the
+short stop lock, and no deadline, planning geometry or physical criterion was
+relaxed. Fifteen new consumer/transfer controls pass with native writes and
+integration intercepted, plus the two-case external control (only its caught
+exception types changed to include SafetyViolation).
+
+The final selection passes 539 tests in 61.16 s with all inputs/stores unchanged.
+Its earlier 382 PASS / 5 FAIL selection is retained: the five incomplete harness
+doubles also fail against the exact old harness. They now bind the real
+withdrawal guard; grasp_evidence's two-line migration matches root 9b97b654.
+The optional cancellation check is only invoked for an explicit token. A
+separate 147-test callback/legacy selection passes. Ruff F/E9 adds no findings;
+two pre-existing unused imports in the carry test remain. No new physical
+episode, renderer or GPU was run; the original two-pick FAIL remains unchanged.
 
 ### 2026-10-03 — Preserve explicitly owned Spark model endpoints
 
@@ -1617,3 +1659,39 @@ and the correction uses the existing `Cfg.get` API. Camera selection reuses
 the ordinary readiness packet validator, including native render tokens and
 actual RGB-D presence. No SDK, GPU, simulator or physical task was run.
 Evidence: `benchmark/results/kitchen-cumotion-selection-20261003.json`.
+### 2026-10-03 — publishable MuJoCo placement extraction and physical closure
+
+The original two-object memory test passes once on frozen d273dc4: contact-only
+SO-101 MuJoCo3.14/CPU/Mesa, both ordinary placements independently confirmed
+after withdrawal and home, first object retained after the second. Red/blue
+settling windows are11/.600s and12/.660s; final original-point distances25.776
+and30.657mm satisfy the unchanged60mm test. Exit0 is natural and every owned
+process is absent. Sources, model assets and four protected stores are intact.
+The previous physical failures remain retained, as does the cancelled handoff
+red/green control. This is one explicit recipe, not general robot admission.
+
+Extract reviewed manipulation hunks onto main70d22de, then merge main67f0b61;
+do not copy the old runtime or carry independent Factory/sensor/task-ledger work.
+575 affected tests pass, then106 reader/destination checks pass after correcting
+a partial test fixture and materializing missing pinned kitchen assets. Initial
+collection/preparation failures remain in the receipt. Model-only reconstruction
+prohibits steps and produces both exact physical model digests at time0. The
+main merge leaves tested src/config bytes intact; no repeated physical episode.
+See docs/MUJOCO_MANIPULATION_VALIDATION_20261003.md and its two receipts.
+
+
+## 2026-10-03: Gripper feedback fixture retains the model-withdrawal guard
+
+The isolated jaw-feedback fixture now supplies a real idle `SafetyHarness`, as the production `SafeArm` does. The common withdrawal guard remains enabled; production code, jaw feedback, timeout assertions and limits are unchanged.
+
+On PR93 base `f06837ce`, all eight feedback cases reproduced the missing-harness `AttributeError`. After the fixture correction, the existing feedback, model-withdrawal, postrelease, attachment-fence and safety checks passed: **117 passed in 32.62 s**, with 26 locally retained SO-101 asset files verified before and after. An earlier run without those fetched assets is retained separately as 22 passed / 95 skipped. Normal conftest, hidden CUDA, software GL and four private/protected store checks were used; no simulator service or GPU was launched. Evidence is retained outside git in `GRIPPER_FEEDBACK_FIX_20261003/{baseline-01,focused-01,focused-02,asset-materialization.json}`.
+
+
+### PR93 retained-withdrawal cancellation correction — 2026-10-03
+
+- Reproduced explicit-generation completion debt loss and a target crossing the consumer after stop/reset during approval (2 red / 4 controls on 1ac1923).
+- Forward the original token for home/withdraw; register only successful explicit recovery context; fence reset reads/final observation and atomically validate token/latch/owner before debt removal.
+- Independent review caught and closed explicit-original-context epoch bypass; legitimate registered reset may change the placement-history epoch.
+- 151 CPU/static-geometry tests pass, 0 skip; one original physical reset test deselected. Twenty cancellation controls include the real SafeArm/ArmBase boundary with intercepted writes.
+- Preserved the initial fixture errors and missing-LFS-mesh failure; 26 SO101 assets and two gripper meshes verified against hashes/OIDs, sources and protected stores unchanged. No GPU, new native physics episode or physical admission.
+- Receipt: `benchmark/results/mujoco_withdrawal_cancellation_20261003.json`.

@@ -1,9 +1,11 @@
 """Do not lift while rate-limited jaws are still closing under render load."""
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from cascade.grasping.force import select_profile
+from cascade.safety.harness import SafetyHarness, SafetyLimits
 from cascade.skills.runtime import SkillRuntime
 from cascade.types import SkillError
 
@@ -16,7 +18,11 @@ def runtime(monkeypatch, feedback, timeout=8.):
     rt.cfg = SimpleNamespace(grasp={'close_settle_s': .4, 'close_feedback_timeout_s': timeout})
     rt._grip_open, rt._grip_closed = 1., 0.
     commands = []
-    rt.arm = SimpleNamespace(raw=SimpleNamespace(), set_gripper=lambda p, **kw: commands.append((clock[0], p)))
+    # A SafeArm always supplies this guard; an idle harness has no retained
+    # model-withdrawal obligation. The jaw feedback below remains scripted.
+    harness = SafetyHarness(SafetyLimits(np.full(3, -1.), np.full(3, 1.)))
+    rt.arm = SimpleNamespace(raw=SimpleNamespace(), harness=harness,
+                             set_gripper=lambda p, **kw: commands.append((clock[0], p)))
     rt._gripper_width_frac = lambda: feedback(clock[0], commands)
     return rt, clock, commands
 

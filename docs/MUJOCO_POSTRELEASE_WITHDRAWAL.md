@@ -1,0 +1,89 @@
+# Measured withdrawal after release
+
+The region2 episode on e2d89c8 remains failed. Opening changed the red cube's
+position and orientation: the pre-opening `joint_0_first` escape no longer
+cleared the moving jaw. Its actual-state check stopped before sending any
+retreat waypoint, skipped home and left the task unverified. The original
+two-pick test did not attempt blue. No tolerance, region or contact parameter
+was changed to reinterpret that outcome.
+
+The optional MuJoCo adapter now plans again after measured opening and the
+held-object handoff, using copied final joint/object coordinates and measured
+jaw position. The existing finite full-pose and joint-corner candidates must
+pass their entire escape and subsequent home path, under the original3s
+computation budget. All geometry runs on detached MjData; no integration or
+object pose write is part of planning. The ordinary driver still controls
+every executed joint waypoint.
+
+The retained SafetyHarness fence remains the same object and same generation.
+A copied planning context cannot clear it or authorize unrelated commands.
+Model, coordinate mapping, data object, optional region-history epoch and
+cancellation token remain bound. A stop followed by reset cannot renew this
+context. The digest of `time`, `qpos`, `qvel` and `ctrl` must stay unchanged through planning and
+up to stream preflight; drift refuses without a retry. Any opening, planning,
+transport or verification failure retains the pending withdrawal. Explicit
+reset recovery keeps its separate observed-reset contract.
+
+The coordinate binding includes the driver's joint count; joint names and
+qpos/qvel addresses; actuator names and control indices; jaw joint/actuator
+names and addresses; open/closed positions; jaw control scale/offset; and the
+runtime's opening/width units. Initial indices must resolve the declared model
+names. Engine, model, data, world lock and control-buffer identity/layout stay
+bound to that driver. The cheap coordinate/channel check also runs through
+the common actuation fence, including an already-entered transmission scope;
+it adds no geometry calculation or solver call per waypoint.
+
+The first review checkpoint omitted velocity/actuator mappings and jaw affine
+control. Its source and 78-test receipt remain preserved, together with three
+guard-only adversaries that exposed the omission. They are not evidence of
+admission. The repaired tests explicitly model matching driver/runtime jaw
+units rather than supplying an unrelated synthetic open position.
+
+The receipt includes the previous plan and the measured replanning context;
+its target is the attempted geometric goal, not a claim that the robot reached
+it. `physical_task_verdict` remains false. Subsequent ordinary placement,
+prefix and support/rest verification are still required.
+
+The captured causal fixture binds phases716/718 from the failed source:
+at43.5s the old route passes native collider replay; at44.1s it crosses from
+0.847675mm clearance into0.169248mm penetration between `moving_jaw_box2` and
+`red_cube`. The same planner from the measured later state finds
+`joint_3_last`. This is static feasibility only. The replay prohibits
+integration and does not reclassify the failed physical episode. Phase-observer
+contact/site data are cached solve outputs; the scratch geometry uses the
+separately saved final integrated qpos.
+
+The failed episode has no persisted region journal: the failure path returned
+unverified before requesting a placement proof. Its last cached solve reports
+support contacts, but does not establish a supported-rest window. Persisting
+diagnostic owner-produced journal rows on failure is implemented as a separate
+follow-up to the replanning commit. It cannot recover rows from the earlier
+closed process or change that episode's outcome.
+
+Failed or unverified ordinary `pick_and_place` and `place_at` now attach a
+diagnostic file/hash when that arm already owns a placement history. The file
+copies at most256 existing batch records, their recorded model/epoch, capture
+error and goal ledger under the world lock. Serialization and storage happen
+after releasing it. The diagnostic path does not query native state, call a
+guard/audit/FK/solver, activate a lazy arm, change prefix obligations or issue
+another verdict. Its `diagnostic_only: true` and `physical_task_verdict: false`
+labels also apply to missing/failed capture data; persistence errors leave the
+action's original result and postcondition intact. Recorded identity is not
+revalidated as current identity by this diagnostic copy.
+
+
+Cancellation follow-up: `home` and `withdraw` pass the original cancellation
+token through the existing SafeArm consumer gates. A stop followed by clearing
+the latch still invalidates that command. Explicit scene recovery records a
+new context only after recovery succeeds; reset verification and final
+completion must use that exact context. Supplying the original generation
+explicitly cannot bypass the postrelease epoch check. Pending withdrawal is
+cleared atomically with token, latch and ownership validation, with no geometry
+or backend calls under the observation lock.
+
+The [cancellation receipt](../benchmark/results/mujoco_withdrawal_cancellation_20261003.json)
+retains the original 2 failing / 4 passing causal controls and the final
+151 passing CPU/static-geometry tests, including 20 cancellation controls.
+These cover stop/reset during waypoint approval, reset reads, final observation
+and completion, plus legitimate explicit recovery. No new physical episode
+or transfer of the earlier two-object physical admission is claimed.

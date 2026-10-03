@@ -342,20 +342,25 @@ class SkillRuntime:
 
     def _verify_configured_placement(self, label, destination):
         """Resolve the requested area in configuration, then read physics only."""
-        # The current truth reader is bound to the first configured arm. It
-        # cannot adjudicate another arm's world in a multi-arm runtime.
-        if self.arm_rig is not None and len(self.arm_rig.arms) > 1:
-            return None
-        reader = getattr(self._object_pose, "placement", None)
-        if reader is None:
-            return None
-        if not destination or _names_drop_zone(destination):
+        region = self.cfg.arm.get("mj_delivery_area")
+        region_requested = region is not None and (not destination or _names_drop_zone(destination))
+        if region_requested:
+            from ..sim.mujoco_placement import Region
+            canonical = Region.parse(region).name
+        elif not destination or _names_drop_zone(destination):
             canonical = self.cfg.grasp.get("drop_zone_name", "drop zone")
         elif str(destination).strip().lower() in _OPEN_BOX_WORDS:
             canonical = "open box"
         else:
             return None
-        if canonical not in {"green square", "open box"}:
+        if not region_requested and canonical not in {"green square", "open box"}:
+            return None
+        reader = getattr(self._object_pose, "placement", None)
+        # A configured region cannot fall back to the weaker point channel.
+        if reader is None or (self.arm_rig is not None and len(self.arm_rig.arms) > 1):
+            if region_requested:
+                return {"status": "unverified", "evidence": "configured region lacks an independent bound reader",
+                        "measured": {"destination": canonical}}
             return None
         return reader(label, canonical, evidence_dir=self.trace.run_dir / "placement")
 
@@ -603,6 +608,16 @@ class SkillRuntime:
                     or None
                 )
             pre_state = self.effects.snapshot(target_label)
+        region_context = None
+        region_context_error = None
+        if name == "place_at":
+            from .mujoco_region import explicit_context
+            try:
+                region_context = explicit_context(effective_arm, self.held_object, args)
+            except Exception as exc:
+                # Goal bookkeeping failure never grants a different motion or
+                # clears a physical obligation. The original point path remains.
+                region_context_error = f"{type(exc).__name__}: {exc}"
         t0 = time.monotonic()
         try:
             import contextlib
@@ -681,6 +696,22 @@ class SkillRuntime:
             result = annotate_result(result, pc)
             if _effect_observation is not None:
                 _effect_observation["postcondition"] = pc
+        if region_context_error is not None:
+            result["region_obligation"] = {"retired": False, "reason": region_context_error}
+        if name == "place_at" and region_context is not None:
+            from .mujoco_region import finish_explicit
+            finish_explicit(region_context, result)
+        if name in {"pick_and_place", "place_at"} and (result.get("ok") is False or result.get("verified") is False):
+            # A failed attempt may never reach the placement verifier. Retain
+            # only its existing owner-produced journal, with no new verdict.
+            try:
+                from ..sim.mujoco_placement import save_placement_diagnostic
+                diagnostic = save_placement_diagnostic(effective_arm, self.trace.run_dir / "placement")
+            except Exception as exc:
+                diagnostic = {"diagnostic_only": True, "physical_task_verdict": False,
+                              "error": f"placement diagnostic unavailable: {type(exc).__name__}: {exc}"}
+            if diagnostic is not None:
+                result["placement_diagnostic"] = diagnostic
         if name == "pick_and_place" and result.get("ok") is False:
             result["next_action"] = (
                 "If the user said 'then stop', report this failure and end the turn. "
@@ -2400,6 +2431,11 @@ class SkillRuntime:
         return max(float(self.cfg.safety.get("table_z", 0.0)), float(points[:, 2].min()))
 
     def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None) -> None:
+        # Some hardware drivers expose a raw two-stage escape hatch. It may
+        # not bypass a retained model-backed empty-tool withdrawal either.
+        check = getattr(self.arm.harness, "check_model_withdrawal", None)
+        if check is not None:
+            check(command=True, gripper=True)
         raw = self.arm.raw
         if hasattr(raw, "close_gripper_two_stage"):
             if _before_close is not None:
@@ -2493,7 +2529,12 @@ class SkillRuntime:
             raise SkillError("placement support clearance must be finite and nonnegative")
         return float(support_z) + float(offset) + clearance
 
-    def skill_place_at(self, x: float, y: float, z: float | None = None) -> dict:
+    def skill_place_at(self, x: float, y: float, z: float | None = None, *, _model_plan=None) -> dict:
+        from .mujoco_placement_aim import RegionPlan
+        if _model_plan is not None:
+            if type(_model_plan) is not RegionPlan:
+                raise SkillError('placement requires its private bound region plan')
+            _model_plan.aim.guard(self)
         carry_attachment.check(self)
         self._adopt_unknown_held()
         if not self.held_object:
@@ -2513,6 +2554,10 @@ class SkillRuntime:
                 f"top-down ceiling; releasing from {z_cap:.2f} m instead",
             )
             release_z = z_cap
+        if _model_plan is not None:
+            # Reject a replayed/changed internal handoff before an observation
+            # could take another path (including the legacy slip handler).
+            _model_plan.consume(self, x, y, release_z, _model_plan.aim.q)
         target = np.array([x, y, release_z])
         # Aim the OBJECT at the target, not the TCP. The IK below drives the
         # TCP, so the requested point has to be shifted by wherever the object
@@ -2592,98 +2637,27 @@ class SkillRuntime:
             target[1] -= float(held_offset[1])
             self.memory.add(
                 "note",
-                f"object sits {np.linalg.norm(held_offset[:2])*100:.1f} cm off "
-                f"the gripper centre; aiming the TCP at "
-                f"[{target[0]:.3f}, {target[1]:.3f}] so the OBJECT lands on "
-                f"[{x:.3f}, {y:.3f}]",
+                f"current object offset estimate is {np.linalg.norm(held_offset[:2])*100:.1f} cm "
+                "from the gripper centre; final TCP aim is resolved with the placement pose",
             )
-        from ..grasping.obb_grasp import _yaw_rotation
-
         q_now = (carry_state if carry_state is not None else self.arm.get_state()).q
-        tcp_now = self.kin.fk(q_now)
-        hover = target + np.array([0.0, 0.0, float(gcfg.get("pregrasp_offset_m", 0.12))])
-        # Finish the horizontal carry before lowering the held object. A
-        # low release target must not also lower a can through the worktop's
-        # other props while it is still crossing to that target.
-        hover[2] = max(hover[2], float(tcp_now[2, 3]))
-        hover[2] = min(hover[2], z_cap)  # same wrist ceiling as the release
-        carry_height = gcfg.get("carry_height_m")
-        if carry_height is not None:
-            carry_height = float(carry_height)
-            if not np.isfinite(carry_height) or not table_z < carry_height <= z_cap:
-                raise _PreCarryLiftError("carry height must be above the table and within the wrist ceiling")
-            # Release height controls the final descent, independently of
-            # the clearance needed while crossing other objects.
-            hover[2] = max(hover[2], carry_height)
-        lift = None
-        carry_start = q_now
-        if (bool(gcfg.get("pre_carry_lift", False))
-                and float(hover[2]) > float(tcp_now[2, 3]) + .001):
-            # Reaching the clearance height only at the far end of the
-            # horizontal chord can catch a tall payload on a low platform.
-            # First reach the SAME already-planned height at the current XY
-            # and orientation. Plan and vet this phase before any motion.
-            lift_pose = tcp_now.copy()
-            lift_pose[2, 3] = float(hover[2])
-            lift = self.kin.ik(lift_pose, q_now)
-            if (not lift.success or np.max(np.abs(lift.q - q_now)) > np.pi):
-                raise _PreCarryLiftError("pre-carry lift is unreachable; keeping the grasp")
-            for fraction in (.15, .3, .45, .6, .75, .9, 1.):
-                reason = self.arm.harness.vet_pose(q_now + fraction * (lift.q - q_now))
-                if reason:
-                    raise _PreCarryLiftError(f"pre-carry lift is unsafe: {reason}")
-            carry_start = lift.q
-        # Plan empty-gripper clearance before release so the trip home cannot
-        # tip the placed object. Keep release yaw and XY through retraction.
-        retreat_target = None
-        retreat_offset = gcfg.get("post_place_retreat_offset_m")
-        if retreat_offset is not None:
-            retreat_offset = float(retreat_offset)
-            if not np.isfinite(retreat_offset) or retreat_offset <= 0:
-                raise _PostPlaceRetreatPlanError("post-place retreat offset must be finite and positive")
-            retreat_target = target.copy()
-            retreat_target[2] = max(float(hover[2]), release_z + retreat_offset)
-        # Preserve held yaw to avoid loading an off-center grasp. Nearby yaws
-        # avoid wrist unwinding when the original yaw approaches joint limits.
-        radial = float(np.arctan2(y, x))
-        yaws = [radial, 0.0, np.pi / 4, -np.pi / 4, np.pi / 2, -np.pi / 2]
-        approach_col = 0 if self._tool_axis_order == "down_open" else 2
-        opening_col = 0 if self._tool_axis_order == "open_down" else 1
-        if float(-tcp_now[2, approach_col]) > 0.95:
-            held_yaw = float(np.arctan2(tcp_now[1, opening_col], tcp_now[0, opening_col]))
-            near_yaws = [held_yaw]
-            for delta in (np.pi / 4, np.pi / 2, 3 * np.pi / 4, np.pi):
-                near_yaws.extend((held_yaw - delta, held_yaw + delta))
-            yaws = near_yaws + yaws
-        pre = low = retreat = None
-        for yaw in yaws:
-            R = _yaw_rotation(yaw, axis_order=self._tool_axis_order)
-            cand_pre = self.kin.ik(make_transform(R, hover), carry_start)
-            if (not cand_pre.success
-                    or np.max(np.abs(cand_pre.q - carry_start)) > np.pi):
-                continue
-            cand_low = self.kin.ik(make_transform(R, target), cand_pre.q)
-            if (cand_low.success
-                    and np.max(np.abs(cand_low.q - cand_pre.q)) <= np.pi):
-                cand_retreat = None
-                if retreat_target is not None:
-                    # Reuse the existing pose exactly when the hover already
-                    # provides this clearance (e.g. the kitchen pink cube).
-                    cand_retreat = (cand_pre if np.array_equal(retreat_target, hover)
-                                    else self.kin.ik(make_transform(R, retreat_target), cand_low.q))
-                    if (not cand_retreat.success
-                            or np.max(np.abs(cand_retreat.q - cand_low.q)) > np.pi):
-                        continue
-                pre, low, retreat = cand_pre, cand_low, cand_retreat
-                break
-        if pre is None or low is None:
-            retreat_detail = (f", post-place retreat {retreat_target.round(3).tolist()}"
-                              if retreat_target is not None else "")
-            error_type = _PostPlaceRetreatPlanError if retreat_target is not None else SkillError
-            raise error_type(
-                f"place pose unreachable at {target.round(3).tolist()} "
-                f"(hover {hover.round(3).tolist()}{retreat_detail}, all yaws tried)"
-            )
+        from .place_geometry import plan as plan_geometry
+        from .mujoco_placement_aim import capture as capture_aim
+        aim = _model_plan.aim if _model_plan is not None else capture_aim(self, q_now)
+        if _model_plan is not None:
+            geometry = _model_plan.consume(self, x, y, release_z, q_now)
+        else:
+            geometry = plan_geometry(self, q_now, target, x=x, y=y,
+                                     release_z=release_z, z_cap=z_cap,
+                                     **({} if aim is None else {'attachment_translation_tool': aim.translation}))
+        if aim is not None:
+            aim.guard(self, q_now)
+            target = geometry.target.copy()
+        self.memory.add('note', f"planned TCP aim [{target[0]:.3f}, {target[1]:.3f}, {target[2]:.3f}] "
+                        f"for requested OBJECT XY [{x:.3f}, {y:.3f}]")
+        lift, pre, low = geometry.lift, geometry.pre, geometry.low
+        retreat, retreat_target = geometry.retreat, geometry.retreat_target
+        R, hover = geometry.rotation, geometry.hover
 
         retreat_error = None
         release_error = None
@@ -2692,10 +2666,23 @@ class SkillRuntime:
             release_timeout = float(release_timeout)
             if not np.isfinite(release_timeout) or release_timeout < 0:
                 raise _PostPlaceRetreatPlanError("release opening timeout must be finite and nonnegative")
+        # The optional model-backed adapter previews both the held-object
+        # transport and an empty-tool escape before touching the destination.
+        # It is re-read from actual physics below, before opening.
+        from . import mujoco_withdrawal
+        try:
+            mujoco_withdrawal.prepare(self, make_transform(R, target),
+                carry_goals=([lift.q] if lift is not None else []) + [pre.q, low.q],
+                **({} if aim is None else {'deadline': aim.deadline}))
+            if aim is not None:
+                aim.guard(self, q_now)
+        except (SkillError, SafetyViolation, ValueError) as exc:
+            raise _PostPlaceRetreatPlanError(str(exc)) from exc
         if lift is not None:
             try:
                 lifted = carry_attachment.move(self,
                     lift.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                    **({} if aim is None else aim.motion_arguments()),
                 )
             except carry_attachment.AttachmentInvalid:
                 raise
@@ -2704,20 +2691,47 @@ class SkillRuntime:
             if not lifted:
                 raise _PreCarryLiftError("pre-carry lift did not settle; keeping the grasp")
             self.memory.add("action", f"reached planned carry height {hover[2]:.3f} m before horizontal transport")
-        if not carry_attachment.move(self, pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5))):
+        if not carry_attachment.move(self, pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5)),
+                                     **({} if aim is None else aim.motion_arguments())):
             raise SkillError("did not settle above the place target")
         self.arm.harness.allow_grasp_descent(target[:2], z_min=release_z - 0.02)
         from . import release_episode
         release = None
+        model_withdrawal = None
         withdrawal_completed = False
         try:
-            if not carry_attachment.move(self, low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
+            if not carry_attachment.move(self, low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                                         **({} if aim is None else aim.motion_arguments())):
                 raise SkillError("did not settle at place pose")
+            # A grasp ceiling must not collapse withdrawal onto release. An
+            # explicitly capable simulator plans from its actual colliders;
+            # full-pose IK and the existing safety path still have to succeed.
+            try:
+                if aim is not None:
+                    aim.transport_guard()
+                model_withdrawal = mujoco_withdrawal.prepare(self, make_transform(R, target))
+                if aim is not None:
+                    aim.admit_release(model_withdrawal)
+            except (SkillError, SafetyViolation, ValueError) as exc:
+                raise _PostPlaceRetreatPlanError(str(exc)) from exc
+            if model_withdrawal is not None:
+                from types import SimpleNamespace
+                retreat = SimpleNamespace(q=model_withdrawal.q)
+                retreat_target = model_withdrawal.target[:3, 3].copy()
             try:
                 if retreat is not None:
                     release = release_episode.begin(self, retreat.q,
                         float(gcfg.get("descend_duration_s", 2.0)))
-                release_episode.open_hand(self, release)
+                if model_withdrawal is not None and release is None:
+                    if aim is not None:
+                        aim.admit_release(model_withdrawal)
+                    model_withdrawal.retain()
+                    try:
+                        model_withdrawal.open_hand()
+                    except (SkillError, SafetyViolation) as exc:
+                        raise _PostPlaceRetreatPlanError("release command unavailable: " + str(exc)) from exc
+                else:
+                    release_episode.open_hand(self, release)
             except carry_attachment.AttachmentInvalid:
                 raise
             except Exception as exc:
@@ -2775,6 +2789,8 @@ class SkillRuntime:
                     ascended = release_episode.withdraw(self, release)
                     release_episode._guard(self, release)
                     withdrawal_completed = bool(ascended)
+                elif model_withdrawal is not None:
+                    ascended = release_error is None and model_withdrawal.withdraw()
                 else:
                     ascended = release_error is None and self.arm.move_joints(
                         retreat.q if retreat is not None else pre.q,
@@ -2782,6 +2798,8 @@ class SkillRuntime:
                     )
                 if retreat is not None and not ascended and release_error is None:
                     retreat_error = "did not settle at the post-place retreat pose"
+                if model_withdrawal is not None and ascended:
+                    model_withdrawal.after_withdrawal()
             except (SkillError, SafetyViolation) as e:
                 if retreat is not None:
                     retreat_error = f"post-place retreat aborted: {e}"
@@ -2789,7 +2807,11 @@ class SkillRuntime:
                 self.memory.add("note", f"placed, but the ascent aborted: {e}")
         finally:
             if release is None:
-                self.arm.harness.clear_grasp_exemption()
+                if (model_withdrawal is not None
+                        and getattr(self.arm.harness, "_pending_model_withdrawal", None) is model_withdrawal):
+                    model_withdrawal.clear_grasp_exemption()
+                else:
+                    self.arm.harness.clear_grasp_exemption()
             else:
                 release_episode.finish(self, release, completed=withdrawal_completed)
         # Report where the OBJECT was aimed, not where the TCP was sent. The
@@ -2797,6 +2819,12 @@ class SkillRuntime:
         # so returning the offset-compensated TCP point would grade the place
         # against the wrong thing and quietly forgive the compensation error.
         result = {}
+        if aim is not None:
+            result['placement_aim'] = {**aim.receipt(), 'requested_object_xy_m': [x, y],
+                                       'target_tcp_m': target.tolist()}
+        if model_withdrawal is not None:
+            result["release_clearance"] = model_withdrawal.receipt()
+            retreat_target = model_withdrawal.target[:3, 3].copy()
         if release_error is not None:
             result.update(ok=False, stage="release", error=release_error, home_skipped=True)
         if retreat_target is not None:
@@ -3003,6 +3031,11 @@ class SkillRuntime:
             failure_destination = {"destination": destination_name,
                 "destination_kind": "configured_point",
                 "target": [float(dz[0]), float(dz[1])]}
+            if self.cfg.arm.get("mj_delivery_area") is not None:
+                from ..sim.mujoco_placement import Region
+                region = Region.parse(self.cfg.arm.get("mj_delivery_area"))
+                failure_destination = {"destination": region.name, "destination_kind": "configured_region",
+                                       "region": region.as_dict()}
         elif (str(destination).strip().lower() in _OPEN_BOX_WORDS
                 and gcfg.get("open_box") is not None):
             box = gcfg.get("open_box")
@@ -3147,8 +3180,16 @@ class SkillRuntime:
                     if destination and not _names_drop_zone(destination):
                         res = self.skill_place_on_object(destination)
                     else:
-                        dz = gcfg.get("drop_zone", [0.30, -0.20])
-                        res = self.skill_place_at(float(dz[0]), float(dz[1]))
+                        from .mujoco_region import select as select_region
+                        region_plan = select_region(self, retain_aim=True)
+                        region_selection = None if region_plan is None else region_plan.report
+                        dz = (region_selection["target"] if region_selection is not None
+                              else gcfg.get("drop_zone", [0.30, -0.20]))
+                        res = self.skill_place_at(float(dz[0]), float(dz[1]),
+                            **({} if region_plan is None else {'_model_plan': region_plan}))
+                        if region_selection is not None:
+                            res.update(destination=region_selection["destination"],
+                                       destination_kind="configured_region", region_selection=region_selection)
                     if (res.get("placed") and not self.held_object
                             and (res.get("home_skipped") is True
                                  or res.get("post_place_retreat", {}).get("ok") is False)):
@@ -3250,8 +3291,15 @@ class SkillRuntime:
         if (not destination or _names_drop_zone(destination)
                 or placed.get("destination_kind") == "configured_point"):
             result["destination_kind"] = "configured_point"
+        if placed.get("destination_kind") == "configured_region":
+            result["destination_kind"] = "configured_region"
+            result["region_selection"] = placed["region_selection"]
         if "post_place_retreat" in placed:
             result["post_place_retreat"] = placed["post_place_retreat"]
+        if "release_clearance" in placed:
+            result["release_clearance"] = placed["release_clearance"]
+        if "placement_aim" in placed:
+            result["placement_aim"] = placed["placement_aim"]
         if placed.get("ok") is False:
             result.update(ok=False, stage=placed.get("stage", "place"),
                           error=placed.get("error", "place failed"),
@@ -3792,11 +3840,14 @@ class SkillRuntime:
             return {**out, **carry_attachment.failure_result(self, exc)}
         occupancy = getattr(self.arm.harness, "occupancy", None)
         recovery_generation = None
+        recovery_cancellation = None
         def recovery_cancelled():
             if recovery_generation is None:
                 return False
             try:
                 self.arm.harness._check_halt_generation(recovery_generation)
+                if recovery_cancellation is not None:
+                    self.arm.harness.check_motion_cancellation(recovery_cancellation)
                 if self.arm.harness.estopped:
                     raise SafetyViolation("e-stop latched during scene recovery")
             except SafetyViolation as exc:
@@ -3845,7 +3896,14 @@ class SkillRuntime:
                 return out
         home_ok = True
         try:
-            self.skill_move_home(_halt_generation=recovery_generation) if recovery_generation is not None else self.skill_move_home()
+            pending_withdrawals = getattr(self, "_mujoco_withdrawals", {})
+            pending_withdrawal = pending_withdrawals.get(id(self.arm))
+            if pending_withdrawal is not None:
+                out["withdrawal_recovery"] = pending_withdrawal.recover_for_reset()
+                recovery_generation = out["withdrawal_recovery"]["generation"]
+                recovery_cancellation = out["withdrawal_recovery"]["cancellation"]
+            else:
+                self.skill_move_home(_halt_generation=recovery_generation) if recovery_generation is not None else self.skill_move_home()
         except (SkillError, SafetyViolation) as e:
             out.update(ok=False, stage="home", home_error=str(e), beliefs_forgotten=0,
                        error=f"Scene reset could not reach home: {e}")
@@ -3888,6 +3946,12 @@ class SkillRuntime:
         if world is not None and hasattr(world, "reset_props"):
             out["props_reset"] = list(world.reset_props())
             out["world"] = "mujoco"
+            if pending_withdrawal is not None:
+                try:
+                    out["withdrawal_reset_verification"] = pending_withdrawal.verify_reset(
+                        out["props_reset"], recovery_generation, recovery_cancellation)
+                except (SkillError, SafetyViolation) as exc:
+                    return {**out, "ok": False, "stage": "reset_verification", "error": str(exc)}
         elif hasattr(raw, "reset_props"):
             out["world"] = "isaac"
             try:  # Isaac bridge returns physics read-back, not camera inference.
@@ -3929,14 +3993,31 @@ class SkillRuntime:
             out["observe_error"] = str(e)
             out.setdefault("error", f"Reset observation could not be refreshed: {e}")
         out["beliefs_forgotten"] = dropped
+        if recovery_cancelled():
+            return out
         out["ok"] = home_ok and out["observation_refreshed"]
         if out["ok"]:
             self._carry_attachment = None  # The existing explicit scene reset completed.
+            if out.get("world") == "mujoco" and out.get("props_reset"):
+                # Clear only this arm, after actual prop reset and fresh
+                # observation. Failed resets and ordinary retries retain it.
+                if pending_withdrawal is not None:
+                    try:
+                        pending_withdrawal.complete(generation=recovery_generation,
+                                                    cancellation=recovery_cancellation)
+                    except (SkillError, SafetyViolation) as exc:
+                        return {**out, "ok": False, "stage": "reset_completion", "error": str(exc)}
         return out
 
     @motion_evidence.phase("home")
     def skill_move_home(self, *, _halt_generation=None) -> dict:
         carry_attachment.check(self)
+        pending = getattr(self, "_mujoco_withdrawals", {})
+        withdrawal = pending.get(id(self.arm))
+        if withdrawal is not None:
+            result = withdrawal.home()
+            withdrawal.complete()
+            return result
         home = self._profile_q("home_q", "move home")
         # SafeArm plans the complete return before motion and re-vets against
         # actual feedback/map state at every segment. Legacy test doubles may

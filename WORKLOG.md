@@ -763,3 +763,13 @@ hardware admission was tested. See benchmark/results/generalized_joints_20261003
   ancestors and complete native-property comparisons via explicit doubles.
   No Kit/solver/GPU or native metric acceptance. New model/scene admission is
   pending. See docs/RGBD_BINARY_LAYOUT_A.md and the compact CPU result receipt.
+
+## RGB-D publication boundary — 3 October 2026
+
+Composed14 reviewed RGB-D checkpoints onto main075c08c, excluding unrelated
+MuJoCo capture-cost891d6c7. Functional added/deleted lines unchanged; only append
+WORKLOG conflicts resolved. General588PASS/18SKIP plus original-USD18PASS gives
+606 distinct passing cases. Two optional environment failures remain retained;
+no source/test changes, no shared environment edits, no native/GPU admission.
+Source/store checks and47-file Ruff F/E9 pass. See docs/RGBD_PUBLICATION.md and
+benchmark/results/rgbd_publication_20261003.json.

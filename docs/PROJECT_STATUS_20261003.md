@@ -17,7 +17,7 @@ accounting and RGB-D without admitting unvalidated physical capabilities.
 | Area | Implemented and measured | Remaining boundary |
 | --- | --- | --- |
 | Manipulation | SafeArm control, observed grasp/release guards, task-effect accounting and measured withdrawal. Historical OVRTX/cuMotion PhysX pick/place/home passed. The original two-object MuJoCo delivery test also passed in one new episode on integrated main `274fa3a9`, including release, support, rest, both home returns and retention of the first object. | Broader task/campaign reliability, hardware and acceptance of later source compositions. |
-| Fastening | Mounted Factory domain, per-solve observation, exclusive owner and bounded startup/action contracts. On the integrated source tree, zero-solve preparation and one native readiness episode passed the unchanged limits. The subsequent one-turn attempt failed startup before reset or motion. A separate earlier mounted-socket experiment measured threading, seating and retention. | The configured domain still has no successful native turn-and-rest task episode. Tool pickup, initial engagement, withdrawal and calibrated preload remain unproved. |
+| Fastening | Mounted Factory domain, per-solve observation, exclusive owner and bounded startup/action contracts. Preparation and readiness passed; the latest ordinary reset/one-turn attempt failed observation freshness during motion. A separate earlier mounted-socket experiment measured threading, seating and retention. | The configured domain still has no successful native turn-and-rest task episode. Tool pickup, initial engagement, withdrawal and calibrated preload remain unproved. |
 | Locomotion | Optional measured `walk_distance`, cancellation and independent support/rest checks; historical fresh-start ±30 mm episodes passed. | Published candidate profiles have no new model/support admission. The 0.1 m software ceiling is not measured 0.1 m capability or general gait acceptance. |
 | Sensing and spatial memory | Passive, bounded sensor providers; identity/epoch/age checks; observed calibrated RGB-D and retained pixel-to-surface annotations without constructing an arm. | Independent metric XY/general-3D accuracy, moving-camera calibration and per-AOV synchronization. No physical SLAM or `go_to` execution is admitted. |
 | Speech | Browser/media gateway, real speech-provider path, original-intent deadlines, priority stop and bounded observed-result views. One continuous synthetic-input/native-motion recording exists. | That motion video contains no spoken robot reply. General dialogue/action reliability, microphone/speaker hardware and public hosted service remain unvalidated. |
@@ -61,6 +61,16 @@ The earlier [OVRTX/cuMotion integration](MANIPULATION_ASSEMBLY_20261002.md)
 completed a PhysX GPU grasp, lift, placement and home in 126.19 s. That result
 remains distinct from ordinary MuJoCo delivery, the mounted-socket experiment
 and the complete kitchen campaign.
+
+The latest ordinary OpenClaw/Qwen kitchen attempt used source `9b08094`,
+cuMotion 1.1.0 and Isaac cameras in epoch `1497ff1f`. Seven planned curves
+completed; the eighth was refused before motion because joint feedback changed
+between planning and execution. `pick_and_place` failed during post-place retreat
+at **273.588 s**, inside the unchanged 300-second MCP limit. Full placement,
+rest and home remain unverified. All four owned scopes closed and 41,713 inputs
+plus five protected stores stayed unchanged; campaign teardown/rest gates did
+not pass. The detailed log prefix dropped 137 events, so the exact final drift
+cannot be reconstructed. [Results and audit reference](evidence/project-status-20261003/native-task-status.json).
 
 The original two-pick test has now been revalidated on integrated main
 `274fa3a9d48d96a8b1402dfeb2fe79c45e67037e`: **1 passed in 161.17 s**, using the
@@ -146,7 +156,7 @@ supply receipts for the earlier failed run or replay an action.
 
 ## Fastening and locomotion
 
-The latest Factory startup measurement uses source
+The earlier Factory startup measurement uses source
 `4bda2183a30074f8ad105ce497876301ce8fc0ed`, whose complete Git tree equals merged
 main `274fa3a9`, and model
 `01595b62c1b4856e41c7e8f83be6ee91b6414bda742aea7e6a7ed0b3e8daa94d`.
@@ -190,6 +200,17 @@ Source/SDK/assets inventories and five protected stores were unchanged.
 **This is a startup failure, with no fastening-task or post-stop-rest proof.**
 It does not alter the earlier readiness PASS or historical failures.
 [Independent failure and closure audit](evidence/project-status-20261003/factory-one-turn-startup-failure-review.json).
+
+### 2026-10-03 — New readiness PASS; one-turn task remains UNVERIFIED
+
+Source `96198a95` and model `7de78290` passed preparation with **39 loads, 22 predicates and zero solves**.
+Separate epoch `b72d7943` passed readiness in **9.492777 wall seconds**, with **0.5000000121 simulated seconds** of quiet under the original limits.
+New epoch `abf26edb` then invoked one ordinary `reset_stop` and `fastening.turn_screw(turns=1.0, direction="tighten")` through the production MCP handler, in-process without stdio or an LLM.
+At step **1236**, controller acceptance rejected observation age **0.457537746 s > 0.2 s**; task completion and post-command rest remain **UNVERIFIED**.
+The trace measured **449.221773 ms** of generation-2 GC on the owner thread inside `observer.read`, within this rejected observation interval.
+This identifies a pause in this episode; it establishes neither a validated fix nor a general speedup or explanation of earlier failures.
+Owned processes closed naturally with exit **1**, and source inputs/five protected stores were unchanged; `runtime_closure.complete=false` and `physical_stop_verified=false` remain explicit.
+[Compact results and exact local audit hashes](evidence/project-status-20261003/native-task-status.json). Earlier outcomes above are preserved.
 
 The historical mounted-socket experiment measured 15.365 turns, 38.155 mm
 advance, seating and two seconds of zero spindle-motor torque. The arm/socket

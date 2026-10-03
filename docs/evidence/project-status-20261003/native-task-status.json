@@ -1,0 +1,111 @@
+{
+  "fastening": {
+    "source_head": "96198a95a71562d08f93fe71253b8d5a1e436880",
+    "model_identity_sha256": "7de782903399a1757c19d918940cccf36f73fbb218117ff8a82a99bea2c84a78",
+    "preparation": {
+      "status": "PASS_PREPARATION_ONLY",
+      "loads": 39,
+      "predicates": 22,
+      "solves": 0
+    },
+    "readiness": {
+      "status": "PASS_READINESS_ONLY",
+      "epoch": "b72d794336ff41dc85963dd97f020e9b",
+      "wall_s": 9.492776971019339,
+      "quiet_sim_s": 0.5000000121071935
+    },
+    "one_turn": {
+      "status": "UNVERIFIED",
+      "epoch": "abf26edb533548ed8202069021a84c2b",
+      "reset_calls": 1,
+      "turn_calls": 1,
+      "turns": 1.0,
+      "direction": "tighten",
+      "mcp_transport": "in-process production handler; no stdio or LLM",
+      "rejected_step": 1236,
+      "observation_age_s": 0.45753774599870667,
+      "age_limit_s": 0.2,
+      "owner_gc_wall_s": 0.449221773,
+      "owner_gc_thread_cpu_s": 0.448756072,
+      "runtime_closure_complete": false,
+      "physical_stop_verified": false,
+      "natural_process_exit": 1,
+      "five_stores_unchanged": true,
+      "source_inputs_unchanged": true
+    },
+    "limits": "One instrumented episode; no successful fastening/rest task, validated GC fix or general performance claim. Earlier results remain unchanged.",
+    "local_audits": [
+      {
+        "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_BATCH_PREPARE_REVIEW_20261003/terminal-review.json",
+        "sha256": "36c84aa3d8c3ecc44f608c414e79cfd661eae0959fe3a6e5a0b893773d990f31"
+      },
+      {
+        "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_BATCH_READINESS_NATIVE_REVIEW_20261003/terminal-review.json",
+        "sha256": "4e77e75f5915e311bb2f3686f9d763503c9386bbcbb0fdce3975d2ea1a7d3ba7"
+      },
+      {
+        "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ONE_TURN_GC_REVIEW_20261003/review.json",
+        "sha256": "507d431b3bc3530b384a1e1b08d0821165e1e062f1b643f457a7ee205ec6589a"
+      }
+    ]
+  },
+  "kitchen": {
+    "source_head": "9b08094d44af6f05fe713d20b825d3e1a3851b1c",
+    "epoch": "1497ff1fff3445fca5e14df35bd87b64",
+    "audit_verdict": "FAIL_RETREAT_START_DRIFT_OWNED_SCOPES_CLOSED",
+    "actual_root_exit": 1,
+    "backend": {
+      "curve8_executor_entered_then_start_drift_veto": true,
+      "curves_completed": 7,
+      "model_sha256": "282009bcd1811b9f64d46fb873a4f71f47825e8d509e480e36625d70af7520c5",
+      "physical_acceptance": false,
+      "planner": "cuMotion1.1.0",
+      "render_reference": "rpFabricTime",
+      "renderer": "isaac",
+      "selection_checks": 9,
+      "world_sha256": "d5d03fc1feffae12bfb14d8db45b52a87636f3bfb1b480b50f3b1bd211cdae16"
+    },
+    "failure": {
+      "destination": "green square",
+      "error": "post-place retreat aborted: joint feedback changed after trajectory planning; no motion sent",
+      "grasp_attempts": 1,
+      "home_attempted": false,
+      "not_mcp_deadline_failure": true,
+      "object": "green cube",
+      "place_attempts": 1,
+      "postcondition": "unverified",
+      "runtime_verified": false,
+      "skill": "pick_and_place",
+      "stage": "retreat",
+      "wall_ms": 273588.2
+    },
+    "closure": {
+      "campaign_normal_shutdown": false,
+      "campaign_runtime_teardown_verified": false,
+      "forced_kill": false,
+      "foreign_birth_and_executable_preserved": 6,
+      "main_mcp_software_teardown_complete": true,
+      "main_mcp_wait_exit": 143,
+      "note": "Failure containment closed all owned scopes. Individual MCP software teardown is complete; campaign ordinary-success and physical-rest gates remain false.",
+      "owned_scope_closure_recorded": true,
+      "owned_units": 4,
+      "physical_stop_or_rest_verified": false,
+      "remaining_listeners": {},
+      "remaining_members_or_escaped": false
+    },
+    "diagnostic_limits": {
+      "detailed_events_dropped": 137,
+      "detailed_prefix_complete": false,
+      "lifecycle_tail_complete": true,
+      "lifecycle_tail_events": 16,
+      "note": "Tail preserves seven stream returns and skill end, not missing final joint samples; exact retreat drift magnitude cannot be recovered from this prefix."
+    },
+    "source_input_count": 41713,
+    "source_before_after_unchanged": true,
+    "five_stores_before_after_and_current_unchanged": true,
+    "local_audit": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_REALHOST_REVIEW_20261003/terminal-review-01.json",
+      "sha256": "115a8c1437bddc99c775398f345d2351c657a70c2e5d80cde30413cce4334a0d"
+    }
+  }
+}

@@ -65,6 +65,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import copy
 import json
 import os
 import sys
@@ -369,17 +370,51 @@ class McpSkillServer:
         threading.Thread(target=_warm, daemon=True, name="wrc-prewarm").start()
 
     def shutdown(self):
-        if self._composed:
-            self._request_composed_shutdown()
-        elif self._mobile:
-            self.stop_now()
+        from ..lifecycle import retain_teardown_attempt, teardown_receipt, teardown_step
+
+        previous = getattr(self, "_shutdown_receipt", None)
+        retry = (isinstance(previous, dict)
+                 and getattr(self._runtime, "robot_mode", None) in {"mobile", "composed"}
+                 and any(stage.get("stage") == "runtime" and stage.get("complete") is not True
+                         for stage in previous.get("stages", ())))
+        if isinstance(previous, dict) and not retry:
+            return copy.deepcopy(previous)
+        stages = ([copy.deepcopy(stage) for stage in previous["stages"]
+                   if stage.get("stage") == "stop"] if retry else [])
+
+        def stop():
+            if self._composed:
+                return self._request_composed_shutdown()
+            if self._mobile:
+                # stop_now returns a protocol envelope. Its existing stop
+                # semantics stay intact; runtime.close owns the final receipt.
+                self.stop_now()
+
+        if not retry:
+            stages.append(teardown_step("stop", stop))
         # taking _init_lock waits out an in-flight prewarm build, so a
         # runtime that finishes building after EOF is still torn down
         with self._init_lock, contextlib.redirect_stdout(sys.stderr):
             if self._runtime is not None:
                 from ..apps.demo import shutdown_runtime
 
-                shutdown_runtime(self._runtime, self._arm)
+                stages.append(teardown_step("runtime", lambda: shutdown_runtime(self._runtime, self._arm)))
+        receipt = teardown_receipt(stages)
+        receipt.update(pid=os.getpid(), runtime_built=self._runtime is not None)
+        receipt = retain_teardown_attempt(previous, receipt)
+        try:
+            from .process_owner import _write_json
+            from ..config import PACKAGE_ROOT
+
+            run_dir = Path(os.environ.get("CASCADE_RUN_DIR", PACKAGE_ROOT / "runs" / f"mcp_{os.getpid()}"))
+            _write_json(run_dir / "teardown.json", receipt)
+        except Exception as error:
+            receipt["stages"].append({"stage": "persist_receipt", "ok": False, "complete": False,
+                                      "errors": [{"type": type(error).__name__, "message": str(error)}]})
+            receipt.update(ok=False, complete=False)
+            print(f"[cascade-mcp] teardown receipt could not be saved: {receipt}", file=sys.stderr)
+        self._shutdown_receipt = copy.deepcopy(receipt)
+        return receipt
 
     # ── out-of-band stop/reset (called from the stdin thread / signals) ──
 
@@ -1049,18 +1084,21 @@ def main() -> int:
     with StopSignals(staff_reset=True) as signals:
         server._signals = signals
         try:
-            return _serve_stdio(server, signals)
+            exit_code = _serve_stdio(server, signals)
         except KeyboardInterrupt:
-            return 130
+            exit_code = 130
         finally:
             try:
                 with signals.defer():
-                    server.shutdown()
+                    teardown = server.shutdown()
             finally:
                 if isinstance(sys.stderr, _Tee) and sys.stderr is not previous_stderr:
                     log = sys.stderr._streams[-1]
                     sys.stderr = previous_stderr
                     log.close()
+        if not isinstance(teardown, dict) or teardown.get("ok") is not True or teardown.get("complete") is not True:
+            return 1
+        return exit_code
 
 
 def _serve_stdio(server, signals):

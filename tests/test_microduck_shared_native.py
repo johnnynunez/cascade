@@ -58,9 +58,26 @@ def test_readonly_robot_view_binds_complete_contacts_without_advancing_owner():
     row = {'step': clock[0], 'sim_time': clock[1], 'support': {
         'version': 1, 'status': 'known', 'reason': '', 'step': clock[0], 'sim_time_s': clock[1], 'contacts': []}}
     owner = NS(layout=layout, physics_clock=clock, dt=.005,
-               read_robots=lambda: {'duck0': row.copy()})
+               read_robot=lambda robot: row.copy())
     view = SharedRobotView(owner, layout.robots[0], 'test-epoch')
     sample = view.read()
     assert sample['robot_id'] == 'duck0' and sample['epoch'] == 'test-epoch'
     assert sample['support']['model_identity_sha256'] == layout.robots[0].model_identity_sha256
     assert owner.physics_clock == clock and not hasattr(view, 'step')
+
+
+def test_selected_robot_read_detaches_its_arrays_and_contacts_without_copying_peers():
+    class UnreadPeer:
+        def __deepcopy__(self, memo):
+            raise AssertionError('selected read copied an unrelated peer')
+    cached = {'duck0': {'q': np.zeros(14, np.float32), 'support': {'contacts': [{'force': [1., 2., 3.]}]}},
+              'duck1': UnreadPeer()}
+    owner = SharedKitNewtonBackend.__new__(SharedKitNewtonBackend)
+    owner._read_completed_scene = lambda: cached
+    sample = owner.read_robot('duck0')
+    sample['q'][0] = 8
+    sample['support']['contacts'][0]['force'][0] = 7
+    assert cached['duck0']['q'][0] == 0
+    assert cached['duck0']['support']['contacts'][0]['force'][0] == 1
+    with pytest.raises(KeyError):
+        owner.read_robot('unknown')

@@ -100,19 +100,40 @@ def receipt(directory):
     return json.loads(files[0].read_text())
 
 
-def test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result(monkeypatch, tmp_path):
+@pytest.mark.parametrize('source_status', ['healthy', 'git_timeout'])
+def test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result(monkeypatch, tmp_path, source_status):
+    # The semantic A/B needs a controlled diagnostic subprocess, not a promise
+    # that a loaded CI host completes real git status within the 2 s budget.
+    # Source-file hashes and the actual telemetry/actuator paths remain real.
+    import subprocess
+    git_calls = []
+    def git(args, **kwargs):
+        git_calls.append(args[3:])
+        assert args[:2] == ['git', '-C'] and kwargs['timeout'] == 2.
+        if args[3:] == ['status', '--porcelain', '--untracked-files=no']:
+            if source_status == 'git_timeout':
+                raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+            return subprocess.CompletedProcess(args, 0, stdout='')
+        assert args[3:] == ['rev-parse', 'HEAD']
+        return subprocess.CompletedProcess(args, 0, stdout='software-fixture-head\n')
+    monkeypatch.setattr(evidence, 'subprocess', SimpleNamespace(run=git))
     monkeypatch.delenv('CASCADE_GRASP_EVIDENCE_DIR', raising=False)
     rt, calls, fix, frame = runtime(monkeypatch)
     before = rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
     expected = calls.copy()
-    assert not list(tmp_path.glob('*.json'))
+    assert not list(tmp_path.glob('*.json')) and not git_calls
     monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path))
     rt, calls, fix, frame = runtime(monkeypatch)
     result = rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
     assert result == before
     assert calls == expected  # includes EVERY bridge read, joint command, gripper command
     doc = receipt(tmp_path)
-    assert doc['logging_ok'] is True
+    assert git_calls == [['rev-parse', 'HEAD'], ['status', '--porcelain', '--untracked-files=no']]
+    assert doc['logging_ok'] is (source_status == 'healthy')
+    if source_status == 'git_timeout':
+        assert [(e['operation'], e['type']) for e in doc['logging_errors']] == [('source_at_flush', 'TimeoutExpired')]
+    else:
+        assert doc['logging_errors'] == []
     assert doc['started_unix_ns'] <= doc['finished_unix_ns']
     assert doc['started_monotonic_s'] == 0.
     assert {'selected', 'jaw_datum', 'localized', 'isaac_feedback', 'ik_targets',

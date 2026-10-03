@@ -63,6 +63,36 @@ def _count(value, limit, name):
     return int(a[0])
 
 
+def _contact_frame_validity(adr, pos, frames, normal, force_on_a, ncon):
+    """Batch the unchanged checks, without interpreting inactive storage.
+
+    The decoder still reports failures in candidate order, after checking each
+    candidate's constraint rows. This only combines the small NumPy operations;
+    it performs no native reads and does not discard any solved contact.
+    """
+    frame64 = np.empty((ncon, 3, 3), dtype=float)
+    valid = np.zeros(ncon, dtype=bool)
+    finite_frame = np.zeros(ncon, dtype=bool)
+    active = np.flatnonzero(adr[:ncon, 0] >= 0)
+    finite_frame[active] = np.isfinite(frames[active]).all(axis=(1, 2))
+    convertible = active[finite_frame[active]]
+    frame64[convertible] = frames[convertible].astype(float)
+    finite = (np.isfinite(pos[active]).all(axis=1)
+              & np.isfinite(force_on_a[active]).all(axis=1)
+              & np.isfinite(normal[active]).all(axis=1)
+              & finite_frame[active])
+    selected = active[finite]
+    # Non-finite active values fail below; inactive/unused slots may contain
+    # NaNs. Neither category is passed to matrix arithmetic or determinants.
+    if len(selected):
+        f = frame64[selected]
+        valid[selected] = (
+            np.isclose(f @ f.transpose(0, 2, 1), np.eye(3), rtol=0, atol=2e-5).all(axis=(1, 2))
+            & np.isclose(np.linalg.det(f), 1., rtol=0, atol=2e-5)
+            & np.isclose(f[:, 0], normal[selected], rtol=0, atol=2e-6).all(axis=1))
+    return frame64, valid, finite_frame
+
+
 def solved_contacts(ns):
     """Decode identities and read forces from ONE completed native solve.
 
@@ -110,6 +140,7 @@ def solved_contacts(ns):
     if ncon and ((worlds[:ncon] != 0).any() or (geoms[:ncon] < 0).any()
                  or (geoms[:ncon] >= mapping.shape[1]).any()):
         raise ValueError('invalid support contact world/geom')
+    frames64, valid_frames, finite_frames = _contact_frame_validity(adr, pos, frames, normal, force_on_a, ncon)
     covered, records = set(), []
     for i in range(ncon):
         pair = (int(pairs[0][i]), int(pairs[1][i]))
@@ -131,13 +162,21 @@ def solved_contacts(ns):
                 or covered.intersection(rows.tolist())):
             raise ValueError('contact constraint rows are incomplete or ambiguous')
         covered.update(rows.tolist())
-        frame = frames[i].astype(float)
-        if (not np.isfinite(pos[i]).all() or not np.isfinite(force_on_a[i]).all()
-                or not np.isfinite(normal[i]).all()
-                or not np.allclose(frame @ frame.T, np.eye(3), rtol=0, atol=2e-5)
-                or not np.isclose(np.linalg.det(frame), 1., rtol=0, atol=2e-5)
-                or not np.allclose(frame[0], normal[i], rtol=0, atol=2e-6)):
-            raise ValueError('invalid contact frame/normal')
+        if finite_frames[i]:
+            frame = frames64[i]
+            if not valid_frames[i]:
+                raise ValueError('invalid contact frame/normal')
+        else:
+            # Preserve the original scalar failure/warning order for malformed
+            # active frames, including signaling NaNs under strict NumPy error
+            # settings. Inactive storage never reaches a float conversion.
+            frame = frames[i].astype(float)
+            if (not np.isfinite(pos[i]).all() or not np.isfinite(force_on_a[i]).all()
+                    or not np.isfinite(normal[i]).all()
+                    or not np.allclose(frame @ frame.T, np.eye(3), rtol=0, atol=2e-5)
+                    or not np.isclose(np.linalg.det(frame), 1., rtol=0, atol=2e-5)
+                    or not np.allclose(frame[0], normal[i], rtol=0, atol=2e-6)):
+                raise ValueError('invalid contact frame/normal')
         # The admitted native decoder sums the pyramid edges for the normal;
         # elliptic/frictionless contact stores its normal in the first row.
         normal_force = float(np.sum(efc_force[0, rows], dtype=np.float64)

@@ -2027,3 +2027,32 @@ neither repeatability nor a general performance cause. Raw decode can occur
 while the owner lives; post-close phase export and the remaining drain follow
 join. Documentation and receipt validation only; this publication does not
 replay physics or transfer old task success to the integrated source.
+
+### 2026-10-03 — Batch solved-contact frame checks
+
+Batch the existing finite active-contact NumPy checks without changing native
+reads, shape/constraint identity, coverage, force outputs or tolerances. An
+independent review caught signaling NaNs in inactive storage being converted
+before candidate validation. The retained reproduction has 4 failures and
+1 control pass. Inactive storage is now never converted; nonfinite active
+frames retain the original scalar validation in candidate order, including
+NumPy warnings and exceptions.
+
+Final CPU selection: 625 passed, 1 skipped in 3.09 s across 14 files; the skip
+requires the separately installed pinned BAM source. Exact baseline comparison
+passes 553 cases (156 accepted, 397 rejected). Independent checks pass the
+12-case reproduction, 120 nonfinite/error-order cases and 240 adjacent-float32
+boundary cases. These selections overlap and are not summed as distinct tests;
+the earlier 12-case probe with 8 differences remains retained.
+
+Synthetic host-buffer median wall time, baseline to candidate: 1 contact
+0.084731 to 0.104153 ms; 2 contacts 0.140811 to 0.128885 ms; 32 contacts
+1.749905 to 0.764439 ms; 128 contacts 7.148787 to 2.856593 ms. Each measurement
+uses 16 alternating pairs of 10 decodes with GC unchanged. A single contact
+pays extra batch setup cost. No native solve or GPU measurement was performed,
+and these timings establish no improvement in native startup or readiness.
+
+Five protected stores retain their original hashes or absence. Decoder and test
+sources are frozen at e0b60caf and 43d5d1cc. A later native run requires new
+source/model preparation bindings; earlier readiness evidence does not transfer.
+Portable receipt: `docs/evidence/contact-validation-batch-20261003/cpu-validation.json`.

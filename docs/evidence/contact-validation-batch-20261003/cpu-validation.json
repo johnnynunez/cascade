@@ -1,0 +1,358 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "verdict": "PASS_CPU_VALIDATION_ONLY",
+  "change": "Batch finite active-contact frame validation while preserving the original scalar path for nonfinite active frames.",
+  "source": {
+    "base_commit": "f97ef28633df0df2d686f0505f8e11cbe6ce0a3b",
+    "decoder_path": "src/cascade/sim/microduck_contact_support.py",
+    "baseline_sha256": "3fad39873ff76e77887fea2182b6155451826addfbc61835da8f392f85bed052",
+    "candidate_sha256": "e0b60cafb34b11670ddc863af34d7ae4347f64ac46ef566c18fcca105453bdcc",
+    "test_path": "tests/test_microduck_contact_support.py",
+    "test_sha256": "43d5d1cc479ec1a9eb74a147f487fa72171ab318f0874c2142bd3294fba65fb8",
+    "numpy_version": "2.5.3"
+  },
+  "contracts": [
+    "One original set of SDK host-buffer reads; batching adds no native reads.",
+    "Identity, dimension, exact constraint row mapping, duplicate row coverage, supported cones and complete solved-row coverage unchanged.",
+    "All tolerances, float64 frame arithmetic, force summation, signs/projections, output order and values unchanged.",
+    "Inactive frames never converted or used in floating-point arithmetic; normal/position/force finite checks still reject invalid active data.",
+    "Malformed nonfinite active frames preserve baseline warnings and exceptions in original candidate order.",
+    "No model identity bypass, limit adjustment, verifier relaxation, SDK changes or new runtime configuration."
+  ],
+  "review_finding": {
+    "resolved": true,
+    "initial_candidate_sha256": "33936c6cad91dec6a54c0785dc4b42e43c1e1aa80923694d9270b319ec2f8867",
+    "description": "Converting all candidate frames also converted signaling NaNs in inactive storage. It introduced warnings or FloatingPointError and could preempt an earlier candidate identity/frame error.",
+    "resolution": "Classify finite active frames before casting; no inactive conversion. Nonfinite active frames execute the original scalar block in candidate order, preserving NumPy warning and exception policy.",
+    "controlled_pytest_red": {
+      "tests": 5,
+      "passed": 1,
+      "failed": 4,
+      "errors": 0,
+      "skipped": 0,
+      "junit_duration_s": 0.12,
+      "test_files": [
+        "tests/test_microduck_contact_support.py"
+      ],
+      "failures": [
+        {
+          "test": "tests.test_microduck_contact_support::test_inactive_signaling_nan_frame_is_never_converted[inactive0]",
+          "message": "FloatingPointError: invalid value encountered in cast"
+        },
+        {
+          "test": "tests.test_microduck_contact_support::test_inactive_signaling_nan_frame_is_never_converted[inactive1]",
+          "message": "FloatingPointError: invalid value encountered in cast"
+        },
+        {
+          "test": "tests.test_microduck_contact_support::test_later_signaling_nan_does_not_preempt_first_candidate_error[pair]",
+          "message": "FloatingPointError: invalid value encountered in cast"
+        },
+        {
+          "test": "tests.test_microduck_contact_support::test_later_signaling_nan_does_not_preempt_first_candidate_error[frame]",
+          "message": "FloatingPointError: invalid value encountered in cast"
+        }
+      ],
+      "skips": []
+    },
+    "independent_initial_probe": {
+      "cases": 12,
+      "matching_baseline": 4,
+      "differences": 8,
+      "scope": "Before fix; comparisons include emitted warnings and strict invalid=raise behavior."
+    }
+  },
+  "final_regressions": {
+    "tests": 626,
+    "passed": 625,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 1,
+    "junit_duration_s": 3.081,
+    "test_files": [
+      "tests/test_factory_binding_scalars.py",
+      "tests/test_factory_config.py",
+      "tests/test_factory_error_containment.py",
+      "tests/test_factory_final_outcome.py",
+      "tests/test_factory_observation.py",
+      "tests/test_factory_observation_age.py",
+      "tests/test_factory_owner.py",
+      "tests/test_factory_raw_archive.py",
+      "tests/test_fastening_runtime.py",
+      "tests/test_microduck_actuator.py",
+      "tests/test_microduck_contact_support.py",
+      "tests/test_microduck_solved_read.py",
+      "tests/test_microduck_state.py",
+      "tests/test_microduck_stepper.py"
+    ],
+    "failures": [],
+    "skips": [
+      {
+        "test": "tests.test_microduck_actuator::test_matches_actual_pinned_bam_over_error_speed_load_voltage_and_current",
+        "reason": "set MICRODUCK_BAM_ROOT to the pinned, installed BAM source tree"
+      }
+    ],
+    "pytest_log_duration_s": 3.09,
+    "exit_code": 0,
+    "scope": "14-file CPU software selection, not the full project suite. The single skip needs the separately installed pinned BAM source."
+  },
+  "final_differential": {
+    "cases": 553,
+    "accepted": 156,
+    "rejected": 397,
+    "comparison": "exact JSON outputs or exact exception class and message",
+    "exit_code": 0,
+    "source_bound": true,
+    "native_imports": []
+  },
+  "independent_final_controls": {
+    "original_repro": {
+      "passed": 12,
+      "total": 12
+    },
+    "nonfinite_frames_and_failure_order": {
+      "passed": 120,
+      "total": 120,
+      "inputs": "Positive/negative signaling NaN, quiet NaN, positive/negative infinity; active/inactive/unused slots; preceding pair/frame/row/dimension failures; invalid ignore/warn/raise."
+    },
+    "adjacent_float32_threshold_values": {
+      "passed": 240,
+      "total": 240,
+      "accepted": 121,
+      "rejected": 119,
+      "inputs": "Adjacent representable float32 values around scale/orthogonality/normal thresholds, under np.errstate(all=raise)."
+    },
+    "counting_note": "These are 372 control executions. The 12-case repro overlaps the 120-case matrix; do not sum selections into distinct tests or combine them with the 625/553 selections. The earlier 12-case red probe is separate."
+  },
+  "structural_review": {
+    "original_scalar_fallback_AST_exact": true,
+    "original_solved_contacts_AST_exact_after_removing_batch_substitution": true,
+    "all_other_existing_function_ASTs_unchanged": true,
+    "SDK_source_dictionary_unchanged": true,
+    "Factory_model_source_unchanged_from_base": true,
+    "Factory_model_binds_contact_decoder_source_sha256": true
+  },
+  "benchmark": {
+    "scope": "Synthetic completed host buffers; no native solve, GPU timing or readiness measurement.",
+    "method": {
+      "repeats": 16,
+      "decodes_per_repeat": 10,
+      "order": "Alternating baseline/candidate order",
+      "warmup": "One decode per function and contact count",
+      "gc_enabled_and_thresholds_unchanged": true,
+      "comparison_script_sha256": "5836244344d4677a324fa394b983d803837c6b59a5fb34f54ac04df5ecc87c12"
+    },
+    "rows": [
+      {
+        "active_contacts": 1,
+        "wall_median_ms": {
+          "baseline": 0.0847308,
+          "candidate": 0.10415335
+        },
+        "thread_cpu_median_ms": {
+          "baseline": 0.0846484,
+          "candidate": 0.10407155
+        }
+      },
+      {
+        "active_contacts": 2,
+        "wall_median_ms": {
+          "baseline": 0.1408106,
+          "candidate": 0.12888495
+        },
+        "thread_cpu_median_ms": {
+          "baseline": 0.1407205,
+          "candidate": 0.12878305
+        }
+      },
+      {
+        "active_contacts": 32,
+        "wall_median_ms": {
+          "baseline": 1.7499045500000001,
+          "candidate": 0.7644387500000001
+        },
+        "thread_cpu_median_ms": {
+          "baseline": 1.749768,
+          "candidate": 0.7643160499999999
+        }
+      },
+      {
+        "active_contacts": 128,
+        "wall_median_ms": {
+          "baseline": 7.1487869,
+          "candidate": 2.85659315
+        },
+        "thread_cpu_median_ms": {
+          "baseline": 7.148312499999999,
+          "candidate": 2.8563332
+        }
+      }
+    ],
+    "single_contact_cost": "Fixed batch setup made one contact slower: 0.0847308 to 0.10415335 ms median wall time. Dense-buffer gains do not establish universal speedup.",
+    "claim_limit": "No extrapolation to native Factory startup, freshness/readiness, locomotion, fastening, hardware or task success."
+  },
+  "protected_stores": {
+    "unchanged": true,
+    "count": 5,
+    "entries": [
+      {
+        "name": "user/envelope.json",
+        "before_sha256": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "after_sha256": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "absent": false
+      },
+      {
+        "name": "user/grasp_memory.json",
+        "before_sha256": null,
+        "after_sha256": null,
+        "absent": true
+      },
+      {
+        "name": "user/beliefs.json",
+        "before_sha256": null,
+        "after_sha256": null,
+        "absent": true
+      },
+      {
+        "name": "user/spatial_memory.json",
+        "before_sha256": null,
+        "after_sha256": null,
+        "absent": true
+      },
+      {
+        "name": "shared-checkout/runs/beliefs.json",
+        "before_sha256": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27",
+        "after_sha256": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27",
+        "absent": false
+      }
+    ],
+    "null_meaning": "File absent both before and after; no store was created, deleted or restored."
+  },
+  "native_validation": {
+    "executed": false,
+    "physical_admission": false,
+    "old_native_evidence_transferred": false,
+    "next_requirement": "This decoder is included in Factory model sources. A later native run requires a new source/model identity and preparation receipts; earlier source-bound readiness does not transfer."
+  },
+  "artifact_manifest": {
+    "scope": "Full immutable local archives retained; this portable summary omits large case arrays, JUnit bodies and logs. Archive identifiers are names, not repo-relative links.",
+    "artifacts": [
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "baseline_microduck_contact_support.py",
+        "sha256": "3fad39873ff76e77887fea2182b6155451826addfbc61835da8f392f85bed052"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "candidate-before-snan.py",
+        "sha256": "33936c6cad91dec6a54c0785dc4b42e43c1e1aa80923694d9270b319ec2f8867"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "fixture-before-snan.py",
+        "sha256": "13cb4c370e7a1a87f781b4157169832dd0fb297feab5e8f17ae3c6c21768d516"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "snan-red.log",
+        "sha256": "d0625c63f0cba721096bbf216bb3ecf7b972607ede028797719208da2d0230c1"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "snan-red.xml",
+        "sha256": "caf80432f14eeba7d28f602d4d83a2b74f83cbdb2eed66c71c8a1c00007419aa"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "regressions-02.log",
+        "sha256": "386bca5df61fd47ff2719f226d6e053e48352b394a03f6f7cd30006f4e95a714"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "regressions-02.xml",
+        "sha256": "0a5bfe3c7ac55f9600db2f54e6e46c092dc2d87c00881ae012de45c77fc1bdf4"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "comparison-01.json",
+        "sha256": "c3655793eef5acff36b6882bbeadc1d5e79847c800a45f0481ec3f2be94b8c26"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "comparison-02.json",
+        "sha256": "cf26c92dace61ea3a96265f9f9141b9ef6a0d3c28af080c4d0d2da1469a3ed62"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "comparison-02.log",
+        "sha256": "eb1f3facfcb70ff807333860d10aed1fde3d2de1dc079ad708374177fd01ef17"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "compare_contacts_02.py",
+        "sha256": "5836244344d4677a324fa394b983d803837c6b59a5fb34f54ac04df5ecc87c12"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "ROOT_EXECUTION_EXITS_02.json",
+        "sha256": "8ee00c6bc0e748e39212bc40aba947243e5d3605bad8e2f75b5263043786814c"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_20261003",
+        "file": "protected-before.json",
+        "sha256": "663a534673744b705e72f3471d4b9fe8e94a83d62f0e398ee7037feee87d85ea"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_REVIEW_20261003",
+        "file": "review-final.json",
+        "sha256": "aaffce7bf3d3bd2af576bcb93d8a8de3ee497ad4e9b229e4bc3585143eb57d44"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_REVIEW_20261003",
+        "file": "signaling-nan-01.json",
+        "sha256": "3f2aaf18706295bdcf326da0596d0dca3e9032c1fc142d63fe8c94cc153218e2"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_REVIEW_20261003",
+        "file": "signaling-nan-02.json",
+        "sha256": "1d0a4cdf2c3a3ec34b54c8a8220a64b035f30e7ff3ab148419a9fdba5533389b"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_REVIEW_20261003",
+        "file": "nonfinite-parity-02.json",
+        "sha256": "d883cb21ca328171b83430474d47baa213591cc3a662a13937926791548eb2d2"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_REVIEW_20261003",
+        "file": "numeric-boundaries-01.json",
+        "sha256": "786f50d45f155a3931e6846a4c7e296131542c4474b9ef02b95c3475fbd9873b"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_REVIEW_20261003",
+        "file": "numeric-boundaries-02.json",
+        "sha256": "58f4a6109a8acb0019651169bf89bd9a381e2162f7d21419e92b3dc0a8a343fe"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_REVIEW_20261003",
+        "file": "probe_signaling_nan.py",
+        "sha256": "81330ccac7abde6c7be9dcd908e497814f9a68f7d8dc2fc5507a8fab7976ae3c"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_REVIEW_20261003",
+        "file": "probe_nonfinite_parity.py",
+        "sha256": "6d3430425c48ceaedcfd238107cae6fa370bf1f904ecdcd5813eef5feb96c28b"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_REVIEW_20261003",
+        "file": "probe_numeric_boundaries_v2.py",
+        "sha256": "ec715b3ca3cb5bb44000da713fdfa71a8715b6b5f2d1f9114417ef9be8fba888"
+      },
+      {
+        "archive": "CONTACT_VALIDATION_BATCH_REVIEW_20261003",
+        "file": "protected-after-package-02.json",
+        "sha256": "663a534673744b705e72f3471d4b9fe8e94a83d62f0e398ee7037feee87d85ea"
+      }
+    ]
+  },
+  "publication_scope": "This documentation closure changes only this portable receipt and appends WORKLOG. Production and test bytes remain frozen at the source hashes above."
+}

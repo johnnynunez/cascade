@@ -49,6 +49,121 @@ def fixture(*, cone=0, dim=3):
               solver=solver, contacts=contacts, simulation_step_count=20, sim_time=.1)
 
 
+def contact_population(count, *, cone=0, dim=3, inactive=()):
+    """Independent completed-contact layouts, with unused capacity retained."""
+    ns = fixture(cone=cone, dim=dim)
+    d, c = ns.solver.mjw_data, ns.contacts
+    width = 2 * (dim - 1) if cone == 0 and dim > 1 else dim
+    active = [i for i in range(count) if i not in inactive]
+    capacity, nefc = count + 1, len(active) * width
+    for channel in (d.contact.worldid, d.contact.geom, d.contact.dim, d.contact.pos,
+                    d.contact.frame, c.rigid_contact_shape0, c.rigid_contact_shape1,
+                    c.rigid_contact_normal, c.force):
+        channel.value = np.repeat(channel.value[:1], capacity, axis=0)
+    d.nacon.value[0] = c.rigid_contact_count.value[0] = count
+    d.naconmax, d.njmax = capacity, nefc + 1
+    d.nefc.value[0] = nefc
+    d.contact.efc_address.value = np.full((capacity, 10), -1, np.int32)
+    row_type = 5 if dim == 1 else (6 if cone == 0 else 7)
+    d.efc.type.value = np.full((1, nefc + 1), row_type, np.int32)
+    d.efc.id.value = np.zeros((1, nefc + 1), np.int32)
+    d.efc.force.value = np.zeros((1, nefc + 1), np.float32)
+    for ordinal, i in enumerate(active):
+        rows = np.arange(ordinal * width, (ordinal + 1) * width)
+        d.contact.efc_address.value[i, :width] = rows
+        d.efc.id.value[0, rows] = i
+        if cone == 0 and dim > 1:
+            d.efc.force.value[0, rows] = 1.
+        else:
+            d.efc.force.value[0, rows[0]] = 4.
+        d.contact.pos.value[i, 0] = i / 100.
+    # Neither inactive candidates nor unused storage supplies physical data.
+    for i in (*inactive, count):
+        d.contact.pos.value[i] = d.contact.frame.value[i] = np.nan
+        c.rigid_contact_normal.value[i] = c.force.value[i] = np.nan
+    return ns
+
+
+@pytest.mark.parametrize('cone,dim', [(0, 1), (0, 3), (0, 4), (0, 6), (1, 1), (1, 3), (1, 4), (1, 6)])
+def test_many_contact_frames_retain_order_force_and_inactive_slots(cone, dim):
+    ns = contact_population(32, cone=cone, dim=dim, inactive=(1, 6, 25))
+    rows = solved_contacts(ns)
+    active = [i for i in range(32) if i not in (1, 6, 25)]
+    assert [r['point_world_m'][0] for r in rows] == [float(np.float32(i / 100.)) for i in active]
+    force = 2 * (dim - 1) if cone == 0 and dim > 1 else 4.
+    assert all(r['normal_force_n'] == force and r['force_on_b_world_n'] == [0., 0., force]
+               and r['normal_a_to_b_world'] == [0., 0., 1.] for r in rows)
+
+
+@pytest.mark.parametrize('index', [0, 3, 31])
+@pytest.mark.parametrize('channel', ['frame', 'point', 'force', 'normal', 'handedness'])
+def test_invalid_contact_in_a_batch_cannot_be_hidden_by_valid_neighbors(index, channel):
+    ns = contact_population(32)
+    d, c = ns.solver.mjw_data, ns.contacts
+    if channel == 'frame':
+        d.contact.frame.value[index, 1, 0] = np.nan
+    elif channel == 'point':
+        d.contact.pos.value[index, 0] = np.nan
+    elif channel == 'force':
+        c.force.value[index, 5] = np.inf
+    elif channel == 'normal':
+        c.rigid_contact_normal.value[index, 0] = 0.01
+    else:
+        d.contact.frame.value[index, 1] *= -1
+    with pytest.raises(ValueError, match='invalid contact frame/normal'):
+        solved_contacts(ns)
+
+
+@pytest.mark.parametrize('perturbation,accepted', [(8e-6, True), (12e-6, False)])
+def test_contact_batch_preserves_original_orthogonality_tolerance(perturbation, accepted):
+    ns = contact_population(32)
+    ns.solver.mjw_data.contact.frame.value[17, 1, 0] += perturbation
+    if accepted:
+        assert len(solved_contacts(ns)) == 32
+    else:
+        with pytest.raises(ValueError, match='invalid contact frame/normal'):
+            solved_contacts(ns)
+
+
+def test_batch_arithmetic_preserves_candidate_failure_order():
+    ns = contact_population(3)
+    ns.solver.mjw_data.contact.frame.value[0, 0, 0] = 1.
+    ns.contacts.rigid_contact_shape1.value[1] = 999
+    with pytest.raises(ValueError, match='invalid contact frame/normal'):
+        solved_contacts(ns)
+
+
+@pytest.mark.parametrize('inactive', [(1,), (0, 1, 2)])
+def test_inactive_signaling_nan_frame_is_never_converted(inactive):
+    ns = contact_population(3, inactive=inactive)
+    # Write the IEEE-754 bits directly; assigning a Python float would quiet it.
+    ns.solver.mjw_data.contact.frame.value.view(np.uint32)[1, 0, 0] = 0x7f800001
+    with np.errstate(invalid='raise'):
+        assert len(solved_contacts(ns)) == 3 - len(inactive)
+
+
+@pytest.mark.parametrize('earlier', ['pair', 'frame'])
+def test_later_signaling_nan_does_not_preempt_first_candidate_error(earlier):
+    ns = contact_population(8)
+    d, c = ns.solver.mjw_data, ns.contacts
+    d.contact.frame.value.view(np.uint32)[7, 0, 0] = 0x7f800001
+    if earlier == 'pair':
+        c.rigid_contact_shape1.value[0] = 999
+        message = 'contact geom/shape identity mismatch'
+    else:
+        d.contact.frame.value[0, 0, 0] = 1.
+        message = 'invalid contact frame/normal'
+    with np.errstate(invalid='raise'), pytest.raises(ValueError, match=message):
+        solved_contacts(ns)
+
+
+def test_active_signaling_nan_retains_original_strict_fp_failure():
+    ns = contact_population(2)
+    ns.solver.mjw_data.contact.frame.value.view(np.uint32)[0, 0, 0] = 0x7f800001
+    with np.errstate(invalid='raise'), pytest.raises(FloatingPointError):
+        solved_contacts(ns)
+
+
 def read(ns):
     return read_support(ns, last_solved_clock=(20, .1), source_admitted=True)
 

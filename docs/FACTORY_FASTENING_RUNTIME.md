@@ -453,3 +453,38 @@ are unchanged during testing. This is software evidence, with no native rerun.
 The changed modules are already part of the model identity; a future native
 recipe must have a new digest. See the
 [diagnostic receipt](../benchmark/results/factory_observation_age_20261003.json).
+
+## Threaded outcome must survive stopping
+
+A CPU counterexample against `b7a0deee` exposed a separate outcome bug: after
+observing the requested turn, the domain cached that verdict and checked only
+rest. A passive, pitch-consistent unwind could return the fastener to its
+starting pose and then satisfy the full quiet window, yet the tool still
+reported success. Replaying the supplied synthetic source confirmed both the
+healthy control and this false positive. This does not establish that the
+native Factory fixture actually backdrives.
+
+The domain now retains the original baseline and every safety/clock-checked
+post-stop pose through the rest endpoint. The existing `verify_threading`
+checks net rotation, axial advance, pitch, alignment and contact witnesses over
+that entire observed interval. Success requires the original admitted turn,
+the unchanged quiet/rest checks, and the final threaded outcome. Later passive
+rotation cannot supply missing pre-stop achievement. In-flight old-generation
+and pre-ACK poses remain outcome observations, while their existing exclusion
+from rest credit stays in place.
+
+`pre_stop_threading` preserves historical achievement;
+`final_threading` describes the full observed interval. For an initially
+successful turn, `postcondition.threading` now uses the latter. A retained
+stop/rest result is distinct from a retained threaded outcome: the robot can
+be quiet after losing the turn. Synthetic results still cannot establish
+physical stopping or task credit. Freshness, generations, deadlines, contact
+limits, controller writes and the threading verifier itself are unchanged.
+
+Five negative controls fail on the prior source, with four healthy/safety
+controls passing. The final selection passes 402 CPU tests, including complete
+and partial unwind, axial/radial loss, in-flight observations, unchanged rest
+faults, and post-stop progress that cannot rescue an incomplete admitted turn.
+No native or GPU episode was run, and the modified identity-bound source needs
+a new model digest for any later native recipe. See the
+[terminal-outcome receipt](../benchmark/results/factory_final_outcome_20261003.json).

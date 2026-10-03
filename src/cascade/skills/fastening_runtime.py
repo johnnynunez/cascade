@@ -126,6 +126,7 @@ class FasteningDomain:
                 result["error"] = "one measured turn not completed within the admitted deadline"
                 return result
             result["postcondition"] = threading
+            result["pre_stop_threading"] = threading
             result["execution_ok"] = threading["status"] == "confirmed"
             stop_started = self.clock()
             stop = self.actuator.stop()
@@ -133,16 +134,24 @@ class FasteningDomain:
             result["stop"] = stop
             if stop.get("ok") is not True or type(stop.get("generation")) is not int:
                 raise FasteningFault("stop was not acknowledged")
-            rest = self._observe_rest(cursor, previous, permit, stop, stop_started)
+            rest = self._observe_rest(cursor, previous, permit, stop, stop_started, samples)
             result["rest"] = rest
             result["physical_stop_verified"] = rest["status"] == "confirmed" and not self.actuator.synthetic
+            # Quiet does not imply the requested threading outcome survived:
+            # passive backdrive can remove rotation/advance before rest. Keep
+            # the original baseline and check the whole observed interval.
+            final_threading = verify_threading(samples, contract)
+            result["final_threading"] = final_threading
             if threading["status"] != "confirmed":
+                # Post-stop motion cannot supply missing admitted turn credit.
                 return result
-            result["postcondition"] = {"status": rest["status"],
-                "reason": "independent threading and rest observed" if rest["status"] == "confirmed"
-                          else "threading observed but stop/rest not confirmed",
-                "threading": threading, "rest": rest, "seating_verified": False}
-            result["ok"] = result["verified"] = rest["status"] == "confirmed"
+            retained = final_threading["status"] == "confirmed"
+            result["postcondition"] = {"status": final_threading["status"],
+                "reason": "independent threading retained through observed rest" if retained
+                          else "threading outcome not retained through rest: " + final_threading["reason"],
+                "threading": final_threading, "pre_stop_threading": threading,
+                "rest": rest, "seating_verified": False}
+            result["ok"] = result["verified"] = retained and rest["status"] == "confirmed"
             return result
         except Exception as exc:
             result["error"] = str(exc)
@@ -158,7 +167,7 @@ class FasteningDomain:
                 except Exception as exc:
                     result["stop"] = {"ok": False, "error": str(exc), "physical_stop_verified": False}
 
-    def _observe_rest(self, cursor, previous, permit, stop, stop_started):
+    def _observe_rest(self, cursor, previous, permit, stop, stop_started, outcome_samples):
         # Budget begins at stop delivery, never at a delayed logging return.
         accepted = stop.get("accepted_monotonic_s")
         if (type(accepted) not in (int, float) or not math.isfinite(accepted) or
@@ -181,6 +190,10 @@ class FasteningDomain:
                     raise FasteningFault("physical rest deadline exceeded")
                 if self.clock() >= deadline:
                     raise FasteningFault("observer returned after rest wall deadline")
+                # Preserve every safety/clock-checked pose for terminal outcome
+                # verification, including in-flight and pre-ACK observations.
+                # The separate checks below still exclude them from rest credit.
+                outcome_samples.append(row.thread_sample(self.binding))
                 # Already-produced in-flight rows carry the original generation.
                 # They remain safety observations but cannot earn stop credit.
                 if row.generation == permit.generation and count == 0:

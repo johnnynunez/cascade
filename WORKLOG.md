@@ -983,3 +983,18 @@ selection370PASS in1.51s;588 inputs and protected stores unchanged. Source/model
 identity changes are explicit, and no old native pin is transferred. Evidence:
 benchmark/results/factory_observation_age_20261003.json and the retained v3
 failure summary beside it. No SDK changes, GPU operation or publication.
+
+## 2026-10-03 — Retain the threaded outcome through the rest endpoint
+
+Verified the supplied CPU unwind counterexample on exact b7a0deee: the cached
+pre-stop verdict incorrectly survived complete passive rollback. One-module
+fix retains the same baseline and post-stop observations, runs the unchanged
+threading verifier through the rest endpoint, and requires both original
+achievement and final retention. No late positive credit, freshness change,
+new control write, quiet-window relaxation or native success claim.
+
+Baseline02:5FAIL/4PASS; final402PASS/2.26s across seven files,589 inputs and
+protected stores unchanged. Baseline01 also preserves one incorrect test
+expectation of the timeout wording (budget vs physical rest deadline), fixed
+before baseline02. All original repro/data are retained. Receipt:
+benchmark/results/factory_final_outcome_20261003.json. CPU only; no SDK/GPU run.

@@ -16,10 +16,73 @@ import threading
 import pytest
 
 from conftest import loopback_host
+from test_demo_proof import model_http_boundary as model_http_boundary
 
 
 ROOT = Path(__file__).resolve().parents[1]
 LAUNCH = ROOT / "scripts/launch.sh"
+
+
+def spark_model_boundary(tmp_path, *, endpoint=None, resolve=False):
+    """Run the real Spark option block before any service or robot startup."""
+    source = LAUNCH.read_text()
+    entry = tmp_path / "model-boundary.sh"
+    entry.write_text(source[:source.index("\nlog()  {")] + '''
+"$BOUNDARY_PY" - <<'PY'
+import json, os
+value = os.environ['CASCADE_QWEN_BASE_URL']
+print(json.dumps({'base_url': value}), flush=True)
+# A regression must not send this test to a personal model on port 8080.
+if value != os.environ['BOUNDARY_EXPECTED']:
+    raise SystemExit(91)
+PY
+''' + ('''exec "$BOUNDARY_PY" "$BOUNDARY_SOURCE/scripts/demo_proof.py" --check-brain "$BRAIN"
+''' if resolve else ""))
+    env = {"PATH": "/usr/bin:/bin",
+           "CASCADE_INSTALL_PROFILE": "spark", "CASCADE_LAUNCH_STATE": str(tmp_path / "state"),
+           "BOUNDARY_PY": sys.executable, "BOUNDARY_SOURCE": str(ROOT),
+           "BOUNDARY_EXPECTED": "http://127.0.0.1:8080/v1" if endpoint is None else endpoint,
+           "PYTHONDONTWRITEBYTECODE": "1"}
+    if "HOME" in os.environ:
+        env["HOME"] = os.environ["HOME"]
+    if endpoint is not None:
+        env["CASCADE_QWEN_BASE_URL"] = endpoint
+    return subprocess.run(["bash", str(entry)], env=env, capture_output=True,
+                          text=True, timeout=10)
+
+
+def test_spark_keeps_default_endpoint_without_probing_or_writing(tmp_path):
+    result = spark_model_boundary(tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {"base_url": "http://127.0.0.1:8080/v1"}
+    assert not (tmp_path / "home").exists() and not (tmp_path / "state").exists()
+
+
+@pytest.mark.parametrize("model", ["Qwen/Qwen3.8-27B", "different-model"])
+def test_spark_resolves_explicit_endpoint_without_changing_model_requirement(
+        tmp_path, model_http_boundary, model):
+    fixture = model_http_boundary
+    fixture["model"] = model
+    result = spark_model_boundary(tmp_path, endpoint=fixture["base_url"], resolve=True)
+    assert result.returncode != 91, "Spark overwrote the explicit model endpoint"
+    assert json.loads(result.stdout.splitlines()[0]) == {"base_url": fixture["base_url"]}
+    assert fixture["requests"] == ["/v1/models"]
+    if model == "Qwen/Qwen3.8-27B":
+        assert result.returncode == 0, result.stderr
+        selected = json.loads(result.stdout.splitlines()[1])
+        assert selected["base_url"] == fixture["base_url"]
+        assert selected["model"] == model and selected["context_window"] == 32768
+    else:
+        assert result.returncode != 0 and "not served" in result.stderr
+    assert not (tmp_path / "home").exists() and not (tmp_path / "state").exists()
+
+
+def test_spark_explicit_empty_endpoint_is_an_error_not_default_fallback(tmp_path):
+    result = spark_model_boundary(tmp_path, endpoint="", resolve=True)
+    assert result.returncode != 91, "Spark silently replaced the explicit empty endpoint"
+    assert result.returncode != 0 and "HTTP(S)" in result.stderr
+    assert json.loads(result.stdout) == {"base_url": ""}
+    assert not (tmp_path / "home").exists() and not (tmp_path / "state").exists()
 
 
 def test_host_turn_reserve_does_not_extend_the_registered_mcp_call(monkeypatch, capsys):

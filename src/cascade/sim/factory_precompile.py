@@ -21,7 +21,7 @@ import numpy as np
 
 from ..control.fastening import FasteningFault
 
-PRECOMPILE_RECIPE = "factory_nv19_explicit_compile_v2"
+PRECOMPILE_RECIPE = "factory_nv19_contact_writer_compile_v3"
 _PINS = Path(__file__).with_name("factory_precompile_pins.json")
 _MJDATA_LAYOUT = Path(__file__).with_name("factory_mjdata_layout.json")
 _MJDATA_LAYOUT_SHA256 = "3e2ae59397218951e7b3da694c7a1938e65de291eac1027078be2cadd08442b1"
@@ -38,10 +38,13 @@ class ModuleVariant:
     module: object
     block_dim: int
     parameters: tuple = ()
+    kernel: object | None = None
 
     def describe(self):
         return {"label": self.label, "module": self.module.name,
-                "block_dim": self.block_dim, "parameters": list(self.parameters)}
+                "block_dim": self.block_dim, "parameters": list(self.parameters),
+                "entrypoint": None if self.kernel is None else
+                    {"key": self.kernel.key, "signature": self.kernel.sig}}
 
 
 def admitted_sdk():
@@ -195,9 +198,12 @@ def _newton_variants(scene, modules, wp):
     def static(name, block):
         variants.append(ModuleVariant(name, wp.get_module(modules[name].__name__), block))
 
-    def kernel(label, value, block, *params):
+    def kernel(label, value, block, *params, writer=False):
         _require(isinstance(block, int) and block > 0, "invalid block dimension")
-        variants.append(ModuleVariant(label, value.module, block, tuple(params)))
+        if writer:
+            value = _contact_writer_overload(value, modules, wp)
+        _require(value.is_generic is False, "uninstantiated Newton kernel: " + label)
+        variants.append(ModuleVariant(label, value.module, block, tuple(params), value))
 
     prefix = "newton._src."
     for name, block in (("sim.collide", 256),
@@ -206,8 +212,8 @@ def _newton_variants(scene, modules, wp):
                         ("geometry.sdf_contact", 256)):
         static(prefix + name, block)
     kernel("newton.explicit_pairs", modules[prefix + "geometry.broad_phase_nxn"]._nxn_broadphase_precomputed_pairs, 256)
-    kernel("newton.primitive", narrow.primitive_kernel, narrow.block_dim)
-    kernel("newton.gjk_mpr", narrow.narrow_phase_kernel, narrow.block_dim)
+    kernel("newton.primitive", narrow.primitive_kernel, narrow.block_dim, writer=True)
+    kernel("newton.gjk_mpr", narrow.narrow_phase_kernel, narrow.block_dim, writer=True)
     kernel("newton.mesh_triangle_reducer",
            modules[prefix + "geometry.narrow_phase"].mesh_triangle_contacts_to_reducer_kernel,
            narrow.mesh_triangle_block_dim)
@@ -216,10 +222,32 @@ def _newton_variants(scene, modules, wp):
     kernel("newton.mesh_mesh", narrow.mesh_mesh_contacts_kernel_precomputed if precomputed
            else narrow.mesh_mesh_contacts_kernel, narrow.tile_size_mesh_mesh, precomputed)
     kernel("newton.export_reduced", narrow.export_reduced_contacts_kernel,
-           modules[prefix + "geometry.contact_reduction_global"].EXPORT_REDUCED_CONTACTS_BLOCK_DIM)
+           modules[prefix + "geometry.contact_reduction_global"].EXPORT_REDUCED_CONTACTS_BLOCK_DIM,
+           writer=True)
 
     _require(len(variants) == 11, "Newton inventory count")
     return tuple(variants)
+
+
+def _contact_writer_overload(kernel, modules, wp):
+    """Instantiate the pinned caller's sole generic type, without any launch.
+
+    CollisionPipeline.collide builds sim.collide.ContactWriterData and passes
+    it to these three kernels. A generic module without an overload can load
+    successfully while containing no callable kernel at all.
+    """
+    types = modules["warp._src.types"]
+    writer = modules["newton._src.sim.collide"].ContactWriterData
+    _require(kernel.is_generic is True and
+             [arg.label for arg in kernel.adj.args if types.type_is_generic(arg.type)] == ["writer_data"],
+             "collision writer generic signature changed")
+    concrete = wp.overload(kernel, {"writer_data": writer})
+    _require(concrete.is_generic is False and bool(concrete.sig)
+             and concrete.generic_parent is kernel and concrete.module is kernel.module
+             and kernel.overloads.get(concrete.sig) is concrete
+             and concrete.adj.arg_types["writer_data"] is writer,
+             "collision writer overload does not bind the pinned caller type")
+    return concrete
 
 
 def _mujoco_variants(m, d, modules, wp):
@@ -228,7 +256,8 @@ def _mujoco_variants(m, d, modules, wp):
     def static(name, block):
         variants.append(ModuleVariant(name, wp.get_module(modules[name].__name__), block))
     def kernel(label, value, block, *params):
-        variants.append(ModuleVariant(label, value.module, block, tuple(params)))
+        _require(value.is_generic is False, "uninstantiated MJWarp kernel: " + label)
+        variants.append(ModuleVariant(label, value.module, block, tuple(params), value))
     prefix = "mujoco_warp._src."
     for name, block in (("constraint", 256), ("forward", m.block_dim.actuator_velocity),
                         ("passive", 256), ("forward", 256), ("support", 256),
@@ -481,6 +510,14 @@ def precompile_factory(scene, *, recipe):
                 executable = variant.module.execs.get((scene.model.device.context, variant.block_dim))
                 _require(executable is not None and executable.module_hash == compiled_hash,
                          "loader did not retain the exact device/block executable")
+                # Unlike get_kernel_hooks, this lookup neither configures
+                # shared memory nor launches a kernel. Require the actual
+                # compiled forward symbol, not just a loaded empty module.
+                if variant.kernel is not None:
+                    _require(variant.kernel.module is variant.module
+                             and variant.kernel.is_generic is False
+                             and bool(executable._get_forward_cuda_kernel(variant.kernel)),
+                             "loader did not retain the concrete kernel entrypoint")
                 loaded.append(variant.describe() | {
                     "module_sha256": compiled_hash.hex(),
                     "compiler_options": dict(variant.module.options),

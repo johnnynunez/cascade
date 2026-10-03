@@ -28,6 +28,15 @@ class Module:
     def get_module_hash(self, block): return hashlib.sha256(f"{self.name}:{block}".encode()).digest()
 
 
+class Kernel:
+    __module__ = 'warp._src.context'
+    def __init__(self, module, *, generic=False):
+        self.module, self.key = module, module.name + '_kernel'
+        self.is_generic, self.sig, self.generic_parent = generic, '', None
+        self.overloads = {}
+        self.adj = NS(args=[NS(label='writer_data', type='generic')] if generic else [], arg_types={})
+
+
 @dataclass
 class Tile:
     size: int
@@ -43,7 +52,7 @@ def fixture(monkeypatch):
     def factory(module, name):
         def make(*args):
             calls.append((module, name, args))
-            return NS(module=Module(module + "." + name))
+            return Kernel(Module(module + "." + name))
         return make
     factories = {
         "constraint": ("_friction_dof", "_limit_slide_hinge", "_efc_contact_init", "_efc_contact_jac_dense", "_efc_contact_update"),
@@ -60,11 +69,13 @@ def fixture(monkeypatch):
             setattr(modules["mujoco_warp._src." + name], fname, factory(name, fname))
     class BroadPhaseExplicit: pass
     modules['newton._src.geometry.broad_phase_nxn'].BroadPhaseExplicit = BroadPhaseExplicit
-    modules['newton._src.geometry.broad_phase_nxn']._nxn_broadphase_precomputed_pairs = NS(module=Module('explicit_pairs'))
+    modules['newton._src.geometry.broad_phase_nxn']._nxn_broadphase_precomputed_pairs = Kernel(Module('explicit_pairs'))
     pairs = Buffer(np.array([[0, 1], [1, 2]], dtype=np.int32))
     modules['mujoco_warp._src.types'].DisableBit = NS(WARMSTART=256)
     modules['mujoco_warp._src.types'].TILE_SIZE_JTDAJ_DENSE = 16
-    modules['newton._src.geometry.narrow_phase'].mesh_triangle_contacts_to_reducer_kernel = NS(module=Module('triangle'))
+    modules['newton._src.geometry.narrow_phase'].mesh_triangle_contacts_to_reducer_kernel = Kernel(Module('triangle'))
+    modules['newton._src.sim.collide'].ContactWriterData = NS(key='ContactWriterData')
+    modules['warp._src.types'].type_is_generic = lambda value: value == 'generic'
     modules['newton._src.geometry.contact_reduction_global'].EXPORT_REDUCED_CONTACTS_BLOCK_DIM = 32
     block = NS(actuator_velocity=32, contact_jac_tiled=32, small_cholesky=64,
                cholesky_factorize_solve=32, update_gradient_JTDAJ_dense=128,
@@ -83,7 +94,8 @@ def fixture(monkeypatch):
                 mesh_triangle_block_dim=32, max_candidate_pairs=2, counts=Buffer([0]))
     for name in ('primitive_kernel', 'narrow_phase_kernel', 'mesh_mesh_contacts_kernel',
                  'mesh_mesh_contacts_kernel_precomputed', 'export_reduced_contacts_kernel'):
-        setattr(narrow, name, NS(module=Module(name)))
+        setattr(narrow, name, Kernel(Module(name), generic=name in
+                ('primitive_kernel', 'narrow_phase_kernel', 'export_reduced_contacts_kernel')))
     class Scene(NS):
         frame_dt = 1/60
         socket_offset = np.array([.012, 0., -.115])
@@ -97,10 +109,21 @@ def fixture(monkeypatch):
                   _use_mujoco_contacts=False, _deterministic=False, _deterministic_max_records=0, _scoped_mujoco_warp_execution=nullcontext))
     def load(module, **kwargs):
         loaded.append((module,kwargs))
-        module.execs[(kwargs["device"].context,kwargs["block_dim"])]=NS(module_hash=module.get_module_hash(kwargs["block_dim"]))
+        module.execs[(kwargs["device"].context,kwargs["block_dim"])]=NS(
+            module_hash=module.get_module_hash(kwargs["block_dim"]),
+            _get_forward_cuda_kernel=lambda kernel: 1 if kernel.module is module and not kernel.is_generic else None)
+    def overload(kernel, types):
+        assert set(types) == {'writer_data'}
+        signature = types['writer_data'].key
+        if signature not in kernel.overloads:
+            value = Kernel(kernel.module)
+            value.key, value.sig, value.generic_parent = kernel.key, signature, kernel
+            value.adj.arg_types['writer_data'] = types['writer_data']
+            kernel.overloads[signature] = value
+        return kernel.overloads[signature]
     wp = NS(__version__="fixture", array=Buffer, synchronize_device=lambda _: None, ScopedDevice=lambda _: nullcontext(),
             get_module=lambda name: static.setdefault(name, Module(name)),
-            load_module=load)
+            load_module=load, overload=overload)
     monkeypatch.setitem(sys.modules, 'warp', wp)
     monkeypatch.setattr(pre, 'admitted_sdk', lambda: (modules, {'fixture':'not_native'}))
     monkeypatch.setattr('cascade.sim.factory_model.model_fingerprint', lambda _: {'fixture':1})
@@ -173,7 +196,7 @@ def test_rejected_admission_is_persisted_by_normal_preparation(fixture, monkeypa
     monkeypatch.setattr(seating, 'SeatingScene', lambda *a, **k: f.scene)
     monkeypatch.setattr(model, 'FactoryBoundModel',
         lambda scene, *, precompile: pre.precompile_factory(scene, recipe=precompile))
-    profile = load_robot_config('factory_m20_precompile_explicit_v2').domains.fastening.as_dict()
+    profile = load_robot_config('factory_m20_precompile_writer_v3').domains.fastening.as_dict()
     with pytest.raises(FasteningFault, match='broad_phase_mode'):
         prepare_factory_model(profile | {'device': 'cuda:0'}, tmp_path/'sdf')
     saved = json.loads((tmp_path/'precompile.json').read_text())
@@ -379,7 +402,7 @@ def test_compiler_scope_is_active_for_factories_and_loads_and_restored(fixture):
 
 def test_profile_is_opt_in_passive_and_null_pinned(monkeypatch):
     no_sdk(monkeypatch)
-    cfg = load_robot_config('factory_m20_precompile_explicit_v2')
+    cfg = load_robot_config('factory_m20_precompile_writer_v3')
     profile = cfg.domains.fastening.as_dict()
     validate_factory_profile(profile)
     assert profile['precompile'] == pre.PRECOMPILE_RECIPE
@@ -389,9 +412,9 @@ def test_profile_is_opt_in_passive_and_null_pinned(monkeypatch):
     assert 'precompile' not in load_robot_config('factory_m20_mounted_margin_v2').domains.fastening.as_dict()
 
 
-@pytest.mark.parametrize('selector', [None, True, '', 'all', 'force_load', 'factory_nv19_dense_compile_v1'])
+@pytest.mark.parametrize('selector', [None, True, '', 'all', 'force_load', 'factory_nv19_dense_compile_v1', 'factory_nv19_explicit_compile_v2'])
 def test_unknown_profile_selector_cannot_silently_fall_back(selector):
-    profile = load_robot_config('factory_m20_precompile_explicit_v2').domains.fastening.as_dict()
+    profile = load_robot_config('factory_m20_precompile_writer_v3').domains.fastening.as_dict()
     with pytest.raises(ValueError, match='precompile'):
         validate_factory_profile(profile | {'precompile':selector})
 
@@ -405,7 +428,7 @@ def test_builder_passes_explicit_compilation_selection(monkeypatch, tmp_path):
     monkeypatch.setattr(seating, 'SeatingScene', lambda *args, **kw: scene)
     calls = []
     monkeypatch.setattr(model, 'FactoryBoundModel', lambda *args, **kw: calls.append((args, kw)))
-    profile = load_robot_config('factory_m20_precompile_explicit_v2').domains.fastening.as_dict()
+    profile = load_robot_config('factory_m20_precompile_writer_v3').domains.fastening.as_dict()
     prepare_factory_model(profile | {'device':'cuda:0'}, tmp_path)
     assert calls == [((scene,), {'precompile':pre.PRECOMPILE_RECIPE})]
 
@@ -425,7 +448,7 @@ def test_persistence_failure_preserves_primary_error_without_python311_notes(mon
     def write(*args): raise OSError('receipt sink failed')
     monkeypatch.setattr(model, 'FactoryBoundModel', construct)
     monkeypatch.setattr(runtime, '_write', write)
-    profile = load_robot_config('factory_m20_precompile_explicit_v2').domains.fastening.as_dict()
+    profile = load_robot_config('factory_m20_precompile_writer_v3').domains.fastening.as_dict()
     with pytest.raises(OriginalFailure) as caught:
         prepare_factory_model(profile | {'device':'cuda:0'}, tmp_path)
     assert caught.value is primary

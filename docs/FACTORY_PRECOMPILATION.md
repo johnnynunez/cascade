@@ -1,11 +1,12 @@
 # Finite Factory compilation preparation
 
-`factory_m20_precompile_explicit_v2` is an opt-in compiler preparation variant
+`factory_m20_precompile_writer_v3` is an opt-in compiler preparation variant
 of the mounted margin-v2 fixture. Device and model identity remain `null` until
 independent preparation. It does not enable a tool, reset the stop latch, change
 fixture or motor limits, advance physics, or establish physical readiness.
-The earlier `factory_m20_precompile_v1` profile is withdrawn; the
-`factory_nv19_dense_compile_v1` selector is rejected, not reinterpreted.
+The earlier v1 and explicit-v2 profiles are withdrawn; their selectors are
+rejected, not reinterpreted. Existing profiles remain on disk as historical
+configuration. The v3 selector is `factory_nv19_contact_writer_compile_v3`.
 
 The first ordinary readiness attempt on `7851e474` remains failed: its cold
 first advance took 35.0895 s against the unchanged 10 s readiness deadline.
@@ -66,7 +67,7 @@ calling it solved evidence. All clocks remain zero and the model fingerprint
 must match. Failures retain partial loads and audit errors; persistence
 failure cannot return a constructed model.
 
-The new model identity binds the v2 selector, admission report, helper/pin
+The new model identity binds the v3 selector, admission report, helper/pin
 sources, options, module hashes, device architecture and blocks. Wall times
 and raw scratch bytes remain evidence outside reproducible identity. No old
 model pin is transferred. Readiness remains 10 s, and the unchanged owner and
@@ -132,7 +133,49 @@ compiler runs in the runtime. The manifest is packaged and bound into the new
 model source identity. This snapshot is for the owned preparation interval
 before an owner starts, not for concurrent arbitrary simulation reads.
 
-The revised snapshot has not run in CUDA. Neither preparation failure admits
-readiness, physical fastening or a reusable model pin. Readiness remains10s;
-later contact branches may still compile. No real-time or task-success claim
-is made.
+The revised snapshot subsequently passed one CUDA preparation on `16653c84`:
+39 loads, 22 predicates and 7,603 snapshot fields; no physical step or owner
+started. This preparation success did not establish that the loaded modules
+contained every concrete kernel required by the first physical step.
+
+The following ordinary readiness attempt on the same source failed the
+unchanged 10 s deadline. Construction took65.223s; the first advance took
+9.3643s, including three newly compiled collision modules (9.2581s in the
+retained log). Twenty steps completed before the deadline and one drained
+while closing. All21 journal rows retain the original hold targets and zero
+spindle effort. No quiet pre-engaged window was established and no fastening
+action ran. The owner and scope closed naturally without signals; the six
+pre-existing GPU process births were preserved. These are shared-GPU timings.
+
+## Concrete contact-writer preparation
+
+The primitive, GJK/MPR and reduced-export kernels accept a generic
+`writer_data` argument. Their v2 preparation modules had zero executable PTX
+entrypoints. The first collision inferred
+`newton._src.sim.collide.ContactWriterData`, registered the concrete overload,
+and compiled a different module. The similarly named type in
+`geometry.narrow_phase` is not the caller's structure.
+
+V3 registers the exact caller type through public `wp.overload` before loading
+those three modules, without launching a kernel or allocating physical arrays.
+It requires the sole generic argument, concrete signature, original parent and
+module, registered overload and exact writer identity. Other selected kernels
+must already be concrete. Static modules may retain unused generic branches;
+this finite recipe does not attempt to compile every SDK branch.
+
+Every selected kernel's key and signature now enter its model-bound variant
+record. After loading the exact device/block/module hash, the helper requires
+the corresponding forward CUDA symbol. The pinned symbol lookup calls
+`cuModuleGetFunction` and updates Warp's diagnostic symbol map; it does not
+configure shared memory or launch a kernel. A successful empty-module load can
+no longer satisfy that check.
+
+Independent definition-only probes against the pinned SDK reproduced the
+three first-step hashes before any Warp runtime initialization, array storage,
+module load or solve. The inventory remains39 and the22 admission predicates,
+full physical snapshot comparison, original owner and readiness10s are
+unchanged. This is compilation evidence, not physical readiness. V3 still
+requires a new exact model identity, native zero-step preparation and a
+separate readiness check. No prior model pin or task-success verdict transfers.
+
+The [writer-v3 CPU receipt](../benchmark/results/factory_contact_writer_cpu_20261003.json) records492 passing controls and11 skips in the general environment. Seven ABI-specific skips were covered separately against the pinned MuJoCo3.12 wheel (7 passed); four optional skips remain. Both new causal controls fail against the exact old function, then pass with the correction. All source and protected-store identities remained unchanged across these runs.

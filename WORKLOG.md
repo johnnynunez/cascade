@@ -838,3 +838,12 @@ Real pinned SDK creates39 definitions with identical snapshots,0finite loads
 and0solves; CPU builder kernels remain distinct from physical steps.
 Receipt: benchmark/results/factory_native_snapshot_cpu_20261003.json.
 No revised CUDA preparation, readiness or fastening task has yet been admitted.
+
+
+## 2026-10-03 — Instantiate Factory contact-writer kernels before loading
+
+- Retained ordinary readiness-v2 failure on16653c84:10s deadline, first advance9.3643s,20 completed steps plus1 drained at closure, no quiet startup or fastening action.
+- Three v2 modules contained zero PTX entrypoints. Definition-only SDK probes reproduce the later compiled hashes by binding the exact `sim.collide.ContactWriterData` type.
+- New opt-in writer-v3 profile explicitly binds those overloads, records concrete kernel keys/signatures and verifies each loaded forward symbol. Previous selectors are refused; finite39 inventory,22 guards, physical snapshots and deadlines remain unchanged.
+- Native preparation/readiness for this new recipe are pending; no physical fastening success or reusable model pin is claimed.
+- Validation:492 PASS/11 SKIP plus7 pinned-ABI PASS; two exact-old-function causal failures retained. Independent SDK definition/retained-PTX review found no blocker. No native v3 launch.

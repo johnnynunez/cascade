@@ -714,3 +714,10 @@ collection/preparation failures remain in the receipt. Model-only reconstruction
 prohibits steps and produces both exact physical model digests at time0. The
 main merge leaves tested src/config bytes intact; no repeated physical episode.
 See docs/MUJOCO_MANIPULATION_VALIDATION_20261003.md and its two receipts.
+
+
+## 2026-10-03: Gripper feedback fixture retains the model-withdrawal guard
+
+The isolated jaw-feedback fixture now supplies a real idle `SafetyHarness`, as the production `SafeArm` does. The common withdrawal guard remains enabled; production code, jaw feedback, timeout assertions and limits are unchanged.
+
+On PR93 base `f06837ce`, all eight feedback cases reproduced the missing-harness `AttributeError`. After the fixture correction, the existing feedback, model-withdrawal, postrelease, attachment-fence and safety checks passed: **117 passed in 32.62 s**, with 26 locally retained SO-101 asset files verified before and after. An earlier run without those fetched assets is retained separately as 22 passed / 95 skipped. Normal conftest, hidden CUDA, software GL and four private/protected store checks were used; no simulator service or GPU was launched. Evidence is retained outside git in `GRIPPER_FEEDBACK_FIX_20261003/{baseline-01,focused-01,focused-02,asset-materialization.json}`.

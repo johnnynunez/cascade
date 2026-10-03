@@ -1,0 +1,492 @@
+{
+  "schema_version": 1,
+  "scope": "initial-authoring correction only; native V3 retained as FAIL",
+  "base_commit": "8f7f5b37128419fa10ef5a8b93fa6a9fad7e0373",
+  "native_v3": {
+    "status": "failed",
+    "error": "FasteningFault: authored initial joint state is outside the admitted margin",
+    "model_identity_sha256": null,
+    "diagnostic_original_counters": {
+      "available": true,
+      "checkpoint": "prepare_raised",
+      "counters": {
+        "epoch": "d133594798fe4ddb862bd47e94dd855b",
+        "native_step": 0,
+        "native_time_s": [
+          0.0
+        ],
+        "scene_step": 0,
+        "scene_time_s": 0.0
+      },
+      "end_monotonic_s": 241549.397110371,
+      "observed_zero": true,
+      "start_monotonic_s": 241549.397077321
+    },
+    "owner_started": false,
+    "readiness_attempted": false,
+    "motion_calls": [],
+    "reset_calls": [],
+    "physical_admission": false,
+    "performance_claim": false,
+    "construction_interval": {
+      "end_monotonic_s": 241549.397064642,
+      "phase": "model_construction_and_compilation",
+      "start_monotonic_s": 241541.098108009,
+      "elapsed_s": 8.298956632992486,
+      "shared_gpu": true,
+      "benchmark": false
+    },
+    "closure": {
+      "ok": true,
+      "forced": false,
+      "errors": [],
+      "remaining_births": [],
+      "remaining_members": [],
+      "scope_client_exit": 1,
+      "signals": [],
+      "state": {
+        "ActiveState": "inactive",
+        "ControlGroup": "",
+        "Description": "cascade-voice-factory-prepare-6e6c8357c9a54f9f876c065e7770fa92.scope",
+        "InvocationID": "",
+        "LoadState": "not-found",
+        "Result": "success",
+        "SubState": "dead"
+      }
+    },
+    "inputs_unchanged": true,
+    "foreign_postaudit": {
+      "all_original_births_present": true,
+      "states": [
+        "same_birth",
+        "same_birth",
+        "same_birth",
+        "same_birth",
+        "same_birth",
+        "same_birth"
+      ],
+      "gpu": {
+        "free_mib": 75536.0,
+        "name": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+        "pci_bus_id": "00000000:21:00.0",
+        "total_mib": 97887.0,
+        "used_mib": 21806.0,
+        "utilization_percent": 86.0,
+        "uuid": "GPU-87c0fe81-bcfb-b636-9eec-e56fd88c33c3"
+      },
+      "causality_attributed": false,
+      "latency_isolation_guaranteed": false
+    }
+  },
+  "cpu_cause": {
+    "versions": {
+      "mujoco": "3.12.0",
+      "scipy": "1.18.1",
+      "numpy": "2.5.3"
+    },
+    "sources_unchanged": true,
+    "joint_comparison": [
+      {
+        "name": "shoulder_pan",
+        "q_authored": 0.0013053729364881708,
+        "q_float32": 0.0013053729198873043,
+        "reference_rad": 0.0,
+        "joint_range": [
+          -1.91986,
+          1.91986
+        ],
+        "control_range": [
+          -1.91986,
+          1.91986
+        ],
+        "lower_rad": -1.91986,
+        "upper_rad": 1.91986,
+        "lower_clearance_rad": 1.9211653729364881,
+        "upper_clearance_rad": 1.9185546270635117,
+        "margin_rad": 0.02,
+        "admissible": true
+      },
+      {
+        "name": "shoulder_lift",
+        "q_authored": -0.029871997967254822,
+        "q_float32": -0.029871998354792595,
+        "reference_rad": 0.0,
+        "joint_range": [
+          -1.7453293,
+          1.7453293
+        ],
+        "control_range": [
+          -1.74533,
+          1.74533
+        ],
+        "lower_rad": -1.7453293,
+        "upper_rad": 1.7453293,
+        "lower_clearance_rad": 1.7154573020327453,
+        "upper_clearance_rad": 1.775201297967255,
+        "margin_rad": 0.02,
+        "admissible": true
+      },
+      {
+        "name": "elbow_flex",
+        "q_authored": -0.0440137190411909,
+        "q_float32": -0.044013720005750656,
+        "reference_rad": 0.0,
+        "joint_range": [
+          -1.69,
+          1.69
+        ],
+        "control_range": [
+          -1.69,
+          1.69
+        ],
+        "lower_rad": -1.69,
+        "upper_rad": 1.69,
+        "lower_clearance_rad": 1.645986280958809,
+        "upper_clearance_rad": 1.7340137190411908,
+        "margin_rad": 0.02,
+        "admissible": true
+      },
+      {
+        "name": "wrist_flex",
+        "q_authored": 1.644682043802835,
+        "q_float32": 1.6446820497512817,
+        "reference_rad": 0.0,
+        "joint_range": [
+          -1.658063,
+          1.658063
+        ],
+        "control_range": [
+          -1.65806,
+          1.65806
+        ],
+        "lower_rad": -1.65806,
+        "upper_rad": 1.65806,
+        "lower_clearance_rad": 3.302742043802835,
+        "upper_clearance_rad": 0.013377956197165197,
+        "margin_rad": 0.02,
+        "admissible": false
+      },
+      {
+        "name": "wrist_roll",
+        "q_authored": 0.08538733142210371,
+        "q_float32": 0.08538733422756195,
+        "reference_rad": 0.0,
+        "joint_range": [
+          -2.7438473,
+          2.7438473
+        ],
+        "control_range": [
+          -2.74385,
+          2.84121
+        ],
+        "lower_rad": -2.7438473,
+        "upper_rad": 2.7438473,
+        "lower_clearance_rad": 2.829234631422104,
+        "upper_clearance_rad": 2.6584599685778962,
+        "margin_rad": 0.02,
+        "admissible": true
+      },
+      {
+        "name": "gripper",
+        "q_authored": 0.6,
+        "q_float32": 0.6000000238418579,
+        "reference_rad": 0.0,
+        "joint_range": [
+          -0.174533,
+          1.7453292
+        ],
+        "control_range": [
+          -0.17453,
+          1.74533
+        ],
+        "lower_rad": -0.17453,
+        "upper_rad": 1.7453292,
+        "lower_clearance_rad": 0.7745299999999999,
+        "upper_clearance_rad": 1.1453292,
+        "margin_rad": 0.02,
+        "admissible": true
+      }
+    ],
+    "original_target_with_25mrad": {
+      "optimizer": {
+        "success": true,
+        "nfev": 19,
+        "weighted_residual_norm": 0.0009626185085560903
+      },
+      "error": "ValueError: Socket center is not reachable with vertical SO-101 tool axis"
+    },
+    "interpretation": "Legacy wrist_flex clearance13.377956mrad violates unchanged20mrad guard; zero refs confirmed separately by actual CPU Newton importer."
+  },
+  "predeclared_cpu_fixture_positions": [
+    {
+      "fixture_center_xy_m": [
+        0.25,
+        0.0
+      ],
+      "ik_margin_rad": 0.025,
+      "guard_margin_rad": 0.02,
+      "feasible_all_43": false,
+      "error": "ValueError: Socket center is not reachable with vertical SO-101 tool axis",
+      "failed_height_m": 0.069,
+      "failed_optimizer": {
+        "residual_norm": 0.0024845616686977935,
+        "nfev": 23
+      }
+    },
+    {
+      "fixture_center_xy_m": [
+        0.26,
+        0.0
+      ],
+      "ik_margin_rad": 0.025,
+      "guard_margin_rad": 0.02,
+      "feasible_all_43": false,
+      "error": "ValueError: Socket center is not reachable with vertical SO-101 tool axis",
+      "failed_height_m": 0.069,
+      "failed_optimizer": {
+        "residual_norm": 0.004393663448700218,
+        "nfev": 22
+      }
+    },
+    {
+      "fixture_center_xy_m": [
+        0.23,
+        0.0
+      ],
+      "ik_margin_rad": 0.025,
+      "guard_margin_rad": 0.02,
+      "feasible_all_43": true,
+      "samples": 43,
+      "minimum_clearance_rad": 0.025004558855823644,
+      "maximum_weighted_residual_norm": 2.107337996387422e-10
+    }
+  ],
+  "new_variant": {
+    "recipe": "factory_m20_fixed_axis_margin_v2",
+    "profile": "configs/robots/factory_m20_mounted_margin_v2.yaml",
+    "fixture_center_xy_m": [
+      0.23,
+      0.0
+    ],
+    "ik_margin_rad": 0.025,
+    "guard_margin_rad": 0.02,
+    "position_control_range_intersection": true,
+    "residual_threshold": 1e-05,
+    "legacy_recipe_and_profile_retained": true,
+    "device": null,
+    "model_identity_sha256": null,
+    "fixture_initial_placement_changed": true,
+    "material_actuator_solver_parameters_changed": false,
+    "runtime_joint_or_body_pose_writes_added": false,
+    "selection_basis": "CPU reachability of every43 authored targets, never torque/seating outcome",
+    "future_native_preparation_and_readiness_required": true
+  },
+  "actual_cpu_fk": {
+    "scope": "CPU imported robot kinematics only; no Factory SDF, collision, solver or dynamics",
+    "modules": {
+      "newton": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages/newton/__init__.py",
+        "version": "1.6.0"
+      },
+      "warp": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages/warp/__init__.py",
+        "version": "1.17.0"
+      },
+      "mujoco": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages/mujoco/__init__.py",
+        "version": "3.12.0"
+      }
+    },
+    "device": "cpu",
+    "joint_mapping": [
+      {
+        "joint": "shoulder_pan",
+        "newton_joint": 1,
+        "newton_q": 0,
+        "newton_dof": 0,
+        "native_reference_rad": 0.0,
+        "newton_reference_rad": 0.0,
+        "newton_lower_rad": -1.9198600053787231,
+        "newton_upper_rad": 1.9198600053787231
+      },
+      {
+        "joint": "shoulder_lift",
+        "newton_joint": 2,
+        "newton_q": 1,
+        "newton_dof": 1,
+        "native_reference_rad": 0.0,
+        "newton_reference_rad": 0.0,
+        "newton_lower_rad": -1.7453292608261108,
+        "newton_upper_rad": 1.7453292608261108
+      },
+      {
+        "joint": "elbow_flex",
+        "newton_joint": 3,
+        "newton_q": 2,
+        "newton_dof": 2,
+        "native_reference_rad": 0.0,
+        "newton_reference_rad": 0.0,
+        "newton_lower_rad": -1.690000057220459,
+        "newton_upper_rad": 1.690000057220459
+      },
+      {
+        "joint": "wrist_flex",
+        "newton_joint": 4,
+        "newton_q": 3,
+        "newton_dof": 3,
+        "native_reference_rad": 0.0,
+        "newton_reference_rad": 0.0,
+        "newton_lower_rad": -1.6580630540847778,
+        "newton_upper_rad": 1.6580630540847778
+      },
+      {
+        "joint": "wrist_roll",
+        "newton_joint": 5,
+        "newton_q": 4,
+        "newton_dof": 4,
+        "native_reference_rad": 0.0,
+        "newton_reference_rad": 0.0,
+        "newton_lower_rad": -2.743847370147705,
+        "newton_upper_rad": 2.743847370147705
+      },
+      {
+        "joint": "gripper",
+        "newton_joint": 7,
+        "newton_q": 5,
+        "newton_dof": 5,
+        "native_reference_rad": 0.0,
+        "newton_reference_rad": 0.0,
+        "newton_lower_rad": -0.17453299462795258,
+        "newton_upper_rad": 1.7453291416168213
+      }
+    ],
+    "sample_count": 43,
+    "max_weighted_residual_norm": 1.0687176054905729e-07,
+    "elapsed_s": 5.930909754009917,
+    "sources_unchanged": true,
+    "solver_constructed": false,
+    "physics_steps": 0,
+    "earlier_attempt": {
+      "status": "failed",
+      "cause": "missing trimesh in interpreter overlay",
+      "preserved_log": "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/evidence/native-import-cpu.log",
+      "repaired_environment": "existing read-only CODEX_NEWTON/screw-contact-env trimesh4.12.2 overlay; no installation",
+      "limit": "first attempt did not save a prehash receipt; exact retained script and log are linked"
+    }
+  },
+  "validation": {
+    "passed": 398,
+    "pytest_elapsed_s": 2.27,
+    "process_elapsed_s": 2.697951762995217,
+    "source_count": 669,
+    "source_unchanged": true,
+    "protected_unchanged": true,
+    "environment": {
+      "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/cascade/src:/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages",
+      "CUDA_VISIBLE_DEVICES": "-1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/envelope.json",
+      "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/grasp-memory.json",
+      "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/beliefs.json",
+      "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/cache"
+    },
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+      "-m",
+      "pytest",
+      "tests/test_factory_authoring.py",
+      "tests/test_factory_owner.py",
+      "tests/test_factory_config.py",
+      "tests/test_factory_observation.py",
+      "tests/test_fastening_runtime.py",
+      "tests/test_device_and_profiles.py",
+      "-q",
+      "--basetemp=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/tmp",
+      "--junitxml=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/junit.xml",
+      "-o",
+      "cache_dir=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/pytest-cache"
+    ],
+    "ruff_F_E9": "pass",
+    "diff_check": "pass"
+  },
+  "frozen_changed_sources": {
+    "src/cascade/apps/factory_runtime.py": "48a5450d6feab83504a0e6244c5640cea29fc89be3bf451398a6dbfe79f05a05",
+    "src/cascade/control/fastening.py": "ad0796e6a49ed00e0217fc37d2d2589b46aca230c25a589a3ec5428332bbaeba",
+    "src/cascade/sim/factory_model.py": "6a6e205fff692ae0278be495ec0787d2e106a973ff5dfa9afd3090ebb3c38fce",
+    "src/cascade/sim/factory_recipe.py": "aa41a10ec7e0deb077f118dbc35e18c0f2444e250749a18fa2fc1b4fae2b5f36",
+    "src/cascade/sim/newton_screw_contact.py": "b63634f0add3c945d36b4854b60d008e753c780a896a4962e4db4c490731a168",
+    "src/cascade/sim/newton_screw_seating.py": "9666ee0d63a4bbf6a69849d01dbc2ef20de9f1bda94a34eebf36e6d30a5a1128",
+    "tests/test_factory_authoring.py": "1f01649fccd20395df1178199b1011a1fdc091a0d6fccc138ae3fc55a27dcb0a",
+    "tests/test_factory_owner.py": "d09b9d6a02d4fbda87ea8638e81d056e00ebc155619f2cd7a4a90f13d23dc09b",
+    "configs/robots/factory_m20_mounted_margin_v2.yaml": "9ab35a913ea7c3ec86fa16db5bd106eb61d00462895c070c6996811cebec85e0"
+  },
+  "test_asset_copy": {
+    "original": "/home/johnny/newton-work/mujoco_menagerie/robotstudio_so101",
+    "test_copy": "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/cascade/assets/mjcf/so101",
+    "files_equal_at_receipt": true,
+    "files_sha256": {
+      "scene_box.xml": "14c3826f23889587e63b88ef9a0e7d72318ffe13078fad8287c56dbdb9ba9ad8",
+      "so101.xml": "5ad49f2b45c083baac9ffe5d4d3213a5da7eac8039095bb2df177a697aae8308",
+      "README.md": "e2344e7c14290bed85c7907247aecb8bf6cb4392e3de0d7c45680efe9bb9b5a9",
+      "CHANGELOG.md": "d9ba6fe2c0d9cd4b536600d354111fd7a3d60c6f0a7bf46eb70f2106af14ec81",
+      "so101.png": "fca552381f318dab5b1f9a69007e79d905d91c9d1bebbfdf267b78d924a9c46d",
+      "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "scene.xml": "d3037f0fd36b61a9b6805b2c79831e7a392276d0f490145d01f718542eee9150",
+      "assets/motor_holder_so101_wrist_v1.stl": "887f92e6013cb64ea3a1ab8675e92da1e0beacfd5e001f972523540545e08011",
+      "assets/sts3215_03a_no_horn_v1.stl": "75ef3781b752e4065891aea855e34dc161a38a549549cd0970cedd07eae6f887",
+      "assets/wrist_roll_follower_so101_gripper_v1.stl": "65f32debcf265420c0160afe004f8befc5df4b3e578fd59ebaa62eade0371224",
+      "assets/rotation_pitch_so101_v1.stl": "9be900cc2a2bf718102841ef82ef8d2873842427648092c8ed2ca1e2ef4ffa34",
+      "assets/wrist_roll_pitch_so101_v2.stl": "6c7ec5525b4d8b9e397a30ab4bb0037156a5d5f38a4adf2c7d943d6c56eda5ae",
+      "assets/moving_jaw_so101_gripper_part1_v1.stl": "d10f6c671d26f62988ec95efee9370a0657b5833b3c5f8aad59fd69a87ef2aee",
+      "assets/moving_jaw_so101_gripper_v1.stl": "e8a5dc040b98e27453a5b74f9087d1dbca14589cf9a17c4de7868d5ab98413cd",
+      "assets/base_motor_holder_so101_v1.stl": "8cd2f241037ea377af1191fffe0dd9d9006beea6dcc48543660ed41647072424",
+      "assets/moving_jaw_so101_v1.stl": "785a9dded2f474bc1d869e0d3dae398a3dcd9c0c345640040472210d2861fa9d",
+      "assets/wrist_roll_follower_so101_gripper_part0_v1.stl": "370eb470a6ab48b08febcaeb5274d2bcc91246692532ce12c795fb82977def72",
+      "assets/sts3215_03a_v1.stl": "a37c871fb502483ab96c256baf457d36f2e97afc9205313d9c5ab275ef941cd0",
+      "assets/motor_holder_so101_base_v1.stl": "31242ae6fb59d8b15c66617b88ad8e9bded62d57c35d11c0c43a70d2f4caa95b",
+      "assets/wrist_roll_follower_so101_camera_mount.stl": "58c457b33a26d9c9bb337aa351173e7123f84719a93f486541adef6eba57ae21",
+      "assets/moving_jaw_so101_gripper_part0_v1.stl": "3a92e115d1934d4c45cff808c4eff2ea10361a137a7f89940033a1f8a821b88c",
+      "assets/waveshare_mounting_plate_so101_v2.stl": "e197e24005a07d01bbc06a8c42311664eaeda415bf859f68fa247884d0f1a6e9",
+      "assets/wrist_roll_follower_so101_v1.stl": "4b17b410a12d64ec39554abc3e8054d8a97384b2dc4a8d95a5ecb2a93670f5f4",
+      "assets/upper_arm_so101_v1.stl": "475056e03a17e71919b82fd88ab9a0b898ab50164f2a7943652a6b2941bb2d4f",
+      "assets/base_so101_v2.stl": "bb12b7026575e1f70ccc7240051f9d943553bf34e5128537de6cd86fae33924d",
+      "assets/under_arm_so101_v1.stl": "d01d1f2de365651dcad9d6669e94ff87ff7652b5bb2d10752a66a456a86dbc71"
+    },
+    "limit": "post-test inventory of the task-local copy, not a saved pre-test asset manifest"
+  },
+  "raw_artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V3/native-prepare-01/terminal-summary.json": "9cc4f881a64452483cfa94072da97494c5e2c6c087dffe69ce65e42f535bd3de",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V3/native-prepare-01/receipt.json": "6291814dc2043b3116ca2047c2e7e2513bb65895644d733a61474e5f780fba0c",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V3/native-prepare-01/native/native-result.json": "eecb734961f9136be2d32cee976c3b632969ce995ba962baaa8d9606969a1061",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V3/native-prepare-01/scope/closure.json": "7811f7d4a1f59123b931fa08af58b527bf01c97ae79990fa5d22481ca69bc411",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V3/native-prepare-01/scope/service.log": "68096cff14f43481143614d4f803173b83ab3c3880c8ab6f2e57bbb3b836367b",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V3/native-prepare-01/inputs-before.json": "2936b6a665d608d6aab15e495f0db1c05308ff5c70697067987aab1ab95e7a22",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V3/native-prepare-01/inputs-after.json": "2936b6a665d608d6aab15e495f0db1c05308ff5c70697067987aab1ab95e7a22",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/inspect_initial_ik.py": "2cf68aa415cbdd63c1b1a73019baf5e448188b5dd6e608509c04e8e4057775e0",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/compare_fixture_positions.py": "6e9b563465c320040df6d86586795ad6026eb8045417d55efd3300e668eb9254",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/compare_newton_fk.py": "bcb600e427a0574722d820364ccae95de5a2896c9ff81ecd33daabc8b12d54f8",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/evidence/initial-ik.json": "abaea497ab812b895193d45a73f049f7b20c220ada35ecc40fcf77c55c3da55f",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/evidence/initial-ik.log": "abaea497ab812b895193d45a73f049f7b20c220ada35ecc40fcf77c55c3da55f",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/evidence/fixture-position-comparison.json": "b6d74ada58573f0bf70017308f4ed31988e5ecb45c280529c3fd28c1400790b1",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/evidence/newton-fk-missing-trimesh-source.py": "d1812dfbc006562d9408b3e62fa0224c22ecb0341addb56fd61e7511902ad751",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/evidence/native-import-cpu.log": "f7f475adf0df27aa851426af86fd11c5e49072492a3ec94eb56c60fcee1d4a05",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/evidence/native-import-cpu-02/before.json": "2af747163e0b8c05c88b9b043cf65b40be6ddcddad953bfe59bf47765452f0fb",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/evidence/native-import-cpu-02/result.json": "203b704540c36a7846af612909b3462b111b467e6419325df4e43e9dc0094248",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_INITIAL_MARGIN/evidence/native-import-cpu-02.log": "7313e4a85bfa309af5d523f0dc168c112cb35ec2abb42669e10c662518665c9c",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/result.json": "da9713e3286689af99dd5232a43c7504d1ed86b8efb54f7e36f9f0c2a28149cb",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/before.json": "a8af47bcee50b4f0a1370af0108a035ce1e6b9f53b0b7a1f0f8692d2e1ef1b21",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/after.json": "a8af47bcee50b4f0a1370af0108a035ce1e6b9f53b0b7a1f0f8692d2e1ef1b21",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/junit.xml": "cb2358a359feec30964cf22808ec5bcaa96aa4d437ebc4ade9e343e4d33a66ba",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/initial-authoring-02/pytest.log": "3c409c818b728389b16ea151f54118b40458e0f2dbee31e33605380572b163f6"
+  },
+  "limits": [
+    "No new GPU process or native model pin.",
+    "CPU FK is not contact, collision, task, seating, preload or stop validation.",
+    "Every dynamic guard, lease, verifier threshold and wall budget remains unchanged.",
+    "The initial-pose diagnostic names values without clipping them."
+  ]
+}

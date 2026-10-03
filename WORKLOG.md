@@ -634,3 +634,385 @@ launcher fails both explicit endpoint controls while the candidate passes; the
 unset-default control passes for both. Independent source review, Ruff F/E9,
 Bash syntax and diff checks pass. No model, host, robot or GPU was launched, and
 this change does not validate trial12 or authenticate model weights.
+
+### 2026-10-03 — ordinary fastening postcondition
+
+The ordinary `turn_screw` routine counts commanded wrist strokes. Its nested
+`physical_verification: unverified` was absent from the standard postcondition
+registry, so trace/memory and the reflex path could record success without
+observing fastener motion. This isolated branch starts at coordinator
+2067019b8d7397110d0f139f11e116ff5f1bd9b6. The planned correction now adds an explicit
+unverified fastening postcondition, preserves execution/failure information, and
+prevents unobserved fastening from receiving success credit. No pose-only, wrist-only or
+self-reported result will prove threading or seating. The Factory contact
+scene/controller is not connected by this correction.
+
+Adversarial checks exercise ordinary dispatch, memory, trace and reflex learning,
+alongside existing error/command regressions. Tests were deferred until the
+coordinator closed the native voice window. Final validation: 154 passed in
+20.88 s; the 15 new cases alone passed in 0.25 s, while the same cases on base206
+gave 14 expected failures and one unchanged-convention pass. The initial extended
+run's sole failure was a 900-character static source guard; shortening its nearby
+comment preserved the guard and runtime semantics. Sources (649 files) and
+protected memory stayed unchanged during every run. Ruff F/E9 and diff checks
+passed. Details and hashes: benchmark/results/fastening_postcondition_20261003.json.
+No simulator, model or service was started. The physical fixture integration
+remains a separate explicit profile/controller/observer/lifecycle task, described
+in docs/FASTENING_RUNTIME_GAP.md; this correction grants no physical admission.
+
+### 2026-10-03 — mounted Factory runtime implementation, stage one
+
+Authorized scope: optional pre-engaged fastening domain through RobotRuntime,
+one measured tightening turn and independently observed rest. Apply the
+physics-simulation and manipulation-ik skills: actual solved state/contact
+readback, no pose assistance, no pickup or seating inference. First implement
+immutable model/epoch/solve contracts, a per-write lease/generation guard, a
+passive bounded solve journal and the independent domain verifier. The native
+adapter must then provide joint velocities/efforts, tool poses and complete
+contact coverage from each solve. RobotRuntime supplies coordination, not these
+physical guards. No physical profile is enabled by the CPU stage.
+
+Bounds are explicit and identity-bound: 0.8 rad/s SO-101 arm limit, imported
+joint/effort limits, 0.05 Nm spindle cap, 10 rad/s measured nut/spindle bound,
+Factory M20 pitch 2.5 mm and unchanged ThreadContract geometry/contact gates.
+Synthetic adversarial fixtures will cover expired/stopped writes, stale/missing
+or discontinuous observations, forbidden contact, wrist-only motion and failure
+to rest. GPU0 and voice ports remain reserved for Hermes. No native launch or
+publication is authorized by this stage; CPU suites are coordinated separately.
+
+Stage one implemented in control/fastening.py and skills/fastening_runtime.py,
+with direct ordinary RobotRuntime composition and a single arm/spindle command
+resource. Initial 41 and 108 CPU checks passed. Independent review then added
+deadline-after-read, pre-ACK capture and replay guards. Final 115 passed in
+2.19 s (56 new synthetic cases); 658 source hashes and protected memory were
+unchanged. One intermediate fixture failure is retained: its stop-prefence
+timestamp accidentally reversed the capture clock; adding modeled ACK latency
+isolated the intended exclusion without relaxing limits. Ruff F/E9 and diff
+checks pass. See docs/FACTORY_FASTENING_RUNTIME.md and the source-bound receipt
+benchmark/results/factory_runtime_stage1_20261003.json. Stage two will connect
+native per-solve measurements and exact zero-spindle stop. This checkpoint has
+no physical profile/launch/admission and has not modified the old native scene.
+
+### 2026-10-03 — Factory per-solve native readback checkpoint
+
+Implemented sim/factory_observation.py against inspected Newton1.6/MJWarp3.12
+APIs: all collision/reducer capacity counters, actual solved vector contacts,
+explicit joint/DOF/control maps, bounded actuator-model descriptors, separate
+external/passive/constraint efforts, and CPU shadow FK with complete moving
+collision AABBs. Force/contact interval and endpoint pose times are distinct.
+This is instrumentation only; no profile or physics launch is enabled. The next
+owner stage supplies binding, fenced uploads, zero-spindle stop and lifecycle.
+
+Final 210 CPU tests passed in 0.96 s, with 660 source hashes/protected memory
+unchanged, Ruff F/E9 and diff checks clean. Independent exact MuJoCo3.12 rotated
+box FK control passed without dynamics or Newton/Warp/Kit import, confirming
+geom_aabb half extents. A first control invocation failed on missing PyYAML in
+the minimal converter interpreter; the successful read-only package overlay and
+failure distinction are retained in benchmark/results/factory_observation_20261003.json.
+No gains, physical thresholds, old native sources or shared environments changed.
+Independent review added exact float32/shape/finite checks before any zero-wrench
+claim: empty arrays previously passed np.any. The final count includes 39 new
+missing/transposed/wrong-type channel adversaries; the 159-pass prior checkpoint
+and original MuJoCo3.12 geometry receipt remain recorded separately.
+
+### 2026-10-03 — Factory single-owner implementation (in progress)
+
+Continue the authorized physical integration with a private per-subsolve owner,
+bounded admission queue, guarded upload stamps, real native step/time checks,
+and exact zero-spindle writes on stop/error/closure while retaining arm targets.
+Bind the compiled model, collision arrays, mapping, imported limits, assets and
+source files before exposing the controller. Force/contact values describe the
+completed interval and poses its endpoint. No solver graph or extra forward
+pass is implied. Synthetic CPU faults exercise scheduling, uncertain writes,
+zero upload failure and observation loss; these do not establish native proof.
+Ordinary profile/builder wiring follows this owner checkpoint. Native launches
+remain separately coordinated with the RGB-D work; no GPU is used here.
+
+Owner/readback checkpoint: 255 CPU checks passed in 1.16 seconds with 663
+source hashes and protected stores unchanged. Forty-five owner cases include
+native count/time reset, model/force-parameter drift, queued admission, uncertain
+uploads, zero upload failure and stop during preparation versus an admitted
+solve. Independent review found the first upload preceded collision preparation;
+a source-bound synthetic control retains the old 0.03 Nm post-stop solve and
+the corrected zero/new-generation result. The guarded upload now immediately
+precedes the admitted solve. Observed effort tolerance was tightened from
+1e-7 Nm to the exact float32 representation of each declared cap; requested
+limits are unchanged and the next float32 value is refused. Raw is not clipped.
+No native task or active profile is admitted. See the owner receipt and runtime
+guide; ordinary config/MCP construction remains the next separate checkpoint.
+
+### 2026-10-03 — configured Factory domain (in progress)
+
+Add explicit kind=fastening to the existing composition builder and MCP route.
+The shipped factory_m20_mounted profile has a null model pin: passive discovery
+works, but construction refuses before any SDK/device import until a separately
+owned preparation supplies the exact model digest. A pin is not a physical
+success flag. Construction must observe a full quiet pre-engaged window while
+the initial latch remains on, retain all solves, and preserve failed startup
+and closure receipts. No fake ArmBase, alternate MCP server, automatic reset,
+pickup, or seating capability. Native execution remains unperformed here.
+
+Configured Factory checkpoint complete: 322 CPU checks passed in 4.40 s; after
+correcting only the two shipped asset paths to official installer layout, all
+30 configuration cases passed in 0.35 s. Each run preserved 666 sources and the
+protected stores. Static independent review closed startup/closure exception
+masking and sticky evidence-write failures; original execution outcomes remain
+visible but cannot receive physical success credit after evidence loss. The
+initial fixture failures and final source-bound receipts are retained in
+benchmark/results/factory_config_20261003.json. Discovery uses existing MCP and
+construction requires an exact model pin plus measured quiet readiness; the
+shipped null pin remains inert. No native launch, threshold relaxation, SDK
+installation, publication, or shared-environment change occurred. Next work is
+an external reviewed preparation/readiness harness with private ownership/cache,
+separate construction/readiness times and unchanged 10 s / 120 s budgets.
+
+### 2026-10-03 — inert Factory profile leaves accelerator selection unresolved
+
+The composed full suite found the shipped profile violated the existing global
+rule against pinning an accelerator. Keep discovery passive with device:null
+and model pin:null; explicit model preparation and configured construction must
+reject an unresolved device before SDK access, without auto/CPU fallback.
+Preserve the original global test and all native thresholds. Add direct no-IO
+refusal controls and select CUDA explicitly only inside synthetic/native private
+fixtures. The preparation harness remains unexecuted pending this source update.
+
+Final control: 50 PASS in 0.44 s, including the unchanged global shipped-device
+policy test and preparation/build refusals before SDK or output creation. All
+666 source hashes and protected stores remained identical. The first edit's
+YAML indentation error caused 23 parser failures (27 passes); it is retained,
+and fixing indentation alone resolved it. No runtime physics limit changed.
+See benchmark/results/factory_device_selection_20261003.json.
+
+### 2026-10-03 — repair the pinned Factory SDK collision-mode interface
+
+The first shared-GPU prepare-only process exited naturally with an AttributeError
+before model binding: Newton 1.6 stores `_use_mujoco_contacts`, whereas the new
+adapter accessed a nonexistent public attribute. Preserve that source-bound
+failure and both original harnesses. Read the pinned SDK declarations and solve
+branch, require its actual private mode and effective MJWarp collision option
+to be explicitly false, and reject missing/contradictory values without fallback.
+Add synthetic regression controls that expose only the real interface, plus a
+static inventory of the remaining model/owner/observer APIs. No verifier limit,
+SDK package, native process, or physical admission changes in this checkpoint.
+
+Final controls: the old source failed 15/16 new adversarial cases (one existing
+CPU-route refusal already passed); the corrected targeted suite passed 274 tests
+in 1.36 s, and exact MuJoCo 3.12 CPU owner/readback controls passed 163 in 0.45 s.
+Each preserved all 666 tracked test inputs and protected stores. The fingerprint
+inventory and owner signatures match the pinned source declarations. Independent
+read-only inspection found no other concrete observer API mismatch; neither that
+review nor the tests establish native instantiation or contact coverage. The
+failed prepare receipt and six unchanged foreign process identities are retained
+in benchmark/results/factory_sdk_interface_20261003.json. A new external harness
+variant will inspect the exact failed preparation traceback frame for original
+scene counters without replacing the scene class or granting a valid model pin.
+
+### 2026-10-03 — inspect optional native arrays after preparation V2
+
+The second shared prepare-only attempt on af463859 failed when fingerprinting a
+Newton model field that was None. The exception checkpoint measured scene/native
+step and time zero; owned closure and unchanged input/peer records were retained.
+No pin or task admission resulted. Before a correction, reproduce the array
+layout with the exact SDK on CPU, inspect allocation conditions for every bound
+array and distinguish an explicitly optional field from missing required data.
+Preserve optional absence in the fingerprint and reject later presence, value,
+shape or dtype changes. No None-to-empty conversion, omitted required arrays,
+solver/verifier changes or additional GPU run are authorized by this work item.
+
+CPU causal control with the pinned real Newton builder reproduced the old
+fingerprint error and isolated shape_filter as the only None field. The corrected
+code preserves its declared optional absence, rejects the other 88 required
+arrays when unavailable and fingerprints all presence/layout/value changes.
+375 targeted tests passed in 1.56 s; the real CPU builder fingerprint and all 43
+MJWarp model/seven option layouts also passed inspection without constructing a
+solver or taking a physics step. Sources/stores were stable within final checks;
+SDK/assets/harness/stores still match the closed V2 baseline. Root reviewed the
+code delta. No new GPU run, native pin, readiness or physical admission exists.
+
+### 2026-10-03 — diagnose the initial mounted joint-margin rejection
+
+Preparation V3 on 8f7f5b3 passed SDK and array binding but rejected the authored
+initial joint state against the unchanged 0.02 rad margin. Its native counters
+and time remained zero, closure was natural, and all inputs/foreign identities
+were retained. Preserve that checkout and investigate in a separate worktree:
+measure the exact initial IK, joint/control intersections and MuJoCo/Newton
+reference offsets on CPU before changing the fixture recipe. Add diagnostic
+joint values without changing the rejection. Any corrected authoring must retain
+the legacy recipe, solve within the guard's margins without clipping, and carry
+a new explicit identity. No GPU, readiness, motion, tolerance relaxation, shared
+store modification or publication is part of this checkpoint.
+
+Measured cause: legacy wrist_flex=1.64468204 rad leaves 13.377956 mrad below
+its effective 1.65806 upper bound; all six MuJoCo/Newton references are zero.
+With unchanged IK residual criterion, three declared CPU placement comparisons
+rejected x=.25/.26 and accepted x=.23 across all 43 follower targets. The new
+explicit margin-v2 profile moves the complete thread fixture 10 mm toward the
+base and solves within 25 mrad of joint/control bounds; the 20 mrad guard and legacy
+default/recipe/profile are unchanged. Model identity now binds/rechecks actual
+authoring parameters and targets; diagnostic rejection names q/bounds/margin.
+398 targeted tests passed in 2.27 s with 669 source inputs and protected stores
+unchanged. Exact Newton 1.6 CPU import/FK passed all 43 positions with maximum
+weighted residual 1.069e-7, without Factory SDF/collision/solver/dynamics. An
+earlier CPU import lacked trimesh and is retained separately. Ruff F/E9 and
+diffcheck passed. No new GPU attempt, model pin or physical admission exists;
+independent code review and future native preparation remain separate gates.
+
+### 2026-10-03 — preserve strict binding at the native scalar boundary
+
+Prepare-only V4 on 96ecdb5 closed naturally with zero original scene/native
+counters after rejecting NumPy float64 fixture coordinates in FasteningBinding.
+Keep that source and receipt frozen. In this separate worktree, reproduce the
+exact constructor binding assignment on CPU before converting the validated
+native coordinate values explicitly to Python floats. Keep the public numeric
+contract, recipe checks, physical limits and array values unchanged. No new
+native run, readiness, owner or movement is part of this correction.
+
+The same new test executes the constructor's exact binding AST after real
+authoring validation: old production source fails both recipes with the native
+float64 array; seven strict-contract/invalid-authoring controls pass. A one-line
+explicit float conversion then passes all 362 focused tests in 1.48 s. The
+public `_number` contract is unchanged; no coordinate mutation or normalization
+occurs. Both runs preserve all 670 source inputs and protected stores. Ruff F/E9
+and diffcheck pass. Native V4 remains FAIL with zero measured counters, no pin,
+natural exit 1 and all owned processes absent; six original foreign births
+were observed unchanged. No native retry or physical admission is claimed.
+
+## 2026-10-03 — Finite Factory precompilation (in progress)
+
+Base 7851e474, separate feat/factory-finite-precompile worktree. Readiness01
+remains FAIL: its first cold solve returned after the unchanged 10 s readiness
+deadline. This opt-in preparation loads a finite pinned Newton/MuJoCoWarp module
+inventory without executing kernels or advancing physics. It will require a new
+model identity and separate native review; CPU controls cannot establish quiet
+readiness. No shared caches, model files, SDKs, or learned stores are modified.
+
+The implementation is now ready for independent review. The seven-file focused
+selection passed 433 tests with 4 existing SO101-asset skips in 1.75 s, using
+normal conftest/private stores; 556 source/config/test inputs and protected stores
+were unchanged. A separate exact SDK CPU probe traversed 1,463 arrays, built
+20 lazy kernel definitions and loaded one generated CPU module without a kernel
+launch, solver or physics step. Before/after physical digests match. It exposed
+and corrected two host representation assumptions (sets and Warp runtime
+infrastructure); all failed probes are retained outside the checkout. The
+recipe now checks the actual nv_pad20 and native tile/CSR dimensions. Comparing
+native01's seven-hex module prefixes gives27 direct matches and one match with
+the separately retained native CSR width90 (minimal CPU fixture width97).
+Full CUDA hashes/loads, Factory native buffers and readiness remain unvalidated.
+No native launch is authorized by this checkpoint. See FACTORY_PRECOMPILATION.md
+and benchmark/results/factory_precompile_cpu_20261003.json.
+
+Independent review found scene-level operation/authoring state outside the seven
+original snapshot roots. Snapshot now covers all scene fields (except its prior
+evidence receipt) and effective class constants, including IK data, targets,
+epoch and drive flags. New controls also found temporary-dictionary ID reuse;
+retaining the referenced objects prevents a false alias. Python3.10-compatible
+error notes preserve the primary failure if receipt persistence also fails.
+Final selection: 448 PASS / 4 existing asset SKIP in1.62s, same556inputs/stores.
+Real SDK CPU control now observes1,627arrays including IK data plus authoring
+and class fields; both physical digests are identical. Earlier receipts and
+byte-matching pre-review helper/runtime sources are retained under external
+validation/review-source-01-retained. No new native process or solve.
+
+## 2026-10-03 — Factory explicit-pair compiler admission
+
+Preserved native preparation on a2c40c83 as FAIL/CLOSED: the constructor guard
+assumed `nxn`, but the unchanged pinned CollisionPipeline defaults to explicit
+pairs. No finite-plan load or solve completed. New optional selector/profile
+v2 requires the exact BroadPhaseExplicit type and owned int32 pair inventory;
+it uses the SDK's precomputed-pair kernel handle without changing physics.
+The old selector/profile is withdrawn, not reinterpreted.
+
+Admission now retains all 22 values/errors/verdicts before deciding, including
+missing SDK attributes and serializable nonfinite clock rejection. Normal
+preparation persists the report even when a guard rejects. Full scene/model
+snapshot fencing and the 39 reviewed definitions remain; io.py layout source
+is now pinned too. The predicate-by-predicate SDK audit and retained failure
+are linked from benchmark/results/factory_precompile_explicit_cpu_20261003.json.
+
+Validation: seven focused files 466 passed, 4 optional skips, 1.92 s; 556 inputs
+and protected stores unchanged. Real pinned SDK CPU pipeline with exact source
+kwargs reproduces the old rejection, accepts the explicit branch and builds
+39 definitions with equal snapshots/zero solves/zero finite compiler loads.
+CPU builder allocation kernels do run. Reduced CPU CSR width75 remains refused
+against native90; it is not the full Factory geometry. No new GPU/readiness
+run, limit change, SDK patch, push or physical-admission claim.
+
+
+### 2026-10-03 — finite Factory snapshot uses actual native arena storage
+
+The first explicit-route CUDA preparation completed39 loads/22 predicates but
+failed on nine CPU descriptor hashes; all clocks/steps stayed zero and it closed
+naturally. That failed result remains unchanged. A separate CPU/header audit
+proved that NULL MuJoCo arena pointers can return owning, uninitialized Python
+arrays. The snapshot now records presence/address/shape/dtype for all64 numeric
+arena descriptors, hashes actual native views, and refuses inconsistent storage.
+The generated offsetof layout is pinned with the binding binary, installed
+headers, pointer ABI and actual mapped allocator library before pointer reads.
+No runtime compilation or unsupported-ABI fallback is introduced.
+
+Independent review also found inherited omission of nested contact/option/stat
+structures. The same CPU mutation probe fails oldefd84ed2 and passes newd84c913a;
+position/friction/gravity/warning/solver changes are detected, while repeated
+snapshots and restored values match. Source01/failures remain archived.
+Final486CPU PASS/4optionalSKIP (2.41s),587inputs/protected stores unchanged.
+Real pinned SDK creates39 definitions with identical snapshots,0finite loads
+and0solves; CPU builder kernels remain distinct from physical steps.
+Receipt: benchmark/results/factory_native_snapshot_cpu_20261003.json.
+No revised CUDA preparation, readiness or fastening task has yet been admitted.
+
+
+## 2026-10-03 — Instantiate Factory contact-writer kernels before loading
+
+- Retained ordinary readiness-v2 failure on16653c84:10s deadline, first advance9.3643s,20 completed steps plus1 drained at closure, no quiet startup or fastening action.
+- Three v2 modules contained zero PTX entrypoints. Definition-only SDK probes reproduce the later compiled hashes by binding the exact `sim.collide.ContactWriterData` type.
+- New opt-in writer-v3 profile explicitly binds those overloads, records concrete kernel keys/signatures and verifies each loaded forward symbol. Previous selectors are refused; finite39 inventory,22 guards, physical snapshots and deadlines remain unchanged.
+- Native preparation/readiness for this new recipe are pending; no physical fastening success or reusable model pin is claimed.
+- Validation:492 PASS/11 SKIP plus7 pinned-ABI PASS; two exact-old-function causal failures retained. Independent SDK definition/retained-PTX review found no blocker. No native v3 launch.
+
+## 2026-10-03 — Preserve the exact Factory observation-age rejection
+
+The separate v3 readiness run failed after 309 solves; its native exit1 and
+natural closure remain intact. Existing timestamps cannot establish the exact
+rejected age or attribute the delay. Added bounded stage/capture/check/age/limit
+and identity diagnostics to the existing FasteningFault string paths. Capture,
+0.2-second freshness, 10-second readiness, 0.5-second quiet interval, check order,
+owner lifecycle and all verdicts remain unchanged. No native rerun or optimization.
+
+Causal same-tests control: old5FAIL/3PASS, candidate8PASS. Final five-file CPU
+selection370PASS in1.51s;588 inputs and protected stores unchanged. Source/model
+identity changes are explicit, and no old native pin is transferred. Evidence:
+benchmark/results/factory_observation_age_20261003.json and the retained v3
+failure summary beside it. No SDK changes, GPU operation or publication.
+
+## 2026-10-03 — Retain the threaded outcome through the rest endpoint
+
+Verified the supplied CPU unwind counterexample on exact b7a0deee: the cached
+pre-stop verdict incorrectly survived complete passive rollback. One-module
+fix retains the same baseline and post-stop observations, runs the unchanged
+threading verifier through the rest endpoint, and requires both original
+achievement and final retention. No late positive credit, freshness change,
+new control write, quiet-window relaxation or native success claim.
+
+Baseline02:5FAIL/4PASS; final402PASS/2.26s across seven files,589 inputs and
+protected stores unchanged. Baseline01 also preserves one incorrect test
+expectation of the timeout wording (budget vs physical rest deadline), fixed
+before baseline02. All original repro/data are retained. Receipt:
+benchmark/results/factory_final_outcome_20261003.json. CPU only; no SDK/GPU run.
+
+
+### 2026-10-03 — Factory owner fault containment
+
+A backend exception whose `__str__` raises could bypass error retention in
+`FactorySolveOwner._run`: four CPU probes incorrectly reported a clean close,
+and two zero-upload probes abandoned finalization. Stop now latches before
+formatting; a guarded fallback preserves the exception type, sticky failure and
+pending admission rejection even when formatting raises `BaseException`.
+Zero upload remains independently reported and never proves physical rest.
+
+Baseline: 6 failures / 3 controls pass. The source-bound Factory/fastening
+regression selection initially passed 389 tests. Independent review then
+identified a string-subclass formatter escape (three retained red probes); the
+final corrected source passed 393 tests, including primary-plus-zero failure
+and stop-before-format ordering. These selections overlap. Sources and protected stores remained unchanged; an initial
+invalid test-file invocation is retained separately. No native run or physical
+admission follows. Receipt: `benchmark/results/factory_error_containment_20261003.json`.

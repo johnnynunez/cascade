@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "base_commit": "4e53a8a2a39261de34de2d7e7c47a3790513ec29",
+  "scope": "pinned Newton1.6 collision-mode interface correction; no new native run",
+  "physical_admission": false,
+  "model_pin": null,
+  "prior_native_failure": {
+    "error": "AttributeError: SolverMuJoCo.use_mujoco_contacts does not exist; pinned SDK stores _use_mujoco_contacts",
+    "prepare_only": true,
+    "native_exit_code": 1,
+    "natural_closure": true,
+    "source_sdk_assets_stores_unchanged": true,
+    "foreign_peer_births_unchanged": 6,
+    "zero_solve_counters_measured": false,
+    "limits": "Scene binding did not return; do not infer measured counters or a valid pin."
+  },
+  "controls": [
+    {
+      "name": "old-source causal regression",
+      "failed": 15,
+      "passed": 1,
+      "scope": "synthetic exact SDK mode names, unavailable/mutated modes"
+    },
+    {
+      "name": "corrected targeted CPU suite",
+      "passed": 274,
+      "pytest_seconds": 1.36,
+      "source_count": 666,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    {
+      "name": "pinned MuJoCo3.12 CPU owner/readback",
+      "passed": 163,
+      "pytest_seconds": 0.45,
+      "no_native_newton_or_warp_run": true,
+      "source_count": 666,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true
+    }
+  ],
+  "corrected_contract": "use_mujoco_cpu, _use_mujoco_contacts and mjw_model.opt.run_collision_detection must each be bool False; immutable rechecks and fingerprints retain the real mode. No alternate attribute fallback.",
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/sdk-interface-before/result.json": "26a5df941836677cc9b9c1927aad6bf480ed1a414680f54a5b50d7702fa64c6d",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/sdk-interface-after/result.json": "605475af80d731cc0cafec8b488aef83fe5586935738bf453d695c03923a1ad2",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/sdk-interface-pinned312/result.json": "35611dfd8bf5b9b602b5f154a9282964d2137c411cefcf99fbdc4e1b1b5368ab",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/sdk-interface-audit/model-owner-static.json": "c18a08b567018b19bed7c879f2189cbd2b72e3dc5ff58c0825bc67bf38160f42",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/sdk-interface-audit/mujoco312-import.json": "fd22d567c757c2d1fa6042fa87c72317c1345a42f20dfb5846c7f88a0818aebc",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP/native-prepare-01/receipt.json": "57353df2dc37a85e914a74faf167334c8c6ba74576761b0071738b97f1c568b8",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP/native-prepare-01/native/native-result.json": "0999d0943a96a8f072e3c930dcc4d7850aeb49fee70f56b120e2ef84cf380dc1",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP/native-prepare-01/scope/service.log": "aa5081331f49ff65af41f2b9955fba6b8018b82bf76eaa464e51be423bfcb22c",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP/native-prepare-01/scope/closure.json": "7de909e2558bc62cdbd824499375d84dc2d444a94f6f645f8c44fb1b53cdcf04"
+  },
+  "source_sha256": {
+    "src/cascade/sim/factory_model.py": "9126469a490c35c5903f446d3fff1a1b05fc59b2f9e551324bc98c20e218ebe7",
+    "tests/test_factory_owner.py": "ae3ba28ae5996bfdcf04450e980c767290b507bfc4b0afa79657c97599db5660"
+  }
+}

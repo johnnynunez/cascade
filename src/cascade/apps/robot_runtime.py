@@ -51,6 +51,10 @@ def _controller(profile, domain, name):
 def _describe_domain(domain_id, profile, *, embodiment=None):
     """Return a domain's static resources/tools without constructing actuators."""
     kind = profile["kind"]
+    if kind == "fastening":
+        from .factory_runtime import factory_description
+        resources, specs = factory_description(domain_id, profile)
+        return DomainAdapter(domain_id, profile, resources, specs, {"turn_screw"})
     if kind == "spatial":
         from ..spatial.domain import build_spatial_domain
         spatial = build_spatial_domain(domain_id, profile)
@@ -164,7 +168,7 @@ def describe_robot(cfg):
     dynamic_structure = body is not None and (body["root_mode"] == "floating" or
         any(joint["type"] in MULTI_DOF_JOINTS for joint in body.get("joints", ())))
     if dynamic_structure and any(
-            d.profile["kind"] == "manipulation" and any(not r.synthetic for r in d.resources)
+            d.profile["kind"] in {"manipulation", "fastening"} and any(not r.synthetic for r in d.resources)
             for d in actuating):
         raise ValueError("floating-root or multi-DoF physical manipulation requires validated dynamic frames and shared control")
     if len(actuating) > 1 and any(not r.synthetic for d in actuating for r in d.resources):
@@ -188,6 +192,11 @@ def build_robot_runtime(cfg, run_dir, **_kwargs):
             directory = Path(run_dir) / "domains" / name
             directory.mkdir(parents=True, exist_ok=True)
             if domain.profile["kind"] in {"sensors", "spatial"}:
+                built.append(domain)
+                continue
+            if domain.profile["kind"] == "fastening":
+                from .factory_runtime import build_factory_runtime
+                domain.runtime = build_factory_runtime(domain.profile, directory, domain_id=name)
                 built.append(domain)
                 continue
             domain_cfg = Cfg(copy.deepcopy(domain.profile["resolved"]))

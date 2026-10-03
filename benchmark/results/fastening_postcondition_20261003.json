@@ -1,0 +1,300 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-10-02T22:53:02.950992+00:00",
+  "base_commit": "2067019b8d7397110d0f139f11e116ff5f1bd9b6",
+  "scope": "Ordinary turn_screw effect reporting and success-credit correction only; no physical observer, backend, simulator or hardware admission.",
+  "source_files": {
+    "src/cascade/agent/effects.py": "b5e17c35b4faabd5725ec0b27e2cd27eb277b3f95cae3e0434822a02de06f034",
+    "src/cascade/skills/runtime.py": "380de002f4d0911d13ff2185a6912b38ce8c6e34b0db7cf59d758dc7208374af",
+    "tests/test_turn_screw.py": "5e4bb3db5f87fd48ba36d107e7f9eaec1299f227c10d723486e3b7d7b13a4868",
+    "tests/test_review_regressions_v5.py": "5a972e26817c7af6ab14f23aa4ed0f7e745f969ee7e6770df1eee6e9a99ab895",
+    "docs/FASTENING_RUNTIME_GAP.md": "87848195d671b6b7f04b8a76691e48d98a821340ac353dc30a8913e4abd6eb89",
+    "WORKLOG.md": "7b8e86db8a25e3f8adfac71bc6c813cb87ad9957c54887c50ab66aa942bee70f"
+  },
+  "runner": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/run_checks.py",
+    "sha256": "2608e53ade4cac9612a15cc8bac209f7adfe6309e2a3b0249bf507ddb6e117da"
+  },
+  "runs": {
+    "new-only": {
+      "receipt": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/result.json",
+        "sha256": "d3c5ae4259a00c1bcb56940b91c58a89401221cb51370e458d53240a7e526251"
+      },
+      "counts": {
+        "tests": 15,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 15,
+        "pytest_elapsed_s": 0.254
+      },
+      "repository": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/cascade",
+      "head": "2067019b8d7397110d0f139f11e116ff5f1bd9b6",
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_review_regressions_v5.py",
+        "-q",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/junit.xml",
+        "-o",
+        "cache_dir=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/pytest-cache"
+      ],
+      "environment": {
+        "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/cascade/src",
+        "CUDA_VISIBLE_DEVICES": "-1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/envelope.json",
+        "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/grasp-memory.json",
+        "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/beliefs.json",
+        "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/cache"
+      },
+      "exit_code": 0,
+      "elapsed_s": 0.5068586719862651,
+      "source_count": 649,
+      "source_unchanged": true,
+      "protected_before": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_after": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_unchanged": true,
+      "artifacts": {
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/before.json": "36e94cd9751ec0b7130d2fc8fa50fb2184f133d58aaaaefc90e771be6c5bf0e5",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/after.json": "36e94cd9751ec0b7130d2fc8fa50fb2184f133d58aaaaefc90e771be6c5bf0e5",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/pytest.log": "cea842628b61bdacdee6d97d1d94d86280b2949a61de3960c0b256d522cd79e1",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/new-only/junit.xml": "c04ac01bb30b394355aa14098529e450b21e07107024b1c3de7c44d6b3fc4e9e"
+      }
+    },
+    "old-negative": {
+      "receipt": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/result.json",
+        "sha256": "efe51d4f4ef48688f9ad923b4579fd05cd415cfc67b721135dd3286e33e0d07f"
+      },
+      "counts": {
+        "tests": 15,
+        "failures": 14,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 1,
+        "pytest_elapsed_s": 0.274
+      },
+      "repository": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/baseline",
+      "head": "2067019b8d7397110d0f139f11e116ff5f1bd9b6",
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_review_regressions_v5.py",
+        "-q",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/junit.xml",
+        "-o",
+        "cache_dir=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/pytest-cache"
+      ],
+      "environment": {
+        "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/baseline/src",
+        "CUDA_VISIBLE_DEVICES": "-1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/envelope.json",
+        "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/grasp-memory.json",
+        "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/beliefs.json",
+        "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/cache"
+      },
+      "exit_code": 1,
+      "elapsed_s": 0.5194174380158074,
+      "source_count": 649,
+      "source_unchanged": true,
+      "protected_before": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_after": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_unchanged": true,
+      "artifacts": {
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/before.json": "12f431ba67ee540339f987e218b7e18fd0a2c4fe0ff5cd06ce7134d4321e5dce",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/after.json": "12f431ba67ee540339f987e218b7e18fd0a2c4fe0ff5cd06ce7134d4321e5dce",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/pytest.log": "061444571e153d0c674a9683b3c0acd2dd986bf624cd9f4f69d39195c08a820f",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/old-negative/junit.xml": "64c7b81b2a82b0c471ee32a45dca0ccba3560de239cdb9e7ae739fe7691b6aba"
+      }
+    },
+    "focused": {
+      "receipt": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/result.json",
+        "sha256": "ee3ddfa12b51c4fb19a4b1606c8fcbf9456795451815d157ad46d75f6e145006"
+      },
+      "counts": {
+        "tests": 154,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 153,
+        "pytest_elapsed_s": 20.815
+      },
+      "repository": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/cascade",
+      "head": "2067019b8d7397110d0f139f11e116ff5f1bd9b6",
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_review_regressions_v5.py",
+        "tests/test_turn_screw.py",
+        "tests/test_verifier_crash.py",
+        "tests/test_agentic_upgrades.py",
+        "tests/test_aspire_admission.py",
+        "tests/test_threading_verification.py",
+        "tests/test_seating_verification.py",
+        "-q",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/junit.xml",
+        "-o",
+        "cache_dir=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/pytest-cache"
+      ],
+      "environment": {
+        "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/cascade/src",
+        "CUDA_VISIBLE_DEVICES": "-1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/envelope.json",
+        "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/grasp-memory.json",
+        "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/beliefs.json",
+        "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/cache"
+      },
+      "exit_code": 1,
+      "elapsed_s": 21.08202630301821,
+      "source_count": 649,
+      "source_unchanged": true,
+      "protected_before": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_after": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_unchanged": true,
+      "artifacts": {
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/before.json": "36e94cd9751ec0b7130d2fc8fa50fb2184f133d58aaaaefc90e771be6c5bf0e5",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/after.json": "36e94cd9751ec0b7130d2fc8fa50fb2184f133d58aaaaefc90e771be6c5bf0e5",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/pytest.log": "0993d5590eaadc941f810d7644fb6d8d0fa055632ce1b3b4e6db458d3f700283",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused/junit.xml": "57abba56e3c63ecccb4d35c62dceb251ba1d50418881fd07dd5d39f8283e14e1"
+      }
+    },
+    "focused-final": {
+      "receipt": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/result.json",
+        "sha256": "2aaabce9cc6f56e8f3b903f8a8e831b0a8799a7ed7078335271f424dabbcff20"
+      },
+      "counts": {
+        "tests": 154,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 154,
+        "pytest_elapsed_s": 20.876
+      },
+      "repository": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/cascade",
+      "head": "2067019b8d7397110d0f139f11e116ff5f1bd9b6",
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_review_regressions_v5.py",
+        "tests/test_turn_screw.py",
+        "tests/test_verifier_crash.py",
+        "tests/test_agentic_upgrades.py",
+        "tests/test_aspire_admission.py",
+        "tests/test_threading_verification.py",
+        "tests/test_seating_verification.py",
+        "-q",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/junit.xml",
+        "-o",
+        "cache_dir=/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/pytest-cache"
+      ],
+      "environment": {
+        "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/cascade/src",
+        "CUDA_VISIBLE_DEVICES": "-1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/envelope.json",
+        "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/grasp-memory.json",
+        "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/beliefs.json",
+        "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/cache"
+      },
+      "exit_code": 0,
+      "elapsed_s": 21.147851390996948,
+      "source_count": 649,
+      "source_unchanged": true,
+      "protected_before": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_after": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_unchanged": true,
+      "artifacts": {
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/before.json": "7729baa6f8d2bc238b6e7471a4176d7d0300af1e6745cf6a755677c024b89cd3",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/after.json": "7729baa6f8d2bc238b6e7471a4176d7d0300af1e6745cf6a755677c024b89cd3",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/pytest.log": "bd962fd2f986c8960c8b82820de0ddc56c4e9f9b3c47e7ce656ad34e5226bfd1",
+        "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/validation/focused-final/junit.xml": "ae83dea060417cf78dac5b7fa04a0436ac3d2d54955b9e74898fcbd8e5c7ed35"
+      }
+    }
+  },
+  "causal_control": {
+    "base": "2067019b8d7397110d0f139f11e116ff5f1bd9b6",
+    "export": "/home/johnny/Projects/demo/cascade-lab/FASTENING_POSTCONDITION/baseline",
+    "only_added_file": "tests/test_review_regressions_v5.py",
+    "expected_failures": 14,
+    "unchanged_convention_passes": 1,
+    "new_tests_sha256": "5a972e26817c7af6ab14f23aa4ed0f7e745f969ee7e6770df1eee6e9a99ab895",
+    "export_test_sha256": "5a972e26817c7af6ab14f23aa4ed0f7e745f969ee7e6770df1eee6e9a99ab895"
+  },
+  "retained_development_failure": "First extended run: static verifier guard expected annotation within 900 characters. Functional crash test passed. Shortened only the nearby exception comment; unchanged guard and logic then passed.",
+  "ruff": {
+    "version": "0.14.11",
+    "select": [
+      "F",
+      "E9"
+    ],
+    "cache": false,
+    "status": "passed",
+    "files": [
+      "src/cascade/agent/effects.py",
+      "src/cascade/skills/runtime.py",
+      "tests/test_turn_screw.py",
+      "tests/test_review_regressions_v5.py"
+    ]
+  },
+  "git_diff_check": "passed",
+  "pending": "Dedicated Factory mounted/pre-engaged profile plus command-safety wrapper, single-writer controller, passive bound observer and lifecycle; first native ordinary-runtime target one measured turn plus verified stop. Full seating is separate.",
+  "limits": [
+    "No new physical evidence; existing pure threading/seating verifier tests are software regressions.",
+    "No generic legacy LLM task_done adjudicator was changed.",
+    "Other skills retain their existing ok/verified convention."
+  ]
+}

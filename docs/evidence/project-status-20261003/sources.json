@@ -39,6 +39,18 @@
       "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_PREP/ROOT_NATIVE01_REVIEW.json",
       "sha256": "f5cc3c404edabdd2b0ef4115704b905086123777a59455d9592e42cd97c74296"
     },
+    "factory-phase-age-diagnostic.json": {
+      "bytes": 2847,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_PHASE_DIAGNOSTIC_NATIVE_REVIEW_20261003/age-diagnostic.json",
+      "sha256": "877e926a462986627305f064d94e004f736e5cd4defe3789be147ddff648b1e8",
+      "source_commit": "cce88808d4bded97a84c02a562cb3ceb997de954"
+    },
+    "factory-phase-diagnostic-review.json": {
+      "bytes": 16539,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_PHASE_DIAGNOSTIC_NATIVE_REVIEW_20261003/terminal-review.json",
+      "sha256": "e9d4e86e608b2f78e72747046172f0d65ab46de1e00b57cf4cd913face26f2e9",
+      "source_commit": "cce88808d4bded97a84c02a562cb3ceb997de954"
+    },
     "factory-readiness-v2-review.json": {
       "bytes": 90318,
       "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/factory-readiness-v2-review.json",
@@ -78,6 +90,12 @@
       "bytes": 19509,
       "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/microduck-video-root-review.json",
       "sha256": "b0d2a139ebdf35686066bf7c60c0db7ef964739178be20d2489bd8707e410d25"
+    },
+    "mobile-balance-arm-fixture-cpu.json": {
+      "bytes": 11746,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/cascade/benchmark/results/mobile_balance_arm_fixture_20261003.json",
+      "sha256": "3fb99ca17c2623a65cadc0c4add335e5128a7ae857195ac04d981fb72fb6c33e",
+      "source_commit": "1e9c8902d668cc9c4c884addd5684f167e79dbcb"
     },
     "mobile-distance-final-outcome-cpu.json": {
       "bytes": 14293,
@@ -131,6 +149,12 @@
       "bytes": 1450,
       "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/rgbd-native02-review.json",
       "sha256": "c035f6249391e1dafcce65c5da269df242770b923a7bd42e2b41412e573319e5"
+    },
+    "task-exception-epoch-cpu.json": {
+      "bytes": 2831,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/TASK_EXCEPTION_EPOCH_20261003/cascade/benchmark/results/task_exception_epoch_20261003.json",
+      "sha256": "cd130e948745b0e870f30502b64ab9b1f9cf576c066275ad3592289d71525aac",
+      "source_commit": "92cc6c11906d36cda9ac880be699186714555d91"
     },
     "task-terminal-obligations-cpu.json": {
       "bytes": 4055,

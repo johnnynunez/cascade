@@ -682,3 +682,27 @@ including the bound error extractor, and extend their copy manifest. Preserve
 all 25 prior portable receipts and earlier failed episodes. Validation is limited
 to evidence hashes, relative links and docs diff; no tests, SDK imports, model
 inference, simulator, GPU query, action or new native run.
+
+## Status addendum: instrumented Factory refusal and software follow-ups — 2026-10-03
+
+Documentation-only follow-up from f3f357629e5c77fdcf4d2aef67f9eb0024673243.
+Preserve all 28 existing portable receipts and their original bytes. Add the
+source/model/epoch-bound Factory phase diagnostic: step 309 rejected at
+441.3566 ms age under the unchanged 200 ms gate, quiet span below 0.5 simulated
+seconds, no task. The same-thread generation-2 GC interval was measured inside
+contact_records in this episode; this does not identify retained objects or
+attribute prior failures. Natural administrative closure retains the owner fault
+and does not verify readiness or physical stop. Copy the terminal audit and
+bound error byte-for-byte, without raw trace/log expansion.
+
+Also preserve the earlier software receipts and add PR90 task-epoch exception
+accounting (92cc6c11, 78 CPU passes) and PR87 balance-fixture isolation (1e9c8902,
+336 CPU passes). These overlapping selections are not summed or presented as
+physical validation. This documentation task performs hash/link checks only;
+no new tests, SDK/model imports, native execution, GPU queries, or publication.
+
+Validation: all 28 previous copies are byte-identical; 32 portable receipt hashes,
+70 referenced artifact hashes and 36 relative documentation links checked.
+The same-thread GC interval was also compared directly with the retained raw
+trace rows and shown nested inside contact_records. Only docs and WORKLOG change;
+production, tests, scripts, configs and benchmark files remain byte-identical.

@@ -1,0 +1,149 @@
+{
+  "schema": "cascade.spark_cumotion_cpu_selection.v1",
+  "base": "f97ef28633df0df2d686f0505f8e11cbe6ce0a3b",
+  "scope": "Explicit ordinary Spark launcher/MCP backend selection; CPU contracts only",
+  "physical_acceptance": false,
+  "source_sha256": {
+    "scripts/launch.sh": "b979eed93a2bb26b406c9afc8d4d2cdb45e07b371f042ccbe879175401a36916",
+    "src/cascade/planning/backend_evidence.py": "f7ef91bfcae7aa400546612399bc2261b46fad497d952111dfa684e2a45762f4",
+    "src/cascade/apps/demo.py": "03f971bef648f9e9dc69404056d6e3133c8db7958d33cb120b5c5319db0415ff",
+    "src/cascade/skills/runtime.py": "b75fd444ec5bcd4de62f0c7a454825e09f430d9d09123cdf3d5adb7c7126f90a",
+    "benchmark/diagnostics/kitchen_backends.py": "cb069ec0c80967fec654015734404e52d283e105d6759add8bc0110e5595461e",
+    "tests/test_spark_cumotion_selection.py": "b6877faded3f463a4846543c2d464e573e35d168fe7fcfe125e26c205f24240a"
+  },
+  "validation": {
+    "passed": 252,
+    "failed": 0,
+    "pytest_elapsed_s": 8.06,
+    "source_count": 1859,
+    "sources_unchanged": true,
+    "protected_stores_unchanged": true,
+    "protected_store_count": 5,
+    "ruff_F_E9": "PASS",
+    "bash_syntax": "PASS",
+    "git_diff_check": "PASS",
+    "native_launches": 0,
+    "service_launches": 0,
+    "gpu_queries": 0,
+    "new_native_sdk_imports": 0
+  },
+  "retained_controls": [
+    {
+      "path": "evidence/red",
+      "passed": 7,
+      "failed": 3,
+      "scope": "initial real shell option/registration blocks on baseline"
+    },
+    {
+      "path": "evidence/red-runtime",
+      "passed": 9,
+      "failed": 10,
+      "scope": "CPU ordinary-call tests before implementation"
+    },
+    {
+      "path": "evidence/candidate-01",
+      "passed": 62,
+      "failed": 1,
+      "scope": "incomplete synthetic fixture cfg; corrected only fixture"
+    },
+    {
+      "path": "evidence/candidate-02",
+      "exit_code": 4,
+      "scope": "incorrect test filename, no tests collected"
+    },
+    {
+      "path": "evidence/candidate-03",
+      "passed": 222,
+      "failed": 1,
+      "scope": "existing Spark error wording expectation; corrected wording only"
+    },
+    {
+      "path": "evidence/final-01",
+      "passed": 251,
+      "failed": 0,
+      "scope": "prior implementation before constructor-cancellation guard"
+    },
+    {
+      "path": "evidence/baseline-final",
+      "passed": 9,
+      "failed": 13,
+      "scope": "same final-01 test file copied into isolated base checkout"
+    },
+    {
+      "path": "evidence/constructor-red",
+      "failed": 1,
+      "scope": "cancellation after constructor installed stream hook leaked the hook; source copy retained"
+    },
+    {
+      "path": "evidence/final-02",
+      "passed": 252,
+      "failed": 0,
+      "scope": "final affected selection; overlaps earlier runs and must not be summed"
+    }
+  ],
+  "contracts": {
+    "default_arm": "isaac_kitchen_gpu",
+    "opt_in_arm": "isaac_kitchen_cumotion",
+    "renderer_explicit": [
+      "isaac",
+      "ovrtx"
+    ],
+    "strict_cuda_required": true,
+    "mcp_request_timeout_ms": 300000,
+    "connection_timeout_ms": 120000,
+    "ordinary_record_limits": {
+      "curves": 128,
+      "selection_checks": 256,
+      "errors": 128
+    },
+    "curve_checks": "prepared SDK/model/world/request/start and cached renderer before original executor",
+    "hooks": "restored on completion, exception and cancellation; attach occurs only after context owns cleanup",
+    "campaign_compatibility": "existing benchmark import retained; default attach and campaign report semantics retained"
+  },
+  "limits": [
+    "Synthetic prepared-planner/capture doubles validate wiring; they do not execute cuMotion, OVRTX, Isaac, physics or hardware.",
+    "The scoped guard covers ordinary motion skill calls; administrative shutdown park/stop are outside this new diagnostic scope.",
+    "Record limits bound retained entry counts, not total JSON bytes or transient memory.",
+    "Existing physical verifiers, stop, deadlines, occupancy and executor remain authoritative; diagnostic report has physical_acceptance=false.",
+    "Installer, SDK/policy/scene/driver and legacy physical-clock pacing remain unchanged.",
+    "Retained Trial12 ef773 timeout remains failed; no native replay, speedup, throughput or physical closure claim.",
+    "PR86 lifecycle tail remains diagnostic and cannot recover lost command coverage."
+  ],
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/baseline-final/junit.xml": "f81f3c4d8ac6401875cceab25d9234b346697f3da85dbe1260da1dafc2640f96",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/baseline-final/pytest.log": "88b61145251ffe0f5aec67d96b445d55a2c72b557737bf8faad127a22a25b50f",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/baseline-final/test-sha256.txt": "8235bc7da8548592a98e619e1ec644a2636c2763faddd47a7db372bc0ba1f09b",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/candidate-01/junit.xml": "3d3ab0dfc4590293f067942cbe9fd1801dcdea4c4df3303282383dbb57f617f2",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/candidate-01/pytest.log": "bdb965c2e37fad420f7b9768aa7c16d357b5360bc0574fe7941b20a831ce1f2a",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/candidate-02/junit.xml": "2cde816f9731064f69e17105b5348ff9e08fc858a2237fd79851586701bf5d53",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/candidate-02/pytest.log": "30e4a6aef8d0f7ae33fde63e7456017fbd8b1fc71242151a341648ec703069ce",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/candidate-03/junit.xml": "533412828e353407f4c7974db74d5a245730026b7713bc45e7c17e86766066fd",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/candidate-03/pytest.log": "40f108c9bf3d3c0c873eaaaecc66fe5db503f29f8131ceaf36879d0d509690a2",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/constructor-red/pytest.log": "d7193fb076a09059a308c25a5e601b9d59860167f16776fed3b28ff2fa281cb1",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/constructor-red/source/backend_evidence.py": "ac0b182200a08f01747e34c48e5960efb3ad576b6d8eed1f646879fbac18ceea",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/constructor-red/source/test_spark_cumotion_selection.py": "baab6414404e6632e144582643d22d831a817ae9b09cf12dc257d8be95e16aaf",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/final-01/after.json": "f9783277d9f5e18b31127735ae6ce83ea38670e0b820750a362fee10733d2bb1",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/final-01/before.json": "f9783277d9f5e18b31127735ae6ce83ea38670e0b820750a362fee10733d2bb1",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/final-01/junit.xml": "7553a8461e13be1d9dfc430d59072cada56c9d6708ed1b099848b8a62b11f8c7",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/final-01/pytest.log": "6e460ef041989261964d7e6f32a7649e64001204cdd346eadda2fa35fe8e32c5",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/final-01/receipt.json": "36c58ff475dae59a4a1d0b4cf43d16530a2b92a96778a82d4fa093829dcd1857",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/final-02/after.json": "bea552d0b76a687fc8773dda798ba5c97765fcf2ae173754555023640ee50fe0",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/final-02/before.json": "bea552d0b76a687fc8773dda798ba5c97765fcf2ae173754555023640ee50fe0",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/final-02/junit.xml": "507b9a2a1adbad66b75be1f490bea49f4049979da2997a6dc1b024a8157e1a05",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/final-02/pytest.log": "eb69da73bed66c02d37d0e9c46f23f0774ae924da5c28d56b9d94a1b62d4d790",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/final-02/receipt.json": "5828c8ee1a2bbc7ed3e1ba97953740a92b4f65466f755b8420950ae5d2fac3fd",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/red/junit.xml": "70ed71b7b9cb2ac241517f1d416f176bead3e66ca7f742b5b616ad7b9f5340cb",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/red/pytest.log": "51c9aedb845535498111f76a353c06075291ed28c76acda2fbdc1254aca13193",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/red-runtime/junit.xml": "72517c146732d01705aa1d6065ab5c36556227490d31177948295852394d9a32",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_20261003/evidence/red-runtime/pytest.log": "33b06453ff8ac65d090c4ca745ce5d2613117e19958837de1b1b82878f93fca0",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_REVIEW_20261003/probe_scoped_cancel.py": "e65cb351257cbba9e63184f3d5900fa983798dc04b9fc7bf09918134fde46f6b",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_REVIEW_20261003/scoped-cancel-probe.json": "8cfa9faf500e8d8cd7a27f8602d0b9b8c5a71664b27e77b297ee2773a3d2494e",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_REVIEW_20261003/review-final.json": "d0a83ac78d85796b48dcc5618f049c7601fc238258d04557d2188c4757ddd6b0"
+  },
+  "independent_review": {
+    "result": "PASS, CPU scope only",
+    "path": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_CUMOTION_LAUNCH_REVIEW_20261003/review-final.json",
+    "sha256": "d0a83ac78d85796b48dcc5618f049c7601fc238258d04557d2188c4757ddd6b0",
+    "independent_controls_passed": 4
+  }
+}

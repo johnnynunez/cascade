@@ -7,6 +7,7 @@
 #   ./run.sh                               # ONE CLICK on a fresh clone: --setup --sim auto
 #   ./scripts/launch.sh --sim isaac         # Isaac Sim (bridge + editor window) + OpenClaw
 #   ./scripts/launch.sh --sim isaac --engine physx --scene-config demo/scene/kitchen_config.json
+#   ./scripts/launch.sh --sim isaac --arm isaac_kitchen_cumotion --camera-renderer isaac
 #   ./scripts/launch.sh --setup --sim isaac # same, but first create the venv, install the
 #                                          # extras this mode needs, fetch assets, install
 #                                          # OpenClaw -- idempotent, safe to re-run
@@ -80,6 +81,7 @@ DOWN=0
 ISAAC_GUI=1
 ISAAC_ENGINE=""       # explicit --engine newton|physx; otherwise bridge default
 SCENE_CONFIG=""       # explicit --scene-config JSON; Isaac only
+CAMERA_RENDERER=""    # explicit --camera-renderer isaac|ovrtx
 SCENE_CONFIG_SHA256=""
 ISAAC_WAIT_S="${ISAAC_WAIT_S:-1200}"
 BRIDGE_PORT="${CASCADE_BRIDGE_PORT:-8611}"
@@ -91,7 +93,7 @@ usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --sim|--arm|--cameras|--brain|--occupancy|--graspgenx|--engine|--scene-config)
+        --sim|--arm|--cameras|--brain|--occupancy|--graspgenx|--engine|--scene-config|--camera-renderer)
             [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { printf '[launch] ERROR: missing value for %s\n' "$1" >&2; exit 2; } ;;
     esac
     case "$1" in
@@ -101,6 +103,7 @@ while [[ $# -gt 0 ]]; do
         --brain) BRAIN="$2"; shift 2 ;;
         --engine) ISAAC_ENGINE="$2"; shift 2 ;;
         --scene-config) SCENE_CONFIG="$2"; shift 2 ;;
+        --camera-renderer) CAMERA_RENDERER="$2"; shift 2 ;;
         --no-open) OPEN_CHAT=0; shift ;;
         --setup) SETUP=1; shift ;;
         --no-robot-turn) ROBOT_TURN=0; shift ;;
@@ -145,7 +148,13 @@ if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark && $DOWN == 0 ]]; then
     # Match the published kitchen's calibrated arm, event cameras and timestep.
     SCENE_CONFIG="${SCENE_CONFIG:-$REPO/demo/scene/kitchen_config.json}"
     ARM="${ARM:-isaac_kitchen_gpu}"
-    [[ "$ARM" == isaac_kitchen_gpu ]] || { printf '[launch] ERROR: Spark event delivery requires --arm isaac_kitchen_gpu\n' >&2; exit 2; }
+    case "$ARM" in
+        isaac_kitchen_gpu) ;;
+        isaac_kitchen_cumotion)
+            [[ -n "$CAMERA_RENDERER" ]] || { printf '[launch] ERROR: cuMotion kitchen requires explicit --camera-renderer isaac|ovrtx\n' >&2; exit 2; }
+            export CASCADE_KITCHEN_CAMERA_RENDERER="$CAMERA_RENDERER" ;;
+        *) printf '[launch] ERROR: Spark event delivery requires --arm isaac_kitchen_gpu or explicit isaac_kitchen_cumotion\n' >&2; exit 2 ;;
+    esac
     CAMERAS="${CAMERAS:-isaac,isaac_side,isaac_proof}"
     # Start the real learned planner; occupancy remains separately disabled.
     [[ "$OCCUPANCY" != auto ]] || OCCUPANCY=none
@@ -162,6 +171,17 @@ if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark && $DOWN == 0 ]]; then
     export CASCADE_REQUIRE_CUDA=1
 fi
 
+# An explicit renderer must reach both producer and ordinary runtime guard.
+# Conflicting inherited selection is an error, not a silent override.
+if [[ -n "$CAMERA_RENDERER" ]]; then
+    [[ "$SIM" == isaac || "$SIM" == auto ]] || { printf '[launch] ERROR: camera renderer requires Isaac\n' >&2; exit 2; }
+    case "$CAMERA_RENDERER" in isaac|ovrtx) ;; *) printf '[launch] ERROR: unsupported camera renderer\n' >&2; exit 2 ;; esac
+    [[ -z "${CASCADE_CAMERA_RENDERER+x}" || "$CASCADE_CAMERA_RENDERER" == "$CAMERA_RENDERER" ]] || { printf '[launch] ERROR: conflicting camera renderer\n' >&2; exit 2; }
+    if [[ "$CAMERA_RENDERER" == ovrtx ]]; then
+        [[ -x "${CASCADE_OVRTX_PYTHON:-}" && -n "${CASCADE_OVRTX_OUTPUT:-}" && ! -e "$CASCADE_OVRTX_OUTPUT" && ! -L "$CASCADE_OVRTX_OUTPUT" ]] || { printf '[launch] ERROR: OVRTX requires existing CASCADE_OVRTX_PYTHON and fresh CASCADE_OVRTX_OUTPUT\n' >&2; exit 2; }
+    fi
+    export CASCADE_CAMERA_RENDERER="$CAMERA_RENDERER"
+fi
 [[ "$OCCUPANCY" != none ]] || export CASCADE_OCCUPANCY=0
 [[ "$GRASPGENX" != none ]] || export CASCADE_GRASP_BACKEND=obb
 [[ "$GRASPGENX" != local && "$GRASPGENX" != external ]] || export CASCADE_GRASP_BACKEND=graspgenx
@@ -367,7 +387,7 @@ case "$SIM" in
 esac
 log "plan: sim=$SIM arm=$ARM cameras=$CAMERAS brain=$BRAIN python=$PY"
 [[ "$SIM" != isaac ]] || log "Isaac startup budget=${ISAAC_WAIT_S}s (cold collision preprocessing/shaders); ISAAC_WAIT_S overrides it"
-[[ "$SIM" != isaac ]] || log "Isaac selection: engine=${ISAAC_ENGINE:-newton (bridge default)} scene-config=${SCENE_CONFIG:-default} sha256=${SCENE_CONFIG_SHA256:-none}"
+[[ "$SIM" != isaac ]] || log "Isaac selection: engine=${ISAAC_ENGINE:-newton (bridge default)} scene-config=${SCENE_CONFIG:-default} sha256=${SCENE_CONFIG_SHA256:-none} renderer=${CASCADE_CAMERA_RENDERER:-isaac}"
 [[ $DRY == 1 ]] && log "(dry run: commands are printed, nothing is executed)"
 if [[ $DRY == 1 ]]; then
     log "would install missing extras/assets, start $SIM and sidecars, register OpenClaw, verify brain + motion + reset, then open chat"
@@ -822,6 +842,7 @@ if classes:
 for key in ("CASCADE_GRASP_MEMORY_PATH", "CASCADE_ENVELOPE_PATH", "CASCADE_BELIEFS_PATH", "CASCADE_BELIEFS",
             "CASCADE_GRASP_BACKEND", "CASCADE_GRASPGENX_PORT", "CASCADE_GRASPGENX_HOST",
             "CASCADE_GRASP_EVIDENCE_DIR", "CASCADE_OBSERVED_FINGER_GATE",
+            "CASCADE_KITCHEN_CAMERA_RENDERER",
             "CUDA_VISIBLE_DEVICES", "CUDA_DEVICE_ORDER", "CASCADE_DEVICE", "CASCADE_REQUIRE_CUDA"):
     # OpenClaw need not inherit these from its gateway. Keep operator values
     # verbatim, including empty visibility and CUDA local ordinal mapping.

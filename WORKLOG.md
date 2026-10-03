@@ -2027,3 +2027,18 @@ neither repeatability nor a general performance cause. Raw decode can occur
 while the owner lives; post-close phase export and the remaining drain follow
 join. Documentation and receipt validation only; this publication does not
 replay physics or transfer old task success to the integrated source.
+
+
+## 2026-10-03 — explicit Spark kitchen cuMotion selection (local plan)
+
+- Base: remote main `f97ef28633df0df2d686f0505f8e11cbe6ce0a3b`. Trial12 legacy source retained: ef773; its pacing and 300-second MCP deadline are unchanged. No blind native replay.
+- Features → skills: explicit launcher/profile/renderer selection → `isaac-sim-workflow`; existing cuMotion model/curve binding → `motion-generation`. These are CPU wiring changes; no controller, scene, SDK, installer, timing or physics tuning.
+- Preserve default `isaac_kitchen_gpu`; allow only existing `isaac_kitchen_cumotion` with explicit renderer and original Spark CUDA/identity requirements. Reuse the PR94 backend checks through a package module plus compatibility import; scoped ordinary-call hooks must restore on failure/cancellation and retain bounded evidence in the existing trace. Catalog discovery must not construct a backend.
+- Validation plan: actual shell option/registration blocks, configuration inheritance, ordinary dispatch with synthetic prepared-planner/capture doubles, missing/mismatched binding, exception/cancellation cleanup, and affected CPU regressions. No SDK imports or native/GPU/service launches; task-private stores. Root reviews/publishes.
+
+### CPU checkpoint — Spark cuMotion ordinary route
+
+- Added explicit `isaac_kitchen_cumotion` + renderer selection to Spark while preserving its default, installer, strict CUDA/scene checks and 300,000 ms MCP deadline. The existing PR94 backend checker now lives in the package with a benchmark compatibility import; ordinary motion calls own scoped hooks and retain bounded selection evidence in the existing trace. Physical checks and legacy pacing are unchanged.
+- TDD and retained controls include baseline final-01 test file 13 FAIL/9 PASS and constructor-cancellation RED. Separating construction from attachment gives the ordinary context ownership before installing the hook; cancellation and errors restore the original executor. The independent reviewer also ran four scoped cancellation controls.
+- Final affected selection: **252 PASS in 8.06 s**, nine files, 1,859 source inputs and five protected stores unchanged; Ruff F/E9, shell syntax and diff checks passed. Earlier overlapping suites are retained but not summed. Receipt: `benchmark/results/spark_cumotion_selection_20261003.json`.
+- CPU shell/config/dispatch contracts only, with synthetic prepared planner/camera doubles. No SDK, service, native/GPU or physical replay; no cuMotion kitchen admission, speedup or repaired Trial12 timeout claim. Root owns review/publication.

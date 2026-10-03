@@ -279,10 +279,12 @@ class CuVslamSpatialDomain:
                     "physical_admission": False}
         finally:
             # A failed/cancelled worker is never reused under this map epoch.
-            if self.closed or self._failure is not None:
-                if self._tracker is not None and self._tracker.close():
-                    self._tracker = None
-            self._work.release()
+            try:
+                if self.closed or self._failure is not None:
+                    if self._tracker is not None and self._tracker.close():
+                        self._tracker = None
+            finally:
+                self._work.release()
 
     def stop(self):
         self._invalidate("localization stopped; new map epoch required")

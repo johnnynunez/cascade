@@ -262,6 +262,23 @@ def test_warmup_does_not_admit_image_captured_before_it_finished(rig):
     assert not rig.sdk.calls
 
 
+def test_cleanup_exception_preserves_owner_but_releases_operation_lock(rig):
+    worker = rig.domain._tracker
+    close = worker.close
+    def fail():
+        raise RuntimeError("worker cleanup failed")
+    worker.close = fail
+    rig.domain.stop()
+    try:
+        with pytest.raises(RuntimeError, match="cleanup failed"):
+            rig.domain.execute("get_localization", {})
+        assert rig.domain._tracker is worker
+        assert rig.domain._work.acquire(blocking=False)
+        rig.domain._work.release()
+    finally:
+        worker.close = close
+
+
 def test_optional_import_checks_binary_before_loading_and_version_after(tmp_path, monkeypatch):
     extension = tmp_path / "pycuvslam.test.so"
     extension.write_bytes(b"CPU test fixture, not a binary")

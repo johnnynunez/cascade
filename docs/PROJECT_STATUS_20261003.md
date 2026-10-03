@@ -4,13 +4,15 @@ CASCADE implements modular robot domains, bounded tool execution, independent
 observations and explicit outcome verification. Physical acceptance belongs to
 an exact model, source and episode; a declaration, passing software test or
 successful simulator startup does not admit a new robot. This index separates
-implemented capabilities, measured results and remaining work. PRs **#85–98 are
-merged** at main `274fa3a9d48d96a8b1402dfeb2fe79c45e67037e`; all five jobs of
-[its CI run](https://github.com/johnnynunez/cascade/actions/runs/37128674952)
-passed, including macOS, Linux x86 and Linux ARM. This integrates task-effect
-accounting and RGB-D without admitting unvalidated physical capabilities.
-[Bound CI receipt](evidence/project-status-20261003/integrated-main-ci.json). The
-[1–2 October index](PROJECT_STATUS_20261001.md) preserves earlier source history.
+implemented capabilities, measured results and remaining work. The architecture
+and [SVG / PNG diagram](ROBOT_MODULARITY.md) now distinguish the existing
+single-robot domains from the concurrent fleet being implemented. Current
+software includes source-release Isaac 6.2 detection in
+[PR #109](https://github.com/johnnynunez/cascade/pull/109); source updates do not
+transfer acceptance from earlier physical episodes. The dated source and CI
+records below remain historical evidence, including
+[the integrated baseline](evidence/project-status-20261003/integrated-main-ci.json).
+The [1–2 October index](PROJECT_STATUS_20261001.md) preserves earlier history.
 
 ## Capability and evidence
 
@@ -21,8 +23,32 @@ accounting and RGB-D without admitting unvalidated physical capabilities.
 | Locomotion | Optional measured `walk_distance`, cancellation and independent support/rest checks; historical fresh-start ±30 mm episodes passed. | Published candidate profiles have no new model/support admission. The 0.1 m software ceiling is not measured 0.1 m capability or general gait acceptance. |
 | Sensing and spatial memory | Passive, bounded sensor providers; identity/epoch/age checks; observed calibrated RGB-D and retained pixel-to-surface annotations without constructing an arm. | Independent metric XY/general-3D accuracy, moving-camera calibration and per-AOV synchronization. No physical SLAM or `go_to` execution is admitted. |
 | Speech | Browser/media gateway, real speech-provider path, original-intent deadlines, priority stop and bounded observed-result views. One continuous synthetic-input/native-motion recording exists. | That motion video contains no spoken robot reply. General dialogue/action reliability, microphone/speaker hardware and public hosted service remain unvalidated. |
+| Fleet coordination | Named mobile bases and reusable per-robot runtimes exist; concurrent fleet composition is in progress. | Multiple registered bases currently share one active-operation gate. No shared-scene 12-MicroDuck demo has run. |
 | Structure and whole-body control | Typed embodiment and passive generalized-joint observations; domains expose only registered resources/tools. | Mixed physical mobile manipulation is refused. No admitted humanoid balance, dexterous-hand or generic whole-body controller. |
 | Evaluation | Source-bound VAB and Arena integration/cancellation preflights ran real simulation. | Neither is a completed benchmark task or a predictor of general deployment success. |
+
+
+## Internal Isaac and current follow-up
+
+New local validation uses the internal Isaac source build
+`6.2.0-alpha.19+develop.0.48b2d951.local`, rebuilt after the daily fast-forward
+update. Its eight native Newton substep/graph tests passed. The actual embedded
+Python also passes CASCADE's source-installation check after #109; the managed
+Spark wheel remains pinned to 6.1.0.0. These checks do not validate a kitchen task
+or a MicroDuck policy on the new SDK.
+
+The first kitchen attempt stopped at the old 6.1-only metadata gate. The second
+passed that gate but blocked in remote asset discovery for an empty YCB list;
+it was cancelled through its owned supervisor before a robot tool action.
+[PR #110](https://github.com/johnnynunez/cascade/pull/110) removes the unused
+lookup and dead object-spawning block without changing the locally authored
+scene. A fresh native retry is pending. The post-release joint-stability fix
+in [PR #107](https://github.com/johnnynunez/cascade/pull/107) also awaits that retry.
+
+MicroDuck's BAM, support extraction and graph guards bind an earlier Newton
+recipe. The internal 1.6.1rc1 recipe needs explicit compatibility checks and a
+single-robot native episode before shared-scene fleet validation. No model or
+source hash is automatically treated as physically admitted.
 
 ## Published software corrections
 

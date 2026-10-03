@@ -1,23 +1,35 @@
 # Architecture
 
-The opt-in [composed robot runtime](ROBOT_MODULARITY.md) separates manipulation,
-locomotion and passive sensing behind explicit capability/resource contracts.
-It adds namespaced MCP tools, bounded skill graphs and optional Arena/VAB
-validation adapters. Mixed physical actuation remains refused until shared
-frames and whole-body coordination are admitted; the example is synthetic.
+The [current architecture diagram and capability matrix](ROBOT_MODULARITY.md)
+show the opt-in `RobotRuntime`: manipulation, locomotion, fastening, passive
+sensing and read-only spatial domains behind explicit resource contracts.
+MCP and bounded skill graphs dispatch registered tools; the optional
+[conversation supervisor](CONVERSATION.md) adds speech without owning joints.
+The existing arm/mobile entrypoints remain available. A fleet coordinator above
+separate robot runtimes is proposed; this repository has no validated
+twelve-robot scene or shared whole-body controller.
+
+[Embodiment declarations](EMBODIMENT.md) describe links, joints, transmissions
+and sensor attachments. [Measured frame trees](SPATIAL_PROVIDERS.md) separately
+bind transforms to capture time, map and epoch. Neither substitutes for the
+other. Mixed physical actuation remains refused until dynamic frames, shared
+control and robot-specific limits are validated.
 
 The optional [spatial domain](SPATIAL_PROVIDERS.md) resolves source-bound
 capture transforms and landmark memory and plans on immutable planar maps.
 Its synthetic replay uses the same composed MCP route without actuator resources;
-physical localization, SLAM and route execution remain separate admission work.
+the [RGB-D observation domain](RGBD_SPATIAL_OBSERVATIONS.md) adds retained surface
+annotations. Physical localization, SLAM and route execution remain pending.
 
 The optional [MicroDuck path](MICRODUCK.md) selects `MobileRig`, `SafeBase` and
 `MobileSkillRuntime` before arm construction. It shares CASCADE's MCP, traces
 and episodic memory while exposing mobile capabilities. Its Newton bridge
 runs the policy on physical steps; independently sampled pose and solved
 support determine outcomes. Canonical model identity binds state, frames and
-verifier profiles to the effective recipe. Physical locomotion admission is
-still pending.
+verifier profiles to the effective recipe. Historical short-distance episodes
+have bounded positive results; general gait, longer paths and later source/model
+compositions require their own validation. The policy advances on completed
+physics solves, with no LLM call in the control loop.
 
 Local integration contracts updated on 2 October 2026: live OVRTX bridge
 snapshots, native cuMotion execution through SafeArm, post-close stability and
@@ -31,12 +43,12 @@ renderer, cuMotion candidate planning, PhysX finger envelope, native host reserv
 release-opening synchronization, pending-camera publication, retained NV carry
 attachment, explicit MCP GPU selection, Isaac verifier startup readiness and
 localization analysis freshness and bounded detector model/vocabulary reuse.
-The previous command baseline for physical validation is `ff8d58b`; current
+The previous command baseline for physical validation is `ff8d58b`; historical
 main `f7a8823` includes bridge profiling from PR #62 and the profile 09 report
 from PR #63. The separate combined candidate also includes independent frame
 encoding and release-open stability. See the
-[source and acceptance index](PROJECT_STATUS_20261001.md) for merged changes,
-software validation and the current physical runs. Counts are derived at the
+[current source and acceptance index](PROJECT_STATUS_20261003.md) for merged changes,
+software validation and physical runs. Counts are derived at the
 end of this document; dated benchmark measurements retain their original scope.
 Read this after the README and before `AGENTS.md`.
 
@@ -63,10 +75,11 @@ contact and zero-motor retention. This experiment does not change the ordinary
 
 ## Design position
 
-CASCADE is an *agentic* manipulation stack: an LLM (or a human in a chat
-host) commands a **curated skill API**, every skill is safety-gated and
-traced, and the physical effect of every skill is **verified by a channel
-the actuator does not own**. Three published systems set the shape:
+CASCADE uses **curated domain tools** between an LLM or human and robot
+controllers. Motion is gated and traced; independent observations determine
+whether its physical postcondition is confirmed, refuted or unverified.
+Missing evidence remains unverified. The manipulation stack's research
+background includes three published systems:
 
 - **ASPIRE** (NVIDIA GEAR, 2026): a coding agent programs a robot through
   primitives whose every call records multimodal evidence (their ablation:
@@ -106,7 +119,12 @@ deterministic skill stack is debuggable, safety-gateable and runs offline
 (ROADMAP records the decision and the LIBERO layer-attribution numbers
 that back it).
 
-## The runtime, end to end
+## Manipulation runtime detail
+
+This is the arm-specific path retained by the composed runtime. Mobile,
+fastening, sensing and spatial domains use their own implementations; their
+shared boundary is `RobotRuntime.execute()`, as shown in the
+[modular diagram](ROBOT_MODULARITY.md).
 
 ```
                  chat host (OpenClaw / Hermes / Claude Code / Codex)          CLI / REPL

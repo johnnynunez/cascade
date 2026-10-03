@@ -1,15 +1,18 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
-CASCADE is a **robot- and device-agnostic** framework for agentic
-manipulation: arms, cameras, compute and LLM backends are all pluggable
-behind one curated skill API, so the same skills, safety harness and
-traces work on a 5-DoF hobby arm over USB serial or a 6-DoF industrial arm
-over CAN, on a RealSense or a generic UVC webcam, in MuJoCo or Isaac Sim, on
-a datacenter GPU or a laptop CPU, with a cloud LLM or a local one. Its
-defining idea is the cascade itself: routine commands resolve on a regex
-reflex or a learned habit tier and never touch the LLM, which only gets
-called when both fail — behavior, safety and tracing stay identical
-regardless of which tier (or which hardware) acted.
+CASCADE is a **modular framework for agentic robotics**. Explicit robot
+profiles compose manipulation, locomotion, fastening, passive sensing and
+spatial tools; optional conversation translates speech into those same bounded
+tools. Drivers, cameras, compute and LLM providers are replaceable. Each robot
+exposes only its implemented capabilities, with its own controller, limits and
+independent outcome checks. Supporting a new body requires a matching adapter
+and validation; a structural description alone does not make it controllable.
+
+The arm stack retains the cascade: routine commands resolve through reflex or
+learned-habit tiers before calling an LLM. Robot policy and physics clocks run
+independently of model latency. See the [architecture diagram and capability
+boundaries](docs/ROBOT_MODULARITY.md) for the implemented modules and proposed
+multi-robot layer.
 
 [Current capability and acceptance status](docs/PROJECT_STATUS_20261003.md)
 separates implemented features, source-bound measurements and pending validation.
@@ -25,15 +28,23 @@ MCP traces. It remains a candidate pending physical locomotion admission;
 the mobile profile does not expose manipulation tools.
 
 The opt-in [composed robot runtime](docs/ROBOT_MODULARITY.md) provides separate
-manipulation, locomotion and sensor domains, controller ownership checks,
-bounded skill graphs and optional Arena/VAB validation adapters. Start with
+manipulation, locomotion, fastening, sensor and spatial domains, controller
+ownership checks, bounded skill graphs and optional Arena/VAB validation adapters. Start with
 `--robot mixed_mock` for the synthetic integration example. Physical whole-body
 coordination and additional humanoid drivers still require embodiment-specific
 validation.
 
-The read-only [spatial replay](docs/SPATIAL_PROVIDERS.md) adds capture-time
-transforms, source-bound landmark memory and conservative planar route proposals
-through MCP. `--robot spatial_replay` is synthetic and does not execute navigation.
+The [conversation gateway](docs/CONVERSATION.md) implements browser audio,
+Realtime provider integration and an explicit robot-tool allowlist with priority
+stop. Its recorded speech and motion episodes have separate source and outcome
+bounds; general dialogue reliability and a public hosted service remain pending.
+
+The read-only [spatial domain](docs/SPATIAL_PROVIDERS.md) adds capture-time
+transforms, landmark memory and synthetic planar route proposals. The separate
+[observed RGB-D path](docs/RGBD_SPATIAL_OBSERVATIONS.md) retains calibrated
+surface annotations. Neither supplies physical SLAM or navigation execution.
+Coordinating twelve robots in one scene is an implementation target, not an
+existing twelve-robot acceptance result.
 
 <p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
@@ -80,34 +91,16 @@ physical thread and seating evidence using a mounted hex socket and a fixed
 bolt fixture. The ordinary `turn_screw` skill still reports physical tightening
 as unverified; its commanded wrist travel is not a thread measurement.
 
-```
-┌──────────────────────────────────────────┐   ┌──────────────────────────────────────────┐
-│  chat host: OpenClaw / Hermes /          │   │  CLI: --task / --interactive REPL        │
-│  Claude Code / Codex  (MCP stdio,        │   │  AgentOrchestrator: reflex → habit → LLM │
-│  the host's LLM picks the tools)         │   │  (+ its own history as IMAGES, Vesta)    │
-└──────────────────────────────────────────┘   └──────────────────────────────────────────┘
-                     │ MCP tools                                  │ skills
-                     └────────────────────┬──────────────────────┘
-                     SkillRuntime.execute() — ONE choke point, every tier, every robot:
-                     arm select ▸ BEFORE frame ▸ skill ▸ VERIFY effect on an independent
-                     channel ▸ AFTER frame ▸ trace row (tier) ▸ memory <frame, action, verdict>
-        ▼                ▼                ▼                ▼                ▼                ▼
-   perception       grasping         control          safety           memory          sim / eval
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│ RS/UVC/Isaac/│ │ GraspGen-X   │ │ FK/IK (pin)  │ │ per-arm gate │ │ beliefs      │ │ MuJoCo world │
-│ MuJoCo cams  │ │ + OBB fallbk │ │ min-jerk to  │ │ sampled edge │ │ (persisted)  │ │ arm+cams+    │
-│ YOLOE, HSV   │ │ outcome mem  │ │ any N-DoF arm│ │ waypoint     │ │ frames K=4   │ │ truth share  │
-│ occupancy    │ │ jaw datum    │ │ mjc | warp   │ │ +occupancy   │ │ habits, env. │ │ Isaac bridge │
-│ device: auto │ │              │ │ ros2 | serial│ │ +neighbours  │ │ grasp prior  │ │ judge (GRM)  │
-└──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
-```
+[![CASCADE modular architecture: implemented modules and proposed fleet layer](docs/assets/architecture.svg)](docs/ROBOT_MODULARITY.md)
+
+[Download PNG](docs/assets/architecture.png). Dashed boxes mark work still in progress.
 
 Motion skills report **confirmed, refuted or unverified postconditions**
 from sim physics truth, perception or jaw width. A refuted claim downgrades
 the skill's own `ok`. The verdict travels with the result into the
 trace, into the planner's visual memory and to the off-line progress judge.
-That, plus the cascade of tiers above it, is the whole design; the
-[architecture doc](docs/ARCHITECTURE.md) walks the runtime end to end.
+The [architecture doc](docs/ARCHITECTURE.md) details the arm runtime; the
+[modular guide](docs/ROBOT_MODULARITY.md) maps the other domains and their limits.
 
 ## PAAI, Physical Agentic AI
 
@@ -191,9 +184,12 @@ A Firefox build of the same companion lives in
 
 ## What it runs on
 
-**Robots.** Add one by subclassing `ArmBase` (six methods) and dropping a
+**Robots.** Select a [composed profile](configs/robots/) for domain capabilities
+and an optional [embodiment](docs/EMBODIMENT.md) for structure and sensor bindings.
+An arm driver subclasses `ArmBase` (six methods) and uses a
 YAML profile in `configs/arms/` — see
-[the arm interface](src/cascade/control/arm_base.py). No other file changes.
+[the arm interface](src/cascade/control/arm_base.py). Register the backend in
+explicit construction and validate its declared capabilities.
 
 | profile | robot | DoF | transport | needs |
 |---|---|---|---|---|

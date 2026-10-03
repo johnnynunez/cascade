@@ -5,7 +5,7 @@ For a live Build-a-Claw presentation, use the [presenter card](PRESENTER_QUICKST
 The PAAI event profile uses **DGX Spark/Linux + Isaac Sim 6.1 + PhysX CUDA +
 real GraspGen-X + Qwen Q4 + OpenClaw**. Use the [DGX Spark setup guide](DGX_SPARK_SETUP.md)
 for the current source pin, measured scope, startup and recovery commands.
-[Project status](PROJECT_STATUS_20261001.md) distinguishes current software
+[Project status](PROJECT_STATUS_20261003.md) distinguishes current software
 validation, current physical acceptance and the historical September delivery.
 The Mac is a development platform; its results do not certify Spark execution.
 

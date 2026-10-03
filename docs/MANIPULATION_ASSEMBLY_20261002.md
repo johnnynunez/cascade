@@ -43,7 +43,8 @@ were unchanged during execution; the producer's loaded-source hashes matched.
 - [cuMotion integration, configuration and safety contracts](CUMOTION.md)
 - [OVRTX receipt](../benchmark/results/ovrtx-runtime-manipulation-20261002.json)
   and [cuMotion receipt](../benchmark/results/cumotion-runtime-20261002.json)
-- [Local captured video](../runs/ovrtx-native-05/pick-place-green-01/side.mp4)
+- Local captured video (not distributed in this repository):
+  `runs/ovrtx-native-05/pick-place-green-01/side.mp4`.
 
 The retained pink-object run is a failure: it lifted the object about 40.5 mm,
 but joint 6 had 0.048762 rad of following error against the unchanged 0.045 rad
@@ -92,7 +93,8 @@ as unknown; it now rejects failed engagement IK and incomplete commanded strokes
 
 - [Implementation, pinned assets and reproduction commands](FACTORY_THREAD_CONTACT.md)
 - [Measured seating receipt](evidence/factory-thread-contact/final-seating.json)
-- [Local 39-second solver-state replay](../../screw-contact-evidence/final-seating/threading.mp4)
+- Local 39-second solver-state replay (outside this repository):
+  `../screw-contact-evidence/final-seating/threading.mp4` relative to the checkout.
 
 Both videos were inspected at the beginning, middle and end. The fastening
 video renders saved solver poses without advancing the physical simulation.

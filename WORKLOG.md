@@ -1586,3 +1586,11 @@ The frozen fixture, native pixel gates and production checker are unchanged.
 Affected checker/planar/live tests:81 passed,1 OpenUSD skip in17.85s. Original
 CI failure and the initial zero-test filename error remain retained. Receipt:
 benchmark/results/rgbd_reference_roundoff_20261003.json.
+### 2026-10-03 — Current capability and evidence index
+
+Added a documentation-only status index separating implementation, source-bound
+measurements, retained failures and pending admission. Updated README and the
+historical index/architecture entry points. Portable receipts retain original
+bytes and hashes; GitHub publication state is a dated read-only API snapshot.
+No current publication freeze or old video-resource reservation is introduced.
+No code, unit test, benchmark, model, SDK, physical scene or learned store changed.

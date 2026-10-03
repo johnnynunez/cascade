@@ -1,0 +1,38 @@
+{
+  "video": "/home/johnny/Projects/demo/cascade-lab/HERMES_MICRODUCK_VIDEO_20261003/delivery-01/microduck-voice.mp4",
+  "duration_s": 61.056,
+  "bytes": 1364825,
+  "sha256": "6a525fcd03b0366d41ee71a33455ec08d6c1ffa81b03f7b64284e3482e5981dd",
+  "native_audit_pass": true,
+  "model_identity": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da",
+  "epoch": "7bf6bcba58bd424eab1c39d57bb63566",
+  "all_display_inputs_bound_to_native_frames": true,
+  "display_inputs": 148,
+  "source_video_frames": 915,
+  "encoded_video_frames": 915,
+  "audio": {
+    "input": {
+      "rms": 954.0880500996118,
+      "peak": 32767.0
+    },
+    "output": {
+      "rms": 0.0,
+      "peak": 0.0
+    }
+  },
+  "tool_overlay_at_s": 35.52919999998808,
+  "requested_distance_cm": 3.0,
+  "measured_distance_cm": 2.524879172076627,
+  "independent_displacement_cm": 2.5921217504928493,
+  "stop_confirmed_after_ack_s": 3.3548349000047892,
+  "motion_and_stop_verified": true,
+  "owned_services_closed": true,
+  "voice_input_synthetic": true,
+  "robot_spoken_reply": false,
+  "visual_review": {
+    "start": "robot visible, valid render and readable labels",
+    "middle": "recognized voice text and native frames visible",
+    "end": "robot upright, action and stop verdict labels visible; final explanatory line partly clipped"
+  },
+  "general_physical_admission": false
+}

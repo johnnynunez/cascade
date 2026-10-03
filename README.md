@@ -1,5 +1,10 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
+[Current capability and acceptance status — 3 October 2026](docs/PROJECT_STATUS_20261003.md)
+separates implemented features, source-bound measurements and pending admission.
+It includes the two-object MuJoCo result, the retained real-host kitchen timeout,
+Factory preparation/readiness, RGB-D geometry limits and the scoped speech demonstration.
+
 The manipulation integration merged in [PR #65](https://github.com/johnnynunez/cascade/pull/65)
 executes normal manipulation with **live OVRTX cameras and cuMotion through SafeArm**.
 A native PhysX GPU episode completed grasp, lift, placement and return home,
@@ -34,9 +39,9 @@ explicit MCP GPU selection, Isaac verifier startup readiness, localization
 freshness checks, [detector model reuse](docs/DETECTOR_MODEL_REUSE.md) and optional OVRTX/cuMotion adapters.
 Optional [bridge Python profiling](docs/ISAAC_BRIDGE_PROFILING.md) subsequently
 merged in [PR #62](https://github.com/johnnynunez/cascade/pull/62). Documentation
-[PR #63](https://github.com/johnnynunez/cascade/pull/63) then merged as current
+[PR #63](https://github.com/johnnynunez/cascade/pull/63) then merged at historical
 main `f7a8823` (tree `b1f5510f`).
-[Project status](docs/PROJECT_STATUS_20261001.md) records the
+[Project status](docs/PROJECT_STATUS_20261003.md) records the
 source-specific software checks. [Local dual-RTX Pro validation](docs/LOCAL_RTX_VALIDATION.md)
 retains native timeouts and separate NV localization and release-geometry failures.
 An earlier local native profile ([attempt 09](docs/LOCAL_RTX_VALIDATION.md#profiling-attempt-09-python-spans-and-placement-timeout),
@@ -158,7 +163,7 @@ explains the prompts, result checks and recovery steps. See the
 
 With the Sparks disconnected, source-bound validation continues on the local
 dual-RTX Pro PC. Native proof and nvblox normal-campaign failures remain to be
-resolved before five-object acceptance and the same-version restart. See [current status](docs/PROJECT_STATUS_20261001.md).
+resolved before five-object acceptance and the same-version restart. See [current status](docs/PROJECT_STATUS_20261003.md).
 
 **Newton parity.** Installed Spark defaults to CUDA PhysX. Newton remains
 explicit, with separate engine/asset validation.
@@ -349,7 +354,7 @@ passed a fresh-destination installation and its first desktop READY proof on GB1
 **12 min 21 s** to install with reused download caches and **12 min 12 s**
 for startup and both placement/reset checks. Real Chromium with the shipped
 extension showed three advancing cameras and connected chat on an Xvfb display. These timings and successes do not
-certify the current MAIN pin; see [current acceptance](docs/PROJECT_STATUS_20261001.md).
+certify the current MAIN pin; see [current acceptance](docs/PROJECT_STATUS_20261003.md).
 GNOME app-grid interaction and the visible Isaac editor were not tested.
 The same installed stack then passed **5/5 kitchen objects through native
 visitor chat**, with independent physical placement checks and resets.
@@ -882,7 +887,7 @@ silently vanishes.
 Browse the [documentation index](docs/README.md) for all operating guides,
 runtime contracts, historical measurements and research notes.
 
-- [Current source and acceptance](docs/PROJECT_STATUS_20261001.md) — merged
+- [Current source and acceptance](docs/PROJECT_STATUS_20261003.md) — merged
   changes, per-profile defaults, historical failures and current physical stages
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the runtime end to end
   (tiers, the `execute()` choke point, verification channels, sim as an

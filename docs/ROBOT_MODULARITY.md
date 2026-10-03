@@ -1,5 +1,11 @@
 # Composable robots, observations and validation
 
+For current implementation, measured results and pending physical admission, see
+the [3 October capability index](PROJECT_STATUS_20261003.md). This architecture
+document retains its original research/source context. Passive multi-DoF
+observations do not admit a whole-body controller; mixed physical actuation
+remains refused.
+
 Research and implementation review: 2 October 2026. Based on merged MicroDuck
 and stop-lifecycle fixes, commit `0a65887c14605186dc1bc6a4b4084d0582418076`.
 This adds an opt-in composed

@@ -54,7 +54,7 @@ def body_frame_vectors(quaternion_wxyz, angular_velocity_world,
     }
 
 
-def newton_joint_indices(joint_labels, joint_q_start, joint_qd_start) -> tuple[np.ndarray, np.ndarray]:
+def newton_joint_indices(joint_labels, joint_q_start, joint_qd_start, *, root_path=None) -> tuple[np.ndarray, np.ndarray]:
     """Resolve the admitted fourteen hinges without assuming backend ordering.
 
     Newton's start arrays include the terminal coordinate/DOF count. Verify
@@ -64,7 +64,12 @@ def newton_joint_indices(joint_labels, joint_q_start, joint_qd_start) -> tuple[n
     labels = tuple(joint_labels)
     if any(not isinstance(s, str) or not s or not s.rsplit("/", 1)[-1] for s in labels):
         raise ValueError("invalid Newton joint labels")
-    names = [s.rsplit("/", 1)[-1] for s in labels]
+    if root_path is not None and (type(root_path) is not str or not root_path.startswith('/')
+                                  or root_path.endswith('/')):
+        raise ValueError("invalid robot root path")
+    selected = [i for i, label in enumerate(labels)
+                if root_path is None or label.startswith(root_path + '/')]
+    names = [labels[i].rsplit("/", 1)[-1] for i in selected]
     if len(set(names)) != len(names) or not set(POLICY_JOINTS).issubset(names):
         raise ValueError("duplicate or missing Newton policy joints")
     starts = []
@@ -74,7 +79,7 @@ def newton_joint_indices(joint_labels, joint_q_start, joint_qd_start) -> tuple[n
                 or (values < 0).any() or (np.diff(values) < 0).any()):
             raise ValueError("invalid Newton joint start indices")
         starts.append(values.astype(np.int64))
-    chosen = np.array([names.index(name) for name in POLICY_JOINTS], dtype=np.int64)
+    chosen = np.array([selected[names.index(name)] for name in POLICY_JOINTS], dtype=np.int64)
     for values in starts:
         if not np.all(values[chosen + 1] - values[chosen] == 1):
             raise ValueError("policy joints must be single-axis hinges")

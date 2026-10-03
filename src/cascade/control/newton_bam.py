@@ -369,6 +369,11 @@ class NewtonBamAdapter:
         self._validate_binding()
         self._check_model_sync()
 
+    @property
+    def coordinate_indices(self):
+        """Owned policy coordinates/DOFs, without device reads or mutation."""
+        return tuple(map(int, self._qs)), tuple(map(int, self._dofs))
+
     def _scatter(self, destination, values):
         self._wp.copy(self._wp.indexedarray(destination, [self._scatter_indices]), values)
 

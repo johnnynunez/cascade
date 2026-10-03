@@ -213,50 +213,71 @@ class MicroduckStepper:
                 raise
         raise RuntimeError('repeated command invalidation during inference; no action committed')
 
-    def tick(self):
+    def _prepare_tick(self, *, prepare_actuator=True):
         if not self.started or self.closed or self.failure:
             raise RuntimeError('stepper not running; lifecycle restart required')
         self.policy_records = []
+        self._check_wall()
+        if self.steps >= self.max_steps:
+            raise RuntimeError('step limit reached')
+        if self.backend.dt != self.dt:
+            raise RuntimeError('physics dt changed during episode')
+        sample = self._read()
+        if sample['fallen']:
+            raise RuntimeError('physics state is fallen')
+        if sample['step'] != self.last['step'] or sample['sim_time'] != self.last['sim_time']:
+            raise RuntimeError('uncommanded physics step/time change')
+        command, identity = self._control_snapshot(sample['sim_time'])
+        policy_slot = self.steps % 4 == 0
+        if policy_slot:
+            self._policy_slot(sample, command, identity)
+        prepared = sample, identity, policy_slot
+        if prepare_actuator:
+            self._prepare_actuator(prepared)
+        return prepared
+
+    def _prepare_actuator(self, prepared):
+        sample, _, _ = prepared
+        # Between 50Hz slots retain the last COMMITTED balancing target and
+        # the model's physical delay, rather than cutting torque or silently
+        # changing cadence. A stop immediately changes intent; it is not an
+        # instantaneous physical-rest claim. Stamp the held target generation.
+        self._check_wall()
+        self.actuator.before_step(self.dt)
+        if self.backend.physics_clock != (sample['step'], sample['sim_time']):
+            raise RuntimeError('policy/actuator advanced physics clock before solve')
+        self._check_wall()
+
+    def _validate_tick(self, prepared):
+        sample, identity, policy_slot = prepared
+        result = self._read()
+        if result['step'] != sample['step'] + 1:
+            raise RuntimeError('solve must advance exactly one native step')
+        expected_time = self.initial_time + (self.steps + 1) * self.dt
+        if abs(result['sim_time'] - expected_time) > clock_tolerance(expected_time):
+            raise RuntimeError('physics time differs from frozen native dt')
+        result.update(policy_target_generation=self.policy_target_generation,
+                      permission_generation_at_sample=identity['generation'],
+                      policy_target_held=not policy_slot)
+        return result
+
+    def _commit_tick(self, prepared, result):
+        _, _, policy_slot = prepared
+        if policy_slot:
+            self.last_policy['first_step_after_commit'] = result['step']
+        self.steps += 1
+        self.last = result
+        self._publish(result, True)
+        return result
+
+    def tick(self):
+        if not self.started or self.closed or self.failure:
+            raise RuntimeError('stepper not running; lifecycle restart required')
         try:
-            self._check_wall()
-            if self.steps >= self.max_steps:
-                raise RuntimeError('step limit reached')
-            if self.backend.dt != self.dt:
-                raise RuntimeError('physics dt changed during episode')
-            sample = self._read()
-            if sample['fallen']:
-                raise RuntimeError('physics state is fallen')
-            if sample['step'] != self.last['step'] or sample['sim_time'] != self.last['sim_time']:
-                raise RuntimeError('uncommanded physics step/time change')
-            command, identity = self._control_snapshot(sample['sim_time'])
-            policy_slot = self.steps % 4 == 0
-            if policy_slot:
-                self._policy_slot(sample, command, identity)
-            # Between 50Hz slots retain the last COMMITTED balancing target and
-            # the model's physical delay, rather than cutting torque or silently
-            # changing cadence. A stop immediately changes intent; it is not an
-            # instantaneous physical-rest claim. Stamp the held target generation.
-            self._check_wall()
-            self.actuator.before_step(self.dt)
-            if self.backend.physics_clock != (sample['step'], sample['sim_time']):
-                raise RuntimeError('policy/actuator advanced physics clock before solve')
-            self._check_wall()
+            prepared = self._prepare_tick()
             self.backend.step()
-            result = self._read()
-            if result['step'] != sample['step'] + 1:
-                raise RuntimeError('solve must advance exactly one native step')
-            expected_time = self.initial_time + (self.steps + 1) * self.dt
-            if abs(result['sim_time'] - expected_time) > clock_tolerance(expected_time):
-                raise RuntimeError('physics time differs from frozen native dt')
-            result.update(policy_target_generation=self.policy_target_generation,
-                          permission_generation_at_sample=identity['generation'],
-                          policy_target_held=not policy_slot)
-            if policy_slot:
-                self.last_policy['first_step_after_commit'] = result['step']
-            self.steps += 1
-            self.last = result
-            self._publish(result, True)
-            return result
+            result = self._validate_tick(prepared)
+            return self._commit_tick(prepared, result)
         except Exception as exc:
             self.fail(exc)
             raise

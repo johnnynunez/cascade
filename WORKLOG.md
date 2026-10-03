@@ -715,3 +715,18 @@ this change does not validate trial12 or authenticate model weights.
 All normal orchestrator reports now use a common ledger-aware finalizer, including step-budget exhaustion. Failed fast-path calls remain in the same task tool history with an explicit tier. Composed motion cancellation records uncertainty before releasing admission, then re-raises the original interruption; later successful motion cannot erase it. Reads and host-only task boundaries retain their prior meaning.
 
 Exact PR90 head `381d65ff` reproduced three review counterexamples (two omitted-debt reports and one pre-existing composed cancellation false success), with two controls passing. Final eight-file CPU selection: **141 passed, 0 skipped in 19.82 s**; source and four protected stores unchanged. The initial two new-test failures were an incorrect assumption that `RobotRuntime.begin_task()` returns an ID; only that test assumption changed. No GPU, SDK, physical episode, shared environment modification or production limit change. Evidence: `benchmark/results/task_terminal_obligations_20261003.json` and external `TASK_TERMINAL_FIX_20261003/{baseline-01,focused-01,focused-02}`.
+
+### 2026-10-03 — Keep late exception debt on its admitted task
+
+`RobotRuntime` could release a failed motion, let the trusted host start a new
+task, then add the old motion's uncertainty to that new task from its ordinary
+exception handler. Bind that final accounting to the existing admission task
+ID. The inner cancellation fence still records uncertainty before ownership
+release; pre-admission validation failures retain their existing behavior.
+
+A controlled two-thread handoff reproduces one failure with two controls on
+`3e696d4`; the fix passes 78 runtime, cancellation, conversation-stop and handoff
+tests across four files (1.88 s). Preserve the first invalid file-selection
+invocation as an execution error with zero tests. Sources and protected stores
+remain unchanged during checks. No physical run or new physical admission.
+Evidence: `benchmark/results/task_exception_epoch_20261003.json`.

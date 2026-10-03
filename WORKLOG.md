@@ -605,6 +605,25 @@ protected baseline and grasp memory remains absent. No GPU, native robot or
 hardware admission was tested. See benchmark/results/generalized_joints_20261003.json.
 
 
+Composition completed using the reviewed publication equivalents through
+15382f3. Only append conflicts in this worklog were resolved; control, verifier
+and both mobile runtime files match that checkpoint exactly. Current RGB-D
+producer changes merge with the optional solver/observation recipes. Signal,
+identity, task/stop, teardown, sensor hub and conversation code remain intact.
+No native identity or physical admission is inherited.
+
+Source-bound CPU selections resolve 1,406 distinct cases to PASS: 243 focused
+and 1,061 compatibility passes, plus the previously skipped optional cases.
+Newton1.6/MJW3.12/Warp1.17 optional BAM tests initially gave 96P/2F because
+subprocesses lacked the parent-only PyYAML preload; an external YAML-only path
+resolved those two imports, and six OpenUSD cases passed in the same 8P run.
+The initial integration fixture's two incorrect field expectations are retained
+separately. No product or physical thresholds changed for either correction.
+All source/protected-store snapshots match; Ruff F/E9, AST and diff checks pass.
+No GPU, Kit, mobile native service or new locomotion experiment was run.
+See docs/MICRODUCK_LOCOMOTION_COMPOSITION.md and its evidence receipt for the
+commit map, raw logs, scope of the two 12-step CPU BAM fixtures and limitations.
+
 
 ## Explicit alternative walking checkpoint (2026-10-02)
 

@@ -1,0 +1,265 @@
+{
+  "schema": "cascade.microduck.locomotion-composition.v1",
+  "base": "9b97b65486e4b48d3e7e7a5fe5bb3970ac5c30e8",
+  "reviewed_source": "15382f3e9d29b32197f450035f15f3902927e7aa",
+  "historical_native_source": "d9f47660ad8069820e617cb02fdeff7d5b706e74",
+  "composition_head_before_test_receipt_commit": "e9f4ca1dee70c46ac07c65cba39d5a29ccd69422",
+  "commits": [
+    {
+      "composed": "ad70da42a403ea129eb9a361dbeca0391a1bf07a",
+      "source": null,
+      "subject": "docs: record bounded locomotion composition plan"
+    },
+    {
+      "composed": "de7c28e80c540b04656257b3c90867563a35c5bf",
+      "source": "9866209757f36baf96cb9e1e55c881ff3230965a",
+      "subject": "feat(mobile): add opt-in measured-distance control"
+    },
+    {
+      "composed": "1a9f9b47000d814aa083ddfaf87756a4769056c4",
+      "source": "1a5fb4fd172224219884b27b402dad90ee899ec6",
+      "subject": "feat(verification): independently verify signed walk distance"
+    },
+    {
+      "composed": "4b6ac35f308c3192414f5484416c61dbd2563ac4",
+      "source": "212a01627d2c23679f0528f2f82b24f69e4caea0",
+      "subject": "fix(mobile): reject lateral support and expired distance credit"
+    },
+    {
+      "composed": "d1ac343b95f7dec129a06a373dd53a7576831649",
+      "source": "914e2318329b1b7b95e637056bb1eba9b95af965",
+      "subject": "feat(mobile): separate measured slow native validation budget"
+    },
+    {
+      "composed": "6018cae292323874be75d9f4c26526c9b44b96ce",
+      "source": "0af7d6dace1cb52e90cabf48561e97e09ae8ca5f",
+      "subject": "feat(physics): add explicit official inference BAM parameter recipe"
+    },
+    {
+      "composed": "cc08baf68d3e02c73ded35a32b4a66f61e6e9ba0",
+      "source": "ba7e657304d5b9fceb9d7e9ff218946789c096eb",
+      "subject": "feat(microduck): admit pinned rough walking policy explicitly"
+    },
+    {
+      "composed": "a7790610b2d778d6bf11c46b90d5019e137aaa2c",
+      "source": "7af42fb3b4995d354ccb14bbaca7994eb2aa8d7c",
+      "subject": "feat(microduck): add explicit bound SDK solver graph mode"
+    },
+    {
+      "composed": "ae0b203b4cef4a6963415c910ad99abff58df793",
+      "source": "0858bb9aade9ec00c1dc8bf38ade48391ca0de0a",
+      "subject": "perf(microduck): reuse detached observations of the same solved step"
+    },
+    {
+      "composed": "a3474ea309f083b69254d1025b042be53879197c",
+      "source": "fd308a6a50108a2e33a7faecea6cfc56784b4ce6",
+      "subject": "test(microduck): bind contact fixtures to explicit solver mode"
+    },
+    {
+      "composed": "2b229a7097a5b3a73ec571c05b5c0f5c6d7ed503",
+      "source": "e76405c47585a1c247a080d9ab03c4dc908a7bb3",
+      "subject": "docs: record MicroDuck locomotion admission plan"
+    },
+    {
+      "composed": "d6e13b84ad64df682d45fcbe3b1318980c74ef3e",
+      "source": "124fb91b27e861e93c2be980ab8d4e14c237177f",
+      "subject": "docs(microduck): trace ecosystem research to measured gait experiments"
+    },
+    {
+      "composed": "2944073fd0e9a7d9fc8bbadb896ad55f8551fd39",
+      "source": "651b35d38f7d59c7ddb11d795ba92a5ecab08e56",
+      "subject": "docs(microduck): retain native distance and priority-stop checkpoint"
+    },
+    {
+      "composed": "8d6b8bc02aa8ffba9729f52034e0e7dcb59d1b91",
+      "source": "1385c6ed3fafb4d06b84fce22a94d60e47c1c1af",
+      "subject": "docs(microduck): distinguish turn path from distance tolerance"
+    },
+    {
+      "composed": "e9f4ca1dee70c46ac07c65cba39d5a29ccd69422",
+      "source": "15382f3e9d29b32197f450035f15f3902927e7aa",
+      "subject": "docs(microduck): retain one bounded negative-turn probe"
+    }
+  ],
+  "source_sha256": {
+    "assets/microduck/NOTICE.md": "3f24b20287a1465da8ba76bdb7df60e474826418cbab933b5a2afcf4a496753e",
+    "assets/microduck/newton-bam.json": "d04d0281eb2f581ab738a95ddf6983f09bbfa8dbabef4087271e61e384fd5b4b",
+    "assets/microduck/policy-candidates.json": "6357372fd8f1aba6c64de5d95ba28a6f2f08a825fc4352642d20c152f776c11f",
+    "configs/bases/microduck_distance_candidate.yaml": "b5fc4f984bedb441a9bb5a9f778d1a7fe80c927546f643d07cbc052409b3e39a",
+    "configs/bases/microduck_distance_native_slow.yaml": "85886fd05af7d2ae5f917052f0520ab4d1408f297d62417853cda89b684bc47d",
+    "scripts/isaac_microduck_bridge.py": "baaef3917d25fde1a209a5ce928a0f7718801d78209e606079ac3d596a8a317a",
+    "src/cascade/agent/base_effects.py": "75e8f4555c3c529aaac4b622753205eb41d9f14ffe25c2adb54048cf5beceda4",
+    "src/cascade/apps/mobile_runtime.py": "c1bb7027393114f6da36851716ab06be11b0ff11d3bbc9c6e7847eb1af241e1c",
+    "src/cascade/safety/base_harness.py": "ba0d0371879de0025726899b7d3405355aa909eb92dd70432fc7e5cfe0e57c48",
+    "src/cascade/sim/microduck_newton.py": "5f7ca49a0628b773a7761046369c9e3caac11fea617e2537af9a36d877740191",
+    "src/cascade/sim/microduck_policy_admission.py": "199fb0683fffeae9e93a99f22ed595c29cad4e36508ab5c7888b0fba9bf551d9",
+    "src/cascade/sim/microduck_solver_graph.py": "0efafb9194301ef128f710509d69e1da9412efa1466f22edd1b326046b202f96",
+    "src/cascade/skills/mobile_runtime.py": "0038a852fe692a631ea68af194c7a89628ed6dffbff73a34085793fc048b9563",
+    "tests/test_locomotion_composition.py": "70a4848fd12658d9ae24d2792ed4e7e27ad0f9caae7c11912d5e276a1f997dc3",
+    "tests/test_microduck_contact_support.py": "83546bb23bedbebea484a7cbb8fb57ad92ef91c7f01f7c7552fd1b998f17a5b3",
+    "tests/test_microduck_policy_admission.py": "862106006c69c29002d4cd533de53ff1915087792de879fcdb8df124ae01eedc",
+    "tests/test_microduck_solved_read.py": "86e4e5e853b69e6a70d03bcce6ca14dbc1ff84c47405ee02814d50fdb4e81c05",
+    "tests/test_microduck_solver_graph.py": "692f70bb9dcee2118ff9f7fba4d6ce29f2b7386c618ec0c9fb9243170cf2f8f4",
+    "tests/test_microduck_stepper.py": "1eaff5c48e897ea5e8a367f46ba526671323affccf2bfe65ba572038bc357f5f",
+    "tests/test_newton_bam.py": "de294f98b4da0058e3a6ddc79c1cf0eebe9b89b20ecf990c6f7d49e71079e698",
+    "tests/test_walk_distance_control.py": "a87fd1b7c59581f78ca3335ca3094152c4dc9869eff165f854b5c58ebbc3a919",
+    "tests/test_walk_distance_effects.py": "1319ade78c1892c464c912dbfde294286b0067337548ffed4d24b72a82fb5f4c"
+  },
+  "preserved_from_base": {
+    "src/cascade/robotics/runtime.py": "65e2dd22961a093da30ac70044d7f89b926658dc6c7dc859fed0ebca800c7ecc",
+    "src/cascade/robotics/graph.py": "a6d3283d005b28ccd19040ae9b8cd679ed91c4d3bcfb0508f04148e6ee1a49e8",
+    "src/cascade/apps/demo.py": "2d52b576c68c71260811b51f6dbb6f3687c2a5a0fedb1bee21e7ade1f31683b2",
+    "src/cascade/apps/mcp_server.py": "bff04f1fd05491cf75be9e262c61c19be11f377f3c09e151d38fe48916d43217",
+    "src/cascade/control/arm_rig.py": "2f09a7e7491650c3fb43c4e9f6ebd92d507cbb8c17e7e9d69326d2389fd819e2",
+    "src/cascade/apps/signal_stop.py": "1a94a391c25d856299d899e633aaa777215e4ef1dc1fc819bee492c44019b9bd",
+    "src/cascade/sim/mobile_identity.py": "eb7b29754243f5ab8f3ebf6bb8524175698b96250f55796a0135273fdb6cf21a",
+    "src/cascade/sim/mobile_rgbd.py": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861",
+    "src/cascade/sim/mobile_bridge.py": "b6267caf936307b553c7ee181a1a3abb17130b660a223cd8987410f9815e321c",
+    "src/cascade/sim/microduck_stepper.py": "699f0844e012946222d6d515b0f977b9807a72f668f91bdaa4b7d830ea6a3a3b",
+    "src/cascade/conversation/domain.py": "676abe8ad033bf5c2bd1115cc49fd3da1f9289e02f95ee62bc9e9bb6155f8fa3",
+    "src/cascade/conversation/session.py": "ab3c6cbec81ee0075fdb3fd2de6b8cf17dde9da8bbcde6253e3302e11a173f00",
+    "src/cascade/sensing/hub.py": "b709f488d7f6d8f2d5e0e70ab3ec7749f5e8b6593b7db63c7039ffac31bb50df"
+  },
+  "tests": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/focused-02/junit.xml",
+      "sha256": "3a6a58adc7074e1c4f9e8bdc7f531a10c993d49cac58a4cf21ff7dcc61bd94b1",
+      "passed": 243,
+      "failed": 0,
+      "skipped": 96
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/compatibility-01/junit.xml",
+      "sha256": "c0d747fb56f8ea3375006344a9dc7aebbd046cf86d1892386539371332ab3f23",
+      "passed": 1061,
+      "failed": 0,
+      "skipped": 6
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/optional-bam/junit.xml",
+      "sha256": "fbca899344d4a3025418e6795fc4e42a5a8c6a94a438f65c92c5caeb446941db",
+      "passed": 96,
+      "failed": 2,
+      "skipped": 0
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/optional-bam-import-usd/junit.xml",
+      "sha256": "56b0226a2340486c203bd0b2a2f18dba50268250ce11a43360912d62f03c7289",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "final_unique_outcomes": {
+    "passed": 1406,
+    "failed": 0,
+    "skipped": 0
+  },
+  "native_locomotion_tested": false,
+  "new_model_identity": null,
+  "physical_admission": false,
+  "max_requested_distance_m": 0.1,
+  "historical_repeated_distance_m": 0.03,
+  "voice_d09489b_included": false,
+  "retained_failures": [
+    {
+      "run": "focused-01",
+      "passed": 241,
+      "failed": 2,
+      "cause": "new integration-test expectations: task_done success field and explicit slow-profile admission name; corrected tests only"
+    },
+    {
+      "run": "optional-bam",
+      "passed": 96,
+      "failed": 2,
+      "cause": "child Python does not inherit parent-only PyYAML preload; corrected only external environment with a private yaml-only directory"
+    }
+  ],
+  "optional_cpu": {
+    "versions": {
+      "pytest": "9.1.1",
+      "numpy": "2.5.3",
+      "mujoco-usd-converter": "0.6.1",
+      "newton-usd-schemas": "0.5.0",
+      "warp-lang": "1.17.0",
+      "newton": "1.6.0",
+      "mujoco": "3.12.0",
+      "mujoco-warp": "3.12.0",
+      "onnxruntime": "1.30.0"
+    },
+    "yaml_origin": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/policy-reference/venv/lib/python3.12/site-packages/yaml/__init__.py",
+    "yaml_sha256": "b19dfcc333d6a75dfd73073901164507252f271b41d3b5f7d85510033a0547a7",
+    "device": "cpu",
+    "cuda_visible_devices": "-1",
+    "cache": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/optional-bam/warp-cache",
+    "scope": "existing BAM numeric-buffer tests and two SolverMuJoCo free-root/16-hinge fixtures of 12 CPU solves each; no Kit or MicroDuck trajectory"
+  },
+  "raw_refs": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/focused-01/result.json",
+      "sha256": "9801d5199513dc78d94df577f715a2d68dd444a6d469c5518607bf33acab9a9c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/focused-01/pytest.log",
+      "sha256": "22b82d588dfe35b09c4674f62f1e20ce6543990b6d4efe9536bf3f5eec04eb1b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/focused-02/result.json",
+      "sha256": "d4cc4aac7c13f0752c9730615dd1b9fe3a8a235354d1933b9eda47f907795662"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/focused-02/pytest.log",
+      "sha256": "21dd758a365d6979a363a4aabd55da7b87b230684bc58f0c90bfab36c62935a6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/compatibility-01/result.json",
+      "sha256": "b9e92ae4d124183b9fc0101142da43441f9c2e7a3e783e109fcc4166c07dcbf5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/compatibility-01/pytest.log",
+      "sha256": "95efc334df24a93412ab1ce44008114351bcc018d545a035630ee94c477dc613"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/optional-bam/command.json",
+      "sha256": "53ccf8b6d738c1330d8477c9de9154fdb97ffb5d30b62f11f528d56a767df923"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/optional-bam/bam-cpu-receipt.json",
+      "sha256": "a69b7a3c4bed7e259165957b9f85f42f2ebdb34b19d721c45178da022e4553f4"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/optional-bam/bam-cpu.log",
+      "sha256": "eb22ef0761a45824d7dc3ea40100042e28a75903d06ca4b7025ccb3c6363a0ce"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/optional-bam-import-usd/command.json",
+      "sha256": "e8f51a36a0ae9928e3bb5dca0411fc78c55ce619df7843126e76a955714c8713"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/optional-bam-import-usd/bam-cpu-receipt.json",
+      "sha256": "1d364e080821efa33df1887589991d3203e8cc673a48e9cbb0375973edeb7251"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/optional-bam-import-usd/bam-cpu.log",
+      "sha256": "9ee260dc77287562ad9e75044ce60fd6c186e1ec9c5fb938e1ace48576ec30cc"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/missing-capability-control.json",
+      "sha256": "e1f4ccd934ed0b30009a2559dc88c125beae60833ed055af5f6c857e87b9369d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/lint.json",
+      "sha256": "f98279d63d7d3b3ecc926cb7523ccf83cd919395be500268dda23b05724e2680"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_COMPOSITION/validation/final-unique-outcomes.json",
+      "sha256": "77ed6ed81b1057f95be5ebddbe5771ea193a507c7a099981280e0485873adbb2"
+    }
+  ],
+  "limits": [
+    "No GPU, real mobile service, policy rollout, gain adjustment, changed physical limit, new native identity or inherited physical admission.",
+    "Turn and all independent support/rest/identity/freshness/stop gates are retained.",
+    "RGB-D, signals, task admission, teardown and conversation implementations remain from the aggregate.",
+    "The imported slow profile is a separate reviewed option; default host and physical budgets are unchanged."
+  ]
+}

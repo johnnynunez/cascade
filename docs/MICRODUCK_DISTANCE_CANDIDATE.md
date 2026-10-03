@@ -15,6 +15,11 @@ sources and policy selection. All measurements below were retained on
 `d9f47660ad8069820e617cb02fdeff7d5b706e74` or the explicitly identified earlier
 sources; publication does not relabel them as a new native run.
 
+The later [aggregate composition](MICRODUCK_LOCOMOTION_COMPOSITION.md) restores
+the complete implementation on the modular/RGB-D runtime. It has CPU integration
+evidence and requires a new native identity; these earlier results are not
+reassigned to that source.
+
 ## Implemented contract
 
 `walk_distance(distance_m=...)` is a geometric objective exposed only by a

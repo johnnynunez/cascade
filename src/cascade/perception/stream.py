@@ -248,12 +248,17 @@ class CameraRig:
                     pass
             raise
 
-    def close(self) -> None:
+    def close(self) -> dict:
+        """Close all streams, retaining errors without skipping later streams."""
+        from ..lifecycle import teardown_receipt, teardown_step
+
+        stages = []
         for s in self:
-            try:
-                s.close()
-            except Exception as e:
-                print(f"[rig] close {s.name}: {e}", file=sys.stderr)
+            stage = teardown_step(s.name, s.close)
+            stages.append(stage)
+            if not stage["ok"]:
+                print(f"[rig] close {s.name}: {stage}", file=sys.stderr)
+        return teardown_receipt(stages)
 
     def warm_up(self, n: int = 5) -> None:
         for s in self:

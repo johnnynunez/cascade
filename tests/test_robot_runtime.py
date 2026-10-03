@@ -353,7 +353,12 @@ def test_pending_domain_close_remains_false_and_completed_domains_are_not_reclos
         assert result["domains"]["pending"]["pending_providers"] == ["blocked_sensor"]
     assert other.closed == 1
     done = True
-    assert rt.close()["ok"]
+    recovered = rt.close()
+    assert recovered["ok"] is False and recovered["complete"] is True
+    assert len(recovered["attempts"]) == 3
+    assert recovered["attempts"][0]["domains"]["pending"]["pending_providers"] == ["blocked_sensor"]
+    cached = rt.close()
+    assert cached["ok"] is False and cached["complete"] is True and cached["already_closed"]
     assert pending.closed == 3 and other.closed == 1
 
 

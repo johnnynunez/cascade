@@ -1,19 +1,23 @@
 # CASCADE 🦾 — Cascaded Agentic Skill Control with Adaptive Dispatch and Execution
 
-[Current capability and acceptance status — 3 October 2026](docs/PROJECT_STATUS_20261003.md)
-separates implemented features, source-bound measurements and pending admission.
-It includes the two-object MuJoCo result, the retained real-host kitchen timeout,
-Factory preparation/readiness, RGB-D geometry limits and the scoped speech demonstration.
+CASCADE is a **robot- and device-agnostic** framework for agentic
+manipulation: arms, cameras, compute and LLM backends are all pluggable
+behind one curated skill API, so the same skills, safety harness and
+traces work on a 5-DoF hobby arm over USB serial or a 6-DoF industrial arm
+over CAN, on a RealSense or a generic UVC webcam, in MuJoCo or Isaac Sim, on
+a datacenter GPU or a laptop CPU, with a cloud LLM or a local one. Its
+defining idea is the cascade itself: routine commands resolve on a regex
+reflex or a learned habit tier and never touch the LLM, which only gets
+called when both fail — behavior, safety and tracing stay identical
+regardless of which tier (or which hardware) acted.
 
-The manipulation integration merged in [PR #65](https://github.com/johnnynunez/cascade/pull/65)
-executes normal manipulation with **live OVRTX cameras and cuMotion through SafeArm**.
-A native PhysX GPU episode completed grasp, lift, placement and return home,
-with independent release/settling observations. The SO-101 Factory assembly
-experiment also completed contact-driven threading, measured seating and
-motor-off retention. See the [integration report](docs/MANIPULATION_ASSEMBLY_20261002.md)
-for exact source bindings, tests, videos, retained failures and the trial 12
-follow-up. These local results do not establish the complete kitchen campaign,
-Spark runtime acceptance, hardware fastening or calibrated preload.
+[Current capability and acceptance status](docs/PROJECT_STATUS_20261003.md)
+separates implemented features, source-bound measurements and pending validation.
+Local results do not establish complete kitchen or Spark runtime acceptance,
+hardware fastening or calibrated preload. See the
+[manipulation and assembly evidence](docs/MANIPULATION_ASSEMBLY_20261002.md) and
+[local validation history](docs/LOCAL_RTX_VALIDATION.md) for retained successes
+and failures, and [Architecture](docs/ARCHITECTURE.md) for the runtime design.
 
 The optional [MicroDuck mobile runtime](docs/MICRODUCK.md) adds bounded base
 commands, a native Newton policy loop, independent support verification and
@@ -31,54 +35,12 @@ The read-only [spatial replay](docs/SPATIAL_PROVIDERS.md) adds capture-time
 transforms, source-bound landmark memory and conservative planar route proposals
 through MCP. `--robot spatial_replay` is synthetic and does not execute navigation.
 
-### Earlier merged and measured baseline
-
-The previous command baseline for physical validation is **`ff8d58b` (1 October 2026)**. It includes
-render-bound cameras, release and carry guards, endpoint occlusion checks,
-explicit MCP GPU selection, Isaac verifier startup readiness, localization
-freshness checks, [detector model reuse](docs/DETECTOR_MODEL_REUSE.md) and optional OVRTX/cuMotion adapters.
-Optional [bridge Python profiling](docs/ISAAC_BRIDGE_PROFILING.md) subsequently
-merged in [PR #62](https://github.com/johnnynunez/cascade/pull/62). Documentation
-[PR #63](https://github.com/johnnynunez/cascade/pull/63) then merged at historical
-main `f7a8823` (tree `b1f5510f`).
-[Project status](docs/PROJECT_STATUS_20261003.md) records the
-source-specific software checks. [Local dual-RTX Pro validation](docs/LOCAL_RTX_VALIDATION.md)
-retains native timeouts and separate NV localization and release-geometry failures.
-An earlier local native profile ([attempt 09](docs/LOCAL_RTX_VALIDATION.md#profiling-attempt-09-python-spans-and-placement-timeout),
-source `3ccdc2e8`) passed sampled camera freshness and verified the grasp, but
-timed out during placement while still holding the object. Its 120-second
-technical capture yielded a qualified 118.59-second CPU window; execution-queue
-work dominates the measured elapsed time, with its internal cause still under
-investigation. Successful capture and administrative closure do not establish
-successful manipulation or absolute GPU timing.
-Separate [passive observer measurements and CPU codec replay](docs/ISAAC_FRAME_ENCODING.md)
-identified unused depth compression during RGB-only reads. The independent
-component-encoding candidate preserves complete frame bytes. Its passive live
-repeat reduced new-capture observer median time from 272.239 to 68.170 ms.
-Subsequent [trial 12](docs/LOCAL_RTX_VALIDATION.md#native-trial-12-and-route-preflight-follow-up)
-passed the green-cube physical case and failed orange route preflight; its
-complete kitchen proof, campaign and restart acceptance remain incomplete.
-The separate 640×360 follow-up passed both physical cases and resets, but its
-484/439-second skill times exceed the host's 300-second budget; it does not
-close the full host/MCP acceptance.
-
 <p align="center">
   <a href="https://github.com/johnnynunez/cascade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/johnnynunez/cascade/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT"></a>
   <a href="docs/ARCHITECTURE.md"><img src="https://img.shields.io/badge/docs-architecture-informational?style=flat-square" alt="Architecture docs"></a>
 </p>
-
-CASCADE is a **robot- and device-agnostic** framework for agentic
-manipulation: arms, cameras, compute and LLM backends are all pluggable
-behind one curated skill API, so the same 33 skills, safety harness and
-traces work on a 5-DoF hobby arm over USB serial or a 6-DoF industrial arm
-over CAN, on a RealSense or a generic UVC webcam, in MuJoCo or Isaac Sim, on
-a datacenter GPU or a laptop CPU, with a cloud LLM or a local one. Its
-defining idea is the cascade itself: routine commands resolve on a regex
-reflex or a learned habit tier and never touch the LLM, which only gets
-called when both fail — behavior, safety and tracing stay identical
-regardless of which tier (or which hardware) acted.
 
 The common skill API selects an arm through its driver and a
 [profile](configs/arms/); its joint count,
@@ -124,7 +86,7 @@ as unverified; its commanded wrist travel is not a thread measurement.
 │  Claude Code / Codex  (MCP stdio,        │   │  AgentOrchestrator: reflex → habit → LLM │
 │  the host's LLM picks the tools)         │   │  (+ its own history as IMAGES, Vesta)    │
 └──────────────────────────────────────────┘   └──────────────────────────────────────────┘
-                     │ 41 tools                                   │ 33 skills
+                     │ MCP tools                                  │ skills
                      └────────────────────┬──────────────────────┘
                      SkillRuntime.execute() — ONE choke point, every tier, every robot:
                      arm select ▸ BEFORE frame ▸ skill ▸ VERIFY effect on an independent
@@ -880,6 +842,7 @@ silently vanishes.
 ## Docs
 
 - [Detector preparation and GPU comparison](docs/DETECTOR_MODEL_REUSE.md) — bounded model/vocabulary reuse, unchanged image expiry and retained comparison results.
+- [Frame encoding measurements](docs/ISAAC_FRAME_ENCODING.md) — passive observer timings, CPU replay and native acceptance limits.
 - [Isaac bridge profiling](docs/ISAAC_BRIDGE_PROFILING.md) — optional Python zones, clock binding and limits of retained CPU/GPU measurements.
 - [Local conversation gateway](docs/CONVERSATION.md) — browser audio, HF-compatible Realtime transport and bounded typed robot tools; protocol tests use synthetic audio and sensors.
 - [MicroDuck design and conversation review](docs/MICRODUCK_DESIGN_REVIEW_20261002.md) — external implementation snapshot, open findings and a proposed hosted voice interface; physical acceptance remains pending.

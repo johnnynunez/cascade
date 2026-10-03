@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "base": "67f0b61c490f1a83529ecd9143b0361737b3897b",
+  "scope": "Optional kitchen cuMotion profile and campaign backend evidence; CPU software only",
+  "source_hashes": {
+    "benchmark/diagnostics/kitchen_backends.py": "3a33da948dd6206335b559abb8bf7b88ae5a495e7ad05fc1e6ff0a52f7a71641",
+    "benchmark/diagnostics/kitchen_acceptance.py": "ac20a5af5e564eebd03fee643cc95e74dd9bea9a58014de4793f1319c5e41b26",
+    "configs/arms/isaac_kitchen_cumotion.yaml": "3070d91e9b300f5583a1ad9198014368006b464c3af7b7f1ac7752eb4d631c30",
+    "tests/test_kitchen_cumotion_selection.py": "940e5567cc76bc3e2a3250377b7268df2b3a6da61cb23ddfb6ecbda6f8a6c383",
+    "docs/CUMOTION.md": "4260972f4559548c6ce6ce80548a4095c402565e87a68810a210930de284ec47"
+  },
+  "validation": {
+    "final_passed": 206,
+    "final_skipped": 0,
+    "final_failed": 0,
+    "pytest_s": 1.46,
+    "ruff_F_E9": "pass",
+    "source_and_protected_unchanged": true
+  },
+  "retained_failure": "focused-01:73 passed/1 failed, Cfg is not subscriptable in selected source manifest. Fixed the named access to Cfg.get; no model/verifier/tolerance change.",
+  "runs": {
+    "focused-01": {
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_INTEGRATION/venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-o",
+        "cache_dir=/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-01/pytest-cache",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-01/junit.xml",
+        "tests/test_kitchen_cumotion_selection.py",
+        "tests/test_kitchen_acceptance_configuration.py"
+      ],
+      "exit_code": 1,
+      "elapsed_s": 1.2257915299851447,
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "before_sha256": "dbfb4818482c9daa89b5da27eecfcefac97d587272ca46bb9111bc4abccbcf2c",
+      "after_sha256": "dbfb4818482c9daa89b5da27eecfcefac97d587272ca46bb9111bc4abccbcf2c",
+      "pytest_log_sha256": "29193fffc706da53f8290c9763a8f5d53c66c2f3122343484b7f061463783c19",
+      "junit_sha256": "f47b499d1ff0ceb645c71ee5cba672e4282db42ae19cabad2dc4177a5cda7baa",
+      "scope": "CPU contracts with synthetic SDK doubles; no simulator or GPU launch",
+      "counts": {
+        "tests": "74",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.769"
+      }
+    },
+    "focused-02": {
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_INTEGRATION/venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-o",
+        "cache_dir=/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-02/pytest-cache",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-02/junit.xml",
+        "tests/test_kitchen_cumotion_selection.py",
+        "tests/test_kitchen_acceptance_configuration.py",
+        "tests/test_cumotion_runtime.py",
+        "tests/test_cumotion_planner.py",
+        "tests/test_planned_trajectory.py",
+        "tests/test_diagnostic_callback_trace.py",
+        "tests/test_device_and_profiles.py"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 1.8793068280210719,
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "before_sha256": "d0ee2470ee4752335b492914e4bb745fef41c5447806b6e8b5ac8c36bdba7315",
+      "after_sha256": "d0ee2470ee4752335b492914e4bb745fef41c5447806b6e8b5ac8c36bdba7315",
+      "pytest_log_sha256": "d59a7cbd919d7293a0664443ca8105069ca9bd7d4633bf81f87dd37b8ee6f518",
+      "junit_sha256": "b8f5dc21c00a119f4c8aa85955749b5feb415e8e2a3bcedc57fe091d36efe199",
+      "scope": "CPU contracts with synthetic SDK doubles; no simulator or GPU launch",
+      "counts": {
+        "tests": "202",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "1.438"
+      }
+    },
+    "focused-03": {
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_INTEGRATION/venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-o",
+        "cache_dir=/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-03/pytest-cache",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-03/junit.xml",
+        "tests/test_kitchen_cumotion_selection.py",
+        "tests/test_kitchen_acceptance_configuration.py",
+        "tests/test_cumotion_runtime.py",
+        "tests/test_cumotion_planner.py",
+        "tests/test_planned_trajectory.py",
+        "tests/test_diagnostic_callback_trace.py",
+        "tests/test_device_and_profiles.py"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 1.9145079689915292,
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "before_sha256": "e1ae9a0f1deccb48935ab0d56681200a557bf0aae5d032c81e1a5b5aabe553f4",
+      "after_sha256": "e1ae9a0f1deccb48935ab0d56681200a557bf0aae5d032c81e1a5b5aabe553f4",
+      "pytest_log_sha256": "b7662ab3bdeb493888436652942036b3196e2697356a9575ad82b58e07e8c5a9",
+      "junit_sha256": "2d458f182368a8aec7efd1854f48b4951f6d6499cde1bb1c912c9dcc9114ba69",
+      "scope": "CPU contracts with synthetic SDK doubles; no simulator or GPU launch",
+      "counts": {
+        "tests": "206",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "1.457"
+      }
+    }
+  },
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-01/before.json": "dbfb4818482c9daa89b5da27eecfcefac97d587272ca46bb9111bc4abccbcf2c",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-01/after.json": "dbfb4818482c9daa89b5da27eecfcefac97d587272ca46bb9111bc4abccbcf2c",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-01/result.json": "f8c2c5029835383c708fc087c7b568fa5a1c629d38020aa8ed973b2ca9428186",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-01/pytest.log": "29193fffc706da53f8290c9763a8f5d53c66c2f3122343484b7f061463783c19",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-01/junit.xml": "f47b499d1ff0ceb645c71ee5cba672e4282db42ae19cabad2dc4177a5cda7baa",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-02/before.json": "d0ee2470ee4752335b492914e4bb745fef41c5447806b6e8b5ac8c36bdba7315",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-02/after.json": "d0ee2470ee4752335b492914e4bb745fef41c5447806b6e8b5ac8c36bdba7315",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-02/result.json": "185ab9de99e48de7da0c73de9018745a23da226258342814ccb3561e4a8fa6ff",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-02/pytest.log": "d59a7cbd919d7293a0664443ca8105069ca9bd7d4633bf81f87dd37b8ee6f518",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-02/junit.xml": "b8f5dc21c00a119f4c8aa85955749b5feb415e8e2a3bcedc57fe091d36efe199",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-03/before.json": "e1ae9a0f1deccb48935ab0d56681200a557bf0aae5d032c81e1a5b5aabe553f4",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-03/after.json": "e1ae9a0f1deccb48935ab0d56681200a557bf0aae5d032c81e1a5b5aabe553f4",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-03/result.json": "ddf5fea905aef761bc4c8d9fc35577f0ea87033ef474a877fc3b84e526f7040d",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-03/pytest.log": "b7662ab3bdeb493888436652942036b3196e2697356a9575ad82b58e07e8c5a9",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/focused-03/junit.xml": "2d458f182368a8aec7efd1854f48b4951f6d6499cde1bb1c912c9dcc9114ba69",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/run_cpu.py": "71f1289383ab06359e91be17977758288127769f1bfe6890784d087731075ce9",
+    "/home/johnny/Projects/demo/cascade-lab/KITCHEN_CUMOTION/ruff.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+  },
+  "limits": [
+    "No native SDK initialization, GPU, simulator, rendered capture or physical episode. SDK doubles are explicitly synthetic.",
+    "Selected renderer checks use cached frames and the existing startup packet validator; they do not replace physical freshness/contact/safety gates or prove continuous renderer use.",
+    "Per-curve MotionPlan evidence remains candidate/unauthorized. Executor completion is not task acceptance.",
+    "Default arm, renderer behavior, occupancy selection, runtime, physical verifier and every existing budget remain unchanged.",
+    "No RGB-D, Factory or generic runtime instrumentation changes; main67 base only."
+  ]
+}

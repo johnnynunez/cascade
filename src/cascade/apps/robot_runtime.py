@@ -191,11 +191,17 @@ def robot_tool_descriptors(cfg):
     return {t.name: t for t in (*_global_tools(), *(t for d in describe_robot(cfg).values() for t in d.tool_descriptors))}
 
 
-def build_robot_runtime(cfg, run_dir, **_kwargs):
+def build_robot_runtime(cfg, run_dir, *, navigation_bindings=None, **_kwargs):
     from ..agent.trace import TraceLogger
     from ..memory.episodic import EpisodicMemory
     from ..robotics.runtime import RobotRuntime
     domains = describe_robot(cfg)
+    navigation_bindings = {} if navigation_bindings is None else navigation_bindings
+    if (not isinstance(navigation_bindings, dict) or any(
+            name not in domains or domains[name].profile["kind"] != "locomotion"
+            or not isinstance(value, dict) or set(value) != {"source", "settings"}
+            for name, value in navigation_bindings.items())):
+        raise ValueError("navigation bindings require an exact locomotion domain, source and settings")
     built = []
     try:
         for name, domain in domains.items():
@@ -220,7 +226,18 @@ def build_robot_runtime(cfg, run_dir, **_kwargs):
                 domain.runtime, domain.owner = build_runtime(domain_cfg, directory, lazy_arm=True, view=False, serve=False)
             else:
                 from .mobile_runtime import build_mobile_runtime
-                domain.runtime, domain.owner = build_mobile_runtime(domain_cfg, directory)
+                binding = navigation_bindings.get(name)
+                options = ({"navigation_source": binding["source"], "navigation_settings": binding["settings"]}
+                           if binding else {})
+                domain.runtime, domain.owner = build_mobile_runtime(domain_cfg, directory, **options)
+                if binding:
+                    from dataclasses import replace
+                    selected = name + "/" + binding["settings"]["base"]
+                    resources = tuple(replace(r, capabilities=(*r.capabilities, "go_to"))
+                                      if r.resource_id == selected else r for r in domain.resources)
+                    domain = DomainAdapter(name, domain.profile, resources, domain.runtime.tool_specs,
+                                           domain.runtime.motion_skills, runtime=domain.runtime, owner=domain.owner)
+                    domains[name] = domain
             built.append(domain)
         runtime = RobotRuntime(domains, cfg=cfg, memory=EpisodicMemory(), trace=TraceLogger(run_dir))
         return runtime, runtime

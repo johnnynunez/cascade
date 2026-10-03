@@ -50,6 +50,50 @@ incomplete cleanup if still busy. The installed
 extension hash and library version are checked, while the upstream source pin
 documents the reviewed API rather than certifying all linked SDK libraries.
 
+## Opt-in observed route execution
+
+`build_mobile_runtime(..., navigation_source=source, navigation_settings=settings)`
+can wrap a configured mobile controller with `NavigationDomain`. The composed
+builder accepts the same explicit objects as
+`navigation_bindings={domain_name: {"source": source, "settings": settings}}`.
+This replaces exposed free-motion tools with `go_to(goal_xy_m, map_epoch,
+map_sha256)` and keeps the existing controller, generation fences and independent
+mobile verifier. Default profiles and the read-only spatial replay are unchanged.
+
+The borrowed provider must implement bounded `read(deadline_monotonic_s=...)`
+and `swept_clearance(query, deadline_monotonic_s=...)`. Reads return a typed
+`NavigationSample`: a registered map-from-base pose with known error bounds,
+robot/model/body/calibration identities, sensor epoch and capture sequence,
+transport age, exact `GridSnapshot`, and immutable collision-volume hash.
+Clearance returns `VolumeClearance` bound to the entire query and volume hash;
+unknown space fails closed. Point samples or free planar cells cannot establish
+clearance of the complete swept cylinder. Native providers must release the GIL
+or isolate blocking work in a process; the Python watchdog cannot preempt native
+code that holds it. A stuck provider is quarantined instead of spawning more readers.
+The provider owner retains responsibility for its lifecycle.
+
+Settings require the exact base/frame, geometry/calibration hashes, whole-body
+cylinder radius and vertical extents (including payload and every permitted
+articulation), clearance and stopping margins, localization error bounds, goal
+tolerance, map age, route length, command count and wall deadline. The query
+inflates that envelope for admitted tilt, localization error, controller heading
+and lateral drift, observation latency and stop drift. It continuously checks
+both the current body and the selected corridor. Expired captures, map/volume
+revision changes, unknown uncertainty and localization jumps stop the route;
+new observations cannot renew its original wall deadline.
+
+`SafeBase` rechecks the passive route authority around feedback reads and before
+dispatch; revocation delivers a latched stop. Final arrival requires a complete
+fresh settling window, bounded translation and full-orientation speed and drift.
+Stop and failed-route obligations survive until the explicit task boundary.
+Synthetic runs retain `ok: false`, even when `software_complete: true`.
+
+These are CPU software contracts, not native navigation admission. No shipped
+provider currently supplies the complete registered-base and whole-volume
+contract. In particular cuVSLAM's optical pose has unknown uncertainty, and its
+output alone cannot activate this runner. Dynamic-map replanning, foothold/terrain
+planning and physical end-to-end acceptance remain pending.
+
 ## Contracts
 
 `SpatialStamp` identifies a map, reset epoch, capture clock, capture time, source,
@@ -129,7 +173,7 @@ synthetic wall. Stop/reset preserves the map epoch and does not replay motion.
 
 ## Validation and next boundary
 
-CPU regressions cover transform direction/inversion, moving-base capture time,
+Replay CPU regressions cover transform direction/inversion, moving-base capture time,
 stale/foreign clocks and map resets, calibration changes, distinct equal-label
 observations, bounded history, subcell ray traversal, partial-map age retention,
 blocked unknown space, swept footprint clearance and real stdio MCP dispatch.
@@ -140,5 +184,8 @@ age loss before this delivery. Receipts are in
 Native navigation still needs a measured localization provider, live map source,
 body/terrain admission and a controller that follows a bounded geometric goal.
 Neither a replay path nor the existing arm-local nvblox collision map supplies
-those missing proofs. Any future executor must use the existing actuator owner,
-its priority stop, immutable episode generation and independent effect verifier.
+those missing proofs. The opt-in executor retains the existing actuator owner,
+priority stop, cancellation generation and independent effect verifier. Its CPU
+regressions additionally cover real mock-controller route execution, source
+loss during travel, revocation after command ACK, blocked-reader quarantine,
+delayed reset, full-orientation rest and composed-runtime task obligations.

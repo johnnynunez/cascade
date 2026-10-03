@@ -95,6 +95,7 @@ class _Operation:
     deadline: float
     cancel: threading.Event = field(default_factory=threading.Event)
     reason: str = "cancelled"
+    admission_check: object = None
 
 
 class SafeBase:
@@ -295,6 +296,11 @@ class SafeBase:
     def _check(self, op):
         if op.cancel.is_set():
             raise _Cancelled(op.reason)
+        # A newly revoked external authority has not necessarily delivered stop.
+        # Retain the existing generation fence and stop before retiring this op.
+        if op.admission_check is not None and op.admission_check() is not True:
+            self._priority_stop(latch=True, reason="navigation authority expired or cancelled", only_if=op)
+            raise _Cancelled("navigation authority expired or cancelled")
         if time.monotonic() >= op.deadline:
             self._priority_stop(latch=True, reason="wall deadline expired", only_if=op)
             raise _Cancelled("wall deadline expired")
@@ -330,15 +336,15 @@ class SafeBase:
             result["error"] = str(error)
         return result
 
-    def walk_velocity(self, vx, vy, wz, duration_s) -> dict:
+    def walk_velocity(self, vx, vy, wz, duration_s, *, admission_check=None) -> dict:
         try:
             command = VelocityCommand(vx, vy, wz, duration_s)
             self.harness.validate_command(command)
         except (TypeError, ValueError) as error:
             return self._result(error=error)
-        return self._execute(command)
+        return self._execute(command, admission_check=admission_check)
 
-    def walk_distance(self, distance_m) -> dict:
+    def walk_distance(self, distance_m, *, admission_check=None) -> dict:
         """Signed body-frame travel, terminated by feedback, never vx*time.
 
         The profile's internal policy command is reported as ``command``. It
@@ -357,12 +363,12 @@ class SafeBase:
             self.harness.validate_command(command)
         except (TypeError, ValueError) as error:
             return self._result(error=error)
-        result = self._execute(command, distance=distance)
+        result = self._execute(command, distance=distance, admission_check=admission_check)
         result["requested_distance_m"] = distance
         result.setdefault("measured_distance_m", None)
         return result
 
-    def turn(self, angle_rad) -> dict:
+    def turn(self, angle_rad, *, admission_check=None) -> dict:
         try:
             angle = finite_real(angle_rad, "angle_rad")
             limits = self.harness.limits
@@ -373,7 +379,7 @@ class SafeBase:
             self.harness.validate_command(command)
         except (TypeError, ValueError) as error:
             return self._result(error=error)
-        result = self._execute(command, angle=angle)
+        result = self._execute(command, angle=angle, admission_check=admission_check)
         result["requested_angle_rad"] = angle
         result.setdefault("measured_angle_rad", None)  # No feedback is not zero rotation.
         return result
@@ -383,7 +389,7 @@ class SafeBase:
         w, x, y, z = state.orientation_wxyz
         return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
 
-    def _execute(self, command, *, angle=None, distance=None) -> dict:
+    def _execute(self, command, *, angle=None, distance=None, admission_check=None) -> dict:
         if not self._motion.acquire(blocking=False):
             return self._result(error="concurrent motion refused", command=command.as_dict())
         op = None
@@ -400,7 +406,8 @@ class SafeBase:
             with self._gate:
                 if self._latched or self._control_ops:
                     return self._result(error="stop latched or control operation active", command=command.as_dict())
-                op = _Operation(self._serial, time.monotonic() + self.harness.limits["max_wall_duration_s"])
+                op = _Operation(self._serial, time.monotonic() + self.harness.limits["max_wall_duration_s"],
+                                admission_check=admission_check)
                 self._active = op
             timer = threading.Timer(self.harness.limits["max_wall_duration_s"],
                                     lambda: self._priority_stop(latch=True, reason="wall deadline expired", only_if=op))

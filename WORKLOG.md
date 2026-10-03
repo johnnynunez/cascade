@@ -637,3 +637,20 @@ The final support/helper/effects selection on main 075c08c passes 395 tests in
 The controlled original 12 verdicts all timed out; one test accidentally
 accepted unverified without its reason, now strengthened. Raw source-bound
 receipts are linked from benchmark/results/mobile_support_rest_fixture_20261003.json.
+
+### 2026-10-03 — Preserve explicitly owned Spark model endpoints
+
+Spark launch now honors an explicitly supplied CASCADE_QWEN_BASE_URL instead
+of unconditionally redirecting it to port 8080. Unset retains the default; an
+explicitly empty value fails the existing resolver. Required model identifier,
+context, installer and MCP 300-second budget are unchanged. Added four actual
+Bash/resolver checks, including an ephemeral HTTP model fixture and a pre-HTTP
+regression guard to avoid contacting unrelated services.
+
+83 focused launcher/proof checks passed before the final test-only HOME
+preservation correction; all four affected cases passed afterwards. Both runs
+kept 1602 input files and protected stores unchanged. The archived original
+launcher fails both explicit endpoint controls while the candidate passes; the
+unset-default control passes for both. Independent source review, Ruff F/E9,
+Bash syntax and diff checks pass. No model, host, robot or GPU was launched, and
+this change does not validate trial12 or authenticate model weights.

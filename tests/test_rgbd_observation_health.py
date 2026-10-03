@@ -1,6 +1,8 @@
 """Offline synthetic recording alarms; never physical support acceptance."""
 
 import copy
+import math
+import struct
 
 import pytest
 
@@ -8,16 +10,19 @@ from benchmark.rgbd.observation_health import inspect_states
 from test_mobile_effects import state, fixture_support_contract
 
 
+DT = struct.unpack("<f", struct.pack("<f", 0.005))[0]
+
+
 def recording():
     rows = []
     for step in range(3, 83):
-        value = state(step, sim_time_s=step * 0.005).as_dict()
+        value = state(step, sim_time_s=step * DT).as_dict()
         if step == 3:
             value["support"]["contacts"] = []
         rows.append(
             {
                 "step": step,
-                "sim_time": step * 0.005,
+                "sim_time": step * DT,
                 "controller": value,
                 "fallen": False,
                 "permission_generation_at_sample": 0,
@@ -26,7 +31,7 @@ def recording():
     identity = {
         "model_identity_sha256": "e" * 64,
         "support_contract": fixture_support_contract(),
-        "recipe": {"native": {"actual_physics_dt": 0.005}},
+        "recipe": {"native": {"actual_physics_dt": DT}},
     }
     return rows, identity
 
@@ -36,6 +41,7 @@ def check(rows, identity):
         rows,
         identity,
         epoch="fixture-epoch",
+        reference_identity={"recipe": {"native": {"actual_physics_dt": DT}}},
         limits={"min_height_m": 0.06, "max_height_m": 0.3, "max_tilt_rad": 0.7},
     )
 
@@ -107,3 +113,40 @@ def test_alarm_in_first_record_never_discarded_as_warmup(mutation):
         value["orientation_wxyz"] = [0.7071067811865476, 0.7071067811865476, 0, 0]
     report = check(rows, identity)
     assert not report["passed"] and report["alarms"]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [0.005, math.nextafter(DT, 0), math.nextafter(DT, 1), 0.01, True, float("nan")],
+)
+def test_nearby_or_nominal_dt_does_not_replace_exact_native_contract(value):
+    rows, identity = recording()
+    identity["recipe"]["native"]["actual_physics_dt"] = value
+    with pytest.raises(ValueError, match="exact baseline/float32"):
+        check(rows, identity)
+
+
+def test_changed_reference_or_missing_reference_never_implicitly_accepted():
+    rows, identity = recording()
+    kwargs = dict(
+        epoch="fixture-epoch",
+        limits={"min_height_m": 0.06, "max_height_m": 0.3, "max_tilt_rad": 0.7},
+    )
+    with pytest.raises(ValueError, match="exact baseline/float32"):
+        inspect_states(
+            rows,
+            identity,
+            reference_identity={"recipe": {"native": {"actual_physics_dt": 0.005}}},
+            **kwargs,
+        )
+    with pytest.raises(TypeError, match="reference_identity"):
+        inspect_states(rows, identity, **kwargs)
+    result = inspect_states(
+        rows, identity, reference_identity=copy.deepcopy(identity), **kwargs
+    )
+    assert result["passed"] and result["timestep_binding"] == {
+        "actual_physics_dt": DT,
+        "reference_physics_dt": DT,
+        "producer_float32_5ms": DT,
+        "comparison": "exact; no numeric tolerance",
+    }

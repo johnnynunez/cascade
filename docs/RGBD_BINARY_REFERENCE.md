@@ -140,3 +140,20 @@ there is no external locomotion/reset client. A future native run must separatel
 pass producer/closure, passive live reader and the 17-point planar geometry
 consumer. This preparation has launched no Kit, renderer or GPU work and makes
 no new physical or native geometry claim.
+
+
+The subsequent binary native attempt retained a global failure: all five live
+captures missed the exact four-ID gate, with no spatial annotation admitted.
+The offline recording helper also compared the actual timestep to Python's
+`0.005` rather than the producer's already enforced float32 value. Its correction
+requires exact equality both to the separately pinned baseline recipe and to
+`float32(0.005)` (0.004999999888241291), with no numeric tolerance added.
+Nominal double0.005 and adjacent representable doubles are rejected. The original
+80 rows then pass the component clock/fault/contact-channel re-audit; steps3–10
+retain known-empty contacts, without support or balanced-rest credit. The
+original failed campaign/model/captures stay unchanged. The standalone helper
+now requires `reference_identity`; a future campaign must supply its authenticated
+baseline explicitly and bind the changed helper in a new source/model recipe.
+The [clock guard receipt](../benchmark/results/rgbd_recorded_clock_guard_20261003.json)
+records21 CPU controls and the same-data old-error/new-component-pass comparison.
+No new native execution or geometry acceptance follows from this correction.

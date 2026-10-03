@@ -729,3 +729,19 @@ hardware admission was tested. See benchmark/results/generalized_joints_20261003
 - No Kit/GPU/renderer/native campaign launched. External final plan/check-only
   remains preparation subject to root review and a coordinated resource window.
   See docs/RGBD_BINARY_REFERENCE.md and its new CPU preparation receipt.
+
+
+# 2026-10-03 — Exact recorded-clock guard correction (offline only)
+
+- Preserved binary native01 global FAIL and all original bytes. Actual dt is
+  exactly0.004999999888241291, matching both baseline and the producer's existing
+  float32(5ms) bootstrap guard. Python-double0.005 equality was the audit defect.
+- Offline helper now requires the authenticated reference recipe and both exact
+  comparisons; neighboring doubles, nominal0.005, foreign/missing baseline,
+  nonfinite/bool values reject. No widened clock/state/verdict thresholds.
+- 21 CPU PASS/.24s;1625inputs/stores intact. Same80 retained rows reproduce the
+  old ValueError and pass the new component audit;8known-empty contact rows
+  remain explicit, without measured-support/balance claim. Detector failure,
+  overallFAIL, native model identity and all original captures remain unchanged.
+- No Kit/GPU/service/native retry or publication. Receipt and raw causal outputs
+  live in RGBD_NATIVE_CLOCK_AUDIT; source candidate is separate from52a4dc0.

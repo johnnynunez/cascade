@@ -1,0 +1,67 @@
+{
+  "artifact_root": "RGBD_NATIVE_CLOCK_AUDIT",
+  "artifact_sha256": {
+    "checks-01/after.json": "f4dcc9e4f0c3977e45ef1251fce6bff8143153f2ae4a11bb3f6acaf7872c4fd8",
+    "checks-01/before.json": "f4dcc9e4f0c3977e45ef1251fce6bff8143153f2ae4a11bb3f6acaf7872c4fd8",
+    "checks-01/pytest.log": "5b659ff4aec67a30b01248b8729fe2d4d43bafdf7e75345eba783dab5a173ac0",
+    "checks-01/pytest.xml": "f7d6d7029027584a302daf3ae0f7007b15e61d5f6b4604a56b5401216cbe0c9e",
+    "checks-01/reaudit.log": "b85a6f2cee405b0d1e5ae35e9241cc78a804e3a935f2c68b8c2e0287871de823",
+    "checks-01/receipt.json": "b20c3492428d62013c7db6e8e0b8857cf1512b09caefd2c49d5cc68ce05f60f3",
+    "reaudit-01/receipt.json": "88a4c07143f264ac69ed44cea9110efd5974066a04da06cd075d9bca24f7d54f"
+  },
+  "base_commit": "52a4dc0fc8505ea334f7a3dd78316f7e598bb96f",
+  "causal": {
+    "baseline_error": "ValueError: recorded recipe requires the original5ms step",
+    "candidate": {
+      "alarms": [],
+      "balanced_rest_verified": false,
+      "bootstrap_solve_count": 2,
+      "known_empty_contact_steps": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "observed_row_count": 80,
+      "passed": true,
+      "physical_admission": false,
+      "scope": "Original recorded epoch/steps and fault/contact-channel diagnostics; empty contacts are not measured support.",
+      "timestep_binding": {
+        "actual_physics_dt": 0.004999999888241291,
+        "comparison": "exact; no numeric tolerance",
+        "producer_float32_5ms": 0.004999999888241291,
+        "reference_physics_dt": 0.004999999888241291
+      }
+    },
+    "inputs_unchanged": true
+  },
+  "geometry_admission": false,
+  "kind": "rgbd_recorded_clock_guard_correction",
+  "native_data_relabelled": false,
+  "native_launched": false,
+  "native_model_identity_sha256": "9a7668af4c8d97b61d1bd01d596ef9834671cc66a306a6d08c423d9b7e8f2113",
+  "original_campaign_pass": false,
+  "original_campaign_receipt_sha256": "949d1d1a57368b42c816e99d988c4f2e9dec91ef3be1c5c296d2351c88d1674a",
+  "physical_admission": false,
+  "schema_version": 1,
+  "scope": "Offline component audit only: exact equality to pinned baseline and existing producer float32 bootstrap contract. No tolerance broadened; tags/geometry remain rejected.",
+  "script_sha256": {
+    "check_cpu.py": "80058d985f0d49bc03b77e1ae42c11e60cd3a896ae7c1460bd98ddf48f07733b",
+    "reaudit.py": "47b1a3fd5fb84a9e5f4fd363d060dcdc6af8cb79bbbf3cee33e8d15be2337755"
+  },
+  "source_sha256": {
+    "benchmark/rgbd/observation_health.py": "a0877c9e4a2425b18d6b3b7f8fc71d773e9c1a40e50392c0bd5f45caac890eff",
+    "src/cascade/sim/microduck_newton.py": "424637f238603d65644514f87307faf1fa31646627813bf5e83328ca1f0f21a5",
+    "tests/test_rgbd_observation_health.py": "e0688fb9fb4f315be50122ff6bca725b01e537c47a6c329effca32bd08fa1166"
+  },
+  "tests": {
+    "input_count": 1625,
+    "inputs_and_stores_unchanged": true,
+    "passed": 21,
+    "seconds": 0.24
+  }
+}

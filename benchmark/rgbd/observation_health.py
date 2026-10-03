@@ -2,18 +2,32 @@
 
 from types import SimpleNamespace
 import math
+import struct
 
 from cascade.agent.base_effects import BasePostconditionChecker
 from cascade.control.mobile_base import BaseState
 from cascade.control.mobile_support import support_contract
 
 
-def inspect_states(rows, identity, *, epoch, limits):
+def inspect_states(rows, identity, *, epoch, limits, reference_identity):
     contract = support_contract(identity["support_contract"])
     model = identity["model_identity_sha256"]
     dt = identity["recipe"]["native"]["actual_physics_dt"]
-    if type(dt) not in (int, float) or not math.isfinite(dt) or dt != 0.005:
-        raise ValueError("recorded recipe requires the original5ms step")
+    reference_dt = reference_identity["recipe"]["native"]["actual_physics_dt"]
+    # Match the producer's existing exact native bootstrap contract (float32
+    # 5 ms), and the independently pinned baseline. No widened time tolerance.
+    expected_dt = struct.unpack("<f", struct.pack("<f", 0.005))[0]
+    if (
+        type(dt) not in (int, float)
+        or type(reference_dt) not in (int, float)
+        or not math.isfinite(dt)
+        or not math.isfinite(reference_dt)
+        or dt != reference_dt
+        or dt != expected_dt
+    ):
+        raise ValueError(
+            "recorded native dt differs from exact baseline/float32 bootstrap contract"
+        )
     if contract["model_identity_sha256"] != model:
         raise ValueError("recorded support contract differs from model")
     checker = SimpleNamespace(_support_contract=contract)
@@ -64,6 +78,12 @@ def inspect_states(rows, identity, *, epoch, limits):
             )
     return {
         "passed": not alarms,
+        "timestep_binding": {
+            "actual_physics_dt": dt,
+            "reference_physics_dt": reference_dt,
+            "producer_float32_5ms": expected_dt,
+            "comparison": "exact; no numeric tolerance",
+        },
         "alarms": alarms,
         "known_empty_contact_steps": known_empty,
         "bootstrap_solve_count": 2,

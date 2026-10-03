@@ -34,8 +34,9 @@ means **no declared actuator binding**; it is not proof of mechanical passivity.
 joint order. It is separate from the sensor envelope's `model_identity_sha256`,
 which binds the physical producer. A description neither authenticates a robot nor
 admits a controller, supplies transforms, certifies contact, or proves task success.
-A floating-root physical arm is refused while its legacy static-frame control lacks
-a validated dynamic-frame/shared-control path. The existing refusal of mixed
+A physical arm with a floating root or **any internal planar, spherical or floating
+joint** is refused while its legacy static-frame control lacks a validated
+dynamic-frame/shared-control path. The existing refusal of mixed
 physical manipulation/locomotion remains in place.
 
 ## Joint observations
@@ -49,10 +50,57 @@ Out-of-range measurements remain visible to health/safety consumers.
 
 The existing angular `proprioception` payload and mobile-state adapter are
 unchanged. With an embodiment present, angular observations must match its joint
-names/order and cannot stand in for a prismatic coordinate. The binding returns
+names/order and accepts only revolute/continuous coordinates. The binding returns
 the original immutable capture: it does not advance simulation, generate a new
 epoch/sequence, reset producer age, or replace the physical model identity.
 Stale readings remain subject to the existing sensor-hub gate.
+
+## Version 2: passive generalized coordinates
+
+An explicit `embodiment.version: 2` additionally permits internal `planar`,
+`spherical` and `floating` joints. Version 1 declarations, normalized wire values
+and digests retain their existing format. Scalar joint declarations also retain
+their existing schema within version 2. New joints must be `passive`: scalar
+axes, scalar limits, actuation and transmissions onto these joints are rejected.
+This version does not yet describe their configuration bounds or admit their control.
+
+Each new joint requires the complete `coordinates` dictionary defined by
+[`coordinate_convention`](../src/cascade/robotics/joint_coordinates.py). A separate
+`generalized_joint_state` sensor payload repeats that convention with each
+measurement. It contains `joint_id`, `joint_type`, configuration `q`, tangent
+velocity `v`, and optional `effort`. Its digest, exact joint order, type and
+convention must match its version 2 attachment. Legacy `joint_state` and angular
+`proprioception` bindings reject multi-DoF joints before reading a provider.
+
+| Joint | `q` (`nq`) | `v` (`nv`) | `effort` |
+| --- | --- | --- | --- |
+| planar | `x, y, angle_z` (3) | `vx, vy, wz` (3) | `fx, fy, tz` |
+| spherical | `qw, qx, qy, qz` (4) | `wx, wy, wz` (3) | `tx, ty, tz` |
+| floating | `x, y, z, qw, qx, qy, qz` (7) | `vx, vy, vz, wx, wy, wz` (6) | `fx, fy, fz, tx, ty, tz` |
+
+Positions describe the child joint origin relative to the parent joint origin,
+expressed in the **parent joint frame**. Planar motion lies in its XY plane with
+right-handed rotation about +Z. Spherical/floating orientation is a right-handed
+Hamilton quaternion in **wxyz** order mapping child-frame vectors into the parent
+frame. The squared quaternion norm must differ from one by at most `1e-6` (float32
+roundoff); values and sign are retained without normalization. The declaration
+supplies no joint origin or transform into a link/world frame.
+
+Velocities describe the child relative to the parent. Linear velocity is that
+of the child joint origin, expressed in the parent joint frame; angular velocity
+uses the same frame. These are not quaternion derivatives. Effort has `nv`
+components and is the work-dual force/torque at the same origin in that same frame,
+so instantaneous power is `dot(effort, v)`. Units are explicit per component:
+translation `m`, rotation `rad`, quaternion `1`, linear velocity `m/s`, angular
+velocity `rad/s`, force `N` and torque `N*m`. Missing effort remains unknown
+(`null`); it does not assert zero force or a solved reaction.
+
+A generalized packet can also carry scalar revolute/continuous/prismatic entries
+with `nq = nv = 1` and their declared axis and SI units. No new physical producer,
+forward kinematics, root-state observer, controller or motion tool is supplied.
+The original envelope's epoch, capture time, sequence, age and physical identity
+are preserved by the binding. Structural identity is still distinct from physical
+producer identity.
 
 ## Exercised profiles
 
@@ -67,6 +115,12 @@ coordinates and a prismatic lift. It has no configured wheel/lift controller and
 exposes no locomotion or lift tools. It demonstrates meter/radian observations
 through the actual composed runtime and MCP without fabricating a driver.
 
+`generalized_joint_sensors` is another observation-only fixture: a fixed root and
+three passive internal planar/spherical/floating joints. Its synthetic values
+exercise version 2, unequal `q`/`v` sizes, optional effort and ordinary composed
+MCP reads. It declares no writer, controller or effector. Substitute this profile
+name in the commands below to inspect it; it cannot move a robot.
+
 ```bash
 python -m cascade.apps.demo --robot wheeled_lift_sensors --llm mock --no-view --no-serve
 CASCADE_ROBOT=wheeled_lift_sensors python -m cascade.apps.mcp_server
@@ -80,7 +134,7 @@ unknown. Use task-specific `CASCADE_RUN_DIR`, `CASCADE_BELIEFS_PATH`,
 CPU tests exercise immutable topology/unit/resource failures, frame/joint/digest
 mismatch, stale capture preservation, backward-compatible angular packets,
 passive MCP discovery, runtime dispatch and actual stdio MCP reads. These checks
-provide software evidence only. General multi-DOF internal joints, multiple
-actuators driving one coordinate, control allocation, whole-body dynamics and
+provide software evidence only. Physical generalized-coordinate producers,
+multi-DoF actuation, multiple actuators driving one coordinate, control allocation, whole-body dynamics and
 hardware admission need separate implementations and validation; no universal
 robot-control claim follows from this contract.

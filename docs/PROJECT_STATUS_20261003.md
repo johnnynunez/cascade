@@ -17,7 +17,7 @@ accounting and RGB-D without admitting unvalidated physical capabilities.
 | Area | Implemented and measured | Remaining boundary |
 | --- | --- | --- |
 | Manipulation | SafeArm control, observed grasp/release guards, task-effect accounting and measured withdrawal. Historical OVRTX/cuMotion PhysX pick/place/home passed. The original two-object MuJoCo delivery test also passed in one new episode on integrated main `274fa3a9`, including release, support, rest, both home returns and retention of the first object. | Broader task/campaign reliability, hardware and acceptance of later source compositions. |
-| Fastening | Mounted Factory domain, per-solve observation, exclusive owner and bounded startup/action contracts. On the integrated source tree, zero-solve preparation and one native readiness episode passed the unchanged limits. A separate earlier mounted-socket experiment measured threading, seating and retention. | The configured domain still has no successful native turn-and-rest task episode. Tool pickup, initial engagement, withdrawal and calibrated preload remain unproved. |
+| Fastening | Mounted Factory domain, per-solve observation, exclusive owner and bounded startup/action contracts. On the integrated source tree, zero-solve preparation and one native readiness episode passed the unchanged limits. The subsequent one-turn attempt failed startup before reset or motion. A separate earlier mounted-socket experiment measured threading, seating and retention. | The configured domain still has no successful native turn-and-rest task episode. Tool pickup, initial engagement, withdrawal and calibrated preload remain unproved. |
 | Locomotion | Optional measured `walk_distance`, cancellation and independent support/rest checks; historical fresh-start ±30 mm episodes passed. | Published candidate profiles have no new model/support admission. The 0.1 m software ceiling is not measured 0.1 m capability or general gait acceptance. |
 | Sensing and spatial memory | Passive, bounded sensor providers; identity/epoch/age checks; observed calibrated RGB-D and retained pixel-to-surface annotations without constructing an arm. | Independent metric XY/general-3D accuracy, moving-camera calibration and per-AOV synchronization. No physical SLAM or `go_to` execution is admitted. |
 | Speech | Browser/media gateway, real speech-provider path, original-intent deadlines, priority stop and bounded observed-result views. One continuous synthetic-input/native-motion recording exists. | That motion video contains no spoken robot reply. General dialogue/action reliability, microphone/speaker hardware and public hosted service remain unvalidated. |
@@ -172,6 +172,24 @@ was removed or prove a general cause or speedup. Ordinary raw-record decoding
 can occur after readiness while the owner is alive; only phase export and the
 remaining post-close drain are guaranteed to follow owner join. Earlier failed
 episodes below retain their original source, model, clocks and verdicts.
+
+### 2026-10-03 — Subsequent one-turn attempt failed during startup
+
+On the same `4bda2183` source and `01595b62` model, new epoch
+`888ba87b2f6145a8ae25e0d6b095c90d` **failed** the unchanged **10 s** readiness
+deadline. Quiet began at step **61**; the last gen0 solve accepted before the
+deadline was **359**, supplying only **0.496666679 simulated seconds**. Two
+further quiet steps would have been needed for the required 0.5 s. No reset or
+turn was dispatched. There was no freshness fault or generation-2 GC interval
+during this readiness call; those observations do not establish a performance
+cause or a validated optimization.
+
+All **360 rows and 98,326 contacts** were retained. Actual exit was **1**, with
+natural owned-process closure, no owner error and a zero spindle upload.
+Source/SDK/assets inventories and five protected stores were unchanged.
+**This is a startup failure, with no fastening-task or post-stop-rest proof.**
+It does not alter the earlier readiness PASS or historical failures.
+[Independent failure and closure audit](evidence/project-status-20261003/factory-one-turn-startup-failure-review.json).
 
 The historical mounted-socket experiment measured 15.365 turns, 38.155 mm
 advance, seating and two seconds of zero spindle-motor torque. The arm/socket

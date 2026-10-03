@@ -2044,3 +2044,18 @@ and original-contract check in `docs/evidence/project-status-20261003`. This is
 one episode observed at batch boundaries, without all-substep, repeated,
 hardware, Isaac/GPU or LLM-host acceptance. Historical AIM and Trial12 FAIL
 records remain untouched.
+
+### 2026-10-03 — Factory one-turn attempt stopped at startup
+
+The next episode on source `4bda2183`, model `01595b62`, failed the unchanged
+10 s readiness deadline before any reset or turn. In new epoch
+`888ba87b2f6145a8ae25e0d6b095c90d`, quiet steps 61–359 supplied only
+0.496666679 simulated seconds: two more quiet steps were needed for 0.5 s.
+No freshness fault or gen2 GC occurred during readiness; no performance cause
+or CPU optimization is validated by this failed episode.
+
+Independent audit retained 360 rows/98,326 contacts, actual exit 1, natural
+owned closure and zero spindle upload; source/SDK/assets and five stores are
+unchanged. Publish the byte-exact failure audit under
+`docs/evidence/project-status-20261003`. No physical task or post-stop rest is
+proved. The earlier readiness PASS, MuJoCo result and historical failures remain.

@@ -1,0 +1,595 @@
+{
+  "base": "075c08c32eec235e3c06e8c7ff8e27c3b74174fa",
+  "distinct_passing_cases": 606,
+  "excluded_commit": "891d6c7ebf439d613d33849249f6df1f2afb23e7",
+  "exclusion_reason": "MuJoCo placement capture optimization unrelated to RGB-D",
+  "refs": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/source-parity.json",
+      "sha256": "c237a311de95e377bc75ea4110500c9b85f63e8699b8d5476b933f5a5850bfad"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/patch-equivalence.json",
+      "sha256": "00ed2687ebd9afbda0bade2c576c2404cdf254404329beeba13bd7a5bda19baf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/lint.json",
+      "sha256": "e7b8b66d646b8c2e846aa3c8069ae329c6502850b4fb0e46a72fb35ad2264f26"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/inventory-proposed.json",
+      "sha256": "1829edbef0a9db11e815fbcf6460c0a22ce6d901fc593e50c840aa0645b2bd87"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/append-resolutions.json",
+      "sha256": "ec59de92a175033ad6a399e8a5fd5bfac546876d03e312f26da0de918258d395"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/rgbd-composition-01/result.json",
+      "sha256": "ccc45c08393a920e4d73be4015a05f8ec6f97a58ab9c9947c2131bf25bc51df7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/rgbd-composition-01/pytest.log",
+      "sha256": "a19de915251315b4b9d145fff091dd061b4774bd35199bd6b2179d806a2803f0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd/result.json",
+      "sha256": "72ebce1bf34da9eac72fde7dfbd43663d7d23ae2362c3a1c287966c29dc180ca"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd/pytest.log",
+      "sha256": "f96abe6186a35c5ee9f2eb3cc79e82105fffe1448207008f8ee0525ae928e7fa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd-complete/result.json",
+      "sha256": "15ac1bdf2fc90c4ac09311cafc387c8b5384d2c6bd45c4bca459b28ff4d8f316"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd-complete/pytest.log",
+      "sha256": "52480c413be449efc9186885254ec9be7d15b9137514c59a27d1b864f176cfe3"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd-complete-02/result.json",
+      "sha256": "860958d4beac9dccdcb133d6ea8cb127cacd385427be6f73050aeea8657db6d5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd-complete-02/pytest.log",
+      "sha256": "515fc245f2a72aa52ab54f8fdf04f30bd04cd774c91865e64b82333aecfae94a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/rgbd-composition-01/junit.xml",
+      "sha256": "d2a55412bbeac7051e1f437be2771db20949bfe3b3bf1783d3680304ad598d01"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd-complete-02/junit.xml",
+      "sha256": "a84e5cd01f357ff0492d092f7326a9237e07f28497e2a50d8574eb2222aacf05"
+    }
+  ],
+  "runs": {
+    "optional-usd": {
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_sensing_rgbd.py::test_read_actual_usd_optics_and_pose_with_no_arm",
+        "tests/test_rgbd_planar_reference.py::test_real_usd_visual_fixture_has_no_collision_or_body_schema",
+        "tests/test_rgbd_native_bridge.py::test_usd_existing_values_time_samples_and_collision_gate",
+        "tests/test_rgbd_ground_texture.py::test_cpu_usd_authoring_preserves_physics_purpose_and_adds_no_geometry[board0]",
+        "tests/test_rgbd_ground_texture.py::test_cpu_usd_authoring_preserves_physics_purpose_and_adds_no_geometry[board1]",
+        "tests/test_rgbd_ground_native_bridge.py::test_cpu_usd_metadata_is_in_consumed_scene_and_keeps_physics_binding",
+        "tests/test_rgbd_ground_native_bridge.py::test_cpu_usd_stronger_ancestor_material_changes_effective_binding_and_is_rejected",
+        "tests/test_rgbd_binary_native_bridge.py::test_cpu_usd_consumes_exact_consumer_and_actual_authoring_environment",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_actual_rotated_st_preserves_geometry_and_physics_binding",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[st]",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[shader]",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[metadata]",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[ancestor]",
+        "tests/test_microduck_camera_identity.py::test_two_sensor_instances_produce_identical_authored_scene_without_normalization",
+        "tests/test_microduck_camera_identity.py::test_sdk_fallback_or_mismatched_product_fails_instead_of_hiding_identity_change[fallback]",
+        "tests/test_microduck_camera_identity.py::test_sdk_fallback_or_mismatched_product_fails_instead_of_hiding_identity_change[wrong_resolution]",
+        "tests/test_microduck_camera_identity.py::test_sdk_fallback_or_mismatched_product_fails_instead_of_hiding_identity_change[wrong_camera]",
+        "tests/test_microduck_camera_identity.py::test_existing_product_is_never_overwritten",
+        "-q",
+        "-ra",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd/junit.xml"
+      ],
+      "cwd": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/cascade",
+      "elapsed_s": 1.6861617680406198,
+      "exit_code": -11,
+      "gpu": false,
+      "head": "df8cf4226ea3b26c6bc877d7f85ccb63aaa8a490",
+      "imports": {
+        "cv2": "/home/johnny/Projects/demo/cascade/.venv/lib/python3.12/site-packages/cv2/__init__.py",
+        "cv2_version": "5.0.0",
+        "numpy": "/home/johnny/Projects/demo/cascade/.venv/lib/python3.12/site-packages/numpy/__init__.py",
+        "numpy_version": "2.5.3",
+        "pxr": null,
+        "python": "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "usd_version": [
+          0,
+          25,
+          5
+        ]
+      },
+      "kit": false,
+      "log_sha256": "f96abe6186a35c5ee9f2eb3cc79e82105fffe1448207008f8ee0525ae928e7fa",
+      "overlay_scope": "Only pxr package symlink; no other SDK packages or site path",
+      "physics_steps": 0,
+      "protected_unchanged": true,
+      "source_unchanged": true,
+      "usd_input_count": 78,
+      "usd_sources_unchanged": true
+    },
+    "optional-usd-complete": {
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/bin/python",
+        "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd-complete/bootstrap.py",
+        "tests/test_sensing_rgbd.py::test_read_actual_usd_optics_and_pose_with_no_arm",
+        "tests/test_rgbd_planar_reference.py::test_real_usd_visual_fixture_has_no_collision_or_body_schema",
+        "tests/test_rgbd_native_bridge.py::test_usd_existing_values_time_samples_and_collision_gate",
+        "tests/test_rgbd_ground_texture.py::test_cpu_usd_authoring_preserves_physics_purpose_and_adds_no_geometry[board0]",
+        "tests/test_rgbd_ground_texture.py::test_cpu_usd_authoring_preserves_physics_purpose_and_adds_no_geometry[board1]",
+        "tests/test_rgbd_ground_native_bridge.py::test_cpu_usd_metadata_is_in_consumed_scene_and_keeps_physics_binding",
+        "tests/test_rgbd_ground_native_bridge.py::test_cpu_usd_stronger_ancestor_material_changes_effective_binding_and_is_rejected",
+        "tests/test_rgbd_binary_native_bridge.py::test_cpu_usd_consumes_exact_consumer_and_actual_authoring_environment",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_actual_rotated_st_preserves_geometry_and_physics_binding",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[st]",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[shader]",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[metadata]",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[ancestor]",
+        "tests/test_microduck_camera_identity.py::test_two_sensor_instances_produce_identical_authored_scene_without_normalization",
+        "tests/test_microduck_camera_identity.py::test_sdk_fallback_or_mismatched_product_fails_instead_of_hiding_identity_change[fallback]",
+        "tests/test_microduck_camera_identity.py::test_sdk_fallback_or_mismatched_product_fails_instead_of_hiding_identity_change[wrong_resolution]",
+        "tests/test_microduck_camera_identity.py::test_sdk_fallback_or_mismatched_product_fails_instead_of_hiding_identity_change[wrong_camera]",
+        "tests/test_microduck_camera_identity.py::test_existing_product_is_never_overwritten",
+        "-q",
+        "-ra",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd-complete/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd-complete/junit.xml"
+      ],
+      "cwd": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/cascade",
+      "elapsed_s": 0.4860055909957737,
+      "exit_code": 4,
+      "gpu": false,
+      "head": "df8cf4226ea3b26c6bc877d7f85ccb63aaa8a490",
+      "imports": {
+        "cv2": "/home/johnny/Projects/demo/cascade/.venv/lib/python3.12/site-packages/cv2/__init__.py",
+        "cv2_version": "5.0.0",
+        "numpy": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages/numpy/__init__.py",
+        "numpy_version": "2.5.3",
+        "pxr": [
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages/pxr"
+        ],
+        "pytest_version": "9.1.1",
+        "python": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/bin/python",
+        "usd_version": [
+          0,
+          25,
+          5
+        ],
+        "yaml": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/policy-reference/venv/lib/python3.12/site-packages/yaml/__init__.py"
+      },
+      "kit": false,
+      "log_sha256": "52480c413be449efc9186885254ec9be7d15b9137514c59a27d1b864f176cfe3",
+      "overlay_scope": "Original USD interpreter; only existing YAML and cv2 loaded by exact file spec. No shared writes or full site-package path additions.",
+      "physics_steps": 0,
+      "protected_unchanged": true,
+      "source_unchanged": true,
+      "usd_input_count": 78,
+      "usd_sources_unchanged": true
+    },
+    "optional-usd-complete-02": {
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/bin/python",
+        "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd-complete-02/bootstrap.py",
+        "tests/test_sensing_rgbd.py::test_read_actual_usd_optics_and_pose_with_no_arm",
+        "tests/test_rgbd_planar_reference.py::test_real_usd_visual_fixture_has_no_collision_or_body_schema",
+        "tests/test_rgbd_native_bridge.py::test_usd_existing_values_time_samples_and_collision_gate",
+        "tests/test_rgbd_ground_texture.py::test_cpu_usd_authoring_preserves_physics_purpose_and_adds_no_geometry[board0]",
+        "tests/test_rgbd_ground_texture.py::test_cpu_usd_authoring_preserves_physics_purpose_and_adds_no_geometry[board1]",
+        "tests/test_rgbd_ground_native_bridge.py::test_cpu_usd_metadata_is_in_consumed_scene_and_keeps_physics_binding",
+        "tests/test_rgbd_ground_native_bridge.py::test_cpu_usd_stronger_ancestor_material_changes_effective_binding_and_is_rejected",
+        "tests/test_rgbd_binary_native_bridge.py::test_cpu_usd_consumes_exact_consumer_and_actual_authoring_environment",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_actual_rotated_st_preserves_geometry_and_physics_binding",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[st]",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[shader]",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[metadata]",
+        "tests/test_rgbd_layout_a_native.py::test_cpu_usd_postbootstrap_changes_refuse_without_masking_ancestor_binding[ancestor]",
+        "tests/test_microduck_camera_identity.py::test_two_sensor_instances_produce_identical_authored_scene_without_normalization",
+        "tests/test_microduck_camera_identity.py::test_sdk_fallback_or_mismatched_product_fails_instead_of_hiding_identity_change[fallback]",
+        "tests/test_microduck_camera_identity.py::test_sdk_fallback_or_mismatched_product_fails_instead_of_hiding_identity_change[wrong_resolution]",
+        "tests/test_microduck_camera_identity.py::test_sdk_fallback_or_mismatched_product_fails_instead_of_hiding_identity_change[wrong_camera]",
+        "tests/test_microduck_camera_identity.py::test_existing_product_is_never_overwritten",
+        "-q",
+        "-ra",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd-complete-02/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/optional-usd-complete-02/junit.xml"
+      ],
+      "cwd": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/cascade",
+      "elapsed_s": 9.319652167963795,
+      "exit_code": 0,
+      "gpu": false,
+      "head": "df8cf4226ea3b26c6bc877d7f85ccb63aaa8a490",
+      "imports": {
+        "cv2": "/home/johnny/Projects/demo/cascade/.venv/lib/python3.12/site-packages/cv2/__init__.py",
+        "cv2_version": "5.0.0",
+        "numpy": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages/numpy/__init__.py",
+        "numpy_version": "2.5.3",
+        "pxr": [
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages/pxr"
+        ],
+        "pytest_version": "9.1.1",
+        "python": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/bin/python",
+        "usd_version": [
+          0,
+          25,
+          5
+        ],
+        "yaml": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/external/policy-reference/venv/lib/python3.12/site-packages/yaml/__init__.py"
+      },
+      "kit": false,
+      "log_sha256": "515fc245f2a72aa52ab54f8fdf04f30bd04cd774c91865e64b82333aecfae94a",
+      "overlay_scope": "Original USD interpreter; only existing YAML and cv2 loaded by exact file spec. No shared writes or full site-package path additions.",
+      "physics_steps": 0,
+      "protected_unchanged": true,
+      "source_unchanged": true,
+      "usd_input_count": 78,
+      "usd_sources_unchanged": true
+    },
+    "rgbd-composition-01": {
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_sensing_rgbd.py",
+        "tests/test_spatial_rgbd.py",
+        "tests/test_rgbd_pixel_centers.py",
+        "tests/test_rgbd_planar_reference.py",
+        "tests/test_rgbd_live_reference.py",
+        "tests/test_rgbd_native_bridge.py",
+        "tests/test_rgbd_ground_texture.py",
+        "tests/test_rgbd_ground_native_bridge.py",
+        "tests/test_rgbd_binary_reference.py",
+        "tests/test_rgbd_binary_native_bridge.py",
+        "tests/test_rgbd_observation_health.py",
+        "tests/test_rgbd_layout_a.py",
+        "tests/test_rgbd_layout_a_native.py",
+        "tests/test_rgbd_checker_accuracy.py",
+        "tests/test_sensing_models.py",
+        "tests/test_sensing_providers.py",
+        "tests/test_sensing_hub.py",
+        "tests/test_spatial_providers.py",
+        "tests/test_spatial_mcp.py",
+        "tests/test_robot_runtime.py",
+        "tests/test_robot_mcp.py",
+        "tests/test_generalized_joints.py",
+        "tests/test_generalized_joint_mcp.py",
+        "tests/test_microduck_bridge_cli.py",
+        "tests/test_microduck_camera_identity.py",
+        "tests/test_mobile_frames.py",
+        "tests/test_mobile_identity.py",
+        "-q",
+        "-ra",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/rgbd-composition-01/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/validation/rgbd-composition-01/junit.xml"
+      ],
+      "cuda_visible_devices": "-1",
+      "cwd": "/home/johnny/Projects/demo/cascade-lab/RGBD_PUBLISH_20261003/cascade",
+      "elapsed_s": 46.1263935570023,
+      "head": "df8cf4226ea3b26c6bc877d7f85ccb63aaa8a490",
+      "input_count": 1655,
+      "physics_or_gpu_validation": false,
+      "protected_count": 1,
+      "protected_unchanged": true,
+      "pytest_log_sha256": "a19de915251315b4b9d145fff091dd061b4774bd35199bd6b2179d806a2803f0",
+      "returncode": 0,
+      "source_unchanged": true,
+      "threads": 1
+    }
+  },
+  "scope": "CPU affected-file checks and real OpenUSD authoring; no Kit, rendering, GPU, physics steps or native admission",
+  "selected_commits": [
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "5362c7a1cc6e3574c6766859cd7eb1a26e83ed18",
+      "pick": "60fd502256db9f8d82863e0846529306aca5a90d"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "a776a7f271844cac91243a08ded451dd9dac7e6c",
+      "pick": "5d979cad9a439d02c6cacdbaf1208bef70e4ffce"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "9a3e0e19ecb16cd6948d58de4878a92c7dee807c",
+      "pick": "205b63e3f9b76aedad26fcf2738df7c0822b6325"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "521a599b11fcc0090730812b293ea84d6e519b5c",
+      "pick": "bd3f84c678ba4cf504365d48e5da413672cb61c2"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "f9f57a206233076c8bb9bd3d9368af731766bfd8",
+      "pick": "b0802deea567b9b5441e661b80560672d7d38051"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "f1688256bad5b9448d7060bae03e42f895a46563",
+      "pick": "d0e59520142e89f496122c43872496d2912d2625"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "13f23d6a768817f3c4f92dca55f81d32ecee669d",
+      "pick": "4250d68d658a6c52971dabde74e2c3381567c2d5"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "6f1a6acdcf31c5b0314926ca113e7588701c8b4d",
+      "pick": "f25ebd9f52ffa48a70b1c99609152b87421e12cc"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "3cb533a6458a294dbc0e3225e524d219ec6f35b9",
+      "pick": "6e61431824fdbd2faa14cd3efb14b539dd24a19d"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "b7ea7fb57e98168f20058b761ab405baad4400f1",
+      "pick": "80df79c2106b1d12d1c4f48b4ed4f11705585242"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "e7d5144d559ba97901e98b26a6f1efda4ae6114b",
+      "pick": "324fa9b287d8ebb18adfdc20a33c4b8db1947618"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "19ed9f8639356c741e4609838559147cf246ca96",
+      "pick": "545d26810982866f61cb20d80379b9bbee98e9e6"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "734a69e83e9664b5176274abfce03534be64c32f",
+      "pick": "68762de171ebf62a0a6cb543e644e4bdf370f380"
+    },
+    {
+      "changed_lines_equal_except_worklog": true,
+      "original": "9b97b65486e4b48d3e7e7a5fe5bb3970ac5c30e8",
+      "pick": "df8cf4226ea3b26c6bc877d7f85ccb63aaa8a490"
+    }
+  ],
+  "source_parity": [
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/__init__.py",
+      "reference_sha256": "a6f1a432cda87af50447781ca8e9277c07524e0dd65f420e1573b5b14298e510",
+      "sha256": "a6f1a432cda87af50447781ca8e9277c07524e0dd65f420e1573b5b14298e510"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/assets/binary_detector_consumer.json",
+      "reference_sha256": "76ea3f1766798fa4b46809af4842aafd600754d64e6ba31468aac8cd0b4ee6d8",
+      "sha256": "76ea3f1766798fa4b46809af4842aafd600754d64e6ba31468aac8cd0b4ee6d8"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/assets/binary_layout_a_consumer.json",
+      "reference_sha256": "76ea3f1766798fa4b46809af4842aafd600754d64e6ba31468aac8cd0b4ee6d8",
+      "sha256": "76ea3f1766798fa4b46809af4842aafd600754d64e6ba31468aac8cd0b4ee6d8"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/assets/checker_accuracy_corpus_spec.json",
+      "reference_sha256": "dd062605ed97a30a6fcab49ee9fd1b25e5d237509898c199f35b9e203942280e",
+      "sha256": "dd062605ed97a30a6fcab49ee9fd1b25e5d237509898c199f35b9e203942280e"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/assets/checker_accuracy_corpus_truth.json",
+      "reference_sha256": "758f187caee602f3422af47b7fa04414a274de049bfec3778d6554f8a34d8f10",
+      "sha256": "758f187caee602f3422af47b7fa04414a274de049bfec3778d6554f8a34d8f10"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/assets/ground_binary_layout_a.png",
+      "reference_sha256": "2cc54a33ea46e6486353fd057519f93f5fc194443f0ac89e6f22c2a230a3d583",
+      "sha256": "2cc54a33ea46e6486353fd057519f93f5fc194443f0ac89e6f22c2a230a3d583"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/assets/ground_binary_reference.png",
+      "reference_sha256": "1debc536631b0a9701c82d27db51129bc826bbc23e549f45d8b6ef56f1dbc0eb",
+      "sha256": "1debc536631b0a9701c82d27db51129bc826bbc23e549f45d8b6ef56f1dbc0eb"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/assets/ground_reference.png",
+      "reference_sha256": "2638e36175318b42f2b477f3e8539b9afb441738f4737fb4f4177ba9dab05253",
+      "sha256": "2638e36175318b42f2b477f3e8539b9afb441738f4737fb4f4177ba9dab05253"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/binary_layout_a.py",
+      "reference_sha256": "2a6a5d7f921effea8f2d3e56109e25b3ad0aafdd7bfa5a822b969ce03ed8362c",
+      "sha256": "2a6a5d7f921effea8f2d3e56109e25b3ad0aafdd7bfa5a822b969ce03ed8362c"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/binary_native_bridge.py",
+      "reference_sha256": "ac04fb72ca2aa747f8fcd34f06a8069f44417dad2b78e39fc83bb1fea53efa27",
+      "sha256": "ac04fb72ca2aa747f8fcd34f06a8069f44417dad2b78e39fc83bb1fea53efa27"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/binary_reference.py",
+      "reference_sha256": "abd91224482708488e278cd0a366160f1cfdf27f18049ea8cc4417e4473bb7c0",
+      "sha256": "abd91224482708488e278cd0a366160f1cfdf27f18049ea8cc4417e4473bb7c0"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/checker_accuracy.py",
+      "reference_sha256": "4b2ec16583350cb45182474f81dd2faac4a5c2a37a1cf483aa89c43076807936",
+      "sha256": "4b2ec16583350cb45182474f81dd2faac4a5c2a37a1cf483aa89c43076807936"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/checker_accuracy_campaign.py",
+      "reference_sha256": "ae5414fd4525253e164807f47cf60e8a185b21d8e4ceae16c193ab192ada9344",
+      "sha256": "ae5414fd4525253e164807f47cf60e8a185b21d8e4ceae16c193ab192ada9344"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/checker_corpus.py",
+      "reference_sha256": "4d86bcc013a329a70c893e5e95307f9a466cb554c31a7a1992a510377e160ef4",
+      "sha256": "4d86bcc013a329a70c893e5e95307f9a466cb554c31a7a1992a510377e160ef4"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/ground_native_bridge.py",
+      "reference_sha256": "2f6e644df08d2422a08f9a85eb0ddf084314106b2c29631f3b1077a4273f01a3",
+      "sha256": "2f6e644df08d2422a08f9a85eb0ddf084314106b2c29631f3b1077a4273f01a3"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/ground_texture.py",
+      "reference_sha256": "826041b51519b67806690ab212ebc5eb9726cb731216cbd5338e6ecf79b207c8",
+      "sha256": "826041b51519b67806690ab212ebc5eb9726cb731216cbd5338e6ecf79b207c8"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/homography_support.py",
+      "reference_sha256": "928b83fda32af1d64b6f0f0217f2da2a9423d73af39d13c6790da6d92b47239a",
+      "sha256": "928b83fda32af1d64b6f0f0217f2da2a9423d73af39d13c6790da6d92b47239a"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/layout_a_native_bridge.py",
+      "reference_sha256": "62f08c4f3a5b2b69a42ef0c39bbba98124f38cc339f7e6d02e4e71197334c73e",
+      "sha256": "62f08c4f3a5b2b69a42ef0c39bbba98124f38cc339f7e6d02e4e71197334c73e"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/live_reference.py",
+      "reference_sha256": "15bebd99882cb5d3eb7e8cd367a37055615961a719076b5063ec3ca75f233f76",
+      "sha256": "15bebd99882cb5d3eb7e8cd367a37055615961a719076b5063ec3ca75f233f76"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/native_bridge.py",
+      "reference_sha256": "f69c22fb0afd60c9b60445d75bc997b1adf3a25d431ef28142353dde076df448",
+      "sha256": "f69c22fb0afd60c9b60445d75bc997b1adf3a25d431ef28142353dde076df448"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/observation_health.py",
+      "reference_sha256": "a0877c9e4a2425b18d6b3b7f8fc71d773e9c1a40e50392c0bd5f45caac890eff",
+      "sha256": "a0877c9e4a2425b18d6b3b7f8fc71d773e9c1a40e50392c0bd5f45caac890eff"
+    },
+    {
+      "identical": true,
+      "path": "benchmark/rgbd/planar_reference.py",
+      "reference_sha256": "88a68032140e199a57c993417af9044de77509d9169e603c580033000dd74eb9",
+      "sha256": "88a68032140e199a57c993417af9044de77509d9169e603c580033000dd74eb9"
+    },
+    {
+      "identical": true,
+      "path": "scripts/isaac_camera_readback.py",
+      "reference_sha256": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+      "sha256": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd"
+    },
+    {
+      "identical": true,
+      "path": "scripts/isaac_microduck_bridge.py",
+      "reference_sha256": "724167ebbf5e5e189da845e2748f81bcf4163e0e380a0de17aad9a061bf73cbf",
+      "sha256": "724167ebbf5e5e189da845e2748f81bcf4163e0e380a0de17aad9a061bf73cbf"
+    },
+    {
+      "identical": false,
+      "path": "src/cascade/apps/robot_runtime.py",
+      "reference_sha256": "91a1fd89b69b00ec9b4488ba67bc6c0b6a4b73adbe742b86cf3f23fcbb353e7c",
+      "sha256": "e6434d19419b49ac00b98a4891a3ad828479bbb3f7bd7976419a3f47cc28902e"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/sensing/__init__.py",
+      "reference_sha256": "c978e2fafb84233f0cb6f1b769e3d51802e54039705d4a53bf2186ade22e4e8f",
+      "sha256": "c978e2fafb84233f0cb6f1b769e3d51802e54039705d4a53bf2186ade22e4e8f"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/sensing/domain.py",
+      "reference_sha256": "86498c9fc32c862c78af2202ff8dac91df12975ef6c5d6f9d28152d85c2ba4d7",
+      "sha256": "86498c9fc32c862c78af2202ff8dac91df12975ef6c5d6f9d28152d85c2ba4d7"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/sensing/hub.py",
+      "reference_sha256": "b709f488d7f6d8f2d5e0e70ab3ec7749f5e8b6593b7db63c7039ffac31bb50df",
+      "sha256": "b709f488d7f6d8f2d5e0e70ab3ec7749f5e8b6593b7db63c7039ffac31bb50df"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/sensing/models.py",
+      "reference_sha256": "3f4e47df5f07a487ab2028243acee2f8fc8e8646982d3ea28ba45a63d831ab8d",
+      "sha256": "3f4e47df5f07a487ab2028243acee2f8fc8e8646982d3ea28ba45a63d831ab8d"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/sensing/providers.py",
+      "reference_sha256": "ddde4023f140f9836eff01537df58eff799b97397238ef0adb37e666ebaa1469",
+      "sha256": "ddde4023f140f9836eff01537df58eff799b97397238ef0adb37e666ebaa1469"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/sim/microduck_newton.py",
+      "reference_sha256": "424637f238603d65644514f87307faf1fa31646627813bf5e83328ca1f0f21a5",
+      "sha256": "424637f238603d65644514f87307faf1fa31646627813bf5e83328ca1f0f21a5"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/sim/mobile_bridge.py",
+      "reference_sha256": "b6267caf936307b553c7ee181a1a3abb17130b660a223cd8987410f9815e321c",
+      "sha256": "b6267caf936307b553c7ee181a1a3abb17130b660a223cd8987410f9815e321c"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/sim/mobile_identity.py",
+      "reference_sha256": "eb7b29754243f5ab8f3ebf6bb8524175698b96250f55796a0135273fdb6cf21a",
+      "sha256": "eb7b29754243f5ab8f3ebf6bb8524175698b96250f55796a0135273fdb6cf21a"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/sim/mobile_rgbd.py",
+      "reference_sha256": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861",
+      "sha256": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/spatial/domain.py",
+      "reference_sha256": "3011a9aaa23930d321e915abd26b9b68766656eea22445529d323537fc09be71",
+      "sha256": "3011a9aaa23930d321e915abd26b9b68766656eea22445529d323537fc09be71"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/spatial/frames.py",
+      "reference_sha256": "1ad8ec16e1c39b27a45dd544754cceebc695b90926c0ebf383d81b60a2555868",
+      "sha256": "1ad8ec16e1c39b27a45dd544754cceebc695b90926c0ebf383d81b60a2555868"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/spatial/memory.py",
+      "reference_sha256": "27b8f673abe630b7ac4963d32b9da301a21946e7e38a815bb83cb4d14fffd7ac",
+      "sha256": "27b8f673abe630b7ac4963d32b9da301a21946e7e38a815bb83cb4d14fffd7ac"
+    },
+    {
+      "identical": true,
+      "path": "src/cascade/spatial/rgbd.py",
+      "reference_sha256": "08534d029228a657a57704c06a706bf6514a8f5a5c89593ba4334ef941b7508b",
+      "sha256": "08534d029228a657a57704c06a706bf6514a8f5a5c89593ba4334ef941b7508b"
+    }
+  ],
+  "tested_head": "df8cf4226ea3b26c6bc877d7f85ccb63aaa8a490"
+}

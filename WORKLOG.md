@@ -23,6 +23,38 @@ checks pass. No SDK, simulator, GPU, service or shared environment mutation.
 Positive credit and all limits are unchanged; the added O(n) outcome pass is
 veto-only and limited to walk_distance. Receipt:
 `benchmark/results/mobile_distance_outcome_20261003.json`.
+## 2026-10-03: passive, calibrated RGB-D without an arm
+
+The configured sensing domain could expose independent mobile state and JPEG
+observations, but could not consume a registered RGB-D producer through the
+ordinary robot runtime/MCP path. An exact passive catalog probe on `2b1d8e4`
+rejects the new provider kind; the same probe and configuration succeed with
+the implementation in this branch, without opening a socket or an actuator.
+
+The opt-in `--camera-rgbd` producer now captures the existing static overview
+camera's RGB8, metric optical-axis depth, actual USD calibration and rigid
+optical-to-world transform. The new source/calibration become part of the
+effective model identity. Independent reader-role TCP, a bounded registered
+capture cache and `mobile_rgbd` sensing expose it through ordinary MCP. Legacy
+RGB replies and RGB-D serialization without extrinsics retain their schemas.
+No camera mounted on a robot, tactile hardware, mapping, or navigation is
+added. See [the usable configuration and exact limits](docs/OBSERVED_RGBD.md).
+
+Validation: 358 CPU tests passed, nine optional-dependency tests skipped; Ruff
+F/E9 and diff checks passed. Tests include real TCP/MCP routing, full 640×480
+lossless channels, identity/epoch/calibration mismatch, stale/replay/timeout,
+bounded decompression, AOV-reference mismatch, a retained signal during depth
+readback and legacy protocol compatibility. A separate OpenUSD-only SDK check
+passed camera optics and coordinate transforms without loading Kit or physics.
+Its first prototype failure exposed a single time sample overriding the default
+despite `ValueMightBeTimeVarying()` returning false; the producer now rejects
+any authored time sample. The original failure is retained in local evidence.
+
+Independent read-only review found no remaining material blocker. Render-product
+tokens around each AOV are software provenance, not a new native proof of pixel
+alignment. The new recipe still needs GPU/native validation and admission;
+existing MicroDuck model hashes and frozen voice/video candidates are untouched.
+No simulation, provider, GPU or audiovisual process was launched for this work.
 
 Base: `1271d52d09feaa0edb4652d39a9ab21d69e4a686`.
 
@@ -627,6 +659,143 @@ Initial development failures are retained: malformed YAML indentation (43 failed
 freshness/replay gates were unchanged. Shared envelope SHA-256 still matches the
 protected baseline and grasp memory remains absent. No GPU, native robot or
 hardware admission was tested. See benchmark/results/generalized_joints_20261003.json.
+# 2026-10-03 — Retained RGB-D to spatial observations
+
+- In an isolated clone based on `fb750e9`, reproduced the missing composed
+  sensor-to-spatial path: only synthetic replay profiles were accepted.
+- Added explicit sensor-domain binding, exact immutable capture fan-out with
+  age revalidation, and ordinary MCP pixel-to-surface annotations through
+  `FrameTree` and `SpatialMemory`. Labels are caller annotations; confidence and
+  geometric uncertainty remain unknown. No grid, localization or motion tool.
+- Preserved producer replay watermarks, original clocks/model/calibration,
+  legacy spatial replay, private stores and frozen native/voice candidates.
+- Focused CPU suite: 193 passed, four optional skips (one missing OpenUSD and
+  three SO-101/Pinocchio checks). New real TCP/MCP path executed successfully.
+  No native/GPU/hardware validation or publication performed.
+
+# 2026-10-03 — Explicit native RGB-D pixel centers
+
+- A separate bounded native probe on source `5362c7a` passed capture, bounded
+  decode, four exact TCP/Hub/MCP joins and natural closure. Offline geometry
+  found a half-pixel contract error: K used raster coordinates while spatial
+  projection used integer centers. No geometry admission is credited to that
+  original episode; its packets, model and sources remain unchanged.
+- Calibration v2 now declares `[0.5, 0.5]` in its content/model identity and
+  sensor payload. Spatial annotations consume that field without shifting K,
+  changing pixels, refreshing capture time or granting motion. Native v1 is
+  rejected; generic legacy payload bytes and integer-center semantics remain.
+- Identical CPU consumer probe: baseline `b6fd84b` fails the retained ground
+  geometry check (maximum Z residual 0.5118 mm), candidate passes (7.162e-8 m).
+  Legacy calibrated payload serialization has the same SHA in both checkouts.
+  Focused suite: 122 passed, six OpenUSD-import skips. Separate installed
+  OpenUSD 0.25.5 CPU probe passed with unchanged K/pose and explicit v2 metadata.
+- Ruff F/E9 and diff checks pass; protected stores unchanged. Evidence:
+  `benchmark/results/rgbd_pixel_centers_20261003.json`. No new native launch,
+  new model admission or publication; a new native recipe still needs admission.
+# 2026-10-03 — CPU independent planar RGB-D reference
+
+- Added benchmark-only visual checkerboard authoring, image-only orientation/corner detection, fixed-split homography and exact-pixel geometry comparison. The oracle never consumes K, extrinsics, depth, producer pixel offsets or raycasts.
+- Full annotation checks bind original RGB/capture/epoch/model/calibration/clock and recorded ages; no fresh acquisition, authority or runtime/native source changes. Corrected planning assumption: native02 explicitly used 2 s age/read limits.
+- Normal conftest: 36 PASS, 1 SKIP (`pxr` absent), 10.34 s, 1596 source inputs and protected store unchanged. Separate OpenUSD 0.25.5 CPU authoring PASS on final source: 53 visual meshes, no physics schema additions, 239 existing prims unchanged. No Kit/GPU/model inference.
+- Synthetic image/consumer controls detect focal, translation, units, offset and axis errors; stale/foreign/mutated data is refused. Actual RTX board visibility, native model/collider invariance and live geometry remain pending a reviewed future recipe. Evidence: `benchmark/results/rgbd_planar_reference_cpu_20261003.json`; external source-bound logs in sibling `RGBD_XY_VALIDATION/evidence/`.
+
+# 2026-10-03 — Prepared native planar-reference wiring (no launch)
+
+- Added a benchmark entrypoint through the existing bridge/backend factory. The visual-only board precedes the original camera/export/play sequence; source and actual scene enter the new canonical model identity. Strict existing-stage and native recipe comparisons refuse any body/shape/collider/configuration change.
+- Added the 17-point consumer over the real in-process MCP handler, retaining one exact SensorHub capture and all projection receipts; image-only homography never reads camera K/T/depth. A complete fresh set is required, with the unchanged 2 s age/read bounds.
+- CPU: 71 PASS, 2 OpenUSD-import SKIP, 15.49 s; 1601 inputs/protected store unchanged. Separate installed OpenUSD 0.25.5 CPU probe: 254 existing prims unchanged, 53 visual meshes, time-sample/collision/points mutation controls rejected. No Kit/GPU/native launch.
+- Development caught non-content repr addresses for USD list operations and legitimate infinite joint bounds; content serialization now preserves both explicitly. Previous native01/02 sources/packets remain untouched. External campaign/owner/check-only recipe lives in sibling RGBD_XY_NATIVE; no execution approval or model admission follows from CPU preparation.
+- Portable CPU receipt: benchmark/results/rgbd_planar_native_preparation_20261003.json.
+
+# 2026-10-03 — Explicit binary planar reference, CPU candidate
+
+- Added schema-3 Ground bitmap with fixed ArUco IDs and exact 0.5 mm texel
+  geometry; colored/default recipes and PNG remain intact. Oracle consumes
+  RGB plus declared board only, preserving 35 corners and the 18/17 split.
+- Actual CPU detector controls reject missing/duplicate/foreign/reordered
+  geometry, corrupted bits, occlusion and insufficient pixel/margin support.
+  A local contrast gate rejects an occluded corner that OpenCV otherwise
+  inferred despite passing the unchanged fit residuals. No calibrated
+  confidence, semantic object identity or navigation authority is introduced.
+- Normal conftest: 117 PASS / 5 explicit OpenUSD-import SKIP, 24.90 s.
+  Separate installed OpenUSD CPU: 2 PASS / 1.21 s, preserved original Ground
+  geometry and physics binding for both variants. 1617 source inputs and
+  protected stores remained identical during the checks; Ruff F/E9 passes.
+- Review follow-up changes only the corner test: retain OpenCV5.0's actual
+  inferred grid and inject it to test the contrast guard; permit newer real
+  detectors to reject earlier. Final binary focal: 42 PASS / 3.95 s, 1619
+  inputs/stores unchanged. Runtime and detector bytes remained unchanged.
+- Existing real MCP handler/Hub/spatial fan-out verified on declared synthetic
+  pixels, including wrong X/Y calibration, stale capture and extra-RPC vetoes.
+  Authoring uses retained K/T only to forecast placement (37.56 px margin,
+  2.64 px minimum cell); it is separate from the independent RGB oracle.
+- No native entrypoint, GPU launch, new physical/geometry admission or remote
+  publication. Previous native Ground FAIL remains unchanged. See
+  `docs/RGBD_BINARY_REFERENCE.md` and its compact receipt for scope and pins.
+
+
+# 2026-10-03 — Binary native entrypoint preparation, CPU only
+
+- Added explicit immutable/authenticated consumer descriptor and benchmark
+  entrypoint, retaining the original guarded Ground factory and complete native
+  comparator. Consumer5.0 and SDK author4.14 are separately identified; exact
+  dictionary/PNG authoring does not claim cross-version detector execution.
+- Consumer validates its own actual version/package code/parameters before
+  detection. New source/bitmap/declaration and actual USD metadata enter the new
+  model identity. Historical frames, model pins and colored entrypoint remain.
+- CPU:152 PASS/6 missing-pxr SKIP in27.07s; installed OpenUSD CPU3 PASS/3.01s.
+  1624 inputs/protected stores unchanged. External campaign five methods cover
+  seven failure subcases plus module/codebook/import drift and exact authoring.
+- Passive recording diagnostics preserve original two bootstrap solves and
+  all80 observed rows, epoch/model/support-channel/fault alarms. Known-empty
+  contacts never imply physical support/rest. No external actuation/reset client.
+- No Kit/GPU/renderer/native campaign launched. External final plan/check-only
+  remains preparation subject to root review and a coordinated resource window.
+  See docs/RGBD_BINARY_REFERENCE.md and its new CPU preparation receipt.
+
+
+# 2026-10-03 — Exact recorded-clock guard correction (offline only)
+
+- Preserved binary native01 global FAIL and all original bytes. Actual dt is
+  exactly0.004999999888241291, matching both baseline and the producer's existing
+  float32(5ms) bootstrap guard. Python-double0.005 equality was the audit defect.
+- Offline helper now requires the authenticated reference recipe and both exact
+  comparisons; neighboring doubles, nominal0.005, foreign/missing baseline,
+  nonfinite/bool values reject. No widened clock/state/verdict thresholds.
+- 21 CPU PASS/.24s;1625inputs/stores intact. Same80 retained rows reproduce the
+  old ValueError and pass the new component audit;8known-empty contact rows
+  remain explicit, without measured-support/balance claim. Detector failure,
+  overallFAIL, native model identity and all original captures remain unchanged.
+- No Kit/GPU/service/native retry or publication. Receipt and raw causal outputs
+  live in RGBD_NATIVE_CLOCK_AUDIT; source candidate is separate from52a4dc0.
+
+
+# 2026-10-03 — Explicit binary layout A, CPU candidate
+
+- Added schema4 with the reviewed84mm tags, local centers, world origin and
+  yaw−44°. The new PNG uses exact local texel boundaries; actual USD float32 ST
+  values are bound explicitly. Historical schema3 assets and entrypoint remain.
+- Admission retains all original detector,18/17-fit and metric gates and adds
+  a rational whole-tag singular-value lower bound≥4px/cell, computed from
+  observed RGB tag corners only. K/T design predictions never enter the oracle.
+- Final CPU217PASS/12OpenUSD SKIP in33.77s; separate real OpenUSD CPU5PASS in
+  5.21s. Both1634-input inventories and protected stores match before/after.
+  Ruff F/E9 and local links pass. An exploratory80% rescale fails unchanged
+  held-out residuals and is retained; no universal blur/rescale guarantee.
+- CPU authoring preserves physics material and checks postbootstrap appearance,
+  ancestors and complete native-property comparisons via explicit doubles.
+  No Kit/solver/GPU or native metric acceptance. New model/scene admission is
+  pending. See docs/RGBD_BINARY_LAYOUT_A.md and the compact CPU result receipt.
+
+## RGB-D publication boundary — 3 October 2026
+
+Composed14 reviewed RGB-D checkpoints onto main075c08c, excluding unrelated
+MuJoCo capture-cost891d6c7. Functional added/deleted lines unchanged; only append
+WORKLOG conflicts resolved. General588PASS/18SKIP plus original-USD18PASS gives
+606 distinct passing cases. Two optional environment failures remain retained;
+no source/test changes, no shared environment edits, no native/GPU admission.
+Source/store checks and47-file Ruff F/E9 pass. See docs/RGBD_PUBLICATION.md and
+benchmark/results/rgbd_publication_20261003.json.
 
 
 Composition completed using the reviewed publication equivalents through
@@ -914,6 +1083,10 @@ its own belief update is explicitly not independent evidence. Both verdicts
 deny completion. External evidence: `MINIMAL_INSTALL_LEDGER_20261003/evidence/`
 (`baseline/result.json`, `smoke-02/pytest.log`, `focused-01/result.json`).
 
+Normal merge 43928e6c01b438c02ebb5d417c21a40713ce2fe3 preserves latest teardown and appends both
+logs. Focused runtime/MCP/close composition: 103PASS/0SKIP, 13.11s;
+1662 source inputs and protected stores unchanged. Prior freezes archived;
+no physics, GPU, limits, or admission changed. Receipt: benchmark/results/rgbd_teardown_composition_20261003.json.
 
 ### 2026-10-03 — Preserve explicitly owned Spark model endpoints
 
@@ -1384,3 +1557,32 @@ execution. Receipt: benchmark/results/mobile_support_tcp_scheduling_20261003.jso
 All normal orchestrator reports now use a common ledger-aware finalizer, including step-budget exhaustion. Failed fast-path calls remain in the same task tool history with an explicit tier. Composed motion cancellation records uncertainty before releasing admission, then re-raises the original interruption; later successful motion cannot erase it. Reads and host-only task boundaries retain their prior meaning.
 
 Exact PR90 head `381d65ff` reproduced three review counterexamples (two omitted-debt reports and one pre-existing composed cancellation false success), with two controls passing. Final eight-file CPU selection: **141 passed, 0 skipped in 19.82 s**; source and four protected stores unchanged. The initial two new-test failures were an incorrect assumption that `RobotRuntime.begin_task()` returns an ID; only that test assumption changed. No GPU, SDK, physical episode, shared environment modification or production limit change. Evidence: `benchmark/results/task_terminal_obligations_20261003.json` and external `TASK_TERMINAL_FIX_20261003/{baseline-01,focused-01,focused-02}`.
+### 2026-10-03 — align pytest console and module imports
+
+PR91's Ubuntu collection fails in eleven RGB-D modules importing repository-only
+benchmark helpers. The unchanged source reproduces all eleven errors with the
+actual pytest console script and no PYTHONPATH. Add pytest's built-in
+pythonpath=["."] configuration; conftest continues selecting the checkout src.
+Package discovery remains src-only and production dependencies are unchanged.
+
+Console and module collection now select the same 6,110 node IDs in the same
+order (6,114 total, four hardware deselections). The affected console selection
+passes 325 tests with 13 optional OpenUSD skips. Its first execution retained
+17 failures from missing jsonschema in the old shared interpreter; the same
+console-script body with the existing complete read-only interpreter resolves
+that environment issue. No shared environment install, verifier change, new
+physics/GPU run or store mutation. Original failure logs and hashes remain in
+benchmark/results/pytest_root_path_20261003.json. This validates local collection
+and the affected tests; it does not assert a remote CI pass or full-suite run.
+
+### 2026-10-03 — Compare RGB-D extraction within floating-point roundoff
+
+CI passed collection after the import-path fix, then exposed exact-dictionary
+equality on computed homography/residual floats. Retained corner/hash/board/ID
+fields were identical; the largest reported residual difference was
+2.5049e-13 pixels. The extraction test now keeps those noncomputed fields exact
+and compares its three computed fields with absolute1e-12/relative0 tolerance.
+The frozen fixture, native pixel gates and production checker are unchanged.
+Affected checker/planar/live tests:81 passed,1 OpenUSD skip in17.85s. Original
+CI failure and the initial zero-test filename error remain retained. Receipt:
+benchmark/results/rgbd_reference_roundoff_20261003.json.

@@ -238,6 +238,41 @@ class SensorHub:
             return tuple(value for value, _ in self._history
                          if sensor_id is None or value.sensor_id == sensor_id)
 
+    def retained(self, sensor_id, *, epoch, sequence, capture_sha256):
+        """Fan out an exact admitted capture, never read or re-admit a sample.
+
+        Sharing a still-fresh capture is distinct from a producer replay. This
+        does not touch the watermark, receipt time, producer age or history.
+        Evicted captures cannot be reconstructed or silently replaced by latest.
+        """
+        integer(sequence, "sequence", maximum=2 ** 63 - 1)
+        token(epoch, "epoch")
+        if digest(capture_sha256) is None:
+            raise SensorError("exact capture SHA256 required")
+        with self._lock:
+            if self._closed:
+                raise SensorError("sensor hub closed")
+            slot = self._slots.get(sensor_id)
+            if slot is None:
+                raise SensorError("unknown sensor")
+            value = next((v for v, _ in self._history if v.sensor_id == sensor_id
+                          and v.epoch == epoch and v.sequence == sequence), None)
+            if value is None:
+                raise SensorError("exact admitted capture is not retained")
+            d = slot.descriptor
+            if (any(getattr(value, k) != getattr(d, k) for k in
+                    ("source", "clock_domain", "measurement_kind", "model_identity_sha256"))
+                    or value.payload.modality != d.modality
+                    or value.payload.metadata.frame_id != d.frame_id
+                    or value.payload.metadata.calibration_id != d.calibration_id
+                    or value.epoch != slot.watermark[0]):
+                raise SensorError("retained capture binding mismatch")
+            if value.sha256 != capture_sha256:
+                raise SensorError("retained capture SHA256 mismatch")
+            if value.age_s(self._clock()) > d.max_age_s:
+                raise SensorError("stale retained capture")
+            return value
+
     def close(self, timeout_s=0.25):
         timeout = number(timeout_s, "close timeout", minimum=0)
         if timeout > 5:

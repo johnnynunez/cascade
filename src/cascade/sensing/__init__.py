@@ -5,7 +5,7 @@ from .models import (EstimatedTactilePayload, ImuPayload, MeasurementMetadata,
                      GeneralizedJointMeasurement, GeneralizedJointStatePayload,
                      ObservationEnvelope, ProprioceptionPayload, JointMeasurement, JointStatePayload, RgbdPayload,
                      RgbPayload, SolvedContactPayload, TactileImagePayload)
-from .providers import (BufferedSensorProvider, MobileRgbSensorProvider,
+from .providers import (BufferedSensorProvider, MobileRgbSensorProvider, MobileRgbdSensorProvider,
                         MobileStateSensorProvider, SyntheticSensorProvider)
 
 __all__ = ["SensorDomain", "build_sensor_domain", "SensorDescriptor", "SensorError",
@@ -13,5 +13,5 @@ __all__ = ["SensorDomain", "build_sensor_domain", "SensorDescriptor", "SensorErr
            "MeasurementMetadata", "ObservationEnvelope", "ProprioceptionPayload", "JointMeasurement", "JointStatePayload",
            "GeneralizedJointMeasurement", "GeneralizedJointStatePayload",
            "RgbdPayload", "RgbPayload", "SolvedContactPayload", "TactileImagePayload",
-           "BufferedSensorProvider", "MobileRgbSensorProvider", "MobileStateSensorProvider",
+           "BufferedSensorProvider", "MobileRgbSensorProvider", "MobileRgbdSensorProvider", "MobileStateSensorProvider",
            "SyntheticSensorProvider"]

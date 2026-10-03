@@ -5,7 +5,8 @@ from ..robotics.contracts import ResourceDescriptor, identifier
 from .hub import SensorHub
 from .models import (GeneralizedJointStatePayload, ImuPayload, MeasurementMetadata,
                      ProprioceptionPayload, JointStatePayload)
-from .providers import MobileRgbSensorProvider, MobileStateSensorProvider, SyntheticSensorProvider
+from .providers import (MobileRgbSensorProvider, MobileRgbdSensorProvider,
+                        MobileStateSensorProvider, SyntheticSensorProvider)
 
 
 class SensorDomain:
@@ -39,7 +40,9 @@ class SensorDomain:
                 return {"ok": True, "sensors": [descriptor.as_dict() for descriptor in self.hub.descriptors]}
             if local_name == "read_sensor" and set(args) == {"sensor_id"}:
                 identifier(args["sensor_id"], "sensor_id")
-                return {"ok": True, "observation": self.hub.read(args["sensor_id"]).as_dict()}
+                observation = self.hub.read(args["sensor_id"])
+                return {"ok": True, "observation": observation.as_dict(),
+                        "capture_sha256": observation.sha256}
             raise ValueError("unknown sensor tool or invalid arguments")
         except Exception as exc:
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:500]}
@@ -105,6 +108,14 @@ def build_sensor_domain(domain_id, profile, *, providers=None, embodiment=None):
             payload = classes[entry["modality"]](metadata=metadata, **values)
             provider = SyntheticSensorProvider(name, robot_id, payload,
                                                period_s=entry.get("period_s", .02), **options)
+        elif kind == 'mobile_rgbd':
+            if set(entry) - ((common - {'calibration_id'}) | {'profile', 'camera', 'calibration_sha256', 'max_pixels'}):
+                raise ValueError('unknown RGB-D sensor setting; calibration requires a producer-checked SHA')
+            native = entry['profile']
+            if native['robot_id'] != robot_id:
+                raise ValueError('RGB-D sensor robot identity mismatch')
+            provider = MobileRgbdSensorProvider(name, native, entry['camera'],
+                calibration_sha256=entry['calibration_sha256'], max_pixels=entry.get('max_pixels', 640*480), **options)
         elif kind in ("mobile_state", "mobile_rgb"):
             extra = {"profile", "modality"} if kind == "mobile_state" else {"profile", "camera"}
             if set(entry) - (common | extra):

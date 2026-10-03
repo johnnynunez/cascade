@@ -83,6 +83,12 @@ actor connection or advancing the simulation.
 
 The registry and generic payloads are implemented; a humanoid tactile device
 driver, calibration procedure and task-specific tactile verifier are not.
+
+The opt-in [camera-only RGB-D path](OBSERVED_RGBD.md) connects the native mobile
+producer to passive sensing/runtime/MCP without constructing an arm. It retains
+capture clocks, model/calibration pins, RGB8, metric optical-axis depth and the
+static overview camera's optical-to-world transform. It is software-tested;
+the new native recipe requires separate admission and GPU validation.
 An injected provider is trusted integration code, not sandboxed untrusted code.
 Production providers must demonstrate passive behavior and independent clocks.
 

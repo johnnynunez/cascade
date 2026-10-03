@@ -192,7 +192,7 @@ def test_python_extra_path_cannot_inject_foreign_numpy_usd_or_venv(tmp_path):
 
 
 @pytest.mark.parametrize('mode', ['normal', 'stop_race', 'inference', 'boot', 'capture', 'identity',
-                                'probe_fail', 'probe_stale'])
+                                'probe_fail', 'probe_stale', 'rgbd'])
 def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, capsys, monkeypatch):
     import numpy as np
     from types import SimpleNamespace as NS
@@ -209,6 +209,7 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
     args = NS(out=output, device='cuda:0', robot_id='microduck', source='software-only',
               max_wall_s=3., max_steps=9, port=0, camera_every=4, max_jpeg_bytes=100000,
               policy=tmp_path / 'fixture.onnx', policy_sha256='b'*64, python_extra_path=[])
+    args.camera_rgbd = mode == 'rgbd'
     admission = dict(asset_sha256='a'*64, asset_receipt_sha256='c'*64,
                      bam_params={}, limits=software_limits(), experience_text='software fixture\n')
     created = []
@@ -217,6 +218,9 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
             super().__init__()
             self.bam = SoftwareActuator(self)
             self.receipt = {'software_fixture': True}
+            if mode == 'rgbd':
+                from test_sensing_rgbd import calibration
+                self.receipt['rgbd_camera'] = {'calibration': calibration(32, 24)}
             self.shutdown_code = None
             created.append(self)
         def open(self):
@@ -229,8 +233,13 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
             self.events.append(('capture', self.step_count))
             if mode == 'capture':
                 raise RuntimeError('test capture failure')
-            return dict(rgb=np.zeros((24, 32, 3), np.uint8), step=self.step_count,
-                        sim_time_s=self.sim_time, captured_at=0., render_times=render_times(self.sim_time))
+            value = dict(rgb=np.zeros((24, 32, 3), np.uint8), step=self.step_count,
+                         sim_time_s=self.sim_time, captured_at=0., render_times=render_times(self.sim_time))
+            if mode == 'rgbd':
+                value.update(depth_m=np.full((24, 32), .5, np.float32),
+                    calibration=self.receipt['rgbd_camera']['calibration'],
+                    rgbd_render_times={'rgb': render_times(self.sim_time), 'depth': render_times(self.sim_time)})
+            return value
         def support_probe(self):
             # Exercise runner discrimination only; this is NOT a solver probe.
             return dict(passed=mode != 'probe_fail', step=self.step_count - (mode == 'probe_stale'),
@@ -264,6 +273,10 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
                 assert hello['robot_id'] == 'microduck'
                 assert state['step'] == 3
                 assert image['frame']['step'] == 3
+                if mode == 'rgbd':
+                    assert 'rgbd' in hello['capabilities']
+                    rgbd = client.request({'op': 'frame', 'camera': 'overview', 'modality': 'rgbd'})['rgbd']
+                    assert rgbd['step'] == state['step'] and rgbd['epoch'] == hello['epoch']
                 with pytest.raises(BridgeError):
                     client.request({'op': 'exec', 'code': 'no'})
             finally:
@@ -276,7 +289,7 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
                     command_id='cross-inference', vx=.1, vy=0., wz=0., duration_s=.1))
                 assert accepted['ok']
     result = cli().run(args, admission, backend_factory=Backend, policy_factory=policy_factory, server_factory=Server)
-    success = mode in ('normal', 'stop_race')
+    success = mode in ('normal', 'stop_race', 'rgbd')
     assert result['completed'] is success
     assert created[0].closed == 1
     assert created[0].shutdown_code == (0 if success else 1)
@@ -309,6 +322,10 @@ def test_run_exercises_real_rpc_bounded_loop_trace_and_teardown(tmp_path, mode, 
         assert (output / 'BRIDGE_LISTENING.json').exists()
         assert 'BRIDGE_LISTENING' in capsys.readouterr().out
         assert saved['steps'] == 9
+        if mode == 'rgbd':
+            pairs = sorted((output/'frames').glob('*.rgbd.json'))
+            assert len(pairs) == len(frames)
+            assert [json.loads(p.read_text())['step'] for p in pairs] == [f['step'] for f in frames]
         probes = [json.loads(x) for x in (output / 'support-probe.jsonl').read_text().splitlines()]
         assert saved['support_probe_count'] == len(probes) == 4
         assert [p['step'] for p in probes] == [3, 6, 10, 11]

@@ -277,7 +277,7 @@ def read_native_body_properties(ns):
                 newton_gravity_vectors_m_s2=gravity.astype(float).tolist())
 
 
-def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None):
+def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, calibration=None):
     """Main-thread capture with both physical clocks held fixed during render."""
     import time
     import numpy as np
@@ -285,6 +285,8 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None):
     checkpoint()
     before = (ns.simulation_step_count, float(ns.sim_time))
     captured_at = time.monotonic()  # conservative: includes render and encoding latency
+    camera_calibration = calibration() if calibration is not None else None
+    checkpoint()
     ns.update_fabric()
     for _ in range(updates):
         checkpoint()
@@ -294,19 +296,51 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None):
         checkpoint()
         if (ns.simulation_step_count, float(ns.sim_time)) != before:
             raise RuntimeError('render advanced uncontrolled physics')
-    data, _ = readback.get_data('rgb')
+    before_render_times = None
+    if calibration is not None:
+        data, _, before_render_times = readback.get_data_bound('rgb', checkpoint=checkpoint)
+    else:
+        data, _ = readback.get_data('rgb')
     checkpoint()
     if data is None:
         raise RuntimeError('overview RGB unavailable')
     rgb = np.asarray(data.numpy() if hasattr(data, 'numpy') else data).copy()
     if rgb.dtype != np.uint8 or rgb.shape != (480, 640, 3):
         raise ValueError('overview must produce uint8 RGB[480,640,3]')
+    extra = {}
+    if calibration is not None:
+        checkpoint()
+        depth, _, depth_times = readback.get_data_bound('distance_to_image_plane', checkpoint=checkpoint)
+        checkpoint()
+        if before_render_times != depth_times:
+            raise RuntimeError('RGB-D channels have different render product references')
+        if depth is None:
+            raise RuntimeError('overview registered metric depth unavailable')
+        checkpoint()
+        depth = np.asarray(depth.numpy() if hasattr(depth, 'numpy') else depth).copy()
+        checkpoint()
+        if depth.dtype != np.float32 or depth.shape not in ((480, 640), (480, 640, 1)):
+            raise ValueError('overview depth must be float32[480,640]')
+        depth = depth.reshape(480, 640)
+        if (depth < 0).any():
+            raise ValueError('negative overview depth')
+        depth[~np.isfinite(depth)] = 0.  # renderer far clip/unavailable pixels, never inferred depth
+        checkpoint()
+        after_calibration = calibration()
+        checkpoint()
+        if camera_calibration != after_calibration:
+            raise RuntimeError('camera calibration changed during RGB-D capture')
+        extra = dict(depth_m=depth, calibration=camera_calibration,
+                     rgbd_render_times={'rgb': before_render_times, 'depth': depth_times})
+    checkpoint()
     times = readback.get_render_times()
     checkpoint()
     validate_render_times(times, before[1])
+    if before_render_times is not None and times != before_render_times:
+        raise RuntimeError('RGB-D render product changed during readback')
     if (ns.simulation_step_count, float(ns.sim_time)) != before:
         raise RuntimeError('camera read advanced physics')
-    return dict(rgb=rgb, step=before[0], sim_time_s=before[1], captured_at=captured_at, render_times=times)
+    return dict(rgb=rgb, step=before[0], sim_time_s=before[1], captured_at=captured_at, render_times=times, **extra)
 
 
 def disable_source_actuators(stage):
@@ -352,7 +386,7 @@ def synchronize_camera_authoring(app, timeline, manager, native_stage, *, checkp
     return dict(app_updates=1, before=before, after=after)
 
 
-def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer):
+def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer, rgbd=False):
     """Author a stable product for CameraSensor's supported asset-RP path.
 
     Isaac Sim 6.1 SensorRuntime._find_asset_render_product discovers a
@@ -380,7 +414,8 @@ def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer):
                           variability=Sdf.VariabilityUniform).Set('LdrColor')
     product.CreateRelationship('orderedVars', custom=False).SetTargets([color_path])
     sync_renderer()
-    sensor = sensor_factory(camera, resolution=(480, 640), annotators=['rgb'])
+    sensor = sensor_factory(camera, resolution=(480, 640),
+                            annotators=['rgb', 'distance_to_image_plane'] if rgbd else ['rgb'])
     actual = sensor.render_product.GetPrim()
     resolution = actual.GetAttribute('resolution').Get()
     observed = dict(path=str(actual.GetPath()),
@@ -408,6 +443,7 @@ class KitNewtonBackend:
         self._closed = False
         self._captures = 0
         self._last_support_solve = None
+        self._calibration_reader = None
         self.signals = None
         self._solver_graph = None
         self._solved_read = None
@@ -617,7 +653,8 @@ class KitNewtonBackend:
         def sync_renderer():
             self.receipt['camera_authoring_sync'] = synchronize_camera_authoring(
                 self.app, self.timeline, self.SM, acquire_stage(), checkpoint=self._checkpoint)
-        sensor = create_overview_sensor(stage, camera, CameraSensor, sync_renderer=sync_renderer)
+        rgbd = getattr(self.args, 'camera_rgbd', False)
+        sensor = create_overview_sensor(stage, camera, CameraSensor, sync_renderer=sync_renderer, rgbd=rgbd)
         self._checkpoint()
         product = str(sensor.render_product.GetPath())
         self.readback = CpuCameraReadback(sensor, render_product_id=product)
@@ -627,6 +664,13 @@ class KitNewtonBackend:
             annotator.attach([product])
             times[name] = annotator
         self.receipt['camera'] = dict(name='overview', render_product=product, resolution=[480, 640])
+        self._calibration_reader = None
+        if rgbd:
+            from cascade.sim.mobile_rgbd import calibration_record, read_static_calibration
+            self._calibration_reader = lambda: read_static_calibration(stage, OVERVIEW_CAMERA)
+            observed, digest = calibration_record(self._calibration_reader())
+            self.receipt['rgbd_camera'] = {'calibration': observed, 'calibration_sha256': digest,
+                                         'render_product': product, 'annotator': 'distance_to_image_plane'}
 
     @property
     def physics_clock(self):
@@ -708,7 +752,8 @@ class KitNewtonBackend:
         self._checkpoint()
         self._guard()
         result = capture_bound_rgb(self.ns, self.app, self.readback,
-            updates=16 if self._captures == 0 else 3, checkpoint=self._checkpoint)
+            updates=16 if self._captures == 0 else 3, checkpoint=self._checkpoint,
+            calibration=self._calibration_reader)
         self._captures += 1
         return result
 
@@ -729,7 +774,8 @@ class KitNewtonBackend:
             errors.append(str(exc))
         if self.readback is not None:
             for cleanup in (self.readback.detach_render_times,
-                            lambda: self.readback.detach_annotators(['rgb']),
+                            lambda: self.readback.detach_annotators(
+                                ['rgb', 'distance_to_image_plane'] if self._calibration_reader else ['rgb']),
                             self.readback._invalidate_sensor):
                 # CameraSensor 6.1 has no public close: its own destructor calls
                 # _invalidate_sensor (subscription + render product teardown).

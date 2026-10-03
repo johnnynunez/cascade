@@ -39,6 +39,7 @@ def parse_args(argv=None):
     p.add_argument('--max-wall-s', type=float, required=True)
     p.add_argument('--max-steps', type=int, required=True)
     p.add_argument('--camera-every', type=int, default=20, help='overview capture interval in completed steps')
+    p.add_argument('--camera-rgbd', action='store_true', help='opt-in registered RGB-D; changes effective model identity')
     p.add_argument('--max-jpeg-bytes', type=int, default=2*1024**2)
     p.add_argument('--solver-cuda-graph', action='store_true',
                    help='explicit reviewed SDK solver graph; BAM/checkpoints stay outside capture')
@@ -240,7 +241,13 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
             stepper = MicroduckStepper(backend, controller, policy, backend.bam, max_steps=args.max_steps,
                 max_wall_s=remaining, checkpoint=checkpoint,
                 **{k: admission['limits'][k] for k in FALL_LIMITS})
-            cache = FrameCache(controller.hello(), max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=640*480)
+            if getattr(args, 'camera_rgbd', False):
+                from cascade.sim.mobile_rgbd import RgbdFrameCache
+                cache = RgbdFrameCache(controller.hello(),
+                    calibration=backend.receipt['rgbd_camera']['calibration'],
+                    max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=640*480)
+            else:
+                cache = FrameCache(controller.hello(), max_jpeg_bytes=args.max_jpeg_bytes, max_pixels=640*480)
             server = (server_factory or MobileBridgeServer)(controller, port=args.port, frame_callback=cache)
             stepper.start()
         checkpoint()
@@ -311,6 +318,9 @@ def run(args, admission, *, backend_factory=None, policy_factory=None, server_fa
                     row(frames, {k: v for k, v in wire.items() if k != 'rgb_jpeg_b64'} | {
                         'file': filename, 'sha256': hashlib.sha256(jpeg).hexdigest(),
                         'render_times': capture['render_times'], 'physics_ticks_during_capture': 0})
+                    if getattr(args, 'camera_rgbd', False):
+                        rgbd = cache({'camera': 'overview', 'modality': 'rgbd'})['rgbd']
+                        write_json(out / 'frames' / f"overview_{sample['step']:09d}.rgbd.json", rgbd)
                     result['frame_count'] += 1
                 if stepper.steps == 1:
                     server.start()
@@ -450,6 +460,7 @@ def admit(args):
              'scripts/convert_microduck.py', 'src/cascade/sim/microduck_newton.py',
              'src/cascade/sim/microduck_stepper.py', 'src/cascade/sim/microduck_state.py',
              'src/cascade/sim/mobile_bridge.py', 'src/cascade/sim/mobile_identity.py',
+             'src/cascade/sim/mobile_rgbd.py',
              'src/cascade/sim/microduck_contact_support.py', 'src/cascade/control/mobile_base.py',
              'src/cascade/control/mobile_support.py',
              'src/cascade/apps/signal_stop.py',

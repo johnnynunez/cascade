@@ -1,0 +1,58 @@
+{
+  "artifacts": {
+    "causal-after.json": "0d7fb9a0034852c7aae0f3ba1e663e77c091ede7b8dbf7ff3260d6d0a3335d28",
+    "causal-before.json": "0b6d768088e893cfadbab03456dbe8d355be494044e9045a09065d08c70c2732",
+    "causal_probe.py": "58c3950f139f2500bcf51cd7756a49fe493520719bd2b09b5346f5fa3e02bd45",
+    "final-focused.log": "02f988bcbc1d28d25a3c4afec8b6c4dcd3701d423e01ea39f1b3feb23c38686e",
+    "native-ground-samples.json": "d506f8e68a0cf522ce6f0bf6df1435ed7e4843387008e08669a94b2f7024aa7c",
+    "receipt.json": "c465709644a879c7f087b7fc3f9c2effd6dd169f1fdc8a6b2d9646d714331e48",
+    "review-source.json": "29cf3f488ebddf3c1d2b79bc040ef449ef734f2ad6f418cca56045d48917a468",
+    "usd-cpu.stdout": "4fd11d14f42f8ac1452f30c1b3ce160c52c9a60d9e17c5baa3a79b6973ab7ea4",
+    "usd_cpu_probe.py": "c49009459a0d501111257b393dabde311886d7a37acb5a0ec2a194d4cad5922e"
+  },
+  "base_commit": "b6fd84bd106a3bd12884a272c4f81f275bc0c5bb",
+  "causal": {
+    "after_exit": 0,
+    "after_max_ground_z_m": 7.161850279491233e-08,
+    "before_exit": 1,
+    "before_max_ground_z_m": 0.0005117574230267818,
+    "legacy_wire_same": true,
+    "legacy_wire_sha256": "36100046ff8f9a7770bd001790716b52b81f635442d16b19d7807770fef193c6",
+    "same_fixture_sha256": "d506f8e68a0cf522ce6f0bf6df1435ed7e4843387008e08669a94b2f7024aa7c",
+    "same_probe_sha256": "58c3950f139f2500bcf51cd7756a49fe493520719bd2b09b5346f5fa3e02bd45"
+  },
+  "external_evidence_root": "RGBD_PIXEL_CONVENTION/evidence; sibling of this isolated checkout, retained locally",
+  "native_reference": {
+    "head": "5362c7a1cc6e3574c6766859cd7eb1a26e83ed18",
+    "model_identity_sha256": "5a4e62c987b48cc98bb5bf60a2da7922225eebf121153d25eda3cf1b2b124aed",
+    "packet_sha256": "3c00687e30592c39b0842ef6901f39fcce3198c8e0f9febb91fa1c0a2d768848",
+    "receipt_sha256": "3274354e0395935d866eb45fbcbc757330a525a7ca01694a0fa9257d5aead646",
+    "report_sha256": "3ba3c2128c1e80b80cfcac5959abd9f70b0fb0df0af6209806954c6b58e2efde",
+    "scope": "Capture/decode/joins/closure PASS only; projection convention not accepted",
+    "untouched": true
+  },
+  "new_native_model_admitted": false,
+  "physical_admission": false,
+  "protected_unchanged": true,
+  "schema": "cascade.rgbd-pixel-centers.cpu.v1",
+  "scope": "CPU fix for explicit RGB-D raster pixel centers; no new native capture or model admission",
+  "source_sha256": {
+    "src/cascade/sensing/models.py": "3f4e47df5f07a487ab2028243acee2f8fc8e8646982d3ea28ba45a63d831ab8d",
+    "src/cascade/sensing/providers.py": "ddde4023f140f9836eff01537df58eff799b97397238ef0adb37e666ebaa1469",
+    "src/cascade/sim/mobile_rgbd.py": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861",
+    "src/cascade/spatial/rgbd.py": "08534d029228a657a57704c06a706bf6514a8f5a5c89593ba4334ef941b7508b"
+  },
+  "validation": {
+    "command": "python -m pytest -q tests/test_rgbd_pixel_centers.py tests/test_sensing_rgbd.py tests/test_sensing_models.py tests/test_spatial_rgbd.py tests/test_mobile_identity.py tests/test_microduck_camera_identity.py",
+    "git_diff_check": "passed",
+    "passed": 122,
+    "ruff_F_E9": "passed",
+    "seconds": 1.6,
+    "skip_reasons": {
+      "pxr.Usd unavailable in ordinary venv": 6
+    },
+    "skipped": 6,
+    "usd_cpu": "OpenUSD 0.25.5 metadata only; new calibration v2, K and pose unchanged",
+    "usd_module_source_sha256": "8bfc3219e21373eccaed55f92452d66820182cba12faa63f6a2c99d2fb3ab861"
+  }
+}

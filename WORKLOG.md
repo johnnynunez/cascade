@@ -624,6 +624,28 @@ No GPU, Kit, mobile native service or new locomotion experiment was run.
 See docs/MICRODUCK_LOCOMOTION_COMPOSITION.md and its evidence receipt for the
 commit map, raw logs, scope of the two 12-step CPU BAM fixtures and limitations.
 
+### 2026-10-03 — Separate locomotion publication checkpoint
+
+Create LOCOMOTION_PUBLISH_20261003/cascade from generalized observations base
+7e15cfca; import only the fourteen reviewed locomotion checkpoints plus the
+aggregate composition tests/documentation. No RGB-D dependency is needed: all
+six changed production files match the reviewed 15382f3 checkpoint exactly.
+Current conversation/generation/teardown files remain byte-identical to this
+publication base. Keep the prior aggregate499 receipt explicitly historical.
+CPU checks for this branch follow separately; no GPU or native episode is run.
+
+Publication selection complete: 1,279 PASS/5 OpenUSD SKIP in 117.47 s;
+the pinned converter interpreter passed all 112 optional BAM/camera checks,
+including those five skipped cases, in 27.67 s. Combined unique JUnit cases:
+1,382 PASS, zero remaining failures/skips (not a full-suite claim).
+1,602 main inputs and protected stores remained unchanged; optional source and
+stores also match. The zero-test invocation with a nonexistent generalized-joint
+test name is retained as an invocation error; corrected selection used the two
+existing generalized-joint files. No code or threshold change was needed.
+Ruff F/E9, AST and diff checks pass. The separate publication receipt records
+the branch base, eight exact reviewed source files, nine untouched base files,
+raw logs, CPU numerical-fixture scope and pending native identity/admission.
+
 
 ## Explicit alternative walking checkpoint (2026-10-02)
 

@@ -1,5 +1,37 @@
 # MicroDuck locomotion composition — 3 October 2026
 
+## Publication boundary
+
+The publication branch is based on
+`7e15cfca6201051d69d698c747c2fabb543a2799` (conversation and passive generalized
+joint observations). It imports only the 14 locomotion checkpoints and the
+composition tests/documentation. It does **not** depend on the later RGB-D
+pipeline or other unpublished aggregate features. All six modified production
+files and two added modules are byte-identical to the reviewed locomotion
+checkpoint `15382f3`.
+The newer conversation, generation and shutdown implementations from this base
+remain unchanged. Conversation-specific distance profiles/tools are not added.
+
+The aggregate validation described below is a separate retained checkpoint,
+`499d50af29c76e2d90d782f72751cb65878a841b`, and is not a test result for this
+publication branch. Its paths/hashes remain intact. Both source combinations
+require their own newly prepared native model identity; neither receives an old
+physical admission pin.
+
+The [publication receipt](evidence/robot-modularity/microduck-locomotion-publication.json)
+binds this branch separately: 1,279 CPU checks passed in 117.47 seconds, with five
+OpenUSD checks skipped by the general interpreter. The pinned optional CPU
+environment passed 112 checks in 27.67 seconds, including those five cases and
+the existing BAM tests. Deduplicating the JUnit case identities gives 1,382
+distinct passing cases, no remaining failures or skips. This is an affected-file
+selection, not a full-suite result. Its 1,602 input files and protected stores
+were unchanged during the main run; the optional run also preserved source and
+stores. Ruff F/E9 and syntax checks passed. An initial invocation named a
+nonexistent test file and collected no tests; the invocation and correction are
+retained. No production or test semantics changed to obtain these results.
+
+## Retained aggregate composition
+
 The aggregate at `9b97b65486e4b48d3e7e7a5fe5bb3970ac5c30e8` lacked
 `SafeBase.walk_distance`, its mobile tool registration and the distance
 profiles. This increment imports the reviewed controller, independent verifier

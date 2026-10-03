@@ -69,6 +69,32 @@ is refused while stop IO remains pending, and a late motion result is invalidate
 A stop receipt is not proof of physical rest. Biped controllers must maintain
 their own balance-preserving stop behavior.
 
+### Independent robot fleets
+
+`robotics.fleet.FleetRuntime` composes already configured `RobotRuntime`
+instances using explicit robot IDs. `execute(robot_id, tool, arguments)` routes
+the member's unchanged tool catalog; different robots can act concurrently,
+while each retains its own operation gate, generation, verification debt,
+memory and trace directory. Duplicate robot/episode identities, shared runtime
+state or store files and conflicting controller endpoints are refused. Configure
+each robot's resource identity and controller explicitly before composition; renaming a
+resource does not create another physical controller.
+
+`stop(robot_id)` targets one member; `stop()` invalidates all members before
+waiting for their existing stop workers with a shared half-second receipt
+deadline. A blocked RPC remains pending and cannot hold up the other robots.
+Only an explicit per-robot `reset_stop` restores dispatch permission; receipts
+do not prove physical rest. Teardown queues cancellation for every robot before
+waiting on any member's existing timeout and parking policy. CPU tests exercise
+twelve concurrent synthetic robot runtimes, isolated stops, late dispatch
+rejection and independent traces/debts.
+
+This is a Python coordination API, not a native twelve-MicroDuck scene or a
+fleet MCP/CLI demo. A shared physical world still needs one admitted simulation
+owner with distinct robot states, policy histories, contact registries and
+perception/verifier identities, plus shared-space collision coordination.
+The existing refusal of mixed physical actuation inside one robot is unchanged.
+
 ## Observation and policy contracts
 
 An observation carries sensor/source identity, schema, epoch, sequence, capture

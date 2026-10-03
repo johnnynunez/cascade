@@ -91,6 +91,7 @@ class RobotRuntime:
         self._drained.set()
         self._latched = False
         self._generation = 0
+        self._requested_stop_generation = -1
         self._task_id = uuid.uuid4().hex
         self._history = deque(maxlen=256)
         self._unverified = set()
@@ -102,6 +103,11 @@ class RobotRuntime:
     def cancellation_token(self):
         with self._gate:
             return self._generation
+
+    @property
+    def episode_id(self):
+        with self._gate:
+            return self._task_id
 
     @property
     def stopped(self):
@@ -272,20 +278,38 @@ class RobotRuntime:
     def stop(self, **_kwargs):
         return self._request_stop(shutdown=False)
 
+    def request_stop(self):
+        """Invalidate dispatch and enqueue bounded stop workers, without waiting for IO.
+
+        Fleet coordination uses this before waiting on any robot's receipt.
+        The returned generation is a cancellation fence, not a physical stop ACK.
+        """
+        return self._queue_stop(shutdown=False)
+
     def request_shutdown(self):
         """Fence dispatch while preserving each domain's existing teardown policy."""
+        generation = self.queue_shutdown()
+        return self.wait_for_stop(generation, deadline_monotonic_s=time.monotonic() + .5)
+
+    def queue_shutdown(self):
+        """Fence and enqueue graceful shutdown before a fleet waits on any member."""
         with self._gate:
             self._closed = True
-        return self._request_stop(shutdown=True)
+        return self._queue_stop(shutdown=True)
 
     def _request_stop(self, *, shutdown):
+        generation = self._queue_stop(shutdown=shutdown)
+        return self.wait_for_stop(generation, deadline_monotonic_s=time.monotonic() + .5)
+
+    def _queue_stop(self, *, shutdown):
         workers = []
         with self._stop_condition:
             self._generation += 1
             self._latched = True
             generation = self._generation
+            self._requested_stop_generation = generation
             if self._workers_closed:
-                return {"ok": False, "latched": True, "error": "runtime already closed"}
+                return generation
             for name, slot in self._stop_slots.items():
                 slot["emergency"] = slot["emergency"] or not shutdown
                 # A graceful shutdown may not weaken an explicit e-stop that
@@ -300,12 +324,31 @@ class RobotRuntime:
         # IO. One stuck transport cannot prevent another domain being stopped.
         for worker in workers:
             worker.start()
-        deadline = time.monotonic() + .5
+        return generation
+
+    def wait_for_stop(self, generation, *, deadline_monotonic_s):
+        """Read stop receipts within one caller-owned local deadline; never dispatch."""
+        if type(generation) is not int or generation < 0:
+            raise ValueError("stop generation must be a nonnegative integer")
+        if (type(deadline_monotonic_s) not in {float, int}
+                or not math.isfinite(deadline_monotonic_s)):
+            raise ValueError("stop deadline must be a finite local monotonic value")
         with self._stop_condition:
+            if self._workers_closed:
+                return {"ok": False, "latched": True, "error": "runtime already closed"}
+            if generation > self._generation:
+                raise ValueError("unknown stop generation")
+            if generation > self._requested_stop_generation:
+                return {"ok": False, "latched": self._latched, "generation": generation,
+                        "error": "generation has no stop request", "physical_stop_verified": False}
             self._stop_condition.wait_for(
-                lambda: all(s["generation"] >= generation for s in self._stop_slots.values()),
-                timeout=max(0, deadline - time.monotonic()))
-            results = {name: copy.deepcopy(slot["result"]) if slot["generation"] >= generation else
+                lambda: self._generation != generation or all(
+                    s["generation"] == generation for s in self._stop_slots.values()),
+                timeout=max(0, deadline_monotonic_s - time.monotonic()))
+            if self._generation != generation:
+                return {"ok": False, "latched": self._latched, "generation": generation,
+                        "error": "stop receipt superseded by a newer generation", "physical_stop_verified": False}
+            results = {name: copy.deepcopy(slot["result"]) if slot["generation"] == generation else
                        {"ok": False, "pending": True, "error": "domain stop receipt pending"}
                        for name, slot in self._stop_slots.items()}
         return {"ok": all(r.get("ok") is True for r in results.values()), "latched": True,
@@ -352,6 +395,7 @@ class RobotRuntime:
             if self._active or self._resetting or self._closed:
                 raise ValueError("cannot begin task during another operation or after close")
             self._resetting = True
+            self._generation += 1  # pending authority belongs to the preceding episode
             self._task_id = uuid.uuid4().hex
             self._unverified.clear()
         try:

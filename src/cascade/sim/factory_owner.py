@@ -21,6 +21,15 @@ from ..control.fastening import (
 from .factory_observation import _floats, collision_coverage
 
 
+def _exception_text(error):
+    """Formatting a backend fault must not bypass stop or strand callers."""
+    try:
+        message = str(error)
+        return f"{type(error).__name__}: {message}"
+    except BaseException:
+        return f"{type(error).__name__}: exception message unavailable"
+
+
 class NativeSolveClock:
     """Pinned MJWarp float32 recurrence plus Python step; no CUDA graph replay."""
 
@@ -190,14 +199,14 @@ class FactorySolveOwner:
                     raise FasteningFault("owner lifetime budget expired")
                 self.cycle()
         except BaseException as exc:
-            self._error = f"{type(exc).__name__}: {exc}"
             self.controller.stop()
+            self._error = _exception_text(exc)
             self.journal.fail(self._error)
         finally:
             try:
                 self._zero()
             except BaseException as exc:
-                self._zero_receipt = {"uploaded": False, "error": f"{type(exc).__name__}: {exc}",
+                self._zero_receipt = {"uploaded": False, "error": _exception_text(exc),
                                       "physical_stop_verified": False}
                 self._error = self._error or self._zero_receipt["error"]
                 self.journal.fail(self._error)

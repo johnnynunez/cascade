@@ -1852,3 +1852,21 @@ including the bound error extractor, and extend their copy manifest. Preserve
 all 25 prior portable receipts and earlier failed episodes. Validation is limited
 to evidence hashes, relative links and docs diff; no tests, SDK imports, model
 inference, simulator, GPU query, action or new native run.
+
+
+### 2026-10-03 — Factory owner fault containment
+
+A backend exception whose `__str__` raises could bypass error retention in
+`FactorySolveOwner._run`: four CPU probes incorrectly reported a clean close,
+and two zero-upload probes abandoned finalization. Stop now latches before
+formatting; a guarded fallback preserves the exception type, sticky failure and
+pending admission rejection even when formatting raises `BaseException`.
+Zero upload remains independently reported and never proves physical rest.
+
+Baseline: 6 failures / 3 controls pass. The source-bound Factory/fastening
+regression selection initially passed 389 tests. Independent review then
+identified a string-subclass formatter escape (three retained red probes); the
+final corrected source passed 393 tests, including primary-plus-zero failure
+and stop-before-format ordering. These selections overlap. Sources and protected stores remained unchanged; an initial
+invalid test-file invocation is retained separately. No native run or physical
+admission follows. Receipt: `benchmark/results/factory_error_containment_20261003.json`.

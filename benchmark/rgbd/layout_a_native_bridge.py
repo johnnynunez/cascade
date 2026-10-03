@@ -15,6 +15,7 @@ from benchmark.rgbd import ground_native_bridge as ground
 from benchmark.rgbd import native_bridge as common
 from benchmark.rgbd.binary_layout_a import BinaryLayoutABoard
 from benchmark.rgbd.binary_reference import canonical_detector_json
+from benchmark.rgbd.checker_accuracy import AccuracyBoard, canonical_consumer_json
 from benchmark.rgbd.ground_texture import (
     MATERIAL,
     author_ground_texture,
@@ -27,12 +28,14 @@ from benchmark.rgbd.planar_reference import digest
 
 TEXTURE = "benchmark/rgbd/assets/ground_binary_layout_a.png"
 CONSUMER_SOURCE = "benchmark/rgbd/assets/binary_layout_a_consumer.json"
+ACCURACY_CONSUMER_SOURCE = "benchmark/rgbd/assets/checker_accuracy_consumer.json"
 SOURCES = (
     *ground.SOURCES,
     "benchmark/rgbd/binary_reference.py",
     "benchmark/rgbd/binary_layout_a.py",
     "benchmark/rgbd/homography_support.py",
     "benchmark/rgbd/layout_a_native_bridge.py",
+    "benchmark/rgbd/checker_accuracy.py",
     TEXTURE,
     CONSUMER_SOURCE,
     "benchmark/rgbd/observation_health.py",
@@ -41,20 +44,31 @@ SOURCES = (
 GENERATOR_METADATA = "cascade:rgbdBinaryLayoutAAuthoringEnvironment"
 
 
-def load_consumer(path, expected_sha256):
+def source_inputs(accuracy=False):
+    return (*SOURCES, ACCURACY_CONSUMER_SOURCE) if accuracy else SOURCES
+
+
+def load_consumer(path, expected_sha256, *, accuracy=False):
     path = Path(path)
+    source = ACCURACY_CONSUMER_SOURCE if accuracy else CONSUMER_SOURCE
     if (
-        path.resolve() != (REPO / CONSUMER_SOURCE).resolve()
+        path.resolve() != (REPO / source).resolve()
         or path.is_symlink()
         or path.stat().st_size > 32768
         or common.sha(path) != expected_sha256
     ):
         raise ValueError("consumer detector source/hash mismatch")
-    return canonical_detector_json(path.read_text())
+    validate = canonical_consumer_json if accuracy else canonical_detector_json
+    return validate(path.read_text())
 
 
-def texture_descriptor(consumer_json):
-    board = BinaryLayoutABoard(consumer_detector_json=consumer_json)
+def declared_board(consumer_json, *, accuracy=False):
+    return (AccuracyBoard(consumer_json) if accuracy
+            else BinaryLayoutABoard(consumer_detector_json=consumer_json))
+
+
+def texture_descriptor(consumer_json, *, accuracy=False):
+    board = declared_board(consumer_json, accuracy=accuracy)
     data = (REPO / TEXTURE).read_bytes()
     if data != png_bytes(board):
         raise ValueError("layout A PNG differs from frozen codebook/geometry")
@@ -69,13 +83,13 @@ def texture_descriptor(consumer_json):
     }
 
 
-def board_from_fixture(fixture, consumer_json):
-    expected = texture_descriptor(consumer_json)
+def board_from_fixture(fixture, consumer_json, *, accuracy=False):
+    expected = texture_descriptor(consumer_json, accuracy=accuracy)
     if any(fixture.get(k) != v for k, v in expected.items()):
         raise ValueError(
             "producer layout A fixture does not match consumer declaration"
         )
-    board = BinaryLayoutABoard(consumer_detector_json=consumer_json)
+    board = declared_board(consumer_json, accuracy=accuracy)
     board.require_consumer_implementation()
     return board
 
@@ -98,10 +112,10 @@ def generator_record():
     }
 
 
-def author_checked_layout(stage, expected, consumer_json):
-    if expected != texture_descriptor(consumer_json):
+def author_checked_layout(stage, expected, consumer_json, *, accuracy=False):
+    if expected != texture_descriptor(consumer_json, accuracy=accuracy):
         raise ValueError("layout A descriptor changed after admission")
-    board = BinaryLayoutABoard(consumer_detector_json=consumer_json)
+    board = declared_board(consumer_json, accuracy=accuracy)
     fixture = author_ground_texture(stage, REPO / TEXTURE, board=board)
     generator = generator_record()
     material = stage.GetPrimAtPath(MATERIAL)
@@ -118,25 +132,25 @@ def author_checked_layout(stage, expected, consumer_json):
     return fixture
 
 
-def extend_admission(admission, reference, consumer_json):
-    admission["source_sha256"].update({p: common.sha(REPO / p) for p in SOURCES})
+def extend_admission(admission, reference, consumer_json, *, accuracy=False):
+    admission["source_sha256"].update({p: common.sha(REPO / p) for p in source_inputs(accuracy)})
     admission["planar_reference_identity"] = reference
-    admission["ground_reference_descriptor"] = texture_descriptor(consumer_json)
+    admission["ground_reference_descriptor"] = texture_descriptor(consumer_json, accuracy=accuracy)
     return admission
 
 
-def reference_backend(base, consumer_path, consumer_sha256):
+def reference_backend(base, consumer_path, consumer_sha256, *, accuracy=False):
     # Every recheck reads the admitted bytes. No monkeypatch or mutable global
     # detector override; the producer never claims to have run the consumer.
     def declaration():
-        return load_consumer(consumer_path, consumer_sha256)
+        return load_consumer(consumer_path, consumer_sha256, accuracy=accuracy)
 
     return ground.reference_backend(
         base,
         author=lambda stage, expected: author_checked_layout(
-            stage, expected, declaration()
+            stage, expected, declaration(), accuracy=accuracy
         ),
-        descriptor=lambda: texture_descriptor(declaration()),
+        descriptor=lambda: texture_descriptor(declaration(), accuracy=accuracy),
     )
 
 
@@ -147,19 +161,23 @@ def main(argv=None):
     parser.add_argument("--reference-model-sha256", required=True)
     parser.add_argument("--consumer-detector", type=Path, required=True)
     parser.add_argument("--consumer-detector-sha256", required=True)
+    parser.add_argument("--checker-accuracy", action="store_true",
+                        help="Explicit schema5 consumer; never reinterpret schema4 captures")
     ref, bridge_argv = parser.parse_known_args(argv)
     bridge = common.bind_bridge()
     args = bridge.parse_args(bridge_argv)
     try:
         if not args.camera_rgbd:
             raise ValueError("layout A benchmark requires explicit camera-rgbd")
-        consumer = load_consumer(ref.consumer_detector, ref.consumer_detector_sha256)
+        consumer = load_consumer(ref.consumer_detector, ref.consumer_detector_sha256,
+                                 accuracy=ref.checker_accuracy)
         reference = common.reference_identity(
             ref.reference_identity,
             ref.reference_identity_sha256,
             ref.reference_model_sha256,
         )
-        admission = extend_admission(bridge.admit(args), reference, consumer)
+        admission = extend_admission(bridge.admit(args), reference, consumer,
+                                     accuracy=ref.checker_accuracy)
         if args.check_only:
             print(
                 json.dumps(
@@ -192,6 +210,7 @@ def main(argv=None):
                         KitNewtonBackend,
                         ref.consumer_detector,
                         ref.consumer_detector_sha256,
+                        accuracy=ref.checker_accuracy,
                     ),
                 )
             except SignalRequest as exc:

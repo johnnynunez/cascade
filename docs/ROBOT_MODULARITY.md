@@ -33,7 +33,7 @@ flowchart TD
   Graph[Bounded skill graph] --> Runtime
   MCP --> Runtime[RobotRuntime: one robot's dispatch and cancellation]
   Conversation --> Runtime
-  MCP --> Fleet[FleetRuntime: multi-robot routing]
+  MCP -. multi-agent app wiring pending .-> Fleet[FleetRuntime: multi-robot routing]
   Fleet --> Runtime
   Structure[Embodiment declaration and resource catalog] --> Runtime
   Runtime --> Arm[Manipulation]

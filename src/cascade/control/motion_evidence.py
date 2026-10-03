@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from collections import deque
 from contextvars import ContextVar
 from functools import wraps
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import time
@@ -104,11 +106,120 @@ def _plain(value):
     return value
 
 
+def _message(exc):
+    try:
+        return str(exc), True
+    except BaseException:
+        # A diagnostic formatter must not replace the original action exception.
+        return '<unavailable: exception message formatting failed>', False
+
+
+def _bounded_error(exc):
+    return f'{type(exc).__name__[:96]}: {_message(exc)[0][:400]}'[:500]
+
+
+def _exception_fields(exc):
+    message, available = _message(exc)
+    if not available and _ACTIVE.get() is not None:
+        _ACTIVE.get().error(RuntimeError('exception message formatting failed'))
+    return {'exception_type': type(exc).__name__, 'error': message}
+
+
+class _LifecycleJournal:
+    """A bounded projection of existing events, never submission/physical proof."""
+    KINDS = frozenset(('skill_begin', 'skill_end', 'skill_raised', 'phase_begin',
+                       'phase_end', 'stream_begin', 'stream_returned', 'stream_raised'))
+    FIELD_LIMITS = {'phase': 96, 'stream': 64, 'data.exception_type': 96, 'data.error': 512}
+
+    def __init__(self, max_events, max_bytes):
+        self.max_events, self.max_bytes = max_events, max_bytes
+        self.rows = deque()
+        self.bytes = self.observed = self.evicted = self.dropped = self.errors = self.truncated = 0
+        self.first_error = None
+
+    @property
+    def incomplete(self):
+        return bool(self.evicted or self.dropped or self.errors or self.truncated)
+
+    def record(self, kind, captured, phase, stream, data):
+        if kind not in self.KINDS:
+            return
+        self.observed += 1
+        if not self.max_events or not self.max_bytes:
+            self.dropped += 1
+            return
+        try:
+            if type(captured) not in (int, float) or not math.isfinite(captured):
+                raise ValueError('nonfinite or invalid lifecycle capture time')
+            truncated = []
+
+            def text(value, key):
+                if value is None and key in ('phase', 'stream'):
+                    return None
+                if type(value) is not str:
+                    raise TypeError(f'invalid lifecycle {key}')
+                limit = self.FIELD_LIMITS[key]
+                if len(value) > limit:
+                    truncated.append(key)
+                return value[:limit]
+
+            row = {'kind': kind, 'monotonic_s': captured,
+                   'phase': text(phase, 'phase'), 'stream': text(stream, 'stream'),
+                   'data': {}, 'truncated_fields': truncated}
+            if kind == 'stream_returned' and 'settled' in data:
+                if type(data['settled']) is not bool:
+                    raise TypeError('invalid lifecycle settled flag')
+                row['data']['settled'] = data['settled']
+            if kind in ('skill_raised', 'stream_raised'):
+                for key in ('exception_type', 'error'):
+                    if key in data:
+                        row['data'][key] = text(data[key], 'data.' + key)
+            self.truncated += bool(truncated)
+            encoded = json.dumps(row, separators=(',', ':'), allow_nan=False)
+            size = len(encoded.encode())
+            if size > self.max_bytes:
+                self.dropped += 1
+                return  # An oversized row must not evict the useful existing tail.
+            while len(self.rows) >= self.max_events or self.bytes + size > self.max_bytes:
+                _, previous_size = self.rows.popleft()
+                self.bytes -= previous_size
+                self.evicted += 1
+            self.rows.append((encoded, size))
+            self.bytes += size
+        except Exception as exc:
+            self.errors += 1
+            if self.first_error is None:
+                self.first_error = _bounded_error(exc)
+            raise
+
+    def snapshot(self, *, include_events=False):
+        result = {'version': 1, 'diagnostic_only': True, 'physical_acceptance': False,
+                  'enabled': bool(self.max_events and self.max_bytes),
+                  'max_events': self.max_events, 'max_bytes': self.max_bytes,
+                  'retained_events': len(self.rows), 'retained_bytes': self.bytes,
+                  'observed_events': self.observed, 'evicted_events': self.evicted,
+                  'dropped_events': self.dropped, 'logging_errors': self.errors,
+                  'first_error': self.first_error, 'truncated_events': self.truncated,
+                  'field_limits_chars': dict(self.FIELD_LIMITS),
+                  'complete': bool(self.max_events and self.max_bytes) and not self.incomplete,
+                  'scope': 'bounded lifecycle projection; return/end does not establish physical closure'}
+        if include_events:
+            result['events'] = [json.loads(row) for row, _ in self.rows]
+        return result
+
+
 class Recording:
     def __init__(self, skill, arm, *, max_events=30000, max_bytes=16 * 1024 * 1024):
         self.id = uuid.uuid4().hex
         self.skill, self.arm = skill, arm
         self.max_events, self.max_bytes = max_events, max_bytes
+        reserve_events = max(0, min(128, max_events // 4))
+        reserve_bytes = max(0, min(64 * 1024, max_bytes // 4))
+        if not reserve_events or not reserve_bytes:
+            reserve_events = reserve_bytes = 0
+        self.lifecycle = _LifecycleJournal(reserve_events, reserve_bytes)
+        self.prefix_max_events = max_events - reserve_events
+        self.prefix_max_bytes = max_bytes - reserve_bytes
         self.events, self.bytes = [], 0
         self.dropped = self.errors = 0
         self.first_error = None
@@ -116,15 +227,24 @@ class Recording:
     def error(self, exc):
         self.errors += 1
         if self.first_error is None:
-            self.first_error = f'{type(exc).__name__}: {exc}'[:500]
+            self.first_error = _bounded_error(exc)
 
     def record(self, kind, data):
         try:
-            row = json.dumps({'kind': kind, 'monotonic_s': time.monotonic(),
-                              'phase': _PHASE.get(), 'stream': _STREAM.get(),
+            captured, phase, stream = time.monotonic(), _PHASE.get(), _STREAM.get()
+        except Exception as exc:
+            self.error(exc)
+            return
+        try:
+            self.lifecycle.record(kind, captured, phase, stream, data)
+        except Exception as exc:
+            self.error(exc)
+        try:
+            row = json.dumps({'kind': kind, 'monotonic_s': captured,
+                              'phase': phase, 'stream': stream,
                               'data': _plain(data)}, separators=(',', ':'), allow_nan=False)
             size = len(row.encode())
-            if len(self.events) >= self.max_events or self.bytes + size > self.max_bytes:
+            if len(self.events) >= self.prefix_max_events or self.bytes + size > self.prefix_max_bytes:
                 self.dropped += 1
                 return
             self.events.append(row)
@@ -140,7 +260,8 @@ class Recording:
             path.parent.mkdir(parents=True, exist_ok=True)
             events = [json.loads(r) for r in self.events]
             coverage = submission_coverage(events)
-            if self.errors or self.dropped:
+            logging_complete = not (self.errors or self.dropped or self.lifecycle.incomplete)
+            if not logging_complete:
                 coverage['complete'] = False
             repo = Path(__file__).resolve().parents[3]
             source_files = ('scripts/isaac_bridge.py', 'src/cascade/sim/target_receipts.py',
@@ -150,11 +271,17 @@ class Recording:
             source = {name: hashlib.sha256((repo/name).read_bytes()).hexdigest() for name in source_files}
             document = {'version': 1, 'recording_id': self.id, 'pid': os.getpid(),
                         'skill': self.skill, 'arm': self.arm, 'events': events,
+                        'lifecycle_journal': self.lifecycle.snapshot(include_events=True),
+                        'buffer_budget': {'max_events': self.max_events, 'max_bytes': self.max_bytes,
+                                          'prefix_max_events': self.prefix_max_events,
+                                          'prefix_max_bytes': self.prefix_max_bytes,
+                                          'prefix_retained_bytes': self.bytes,
+                                          'scope': 'serialized event UTF-8 bytes; document metadata excluded'},
                         'submission_coverage': coverage,
                         'source_at_flush': {'scope': 'on-disk source; not imported-bytecode attestation',
                                             'repo': str(repo), 'sha256': source},
                         'logging_errors': self.errors, 'first_error': self.first_error,
-                        'dropped_events': self.dropped, 'logging_complete': not self.errors and not self.dropped,
+                        'dropped_events': self.dropped, 'logging_complete': logging_complete,
                         'scope': 'existing commands/observations only; submission is not motion or physical acceptance'}
             raw = (json.dumps(document, separators=(',', ':'), allow_nan=False) + '\n').encode()
             with path.open('xb') as stream:
@@ -164,6 +291,7 @@ class Recording:
         except Exception as exc:
             self.error(exc)
         summary.update(logging_errors=self.errors, first_error=self.first_error, dropped_events=self.dropped)
+        summary['lifecycle_journal'] = self.lifecycle.snapshot()
         return summary
 
 
@@ -196,7 +324,7 @@ def record_skill(skill, arm, trace_context, *, enabled):
         event('skill_begin', skill=skill, arm=arm)
         yield
     except BaseException as exc:
-        event('skill_raised', exception_type=type(exc).__name__, error=str(exc))
+        event('skill_raised', **_exception_fields(exc))
         raise
     finally:
         event('skill_end')
@@ -236,7 +364,7 @@ def stream(fn):
             event('stream_returned', settled=result)
             return result
         except BaseException as exc:
-            event('stream_raised', exception_type=type(exc).__name__, error=str(exc))
+            event('stream_raised', **_exception_fields(exc))
             raise
         finally:
             _STREAM.reset(token)

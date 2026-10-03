@@ -42,8 +42,38 @@ to make a receipt. `IsaacArm.send_joint_target` still returns None. Old bridges
 continue to work: missing optional fields produce incomplete evidence, with no
 fallback command, retry or change of action verdict.
 
-The client buffers at most 30,000 events/16 MiB; the bridge retains at most
-4,096 commands. Files are written after the action body and watcher hold exit.
+The client budgets 30,000 serialized events/16 MiB in total; the bridge retains
+at most 4,096 commands. The client reserves 128 events/64 KiB **inside** those
+limits for `lifecycle_journal`, leaving 29,872 events/16,711,680 bytes for the
+existing detailed prefix. For smaller host-created budgets each reservation is
+at most one quarter of its total, rounded down; if either is zero both are zero.
+Byte accounting sums the UTF-8 serialized event rows, as before; the final JSON
+document's metadata, array separators and Python container overhead are separate.
+
+The journal retains the latest existing `skill_begin/end/raised`,
+`phase_begin/end` and `stream_begin/returned/raised` events. Its rows reuse the
+same client monotonic capture as the detailed row. They contain phase/stream
+identifiers and, where applicable, `settled`, exception type and error text;
+targets, physics clocks and state packets remain only in the detailed prefix.
+Text limits are explicit (phase/type 96, stream 64, error 512 characters), with
+per-row `truncated_fields` and aggregate truncation counts. An oversized compact
+row is dropped without evicting the existing tail; otherwise the oldest rows
+are evicted until both reserved limits hold. Retained byte/event counts,
+observed events, evictions, drops and serialization errors are reported.
+
+This separate tail addresses diagnostic closure loss after detailed-prefix
+saturation, as observed in the retained trial-12 failure. It is always marked
+`diagnostic_only: true` and `physical_acceptance: false`. A return/end record is
+not evidence of braking, physical rest, successful task completion or clean
+process teardown. Its `complete` flag refers only to loss-free retention of the
+projected lifecycle records, not to whether a skill reached a terminal event.
+Any truncation, eviction, drop or logging error leaves overall
+`logging_complete` and `submission_coverage.complete` false. The unchanged
+submission matcher uses only the detailed records: a retained end cannot fill
+missing command/setter evidence. This change has not been replayed natively and
+does not revise the earlier failed campaign or claim lower logging overhead.
+
+Files are written after the action body and watcher hold exit.
 Trace context links the JSON sidecar and SHA256. File/source-read failures,
 overflow, mismatched or missing ACK/write bindings are diagnostic failures;
 the original action result or exception is preserved. Source hashes describe
@@ -59,3 +89,11 @@ all commands, reads, approvals, waits and terminal outcomes with recording on
 and off, including slow ACK, jumps, frozen physics and cancellation. Runtime
 tests cover nested home goals, exact signs, bounds and unwritable output. These
 tests do not constitute native PhysX/Newton or hardware admission.
+
+The lifecycle follow-up also checks saturation with both byte and event caps,
+tiny budgets, nonfinite/invalid fields, independent serialization failures and
+original `BaseException` propagation, including broken exception formatters.
+Enabled/disabled comparisons include saturated logging and retain the complete
+command/read/approval/wait sequence. Source-bound CPU results and retained red
+controls are indexed in
+[`motion_lifecycle_journal_20261003.json`](../benchmark/results/motion_lifecycle_journal_20261003.json).

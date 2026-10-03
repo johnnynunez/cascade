@@ -9,6 +9,7 @@ from __future__ import annotations
 from concurrent.futures import Future, TimeoutError as FutureTimeout
 from dataclasses import dataclass
 import math
+import pickle
 import queue
 import threading
 import time
@@ -28,6 +29,24 @@ def _exception_text(error):
         return f"{type(error).__name__}: {message}"
     except BaseException:
         return f"{type(error).__name__}: exception message unavailable"
+
+
+class _RawRecord:
+    """Private snapshot of a value from the trusted, in-process backend.
+
+    Only this constructor creates the bytes expanded below. There is no API
+    for loading an encoded payload from a caller, transport or file. Do not
+    reuse this as an untrusted deserializer: backend.advance already executes
+    trusted Python and FactoryObserver supplies built-in Python values.
+    """
+
+    __slots__ = ("__payload",)
+
+    def __init__(self, value):
+        self.__payload = pickle.dumps(value, protocol=5)
+
+    def expand(self):
+        return pickle.loads(self.__payload)
 
 
 class NativeSolveClock:
@@ -110,12 +129,22 @@ class FactorySolveOwner:
         self.controller = _OwnerController(self)
         self._requests = queue.Queue(maxsize=2)
         self._records = queue.Queue(maxsize=record_capacity)
+        self._record_error = None
         self._exit = threading.Event()
         self._thread = None
         self._row = None
         self._error = None
+        self._error_lock = threading.Lock()
         self._zero_receipt = None
         self._start = None
+
+    def _retain_error(self, message):
+        # Formatting happens before this short first-assignment lock. It is
+        # never held by the guard, codec, SDK, IO or priority stop path.
+        with self._error_lock:
+            if self._error is None:
+                self._error = message
+            return self._error
 
     def start(self):
         if self._thread is not None or self._exit.is_set():
@@ -187,7 +216,9 @@ class FactorySolveOwner:
                     # producer fault when stop arrives during preparation.
                     return self._zero()
         row, raw = self.backend.advance(upload)
-        self._records.put_nowait(raw)  # Full journal is a producer fault, never silent sample loss.
+        # Archive before acceptance, retaining the original capture and even a
+        # later-rejected solve. Full queue/encoding errors remain owner faults.
+        self._records.put_nowait(_RawRecord(raw))
         self.controller.accept_solve(row)
         self._row = row
 
@@ -200,16 +231,14 @@ class FactorySolveOwner:
                 self.cycle()
         except BaseException as exc:
             self.controller.stop()
-            self._error = _exception_text(exc)
-            self.journal.fail(self._error)
+            self.journal.fail(self._retain_error(_exception_text(exc)))
         finally:
             try:
                 self._zero()
             except BaseException as exc:
                 self._zero_receipt = {"uploaded": False, "error": _exception_text(exc),
                                       "physical_stop_verified": False}
-                self._error = self._error or self._zero_receipt["error"]
-                self.journal.fail(self._error)
+                self.journal.fail(self._retain_error(self._zero_receipt["error"]))
             self._exit.set()
             while True:
                 try:
@@ -221,12 +250,24 @@ class FactorySolveOwner:
 
     def records(self):
         """Drain detached raw records; never read or advance live SDK arrays."""
+        if self._record_error is not None:
+            raise FasteningFault(self._record_error)
         result = []
         while True:
             try:
-                result.append(self._records.get_nowait())
+                record = self._records.get_nowait()
             except queue.Empty:
                 return result
+            try:
+                result.append(record.expand())
+            except BaseException as exc:
+                # The popped row (and any preceding rows in this drain) cannot
+                # be credited as complete evidence. Preserve the original
+                # exception while making later drain/close failures sticky.
+                self.controller.stop()
+                self._record_error = "raw record expansion failed: " + _exception_text(exc)
+                self.journal.fail(self._retain_error(self._record_error))
+                raise
 
     def close(self, timeout_s=2.):
         if not 0 < timeout_s <= 2.:

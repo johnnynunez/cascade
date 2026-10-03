@@ -1986,3 +1986,23 @@ PR85 macOS job 111207760474 failed the slow software producer case with stale/fu
 Two negative tests retain the actual captured state for 250 ms with cyclic GC disabled. The producer/renewal continue, freshness still rejects, the command/stop ACK generations remain bound, the latch is delivered and threads close. Synthetic transport motion remains physically unverified. Production and the shared GC helper are unchanged.
 
 Validation: baseline 2 PASS; controlled GC 2 FAIL stale/future; candidate under the same GC injection 2 PASS; real 250 ms return delay 2 expected FAIL at the same positive assertion; final IsaacBase+tick helper 81 PASS (6.33 s). Initial negative controls correctly vetoed stale state but failed an ACK-location assertion; that test-only mistake is retained and corrected to inspect the actual server response. Source inventories and four protected stores remain unchanged in every run. Ruff F/E9 and diff checks pass; no GPU/native run or CI cause attribution. Full bindings: `benchmark/results/mobile_renewal_macos_fixture_20261003.json`.
+
+### 2026-10-03 — Private Factory raw archive
+
+Replaced live raw-dict retention with constructor-owned pickle5 bytes, without
+an external encoded-byte API or a new recursive validator. Complete Python/JSON
+records, capture timestamps, queue-before-accept, count capacity, typed journal,
+freshness and stop remain unchanged. Expansion errors remain sticky and preserve
+the original BaseException; first-error assignment is atomic across owner and
+consumer, with formatting outside the private lock. Failed drains do not promise
+recovery or complete evidence.
+
+Single fresh-process CPU pair: RSS165348→85252KiB, live gen2 total34.660→15.972ms;
+wall373.559→389.014ms and enqueue0.537→45.160ms. This is a retention/observed-pause
+result, not faster throughput or a native readiness fix. The original309-row
+corpus roundtrips exactly through production. Final550PASS/11SKIP3.09s,1647inputs
+and4stores unchanged. Causal snapshot2RED and concurrent-fault2RED are retained;
+the corresponding controls pass in the final selection. Four skips need CPU FK
+assets and seven need the pinned MuJoCo3.12 ABI. No native/GPU/push was performed.
+Receipts: `benchmark/results/factory_raw_archive_20261003.json` and its replay
+comparison. New source/model identity is required before later native validation.

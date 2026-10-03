@@ -198,20 +198,30 @@ def solved_contacts(ns):
     return records
 
 
-def extraction_provenance():
+def extraction_provenance(*, sdk_recipe=None):
     """Read the actually imported SDK sources; never substitute a version guess."""
     actual = {}
-    for name in SOURCE_SHA256:
-        module = importlib.import_module(name)
-        path = Path(module.__file__)
-        actual[name] = hashlib.sha256(path.read_bytes()).hexdigest()
-    return dict(version=1, source_sha256=actual, source_admitted=actual == SOURCE_SHA256,
+    expected = SOURCE_SHA256
+    if sdk_recipe is not None:
+        from .microduck_sdk import INTERNAL_SOURCE_SHA256, verify_runtime_recipe
+        version = importlib.import_module('newton').__version__
+        actual = verify_runtime_recipe(sdk_recipe, newton_version=version)
+        expected = INTERNAL_SOURCE_SHA256
+    else:
+        for name in SOURCE_SHA256:
+            module = importlib.import_module(name)
+            path = Path(module.__file__)
+            actual[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    result = dict(version=1, source_sha256=actual, source_admitted=actual == expected,
                 source='Newton contacts.force via MJWarp contact_force_fn',
                 native_force_on='shape0', emitted_force_on='shape1', frame='world',
                 force_unit='N', position_unit='m', normal='shape0_to_shape1',
                 geometry_time='constraint evaluation of the completed solve, before integration',
                 clock='completed manual solve; unavailable after initialization pose writes',
                 coverage='all active contact constraint rows, including zero-force contacts')
+    if sdk_recipe is not None:
+        result['sdk_recipe'] = sdk_recipe
+    return result
 
 
 def read_support(ns, *, last_solved_clock, source_admitted):

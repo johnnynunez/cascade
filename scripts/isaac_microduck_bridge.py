@@ -18,6 +18,8 @@ def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--engine', required=True, choices=['newton'], help='PhysX BAM is unsupported')
     p.add_argument('--release', type=Path, required=True)
+    p.add_argument('--sdk-recipe', choices=['isaac62_48b2d951'], default=None,
+                   help='explicit exact internal SDK recipe; default keeps stable Newton admission')
     model = p.add_mutually_exclusive_group(required=True)
     model.add_argument('--asset', type=Path)
     model.add_argument('--bundle', type=Path)
@@ -435,6 +437,10 @@ def admit(args):
             setattr(args, key, path.expanduser().absolute())
     if not (args.release / 'python.sh').is_file():
         raise ValueError('--release must be a prepared Isaac release with python.sh')
+    sdk_recipe = None
+    if args.sdk_recipe is not None:
+        from cascade.sim.microduck_sdk import admit_release
+        sdk_recipe = admit_release(args.release, args.sdk_recipe)
     if args.out.exists():
         raise ValueError('--out already exists; preserve previous receipts')
     extras = validate_extra_paths(args.python_extra_path)
@@ -467,13 +473,16 @@ def admit(args):
              'src/cascade/control/newton_bam.py', 'src/cascade/control/microduck_policy.py',
              'src/cascade/sim/microduck_policy_admission.py', 'assets/microduck/policy-candidates.json',
              'src/cascade/sim/microduck_solver_graph.py',
+             'src/cascade/sim/microduck_sdk.py',
              'src/cascade/control/microduck_actuator.py', 'assets/microduck/manifest.json',
              'assets/microduck/newton-bam.json', 'configs/isaac/microduck.newton.kit')
     admitted.update(limits=load_limits(args.limits), limits_sha256=sha256(args.limits),
                     bam_params=params, bam_config_sha256=sha256(config_path), bam_source_sha256=bam_sources,
                     policy_sha256=args.policy_sha256, policy_admission=policy_admission,
                     source_sha256={f: sha256(REPO/f) for f in files},
-                    experience_text=experience_text(args.release))
+                    experience_text=experience_text(args.release, sdk_recipe=args.sdk_recipe))
+    if sdk_recipe is not None:
+        admitted['sdk_recipe'] = sdk_recipe
     return admitted
 
 

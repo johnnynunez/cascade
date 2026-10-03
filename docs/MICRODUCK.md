@@ -102,6 +102,22 @@ receipt, every physical step, actual policy inputs/outputs and discarded
 inferences, and images with episode/step timestamps. Check process exit and
 owned-resource teardown separately from the receipt. Keep failed episodes.
 
+For the internal Isaac build `48b2d951919bbb7330de3c2aad54e15369fa0183`,
+`--sdk-recipe isaac62_48b2d951` explicitly admits Newton `1.6.1rc1` using the
+release VERSION and six fixed source hashes in `sim/microduck_sdk.py`. The
+default still requires stable Newton; other prereleases and changed sources
+are refused. Offline admission reads files only, and initialization rechecks
+the modules actually imported. The recipe and solver outputs enter the
+effective model identity; the internal extension folder is explicit.
+
+The reviewed solver delta adds a rejection for disabled sensor outputs;
+the stage delta makes contact forces configurable and preserves `state_0`
+across substeps and graph replay. This recipe explicitly requests contact
+forces, disables incoming-joint-wrench output, and retains one substep and
+the existing policy, BAM parameters and safety limits. CPU admission tests
+and upstream substep tests do not establish MicroDuck balance, support or
+locomotion on this SDK: a new single-robot native episode remains required.
+
 ## Remaining admission work
 
 The current real MCP campaign confirms supported standing and a separately

@@ -124,9 +124,13 @@ def verify_bundle(bundle, *, expected_sha256, asset=None):
             'asset_receipt_sha256': expected_sha256, 'receipt': receipt}
 
 
-def experience_text(release):
+def experience_text(release, *, sdk_recipe=None):
     root = Path(release).expanduser().absolute()  # preserve source/shadow layout
     folders = [str(root / name) for name in ('apps', 'exts', 'extscache', 'extsUser', 'extsDeprecated')]
+    if sdk_recipe is not None:
+        from .microduck_sdk import require_recipe
+        require_recipe(sdk_recipe)
+        folders.append(str(root / 'extsInternal'))
     if not all(Path(p).is_dir() for p in folders):
         raise ValueError('--release must provide the Isaac extension folders')
     template = (REPO / 'configs/isaac/microduck.newton.kit').read_text()
@@ -446,6 +450,7 @@ class KitNewtonBackend:
         self._calibration_reader = None
         self.signals = None
         self._solver_graph = None
+        self._sdk_recipe = getattr(args, 'sdk_recipe', None)
         self._solved_read = None
         self._reuse_solved_read = getattr(args, 'reuse_solved_read', False)
         if type(self._reuse_solved_read) is not bool or (self._reuse_solved_read
@@ -502,6 +507,12 @@ class KitNewtonBackend:
         from cascade.control.newton_bam import NewtonBamAdapter
         from cascade.sim.microduck_state import newton_joint_indices
         from cascade.sim.microduck_contact_support import extraction_provenance, support_contract
+        from cascade.sim.microduck_sdk import admit_release, configure_outputs, verify_runtime_recipe
+
+        if self._sdk_recipe is not None:
+            if self.admission.get('sdk_recipe') != admit_release(self.args.release, self._sdk_recipe):
+                raise RuntimeError('MicroDuck SDK release changed after offline admission')
+            verify_runtime_recipe(self._sdk_recipe, newton_version=newton.__version__)
 
         self._checkpoint()
         self.SM = SM
@@ -543,10 +554,14 @@ class KitNewtonBackend:
         cfg.solver_cfg.nconmax, cfg.solver_cfg.njmax = 512, 2400
         cfg.collision_cfg.rigid_contact_max = 512
         cfg.solver_cfg.use_mujoco_contacts = True
+        configure_outputs(cfg, self._sdk_recipe)
         configure_newton(cfg)
         self._checkpoint()
         self.receipt['configuration'] = dict(num_substeps=1, use_cuda_graph=False, time_step_app=False,
                                              nconmax=512, njmax=2400, rigid_contact_max=512, use_mujoco_contacts=True)
+        if self._sdk_recipe is not None:
+            self.receipt['configuration'].update(sdk_recipe=self.admission['sdk_recipe'],
+                                                contact_forces=True, link_incoming_joint_force=False)
         self._create_camera(stage)
         self._checkpoint()
         ensure_time_code_range(stage)
@@ -595,13 +610,14 @@ class KitNewtonBackend:
         self.receipt['native_body_properties'] = read_native_body_properties(ns)
         self.receipt['support_contract'] = support_contract(ns.model.shape_label)
         self.receipt['support_contract']['gravity_world_m_s2'] = self.receipt['native_body_properties']['gravity_world_m_s2'][:]
-        self.receipt['support_extraction'] = extraction_provenance()
+        self.receipt['support_extraction'] = extraction_provenance(sdk_recipe=self._sdk_recipe)
         self._checkpoint()
         self.receipt['native_model_properties'] = prepare_native_model(ns, ds, source_cap=.96, newton=newton,
             effort_cap=self.admission['bam_params']['joint_effort_limit'])
         self._checkpoint()
         self.bam = NewtonBamAdapter(ns, source_root=self.args.bam_source_root,
-                                    q_indices=qs, dof_indices=ds, params=self.admission['bam_params'])
+                                    q_indices=qs, dof_indices=ds, params=self.admission['bam_params'],
+                                    sdk_recipe=self._sdk_recipe)
         self._checkpoint()
         # INITIALIZATION ONLY, outside all command admission/episode loops.
         q0 = ns.model.joint_q.numpy().copy()
@@ -625,7 +641,7 @@ class KitNewtonBackend:
         from cascade.sim.microduck_solver_graph import SolverGraphContract
         self._solver_graph = SolverGraphContract(ns,
             enabled=getattr(self.args, 'solver_cuda_graph', False), wp=wp, dt=self._dt,
-            source_path=inspect.getfile(type(ns)))
+            source_path=inspect.getfile(type(ns)), sdk_recipe=self._sdk_recipe)
         self.receipt['configuration']['use_cuda_graph'] = self._solver_graph.enabled
         self.receipt['configuration']['solver_graph_stage_sha256'] = self._solver_graph.source_sha256
         self.receipt['configuration']['reuse_solved_read'] = self._reuse_solved_read
@@ -689,7 +705,9 @@ class KitNewtonBackend:
         return float(np.float32(nominal))
 
     def _guard(self):
+        from .microduck_sdk import check_outputs
         ns = self.ns
+        check_outputs(ns.cfg, self._sdk_recipe)
         if (self._closed or not ns.initialized or ns.model is not self._model or ns.cfg.time_step_app
                 or ns.cfg.num_substeps != 1
                 or self.dt != self._dt or str(self.SM.get_active_physics_engine()).lower() != 'newton'

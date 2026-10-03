@@ -93,3 +93,22 @@ def test_default_uncaptured_mode_cannot_be_switched_silently(stage, monkeypatch)
     stage.graph = object()
     with pytest.raises(RuntimeError, match='unexpected graph'):
         c.check()
+
+
+def test_internal_graph_pins_source_and_captured_substeps(stage, monkeypatch):
+    from cascade.sim.microduck_sdk import INTERNAL_RECIPE, INTERNAL_SOURCE_SHA256
+    stage_hash = INTERNAL_SOURCE_SHA256['isaacsim.physics.newton.impl.newton_stage']
+    monkeypatch.setattr(graph, 'sha256', lambda path: graph.STAGE_SHA256)
+    with pytest.raises(RuntimeError, match='reviewed exact'):
+        graph.SolverGraphContract(stage, enabled=True, wp=NS(array=Array), dt=.005,
+                                 source_path='legacy-source', sdk_recipe=INTERNAL_RECIPE)
+    assert not hasattr(stage, 'state_temp')
+    monkeypatch.setattr(graph, 'sha256', lambda path: stage_hash)
+    c = graph.SolverGraphContract(stage, enabled=True, wp=NS(array=Array), dt=.005,
+                                 source_path='internal-source', sdk_recipe=INTERNAL_RECIPE)
+    stage.graph, stage._graph_capture_dt, stage._graph_capture_substeps = object(), .005, 1
+    c.check()
+    assert c.source_sha256 == stage_hash
+    stage._graph_capture_substeps = 2
+    with pytest.raises(RuntimeError, match='substep'):
+        c.check()

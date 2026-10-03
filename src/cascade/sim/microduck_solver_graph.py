@@ -13,20 +13,26 @@ STAGE_SHA256 = '08352d2a0e767611461b7dfe75a06ab24a36605f0c806ddba03ff211b1bef47a
 
 
 class SolverGraphContract:
-    def __init__(self, stage, *, enabled, wp, dt, source_path):
+    def __init__(self, stage, *, enabled, wp, dt, source_path, sdk_recipe=None):
         if type(enabled) is not bool:
             raise ValueError('solver graph selection must be explicit boolean')
         if stage.cfg.use_cuda_graph or stage.graph is not None:
             raise RuntimeError('bootstrap graph must be disabled before model preparation')
         self.enabled, self.stage, self.dt = enabled, stage, dt
+        self.sdk_recipe = sdk_recipe
+        expected = STAGE_SHA256
+        if sdk_recipe is not None:
+            from .microduck_sdk import INTERNAL_SOURCE_SHA256, require_recipe
+            require_recipe(sdk_recipe)
+            expected = INTERNAL_SOURCE_SHA256['isaacsim.physics.newton.impl.newton_stage']
         self._captured = None
         self._bindings = []
         self.source_sha256 = None
         if not enabled:
             return
-        if sha256(source_path) != STAGE_SHA256:
+        if sha256(source_path) != expected:
             raise RuntimeError('solver graph requires the reviewed exact NewtonStage source')
-        self.source_sha256 = STAGE_SHA256
+        self.source_sha256 = expected
         # Initial allocation/copy only; no joint/pose writes in an episode.
         stage.state_temp = stage.model.state()
         stage.state_temp.assign(stage.state_0)
@@ -53,6 +59,8 @@ class SolverGraphContract:
         if stage.graph is not None:
             if stage._graph_capture_dt != self.dt:
                 raise RuntimeError('solver graph captured a different timestep')
+            if self.sdk_recipe is not None and stage._graph_capture_substeps != 1:
+                raise RuntimeError('solver graph captured a different substep count')
             if self._captured is None:
                 self._captured = stage.graph
         if self._captured is not None and stage.graph is not self._captured:

@@ -380,6 +380,28 @@ def test_check_only_admits_without_kit_network_or_outdir(software_bundle, tmp_pa
     result = json.loads(capsys.readouterr().out)
     assert result['physical_acceptance'] is False and result['output_count'] == 134
     assert not output.exists()
+    # The opt-in is still an offline check, including the internal extension
+    # root; all bytes below are explicitly synthetic SDK fixtures.
+    from cascade.sim import microduck_sdk as sdk
+    pins = {}
+    for name, relative in sdk.INTERNAL_SOURCE_PATHS.items():
+        path = release / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('# synthetic release admission: ' + name)
+        pins[name] = digest(path.read_bytes())
+    (release / 'extsInternal').mkdir()
+    (release / 'VERSION').write_text('synthetic internal build')
+    monkeypatch.setattr(sdk, 'INTERNAL_SOURCE_SHA256', pins)
+    monkeypatch.setattr(sdk, 'INTERNAL_VERSION_SHA256', digest((release / 'VERSION').read_bytes()))
+    internal_argv = argv + ['--sdk-recipe', sdk.INTERNAL_RECIPE]
+    parsed = cli().parse_args(internal_argv)
+    admitted = cli().admit(parsed)
+    assert admitted['sdk_recipe']['source_sha256'] == pins
+    assert str(release / 'extsInternal') in admitted['experience_text']
+    assert not output.exists()
+    (release / sdk.INTERNAL_SOURCE_PATHS[next(iter(pins))]).write_text('# changed')
+    assert cli().main(internal_argv) != 0
+    assert not output.exists()
     for flag, value in [('--port', '-1'), ('--policy-sha256', 'A'*64), ('--device', 'cpu'),
                         ('--max-wall-s', 'nan'), ('--max-steps', '0'), ('--bam-profile', 'implicit')]:
         bad = list(argv)

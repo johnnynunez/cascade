@@ -215,6 +215,47 @@ The source inventory additionally binds the actual URDF/XRDF and selection
 helper. These CPU contracts do not admit the kitchen recipe, Newton, hardware,
 continuous clearance or a real host/LLM campaign.
 
+### Explicit Spark launcher selection
+
+The installer and default launcher still use `isaac_kitchen_gpu`. An existing
+installation with cuMotion 1.1.0 in the application Python can explicitly use:
+
+```bash
+CASCADE_INSTALL_PROFILE=spark ./scripts/launch.sh --sim isaac --engine physx \
+  --arm isaac_kitchen_cumotion --camera-renderer isaac \
+  --scene-config demo/scene/kitchen_config.json --occupancy none
+```
+
+This is ordinary OpenClaw → MCP → SkillRuntime → SafeArm execution. The launcher
+requires the renderer option for this arm; an inherited conflicting renderer
+is rejected. `ovrtx` additionally requires an existing `CASCADE_OVRTX_PYTHON`
+and a fresh `CASCADE_OVRTX_OUTPUT`; it does not install or substitute an SDK.
+The original Spark physics/device/scene attestation, CUDA requirement, camera
+readiness, physical-clock execution and 300,000 ms MCP deadline remain in force.
+
+`CASCADE_KITCHEN_CAMERA_RENDERER` carries the selected expectation into the
+ordinary builder, which rejects a different arm, multiple arms, missing planner
+or non-strict CUDA configuration before construction. The planner still loads
+through the pinned ordinary adapter before an actuator is materialized. Each
+motion skill uses the same backend checks as the campaign: cached renderer
+packets and model/world/request-bound `MotionPlan` evidence before the original
+stream. There are no extra camera/state RPCs. Hooks restore on error and
+cancellation; read-only tools/catalog discovery do not construct an arm.
+
+The existing trace `context.selected_backends` retains at most 128 curves,
+256 cached-selection checks and 128 errors per call. Exceeding a curve/check
+capacity rejects further execution through that hook. This is diagnostic
+selection evidence, with `physical_acceptance: false`, not the campaign's
+pick verdict or proof of grip/release/rest. Independent physical checks remain
+mandatory; no native kitchen/cuMotion real-host success is claimed here.
+
+The retained Trial12 ef773 run still failed its 300-second MCP deadline.
+Its nominal-profile pacing and fresh post-ACK waits are unchanged by this
+selection. PR86's bounded lifecycle tail improves incomplete diagnostic logs;
+it does not shorten motion, recover missing command coverage or establish
+physical closure. A future cuMotion trial would test a different explicit
+planning route, not repeat the legacy run expecting a diagnostic speedup.
+
 ### Retained tabletop native evidence
 
 The normal `pick_and_place("green object", "drop zone")` task completed in an

@@ -857,3 +857,27 @@ stationary-clock, wall-stop, priority-stop/reset and interruption controls
 passed 35 cases in 1.06s; 1621 sources and private-store checks remained unchanged.
 See benchmark/results/walk_distance_inert_fixture_20261003.json. This CPU
 control does not establish macOS rerun success or physical locomotion.
+
+## PR87 ARM balance fixture isolation — 2026-10-03
+
+Scope: CPU software tests only. The ARM job on eb55cf91 reported one balance
+classification as unverified instead of refuted; it did not record the reason.
+An external source-bound control injects 80 ms of automatic cyclic-GC callback
+work during scripted read four. Both zero-twist semantic cases then hit the
+unchanged 40 ms reader budget. This demonstrates a fixture vulnerability, not
+the cause of the original CI event. Reuse the existing `healthy_episode_gc`
+fixture only for those cases, with direct late-reader negatives preserving the
+original captured state and later healthy reads. No runtime, verifier threshold,
+physics, hardware, native SDK, or GPU change. Validation receipt follows below.
+
+Validation: the unmodified pair passed without injection, then both failed
+`reader_timeout` under controlled automatic GC (95.035/81.414 ms read RTT).
+The candidate passed both semantic cases with the existing fixture, while real
+80 ms delayed reads still caused both expected refusals with GC disabled. The
+normal affected-file plus fixture selection passed **336 tests in 33.60 s**,
+including two new negatives checking retained capture timestamps and later
+healthy observations. Ruff F/E9 and diff checks passed. All runs used private
+stores, and source/protected-store hashes were unchanged. The retained CI failure
+was **5699 passed / 1 failed / 269 skipped / 4 deselected**; no GC cause is inferred
+from its missing verdict reason. See
+`benchmark/results/mobile_balance_arm_fixture_20261003.json` for raw bindings.

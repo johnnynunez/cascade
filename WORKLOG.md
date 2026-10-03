@@ -822,6 +822,25 @@ Normal merge b50229adeb40b5c0439f4b0285aba790a4f3bc99 preserves latest teardown 
 logs. Focused runtime/MCP/close composition: 96PASS/0SKIP, 26.92s;
 1618 source inputs and protected stores unchanged. Prior freezes archived;
 no physics, GPU, limits, or admission changed. Receipt: docs/evidence/robot-modularity/microduck-locomotion-teardown-composition.json.
+### 2026-10-03 — isolate healthy support semantics from cyclic GC
+
+The local post-merge check on dfa0af2 returned reader_timeout for a supported
+rest episode. Its log does not include GC or read timing; its cause remains
+unknown. A separate external injection of 80 ms automatic-GC callback work at
+read four reproduces 11 failures among 12 semantic cases. Existing test-only
+healthy_episode_gc isolation restores all 12 without changing the sampler,
+40 ms read budget, clocks, support contract or required verdicts. Six semantic
+functions opt in; the unknown-support control now also asserts its reason so a
+transport timeout cannot satisfy it accidentally. A bounded delayed-reader
+negative now covers both walking and stationary stop, alongside the unchanged
+TCP-negative control. All three continue to require unverified/reader_timeout.
+This is software fixture coverage, not native locomotion admission.
+
+The final support/helper/effects selection on main 075c08c passes 395 tests in
+40.12 s, with source and protected stores unchanged. No runtime diff exists.
+The controlled original 12 verdicts all timed out; one test accidentally
+accepted unverified without its reason, now strengthened. Raw source-bound
+receipts are linked from benchmark/results/mobile_support_rest_fixture_20261003.json.
 
 ### 2026-10-03 — Preserve explicitly owned Spark model endpoints
 
@@ -1271,3 +1290,18 @@ unchanged. The earlier temporary composition against non-main `1275c294`
 passed 247 tests and was aborted before commit after correcting the branch
 identification; its evidence remains separate. No Factory implementation is
 introduced by this topic. No native run or physical-admission claim.
+### 2026-10-03 — Preserve TCP timeout coverage across caller scheduling
+
+macOS CI on PR84 retained `unverified/reader_timeout` but failed a test-only
+assumption that the independent reader makes exactly one TCP connection. A
+controlled delayed caller reproduces that same assertion failure: the real
+socket can expire and reconnect before `begin()` resumes to cancel its sampler.
+Both ordinary and delayed schedules now require the original 40 ms timeout
+verdict and allow only read-only hello/state messages. Runtime, clocks, limits,
+measured-support gates and controller ownership are unchanged. The controlled
+schedule does not claim to identify the historical OS scheduling event.
+
+Retained causal baseline: 1 failed; corrected focal: 2 passed; affected support
+and effect suite: 389 passed in 40.24 s. All 1,599 source inputs and four stores
+are unchanged across validation. No native SDK, GPU, simulation or local macOS
+execution. Receipt: benchmark/results/mobile_support_tcp_scheduling_20261003.json.

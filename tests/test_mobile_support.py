@@ -84,7 +84,10 @@ def test_contract_requires_explicit_disjoint_complete_admission(changes):
 
 
 @pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_one_loaded_sole_proves_rest_and_pair_order_does_not_change_meaning(reverse):
+    # These support semantics require a healthy reader. Keep unrelated cyclic
+    # heap work outside the episode; the real 40 ms budget remains in force.
     loaded = contact()
     if reverse:
         for a, b in (("shape_a", "shape_b"), ("shape_a_id", "shape_b_id")):
@@ -92,7 +95,12 @@ def test_one_loaded_sole_proves_rest_and_pair_order_does_not_change_meaning(reve
         for key in ("force_on_b_world_n", "normal_a_to_b_world"):
             loaded[key] = [-v for v in loaded[key]]
     verdict = run_window(ScriptedReader(lambda n: supported(n, contacts=[loaded])), "stop_navigation", {})
-    assert verdict["status"] == "confirmed", verdict["reason"]
+    observations = verdict["evidence"]["observations"]
+    diagnostic = {"reason": verdict["reason"], "rejected": verdict["evidence"]["rejected"],
+                  "attempts": verdict["evidence"]["attempts"],
+                  "max_read_s": max((s["observed_monotonic_s"] - s["read_started_monotonic_s"]
+                                     for s in observations), default=None)}
+    assert verdict["status"] == "confirmed", diagnostic
     assert verdict["evidence"]["support_contract"] == support_contract(fixture_support_contract())
 
 
@@ -104,6 +112,7 @@ def test_one_loaded_sole_proves_rest_and_pair_order_does_not_change_meaning(reve
     # Upward tangential friction is insufficient when the compressive normal is lateral.
     [contact(force_on_b_world_n=[1., 0., 1.], normal_a_to_b_world=[1., 0., 0.])],
 ])
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_stationary_pose_requires_upward_solved_sole_load(contacts):
     verdict = run_window(ScriptedReader(lambda n: supported(n, contacts=contacts)), "stop_navigation", {})
     assert verdict["status"] == "refuted", verdict["reason"]
@@ -135,6 +144,7 @@ def test_unknown_force_or_admission_is_unverified_despite_stationary_pose(missin
     contact(shape_b="/Fixture/Robot/body", shape_b_id=3),
     contact(shape_a="/Fixture/Wall", shape_a_id=4),
 ])
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_forbidden_external_reaction_refutes_even_after_full_recovery(forbidden):
     reader = ScriptedReader(lambda n: state(n,
         support={**fixture_support(n), "contacts": [forbidden]} if n == 4 else fixture_support(n),
@@ -144,6 +154,7 @@ def test_forbidden_external_reaction_refutes_even_after_full_recovery(forbidden)
     assert "forbidden external" in verdict["reason"]
 
 
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_self_contact_neither_supplies_support_nor_refutes_allowed_support():
     self_contact = contact(shape_a="/Fixture/Robot/body", shape_a_id=3)
     for contacts, expected in (([self_contact], "refuted"), ([contact(), self_contact], "confirmed")):
@@ -176,19 +187,20 @@ def test_gait_flight_is_allowed_but_zero_twist_balance_requires_continuous_load(
     assert support_check["status"] == expected
 
 
-def test_support_episode_gc_isolation_does_not_hide_a_late_reader(healthy_episode_gc):
+@pytest.mark.parametrize("skill", ["walk_velocity", "stop_navigation"])
+def test_support_episode_gc_isolation_does_not_hide_a_late_reader(skill, healthy_episode_gc):
     import gc
     import time
     captured = []
     def make(n):
-        value = state(n, generation=1 if n == 4 else 0,
-                      position_world=(min(n - 1, 5) * .002, 0., .3))
+        value = state(n, generation=1 if n == 4 and skill == "walk_velocity" else 0,
+                      position_world=((min(n - 1, 5) * .002 if skill == "walk_velocity" else 0.), 0., .3))
         if n == 4:
             assert not gc.isenabled()
             captured.append(value)
             time.sleep(2 * limits()["read_timeout_s"])
         return value
-    verdict = run_window(ScriptedReader(make))
+    verdict = run_window(ScriptedReader(make), skill, {} if skill == "stop_navigation" else None)
     assert verdict["status"] == "unverified" and verdict["reason"] == "reader_timeout"
     assert verdict["limits"]["read_timeout_s"] == .04
     assert verdict["evidence"]["channel_failed"]
@@ -198,6 +210,7 @@ def test_support_episode_gc_isolation_does_not_hide_a_late_reader(healthy_episod
     assert any(s["state"]["step"] > 4 for s in verdict["evidence"]["observations"])
 
 
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_flight_does_not_waive_unknown_contact_channel_during_walking():
     def make(n):
         record = fixture_support(n)
@@ -206,6 +219,7 @@ def test_flight_does_not_waive_unknown_contact_channel_during_walking():
         return state(n, support=record, position_world=(min(n - 1, 5) * .002, 0., .3))
     verdict = run_window(ScriptedReader(make))
     assert verdict["status"] == "unverified", verdict["reason"]
+    assert "support" in verdict["reason"]
 
 
 def test_stop_fence_cannot_bind_another_model_even_with_same_epoch():
@@ -281,6 +295,7 @@ def test_pending_stop_support_failure_is_retained_before_later_healthy_readings(
         checker.close()
 
 
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_pending_stop_flight_does_not_receive_or_require_rest_credit():
     import time
     reader = ScriptedReader(lambda n: state(n,
@@ -300,12 +315,35 @@ def test_pending_stop_flight_does_not_receive_or_require_rest_credit():
         checker.close()
 
 
-def test_support_gc_isolation_preserves_real_tcp_read_deadline(truth_server, healthy_episode_gc):
+@pytest.mark.parametrize("caller_resume", ["ordinary", "after_reconnect"])
+def test_support_gc_isolation_preserves_real_tcp_read_deadline(
+        truth_server, healthy_episode_gc, monkeypatch, caller_resume):
     import gc
     import threading
+    import time
+    from cascade.agent import base_effects
     from cascade.sim.base_truth import BaseTruthReader
 
     profile, payload, requests = truth_server
+    if caller_resume == "after_reconnect":
+        # Model a descheduled caller after its real 40 ms Event wait. The
+        # sampler and socket keep their original clocks and deadlines; the
+        # first socket read expires and reconnects before begin() resumes.
+        original_window = base_effects._Window
+        def window(*args, **kwargs):
+            value = original_window(*args, **kwargs)
+            original_wait = value.first.wait
+            def resume_after_reconnect(timeout=None):
+                result = original_wait(timeout)
+                if not result:
+                    deadline = time.monotonic() + 1.
+                    while sum(row["op"] == "state" for row in requests) < 2:
+                        assert time.monotonic() < deadline, "TCP did not reconnect"
+                        time.sleep(.001)
+                return result
+            value.first.wait = resume_after_reconnect
+            return value
+        monkeypatch.setattr(base_effects, "_Window", window)
     entered, release = threading.Event(), threading.Event()
     captured = []
     def delayed():
@@ -339,7 +377,15 @@ def test_support_gc_isolation_preserves_real_tcp_read_deadline(truth_server, hea
             # A scheduler delay can also exhaust the unchanged socket budget;
             # that stronger transport refusal still cannot become a confirmation.
             assert "timed out" in reader.last_error or "deadline" in reader.last_error
-        assert [r["op"] for r in requests] == ["hello", "state"]
+        # A delayed caller may allow a new read-only connection before it
+        # cancels the sampler. It must never recover positive motion credit
+        # or acquire actuator ownership. Exact connection count is not a
+        # cross-platform scheduling contract.
+        assert requests[:2] == [{"op": "hello", "role": "reader"}, {"op": "state"}]
+        assert all(row in ({"op": "hello", "role": "reader"}, {"op": "state"})
+                   for row in requests)
+        if caller_resume == "after_reconnect":
+            assert sum(row["op"] == "state" for row in requests) >= 2
     finally:
         release.set()
         checker.close()

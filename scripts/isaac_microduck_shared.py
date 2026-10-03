@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Bounded shared-world MicroDuck foundation with zero velocity commands.
+"""Bounded shared-world MicroDuck runtime, with opt-in private endpoints.
 
 Accepts the single-robot bridge's explicit asset/SDK/policy flags plus --robots
-(1..12) and --spacing (at least 2 m). --port must be 0: this foundation exposes
-no command socket and makes no locomotion or physical task admission claim.
+(1..12) and --spacing (at least 2 m). --port must be 0. The default foundation
+exposes no command socket; --serve-base-port explicitly enables one independent
+loopback endpoint per robot (0 chooses ephemeral ports). No task admission claim.
 Use an outer process-group deadline for native startup/teardown hangs.
 """
 from __future__ import annotations
@@ -32,7 +33,7 @@ def run(args, admission, signals):
     started = time.monotonic()
     result = {'completed': False, 'physical_acceptance': False, 'steps': 0,
               'scope': 'shared-scene zero-command foundation', 'teardown_errors': []}
-    owner = fleet = None
+    owner = fleet = endpoints = None
     steppers = []
     previous_path = list(sys.path)
     try:
@@ -62,6 +63,11 @@ def run(args, admission, signals):
                 **{k: admission['limits'][k] for k in FALL_LIMITS}))
         fleet = SharedMicroduckStepper(owner, steppers, layout=owner.layout)
         fleet.start()
+        if args.serve_base_port is not None:
+            from cascade.sim.microduck_admission import SharedEndpoints
+            endpoints = SharedEndpoints(steppers, base_port=args.serve_base_port,
+                                        max_jpeg_bytes=args.max_jpeg_bytes)
+            result['scope'] = 'shared-scene bounded command candidate; physical outcomes unverified'
         before = owner.physics_clock
         warmup = owner.capture()
         if owner.physics_clock != before or (warmup['step'], warmup['sim_time_s']) != before:
@@ -81,6 +87,8 @@ def run(args, admission, signals):
                 if time.monotonic() - started >= args.max_wall_s:
                     raise RuntimeError('shared episode wall deadline expired')
                 try:
+                    if endpoints is not None:
+                        endpoints.admission.drain()
                     samples = fleet.tick()
                 finally:
                     for stepper in steppers:
@@ -102,6 +110,8 @@ def run(args, admission, signals):
                     capture = owner.capture()
                     if (capture['step'], capture['sim_time_s']) != owner.physics_clock:
                         raise RuntimeError('overview capture does not match shared solve')
+                    if endpoints is not None:
+                        endpoints.publish_capture(capture)
                     import cv2
                     ok, jpeg = cv2.imencode('.jpg', cv2.cvtColor(capture['rgb'], cv2.COLOR_RGB2BGR))
                     if not ok:
@@ -113,6 +123,11 @@ def run(args, admission, signals):
                         'file': path.relative_to(out).as_posix(), 'sha256': hashlib.sha256(jpeg).hexdigest(),
                         'scene_model_sha256': identity['scene_model_sha256'],
                         'physics_ticks_during_capture': 0})
+                    if endpoints is not None and not endpoints.started:
+                        marker = {'robots': endpoints.start(), 'physical_acceptance': False,
+                                  'scene_model_sha256': identity['scene_model_sha256']}
+                        write_json(out / 'BRIDGE_LISTENING.json', marker)
+                        print('BRIDGE_LISTENING ' + json.dumps(marker), flush=True)
                 if (i+1) % 100 == 0:
                     print(json.dumps({'robots': args.robots, 'completed_steps': i+1}), flush=True)
         result['completed'] = True
@@ -122,7 +137,7 @@ def run(args, admission, signals):
         result['error'] = f'{type(exc).__name__}: {exc}'
     finally:
         with signals.defer():
-            for resource in (fleet if fleet is not None else owner,):
+            for resource in (endpoints, fleet if fleet is not None else owner):
                 if resource is not None:
                     try:
                         resource.close()
@@ -157,20 +172,26 @@ def main(argv=None):
     extra = argparse.ArgumentParser(add_help=False)
     extra.add_argument('--robots', type=int, required=True)
     extra.add_argument('--spacing', type=float, required=True)
+    extra.add_argument('--serve-base-port', type=int, default=None)
     options, rest = extra.parse_known_args(argv)
     args = parse_args(rest)
     args.robots, args.spacing = options.robots, options.spacing
+    args.serve_base_port = options.serve_base_port
     bind_repo()
     from cascade.apps.signal_stop import StopSignals
     from cascade.sim.microduck_shared_native import placements
     placements(args.robots, args.spacing)
     if args.port != 0:
-        raise ValueError('shared foundation has no command socket; use --port 0')
+        raise ValueError('use --port 0 and opt in separately with --serve-base-port')
+    if args.serve_base_port is not None and not 0 <= args.serve_base_port <= 65536-args.robots:
+        raise ValueError('invalid per-robot loopback port range')
+    if args.sdk_recipe is None:
+        raise ValueError('shared native runtime requires an explicit SDK recipe')
     if not args.reuse_solved_read or not args.solver_cuda_graph or args.camera_rgbd:
         raise ValueError('shared foundation requires graph/read reuse and RGB overview only')
     admission = admit(args)
     for path in ('scripts/isaac_microduck_shared.py', 'src/cascade/sim/microduck_shared.py',
-                 'src/cascade/sim/microduck_shared_native.py'):
+                 'src/cascade/sim/microduck_shared_native.py', 'src/cascade/sim/microduck_admission.py'):
         admission['source_sha256'][path] = hashlib.sha256((REPO / path).read_bytes()).hexdigest()
     if args.check_only:
         print(json.dumps({'ok': True, 'robots': args.robots, 'physical_acceptance': False}))

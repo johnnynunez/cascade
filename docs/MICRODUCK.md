@@ -18,7 +18,7 @@ The [continuation report](MICRODUCK_CONTINUATION_20261002.md) preserves its
 original native MCP outcomes and failures. The [current capability index](PROJECT_STATUS_20261003.md)
 links later distance and conversation results, with their source/model limits.
 The [modular architecture](ROBOT_MODULARITY.md) separates single-robot control
-from the proposed shared-scene fleet; the current native bridge owns one robot.
+from shared-scene ownership; the ordinary native bridge still owns one robot.
 
 ## Runtime and clocks
 
@@ -175,7 +175,19 @@ initialization/balance results, not walking, fleet task or real-time acceptance.
 The earlier twelve-robot attempt failed closed on insufficient contact storage
 and is retained alongside its corrected retry.
 
-Command-capable endpoints, boundary admission of asynchronous commands,
+An opt-in candidate, `--serve-base-port 0`, exposes separate loopback endpoints
+after the first completed state and matching overview; a positive value chooses
+the first port in a consecutive range. `BRIDGE_LISTENING.json` maps robot IDs to
+ports and bound identities. Each endpoint retains the existing reader, control,
+renew and stop channels. Commands and resets wait in a bounded per-robot queue
+until the simulation owner drains it before a tick, preserving their original
+receipt deadline. Expired, cancelled or closed requests cannot run on a later
+tick. Stop bypasses the queue and withdraws pending commands immediately;
+crossing a prepared tick can contain the entire shared scene. Stop ACKs do not
+prove physical rest. CPU/TCP regressions cover these contracts, partial listener
+startup rollback and shutdown with pending commands. Native command execution,
 shared-space interactions and measured individual/global motion stops remain
-pending. The overview uses a widely separated grid; its small floor display
+pending; the retained native foundation runs opened no endpoints.
+
+The overview uses a widely separated grid; its small floor display
 rectangle does not describe the extent of the physical infinite plane.

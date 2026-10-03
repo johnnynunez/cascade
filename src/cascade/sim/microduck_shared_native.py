@@ -143,7 +143,7 @@ class SharedKitNewtonBackend(KitNewtonBackend):
                                        'support_contract': b.support_contract()}
                            for b in self.layout.robots}}
 
-    def read_robots(self):
+    def _read_completed_scene(self):
         from .microduck_contact_support import read_support
         self._guard()
         if not self._bound_identity:
@@ -151,7 +151,7 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         clock = self.physics_clock
         key = clock, self._last_support_solve
         if self._shared_read is not None and self._shared_read[0] == key:
-            return copy.deepcopy(self._shared_read[1])
+            return self._shared_read[1]
         support = read_support(self.ns, last_solved_clock=self._last_support_solve,
                               source_admitted=self.receipt['support_extraction']['source_admitted'])
         result = {}
@@ -166,7 +166,13 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         if self.physics_clock != clock:
             raise RuntimeError('physics advanced during shared native state/support read')
         self._shared_read = key, copy.deepcopy(result)
-        return result
+        return self._shared_read[1]
+
+    def read_robots(self):
+        return copy.deepcopy(self._read_completed_scene())
+
+    def read_robot(self, robot_id):
+        return copy.deepcopy(self._read_completed_scene()[robot_id])
 
     def step(self):
         self._shared_read = None
@@ -191,7 +197,7 @@ class SharedRobotView:
         return self.owner.physics_clock
 
     def read(self):
-        sample = self.owner.read_robots()[self.binding.robot_id]
+        sample = self.owner.read_robot(self.binding.robot_id)
         sample.update(robot_id=self.binding.robot_id, epoch=self.epoch,
                       model_identity_sha256=self.binding.model_identity_sha256)
         sample['support'] = self.owner.layout.robot_support(sample['support'], self.binding,

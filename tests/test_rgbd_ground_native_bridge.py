@@ -95,11 +95,11 @@ def test_native_camera_order_unchanged_and_complete_invariance_has_no_label_exem
 
 
 @pytest.mark.parametrize('phase', ['after_camera', 'after_bootstrap'])
-@pytest.mark.parametrize('field', ['shader', 'st', 'descriptor', 'geometry'])
+@pytest.mark.parametrize('field', ['shader', 'st', 'descriptor', 'geometry', 'ancestors'])
 def test_parent_change_refuses_before_model_listener_boundary(monkeypatch, tmp_path, phase, field):
     backend, events = backend_fixture(monkeypatch, tmp_path)
     calls = []
-    initial = {k: 'authored' for k in ('shader', 'st', 'descriptor', 'geometry')}
+    initial = {k: 'authored' for k in ('shader', 'st', 'descriptor', 'geometry', 'ancestors')}
     def observed(stage):
         calls.append(stage)
         value = initial.copy()
@@ -161,3 +161,40 @@ def test_cpu_usd_metadata_is_in_consumed_scene_and_keeps_physics_binding():
     with pytest.raises(ValueError, match='appearance or original'):
         module.validate_ground_texture(stage, module.REPO / module.TEXTURE,
             board=GroundTextureBoard(), receipt=authored)
+
+
+def test_cpu_usd_stronger_ancestor_material_changes_effective_binding_and_is_rejected(tmp_path):
+    pytest.importorskip('pxr', reason='OpenUSD unavailable in ordinary CPU environment')
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageMetersPerUnit(stage, 1.)
+    world = UsdGeom.Xform.Define(stage, '/World').GetPrim()
+    plane = UsdGeom.Plane.Define(stage, '/World/Ground')
+    plane.GetAxisAttr().Set('Z')
+    plane.GetWidthAttr().Set(2.)
+    plane.GetLengthAttr().Set(2.)
+    UsdPhysics.CollisionAPI.Apply(plane.GetPrim())
+    physics = UsdShade.Material.Define(stage, '/World/GroundMaterial')
+    UsdPhysics.MaterialAPI.Apply(physics.GetPrim())
+    binding = UsdShade.MaterialBindingAPI.Apply(plane.GetPrim())
+    binding.Bind(physics, materialPurpose='physics')
+    module.author_checked_ground(stage, module.texture_descriptor())
+    before = module.ground_snapshot(stage)
+    assert str(binding.ComputeBoundMaterial()[0].GetPath()) == MATERIAL
+    alternative = UsdShade.Material.Define(stage, '/World/AlternativeMaterial')
+    surface = UsdShade.Shader.Define(stage, '/World/AlternativeMaterial/surface')
+    surface.CreateIdAttr('UsdPreviewSurface')
+    surface.CreateInput('diffuseColor', Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(.18))
+    alternative.CreateSurfaceOutput().ConnectToSource(surface.ConnectableAPI(), 'surface')
+    UsdShade.MaterialBindingAPI.Apply(world).Bind(
+        alternative, bindingStrength=UsdShade.Tokens.strongerThanDescendants)
+    assert str(binding.ComputeBoundMaterial()[0].GetPath()) == '/World/AlternativeMaterial'
+    after = module.ground_snapshot(stage)
+    assert before['surface_prims'] == after['surface_prims']
+    assert before['world_from_ground'] == after['world_from_ground']
+    assert before['ancestors'] != after['ancestors']
+    backend = module.reference_backend(object)()
+    backend._ground_stage, backend._ground_authored = stage, before
+    backend.args, backend.receipt = NS(out=tmp_path), {}
+    with pytest.raises(ValueError, match='ancestors'):
+        backend._check_ground('after_bootstrap')

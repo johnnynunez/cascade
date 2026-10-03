@@ -27,6 +27,10 @@ The benchmark also retains the authored USD surface snapshot and checks it
 after the ordinary camera method returns, before export, and again after
 bootstrap. Ground geometry, ST, shader connections/values, descriptor metadata,
 physics-material binding, ancestor transforms and units must remain identical.
+Ancestor prims are compared in full, including binding relationships, strengths,
+collections and metadata: a stronger inherited binding can override the local
+Ground material without changing any Ground attribute. Adding unrelated child
+camera/Render prims does not change those composed ancestor properties.
 These checks permit the unrelated camera/Render prims and stage time range that
 the ordinary parent adds; they do not filter the separate native comparison.
 Each phase writes its observed/authored hashes and verdict. Divergence raises

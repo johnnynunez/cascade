@@ -85,13 +85,10 @@ def ground_snapshot(stage):
     ancestors = {}
     prim = stage.GetPrimAtPath(GROUND).GetParent()
     while prim and not prim.IsPseudoRoot():
-        row = prims[str(prim.GetPath())]
-        ancestors[str(prim.GetPath())] = {
-            'active': row['active'], 'defined': row['defined'], 'type': row['type'],
-            'attributes': {name: value for name, value in row['attributes'].items()
-                           if name.startswith('xformOp:') or name in
-                           ('xformOpOrder', 'visibility', 'purpose')},
-        }
+        # Relationship strengths/collections and metadata can override the
+        # Ground's material without changing its own prim or transform. Child
+        # prim additions are not properties in this composed prim snapshot.
+        ancestors[str(prim.GetPath())] = prims[str(prim.GetPath())]
         prim = prim.GetParent()
     return {'surface_prims': selected, 'ancestors': ancestors,
             'world_from_ground': common.usd_value(UsdGeom.Xformable(

@@ -1,0 +1,332 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "scope": "per-solve native readback implementation; CPU validation only",
+  "base_commit": "fe635802c8873d2d829b3d777e2aa1bcf92accb3",
+  "native_run": false,
+  "physical_admission": false,
+  "enabled_runtime_profile": false,
+  "pytest": {
+    "passed": 210,
+    "new_tests": 105,
+    "seconds": 0.96,
+    "run": {
+      "repository": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade",
+      "head": "fe635802c8873d2d829b3d777e2aa1bcf92accb3",
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_factory_observation.py",
+        "tests/test_microduck_contact_support.py",
+        "tests/test_fastening_runtime.py",
+        "-q",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/junit.xml",
+        "-o",
+        "cache_dir=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/pytest-cache"
+      ],
+      "environment": {
+        "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src",
+        "CUDA_VISIBLE_DEVICES": "-1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/envelope.json",
+        "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/grasp-memory.json",
+        "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/beliefs.json",
+        "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/cache"
+      },
+      "exit_code": 0,
+      "elapsed_s": 1.2455326179915573,
+      "source_count": 660,
+      "source_unchanged": true,
+      "protected_before": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_after": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_unchanged": true,
+      "artifacts": {
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/before.json": "705b4a4f8d1077f197d936ebbb4ca14ffd399b350c120264594079721106ceb5",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/after.json": "705b4a4f8d1077f197d936ebbb4ca14ffd399b350c120264594079721106ceb5",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/pytest.log": "1f34d6c3fe9fd2c6eeec42fb4e3f19abe0ce082fa5af49a4cf5b44ed521ed46e",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/junit.xml": "f0cf4f70d66dd69105cc327c66de9a6e9dae1afbe5798dcedd406199b6f372b8"
+      }
+    }
+  },
+  "geometry_control": {
+    "passed": true,
+    "scope": "MuJoCo 3.12 CPU geometry, no dynamics or native Factory admission",
+    "elapsed_s": 0.016084395989309996,
+    "version": "3.12.0",
+    "module": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages/mujoco/__init__.py",
+    "simulation_steps": 0,
+    "xml": "<mujoco><worldbody><body pos=\"1 2 3\">\n<geom name=\"box\" type=\"box\" size=\".1 .2 .3\" pos=\".03 .02 .01\"\nquat=\".9238795325112867 0 0 .3826834323650898\"/>\n</body></worldbody></mujoco>",
+    "local_center_halfsize": [
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.1,
+        0.2,
+        0.3
+      ]
+    ],
+    "world_positions": [
+      [
+        1.03,
+        2.02,
+        3.01
+      ]
+    ],
+    "world_rotations": [
+      [
+        0.7071067811865475,
+        -0.7071067811865476,
+        0.0,
+        0.7071067811865476,
+        0.7071067811865475,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "world_aabb": [
+      [
+        0.8178679656440357,
+        1.8078679656440357,
+        2.71
+      ],
+      [
+        1.2421320343559643,
+        2.2321320343559643,
+        3.3099999999999996
+      ]
+    ],
+    "environment": {
+      "CUDA_VISIBLE_DEVICES": "-1",
+      "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src:/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1"
+    },
+    "before": {
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/box_control.py": "6755599b88edb65679bd1540e60de5c65d8a67713564449097bffc5c12475526",
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src/cascade/sim/factory_observation.py": "b58d6e8fe9f237263745ad8f1c25a5d1114869d44ce773d025efb84917245863",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages/mujoco/include/mujoco/mjmodel.h": "3e9495c3abbdb8b3e418278e63a824a967bedfe51394e8f73929cf3ff7ce98ae",
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2"
+    },
+    "after": {
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/box_control.py": "6755599b88edb65679bd1540e60de5c65d8a67713564449097bffc5c12475526",
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src/cascade/sim/factory_observation.py": "b58d6e8fe9f237263745ad8f1c25a5d1114869d44ce773d025efb84917245863",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/lib/python3.12/site-packages/mujoco/include/mujoco/mjmodel.h": "3e9495c3abbdb8b3e418278e63a824a967bedfe51394e8f73929cf3ff7ce98ae",
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2"
+    },
+    "sources_and_protected_unchanged": true
+  },
+  "initial_geometry_control_failure": {
+    "interpreter": "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/parent-preflight/converter-venv/bin/python",
+    "phase": "before model construction, importing cascade.config",
+    "error": "ModuleNotFoundError: No module named 'yaml'",
+    "receipt_limit": "tool transcript retained; no file was created before this import failure"
+  },
+  "test_mujoco_version": "3.14.0",
+  "pinned_geometry_mujoco_version": "3.12.0",
+  "independent_effort_control": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_EFFORT_REVIEW/controls/receipt.json",
+    "checks": 10,
+    "models": 8,
+    "seconds": 0.0133,
+    "scope": "MuJoCo CPU only; does not validate Newton/MJWarp execution or Factory stop"
+  },
+  "raw_artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src/cascade/sim/factory_observation.py": "64ac7207398f9bc5ec21c791d2e8b2a7b7af77ea715b3b704b4e72d47d36aa0b",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/tests/test_factory_observation.py": "42b573e0da5ecf7b4e9a3fb30ce84f9dc01d61e72f1f8ab5c1096c49fe3fc72a",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/box_control.py": "6755599b88edb65679bd1540e60de5c65d8a67713564449097bffc5c12475526",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/geom-aabb-312-02/result.json": "0cdab668864b0746d1132b0f4872a2fb2459204900030d3de78f0cdad3c592f2",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/result.json": "bba7faf9eb76991d680f29d8a52ee9d1c222b0596594a827cc9b34aceca25cb4",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_EFFORT_REVIEW/EFFORT_MAPPING.md": "c980fe812ee95305ea9c07a67460fddb521120a31d6a61794514595c6a9449e5",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_EFFORT_REVIEW/controls/receipt.json": "6570faf79e48bb21a09c8ca359ac7610fc76636b7b710a2c7c0935529d96aafb",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/result.json": "74ec87a185e4d0c9ae731734cb1b078907095c8da678d04f8c697e5b7da7f5e8",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/result.json": "486428164ec986d92adf0f8c3a9d9f060e5498013ec1f2b4f458854a5c3f0b7b",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-final-review/result.json": "580e4152136111e8e7f30fa2508136c3395a9784d72412a64eec5446b51800d4"
+  },
+  "limits": [
+    "Native source compatibility and buffer semantics are inspected and tested with host fixtures; native Factory parity is pending.",
+    "No complete model/asset/epoch owner or configured runtime profile is enabled yet.",
+    "Force/contact constraint evaluation belongs to the solved interval; body pose is integrated endpoint.",
+    "Zero actuator effort does not alone prove physical rest.",
+    "Raw native caps remain explicit; stage-one observed-effort comparison already has a 1e-7 Nm numerical margin. No threshold or command cap was changed in this checkpoint.",
+    "Native d.time/solver._step must be checked by the upcoming single owner; caller scene counters alone do not establish native completed-solve identity."
+  ],
+  "intermediate_pytest": {
+    "passed": 159,
+    "new_tests": 54,
+    "seconds": 0.99,
+    "run": {
+      "repository": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade",
+      "head": "fe635802c8873d2d829b3d777e2aa1bcf92accb3",
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_factory_observation.py",
+        "tests/test_microduck_contact_support.py",
+        "tests/test_fastening_runtime.py",
+        "-q",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/junit.xml",
+        "-o",
+        "cache_dir=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/pytest-cache"
+      ],
+      "environment": {
+        "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src",
+        "CUDA_VISIBLE_DEVICES": "-1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/envelope.json",
+        "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/grasp-memory.json",
+        "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/beliefs.json",
+        "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/cache"
+      },
+      "exit_code": 0,
+      "elapsed_s": 1.3184155850030947,
+      "source_count": 660,
+      "source_unchanged": true,
+      "protected_before": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_after": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_unchanged": true,
+      "artifacts": {
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/before.json": "72edc2e94eec9b0d690868ea251ca27cdb5c84703f279d0d24db34b1a1654c51",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/after.json": "72edc2e94eec9b0d690868ea251ca27cdb5c84703f279d0d24db34b1a1654c51",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/pytest.log": "c0ed1588011a2132787213750d480253b224b2d329da85afdf8abf4d555a0f93",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-reviewed/junit.xml": "0056cbc23426250cf69b9e9dda8500354bd007ad280f3e295869718b67b5d83b"
+      }
+    }
+  },
+  "review_fix": "Independent review found that empty applied-wrench arrays passed np.any as zero. Exact float32/shape/finite checks now reject all missing/transposed/wrong-type state and force channels; 39 adversarial cases cover these inputs. A further 11 adversaries reject missing/noninteger/negative overflow counters and incomplete, duplicated, or geometry-inconsistent native body mappings. A final adversary rejects non-unit arm quaternions whose dot product with the expected orientation is still 1; no silent normalization.",
+  "channel_fix_pytest": {
+    "passed": 198,
+    "new_tests": 93,
+    "seconds": 1.04,
+    "run": {
+      "repository": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade",
+      "head": "fe635802c8873d2d829b3d777e2aa1bcf92accb3",
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_factory_observation.py",
+        "tests/test_microduck_contact_support.py",
+        "tests/test_fastening_runtime.py",
+        "-q",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/junit.xml",
+        "-o",
+        "cache_dir=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/pytest-cache"
+      ],
+      "environment": {
+        "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src",
+        "CUDA_VISIBLE_DEVICES": "-1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/envelope.json",
+        "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/grasp-memory.json",
+        "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/beliefs.json",
+        "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/cache"
+      },
+      "exit_code": 0,
+      "elapsed_s": 1.3631762719887774,
+      "source_count": 660,
+      "source_unchanged": true,
+      "protected_before": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_after": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_unchanged": true,
+      "artifacts": {
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/before.json": "8e8e349aea8ddfcd0816d9dd0c3ca051b59bec9ee11c01494a4d4e385292871d",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/after.json": "8e8e349aea8ddfcd0816d9dd0c3ca051b59bec9ee11c01494a4d4e385292871d",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/pytest.log": "0d9ffb485cc068cb428efb7f36a6b1b37b9848a5b04c7d1a8234dfaf28cf2dae",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-channels/junit.xml": "9beb0a84be981d8e965ac80a48b59f17103f7f244d13ca6a20589466d7f50e78"
+      }
+    }
+  },
+  "coverage_fix_pytest": {
+    "passed": 209,
+    "new_tests": 104,
+    "seconds": 0.99,
+    "run": {
+      "repository": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade",
+      "head": "fe635802c8873d2d829b3d777e2aa1bcf92accb3",
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/test_factory_observation.py",
+        "tests/test_microduck_contact_support.py",
+        "tests/test_fastening_runtime.py",
+        "-q",
+        "--basetemp=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/tmp",
+        "--junitxml=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/junit.xml",
+        "-o",
+        "cache_dir=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/pytest-cache"
+      ],
+      "environment": {
+        "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src",
+        "CUDA_VISIBLE_DEVICES": "-1",
+        "OMP_NUM_THREADS": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+        "NUMEXPR_NUM_THREADS": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/envelope.json",
+        "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/grasp-memory.json",
+        "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/beliefs.json",
+        "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/cache"
+      },
+      "exit_code": 0,
+      "elapsed_s": 1.2842033650085796,
+      "source_count": 660,
+      "source_unchanged": true,
+      "protected_before": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_after": {
+        "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+        "/home/johnny/.cascade/grasp_memory.json": null
+      },
+      "protected_unchanged": true,
+      "artifacts": {
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/before.json": "ef92cea411c3c60e2421a3be51639bc5aeb393c4c9799f6c77962f85c504cd12",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/after.json": "ef92cea411c3c60e2421a3be51639bc5aeb393c4c9799f6c77962f85c504cd12",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/pytest.log": "c46fd256ee827058ea254c6654b08c99f7ca3e672192592514687b982f073668",
+        "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage2-observer-coverage/junit.xml": "85f0b75153f988dc3f068b1b1d563963e57c15b2fd1d7cd7604677ae3e3cc1c8"
+      }
+    }
+  }
+}

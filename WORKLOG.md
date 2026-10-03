@@ -571,3 +571,25 @@ checks pass. See docs/FACTORY_FASTENING_RUNTIME.md and the source-bound receipt
 benchmark/results/factory_runtime_stage1_20261003.json. Stage two will connect
 native per-solve measurements and exact zero-spindle stop. This checkpoint has
 no physical profile/launch/admission and has not modified the old native scene.
+
+### 2026-10-03 — Factory per-solve native readback checkpoint
+
+Implemented sim/factory_observation.py against inspected Newton1.6/MJWarp3.12
+APIs: all collision/reducer capacity counters, actual solved vector contacts,
+explicit joint/DOF/control maps, bounded actuator-model descriptors, separate
+external/passive/constraint efforts, and CPU shadow FK with complete moving
+collision AABBs. Force/contact interval and endpoint pose times are distinct.
+This is instrumentation only; no profile or physics launch is enabled. The next
+owner stage supplies binding, fenced uploads, zero-spindle stop and lifecycle.
+
+Final 210 CPU tests passed in 0.96 s, with 660 source hashes/protected memory
+unchanged, Ruff F/E9 and diff checks clean. Independent exact MuJoCo3.12 rotated
+box FK control passed without dynamics or Newton/Warp/Kit import, confirming
+geom_aabb half extents. A first control invocation failed on missing PyYAML in
+the minimal converter interpreter; the successful read-only package overlay and
+failure distinction are retained in benchmark/results/factory_observation_20261003.json.
+No gains, physical thresholds, old native sources or shared environments changed.
+Independent review added exact float32/shape/finite checks before any zero-wrench
+claim: empty arrays previously passed np.any. The final count includes 39 new
+missing/transposed/wrong-type channel adversaries; the 159-pass prior checkpoint
+and original MuJoCo3.12 geometry receipt remain recorded separately.

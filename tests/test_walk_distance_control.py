@@ -28,14 +28,23 @@ def configured(raw, **updates):
                     distance_control=distance_limits(**updates))
 
 
+class _SteppedDistanceMock(MockMobileBase):
+    """Explicit kinematic fixture steps; no scheduler-dependent motion producer."""
+
+    def get_state(self):
+        for _ in range(10):
+            self.advance()  # Ten original .002 steps, not a position/clock rewrite.
+        return super().get_state()
+
+
 @pytest.mark.parametrize("distance", [.02, -.02])
 def test_distance_stops_on_measured_travel_and_never_claims_mock_physics(distance):
-    raw = MockMobileBase(wall_lease_s=2., dt_s=.002)
+    raw = _SteppedDistanceMock(wall_lease_s=2., dt_s=.002, auto_step=False)
     safe = configured(raw)
     safe.connect()
     try:
         result = safe.walk_distance(distance)
-        assert result["execution_ok"], result
+        assert result["execution_ok"], result.get("error", result)
         assert result["ok"] is False and result["outcome"] == "unverified"
         assert result["command"]["vx"] == math.copysign(.1, distance)
         assert result["command"]["duration_s"] == .4
@@ -45,8 +54,58 @@ def test_distance_stops_on_measured_travel_and_never_claims_mock_physics(distanc
         assert baseline["sim_time_s"] > result["ack"]["start_sim_time_s"]
         assert baseline["generation"] == result["ack"]["generation"]
         assert result["measured"]["after"]["sim_time_s"] < result["ack"]["end_sim_time_s"]
+        samples = result["measured"]["samples"]
+        assert all(b["step"] - a["step"] == 10 for a, b in zip(samples, samples[1:]))
+        assert all(b["sim_time_s"] - a["sim_time_s"] == pytest.approx(.02)
+                   for a, b in zip(samples, samples[1:]))
+        assert samples[0]["position_world"][0] == samples[1]["position_world"][0] == 0.
+        assert result["measured_distance_m"] == pytest.approx(
+            samples[-1]["position_world"][0] - baseline["position_world"][0])
+        assert result["stop_ack"]["generation"] == result["ack"]["generation"] + 1
         assert raw.get_state().linear_velocity_world == (0., 0., 0.)
     finally:
+        safe.disconnect()
+
+
+def test_explicit_distance_steps_do_not_waive_a_blocked_read_wall_deadline():
+    entered, release, stopped = threading.Event(), threading.Event(), threading.Event()
+
+    class Blocked(_SteppedDistanceMock):
+        def get_state(self):
+            value = super().get_state()
+            if value.generation == 1 and not entered.is_set():
+                self.captured = value
+                entered.set()
+                assert release.wait(3.), "test did not release blocked state read"
+            return value  # Preserve the actual snapshot captured before the delay.
+
+        def stop(self, *, latch=True):
+            result = super().stop(latch=latch)
+            if latch and entered.is_set():
+                stopped.set()
+            return result
+
+    raw = Blocked(wall_lease_s=2., dt_s=.002, auto_step=False)
+    safe = configured(raw)
+    safe.connect()
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(safe.walk_distance, .02)
+            try:
+                assert entered.wait(1.)
+                assert stopped.wait(2.5), "original watchdog did not stop blocked dispatch"
+                assert not pending.done()  # Stop is independent of the held reader.
+            finally:
+                release.set()
+            result = pending.result(1.)
+        assert not result["execution_ok"] and result["error"] == "wall deadline expired", result
+        assert not result["ok"] and result["outcome"] == "unverified"
+        assert safe.harness.limits["max_wall_duration_s"] == 2.
+        assert raw.captured.generation == 1 and raw.captured.sim_time_s == pytest.approx(.06)
+        assert result["distance_baseline"] is None  # The late row gained no credit.
+        assert raw.get_state().latched
+    finally:
+        release.set()
         safe.disconnect()
 
 

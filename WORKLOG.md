@@ -881,3 +881,28 @@ stores, and source/protected-store hashes were unchanged. The retained CI failur
 was **5699 passed / 1 failed / 269 skipped / 4 deselected**; no GC cause is inferred
 from its missing verdict reason. See
 `benchmark/results/mobile_balance_arm_fixture_20261003.json` for raw bindings.
+
+## PR87 macOS measured-distance fixture schedule — 2026-10-03
+
+CPU test-only follow-up from 1e9c8902. The macOS job rejected the positive 20 mm
+kinematic fixture; its printed result omitted the internal error. A controlled
+slow relative-wait producer reproduces refusal before sufficient toy travel,
+without attributing this schedule to that uninstrumented CI run. The positive
+geometry test now uses ten explicit original .002 steps per fixture read with
+its automatic motion producer disabled, matching the existing inert geometry
+control. ACK, post-admission baseline, stopping, real wall budget, and mock
+unverified outcome remain unchanged. A held-reader negative exercises the real
+wall watchdog independently of those explicit steps. No production code or
+physical/native/GPU execution changes. Retained results and hashes follow.
+
+Validation: the original pair passed normally, but with the controlled slow
+producer both hit the unchanged 2 s wall deadline at ±14.8 mm measured travel.
+The candidate pair passed with that same control, measuring ±20 mm from the
+post-ACK baseline. Holding the original first admitted read for 2.1 s still
+caused both wall-deadline refusals and no baseline/travel credit. The normal
+selection passed **106 tests in 3.16 s** (distance control, mobile safety and
+mobile base), including the event-driven blocked-read negative. Ruff F/E9 and
+diff checks passed. Sources and all four protected stores were unchanged during
+checks. The macOS failure remains retained: 5667 passed, 1 failed, 303 skipped,
+4 deselected; its internal error/cadence were not recorded. See
+`benchmark/results/walk_distance_positive_fixture_20261003.json` for bindings.

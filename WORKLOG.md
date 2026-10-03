@@ -650,3 +650,20 @@ in docs/FASTENING_RUNTIME_GAP.md; this correction grants no physical admission.
 - `task_done`, TaskReport and fast-path credit now consult that ledger. Individual actuator/checker contracts remain unchanged, including the limited historical commanded-home check. Passive sensor domains do not implement or need an effect boundary.
 - Retained the first wiring run (265 passed, 8 failed): one adapter bug, four `__new__` fixture initialization omissions, and three obsolete static-mock success expectations. Fixed the adapter/fixtures; the mock E2E and memory checks preserve all execution assertions while reporting unverified, and the positive fast-path fixture uses independently read open-jaw feedback.
 - No GPU, physical processes, protected learned-store mutation or voice/video changes. Final targeted tests and inventories are linked from `benchmark/results/legacy_task_completion_20261003.json`; no new full-suite claim.
+
+### 2026-10-03 — refuse positive placement credit after failed release
+
+The retained MuJoCo withdrawal experiment reported a failed placement while
+still holding the blue cube, yet the proximity-only postcondition confirmed it.
+Placement execution failure or explicit possession now vetoes positive credit,
+preserving the independent measurements and any refutation. Annotation derives
+`verified` from the current postcondition even for already-failed executions;
+it preserves the actor's error and does not turn a home-only failure into a
+placement refusal. No motion or verifier tolerance changes.
+
+The original replay was nine expected failures and three passing controls;
+the corrected production passes 199 focused checks. Final test-only naming
+cleanup passes all 14 new regressions. Sources and protected stores remain
+unchanged during each check; the rounded retained trace is not a new physical
+run. See docs/PLACEMENT_REFUSAL_VERIFICATION.md and its source-bound receipt.
+The separate two-cube physical failure remains open. No push or merge.

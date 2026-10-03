@@ -1821,3 +1821,20 @@ Retained causal baseline: 1 failed; corrected focal: 2 passed; affected support
 and effect suite: 389 passed in 40.24 s. All 1,599 source inputs and four stores
 are unchanged across validation. No native SDK, GPU, simulation or local macOS
 execution. Receipt: benchmark/results/mobile_support_tcp_scheduling_20261003.json.
+
+## 2026-10-03 — deterministic inert-distance geometry fixture
+
+PR87 macOS job 111189738373 expected the measured-distance veto but reached the
+unchanged wall watchdog first. The log does not identify producer cadence or
+GC/OS causality. A controlled .013s automatic publisher with original .002s
+simulation ticks reproduced that refusal (1 RED); explicit fixture stepping
+completed the same .4s simulated command and retained measured distance zero
+(1 PASS). Only this kinematic double changes: ten original ticks per read,
+actual ACK/horizon assertions and no commanded-velocity travel credit.
+
+All production sources, wall/freshness/lease/geometry bounds and original
+negative verdicts remain unchanged. The walk-distance file and existing
+stationary-clock, wall-stop, priority-stop/reset and interruption controls
+passed 35 cases in 1.06s; 1621 sources and private-store checks remained unchanged.
+See benchmark/results/walk_distance_inert_fixture_20261003.json. This CPU
+control does not establish macOS rerun success or physical locomotion.

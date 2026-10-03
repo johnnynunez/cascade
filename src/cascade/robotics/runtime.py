@@ -356,40 +356,57 @@ class RobotRuntime:
         return None  # observations retain their explicit sensor/domain identity
 
     def close(self):
+        from ..lifecycle import retain_teardown_attempt, teardown_step
+
+        def retain(result):
+            receipt = retain_teardown_attempt(getattr(self, "_close_result", None), result)
+            self._close_result = copy.deepcopy(receipt)
+            return receipt
+
         with self._close_lock:
             with self._gate:
                 if self._shutdown_complete:
-                    return {"ok": True, "already_closed": True}
+                    return {**copy.deepcopy(self._close_result), "already_closed": True}
                 self._closed = True
                 self._generation += 1
                 active = self._active
             if active:
                 self.request_shutdown()
                 if not self._drained.wait(5.0):
-                    return {"ok": False, "error": "cancelled operation still owns IO; shutdown pending"}
+                    return retain({"ok": False, "complete": False,
+                                   "error": "cancelled operation still owns IO; shutdown pending"})
             with self._stop_condition:
                 idle = self._stop_condition.wait_for(
                     lambda: not any(s["active"] or s["pending"] is not None for s in self._stop_slots.values()),
                     timeout=.5)
                 if not idle:
-                    return {"ok": False, "error": "stop worker still owns IO; shutdown pending"}
+                    return retain({"ok": False, "complete": False,
+                                   "error": "stop worker still owns IO; shutdown pending"})
             # Idle arm shutdown retains its existing park-before-disconnect
             # policy. Do not latch it solely because an observer is closing.
             results = {}
             for name, domain in reversed(tuple(self.domains.items())):
-                if self._closed_domains.get(name, {}).get("ok") is True:
+                if (name in self._closed_domains
+                        and teardown_step(name, lambda: self._closed_domains[name])["complete"]):
                     results[name] = copy.deepcopy(self._closed_domains[name])
                     continue
                 try:
                     results[name] = domain.close()
+                    if not isinstance(results[name], dict):
+                        raise TypeError("domain close must return a structured receipt")
                 except Exception as exc:
                     results[name] = {"ok": False, "error": str(exc)}
             self._closed_domains.update(copy.deepcopy(results))
+            stages = [teardown_step(name, lambda value=value: value) for name, value in results.items()]
+            complete = all(stage["complete"] for stage in stages)
+            result = {"ok": complete and all(stage["ok"] for stage in stages),
+                      "complete": complete, "domains": results}
             with self._gate:
-                self._shutdown_complete = all(r.get("ok") is True for r in results.values())
+                self._shutdown_complete = complete
+                result = retain(result)
                 self._workers_closed = True
                 self._stop_condition.notify_all()
             for slot in self._stop_slots.values():
                 if slot["thread"] is not None:
                     slot["thread"].join()
-            return {"ok": all(r.get("ok") is True for r in results.values()), "domains": results}
+            return result

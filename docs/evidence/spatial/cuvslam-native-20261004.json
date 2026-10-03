@@ -1,0 +1,628 @@
+{
+  "kind": "native_sdk_synthetic_rgbd_replay",
+  "physical_admission": false,
+  "actuator_commands": 0,
+  "version": [
+    "17.0.0+b405f13",
+    17,
+    0,
+    0
+  ],
+  "binding_path": "/home/johnny/Projects/demo/cascade-lab/SPATIAL_CUVSLAM_20261003/native-venv/lib/python3.12/site-packages/cuvslam/pycuvslam.cpython-312-x86_64-linux-gnu.so",
+  "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+  "library_sha256": "0d79b0322c3d4e754768d84902decb8d9770ea65a9c63a6819ad48ffbe9e4479",
+  "generator_sha256": "2fefc69e0eff5c02be02fc0185ccce390534e7d61a116da0d8d1ed8390bac4a7",
+  "results": [
+    {
+      "frame": 0,
+      "known_forward_m": 0.0,
+      "seconds": 0.030736742999579292,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation_wxyz": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.0,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "0419bf71307f04534245edf13a5ba4ad7cc8f7f4a90ce23006e8c6fbf1fcf1d5",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 1,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.04017838100025983,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    },
+    {
+      "frame": 1,
+      "known_forward_m": 0.11822660098522153,
+      "seconds": 0.025427074000617722,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            0.0013420195318758488,
+            -0.01161807682365179,
+            0.12060382217168808
+          ],
+          "rotation_wxyz": [
+            1.0,
+            5.334615707397461e-05,
+            -5.885213613510132e-05,
+            -8.460134267807007e-06
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.0333333333333334,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "94cb6c6b227fcb4436c48227de9ef4a5aa720a791829457e3a82a4e0d7595bcc",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 2,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.03478034599993407,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    },
+    {
+      "frame": 2,
+      "known_forward_m": 0.23300970873786309,
+      "seconds": 0.024445590000141237,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            -0.01244581863284111,
+            0.0005686664953827858,
+            0.22973769903182983
+          ],
+          "rotation_wxyz": [
+            1.0,
+            3.208404086763039e-05,
+            8.230479579651728e-06,
+            -2.422756551823113e-05
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.0666666666666667,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "75e62c1b731207821e1b38eabfa8cfcb99209e93eb18730aa9b17e2daa95e1e6",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 3,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.03381696100041154,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    },
+    {
+      "frame": 3,
+      "known_forward_m": 0.3444976076555015,
+      "seconds": 0.024532592000468867,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            -0.012693662196397781,
+            0.0015455821994692087,
+            0.34856948256492615
+          ],
+          "rotation_wxyz": [
+            1.0,
+            9.313844202551991e-05,
+            2.467162994435057e-05,
+            1.0666242360457545e-06
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.1,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "a04d4a3e9d4e044e22da5a4a4ed1323e3dbc5980fc03d8bcc6ade00639c2ec02",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 4,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.03393641200000275,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    },
+    {
+      "frame": 4,
+      "known_forward_m": 0.4528301886792452,
+      "seconds": 0.025764226999854145,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            -0.00011256523430347443,
+            -0.010306047275662422,
+            0.4510743021965027
+          ],
+          "rotation_wxyz": [
+            0.9999999403953552,
+            0.00012041537411278114,
+            1.175136276287958e-05,
+            4.118681317777373e-05
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.1333333333333333,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "ea0a731c73a33607658b0f2114e42756a7c52d427a7e0dfe815c003e4c5c3613",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 5,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.035134615000060876,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    },
+    {
+      "frame": 5,
+      "known_forward_m": 0.558139534883721,
+      "seconds": 0.02419780299987906,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            -0.0004873102006968111,
+            0.0005128411576151848,
+            0.5590332746505737
+          ],
+          "rotation_wxyz": [
+            1.0,
+            5.9609948948491365e-05,
+            5.476524165715091e-06,
+            -2.1413256035884842e-05
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.1666666666666667,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "d56b11b25a766de05f94f450a4100f9659c8fc0e50dfe6bf57cae1879578288c",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 6,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.033617566999964765,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    },
+    {
+      "frame": 6,
+      "known_forward_m": 0.660550458715595,
+      "seconds": 0.024399138999797287,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            -0.00040565503877587616,
+            -0.008624530397355556,
+            0.663600742816925
+          ],
+          "rotation_wxyz": [
+            0.9999999403953552,
+            0.00018555650603957474,
+            -5.413303824752802e-06,
+            9.322074220108334e-06
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.2,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "a87757c430d690ae9ea6eb3e248bc575e55fcf617ac0d0b869369d752ed395bf",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 7,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.03380295999977534,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    },
+    {
+      "frame": 7,
+      "known_forward_m": 0.7601809954751122,
+      "seconds": 0.023234567000145034,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            -0.01047511212527752,
+            -0.00032160989940166473,
+            0.7579260468482971
+          ],
+          "rotation_wxyz": [
+            1.0,
+            1.3634029528475367e-05,
+            -5.896548827877268e-05,
+            2.694176509976387e-05
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.2333333333333334,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "a8aec0909e7a85617e75973809211ea735886e6ce5a27f3707334db3ff25d09e",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 8,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.03263917799995397,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    },
+    {
+      "frame": 8,
+      "known_forward_m": 0.8571428571428568,
+      "seconds": 0.02554484299980686,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            -0.012093870900571346,
+            0.0010114040924236178,
+            0.8606377840042114
+          ],
+          "rotation_wxyz": [
+            1.0,
+            7.946828554850072e-05,
+            1.6635709471302107e-05,
+            8.301809430122375e-06
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.2666666666666666,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "09b962e44b62808fd0aa4b7d7609b7e93c627c23e3c80bd8160442d5acfac91c",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 9,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.034975884999767004,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    },
+    {
+      "frame": 9,
+      "known_forward_m": 0.9515418502202637,
+      "seconds": 0.024526692999643274,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            -0.0006173504516482353,
+            -0.01100135687738657,
+            0.9510154724121094
+          ],
+          "rotation_wxyz": [
+            1.0,
+            3.4236389183206484e-05,
+            -3.3169817470479757e-07,
+            3.420240682316944e-05
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.3,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "84939503704cc0c72d321dd4366c0385577c42a00cdd9abe6bc06d7bf637e286",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 10,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.03397380000023986,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    },
+    {
+      "frame": 10,
+      "known_forward_m": 1.0434782608695654,
+      "seconds": 0.0239480829995955,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            0.0009776748484000564,
+            -0.001854744739830494,
+            1.0442408323287964
+          ],
+          "rotation_wxyz": [
+            1.0,
+            -5.194113327888772e-05,
+            -9.866709297057241e-05,
+            2.4888664484024048e-05
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.3333333333333333,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "6ab9432b7bdaf9b71d99a552f6f225acd8632cb7c2eba717258310c719f6bc00",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 11,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.03336806800052727,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    },
+    {
+      "frame": 11,
+      "known_forward_m": 1.133047210300428,
+      "seconds": 0.02460334999977931,
+      "result": {
+        "ok": true,
+        "pose": {
+          "parent": "local-map",
+          "child": "optical",
+          "translation_m": [
+            0.0007039111806079745,
+            -0.011470873840153217,
+            1.135622501373291
+          ],
+          "rotation_wxyz": [
+            1.0,
+            3.4806425901479088e-06,
+            -8.879473898559809e-05,
+            1.6035977751016617e-05
+          ],
+          "stamp": {
+            "map_id": "synthetic-plane",
+            "epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+            "clock_id": "synthetic-seconds",
+            "time_s": 1.3666666666666667,
+            "source_id": "sensors/rgbd",
+            "source_sha256": "7ca907bc9e1ef8e29dcfff773f9824b70bc8ab44dd175f9a5e44a54c199059b6",
+            "calibration_id": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+            "measurement_kind": "estimated"
+          },
+          "static": false,
+          "position_error_m": null,
+          "angular_error_rad": null
+        },
+        "robot_id": "synthetic-camera",
+        "sensor_epoch": "replay-session",
+        "sequence": 12,
+        "map_epoch_label": "native-validation",
+        "source": "upstream-pattern",
+        "model_identity_sha256": null,
+        "capture_age_s": 0.03399543200066546,
+        "physical_admission": false,
+        "reviewed_api_revision": "b405f132b8fb1d861a570f3aea64c2c5d4b59525",
+        "binding_sha256": "ecf0ebcaff0fb9183cd9ae2938cd4231720317630df3edc69892cb406b2e6e30",
+        "depth_quantization_m": 0.001,
+        "loop_closure_jumps_possible": true
+      }
+    }
+  ],
+  "ok": true,
+  "calibration_sha256": "637462873a79ffdcb9e9cbaddb1a424de970a62138ad823657a4ee6a8cd54cff",
+  "script_sha256": "51483d9e5146a827a5e0ab3a55343e80e38dfe8733aba8c114b53957065a9b24",
+  "warmup": {
+    "seconds": 0.19837697800085152,
+    "result": {
+      "ok": true,
+      "tracking_state": "ready",
+      "map_epoch": "ef55d0f0f5e547b08010ac024fa2d6df",
+      "map_epoch_label": "native-validation",
+      "physical_admission": false
+    }
+  },
+  "final_translation_error_m": 0.011777459900881164,
+  "stop": {
+    "ok": true,
+    "actuation": false,
+    "map_epoch_invalidated": true
+  },
+  "post_stop": {
+    "ok": false,
+    "error": "localization stopped; new map epoch required",
+    "map_epoch_invalidated": true,
+    "physical_admission": false
+  },
+  "domain_close": {
+    "ok": true,
+    "actuation": false,
+    "in_flight": false
+  },
+  "hub_close": {
+    "ok": true,
+    "pending_providers": [],
+    "errors": {}
+  }
+}

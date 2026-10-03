@@ -32,7 +32,9 @@ initialize an isolated SDK process; it admits no pose or image. After warmup,
 `track_capture` consumes fresh `{epoch, sequence, capture_sha256}` captures; an application must feed
 captures within the configured gap independently of LLM response time.
 `get_localization` reads its last still-fresh estimate. Neither tool acquires a
-frame or steps physics. CPU contract tests pass; native replay remains pending.
+frame or steps physics. CPU contracts and a 12-frame native synthetic RGB-D
+replay pass; [the native validation record](CUVSLAM_NATIVE_VALIDATION.md) binds
+the build, inputs, estimates and cleanup. Physical localization remains pending.
 
 The estimator uses synchronous odometry/SLAM with an in-memory pose graph and
 reports an estimated optical-camera pose in a new local map frame, with unknown

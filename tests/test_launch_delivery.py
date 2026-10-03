@@ -152,13 +152,15 @@ def test_down_stops_only_registered_verified_pids_in_selected_profile(tmp_path, 
                     process.stdout.close()
 
 
-@pytest.mark.parametrize("version", ["6.1.0", "6.0.0"])
+@pytest.mark.parametrize("version", ["6.1.0", "6.2.0", "6.0.0", "6.3.0"])
 def test_discovered_source_python_exports_its_release_to_real_check(tmp_path, version):
+    from test_spark_install import host_env
     repo = launcher_copy(tmp_path)
     home = tmp_path / "home"
     release = home / "isaacsim"
     (release / "apps").mkdir(parents=True)
     (release / "apps/isaacsim.exp.full.newton.kit").write_text(f'[package]\nversion="{version}"\n')
+    (release / "apps/isaacsim.exp.full.kit").write_text(f'[package]\nversion="{version}"\n')
     # This only doubles the unavailable embedded Python executable. The actual
     # isaac_runtime.py parses/validates the real test TOML; Kit is not imported.
     runner = release / "test_python.py"
@@ -170,16 +172,17 @@ def test_discovered_source_python_exports_its_release_to_real_check(tmp_path, ve
     wrapper.write_text(f'#!/bin/bash\nexec "{sys.executable}" "{runner}" "$@"\n')
     wrapper.chmod(0o755)
     env_log = tmp_path / "isaac-env"
-    env = {**os.environ, "HOME": str(home), "PY": sys.executable, "SOURCE_ENV_LOG": str(env_log),
+    env = {**os.environ, **host_env(tmp_path), "HOME": str(home), "PY": sys.executable, "SOURCE_ENV_LOG": str(env_log),
            "CASCADE_LAUNCH_STATE": str(tmp_path / "state"), "CASCADE_OPENCLAW_PROFILE": "", "CASCADE_COSMOS_BASE_URL": "http://127.0.0.1:0/v1"}
     env.pop("ISAACSIM_PATH", None)
     env.pop("ISAACSIM_PYTHON_EXE", None)
     p = subprocess.run(["bash", str(repo / "scripts/launch.sh"), "--check", "--sim", "isaac", "--brain", "cosmos"],
                        env=env, text=True, capture_output=True, timeout=60)
     assert env_log.read_text() == str(release), p.stdout + p.stderr
-    if version == "6.1.0":
+    if version in ("6.1.0", "6.2.0"):
         assert '[ok]      Isaac Sim:' in p.stdout
         assert '"layout": "source"' in p.stdout
+        assert f'"version": "{version}"' in p.stdout
     else:
         assert '[MISSING] Isaac Sim:' in p.stdout
         assert 'declares' in p.stdout

@@ -118,14 +118,23 @@ class GpuPhysicsLogGuard:
                 raise RuntimeError("GPU physics/contact failure: " + self.failures[0]["message"])
 
 
-def _check_kit(path: Path) -> Path:
+_SOURCE_VERSIONS = ("6.1.0", "6.2.0")
+_WHEEL_VERSION = "6.1.0.0"
+
+
+def _experience_version(path: Path, versions=_SOURCE_VERSIONS) -> str:
     try:
         with path.open("rb") as stream:
             version = tomllib.load(stream).get("package", {}).get("version")
     except tomllib.TOMLDecodeError as exc:
         raise RuntimeError(f"invalid Isaac experience TOML: {path}") from exc
-    if version != "6.1.0":
-        raise RuntimeError(f"Isaac experience package.version=6.1.0 required; {path} declares {version!r}")
+    if version not in versions:
+        raise RuntimeError(f"Isaac experience package.version must be one of {versions}; {path} declares {version!r}")
+    return version
+
+
+def _check_kit(path: Path, versions=_SOURCE_VERSIONS) -> Path:
+    _experience_version(path, versions)
     # Keep the release/apps spelling: source builds symlink .kit files (or
     # apps itself) into source/apps. Kit anchors ${app}/../extsDeprecated
     # and extscache to the supplied path; resolve() loses the built tree.
@@ -153,7 +162,9 @@ def find_experience(engine: str, *, release=None, package_roots=None) -> Path:
     for root in roots:
         candidate = root / "apps" / name
         if candidate.is_file():
-            return _check_kit(candidate)
+            # The managed wheel remains the independently pinned Spark 6.1
+            # install. 6.2 support requires an explicit complete release.
+            return _check_kit(candidate, versions=("6.1.0",))
     raise FileNotFoundError(
         f"Isaac {engine} experience {name} not found; install isaacsim[all,extscache]==6.1.0.0 "
         "in the Isaac Python environment, or set ISAACSIM_PATH to a complete release"
@@ -219,25 +230,35 @@ def installation_info() -> dict:
     import sys
 
     try:
-        version = importlib.metadata.version("isaacsim")
+        package_version = importlib.metadata.version("isaacsim")
     except importlib.metadata.PackageNotFoundError:
-        version = None
-    if version is not None and version != "6.1.0.0":
-        raise RuntimeError(f"Isaac Sim 6.1.0.0 required; selected Python has {version}")
-    if sys.version_info[:2] != (3, 12):
-        raise RuntimeError("Isaac Sim 6.1.0.0 requires Python 3.12")
+        package_version = None
     release = os.environ.get("ISAACSIM_PATH")
+    package_versions = tuple(v + '.0' for v in _SOURCE_VERSIONS) if release else (_WHEEL_VERSION,)
+    if package_version is not None and package_version not in package_versions:
+        raise RuntimeError(f"Isaac Sim package must be one of {package_versions}; selected Python has {package_version}")
+    if sys.version_info[:2] != (3, 12):
+        raise RuntimeError("Supported Isaac Sim 6.1/6.2 runtimes require Python 3.12")
     if release:
         root, selected = Path(release).expanduser().resolve(), Path(sys.executable).resolve()
         embedded = {p.resolve() for p in (root / "kit/python/bin").glob("python*") if p.is_file()}
         if not selected.is_relative_to(root) and selected not in embedded:
             raise RuntimeError("selected Python does not belong to ISAACSIM_PATH; use that release's python.sh")
-        layout, version = "source", "6.1.0"
+        layout = "source"
     else:
         layout = "wheel"
-        if version is None:
+        if package_version is None:
             raise RuntimeError("Isaac Sim 6.1.0.0 is not installed in the selected Python")
-    return {"layout": layout, "version": version, "python": sys.executable, "newton_experience": str(find_experience("newton"))}
+    experiences = {engine: find_experience(engine) for engine in ("newton", "physx")}
+    versions = {engine: _experience_version(path) for engine, path in experiences.items()}
+    if versions["newton"] != versions["physx"]:
+        raise RuntimeError(f"Isaac experiences disagree on package.version: {versions}")
+    experience_version = versions["newton"]
+    if package_version is not None and package_version != experience_version + '.0':
+        raise RuntimeError(f"Isaac package metadata {package_version} does not match experience {experience_version}")
+    return {"layout": layout, "version": experience_version if release else package_version,
+            "python": sys.executable,
+            **{engine + "_experience": str(path) for engine, path in experiences.items()}}
 
 
 if __name__ == "__main__":

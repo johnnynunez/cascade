@@ -349,6 +349,17 @@ unchanged.
 | 18790 | This checkout's OpenClaw gateway, profile `cascade-demo` |
 | 4043 | Optional dedicated ngrok agent API |
 
+For an isolated validation with a separately owned model service, the low-level
+`scripts/launch.sh` honors an explicit `CASCADE_QWEN_BASE_URL`, including under
+the Spark profile. For example, `http://127.0.0.1:18080/v1` can select that
+service without redirecting the request to an existing server on 8080. The
+resolver still requires the `Qwen/Qwen3.8-27B` model identifier and Spark context
+configuration; a wrong model or explicitly empty URL fails. An unset variable
+retains the 8080 default. Selecting an endpoint does not start, own or verify
+the model's actual weights, and does not change the installer's default ports.
+Record the selected service's independent source/model and process identity
+when using it for a physical proof.
+
 The demo does not use port 8090. The separate personal OpenClaw gateway
 on 18789 stays untouched. Spark starts the real GraspGen-X model on loopback 5556 and verifies a
 diffusion inference before connecting the robot tools. Occupancy on 5557 stays

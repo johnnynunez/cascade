@@ -91,7 +91,7 @@ physical thread and seating evidence using a mounted hex socket and a fixed
 bolt fixture. The ordinary `turn_screw` skill still reports physical tightening
 as unverified; its commanded wrist travel is not a thread measurement.
 
-[![CASCADE modular architecture: implemented modules and proposed fleet layer](docs/assets/architecture.svg)](docs/ROBOT_MODULARITY.md)
+[![CASCADE modular architecture: robot runtimes, fleet coordination and backend adapters](docs/assets/architecture.svg)](docs/ROBOT_MODULARITY.md)
 
 [Download PNG](docs/assets/architecture.png). Dashed boxes mark work still in progress.
 

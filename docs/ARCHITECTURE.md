@@ -5,9 +5,14 @@ show the opt-in `RobotRuntime`: manipulation, locomotion, fastening, passive
 sensing and read-only spatial domains behind explicit resource contracts.
 MCP and bounded skill graphs dispatch registered tools; the optional
 [conversation supervisor](CONVERSATION.md) adds speech without owning joints.
-The existing arm/mobile entrypoints remain available. A fleet coordinator above
-separate robot runtimes is proposed; this repository has no validated
+The existing arm/mobile entrypoints remain available. `FleetRuntime` coordinates
+separate robot runtimes; this repository has no validated
 twelve-robot scene or shared whole-body controller.
+
+The architecture targets robot and backend interfaces, not a particular build.
+Isaac Sim, MuJoCo and hardware drivers are adapter implementations. Robot
+profiles select capabilities, policies, sensors and limits; deployment guides
+and validation records carry the concrete dependency versions and source pins.
 
 [Embodiment declarations](EMBODIMENT.md) describe links, joints, transmissions
 and sensor attachments. [Measured frame trees](SPATIAL_PROVIDERS.md) separately
@@ -31,25 +36,11 @@ have bounded positive results; general gait, longer paths and later source/model
 compositions require their own validation. The policy advances on completed
 physics solves, with no LLM call in the control loop.
 
-Local integration contracts updated on 2 October 2026: live OVRTX bridge
-snapshots, native cuMotion execution through SafeArm, post-close stability and
-load-preserving shutdown, plus a separate Newton contact assembly experiment.
-The [integration report](MANIPULATION_ASSEMBLY_20261002.md) binds these changes
-to their physical results and software checks. The merged baseline described
-below remains a historical source pin.
-
-Runtime contracts updated on 1 October 2026, including the merged optional OVRTX
-renderer, cuMotion candidate planning, PhysX finger envelope, native host reserve,
-release-opening synchronization, pending-camera publication, retained NV carry
-attachment, explicit MCP GPU selection, Isaac verifier startup readiness and
-localization analysis freshness and bounded detector model/vocabulary reuse.
-The previous command baseline for physical validation is `ff8d58b`; historical
-main `f7a8823` includes bridge profiling from PR #62 and the profile 09 report
-from PR #63. The separate combined candidate also includes independent frame
-encoding and release-open stability. See the
-[current source and acceptance index](PROJECT_STATUS_20261003.md) for merged changes,
-software validation and physical runs. Counts are derived at the
-end of this document; dated benchmark measurements retain their original scope.
+See the [capability and acceptance index](PROJECT_STATUS_20261003.md) for merged
+changes, software validation and physical runs, and the
+[integration report](MANIPULATION_ASSEMBLY_20261002.md) for earlier experiments.
+Counts are derived at the end of this document; dated benchmark measurements
+retain their original scope.
 Read this after the README and before `AGENTS.md`.
 
 The optional [cuMotion planner](CUMOTION.md) retains its candidate API/CLI and
@@ -589,9 +580,9 @@ G1/H1 in Isaac Sim first -- is written up in
 ## Launch and hosts
 
 Spark distribution starts at `scripts/bootstrap.sh` → `scripts/install.sh`:
-Linux DGX Spark is the default, with explicit EULA acceptance, pinned Isaac
-Sim **6.1.0.0**, PhysX CUDA, real GraspGen-X, Qwen3.8-27B Q4 with vision,
-and a checkout-local OpenClaw 2026.9.3 CLI.
+Linux DGX Spark is the reference deployment, with explicit EULA acceptance,
+Isaac Sim, PhysX CUDA, GraspGen-X, a local vision-language model and OpenClaw.
+Concrete versions are specified in the [deployment guide](DGX_SPARK_SETUP.md).
 `.venv`, `.isaacsim` and `.graspgenx` isolate incompatible Python dependencies;
 `.llama.cpp` runs the local brain, and `cascade-demo` isolates the attendee
 host profile. The installer does not replace drivers. Required learned grasps

@@ -18,6 +18,12 @@ domains actually implement. Perception, locomotion, manipulation and tactile
 measurements can therefore evolve independently while retaining the existing
 runtime, MCP, traces and memory.
 
+The architecture is independent of a robot model or simulator release. Isaac
+Sim, MuJoCo and hardware drivers implement backend-specific adapters behind
+shared contracts. MicroDuck is one embodiment; its policy and actuator model
+do not define locomotion for every robot. Dependency versions and build
+identities belong to deployment configuration and validation records.
+
 [Architecture image (SVG)](assets/architecture.svg) · [PNG](assets/architecture.png)
 
 ```mermaid
@@ -27,8 +33,8 @@ flowchart TD
   Graph[Bounded skill graph] --> Runtime
   MCP --> Runtime[RobotRuntime: one robot's dispatch and cancellation]
   Conversation --> Runtime
-  MCP -. proposed multi-robot routing .-> Fleet[Fleet coordinator: pending]
-  Fleet -. independent robot runtimes .-> Runtime
+  MCP --> Fleet[FleetRuntime: multi-robot routing]
+  Fleet --> Runtime
   Structure[Embodiment declaration and resource catalog] --> Runtime
   Runtime --> Arm[Manipulation]
   Runtime --> Base[Locomotion]
@@ -50,8 +56,8 @@ flowchart TD
 ```
 
 Solid arrows describe existing interfaces, not admission of every combination.
-The fleet layer is proposed; the native MicroDuck bridge currently owns one
-robot. Twelve independent agents require isolated runtime contexts above a
+The fleet runtime routes concurrent tasks to isolated robot runtimes; the
+native MicroDuck bridge currently owns one robot. Twelve native agents need a
 shared scene owner: read one physical step, evaluate each robot's policy/BAM,
 perform one scene solve, then publish observations bound to each robot. Calling
 twelve current steppers would advance the shared scene twelve times. Per-robot
@@ -69,7 +75,7 @@ There is no measured twelve-robot episode or real-time performance guarantee.
 | `control/microduck_policy.py`, `sim/microduck_stepper.py` | Pinned ONNX contract and physics-clock policy application | Robot-specific implementation; no generic humanoid policy loader or second writer to head joints |
 | `robotics/graph.py` | Immutable bounded DAG of registered skills, outcome and data edges | No graph-generated code, online self-editing or automatic stop reset |
 | `eval/vab.py`, `eval/arena.py`, `eval/trials.py` | Optional external API adapters and bound independent verdicts | Upstream success alone does not grant physical admission |
-| Fleet coordinator — proposed | Route agent tasks to independent robot runtimes, with per-robot and global stop | Software coordination and shared-scene physics both require implementation and validation |
+| `robotics/fleet.py` | Concurrent task routing to independent robot runtimes, with per-robot and global stop | A multi-agent application and shared-scene physics still require implementation and native validation |
 
 ## Capability boundaries
 
@@ -82,7 +88,7 @@ There is no measured twelve-robot episode or real-time performance guarantee.
 | Perceive and remember space | Passive sensors, measured-frame contracts and retained RGB-D surface annotations | Physical SLAM/localization, metric reconstruction admission and execution of planned routes |
 | Describe different bodies | Fixed/floating roots, links, transmissions and typed scalar/generalized joint observations | Drivers and control mappings for each mechanism; dynamic whole-body control |
 | Sense touch | Contact, estimated-force and tactile-image contracts | Calibrated tactile device drivers and task-specific tactile verification |
-| Coordinate twelve robots | Per-robot composition is available; fleet and shared native scene are proposed | Concurrent routing, independent ownership/state, collision interaction and measured fleet stop/reset |
+| Coordinate twelve robots | Concurrent fleet runtime with independent robot identities, ownership and stop state | Multi-agent application, shared native scene, collision interaction and measured fleet stop/reset |
 
 `ResourceDescriptor.admission` is declared metadata (for example `unvalidated`
 or `software_only`), not an automatic certificate state

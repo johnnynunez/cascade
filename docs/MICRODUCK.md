@@ -140,3 +140,19 @@ code, weights and the BAM implementation retain their separate notices.
 This change does not vendor meshes, USD or ONNX files. The implemented
 [conversation gateway](CONVERSATION.md) retains the ownership boundary from the
 [earlier hosted conversation design](MICRODUCK_CONVERSATION_DESIGN.md).
+
+### Shared-scene implementation boundary
+
+`sim/microduck_shared.py` binds explicit robot namespaces to disjoint native
+coordinates, body/shape identities and a single world. Its coordinator prepares
+all independent policies, then all owned BAM groups, then requests **one** solve.
+A changed command during preparation or a participant fault contains the pending
+shared step; stop acknowledgements do not prove physical rest. All solved contact
+rows remain visible to each robot's existing support checker, so another robot
+cannot count as ground. Model identities and command epochs remain per robot.
+
+CPU tests cover 1, 2 and 12 synthetic participants, including index permutations,
+command isolation, cancellation and contact vetoes. The ordinary one-robot
+entrypoint retains its control cadence. Constructing the native shared scene,
+binding its cameras and exposing its robot endpoints remain pending; this module
+is not a native twelve-robot admission or a real-time performance result.

@@ -15,6 +15,15 @@ profiler backend separately before application startup. This environment flag
 adds bridge zones; it does not start a backend, connect a collector, or prove
 that a capture contains them.
 
+`CASCADE_ISAAC_PYTHON_TIMINGS=1` separately enables bounded summaries of
+completed zones without requiring a native profiler. Every ten seconds and at
+shutdown, `[bridge-python-spans]` records report counts, exceptions, and wall
+and main-thread CPU totals/minima/maxima, bound to process and source identity.
+These totals are inclusive: nested zones overlap and must not be summed as
+independent costs. Thread CPU excludes other threads and GPU execution; use
+the native capture below to investigate those. Diagnostic errors invalidate
+the summaries without changing simulation, motion or control deadlines.
+
 Use a fresh diagnostic checkout and bind its exact source, helper, SDK,
 process ownership and capture settings. An instrumented checkout has a
 different source identity from attempt 08. Keep camera resolution, cadence,

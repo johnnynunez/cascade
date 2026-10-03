@@ -320,6 +320,9 @@ class Reference:
 
 
 def reference_from_rgb(rgb, board=Board()):
+    from .binary_layout_a import BinaryLayoutABoard, layout_reference_from_rgb
+    if type(board) is BinaryLayoutABoard:
+        return layout_reference_from_rgb(rgb, board)
     from .binary_reference import BinaryGroundBoard, binary_reference_from_rgb
     if type(board) is BinaryGroundBoard:
         return binary_reference_from_rgb(rgb, board)

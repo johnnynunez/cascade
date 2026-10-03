@@ -745,3 +745,21 @@ hardware admission was tested. See benchmark/results/generalized_joints_20261003
   overallFAIL, native model identity and all original captures remain unchanged.
 - No Kit/GPU/service/native retry or publication. Receipt and raw causal outputs
   live in RGBD_NATIVE_CLOCK_AUDIT; source candidate is separate from52a4dc0.
+
+
+# 2026-10-03 — Explicit binary layout A, CPU candidate
+
+- Added schema4 with the reviewed84mm tags, local centers, world origin and
+  yaw−44°. The new PNG uses exact local texel boundaries; actual USD float32 ST
+  values are bound explicitly. Historical schema3 assets and entrypoint remain.
+- Admission retains all original detector,18/17-fit and metric gates and adds
+  a rational whole-tag singular-value lower bound≥4px/cell, computed from
+  observed RGB tag corners only. K/T design predictions never enter the oracle.
+- Final CPU217PASS/12OpenUSD SKIP in33.77s; separate real OpenUSD CPU5PASS in
+  5.21s. Both1634-input inventories and protected stores match before/after.
+  Ruff F/E9 and local links pass. An exploratory80% rescale fails unchanged
+  held-out residuals and is retained; no universal blur/rescale guarantee.
+- CPU authoring preserves physics material and checks postbootstrap appearance,
+  ancestors and complete native-property comparisons via explicit doubles.
+  No Kit/solver/GPU or native metric acceptance. New model/scene admission is
+  pending. See docs/RGBD_BINARY_LAYOUT_A.md and the compact CPU result receipt.

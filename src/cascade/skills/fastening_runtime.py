@@ -89,7 +89,8 @@ class FasteningDomain:
                 if not batch:
                     continue
                 for row in batch:
-                    check_solve(row, self.binding, self.limits, self.clock(), epoch=permit.epoch, previous=previous)
+                    check_solve(row, self.binding, self.limits, self.clock(), epoch=permit.epoch,
+                                previous=previous, stage="turn_observation")
                     if row.step != cursor + 1 or row.generation != permit.generation:
                         raise FasteningFault("post-admission solve sequence/generation mismatch")
                     if not permit.admission_time_s < row.simulation_time_s <= permit.end_simulation_time_s:
@@ -171,7 +172,8 @@ class FasteningDomain:
         while self.clock() < deadline:
             batch = self.reader(cursor, timeout_s=min(.05, max(0., deadline-self.clock())))
             for row in batch:
-                check_solve(row, self.binding, self.limits, self.clock(), epoch=permit.epoch, previous=previous)
+                check_solve(row, self.binding, self.limits, self.clock(), epoch=permit.epoch,
+                            previous=previous, stage="rest_observation")
                 if row.step != cursor + 1:
                     raise FasteningFault("rest stream skipped solves")
                 cursor, previous = row.step, row

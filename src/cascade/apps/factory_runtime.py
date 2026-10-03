@@ -178,7 +178,8 @@ def _ready(owner, *, clock=time.monotonic, timeout_s=10.):
         rows = owner.journal.read(cursor, timeout_s=min(.05, max(0., end-clock())))
         for row in rows:
             check_solve(row, owner.backend.binding, owner.backend.limits, clock(),
-                        previous=previous, epoch=None if previous is None else previous.epoch)
+                        previous=previous, epoch=None if previous is None else previous.epoch,
+                        stage="startup_readiness")
             if row.step != cursor+1 or row.generation != 0:
                 raise FasteningFault("startup stream lost solves or actuator was admitted early")
             cursor, previous = row.step, row

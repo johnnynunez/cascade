@@ -1,0 +1,66 @@
+{
+  "base_commit": "bc169ebb4f1d0b6552794b3b66bd74a0099676cb",
+  "checks": {
+    "baseline_identical_tests": {
+      "failed": 5,
+      "passed": 3,
+      "pytest_s": 0.19
+    },
+    "candidate_identical_tests": {
+      "failed": 0,
+      "passed": 8,
+      "pytest_s": 0.17
+    },
+    "final_focused": {
+      "failed": 0,
+      "files": 5,
+      "input_files": 588,
+      "passed": 370,
+      "pytest_s": 1.51,
+      "skipped": 0,
+      "sources_and_protected_stores_unchanged": true
+    }
+  },
+  "date": "2026-10-03",
+  "external_artifact_root": "FACTORY_OBSERVATION_AGE (task-local directory; files are not repository artifacts)",
+  "external_artifacts_sha256": {
+    "baseline-source/manifest.json": "1ad3b870c859bf1dc2cb46e04594ecb68314d4d2bd4c175daf439b33b3889021",
+    "evidence/baseline-01/junit.xml": "adf1c8b0457dff7182d2299da6bf21c02f6eda5ed424f1dd24e8fb875ea636d8",
+    "evidence/baseline-01/pytest.log": "05bcbe23b511e8b65163d62b0fdd185c582acd8c2e80e0a2a0c34f3742a2eb69",
+    "evidence/baseline-01/receipt.json": "28faee8273be676b38d1cbd084bb8531f5f0512de3255e0d253277ca581193d4",
+    "evidence/candidate-01/pytest.log": "3e581f92c5a63354a9091ee51e37e73e779045ac4069a73a069db9dd6f0cfef2",
+    "evidence/candidate-01/receipt.json": "ddfdd2250ffb57c2bd50eb410fccc28b67da4fc13282e314545bfdd89e54fb0e",
+    "evidence/focused-01/junit.xml": "6a2740b4917a91407639e74d8b611107facb61e17015ffea9f8c62eaba81d083",
+    "evidence/focused-01/pytest.log": "660ee8a34d3610607ba81a43714c7f54b089223889e0f59feeacb6c8e930e198",
+    "evidence/focused-01/receipt.json": "8074a50a6986b4d73b573343f1584f45ff13e852f213a717cedf8ffb0b8d8703"
+  },
+  "limitations": [
+    "Delayed-readback controls are synthetic and do not identify the cause of native stale rejection.",
+    "No production timing spans or optimization were introduced.",
+    "Modified identity-bound source requires a new model identity; original e712 model receipt is not reused."
+  ],
+  "retained_native_failure": {
+    "exact_failed_age_recorded": false,
+    "file": "factory_readiness_v3_failure_20261003.json",
+    "new_recipe_native_tested": false,
+    "sha256": "9f8676158cf72e3e87b305662f948063766558ad9931a529f9adb1d45a2b1293",
+    "status": "FAIL_CLOSED"
+  },
+  "schema": 1,
+  "scope": "Exact observation-age fault diagnostics; CPU synthetic controls only. No native rerun or acceptance.",
+  "source_files_sha256": {
+    "src/cascade/apps/factory_runtime.py": "2ba5248f30c22a9221740adf169ada30474f71a4f5e61822309dc0425d0e1588",
+    "src/cascade/control/fastening.py": "c5037e2ede39273a9f4c94a0e60d2d3ef6275eaf1f572ab01ade80031cc95dfb",
+    "src/cascade/skills/fastening_runtime.py": "5f1320f4064c41acc68c0c4e29012ac340d8dde1c0918dc72d4409ddbb50bb9d",
+    "tests/test_factory_observation_age.py": "45e4fed11e7990318874efedf0f7f651b7d3bcdba4dc8651d1a19e233b15bde6"
+  },
+  "unchanged_contract": {
+    "all_check_solve_call_order": "unchanged",
+    "capture_timestamp": "Preserved; no additional clock read or delayed/restamped capture",
+    "max_observation_age_s": 0.2,
+    "native_acceptance_transferred": false,
+    "owner_or_native_observer_changed": false,
+    "quiet_window_sim_s": 0.5,
+    "readiness_timeout_s": 10
+  }
+}

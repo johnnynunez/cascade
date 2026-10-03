@@ -407,3 +407,49 @@ still match the closed V2 run. Static review also records when actuator mappings
 can be absent: only without mapped actuators, which this fixture already refuses.
 These CPU observations do not instantiate or admit the full Factory fixture.
 See the [optional-array receipt](../benchmark/results/factory_optional_array_20261003.json).
+
+## Observation-age fault diagnostics
+
+The contact-writer v3 readiness episode on `1f0d194f` failed after 309 solves
+with `stale or future solved state`. It completed 0.5150000125 interval seconds
+in 8.2804 seconds of readiness, but retained quiet values span only 0.423333344
+simulation seconds. The required interval remains 0.5 seconds. Preparation
+passed 39 loads and 22 predicates; owned processes closed naturally with exit 1.
+This is a retained failure, with no fastening action or readiness admission.
+See the [independent terminal summary](../benchmark/results/factory_readiness_v3_failure_20261003.json).
+
+The original exception did not retain the precise failed-check time. The last
+capture preceded the readiness error return by 0.433017 seconds, which includes
+error propagation and is **not** the exact rejected age. That record cannot
+identify readback synchronization, CPU processing, garbage collection or
+scheduling as the cause.
+
+`FasteningObservationAgeFault` now preserves the existing rejection and adds a
+bounded `observation_age` JSON payload to its message. It contains capture and
+check times, their difference, the unchanged 0.2-second limit, checking stage,
+step, simulation time, generation, epoch, binding and model hashes. Its Python
+property returns a defensive copy; nonfinite check clocks remain failures and
+are represented by `null` plus an explicit reason. Existing owner, journal and
+tool error strings retain the payload without a new logging path. Stages
+distinguish controller acceptance, startup readiness, turn admission, upload,
+turn/rest observation and reset validation. No capture is renewed, clock read
+added, check moved, or rejection converted to acceptance.
+
+The producer timestamps a solved state before copying GPU arrays, shadow
+kinematics and contact decoding, constructing the raw record, and checking the
+native clock. Controller acceptance follows raw-record queueing. Some raw
+serialization, such as recursive `asdict`/list construction, might eventually
+move behind acceptance if immutable same-solve buffers and bounded ownership
+are preserved. Such a change would need its own evidence; this patch changes
+none of that work and claims no latency improvement. Required geometry,
+contact, effort and native-clock checks must remain before acceptance.
+
+Five diagnostic assertions fail on the original source while three healthy
+freshness boundaries pass; the same eight tests pass after the change. The
+focused suite passes 370 CPU cases, including delayed synthetic decoding,
+future/nonfinite clocks, unchanged age boundaries, no stale control writes,
+startup failure and turn/rest error propagation. Sources and protected stores
+are unchanged during testing. This is software evidence, with no native rerun.
+The changed modules are already part of the model identity; a future native
+recipe must have a new digest. See the
+[diagnostic receipt](../benchmark/results/factory_observation_age_20261003.json).

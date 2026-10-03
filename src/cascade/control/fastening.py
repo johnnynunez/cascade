@@ -23,6 +23,40 @@ class FasteningFault(RuntimeError):
     pass
 
 
+class FasteningObservationAgeFault(FasteningFault):
+    """Bounded capture/check evidence survives existing string-only fault paths.
+
+    Nonfinite clock readings are represented as null, never as JSON NaN/Infinity.
+    The payload is diagnostic only: it neither renews capture time nor supplies
+    an independent observation. Returning a copy preserves the retained record.
+    """
+
+    def __init__(self, row, binding, limits, now, age, *, stage):
+        if not isinstance(stage, str) or not stage or len(stage) > 64:
+            raise ValueError("invalid observation check stage")
+        reason = ("nonfinite_check_clock" if not math.isfinite(now) else
+                  "nonfinite_age" if not math.isfinite(age) else
+                  "future" if age < 0 else "stale")
+        evidence = {
+            "stage": stage, "reason": reason,
+            "captured_monotonic_s": row.captured_monotonic_s,
+            "checked_monotonic_s": now if math.isfinite(now) else None,
+            "age_s": age if math.isfinite(age) else None,
+            "max_observation_age_s": limits.max_observation_age_s,
+            "step": row.step, "simulation_time_s": row.simulation_time_s,
+            "generation": row.generation, "epoch": row.epoch,
+            "binding_sha256": row.binding_sha256,
+            "model_identity_sha256": binding.model_sha256,
+        }
+        self._observation_age_json = json.dumps(
+            evidence, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        super().__init__("stale or future solved state; observation_age=" + self._observation_age_json)
+
+    @property
+    def observation_age(self):
+        return json.loads(self._observation_age_json)
+
+
 class FasteningRevoked(FasteningFault):
     """Normal priority cancellation reached an old proposed write."""
 
@@ -283,7 +317,7 @@ class FasteningSolve:
             thread_contacts=self.thread_contacts, tool_contacts=self.tool_contacts)
 
 
-def check_solve(row, binding, limits, now, *, epoch=None, previous=None):
+def check_solve(row, binding, limits, now, *, epoch=None, previous=None, stage="check_solve"):
     """Shared safety/freshness checks; never fabricate coverage from empty data."""
     if not isinstance(row, FasteningSolve) or row.binding_sha256 != binding.sha256:
         raise FasteningFault("solve identity differs from admitted binding")
@@ -295,7 +329,7 @@ def check_solve(row, binding, limits, now, *, epoch=None, previous=None):
         raise FasteningFault("fixture differs from declared fixed world +Z frame")
     age = now - row.captured_monotonic_s
     if not 0 <= age <= limits.max_observation_age_s:
-        raise FasteningFault("stale or future solved state")
+        raise FasteningObservationAgeFault(row, binding, limits, now, age, stage=stage)
     if len(row.joint_position_rad) != len(binding.joint_names):
         raise FasteningFault("joint readback does not match binding")
     if previous is not None:
@@ -490,7 +524,7 @@ class FasteningWriteGuard:
         with self._lock:
             if self._closed:
                 raise FasteningFault("controller is closed")
-            check_solve(row, self.binding, self.limits, self.clock())
+            check_solve(row, self.binding, self.limits, self.clock(), stage="reset_stop")
             if (row.generation != self._generation or row.commanded_spindle_effort_nm != 0 or
                     max(abs(v) for v in row.joint_velocity_rad_s) > self.limits.rest_angular_speed_rad_s or
                     row.fastener_angular_speed_rad_s > self.limits.rest_angular_speed_rad_s or
@@ -514,7 +548,7 @@ class FasteningWriteGuard:
             if type(turns) not in (float, int) or turns != 1. or direction != "tighten":
                 raise FasteningFault("this mounted fixture admits exactly one tightening turn")
             now = self.clock()
-            check_solve(row, self.binding, self.limits, now)
+            check_solve(row, self.binding, self.limits, now, stage="turn_admission")
             if row.generation != self._generation or not row.thread_contacts or not row.tool_contacts:
                 raise FasteningFault("fresh same-generation pre-engaged contacts required")
             self._generation += 1
@@ -554,7 +588,8 @@ class FasteningWriteGuard:
                 now = self.clock()
                 if now >= permit.deadline_monotonic_s or row.simulation_time_s >= permit.end_simulation_time_s:
                     raise FasteningFault("command lease expired")
-                check_solve(row, self.binding, self.limits, now, epoch=permit.epoch)
+                check_solve(row, self.binding, self.limits, now, epoch=permit.epoch,
+                            stage="control_upload")
                 if row.step < permit.admission_step or not math.isclose(row.simulation_time_s,
                         permit.admission_time_s+(row.step-permit.admission_step)*self.binding.dt_s,
                         rel_tol=1e-6, abs_tol=1e-9):
@@ -617,7 +652,7 @@ class FasteningController:
         try:
             check_solve(row, self.binding, self.limits, self.clock(),
                         epoch=None if self._previous is None else self._previous.epoch,
-                        previous=self._previous)
+                        previous=self._previous, stage="controller_accept_solve")
             self.journal.publish(row)
             self._previous = row
         except Exception as exc:

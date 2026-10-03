@@ -968,3 +968,18 @@ No revised CUDA preparation, readiness or fastening task has yet been admitted.
 - New opt-in writer-v3 profile explicitly binds those overloads, records concrete kernel keys/signatures and verifies each loaded forward symbol. Previous selectors are refused; finite39 inventory,22 guards, physical snapshots and deadlines remain unchanged.
 - Native preparation/readiness for this new recipe are pending; no physical fastening success or reusable model pin is claimed.
 - Validation:492 PASS/11 SKIP plus7 pinned-ABI PASS; two exact-old-function causal failures retained. Independent SDK definition/retained-PTX review found no blocker. No native v3 launch.
+
+## 2026-10-03 — Preserve the exact Factory observation-age rejection
+
+The separate v3 readiness run failed after 309 solves; its native exit1 and
+natural closure remain intact. Existing timestamps cannot establish the exact
+rejected age or attribute the delay. Added bounded stage/capture/check/age/limit
+and identity diagnostics to the existing FasteningFault string paths. Capture,
+0.2-second freshness, 10-second readiness, 0.5-second quiet interval, check order,
+owner lifecycle and all verdicts remain unchanged. No native rerun or optimization.
+
+Causal same-tests control: old5FAIL/3PASS, candidate8PASS. Final five-file CPU
+selection370PASS in1.51s;588 inputs and protected stores unchanged. Source/model
+identity changes are explicit, and no old native pin is transferred. Evidence:
+benchmark/results/factory_observation_age_20261003.json and the retained v3
+failure summary beside it. No SDK changes, GPU operation or publication.

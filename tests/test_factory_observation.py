@@ -1,15 +1,16 @@
 """Host-buffer adversaries and CPU geometry only; no native Factory admission."""
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import FrozenInstanceError, asdict, dataclass
+import json
 import math
 from types import SimpleNamespace as NS
 
 import numpy as np
 import pytest
 
-from cascade.control.fastening import FasteningFault
+from cascade.control.fastening import FasteningFault, SolvedPair
 from cascade.sim.factory_observation import (
-    FactoryGeometry, FactoryObserver, actuator_descriptor, collision_coverage, contact_records, joint_mapping, world_aabb,
+    FactoryGeometry, FactoryObserver, _ZeroLoadPairs, actuator_descriptor, collision_coverage, contact_records, joint_mapping, world_aabb,
 )
 from test_fastening_runtime import binding, limits
 from test_microduck_contact_support import Buffer, fixture as contact_fixture
@@ -197,6 +198,66 @@ def test_contact_decoder_keeps_loaded_zero_and_inactive_candidates_distinct():
     assert records[0]["status"] == "solved" and records[0]["normal_force_n"] == 0
 
 
+def test_zero_pair_reuse_preserves_order_signed_zero_and_exact_serialization():
+    pool = _ZeroLoadPairs()
+    values = [("nut", "bolt", 0.), ("nut", "bolt", -0.), ("bolt", "nut", 0.)]
+    pairs = [pool.pair(*args) for args in values]
+    assert len({id(p) for p in pairs}) == 3
+    for args, pair in zip(values, pairs, strict=True):
+        assert pool.pair(*args) is pair
+        assert json.dumps(asdict(pair)) == json.dumps(asdict(SolvedPair(*args)))
+        with pytest.raises(FrozenInstanceError):
+            pair.normal_force_n = 1.
+    for force in (1., 0):
+        assert pool.pair("nut", "bolt", force) is not pool.pair("nut", "bolt", force)
+    class Label(str):
+        pass
+    label = Label("nut")
+    assert pool.pair(label, "bolt", 0.) is not pool.pair(label, "bolt", 0.)
+
+
+def test_zero_pair_pool_saturation_falls_back_without_losing_contacts():
+    pool = _ZeroLoadPairs()
+    pairs = [pool.pair(f"shape_{i}", "bolt", 0.) for i in range(300)]
+    assert len(pool._values) == 256
+    assert [p.collider_a for p in pairs] == [f"shape_{i}" for i in range(300)]
+    assert pool.pair("shape_0", "bolt", 0.) is pairs[0]
+    assert pool.pair("shape_299", "bolt", 0.) == pairs[-1]
+    assert pool.pair("shape_299", "bolt", 0.) is not pairs[-1]
+
+
+@pytest.mark.parametrize("args", [("nut", "bolt", -1.), ("nut", "bolt", math.nan),
+    ("nut", "bolt", math.inf), ("nut", "bolt", False), ("nut", "bolt", np.float64(0.)),
+    ("nut", "nut", 0.), ("", "bolt", 0.), (None, "bolt", 0.)])
+def test_zero_pair_pool_cannot_bypass_original_value_rejections(args):
+    pool = _ZeroLoadPairs()
+    pool.pair("nut", "bolt", 0.)
+    with pytest.raises(ValueError) as expected:
+        SolvedPair(*args)
+    with pytest.raises(ValueError, match=str(expected.value)):
+        pool.pair(*args)
+
+
+def test_contact_decoder_reuses_values_but_keeps_fresh_raw_rows_and_validation():
+    s = contact_fixture(cone=1)
+    s.solver.mjw_data.overflow = counter()
+    s.solver.update_contacts = lambda output: None
+    s.solver.mjw_data.nacon.value[0] = s.contacts.rigid_contact_count.value[0] = 2
+    s.solver.mjw_data.efc.force.value[:] = s.contacts.force.value[:] = 0
+    pool = _ZeroLoadPairs()
+    first, raw = contact_records(s, s.contacts, _zero_pairs=pool)
+    second, current = contact_records(s, s.contacts, _zero_pairs=pool)
+    assert len(first) == len(second) == len(current) == 2
+    assert all(pair is first[0] for pair in (*first, *second))
+    assert raw == current and all(a is not b for a, b in zip(raw, current, strict=True))
+    assert [r["status"] for r in current] == ["solved", "inactive_candidate"]
+    current[0]["candidate"] = 99
+    assert raw[0]["candidate"] == 0
+    s.solver.mjw_data.contact.frame.value[0, 0, 0] = math.nan
+    with pytest.raises(ValueError, match="frame/normal"):
+        contact_records(s, s.contacts, _zero_pairs=pool)
+
+
 def test_contact_decoder_native_overflow_cannot_be_decoded_as_empty():
     s = contact_fixture()
     s.solver.mjw_data.overflow = counter(1)
@@ -322,7 +383,29 @@ def observer_fixture():
     observer.geometry = NS(evaluate=lambda *a, **k: ((-.1, -.1, .03), (.3, .1, .2)))
     observer.joints = joint_mapping(mapping_fixture(), ("arm", "socket_spin"))
     observer.output, observer._last_step = s.contacts, 0
+    observer._zero_pairs = _ZeroLoadPairs()
     return observer
+
+
+def test_observers_own_separate_zero_pair_pools_and_keep_each_solve(monkeypatch):
+    fixture = observer_fixture()
+    scene = fixture.scene
+    scene.model.device = "synthetic"
+    scene.newton = NS(Contacts=lambda *a, **k: scene.contacts)
+    monkeypatch.setattr("cascade.sim.factory_observation.sdk_sources", lambda: {})
+    first, second = [FactoryObserver(scene, binding(), limits(), fixture.geometry, fixture.joints)
+                     for _ in range(2)]
+    scene.solver.mjw_data.efc.force.value[:] = scene.contacts.force.value[:] = 0
+    receipt = {"contacts": {"count": 1, "capacity": 4}}
+    row1, raw1 = first.read(Upload(), 10., receipt)
+    other, _ = second.read(Upload(), 10., receipt)
+    scene.step_id, scene.time_s = 2, .02
+    row2, raw2 = first.read(Upload(before_step=1), 10.1, receipt)
+    assert row1.contacts[0] is row2.contacts[0]
+    assert row1.contacts[0] is not other.contacts[0]
+    assert (row1.step, row2.step) == (1, 2)
+    assert (row1.captured_monotonic_s, row2.captured_monotonic_s) == (10., 10.1)
+    assert raw1["contacts"] == raw2["contacts"] and raw1["contacts"][0] is not raw2["contacts"][0]
 
 
 def test_observer_retains_uploaded_generation_and_actual_effort_instead_of_postsolve_guard_state():

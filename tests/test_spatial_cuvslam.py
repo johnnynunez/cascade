@@ -19,6 +19,29 @@ from cascade.spatial.cuvslam_worker import CuVslamProcess
 from cascade.spatial import cuvslam_worker
 
 
+@pytest.mark.parametrize('failure', ['return_false', 'raise'])
+def test_native_validation_retains_failure_and_attempts_both_owner_closures(failure):
+    from pathlib import Path
+    import runpy
+    close = runpy.run_path(str(Path(__file__).resolve().parents[1]
+                              / 'scripts/validate_cuvslam_rgbd.py'))['close_owners']
+    calls = []
+    def close_domain():
+        calls.append('domain')
+        if failure == 'raise':
+            raise RuntimeError('worker close failed')
+        return {'ok': False}
+    def close_hub(timeout):
+        calls.append('hub')
+        return {'ok': True}
+    report = {'ok': True, 'error': 'retained earlier diagnostic'}
+    close(report, NS(close=close_domain), NS(close=close_hub))
+    assert calls == ['domain', 'hub']
+    assert report['ok'] is False and report['domain_close']['ok'] is False
+    assert report['hub_close']['ok'] is True
+    assert report['error'] == 'retained earlier diagnostic'
+
+
 class SdkContract:
     """Implements only the signatures and return shapes used from the pinned binding."""
     def __init__(self):

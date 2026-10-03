@@ -315,12 +315,35 @@ def test_pending_stop_flight_does_not_receive_or_require_rest_credit():
         checker.close()
 
 
-def test_support_gc_isolation_preserves_real_tcp_read_deadline(truth_server, healthy_episode_gc):
+@pytest.mark.parametrize("caller_resume", ["ordinary", "after_reconnect"])
+def test_support_gc_isolation_preserves_real_tcp_read_deadline(
+        truth_server, healthy_episode_gc, monkeypatch, caller_resume):
     import gc
     import threading
+    import time
+    from cascade.agent import base_effects
     from cascade.sim.base_truth import BaseTruthReader
 
     profile, payload, requests = truth_server
+    if caller_resume == "after_reconnect":
+        # Model a descheduled caller after its real 40 ms Event wait. The
+        # sampler and socket keep their original clocks and deadlines; the
+        # first socket read expires and reconnects before begin() resumes.
+        original_window = base_effects._Window
+        def window(*args, **kwargs):
+            value = original_window(*args, **kwargs)
+            original_wait = value.first.wait
+            def resume_after_reconnect(timeout=None):
+                result = original_wait(timeout)
+                if not result:
+                    deadline = time.monotonic() + 1.
+                    while sum(row["op"] == "state" for row in requests) < 2:
+                        assert time.monotonic() < deadline, "TCP did not reconnect"
+                        time.sleep(.001)
+                return result
+            value.first.wait = resume_after_reconnect
+            return value
+        monkeypatch.setattr(base_effects, "_Window", window)
     entered, release = threading.Event(), threading.Event()
     captured = []
     def delayed():
@@ -354,7 +377,15 @@ def test_support_gc_isolation_preserves_real_tcp_read_deadline(truth_server, hea
             # A scheduler delay can also exhaust the unchanged socket budget;
             # that stronger transport refusal still cannot become a confirmation.
             assert "timed out" in reader.last_error or "deadline" in reader.last_error
-        assert [r["op"] for r in requests] == ["hello", "state"]
+        # A delayed caller may allow a new read-only connection before it
+        # cancels the sampler. It must never recover positive motion credit
+        # or acquire actuator ownership. Exact connection count is not a
+        # cross-platform scheduling contract.
+        assert requests[:2] == [{"op": "hello", "role": "reader"}, {"op": "state"}]
+        assert all(row in ({"op": "hello", "role": "reader"}, {"op": "state"})
+                   for row in requests)
+        if caller_resume == "after_reconnect":
+            assert sum(row["op"] == "state" for row in requests) >= 2
     finally:
         release.set()
         checker.close()

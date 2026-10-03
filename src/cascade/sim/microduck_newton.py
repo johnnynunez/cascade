@@ -468,6 +468,9 @@ class KitNewtonBackend:
                 'multi_gpu': False, 'width': 320, 'height': 240, 'renderer': 'RayTracedLighting',
                 'physics_gpu': int(self.args.device.split(':')[1])}
 
+    def _solver_capacity(self):
+        return 512, 2400
+
     def open(self):
         import sys
         from isaacsim import SimulationApp
@@ -551,14 +554,16 @@ class KitNewtonBackend:
         cfg = copy.deepcopy(get_newton_config())
         cfg.solver_cfg = MuJoCoSolverConfig()
         cfg.num_substeps, cfg.use_cuda_graph, cfg.time_step_app = 1, False, False
-        cfg.solver_cfg.nconmax, cfg.solver_cfg.njmax = 512, 2400
-        cfg.collision_cfg.rigid_contact_max = 512
+        contacts, constraints = self._solver_capacity()
+        cfg.solver_cfg.nconmax, cfg.solver_cfg.njmax = contacts, constraints
+        cfg.collision_cfg.rigid_contact_max = contacts
         cfg.solver_cfg.use_mujoco_contacts = True
         configure_outputs(cfg, self._sdk_recipe)
         configure_newton(cfg)
         self._checkpoint()
         self.receipt['configuration'] = dict(num_substeps=1, use_cuda_graph=False, time_step_app=False,
-                                             nconmax=512, njmax=2400, rigid_contact_max=512, use_mujoco_contacts=True)
+                                             nconmax=contacts, njmax=constraints,
+                                             rigid_contact_max=contacts, use_mujoco_contacts=True)
         if self._sdk_recipe is not None:
             self.receipt['configuration'].update(sdk_recipe=self.admission['sdk_recipe'],
                                                 contact_forces=True, link_incoming_joint_force=False)

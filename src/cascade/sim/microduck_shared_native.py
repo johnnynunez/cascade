@@ -45,6 +45,9 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         # CUDA_VISIBLE_DEVICES rather than selecting physical Vulkan GPU zero.
         return super()._app_config() | {'active_cuda_gpus': [int(self.args.device.split(':')[1])]}
 
+    def _solver_capacity(self):
+        return tuple(value * len(self.placements) for value in super()._solver_capacity())
+
     def _author_robots(self, stage):
         from pxr import Gf, UsdGeom
         removed = []
@@ -155,8 +158,8 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         for binding in self.layout.robots:
             sample = read_native_state(self.ns, q_indices=np.array(binding.q_indices),
                 dof_indices=np.array(binding.dof_indices), root_index=binding.root_body_index,
-                max_contacts=self.admission['limits']['max_contacts'],
-                max_constraints=self.admission['limits']['max_constraints'],
+                max_contacts=self.admission['limits']['max_contacts'] * len(self.layout.robots),
+                max_constraints=self.admission['limits']['max_constraints'] * len(self.layout.robots),
                 q_count=self.layout.q_count, dof_count=self.layout.dof_count)
             sample.update(support=support, solver_graph=self._solver_graph.telemetry())
             result[binding.robot_id] = sample

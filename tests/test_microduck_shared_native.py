@@ -8,7 +8,7 @@ from test_microduck_stepper import Array, native_fixture
 
 from cascade.sim.microduck_newton import prepare_native_model, read_native_state
 from cascade.sim.microduck_shared import bind_scene
-from cascade.sim.microduck_shared_native import placements, SharedRobotView
+from cascade.sim.microduck_shared_native import placements, SharedRobotView, SharedKitNewtonBackend
 
 
 def test_shared_native_read_uses_explicit_noncontiguous_coordinates():
@@ -47,6 +47,9 @@ def test_grid_preserves_independent_names_and_minimum_center_separation(count):
     positions = np.array([position for _, position in p.values()])
     for i in range(count):
         assert (np.linalg.norm(positions[i+1:] - positions[i], axis=1) >= 2.).all()
+    backend = SharedKitNewtonBackend(NS(robots=count, spacing=2., solver_cuda_graph=True,
+                                        reuse_solved_read=True), {}, None)
+    assert backend._solver_capacity() == (512*count, 2400*count)
 
 
 def test_readonly_robot_view_binds_complete_contacts_without_advancing_owner():

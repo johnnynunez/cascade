@@ -55,3 +55,23 @@ probe now3 PASS in0.88s (old3 RED retained). Source and protected-store hashes
 remained unchanged within both runs. RuffF/E9 and diff checks pass. Two NumPy
 deprecation warnings come only from intentionally changing/restoring the
 control-array shape in an adversary. No physical task episode was run.
+
+Separate diagnostic follow-up from0b73a48: failed placement must retain the
+already-produced bounded batch journal even if its independent verifier was
+not reached. Copy at most256 existing rows and recorded identity/error/goal
+ledger under world.lock, then serialize outside it. No SDK, FK, state read,
+guard, audit or additional integration is allowed in this path. It cannot
+alter the physical verdict, pending withdrawal or prefix obligations. Missing
+history and persistence failure remain explicit diagnostics; neither enables
+a backend or retries an action. Test copying/isolation/locking, failure-path
+trace attachment, serialization faults and no lazy-backend activation.
+
+Diagnostic final01:32 PASS in5.79s, including12 new cases and ordinary
+placement/refusal/verifier regressions. The exact executor AST from0b73a48
+fails the same retained-failure test at missing `placement_diagnostic` (1 RED,
+0.64s); the action remains refuted in both versions. Initial journal01 kept
+7 PASS/3 failures caused by an incorrect new test expectation of unverified
+for an unmoved object; the checker correctly refutes it, and only that test
+expectation changed. Source/protected stores remained unchanged within all
+controls. Empty and already-materialized LazyArm, unverified place_at, actor
+exceptions and storage failure are covered. No new robot episode or GPU run.

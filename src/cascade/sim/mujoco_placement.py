@@ -445,6 +445,59 @@ class PlacementHistory:
                 self.confirmed_prefix.add(name)
             return report, rows
 
+    def diagnostic_snapshot(self):
+        """Copy only previously produced records; never validate a new verdict.
+
+        This remains usable after a sticky capture/identity failure. No SDK,
+        native-state read, guard, FK, audit or ledger mutation belongs here.
+        """
+        with self.world.lock:
+            return deepcopy({
+                'version': 1, 'diagnostic_only': True, 'physical_task_verdict': False,
+                'scope': 'recorded batch history; current model/state not revalidated',
+                'scene_path': self.world.path, 'epoch': self.epoch,
+                'model_sha256': self.identity, 'descriptor': self.descriptor,
+                'support_planes': self.support_names,
+                'last_captured_step': self.step, 'last_captured_final_time_s': self.last_final_time,
+                'capture_error': self.error, 'record_capacity': 256,
+                'records': list(self.rows)[-256:],
+                'confirmed_prefix': sorted(self.confirmed_prefix),
+                'prefix_faults': self.prefix_faults,
+                'retired_area_obligations': self.retired_obligations[-256:],
+            })
+
+
+def save_placement_diagnostic(arm, evidence_dir):
+    """Persist an existing native owner's history without activating a driver."""
+    from ..control.lazy_arm import LazyArm
+    from ..control.mujoco_arm import MujocoArm
+    raw = arm.raw
+    backend = raw.__dict__.get('_arm') if isinstance(raw, LazyArm) else raw
+    if not isinstance(backend, MujocoArm):
+        return None
+    world = backend.world
+    history = getattr(world, 'placement_history', None)
+    if history is None:
+        return None
+    metadata = {'diagnostic_only': True, 'physical_task_verdict': False}
+    try:
+        if type(history) is not PlacementHistory or history.arm is not backend or history.world is not world:
+            raise ValueError('diagnostic history owner binding differs')
+        snapshot = history.diagnostic_snapshot()
+        # The world lock has been released: encoding and file I/O must not
+        # delay a driver holding or stopping its physical state.
+        encoded = json.dumps(snapshot, allow_nan=False)+'\n'
+        path = Path(evidence_dir)/f'diagnostic-{uuid.uuid4().hex}.json'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('x') as handle:
+            handle.write(encoded)
+        metadata.update(evidence_path=str(path), evidence_sha256=hashlib.sha256(encoded.encode()).hexdigest(),
+                        records=len(snapshot['records']), epoch=snapshot['epoch'],
+                        model_sha256=snapshot['model_sha256'])
+    except Exception as exc:
+        metadata['error'] = f'placement diagnostic unavailable: {type(exc).__name__}: {exc}'
+    return metadata
+
 
 def audit(rows, name, region, identity, epoch, *, containment=True):
     measured = {'destination': region.name, 'region': region.as_dict(), 'object': name,

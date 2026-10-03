@@ -56,5 +56,17 @@ separately saved final integrated qpos.
 The failed episode has no persisted region journal: the failure path returned
 unverified before requesting a placement proof. Its last cached solve reports
 support contacts, but does not establish a supported-rest window. Persisting
-diagnostic owner-produced journal rows on failure is a separate follow-up;
-such records must carry no successful verdict or extra SDK read/solve.
+diagnostic owner-produced journal rows on failure is implemented as a separate
+follow-up to the replanning commit. It cannot recover rows from the earlier
+closed process or change that episode's outcome.
+
+Failed or unverified ordinary `pick_and_place` and `place_at` now attach a
+diagnostic file/hash when that arm already owns a placement history. The file
+copies at most256 existing batch records, their recorded model/epoch, capture
+error and goal ledger under the world lock. Serialization and storage happen
+after releasing it. The diagnostic path does not query native state, call a
+guard/audit/FK/solver, activate a lazy arm, change prefix obligations or issue
+another verdict. Its `diagnostic_only: true` and `physical_task_verdict: false`
+labels also apply to missing/failed capture data; persistence errors leave the
+action's original result and postcondition intact. Recorded identity is not
+revalidated as current identity by this diagnostic copy.

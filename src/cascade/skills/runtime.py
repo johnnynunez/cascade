@@ -655,6 +655,17 @@ class SkillRuntime:
         if name == "place_at" and region_context is not None:
             from .mujoco_region import finish_explicit
             finish_explicit(region_context, result)
+        if name in {"pick_and_place", "place_at"} and (result.get("ok") is False or result.get("verified") is False):
+            # A failed attempt may never reach the placement verifier. Retain
+            # only its existing owner-produced journal, with no new verdict.
+            try:
+                from ..sim.mujoco_placement import save_placement_diagnostic
+                diagnostic = save_placement_diagnostic(effective_arm, self.trace.run_dir / "placement")
+            except Exception as exc:
+                diagnostic = {"diagnostic_only": True, "physical_task_verdict": False,
+                              "error": f"placement diagnostic unavailable: {type(exc).__name__}: {exc}"}
+            if diagnostic is not None:
+                result["placement_diagnostic"] = diagnostic
         if name == "pick_and_place" and result.get("ok") is False:
             result["next_action"] = (
                 "If the user said 'then stop', report this failure and end the turn. "

@@ -667,3 +667,26 @@ cleanup passes all 14 new regressions. Sources and protected stores remain
 unchanged during each check; the rounded retained trace is not a new physical
 run. See docs/PLACEMENT_REFUSAL_VERIFICATION.md and its source-bound receipt.
 The separate two-cube physical failure remains open. No push or merge.
+
+## Minimal-install task-effect smoke correction — 3 October 2026
+
+The minimal-install job on 0249f718 correctly returns exit1: the SO-101 mock
+exhausted its air-grasp attempts and the static camera refuted displacement.
+The task ledger prevents a later mock-LLM greeting from concealing that debt.
+This isolated fix retains the nine absent optional dependencies and exercises
+the real CLI pipeline with explicit mock/analytic inputs and private stores.
+The existing mock-jaw contact hook permits the whole SO-101 grasp/place/home
+command path; the static image still cannot independently confirm relocation.
+Assertions bind TaskReport, trace, task effects and teardown instead of accepting
+an arbitrary nonzero exit. A separate read-only task must still succeed. No
+runtime, verifier, motion limits, shared stores or GPU behavior changed.
+
+A fresh private `uv sync --frozen --extra dev --extra kinematics` reproduced
+the original CLI exit1 in 7.87 s with all nine optional imports absent. The
+final selection passes 36 tests in 2.21 s (two CLI cases, task-effect ledger,
+and teardown failure/pending/exit controls); 1,610 checkout inputs and the
+protected learned store stayed identical. The retained initial test run also
+records why the synthetic completed path may be unverified rather than refuted:
+its own belief update is explicitly not independent evidence. Both verdicts
+deny completion. External evidence: `MINIMAL_INSTALL_LEDGER_20261003/evidence/`
+(`baseline/result.json`, `smoke-02/pytest.log`, `focused-01/result.json`).

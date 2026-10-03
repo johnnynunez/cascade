@@ -82,7 +82,7 @@ jobs:
             fi
             echo "ok: no $mod"
           done
-      - name: a 5-DoF arm runs end to end on the mock stack
-        run: |
-          uv run python -m cascade.apps.demo --arm so101_mock --camera mock_small \
-            --task "pick and place the red object" --no-view --no-serve
+      - name: mock CLI wiring preserves independent task verdicts
+        # The static mock image cannot verify a physical pick-and-place. Check
+        # full execution + an honest negative verdict, and a read-only success.
+        run: uv run python -m pytest tests/test_minimal_install_smoke.py -q

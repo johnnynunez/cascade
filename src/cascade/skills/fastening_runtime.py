@@ -15,6 +15,14 @@ from ..robotics.contracts import ResourceDescriptor, ToolDescriptor
 from ..sim.threading_verification import ThreadContract, verify_threading
 
 
+TURN_SPEC = {"name": "turn_screw",
+    "description": "One measured tightening turn of the configured pre-engaged nut, then observed rest. "
+        "Requires the mounted socket. Does not acquire a tool or establish seating/preload.",
+    "parameters": {"type": "object", "properties": {"turns": {"type": "number", "const": 1.0},
+        "direction": {"type": "string", "const": "tighten"}},
+        "required": ["turns", "direction"], "additionalProperties": False}}
+
+
 class FasteningDomain:
     motion_skills = frozenset({"turn_screw"})
 
@@ -30,13 +38,9 @@ class FasteningDomain:
             synthetic=actuator.synthetic, admission="software_only" if actuator.synthetic else "unvalidated",
             metadata={"binding_sha256": self.binding.sha256, "mounted_tool": True,
                       "preengaged_fastener": True, "seating": False, "pickup": False}),)
-        schema = {"type": "object", "properties": {"turns": {"type": "number", "const": 1.0},
-                  "direction": {"type": "string", "const": "tighten"}},
-                  "required": ["turns", "direction"], "additionalProperties": False}
         self.tool_descriptors = (ToolDescriptor(domain_id + ".turn_screw",
-            "One measured tightening turn of the configured pre-engaged nut, then observed rest. "
-            "Requires the mounted socket. Does not acquire a tool or establish seating/preload.",
-            schema, domain_id, "turn_screw", effect="motion", requires=(resource,), writes=(resource,)),)
+            TURN_SPEC["description"], TURN_SPEC["parameters"], domain_id, "turn_screw",
+            effect="motion", requires=(resource,), writes=(resource,)),)
         self.tool_specs = [t.as_spec() for t in self.tool_descriptors]
 
     def begin_task(self):

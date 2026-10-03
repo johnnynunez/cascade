@@ -127,7 +127,8 @@ class FactoryBoundModel:
         sources = {str(Path(__file__).with_name(n).resolve()): hashlib.sha256(Path(__file__).with_name(n).read_bytes()).hexdigest()
                    for n in source_names}
         package = Path(__file__).resolve().parents[1]
-        for relative in ("control/fastening.py", "skills/fastening_runtime.py"):
+        for relative in ("control/fastening.py", "skills/fastening_runtime.py", "config.py",
+                         "apps/factory_runtime.py", "apps/robot_runtime.py"):
             p = package/relative
             sources[str(p)] = hashlib.sha256(p.read_bytes()).hexdigest()
         self.document = {"schema_version": 1, "recipe": "factory_m20_fixed_axis_v1",

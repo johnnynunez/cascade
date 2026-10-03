@@ -1,0 +1,151 @@
+{
+  "base_commit": "3f7ed760c1f02308c967b3db4c4f054c8eef2e11",
+  "date": "2026-10-03",
+  "native_run": false,
+  "notes": [
+    "The 322-case suite precedes only the two YAML installer-path corrections; the final 30-case suite includes those corrections. Counts are not additive.",
+    "All fixtures are synthetic or CPU contract checks; no new Factory solve, native preparation or device launch was performed.",
+    "Null pin refuses before SDK import; supplied pin is an identity check, not a physical admission flag.",
+    "Quiet readiness retains 10 host seconds / 0.5 physical seconds; owner lifetime remains 120 host seconds.",
+    "Evidence persistence faults remain sticky and revoke motion; startup preserves original cause despite closure/receipt failures.",
+    "Native model preparation, contact conversion parity, all-solves stream, one turn, rest, visual evidence and closure still require coordinated validation.",
+    "Initial failures from fixture error matching and stale synthetic embodiment resource references remain retained; no physical threshold changed."
+  ],
+  "physical_admission": false,
+  "raw_artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_EFFORT_REVIEW/factory-wiring-profile-addendum.json": "6851f06f3a1f00ff506dde89b06106e0120d4b7e0dcfa2276e91ac7eebb8a79d",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-config-frozen/result.json": "c9b3150a8b85da9b1dfb715f4940c69fdea1d8381490704c503b889862a0d0e9",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-lifecycle/result.json": "c90c69c48e6804b98315a28bf6202349695965a3cb57d00bca4bf9783bfe36c7",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-review/result.json": "070c34fabbcdeed8e5b6987092124958f43101c36a8647f27bd9177641edc45f",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-wiring-first/result.json": "4401ce5a3189b10c009af813ed8f2ea2d4b818b5b14aea0f1d806023ce829998",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-wiring-routing/result.json": "42eb292cbc412d01668b7332a41d393c0f0c7631f0d0de6dc5905132a8a79f8b"
+  },
+  "schema_version": 1,
+  "scope": "ordinary configured Factory domain and existing MCP route; CPU checks only",
+  "shipped_profile_model_pin": null,
+  "source_sha256": {
+    "configs/robots/factory_m20_mounted.yaml": "8b2a39bf7d1d0617ef1669e552631638e18f201942b775a5f98ba1a75e52c7d4",
+    "src/cascade/apps/factory_runtime.py": "52d89bc1aaa7be04b5adcc5072867ae93a5e65e2c2373f0926aeacd8356fd4a7",
+    "src/cascade/apps/robot_runtime.py": "30d56ac15a371775f03dcb56d5d28c0bad968310c7e22241e062277a589a827b",
+    "src/cascade/config.py": "882aa654cca5a05f6334a1223cc504431d9a1f5b6222545d0c3bf689cfb3e655",
+    "src/cascade/sim/factory_model.py": "e0c205ca7f17f4ef46e92d876d8c86c27d0aa22a719d5da8ea68a5ca8ee6f832",
+    "src/cascade/skills/fastening_runtime.py": "02d852536116a94db9d8ab78c0735a852de60cb64236ad138504ebd60ba8fe4e",
+    "tests/test_factory_config.py": "892e6639de791cf0ff426a92ad51fe7ccf2563b4813a492c7878d3f77495779f"
+  },
+  "validation": [
+    {
+      "name": "stage3-persistence",
+      "passed": 322,
+      "pytest_seconds": 4.4,
+      "receipt_path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/result.json",
+      "receipt_sha256": "5b1d3bf23da2d4564bab1702ced748b434715b80eb4c8dc7f27ba25b2c8e4c59",
+      "run": {
+        "artifacts": {
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/after.json": "ddc3cca0f7b9983a2dc90a04dd67823827c5a5617865f68ef9f31f7c1158df6e",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/before.json": "ddc3cca0f7b9983a2dc90a04dd67823827c5a5617865f68ef9f31f7c1158df6e",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/junit.xml": "a711192a5d5ba06419ffcff1e70c00659496e4846e416784b6fc478c11af3139",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/pytest.log": "037cfc3d90cabf3c7629bfc111fee75a0ca95c724d93d9c03aa7e13eb7e19c4b"
+        },
+        "command": [
+          "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+          "-m",
+          "pytest",
+          "tests/test_factory_config.py",
+          "tests/test_robot_mcp.py",
+          "tests/test_robot_runtime.py",
+          "tests/test_fastening_runtime.py",
+          "tests/test_factory_owner.py",
+          "tests/test_factory_observation.py",
+          "tests/test_generalized_joints.py",
+          "-q",
+          "--basetemp=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/tmp",
+          "--junitxml=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/junit.xml",
+          "-o",
+          "cache_dir=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/pytest-cache"
+        ],
+        "elapsed_s": 4.788826735981274,
+        "environment": {
+          "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/beliefs.json",
+          "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/envelope.json",
+          "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/grasp-memory.json",
+          "CUDA_VISIBLE_DEVICES": "-1",
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "PYTHONDONTWRITEBYTECODE": "1",
+          "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src",
+          "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-persistence/cache"
+        },
+        "exit_code": 0,
+        "head": "3f7ed760c1f02308c967b3db4c4f054c8eef2e11",
+        "protected_after": {
+          "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+          "/home/johnny/.cascade/grasp_memory.json": null
+        },
+        "protected_before": {
+          "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+          "/home/johnny/.cascade/grasp_memory.json": null
+        },
+        "protected_unchanged": true,
+        "repository": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade",
+        "source_count": 666,
+        "source_unchanged": true
+      }
+    },
+    {
+      "name": "stage3-profile-paths",
+      "passed": 30,
+      "pytest_seconds": 0.35,
+      "receipt_path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/result.json",
+      "receipt_sha256": "e21e70e076608b6a6ea030504356016b1630ca42bdd9df2b6340ee1464d25133",
+      "run": {
+        "artifacts": {
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/after.json": "1bd06f47610fdadfac2f11e0ec8598f70ffd43117019d83b966707a16d78b870",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/before.json": "1bd06f47610fdadfac2f11e0ec8598f70ffd43117019d83b966707a16d78b870",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/junit.xml": "b0bfa980f5b90051fe4df6459e8387f74ad88eeb75e3cd9ae338a8657e3e5e22",
+          "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/pytest.log": "45de56d74b67af82a23f3b016d102172b9654605d6f373abc3cbcab39125fdeb"
+        },
+        "command": [
+          "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+          "-m",
+          "pytest",
+          "tests/test_factory_config.py",
+          "-q",
+          "--basetemp=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/tmp",
+          "--junitxml=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/junit.xml",
+          "-o",
+          "cache_dir=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/pytest-cache"
+        ],
+        "elapsed_s": 0.6397233259922359,
+        "environment": {
+          "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/beliefs.json",
+          "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/envelope.json",
+          "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/grasp-memory.json",
+          "CUDA_VISIBLE_DEVICES": "-1",
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1",
+          "PYTHONDONTWRITEBYTECODE": "1",
+          "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src",
+          "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-profile-paths/cache"
+        },
+        "exit_code": 0,
+        "head": "3f7ed760c1f02308c967b3db4c4f054c8eef2e11",
+        "protected_after": {
+          "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+          "/home/johnny/.cascade/grasp_memory.json": null
+        },
+        "protected_before": {
+          "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+          "/home/johnny/.cascade/grasp_memory.json": null
+        },
+        "protected_unchanged": true,
+        "repository": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade",
+        "source_count": 666,
+        "source_unchanged": true
+      }
+    }
+  ]
+}

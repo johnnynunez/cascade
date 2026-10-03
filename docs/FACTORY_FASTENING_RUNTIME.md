@@ -1,8 +1,9 @@
 # Mounted Factory fastening runtime
 
-Stage one, 2026-10-03. This is an optional domain implementation with CPU contract
-tests. There is no shipped physical profile or new native result yet. The
-[ordinary wrist routine](FASTENING_RUNTIME_GAP.md) remains unverified.
+Implementation checkpoints, 2026-10-03. The optional mounted domain now has
+an ordinary configuration/MCP route and an inert shipped profile with a null
+model pin. CPU contracts pass; no native result admits this new runtime yet.
+The [ordinary wrist routine](FASTENING_RUNTIME_GAP.md) remains unverified.
 
 `FasteningDomain` in `skills/fastening_runtime.py` can be passed directly to the
 ordinary `RobotRuntime({"fastening": domain})`. It declares one command resource
@@ -230,3 +231,63 @@ the existing MCP server. A coordinated native campaign must still validate the
 actual model construction, contact-force conversion, complete per-solve stream,
 one turn, zero upload, observed rest and owned closure. Historical standalone
 seating evidence supplies none of these new runtime verdicts.
+
+### Configured runtime and existing MCP route
+
+`configs/robots/factory_m20_mounted.yaml` declares `kind: fastening`, the fixed
+recipe, explicit CUDA ordinal and official installer asset paths. Its
+`model_identity_sha256: null` deliberately prevents construction before any SDK
+import. `load_robot_config` and `describe_robot` expose the namespaced
+`fastening.turn_screw` catalog without opening a device. The normal
+`build_robot_runtime` path creates this domain through
+`apps/factory_runtime.py`; the existing MCP server selects that same composition
+with `CASCADE_ROBOT=factory_m20_mounted`. There is no alternate server or fake
+ArmBase. Discovery is not permission to actuate. Dynamic roots, any internal
+multi-DoF joint, conflicting writers and unsupported profile fields are refused.
+
+The paths match `fetch_factory_assets.py` (`assets/factory/nut_bolt`) and
+`fetch_robot_assets.py so101` (`assets/mjcf/so101/so101.xml`). Model preparation
+never fetches assets or silently substitutes SDK implementations. An explicitly
+owned process may call `prepare_factory_model(profile, cache_dir)` to construct
+the model, bind its actual sources/assets/mappings and obtain the exact digest
+without solves or control uploads. A later fresh process must reproduce that
+digest from a private pinned profile before starting the owner. The shipped
+profile remains unpinned; a matching digest is not a physical success flag.
+
+The configured builder records profile and model, refuses reused output epochs,
+then starts the owner with its initial latch on and generation zero. The
+readiness observer begins immediately after `owner.start()` and allows 10 host
+seconds for 0.5 continuous physical seconds of measured rest with actual loaded
+thread/tool engagement and exact zero spindle effort. Model construction and
+compilation occur before that observer budget and must be timed separately by
+the external harness. The owner's independent 120-host-second lifetime starts
+at `owner.start()`. No automatic reset or motion occurs during readiness.
+Neither these limits nor the existing turn/rest gates were extended.
+
+Detached all-solve records, readiness, action and closure receipts are persisted
+outside the priority stop/write path. A persistence failure revokes authority,
+leaves the evidence fault sticky, refuses reset and makes any task result
+unverified while preserving its execution result. Startup preserves its original
+exception if closure or writing the failure receipt also fails; the exception
+notes retain the causal record when the output device is unavailable. A failed
+closure is never promoted to success. A process watchdog remains necessary for
+SDK construction or an uninterruptible solve; a Python join cannot enforce a
+GPU deadline.
+
+Validation: 322 CPU tests passed in 4.40 s across seven configuration, MCP,
+composition, fastening, owner, readback and generalized-joint files. Thirty
+configuration cases then passed in 0.35 s after correcting only the two profile
+asset paths to the official installers' layout. Each run preserved all 666
+source/config/test hashes and protected stores. Initial failed fixture controls
+are retained: a startup error-message branch and stale resource references in a
+synthetic embodiment, subsequently corrected without weakening any gate.
+Independent read-only review covered startup/closure failure persistence and
+confirmed the final two path changes; it did not repeat tests or native physics.
+See the [configuration receipt](../benchmark/results/factory_config_20261003.json).
+
+The remaining admission is a new coordinated native campaign: exact SDK/model
+construction, contact-force conversion and complete solve stream, unchanged
+quiet-start limits, one measured turn, zero upload, observed rest, same-episode
+visual evidence and owned closure. The historical standalone seating result
+does not supply any of these new driver's verdicts. No pickup, automatic
+engagement, seat or preload capability is exposed.

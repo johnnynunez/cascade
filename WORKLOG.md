@@ -619,3 +619,28 @@ precedes the admitted solve. Observed effort tolerance was tightened from
 limits are unchanged and the next float32 value is refused. Raw is not clipped.
 No native task or active profile is admitted. See the owner receipt and runtime
 guide; ordinary config/MCP construction remains the next separate checkpoint.
+
+### 2026-10-03 — configured Factory domain (in progress)
+
+Add explicit kind=fastening to the existing composition builder and MCP route.
+The shipped factory_m20_mounted profile has a null model pin: passive discovery
+works, but construction refuses before any SDK/device import until a separately
+owned preparation supplies the exact model digest. A pin is not a physical
+success flag. Construction must observe a full quiet pre-engaged window while
+the initial latch remains on, retain all solves, and preserve failed startup
+and closure receipts. No fake ArmBase, alternate MCP server, automatic reset,
+pickup, or seating capability. Native execution remains unperformed here.
+
+Configured Factory checkpoint complete: 322 CPU checks passed in 4.40 s; after
+correcting only the two shipped asset paths to official installer layout, all
+30 configuration cases passed in 0.35 s. Each run preserved 666 sources and the
+protected stores. Static independent review closed startup/closure exception
+masking and sticky evidence-write failures; original execution outcomes remain
+visible but cannot receive physical success credit after evidence loss. The
+initial fixture failures and final source-bound receipts are retained in
+benchmark/results/factory_config_20261003.json. Discovery uses existing MCP and
+construction requires an exact model pin plus measured quiet readiness; the
+shipped null pin remains inert. No native launch, threshold relaxation, SDK
+installation, publication, or shared-environment change occurred. Next work is
+an external reviewed preparation/readiness harness with private ownership/cache,
+separate construction/readiness times and unchanged 10 s / 120 s budgets.

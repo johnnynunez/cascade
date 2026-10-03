@@ -573,3 +573,10 @@ read-only review and a separate formatter control passed; Ruff F/E9 and diff
 checks are clean. No LLM, TTS, native motion or audio was executed. This does
 not repair or explain the video's absent output speech; supervisor stop can
 independently revoke that session. Publication/merge freeze remains active.
+
+
+## 2026-10-03 — retain runtime teardown failures
+
+Task-owned clone `RUNTIME_TEARDOWN_RECEIPT/cascade`, base125e248. A read-only real-host preflight found shutdown_runtime suppressed stage errors and ArmRig/CameraRig only logged member failures, while MCP could exit with a handled143. Implemented structured software-only receipts and per-stage continuation, preserved errors/pending workers and first-receipt history, propagated through composed manipulation and MCP. MCP persists teardown.json and refuses a clean exit on unsuccessful teardown or persistence failure. Existing parking/stop/driver torque policy remains unchanged.
+
+Evidence: eight baseline causal tests fail in0.17s; final eight-file selection165PASS/45.11s,655source files and protected store identical before/after. Prior exploratory121PASS/1FAIL was a mock fixture returning Mock rather than the synchronous None contract; corrected fixture only. A mistyped test path produced a separate collection error/no tests and is retained externally. Ruff is not installed in the reused environment; no install was attempted. AST/diff validation performed separately. No services, models, simulator, GPU, publication or shared environment mutation. See docs/RUNTIME_TEARDOWN_RECEIPTS.md and benchmark/results/runtime_teardown_receipt_20261003.json.

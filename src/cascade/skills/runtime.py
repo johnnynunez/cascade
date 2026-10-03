@@ -2702,6 +2702,7 @@ class SkillRuntime:
         from . import release_episode
         release = None
         model_withdrawal = None
+        planned_release_generation = None
         withdrawal_completed = False
         try:
             if not carry_attachment.move(self, low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)),
@@ -2735,7 +2736,13 @@ class SkillRuntime:
                     except (SkillError, SafetyViolation) as exc:
                         raise _PostPlaceRetreatPlanError("release command unavailable: " + str(exc)) from exc
                 else:
-                    release_episode.open_hand(self, release)
+                    if (release is None and release_timeout is not None
+                            and self.cfg.arm.get('type') == 'isaac'
+                            and getattr(self.arm, 'motion_planner', None) is not None):
+                        planned_release_generation = self.arm.harness._halt_generation
+                    release_episode.open_hand(self, release,
+                        **({} if planned_release_generation is None else
+                           {'halt_generation': planned_release_generation}))
             except carry_attachment.AttachmentInvalid:
                 raise
             except Exception as exc:
@@ -2749,6 +2756,13 @@ class SkillRuntime:
             if release_timeout is not None and release is not None:
                 try:
                     release_episode.wait_open(self, release, timeout_s=float(release_timeout))
+                except (SkillError, SafetyViolation) as exc:
+                    release_error = str(exc)
+                    retreat_error = release_error
+            elif planned_release_generation is not None:
+                try:
+                    release_episode.wait_planned_open(self, timeout_s=release_timeout,
+                        halt_generation=planned_release_generation)
                 except (SkillError, SafetyViolation) as exc:
                     release_error = str(exc)
                     retreat_error = release_error
@@ -2799,6 +2813,8 @@ class SkillRuntime:
                     ascended = release_error is None and self.arm.move_joints(
                         retreat.q if retreat is not None else pre.q,
                         duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                        **({} if planned_release_generation is None else
+                           {'_halt_generation': planned_release_generation}),
                     )
                 if retreat is not None and not ascended and release_error is None:
                     retreat_error = "did not settle at the post-place retreat pose"

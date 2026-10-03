@@ -232,9 +232,10 @@ def _validated_opening_observation(episode, state):
     return current
 
 
-def open_hand(runtime, episode):
+def open_hand(runtime, episode, *, halt_generation=None):
     if episode is None:
-        runtime.arm.set_gripper(runtime._grip_open, effort=.6)
+        runtime.arm.set_gripper(runtime._grip_open, effort=.6,
+            **({} if halt_generation is None else {'_halt_generation': halt_generation}))
         return
     _guard(runtime, episode)
     harness = runtime.arm.harness
@@ -246,6 +247,67 @@ def open_hand(runtime, episode):
         episode["open_acknowledged"] = True
     finally:
         harness._release_scope.value = None
+
+
+def wait_planned_open(runtime, *, timeout_s, halt_generation):
+    """Observe open jaws and contact stability before an Isaac planner snapshot.
+
+    Opening and the existing physical hold share one deadline. This grants no
+    release/geometry authority and never changes the planned endpoint or veto.
+    """
+    from ..planning.runtime import wait_for_contact_stability
+    if type(timeout_s) not in (int, float) or not np.isfinite(timeout_s) or timeout_s < 0:
+        raise SafetyViolation("release opening timeout must be finite and nonnegative")
+    deadline = time.monotonic() + timeout_s
+    cfg = runtime.cfg.arm
+    source = (str(cfg.get('bridge_host', '127.0.0.1')), int(cfg.get('bridge_port', 8611)))
+    robot_id = cfg.bridge_robot_id
+    rpc_timeout = positive(cfg.get('motion_rpc_timeout_s', 1.), 'release feedback RPC timeout')
+    clock = PhysicsClock(source, robot_id)
+    limits, previous = None, None
+
+    def guard():
+        runtime.arm.harness.check_stream_start(halt_generation=halt_generation)
+        if time.monotonic() >= deadline:
+            raise SkillError("post-release opening/stability deadline expired")
+
+    def observe(state, *, require_open=False):
+        nonlocal limits, previous
+        try:
+            limits = _jaws(state.gripper_joints, expected=limits, require_open=require_open)
+            q = np.asarray(state.q, float)
+            positions = np.asarray(state.gripper_joints['position_m'], float)
+            if (q.ndim != 1 or not len(q) or not np.isfinite(q).all()
+                    or (previous is not None and q.shape != previous[0].shape)):
+                raise SafetyViolation("invalid post-release joint feedback")
+            fresh = clock.observe(state.physics_clock)
+            if not fresh and previous is not None and (
+                    not np.array_equal(q, previous[0]) or not np.array_equal(positions, previous[1])):
+                raise SafetyViolation("release joint feedback changed without a new physics step")
+            previous = q.copy(), positions.copy()
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            raise SafetyViolation("invalid release feedback: " + str(exc)) from exc
+
+    while True:
+        guard()
+        try:
+            state = runtime.arm.get_state(timeout_s=min(rpc_timeout, deadline-time.monotonic()))
+        except Exception as exc:
+            raise SafetyViolation("release feedback unavailable: " + str(exc)) from exc
+        guard()
+        observe(state)
+        if _both_open(previous[1], limits):
+            # Preserve the opening clock/limits and require both jaws to stay
+            # open on every subsequent sample of the shared stability helper.
+            try:
+                return wait_for_contact_stability(runtime.arm, state, source=source,
+                    robot_id=robot_id, timeout_s=deadline-time.monotonic(), rpc_timeout_s=rpc_timeout,
+                    check=guard, observe=lambda state: observe(state, require_open=True))
+            except (SkillError, SafetyViolation):
+                raise
+            except Exception as exc:
+                raise SafetyViolation("release feedback unavailable: " + str(exc)) from exc
+        time.sleep(min(.05, max(0., deadline-time.monotonic())))
 
 
 def wait_open(runtime, episode, *, timeout_s):

@@ -488,3 +488,46 @@ faults, and post-stop progress that cannot rescue an incomplete admitted turn.
 No native or GPU episode was run, and the modified identity-bound source needs
 a new model digest for any later native recipe. See the
 [terminal-outcome receipt](../benchmark/results/factory_final_outcome_20261003.json).
+
+## Private raw-record retention
+
+The owner now snapshots each trusted `backend.advance` raw value into a private
+pickle-protocol-5 record before enqueueing it and before controller acceptance.
+Only its constructor creates the bytes its `expand()` method decodes. No file,
+transport or caller-supplied encoded stream is loaded. This relies on the existing
+trusted in-process backend: exposing an encoded-byte API or accepting untrusted
+objects with pickle reducers would invalidate that premise. Python encapsulation
+is not an in-process security boundary.
+
+`records()` still returns the complete Python values, including tuples, original
+floating-point values and capture timestamps; persisted JSON is unchanged. The
+20,000-record capacity, typed solve journal, original check order, freshness and
+all deadlines remain unchanged. Encoding cost counts against the existing age
+limit. Encoder failure or overflow reaches the existing owner stop/finalizer.
+Expansion failure latches stop, retains a sticky fault and re-raises the original
+`BaseException`; later drain and close cannot present complete evidence. It does
+not promise recovery of the popped item or preceding rows that were not returned
+from the failed drain. A short, separate error lock preserves the first retained
+fault across consumer/owner races; formatting, codecs and priority stop run
+outside that lock.
+
+One fresh CPU replay per variant retained the same 309 records and 84,710 typed
+contacts. Original raw retention took 373.559 ms with peak RSS 165,348 KiB;
+private pickle took 389.014 ms with peak RSS 85,252 KiB. Live gen2 pauses totaled
+34.660 versus 15.972 ms. Enqueue cost rose from 0.537 to 45.160 ms. GC stayed
+enabled with unchanged thresholds. This pair supports lower retained memory and
+shorter observed pauses, **not** improved throughput, bounded native GC latency
+or successful readiness. The typed journal and native SDK heap remain separate
+sources of retained objects. See the
+[CPU comparison](../benchmark/results/factory_raw_archive_replay_20261003.json).
+
+The final software selection passed 550 tests and skipped 11: four require the
+unavailable SO-101 CPU FK assets and seven require the exact pinned MuJoCo 3.12
+Linux ABI. Eighteen archive controls cover snapshot isolation, Python/JSON types,
+overflow, encoder/decoder faults, concurrency, priority stop and the unchanged
+age veto. A separate roundtrip through the production record and owner drain
+preserved every type, dict order, float bit and the original JSON hash across
+all 309 retained records. Sources and protected stores remained unchanged during
+validation. The [software receipt](../benchmark/results/factory_raw_archive_20261003.json)
+retains the causal failures and limitations. No native episode was run for this
+change; its identity-bound source requires a new model digest and preparation.

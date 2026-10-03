@@ -1,0 +1,86 @@
+{
+  "base_head": "5c21af4e207ad1fe67a1715bdc4bec6894eff859",
+  "invariants": {
+    "capture_check_clocks_and_deadlines_unchanged": true,
+    "failed_expansion_sticky_and_original_baseexception": true,
+    "first_error_atomic_assignment_formatter_outside_lock": true,
+    "gc_enabled_unchanged": true,
+    "no_external_encoded_payload_api": true,
+    "queue_before_controller_accept": true,
+    "record_capacity_default": 20000,
+    "stop_independent_of_codec_and_error_lock": true,
+    "typed_journal_unchanged": true
+  },
+  "limitations": [
+    "Trusted backend already executes Python; arbitrary untrusted objects or externally loaded encoded streams would invalidate pickle trust premise.",
+    "Count bound unchanged; no new per-record byte bound.",
+    "Expansion failure makes export incomplete and does not promise recovery of popped item or preceding rows not returned from the failed drain.",
+    "Single CPU reconstructed-heap pair; no native SDK heap or statistical performance claim.",
+    "Typed SolvedPair journal remains unchanged; no guarantee of longer-run GC latency.",
+    "Changed model-source file requires fresh model identity and new native preparation/readiness before any native claim.",
+    "No new native execution, action, reset, retry, physics or general admission."
+  ],
+  "only_production_file": "src/cascade/sim/factory_owner.py",
+  "replay": {
+    "path": "factory_raw_archive_replay_20261003.json",
+    "purpose": "Memory retention and pause observation, not throughput improvement or native readiness acceptance.",
+    "runs_per_variant": 1,
+    "sha256": "f79b78224ab428e30a07ac5782f2dbe6b820eaeb71291be7739aba7d309f8625"
+  },
+  "retained_corpus_roundtrip": {
+    "backend_invocations": 0,
+    "capture_and_all_other_fields_unchanged": true,
+    "contacts": 84710,
+    "controller_accept_calls": 0,
+    "corpus": "/home/johnny/Projects/demo/cascade-lab/FACTORY_PHASE_DIAGNOSTIC_20261003/native-diagnostic-01/native/runtime/domains/fastening/solves.jsonl",
+    "exact_recursive_types_dict_order_float_bits": true,
+    "new_native": false,
+    "ok": true,
+    "original_json_sha256": "bfebb5d9126c4f63e10002b8302b118a3a944e613ee0f38de241f4a0febdb16b",
+    "owner_queue_count_bound": 20000,
+    "python": "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+    "python_version": "3.12.13 (main, Jun 23 2026, 15:18:55) [Clang 22.1.3 ]",
+    "records": 309,
+    "roundtrip_json_sha256": "bfebb5d9126c4f63e10002b8302b118a3a944e613ee0f38de241f4a0febdb16b",
+    "script_sha256": "23cbd0468d092b88fd090fec3fb14feebdf074e5baa76d03c869cc8400b0539f",
+    "source_sha256": "c28df76bd2850254ec58cba0488d23f71ea91b86c1235c072fe69324e71c2994"
+  },
+  "schema": "factory-private-raw-archive-software-v1",
+  "scope": "Trusted in-process raw record retention; no native execution or readiness claim.",
+  "source_sha256": "c28df76bd2850254ec58cba0488d23f71ea91b86c1235c072fe69324e71c2994",
+  "tests_sha256": "5e7586c273b349adb7d5926c8cc7c284617ce0f05439f2bd10a01f6071d19ac3",
+  "validation": {
+    "after_sha256": "26bdc22fa49b4f03976632c865476ec9b8afc5a1cce5c091631d280c0ccc2eee",
+    "before_sha256": "26bdc22fa49b4f03976632c865476ec9b8afc5a1cce5c091631d280c0ccc2eee",
+    "causal_baseline_source_5c21": {
+      "log_sha256": "07e06afb7b7b3c93ebb37de90c1c2024f630f95f1bf5274933a8527ef7e28aeb",
+      "snapshot_mutation_failed": 2
+    },
+    "causal_candidate01": {
+      "concurrent_first_error_failed": 2,
+      "log_sha256": "5eee7cf75af68321c70afec71ce829c2ebf5172faf3d40118e23826af24bccc5",
+      "source_sha256": "ebaf7ad58dd4f32a5f71fffccb50542474764fb7a4a45d9b6209e30a1ca93c8a"
+    },
+    "corrected_concurrent_controls": {
+      "included_in_final_selection": true,
+      "log_sha256": "4449ab234d935a6c7bca3cd33d9d086a36610052aedb9cd909aa28437f5e1b55",
+      "passed": 2,
+      "seconds": 0.25
+    },
+    "final": {
+      "files": 13,
+      "junit_sha256": "0b3ef5205540c1273b7fbaf8a2a8fff437b502b254db2bc10bccdf5e41615dd5",
+      "log_sha256": "93a111f2fd427def72e82bf71a4d72911043ed2411c98e2e1a70f2aa9514ee0c",
+      "passed": 550,
+      "seconds": 3.09,
+      "skipped": 11
+    },
+    "protected_stores_unchanged": 4,
+    "ruff_FE9": "PASS",
+    "skip_reasons": {
+      "missing_SO101_CPU_FK_assets": 4,
+      "requires_explicit_pinned_MuJoCo312_Linux_wheel": 7
+    },
+    "source_inputs_unchanged_during_final": 1647
+  }
+}

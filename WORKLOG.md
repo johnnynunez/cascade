@@ -791,3 +791,10 @@ Evidence: eight baseline causal tests fail in0.17s; final eight-file selection16
 Independent review of cfff2f2 reproduced a real composed owner whose read outlasted the unchanged five-second drain budget. After the reader returned, shutdown_runtime and MCP caches prevented its close from running. Explicit repeat calls now resume only incomplete delegated cleanup; legacy park/disconnect and the first MCP stop are not repeated. RobotRuntime propagates current complete separately from sticky historical ok, preserves direct and nested attempts, and never recasts a cached failed receipt as successful. Composed domains still require dictionary receipts; legacy synchronous drivers keep None.
 
 Causal baseline: 3 failures/1 passing no-repeat control in10.16s; a separate source export adds2 causal failures/.19s for direct history and nested completion. Final six-file selection139PASS/45.74s,568source/test/config hashes and protected stores unchanged. Added explicit persistence-error history controls; intermediate74PASS/30.53s retained as earlier limited evidence. Ruff F/E9 and diff checks pass. No native model, GPU, service, host campaign, publication or shared environment writes. Receipt: benchmark/results/runtime_teardown_retry_20261003.json. Earlier lifecycle failure remains failed even after cleanup becomes complete.
+
+## Publication follow-up: teardown merge from main70d22de
+
+Normal merge b50229adeb40b5c0439f4b0285aba790a4f3bc99 preserves latest teardown and appends both
+logs. Focused runtime/MCP/close composition: 96PASS/0SKIP, 26.92s;
+1618 source inputs and protected stores unchanged. Prior freezes archived;
+no physics, GPU, limits, or admission changed. Receipt: docs/evidence/robot-modularity/microduck-locomotion-teardown-composition.json.

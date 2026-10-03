@@ -116,3 +116,14 @@ Optional tests use explicit CPU devices and private caches. Two existing BAM
 fixtures each execute 12 CPU solver steps on a free-root/16-hinge test model;
 these are numerical adapter checks, not a MicroDuck episode. No GPU, Kit, native
 mobile service, real policy rollout or new physical admission was performed.
+
+## Teardown follow-up from main
+
+The branch subsequently merged main `70d22deab7f4abb5e5e691386b4b5f952647abca`
+(PR83) through `b50229adeb40b5c0439f4b0285aba790a4f3bc99`. Only the append log conflicted;
+both histories were preserved. The [follow-up receipt](evidence/robot-modularity/microduck-locomotion-teardown-composition.json)
+records 96 passing runtime/MCP/teardown composition checks in 26.92 seconds,
+with all 1618 inputs and protected stores unchanged. Earlier broad and
+optional checks above remain historical receipts for their explicitly named
+source revisions; they were not rerun or relabeled. The latest runtime shutdown
+semantics are retained, and no new native/physical acceptance is claimed.

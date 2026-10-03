@@ -1,0 +1,90 @@
+{
+  "command": [
+    "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/test_locomotion_composition.py",
+    "tests/test_robot_runtime.py",
+    "tests/test_robot_mcp.py",
+    "tests/test_runtime_teardown_receipt.py",
+    "tests/test_mobile_mcp.py",
+    "tests/test_generalized_joint_mcp.py",
+    "-q",
+    "-ra",
+    "--basetemp=/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_PUBLISH_20261003/validation/merge-main-02/tmp",
+    "--junitxml=/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_PUBLISH_20261003/validation/merge-main-02/junit.xml"
+  ],
+  "cuda_visible_devices": "-1",
+  "cwd": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_PUBLISH_20261003/cascade",
+  "elapsed_s": 27.20256096101366,
+  "head": "b50229adeb40b5c0439f4b0285aba790a4f3bc99",
+  "input_count": 1618,
+  "main": "70d22deab7f4abb5e5e691386b4b5f952647abca",
+  "merge_scope": "Normal merge of PR83 runtime teardown, append-only WORKLOG resolution; no motion/control threshold changes",
+  "physics_or_gpu_validation": false,
+  "protected_count": 1,
+  "protected_unchanged": true,
+  "pytest_elapsed_s": 26.92,
+  "pytest_log_sha256": "08a8f216e660308bca48cb8dfa68f4798d9fe59d7c7da99b14a167bb67385ade",
+  "returncode": 0,
+  "source_parity": [
+    {
+      "byte_exact_main": true,
+      "main_sha256": "2d52b576c68c71260811b51f6dbb6f3687c2a5a0fedb1bee21e7ade1f31683b2",
+      "path": "src/cascade/apps/demo.py",
+      "sha256": "2d52b576c68c71260811b51f6dbb6f3687c2a5a0fedb1bee21e7ade1f31683b2"
+    },
+    {
+      "byte_exact_main": true,
+      "main_sha256": "bff04f1fd05491cf75be9e262c61c19be11f377f3c09e151d38fe48916d43217",
+      "path": "src/cascade/apps/mcp_server.py",
+      "sha256": "bff04f1fd05491cf75be9e262c61c19be11f377f3c09e151d38fe48916d43217"
+    },
+    {
+      "byte_exact_main": true,
+      "main_sha256": "886a48f0ff77d0a1d951ab9110241297c6e3b0e9aea819290d5d8b6b0732fe52",
+      "path": "src/cascade/apps/robot_runtime.py",
+      "sha256": "886a48f0ff77d0a1d951ab9110241297c6e3b0e9aea819290d5d8b6b0732fe52"
+    },
+    {
+      "byte_exact_main": true,
+      "main_sha256": "2f09a7e7491650c3fb43c4e9f6ebd92d507cbb8c17e7e9d69326d2389fd819e2",
+      "path": "src/cascade/control/arm_rig.py",
+      "sha256": "2f09a7e7491650c3fb43c4e9f6ebd92d507cbb8c17e7e9d69326d2389fd819e2"
+    },
+    {
+      "byte_exact_main": true,
+      "main_sha256": "db5623671b18ac650de53bf05db9b08e324c1fcc3ecb0bf3a6ef5249a9e6dcd8",
+      "path": "src/cascade/lifecycle.py",
+      "sha256": "db5623671b18ac650de53bf05db9b08e324c1fcc3ecb0bf3a6ef5249a9e6dcd8"
+    },
+    {
+      "byte_exact_main": true,
+      "main_sha256": "d3fd19e728b4fed4c8246dcc6df91522728cde8deff96ce374efb39e60a73511",
+      "path": "src/cascade/perception/stream.py",
+      "sha256": "d3fd19e728b4fed4c8246dcc6df91522728cde8deff96ce374efb39e60a73511"
+    },
+    {
+      "byte_exact_main": true,
+      "main_sha256": "65e2dd22961a093da30ac70044d7f89b926658dc6c7dc859fed0ebca800c7ecc",
+      "path": "src/cascade/robotics/runtime.py",
+      "sha256": "65e2dd22961a093da30ac70044d7f89b926658dc6c7dc859fed0ebca800c7ecc"
+    },
+    {
+      "byte_exact_main": true,
+      "main_sha256": "8e8795908f1dc981af6af4c37c9acc96a1bb918b443e5c476f6ca1011c9188ef",
+      "path": "tests/test_robot_runtime.py",
+      "sha256": "8e8795908f1dc981af6af4c37c9acc96a1bb918b443e5c476f6ca1011c9188ef"
+    },
+    {
+      "byte_exact_main": true,
+      "main_sha256": "f245dc61f11eb9602bacbe73ed17f984d01fbf4ef82a36a534dd8a051c33e04d",
+      "path": "tests/test_runtime_teardown_receipt.py",
+      "sha256": "f245dc61f11eb9602bacbe73ed17f984d01fbf4ef82a36a534dd8a051c33e04d"
+    }
+  ],
+  "source_unchanged": true,
+  "tests_passed": 96,
+  "tests_skipped": 0,
+  "threads": 1
+}

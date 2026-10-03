@@ -2,8 +2,10 @@
 
 The physical two-pick episode on `7a52d956cae5ad14e2c7b717fabf1f692e3755a8`
 remains FAIL+CLOSED. Red was independently confirmed after home; blue was held
-and rejected before carry/release. No subsequent two-object physical success
-is claimed by this correction.
+and rejected before carry/release. A later, separate episode on `d273dc4`
+passed both objects after the corrections and consumer fences below. See
+[the final validation](MUJOCO_MANIPULATION_VALIDATION_20261003.md) for its source,
+physical evidence and limits. The earlier failure remains unchanged.
 
 The source-bound CPU replay found a frame mismatch: region selection and
 ordinary `place_at` subtracted a world-frame object−TCP translation, then chose
@@ -79,8 +81,8 @@ separation from red, and the full predicted footprint within the original
 negative tests cover frame/offset variants, stale state/model/epoch/mapping,
 stop followed by reset, original deadline, altered target/geometry, consumption
 through `skill_place_at`, and an unsafe target overlapping the placed prefix.
-Actual carry, release, rest and prefix preservation still require a separately
-authorized physical episode.
+At that scratch checkpoint, actual carry, release, rest and prefix preservation
+remained untested; the separately authorized final episode is linked above.
 
 The earlier 313-test checkpoint is preserved at `326720e7`; subsequent review
 found that stop/reset inside the first `SafeArm` read could still reach backend

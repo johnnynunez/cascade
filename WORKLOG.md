@@ -694,3 +694,23 @@ launcher fails both explicit endpoint controls while the candidate passes; the
 unset-default control passes for both. Independent source review, Ruff F/E9,
 Bash syntax and diff checks pass. No model, host, robot or GPU was launched, and
 this change does not validate trial12 or authenticate model weights.
+
+### 2026-10-03 — publishable MuJoCo placement extraction and physical closure
+
+The original two-object memory test passes once on frozen d273dc4: contact-only
+SO-101 MuJoCo3.14/CPU/Mesa, both ordinary placements independently confirmed
+after withdrawal and home, first object retained after the second. Red/blue
+settling windows are11/.600s and12/.660s; final original-point distances25.776
+and30.657mm satisfy the unchanged60mm test. Exit0 is natural and every owned
+process is absent. Sources, model assets and four protected stores are intact.
+The previous physical failures remain retained, as does the cancelled handoff
+red/green control. This is one explicit recipe, not general robot admission.
+
+Extract reviewed manipulation hunks onto main70d22de, then merge main67f0b61;
+do not copy the old runtime or carry independent Factory/sensor/task-ledger work.
+575 affected tests pass, then106 reader/destination checks pass after correcting
+a partial test fixture and materializing missing pinned kitchen assets. Initial
+collection/preparation failures remain in the receipt. Model-only reconstruction
+prohibits steps and produces both exact physical model digests at time0. The
+main merge leaves tested src/config bytes intact; no repeated physical episode.
+See docs/MUJOCO_MANIPULATION_VALIDATION_20261003.md and its two receipts.

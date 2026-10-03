@@ -57,16 +57,27 @@ def test_explicit_reset_replans_new_generation_but_retains_debt_until_physical_r
     assert not failed['ok'] and failed['withdrawal_reset_verification']['at_model_spawn'], failed
     assert runtime._mujoco_withdrawals[id(runtime.arm)] is pending
     assert pending.generation == old_generation
+    described_after_capture = []
+    describe = runtime._describe_observation
+    def describe_cancelled_capture(*args, **kwargs):
+        described_after_capture.append(True)
+        return describe(*args, **kwargs)
     def cancelled_frame(*args, **kwargs):
         observed = frames(*args, **kwargs)
-        runtime.arm.harness.halt('stop delivered after reset observation')
+        runtime.arm.harness.halt('stop delivered after reset camera capture')
         return observed
+    monkeypatch.setattr(runtime, '_describe_observation', describe_cancelled_capture)
     monkeypatch.setattr(runtime, '_reset_camera_frames', cancelled_frame)
     cancelled = runtime.execute('reset_scene', {})
-    assert not cancelled['ok'] and cancelled['observation_refreshed'], cancelled
+    # A camera returned, but cancellation must fence observation processing;
+    # it must not earn the later successful-observation/completion credit.
+    assert not cancelled['ok'] and not cancelled['observation_refreshed'], cancelled
+    assert cancelled['stage'] == 'reset_recovery', cancelled
+    assert not described_after_capture
     assert runtime._mujoco_withdrawals[id(runtime.arm)] is pending
     assert runtime.arm.harness._pending_model_withdrawal is pending
     runtime.arm.harness.clear_halt()
+    monkeypatch.setattr(runtime, '_describe_observation', describe)
     monkeypatch.setattr(runtime, '_reset_camera_frames', frames)
     completed = runtime.execute('reset_scene', {})
     assert completed['ok'] and completed['observation_refreshed'], completed

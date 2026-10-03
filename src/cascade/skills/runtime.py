@@ -3788,11 +3788,14 @@ class SkillRuntime:
             return {**out, **carry_attachment.failure_result(self, exc)}
         occupancy = getattr(self.arm.harness, "occupancy", None)
         recovery_generation = None
+        recovery_cancellation = None
         def recovery_cancelled():
             if recovery_generation is None:
                 return False
             try:
                 self.arm.harness._check_halt_generation(recovery_generation)
+                if recovery_cancellation is not None:
+                    self.arm.harness.check_motion_cancellation(recovery_cancellation)
                 if self.arm.harness.estopped:
                     raise SafetyViolation("e-stop latched during scene recovery")
             except SafetyViolation as exc:
@@ -3846,6 +3849,7 @@ class SkillRuntime:
             if pending_withdrawal is not None:
                 out["withdrawal_recovery"] = pending_withdrawal.recover_for_reset()
                 recovery_generation = out["withdrawal_recovery"]["generation"]
+                recovery_cancellation = out["withdrawal_recovery"]["cancellation"]
             else:
                 self.skill_move_home(_halt_generation=recovery_generation) if recovery_generation is not None else self.skill_move_home()
         except (SkillError, SafetyViolation) as e:
@@ -3893,7 +3897,7 @@ class SkillRuntime:
             if pending_withdrawal is not None:
                 try:
                     out["withdrawal_reset_verification"] = pending_withdrawal.verify_reset(
-                        out["props_reset"], recovery_generation)
+                        out["props_reset"], recovery_generation, recovery_cancellation)
                 except (SkillError, SafetyViolation) as exc:
                     return {**out, "ok": False, "stage": "reset_verification", "error": str(exc)}
         elif hasattr(raw, "reset_props"):
@@ -3946,7 +3950,11 @@ class SkillRuntime:
                 # Clear only this arm, after actual prop reset and fresh
                 # observation. Failed resets and ordinary retries retain it.
                 if pending_withdrawal is not None:
-                    pending_withdrawal.complete(generation=recovery_generation)
+                    try:
+                        pending_withdrawal.complete(generation=recovery_generation,
+                                                    cancellation=recovery_cancellation)
+                    except (SkillError, SafetyViolation) as exc:
+                        return {**out, "ok": False, "stage": "reset_completion", "error": str(exc)}
         return out
 
     def skill_move_home(self, *, _halt_generation=None) -> dict:

@@ -721,3 +721,13 @@ See docs/MUJOCO_MANIPULATION_VALIDATION_20261003.md and its two receipts.
 The isolated jaw-feedback fixture now supplies a real idle `SafetyHarness`, as the production `SafeArm` does. The common withdrawal guard remains enabled; production code, jaw feedback, timeout assertions and limits are unchanged.
 
 On PR93 base `f06837ce`, all eight feedback cases reproduced the missing-harness `AttributeError`. After the fixture correction, the existing feedback, model-withdrawal, postrelease, attachment-fence and safety checks passed: **117 passed in 32.62 s**, with 26 locally retained SO-101 asset files verified before and after. An earlier run without those fetched assets is retained separately as 22 passed / 95 skipped. Normal conftest, hidden CUDA, software GL and four private/protected store checks were used; no simulator service or GPU was launched. Evidence is retained outside git in `GRIPPER_FEEDBACK_FIX_20261003/{baseline-01,focused-01,focused-02,asset-materialization.json}`.
+
+
+### PR93 retained-withdrawal cancellation correction — 2026-10-03
+
+- Reproduced explicit-generation completion debt loss and a target crossing the consumer after stop/reset during approval (2 red / 4 controls on 1ac1923).
+- Forward the original token for home/withdraw; register only successful explicit recovery context; fence reset reads/final observation and atomically validate token/latch/owner before debt removal.
+- Independent review caught and closed explicit-original-context epoch bypass; legitimate registered reset may change the placement-history epoch.
+- 151 CPU/static-geometry tests pass, 0 skip; one original physical reset test deselected. Twenty cancellation controls include the real SafeArm/ArmBase boundary with intercepted writes.
+- Preserved the initial fixture errors and missing-LFS-mesh failure; 26 SO101 assets and two gripper meshes verified against hashes/OIDs, sources and protected stores unchanged. No GPU, new native physics episode or physical admission.
+- Receipt: `benchmark/results/mujoco_withdrawal_cancellation_20261003.json`.

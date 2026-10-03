@@ -70,3 +70,20 @@ another verdict. Its `diagnostic_only: true` and `physical_task_verdict: false`
 labels also apply to missing/failed capture data; persistence errors leave the
 action's original result and postcondition intact. Recorded identity is not
 revalidated as current identity by this diagnostic copy.
+
+
+Cancellation follow-up: `home` and `withdraw` pass the original cancellation
+token through the existing SafeArm consumer gates. A stop followed by clearing
+the latch still invalidates that command. Explicit scene recovery records a
+new context only after recovery succeeds; reset verification and final
+completion must use that exact context. Supplying the original generation
+explicitly cannot bypass the postrelease epoch check. Pending withdrawal is
+cleared atomically with token, latch and ownership validation, with no geometry
+or backend calls under the observation lock.
+
+The [cancellation receipt](../benchmark/results/mujoco_withdrawal_cancellation_20261003.json)
+retains the original 2 failing / 4 passing causal controls and the final
+151 passing CPU/static-geometry tests, including 20 cancellation controls.
+These cover stop/reset during waypoint approval, reset reads, final observation
+and completion, plus legitimate explicit recovery. No new physical episode
+or transfer of the earlier two-object physical admission is claimed.

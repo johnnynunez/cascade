@@ -337,19 +337,36 @@ class Withdrawal:
         with self._scope("cleanup"):
             self.harness.clear_grasp_exemption()
 
-    def complete(self, *, generation=None):
+    def _completion_context(self, generation, cancellation):
+        context = (self.generation if generation is None else generation,
+                   self.cancellation if cancellation is None else cancellation)
+        if (any(type(value) is not int or value < 0 for value in context)
+                or context not in ((self.generation, self.cancellation),
+                                   getattr(self, "_reset_recovery_context", None))):
+            raise SkillError("model withdrawal completion context was not recovered")
+        return context
+
+    def _check_context_locked(self, generation, cancellation):
+        # Caller holds the harness observation lock. Do not invoke geometry,
+        # drivers or helpers that acquire that non-reentrant lock here.
+        if (generation != self.harness._halt_generation
+                or cancellation != self.harness._observation_cancel_generation
+                or self.harness._estopped or self.harness._halt is not None):
+            raise SkillError("model withdrawal context was cancelled")
+
+    def complete(self, *, generation=None, cancellation=None):
         self._binding_guard()
-        if generation is None:
+        context = self._completion_context(generation, cancellation)
+        if generation is None or context != getattr(self, "_reset_recovery_context", None):
             self._check_replan_cancellation()
-        self.harness._check_halt_generation(self.generation if generation is None else generation)
-        if self.harness.estopped or self.harness.halted is not None:
-            raise SafetyViolation("model withdrawal completion cancelled")
         pending = getattr(self.runtime, "_mujoco_withdrawals", {})
-        if (self.harness._pending_model_withdrawal is not self
-                or pending.get(id(self.arm)) is not self):
-            raise SafetyViolation("model withdrawal completion binding changed")
-        self.harness._pending_model_withdrawal = None
-        del pending[id(self.arm)]
+        with self.harness._observation_lock:
+            self._check_context_locked(*context)
+            if (self.harness._pending_model_withdrawal is not self
+                    or pending.get(id(self.arm)) is not self):
+                raise SafetyViolation("model withdrawal completion binding changed")
+            self.harness._pending_model_withdrawal = None
+            del pending[id(self.arm)]
 
     def guard(self):
         self._binding_guard()
@@ -622,7 +639,8 @@ class Withdrawal:
                 self.guard()
         with self._scope("move", target=self.q, duration=self.duration):
             return self.arm.move_joints(self.q, duration_s=self.duration,
-                                        _preflight=preflight, _halt_generation=self.generation)
+                                        _preflight=preflight, _halt_generation=self.generation,
+                                        _cancellation_token=self.cancellation)
 
     def home(self):
         """Execute the actual checked joint route through ordinary SafeArm."""
@@ -645,13 +663,15 @@ class Withdrawal:
                 self._geometry_segment(actual, goal, duration)
             with self._scope("move", target=goal, duration=3.):
                 if not self.arm.move_joints(goal, duration_s=3., _preflight=preflight,
-                                            _halt_generation=self.generation):
+                                            _halt_generation=self.generation,
+                                            _cancellation_token=self.cancellation):
                     raise SkillError("did not settle at home after release")
         self.after_withdrawal()
         return {"at": "home"}
 
     def recover_for_reset(self):
         """Explicit reset may replan; normal retries cannot renew a permit."""
+        self._reset_recovery_context = None
         self._binding_guard()
         if self.runtime.held_object:
             raise SkillError("release reset recovery requires an empty tool")
@@ -661,8 +681,10 @@ class Withdrawal:
         # Retain only the model's collider identities. Old target/q/scratch
         # geometry grant no authority to this explicitly requested recovery.
         del recovery.q, recovery.q_start, recovery.target
-        recovery.generation = self.harness._halt_generation
-        recovery.cancellation = self.harness._observation_cancel_generation
+        with self.harness._observation_lock:
+            recovery.generation = self.harness._halt_generation
+            recovery.cancellation = self.harness._observation_cancel_generation
+            self._check_context_locked(recovery.generation, recovery.cancellation)
         recovery._bound_data = self.world.data
         recovery._bound_history = getattr(self.world, "placement_history", None)
         recovery._bound_epoch = getattr(recovery._bound_history, "epoch", None)
@@ -676,15 +698,21 @@ class Withdrawal:
         del recovery.envelope
         recovery._release_envelope()
         result = recovery.home()
-        return {"generation": recovery.generation, "home": result,
+        recovery._binding_guard()
+        recovery._check_replan_cancellation()
+        with self.harness._observation_lock:
+            self._check_context_locked(recovery.generation, recovery.cancellation)
+            self._reset_recovery_context = (recovery.generation, recovery.cancellation)
+        return {"generation": recovery.generation, "cancellation": recovery.cancellation,
+                "home": result,
                 "pending_retained_until_scene_reset": True}
 
-    def verify_reset(self, names, generation):
+    def verify_reset(self, names, generation, cancellation=None):
         """A reset ACK alone must not erase retained release state."""
         self._binding_guard()
-        self.harness._check_halt_generation(generation)
-        if self.harness.estopped:
-            raise SkillError("release reset verification cancelled")
+        context = self._completion_context(generation, cancellation)
+        with self.harness._observation_lock:
+            self._check_context_locked(*context)
         expected = self.world.free_body_names()
         if sorted(names) != sorted(expected) or not expected:
             raise SkillError("release reset did not name every physical object")
@@ -696,7 +724,9 @@ class Withdrawal:
                 if (not np.array_equal(self.world.data.qpos[qa:qa+7], self.model.qpos0[qa:qa+7])
                         or not np.array_equal(self.world.data.qvel[va:va+6], np.zeros(6))):
                     raise SkillError("release reset physical state differs from the model spawn")
-        self.harness._check_halt_generation(generation)
+        self._binding_guard()
+        with self.harness._observation_lock:
+            self._check_context_locked(*context)
         return {"channel": "mujoco_physics", "props": expected,
                 "at_model_spawn": True, "zero_free_body_velocity": True}
 

@@ -72,6 +72,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "cascade.conversation" = ["static/*.html", "static/*.js", "static/*.css"]
+"cascade.sim" = ["factory_precompile_pins.json", "factory_mjdata_layout.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

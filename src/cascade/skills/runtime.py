@@ -618,17 +618,21 @@ class SkillRuntime:
         dur = (time.monotonic() - t0) * 1000
         # Pigey closed loop: was the claimed effect real? A refuted
         # postcondition DOWNGRADES a self-reported success (annotate_result).
-        if self.effects is not None and result.get("ok") is not None:
-            from ..agent.effects import UNVERIFIED, Postcondition, annotate_result
+        if (self.effects is not None or name == "turn_screw") and result.get("ok") is not None:
+            from ..agent.effects import UNVERIFIED, Postcondition, PostconditionChecker, annotate_result
 
             try:
-                pc = self.effects.verify(name, args, result, before=pre_state)
+                if self.effects is None:
+                    # Bare runtimes also lack the admitted fastener observer;
+                    # omitting optional verification must not credit fastening.
+                    pc = PostconditionChecker().verify(name, args, result, before=pre_state)
+                else:
+                    pc = self.effects.verify(name, args, result, before=pre_state)
+                if name == "turn_screw" and pc is None:
+                    pc = PostconditionChecker().verify(name, args, result, before=pre_state)
             except Exception as e:  # noqa: BLE001
-                # The verifier itself failing (camera hiccup, truth channel
-                # down) must NOT leave a self-reported `ok` standing as if it
-                # had been checked -- that is the closed loop silently off.
-                # Record it as an UNVERIFIED postcondition that names the
-                # cause, so `verified: false` reaches the agent and the trace.
+                # A verifier fault must remain explicitly UNVERIFIED in the
+                # result and trace; never leave self-reported ok unchecked.
                 pc = Postcondition(
                     skill=name, kind="verifier", status=UNVERIFIED,
                     evidence=f"postcondition check crashed: {type(e).__name__}: {e}",
@@ -648,6 +652,12 @@ class SkillRuntime:
                 "placement. Do not say 'done', 'success', or that the object is inside the "
                 "destination. Include any return_home failure, then await the next user "
                 "order without another movement."
+            )
+        elif name == "turn_screw" and result.get("verified") is False:
+            result["next_action"] = (
+                "Report fastening unverified. execution_ok describes only the wrist routine; "
+                "do not claim fastener turns, axial advancement, seating or tightening torque. "
+                "Do not repeat motion to obtain confirmation from this unsupported observer."
             )
         # Harness-VLA: fold the outcome into the learned operating envelope.
         try:
@@ -4560,7 +4570,10 @@ TOOL_SPECS: list[dict] = [
             "Tighten or loosen a screw, bolt, nut or knob by ratcheting the "
             "wrist roll: the jaws engage the head, turn through the wrist's "
             "free travel, release, counter-rotate and re-engage until the "
-            "requested number of turns is applied. tighten = clockwise from "
+            "requested wrist travel is commanded. Without an admitted independent "
+            "fastener observer the physical result is unverified (ok=false); "
+            "execution_ok reports whether the wrist routine completed. It does not "
+            "verify threading, seating or torque. tighten = clockwise from "
             "above (right-hand thread). Use for 'tighten the screw' / "
             "'unscrew the bolt' / 'loosen the knob two turns'."
         ),

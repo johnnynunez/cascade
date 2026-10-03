@@ -58,6 +58,7 @@ POSTCONDITIONS: dict[str, str] = {
     "open_gripper": "empty",
     "close_gripper": "closed",
     "move_home": "at_home",
+    "turn_screw": "threaded",
 }
 
 #: An object that rose by at least this much (m) genuinely left the table.
@@ -298,6 +299,16 @@ class PostconditionChecker:
         return pc
 
     # ── individual postconditions ────────────────────────────────────────
+
+    def _check_threaded(self, pc, args, result, before) -> None:
+        # No admitted fastener observer is wired into this runtime yet.
+        # Wrist travel, jaw closure, XYZ displacement and the actor's own
+        # physical_verification field cannot prove thread engagement or seat.
+        pc.status = UNVERIFIED
+        pc.evidence = (
+            "no independent fastener rotation, axial advance and contact observations; "
+            "commanded wrist strokes do not verify threading or seating"
+        )
 
     def _check_holding(self, pc, args, result, before) -> None:
         """A grasp succeeded iff the object LEFT THE TABLE with the gripper.
@@ -697,7 +708,17 @@ def annotate_result(result: dict, pc: Postcondition | None) -> dict:
     if pc is None:
         return result
     result["postcondition"] = pc.as_dict()
-    if pc.refuted and result.get("ok"):
+    if pc.skill == "turn_screw" and pc.status == UNVERIFIED:
+        # This skill's request is a physical fastening outcome. A completed
+        # wrist routine must not train a successful reflex/envelope entry.
+        # Other skills retain their existing ok/verified convention.
+        result.setdefault("execution_ok", result.get("ok") is True)
+        result["verified"] = False
+        result["verification_note"] = pc.evidence
+        if result.get("ok"):
+            result["ok"] = False
+            result["error"] = f"fastening unverified: {pc.evidence}"
+    elif pc.refuted and result.get("ok"):
         result["ok"] = False
         result["error"] = f"postcondition failed: {pc.evidence}"
         result["self_reported_ok"] = True

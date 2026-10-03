@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import hashlib
 import importlib
+import math
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -290,7 +291,27 @@ class FactoryGeometry:
                           self.shadow.geom_xmat[self.geoms].reshape(-1, 3, 3))
 
 
-def contact_records(scene, output):
+class _ZeroLoadPairs:
+    """Reuse immutable zero values, never candidate records or observations."""
+
+    def __init__(self):
+        self._values = {}
+
+    def pair(self, collider_a, collider_b, normal_force_n):
+        if (type(collider_a) is not str or type(collider_b) is not str
+                or type(normal_force_n) is not float or normal_force_n != 0.):
+            return SolvedPair(collider_a, collider_b, normal_force_n)
+        # Preserve ordering and signed zero, including their raw JSON values.
+        key = (collider_a, collider_b, math.copysign(1., normal_force_n))
+        value = self._values.get(key)
+        if value is None:
+            value = SolvedPair(collider_a, collider_b, normal_force_n)
+            if len(self._values) < 256:
+                self._values[key] = value
+        return value
+
+
+def contact_records(scene, output, *, _zero_pairs=None):
     """Decode all solver candidates; inactive candidates have no solved load.
 
     Active rows retain vector force, actual point and normal. An inactive
@@ -305,6 +326,7 @@ def contact_records(scene, output):
     ncon = _integer(solver.mjw_data.nacon, "solver contacts")
     addresses = solver.mjw_data.contact.efc_address.numpy()[:ncon, 0]
     shapes = [getattr(output, "rigid_contact_shape" + str(i)).numpy()[:ncon] for i in (0, 1)]
+    pair = SolvedPair if _zero_pairs is None else _zero_pairs.pair
     pairs, records = [], []
     for index, address in enumerate(addresses):
         if address >= 0:
@@ -315,7 +337,7 @@ def contact_records(scene, output):
                 shape_a=scene.model.shape_label[shapes[0][index]],
                 shape_b=scene.model.shape_label[shapes[1][index]], normal_force_n=0.,
                 point_world_m=None, normal_a_to_b_world=None, force_on_b_world_n=None)
-        pairs.append(SolvedPair(record["shape_a"], record["shape_b"], record["normal_force_n"]))
+        pairs.append(pair(record["shape_a"], record["shape_b"], record["normal_force_n"]))
         records.append(record)
     if next(active, None) is not None:
         raise FasteningFault("unconsumed solved contact rows")
@@ -339,6 +361,7 @@ class FactoryObserver:
         self.output = scene.newton.Contacts(int(scene.solver.mjw_data.naconmax), 0,
             device=scene.model.device, requested_attributes={"force"})
         self._last_step = 0
+        self._zero_pairs = _ZeroLoadPairs()
 
     def read(self, stamp, captured_monotonic_s, collision_receipt):
         s = self.scene
@@ -364,7 +387,7 @@ class FactoryObserver:
                     or not np.isclose(qd[row.newton_dof], nv[0, row.native_dof], atol=2e-6, rtol=1e-6)):
                 raise FasteningFault("native/Newton joint readback mapping disagrees")
         bounds = self.geometry.evaluate(nq[0], body_poses=poses)
-        pairs, raw_contacts = contact_records(s, self.output)
+        pairs, raw_contacts = contact_records(s, self.output, _zero_pairs=self._zero_pairs)
         # Static bolt transform is bound at construction and checked by owner
         # model fingerprint; no fabricated moving fixture body is introduced.
         nut = poses[s.nut_body]

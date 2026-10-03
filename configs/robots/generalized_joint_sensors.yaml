@@ -1,0 +1,99 @@
+# Observation-only synthetic values, not articulated motion or physical feedback.
+# Joint frames are declared coordinate conventions; no world/link transforms exist.
+version: 1
+robot_id: generalized_joint_sensors
+embodiment:
+  version: 2
+  robot_id: generalized_joint_sensors
+  root_link: support
+  root_mode: fixed
+  links: [support, platform, gimbal, payload]
+  joints:
+  - joint_id: platform
+    parent: support
+    child: platform
+    type: planar
+    actuation: passive
+    coordinates: &planar
+      nq: 3
+      nv: 3
+      q_order: [x, y, angle_z]
+      v_order: [vx, vy, wz]
+      effort_order: [fx, fy, tz]
+      q_units: [m, m, rad]
+      v_units: [m/s, m/s, rad/s]
+      effort_units: [N, N, N*m]
+      configuration_frame: parent_joint
+      motion_frame: parent_joint
+      motion_relation: child_relative_to_parent
+      motion_reference: child_joint_origin
+      rotation: right_handed_about_parent_z
+  - joint_id: gimbal
+    parent: platform
+    child: gimbal
+    type: spherical
+    actuation: passive
+    coordinates: &spherical
+      nq: 4
+      nv: 3
+      q_order: [qw, qx, qy, qz]
+      v_order: [wx, wy, wz]
+      effort_order: [tx, ty, tz]
+      q_units: ['1', '1', '1', '1']
+      v_units: [rad/s, rad/s, rad/s]
+      effort_units: [N*m, N*m, N*m]
+      configuration_frame: parent_joint
+      motion_frame: parent_joint
+      motion_relation: child_relative_to_parent
+      motion_reference: child_joint_origin
+      rotation: hamilton_wxyz_child_to_parent
+  - joint_id: payload
+    parent: gimbal
+    child: payload
+    type: floating
+    actuation: passive
+    coordinates: &floating
+      nq: 7
+      nv: 6
+      q_order: [x, y, z, qw, qx, qy, qz]
+      v_order: [vx, vy, vz, wx, wy, wz]
+      effort_order: [fx, fy, fz, tx, ty, tz]
+      q_units: [m, m, m, '1', '1', '1', '1']
+      v_units: [m/s, m/s, m/s, rad/s, rad/s, rad/s]
+      effort_units: [N, N, N, N*m, N*m, N*m]
+      configuration_frame: parent_joint
+      motion_frame: parent_joint
+      motion_relation: child_relative_to_parent
+      motion_reference: child_joint_origin
+      rotation: hamilton_wxyz_child_to_parent
+  sensors:
+  - sensor_id: joints
+    link_id: support
+    resource_id: sensing/joints
+    frame_id: generalized_joint_sensors/coordinates
+    joint_ids: [platform, gimbal, payload]
+domains:
+  sensing:
+    kind: sensors
+    providers:
+    - id: joints
+      kind: synthetic
+      modality: generalized_joint_state
+      frame_id: generalized_joint_sensors/coordinates
+      values:
+        joints:
+        - joint_id: platform
+          joint_type: planar
+          coordinates: *planar
+          q: [0.1, -0.2, 0.3]
+          v: [0.0, 0.0, 0.0]
+        - joint_id: gimbal
+          joint_type: spherical
+          coordinates: *spherical
+          q: [1.0, 0.0, 0.0, 0.0]
+          v: [0.0, 0.0, 0.0]
+        - joint_id: payload
+          joint_type: floating
+          coordinates: *floating
+          q: [0.01, 0.02, 0.03, 1.0, 0.0, 0.0, 0.0]
+          v: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import array
 import base64
+from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass
 import math
 import re
@@ -58,6 +59,8 @@ def wire(value):
         return {"encoding": "base64", "data": base64.b64encode(value).decode("ascii")}
     if isinstance(value, tuple):
         return [wire(v) for v in value]
+    if isinstance(value, Mapping):
+        return {k: wire(v) for k, v in value.items()}
     return value
 
 
@@ -172,6 +175,60 @@ class JointStatePayload(Payload):
             raise ValueError("typed joint measurements required")
         if len({j.joint_id for j in joints}) != len(joints):
             raise ValueError("duplicate joint measurements")
+        object.__setattr__(self, "joints", joints)
+
+
+@dataclass(frozen=True)
+class GeneralizedJointMeasurement:
+    """Configuration q and tangent velocity v; quaternion rate is never v.
+
+    For multi-DoF joints, v and its dual effort use the parent joint frame at
+    the child joint origin. Missing effort is unknown, not a zero reaction.
+    """
+    joint_id: str
+    joint_type: str
+    q: tuple
+    v: tuple
+    coordinates: object
+    effort: tuple | None = None
+
+    def __post_init__(self):
+        from ..robotics.joint_coordinates import QUATERNION_NORM_SQUARED_TOLERANCE, validate_coordinates
+        token(self.joint_id, "joint_id")
+        convention = validate_coordinates(self.joint_type, self.coordinates)
+        object.__setattr__(self, "coordinates", convention)
+        object.__setattr__(self, "q", vector(self.q, convention["nq"], "configuration q"))
+        object.__setattr__(self, "v", vector(self.v, convention["nv"], "tangent velocity v"))
+        if self.effort is not None:
+            object.__setattr__(self, "effort", vector(self.effort, convention["nv"], "generalized effort"))
+        if self.joint_type in {"spherical", "floating"}:
+            quaternion = self.q if self.joint_type == "spherical" else self.q[3:]
+            if not math.isclose(sum(x*x for x in quaternion), 1., rel_tol=0,
+                                abs_tol=QUATERNION_NORM_SQUARED_TOLERANCE):
+                raise ValueError("configuration quaternion must be unit length; no implicit normalization")
+
+
+@dataclass(frozen=True)
+class GeneralizedJointStatePayload(Payload):
+    """Opt-in observation contract, separate from legacy scalar joint packets."""
+    metadata: MeasurementMetadata
+    joints: tuple
+    embodiment_sha256: str
+    modality: ClassVar[str] = "generalized_joint_state"
+    units: ClassVar[tuple] = (("joints", "explicit_q_v_effort_components"),)
+
+    def __post_init__(self):
+        self._metadata()
+        if self.embodiment_sha256 is None:
+            raise ValueError("generalized joint state requires an embodiment digest")
+        digest(self.embodiment_sha256)
+        if not isinstance(self.joints, (tuple, list)) or not 1 <= len(self.joints) <= 512:
+            raise ValueError("generalized joint state must contain 1..512 joints")
+        joints = tuple(GeneralizedJointMeasurement(**j) if isinstance(j, dict) else j for j in self.joints)
+        if any(type(j) is not GeneralizedJointMeasurement for j in joints):
+            raise ValueError("typed generalized joint measurements required")
+        if len({j.joint_id for j in joints}) != len(joints):
+            raise ValueError("duplicate generalized joint measurements")
         object.__setattr__(self, "joints", joints)
 
 
@@ -303,7 +360,7 @@ class RgbdPayload(Payload):
         object.__setattr__(self, "intrinsics", k)
 
 
-PAYLOAD_TYPES = (ImuPayload, ProprioceptionPayload, JointStatePayload, SolvedContactPayload, EstimatedTactilePayload,
+PAYLOAD_TYPES = (ImuPayload, ProprioceptionPayload, JointStatePayload, GeneralizedJointStatePayload, SolvedContactPayload, EstimatedTactilePayload,
                  RgbPayload, RgbdPayload, TactileImagePayload)
 
 

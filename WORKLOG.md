@@ -1,5 +1,29 @@
 # Manipulation and assembly integration
 
+## 2026-10-03 — distance outcome after command completion
+
+Plan: reproduce the PR87 review counterexample on cbe9873 (30 mm admitted
+travel followed by 50 mm coasting and quiet rest), then retain post-completion
+geometry as veto-only independent evidence. Positive credit remains bounded
+by the admission/completion interval. Keep the existing geometry, support,
+freshness, stop and cancellation limits; no new physics or GPU run. Validate
+signed goals, late-only travel, terminal overshoot/retreat/drift, bad support,
+cancelled reads and execution failure with synthetic CPU records. Changes
+belong to the independent verifier and regressions, not the policy/driver.
+
+Result: the exact inspected review probe reproduced the 30+50 mm false
+confirmation on cbe9873 and refutes it after the fix. Its four other verdicts
+are unchanged. Eight signed/rotated overshoot controls fail on the original
+source; the final seven-file selection passes 566 cases in 48.88 seconds with
+source and four protected stores unchanged. An intermediate 64-pass/1-fail
+run retained an overly specific test reason assertion: the existing settle
+veto legitimately won reason precedence. Only that assertion was corrected;
+it now checks both refusal and the retained geometric veto. Ruff F/E9 and diff
+checks pass. No SDK, simulator, GPU, service or shared environment mutation.
+Positive credit and all limits are unchanged; the added O(n) outcome pass is
+veto-only and limited to walk_distance. Receipt:
+`benchmark/results/mobile_distance_outcome_20261003.json`.
+
 Base: `1271d52d09feaa0edb4652d39a9ab21d69e4a686`.
 
 User priority (2026-10-02): implement OVRTX/cuMotion in manipulation and
@@ -605,6 +629,180 @@ protected baseline and grasp memory remains absent. No GPU, native robot or
 hardware admission was tested. See benchmark/results/generalized_joints_20261003.json.
 
 
+Composition completed using the reviewed publication equivalents through
+15382f3. Only append conflicts in this worklog were resolved; control, verifier
+and both mobile runtime files match that checkpoint exactly. Current RGB-D
+producer changes merge with the optional solver/observation recipes. Signal,
+identity, task/stop, teardown, sensor hub and conversation code remain intact.
+No native identity or physical admission is inherited.
+
+Source-bound CPU selections resolve 1,406 distinct cases to PASS: 243 focused
+and 1,061 compatibility passes, plus the previously skipped optional cases.
+Newton1.6/MJW3.12/Warp1.17 optional BAM tests initially gave 96P/2F because
+subprocesses lacked the parent-only PyYAML preload; an external YAML-only path
+resolved those two imports, and six OpenUSD cases passed in the same 8P run.
+The initial integration fixture's two incorrect field expectations are retained
+separately. No product or physical thresholds changed for either correction.
+All source/protected-store snapshots match; Ruff F/E9, AST and diff checks pass.
+No GPU, Kit, mobile native service or new locomotion experiment was run.
+See docs/MICRODUCK_LOCOMOTION_COMPOSITION.md and its evidence receipt for the
+commit map, raw logs, scope of the two 12-step CPU BAM fixtures and limitations.
+
+### 2026-10-03 — Separate locomotion publication checkpoint
+
+Create LOCOMOTION_PUBLISH_20261003/cascade from generalized observations base
+7e15cfca; import only the fourteen reviewed locomotion checkpoints plus the
+aggregate composition tests/documentation. No RGB-D dependency is needed: all
+six changed production files match the reviewed 15382f3 checkpoint exactly.
+Current conversation/generation/teardown files remain byte-identical to this
+publication base. Keep the prior aggregate499 receipt explicitly historical.
+CPU checks for this branch follow separately; no GPU or native episode is run.
+
+Publication selection complete: 1,279 PASS/5 OpenUSD SKIP in 117.47 s;
+the pinned converter interpreter passed all 112 optional BAM/camera checks,
+including those five skipped cases, in 27.67 s. Combined unique JUnit cases:
+1,382 PASS, zero remaining failures/skips (not a full-suite claim).
+1,602 main inputs and protected stores remained unchanged; optional source and
+stores also match. The zero-test invocation with a nonexistent generalized-joint
+test name is retained as an invocation error; corrected selection used the two
+existing generalized-joint files. No code or threshold change was needed.
+Ruff F/E9, AST and diff checks pass. The separate publication receipt records
+the branch base, eight exact reviewed source files, nine untouched base files,
+raw logs, CPU numerical-fixture scope and pending native identity/admission.
+
+
+## Explicit alternative walking checkpoint (2026-10-02)
+
+Primary-source comparison found that the pinned official CPU inference recipe
+also stalls VelStand below the geometric target during a three-second command;
+stiff friction alone is not established as its cause. Keep those failures and
+the official default. The alternative rough-walk-e checkpoint is selected only
+by an explicit profile, exact byte count/SHA and a reviewed 61-observation,
+14-action, 50 Hz contract. Its weight model card declares Apache-2.0 and
+simulation-only experience; robot geometry terms remain separate.
+
+The official CPU inference path demonstrated bounded 30 mm feedback episodes
+with rough-e, while 50 mm episodes violate the existing heading bound. This is
+diagnostic evidence, not native admission. No action deadline, pose/support
+threshold, rest window or velocity-tracking claim changes. Native follow-up
+must retain the same criteria, actual independent observations and closure.
+
+Feature-to-skill map remains physics-simulation, isaac-sim-robot-navigation and
+isaac-sim-validator. Validation: 208 policy/CLI/stepper/native BAM tests passed
+with CPU-only Newton 1.6 and the pinned PR source, using a private Warp cache.
+The new CLI and source inventory bind the selected checkpoint; weights are not
+downloaded or executed by offline admission and are not committed.
+
+## Explicit solver graph experiment (2026-10-02)
+
+The rough-e native trial reached signed distance targets but failed the unchanged
+three-second wall rest gate. A separate SDK solver-only CUDA-graph option now
+addresses measured per-step compute cost. The reviewed NewtonStage source is
+hash-pinned. Capture is enabled only after model preparation and initial HOME;
+the SDK warms once, captures its solver work and launches one solve per step.
+BAM computation, controller fencing, signal checkpoints, force extraction and
+rendering remain outside capture. State/control/contact buffer replacement,
+changed capture timestep, silent mode changes and graph replacement fail closed.
+
+No physical/action/rest timeout or acceptance threshold changes. The default
+remains uncaptured. Sixteen new buffer/mode regressions and the combined actual
+Newton CPU suite passed (242 cases). GPU capture remains an experiment until
+source-bound foundation and MCP receipts validate actual one-solve cadence,
+force extraction, policy responsiveness and process closure.
+
+## Same-solve read reuse (2026-10-02)
+
+The actual graph profile reduced solver calls from 3.689 to 0.102 seconds over
+240 steps; duplicate native state/support reads still consumed 1.512 seconds.
+The explicit `--reuse-solved-read` option reuses a detached payload only for the
+same completed solve and only with graph-bound state/control/contact buffers.
+Every read still checks model, layout, timestep, mode and current clocks. Every
+solve, initialization and containment invalidates the cache. Consumers receive
+separate copies; no capture/receipt timestamp is refreshed and no new sample is
+published by a cache hit. This backend owns its state on one thread and exposes
+no pose/reset writes between solves. Actual BAM state checks remain per step.
+
+Thirteen regressions cover changed clocks/support solve, buffer/model/layout/
+timestep/mode drift, closure, failed solver invalidation and consumer mutation.
+The combined actual Newton CPU suite passed 255 cases. Physical parameters and
+all task/rest gates remain unchanged; the next native recipe separately binds
+this compute option and must revalidate trace, force channel and gait outcomes.
+
+## MicroDuck locomotion admission continuation — 2 October 2026
+
+Task branch `fix/microduck-locomotion-admission`, based on `735591e`, in the
+owned `LOCOMOTION_NEXT/cascade` worktree. The user authorizes continued
+implementation and native validation. The target is commanded forward/reverse
+walking, turning and independently measured stop through CASCADE, without
+relaxing existing criteria or substituting animated/pose-written motion.
+Standing, the old gait failures and prior native source recipes remain retained.
+
+Feature-to-skill map (before foundation execution):
+
+| Feature / stage | Skill / source | Planned evidence |
+| --- | --- | --- |
+| Deliverable and admission contract | `isaac-sim-workflow` | Explicit command matrix, unchanged verifier limits, scoped simulation claims |
+| Ordered foundation and integration | `isaac-sim-orchestrator` | Source/asset/model hashes, one-variable comparisons, bounded owned processes |
+| Native BAM, articulation and contact | `physics-simulation` | Effective actuator/solver identity and same-solve support; no state animation |
+| Existing policy execution | `isaac-sim-robot-navigation` plus audited upstream policy/runtime | Observation/action/command/time parity; gait measured from native state |
+| Existing camera and replay capture | `isaac-camera`, `isaac-sim-rendering` when capture changes are needed | Same-episode frames and inspected start/middle/end video |
+| Final admission and packaging | `isaac-sim-validator` before delivery | Focused regressions, native task/verifier receipts, teardown and visual review |
+
+Plan: (1) pin the requested awesome-microduck registry and inspect primary
+official/benchmark sources; (2) compare current model/policy/actuator contracts
+to measured upstream baselines; (3) implement only discrepancies supported by
+that evidence, with regression coverage; (4) run isolated native foundations
+and then actual MCP command admission, retaining failures; (5) record exact
+scope, uncertainty and proposed skill lessons. No generic navigation/SLAM or
+voice success is inferred from locomotion work.
+
+Environment safeguards: read existing validated dependencies without modifying
+them, or create a separate task environment. Never mutate the collaborator's
+MICRODUCK checkout. Foreign GPU services were observed on both GPUs and must
+not be stopped or reconfigured. Each new process gets an owned output directory,
+private ports/caches, source binding, deadline and birth-bound termination.
+Initial protected envelope SHA256 is
+`56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2`;
+shared `grasp_memory.json` is absent. Both conditions must remain unchanged.
+
+
+
+## Native distance checkpoint and publication (2026-10-02)
+
+Frozen native source `d9f4766` confirmed two forward and two reverse 30 mm
+fresh-start MCP episodes with the configured independent motion/support/rest
+checks. A separate priority stop during observed motion cancelled the distance
+call, fenced later policy input to zero travel intent and confirmed post-ACK
+rest. Balancing targets continue; this is neither instantaneous motor-off nor
+general gait admission. The combined reverse ankle-shell contact veto, turn
+translation-path failures and earlier velocity/rest/closure failures remain.
+
+Publication uses a separate worktree based on the reviewed native shutdown
+branch. All 22 identity-bound native sources and mobile production files remain
+byte-identical to the measured tree; newer composed-runtime admission safeguards
+from the base are preserved. No native episode ran in the publication worktree.
+Corrected contact-test fixtures now initialize the full uncaptured solver
+contract and exercise production guards. The resulting 37-file CPU suite passed
+1,508 cases with eight explicit dependency/source skips. Separate compatible
+USD conversion passed 77 cases with three external-asset skips. F/E9 checks
+passed, and successful suites kept source and protected shared stores unchanged.
+
+The initial six fixture failures, 74 missing-OpenUSD setup errors and private
+USD wheel overlap/import aborts are retained. `usd-exchange` supplies its own
+OpenUSD libraries; the successful private conversion recipe avoids coinstalling
+another wheel over those `pxr` paths. No shared dependency environment changed.
+Report and raw artifact hashes: `docs/MICRODUCK_DISTANCE_CANDIDATE.md` and
+`docs/evidence/robot-modularity/microduck-distance-candidate.json`.
+
+## Locomotion publication: current main composition
+
+Merged GitHub main075c08c through d9aa5a6 without rebase or conflict. Preserved
+publication freeze01 and all44 artifacts. Runtime/MCP, distance, sensing and
+kitchen-observer selection:332PASS/0SKIP in40.25s;1,612inputs and protected
+stores unchanged. Factory is absent from this main; no Factory or native claim.
+Receipt:docs/evidence/robot-modularity/microduck-locomotion-main-composition.json.
+
+
 ## 2026-10-03 — retain runtime teardown failures
 
 Task-owned clone `RUNTIME_TEARDOWN_RECEIPT/cascade`, base125e248. A read-only real-host preflight found shutdown_runtime suppressed stage errors and ArmRig/CameraRig only logged member failures, while MCP could exit with a handled143. Implemented structured software-only receipts and per-stage continuation, preserved errors/pending workers and first-receipt history, propagated through composed manipulation and MCP. MCP persists teardown.json and refuses a clean exit on unsuccessful teardown or persistence failure. Existing parking/stop/driver torque policy remains unchanged.
@@ -617,6 +815,13 @@ Evidence: eight baseline causal tests fail in0.17s; final eight-file selection16
 Independent review of cfff2f2 reproduced a real composed owner whose read outlasted the unchanged five-second drain budget. After the reader returned, shutdown_runtime and MCP caches prevented its close from running. Explicit repeat calls now resume only incomplete delegated cleanup; legacy park/disconnect and the first MCP stop are not repeated. RobotRuntime propagates current complete separately from sticky historical ok, preserves direct and nested attempts, and never recasts a cached failed receipt as successful. Composed domains still require dictionary receipts; legacy synchronous drivers keep None.
 
 Causal baseline: 3 failures/1 passing no-repeat control in10.16s; a separate source export adds2 causal failures/.19s for direct history and nested completion. Final six-file selection139PASS/45.74s,568source/test/config hashes and protected stores unchanged. Added explicit persistence-error history controls; intermediate74PASS/30.53s retained as earlier limited evidence. Ruff F/E9 and diff checks pass. No native model, GPU, service, host campaign, publication or shared environment writes. Receipt: benchmark/results/runtime_teardown_retry_20261003.json. Earlier lifecycle failure remains failed even after cleanup becomes complete.
+
+## Publication follow-up: teardown merge from main70d22de
+
+Normal merge b50229adeb40b5c0439f4b0285aba790a4f3bc99 preserves latest teardown and appends both
+logs. Focused runtime/MCP/close composition: 96PASS/0SKIP, 26.92s;
+1618 source inputs and protected stores unchanged. Prior freezes archived;
+no physics, GPU, limits, or admission changed. Receipt: docs/evidence/robot-modularity/microduck-locomotion-teardown-composition.json.
 
 ### 2026-10-03 — Preserve explicitly owned Spark model endpoints
 

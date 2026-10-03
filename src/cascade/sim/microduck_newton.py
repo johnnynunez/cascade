@@ -211,13 +211,23 @@ def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, m
                 contact_pairs=[[shapes[int(pairs[0][i])], shapes[int(pairs[1][i])]] for i in active])
 
 
-def prepare_native_model(ns, dof_indices, *, source_cap, newton):
+def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None):
     """Explicit startup-only XML -> BAM replacements, with fail-closed readback."""
     import math
     import numpy as np
     from cascade.control.microduck_actuator import M6_PARAMETERS
     if not math.isclose(source_cap, .96, rel_tol=0, abs_tol=1e-12):
         raise ValueError('verified XML effort cap must be 0.96 Nm')
+    # The official inference loader explicitly replaces the XML position
+    # actuator with a motor bounded by V*kt/R. Preserve the old XML-cap recipe
+    # separately; neither setting is chosen from observed motion quality.
+    if effort_cap is None:
+        effort_cap = source_cap
+    official_cap = 7.4 * M6_PARAMETERS['kt'] / M6_PARAMETERS['R']
+    if (type(effort_cap) not in (int, float) or not math.isfinite(effort_cap)
+            or not any(math.isclose(effort_cap, cap, rel_tol=0, abs_tol=1e-12)
+                       for cap in (source_cap, official_cap))):
+        raise ValueError('effort cap must match the XML or pinned official nominal inference recipe')
     expected = {'joint_damping': .053, 'joint_armature': .0018, 'joint_effort_limit': 1e6,
                 'joint_friction': .0048, 'joint_target_mode': 0, 'joint_target_ke': 0, 'joint_target_kd': 0}
     before, arrays = {}, {}
@@ -230,7 +240,7 @@ def prepare_native_model(ns, dof_indices, *, source_cap, newton):
             raise ValueError(f'unexpected native source property: {name}')
         before[name], arrays[name] = a[dof_indices].tolist(), a
     overrides = {'joint_damping': M6_PARAMETERS['friction_viscous'],
-                 'joint_armature': M6_PARAMETERS['armature'], 'joint_effort_limit': source_cap}
+                 'joint_armature': M6_PARAMETERS['armature'], 'joint_effort_limit': effort_cap}
     for name, value in overrides.items():
         arrays[name][dof_indices] = value
         getattr(ns.model, name).assign(arrays[name])
@@ -399,6 +409,12 @@ class KitNewtonBackend:
         self._captures = 0
         self._last_support_solve = None
         self.signals = None
+        self._solver_graph = None
+        self._solved_read = None
+        self._reuse_solved_read = getattr(args, 'reuse_solved_read', False)
+        if type(self._reuse_solved_read) is not bool or (self._reuse_solved_read
+                and getattr(args, 'solver_cuda_graph', False) is not True):
+            raise ValueError('same-solve read reuse requires explicit bound solver graph mode')
 
     def _checkpoint(self):
         if self.signals is not None:
@@ -428,6 +444,7 @@ class KitNewtonBackend:
             sys.argv = saved
 
     def _initialize(self):
+        self._solved_read = None
         self._checkpoint()
         import copy
         import math
@@ -544,7 +561,8 @@ class KitNewtonBackend:
         self.receipt['support_contract']['gravity_world_m_s2'] = self.receipt['native_body_properties']['gravity_world_m_s2'][:]
         self.receipt['support_extraction'] = extraction_provenance()
         self._checkpoint()
-        self.receipt['native_model_properties'] = prepare_native_model(ns, ds, source_cap=.96, newton=newton)
+        self.receipt['native_model_properties'] = prepare_native_model(ns, ds, source_cap=.96, newton=newton,
+            effort_cap=self.admission['bam_params']['joint_effort_limit'])
         self._checkpoint()
         self.bam = NewtonBamAdapter(ns, source_root=self.args.bam_source_root,
                                     q_indices=qs, dof_indices=ds, params=self.admission['bam_params'])
@@ -566,6 +584,15 @@ class KitNewtonBackend:
         self.bam.reset()  # no armed target until successful ONNX inference
         self.receipt['initialization'] = {'root_z_m': .125, 'home_q': HOME_Q.tolist(), 'pose_writes_in_episode': False}
         self.receipt['bam'] = self.bam.telemetry()
+        self._checkpoint()
+        import inspect
+        from cascade.sim.microduck_solver_graph import SolverGraphContract
+        self._solver_graph = SolverGraphContract(ns,
+            enabled=getattr(self.args, 'solver_cuda_graph', False), wp=wp, dt=self._dt,
+            source_path=inspect.getfile(type(ns)))
+        self.receipt['configuration']['use_cuda_graph'] = self._solver_graph.enabled
+        self.receipt['configuration']['solver_graph_stage_sha256'] = self._solver_graph.source_sha256
+        self.receipt['configuration']['reuse_solved_read'] = self._reuse_solved_read
 
     def _create_camera(self, stage):
         self._checkpoint()
@@ -619,32 +646,50 @@ class KitNewtonBackend:
 
     def _guard(self):
         ns = self.ns
-        if (not ns.initialized or ns.model is not self._model or ns.cfg.time_step_app
-                or ns.cfg.use_cuda_graph or ns.cfg.num_substeps != 1 or ns.graph is not None
+        if (self._closed or not ns.initialized or ns.model is not self._model or ns.cfg.time_step_app
+                or ns.cfg.num_substeps != 1
                 or self.dt != self._dt or str(self.SM.get_active_physics_engine()).lower() != 'newton'
                 or self._layout != (tuple(ns.model.joint_label), tuple(ns.model.body_label), tuple(ns.model.shape_label))):
             raise RuntimeError('frozen Newton model/clock/manual-step contract changed')
+        if self._solver_graph is None:
+            raise RuntimeError('solver execution mode was not bound during initialization')
+        self._solver_graph.check()
 
     def read(self):
+        # This backend has a single main-thread state writer and exposes no
+        # pose/reset API between solves. The duplicate pre-tick read can reuse
+        # the preceding post-solve payload after guards revalidate clock/model/
+        # buffer ownership. This never publishes or refreshes a sample's age.
+        import copy
         from cascade.sim.microduck_contact_support import read_support
         self._guard()
         clock = self.physics_clock
+        key = (clock, self._last_support_solve)
+        if self._reuse_solved_read and self._solved_read is not None and self._solved_read[0] == key:
+            return copy.deepcopy(self._solved_read[1])
         sample = read_native_state(self.ns, q_indices=self.q_indices, dof_indices=self.dof_indices,
             root_index=self.root_index, max_contacts=self.admission['limits']['max_contacts'],
             max_constraints=self.admission['limits']['max_constraints'])
         sample['support'] = read_support(self.ns, last_solved_clock=self._last_support_solve,
             source_admitted=self.receipt['support_extraction']['source_admitted'])
+        sample['solver_graph'] = self._solver_graph.telemetry()
         if self.physics_clock != clock:
             raise RuntimeError('physics advanced during native state/support read')
+        if self._reuse_solved_read:
+            self._solved_read = (key, copy.deepcopy(sample))
         return sample
 
     def step(self):
         # No app update, target write, model notification or rendering here.
         import math
         from cascade.sim.microduck_stepper import clock_tolerance
+        self._checkpoint()
+        self._guard()
         before = self.physics_clock
+        self._solved_read = None
         self._last_support_solve = None
         self.SM.step(steps=1)
+        self._guard()
         after = self.physics_clock
         if (after[0] != before[0] + 1 or not math.isclose(after[1], before[1] + self._dt,
                                                        rel_tol=0, abs_tol=clock_tolerance(after[1]))):
@@ -668,6 +713,7 @@ class KitNewtonBackend:
         return result
 
     def contain(self, reason):
+        self._solved_read = None
         self.receipt['containment'] = str(reason)
         if self.timeline is not None:
             self.timeline.pause()  # no stop/reset callback or pose write

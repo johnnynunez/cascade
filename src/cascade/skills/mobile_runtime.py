@@ -9,7 +9,7 @@ import uuid
 from collections import deque
 
 
-MOTION_SKILLS = frozenset({"walk_velocity", "turn"})
+MOTION_SKILLS = frozenset({"walk_velocity", "walk_distance", "turn"})
 SYSTEM_PROMPT = """You control a base-only mobile robot, not an arm.
 Use only the supplied capability tools and exact base names. There is no
 TCP, gripper, arm IK, table-frame grasping, obstacle avoidance or navigation map.
@@ -35,6 +35,8 @@ TOOL_SPECS = [
     _spec("walk_velocity", "Bounded body-frame SI velocity. Only independently confirmed execution is ok.",
           {**_BASE, **{k: {"type": "number"} for k in ("vx", "vy", "wz", "duration_s")}},
           ("vx", "vy", "wz", "duration_s")),
+    _spec("walk_distance", "Travel a signed measured forward distance (metres); profile-owned policy command, bounded deadline, independent verification. Does not promise velocity tracking.",
+          {**_BASE, "distance_m": {"type": "number"}}, ("distance_m",)),
     _spec("turn", "Turn by measured yaw (radians); bounded deadline and independent verification.",
           {**_BASE, "angle_rad": {"type": "number"}}, ("angle_rad",)),
     _spec("stop_navigation", "Priority cancellation to zero twist; pending/active dispatch is latched until reset_stop. Does not disable balance torque."),
@@ -198,6 +200,9 @@ class MobileSkillRuntime:
         self.tool_specs = tool_specs_for_profiles(cfg.bases)
         self._capabilities = {p["name"]: set(p["capabilities"]) & base_rig.get(p["name"]).capabilities
                               for p in cfg.bases}
+        for p in cfg.bases:
+            if "walk_distance" in p["capabilities"] and "walk_distance" not in self._capabilities[p["name"]]:
+                raise ValueError("walk_distance requires an implemented explicit distance-control profile")
         self.checkers = dict(checkers or {})
         self.verifier_errors = {}
         self.stop_observers = {}

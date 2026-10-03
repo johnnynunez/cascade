@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-02",
+  "scope": "One fresh native negative0.1rad turn confirmed under existing angle/path/support/rest gates; not positive/larger/general turn admission. Two preceding starts sent zero travel intent and failed read-only setup.",
+  "source_commit": "d9f47660ad8069820e617cb02fdeff7d5b706e74",
+  "native_model_identity_sha256": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da",
+  "native_recipe_sources_byte_identical_to_publication": true,
+  "native_recipe_source_count": 22,
+  "local_artifact_root": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT",
+  "episode_directory": "native-rough-reuse-turn-negative03",
+  "native_audit": {
+    "identity": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da",
+    "native_steps": 850,
+    "first_step": 3,
+    "last_step": 852,
+    "fallen_count": 0,
+    "source_unchanged": true,
+    "closure_ok": true,
+    "force_probes": 43,
+    "force_max_difference": 0.0,
+    "frames": 43,
+    "cases": [
+      {
+        "skill": "turn",
+        "arguments": {
+          "angle_rad": -0.1
+        },
+        "ok": true,
+        "execution_ok": true,
+        "verdict": "confirmed",
+        "reason": "independent measured yaw matches requested angle",
+        "metrics": {
+          "body_displacement_m": [
+            0.0002645724942759363,
+            -0.013917459944261763
+          ],
+          "yaw_change_rad": -0.071278202228958,
+          "path_length_m": 0.01547867576424743,
+          "rotation_path_rad": 0.071278202228958,
+          "min_height_m": 0.11671723425388336,
+          "max_tilt_rad": 0.048674115411167465,
+          "max_linear_speed_m_s": 0.18132860397034048,
+          "max_angular_speed_rad_s": 0.8616675812259887,
+          "sim_duration_s": 0.2199999950826168,
+          "settle_samples": 25,
+          "settle_sim_duration_s": 0.20499999541789293,
+          "settle_veto_observations": 30,
+          "settle_max_linear_speed_m_s": 0.0008721111292880143,
+          "settle_max_angular_speed_rad_s": 0.007299084192828167,
+          "settle_drift_m": 9.415172293067542e-05,
+          "settle_drift_rad": 0.0
+        },
+        "admission": {
+          "ok": true,
+          "accepted": true,
+          "latched": false,
+          "error": null,
+          "delivery_uncertain": null,
+          "robot_id": "microduck",
+          "source": "isaac-microduck",
+          "epoch": "f23ea0c575f74a9a8a02bdb778c14e74",
+          "model_identity_sha256": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da",
+          "generation": 3,
+          "start_sim_time_s": 1.6399999633431435,
+          "end_sim_time_s": 4.6399999633431435
+        },
+        "completion": {
+          "ok": true,
+          "latched": false,
+          "error": null,
+          "delivery_uncertain": null,
+          "robot_id": "microduck",
+          "source": "isaac-microduck",
+          "epoch": "f23ea0c575f74a9a8a02bdb778c14e74",
+          "model_identity_sha256": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da",
+          "generation": 4
+        },
+        "sample_count": 143,
+        "raw_samples_bound_by_outcomes_sha256": true
+      }
+    ],
+    "subsequent_stop": {
+      "receipt_id": "d652fbdabc864d4bbd02cac3f6020b58",
+      "status": "confirmed",
+      "physical_stop_verified": true,
+      "pending": false
+    },
+    "subsequent_stop_metrics": {
+      "body_displacement_m": [
+        -2.1782384493260692e-05,
+        -1.6888290020538657e-05
+      ],
+      "yaw_change_rad": 0.0002176399213585506,
+      "path_length_m": 4.335106281508264e-05,
+      "rotation_path_rad": 0.0002176399213585506,
+      "min_height_m": 0.11776445060968399,
+      "max_tilt_rad": 0.007491103724312961,
+      "max_linear_speed_m_s": 0.00023366436638826374,
+      "max_angular_speed_rad_s": 0.00174792055741085,
+      "sim_duration_s": 0.9299999792128801,
+      "settle_samples": 25,
+      "settle_sim_duration_s": 0.20499999541789293,
+      "settle_veto_observations": 30,
+      "settle_max_linear_speed_m_s": 6.278200286249195e-05,
+      "settle_max_angular_speed_rad_s": 0.00031379272400366797,
+      "settle_drift_m": 1.1808660667238906e-05,
+      "settle_drift_rad": 0.0003291408385410361
+    },
+    "scope_note": "Subsequent confirmed stop does not retroactively confirm failed motion. Controller progress is separate from independent verdict."
+  },
+  "thresholds": {
+    "verifier": {
+      "sample_interval_s": 0.02,
+      "read_timeout_s": 0.5,
+      "max_wall_duration_s": 29.0,
+      "settle_timeout_s": 3.0,
+      "settle_window_s": 0.2,
+      "min_motion_samples": 5,
+      "min_settle_samples": 3,
+      "max_samples": 1451,
+      "max_history": 30,
+      "max_state_age_s": 0.5,
+      "max_sample_gap_s": 0.15,
+      "max_position_abs_m": 2.0,
+      "max_linear_speed_m_s": 1.0,
+      "max_angular_speed_rad_s": 6.0,
+      "min_height_m": 0.06,
+      "max_tilt_rad": 0.5,
+      "min_progress_ratio": 0.8,
+      "max_progress_ratio": 1.25,
+      "translation_tolerance_m": 0.015,
+      "rotation_tolerance_rad": 0.04,
+      "max_lateral_drift_m": 0.02,
+      "max_heading_drift_rad": 0.08,
+      "stop_linear_speed_m_s": 0.02,
+      "stop_angular_speed_rad_s": 0.1,
+      "stop_drift_m": 0.005,
+      "stop_drift_rad": 0.03
+    },
+    "controller": {
+      "max_vx": 0.3,
+      "max_vy": 0.0,
+      "max_wz": 1.0,
+      "max_duration_s": 3.0,
+      "max_state_age_s": 0.5,
+      "max_no_progress_s": 0.4,
+      "max_wall_duration_s": 25.0,
+      "poll_interval_s": 0.01,
+      "turn_speed_rad_s": 1.0,
+      "turn_tolerance_rad": 0.03,
+      "max_turn_angle_rad": 1.0
+    }
+  },
+  "native_action_support_audit": {
+    "permission_generation": 3,
+    "first_step": 330,
+    "last_step": 373,
+    "consecutive_solves": 44,
+    "unknown_support": 0,
+    "forbidden_external_robot_contacts": 0
+  },
+  "force_scope": "43 diagnostic samples compare MJWarp public contact_force to Newton converted force-on-A vectors at the same solve. Zero observed differences validate extraction/sign/frame mapping; both use the same solver, not independent physical engines. The passive verifier does not consume actor-reported displacement.",
+  "preparation": {
+    "phase": "read-only before runtime creation, no task credit",
+    "wall_budget_s": 25,
+    "wall_elapsed_s": 4.859407812007703,
+    "observations": 47,
+    "failed_reads": 0,
+    "first_step": 15,
+    "last_step": 320,
+    "physical_advance_s": 1.5249999659135938,
+    "max_reported_producer_age_s": 0.05778731103055179,
+    "call_timeout_and_freshness_s": 0.5,
+    "epoch": "f23ea0c575f74a9a8a02bdb778c14e74",
+    "note": "Reader pins model/support registry and epoch. Existing reader closes failed socket before a subsequent bounded read-only handshake. No actuator/verifier retry. No failed reads occurred in this successful preparation; this does not demonstrate the exact cause of prior failures."
+  },
+  "startup_failures": {
+    "native-rough-reuse-turn-negative01": {
+      "last_solve_step": 42,
+      "last_sim_time_s": 0.20999999530613422,
+      "all_policy_intents_zero": true,
+      "turn_calls": 0,
+      "closure_ok": true,
+      "source_unchanged": true,
+      "native_child_exit": 143,
+      "startup_audit_sha256": "dd2331774456feccefbf27e13e733b5702ce0d940ff458edcdb4d65265bbf493",
+      "artifacts": {
+        "campaign.json": "e0ccb966e26f451de42e7203a8ea808a808dd988a54b2b84e7e1edfe7542def2",
+        "campaign-harness.py": "ead3155ee69af53ea6bded1e7d7882856304779ebcaa5c56635780b16e498ab3",
+        "outcomes.json": "4792a5c8d30699cea6a278df67fdfdfbd239cb37e9a67be61e5dc30f11e0d5d8",
+        "mcp.jsonl": "8e10adbe281a9efb423f377c3c384d09fe2a7a3a244e0d3e9121edcc6b79d87a",
+        "lifecycle.json": "2ffa4a0ea5bc16f5a4fc1e9fb7a16a2e66c18d19f2aa51aa90b129605d03d105",
+        "native-exit.json": "1f31fb9d7c0d695c6c19102dbedc15ba143038f918df070bfccce009bba53a6a",
+        "kit/receipt.json": "76cbd758627044cdfd3a8e73a6dbd77d6693c8166c28fd92720e7f784140ac93",
+        "kit/physics.jsonl": "72c361516665d5f74c70b1cc8d33fd648cf99a9bab7cd4b087766de3c052ed61",
+        "kit/policy.jsonl": "5326ee4c907829c17e9ff810b564154d87707af6bedbb0c277b1aa4bb646d1b2",
+        "kit/model-identity.json": "c1b00c351f099abb8871fb0ba3cec01f4de51f7c25473fc0d16a644d2256e17b",
+        "source-sha256.json": "d4e24241a816bd16609d2463f337f7f003779e9b3182882011830d7fe678db11"
+      }
+    },
+    "native-rough-reuse-turn-negative02": {
+      "last_solve_step": 62,
+      "last_sim_time_s": 0.30999999307096004,
+      "all_policy_intents_zero": true,
+      "turn_calls": 0,
+      "closure_ok": true,
+      "source_unchanged": true,
+      "native_child_exit": 143,
+      "startup_audit_sha256": "dfca5ecf60618844658af723706aa0e15ed44fa8f3dd8061dde863967987905d",
+      "artifacts": {
+        "campaign.json": "3122189090dd64d2262d7576bc2d16d09917721a140ba2de2bca6511522ef225",
+        "campaign-harness.py": "ead3155ee69af53ea6bded1e7d7882856304779ebcaa5c56635780b16e498ab3",
+        "outcomes.json": "811a402577c5004ae012429e70a175538aeb58f8eae0b0799f8ee3589c8007a7",
+        "mcp.jsonl": "9e101d7149779c8fbc81f240f8f81111e8b3447a28d1f6069d15c870c2ef86a1",
+        "lifecycle.json": "af1f3c460a3178a1a5da26a46dbe6d8ce738723b82629102374e05356a324e4e",
+        "native-exit.json": "1f31fb9d7c0d695c6c19102dbedc15ba143038f918df070bfccce009bba53a6a",
+        "kit/receipt.json": "af73c02e12c4ab1bab850c5c4873ff67a1cd22d8fb61c7e8c054bc6a87195e06",
+        "kit/physics.jsonl": "e76bd086fe16819dff55826b25e1b6adcc2f10ce31814adaca0fc5503c04cac5",
+        "kit/policy.jsonl": "8d0c66b17e867dac0ea3a39c3f23aa0bdc28929f8dd5304623cf66945782b638",
+        "kit/model-identity.json": "c1b00c351f099abb8871fb0ba3cec01f4de51f7c25473fc0d16a644d2256e17b",
+        "source-sha256.json": "d4e24241a816bd16609d2463f337f7f003779e9b3182882011830d7fe678db11"
+      }
+    }
+  },
+  "profiled_startup": {
+    "scope": "Passive240solves; no motion command; timing wrappers call original methods once",
+    "source_unchanged": true,
+    "native_child_exit": 0,
+    "capture_count": 14,
+    "capture_durations_s": [
+      0.6541922700125724,
+      0.11383029198623262,
+      0.05671396999969147,
+      1.5885556599823758,
+      0.0746102129924111,
+      0.0661303979868535,
+      0.05478735998622142,
+      0.058106896991375834,
+      0.054422665998572484,
+      0.05448981799418107,
+      0.05527592299040407,
+      0.05445889101247303,
+      0.05335514200851321,
+      0.05533696600468829
+    ],
+    "maximum_capture_s": 1.5885556599823758,
+    "artifacts": {
+      "campaign.json": "f80551c46deafabd746294b8f823a2c001906e19d1b03d354513225cf29df4df",
+      "campaign-harness.py": "4bd55e46c3191700f0de0bad76b852b4ea75ba9f3e80d150a5f42120e84753b7",
+      "instrumentation.py": "c3dc158ee9aaffacdeae29e7dee13aa45f834242ddd4699b25ed5b2f8978f21b",
+      "native-profile.json": "ca2776d500c72eb8e739bfcc1f763a5265cf223302e0a59a42e354f192fc6260",
+      "lifecycle.json": "f771afec87973fa7675ef42691582a3328aa4aff96f12f398fd60c5ec5364f77",
+      "native-exit.json": "d24219f6de94b955cf36d25bd2aca88e2d35eef45b9317b7083f55ec8fe9653c",
+      "source-sha256.json": "d4e24241a816bd16609d2463f337f7f003779e9b3182882011830d7fe678db11"
+    }
+  },
+  "artifacts": {
+    "campaign.json": "83676a04a403166c5630591e24f1e8bff02a0f196fefaf4f9f48eb94e5d879ae",
+    "campaign-harness.py": "5e09c3ba6de04c43e57ae84399d464e0e7b44e24758c948533ff2e6a7037c113",
+    "lifecycle.json": "a8a88db74b7cecc6fef9643ef70a79d3dbb77cc8e5815af5b9c97a408b197a5a",
+    "native-exit.json": "1f31fb9d7c0d695c6c19102dbedc15ba143038f918df070bfccce009bba53a6a",
+    "kit/receipt.json": "423289a04df58194dbcd52f020782d8516509edf43a5b4317f11e65e2911ad35",
+    "kit/model-identity.json": "c1b00c351f099abb8871fb0ba3cec01f4de51f7c25473fc0d16a644d2256e17b",
+    "kit/physics.jsonl": "5af380f9721d45ea964492c26418cefff6888ebb8a3f764f0a11d29c83903074",
+    "kit/policy.jsonl": "fe0dba3130ab21d91ac14706ac842e1d0dafd2d6c0212837f4946922ec8e7fa7",
+    "kit/support-probe.jsonl": "52c3a9ae21517b1e6ae8b608e097a2b10f6931b56d51b2a764606d624d3670ec",
+    "kit/frames.jsonl": "38a70aa89d2d8d08f6edc27aa743f1696eb871822560ef4faa387429772a126e",
+    "source-sha256.json": "d4e24241a816bd16609d2463f337f7f003779e9b3182882011830d7fe678db11",
+    "outcomes.json": "732b8586eee650a25f677923be52a1b82ae9ce4495a031ac0d1bec9e37333d18",
+    "mcp.jsonl": "6270341eeeb3e977a4365a21a2b69ac5b0b49b1caeba6533e24c2e9ea836be8a",
+    "mcp-profile.json": "92210a99deb194e8d95416cadd5e27d5eb30acd8f105390dce31b7c9a0f13746",
+    "independent-audit.json": "5e53bd8969cd9b035fa1daa00870665e037869bf59e0b33d0d697273d98ef39b",
+    "passive-preparation.json": "ca807a7e9ec41f46460fb628fd889b1077bc208ac81cf4d32085abcaa4600a6f",
+    "video-binding.json": "4453e9ecfc3366c1467ab5017a1cc31d477d67a15ec67562cd60f54280c59751",
+    "native-motion.mp4": "ba1ba62f40231d6895de5d481010673820c189acdb8b41cf06b4b20a7eeeb357",
+    "actual-frames.ffconcat": "cf5dc3e6716dca4e541ef8ced5c7856c33adbac27a9ffa55361da310b2b628e5"
+  },
+  "video": {
+    "physical_admission": false,
+    "identity": "0227a46cfa2882922cbcba70b52b056b9daf0c0bb07a122e28d5adea0080e0da",
+    "source_frames_manifest_sha256": "38a70aa89d2d8d08f6edc27aa743f1696eb871822560ef4faa387429772a126e",
+    "source_frames": 43,
+    "sim_time_range_s": [
+      0.014999999664723873,
+      4.209999905899167
+    ],
+    "video_sha256": "ba1ba62f40231d6895de5d481010673820c189acdb8b41cf06b4b20a7eeeb357",
+    "concat_sha256": "cf5dc3e6716dca4e541ef8ced5c7856c33adbac27a9ffa55361da310b2b628e5",
+    "timing": "actual simulation timestamps, not host wall time",
+    "visual_review_steps": [
+      3,
+      422,
+      842
+    ]
+  },
+  "preregistrations": {
+    "native-turn-negative-preregistration.json": "69c9dc708e0c6abb1697f6636b19defb12b1133b5515d3264a3b8977dc49ba4a",
+    "native-turn-negative-retry-preregistration.json": "cb8ce6a4171c8564e20fe77aac64a50900b829b382cdd22a0f2d97f680ea9b82",
+    "native-turn-negative-preparation-preregistration.json": "4e5554a6dbbc6d0a8294f9e7d90a7e367d87819c9d55d5d49aad1fb247f31aca"
+  },
+  "protected_after": {
+    "envelope_sha256": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "grasp_memory_exists": false
+  }
+}

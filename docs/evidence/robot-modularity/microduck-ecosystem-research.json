@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "review_date": "2026-10-02",
+  "scope": "Selective primary source review and source-bound diagnostic trials; no complete locomotion admission",
+  "external_archive_directory": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT",
+  "catalogue_revision": "3ddaa0eab900f9d53041de3d7de21e4a7fb31167",
+  "catalogue_files": [
+    {
+      "path": "readme.md",
+      "url": "https://raw.githubusercontent.com/joeynyc/awesome-microduck/3ddaa0eab900f9d53041de3d7de21e4a7fb31167/readme.md",
+      "sha256": "628dfec3b466dfc2c1bf42f2fcceafe6b92e6b57f70430f9c44f631283747409"
+    },
+    {
+      "path": "policies.json",
+      "url": "https://raw.githubusercontent.com/joeynyc/awesome-microduck/3ddaa0eab900f9d53041de3d7de21e4a7fb31167/policies.json",
+      "sha256": "9b7f27cc1a35182e38d820a7fd0cc838a066f16696d4a686adf8c6c3bd7033a7"
+    },
+    {
+      "path": "policies.schema.json",
+      "url": "https://raw.githubusercontent.com/joeynyc/awesome-microduck/3ddaa0eab900f9d53041de3d7de21e4a7fb31167/policies.schema.json",
+      "sha256": "11aa611315626e7ce03521d3a260dc3b7dbd8bf0d5378069e208a0e5c94f40fd"
+    },
+    {
+      "path": "revocations.json",
+      "url": "https://raw.githubusercontent.com/joeynyc/awesome-microduck/3ddaa0eab900f9d53041de3d7de21e4a7fb31167/revocations.json",
+      "sha256": "406e9052d7c5782d0e70febbe2a12d5a9e72046854bdac2684c4c7909900ddc3"
+    },
+    {
+      "path": "license",
+      "url": "https://raw.githubusercontent.com/joeynyc/awesome-microduck/3ddaa0eab900f9d53041de3d7de21e4a7fb31167/license",
+      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+    }
+  ],
+  "primary_downloads": [
+    {
+      "url": "https://raw.githubusercontent.com/pollen-robotics/microduck/1fa84386f07884e27866411bc1ba166977bced95/docs/policy-manifest.md",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck/docs/policy-manifest.md",
+      "sha256": "936d6c5b6fa4f09fc09d4808d39b926486239916a82f6c312f123531c387f34a"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/pollen-robotics/microduck/1fa84386f07884e27866411bc1ba166977bced95/duck-control/src/policy.rs",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck/duck-control/src/policy.rs",
+      "sha256": "ffdc144a97ccec60a725ebae5a534b054af4f4e8b2f1d247f648fcf00cde8014"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/pollen-robotics/microduck_rl/8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec/src/mjlab_microduck/tasks/microduck_velstand_env_cfg.py",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck_rl/src/mjlab_microduck/tasks/microduck_velstand_env_cfg.py",
+      "sha256": "ae8b73add46197b9888a3d60dc44f14946524b2658894b2603d4a229f6cc9d39"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/pollen-robotics/microduck_rl/8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec/scripts/infer_policy.py",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck_rl/scripts/infer_policy.py",
+      "sha256": "03bfd0642a880cd379e057536ee819bd1377d4af7b5206a57907d10afd1d4270"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/pollen-robotics/microduck_rl/8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec/src/mjlab_microduck/publish/manifest.py",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck_rl/src/mjlab_microduck/publish/manifest.py",
+      "sha256": "d66bae7920c2a86fef56877d8ced25c4b1fee67d5637da56d284056722dc7866"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/kabilankb/isaaclab-microduck/4310fe050b7a1b01e7b2f4bada103dea81d71fb2/exts/microduck.policy.player/microduck/policy/player/runner.py",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/isaaclab-microduck/exts/microduck.policy.player/microduck/policy/player/runner.py",
+      "sha256": "bbc1664202e6ae98da3303bf40239d76877b1046ceb3f4078b19ef852198a4e3"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/kabilankb/isaaclab-microduck/4310fe050b7a1b01e7b2f4bada103dea81d71fb2/docs/03_bam_actuator_notes.md",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/isaaclab-microduck/docs/03_bam_actuator_notes.md",
+      "sha256": "3bfea5a5a338b51de24e84c04c27b76a8601034b879fdcdae58e80ee293a76ca"
+    },
+    {
+      "url": "https://huggingface.co/pollen-robotics/microduck-policies/resolve/main/manifest.json",
+      "sha256": "d461425524686749b4a84da4c1dc585e2db997e70f756e348a09f65b15b96e27"
+    },
+    {
+      "url": "https://huggingface.co/datasets/craigm26/microduck-policy-golden-vectors/resolve/69baf2d4fe73c19d8e91da1f36fac55da10c289e/golden_policies.json",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/golden-vectors.json",
+      "sha256": "ab59b22d348b6dc0166300e1ea41437371d5a43f19e17c171719d46c936d3d8e"
+    },
+    {
+      "url": "https://huggingface.co/datasets/craigm26/microduck-policy-golden-vectors/resolve/69baf2d4fe73c19d8e91da1f36fac55da10c289e/README.md",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/golden-README.md",
+      "sha256": "f00782990eb39143ab346edd21921d834af273dcb72559ed604d6a2948d46b0d"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/pollen-robotics/microduck/1fa84386f07884e27866411bc1ba166977bced95/robotd/src/control.rs",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck/robotd/src/control.rs",
+      "sha256": "2913f61ce9d755d7d92e67f7cab79c09bf0bf82f7f1c28a962f1cb15b27a668a"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/pollen-robotics/microduck/1fa84386f07884e27866411bc1ba166977bced95/duck-control/src/obs.rs",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck/duck-control/src/obs.rs",
+      "sha256": "9545dae40e6a324cea153d2dc8d79563ba105c348f96e00128fb2e55d27f26a6"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/pollen-robotics/microduck/1fa84386f07884e27866411bc1ba166977bced95/duck-control/src/sim.rs",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck/duck-control/src/sim.rs",
+      "sha256": "898d835c9e06af348aab97b7cf2992d8c7ff5427adcb3bc74a890e40498392ca"
+    },
+    {
+      "url": "https://huggingface.co/pollen-robotics/microduck-policies/resolve/d5a8b55033e157f1af2ed6bd5c1e435b770a8ee0/alpha_walking.onnx",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/policies/alpha_walking.onnx",
+      "sha256": "e36332d383997d51401897734cd3e79cf5038406feddb18b4d57ecfb141daa6c"
+    },
+    {
+      "url": "https://huggingface.co/pollen-robotics/microduck-policies/resolve/d5a8b55033e157f1af2ed6bd5c1e435b770a8ee0/alpha_stand.onnx",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/policies/alpha_stand.onnx",
+      "sha256": "1569268713e40deea795dd2922dba50d3621e15a872855408b6b1b125b1c094b"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/craigm26/duckbench/3a0f2f6e9d5670a446678f99d665b778b236c2cb/README.md",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/duckbench/README.md",
+      "sha256": "c399e9417d083972fae1874b1966469e5722f9c03d8690498269a91060f25bf1"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Qi-hub-dot/microduck-locomotion-diagnosis/2a6366211e6752b12eeb771202c698cb30001575/README.md",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-locomotion-diagnosis/README.md",
+      "sha256": "7f25849927b8eb85e3783a3df6950cb2f51c0155946cf01181289d63d3e37085"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Qi-hub-dot/microduck-locomotion-diagnosis/2a6366211e6752b12eeb771202c698cb30001575/patches/air-time-fix.diff",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-locomotion-diagnosis/patches/air-time-fix.diff",
+      "sha256": "878ef30f6d286116a172774d3ecd42d7ef7ce7aec10d66a97f3ab69091834cdc"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Qi-hub-dot/microduck-locomotion-diagnosis/2a6366211e6752b12eeb771202c698cb30001575/src/measure_displacement.py",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-locomotion-diagnosis/src/measure_displacement.py",
+      "sha256": "ebf94f4df98c87729349b96ee23b952ede96f6a99d824f36cd78bb5735a25d35"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/alertform/microduck-walking/eebef0d7177fa37d39efe6fdc723ae7ba20cc109/README.md",
+      "path": "/home/johnny/Projects/demo/cascade-lab/LOCOMOTION_NEXT/research/microduck-walking/README.md",
+      "sha256": "123087fa8ae786100910996afcbc3fa2dfc9863a01caf14f8c10731aa64de115"
+    }
+  ],
+  "artifacts": {
+    "research/download-manifest.json": "75f4c850013cac3d6ee47e66d4742d6b1cc4bfe474ce18dd8fe5662072c49293",
+    "research/awesome-microduck/download.json": "fa8d580c818661ff1bc7d67cc518877064b143017150e39cf80b977ce474f1ad",
+    "research/golden-cascade-result.json": "59354bb469d85e5956092c7baf0346df35bbf46a023a57615bc0c53311e266b2",
+    "research/microduck-rough-walk-e/download.json": "8b0ec72d6aaec20da255dcfd07710f39c574e24f4fe04a208e22f177ae6567e2",
+    "policy-reference-comparison.json": "d0aee383b8f0095b189e5453b9225331888b10defa94e895b2d084be1f0b888c",
+    "native-rough-foundation01/independent-audit.json": "d28e68998085a9f5dd6a9df97d96b67c7dd4d6b1c5b6f42c986de60e5bd8a141",
+    "native-rough-distance01/independent-audit.json": "1283401cd873b268f0e6013001e322dce9b7ee2e7125bd269f8f49c0a8eb874f",
+    "native-rough-distance01/video-binding.json": "b42a0f02a5e9feb1f15ec2ce1c9f065460cac5d133dd09c77c259f82633a40c7",
+    "native-rough-graph-foundation01/independent-audit.json": "ccfc61aef08904a86049635dff62fcb7a27086b4ba934f28fdaf3904e05bd864",
+    "native-rough-graph-distance01/independent-audit.json": "5e8b67f1731292e7a9ee9aea50305fb2cab8a4c2dccce4d309d20fdbe3968a98",
+    "native-rough-graph-distance01/video-binding.json": "307a66796b183a3d1de7e2881c89218e55f37a3b7e3226a6d305675beb17a4fb",
+    "native-rough-graph-profile01/native-profile.json": "505a56cca91735fa04afa65ac9359e3aa43fd7a98046be59de71caca99c90f11"
+  },
+  "native_outcomes": {
+    "rough_uncaptured": "four target-reaching executions independently refuted: distance rest, turn translation; laterstopconfirmed",
+    "rough_graph": "reverse30mm confirmed once, forward rest refuted, turns translation refuted, laterstopconfirmed"
+  },
+  "limitations": [
+    "All physical recordings are simulation, no hardware validation",
+    "Native per-action evidence and later stop remain distinct",
+    "Golden vector conformance is software, not dynamics validation",
+    "No claims that every catalogue link was reviewed"
+  ]
+}

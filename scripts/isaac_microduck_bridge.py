@@ -24,6 +24,8 @@ def parse_args(argv=None):
     p.add_argument('--bundle-sha256', required=True, help='offline-admitted receipt.json SHA-256')
     p.add_argument('--policy', type=Path, required=True)
     p.add_argument('--policy-sha256', required=True)
+    p.add_argument('--policy-profile', choices=['velstand', 'rough_walk_e'], default='velstand',
+                   help='explicit reviewed checkpoint; alternative profiles are not physical admission')
     p.add_argument('--bam-source-root', type=Path, required=True)
     p.add_argument('--bam-profile', required=True)
     p.add_argument('--python-extra-path', type=Path, action='append', default=[],
@@ -38,6 +40,10 @@ def parse_args(argv=None):
     p.add_argument('--max-steps', type=int, required=True)
     p.add_argument('--camera-every', type=int, default=20, help='overview capture interval in completed steps')
     p.add_argument('--max-jpeg-bytes', type=int, default=2*1024**2)
+    p.add_argument('--solver-cuda-graph', action='store_true',
+                   help='explicit reviewed SDK solver graph; BAM/checkpoints stay outside capture')
+    p.add_argument('--reuse-solved-read', action='store_true',
+                   help='reuse detached same-solve state/support; requires bound solver graph buffers')
     p.add_argument('--check-only', action='store_true', help='offline admission only; no Kit, socket or writes')
     return p.parse_args(argv)
 
@@ -390,10 +396,13 @@ def admit(args):
     import math
     import re
     from cascade.control.newton_bam import SOURCE_SHA256, _validated_params
-    from cascade.sim.microduck_newton import (digest_token, experience_text, sha256,
-                                              source_manifest, strict_json, verify_bundle)
+    from cascade.sim.microduck_newton import (experience_text, sha256,
+                                              strict_json, verify_bundle)
+    from cascade.sim.microduck_policy_admission import admit_policy
     if args.engine != 'newton':
         raise ValueError('PhysX BAM unsupported; no fallback')
+    if args.reuse_solved_read and not args.solver_cuda_graph:
+        raise ValueError('same-solve read reuse requires bound solver graph buffers')
     if type(args.port) is not int or not 0 <= args.port <= 65535:
         raise ValueError('explicit port must be in 0..65535')
     if re.fullmatch(r'cuda:\d+', args.device) is None:
@@ -425,12 +434,7 @@ def admit(args):
         if args.out.resolve().is_relative_to(root.resolve()):
             raise ValueError('output must not modify an input/SDK directory')
     admitted = verify_bundle(bundle, expected_sha256=args.bundle_sha256, asset=args.asset)
-    digest_token(args.policy_sha256)
-    manifest, _ = source_manifest()
-    policies = [r for r in manifest['files'] if r['path'] == 'microduck-policies/velstand.onnx']
-    if (len(policies) != 1 or policies[0]['sha256'] != args.policy_sha256
-            or sha256(args.policy) != args.policy_sha256 or args.policy.stat().st_size != policies[0]['size']):
-        raise ValueError('explicit policy must match pinned velstand ONNX SHA/size; no checkpoint substitution')
+    policy_admission = admit_policy(args.policy, args.policy_sha256, args.policy_profile)
     bam_sources = {}
     for relative, expected in SOURCE_SHA256.items():
         path = args.bam_source_root / relative
@@ -450,11 +454,14 @@ def admit(args):
              'src/cascade/control/mobile_support.py',
              'src/cascade/apps/signal_stop.py',
              'src/cascade/control/newton_bam.py', 'src/cascade/control/microduck_policy.py',
+             'src/cascade/sim/microduck_policy_admission.py', 'assets/microduck/policy-candidates.json',
+             'src/cascade/sim/microduck_solver_graph.py',
              'src/cascade/control/microduck_actuator.py', 'assets/microduck/manifest.json',
              'assets/microduck/newton-bam.json', 'configs/isaac/microduck.newton.kit')
     admitted.update(limits=load_limits(args.limits), limits_sha256=sha256(args.limits),
                     bam_params=params, bam_config_sha256=sha256(config_path), bam_source_sha256=bam_sources,
-                    policy_sha256=args.policy_sha256, source_sha256={f: sha256(REPO/f) for f in files},
+                    policy_sha256=args.policy_sha256, policy_admission=policy_admission,
+                    source_sha256={f: sha256(REPO/f) for f in files},
                     experience_text=experience_text(args.release))
     return admitted
 

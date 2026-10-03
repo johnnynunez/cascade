@@ -1,0 +1,307 @@
+{
+  "actual_exit_authority": "root exec session22830 completed exit0, supplied to auditor",
+  "actual_supervisor_exit": 0,
+  "actual_supervisor_exit_receipt": {
+    "actual_supervisor_exit_code": 0,
+    "exec_session_id": 22830,
+    "independent_physical_audit_pending": true,
+    "observed_at_utc": "2026-10-03T15:13:09.262653+00:00",
+    "result_sha256": "c86cbcba15a10e8bc8d3a25300b8162faabf6c4601fa59607210b4799f08bd9f",
+    "scope_closure_sha256": "cbec25bf99e908d72d7969aa9b4d3bb239481c23ea0f518b9acdc393b67b6f6b",
+    "terminal_sha256": "1f6592206c917b5e153d642090b923900d1ca173b9dee1a949e838ca449b6f10"
+  },
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_NATIVE_REVIEW_20261003/audit.py": "5f9cc8e70605c36dcf7951bddd5a65267dbe1af75e0bd4eba4a0a87f482b6654",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/ROOT_AUTHORIZATION_01.json": "f8762d93e91626d40a2637cc228bd0f748943e2143385eb2254c8514616db08b",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/ROOT_EXECUTION_EXIT_01.json": "13936bf8a9dfb7ead5075fadd2006e531bb61f6569aefa4c8a117fbb20e8a4c7",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/authorized-plan-01.json": "985abc2c0dd259984d424273d1410aec730f82b95d2d4c114d5b99a772bc6ea6",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/cascade/assets/mjcf/so101/_scene_demo_generated.xml": "28a865b07aae60c17f13f8d1f48bed369815b3c139984f3a4cdfa8f82bce7f8c",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/inputs-after.json": "04ee2619c3d0199ba27625ea54c1d1dc99f541ec069fbb884ab90fc2b68586e6",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/inputs-before.json": "04ee2619c3d0199ba27625ea54c1d1dc99f541ec069fbb884ab90fc2b68586e6",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/inputs.json": "e98d3f2a759afd1fa128d120008de568688562b80d234ee1a815e4e1dee054e2",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/junit.xml": "644a48245e11da6592043183ac4e5a86ee8893e8de72f1cd7beb6adfda752db4",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/phases.json": "f9cb5139f12d8ada209c181f85fc1eadfaf5b1e6aef557ac20de85a489035334",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/pytest.log": "b72edbc9be137c18f49b19d4dca010b2f07818e3ac1c0cf77ee9c24b83482274",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/result.json": "c86cbcba15a10e8bc8d3a25300b8162faabf6c4601fa59607210b4799f08bd9f",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/scope/closure.json": "cbec25bf99e908d72d7969aa9b4d3bb239481c23ea0f518b9acdc393b67b6f6b",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/scope/owner.json": "a1c60614d2addee511411bdac1040062993c52d40c3b3c2318462e702df4628b",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/supervisor-inputs-after.json": "04ee2619c3d0199ba27625ea54c1d1dc99f541ec069fbb884ab90fc2b68586e6",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/supervisor-inputs-before.json": "04ee2619c3d0199ba27625ea54c1d1dc99f541ec069fbb884ab90fc2b68586e6",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/terminal.json": "1f6592206c917b5e153d642090b923900d1ca173b9dee1a949e838ca449b6f10",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0000_pick_and_place_after.jpg": "ae49db8e16e32fea535e0f900e26c1deca502f99fa500aaa3bcaa3f5877bf617",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0000_pick_and_place_before.jpg": "4eba065cb0a2dd1947d882a541b87326af2704b902749e17a05be7941b80ecc3",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0001_pick_and_place_after.jpg": "096d45161b4aca0803af142d56160854f3266b8a1776ddfa24f05f4bf235cfce",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0001_pick_and_place_before.jpg": "ae49db8e16e32fea535e0f900e26c1deca502f99fa500aaa3bcaa3f5877bf617",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0002_get_observation_after.jpg": "096d45161b4aca0803af142d56160854f3266b8a1776ddfa24f05f4bf235cfce",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0002_get_observation_before.jpg": "096d45161b4aca0803af142d56160854f3266b8a1776ddfa24f05f4bf235cfce",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0003_count_objects_after.jpg": "096d45161b4aca0803af142d56160854f3266b8a1776ddfa24f05f4bf235cfce",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0003_count_objects_before.jpg": "096d45161b4aca0803af142d56160854f3266b8a1776ddfa24f05f4bf235cfce",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/placement/920ea627e89c4f25ad120347c993ede3.json": "d705efee3203f74f1d677882b76a61801650535446cf4c66a32f79b9e07b1c89",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/placement/c237cb8673754bdf8f9feb2cb2392db2.json": "99b8f92b61a404e52a970ee7aa379c189b479a08d2b11788129a97621068309a",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/trace.jsonl": "dbf15dabce608ff3e8c103d2d9590afec6cf7d5e20a08d7101c9fbd7383a7770",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/root-supervisor-01.log": "91aa13cd60ba96ab94508841a44dbec3bf7d5b0f85abaf45e3f85f6ea0bf8cf0"
+  },
+  "authorized_plan_sha256": "985abc2c0dd259984d424273d1410aec730f82b95d2d4c114d5b99a772bc6ea6",
+  "cases": {
+    "blue_cube": {
+      "distance_to_original_point_xy_m": 0.030656751729818337,
+      "epoch": "459727548a2c47dc8a9c64f427a0cd2e",
+      "final_position_m": [
+        0.23061606205316312,
+        -0.11842102217223124,
+        0.024969294012496677
+      ],
+      "home": {
+        "at": "home",
+        "attempted": true,
+        "ok": true
+      },
+      "home_max_joint_error_rad": 0.0003579779210700629,
+      "model_sha256": "62060df4f3b0b8e86e8f0a06988858c705d8ea413fae77be0c3963cf2fbf2004",
+      "raw": {
+        "contact_and_box_reconstruction": true,
+        "last_solve_interval_s": 0.0049999999999954525,
+        "raw_rows": 256,
+        "state_digests_reconstructed": 256
+      },
+      "raw_proof_path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/placement/920ea627e89c4f25ad120347c993ede3.json",
+      "raw_proof_sha256": "d705efee3203f74f1d677882b76a61801650535446cf4c66a32f79b9e07b1c89",
+      "release_model_empty_descriptor_sha256": "ffcc49f162342c16ba3a1e86fde949ee96c00dd8da99cd27d73a3c8eed5ad945",
+      "release_time_s": 121.07999999996237,
+      "window": {
+        "all_sampled_and_final_footprints_contained": true,
+        "angular_speed_max_rad_s": 5.757618314586978e-07,
+        "duration_sim_s": 0.6599999999993997,
+        "first_step": 30240,
+        "last_step": 30372,
+        "linear_speed_max_m_s": 1.3998485594431355e-14,
+        "max_gap_s": 0.05999999999994543,
+        "minimum_gripper_open_fraction": 0.9999975385659563,
+        "minimum_support_contacts": 8,
+        "minimum_support_up_n": 0.5951764062178986,
+        "open_since_s": 121.07499999996237,
+        "position_spread_m": 2.924527703754792e-15,
+        "samples": 12
+      }
+    },
+    "red_cube": {
+      "distance_to_original_point_xy_m": 0.025775688815846565,
+      "epoch": "459727548a2c47dc8a9c64f427a0cd2e",
+      "final_position_m": [
+        0.1742826936724021,
+        -0.12173386538804197,
+        0.024969294012496635
+      ],
+      "home": {
+        "at": "home",
+        "attempted": true,
+        "ok": true
+      },
+      "home_max_joint_error_rad": 0.00035799987424600666,
+      "model_sha256": "62060df4f3b0b8e86e8f0a06988858c705d8ea413fae77be0c3963cf2fbf2004",
+      "raw": {
+        "contact_and_box_reconstruction": true,
+        "last_solve_interval_s": 0.005000000000002558,
+        "raw_rows": 256,
+        "state_digests_reconstructed": 256
+      },
+      "raw_proof_path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01/tmp/test_memory_frames_record_two_0/run/placement/c237cb8673754bdf8f9feb2cb2392db2.json",
+      "raw_proof_sha256": "99b8f92b61a404e52a970ee7aa379c189b479a08d2b11788129a97621068309a",
+      "release_model_empty_descriptor_sha256": "ffcc49f162342c16ba3a1e86fde949ee96c00dd8da99cd27d73a3c8eed5ad945",
+      "release_time_s": 44.16000000000414,
+      "window": {
+        "all_sampled_and_final_footprints_contained": true,
+        "angular_speed_max_rad_s": 3.669870454126604e-07,
+        "duration_sim_s": 0.600000000000307,
+        "first_step": 11712,
+        "last_step": 11832,
+        "linear_speed_max_m_s": 2.7460707335350333e-14,
+        "max_gap_s": 0.060000000000030695,
+        "minimum_gripper_open_fraction": 0.9999975384663502,
+        "minimum_support_contacts": 8,
+        "minimum_support_up_n": 0.5951764062178975,
+        "open_since_s": 44.15500000000414,
+        "position_spread_m": 3.834214527708523e-15,
+        "samples": 11
+      }
+    }
+  },
+  "closure": {
+    "argv": [
+      "/usr/bin/timeout",
+      "--kill-after=5s",
+      "260s",
+      "/home/johnny/Projects/demo/cascade-lab/ROBOT_INTEGRATION/venv/bin/python",
+      "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/run_contact_case.py",
+      "--plan",
+      "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/authorized-plan-01.json",
+      "--out",
+      "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01",
+      "--plan-sha256",
+      "985abc2c0dd259984d424273d1410aec730f82b95d2d4c114d5b99a772bc6ea6",
+      "--gate-fd",
+      "4"
+    ],
+    "budgets": [
+      260,
+      5,
+      5
+    ],
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/ROBOT_INTEGRATION/venv/bin/python",
+      "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/run_contact_case.py",
+      "--plan",
+      "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/authorized-plan-01.json",
+      "--out",
+      "/home/johnny/Projects/demo/cascade-lab/MUJOCO_MAIN_REVALIDATION_20261003/original-two-pick-01",
+      "--plan-sha256",
+      "985abc2c0dd259984d424273d1410aec730f82b95d2d4c114d5b99a772bc6ea6"
+    ],
+    "elapsed_s": 162.7962844130234,
+    "errors": [],
+    "exit_code": 0,
+    "forced": false,
+    "leader_absent": true,
+    "members_before_leader_reap": [
+      {
+        "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d",
+        "pgid": 1454987,
+        "pid": 1454987,
+        "sid": 1454987,
+        "start_ticks": 28527272,
+        "state": "Z"
+      }
+    ],
+    "ok": true,
+    "owner": {
+      "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d",
+      "pgid": 1454987,
+      "pid": 1454987,
+      "sid": 1454987,
+      "start_ticks": 28527272,
+      "state": "R"
+    },
+    "pending_termination": [],
+    "remaining_members": [],
+    "signals": []
+  },
+  "five_stores_unchanged": {
+    "/home/johnny/.cascade/beliefs.json": {
+      "sha256": null
+    },
+    "/home/johnny/.cascade/envelope.json": {
+      "sha256": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2"
+    },
+    "/home/johnny/.cascade/grasp_memory.json": {
+      "sha256": null
+    },
+    "/home/johnny/.cascade/spatial_memory.json": {
+      "sha256": null
+    },
+    "/home/johnny/Projects/demo/cascade/runs/beliefs.json": {
+      "sha256": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+    }
+  },
+  "input_files_rehashed": {
+    "assets": 26,
+    "harness": 8,
+    "mesa_vendor": 1,
+    "python": 1,
+    "sdk_files": 5687,
+    "source": 1854,
+    "timeout": 1
+  },
+  "limits": [
+    "One software-Mesa CPU MuJoCo3.14 episode; no repetition, hardware, Isaac or GPU admission.",
+    "Compiled model identities are production fingerprint observations; no native reconstruction/SDK import was performed by auditor.",
+    "All saved state digests, contact support/counts, qvel norms, gripper fractions and box collision footprints were independently reconstructed offline.",
+    "Red prefix admission includes the production sticky disturbance ledger; retained raw windows are bounded to256 records, not all earlier substeps.",
+    "The phase observer is diagnostic and is not used to replace the coherent support journal.",
+    "Physical receipt and source hashes do not transfer the historical episode's admission; the new epoch and two new raw proofs are required."
+  ],
+  "negative_controls": {
+    "angular_motion": {
+      "reason": "sampled rest gate failed",
+      "rejected": true
+    },
+    "arm_contact": {
+      "reason": "sampled contact gate failed",
+      "rejected": true
+    },
+    "closed_jaw": {
+      "reason": "sampled jaws not open",
+      "rejected": true
+    },
+    "duplicate_step": {
+      "reason": "window clock gap/order",
+      "rejected": true
+    },
+    "fewer_than_six": {
+      "reason": "fewer than six samples",
+      "rejected": true
+    },
+    "final_closed_jaw": {
+      "reason": "integrated state moving or jaws closed",
+      "rejected": true
+    },
+    "final_footprint_escape": {
+      "reason": "integrated full footprint escaped region",
+      "rejected": true
+    },
+    "final_motion": {
+      "reason": "integrated state moving or jaws closed",
+      "rejected": true
+    },
+    "linear_motion": {
+      "reason": "sampled rest gate failed",
+      "rejected": true
+    },
+    "missing_opening": {
+      "reason": "missing post-opening continuity",
+      "rejected": true
+    },
+    "missing_support": {
+      "reason": "sampled contact gate failed",
+      "rejected": true
+    },
+    "other_loaded_contact": {
+      "reason": "sampled contact gate failed",
+      "rejected": true
+    },
+    "sampled_footprint_escape": {
+      "reason": "sampled full footprint escaped region",
+      "rejected": true
+    },
+    "wrong_epoch": {
+      "reason": "window identity differs",
+      "rejected": true
+    }
+  },
+  "physics_verifier_source_sha256": "812d2484f98cb566a5bcb97104b9e6981f362128eb0e34c038eff850f3990c3b",
+  "red_position_change_after_second_pick_m": 1.0008776917147917e-12,
+  "red_prefix_after_blue_home": {
+    "all_sampled_and_final_footprints_contained": true,
+    "angular_speed_max_rad_s": 5.858010547166111e-07,
+    "duration_sim_s": 0.6599999999993997,
+    "first_step": 30240,
+    "last_step": 30372,
+    "linear_speed_max_m_s": 1.982202023443581e-14,
+    "max_gap_s": 0.05999999999994543,
+    "minimum_gripper_open_fraction": 0.9999975385659563,
+    "minimum_support_contacts": 8,
+    "minimum_support_up_n": 0.5951764062178266,
+    "open_since_s": 121.07499999996237,
+    "position_spread_m": 1.4180534164822091e-15,
+    "samples": 12
+  },
+  "retained_red_final_position_m": [
+    0.17428269367320218,
+    -0.12173386538744062,
+    0.024969294012496656
+  ],
+  "reviewer_native_imports": false,
+  "sampling": "last solved intervals of existing arm batches; no all-substep coverage",
+  "source_head": "274fa3a9d48d96a8b1402dfeb2fe79c45e67037e",
+  "test": "tests/test_memory_task_mujoco.py::test_memory_frames_record_two_physics_confirmed_picks",
+  "verdict": "PASS_NATIVE_TWO_PICK_CLOSED"
+}

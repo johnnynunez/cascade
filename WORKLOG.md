@@ -703,3 +703,40 @@ unchanged. The earlier temporary composition against non-main `1275c294`
 passed 247 tests and was aborted before commit after correcting the branch
 identification; its evidence remains separate. No Factory implementation is
 introduced by this topic. No native run or physical-admission claim.
+
+### 2026-10-03 — Bounded diagnostic lifecycle retention (plan)
+
+The trial-12 detailed command prefix exhausted its 16 MiB budget before the
+last stream/skill records. Preserve that failed receipt. This isolated follow-up
+reserves at most 128 records/64 KiB inside the existing event/byte budgets for a
+compact lifecycle tail, using only existing event kinds and the timestamp
+already captured for each record. The original detailed prefix and submission
+adjudicator remain the authority for diagnostic coverage; truncation, eviction,
+drops and logging errors cannot restore completeness or physical acceptance.
+
+Scope: `control/motion_evidence.py`, CPU regression tests and diagnostic docs.
+No simulator, policy, SDK, pacing, deadline, verifier, command or tool changes.
+No Isaac skill is needed for this pure Python logger change. First retain a
+source-bound failing CPU control, then validate saturation/exception retention,
+total bounds, malformed values and enabled/disabled control-sequence equality
+with private stores. No native replay, GPU, push or PR creation in this task.
+
+Implemented the reserved FIFO tail using the eight existing lifecycle kinds.
+Fields have fixed bounds; serialization failures, nonfinite/invalid values,
+evictions, oversize drops and truncation remain explicit. `Recording.error` and
+action-exception formatting preserve the original exception, including
+`BaseException`, when a diagnostic formatter itself fails. The detailed event
+schema, full-precision values and submission matcher are unchanged. Overall
+completeness stays false for any loss even when the retained prefix by itself
+has matching request/ACK/setter records. No clock, command or read was added.
+
+Validation: retained TDD baseline 24 FAIL; initial candidate 33 PASS; final
+seven-file CPU selection 141 PASS / 0 SKIP in 2.56 s. Each run preserves its
+source inventory and all four protected-store states. The final selection
+includes saturated on/off sequence equality across normal, slow-ACK, jump,
+cancel and frozen-clock cases. Ruff F/E9 and diff checks pass. Root and CM
+reviewed the frozen module/tests without a remaining material blocker; no
+native replay or physical closure is claimed. See
+`benchmark/results/motion_lifecycle_journal_20261003.json` for hashes, retained
+red sources, logs and limits. All simulator/driver/control/runtime files outside
+`motion_evidence.py` remain byte-identical to base `789d1d5`.

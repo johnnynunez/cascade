@@ -2027,3 +2027,35 @@ neither repeatability nor a general performance cause. Raw decode can occur
 while the owner lives; post-close phase export and the remaining drain follow
 join. Documentation and receipt validation only; this publication does not
 replay physics or transfer old task success to the integrated source.
+
+### 2026-10-03 — Integrated-main MuJoCo two-pick revalidation
+
+The unchanged original two-pick node passed once on source `274fa3a9` in 161.17 s,
+using MuJoCo 3.14/Mesa CPU and the ordinary runtime with mock LLM. New epoch
+`459727548a2c47dc8a9c64f427a0cd2e` binds both raw proofs. Independent offline audit
+reconstructed 512 stored states, contacts, velocities, jaws and box footprints;
+14 negative controls reject. Red has 11 samples/0.600 s; blue and retained red
+have 12/0.660 s. Release, support, containment and rest pass. Both home errors
+are below 0.000358 rad; the original 60 mm bound passes at 25.776/30.657 mm.
+
+Supervisor exit 0, natural closure without signals; 1,854 source files, 26 assets,
+5,687 SDK files and five protected stores unchanged. Publish byte-exact audit
+and original-contract check in `docs/evidence/project-status-20261003`. This is
+one episode observed at batch boundaries, without all-substep, repeated,
+hardware, Isaac/GPU or LLM-host acceptance. Historical AIM and Trial12 FAIL
+records remain untouched.
+
+### 2026-10-03 — Factory one-turn attempt stopped at startup
+
+The next episode on source `4bda2183`, model `01595b62`, failed the unchanged
+10 s readiness deadline before any reset or turn. In new epoch
+`888ba87b2f6145a8ae25e0d6b095c90d`, quiet steps 61–359 supplied only
+0.496666679 simulated seconds: two more quiet steps were needed for 0.5 s.
+No freshness fault or gen2 GC occurred during readiness; no performance cause
+or CPU optimization is validated by this failed episode.
+
+Independent audit retained 360 rows/98,326 contacts, actual exit 1, natural
+owned closure and zero spindle upload; source/SDK/assets and five stores are
+unchanged. Publish the byte-exact failure audit under
+`docs/evidence/project-status-20261003`. No physical task or post-stop rest is
+proved. The earlier readiness PASS, MuJoCo result and historical failures remain.

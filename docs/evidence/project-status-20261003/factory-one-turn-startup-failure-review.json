@@ -1,0 +1,671 @@
+{
+  "audit_verdict": "FAIL_STARTUP_QUIET_DEADLINE_CLOSED",
+  "native_physical_task_pass": false,
+  "independent_evidence_and_closure_audit_pass": true,
+  "head": "4bda2183a30074f8ad105ce497876301ce8fc0ed",
+  "tree": "12a16f3a415c28e0e606157cf90501d87f4379b1",
+  "model_sha256": "01595b62c1b4856e41c7e8f83be6ee91b6414bda742aea7e6a7ed0b3e8daa94d",
+  "binding_sha256": "472a100995f41abb46efff9ef68ead961f5fba11def7793253bbb08b29b3448c",
+  "epoch": "888ba87b2f6145a8ae25e0d6b095c90d",
+  "actual_campaign_exit_code": 1,
+  "root_actual_exit_receipt": {
+    "actual_exec_session_id": 81582,
+    "actual_campaign_exit_code": 1,
+    "observed_at_utc": "2026-10-03T15:34:40.968629+00:00",
+    "failure": "Startup quiet deadline; no reset or turn dispatched",
+    "five_stores_unchanged": true,
+    "refs": {
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/receipt.json": "6cdaf5be934eab0e88513cee24b2663aea044088a3da7afdbfb30b6bbf06dfe6",
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/native/native-result.json": "b08e7e24d3b7dae8928bf32df75b46dbf72492a9a1a99e6cf2ef656b46ab14c2",
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/scope/closure.json": "8d411c16d5fec80f9b3d843c0a741bbee3974a402d58427f07e43a50473ffa98",
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/root-stores-before-native-01.json": "0792a61e2da7b5a8d46b18e7925c91b3b4390933d95b56eed3d8b1afeb1d40de",
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/root-stores-after-native-01.json": "0792a61e2da7b5a8d46b18e7925c91b3b4390933d95b56eed3d8b1afeb1d40de"
+    },
+    "physical_task_admission": false
+  },
+  "original_startup_failure": {
+    "closure": {
+      "ok": true,
+      "owner": {
+        "error": null,
+        "ok": true,
+        "owner_thread_closed": true,
+        "pending_records": 360,
+        "physical_stop_verified": false,
+        "zero_spindle": {
+          "before_step": 360,
+          "completed_monotonic_s": 286592.925035779,
+          "generation": 2,
+          "physical_stop_verified": false,
+          "uploaded": true
+        }
+      },
+      "physical_stop_verified": false,
+      "stop": {
+        "accepted_monotonic_s": 286592.905563794,
+        "generation": 1,
+        "latched": true,
+        "ok": true,
+        "physical_stop_verified": false
+      }
+    },
+    "error": "FasteningFault: startup did not produce quiet pre-engaged independent observations",
+    "ready": false
+  },
+  "pre_owner_preparation_audit": {
+    "ok": true,
+    "loaded_variants": 39,
+    "scene_and_native_solves": 0,
+    "admission_predicates": 22,
+    "admission_sha256": "c9adf546d1c7ce22db7780d750def78f63e646cd2957bf735eca6f91a32d7cd3",
+    "physical_snapshot_sha256": "0c126211f102792b02e25273c0b4cb941ae25839db903d9ea40bea1e2b6b29d8",
+    "model_identity_sha256": "01595b62c1b4856e41c7e8f83be6ee91b6414bda742aea7e6a7ed0b3e8daa94d",
+    "physics_admission": false,
+    "readiness_admission": false
+  },
+  "current_attempt": {
+    "model_sha256": "01595b62c1b4856e41c7e8f83be6ee91b6414bda742aea7e6a7ed0b3e8daa94d",
+    "epoch": "888ba87b2f6145a8ae25e0d6b095c90d",
+    "head": "4bda2183a30074f8ad105ce497876301ce8fc0ed",
+    "raw_rows": 360,
+    "trace_events": 7968,
+    "trace_pairs": 3984,
+    "readiness_wall_s": 10.00010102498345,
+    "deadline_margin_at_return_s": -0.00010102498345077038,
+    "last_completed_owner_step_recorded": 359,
+    "quiet": {
+      "maximum_raw_gen0_window_before_deadline": {
+        "first_step": 61,
+        "last_step": 359,
+        "span_sim_s": 0.4966666786931455,
+        "capture_minus_deadline_s": -0.01789309299783781,
+        "accept_return_minus_deadline_s": -0.010659785009920597
+      },
+      "first_sufficient_raw_window_before_deadline": null,
+      "consumer_cursor_instrumented": false,
+      "cursor_note": "Saved owner step and controller publication bound availability; the private _ready cursor was not recorded."
+    },
+    "same_prefix_steps_1_through_359": {
+      "observer.read": {
+        "count": 359,
+        "wall_total_s": 2.612411862,
+        "thread_cpu_total_s": 2.602758878,
+        "wall_median_s": 0.007088127,
+        "wall_max_s": 0.012887143
+      },
+      "geometry.evaluate": {
+        "count": 359,
+        "wall_total_s": 0.200403859,
+        "thread_cpu_total_s": 0.200307086,
+        "wall_median_s": 0.000555224,
+        "wall_max_s": 0.00096018
+      },
+      "contact_records": {
+        "count": 359,
+        "wall_total_s": 2.058733384,
+        "thread_cpu_total_s": 2.049818225,
+        "wall_median_s": 0.005532401,
+        "wall_max_s": 0.009718737
+      },
+      "observation.asdict": {
+        "count": 718,
+        "wall_total_s": 0.08582893,
+        "thread_cpu_total_s": 0.085762793,
+        "wall_median_s": 7.99715e-05,
+        "wall_max_s": 0.002227457
+      },
+      "native_clock.stable": {
+        "count": 359,
+        "wall_total_s": 0.019066225,
+        "thread_cpu_total_s": 0.019077924,
+        "wall_median_s": 5.1979e-05,
+        "wall_max_s": 0.000111089
+      },
+      "raw_queue.put_nowait": {
+        "count": 359,
+        "wall_total_s": 0.003825187,
+        "thread_cpu_total_s": 0.003815507,
+        "wall_median_s": 1.0676e-05,
+        "wall_max_s": 1.6876e-05
+      },
+      "controller.accept_solve": {
+        "count": 359,
+        "wall_total_s": 0.067884828,
+        "thread_cpu_total_s": 0.067896825,
+        "wall_median_s": 0.000186313,
+        "wall_max_s": 0.000295449
+      },
+      "backend.advance": {
+        "count": 359,
+        "wall_total_s": 9.862208979,
+        "thread_cpu_total_s": 9.744719038,
+        "wall_median_s": 0.026607854,
+        "wall_max_s": 0.060229663
+      }
+    },
+    "phase_spans_are_nested_and_must_not_be_summed": true,
+    "gc_overlapping_readiness_call": {
+      "count": 385,
+      "generations": {
+        "1": 33,
+        "0": 352
+      },
+      "wall_total_s": 0.047834888,
+      "maximum": {
+        "phase": 8,
+        "thread_id": 125111229077184,
+        "step": -1,
+        "event": 2,
+        "generation": 1,
+        "start_ns": 286587051047704,
+        "end_ns": 286587053126986,
+        "wall_s": 0.002079282,
+        "thread_cpu_s": 0.000352159,
+        "capture_s": -1.0
+      },
+      "all_on_owner_thread": true
+    },
+    "all_trace_gc_maximum": {
+      "phase": 8,
+      "thread_id": 125123884226432,
+      "step": -1,
+      "event": 2,
+      "generation": 2,
+      "start_ns": 286592959695706,
+      "end_ns": 286593377447785,
+      "wall_s": 0.417752079,
+      "thread_cpu_s": 0.417730404,
+      "capture_s": -1.0
+    },
+    "controller_wrapper_age_max": {
+      "step": 3,
+      "entry_minus_capture_s": 0.013096392038278282,
+      "return_minus_capture_s": 0.01329103799071163
+    },
+    "advance_return_to_queue_start_max": {
+      "step": 289,
+      "wall_s": 0.000219123
+    },
+    "archive_gap_note": "Encoding and unattributed scheduling occur before queue entry; queue duration is not codec duration.",
+    "settling_boundary": [
+      {
+        "step": 58,
+        "spindle_speed_rad_s": 0.029070978984236717,
+        "fastener_linear_speed_m_s": 0.0001589435851201415,
+        "tool_linear_speed_m_s": 0.0002539475099183619,
+        "fastener_angular_speed_rad_s": 0.01475102361291647,
+        "tool_angular_speed_rad_s": 0.029320968315005302,
+        "thread_contacts": 13,
+        "tool_contacts": 32
+      },
+      {
+        "step": 59,
+        "spindle_speed_rad_s": 0.024952273815870285,
+        "fastener_linear_speed_m_s": 0.00013636646326631308,
+        "tool_linear_speed_m_s": 0.00022776686819270253,
+        "fastener_angular_speed_rad_s": 0.01289224810898304,
+        "tool_angular_speed_rad_s": 0.025194348767399788,
+        "thread_contacts": 13,
+        "tool_contacts": 34
+      },
+      {
+        "step": 60,
+        "spindle_speed_rad_s": 0.02092781662940979,
+        "fastener_linear_speed_m_s": 0.0001024929151753895,
+        "tool_linear_speed_m_s": 0.00020782527280971408,
+        "fastener_angular_speed_rad_s": 0.010365237481892109,
+        "tool_angular_speed_rad_s": 0.02116696909070015,
+        "thread_contacts": 16,
+        "tool_contacts": 38
+      },
+      {
+        "step": 61,
+        "spindle_speed_rad_s": 0.017559528350830078,
+        "fastener_linear_speed_m_s": 8.851537859300151e-05,
+        "tool_linear_speed_m_s": 0.00019153607718180865,
+        "fastener_angular_speed_rad_s": 0.007748945150524378,
+        "tool_angular_speed_rad_s": 0.017798282206058502,
+        "thread_contacts": 14,
+        "tool_contacts": 39
+      }
+    ],
+    "last_four_solves": [
+      {
+        "step": 357,
+        "generation": 0,
+        "capture_minus_deadline_s": -0.06773706601234153,
+        "accept_return_minus_deadline_s": -0.060733147023711354
+      },
+      {
+        "step": 358,
+        "generation": 0,
+        "capture_minus_deadline_s": -0.04128818301251158,
+        "accept_return_minus_deadline_s": -0.03320785699179396
+      },
+      {
+        "step": 359,
+        "generation": 0,
+        "capture_minus_deadline_s": -0.01789309299783781,
+        "accept_return_minus_deadline_s": -0.010659785009920597
+      },
+      {
+        "step": 360,
+        "generation": 2,
+        "capture_minus_deadline_s": 0.011286091001238674,
+        "accept_return_minus_deadline_s": 0.01951738598290831
+      }
+    ]
+  },
+  "prior_readiness_pass_comparison_only": {
+    "model_sha256": "01595b62c1b4856e41c7e8f83be6ee91b6414bda742aea7e6a7ed0b3e8daa94d",
+    "epoch": "6eed234fd7674e7b8da18dcc20039e3b",
+    "head": "4bda2183a30074f8ad105ce497876301ce8fc0ed",
+    "raw_rows": 361,
+    "trace_events": 7988,
+    "trace_pairs": 3994,
+    "readiness_wall_s": 9.787795156007633,
+    "deadline_margin_at_return_s": 0.2122048439923674,
+    "last_completed_owner_step_recorded": 359,
+    "quiet": {
+      "maximum_raw_gen0_window_before_deadline": {
+        "first_step": 59,
+        "last_step": 359,
+        "span_sim_s": 0.5000000121071935,
+        "capture_minus_deadline_s": -0.22064097999827936,
+        "accept_return_minus_deadline_s": -0.21241963002830744
+      },
+      "first_sufficient_raw_window_before_deadline": {
+        "first_step": 59,
+        "last_step": 359,
+        "span_sim_s": 0.5000000121071935,
+        "capture_minus_deadline_s": -0.22064097999827936,
+        "accept_return_minus_deadline_s": -0.21241963002830744
+      },
+      "consumer_cursor_instrumented": false,
+      "cursor_note": "Saved owner step and controller publication bound availability; the private _ready cursor was not recorded."
+    },
+    "same_prefix_steps_1_through_359": {
+      "observer.read": {
+        "count": 359,
+        "wall_total_s": 2.523471709,
+        "thread_cpu_total_s": 2.513732757,
+        "wall_median_s": 0.006686206,
+        "wall_max_s": 0.013253421
+      },
+      "geometry.evaluate": {
+        "count": 359,
+        "wall_total_s": 0.191331571,
+        "thread_cpu_total_s": 0.190738031,
+        "wall_median_s": 0.000535104,
+        "wall_max_s": 0.001323393
+      },
+      "contact_records": {
+        "count": 359,
+        "wall_total_s": 1.995580553,
+        "thread_cpu_total_s": 1.989223476,
+        "wall_median_s": 0.005195649,
+        "wall_max_s": 0.011700749
+      },
+      "observation.asdict": {
+        "count": 718,
+        "wall_total_s": 0.082339466,
+        "thread_cpu_total_s": 0.082264181,
+        "wall_median_s": 9.381250000000001e-05,
+        "wall_max_s": 0.001776932
+      },
+      "native_clock.stable": {
+        "count": 359,
+        "wall_total_s": 0.018271942,
+        "thread_cpu_total_s": 0.018280376,
+        "wall_median_s": 4.9746e-05,
+        "wall_max_s": 9.5505e-05
+      },
+      "raw_queue.put_nowait": {
+        "count": 359,
+        "wall_total_s": 0.003655927,
+        "thread_cpu_total_s": 0.003637353,
+        "wall_median_s": 1.0246e-05,
+        "wall_max_s": 7.7508e-05
+      },
+      "controller.accept_solve": {
+        "count": 359,
+        "wall_total_s": 0.065370968,
+        "thread_cpu_total_s": 0.065397125,
+        "wall_median_s": 0.000180364,
+        "wall_max_s": 0.000405717
+      },
+      "backend.advance": {
+        "count": 359,
+        "wall_total_s": 9.666240345,
+        "thread_cpu_total_s": 9.545688575,
+        "wall_median_s": 0.026007402,
+        "wall_max_s": 0.056159454
+      }
+    },
+    "phase_spans_are_nested_and_must_not_be_summed": true,
+    "gc_overlapping_readiness_call": {
+      "count": 382,
+      "generations": {
+        "0": 350,
+        "1": 32
+      },
+      "wall_total_s": 0.040001082,
+      "maximum": {
+        "phase": 8,
+        "thread_id": 123352481900224,
+        "step": -1,
+        "event": 2,
+        "generation": 1,
+        "start_ns": 283977839765610,
+        "end_ns": 283977841275496,
+        "wall_s": 0.001509886,
+        "thread_cpu_s": 0.001501722,
+        "capture_s": -1.0
+      },
+      "all_on_owner_thread": true
+    },
+    "all_trace_gc_maximum": {
+      "phase": 8,
+      "thread_id": 123364005992320,
+      "step": -1,
+      "event": 2,
+      "generation": 2,
+      "start_ns": 283987509667582,
+      "end_ns": 283987927460814,
+      "wall_s": 0.417793232,
+      "thread_cpu_s": 0.417656834,
+      "capture_s": -1.0
+    },
+    "controller_wrapper_age_max": {
+      "step": 360,
+      "entry_minus_capture_s": 0.05401920998701826,
+      "return_minus_capture_s": 0.05595989100402221
+    },
+    "advance_return_to_queue_start_max": {
+      "step": 302,
+      "wall_s": 0.000306546
+    },
+    "archive_gap_note": "Encoding and unattributed scheduling occur before queue entry; queue duration is not codec duration.",
+    "settling_boundary": [
+      {
+        "step": 58,
+        "spindle_speed_rad_s": 0.022571317851543427,
+        "fastener_linear_speed_m_s": 0.0002087106986436993,
+        "tool_linear_speed_m_s": 0.00016587157733738422,
+        "fastener_angular_speed_rad_s": 0.01932387612760067,
+        "tool_angular_speed_rad_s": 0.02253051847219467,
+        "thread_contacts": 13,
+        "tool_contacts": 38
+      },
+      {
+        "step": 59,
+        "spindle_speed_rad_s": 0.017856866121292114,
+        "fastener_linear_speed_m_s": 0.00016860745381563902,
+        "tool_linear_speed_m_s": 0.00013704749289900064,
+        "fastener_angular_speed_rad_s": 0.015571275725960732,
+        "tool_angular_speed_rad_s": 0.017806077376008034,
+        "thread_contacts": 14,
+        "tool_contacts": 38
+      },
+      {
+        "step": 60,
+        "spindle_speed_rad_s": 0.014196055009961128,
+        "fastener_linear_speed_m_s": 0.0001398357271682471,
+        "tool_linear_speed_m_s": 0.00011735774023691192,
+        "fastener_angular_speed_rad_s": 0.012450401671230793,
+        "tool_angular_speed_rad_s": 0.0141433821991086,
+        "thread_contacts": 17,
+        "tool_contacts": 40
+      },
+      {
+        "step": 61,
+        "spindle_speed_rad_s": 0.01058125402778387,
+        "fastener_linear_speed_m_s": 0.00011061034456361085,
+        "tool_linear_speed_m_s": 0.00010054461745312437,
+        "fastener_angular_speed_rad_s": 0.009211914613842964,
+        "tool_angular_speed_rad_s": 0.010536154732108116,
+        "thread_contacts": 16,
+        "tool_contacts": 41
+      }
+    ],
+    "last_four_solves": [
+      {
+        "step": 358,
+        "generation": 0,
+        "capture_minus_deadline_s": -0.2500898040016182,
+        "accept_return_minus_deadline_s": -0.2441362519748509
+      },
+      {
+        "step": 359,
+        "generation": 0,
+        "capture_minus_deadline_s": -0.22064097999827936,
+        "accept_return_minus_deadline_s": -0.21241963002830744
+      },
+      {
+        "step": 360,
+        "generation": 0,
+        "capture_minus_deadline_s": 0.46074117202078924,
+        "accept_return_minus_deadline_s": 0.5167010630248114
+      },
+      {
+        "step": 361,
+        "generation": 2,
+        "capture_minus_deadline_s": 0.5920881810015999,
+        "accept_return_minus_deadline_s": 0.600090658001136
+      }
+    ]
+  },
+  "minimum_more_steps_needed_at_step359_if_quiet_continued": 2,
+  "attribution": [
+    "Readiness rejected before reset or turn; no successful turn/rest/seating/preload result exists.",
+    "Current settling crossed 0.02 rad/s at step61 rather than prior59; raw contact dynamics differ at equal model/source.",
+    "359 gen0 accepted solves were available before the current deadline, but their longest quiet interval was below0.5s.",
+    "There is no current startup gen2 GC stall; timings do not attribute the two-episode variance to a sole cause.",
+    "contact_records is a measurable CPU-side hotspot; changing it requires exact-data/failure-contract controls and new source-bound preparation.",
+    "Phase spans include observer overhead and are nested; these two shared-device episodes establish no general throughput."
+  ],
+  "all_raw_rows_clock_safety_and_contacts": {
+    "rows_checked": 360,
+    "maximum_saved_entry_age_s": 0.013096392038278282,
+    "minimum_contact_capacity_headroom": 1758,
+    "clock_caveat": "Entry clock is the preserved wrapper clock, not exact internal acceptance time. No timestamp is renewed."
+  },
+  "clock_recurrence": {
+    "rows": 360,
+    "final_native_float32_time_s": 0.5999994874000549,
+    "final_scene_time_s": 0.6000000145286322
+  },
+  "raw_contact_records": 98326,
+  "generations": {
+    "0": 359,
+    "2": 1
+  },
+  "all_spindle_commands_and_efforts_zero": true,
+  "all_native_controls_equal_initial_hold": true,
+  "all_qfrc_applied_zero": true,
+  "all_solves_returned_normally_from_controller": true,
+  "wrapper_clock_is_not_exact_internal_check_clock": true,
+  "runtime_was_not_published": true,
+  "motion_calls": [],
+  "reset_calls": [],
+  "owner_drain": {
+    "absolute_deadline_monotonic_s": 286740.972817766,
+    "advance_calls_observed": 360,
+    "ended_monotonic_s": 286593.675815913,
+    "ok": true,
+    "owner_constructed": true,
+    "owner_error": null,
+    "owner_thread_closed": true,
+    "physical_stop_verified": false,
+    "started_monotonic_s": 286593.675812798,
+    "zero_spindle": {
+      "before_step": 360,
+      "completed_monotonic_s": 286592.925035779,
+      "generation": 2,
+      "physical_stop_verified": false,
+      "uploaded": true
+    }
+  },
+  "owned_scope_closed_naturally": true,
+  "owned_births_absent_now": [
+    {
+      "expected": {
+        "pid": 1464925,
+        "start_ticks": 28650097,
+        "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d"
+      },
+      "observed_now": null,
+      "original_absent": true
+    },
+    {
+      "expected": {
+        "pid": 1464927,
+        "start_ticks": 28650101,
+        "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d"
+      },
+      "observed_now": null,
+      "original_absent": true
+    }
+  ],
+  "six_foreign_births_same_in_recorded_terminal_observation": true,
+  "no_separate_post_stop_rest_proven": true,
+  "five_stores_unchanged": {
+    "/home/johnny/.cascade/beliefs.json": null,
+    "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "/home/johnny/.cascade/grasp_memory.json": null,
+    "/home/johnny/.cascade/spatial_memory.json": null,
+    "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+  },
+  "input_file_hashes_reverified": {
+    "source": 1854,
+    "harness": 11,
+    "factory": 8,
+    "robot": 26,
+    "mesh_loader": 138,
+    "sdk": 4320,
+    "retained_evidence": 88,
+    "python": 1,
+    "protected": 3
+  },
+  "artifact_hashes_reverified": 22,
+  "private_cache_hashes_reverified": 282,
+  "reviewer_native_imports_gpu_queries_new_runs_or_state_mutations": false,
+  "refs": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ONE_TURN_NATIVE_REVIEW_20261003/review_failure.py",
+      "sha256": "2f966c625cfe1517db783247642826f34557bd9a0756aa1efdee248d978634cb"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ONE_TURN_NATIVE_REVIEW_20261003/audit_helpers.py",
+      "sha256": "07655e6ebe30fd2a2d9a64680920eb48d3f04dca278e3fd6c86ec9c45b5b78cc"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/one_turn/authorized-plan-01.json",
+      "sha256": "ac8be72a992abc7caeeaa777f9b17a1c5b2e19850aa9eac1b464153cb7f836e8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/one_turn/plan.json",
+      "sha256": "4fd24f8e1f357d86db5b33a2c795d886b0e5db85354a94aa00688e834fefb2d0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/ROOT_EXECUTION_EXIT_01.json",
+      "sha256": "faa79afdcbfc4aec77d17b703afec41f0834a332ac2573cd82ec756df2ccbf9d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/receipt.json",
+      "sha256": "6cdaf5be934eab0e88513cee24b2663aea044088a3da7afdbfb30b6bbf06dfe6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/native/native-result.json",
+      "sha256": "b08e7e24d3b7dae8928bf32df75b46dbf72492a9a1a99e6cf2ef656b46ab14c2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/native/constructed-model.json",
+      "sha256": "86127bd4f866827e7d485d725db800b3db1233a044fe8955ac0ebd83c4bd3afa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/native/constructed-binding.json",
+      "sha256": "028fcb8c0ffe343ccfa561ad086c34611e9ec4f9f70f74294dcfba025b81a1f6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/native/runtime/domains/fastening/precompile.json",
+      "sha256": "d82382017f58061220beb2ff3095630e62e2a4639a294515af2074b26ec61dd1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/native/phase-trace.json",
+      "sha256": "98e9d07f9456ed70dd99d4ad52fa2196ab5dab0fd2e34bc4255c08cfa451c93b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/scope/closure.json",
+      "sha256": "8d411c16d5fec80f9b3d843c0a741bbee3974a402d58427f07e43a50473ffa98"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/inputs-before.json",
+      "sha256": "9a9bcc0fab318aaafd9e4284dad8b66d32e27c85d03d4ccfb42c95cc87f254ed"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/inputs-after.json",
+      "sha256": "9a9bcc0fab318aaafd9e4284dad8b66d32e27c85d03d4ccfb42c95cc87f254ed"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/native/runtime/domains/fastening/solves.jsonl",
+      "sha256": "74af0d933e62b3bb3b5f6aacd46ed2d424e98793da778dc557588f4c72334437"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/native/post-close-solves.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/native/runtime/domains/fastening/closure.json",
+      "sha256": "794b05be0f91bc8f9a000d74a87498682c7a74e7781bcda2b27cd0c2814dc6ba"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/native-one-turn-01/native/runtime/domains/fastening/startup-failure.json",
+      "sha256": "6b5a11387ecbd8bb340864d31258963779dee195890be6a1cbcf24999819dcc4"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/root-stores-before-native-01.json",
+      "sha256": "0792a61e2da7b5a8d46b18e7925c91b3b4390933d95b56eed3d8b1afeb1d40de"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/root-stores-after-native-01.json",
+      "sha256": "0792a61e2da7b5a8d46b18e7925c91b3b4390933d95b56eed3d8b1afeb1d40de"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_ONE_TURN_PLAN_20261003/one_turn/preparation_audit.py",
+      "sha256": "11f1932554b01ddc8e384806030520bfd1800b729c944af220cd2a3231c96a23"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_MERGE_READY_20261003/cascade/src/cascade/apps/factory_runtime.py",
+      "sha256": "2ba5248f30c22a9221740adf169ada30474f71a4f5e61822309dc0425d0e1588"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_MERGE_READY_20261003/cascade/src/cascade/control/fastening.py",
+      "sha256": "c5037e2ede39273a9f4c94a0e60d2d3ef6275eaf1f572ab01ade80031cc95dfb"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_MERGE_READY_20261003/cascade/src/cascade/sim/factory_owner.py",
+      "sha256": "c28df76bd2850254ec58cba0488d23f71ea91b86c1235c072fe69324e71c2994"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/receipt.json",
+      "sha256": "7eafa90a154eb5eb05d56815b6f953347ef8c05a6fee3cd9cc7f7374962aa3bd"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/native-result.json",
+      "sha256": "1625bd469e4d912057fd3f7a610bbb25438586f0644fc31335a1ddafda413d1a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/phase-trace.json",
+      "sha256": "b5e66bb4ed72b510ee99520812388cc55f1ccc4fd74df68e467c2e105bba5d36"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/runtime/domains/fastening/solves.jsonl",
+      "sha256": "13eb8b13646c94562c333fa626a2de8f3f851ea6b9f4a271035e946528bee913"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_NATIVE_REVIEW_20261003/terminal-review.json",
+      "sha256": "1c0bad7114afb6a9c8286a9e78d6da41ed4dcb04c09418658b639da603850c40"
+    }
+  ]
+}

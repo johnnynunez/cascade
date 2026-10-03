@@ -617,3 +617,20 @@ Evidence: eight baseline causal tests fail in0.17s; final eight-file selection16
 Independent review of cfff2f2 reproduced a real composed owner whose read outlasted the unchanged five-second drain budget. After the reader returned, shutdown_runtime and MCP caches prevented its close from running. Explicit repeat calls now resume only incomplete delegated cleanup; legacy park/disconnect and the first MCP stop are not repeated. RobotRuntime propagates current complete separately from sticky historical ok, preserves direct and nested attempts, and never recasts a cached failed receipt as successful. Composed domains still require dictionary receipts; legacy synchronous drivers keep None.
 
 Causal baseline: 3 failures/1 passing no-repeat control in10.16s; a separate source export adds2 causal failures/.19s for direct history and nested completion. Final six-file selection139PASS/45.74s,568source/test/config hashes and protected stores unchanged. Added explicit persistence-error history controls; intermediate74PASS/30.53s retained as earlier limited evidence. Ruff F/E9 and diff checks pass. No native model, GPU, service, host campaign, publication or shared environment writes. Receipt: benchmark/results/runtime_teardown_retry_20261003.json. Earlier lifecycle failure remains failed even after cleanup becomes complete.
+
+### 2026-10-03 — refuse positive placement credit after failed release
+
+The retained MuJoCo withdrawal experiment reported a failed placement while
+still holding the blue cube, yet the proximity-only postcondition confirmed it.
+Placement execution failure or explicit possession now vetoes positive credit,
+preserving the independent measurements and any refutation. Annotation derives
+`verified` from the current postcondition even for already-failed executions;
+it preserves the actor's error and does not turn a home-only failure into a
+placement refusal. No motion or verifier tolerance changes.
+
+The original replay was nine expected failures and three passing controls;
+the corrected production passes 199 focused checks. Final test-only naming
+cleanup passes all 14 new regressions. Sources and protected stores remain
+unchanged during each check; the rounded retained trace is not a new physical
+run. See docs/PLACEMENT_REFUSAL_VERIFICATION.md and its source-bound receipt.
+The separate two-cube physical failure remains open. No push or merge.

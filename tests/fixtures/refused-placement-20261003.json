@@ -1,0 +1,43 @@
+{
+  "args": {
+    "object": "blue cube"
+  },
+  "result": {
+    "destination": "drop zone",
+    "destination_kind": "configured_point",
+    "error": "_PostPlaceRetreatPlanError: no collision-clear release escape: [{'candidate': 'joint_0_first', 'reason': 'another arm/object pair initially intersects'}, {'candidate': 'joint_0_last', 'reason': 'another arm/object pair initially intersects'}, {'candidate': 'joint_1_first', 'reason': 'another arm/object pair initially intersects'}, {'candidate': 'joint_1_last', 'reason': 'TCP z=0.020 below table clearance 0.020 outside the grasp exemption zone'}, {'candidate': 'joint_2_first', 'reason': 'TCP z=0.020 below table clearance 0.020 outside the grasp exemption zone'}, {'candidate': 'joint_2_last', 'reason': 'another arm/object pair initially intersects'}, {'candidate': 'joint_3_first', 'reason': 'another arm/object pair initially intersects'}, {'candidate': 'joint_3_last', 'reason': 'another arm/object pair initially intersects'}, {'candidate': 'joint_4_first', 'reason': 'another arm/object pair initially intersects'}, {'candidate': 'joint_4_last', 'reason': 'another arm/object pair initially intersects'}]",
+    "grasp_attempts": 1,
+    "grip_verified": true,
+    "holding": "blue cube",
+    "home_skipped": true,
+    "next_action": "If the user said 'then stop', report this failure and end the turn. Do not start another pick, rename the requested object or destination, or invent a placement using manual coordinates.",
+    "ok": false,
+    "place_attempts": 1,
+    "postcondition": {
+      "channel": "physics",
+      "evidence": "blue cube is 2.5 cm from the drop zone center (physics)",
+      "kind": "relocated",
+      "measured": {
+        "destination": "drop zone",
+        "final": [
+          0.218,
+          -0.1021,
+          0.0257
+        ],
+        "moved_m": 0.2689,
+        "target_err_m": 0.0253
+      },
+      "skill": "pick_and_place",
+      "status": "confirmed"
+    },
+    "stage": "retreat_plan",
+    "target": [
+      0.2,
+      -0.12
+    ],
+    "verified": true
+  },
+  "scope": "Replay of rounded independent final pose and recorded failed motion; not a new physical episode",
+  "skill": "pick_and_place",
+  "source_trace_sha256": "bafe7fd279a4eababe5ab9925da4660ad5512a024363dd68ce60d789bf7b88f7"
+}

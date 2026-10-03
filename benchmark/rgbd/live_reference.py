@@ -11,10 +11,10 @@ import time
 
 import numpy as np
 
-from .planar_reference import compare_annotations, reference_from_rgb
+from .planar_reference import Board, compare_annotations, reference_from_rgb
 
 
-def annotate_capture(server, read_result, *, save_record, operation_count):
+def annotate_capture(server, read_result, *, save_record, operation_count, board=Board()):
     observation = read_result['observation']
     binding = dict(epoch=observation['epoch'], sequence=observation['sequence'],
                    capture_sha256=read_result['capture_sha256'])
@@ -29,7 +29,7 @@ def annotate_capture(server, read_result, *, save_record, operation_count):
         capture = hub.retained('overview', **binding)
         payload = capture.payload
         rgb = np.frombuffer(payload.rgb8, dtype=np.uint8).reshape(payload.height, payload.width, 3)
-        reference = reference_from_rgb(rgb)
+        reference = reference_from_rgb(rgb, board)
         report['reference'] = asdict(reference)
         for index, pixel in enumerate(reference.pixels()):
             args = {**binding, 'pixel': list(pixel),

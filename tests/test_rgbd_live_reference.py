@@ -13,15 +13,22 @@ from cascade.sensing.domain import SensorDomain
 from cascade.sensing.hub import SensorDescriptor
 from cascade.spatial.rgbd import RgbdSpatialDomain
 from test_rgbd_planar_reference import projection_episode
+from test_rgbd_ground_texture import ground_capture
+from benchmark.rgbd.planar_reference import Board
 
 
 @pytest.mark.parametrize('mutation', [None, 'fx', 'fy', 'stale', 'extra_rpc'])
-def test_live_reference_uses_ordinary_mcp_and_exact_retained_capture(monkeypatch, tmp_path, mutation):
+@pytest.mark.parametrize('surface', ['historical_mesh', 'ground_texture'])
+def test_live_reference_uses_ordinary_mcp_and_exact_retained_capture(monkeypatch, tmp_path, mutation, surface):
     previous = cv2.getNumThreads()
     cv2.setNumThreads(1)
     try:
-        _, _, capture = projection_episode(mutation if mutation in {'fx', 'fy'} else None,
-                                            with_capture=True)
+        if surface == 'ground_texture':
+            board, capture = ground_capture(mutation)
+        else:
+            _, _, capture = projection_episode(mutation if mutation in {'fx', 'fy'} else None,
+                                                with_capture=True)
+            board = Board()
     finally:
         cv2.setNumThreads(previous)
     now = [10.1]
@@ -68,7 +75,7 @@ def test_live_reference_uses_ordinary_mcp_and_exact_retained_capture(monkeypatch
         cv2.setNumThreads(1)
         try:
             report = annotate_capture(server, read_result, save_record=save,
-                                      operation_count=lambda: count[0])
+                                      operation_count=lambda: count[0], board=board)
         finally:
             cv2.setNumThreads(previous)
         assert report['passed'] is (mutation is None), report

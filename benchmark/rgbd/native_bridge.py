@@ -86,7 +86,7 @@ def usd_value(value):
             **({'resolvedPath': value.resolvedPath} if hasattr(value, 'resolvedPath') else {})}
 
 
-def stage_snapshot(stage):
+def stage_snapshot(stage, *, exclude_path=BOARD_PATH):
     """Composed values/metadata, connections, targets and every time sample.
 
     Only the new subtree is excluded. An existing similarly named prim is not.
@@ -95,7 +95,7 @@ def stage_snapshot(stage):
     rows = {}
     for prim in stage.TraverseAll():
         path = str(prim.GetPath())
-        if path == BOARD_PATH or path.startswith(BOARD_PATH + '/'):
+        if exclude_path is not None and (path == exclude_path or path.startswith(exclude_path + '/')):
             continue
         rows[path] = {
             'type': prim.GetTypeName(), 'active': prim.IsActive(),

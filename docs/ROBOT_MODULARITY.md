@@ -33,7 +33,8 @@ flowchart TD
   Graph[Bounded skill graph] --> Runtime
   MCP --> Runtime[RobotRuntime: one robot's dispatch and cancellation]
   Conversation --> Runtime
-  MCP -. multi-agent app wiring pending .-> Fleet[FleetRuntime: multi-robot routing]
+  FleetCLI[Fleet CLI / independent agent episodes] --> Fleet[FleetRuntime: multi-robot routing]
+  MCP -. fleet MCP frontend pending .-> Fleet
   Fleet --> Runtime
   Structure[Embodiment declaration and resource catalog] --> Runtime
   Runtime --> Arm[Manipulation]
@@ -75,7 +76,7 @@ There is no measured twelve-robot episode or real-time performance guarantee.
 | `control/microduck_policy.py`, `sim/microduck_stepper.py` | Pinned ONNX contract and physics-clock policy application | Robot-specific implementation; no generic humanoid policy loader or second writer to head joints |
 | `robotics/graph.py` | Immutable bounded DAG of registered skills, outcome and data edges | No graph-generated code, online self-editing or automatic stop reset |
 | `eval/vab.py`, `eval/arena.py`, `eval/trials.py` | Optional external API adapters and bound independent verdicts | Upstream success alone does not grant physical admission |
-| `robotics/fleet.py` | Concurrent task routing to independent robot runtimes, with per-robot and global stop | A multi-agent application and shared-scene physics still require implementation and native validation |
+| `robotics/fleet.py`, `apps/fleet.py` | Concurrent task routing and an independent agent episode per robot, with per-robot and global stop | Fleet MCP frontend, shared-space coordination and shared-scene physics remain pending |
 
 ## Capability boundaries
 
@@ -88,7 +89,7 @@ There is no measured twelve-robot episode or real-time performance guarantee.
 | Perceive and remember space | Passive sensors, measured-frame contracts and retained RGB-D surface annotations | Physical SLAM/localization, metric reconstruction admission and execution of planned routes |
 | Describe different bodies | Fixed/floating roots, links, transmissions and typed scalar/generalized joint observations | Drivers and control mappings for each mechanism; dynamic whole-body control |
 | Sense touch | Contact, estimated-force and tactile-image contracts | Calibrated tactile device drivers and task-specific tactile verification |
-| Coordinate twelve robots | Concurrent fleet runtime with independent robot identities, ownership and stop state | Multi-agent application, shared native scene, collision interaction and measured fleet stop/reset |
+| Coordinate twelve robots | Concurrent fleet runtime and agent CLI with independent robot identities, ownership and stop state; twelve-member mock diagnostic | Fleet MCP frontend, shared native scene, collision interaction and measured fleet stop/reset |
 
 `ResourceDescriptor.admission` is declared metadata (for example `unvalidated`
 or `software_only`), not an automatic certificate state
@@ -144,11 +145,40 @@ waiting on any member's existing timeout and parking policy. CPU tests exercise
 twelve concurrent synthetic robot runtimes, isolated stops, late dispatch
 rejection and independent traces/debts.
 
-This is a Python coordination API, not a native twelve-MicroDuck scene or a
-fleet MCP/CLI demo. A shared physical world still needs one admitted simulation
+This coordination API does not create a native twelve-MicroDuck scene.
+A shared physical world still needs one admitted simulation
 owner with distinct robot states, policy histories, contact registries and
 perception/verifier identities, plus shared-space collision coordination.
 The existing refusal of mixed physical actuation inside one robot is unchanged.
+
+Run independent agent episodes with:
+
+```bash
+python -m cascade.apps.fleet --fleet microduck_mock12 --llm mock \
+  --task "inspect and move briefly" --run-dir runs/fleet-example
+```
+
+The coordinator delegates one explicit task to each robot's `AgentOrchestrator`.
+Clients, conversation histories and runtime evidence stay separate; configured
+workers bound concurrent inference. `--llm mock` is a labelled scripted diagnostic
+inside the agent loop. Its short kinematic movement is not physical locomotion
+or a model deciding to walk. A real LLM profile uses the existing client API.
+
+`--fleet` also accepts a YAML file with `version: 1`, `robots`, `deadline_s`,
+`max_workers` and `max_steps`. Each robot entry selects `profile` and optionally
+`config_dir` and `task`; relative config directories resolve beside that file.
+Native profiles retain their exact backend IDs, connection endpoints and model
+pins. `mock_id` is only available for unmounted mock mobile fixtures. The entire
+resource graph is checked before any robot is built. No simulator or model
+server is launched by this application.
+
+`FleetAgents.stop(robot_id)` cancels one agent; `stop()` and SIGINT/SIGTERM cancel
+all. The original episode generation and deadline fence every tool call and late
+inference result. HTTP already in flight may remain pending; the report records
+that instead of claiming cancellation. `catalog.json`, per-robot trace directories
+and `report.json` retain assignments, outcomes, unresolved actions and shutdown.
+Use a new run directory for each episode. Shared-world collision coordination,
+physical fleet admission and a fleet MCP frontend remain separate work.
 
 ## Observation and policy contracts
 

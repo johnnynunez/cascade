@@ -708,3 +708,10 @@ launcher fails both explicit endpoint controls while the candidate passes; the
 unset-default control passes for both. Independent source review, Ruff F/E9,
 Bash syntax and diff checks pass. No model, host, robot or GPU was launched, and
 this change does not validate trial12 or authenticate model weights.
+
+
+## 2026-10-03: Terminal reports retain unresolved effects and cancellation
+
+All normal orchestrator reports now use a common ledger-aware finalizer, including step-budget exhaustion. Failed fast-path calls remain in the same task tool history with an explicit tier. Composed motion cancellation records uncertainty before releasing admission, then re-raises the original interruption; later successful motion cannot erase it. Reads and host-only task boundaries retain their prior meaning.
+
+Exact PR90 head `381d65ff` reproduced three review counterexamples (two omitted-debt reports and one pre-existing composed cancellation false success), with two controls passing. Final eight-file CPU selection: **141 passed, 0 skipped in 19.82 s**; source and four protected stores unchanged. The initial two new-test failures were an incorrect assumption that `RobotRuntime.begin_task()` returns an ID; only that test assumption changed. No GPU, SDK, physical episode, shared environment modification or production limit change. Evidence: `benchmark/results/task_terminal_obligations_20261003.json` and external `TASK_TERMINAL_FIX_20261003/{baseline-01,focused-01,focused-02}`.

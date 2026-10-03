@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import array
 import base64
+import hashlib
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass
 import math
@@ -430,3 +432,9 @@ class ObservationEnvelope:
 
     def as_dict(self):
         return wire(self)
+
+    @property
+    def sha256(self):
+        """Exact immutable capture, including its original local receipt/age."""
+        return hashlib.sha256(json.dumps(self.as_dict(), sort_keys=True,
+            separators=(",", ":"), allow_nan=False).encode()).hexdigest()

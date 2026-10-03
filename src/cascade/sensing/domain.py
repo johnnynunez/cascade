@@ -40,7 +40,9 @@ class SensorDomain:
                 return {"ok": True, "sensors": [descriptor.as_dict() for descriptor in self.hub.descriptors]}
             if local_name == "read_sensor" and set(args) == {"sensor_id"}:
                 identifier(args["sensor_id"], "sensor_id")
-                return {"ok": True, "observation": self.hub.read(args["sensor_id"]).as_dict()}
+                observation = self.hub.read(args["sensor_id"])
+                return {"ok": True, "observation": observation.as_dict(),
+                        "capture_sha256": observation.sha256}
             raise ValueError("unknown sensor tool or invalid arguments")
         except Exception as exc:
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:500]}

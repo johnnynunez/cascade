@@ -86,6 +86,10 @@ control or construct an actuator. Configure wall-time and age budgets explicitly
 for the intended producer cadence. There is no fallback to old pixels or to a
 different camera when those limits fail.
 
+The same admitted capture can feed the [spatial observation domain](RGBD_SPATIAL_OBSERVATIONS.md)
+through its exact returned `capture_sha256`, epoch and sequence. Sharing it does
+not acquire another frame or refresh its original age.
+
 The initial provider requires its fixed world camera. Do not label its output as
 a robot-mounted sensor: `world_from_camera` maps the optical frame to `world`,
 not to a head, torso or robot base. A moving mount requires a new producer

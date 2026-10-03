@@ -636,3 +636,16 @@ Initial development failures are retained: malformed YAML indentation (43 failed
 freshness/replay gates were unchanged. Shared envelope SHA-256 still matches the
 protected baseline and grasp memory remains absent. No GPU, native robot or
 hardware admission was tested. See benchmark/results/generalized_joints_20261003.json.
+# 2026-10-03 — Retained RGB-D to spatial observations
+
+- In an isolated clone based on `fb750e9`, reproduced the missing composed
+  sensor-to-spatial path: only synthetic replay profiles were accepted.
+- Added explicit sensor-domain binding, exact immutable capture fan-out with
+  age revalidation, and ordinary MCP pixel-to-surface annotations through
+  `FrameTree` and `SpatialMemory`. Labels are caller annotations; confidence and
+  geometric uncertainty remain unknown. No grid, localization or motion tool.
+- Preserved producer replay watermarks, original clocks/model/calibration,
+  legacy spatial replay, private stores and frozen native/voice candidates.
+- Focused CPU suite: 193 passed, four optional skips (one missing OpenUSD and
+  three SO-101/Pinocchio checks). New real TCP/MCP path executed successfully.
+  No native/GPU/hardware validation or publication performed.

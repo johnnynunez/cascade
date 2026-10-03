@@ -48,14 +48,15 @@ def _controller(profile, domain, name):
     raise ValueError(f"composition has no controller ownership mapping for {kind!r}")
 
 
-def _describe_domain(domain_id, profile, *, embodiment=None):
+def _describe_domain(domain_id, profile, *, embodiment=None, sensor_domains=None):
     """Return a domain's static resources/tools without constructing actuators."""
     kind = profile["kind"]
     if kind == "spatial":
         from ..spatial.domain import build_spatial_domain
-        spatial = build_spatial_domain(domain_id, profile)
+        spatial = build_spatial_domain(domain_id, profile, sensor_domains=sensor_domains)
         return DomainAdapter(domain_id, profile, tuple(spatial.resources), spatial.tool_specs,
-                             frozenset(), runtime=spatial)
+                             frozenset(), runtime=spatial,
+                             required_resources=getattr(spatial, "required_resources", ()))
     if kind == "sensors":
         from ..sensing.domain import build_sensor_domain
         sensor = build_sensor_domain(domain_id, profile, embodiment=embodiment)
@@ -92,7 +93,8 @@ def _describe_domain(domain_id, profile, *, embodiment=None):
 
 
 class DomainAdapter:
-    def __init__(self, domain_id, profile, resources, specs, motion_skills, *, runtime=None, owner=None):
+    def __init__(self, domain_id, profile, resources, specs, motion_skills, *, runtime=None, owner=None,
+                 required_resources=()):
         self.domain_id, self.profile, self.resources = domain_id, profile, resources
         self.runtime, self.owner = runtime, owner
         self.motion_skills = frozenset(motion_skills)
@@ -103,7 +105,7 @@ class DomainAdapter:
             domain=domain_id, local_name=s["name"],
             effect="stop" if s["name"] in {"stop_navigation", "halt_motion"} else
                    "motion" if s["name"] in self.motion_skills else "read",
-            requires=ids, writes=ids if s["name"] in self.motion_skills else ()) for s in self.tool_specs)
+            requires=(*ids, *required_resources), writes=ids if s["name"] in self.motion_skills else ()) for s in self.tool_specs)
 
     def execute(self, name, args):
         return self.runtime.execute(name, args)
@@ -158,7 +160,15 @@ def describe_robot(cfg):
     from ..robotics.embodiment import embodiment_metadata
     from ..robotics.joint_coordinates import MULTI_DOF_JOINTS
     body = cfg.as_dict().get("embodiment")
-    domains = {name: _describe_domain(name, profile, embodiment=body) for name, profile in cfg.domains.as_dict().items()}
+    profiles = cfg.domains.as_dict()
+    # Passive providers must exist before resolving explicit observed-spatial
+    # references. Profile ordering never selects a different hub or latest data.
+    domains = {name: _describe_domain(name, profile, embodiment=body)
+               for name, profile in profiles.items() if profile["kind"] == "sensors"}
+    sensors = {name: domain.runtime for name, domain in domains.items()}
+    domains.update({name: _describe_domain(name, profile, embodiment=body, sensor_domains=sensors)
+                    for name, profile in profiles.items() if profile["kind"] != "sensors"})
+    domains = {name: domains[name] for name in profiles}
     catalog = ResourceCatalog([r for d in domains.values() for r in d.resources])
     embodiment_metadata(body, catalog)
     actuating = [d for d in domains.values() if d.motion_skills]

@@ -20,9 +20,10 @@ from test_mobile_identity import recipe_inputs as recipe_inputs
 
 
 def calibration(width=6, height=4):
-    return dict(version=1, camera='overview', frame_id='camera:overview', world_frame_id='world',
+    return dict(version=2, camera='overview', frame_id='camera:overview', world_frame_id='world',
         width=width, height=height, intrinsics=[100., 0., width/2, 0., 100., height/2, 0., 0., 1.],
-        world_from_camera=np.eye(4).flatten().tolist(), depth_convention='optical_z_m_zero_invalid')
+        world_from_camera=np.eye(4).flatten().tolist(), depth_convention='optical_z_m_zero_invalid',
+        pixel_center_offset_uv=[.5, .5])
 
 
 @pytest.fixture
@@ -103,6 +104,7 @@ def test_camera_only_mcp_retains_capture_and_never_constructs_arm(endpoint, monk
         assert payload['intrinsics'] == calibration()['intrinsics']
         assert payload['world_from_camera'] == calibration()['world_from_camera']
         assert payload['world_frame_id'] == 'world'
+        assert payload['pixel_center_offset_uv'] == [.5, .5]
         assert 'replay' in call('sensing.read_sensor', {'sensor_id': 'overview'})['error']
         assert not bridge._owners and c.hello()['generation'] == 0
         assert {op['op'] for op in operations} == {'hello', 'frame'}
@@ -211,6 +213,7 @@ def test_read_actual_usd_optics_and_pose_with_no_arm():
     camera.AddTranslateOp().Set(Gf.Vec3d(1., 2., 3.))
     record = read_static_calibration(stage, '/World/Overview', width=6, height=4)
     assert record['intrinsics'] == [6., 0., 3., 0., 8., 2., 0., 0., 1.]
+    assert record['version'] == 2 and record['pixel_center_offset_uv'] == [.5, .5]
     t = np.array(record['world_from_camera']).reshape(4, 4)
     np.testing.assert_equal(t[:3, 3], [1., 2., 3.])
     np.testing.assert_equal(t[:3, :3], np.diag([1., -1., -1.]))

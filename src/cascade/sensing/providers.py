@@ -204,7 +204,7 @@ class MobileRgbdSensorProvider:
         c = m['calibration']
         payload = RgbdPayload(MeasurementMetadata(c['frame_id'], m['calibration_sha256']),
             m['width'], m['height'], frame.rgb8, frame.depth_m_f32le, c['intrinsics'],
-            c['world_from_camera'], c['world_frame_id'])
+            c['world_from_camera'], c['world_frame_id'], c['pixel_center_offset_uv'])
         return ObservationEnvelope(source=m['source'], sensor_id=self.descriptor.sensor_id,
             epoch=m['epoch'], sequence=m['step'], clock_domain='simulation',
             capture_time_s=m['sim_time_s'], received_monotonic_s=frame.received_monotonic_s,

@@ -68,8 +68,14 @@ An annotation contains the camera-frame point, world-frame point, capture stamp,
 transform used, capture SHA, source/model identity, epoch, sequence, calibration
 digest, pixel, depth, K and full extrinsic matrix. Pixel coordinates are ordered
 `[u,v]` and depth is optical-axis distance, in meters. Projection solves
-`K p = [u,v,1] * depth`; the capture's column-vector transform maps `p` into the
-named world frame. No Euclidean-range conversion or pixel rounding is implicit.
+`K p = [u+offset_u,v+offset_v,1] * depth`; the capture's column-vector transform
+maps `p` into the named world frame. The payload's explicit
+`pixel_center_offset_uv` is `(0.5,0.5)` for native RTX raster-boundary K, or
+`(0,0)` for integer-center K. An absent field preserves the legacy generic
+integer-center contract. Native version-1 calibration is rejected by the native
+reader because it omitted this distinction. Annotation provenance records the
+offset and whether it was explicit; no caller option overrides it. No
+Euclidean-range conversion or pixel rounding is implicit.
 
 ## Fan-out and lifetime
 
@@ -87,8 +93,8 @@ annotation resolves its own capture-bound `FrameTree`, so two retained captures
 may be consumed in reverse order without using a later transform for the older
 image. The original capture time is preserved in both observation and transform.
 
-This first consumer requires a fixed world camera: dimensions, K, frame IDs and
-extrinsics must remain equal throughout the domain's epoch. A changed calibration
+This first consumer requires a fixed world camera: dimensions, K, frame IDs,
+pixel-center convention and extrinsics must remain equal throughout the domain's epoch. A changed calibration
 or epoch requires a new domain. A camera attached to a moving robot needs a
 separate measured-pose contract; these points do not provide that contract.
 

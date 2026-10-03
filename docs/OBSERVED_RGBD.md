@@ -106,6 +106,13 @@ contract for its measured pose and a distinct calibration policy.
 - Pixel intrinsics and the rigid `world_from_camera` matrix come from the
   capture's pinned calibration. Optical axes are X right, Y down, Z forward;
   the USD camera's Y-up/-Z-forward convention is converted explicitly.
+- Native calibration version 2 declares `pixel_center_offset_uv: [0.5, 0.5]`.
+  USD K has the raster boundary as its origin: depth array element `[v,u]`
+  corresponds to `[u+0.5,v+0.5]`. K itself is unchanged. The offset belongs to the
+  calibration hash, effective model recipe and immutable sensor payload. The
+  native decoder rejects version 1, which omitted this convention; it never
+  relabels an old packet or reuses its model admission. Generic legacy RGB-D
+  payloads remain byte-compatible and retain their integer-center convention.
 - Robot, source, engine, device, asset, policy, model, epoch and camera must
   match. The complete calibration must hash to the configured pin on every read.
 - Producer capture age includes render/encoding time. The client adds its RPC
@@ -121,6 +128,14 @@ contract for its measured pose and a distinct calibration policy.
 Each opt-in native capture is also written as `frames/overview_<step>.rgbd.json`
 beside the existing JPEG and frame log. These are retained evidence, not a replay
 service: loading a historical packet does not make its original clock fresh.
+
+A bounded native run on the preceding source captured five RGB-D frames and
+admitted four through TCP/Hub/MCP. Offline ground projection exposed a half-pixel
+mismatch: 0.416–0.512 mm Z residual at integer indices, below 0.1 micrometre at
+pixel centers with the same recorded K, pose and depth. The version-2 correction
+is covered by CPU tests of retained numeric samples and the real MCP path, not a
+new native render or per-AOV synchronization test. A fresh native recipe/model
+must be admitted for this changed producer; the historical packets stay intact.
 The new extrinsic fields are emitted only for calibrated RGB-D payloads; older
 `RgbdPayload` serialization without extrinsics remains unchanged.
 

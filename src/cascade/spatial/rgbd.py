@@ -108,11 +108,13 @@ class RgbdSpatialDomain:
         z = struct.unpack_from("<f", p.depth_m_f32le, 4*(v*p.width+u))[0]
         if z <= 0:
             raise ValueError("invalid zero depth pixel")
-        point = np.linalg.solve(np.asarray(p.intrinsics).reshape(3, 3), [u, v, 1.]) * z
+        offset = p.pixel_center_offset_uv if p.pixel_center_offset_uv is not None else (0., 0.)
+        point = np.linalg.solve(np.asarray(p.intrinsics).reshape(3, 3),
+                                [u + offset[0], v + offset[1], 1.]) * z
         if not np.isfinite(point).all():
             raise ValueError("invalid calibrated projection")
         calibration = (p.width, p.height, p.intrinsics, p.world_from_camera, p.world_frame_id,
-                       p.metadata.frame_id, p.metadata.calibration_id)
+                       p.metadata.frame_id, p.metadata.calibration_id, p.pixel_center_offset_uv)
         kind = "measured" if obs.measurement_kind == "hardware" else obs.measurement_kind
         stamp = SpatialStamp(self.map_id, obs.epoch, obs.clock_domain, obs.capture_time_s,
                              f"{self.sensor_domain}/{self.sensor_id}", args["capture_sha256"],
@@ -130,7 +132,9 @@ class RgbdSpatialDomain:
             "epoch": obs.epoch, "sequence": obs.sequence, "clock_domain": obs.clock_domain,
             "capture_time_s": obs.capture_time_s, "received_monotonic_s": obs.received_monotonic_s,
             "producer_age_s": obs.producer_age_s, "calibration_sha256": p.metadata.calibration_id,
-            "pixel_uv": [u, v], "depth_m": z, "intrinsics": list(p.intrinsics),
+            "pixel_uv": [u, v], "pixel_center_offset_uv": list(offset),
+            "pixel_center_convention": "legacy_integer_center" if p.pixel_center_offset_uv is None else "explicit",
+            "depth_m": z, "intrinsics": list(p.intrinsics),
             "world_from_camera": list(p.world_from_camera), "world_frame_id": self.world_frame_id,
             "geometry": "observed_surface_point", "label_kind": "caller_annotation",
             "uncertainty": "not_estimated"}

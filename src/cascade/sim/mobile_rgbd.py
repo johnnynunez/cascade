@@ -25,7 +25,7 @@ MAX_PIXELS = 1024 * 1024
 IDENTITY_KEYS = ('robot_id', 'source', 'epoch', 'engine', 'device', 'asset_sha256',
                  'policy_sha256', 'model_identity_sha256')
 CALIBRATION_KEYS = {'version', 'camera', 'frame_id', 'world_frame_id', 'width', 'height',
-                    'intrinsics', 'world_from_camera', 'depth_convention'}
+                    'intrinsics', 'world_from_camera', 'depth_convention', 'pixel_center_offset_uv'}
 FRAME_KEYS = set(IDENTITY_KEYS) | {'version', 'camera', 'step', 'sim_time_s', 'width', 'height',
     'rgb8_z_b64', 'depth_m_f32le_z_b64', 'calibration', 'calibration_sha256', 'producer_age_s', 'render_reference'}
 
@@ -61,10 +61,13 @@ def read_static_calibration(stage, path, *, width=640, height=480):
     # Gf uses row vectors; change USD -Z/+Y camera axes to optical +Z/-Y.
     transform = np.array(UsdGeom.XformCache(Usd.TimeCode.Default()).GetLocalToWorldTransform(prim)).T
     transform = transform @ np.diag([1., -1., -1., 1.])
-    record = dict(version=1, camera='overview', frame_id='camera:overview', world_frame_id='world',
+    # USD K uses the image boundary as raster origin. Array element [v,u]
+    # samples its center at (u+.5,v+.5); do not shift the observed USD optics.
+    record = dict(version=2, camera='overview', frame_id='camera:overview', world_frame_id='world',
         width=width, height=height,
         intrinsics=[width*f/horizontal, 0., width/2., 0., height*f/vertical, height/2., 0., 0., 1.],
-        world_from_camera=transform.flatten().tolist(), depth_convention='optical_z_m_zero_invalid')
+        world_from_camera=transform.flatten().tolist(), depth_convention='optical_z_m_zero_invalid',
+        pixel_center_offset_uv=[.5, .5])
     return calibration_record(record)[0]
 
 
@@ -73,12 +76,16 @@ def calibration_record(value):
     import numpy as np
     if not isinstance(value, dict) or set(value) != CALIBRATION_KEYS:
         raise ValueError('invalid RGB-D calibration schema')
-    if type(value['version']) is not int or value['version'] != 1:
+    if type(value['version']) is not int or value['version'] != 2:
         raise ValueError('unsupported RGB-D calibration version')
     if (value['camera'] != 'overview' or value['frame_id'] != 'camera:overview'
             or value['world_frame_id'] != 'world'
             or value['depth_convention'] != 'optical_z_m_zero_invalid'):
         raise ValueError('unsupported RGB-D calibration frame/convention')
+    offset = value['pixel_center_offset_uv']
+    if (not isinstance(offset, (tuple, list)) or len(offset) != 2
+            or [finite_real(v, 'pixel center offset') for v in offset] != [.5, .5]):
+        raise ValueError('native RGB-D requires raster pixel-center offset [.5, .5]')
     w, h = (nonnegative_int(value[k], k) for k in ('width', 'height'))
     if not 0 < w * h <= MAX_PIXELS:
         raise ValueError('RGB-D calibration exceeds pixel bound')
@@ -94,7 +101,8 @@ def calibration_record(value):
             or not np.allclose(t[:3, :3].T @ t[:3, :3], np.eye(3), rtol=0, atol=1e-7)
             or not math.isclose(np.linalg.det(t[:3, :3]), 1., abs_tol=1e-7)):
         raise ValueError('world_from_camera must be a rigid optical-frame transform')
-    result = {**copy.deepcopy(value), 'intrinsics': k, 'world_from_camera': transform}
+    result = {**copy.deepcopy(value), 'intrinsics': k, 'world_from_camera': transform,
+              'pixel_center_offset_uv': [.5, .5]}
     encoded = json.dumps(result, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
     return result, hashlib.sha256(encoded).hexdigest()
 

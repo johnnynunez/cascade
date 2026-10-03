@@ -269,7 +269,9 @@ def test_real_mcp_sensor_to_spatial_shares_actual_retained_tcp_capture(endpoint,
                     pixel=[3, 2], observation_id='selected-pixel', label='requested-cup')
         result = call('spatial.annotate_pixel', args)
         assert result['ok'], result
-        assert result['result']['point_map_m'] == pytest.approx([0, 0, float(depth[2, 3])])
+        z = float(depth[2, 3])
+        assert result['result']['point_map_m'] == pytest.approx([.5*z/100, .5*z/100, z])
+        assert result['result']['provenance']['pixel_center_offset_uv'] == [.5, .5]
         assert result['result']['provenance']['model_identity_sha256'] == p['model_identity_sha256']
         assert result['result']['provenance']['capture_sha256'] == captured['capture_sha256']
         assert result['result']['confidence'] is None

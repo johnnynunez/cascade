@@ -60,6 +60,8 @@ def wire(value):
             # optical-to-world extension is explicitly present.
             result.pop('world_from_camera')
             result.pop('world_frame_id')
+        if isinstance(value, RgbdPayload) and value.pixel_center_offset_uv is None:
+            result.pop('pixel_center_offset_uv')
         return result
     if is_dataclass(value):
         return {f.name: wire(getattr(value, f.name)) for f in fields(value)}
@@ -341,7 +343,11 @@ class TactileImagePayload(Payload):
 
 @dataclass(frozen=True)
 class RgbdPayload(Payload):
-    """One registered capture; zero depth explicitly denotes an invalid pixel."""
+    """One registered capture; zero depth explicitly denotes an invalid pixel.
+
+    Legacy absent offset means K already uses integer pixel centers. Raster
+    boundary-origin K must declare (.5,.5), never change K to mask the convention.
+    """
     metadata: MeasurementMetadata
     width: int
     height: int
@@ -350,6 +356,7 @@ class RgbdPayload(Payload):
     intrinsics: tuple
     world_from_camera: tuple | None = None
     world_frame_id: str | None = None
+    pixel_center_offset_uv: tuple | None = None
     modality: ClassVar[str] = "rgbd"
     units: ClassVar[tuple] = (("rgb8", "uint8"), ("depth_m_f32le", "m"), ("intrinsics", "pixel"))
 
@@ -368,6 +375,11 @@ class RgbdPayload(Payload):
         if k[0] <= 0 or k[4] <= 0 or k[6:] != (0., 0., 1.):
             raise ValueError("invalid pinhole intrinsics")
         object.__setattr__(self, "intrinsics", k)
+        if self.pixel_center_offset_uv is not None:
+            offset = vector(self.pixel_center_offset_uv, 2, 'pixel_center_offset_uv')
+            if offset not in ((0., 0.), (.5, .5)):
+                raise ValueError('unsupported RGB-D pixel-center convention')
+            object.__setattr__(self, 'pixel_center_offset_uv', offset)
         if (self.world_from_camera is None) != (self.world_frame_id is None):
             raise ValueError("RGB-D transform and target frame must be supplied together")
         if self.world_from_camera is not None:

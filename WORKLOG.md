@@ -649,3 +649,23 @@ hardware admission was tested. See benchmark/results/generalized_joints_20261003
 - Focused CPU suite: 193 passed, four optional skips (one missing OpenUSD and
   three SO-101/Pinocchio checks). New real TCP/MCP path executed successfully.
   No native/GPU/hardware validation or publication performed.
+
+# 2026-10-03 — Explicit native RGB-D pixel centers
+
+- A separate bounded native probe on source `5362c7a` passed capture, bounded
+  decode, four exact TCP/Hub/MCP joins and natural closure. Offline geometry
+  found a half-pixel contract error: K used raster coordinates while spatial
+  projection used integer centers. No geometry admission is credited to that
+  original episode; its packets, model and sources remain unchanged.
+- Calibration v2 now declares `[0.5, 0.5]` in its content/model identity and
+  sensor payload. Spatial annotations consume that field without shifting K,
+  changing pixels, refreshing capture time or granting motion. Native v1 is
+  rejected; generic legacy payload bytes and integer-center semantics remain.
+- Identical CPU consumer probe: baseline `b6fd84b` fails the retained ground
+  geometry check (maximum Z residual 0.5118 mm), candidate passes (7.162e-8 m).
+  Legacy calibrated payload serialization has the same SHA in both checkouts.
+  Focused suite: 122 passed, six OpenUSD-import skips. Separate installed
+  OpenUSD 0.25.5 CPU probe passed with unchanged K/pose and explicit v2 metadata.
+- Ruff F/E9 and diff checks pass; protected stores unchanged. Evidence:
+  `benchmark/results/rgbd_pixel_centers_20261003.json`. No new native launch,
+  new model admission or publication; a new native recipe still needs admission.

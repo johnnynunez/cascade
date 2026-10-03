@@ -4,12 +4,15 @@
 A managed wheel's Python replaces this adapter in the launcher's group.
 A source release's python.sh spawns (does not exec) Kit Python. Owning only
 that shell PID leaks Kit on shutdown. This stable adapter owns its private
-child group; it never signals a reused or externally started simulator.
+child group and waits for its real shutdown. On Linux it also adopts and
+reaps orphaned descendants, including escaped sessions. It never signals a
+reused or externally started simulator.
 """
 from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
+import ctypes
 import json
 import os
 from pathlib import Path
@@ -116,6 +119,87 @@ def clean_environment(original: Mapping[str, str], *, source: str | None) -> dic
     return env
 
 
+def source_subreaper() -> bool:
+    """This dedicated CLI adopts source-shell orphans before it starts Kit."""
+    if not sys.platform.startswith("linux"):
+        return False
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(36, 1, 0, 0, 0):  # PR_SET_CHILD_SUBREAPER
+        number = ctypes.get_errno()
+        raise OSError(number, os.strerror(number))
+    return True
+
+
+def source_group_live(pgid: int) -> bool:
+    """Portable fallback, while the unreaped shell still reserves this PGID.
+
+    Linux uses adoption instead, including descendants which leave the group.
+    Other platforms can attest only this private group's live members.
+    """
+    result = subprocess.run(["ps", "-A", "-o", "pid=,pgid=,stat="],
+                            capture_output=True, text=True, timeout=5,
+                            env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
+    if result.returncode or result.stderr or not result.stdout.endswith("\n"):
+        raise RuntimeError("cannot attest source process-group shutdown")
+    live = anchor = False
+    for line in result.stdout.splitlines():
+        pid, group, state = line.split()
+        if int(pid) <= 0 or int(group) < 0 or not state[0].isalpha():
+            raise RuntimeError("invalid source process-group snapshot")
+        if int(group) == pgid and state[0] not in ("Z", "X"):
+            live = True
+        anchor |= int(pid) == pgid and int(group) == pgid
+    if not anchor:
+        raise RuntimeError("source process-group anchor is missing")
+    return live
+
+
+def wait_source(child, pending: list[int], *, adopted: bool) -> int:
+    """Retain the adapter until actual exit; never escalate or respawn.
+
+    Do not poll/reap the original shell early: its reserved PID pins the
+    private group against reuse even after the shell has become a zombie.
+    Linux orphans become our children and are reaped here, not left to PID 1.
+    """
+    failed = 0
+    last_signal = None
+    signalled = set()
+    children_path = Path(f"/proc/self/task/{os.getpid()}/children")
+    while True:
+        while pending:
+            last_signal = pending.pop(0)
+            try:
+                os.killpg(child.pid, last_signal)
+            except ProcessLookupError:
+                pass
+            signalled.clear()
+        if adopted:
+            # Observe shell exit BEFORE enumerating adopted children. Its
+            # exit reparents descendants before waitid reports completion.
+            exited = os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            for pid in map(int, children_path.read_text().split()):
+                if pid == child.pid:
+                    continue
+                got, status = os.waitpid(pid, os.WNOHANG)
+                if got:
+                    code = os.waitstatus_to_exitcode(status)
+                    failed = failed or (code if code >= 0 else 128 - code)
+                    signalled.discard(pid)
+                elif last_signal is not None and pid not in signalled and os.getpgid(pid) != child.pid:
+                    # An escaped orphan is now our unreaped direct child, so
+                    # its PID cannot be reused between this check and signal.
+                    os.kill(pid, last_signal)
+                    signalled.add(pid)
+            if exited is None or set(children_path.read_text().split()) != {str(child.pid)}:
+                time.sleep(.02)
+                continue
+        elif source_group_live(child.pid):
+            time.sleep(.02)
+            continue
+        code = child.wait()
+        return (code if code >= 0 else 128 - code) or failed or (128 + last_signal if last_signal else 0)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--python")
@@ -155,26 +239,19 @@ def main() -> int:
     if source is None:
         # Keep Kit in the owned launcher group even if the launcher exits first.
         os.execve(str(python), [str(python), *command], env)
-    child = None
     pending = []
 
     def forward(signum, _frame):
-        if child is None:
-            pending.append(signum)
-        else:
-            try:
-                os.killpg(child.pid, signum)
-            except ProcessLookupError:
-                pass
+        pending.append(signum)
 
     for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(signum, forward)
+    # An inherited SIG_IGN would auto-reap the shell and release our PGID pin.
+    signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+    adopted = source_subreaper()
     child = subprocess.Popen([str(python), *command], env=env,
                              start_new_session=True)
-    for signum in pending:
-        forward(signum, None)
-    code = child.wait()
-    return code if code >= 0 else 128 - code
+    return wait_source(child, pending, adopted=adopted)
 
 
 if __name__ == "__main__":

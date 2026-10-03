@@ -190,11 +190,27 @@ def test_launch_adapter_runs_real_child_with_exit_status_and_sanitized_env(tmp_p
     assert "PAAI_CAMERA_VIDEO_CONFIG" not in env
 
 
-def test_term_reaches_the_source_wrappers_child_process(tmp_path):
+@pytest.mark.parametrize("escaped", [False, True], ids=["private-group", "escaped-session"])
+def test_source_wrapper_waits_for_delayed_child_cleanup(tmp_path, escaped):
+    if escaped and not sys.platform.startswith("linux"):
+        pytest.skip("orphan adoption requires the Linux subreaper")
     adapter()
     marker = tmp_path / "child.json"
+    closing, release, closed = (tmp_path / name for name in ("closing", "release", "closed"))
     worker = tmp_path / "worker.py"
-    worker.write_text('import os,json,pathlib,time\n' + f'pathlib.Path({str(marker)!r}).write_text(json.dumps({{"pid":os.getpid()}}))\n' + 'time.sleep(60)\n')
+    worker.write_text(
+        'import os,json,pathlib,signal,time\n'
+        + ('os.setsid()\n' if escaped else '')
+        + f'closing,release,closed = [pathlib.Path(p) for p in {[str(closing), str(release), str(closed)]!r}]\n'
+        'def finish(number, frame):\n'
+        ' closing.touch()\n'
+        ' deadline = time.monotonic() + 10\n'
+        ' while not release.exists() and time.monotonic() < deadline: time.sleep(.01)\n'
+        ' closed.touch()\n'
+        ' raise SystemExit(0)\n'
+        'signal.signal(signal.SIGTERM, finish)\n'
+        + f'pathlib.Path({str(marker)!r}).write_text(json.dumps({{"pid":os.getpid()}}))\n'
+        'while not release.exists(): time.sleep(.01)\n')
     shell = tmp_path / "python.sh"
     # Like Isaac's python.sh: it spawns Python, it does NOT exec it.
     shell.write_text(f'#!/bin/bash\n"{sys.executable}" "$@"\n')
@@ -209,23 +225,78 @@ def test_term_reaches_the_source_wrappers_child_process(tmp_path):
             time.sleep(0.02)
         pid = json.loads(marker.read_text())["pid"]
         process.terminate()
-        assert process.wait(timeout=10) != 0
         deadline = time.monotonic() + 5
-        while time.monotonic() < deadline:
-            status = subprocess.run(["ps", "-p", str(pid), "-o", "stat="], capture_output=True, text=True).stdout.strip()
-            if not status or "Z" in status:
-                break
+        while not closing.exists() and time.monotonic() < deadline:
             time.sleep(0.02)
+        assert closing.exists(), "stop did not reach the owned child"
+        time.sleep(.1)  # shell has exited; cleanup remains held by our release barrier
+        assert process.poll() is None, "adapter exited before the child finished cleanup"
+        assert not closed.exists()
+        release.touch()
+        assert process.wait(timeout=10) == 128 + signal.SIGTERM
+        assert closed.exists(), "adapter reported exit before actual cleanup"
+        status = subprocess.run(["ps", "-p", str(pid), "-o", "stat="], capture_output=True, text=True).stdout.strip()
         assert not status or "Z" in status, "stopping source wrapper left its Kit child alive"
+        if sys.platform.startswith("linux"):
+            assert not status, "subreaper left an adopted zombie to PID 1"
     finally:
+        release.touch()
         if process.poll() is None:
-            process.kill()
+            process.terminate()
             process.wait(timeout=5)
-        if pid:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux orphan adoption")
+def test_source_wrapper_retains_orphan_respawn_and_native_signal_failure(tmp_path):
+    worker = tmp_path / "worker.py"
+    ready, respawned, release = (tmp_path / name for name in ("ready", "respawned", "release"))
+    worker.write_text(
+        'import os,pathlib,signal,subprocess,sys,time\n'
+        f'ready,respawned,release = [pathlib.Path(p) for p in {[str(ready), str(respawned), str(release)]!r}]\n'
+        'role = sys.argv[1]\n'
+        'def spawn(role): subprocess.Popen([sys.executable, __file__, role])\n'
+        'if role == "shell-child":\n'
+        ' spawn("orphan")\n'
+        ' raise SystemExit(0)\n'
+        'if role == "orphan":\n'
+        ' def finish(number, frame):\n'
+        '  spawn("respawn")\n'
+        '  raise SystemExit(0)\n'
+        ' signal.signal(signal.SIGTERM, finish)\n'
+        ' ready.write_text(str(os.getpid()))\n'
+        ' time.sleep(60)\n'
+        'else:\n'
+        ' respawned.write_text(str(os.getpid()))\n'
+        ' deadline = time.monotonic() + 10\n'
+        ' while not release.exists() and time.monotonic() < deadline: time.sleep(.01)\n'
+        ' os.kill(os.getpid(), signal.SIGKILL)\n')
+    shell = tmp_path / "python.sh"
+    shell.write_text(f'#!/bin/bash\n"{sys.executable}" "$@"\n')
+    shell.chmod(0o755)
+    process = subprocess.Popen([sys.executable, str(ROOT / "scripts/isaac_launch.py"),
+        "--python", str(shell), "--", str(worker), "shell-child"])
+    unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], start_new_session=True)
+    try:
+        for marker in (ready, respawned):
+            deadline = time.monotonic() + 5
+            while not marker.exists() and time.monotonic() < deadline:
+                assert process.poll() is None, "adapter dropped a living descendant"
+                time.sleep(.02)
+            assert marker.exists()
+            assert process.poll() is None
+            if marker == ready:
+                process.terminate()
+        assert unrelated.poll() is None
+        release.touch()
+        assert process.wait(timeout=5) == 128 + signal.SIGKILL
+        assert not any(Path(f"/proc/{marker.read_text()}").exists() for marker in (ready, respawned))
+    finally:
+        release.touch()
+        if process.poll() is None:
+            process.terminate()
+            process.wait(timeout=5)
+        unrelated.terminate()
+        unrelated.wait(timeout=5)
 
 
 @pytest.mark.parametrize("ignore_term", [False, True])

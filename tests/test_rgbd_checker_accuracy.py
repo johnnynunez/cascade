@@ -192,7 +192,8 @@ def test_raster_truth_uses_integer_pixel_centers_and_area():
 
 def test_extracted_legacy_corner_path_preserves_frozen_result(monkeypatch):
     # Detector output retained from the pre-refactor917 source. This isolates
-    # extraction/wiring and is portable across OpenCV versions.
+    # extraction/wiring independently of OpenCV detector versions. The
+    # subsequent linear algebra may differ in its last bits across platforms.
     fixture = json.loads(
         (
             Path(__file__).with_name("fixtures") / "rgbd_layout_a_reference_917.json"
@@ -209,4 +210,12 @@ def test_extracted_legacy_corner_path_preserves_frozen_result(monkeypatch):
 
     monkeypatch.setattr(cv2, "findChessboardCornersSB", sb)
     value = json.loads(json.dumps(asdict(reference_from_rgb(rgb, board))))
-    assert value == fixture["reference"]
+    expected = fixture["reference"]
+    numeric = {"image_to_xy", "held_rms_px", "held_max_px"}
+    assert {k: v for k, v in value.items() if k not in numeric} == {
+        k: v for k, v in expected.items() if k not in numeric}
+    for key in numeric:
+        # CI differs by at most 2.51e-13 px in the retained residuals. This
+        # comparison concerns floating-point extraction equivalence only;
+        # production pixel gates and the frozen reference remain unchanged.
+        np.testing.assert_allclose(value[key], expected[key], rtol=0, atol=1e-12)

@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "base": "15f4da8e08122dad62c52faf8d1cd08ae7beb56a",
+  "scope": "Test extraction equivalence across floating-point platforms; no production/calibration gate change.",
+  "observed_ci_difference": {
+    "held_rms_px": 8.3503e-14,
+    "held_max_px": 2.5049e-13
+  },
+  "comparison": {
+    "exact": "Board/corners/fit IDs/held IDs/rgb hash and every noncomputed field",
+    "computed_keys": [
+      "image_to_xy",
+      "held_rms_px",
+      "held_max_px"
+    ],
+    "absolute_tolerance": 1e-12,
+    "relative_tolerance": 0
+  },
+  "frozen_fixture_sha256": "398e0eba6d4258b171c2af55850b10c5e6624e5f5672f1d4bc29c6299c4d9bd1",
+  "frozen_fixture_unchanged": true,
+  "production_diff_empty": true,
+  "validation": "81 passed,1 OpenUSD skip in17.85s; first invocation selected one nonexistent filename and ran zero tests, retained separately.",
+  "references": {
+    "/home/johnny/Projects/demo/cascade-lab/RGBD_NUMERICAL_FIX_20261003/original-ubuntu-ci.log": "f13d9f70a853dc1ff9e4626f287690f11f19e2d77b39481fe6f5714ffa1cd41f",
+    "/home/johnny/Projects/demo/cascade-lab/RGBD_NUMERICAL_FIX_20261003/fixed.log": "4db90f07b9461b9f04e1b0d9e3473f49712bb73c2bcdcd49e7c1e444bfbb213a",
+    "/home/johnny/Projects/demo/cascade-lab/RGBD_NUMERICAL_FIX_20261003/fixed-junit.xml": "1f15b496ec496b1b8f649918fb73b181463e504739c139c2bcbea46e1d5a391a",
+    "/home/johnny/Projects/demo/cascade-lab/RGBD_NUMERICAL_FIX_20261003/fixed-02.log": "1f2fb3fc08bf5f04d340e6f3e4af546149727f616df6bbd26477a30e29a5d11d",
+    "/home/johnny/Projects/demo/cascade-lab/RGBD_NUMERICAL_FIX_20261003/fixed-02-junit.xml": "d53fa5ea3aadaca081db15033fb0d43f23bd6deb9e2ca0cef9458b98a296594f"
+  }
+}

@@ -829,3 +829,15 @@ that environment issue. No shared environment install, verifier change, new
 physics/GPU run or store mutation. Original failure logs and hashes remain in
 benchmark/results/pytest_root_path_20261003.json. This validates local collection
 and the affected tests; it does not assert a remote CI pass or full-suite run.
+
+### 2026-10-03 — Compare RGB-D extraction within floating-point roundoff
+
+CI passed collection after the import-path fix, then exposed exact-dictionary
+equality on computed homography/residual floats. Retained corner/hash/board/ID
+fields were identical; the largest reported residual difference was
+2.5049e-13 pixels. The extraction test now keeps those noncomputed fields exact
+and compares its three computed fields with absolute1e-12/relative0 tolerance.
+The frozen fixture, native pixel gates and production checker are unchanged.
+Affected checker/planar/live tests:81 passed,1 OpenUSD skip in17.85s. Original
+CI failure and the initial zero-test filename error remain retained. Receipt:
+benchmark/results/rgbd_reference_roundoff_20261003.json.

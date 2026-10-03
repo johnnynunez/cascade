@@ -998,3 +998,21 @@ protected stores unchanged. Baseline01 also preserves one incorrect test
 expectation of the timeout wording (budget vs physical rest deadline), fixed
 before baseline02. All original repro/data are retained. Receipt:
 benchmark/results/factory_final_outcome_20261003.json. CPU only; no SDK/GPU run.
+
+
+### 2026-10-03 — Factory owner fault containment
+
+A backend exception whose `__str__` raises could bypass error retention in
+`FactorySolveOwner._run`: four CPU probes incorrectly reported a clean close,
+and two zero-upload probes abandoned finalization. Stop now latches before
+formatting; a guarded fallback preserves the exception type, sticky failure and
+pending admission rejection even when formatting raises `BaseException`.
+Zero upload remains independently reported and never proves physical rest.
+
+Baseline: 6 failures / 3 controls pass. The source-bound Factory/fastening
+regression selection initially passed 389 tests. Independent review then
+identified a string-subclass formatter escape (three retained red probes); the
+final corrected source passed 393 tests, including primary-plus-zero failure
+and stop-before-format ordering. These selections overlap. Sources and protected stores remained unchanged; an initial
+invalid test-file invocation is retained separately. No native run or physical
+admission follows. Receipt: `benchmark/results/factory_error_containment_20261003.json`.

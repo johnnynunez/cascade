@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "base": "cce88808d4bded97a84c02a562cb3ceb997de954",
+  "scope": "Factory owner exception containment; synthetic CPU only",
+  "defect": "Backend exception __str__ can itself raise and bypass fault bookkeeping, returning an incorrect clean close or abandoning pending admissions.",
+  "change": "Latch stop before formatting; retain original error type with protected text fallback; final zero-upload errors use the same guarded formatter.",
+  "source_sha256": {
+    "src/cascade/sim/factory_owner.py": "98aaee5fa16188bcc5121fdecceb73e4d92883a7abc01cdb0a8e15ae875cc47f",
+    "tests/test_factory_error_containment.py": "25901d5f09d109a7af8adf2b19ea765959b4e14d91089963142ade043c039d05"
+  },
+  "runs": {
+    "baseline-01": {
+      "result_sha256": "fd07691b089f2d72ad3856f5fb050c68bf8cb146b83c4f59aeafe0ad0638809a",
+      "counts": {
+        "tests": 9.0,
+        "failures": 6.0,
+        "errors": 0.0,
+        "skipped": 0.0,
+        "time": 0.251
+      },
+      "exit_code": 1,
+      "sources_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    "candidate-01": {
+      "result_sha256": "37b31a996d4de2d8b1a1c93bbef863efc0879126f2e6c3055303331293a0ec19",
+      "counts": {
+        "tests": 0.0,
+        "failures": 0.0,
+        "errors": 0.0,
+        "skipped": 0.0,
+        "time": 0.001
+      },
+      "exit_code": 4,
+      "sources_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    "candidate-02": {
+      "result_sha256": "542500540b1b9315e418cdd1cb5ae9fa9d7d77f0637e6741d0c05c0a127a286f",
+      "counts": {
+        "tests": 389.0,
+        "failures": 0.0,
+        "errors": 0.0,
+        "skipped": 0.0,
+        "time": 2.325
+      },
+      "exit_code": 0,
+      "sources_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    "candidate-03": {
+      "result_sha256": "c70e1cff31e352ed8345dbda9b9cc56ca6c3f60a106c2067c02d1c533b8b3481",
+      "counts": {
+        "tests": 10.0,
+        "failures": 0.0,
+        "errors": 0.0,
+        "skipped": 0.0,
+        "time": 0.202
+      },
+      "exit_code": 0,
+      "sources_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    "formatter-control-01": {
+      "result_sha256": "d4deabf44bfc961a37c5764eb832beb5089c43254ec98ef1d4cd438cd9c3dd0b",
+      "counts": {
+        "tests": 3.0,
+        "failures": 3.0,
+        "errors": 0.0,
+        "skipped": 0.0,
+        "time": 0.221
+      },
+      "exit_code": 1,
+      "sources_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    "candidate-04": {
+      "result_sha256": "0a4bc826218f59d6d4cd7e58647093090d28685a6563b9553c524d53854b3a35",
+      "counts": {
+        "tests": 393.0,
+        "failures": 0.0,
+        "errors": 0.0,
+        "skipped": 0.0,
+        "time": 2.139
+      },
+      "exit_code": 0,
+      "sources_unchanged": true,
+      "protected_stores_unchanged": true
+    }
+  },
+  "limits": [
+    "No native execution or physical admission.",
+    "candidate-01 retained: missing test file, exit4 and zero cases.",
+    "candidate-02 covers389 tests; candidate-03 covers10 overlapping cases including one added primary/zero fault and stop-before-format control. Counts are not summed.",
+    "Independent review found formatting of a str subclass outside the initial guard. Three additional red probes retained in formatter-control-01; final candidate-04 passes393 CPU cases with full formatting inside the guard."
+  ],
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/baseline-01/result.json",
+      "sha256": "fd07691b089f2d72ad3856f5fb050c68bf8cb146b83c4f59aeafe0ad0638809a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/baseline-01/junit.xml",
+      "sha256": "c14d8f71eac06e06ed8d41129561d0c759b143ae8d2acee3dd5f804439697400"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/baseline-01/pytest.log",
+      "sha256": "a128a67c6792cdae0d8612611a3286ccf4da8ff1bad20dfe64e8623325aa90c2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-01/result.json",
+      "sha256": "37b31a996d4de2d8b1a1c93bbef863efc0879126f2e6c3055303331293a0ec19"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-01/junit.xml",
+      "sha256": "4dd968a6bc9daae1a4489175f6e649f03a9e00b7e7c09da02d605d268453f515"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-01/pytest.log",
+      "sha256": "e744da1a8c8ee3266b9292874acedd79aba92e06de568f218c8481fd7c8ea08f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-02/result.json",
+      "sha256": "542500540b1b9315e418cdd1cb5ae9fa9d7d77f0637e6741d0c05c0a127a286f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-02/junit.xml",
+      "sha256": "86c31b1ec00df3df34f9e3a9e478d09dae924a85edf1c7018754198104914d81"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-02/pytest.log",
+      "sha256": "8ed37239327038f051f94b234f4ba790ea8c5a300d3e4fc908ae200a9c192ef0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-03/result.json",
+      "sha256": "c70e1cff31e352ed8345dbda9b9cc56ca6c3f60a106c2067c02d1c533b8b3481"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-03/junit.xml",
+      "sha256": "e7b680225ed25a79b4ac76ab2d7d625cf5a5fb439ca99320f17451935e59744e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-03/pytest.log",
+      "sha256": "463ab729dff946035d45a5caf93b242c8a04f169983b028d6a4cae429efca324"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/formatter-control-01/result.json",
+      "sha256": "d4deabf44bfc961a37c5764eb832beb5089c43254ec98ef1d4cd438cd9c3dd0b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/formatter-control-01/junit.xml",
+      "sha256": "0af2f488ffaa7553d6b92d76c852f2b1b0a2ee8fc7eb6843e87df3cdbf3fcd4e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/formatter-control-01/pytest.log",
+      "sha256": "29e877b39d2f7c899c009b6beeea7d547b380f6b79a1f275b12941ed7a32dd9a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-04/result.json",
+      "sha256": "0a4bc826218f59d6d4cd7e58647093090d28685a6563b9553c524d53854b3a35"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-04/junit.xml",
+      "sha256": "cc22ebaf5fcfa983a04b7ce76bbc4b45d329991ca5c456e800e12129c4880e23"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/candidate-04/pytest.log",
+      "sha256": "dd20c6cd217919249d1d8b405ba2c4fd31282d6c74a6b17a655dd099d855e514"
+    }
+  ],
+  "final_cpu_tests": 393
+}

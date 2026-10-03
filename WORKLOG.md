@@ -735,3 +735,23 @@ weighted residual 1.069e-7, without Factory SDF/collision/solver/dynamics. An
 earlier CPU import lacked trimesh and is retained separately. Ruff F/E9 and
 diffcheck passed. No new GPU attempt, model pin or physical admission exists;
 independent code review and future native preparation remain separate gates.
+
+### 2026-10-03 — preserve strict binding at the native scalar boundary
+
+Prepare-only V4 on 96ecdb5 closed naturally with zero original scene/native
+counters after rejecting NumPy float64 fixture coordinates in FasteningBinding.
+Keep that source and receipt frozen. In this separate worktree, reproduce the
+exact constructor binding assignment on CPU before converting the validated
+native coordinate values explicitly to Python floats. Keep the public numeric
+contract, recipe checks, physical limits and array values unchanged. No new
+native run, readiness, owner or movement is part of this correction.
+
+The same new test executes the constructor's exact binding AST after real
+authoring validation: old production source fails both recipes with the native
+float64 array; seven strict-contract/invalid-authoring controls pass. A one-line
+explicit float conversion then passes all 362 focused tests in 1.48 s. The
+public `_number` contract is unchanged; no coordinate mutation or normalization
+occurs. Both runs preserve all 670 source inputs and protected stores. Ruff F/E9
+and diffcheck pass. Native V4 remains FAIL with zero measured counters, no pin,
+natural exit 1 and all owned processes absent; six original foreign births
+were observed unchanged. No native retry or physical admission is claimed.

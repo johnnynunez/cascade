@@ -307,6 +307,19 @@ This new geometry/identity still needs a separately reviewed native preparation,
 fresh readiness and task measurement. Kinematic reachability does not establish
 thread/tool contact, collision freedom during motion, seating or physical stop.
 
+Preparation V4 on `96ecdb59650f9943a4e3c09c030c443af4d88b92` reached
+the binding constructor but rejected `fixture_origin_m`: converting the native
+NumPy array to a tuple retained `numpy.float64` elements, while the contract
+requires Python numeric scalars. Its observed scene/native steps and times were
+zero; the process closed naturally with exit 1 and no model pin. The correction
+converts each already-validated coordinate explicitly to Python `float` at that
+boundary. The strict public contract, coordinate values and physical criteria
+are unchanged. The exact constructor assignment reproduced both recipe failures
+on CPU; after correction, 362 focused tests passed in 1.48 s with source/store
+hashes unchanged. This is a binding fix, not a successful native preparation.
+Raw failure, closure and causal controls are linked in
+`benchmark/results/factory_binding_scalars_20261003.json`.
+
 Detached all-solve records, readiness, action and closure receipts are persisted
 outside the priority stop/write path. A persistence failure revokes authority,
 leaves the evidence fault sticky, refuses reset and makes any task result

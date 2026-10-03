@@ -243,7 +243,7 @@ class FactoryBoundModel:
             "so101_factory_m20", "fixed_factory_bolt_m20_loose", "factory_nut_m20_loose",
             "mounted_spring_socket", names[:-1], tuple(scene.model.shape_label),
             (thread, *tools), thread, tools, self.document["dt_s"],
-            fixture_origin_m=tuple(scene.fixture_position), fixture_recipe=scene.fixture_recipe)
+            fixture_origin_m=tuple(float(v) for v in scene.fixture_position), fixture_recipe=scene.fixture_recipe)
         # Initial-condition conversion only, BEFORE the first solve. It copies
         # the already-authored state, introduces no extra force or FK pose write.
         scene.solver._update_mjc_data(scene.solver.mjw_data, scene.model, scene.state)

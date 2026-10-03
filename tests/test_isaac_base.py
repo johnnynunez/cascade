@@ -7,6 +7,7 @@ import time
 
 import pytest
 from mobile_support_fixture import support_contract
+from mobile_tick_fixture import healthy_episode_gc  # noqa: F401
 
 from cascade.control.mobile_base import BaseState, VelocityCommand
 from cascade.sim.mobile_bridge import MobileBridgeController, MobileBridgeServer
@@ -159,6 +160,7 @@ def test_every_channel_requires_identity_attestation(bridge, monkeypatch, field,
 
 
 @pytest.mark.parametrize("wall_tick_s", [.005, .025], ids=["normal-producer", "slow-producer"])
+@pytest.mark.usefixtures("healthy_episode_gc")
 def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
         bridge, monkeypatch, wall_tick_s):
     from cascade.control.isaac_base import IsaacBase
@@ -170,6 +172,8 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
     # publications were 141--182 ms with 30 ms requested waits. Coalesced
     # wakeups must execute every due solve, not lengthen the 90-solve command.
     # Lease, freshness, physical duration and wall budgets stay unchanged.
+    # This positive transport contract needs a healthy software publisher and
+    # reader; unrelated cyclic collection is kept outside that bounded episode.
     c.max_action_wall_s = 5.
     renewals = []
     dispatch = server.dispatch
@@ -226,6 +230,75 @@ def test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads(
         safe.disconnect()
     assert not producer.is_alive()
     assert not raw._renew_thread.is_alive()
+
+
+@pytest.mark.parametrize("wall_tick_s", [.005, .025], ids=["normal-producer", "slow-producer"])
+@pytest.mark.usefixtures("healthy_episode_gc")
+def test_gc_isolation_does_not_admit_a_delayed_socket_state(bridge, monkeypatch, wall_tick_s):
+    """Real consumer delay still vetoes freshness while ticks/renewals advance."""
+    import gc
+    from cascade.control.isaac_base import IsaacBase
+    from cascade.safety.base_harness import SafeBase
+    from mobile_tick_fixture import scheduled_tick_steps
+    c, server = bridge
+    c.max_action_wall_s = 5.
+    raw = IsaacBase(profile(server.address[1]))
+    safe = SafeBase(raw, {
+        "max_vx": .2, "max_vy": 0., "max_wz": .8, "max_duration_s": 1.,
+        "max_state_age_s": .2, "max_no_progress_s": .2, "max_wall_duration_s": 5.,
+        "poll_interval_s": .01, "turn_speed_rad_s": .3, "turn_tolerance_rad": .02,
+        "max_turn_angle_rad": 1.,
+    })
+    halt = threading.Event()
+    completed, errors, captured, renewals, commands, stops = [], [], [], [], [], []
+    dispatch, get_state = server.dispatch, raw.get_state
+    def record(request):
+        response = dispatch(request)
+        if request['op'] == 'renew' and response.get('ok'):
+            renewals.append(response)
+        if request['op'] == 'command_velocity' and response.get('ok'):
+            commands.append(response)
+        if request['op'] == 'stop' and response.get('ok'):
+            stops.append(response)
+        return response
+    def delayed_state():
+        value = get_state()  # genuine socket read with original capture/receipt
+        if value.generation == 1 and not captured:
+            captured.append(value.as_dict())
+            assert not gc.isenabled()
+            threading.Event().wait(.25)  # exceeds the unchanged .2 s freshness
+            assert value.as_dict() == captured[0]
+        return value
+    def produce():
+        try:
+            for step in scheduled_tick_steps(halt, first_step=1, wall_interval_s=wall_tick_s):
+                c.control_at(step * .005)
+                publish(c, step=step, sim_time=step * .005)
+                completed.append(step)
+        except Exception as exc:
+            errors.append(exc)
+    monkeypatch.setattr(server, 'dispatch', record)
+    monkeypatch.setattr(raw, 'get_state', delayed_state)
+    producer = threading.Thread(target=produce)
+    try:
+        safe.connect()
+        producer.start()
+        wait_until(lambda: c.state()['feedback_available'])
+        result = safe.walk_velocity(.1, 0., 0., .45)
+        assert result['execution_ok'] is False and result['ok'] is False, result
+        assert result['error'] == 'stale or future-dated feedback', result
+        assert len(commands) == 1 and len(captured) == 1
+        assert captured[0]['generation'] == commands[0]['generation']
+        assert completed[-1] > captured[0]['step']  # healthy producer did not freeze
+        assert renewals and all(row['generation'] == commands[0]['generation'] for row in renewals)
+        assert len(stops) == 1 and stops[0]['generation'] == commands[0]['generation'] + 1
+        assert safe.latched and c.state()['latched']
+        assert not errors
+    finally:
+        halt.set()
+        producer.join(1.)
+        safe.disconnect()
+    assert not producer.is_alive() and not raw._renew_thread.is_alive()
 
 
 def test_stop_is_independent_of_both_blocked_command_and_state(bridge, monkeypatch):

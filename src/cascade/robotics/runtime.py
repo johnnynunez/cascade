@@ -354,9 +354,15 @@ class RobotRuntime:
         return {"ok": all(r.get("ok") is True for r in results.values()), "latched": True,
                 "generation": generation, "domains": results, "physical_stop_verified": False}
 
-    def reset_stop(self, *, expected_generation=None):
+    def reset_stop(self, *, expected_generation=None, deadline_monotonic_s=None):
         """Reset an operator-observed stop episode, optionally fencing delayed IO."""
         with self._gate:
+            if deadline_monotonic_s is not None:
+                if (type(deadline_monotonic_s) not in (float, int)
+                        or not math.isfinite(deadline_monotonic_s)):
+                    return {"ok": False, "error": "reset deadline must be a finite local monotonic value"}
+                if time.monotonic() >= deadline_monotonic_s:
+                    return {"ok": False, "error": "reset deadline expired"}
             if expected_generation is not None:
                 if type(expected_generation) is not int or expected_generation < 0:
                     return {"ok": False, "error": "expected_generation must be a nonnegative integer"}
@@ -371,12 +377,16 @@ class RobotRuntime:
         results = {}
         try:
             for name, domain in self.domains.items():
+                if deadline_monotonic_s is not None and time.monotonic() >= deadline_monotonic_s:
+                    results[name] = {"ok": False, "error": "reset deadline expired"}
+                    break
                 try:
                     results[name] = domain.reset_stop()
                 except Exception as exc:
                     results[name] = {"ok": False, "error": str(exc)}
             with self._gate:
                 ok = (generation == self._generation and not self._closed
+                      and (deadline_monotonic_s is None or time.monotonic() < deadline_monotonic_s)
                       and all(r.get("ok") is True for r in results.values()))
                 if ok:
                     self._generation += 1

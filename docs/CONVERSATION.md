@@ -97,7 +97,12 @@ pending rather than falsely reported as cancelled.
   time, and does not allocate endpoints or reconnect silently.
 - `ConversationSession` binds session ID, configured robot ID, response origin,
   request ID, the connection's runtime cancellation generation and a local
-  deadline. A pending input's deadline is retained when its response arrives.
+  deadline. Audio authority starts at local receipt of `speech_started`,
+  with an exact, unique speech item ID; a delayed `speech_stopped` only confirms
+  that input. Text authority starts at local submission. Responses and tool
+  continuations retain that original deadline, with no model-driven renewal.
+  Explicit `response.create` requests carry a unique metadata nonce which the
+  response must echo; unsolicited or mismatched responses have no authority.
   Argument-complete events are staged until `response.done` is `completed`.
   Cancelled, failed or incomplete responses do not execute staged calls.
 - Requests are deduplicated at both session and dispatch boundaries. Session
@@ -110,9 +115,47 @@ pending rather than falsely reported as cancelled.
   reported as forcibly cancelled. Generation and deadline are checked under
   runtime admission and just before domain dispatch. Those checks are not a
   real-time guarantee; actuator owners retain their final backend checks.
+- An allowlisted tool declared `effect="stop"` uses the coalesced priority stop
+  path even while that action thread is busy; it does not replace the pending
+  action's future or claim that worker finished. Session/robot identity,
+  arguments, catalog, request deduplication, generation and local deadline still
+  gate model-originated stop admission. Once admitted, stop delivery is not
+  cancelled by later expiry. The independent operator stop has no speech token.
+  Each admitted stop tool uses the same internal trace recorder as
+  `RobotRuntime.execute`, after receiving the coalesced stop result. Its name,
+  arguments, result, duration and context remain in the trace even when joining
+  an operator's pending stop. Logging is separate from the priority stop task;
+  a dedicated single worker keeps stop delivery available even if loggers fill
+  asyncio's default executor. Each admitted tool retains its bounded recording
+  obligation after caller cancellation, with an independent result snapshot.
+  Pending/failed records prevent successful closure or a new session; closure
+  joins the idle stop worker only after records and the latest stop delivery
+  have drained. A newer concurrent operator stop keeps closure incomplete.
+  Successful close is terminal and idempotent; a later stop request is rejected
+  rather than presented with a cached ACK. The ACK remains
+  `physical_stop_verified=False`.
+  This dispatch contract does
+  not make the speech session execute concurrent response streams: response
+  ordering, interruption and the independent HTTP stop remain unchanged.
+- Tool output to the speech provider remains bounded to 32,768 UTF-8 bytes.
+  Small results retain their exact JSON representation. For an oversized result
+  recorded by the runtime trace, the speech view may omit only image attachments,
+  `measured.samples` and `postcondition.evidence`. It wraps the retained fields
+  under `result` and lists each omitted path, size and canonical JSON SHA256
+  under `speech_transport`. Verdicts, errors, metrics, limits, model/epoch
+  bindings, ACKs and task/receipt IDs are not rewritten. Digests reference the
+  full trace; they do not prove a physical outcome. If unrecognized or retained
+  fields still exceed the bound, or no trace is configured, the existing explicit
+  transport error is returned. Projection runs outside the audio event loop,
+  after any adjacent staged stop, and cancellation is checked again before send.
+  It never changes the task ledger, command deadline or stop latch.
 - Default barge-in invalidates pending speech/tool contexts and stops active or
   pending robot work. Initial idle speech does not latch a stop. Optional
   `speech_only` interruption is available only without motion authority.
+  After an interruption makes automatic VAD response ownership ambiguous, the
+  session revokes tool authority and asks the operator to disconnect/reconnect.
+  In `speech_only` mode this revocation itself does not stop the robot or reset
+  any latch. The UI mutes capture and disables input until reconnection.
 - The gateway binds an explicit loopback IP. HTTP uses a random bearer token,
   exact browser Origin checking and a short-lived, single-use media ticket.
   Provider configuration is operator-owned, not accepted from browser requests.
@@ -149,6 +192,15 @@ or WebRTC compatibility. The upstream handler includes `response_id` and
 [Protocol](https://github.com/huggingface/speech-to-speech/blob/411399d34555b2169823a6eaeb7f8ff192db89db/src/speech_to_speech/api/openai_realtime/README.md),
 [response handler](https://github.com/huggingface/speech-to-speech/blob/411399d34555b2169823a6eaeb7f8ff192db89db/src/speech_to_speech/api/openai_realtime/handlers/response.py).
 
+The pinned [audio handler](https://github.com/huggingface/speech-to-speech/blob/411399d34555b2169823a6eaeb7f8ff192db89db/src/speech_to_speech/api/openai_realtime/handlers/audio.py)
+may defer `speech_stopped` until model output. Its automatic response lacks an
+input-item correlation field, and its runtime does not honor
+`turn_detection.create_response=False`. CASCADE therefore does not pretend
+manual VAD disables those responses: first uninterrupted VAD input is admitted,
+while ambiguous responses after interruption require reconnection. The local
+onset deadline does not establish microphone capture age: a provider could
+itself delay `speech_started`; no provider-to-capture clock mapping is claimed.
+
 Run the speech stack in a separate environment. Its `speech-to-speech serve`
 command exposes `/v1/realtime` and supports selecting STT, LLM and TTS backends.
 Use `speech-to-speech serve -h` at the pinned revision and explicitly choose
@@ -170,7 +222,8 @@ inference.
 ```bash
 uv sync --extra dev --extra conversation
 uv run pytest tests/test_conversation_contracts.py \
-  tests/test_conversation_protocol.py tests/test_conversation_frontend.py -q
+  tests/test_conversation_protocol.py tests/test_conversation_input_origin.py \
+  tests/test_conversation_frontend.py -q
 ```
 
 The protocol suite opens owned ephemeral loopback ports. It verifies audio byte
@@ -185,3 +238,10 @@ bounded queue preserves every sample. Overflow, flush, stale generations and
 pending audio-context resumes have separate controls.
 The regular three-platform CI enables the optional conversation extra; the
 minimal-install job remains unchanged.
+
+The input-origin regressions preserve selected events and hashes from two native
+Kokoro greeting traces. A session-local clock replays their observed spacing;
+the actual domain/runtime rejects a separately injected expired readonly tool.
+The archived pre-fix source instead executes that injected tool in both cases.
+Those original native greetings requested no tool and establish no native tool
+admission result. Their speech input/output evidence remains unchanged.

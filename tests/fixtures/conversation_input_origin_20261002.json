@@ -1,0 +1,126 @@
+{
+  "scope": "Exact selected provider events including the recorder local timestamps; no tool was requested in either original greeting. Test tool events are separate fault injections.",
+  "provider_revision": "411399d34555b2169823a6eaeb7f8ff192db89db",
+  "cases": [
+    {
+      "artifact": "CONVERSATION_BROWSER/native-chromium-kokoro-01/result.json",
+      "sha256": "0dc81d907513469f6c432895b67d6493b64d671786e51fcc6d41b32307dcede4",
+      "events": [
+        {
+          "audio_start_ms": 908,
+          "event_id": "event_0701a47b6aff4908a20aacc0ee3a9b4d",
+          "item_id": "item_59b3ce1eacb84c5cac95e631c1f467bc",
+          "type": "input_audio_buffer.speech_started",
+          "observed_monotonic": 215570.382548589
+        },
+        {
+          "audio_end_ms": 3104,
+          "event_id": "event_e0e1458697bb44bd93ce407bee8f8ece",
+          "item_id": "item_59b3ce1eacb84c5cac95e631c1f467bc",
+          "type": "input_audio_buffer.speech_stopped",
+          "observed_monotonic": 215627.741953382
+        },
+        {
+          "event_id": "event_942125fa6ed6404f9e9fb183b786c0fd",
+          "response": {
+            "id": "resp_96925756d3654905855e94decdcd8f42",
+            "audio": {
+              "output": {
+                "format": null,
+                "voice": null
+              }
+            },
+            "conversation_id": "conv_f7c64389cf3e45d2a18f9e92b5a66e37",
+            "max_output_tokens": null,
+            "metadata": null,
+            "object": "realtime.response",
+            "output": [],
+            "output_modalities": [
+              "audio"
+            ],
+            "status": "in_progress",
+            "status_details": null,
+            "usage": {
+              "input_token_details": {
+                "audio_tokens": 0,
+                "cached_tokens": 0,
+                "cached_tokens_details": null,
+                "image_tokens": 0,
+                "text_tokens": 0
+              },
+              "input_tokens": 0,
+              "output_token_details": {
+                "audio_tokens": 0,
+                "text_tokens": 0
+              },
+              "output_tokens": 0,
+              "total_tokens": 0
+            }
+          },
+          "type": "response.created",
+          "observed_monotonic": 215627.745476179
+        }
+      ]
+    },
+    {
+      "artifact": "CONVERSATION_BROWSER/native-chromium-kokoro-02/result.json",
+      "sha256": "c62c434364a3afa9785350f8c92c1c97627d633583b280887bc1bbbf764512bb",
+      "events": [
+        {
+          "audio_start_ms": 908,
+          "event_id": "event_952245f6e6f8480597f5a9a86f557513",
+          "item_id": "item_5739f101e86e4a58bd4d8030f70386ae",
+          "type": "input_audio_buffer.speech_started",
+          "observed_monotonic": 216920.014026852
+        },
+        {
+          "audio_end_ms": 3104,
+          "event_id": "event_fcd757d0842843a2a57c6171256223d2",
+          "item_id": "item_5739f101e86e4a58bd4d8030f70386ae",
+          "type": "input_audio_buffer.speech_stopped",
+          "observed_monotonic": 216941.409264112
+        },
+        {
+          "event_id": "event_1e5ee939d0194ffaaa2444a234f30209",
+          "response": {
+            "id": "resp_4fb998df29904ec6950e2e2778d0b06a",
+            "audio": {
+              "output": {
+                "format": null,
+                "voice": null
+              }
+            },
+            "conversation_id": "conv_701e265d535b4e629273ff63c4632945",
+            "max_output_tokens": null,
+            "metadata": null,
+            "object": "realtime.response",
+            "output": [],
+            "output_modalities": [
+              "audio"
+            ],
+            "status": "in_progress",
+            "status_details": null,
+            "usage": {
+              "input_token_details": {
+                "audio_tokens": 0,
+                "cached_tokens": 0,
+                "cached_tokens_details": null,
+                "image_tokens": 0,
+                "text_tokens": 0
+              },
+              "input_tokens": 0,
+              "output_token_details": {
+                "audio_tokens": 0,
+                "text_tokens": 0
+              },
+              "output_tokens": 0,
+              "total_tokens": 0
+            }
+          },
+          "type": "response.created",
+          "observed_monotonic": 216941.410398637
+        }
+      ]
+    }
+  ]
+}

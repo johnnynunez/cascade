@@ -129,11 +129,19 @@ class RobotRuntime:
         started = time.monotonic()
         result = self._execute(name, args, expected_generation=expected_generation,
                                deadline_monotonic_s=deadline_monotonic_s)
+        self._record_tool_result(name, args, result, started_monotonic_s=started)
+        return result
+
+    def _record_tool_result(self, name, args, result, *, started_monotonic_s):
+        """Record an already completed dispatch; never actuate or admit a tool.
+
+        The conversation stop path uses this after its coalesced priority stop,
+        preserving one row per admitted tool without delivering stop twice.
+        """
         if self.trace is not None:
             with self._record_lock:
-                self.trace.record(name, args or {}, result, (time.monotonic() - started) * 1000,
+                self.trace.record(name, args or {}, result, (time.monotonic() - started_monotonic_s) * 1000,
                                   tier=self.current_tier, context={"robot_mode": "composed", "task": self.current_task})
-        return result
 
     def _execute(self, name, args=None, *, expected_generation=None, deadline_monotonic_s=None):
         args = {} if args is None else args

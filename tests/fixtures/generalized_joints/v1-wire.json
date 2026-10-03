@@ -1,0 +1,511 @@
+{
+  "source_head": "5f50b8b67600123f02488b6c721e685ac051b10e",
+  "profiles": {
+    "fixed_so101_mock": {
+      "embodiment": {
+        "robot_id": "fixed_so101_mock",
+        "root_link": "base_link",
+        "root_mode": "fixed",
+        "links": [
+          "base_link",
+          "shoulder_link",
+          "upper_arm_link",
+          "lower_arm_link",
+          "wrist_link",
+          "gripper_link",
+          "gripper_frame_link",
+          "moving_jaw_so101_v1_link"
+        ],
+        "joints": [
+          {
+            "joint_id": "gripper_frame_joint",
+            "parent": "gripper_link",
+            "child": "gripper_frame_link",
+            "type": "fixed",
+            "loop_closure": false,
+            "actuation": "passive"
+          },
+          {
+            "joint_id": "gripper",
+            "parent": "gripper_link",
+            "child": "moving_jaw_so101_v1_link",
+            "type": "revolute",
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "units": {
+              "position": "rad",
+              "velocity": "rad/s",
+              "effort": "N*m"
+            },
+            "limits": {
+              "effort": 10.0,
+              "velocity": 10.0,
+              "lower": -0.174533,
+              "upper": 1.74533
+            },
+            "actuation": "actuated",
+            "loop_closure": false
+          },
+          {
+            "joint_id": "wrist_roll",
+            "parent": "wrist_link",
+            "child": "gripper_link",
+            "type": "revolute",
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "units": {
+              "position": "rad",
+              "velocity": "rad/s",
+              "effort": "N*m"
+            },
+            "limits": {
+              "effort": 10.0,
+              "velocity": 10.0,
+              "lower": -2.74385,
+              "upper": 2.84121
+            },
+            "actuation": "actuated",
+            "loop_closure": false
+          },
+          {
+            "joint_id": "wrist_flex",
+            "parent": "lower_arm_link",
+            "child": "wrist_link",
+            "type": "revolute",
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "units": {
+              "position": "rad",
+              "velocity": "rad/s",
+              "effort": "N*m"
+            },
+            "limits": {
+              "effort": 10.0,
+              "velocity": 10.0,
+              "lower": -1.65806,
+              "upper": 1.65806
+            },
+            "actuation": "actuated",
+            "loop_closure": false
+          },
+          {
+            "joint_id": "elbow_flex",
+            "parent": "upper_arm_link",
+            "child": "lower_arm_link",
+            "type": "revolute",
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "units": {
+              "position": "rad",
+              "velocity": "rad/s",
+              "effort": "N*m"
+            },
+            "limits": {
+              "effort": 10.0,
+              "velocity": 10.0,
+              "lower": -1.69,
+              "upper": 1.69
+            },
+            "actuation": "actuated",
+            "loop_closure": false
+          },
+          {
+            "joint_id": "shoulder_lift",
+            "parent": "shoulder_link",
+            "child": "upper_arm_link",
+            "type": "revolute",
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "units": {
+              "position": "rad",
+              "velocity": "rad/s",
+              "effort": "N*m"
+            },
+            "limits": {
+              "effort": 10.0,
+              "velocity": 10.0,
+              "lower": -1.74533,
+              "upper": 1.74533
+            },
+            "actuation": "actuated",
+            "loop_closure": false
+          },
+          {
+            "joint_id": "shoulder_pan",
+            "parent": "base_link",
+            "child": "shoulder_link",
+            "type": "revolute",
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "units": {
+              "position": "rad",
+              "velocity": "rad/s",
+              "effort": "N*m"
+            },
+            "limits": {
+              "effort": 10.0,
+              "velocity": 10.0,
+              "lower": -1.91986,
+              "upper": 1.91986
+            },
+            "actuation": "actuated",
+            "loop_closure": false
+          }
+        ],
+        "transmissions": [
+          {
+            "transmission_id": "gripper_direct",
+            "actuator_id": "gripper_coordinate",
+            "resource_id": "manipulation/so101_mock",
+            "actuator_unit": "rad",
+            "couplings": [
+              {
+                "joint_id": "gripper",
+                "ratio": 1.0,
+                "ratio_unit": "rad/rad"
+              }
+            ]
+          },
+          {
+            "transmission_id": "wrist_roll_direct",
+            "actuator_id": "wrist_roll_coordinate",
+            "resource_id": "manipulation/so101_mock",
+            "actuator_unit": "rad",
+            "couplings": [
+              {
+                "joint_id": "wrist_roll",
+                "ratio": 1.0,
+                "ratio_unit": "rad/rad"
+              }
+            ]
+          },
+          {
+            "transmission_id": "wrist_flex_direct",
+            "actuator_id": "wrist_flex_coordinate",
+            "resource_id": "manipulation/so101_mock",
+            "actuator_unit": "rad",
+            "couplings": [
+              {
+                "joint_id": "wrist_flex",
+                "ratio": 1.0,
+                "ratio_unit": "rad/rad"
+              }
+            ]
+          },
+          {
+            "transmission_id": "elbow_flex_direct",
+            "actuator_id": "elbow_flex_coordinate",
+            "resource_id": "manipulation/so101_mock",
+            "actuator_unit": "rad",
+            "couplings": [
+              {
+                "joint_id": "elbow_flex",
+                "ratio": 1.0,
+                "ratio_unit": "rad/rad"
+              }
+            ]
+          },
+          {
+            "transmission_id": "shoulder_lift_direct",
+            "actuator_id": "shoulder_lift_coordinate",
+            "resource_id": "manipulation/so101_mock",
+            "actuator_unit": "rad",
+            "couplings": [
+              {
+                "joint_id": "shoulder_lift",
+                "ratio": 1.0,
+                "ratio_unit": "rad/rad"
+              }
+            ]
+          },
+          {
+            "transmission_id": "shoulder_pan_direct",
+            "actuator_id": "shoulder_pan_coordinate",
+            "resource_id": "manipulation/so101_mock",
+            "actuator_unit": "rad",
+            "couplings": [
+              {
+                "joint_id": "shoulder_pan",
+                "ratio": 1.0,
+                "ratio_unit": "rad/rad"
+              }
+            ]
+          }
+        ],
+        "effectors": [
+          {
+            "effector_id": "jaw",
+            "link_id": "gripper_frame_link",
+            "kind": "hinged_gripper",
+            "resource_id": "manipulation/so101_mock",
+            "required_capabilities": [
+              "gripper"
+            ]
+          }
+        ],
+        "sensors": [
+          {
+            "sensor_id": "joints",
+            "link_id": "base_link",
+            "resource_id": "sensing/joints",
+            "frame_id": "fixed_so101_mock/base_link",
+            "joint_ids": [
+              "shoulder_pan",
+              "shoulder_lift",
+              "elbow_flex",
+              "wrist_flex",
+              "wrist_roll",
+              "gripper"
+            ]
+          }
+        ],
+        "version": 1
+      },
+      "embodiment_sha256": "3df34bcc3f5f95ca9cdcea085258b53c134160dc1e3041687daaadaf26b72c8a",
+      "payload": {
+        "modality": "joint_state",
+        "units": {
+          "joints": "explicit_per_coordinate"
+        },
+        "metadata": {
+          "frame_id": "fixed_so101_mock/base_link",
+          "calibration_id": null,
+          "saturated": null
+        },
+        "joints": [
+          {
+            "joint_id": "shoulder_pan",
+            "joint_type": "revolute",
+            "position": 0.0,
+            "velocity": 0.0,
+            "position_unit": "rad",
+            "velocity_unit": "rad/s",
+            "effort_unit": "N*m",
+            "effort": null
+          },
+          {
+            "joint_id": "shoulder_lift",
+            "joint_type": "revolute",
+            "position": -0.24,
+            "velocity": 0.0,
+            "position_unit": "rad",
+            "velocity_unit": "rad/s",
+            "effort_unit": "N*m",
+            "effort": null
+          },
+          {
+            "joint_id": "elbow_flex",
+            "joint_type": "revolute",
+            "position": 0.38,
+            "velocity": 0.0,
+            "position_unit": "rad",
+            "velocity_unit": "rad/s",
+            "effort_unit": "N*m",
+            "effort": null
+          },
+          {
+            "joint_id": "wrist_flex",
+            "joint_type": "revolute",
+            "position": 1.43,
+            "velocity": 0.0,
+            "position_unit": "rad",
+            "velocity_unit": "rad/s",
+            "effort_unit": "N*m",
+            "effort": null
+          },
+          {
+            "joint_id": "wrist_roll",
+            "joint_type": "revolute",
+            "position": -0.96,
+            "velocity": 0.0,
+            "position_unit": "rad",
+            "velocity_unit": "rad/s",
+            "effort_unit": "N*m",
+            "effort": null
+          },
+          {
+            "joint_id": "gripper",
+            "joint_type": "revolute",
+            "position": 0.6,
+            "velocity": 0.0,
+            "position_unit": "rad",
+            "velocity_unit": "rad/s",
+            "effort_unit": "N*m",
+            "effort": null
+          }
+        ],
+        "embodiment_sha256": "3df34bcc3f5f95ca9cdcea085258b53c134160dc1e3041687daaadaf26b72c8a"
+      }
+    },
+    "wheeled_lift_sensors": {
+      "embodiment": {
+        "robot_id": "wheeled_lift_sensors",
+        "root_link": "chassis",
+        "root_mode": "floating",
+        "links": [
+          "chassis",
+          "left_wheel",
+          "right_wheel",
+          "lift",
+          "camera"
+        ],
+        "joints": [
+          {
+            "joint_id": "left_wheel",
+            "parent": "chassis",
+            "child": "left_wheel",
+            "type": "continuous",
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "units": {
+              "position": "rad",
+              "velocity": "rad/s",
+              "effort": "N*m"
+            },
+            "loop_closure": false,
+            "actuation": "passive",
+            "limits": {}
+          },
+          {
+            "joint_id": "right_wheel",
+            "parent": "chassis",
+            "child": "right_wheel",
+            "type": "continuous",
+            "axis": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "units": {
+              "position": "rad",
+              "velocity": "rad/s",
+              "effort": "N*m"
+            },
+            "loop_closure": false,
+            "actuation": "passive",
+            "limits": {}
+          },
+          {
+            "joint_id": "lift",
+            "parent": "chassis",
+            "child": "lift",
+            "type": "prismatic",
+            "axis": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "units": {
+              "position": "m",
+              "velocity": "m/s",
+              "effort": "N"
+            },
+            "limits": {
+              "lower": 0.0,
+              "upper": 0.4
+            },
+            "loop_closure": false,
+            "actuation": "passive"
+          },
+          {
+            "joint_id": "camera_mount",
+            "parent": "lift",
+            "child": "camera",
+            "type": "fixed",
+            "loop_closure": false,
+            "actuation": "passive"
+          }
+        ],
+        "transmissions": [],
+        "effectors": [],
+        "sensors": [
+          {
+            "sensor_id": "joints",
+            "link_id": "chassis",
+            "resource_id": "sensing/joints",
+            "frame_id": "wheeled_lift_sensors/chassis",
+            "joint_ids": [
+              "left_wheel",
+              "right_wheel",
+              "lift"
+            ]
+          }
+        ],
+        "version": 1
+      },
+      "embodiment_sha256": "fe9e577bf7bf3a9e5cfe1c954aadd058581bf1fbe1669bc2d53a06d43bca3e7d",
+      "payload": {
+        "modality": "joint_state",
+        "units": {
+          "joints": "explicit_per_coordinate"
+        },
+        "metadata": {
+          "frame_id": "wheeled_lift_sensors/chassis",
+          "calibration_id": null,
+          "saturated": null
+        },
+        "joints": [
+          {
+            "joint_id": "left_wheel",
+            "joint_type": "continuous",
+            "position": 0.2,
+            "velocity": 0.0,
+            "position_unit": "rad",
+            "velocity_unit": "rad/s",
+            "effort_unit": "N*m",
+            "effort": null
+          },
+          {
+            "joint_id": "right_wheel",
+            "joint_type": "continuous",
+            "position": -0.2,
+            "velocity": 0.0,
+            "position_unit": "rad",
+            "velocity_unit": "rad/s",
+            "effort_unit": "N*m",
+            "effort": null
+          },
+          {
+            "joint_id": "lift",
+            "joint_type": "prismatic",
+            "position": 0.1,
+            "velocity": 0.0,
+            "position_unit": "m",
+            "velocity_unit": "m/s",
+            "effort_unit": "N",
+            "effort": null
+          }
+        ],
+        "embodiment_sha256": "fe9e577bf7bf3a9e5cfe1c954aadd058581bf1fbe1669bc2d53a06d43bca3e7d"
+      }
+    }
+  },
+  "source_sha256": {
+    "src/cascade/robotics/embodiment.py": "2c627952a2b52b0aac1f5234ae70b7cc3435a9bea07598db930e62eb16941e88",
+    "src/cascade/sensing/models.py": "1f2f1a9d3e0c99421b52600f322de9800cd6c541d6fa787f9af38076b8b15ecc",
+    "src/cascade/robotics/contracts.py": "62effa67a985ae11d4e51416ce3be779ea51be21dcb8df64c0bf9a606cb6397d",
+    "configs/robots/fixed_so101_mock.yaml": "ca388c642163822854b66ea78cba86e9ffa9bc847f4fe5185c5dadc65174e0e0",
+    "configs/robots/wheeled_lift_sensors.yaml": "d2b42ebacc183516fd1473615635dcedeb0cc03bfaa58809a8de840e879e48df"
+  }
+}

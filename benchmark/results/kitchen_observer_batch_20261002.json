@@ -1,0 +1,2515 @@
+{
+  "version": 1,
+  "scope": "passive PhysX kitchen tensor-batch observer validation; no manipulation/MCP/host acceptance",
+  "source_base": "be89496",
+  "raw_artifact_root": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY",
+  "gpu_uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+  "recipe": {
+    "engine": "physx",
+    "width": 640,
+    "height": 360,
+    "dt_s": 0.008333333333333333,
+    "cam_every": 6,
+    "observer_interval_s": 0.15,
+    "port": 8742,
+    "extra_actuator_commands": 0
+  },
+  "binding": "Experimental RigidPrim native view prim_paths/count, not requested RigidPrim.paths. Exact inventory and unique rows; named remap handles backend permutation; arrays must be Nx3/Nx4 exactly. Missing metadata, duplicates, wrong names/count or shapes refuse. Individual views retained for convex mass/inertia.",
+  "software_validation": {
+    "passed": 62,
+    "duration_s": 15.54,
+    "command": "PYTHONPATH=src <task-python> -m pytest tests/test_gpu_observer_transport.py tests/test_spark_placement_proof.py tests/test_kitchen_observer_batch.py tests/test_kitchen_geometry_vectorized.py tests/test_kitchen_observer_profile.py -q",
+    "normal_conftest": true
+  },
+  "runs": {
+    "native04": {
+      "role": "preliminary, not final row/shape binding acceptance",
+      "source_unchanged": true,
+      "source_files": 1503,
+      "samples": 700,
+      "phases": [
+        {
+          "label": "00-green_cube-original",
+          "samples": 100,
+          "rtt_median_s": 0.05761146449367516,
+          "rtt_mean_s": 0.05910888289974537,
+          "rtt_min_s": 0.015535682992776856,
+          "rtt_max_s": 0.13984794198768213,
+          "wall_s": 14.904066910006804,
+          "simulation_s": 4.083333333333332,
+          "sampled_rtf": 0.2739744365071069,
+          "geometry_pass": true
+        },
+        {
+          "label": "01-green_cube-candidate",
+          "samples": 100,
+          "rtt_median_s": 0.04254369900445454,
+          "rtt_mean_s": 0.048407764281728306,
+          "rtt_min_s": 0.010789326013764367,
+          "rtt_max_s": 0.12471661498420872,
+          "wall_s": 14.921567650977522,
+          "simulation_s": 4.250000000000002,
+          "sampled_rtf": 0.2848226204785917,
+          "geometry_pass": true
+        },
+        {
+          "label": "02-green_cube-instrumented",
+          "samples": 100,
+          "rtt_median_s": 0.050714928496745415,
+          "rtt_mean_s": 0.0555352286802372,
+          "rtt_min_s": 0.011302125989459455,
+          "rtt_max_s": 0.14092475999495946,
+          "wall_s": 14.997252041008323,
+          "simulation_s": 4.25,
+          "sampled_rtf": 0.2833852487361582,
+          "geometry_pass": true
+        },
+        {
+          "label": "03-orange-original",
+          "samples": 100,
+          "rtt_median_s": 0.07099370748619549,
+          "rtt_mean_s": 0.07067684349050979,
+          "rtt_min_s": 0.018960189976496622,
+          "rtt_max_s": 0.1332607759977691,
+          "wall_s": 14.916863688995363,
+          "simulation_s": 3.833333333333332,
+          "sampled_rtf": 0.25697984598205464,
+          "geometry_pass": true
+        },
+        {
+          "label": "04-orange-candidate",
+          "samples": 100,
+          "rtt_median_s": 0.06069880949507933,
+          "rtt_mean_s": 0.06138168186706025,
+          "rtt_min_s": 0.017101893987273797,
+          "rtt_max_s": 0.11602920497534797,
+          "wall_s": 14.885784170997795,
+          "simulation_s": 4.016666666666666,
+          "sampled_rtf": 0.26983238642492213,
+          "geometry_pass": true
+        },
+        {
+          "label": "05-orange-instrumented",
+          "samples": 100,
+          "rtt_median_s": 0.05679993600642774,
+          "rtt_mean_s": 0.06153456571075367,
+          "rtt_min_s": 0.019528493023244664,
+          "rtt_max_s": 0.12326992498128675,
+          "wall_s": 14.932042878994253,
+          "simulation_s": 4.050000000000001,
+          "sampled_rtf": 0.2712287952037269,
+          "geometry_pass": true
+        },
+        {
+          "label": "06-green_cube-original",
+          "samples": 100,
+          "rtt_median_s": 0.05886962749355007,
+          "rtt_mean_s": 0.06210638246091548,
+          "rtt_min_s": 0.013026677013840526,
+          "rtt_max_s": 0.13135286601027474,
+          "wall_s": 14.926344273990253,
+          "simulation_s": 4.06666666666667,
+          "sampled_rtf": 0.2724489394066167,
+          "geometry_pass": true
+        }
+      ],
+      "zones": {
+        "green_cube": {
+          "source_sha256": "4e14196c5e515366415605d60c1d90125fa6e40a9c43bd061fc80bad8ab379ef",
+          "instrumented_sha256": "b10ce84360fabbd0390214f7c089a8552f50b2f076cd81c4b685463201f2f629",
+          "zones_ms_per_sample": {
+            "view_validity": {
+              "inclusive": 0.01820033,
+              "exclusive": 0.01820033,
+              "calls_per_sample": 13.0,
+              "exceptions": 0
+            },
+            "articulation_positions": {
+              "inclusive": 0.47256954,
+              "exclusive": 0.47256954,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "array_readback": {
+              "inclusive": 1.63413511,
+              "exclusive": 1.63413511,
+              "calls_per_sample": 8.0,
+              "exceptions": 0
+            },
+            "articulation_velocities": {
+              "inclusive": 0.58916756,
+              "exclusive": 0.58916756,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "articulation_limits": {
+              "inclusive": 0.35581363,
+              "exclusive": 0.35581363,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "rigid_poses": {
+              "inclusive": 1.56025273,
+              "exclusive": 1.56025273,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "rigid_velocities": {
+              "inclusive": 2.4638115,
+              "exclusive": 2.4638115,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "frame_decode": {
+              "inclusive": 0.16047281,
+              "exclusive": 0.16047281,
+              "calls_per_sample": 4.0,
+              "exceptions": 0
+            },
+            "hashing": {
+              "inclusive": 0.1006225,
+              "exclusive": 0.1006225,
+              "calls_per_sample": 4.0,
+              "exceptions": 0
+            },
+            "state_collection": {
+              "inclusive": 8.7985824,
+              "exclusive": 1.62786293,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "gpu_identity": {
+              "inclusive": 0.23725631,
+              "exclusive": 0.23725631,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "contacts": {
+              "inclusive": 5.83459484,
+              "exclusive": 5.83459484,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "scene_mesh": {
+              "inclusive": 0.27447975,
+              "exclusive": 0.27447975,
+              "calls_per_sample": 10.0,
+              "exceptions": 0
+            },
+            "usd_transform": {
+              "inclusive": 0.10289452,
+              "exclusive": 0.10289452,
+              "calls_per_sample": 15.0,
+              "exceptions": 0
+            },
+            "scene_world": {
+              "inclusive": 0.28568356,
+              "exclusive": 0.21393147,
+              "calls_per_sample": 8.0,
+              "exceptions": 0
+            },
+            "usd_material": {
+              "inclusive": 0.07631275,
+              "exclusive": 0.07631275,
+              "calls_per_sample": 2.0,
+              "exceptions": 0
+            },
+            "scene_material": {
+              "inclusive": 0.19221749,
+              "exclusive": 0.11590474,
+              "calls_per_sample": 2.0,
+              "exceptions": 0
+            },
+            "scene_geometry": {
+              "inclusive": 2.52724556,
+              "exclusive": 1.74372233,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "json_encoding": {
+              "inclusive": 0.18685903,
+              "exclusive": 0.18685903,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "compression": {
+              "inclusive": 0.1421887,
+              "exclusive": 0.1421887,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "snapshot_total": {
+              "inclusive": 20.59826052,
+              "exclusive": 2.68720744,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            }
+          }
+        },
+        "orange": {
+          "source_sha256": "7f647da89d83ea65a5347d9dd72da9b1aa55dbb371d93fdb64c951c167bcd24b",
+          "instrumented_sha256": "ca79607169e98bff69d562e0b1b297dcbf0707d84d87de75ab5d263d02cfd939",
+          "zones_ms_per_sample": {
+            "view_validity": {
+              "inclusive": 0.01909217,
+              "exclusive": 0.01909217,
+              "calls_per_sample": 14.0,
+              "exceptions": 0
+            },
+            "articulation_positions": {
+              "inclusive": 0.57412058,
+              "exclusive": 0.57412058,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "array_readback": {
+              "inclusive": 1.86793697,
+              "exclusive": 1.86793697,
+              "calls_per_sample": 12.0,
+              "exceptions": 0
+            },
+            "articulation_velocities": {
+              "inclusive": 0.67412368,
+              "exclusive": 0.67412368,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "articulation_limits": {
+              "inclusive": 0.33976037,
+              "exclusive": 0.33976037,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "rigid_poses": {
+              "inclusive": 1.70249389,
+              "exclusive": 1.70249389,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "rigid_velocities": {
+              "inclusive": 2.43610132,
+              "exclusive": 2.43610132,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "frame_decode": {
+              "inclusive": 0.15709401,
+              "exclusive": 0.15709401,
+              "calls_per_sample": 4.0,
+              "exceptions": 0
+            },
+            "hashing": {
+              "inclusive": 0.10914826,
+              "exclusive": 0.10914826,
+              "calls_per_sample": 7.0,
+              "exceptions": 0
+            },
+            "state_collection": {
+              "inclusive": 8.93639668,
+              "exclusive": 1.50103905,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "gpu_identity": {
+              "inclusive": 0.21893822,
+              "exclusive": 0.21893822,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "contacts": {
+              "inclusive": 7.16283871,
+              "exclusive": 7.16283871,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "scene_mesh": {
+              "inclusive": 0.25208317,
+              "exclusive": 0.25208317,
+              "calls_per_sample": 10.0,
+              "exceptions": 0
+            },
+            "usd_transform": {
+              "inclusive": 0.10987906,
+              "exclusive": 0.10987906,
+              "calls_per_sample": 18.0,
+              "exceptions": 0
+            },
+            "scene_world": {
+              "inclusive": 0.26926324,
+              "exclusive": 0.20119046,
+              "calls_per_sample": 8.0,
+              "exceptions": 0
+            },
+            "usd_material": {
+              "inclusive": 0.07496832,
+              "exclusive": 0.07496832,
+              "calls_per_sample": 2.0,
+              "exceptions": 0
+            },
+            "scene_material": {
+              "inclusive": 0.18862386,
+              "exclusive": 0.11365554,
+              "calls_per_sample": 2.0,
+              "exceptions": 0
+            },
+            "scene_geometry": {
+              "inclusive": 2.40490932,
+              "exclusive": 1.6669586,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "mass_properties": {
+              "inclusive": 0.45930974,
+              "exclusive": 0.45930974,
+              "calls_per_sample": 3.0,
+              "exceptions": 0
+            },
+            "physx_convex_representation": {
+              "inclusive": 0.18577281,
+              "exclusive": 0.18577281,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "json_encoding": {
+              "inclusive": 0.85064359,
+              "exclusive": 0.85064359,
+              "calls_per_sample": 3.0,
+              "exceptions": 0
+            },
+            "convex_support": {
+              "inclusive": 1.56658211,
+              "exclusive": 1.27960623,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "convex_geometry": {
+              "inclusive": 3.13050118,
+              "exclusive": 0.83770013,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "compression": {
+              "inclusive": 0.26669208,
+              "exclusive": 0.26669208,
+              "calls_per_sample": 4.0,
+              "exceptions": 0
+            },
+            "snapshot_total": {
+              "inclusive": 25.75936135,
+              "exclusive": 2.69821439,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            }
+          }
+        }
+      }
+    },
+    "native05": {
+      "role": "final strict row identity and exact shape candidate",
+      "source_unchanged": true,
+      "source_files": 1503,
+      "samples": 700,
+      "phases": [
+        {
+          "label": "00-green_cube-original",
+          "samples": 100,
+          "rtt_median_s": 0.05672217249230016,
+          "rtt_mean_s": 0.06112243158131605,
+          "rtt_min_s": 0.0195317380130291,
+          "rtt_max_s": 0.14812856301432475,
+          "wall_s": 14.908417434984585,
+          "simulation_s": 4.033333333333331,
+          "sampled_rtf": 0.2705406761598034,
+          "geometry_pass": true
+        },
+        {
+          "label": "01-green_cube-candidate",
+          "samples": 100,
+          "rtt_median_s": 0.04755987550015561,
+          "rtt_mean_s": 0.052061073227087036,
+          "rtt_min_s": 0.009646046994021162,
+          "rtt_max_s": 0.10975466499803588,
+          "wall_s": 14.956863589992281,
+          "simulation_s": 4.200000000000003,
+          "sampled_rtf": 0.28080753526496327,
+          "geometry_pass": true
+        },
+        {
+          "label": "02-green_cube-instrumented",
+          "samples": 100,
+          "rtt_median_s": 0.052469115500571206,
+          "rtt_mean_s": 0.05422564987995429,
+          "rtt_min_s": 0.011184906994458288,
+          "rtt_max_s": 0.11271664898958988,
+          "wall_s": 14.884778953011846,
+          "simulation_s": 4.233333333333334,
+          "sampled_rtf": 0.2844068660137371,
+          "geometry_pass": true
+        },
+        {
+          "label": "03-orange-original",
+          "samples": 100,
+          "rtt_median_s": 0.06804756849305704,
+          "rtt_mean_s": 0.06925220151344547,
+          "rtt_min_s": 0.019285043003037572,
+          "rtt_max_s": 0.1613056499918457,
+          "wall_s": 14.902959016006207,
+          "simulation_s": 3.749999999999986,
+          "sampled_rtf": 0.25162788114577633,
+          "geometry_pass": true
+        },
+        {
+          "label": "04-orange-candidate",
+          "samples": 100,
+          "rtt_median_s": 0.06020836398238316,
+          "rtt_mean_s": 0.0610787391802296,
+          "rtt_min_s": 0.01648219200433232,
+          "rtt_max_s": 0.11658377799903974,
+          "wall_s": 14.913675130985212,
+          "simulation_s": 4.083333333333343,
+          "sampled_rtf": 0.2737979269006374,
+          "geometry_pass": true
+        },
+        {
+          "label": "05-orange-instrumented",
+          "samples": 100,
+          "rtt_median_s": 0.059478403491084464,
+          "rtt_mean_s": 0.06269589145900682,
+          "rtt_min_s": 0.014004163007484749,
+          "rtt_max_s": 0.12710344401421025,
+          "wall_s": 14.902618407999398,
+          "simulation_s": 3.9000000000000057,
+          "sampled_rtf": 0.261698977537167,
+          "geometry_pass": true
+        },
+        {
+          "label": "06-green_cube-original",
+          "samples": 100,
+          "rtt_median_s": 0.06092353649728466,
+          "rtt_mean_s": 0.05988957023160765,
+          "rtt_min_s": 0.009347924002213404,
+          "rtt_max_s": 0.12164774900884368,
+          "wall_s": 14.875833420985145,
+          "simulation_s": 4.049999999999983,
+          "sampled_rtf": 0.2722536536532266,
+          "geometry_pass": true
+        }
+      ],
+      "zones": {
+        "green_cube": {
+          "source_sha256": "25a7551f4745725f7cf660f475247c6aa8d1ed13ef21ca8ca2f2ad868e685e62",
+          "instrumented_sha256": "cda005a977ef75272ced104e029ce91f6456ef97433213ad7d2ed1229fb6ac45",
+          "zones_ms_per_sample": {
+            "view_validity": {
+              "inclusive": 0.01870406,
+              "exclusive": 0.01870406,
+              "calls_per_sample": 13.0,
+              "exceptions": 0
+            },
+            "articulation_positions": {
+              "inclusive": 0.45462694,
+              "exclusive": 0.45462694,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "array_readback": {
+              "inclusive": 1.43003279,
+              "exclusive": 1.43003279,
+              "calls_per_sample": 8.0,
+              "exceptions": 0
+            },
+            "articulation_velocities": {
+              "inclusive": 0.44468664,
+              "exclusive": 0.44468664,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "articulation_limits": {
+              "inclusive": 0.35610733,
+              "exclusive": 0.35610733,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "rigid_poses": {
+              "inclusive": 1.39213771,
+              "exclusive": 1.39213771,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "rigid_velocities": {
+              "inclusive": 2.11493238,
+              "exclusive": 2.11493238,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "frame_decode": {
+              "inclusive": 0.16014847,
+              "exclusive": 0.16014847,
+              "calls_per_sample": 4.0,
+              "exceptions": 0
+            },
+            "hashing": {
+              "inclusive": 0.0998242,
+              "exclusive": 0.0998242,
+              "calls_per_sample": 4.0,
+              "exceptions": 0
+            },
+            "state_collection": {
+              "inclusive": 7.87203061,
+              "exclusive": 1.58396209,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "gpu_identity": {
+              "inclusive": 0.2580701,
+              "exclusive": 0.2580701,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "contacts": {
+              "inclusive": 7.03764332,
+              "exclusive": 7.03764332,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "scene_mesh": {
+              "inclusive": 0.2762898,
+              "exclusive": 0.2762898,
+              "calls_per_sample": 10.0,
+              "exceptions": 0
+            },
+            "usd_transform": {
+              "inclusive": 0.10535762,
+              "exclusive": 0.10535762,
+              "calls_per_sample": 15.0,
+              "exceptions": 0
+            },
+            "scene_world": {
+              "inclusive": 0.28365426,
+              "exclusive": 0.20867309,
+              "calls_per_sample": 8.0,
+              "exceptions": 0
+            },
+            "usd_material": {
+              "inclusive": 0.08028532,
+              "exclusive": 0.08028532,
+              "calls_per_sample": 2.0,
+              "exceptions": 0
+            },
+            "scene_material": {
+              "inclusive": 0.19679753,
+              "exclusive": 0.11651221,
+              "calls_per_sample": 2.0,
+              "exceptions": 0
+            },
+            "scene_geometry": {
+              "inclusive": 2.52988704,
+              "exclusive": 1.742769,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "json_encoding": {
+              "inclusive": 0.21917402,
+              "exclusive": 0.21917402,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "compression": {
+              "inclusive": 0.13919472,
+              "exclusive": 0.13919472,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "snapshot_total": {
+              "inclusive": 20.81286554,
+              "exclusive": 2.57373373,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            }
+          }
+        },
+        "orange": {
+          "source_sha256": "1d1db6a767a322cea3de557b124c09c374da5baf5a73efa5e6e59d72cebae8b0",
+          "instrumented_sha256": "bffcaca39f4c39f3839b7de21d147bd1f87c3128d18495cf8ac99672d2704673",
+          "zones_ms_per_sample": {
+            "view_validity": {
+              "inclusive": 0.01979373,
+              "exclusive": 0.01979373,
+              "calls_per_sample": 14.0,
+              "exceptions": 0
+            },
+            "articulation_positions": {
+              "inclusive": 0.61402539,
+              "exclusive": 0.61402539,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "array_readback": {
+              "inclusive": 1.88241947,
+              "exclusive": 1.88241947,
+              "calls_per_sample": 12.0,
+              "exceptions": 0
+            },
+            "articulation_velocities": {
+              "inclusive": 0.72537011,
+              "exclusive": 0.72537011,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "articulation_limits": {
+              "inclusive": 0.35320061,
+              "exclusive": 0.35320061,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "rigid_poses": {
+              "inclusive": 1.76340711,
+              "exclusive": 1.76340711,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "rigid_velocities": {
+              "inclusive": 2.60471477,
+              "exclusive": 2.60471477,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "frame_decode": {
+              "inclusive": 0.16817768,
+              "exclusive": 0.16817768,
+              "calls_per_sample": 4.0,
+              "exceptions": 0
+            },
+            "hashing": {
+              "inclusive": 0.11245429,
+              "exclusive": 0.11245429,
+              "calls_per_sample": 7.0,
+              "exceptions": 0
+            },
+            "state_collection": {
+              "inclusive": 9.30290021,
+              "exclusive": 1.51295456,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "gpu_identity": {
+              "inclusive": 0.22485791,
+              "exclusive": 0.22485791,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "contacts": {
+              "inclusive": 5.99969978,
+              "exclusive": 5.99969978,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "scene_mesh": {
+              "inclusive": 0.25670712,
+              "exclusive": 0.25670712,
+              "calls_per_sample": 10.0,
+              "exceptions": 0
+            },
+            "usd_transform": {
+              "inclusive": 0.10960211,
+              "exclusive": 0.10960211,
+              "calls_per_sample": 18.0,
+              "exceptions": 0
+            },
+            "scene_world": {
+              "inclusive": 0.27243585,
+              "exclusive": 0.20566511,
+              "calls_per_sample": 8.0,
+              "exceptions": 0
+            },
+            "usd_material": {
+              "inclusive": 0.07296105,
+              "exclusive": 0.07296105,
+              "calls_per_sample": 2.0,
+              "exceptions": 0
+            },
+            "scene_material": {
+              "inclusive": 0.18446265,
+              "exclusive": 0.1115016,
+              "calls_per_sample": 2.0,
+              "exceptions": 0
+            },
+            "scene_geometry": {
+              "inclusive": 2.48280277,
+              "exclusive": 1.74050681,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "mass_properties": {
+              "inclusive": 0.46803005,
+              "exclusive": 0.46803005,
+              "calls_per_sample": 3.0,
+              "exceptions": 0
+            },
+            "physx_convex_representation": {
+              "inclusive": 0.18625529,
+              "exclusive": 0.18625529,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "json_encoding": {
+              "inclusive": 0.91803865,
+              "exclusive": 0.91803865,
+              "calls_per_sample": 3.0,
+              "exceptions": 0
+            },
+            "convex_support": {
+              "inclusive": 1.58930636,
+              "exclusive": 1.29831761,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "convex_geometry": {
+              "inclusive": 3.18320854,
+              "exclusive": 0.86067248,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            },
+            "compression": {
+              "inclusive": 0.27613417,
+              "exclusive": 0.27613417,
+              "calls_per_sample": 4.0,
+              "exceptions": 0
+            },
+            "snapshot_total": {
+              "inclusive": 25.19870165,
+              "exclusive": 2.71323419,
+              "calls_per_sample": 1.0,
+              "exceptions": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  "artifacts": {
+    "native04/green_cube-warmup.json": {
+      "sha256": "17fbc456649cf301fc5383a112d88721b0d6d737d4bfd0133c9d3479caf8c05a",
+      "size_bytes": 19481
+    },
+    "native04/final-side.json": {
+      "sha256": "4acee85a27edbfcdbec25ab4586c8d24025aac27e38aebc42da10db0da92d3b0",
+      "size_bytes": 1570
+    },
+    "native04/closure.json": {
+      "sha256": "2b10e5f15799991d6a559c23f17942063defc0cc83fdad2cc5066c0685d3446f",
+      "size_bytes": 799
+    },
+    "native04/source-before.json": {
+      "sha256": "5ceb8b81576cfe689e00191d8ef8a21eac94272d24f38e9fee9d0dcff9f64bcd",
+      "size_bytes": 171275
+    },
+    "native04/final-proof.json": {
+      "sha256": "f8d6bbf113fae8682ff9fddbc248834e4b78ebc84560ae4bcb54ca00d5f7a3c8",
+      "size_bytes": 1575
+    },
+    "native04/orange-instrumented.py": {
+      "sha256": "ca79607169e98bff69d562e0b1b297dcbf0707d84d87de75ab5d263d02cfd939",
+      "size_bytes": 29171
+    },
+    "native04/receipt.partial.json": {
+      "sha256": "841b9d150a79a88b7fbb896720ab0ae3248bfeb3cb8922f0f0454a3d27aa17df",
+      "size_bytes": 4270
+    },
+    "native04/profile-wire.json": {
+      "sha256": "eed3330411efb3b81590212d4536638f32c466c25f8d0c0a9e4a11fdc5cf2ff1",
+      "size_bytes": 2120
+    },
+    "native04/orange-candidate.py": {
+      "sha256": "7f647da89d83ea65a5347d9dd72da9b1aa55dbb371d93fdb64c951c167bcd24b",
+      "size_bytes": 25369
+    },
+    "native04/collector.log": {
+      "sha256": "0a0aed2449e69960276b5ae0f67e29094c84a2f3148c3d1726f66c08c1ddba43",
+      "size_bytes": 2230
+    },
+    "native04/interpreter.json": {
+      "sha256": "51513ef3c0b04d393205bc889cb62b1f7cf71a61bec68f6792be54fdba32eac6",
+      "size_bytes": 178
+    },
+    "native04/green_cube-original.py": {
+      "sha256": "fa4a7ee33eebaa84438ec852a3537163f284adc89b3c5f82fc99810e5606de3d",
+      "size_bytes": 14405
+    },
+    "native04/orange-original.py": {
+      "sha256": "8e15ebd33b2c33d6ecbc57c3c81a6c3bad530d689ae8b0d8d4b45c638f4b4817",
+      "size_bytes": 23992
+    },
+    "native04/final-proof.jpg": {
+      "sha256": "855007924ed49c890f4877f4bb2030ede106148aa8869000262d19c2cb7aaec8",
+      "size_bytes": 45667
+    },
+    "native04/source-after.json": {
+      "sha256": "5ceb8b81576cfe689e00191d8ef8a21eac94272d24f38e9fee9d0dcff9f64bcd",
+      "size_bytes": 171275
+    },
+    "native04/profile-binding.json": {
+      "sha256": "32a14b75bee2aba256f92047c285f72eeb1ddafb235141b8b922e8832b37b586",
+      "size_bytes": 6517
+    },
+    "native04/zones.json": {
+      "sha256": "694d7bbf2c373133cdf60a32326f2f207bdcb88fcda471945e743d04eb4d6041",
+      "size_bytes": 9781
+    },
+    "native04/orange-parity-code.py": {
+      "sha256": "255da80d4b43dbc095666f77a325e1c4add3e2f5958cb150c2e64d2f75c7d4b1",
+      "size_bytes": 51060
+    },
+    "native04/green_cube-candidate.py": {
+      "sha256": "4e14196c5e515366415605d60c1d90125fa6e40a9c43bd061fc80bad8ab379ef",
+      "size_bytes": 15782
+    },
+    "native04/parity.json": {
+      "sha256": "29da9811e949d828db32f9a70049ba319d2d83b718a84ca20c39452e96ffe31b",
+      "size_bytes": 9094
+    },
+    "native04/bridge.log": {
+      "sha256": "77b385f57545c2dffc1a7e673582d863515433f8ec9ca08199eb856a49f7ce5f",
+      "size_bytes": 38978
+    },
+    "native04/final-cam0.json": {
+      "sha256": "2199ca9c7b95cc070fa59a2c2995f3076ab837e0afddc488b2b34d4224403bdd",
+      "size_bytes": 1570
+    },
+    "native04/final-cam0.jpg": {
+      "sha256": "5e190e1880855155f3b7ad31123463591a77b2909546354a08b64c0b16bbcc21",
+      "size_bytes": 49069
+    },
+    "native04/orange-warmup.json": {
+      "sha256": "1a26acab30b2a4a3701ae953dbc62cffb37d6d0abd84505f4632977690b9072d",
+      "size_bytes": 77388
+    },
+    "native04/receipt.json": {
+      "sha256": "c1552a5392976fa3c294fc4795955ce82e548f672d69627f0d86edced0cbf805",
+      "size_bytes": 5595
+    },
+    "native04/invocation.json": {
+      "sha256": "48a2c52dde57c3088cf6073688eabb3b5ef35be0cc5bab0b55272114cf1148fc",
+      "size_bytes": 51
+    },
+    "native04/green_cube-instrumented.py": {
+      "sha256": "b10ce84360fabbd0390214f7c089a8552f50b2f076cd81c4b685463201f2f629",
+      "size_bytes": 19140
+    },
+    "native04/final-side.jpg": {
+      "sha256": "f88f68f00ea77555634804e86355a5441a9fff2764c293ac6dfd6552c3c55966",
+      "size_bytes": 38324
+    },
+    "native04/owner.json": {
+      "sha256": "330c4820dbeeb92ad2577b7a2cc69dadaee85951e3dd93d8639d1ddf9d7516d3",
+      "size_bytes": 4305
+    },
+    "native04/green_cube-parity-code.py": {
+      "sha256": "b2089a35f22908363f434dbae4209c79c077fd762be89b625a7dbf8f4573f7e3",
+      "size_bytes": 31586
+    },
+    "native04/05-orange-instrumented/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native04/05-orange-instrumented/wire.jsonl": {
+      "sha256": "ff716e9a6e49df87fd2fd368f3c85b0fd0c72da786f4ddf47f8f6a4b91cdb8b7",
+      "size_bytes": 601078
+    },
+    "native04/05-orange-instrumented/samples.jsonl": {
+      "sha256": "a4a6dfcb277154b93441f67ba28eeaaa430c8eaf4fef281b1a13b5c540e001c4",
+      "size_bytes": 3347648
+    },
+    "native04/03-orange-original/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native04/03-orange-original/wire.jsonl": {
+      "sha256": "73663802d7a0117d081bf1a5b3f9437e8224bbb93ae02c334f8ddf222b91468f",
+      "size_bytes": 600986
+    },
+    "native04/03-orange-original/samples.jsonl": {
+      "sha256": "92e3fa501dda2c559391a8f11080a69a8e608139082a69d959871af0a7da312a",
+      "size_bytes": 3347790
+    },
+    "native04/02-green_cube-instrumented/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native04/02-green_cube-instrumented/wire.jsonl": {
+      "sha256": "348269d63c21d62522f69ce5c80a9fc3d2b0603b200fe263d4a2fd7f346fc86c",
+      "size_bytes": 369514
+    },
+    "native04/02-green_cube-instrumented/samples.jsonl": {
+      "sha256": "959fd2197571163fb7db8cfaf81af7379ba394a45254da1646d8e5fe804b3706",
+      "size_bytes": 832003
+    },
+    "native04/00-green_cube-original/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native04/00-green_cube-original/wire.jsonl": {
+      "sha256": "bc623aaa82fd5e3ee92c7e1318cdec6de6da0aa974e5aafe3f0ff5ab3158e417",
+      "size_bytes": 370002
+    },
+    "native04/00-green_cube-original/samples.jsonl": {
+      "sha256": "5a373cc5ac6b9761bf0d6efdc4b0c09574d2ad26d4aedc07b81d545d27fea780",
+      "size_bytes": 831696
+    },
+    "native04/06-green_cube-original/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native04/06-green_cube-original/wire.jsonl": {
+      "sha256": "1cf4193d046792c77c4a20ac88facde10f8895c79ed1e4739f918b1aac07698c",
+      "size_bytes": 369470
+    },
+    "native04/06-green_cube-original/samples.jsonl": {
+      "sha256": "8dca38cd71716e847ae42de1f11219894c1a3651ba5774b978b1f488a17a8578",
+      "size_bytes": 831975
+    },
+    "native04/01-green_cube-candidate/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native04/01-green_cube-candidate/wire.jsonl": {
+      "sha256": "5f90f8b20c16a11e32514116caeeb91100c759a2ea039b162e21c5f538312d98",
+      "size_bytes": 369318
+    },
+    "native04/01-green_cube-candidate/samples.jsonl": {
+      "sha256": "7fabc99ab1824231c6065f6c23a334addb5626acb8bd0777b7fe0cf6851fc978",
+      "size_bytes": 831613
+    },
+    "native04/04-orange-candidate/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native04/04-orange-candidate/wire.jsonl": {
+      "sha256": "e315bcd3cabf02e1761380d14f1a7095c21ed23c6af9ee433be306967f72aecb",
+      "size_bytes": 600642
+    },
+    "native04/04-orange-candidate/samples.jsonl": {
+      "sha256": "6e9944f2980f7826d441bcb5acbcad5aa8ee13c3270d1e08215dbb3f893ff770",
+      "size_bytes": 3348118
+    },
+    "native05/green_cube-warmup.json": {
+      "sha256": "f386e50bc13032fd3975932249cf5cd614c22e61f35b00ed25955b3f7051d63c",
+      "size_bytes": 19513
+    },
+    "native05/final-side.json": {
+      "sha256": "95b829096ed8bd6e6951549a643ff355278df722c1d50ec5bdd2b011f2151a03",
+      "size_bytes": 1575
+    },
+    "native05/source-before.json": {
+      "sha256": "ea59629ae6dd7c139c7cfa0ebf86276fc2e2053dc4ea7d13a3e237bd6979529d",
+      "size_bytes": 171275
+    },
+    "native05/final-proof.json": {
+      "sha256": "b05cd79dfbaf70e5322eda9803a0fe724764ba402cf380db10828adccbca543d",
+      "size_bytes": 1580
+    },
+    "native05/orange-instrumented.py": {
+      "sha256": "bffcaca39f4c39f3839b7de21d147bd1f87c3128d18495cf8ac99672d2704673",
+      "size_bytes": 29739
+    },
+    "native05/receipt.partial.json": {
+      "sha256": "f1c82e3041cebbb545b26c45226c378ffb98e8a0b2bf80b4b7444af09affdfeb",
+      "size_bytes": 4282
+    },
+    "native05/profile-wire.json": {
+      "sha256": "0736a979847247407f11a7a492b8c8cf273abde8e963821a47b11b299896fae7",
+      "size_bytes": 2132
+    },
+    "native05/orange-candidate.py": {
+      "sha256": "1d1db6a767a322cea3de557b124c09c374da5baf5a73efa5e6e59d72cebae8b0",
+      "size_bytes": 26432
+    },
+    "native05/permutation-1-code.py": {
+      "sha256": "ffdac91f18a1dd7225baaf17161710afe89c89804a775c1a2340d2620090d0d8",
+      "size_bytes": 33737
+    },
+    "native05/collector.log": {
+      "sha256": "6a402bdd9a711182544d493dd7f04ccad45a00261c32e1077da229b44fc79350",
+      "size_bytes": 2242
+    },
+    "native05/interpreter.json": {
+      "sha256": "51513ef3c0b04d393205bc889cb62b1f7cf71a61bec68f6792be54fdba32eac6",
+      "size_bytes": 178
+    },
+    "native05/permutation-0-code.py": {
+      "sha256": "ae25a0c4326c3b544eaf8995102bceb900f5fbfb73f0aed96d82121ba10a48ba",
+      "size_bytes": 33737
+    },
+    "native05/green_cube-original.py": {
+      "sha256": "fa4a7ee33eebaa84438ec852a3537163f284adc89b3c5f82fc99810e5606de3d",
+      "size_bytes": 14405
+    },
+    "native05/permutation-2-code.py": {
+      "sha256": "6a5df9c2f49c39664f08b7df8a6c12da582993b0857b19a13de8e578eac40d62",
+      "size_bytes": 33737
+    },
+    "native05/orange-original.py": {
+      "sha256": "8e15ebd33b2c33d6ecbc57c3c81a6c3bad530d689ae8b0d8d4b45c638f4b4817",
+      "size_bytes": 23992
+    },
+    "native05/final-proof.jpg": {
+      "sha256": "51365ab26eacc34e59dac0e4674a08e29cc03e5a43dff062a988f5e255e2fc66",
+      "size_bytes": 46159
+    },
+    "native05/source-after.json": {
+      "sha256": "ea59629ae6dd7c139c7cfa0ebf86276fc2e2053dc4ea7d13a3e237bd6979529d",
+      "size_bytes": 171275
+    },
+    "native05/profile-binding.json": {
+      "sha256": "372f23b6864f82fee0bb27b3739f31cc2d538cd6ea5729e0c891bd0319f95c73",
+      "size_bytes": 6516
+    },
+    "native05/zones.json": {
+      "sha256": "0362d5bbe2acd004c9812986d2454cc3eca534666788b2b127e85e16ac70b86c",
+      "size_bytes": 9778
+    },
+    "native05/orange-parity-code.py": {
+      "sha256": "fe565950c0b6572029916b00f44d5037a5374d9adc43dfa0d164e4b08ad467ee",
+      "size_bytes": 52138
+    },
+    "native05/green_cube-candidate.py": {
+      "sha256": "25a7551f4745725f7cf660f475247c6aa8d1ed13ef21ca8ca2f2ad868e685e62",
+      "size_bytes": 16845
+    },
+    "native05/parity.json": {
+      "sha256": "c8a6430fd1b6d46463887f0a02230a00c9c27035449ee3def82c5dc62792ec42",
+      "size_bytes": 9105
+    },
+    "native05/final-cam0.json": {
+      "sha256": "173e299bcb14226dd8ef762043e0e4529a8772595cb408ca49bf7c4ba2e600c7",
+      "size_bytes": 1575
+    },
+    "native05/final-cam0.jpg": {
+      "sha256": "52837615e09aa11a2a5fd779b8d0940e2e232da0ae0fd24a8928a9b25e7aac00",
+      "size_bytes": 49531
+    },
+    "native05/orange-warmup.json": {
+      "sha256": "61a416fbc1d559fc04295b7490564f170ce765d97bd9543ca0ab5682fd3ee4fa",
+      "size_bytes": 77461
+    },
+    "native05/permuted-parity.json": {
+      "sha256": "df00fa95c6d6143dc200dea452624fc141f304ae8b2ef650a8313a65a968cbc4",
+      "size_bytes": 31057
+    },
+    "native05/receipt.json": {
+      "sha256": "06d28c6f5efb46d3c8b4ab18b23f7ff103365a4d9e088b542a6d3c9a9e3deae9",
+      "size_bytes": 5607
+    },
+    "native05/invocation.json": {
+      "sha256": "48a2c52dde57c3088cf6073688eabb3b5ef35be0cc5bab0b55272114cf1148fc",
+      "size_bytes": 51
+    },
+    "native05/green_cube-instrumented.py": {
+      "sha256": "cda005a977ef75272ced104e029ce91f6456ef97433213ad7d2ed1229fb6ac45",
+      "size_bytes": 19708
+    },
+    "native05/final-side.jpg": {
+      "sha256": "4d56d962c9ed2631206c887e75ade9849ce154b83cf5b4339b71a28985e8ce6c",
+      "size_bytes": 38699
+    },
+    "native05/owner.json": {
+      "sha256": "330c4820dbeeb92ad2577b7a2cc69dadaee85951e3dd93d8639d1ddf9d7516d3",
+      "size_bytes": 4305
+    },
+    "native05/green_cube-parity-code.py": {
+      "sha256": "53dc0484e9cb34adab187c2b379a687b9da2520b3ee58fa6601da68596170b60",
+      "size_bytes": 32664
+    },
+    "native05/05-orange-instrumented/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native05/05-orange-instrumented/wire.jsonl": {
+      "sha256": "23b196a6f1b5c1347f01c03fd3c75ecffc7a5506ffee0330b6722bb50a94f684",
+      "size_bytes": 600890
+    },
+    "native05/05-orange-instrumented/samples.jsonl": {
+      "sha256": "b8ad836197148855294bbe6f4b64341fbf73279590f848b353d9ea7ec6cab226",
+      "size_bytes": 3348170
+    },
+    "native05/03-orange-original/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native05/03-orange-original/wire.jsonl": {
+      "sha256": "8d29dd5f7ab46f193d8dbcb81f6231899a57dd84627bca691da8bafcd295d8b2",
+      "size_bytes": 600974
+    },
+    "native05/03-orange-original/samples.jsonl": {
+      "sha256": "912f741e20bcbebe9d641a6e35c7a77a77ce574840512bab9da52f3ed4969cfa",
+      "size_bytes": 3348254
+    },
+    "native05/02-green_cube-instrumented/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native05/02-green_cube-instrumented/wire.jsonl": {
+      "sha256": "45402b385a45f37dad520ea1d6b546cabf733658e0acc6cce1dd1bfde16c3315",
+      "size_bytes": 370114
+    },
+    "native05/02-green_cube-instrumented/samples.jsonl": {
+      "sha256": "f675444c22be9f1bfb63974ce00165ccc66fe0303153f93fc847b5d6ae620bb2",
+      "size_bytes": 832189
+    },
+    "native05/00-green_cube-original/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native05/00-green_cube-original/wire.jsonl": {
+      "sha256": "2350e23306ebfdc465804d9ffa673cd9e001064ec266aa18897e01383cdc77b9",
+      "size_bytes": 369878
+    },
+    "native05/00-green_cube-original/samples.jsonl": {
+      "sha256": "bfc8b6eae60ebca9e6316c9bce6949c3772e9bf79f40cc309a82189865ce465a",
+      "size_bytes": 831833
+    },
+    "native05/06-green_cube-original/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native05/06-green_cube-original/wire.jsonl": {
+      "sha256": "b6047a678d94ad7b2de5a9d44b1738042f918061ba4bbd5a5394a771a515d5dc",
+      "size_bytes": 370130
+    },
+    "native05/06-green_cube-original/samples.jsonl": {
+      "sha256": "0dceb40f3cfb595e92f0abcebb555c7ebaaabfbcdecae2cf3358d50a512a3efb",
+      "size_bytes": 832303
+    },
+    "native05/01-green_cube-candidate/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native05/01-green_cube-candidate/wire.jsonl": {
+      "sha256": "29ea77379a465f1450f588e8ee90d3e463d5e89c49c47632a30808bc25d29d61",
+      "size_bytes": 369678
+    },
+    "native05/01-green_cube-candidate/samples.jsonl": {
+      "sha256": "dadbc705c25e0ec09321e5491eab264d7992f706f07b111db081cfac9a0d2c70",
+      "size_bytes": 831890
+    },
+    "native05/04-orange-candidate/geometry.json": {
+      "sha256": "6e09f8178945fb9c2360c4123b45954c019435139d886936aec0215702da16eb",
+      "size_bytes": 2585
+    },
+    "native05/04-orange-candidate/wire.jsonl": {
+      "sha256": "94687191077297ed8caadcf1a3b5f900a350235091d7e468dda251c14cdffdd7",
+      "size_bytes": 601118
+    },
+    "native05/04-orange-candidate/samples.jsonl": {
+      "sha256": "95fb6dcc03909470e2394f4635d839f686dd07acccb01d93b582a2d50edd292e",
+      "size_bytes": 3348174
+    },
+    "prepare_native04.py": {
+      "sha256": "b60b3187ea0845fa1d993b81ab078ee5ab81cb630733f0390e1da539a67702e7",
+      "size_bytes": 3879
+    },
+    "collect_native04.py": {
+      "sha256": "8a5365d6888a2181790ea9082c0982cd670de8951839df3e35b256d5a141e129",
+      "size_bytes": 5759
+    },
+    "parity_native04.py": {
+      "sha256": "b5590795a3260f62bde3f6a63929959fed9273ea27e61700120ff1791ca35863",
+      "size_bytes": 2167
+    },
+    "prepare_native05.py": {
+      "sha256": "fe507f977b17d7e3e41b2ad014181e44a85cc6e6d58955e111d5100c40474a45",
+      "size_bytes": 2168
+    },
+    "collect_native05.py": {
+      "sha256": "fac4c67e3cba71ed0d8c5595131e40993dbcece90d7d9207e6b0a0cb3fd8e461",
+      "size_bytes": 5759
+    },
+    "parity_native05.py": {
+      "sha256": "8dabee6e16eb5a83a1b8fa49a65d8f10e0356263da7007511739ecbfab1a1f73",
+      "size_bytes": 2167
+    },
+    "permuted_native05.py": {
+      "sha256": "f298be4338b4512126000aa4fd552b8a65bf746f145a59b2bc3eb117156e56ae",
+      "size_bytes": 3268
+    },
+    "close_native04.py": {
+      "sha256": "516c9aefb1eb5e8a805225af39869ee09b10b5e7313bfd229cecdd0bacc1e910",
+      "size_bytes": 2354
+    },
+    "summarize_batch.py": {
+      "sha256": "adc2f4b5ad4386ab3aebdd7ea8c2832917820f3ad5b5442e62f84cf1a9d6e65c",
+      "size_bytes": 6168
+    }
+  },
+  "full_snapshot_parity": {
+    "pairs": 20,
+    "canonical_bytes_identical": true,
+    "ignored_keys": [
+      "server_monotonic"
+    ],
+    "comparison_added_rounding": false,
+    "preserved_existing_openbox_rounding_m": 1e-09,
+    "payload_numeric_residual_max": 0.0,
+    "payload_numeric_residual_rms": 0.0,
+    "residual_basis": "canonical JSON byte equality, not approximate comparisons",
+    "includes_contacts_gpu_geometry_convex_mass_support_joints_props_cameras": true
+  },
+  "permuted_native_parity": {
+    "pairs": 15,
+    "distinct_requested_orders": 3,
+    "distinct_body_positions_per_pair": 5,
+    "compared_to": "original individual-view observer, same physical step; shared base-state fields all exact after excluding server_monotonic",
+    "requested_and_native_paths_recorded": true,
+    "native_backend_preserved_requested_order_in_these_runs": true,
+    "different_backend_order_remap_test": "CPU synthetic test independently permutes actual native row identities/values while wrapper requested paths stay fixed; named output remains equal",
+    "records": [
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/orange",
+          "/World_Props/lemon",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube",
+          "/World_Props/pink_cube"
+        ],
+        "native_paths": [
+          "/World_Props/orange",
+          "/World_Props/lemon",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube",
+          "/World_Props/pink_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19222,
+        "sim_time": 160.18333333333334,
+        "sha256": [
+          "7e6bbf7490d2ccfe03ccc6205c54f882bc842b5e9f26115e2ffcf1504f9ce982",
+          "7e6bbf7490d2ccfe03ccc6205c54f882bc842b5e9f26115e2ffcf1504f9ce982"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000001430511475,
+            0.02999999747775224
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000009089708328,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.22499997913837433,
+            0.2149999886751175,
+            0.04125000910065797
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "tomato_can": [
+            0.22499997913837433,
+            0.2149999886751175,
+            0.04125000910065797
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000009089708328,
+            0.02999999934039739
+          ],
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000001430511475,
+            0.02999999747775224
+          ]
+        },
+        "sequence": 0
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/tomato_can",
+          "/World_Props/lemon",
+          "/World_Props/orange",
+          "/World_Props/pink_cube",
+          "/World_Props/green_cube"
+        ],
+        "native_paths": [
+          "/World_Props/tomato_can",
+          "/World_Props/lemon",
+          "/World_Props/orange",
+          "/World_Props/pink_cube",
+          "/World_Props/green_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19230,
+        "sim_time": 160.25,
+        "sha256": [
+          "93f2bf63b82791cb2b4413c5b2386e3f2cc7073411179129d810597433e477b3",
+          "93f2bf63b82791cb2b4413c5b2386e3f2cc7073411179129d810597433e477b3"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000001430511475,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.23999999463558197,
+            0.010000010952353477,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.22499994933605194,
+            0.2149999886751175,
+            0.04124999792478708
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "tomato_can": [
+            0.22499994933605194,
+            0.2149999886751175,
+            0.04124999792478708
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000001430511475,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.23999999463558197,
+            0.010000010952353477,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 1
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/lemon",
+          "/World_Props/pink_cube",
+          "/World_Props/orange",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube"
+        ],
+        "native_paths": [
+          "/World_Props/lemon",
+          "/World_Props/pink_cube",
+          "/World_Props/orange",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19238,
+        "sim_time": 160.31666666666666,
+        "sha256": [
+          "fe1ed07a27a52ad6d16b2788858a006247dc8d13fe993d6e41497971c9dc6ec1",
+          "fe1ed07a27a52ad6d16b2788858a006247dc8d13fe993d6e41497971c9dc6ec1"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000004053115845,
+            0.11000000685453415,
+            0.02999999747775224
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.22500000894069672,
+            0.2149999886751175,
+            0.04124999792478708
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "pink_cube": [
+            0.27000004053115845,
+            0.11000000685453415,
+            0.02999999747775224
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "tomato_can": [
+            0.22500000894069672,
+            0.2149999886751175,
+            0.04124999792478708
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 2
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/orange",
+          "/World_Props/lemon",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube",
+          "/World_Props/pink_cube"
+        ],
+        "native_paths": [
+          "/World_Props/orange",
+          "/World_Props/lemon",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube",
+          "/World_Props/pink_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19246,
+        "sim_time": 160.38333333333333,
+        "sha256": [
+          "156e426c71d9cdb92b8eb6d87f19674d89a340a112cc8e2dd299c4a7eb1dfa2a",
+          "156e426c71d9cdb92b8eb6d87f19674d89a340a112cc8e2dd299c4a7eb1dfa2a"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000004053115845,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.22500000894069672,
+            0.2149999737739563,
+            0.04125001655123857
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "tomato_can": [
+            0.22500000894069672,
+            0.2149999737739563,
+            0.04125001655123857
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ],
+          "pink_cube": [
+            0.27000004053115845,
+            0.11000000685453415,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 3
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/tomato_can",
+          "/World_Props/lemon",
+          "/World_Props/orange",
+          "/World_Props/pink_cube",
+          "/World_Props/green_cube"
+        ],
+        "native_paths": [
+          "/World_Props/tomato_can",
+          "/World_Props/lemon",
+          "/World_Props/orange",
+          "/World_Props/pink_cube",
+          "/World_Props/green_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19254,
+        "sim_time": 160.45,
+        "sha256": [
+          "2cec9425b0353df17a4c3ff543c7a5ccb33d1dd2753cacee775dd9b599ba42ee",
+          "2cec9425b0353df17a4c3ff543c7a5ccb33d1dd2753cacee775dd9b599ba42ee"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.22499997913837433,
+            0.2150000035762787,
+            0.04125000910065797
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "tomato_can": [
+            0.22499997913837433,
+            0.2150000035762787,
+            0.04125000910065797
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 4
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/lemon",
+          "/World_Props/pink_cube",
+          "/World_Props/orange",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube"
+        ],
+        "native_paths": [
+          "/World_Props/lemon",
+          "/World_Props/pink_cube",
+          "/World_Props/orange",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19260,
+        "sim_time": 160.5,
+        "sha256": [
+          "6356f083a819d8e2bd3002670d7bf4695571fcc64bb86403b3cd908b518ca0fb",
+          "6356f083a819d8e2bd3002670d7bf4695571fcc64bb86403b3cd908b518ca0fb"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000004053115845,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.22500000894069672,
+            0.2149999737739563,
+            0.04125001655123857
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "pink_cube": [
+            0.27000004053115845,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "tomato_can": [
+            0.22500000894069672,
+            0.2149999737739563,
+            0.04125001655123857
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 5
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/orange",
+          "/World_Props/lemon",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube",
+          "/World_Props/pink_cube"
+        ],
+        "native_paths": [
+          "/World_Props/orange",
+          "/World_Props/lemon",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube",
+          "/World_Props/pink_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19268,
+        "sim_time": 160.56666666666666,
+        "sha256": [
+          "1500a2bab96a17711b3436ea1421eab54c550779733b71abfb90c3e7b0a811bc",
+          "1500a2bab96a17711b3436ea1421eab54c550779733b71abfb90c3e7b0a811bc"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000004053115845,
+            0.11000001430511475,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.2250000238418579,
+            0.21500001847743988,
+            0.04124999419949678
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "tomato_can": [
+            0.2250000238418579,
+            0.21500001847743988,
+            0.04124999419949678
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ],
+          "pink_cube": [
+            0.27000004053115845,
+            0.11000001430511475,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 6
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/tomato_can",
+          "/World_Props/lemon",
+          "/World_Props/orange",
+          "/World_Props/pink_cube",
+          "/World_Props/green_cube"
+        ],
+        "native_paths": [
+          "/World_Props/tomato_can",
+          "/World_Props/lemon",
+          "/World_Props/orange",
+          "/World_Props/pink_cube",
+          "/World_Props/green_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19276,
+        "sim_time": 160.63333333333333,
+        "sha256": [
+          "18890be8d42931f5ad93f486e1b926a65ea6eb77d3b0d7f726a0eb2bc8aa7c67",
+          "18890be8d42931f5ad93f486e1b926a65ea6eb77d3b0d7f726a0eb2bc8aa7c67"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000009089708328,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.22499999403953552,
+            0.2149999886751175,
+            0.04125001282594827
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "tomato_can": [
+            0.22499999403953552,
+            0.2149999886751175,
+            0.04125001282594827
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000009089708328,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 7
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/lemon",
+          "/World_Props/pink_cube",
+          "/World_Props/orange",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube"
+        ],
+        "native_paths": [
+          "/World_Props/lemon",
+          "/World_Props/pink_cube",
+          "/World_Props/orange",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19282,
+        "sim_time": 160.68333333333334,
+        "sha256": [
+          "530764da2c3017ae7f9be8ba366d33814ce9d87e11d7a1bed70e39fe2237b644",
+          "530764da2c3017ae7f9be8ba366d33814ce9d87e11d7a1bed70e39fe2237b644"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010952353477,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.2250000387430191,
+            0.2149999737739563,
+            0.04124999792478708
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "tomato_can": [
+            0.2250000387430191,
+            0.2149999737739563,
+            0.04124999792478708
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010952353477,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 8
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/orange",
+          "/World_Props/lemon",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube",
+          "/World_Props/pink_cube"
+        ],
+        "native_paths": [
+          "/World_Props/orange",
+          "/World_Props/lemon",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube",
+          "/World_Props/pink_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19290,
+        "sim_time": 160.75,
+        "sha256": [
+          "4feb03d4c99bd97b58c298a89cb6b580c31900c25a3400a9234bbfc0c2f4f421",
+          "4feb03d4c99bd97b58c298a89cb6b580c31900c25a3400a9234bbfc0c2f4f421"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000008158385754,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.2250000387430191,
+            0.21500001847743988,
+            0.04124999419949678
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "tomato_can": [
+            0.2250000387430191,
+            0.21500001847743988,
+            0.04124999419949678
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000008158385754,
+            0.02999999934039739
+          ],
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 9
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/tomato_can",
+          "/World_Props/lemon",
+          "/World_Props/orange",
+          "/World_Props/pink_cube",
+          "/World_Props/green_cube"
+        ],
+        "native_paths": [
+          "/World_Props/tomato_can",
+          "/World_Props/lemon",
+          "/World_Props/orange",
+          "/World_Props/pink_cube",
+          "/World_Props/green_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19298,
+        "sim_time": 160.81666666666666,
+        "sha256": [
+          "7aa6dea1a9993f957f1d2b68477a2cd3752e2b5d9af7d486a0b4c782ddafbc37",
+          "7aa6dea1a9993f957f1d2b68477a2cd3752e2b5d9af7d486a0b4c782ddafbc37"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000001430511475,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000009089708328,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.22500000894069672,
+            0.2150000035762787,
+            0.04124999792478708
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "tomato_can": [
+            0.22500000894069672,
+            0.2150000035762787,
+            0.04124999792478708
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000001430511475,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000009089708328,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 10
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/lemon",
+          "/World_Props/pink_cube",
+          "/World_Props/orange",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube"
+        ],
+        "native_paths": [
+          "/World_Props/lemon",
+          "/World_Props/pink_cube",
+          "/World_Props/orange",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19306,
+        "sim_time": 160.88333333333333,
+        "sha256": [
+          "779c228578f3b8db8b1db42e64f0346dde70714be8ee9a30424cfc2b6e1210ec",
+          "779c228578f3b8db8b1db42e64f0346dde70714be8ee9a30424cfc2b6e1210ec"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000001072883606,
+            0.10999999940395355,
+            0.02999999747775224
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.22499999403953552,
+            0.2149999886751175,
+            0.04125001282594827
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "pink_cube": [
+            0.27000001072883606,
+            0.10999999940395355,
+            0.02999999747775224
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "tomato_can": [
+            0.22499999403953552,
+            0.2149999886751175,
+            0.04125001282594827
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 11
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/orange",
+          "/World_Props/lemon",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube",
+          "/World_Props/pink_cube"
+        ],
+        "native_paths": [
+          "/World_Props/orange",
+          "/World_Props/lemon",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube",
+          "/World_Props/pink_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19316,
+        "sim_time": 160.96666666666667,
+        "sha256": [
+          "a9653af255507507cd6935c0d88cfd95ffed4d5a3bee732936b812c8bf0aece0",
+          "a9653af255507507cd6935c0d88cfd95ffed4d5a3bee732936b812c8bf0aece0"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000004053115845,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.22499999403953552,
+            0.2149999886751175,
+            0.04124999792478708
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "tomato_can": [
+            0.22499999403953552,
+            0.2149999886751175,
+            0.04124999792478708
+          ],
+          "green_cube": [
+            0.24000000953674316,
+            0.010000010021030903,
+            0.02999999934039739
+          ],
+          "pink_cube": [
+            0.27000004053115845,
+            0.11000000685453415,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 12
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/tomato_can",
+          "/World_Props/lemon",
+          "/World_Props/orange",
+          "/World_Props/pink_cube",
+          "/World_Props/green_cube"
+        ],
+        "native_paths": [
+          "/World_Props/tomato_can",
+          "/World_Props/lemon",
+          "/World_Props/orange",
+          "/World_Props/pink_cube",
+          "/World_Props/green_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19322,
+        "sim_time": 161.01666666666668,
+        "sha256": [
+          "45d0ed116f94a54458fca4d3f7889ce2252e629e65bdb796a3334ba7750f6e9a",
+          "45d0ed116f94a54458fca4d3f7889ce2252e629e65bdb796a3334ba7750f6e9a"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.23999999463558197,
+            0.010000010952353477,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.2250000387430191,
+            0.21500001847743988,
+            0.04124999419949678
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "tomato_can": [
+            0.2250000387430191,
+            0.21500001847743988,
+            0.04124999419949678
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.23999999463558197,
+            0.010000010952353477,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 13
+      },
+      {
+        "identical": true,
+        "requested_paths": [
+          "/World_Props/lemon",
+          "/World_Props/pink_cube",
+          "/World_Props/orange",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube"
+        ],
+        "native_paths": [
+          "/World_Props/lemon",
+          "/World_Props/pink_cube",
+          "/World_Props/orange",
+          "/World_Props/tomato_can",
+          "/World_Props/green_cube"
+        ],
+        "native_count": 5,
+        "physics_step": 19330,
+        "sim_time": 161.08333333333334,
+        "sha256": [
+          "3987a8a8043b5accc5267734f078eec5d2e0051226985bccea2bb0d75eedc52d",
+          "3987a8a8043b5accc5267734f078eec5d2e0051226985bccea2bb0d75eedc52d"
+        ],
+        "reference_positions": {
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "green_cube": [
+            0.23999999463558197,
+            0.010000008158385754,
+            0.02999999934039739
+          ],
+          "tomato_can": [
+            0.2250000238418579,
+            0.2149999737739563,
+            0.04125001655123857
+          ],
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ]
+        },
+        "bound_positions": {
+          "lemon": [
+            0.3199999928474426,
+            0.004999999888241291,
+            0.021600000571233305
+          ],
+          "pink_cube": [
+            0.27000001072883606,
+            0.11000000685453415,
+            0.02999999934039739
+          ],
+          "orange": [
+            0.18000000715255737,
+            0.11999999731779099,
+            0.02638023161492971
+          ],
+          "tomato_can": [
+            0.2250000238418579,
+            0.2149999737739563,
+            0.04125001655123857
+          ],
+          "green_cube": [
+            0.23999999463558197,
+            0.010000008158385754,
+            0.02999999934039739
+          ]
+        },
+        "sequence": 14
+      }
+    ]
+  },
+  "closure": {
+    "unit": "cascade-trial12-profile-native04",
+    "invocation": "81c84b9235a34a7c9a37051a0fa72034",
+    "before": {
+      "launcher": {
+        "pid": 267206,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:21817063",
+        "state": "S"
+      },
+      "bridge": {
+        "pid": 267223,
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:21817069",
+        "state": "R"
+      }
+    },
+    "method": "SIGTERM only to birth-bound final bridge; shell/launcher reap naturally; systemd own group fallback after45s",
+    "fallback_group_stop": false,
+    "after": {
+      "launcher": null,
+      "bridge": null
+    },
+    "port_closed": true,
+    "unit_state": "ActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\nControlGroup=\n",
+    "gpu_process_absent": true,
+    "wall_s": 1.5086476790020242,
+    "closed": true
+  },
+  "changed_code_sha256": {
+    "demo/kitchen/observer/observer.py": "60c781ce59046a935acf5eff5f68a0d5e8adfaea9ef2a9448163e5a420332bab",
+    "tests/test_kitchen_observer_batch.py": "de6477dc7bb998fbe8b9f985b323b0fc0ea937e87d8b9c72ee9d141837f6dcaf"
+  },
+  "sdk_sources": {
+    "exts/isaacsim.core.experimental.prims/isaacsim/core/experimental/prims/impl/rigid_prim.py": "6e3e0304a29f6f707feac8d588939d20b30b4ce42a3765d468ae4d8aa050f2e9",
+    "exts/isaacsim.core.experimental.prims/isaacsim/core/experimental/prims/impl/prim.py": "d07b54cabf7b6b25cda1c292e5211f4d13196a579d48785669217cff6fab1840",
+    "extscache/omni.physics.tensors-110.3.2+110.3.0.lx64.r.cp312.u7f4/omni/physics/tensors/api.py": "1ba654210857a63b98236512e5f225723c3eb1dee64e867eaa4fade0578ccb7b"
+  },
+  "limits": [
+    "PhysX existing6.1rc26 native validation only, not Newton/hardware parity. Missing future SDK private native-view binding refuses.",
+    "Passive original/candidate blocks under other resident GPU workloads; no full task or 300second deadline acceptance.",
+    "Final native backend happened to preserve each requested permutation; synthetic regression covers different backend ordering explicitly.",
+    "Native04 retained as preliminary evidence before independent row/shape review; final admission uses native05.",
+    "Counters are nested wall zones, not isolated CPU or GPU kernel timing."
+  ],
+  "sdk_wrapper_row_contract": {
+    "scope": "Read-only SDK source inspection; no new native run or cross-version guarantee",
+    "files": {
+      "rigid_prim": {
+        "path": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/exts/isaacsim.core.experimental.prims/isaacsim/core/experimental/prims/impl/rigid_prim.py",
+        "sha256": "6e3e0304a29f6f707feac8d588939d20b30b4ce42a3765d468ae4d8aa050f2e9"
+      },
+      "ops": {
+        "path": "/home/johnny/Projects/isaac/IsaacSim/_build/linux-x86_64/release/exts/isaacsim.core.experimental.utils/isaacsim/core/experimental/utils/impl/ops.py",
+        "sha256": "f7f4f9aee584b98ea7642e6815309efcb596bf040460c128a029daaba68e8292"
+      }
+    },
+    "row_contract": {
+      "get_world_poses": "rigid_prim.py:329-334 gets native get_transforms, indexes resolve_indices(None), slices columns; only quaternion columns xyzw\u2192wxyz reorder. No row map to wrapper paths.",
+      "get_velocities": "rigid_prim.py:573-576 gets native get_velocities, indexes resolve_indices(None), slices linear/angular columns. No row map to wrapper paths.",
+      "default_indices": "impl/ops.py:261-270 resolves None to wp.array(np.arange(count)), preserving native row order.",
+      "backend": "Observer requires active tensor backend before these reads; USD fallback is refused."
+    }
+  }
+}

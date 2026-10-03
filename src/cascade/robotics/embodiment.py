@@ -13,6 +13,7 @@ import math
 from types import MappingProxyType
 
 from .contracts import freeze_json, identifier, plain_json
+from .joint_coordinates import MULTI_DOF_JOINTS, validate_coordinates
 
 
 JOINT_UNITS = MappingProxyType({
@@ -54,15 +55,18 @@ def _records(values, key, parser, label, *, maximum=2048):
     return result
 
 
-def _joint(raw):
-    data = _object(raw, {"joint_id", "parent", "child", "type", "axis", "units", "limits", "actuation", "loop_closure"},
+def _joint(raw, *, version=1):
+    allowed = {"joint_id", "parent", "child", "type", "axis", "units", "limits", "actuation", "loop_closure"}
+    if version == 2:
+        allowed.add("coordinates")
+    data = _object(raw, allowed,
                    {"joint_id", "parent", "child", "type"}, "joint")
     for key in ("joint_id", "parent", "child"):
         identifier(data[key], key)
     if data["parent"] == data["child"]:
         raise ValueError("joint cannot connect a link to itself")
     kind = data["type"]
-    if kind not in (*JOINT_UNITS, "fixed"):
+    if kind not in (*JOINT_UNITS, "fixed") and not (version == 2 and kind in MULTI_DOF_JOINTS):
         raise ValueError("unsupported joint type")
     data.setdefault("loop_closure", False)
     if type(data["loop_closure"]) is not bool:
@@ -70,6 +74,13 @@ def _joint(raw):
     data.setdefault("actuation", "passive")
     if data["actuation"] not in {"passive", "actuated"}:
         raise ValueError("joint actuation must be explicit passive or actuated")
+    if kind in MULTI_DOF_JOINTS:
+        if data["actuation"] != "passive" or any(key in data for key in ("axis", "units", "limits")):
+            raise ValueError("multi-DoF joints are observation-only; scalar axes, limits and actuation are unsupported")
+        data["coordinates"] = validate_coordinates(kind, data.get("coordinates"))
+        return freeze_json(data)
+    if "coordinates" in data:
+        raise ValueError("scalar and fixed declarations retain their existing coordinate schema")
     if kind == "fixed":
         if any(key in data for key in ("axis", "units", "limits")) or data["actuation"] != "passive":
             raise ValueError("fixed joint has no axis, units, limits or actuation")
@@ -139,14 +150,14 @@ class EmbodimentDescriptor:
     version: int = 1
 
     def __post_init__(self):
-        if type(self.version) is not int or self.version != 1:
-            raise ValueError("embodiment requires version 1")
+        if type(self.version) is not int or self.version not in {1, 2}:
+            raise ValueError("embodiment requires version 1 or 2")
         identifier(self.robot_id, "robot_id")
         identifier(self.root_link, "root_link")
         if self.root_mode not in {"fixed", "floating"}:
             raise ValueError("root_mode must be fixed or floating")
         links = _ids(self.links, "links", minimum=1)
-        joints = _records(self.joints, "joint_id", _joint, "joints")
+        joints = _records(self.joints, "joint_id", lambda value: _joint(value, version=self.version), "joints")
         transmissions = _records(self.transmissions, "transmission_id", _transmission, "transmissions")
         effectors = _records(self.effectors, "effector_id", lambda v: _attachment(v, sensor=False), "effectors")
         sensors = _records(self.sensors, "resource_id", lambda v: _attachment(v, sensor=True), "sensors")
@@ -243,7 +254,7 @@ class EmbodimentDescriptor:
                 raise ValueError("sensor attachment requires a read-only sensor resource")
             if value.metadata.get("sensor_id") != sensor["sensor_id"] or value.metadata.get("frame_id") != sensor["frame_id"]:
                 raise ValueError("sensor identity/frame disagrees with attachment")
-            joint_sensor = bool(set(value.capabilities) & {"joint_state", "proprioception"})
+            joint_sensor = bool(set(value.capabilities) & {"joint_state", "proprioception", "generalized_joint_state"})
             if joint_sensor != bool(sensor["joint_ids"]):
                 raise ValueError("joint sensors require exact joint_ids; other modalities cannot claim them")
         for value in catalog.describe():

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from ..robotics.contracts import ResourceDescriptor, identifier
 from .hub import SensorHub
-from .models import ImuPayload, MeasurementMetadata, ProprioceptionPayload, JointStatePayload
+from .models import (GeneralizedJointStatePayload, ImuPayload, MeasurementMetadata,
+                     ProprioceptionPayload, JointStatePayload)
 from .providers import MobileRgbSensorProvider, MobileStateSensorProvider, SyntheticSensorProvider
 
 
@@ -91,13 +92,14 @@ def build_sensor_domain(domain_id, profile, *, providers=None, embodiment=None):
             if set(entry) - (common | {"modality", "frame_id", "values", "period_s", "saturated"}):
                 raise ValueError("unknown synthetic sensor setting")
             metadata = MeasurementMetadata(entry["frame_id"], entry.get("calibration_id"), entry.get("saturated"))
-            classes = {"imu": ImuPayload, "proprioception": ProprioceptionPayload, "joint_state": JointStatePayload}
+            classes = {"imu": ImuPayload, "proprioception": ProprioceptionPayload,
+                       "joint_state": JointStatePayload, "generalized_joint_state": GeneralizedJointStatePayload}
             if entry.get("modality") not in classes or not isinstance(entry.get("values"), dict):
                 raise ValueError("synthetic sensor requires explicit supported modality and values")
             values = dict(entry["values"])
-            if entry["modality"] == "joint_state":
+            if entry["modality"] in {"joint_state", "generalized_joint_state"}:
                 if embodiment is None:
-                    raise ValueError("joint_state profiles require an embodiment declaration")
+                    raise ValueError("joint observation profiles require an embodiment declaration")
                 from ..robotics.embodiment import EmbodimentDescriptor
                 values.setdefault("embodiment_sha256", EmbodimentDescriptor.from_dict(embodiment).sha256)
             payload = classes[entry["modality"]](metadata=metadata, **values)

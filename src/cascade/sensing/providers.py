@@ -8,7 +8,8 @@ import uuid
 
 from .hub import SensorDescriptor, SensorError
 from .models import (ImuPayload, MeasurementMetadata, ObservationEnvelope,
-                     ProprioceptionPayload, JointStatePayload, RgbPayload, SolvedContactPayload, number)
+                     ProprioceptionPayload, JointStatePayload, GeneralizedJointStatePayload,
+                     RgbPayload, SolvedContactPayload, number)
 
 
 class BufferedSensorProvider:
@@ -53,7 +54,7 @@ class SyntheticSensorProvider:
     """
     def __init__(self, sensor_id, robot_id, payload, *, period_s=0.02,
                  max_age_s=0.5, read_timeout_s=0.25, clock=time.monotonic):
-        if type(payload) not in (ImuPayload, ProprioceptionPayload, JointStatePayload):
+        if type(payload) not in (ImuPayload, ProprioceptionPayload, JointStatePayload, GeneralizedJointStatePayload):
             raise ValueError("synthetic profile supports explicit IMU/joint fixtures")
         self._period = number(period_s, "synthetic period")
         if not 0.001 <= self._period <= 60:

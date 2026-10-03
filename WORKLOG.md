@@ -644,3 +644,20 @@ shipped null pin remains inert. No native launch, threshold relaxation, SDK
 installation, publication, or shared-environment change occurred. Next work is
 an external reviewed preparation/readiness harness with private ownership/cache,
 separate construction/readiness times and unchanged 10 s / 120 s budgets.
+
+### 2026-10-03 — inert Factory profile leaves accelerator selection unresolved
+
+The composed full suite found the shipped profile violated the existing global
+rule against pinning an accelerator. Keep discovery passive with device:null
+and model pin:null; explicit model preparation and configured construction must
+reject an unresolved device before SDK access, without auto/CPU fallback.
+Preserve the original global test and all native thresholds. Add direct no-IO
+refusal controls and select CUDA explicitly only inside synthetic/native private
+fixtures. The preparation harness remains unexecuted pending this source update.
+
+Final control: 50 PASS in 0.44 s, including the unchanged global shipped-device
+policy test and preparation/build refusals before SDK or output creation. All
+666 source hashes and protected stores remained identical. The first edit's
+YAML indentation error caused 23 parser failures (27 passes); it is retained,
+and fixing indentation alone resolved it. No runtime physics limit changed.
+See benchmark/results/factory_device_selection_20261003.json.

@@ -1,8 +1,8 @@
 # Mounted Factory fastening runtime
 
 Implementation checkpoints, 2026-10-03. The optional mounted domain now has
-an ordinary configuration/MCP route and an inert shipped profile with a null
-model pin. CPU contracts pass; no native result admits this new runtime yet.
+an ordinary configuration/MCP route and an inert shipped profile with unresolved
+device and model pin. CPU contracts pass; no native result admits this new runtime yet.
 The [ordinary wrist routine](FASTENING_RUNTIME_GAP.md) remains unverified.
 
 `FasteningDomain` in `skills/fastening_runtime.py` can be passed directly to the
@@ -235,9 +235,11 @@ seating evidence supplies none of these new runtime verdicts.
 ### Configured runtime and existing MCP route
 
 `configs/robots/factory_m20_mounted.yaml` declares `kind: fastening`, the fixed
-recipe, explicit CUDA ordinal and official installer asset paths. Its
-`model_identity_sha256: null` deliberately prevents construction before any SDK
-import. `load_robot_config` and `describe_robot` expose the namespaced
+recipe and official installer asset paths. Its `device: null` and
+`model_identity_sha256: null` leave both choices unresolved and prevent native
+construction before any SDK import. The operator's private preparation/profile
+must select an explicit `cuda:N` device; `auto` and CPU are unsupported, with no
+fallback. `load_robot_config` and `describe_robot` expose the namespaced
 `fastening.turn_screw` catalog without opening a device. The normal
 `build_robot_runtime` path creates this domain through
 `apps/factory_runtime.py`; the existing MCP server selects that same composition
@@ -291,3 +293,11 @@ quiet-start limits, one measured turn, zero upload, observed rest, same-episode
 visual evidence and owned closure. The historical standalone seating result
 does not supply any of these new driver's verdicts. No pickup, automatic
 engagement, seat or preload capability is exposed.
+
+A subsequent composed-suite check caught the shipped explicit CUDA ordinal
+against CASCADE's existing device-neutral configuration policy. The profile now
+leaves `device: null`; private native preparation must still choose `cuda:N`
+explicitly. Fifty CPU tests passed in 0.44 s, including the unchanged global
+policy test and refusal before SDK/output creation. The first local edit's YAML
+indentation failure is retained separately. No CPU fallback or physical limit
+change was introduced. See the [device-selection receipt](../benchmark/results/factory_device_selection_20261003.json).

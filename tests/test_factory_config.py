@@ -7,7 +7,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from cascade.apps.factory_runtime import (
-    RecordedFactoryDomain, _ready, build_factory_runtime, validate_factory_profile,
+    RecordedFactoryDomain, _ready, build_factory_runtime, prepare_factory_model, validate_factory_profile,
 )
 from cascade.apps.robot_runtime import build_robot_runtime, describe_robot, robot_tool_descriptors
 from cascade.config import load_robot_config
@@ -16,7 +16,9 @@ from test_fastening_runtime import binding, limits, row
 
 
 def profile():
-    return load_robot_config("factory_m20_mounted").domains.fastening.as_dict()
+    # Tests that reach a synthetic constructor select a device explicitly;
+    # discovery of the shipped profile keeps this unresolved.
+    return load_robot_config("factory_m20_mounted").domains.fastening.as_dict() | {"device": "cuda:0"}
 
 
 def no_sdk(monkeypatch):
@@ -31,6 +33,7 @@ def no_sdk(monkeypatch):
 def test_unprepared_profile_discovery_uses_normal_namespaced_tools_without_sdk(monkeypatch):
     no_sdk(monkeypatch)
     cfg = load_robot_config("factory_m20_mounted")
+    assert cfg.domains.fastening.device is None
     tools = robot_tool_descriptors(cfg)
     assert "fastening.turn_screw" in tools and "turn_screw" not in tools
     tool = tools["fastening.turn_screw"]
@@ -48,6 +51,20 @@ def test_unpinned_ordinary_build_refuses_before_sdk_or_any_controller(monkeypatc
         build_robot_runtime(load_robot_config("factory_m20_mounted"), tmp_path)
     assert not list(tmp_path.rglob("model.json"))
     assert not list(tmp_path.rglob("solves.jsonl"))
+
+
+@pytest.mark.parametrize("entrypoint", ["prepare", "build"])
+def test_unresolved_device_refuses_before_sdk_and_output_creation(monkeypatch, tmp_path, entrypoint):
+    no_sdk(monkeypatch)
+    value = profile() | {"device": None, "model_identity_sha256": "a"*64}
+    validate_factory_profile(value)  # Passive discovery remains possible.
+    output = tmp_path/"must-not-exist"
+    with pytest.raises(FasteningFault, match="device is unprepared"):
+        if entrypoint == "prepare":
+            prepare_factory_model(value, output)
+        else:
+            build_factory_runtime(value, output, domain_id="fastening")
+    assert not output.exists()
 
 
 def test_existing_mcp_catalog_exposes_factory_without_runtime_or_sdk(monkeypatch):
@@ -87,7 +104,7 @@ def test_dynamic_embodiment_refuses_mounted_fixture_before_construction(kind):
         describe_robot(cfg)
 
 
-@pytest.mark.parametrize("change", [{"recipe": "other"}, {"device": "cpu"},
+@pytest.mark.parametrize("change", [{"recipe": "other"}, {"device": "cpu"}, {"device": "auto"},
     {"model_identity_sha256": True}, {"model_identity_sha256": "wildcard"},
     {"robot_id": "other"}, {"assets": "relative"}, {"arm": "mock"}, {"admission": "confirmed"}])
 def test_profile_refuses_recipe_aliases_guessed_paths_and_admission_flags(change):

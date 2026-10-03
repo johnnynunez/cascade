@@ -1,6 +1,6 @@
 # Optional mounted, pre-engaged fixture. No pickup, seating or preload claim.
 # Discovery is passive. Build refuses until an owned preparation pins the exact
-# model identity; setting a pin still grants no physical task admission.
+# model identity and selects an explicit CUDA device; neither grants admission.
 version: 1
 robot_id: so101_factory_m20
 domains:
@@ -9,5 +9,5 @@ domains:
     recipe: factory_m20_fixed_axis_v1
     assets: ${assets}/factory/nut_bolt
     robot_asset: ${assets}/mjcf/so101/so101.xml
-    device: cuda:0
+    device: null
     model_identity_sha256: null

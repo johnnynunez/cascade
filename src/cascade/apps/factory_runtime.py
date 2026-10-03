@@ -31,8 +31,9 @@ def validate_factory_profile(profile):
     for name in ("assets", "robot_asset"):
         if not isinstance(profile[name], str) or not Path(profile[name]).is_absolute():
             raise ValueError("Factory asset paths must be explicit absolute paths")
-    if not isinstance(profile["device"], str) or not re.fullmatch(r"cuda:[0-9]+", profile["device"]):
-        raise ValueError("Factory native profile requires an explicit CUDA ordinal")
+    device = profile["device"]
+    if device is not None and (not isinstance(device, str) or not re.fullmatch(r"cuda:[0-9]+", device)):
+        raise ValueError("Factory device must be an explicit CUDA ordinal or null (unprepared)")
     digest = profile["model_identity_sha256"]
     if digest is not None and (not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)):
         raise ValueError("Factory model identity must be an exact SHA256 or null (unprepared)")
@@ -56,6 +57,8 @@ def prepare_factory_model(profile, cache_dir):
     It never fetches assets or substitutes an installed SDK implementation.
     """
     validate_factory_profile(profile)
+    if profile["device"] is None:
+        raise FasteningFault("Factory device is unprepared; select an explicit CUDA ordinal before construction")
     from ..sim.factory_observation import sdk_sources
     sdk_sources()  # Refuse an unreviewed implementation before model construction.
     from ..sim.newton_screw_seating import SeatingScene
@@ -169,6 +172,8 @@ def build_factory_runtime(profile, directory, *, domain_id):
     expected = profile["model_identity_sha256"]
     if expected is None:
         raise FasteningFault("Factory model identity is unprepared; no native owner was constructed")
+    if profile["device"] is None:
+        raise FasteningFault("Factory device is unprepared; select an explicit CUDA ordinal before construction")
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     # Never append another epoch to an earlier run's raw evidence.

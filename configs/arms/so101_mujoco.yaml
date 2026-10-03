@@ -44,6 +44,18 @@ mj_gripper_joint: gripper
 mj_actuators: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
 mj_gripper_actuator: gripper
 
+# Physical collision subtree used to plan an actual post-release withdrawal.
+# This names model geometry, not a new grasp/carry height or actuator setting.
+mj_release_tool_body: gripper
+mj_release_articulation_root: base
+mj_release_support_plane:
+  # The generated demo wrapper includes scene.xml AND its own coincident plane.
+  # Both existing colliders are declared; no physics is removed or merged.
+  geoms: [floor]
+  optional_geoms: [demo_floor]  # Absent in the unwrapped scene.xml / scene_box.xml.
+  position_m: [0.0, 0.0, 0.0]
+  quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
+
 # Physics steps advanced per streamed waypoint. The waypoint stream runs at
 # 50 Hz (20 ms) and this MJCF sets timestep="0.005", so 4 steps is exactly one
 # real-time tick -- and exactly zero margin for a joint that cannot track its

@@ -109,6 +109,10 @@ class SafetyHarness:
         self._contact_scope = threading.local()
         self._pending_release_episode = None
         self._release_scope = threading.local()
+        # Optional model-backed empty-tool recovery. Its adapter owns the
+        # geometry; this common gate remains SDK-independent.
+        self._pending_model_withdrawal = None
+        self._model_withdrawal_scope = threading.local()
         self._grasp_exempt: tuple[np.ndarray, float, float] | None = None
         self._last_heartbeat = time.monotonic()
         self._motion_active = False
@@ -169,6 +173,8 @@ class SafetyHarness:
         """Open a cylinder over the grasp target where the TCP may go low."""
         z = self.limits.table_z if z_min is None else z_min
         candidate = (np.asarray(center_xy, dtype=float)[:2].copy(), radius_m, z)
+        if self._pending_model_withdrawal is not None:
+            raise SafetyViolation("retained model withdrawal cannot change its grasp cylinder")
         pending = self._pending_release_episode
         if pending is not None:
             scope = getattr(self._release_scope, "value", None)
@@ -179,6 +185,8 @@ class SafetyHarness:
         self._grasp_exempt = candidate
 
     def clear_grasp_exemption(self) -> None:
+        if self._pending_model_withdrawal is not None:
+            self.check_model_withdrawal(cleanup=True)
         pending = self._pending_release_episode
         if pending is not None:
             scope = getattr(self._release_scope, "value", None)
@@ -294,6 +302,7 @@ class SafetyHarness:
 
     def check_release_episode(self, *, gripper=False, target=None, duration=None, grip=None):
         """Only the exact original release/withdrawal may use a retained scope."""
+        self.check_model_withdrawal(gripper=gripper)
         pending = self._pending_release_episode
         if pending is None:
             return
@@ -316,6 +325,12 @@ class SafetyHarness:
         if target is not None and (not np.array_equal(np.asarray(target), pending["q_retreat"])
                                    or duration != pending["duration_s"]):
             raise SafetyViolation("release episode only authorizes its exact original retreat")
+
+    def check_model_withdrawal(self, **operation):
+        pending = self._pending_model_withdrawal
+        if pending is not None:
+            pending.check_actuation(getattr(self._model_withdrawal_scope, "value", None),
+                                    **operation)
 
     def begin_motion(self, *, halt_generation: int | None = None) -> None:
         """Check perception freshness once, then suspend the watchdog for the
@@ -682,6 +697,8 @@ class SafeArm:
                     _trajectory_preflight=None,
                     _linear_tool_path=False,
                     **backend_kw) -> bool:
+        self.harness.check_model_withdrawal(command=True, target=q_target,
+                                           duration=duration_s, joint_margin=joint_margin)
         if self.motion_planner is not None:
             from ..planning.runtime import execute
             try:
@@ -758,6 +775,9 @@ class SafeArm:
     def move_planned(self, q_target: np.ndarray, duration_s: float = 3.0, *,
                      _halt_generation=None, rate_hz=None) -> bool:
         """Execute a fully vetted deterministic route, retaining live gates."""
+        # A retained adapter executes its individually revalidated segments;
+        # an unrelated caller cannot borrow that scope via this route API.
+        self.harness.check_model_withdrawal(command=True, planned=True)
         if self.motion_planner is not None:
             return self.move_joints(q_target, duration_s, _halt_generation=_halt_generation,
                                     rate_hz=rate_hz)
@@ -792,6 +812,7 @@ class SafeArm:
         return True
 
     def set_gripper(self, pos: float, effort: float = 1.0, *, _halt_generation=None) -> None:
+        self.harness.check_model_withdrawal(command=True, gripper=True, grip=pos, effort=effort)
         self.harness.check_release_episode(gripper=True, grip=pos)
         self.harness.check_contact_episode(gripper=True)
         self.harness._check_halt_generation(_halt_generation)

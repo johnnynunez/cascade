@@ -2348,6 +2348,11 @@ class SkillRuntime:
         return max(float(self.cfg.safety.get("table_z", 0.0)), float(points[:, 2].min()))
 
     def _close_two_stage(self, profile, *, _halt_generation=None, _before_close=None) -> None:
+        # Some hardware drivers expose a raw two-stage escape hatch. It may
+        # not bypass a retained model-backed empty-tool withdrawal either.
+        check = getattr(self.arm.harness, "check_model_withdrawal", None)
+        if check is not None:
+            check(command=True, gripper=True)
         raw = self.arm.raw
         if hasattr(raw, "close_gripper_two_stage"):
             if _before_close is not None:
@@ -2640,6 +2645,15 @@ class SkillRuntime:
             release_timeout = float(release_timeout)
             if not np.isfinite(release_timeout) or release_timeout < 0:
                 raise _PostPlaceRetreatPlanError("release opening timeout must be finite and nonnegative")
+        # The optional model-backed adapter previews both the held-object
+        # transport and an empty-tool escape before touching the destination.
+        # It is re-read from actual physics below, before opening.
+        from . import mujoco_withdrawal
+        try:
+            mujoco_withdrawal.prepare(self, make_transform(R, target),
+                carry_goals=([lift.q] if lift is not None else []) + [pre.q, low.q])
+        except (SkillError, SafetyViolation, ValueError) as exc:
+            raise _PostPlaceRetreatPlanError(str(exc)) from exc
         if lift is not None:
             try:
                 lifted = carry_attachment.move(self,
@@ -2657,15 +2671,34 @@ class SkillRuntime:
         self.arm.harness.allow_grasp_descent(target[:2], z_min=release_z - 0.02)
         from . import release_episode
         release = None
+        model_withdrawal = None
         withdrawal_completed = False
         try:
             if not carry_attachment.move(self, low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
                 raise SkillError("did not settle at place pose")
+            # A grasp ceiling must not collapse withdrawal onto release. An
+            # explicitly capable simulator plans from its actual colliders;
+            # full-pose IK and the existing safety path still have to succeed.
+            try:
+                model_withdrawal = mujoco_withdrawal.prepare(self, make_transform(R, target))
+            except (SkillError, SafetyViolation, ValueError) as exc:
+                raise _PostPlaceRetreatPlanError(str(exc)) from exc
+            if model_withdrawal is not None:
+                from types import SimpleNamespace
+                retreat = SimpleNamespace(q=model_withdrawal.q)
+                retreat_target = model_withdrawal.target[:3, 3].copy()
             try:
                 if retreat is not None:
                     release = release_episode.begin(self, retreat.q,
                         float(gcfg.get("descend_duration_s", 2.0)))
-                release_episode.open_hand(self, release)
+                if model_withdrawal is not None and release is None:
+                    model_withdrawal.retain()
+                    try:
+                        model_withdrawal.open_hand()
+                    except (SkillError, SafetyViolation) as exc:
+                        raise _PostPlaceRetreatPlanError("release command unavailable: " + str(exc)) from exc
+                else:
+                    release_episode.open_hand(self, release)
             except carry_attachment.AttachmentInvalid:
                 raise
             except Exception as exc:
@@ -2723,6 +2756,8 @@ class SkillRuntime:
                     ascended = release_episode.withdraw(self, release)
                     release_episode._guard(self, release)
                     withdrawal_completed = bool(ascended)
+                elif model_withdrawal is not None:
+                    ascended = release_error is None and model_withdrawal.withdraw()
                 else:
                     ascended = release_error is None and self.arm.move_joints(
                         retreat.q if retreat is not None else pre.q,
@@ -2730,6 +2765,8 @@ class SkillRuntime:
                     )
                 if retreat is not None and not ascended and release_error is None:
                     retreat_error = "did not settle at the post-place retreat pose"
+                if model_withdrawal is not None and ascended:
+                    model_withdrawal.after_withdrawal()
             except (SkillError, SafetyViolation) as e:
                 if retreat is not None:
                     retreat_error = f"post-place retreat aborted: {e}"
@@ -2737,7 +2774,11 @@ class SkillRuntime:
                 self.memory.add("note", f"placed, but the ascent aborted: {e}")
         finally:
             if release is None:
-                self.arm.harness.clear_grasp_exemption()
+                if (model_withdrawal is not None
+                        and getattr(self.arm.harness, "_pending_model_withdrawal", None) is model_withdrawal):
+                    model_withdrawal.clear_grasp_exemption()
+                else:
+                    self.arm.harness.clear_grasp_exemption()
             else:
                 release_episode.finish(self, release, completed=withdrawal_completed)
         # Report where the OBJECT was aimed, not where the TCP was sent. The
@@ -2745,6 +2786,8 @@ class SkillRuntime:
         # so returning the offset-compensated TCP point would grade the place
         # against the wrong thing and quietly forgive the compensation error.
         result = {}
+        if model_withdrawal is not None:
+            result["release_clearance"] = model_withdrawal.receipt()
         if release_error is not None:
             result.update(ok=False, stage="release", error=release_error, home_skipped=True)
         if retreat_target is not None:
@@ -3200,6 +3243,8 @@ class SkillRuntime:
             result["destination_kind"] = "configured_point"
         if "post_place_retreat" in placed:
             result["post_place_retreat"] = placed["post_place_retreat"]
+        if "release_clearance" in placed:
+            result["release_clearance"] = placed["release_clearance"]
         if placed.get("ok") is False:
             result.update(ok=False, stage=placed.get("stage", "place"),
                           error=placed.get("error", "place failed"),
@@ -3793,7 +3838,13 @@ class SkillRuntime:
                 return out
         home_ok = True
         try:
-            self.skill_move_home(_halt_generation=recovery_generation) if recovery_generation is not None else self.skill_move_home()
+            pending_withdrawals = getattr(self, "_mujoco_withdrawals", {})
+            pending_withdrawal = pending_withdrawals.get(id(self.arm))
+            if pending_withdrawal is not None:
+                out["withdrawal_recovery"] = pending_withdrawal.recover_for_reset()
+                recovery_generation = out["withdrawal_recovery"]["generation"]
+            else:
+                self.skill_move_home(_halt_generation=recovery_generation) if recovery_generation is not None else self.skill_move_home()
         except (SkillError, SafetyViolation) as e:
             out.update(ok=False, stage="home", home_error=str(e), beliefs_forgotten=0,
                        error=f"Scene reset could not reach home: {e}")
@@ -3836,6 +3887,12 @@ class SkillRuntime:
         if world is not None and hasattr(world, "reset_props"):
             out["props_reset"] = list(world.reset_props())
             out["world"] = "mujoco"
+            if pending_withdrawal is not None:
+                try:
+                    out["withdrawal_reset_verification"] = pending_withdrawal.verify_reset(
+                        out["props_reset"], recovery_generation)
+                except (SkillError, SafetyViolation) as exc:
+                    return {**out, "ok": False, "stage": "reset_verification", "error": str(exc)}
         elif hasattr(raw, "reset_props"):
             out["world"] = "isaac"
             try:  # Isaac bridge returns physics read-back, not camera inference.
@@ -3877,13 +3934,26 @@ class SkillRuntime:
             out["observe_error"] = str(e)
             out.setdefault("error", f"Reset observation could not be refreshed: {e}")
         out["beliefs_forgotten"] = dropped
+        if recovery_cancelled():
+            return out
         out["ok"] = home_ok and out["observation_refreshed"]
         if out["ok"]:
             self._carry_attachment = None  # The existing explicit scene reset completed.
+            if out.get("world") == "mujoco" and out.get("props_reset"):
+                # Clear only this arm, after actual prop reset and fresh
+                # observation. Failed resets and ordinary retries retain it.
+                if pending_withdrawal is not None:
+                    pending_withdrawal.complete(generation=recovery_generation)
         return out
 
     def skill_move_home(self, *, _halt_generation=None) -> dict:
         carry_attachment.check(self)
+        pending = getattr(self, "_mujoco_withdrawals", {})
+        withdrawal = pending.get(id(self.arm))
+        if withdrawal is not None:
+            result = withdrawal.home()
+            withdrawal.complete()
+            return result
         home = self._profile_q("home_q", "move home")
         # SafeArm plans the complete return before motion and re-vets against
         # actual feedback/map state at every segment. Legacy test doubles may

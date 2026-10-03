@@ -152,7 +152,9 @@ if [[ "${CASCADE_INSTALL_PROFILE:-}" == spark && $DOWN == 0 ]]; then
     [[ "$OCCUPANCY" == none ]] || { printf '[launch] ERROR: Spark event delivery requires --occupancy none\n' >&2; exit 2; }
     [[ "$GRASPGENX" != auto ]] || GRASPGENX=local
     [[ "$GRASPGENX" != stub ]] || { printf '[launch] ERROR: Spark requires real GraspGen-X; a protocol stub is not supported\n' >&2; exit 2; }
-    export CASCADE_QWEN_BASE_URL=http://127.0.0.1:8080/v1
+    # Keep an explicitly selected endpoint for isolated model services. The
+    # ordinary resolver still requires the pinned Spark model and refuses errors.
+    export CASCADE_QWEN_BASE_URL="${CASCADE_QWEN_BASE_URL-http://127.0.0.1:8080/v1}"
     export CASCADE_PROOF_CAMERA="${CASCADE_PROOF_CAMERA:-1}"
     export CASCADE_ISAAC_PIXEL_MASK="${CASCADE_ISAAC_PIXEL_MASK:-1}"
     export CASCADE_ISAAC_DT="${CASCADE_ISAAC_DT-0.008333333333333333}"

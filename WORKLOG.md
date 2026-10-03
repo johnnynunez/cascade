@@ -593,3 +593,29 @@ Independent review added exact float32/shape/finite checks before any zero-wrenc
 claim: empty arrays previously passed np.any. The final count includes 39 new
 missing/transposed/wrong-type channel adversaries; the 159-pass prior checkpoint
 and original MuJoCo3.12 geometry receipt remain recorded separately.
+
+### 2026-10-03 — Factory single-owner implementation (in progress)
+
+Continue the authorized physical integration with a private per-subsolve owner,
+bounded admission queue, guarded upload stamps, real native step/time checks,
+and exact zero-spindle writes on stop/error/closure while retaining arm targets.
+Bind the compiled model, collision arrays, mapping, imported limits, assets and
+source files before exposing the controller. Force/contact values describe the
+completed interval and poses its endpoint. No solver graph or extra forward
+pass is implied. Synthetic CPU faults exercise scheduling, uncertain writes,
+zero upload failure and observation loss; these do not establish native proof.
+Ordinary profile/builder wiring follows this owner checkpoint. Native launches
+remain separately coordinated with the RGB-D work; no GPU is used here.
+
+Owner/readback checkpoint: 255 CPU checks passed in 1.16 seconds with 663
+source hashes and protected stores unchanged. Forty-five owner cases include
+native count/time reset, model/force-parameter drift, queued admission, uncertain
+uploads, zero upload failure and stop during preparation versus an admitted
+solve. Independent review found the first upload preceded collision preparation;
+a source-bound synthetic control retains the old 0.03 Nm post-stop solve and
+the corrected zero/new-generation result. The guarded upload now immediately
+precedes the admitted solve. Observed effort tolerance was tightened from
+1e-7 Nm to the exact float32 representation of each declared cap; requested
+limits are unchanged and the next float32 value is refused. Raw is not clipped.
+No native task or active profile is admitted. See the owner receipt and runtime
+guide; ordinary config/MCP construction remains the next separate checkpoint.

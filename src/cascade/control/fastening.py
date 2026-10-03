@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 import re
+import struct
 import threading
 import time
 
@@ -20,6 +21,10 @@ from ..sim.threading_verification import ThreadSample
 
 class FasteningFault(RuntimeError):
     pass
+
+
+class FasteningRevoked(FasteningFault):
+    """Normal priority cancellation reached an old proposed write."""
 
 
 def _text(value, name):
@@ -32,6 +37,16 @@ def _number(value, name, *, positive=False):
     if type(value) not in (int, float) or not math.isfinite(value) or (positive and value <= 0):
         raise ValueError(f"invalid {name}")
     return float(value)
+
+
+def observed_effort_ceiling(cap):
+    """Exact declared cap or its native float32 representation, whichever is larger.
+
+    This fixed Factory contract requires the adapter's strict float32 channel
+    checks. It is not an epsilon or permission to round/clamp observed values.
+    Requested commands remain bounded by the original cap in Python precision.
+    """
+    return max(cap, struct.unpack("f", struct.pack("f", cap))[0])
 
 
 def _vector(value, count, name):
@@ -292,12 +307,13 @@ def check_solve(row, binding, limits, now, *, epoch=None, previous=None):
             raise FasteningFault("joint position outside model margin")
     if any(abs(v) > limits.max_joint_speed_rad_s for v in row.joint_velocity_rad_s):
         raise FasteningFault("measured joint speed exceeded limit")
-    if any(abs(v) > cap + 1e-7 for v, cap in zip(row.joint_effort_nm, limits.joint_effort_nm, strict=True)):
+    if any(abs(v) > observed_effort_ceiling(cap) for v, cap in zip(row.joint_effort_nm, limits.joint_effort_nm, strict=True)):
         raise FasteningFault("measured joint effort exceeded model cap")
     check_geometry(row.geometry_min_m, row.geometry_max_m, limits)
     if max(abs(row.spindle_speed_rad_s), row.fastener_angular_speed_rad_s) > limits.max_rotational_speed_rad_s:
         raise FasteningFault("measured spindle/fastener speed exceeded bound")
-    if max(abs(row.spindle_effort_nm), abs(row.commanded_spindle_effort_nm)) > limits.spindle_effort_nm + 1e-7:
+    if (abs(row.spindle_effort_nm) > observed_effort_ceiling(limits.spindle_effort_nm)
+            or abs(row.commanded_spindle_effort_nm) > limits.spindle_effort_nm):
         raise FasteningFault("spindle effort exceeded limit")
     registry, permitted = set(binding.collider_names), set(binding.allowed_contact_pairs)
     thread_count = tool_count = 0
@@ -400,6 +416,27 @@ class FasteningPermit:
             raise ValueError("permit has no remaining time")
 
 
+@dataclass(frozen=True)
+class FasteningUpload:
+    """Authority actually uploaded BEFORE an interval, never a later latch."""
+
+    generation: int
+    before_step: int
+    effort_nm: float
+    started_monotonic_s: float
+    completed_monotonic_s: float
+
+    def __post_init__(self):
+        _index(self.generation, "upload generation")
+        _index(self.before_step, "upload solve")
+        _number(self.effort_nm, "upload effort")
+        for t in (self.started_monotonic_s, self.completed_monotonic_s):
+            if _number(t, "upload clock") < 0:
+                raise ValueError("negative upload clock")
+        if self.completed_monotonic_s < self.started_monotonic_s:
+            raise ValueError("reversed upload clock")
+
+
 class FasteningWriteGuard:
     """Single-writer, per-control-write authority; stop never waits for a solve.
 
@@ -423,6 +460,29 @@ class FasteningWriteGuard:
     def generation(self):
         with self._lock:
             return self._generation
+
+    @property
+    def current_permit(self):
+        with self._lock:
+            return self._permit
+
+    def zero_hold(self, before_step, writer):
+        """Owner emergency path: exact spindle zero, existing arm hold unchanged.
+
+        This is permitted while latched/closed or without a solved observation.
+        It cannot authorize a new arm target or claim physical rest. The owner
+        must supply the bounded spindle-only writer, and report upload failure.
+        """
+        with self._lock:
+            _index(before_step, "upload step")
+            start = self.clock()
+            try:
+                writer(0.)
+            except BaseException:
+                if not self._latched:
+                    self.stop()
+                raise
+            return FasteningUpload(self._generation, before_step, 0., start, self.clock())
 
     def reset_stop(self, row):
         with self._lock:
@@ -488,7 +548,7 @@ class FasteningWriteGuard:
             try:
                 if (self._closed or self._latched or permit is not self._permit or
                         permit is None or permit.generation != self._generation):
-                    raise FasteningFault("write permission revoked")
+                    raise FasteningRevoked("write permission revoked")
                 now = self.clock()
                 if now >= permit.deadline_monotonic_s or row.simulation_time_s >= permit.end_simulation_time_s:
                     raise FasteningFault("command lease expired")
@@ -521,8 +581,12 @@ class FasteningWriteGuard:
                 writer(target, effort)
                 self._last_write_step = row.step
                 self._previous_target = target
+                return FasteningUpload(self._generation, row.step, effort, now, self.clock())
             except BaseException:
-                self.stop()
+                # A concurrent stop already issued its causal ACK. Preserve
+                # that generation when the revoked in-flight write reaches us.
+                if not self._latched:
+                    self.stop()
                 raise
 
 

@@ -168,3 +168,65 @@ the scene's caller-maintained counters alone do not establish a native solve.
 Then the ordinary configuration builder can expose an explicit optional domain
 through the existing MCP server. No active profile, controller launch, native
 one-turn/rest verdict or physical admission is added by this readback checkpoint.
+
+### Single solve owner checkpoint
+
+`sim/factory_model.py` and `sim/factory_owner.py` now connect that readback to
+the existing mounted `SeatingScene`. Construction does not start the owner.
+`FactoryBoundModel` inventories the compiled MuJoCo model, actual Newton
+collision arrays, native actuator/body/constraint parameters, options and
+mapping tables, together with pinned source and mesh files. Imported joint,
+control and effort limits are intersected explicitly. CPU shadow FK validates
+the authored initial arm state before any solve. Mesh/SDF construction remains
+source/asset-bound; the private owner exposes no model/SDF mutation API. This
+is not an independent attestation of arbitrary external GPU memory mutation.
+
+The owner bypasses the legacy scene's multi-step command loop. Each cycle
+adopts at most one bounded admission request, checks the current solved state,
+builds a measured-height follower target, prepares collision/coverage, checks
+the final joint rate/tracking/FK bounds, uploads once and solves once. It checks the native
+`solver._step` and exact float32 `d.time += dt` recurrence before/after the solve
+and after reading it. Raw accumulated native time is retained separately from
+the exact interval index times timestep. CUDA graph replay is unsupported by
+this counter contract. No reader runs another solve or force evaluation.
+
+Upload stamps capture generation, preceding step, original host times and
+requested effort under the write fence. A stop during a solve leaves that
+solve in its old upload generation. Only a subsequent zero-spindle upload can
+produce the stop generation. A stop during target planning prevents the old
+proposal from writing; it preserves the stop ACK's generation. Admission and
+reset are processed between solves, so no earlier in-flight solve is relabeled
+as new command evidence. The initial latch still requires fresh quiet measured
+state and explicit `reset_stop`; a task boundary never resets it implicitly.
+The final guarded upload defines admission of that one solve: no expensive
+preparation follows this fence. A later stop does not promise to abort a solve
+already admitted to the SDK. Review found the first implementation uploaded
+before collision preparation; the retained synthetic causal control shows
+0.03 Nm reaching the next solve after stop in that version, versus exact zero
+in the new stop generation after moving the upload fence.
+
+Stopped, faulted and closing paths submit exact zero to the spindle entry and
+retain all previously approved arm targets. Upload failure remains visible;
+neither an ACK nor zero command establishes physical rest. The passive journal
+and detached raw queue cannot block on logger IO. Queue exhaustion is a sticky
+producer failure. Closure joins the owner for at most two seconds and reports
+an unclosed thread or failed zero upload. A blocked SDK call still requires an
+external process watchdog: Python cannot interrupt an in-flight GPU operation.
+
+The earlier `1e-7 Nm` observed-effort allowance is tightened in this checkpoint.
+The native float32 channel must satisfy `abs(raw) <= max(cap, float32(cap))`;
+requested commands still satisfy the exact original cap. For the spindle,
+`float32(0.05) = 0.05000000074505806 Nm` is accepted and the next representable
+float32 value is rejected. Raw measurements are never clipped or rounded.
+The adapter validates float32 dtype and the explicit one-actuator/unit-gear
+mapping before these observed limits apply.
+
+Validation: 255 CPU checks passed in 1.16 s, including 45 owner/mapping/clock
+adversaries; all 663 source hashes and protected stores stayed unchanged.
+The tests use synthetic SDK buffers and CPU-only MuJoCo model serialization,
+not native Factory execution. See [owner receipt](../benchmark/results/factory_owner_20261003.json).
+The next checkpoint wires the optional domain into ordinary configuration and
+the existing MCP server. A coordinated native campaign must still validate the
+actual model construction, contact-force conversion, complete per-solve stream,
+one turn, zero upload, observed rest and owned closure. Historical standalone
+seating evidence supplies none of these new runtime verdicts.

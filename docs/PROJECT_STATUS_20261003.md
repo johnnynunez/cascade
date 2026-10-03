@@ -4,7 +4,9 @@ CASCADE implements modular robot domains, bounded tool execution, independent
 observations and explicit outcome verification. Physical acceptance belongs to
 an exact model, source and episode; a declaration, passing software test or
 successful simulator startup does not admit a new robot. This index separates
-implemented capabilities, measured results and remaining work. The
+implemented capabilities, measured results and remaining work. The table also
+includes reviewed candidates in open PRs; it does not claim every capability is
+already in main (including task-effect accounting in #90 and RGB-D in #91). The
 [1–2 October index](PROJECT_STATUS_20261001.md) preserves earlier source history.
 
 ## Capability and evidence

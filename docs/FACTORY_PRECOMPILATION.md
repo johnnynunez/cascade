@@ -61,7 +61,7 @@ MuJoCo model/data. Scene authoring, IK arrays, epoch, operation flags and class
 constants are included; only the earlier precompile receipt is excluded from
 scene fields. Nested structures, texture and volume bytes are included.
 Unknown representations fail closed. Compiler infrastructure is excluded.
-Raw equality includes dtype/shape, including uninitialized scratch without
+Raw equality includes dtype/shape, including allocated native scratch without
 calling it solved evidence. All clocks remain zero and the model fingerprint
 must match. Failures retain partial loads and audit errors; persistence
 failure cannot return a constructed model.
@@ -90,7 +90,49 @@ rejections have direct controls. The
 [earlier CPU receipt](../benchmark/results/factory_precompile_cpu_20261003.json)
 remains historical evidence for the first inventory and state-fencing work.
 
-No v2 CUDA preparation/readiness has run. Its effective native pairs, full
-snapshot compatibility, 39 executables, new model identity and cold-cache
-cost remain unvalidated. Later contact branches may still compile. This work
-does not promise a real-time bound or successful fastening.
+The first v2 CUDA preparation completed all 39 finite module loads and passed
+all 22 recipe predicates, but **failed** the unchanged-physical-state check.
+Nine CPU MuJoCo arena descriptor hashes differed; the model fingerprint stayed
+identical, all native/scene steps and clocks remained zero, no owner/readiness
+started, and the process closed naturally with exit1. The preparation took
+69.883 s in its process, including 29.404 s inside finite compilation. This
+failure and its original receipts remain unchanged.
+
+A separate CPU audit against the actual installed MuJoCo3.12 headers inspected
+157 numeric pointer fields in fresh and contact-forwarded data. Several arena
+pointers were NULL, while their Python getters returned new owning arrays of
+nonzero shape. Those uninitialized Python allocations are not native physical
+storage. Repeated getter reads (and writing the owning return allocation) left
+the complete native struct, buffer and arena bytes unchanged. The forwarded
+fixture used one CPU `mj_forward` for setup; neither fixture advanced physics.
+This explains a mechanism consistent with the nine differing fields; it does
+not reconstruct their pointer values inside the closed CUDA process.
+
+The revised snapshot records all 64 numeric arena-pointer descriptors, including
+native pointer presence/address, dtype and shape. Nonempty backed descriptors
+must point exactly to native storage and still have their full bytes hashed.
+NULL descriptors must be independent Python-owned allocations and are recorded
+as absent native storage, with no hash of uninitialized return memory. Empty
+descriptors retain their native pointer even though the Python array is empty.
+Pointer allocation, removal, relocation and backed-byte mutation remain visible.
+The traversal also follows nested MuJoCo contact lists, warning/solver statistics
+and option structs. A CPU mutation control exposed their omission in the prior
+auditor; changed contact position/friction, gravity and statistics are now
+detected. Other physical arrays retain their full-byte comparison.
+
+Native offsets come from `offsetof(mjData, field)` against the installed
+headers, never a guessed ctypes structure. Before any pointer read, the finite
+recipe checks the manifest digest, exact MjData type, `_structs` binary digest,
+header digests, pointer width/endianness and actual mapped `libmujoco` digest.
+The last check detects loader substitution despite a matching Python binding.
+The layout is explicitly restricted to this reviewed Linux CPython3.12 wheel;
+other builds are refused and require their own audited ABI. Ordinary profiles
+and platforms do not import or execute this optional preparation path. No C
+compiler runs in the runtime. The manifest is packaged and bound into the new
+model source identity. This snapshot is for the owned preparation interval
+before an owner starts, not for concurrent arbitrary simulation reads.
+
+The revised snapshot has not run in CUDA. Neither preparation failure admits
+readiness, physical fastening or a reusable model pin. Readiness remains10s;
+later contact branches may still compile. No real-time or task-success claim
+is made.

@@ -222,7 +222,7 @@ class FactoryBoundModel:
         sources = {str(Path(__file__).with_name(n).resolve()): hashlib.sha256(Path(__file__).with_name(n).read_bytes()).hexdigest()
                    for n in source_names}
         if compilation is not None:
-            for name in ("factory_precompile.py", "factory_precompile_pins.json"):
+            for name in ("factory_precompile.py", "factory_precompile_pins.json", "factory_mjdata_layout.json"):
                 path = Path(__file__).with_name(name).resolve()
                 sources[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
         package = Path(__file__).resolve().parents[1]

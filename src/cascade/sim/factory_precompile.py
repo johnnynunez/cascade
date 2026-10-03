@@ -13,6 +13,7 @@ import hashlib
 import importlib
 import json
 from pathlib import Path
+import sys
 import time
 from types import ModuleType
 
@@ -22,6 +23,8 @@ from ..control.fastening import FasteningFault
 
 PRECOMPILE_RECIPE = "factory_nv19_explicit_compile_v2"
 _PINS = Path(__file__).with_name("factory_precompile_pins.json")
+_MJDATA_LAYOUT = Path(__file__).with_name("factory_mjdata_layout.json")
+_MJDATA_LAYOUT_SHA256 = "3e2ae59397218951e7b3da694c7a1938e65de291eac1027078be2cadd08442b1"
 
 
 def _sha(value):
@@ -272,12 +275,78 @@ def _mujoco_variants(m, d, modules, wp):
     return tuple(variants)
 
 
+def _mujoco_arena_layout(value):
+    """Admit the exact installed ABI before reading any native pointer field.
+
+    This finite recipe already pins its CUDA/Newton/MJWarp SDK. These offsets
+    were generated with offsetof against that wheel's own headers, independently
+    compared with all exposed numeric pointer views, and bound to its binary.
+    Other architectures/builds require a separately audited layout. No compiler
+    or native call runs here, and offsets from an unreviewed file are never used.
+    """
+    encoded = _MJDATA_LAYOUT.read_bytes()
+    _require(hashlib.sha256(encoded).hexdigest() == _MJDATA_LAYOUT_SHA256,
+             "MuJoCo arena layout changed")
+    layout = json.loads(encoded)
+    module = importlib.import_module("mujoco._structs")
+    _require(type(value) is module.MjData, "exact native MjData owner required")
+    binary = Path(module.__file__).resolve()
+    _require(hashlib.sha256(binary.read_bytes()).hexdigest() == layout["structs_module_sha256"],
+             "unreviewed MuJoCo arena ABI")
+    _require(ctypes.sizeof(ctypes.c_void_p) == layout["pointer_bytes"]
+             and sys.byteorder == layout["byteorder"], "MuJoCo arena pointer ABI")
+    _require(sys.platform == "linux", "MuJoCo arena loaded-library audit requires Linux")
+    # The allocator's ABI also matters: DT_NEEDED/RUNPATH permits a different
+    # libmujoco via LD_LIBRARY_PATH even when _structs itself matches our pin.
+    loaded = set()
+    for line in Path("/proc/self/maps").read_text().splitlines():
+        parts = line.split(maxsplit=5)
+        if len(parts) == 6 and Path(parts[5]).name.startswith("libmujoco.so"):
+            loaded.add(parts[5])
+    _require(len(loaded) == 1, "unique loaded MuJoCo allocator library required")
+    library = Path(next(iter(loaded)))
+    _require(library.name == layout["native_library"]["basename"]
+             and hashlib.sha256(library.read_bytes()).hexdigest() == layout["native_library"]["sha256"],
+             "unreviewed loaded MuJoCo allocator ABI")
+    for name, expected in layout["headers_sha256"].items():
+        _require(hashlib.sha256((binary.parent / name).read_bytes()).hexdigest() == expected,
+                 "MuJoCo arena header changed")
+    _require(type(value._address) is int and value._address > 0, "native MjData address")
+    _require(all(type(offset) is int and 0 <= offset <= layout["sizeof_mjData"]-layout["pointer_bytes"]
+                 and offset % layout["pointer_bytes"] == 0 for offset in layout["pointer_offsets"].values()),
+             "MuJoCo arena field offsets")
+    return layout
+
+
+def _mujoco_arena_row(value, name, array, layout):
+    """Represent absence, or hash a proven native view; never hash NULL garbage."""
+    offset = layout["pointer_offsets"][name]
+    pointer = ctypes.c_void_p.from_address(value._address + offset).value
+    row = {"shape": list(array.shape), "dtype": array.dtype.str,
+           "native_pointer": pointer}
+    if array.size == 0:
+        # InitPyArray creates an empty Python array regardless of native pointer.
+        row.update(storage="empty_native_arena_descriptor", sha256=hashlib.sha256(b"").hexdigest())
+    elif pointer is None:
+        _require(array.flags.owndata and array.base is None,
+                 "NULL native arena descriptor unexpectedly aliases storage")
+        row["storage"] = "absent_native_arena"
+    else:
+        _require(not array.flags.owndata and array.base is not None
+                 and array.ctypes.data == pointer, "native arena descriptor is not a bound view")
+        row.update(storage="native_arena", sha256=hashlib.sha256(array.tobytes()).hexdigest())
+    return row
+
+
 def physical_snapshot(scene, wp):
     """Hash every exposed array recursively in the owned physical object graph.
 
     Includes both Newton states, controls, model, collision scratch/contacts,
     MJWarp model/data, native MuJoCo data/model arrays and solver mappings. No
     whitelist of named dynamic buffers can silently omit a newly added array.
+    Native MuJoCo arena pointer absence is recorded, including shape/dtype and
+    transitions to allocated storage; its binding's uninitialized NULL-pointer
+    return allocations are not physical buffers. The exact ABI is checked first.
     Compiler handles/device infrastructure are metadata, never traversed.
     """
     if scene.model.device.is_cuda:
@@ -323,10 +392,24 @@ def physical_snapshot(scene, wp):
             visit(np.ctypeslib.as_array(value), path + "/ctypes_values")
         elif type(value).__module__.startswith("mujoco."):
             # Pybind objects expose their arrays as descriptors, not __dict__.
+            layout = (_mujoco_arena_layout(value) if type(value).__module__ == "mujoco._structs"
+                      and type(value).__name__ == "MjData" else None)
+            if layout is not None:
+                rows[path + "/_arena_owner"] = {"address": value._address,
+                    "layout_sha256": _MJDATA_LAYOUT_SHA256,
+                    "native_library_sha256": layout["native_library"]["sha256"]}
             for name in sorted(dir(value)):
                 if not name.startswith("_"):
                     item = getattr(value, name)
-                    if isinstance(item, (np.ndarray, float, int)):
+                    if layout is not None and name in layout["pointer_offsets"]:
+                        _require(isinstance(item, np.ndarray), "MuJoCo arena descriptor type")
+                        rows[path + "/" + name] = _mujoco_arena_row(value, name, item, layout)
+                    elif isinstance(item, (np.ndarray, float, int)):
+                        visit(item, path + "/" + name)
+                    elif type(item).__module__.startswith("mujoco."):
+                        # Contact/stat lists and option structs expose arrays
+                        # and scalars through their own native descriptors.
+                        # Retain them in seen just like other owned objects.
                         visit(item, path + "/" + name)
         elif type(value).__module__.startswith("warp.") and type(value).__name__ in (
                 "Device", "Stream", "Event", "Kernel", "Function", "Module", "Graph", "Runtime"):

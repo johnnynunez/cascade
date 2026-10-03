@@ -1,0 +1,59 @@
+{
+  "base": "e5211aef39b7b30fb56a6cca188c4b17224c31b9",
+  "change": "Native MuJoCo arena storage snapshot and nested contact/option/stat coverage",
+  "controls": {
+    "input_files": 587,
+    "inputs_and_protected_stores_unchanged": true,
+    "native_sdk_controls": "pinned MuJoCo3.12 Linux,20 storage/ABI/contact controls; CPU fixtures only",
+    "pass": 486,
+    "previous_481pass": "retained historical source01; nested contacts not traversed",
+    "pytest_wall_s": 2.41,
+    "skip": 4
+  },
+  "cpu_sdk_inventory": {
+    "finite_definitions": 39,
+    "finite_loads": 0,
+    "scope": "CPU pipeline with exact constructor keywords and separate authored arm/socket + free-body MJWarp topology. No actual Factory SDF geometry, solver, collision call, FK, finite compiler loads or physical step. CPU builder allocation kernels may compile/execute; they are not physics steps.",
+    "snapshot_after_sha256": "02d6aff75db6550a7866f687db575687ea63c4dc2c25d081733eb6f6df8fcc41",
+    "snapshot_before_sha256": "02d6aff75db6550a7866f687db575687ea63c4dc2c25d081733eb6f6df8fcc41",
+    "solves": 0
+  },
+  "layout_generated_byte_exact": true,
+  "native_run_of_changed_source": false,
+  "physical_task_admission": false,
+  "readiness_admission": false,
+  "references": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_MJDATA_GETTER_AUDIT/native_fields_offsets.c": "d555f72aae3bd61fe03be2a15e490e24ec93c3fec936f6cae297b1662dc053bc",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_MJDATA_GETTER_AUDIT/probe-01.json": "d7c758a1d338eabab27a102824395825fc09a346ef2367a5999336f5fc03bc9a",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/cpu_collision_probe-02.log": "c6dadb654029b5f6139cddfb52636ee6a2a3a40676f2746cea780ba3d4ac9fb6",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/cpu_collision_probe_02.py": "0013ecc87b83f6dfd9442f4211056fffb44f55cd835c9506e183d94a9ad2eff5",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/generate_layout.py": "c2879d4e4a670917204b5ae8070466aaa87515b03a91a4adbb80bf707f0f32e1",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/generated-layout-check.json": "3e2ae59397218951e7b3da694c7a1938e65de291eac1027078be2cadd08442b1",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/validate_cpu_02.py": "c8438706c92ae0b026f271ccdf9710e8e5abe12dcc52c2ba8e7acf4b729692b2",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/validation/cpu-pipeline-02/physical-after.json": "b5ca1849aa6f3560a1193b24fcb89dc75bc45d534f0c9a64cf7f5f641a1ab68c",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/validation/cpu-pipeline-02/physical-before.json": "b5ca1849aa6f3560a1193b24fcb89dc75bc45d534f0c9a64cf7f5f641a1ab68c",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/validation/cpu-pipeline-02/result.json": "901f083db20f050d8a725c475c5c356e1b27fc8ede12ee133b372c17cf6d2fbd",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/validation/focused-final-02/after.json": "d10011e3ca80859c4484c9267e382d722e3b20faf6860681a0e0cc5030d74505",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/validation/focused-final-02/before.json": "d10011e3ca80859c4484c9267e382d722e3b20faf6860681a0e0cc5030d74505",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/validation/focused-final-02/junit.xml": "a030958b32f7fd79b8331f0ce2169dec59ee92630c05c0378ac89c993c7b73ac",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/validation/focused-final-02/pytest.log": "2fa1c094a34f436506293ede11d878b3dc85a3b52e1e294768c29c7e0887c609",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT/validation/focused-final-02/result.json": "53b554a96deae0fa5733209c1219d56999fd65d5dca4af8127183406752e64de",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT_REVIEW/review-01.json": "f85cd87a41f62dab02850f8d3c93deb4ecb9a35c17c1bd869d6d0cf04001a9ac",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SNAPSHOT_REVIEW/review-02.json": "125aadc48bac8eccb9a86505bcc14d6777602ae537809a194fc9eec212a5ec99",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_PRECOMPILE_SIGNATURE_NATIVE/ROOT_NATIVE01_REVIEW.json": "9ba23e386534581d06ddfc519b549a4a6baa19c1c4342576e305f2ffac41d0c6"
+  },
+  "retained_cuda_result": "FAIL;22guards passed39loadscompleted9snapshotdifferences, zero clocks/steps; never reclassified",
+  "review": {
+    "independent": "125aadc48bac8eccb9a86505bcc14d6777602ae537809a194fc9eec212a5ec99",
+    "inherited_contact_omission_causal": "same probe fails sourceefd84ed2 and passes d84c913a"
+  },
+  "schema": 1,
+  "source_sha256": {
+    "docs/FACTORY_PRECOMPILATION.md": "a6e36c52faa6a445a6ec2d95ff4cc2e04a8728cd81b946f3896a9d07f8a6a1a1",
+    "pyproject.toml": "4a1d1ab8d81f426d56de6014c1c9bebc3e66d50e7d7c4bfe9713c8f27acff3e8",
+    "src/cascade/sim/factory_mjdata_layout.json": "3e2ae59397218951e7b3da694c7a1938e65de291eac1027078be2cadd08442b1",
+    "src/cascade/sim/factory_model.py": "7f6e7cb53bb3f5f898f9bef54daa13afe70468451dcb6f7ebb54bf52fd5793f8",
+    "src/cascade/sim/factory_precompile.py": "d84c913a2600acf3e416975580e37075ed7fca33943dc2b025cb2171a36cce19",
+    "tests/test_factory_native_snapshot.py": "61d123f6e907e1f21b58547be6c0afeed9f495fd786fdaa8cbd529c8f02a217d"
+  }
+}

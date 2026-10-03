@@ -815,3 +815,26 @@ kwargs reproduces the old rejection, accepts the explicit branch and builds
 CPU builder allocation kernels do run. Reduced CPU CSR width75 remains refused
 against native90; it is not the full Factory geometry. No new GPU/readiness
 run, limit change, SDK patch, push or physical-admission claim.
+
+
+### 2026-10-03 — finite Factory snapshot uses actual native arena storage
+
+The first explicit-route CUDA preparation completed39 loads/22 predicates but
+failed on nine CPU descriptor hashes; all clocks/steps stayed zero and it closed
+naturally. That failed result remains unchanged. A separate CPU/header audit
+proved that NULL MuJoCo arena pointers can return owning, uninitialized Python
+arrays. The snapshot now records presence/address/shape/dtype for all64 numeric
+arena descriptors, hashes actual native views, and refuses inconsistent storage.
+The generated offsetof layout is pinned with the binding binary, installed
+headers, pointer ABI and actual mapped allocator library before pointer reads.
+No runtime compilation or unsupported-ABI fallback is introduced.
+
+Independent review also found inherited omission of nested contact/option/stat
+structures. The same CPU mutation probe fails oldefd84ed2 and passes newd84c913a;
+position/friction/gravity/warning/solver changes are detected, while repeated
+snapshots and restored values match. Source01/failures remain archived.
+Final486CPU PASS/4optionalSKIP (2.41s),587inputs/protected stores unchanged.
+Real pinned SDK creates39 definitions with identical snapshots,0finite loads
+and0solves; CPU builder kernels remain distinct from physical steps.
+Receipt: benchmark/results/factory_native_snapshot_cpu_20261003.json.
+No revised CUDA preparation, readiness or fastening task has yet been admitted.

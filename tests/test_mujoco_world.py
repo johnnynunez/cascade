@@ -28,6 +28,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from conftest import REPO
+from mujoco_gl_probe import probe_offscreen_gl
 
 from cascade.config import Cfg, load_demo_config
 from cascade.sim.truth import (
@@ -46,19 +47,7 @@ def has_mujoco() -> bool:
         return False
 
 
-def has_offscreen_gl() -> bool:
-    """A renderer can be created (macOS CGL / EGL / OSMesa present)."""
-    if not (has_mujoco() and MJCF.exists()):
-        return False
-    try:
-        import mujoco
-
-        m = mujoco.MjModel.from_xml_path(str(MJCF))
-        r = mujoco.Renderer(m, height=16, width=16)
-        r.close()
-        return True
-    except Exception:  # noqa: BLE001
-        return False
+_offscreen_gl = probe_offscreen_gl(MJCF)
 
 
 needs_mujoco = pytest.mark.skipif(
@@ -66,8 +55,8 @@ needs_mujoco = pytest.mark.skipif(
     reason="needs mujoco + `python scripts/fetch_robot_assets.py so101`",
 )
 needs_gl = pytest.mark.skipif(
-    not has_offscreen_gl(),
-    reason="needs mujoco offscreen rendering (GL) + fetched so101 assets",
+    not _offscreen_gl.available,
+    reason=f"needs mujoco offscreen rendering (GL) + fetched so101 assets: {_offscreen_gl.reason}",
 )
 
 

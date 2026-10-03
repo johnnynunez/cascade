@@ -311,6 +311,9 @@ def build_runtime(
 
         return build_mobile_runtime(cfg, run_dir)
 
+    from ..planning.backend_evidence import selection_from_environment
+    kitchen_renderer = selection_from_environment(cfg, os.environ)
+
     from ..perception.occupancy import OccupancyMap
 
     # ── the arm rig: N arms, first = manipulation arm ───────────────────
@@ -429,6 +432,7 @@ def build_runtime(
         kin, safe_arm, memory, beliefs, trace, cfg,
     )
     runtime.rig = rig
+    runtime._kitchen_camera_renderer = kitchen_renderer
     # Where to persist the world model on shutdown (None = disabled).
     runtime.beliefs_path = beliefs_path
     # The arm rig hangs off the runtime the same way the camera rig does.

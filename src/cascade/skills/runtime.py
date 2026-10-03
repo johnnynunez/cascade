@@ -638,9 +638,13 @@ class SkillRuntime:
             with motion_evidence.record_skill(name, resolved_arm, trace_context,
                                               enabled=name in _MOTION_SKILLS), hold:
                 try:
-                    if name in _MOTION_SKILLS:
-                        carry_attachment.check(self)
-                    result = fn(**args)
+                    from ..planning.backend_evidence import ordinary_call
+                    selection = (ordinary_call(self, name, trace_context) if name in _MOTION_SKILLS
+                                 else contextlib.nullcontext())
+                    with selection:
+                        if name in _MOTION_SKILLS:
+                            carry_attachment.check(self)
+                        result = fn(**args)
                 finally:
                     self._arm_override.arm = prev_arm
                     if owns_epoch:

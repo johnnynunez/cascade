@@ -1,0 +1,8 @@
+{
+  "verifier_byte_exact": true,
+  "verifier_sha256": "812d2484f98cb566a5bcb97104b9e6981f362128eb0e34c038eff850f3990c3b",
+  "test_function_ast_equal": true,
+  "test_function_ast_sha256": "f9943fa40bd0c9474fda5395067cc1d9fd666ac75776bf790bfac6a8297ffee0",
+  "historical_outcomes_transferred": false,
+  "native_import": false
+}

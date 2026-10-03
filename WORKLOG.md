@@ -2056,3 +2056,48 @@ Five protected stores retain their original hashes or absence. Decoder and test
 sources are frozen at e0b60caf and 43d5d1cc. A later native run requires new
 source/model preparation bindings; earlier readiness evidence does not transfer.
 Portable receipt: `docs/evidence/contact-validation-batch-20261003/cpu-validation.json`.
+
+## 2026-10-03 — explicit Spark kitchen cuMotion selection (local plan)
+
+- Base: remote main `f97ef28633df0df2d686f0505f8e11cbe6ce0a3b`. Trial12 legacy source retained: ef773; its pacing and 300-second MCP deadline are unchanged. No blind native replay.
+- Features → skills: explicit launcher/profile/renderer selection → `isaac-sim-workflow`; existing cuMotion model/curve binding → `motion-generation`. These are CPU wiring changes; no controller, scene, SDK, installer, timing or physics tuning.
+- Preserve default `isaac_kitchen_gpu`; allow only existing `isaac_kitchen_cumotion` with explicit renderer and original Spark CUDA/identity requirements. Reuse the PR94 backend checks through a package module plus compatibility import; scoped ordinary-call hooks must restore on failure/cancellation and retain bounded evidence in the existing trace. Catalog discovery must not construct a backend.
+- Validation plan: actual shell option/registration blocks, configuration inheritance, ordinary dispatch with synthetic prepared-planner/capture doubles, missing/mismatched binding, exception/cancellation cleanup, and affected CPU regressions. No SDK imports or native/GPU/service launches; task-private stores. Root reviews/publishes.
+
+### CPU checkpoint — Spark cuMotion ordinary route
+
+- Added explicit `isaac_kitchen_cumotion` + renderer selection to Spark while preserving its default, installer, strict CUDA/scene checks and 300,000 ms MCP deadline. The existing PR94 backend checker now lives in the package with a benchmark compatibility import; ordinary motion calls own scoped hooks and retain bounded selection evidence in the existing trace. Physical checks and legacy pacing are unchanged.
+- TDD and retained controls include baseline final-01 test file 13 FAIL/9 PASS and constructor-cancellation RED. Separating construction from attachment gives the ordinary context ownership before installing the hook; cancellation and errors restore the original executor. The independent reviewer also ran four scoped cancellation controls.
+- Final affected selection: **252 PASS in 8.06 s**, nine files, 1,859 source inputs and five protected stores unchanged; Ruff F/E9, shell syntax and diff checks passed. Earlier overlapping suites are retained but not summed. Receipt: `benchmark/results/spark_cumotion_selection_20261003.json`.
+- CPU shell/config/dispatch contracts only, with synthetic prepared planner/camera doubles. No SDK, service, native/GPU or physical replay; no cuMotion kitchen admission, speedup or repaired Trial12 timeout claim. Root owns review/publication.
+### 2026-10-03 — Integrated-main MuJoCo two-pick revalidation
+
+The unchanged original two-pick node passed once on source `274fa3a9` in 161.17 s,
+using MuJoCo 3.14/Mesa CPU and the ordinary runtime with mock LLM. New epoch
+`459727548a2c47dc8a9c64f427a0cd2e` binds both raw proofs. Independent offline audit
+reconstructed 512 stored states, contacts, velocities, jaws and box footprints;
+14 negative controls reject. Red has 11 samples/0.600 s; blue and retained red
+have 12/0.660 s. Release, support, containment and rest pass. Both home errors
+are below 0.000358 rad; the original 60 mm bound passes at 25.776/30.657 mm.
+
+Supervisor exit 0, natural closure without signals; 1,854 source files, 26 assets,
+5,687 SDK files and five protected stores unchanged. Publish byte-exact audit
+and original-contract check in `docs/evidence/project-status-20261003`. This is
+one episode observed at batch boundaries, without all-substep, repeated,
+hardware, Isaac/GPU or LLM-host acceptance. Historical AIM and Trial12 FAIL
+records remain untouched.
+
+### 2026-10-03 — Factory one-turn attempt stopped at startup
+
+The next episode on source `4bda2183`, model `01595b62`, failed the unchanged
+10 s readiness deadline before any reset or turn. In new epoch
+`888ba87b2f6145a8ae25e0d6b095c90d`, quiet steps 61–359 supplied only
+0.496666679 simulated seconds: two more quiet steps were needed for 0.5 s.
+No freshness fault or gen2 GC occurred during readiness; no performance cause
+or CPU optimization is validated by this failed episode.
+
+Independent audit retained 360 rows/98,326 contacts, actual exit 1, natural
+owned closure and zero spindle upload; source/SDK/assets and five stores are
+unchanged. Publish the byte-exact failure audit under
+`docs/evidence/project-status-20261003`. No physical task or post-stop rest is
+proved. The earlier readiness PASS, MuJoCo result and historical failures remain.

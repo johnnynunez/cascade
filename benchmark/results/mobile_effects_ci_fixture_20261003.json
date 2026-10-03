@@ -1,0 +1,414 @@
+{
+  "version": 1,
+  "base_commit": "b0723e03300dd9ff3b9e5e8eac6bd0e4e564946f",
+  "scope": "test-only isolation of one four-case geometry family; no runtime change, native or GPU",
+  "python": "3.12.13",
+  "source_sha256": {
+    "tests/test_mobile_effects.py": "e11367e4053f0e08f7b780fc30ebf98a17be318ab026a268ddc5b81e284d1b90",
+    "tests/mobile_tick_fixture.py": "ef1c4d0a5ba6718f6a1874eae4ebf330e46db4b7807e0f19dd5afb85fa336752",
+    "tests/test_mobile_support.py": "09173ecffb0345ad96dd8cfa8bf39169f813bf3f5639e55572a30a2e162811df",
+    "src/cascade/agent/base_effects.py": "1785276e72c76021be1cc8c2e834c971719012dd9ae00832eb2553da2b3f9b80",
+    "src/cascade/control/motion_evidence.py": "b3369524416ed947d22f9de79f1f38406c7f64399c219ab4a54d2f71ee1ca3de"
+  },
+  "ci_failure": {
+    "run": 37120292342,
+    "job": 111194921868,
+    "platform": "ubuntu-latest / py3.12",
+    "failed_node": "tests/test_mobile_effects.py::test_walk_requires_measured_progress_of_correct_sign_and_size[1.0-confirmed]",
+    "observed": "unverified instead of confirmed; no reason/timing recorded remotely",
+    "counts": {
+      "failed": 1,
+      "passed": 5609,
+      "skipped": 269,
+      "deselected": 4,
+      "pytest_elapsed_s": 560.99
+    },
+    "gc_causality_established": false
+  },
+  "separate_macos_failure": {
+    "job": 111194921938,
+    "failed_node": "tests/test_mobile_support.py::test_support_gc_isolation_preserves_real_tcp_read_deadline",
+    "observed": "two hello/state pairs instead of incidental exact one pair; prior timeout verdict checks passed",
+    "counts": {
+      "failed": 1,
+      "passed": 5575,
+      "skipped": 303,
+      "deselected": 4,
+      "pytest_elapsed_s": 1079.15
+    },
+    "fix_owned_separately": "62dcd0fe94bea2403110110ea1ea275c5abaec0c"
+  },
+  "controlled_results": {
+    "baseline-normal-01": {
+      "exit_code": 0,
+      "verdicts": [
+        {
+          "status": "refuted",
+          "reason": "no effect or wrong sign on vx"
+        },
+        {
+          "status": "confirmed",
+          "reason": "independent measured motion matches caller intent"
+        },
+        {
+          "status": "refuted",
+          "reason": "no effect or wrong sign on vx"
+        },
+        {
+          "status": "refuted",
+          "reason": "excess progress on vx"
+        }
+      ],
+      "gc_callback_holds": 0,
+      "read4_elapsed_s": [
+        0.00010124401887878776,
+        5.8959005400538445e-05,
+        6.099202437326312e-05,
+        6.154295988380909e-05
+      ],
+      "read4_gc_enabled": [
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    "baseline-gc-01": {
+      "exit_code": 0,
+      "verdicts": [
+        {
+          "status": "refuted",
+          "reason": "no effect or wrong sign on vx"
+        },
+        {
+          "status": "confirmed",
+          "reason": "independent measured motion matches caller intent"
+        },
+        {
+          "status": "refuted",
+          "reason": "no effect or wrong sign on vx"
+        },
+        {
+          "status": "refuted",
+          "reason": "excess progress on vx"
+        }
+      ],
+      "gc_callback_holds": 0,
+      "read4_elapsed_s": [
+        9.455397957935929e-05,
+        0.00021319498773664236,
+        8.256599539890885e-05,
+        6.613001460209489e-05
+      ],
+      "read4_gc_enabled": [
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    "baseline-gc-02": {
+      "exit_code": 1,
+      "verdicts": [
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        }
+      ],
+      "gc_callback_holds": 4,
+      "read4_elapsed_s": [
+        0.09011896699666977,
+        0.08114855899475515,
+        0.10055716795613989,
+        0.08126020798226818
+      ],
+      "read4_gc_enabled": [
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    "candidate-gc-01": {
+      "exit_code": 0,
+      "verdicts": [
+        {
+          "status": "refuted",
+          "reason": "no effect or wrong sign on vx"
+        },
+        {
+          "status": "confirmed",
+          "reason": "independent measured motion matches caller intent"
+        },
+        {
+          "status": "refuted",
+          "reason": "no effect or wrong sign on vx"
+        },
+        {
+          "status": "refuted",
+          "reason": "excess progress on vx"
+        }
+      ],
+      "gc_callback_holds": 0,
+      "read4_elapsed_s": [
+        0.0001989720040000975,
+        0.00024975003907456994,
+        0.00031097198370844126,
+        0.00030110799707472324
+      ],
+      "read4_gc_enabled": [
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    "candidate-reader-delay-01": {
+      "exit_code": 1,
+      "verdicts": [
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        }
+      ],
+      "gc_callback_holds": 0,
+      "read4_elapsed_s": [
+        0.08018495299620554,
+        0.08015883399639279,
+        0.08012052602134645,
+        0.08013697003480047
+      ],
+      "read4_gc_enabled": [
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "patch": "Use existing healthy_episode_gc only in the four progress cases; preserve every verdict/geometry assertion and add reason to failure message. No shared helper change.",
+  "unchanged_limits": {
+    "read_timeout_s": 0.04,
+    "max_state_age_s": 0.2,
+    "settle_window_s": 0.04
+  },
+  "validation": {
+    "passed": 368,
+    "failed": 0,
+    "skipped": 0,
+    "pytest_elapsed_s": 33.51,
+    "source_unchanged": true,
+    "protected_stores_unchanged": true,
+    "ruff_F_E9": "PASS",
+    "diff_check": "PASS",
+    "delay_negative": "Existing test_support_episode_gc_isolation_does_not_hide_a_late_reader passes unchanged; late original capture retained and channel poisoned despite later healthy reads."
+  },
+  "limits": [
+    "Controlled automatic-GC callback work models a possible mechanism; original CI attribution remains unknown.",
+    "First GC probe did not trigger a collection and passed; retained as noncausal evidence.",
+    "No full-suite rerun or native/physical claim.",
+    "The fixture restores previous GC enablement; reference counting and genuine read deadlines remain active."
+  ],
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-normal-01/result.json",
+      "sha256": "47066de3e34bb292bcc9e721ca81625d761eea44acec638afbac4f68861dad97"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-normal-01/before.json",
+      "sha256": "9d379585fc26dd9b48abf5cd9bfff41a0623f1288646591ecb003227e8cee691"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-normal-01/after.json",
+      "sha256": "9d379585fc26dd9b48abf5cd9bfff41a0623f1288646591ecb003227e8cee691"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-normal-01/pytest.log",
+      "sha256": "bf509fc57255f67f5df4b75a2b4b125e94611765e3b1f1b5dcefc7ed6b66bd1b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-normal-01/junit.xml",
+      "sha256": "bc8fa10d332d78ceb4b14c4726bee6d698438930d4bd9088570f67d7cb847fd4"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-normal-01/probe.json",
+      "sha256": "e24619df7544e6515cfb631f4e19e46c778c22c71426f6b4c9ee831ad6137be0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-01/result.json",
+      "sha256": "a9512bf9c86119eccf616b3feca7e1551c11dffd2fcb06588b2bda1c4eed7c4e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-01/before.json",
+      "sha256": "9d379585fc26dd9b48abf5cd9bfff41a0623f1288646591ecb003227e8cee691"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-01/after.json",
+      "sha256": "9d379585fc26dd9b48abf5cd9bfff41a0623f1288646591ecb003227e8cee691"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-01/pytest.log",
+      "sha256": "e0cf70a61f5d681a0be044112e0d98bed04a2fa3f95fbc519c66adc62747450c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-01/junit.xml",
+      "sha256": "d8e0f59bfc24664d7108d31d94695690ed2d766af49b44f4f7bedae06a9e7a21"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-01/probe.json",
+      "sha256": "c2c868cdb8c923f2852259b1ca0fd371d0b3ef969e84b9767d5f2db98ac25dc0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-02/result.json",
+      "sha256": "9233c8015ae33e5fc10fdc29417a5cd5d8522945cb487a829cea0e40a5eb910a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-02/before.json",
+      "sha256": "9d379585fc26dd9b48abf5cd9bfff41a0623f1288646591ecb003227e8cee691"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-02/after.json",
+      "sha256": "9d379585fc26dd9b48abf5cd9bfff41a0623f1288646591ecb003227e8cee691"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-02/pytest.log",
+      "sha256": "6fb27af9c6273013a7504fd45a7ba3661ab8b598e05ddb0daae09ceb858e53b8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-02/junit.xml",
+      "sha256": "e427923196a07dc7be9bcea72b0adac610c4f7e5f0e707daa6f7b5624484fef4"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/baseline-gc-02/probe.json",
+      "sha256": "e36b0375394bf670a8af9dc0189d6a0a6cb6029753f8ebfbdd4db31ffe9606db"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-gc-01/result.json",
+      "sha256": "3bfeef3ac98bd5e3d9272a4be9ce6ad6b79b2a1d9ea2eb4b0119b8099954fb94"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-gc-01/before.json",
+      "sha256": "829f33128463417803208031761be961583fec8b8f768b14d9d7434fe53d067d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-gc-01/after.json",
+      "sha256": "829f33128463417803208031761be961583fec8b8f768b14d9d7434fe53d067d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-gc-01/pytest.log",
+      "sha256": "6080cdba0a1c2f55a0136c9148dc44a677e16296cfaf3c58d9cab2edf17d35a2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-gc-01/junit.xml",
+      "sha256": "faa59eee5e617ee5de24bd3f4fcdf4ed86c3d071ba488571693e3fb7abb12da8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-gc-01/probe.json",
+      "sha256": "d91b013589aa555690a9623bdc23e7a414a8eb2465f467fbbd5bda9e24c814ba"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-reader-delay-01/result.json",
+      "sha256": "fb9b189bbb1895477aba591b56432c90348f3e52a0aa8400695c03e3800c8ece"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-reader-delay-01/before.json",
+      "sha256": "829f33128463417803208031761be961583fec8b8f768b14d9d7434fe53d067d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-reader-delay-01/after.json",
+      "sha256": "829f33128463417803208031761be961583fec8b8f768b14d9d7434fe53d067d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-reader-delay-01/pytest.log",
+      "sha256": "462656512383814c449b3ed4c42ef16333e6e62281486ee9274802140ad3495c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-reader-delay-01/junit.xml",
+      "sha256": "4f800bf8072a34693cf87c6dcc3d42aa5c554e1d9e1118a2514c106cb284e9db"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-reader-delay-01/probe.json",
+      "sha256": "83d6a8eaaa71b1a9bbe172f6ebc36fc2a5f8a8ec6ee6efe069d4b054556be12b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-final-01/result.json",
+      "sha256": "979fb8ac837d18b4953690fda8186c40b9f9684992c026d76c9cacd28de63133"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-final-01/before.json",
+      "sha256": "829f33128463417803208031761be961583fec8b8f768b14d9d7434fe53d067d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-final-01/after.json",
+      "sha256": "829f33128463417803208031761be961583fec8b8f768b14d9d7434fe53d067d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-final-01/pytest.log",
+      "sha256": "581aaf569555a536d0c52ae3bbfeded27b3d4167deb48a8487c0fc126d298562"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/candidate-final-01/junit.xml",
+      "sha256": "192847011108f605df49437343e2348c3d25a57784c93165d04bd49874d99b4a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/effects_probe.py",
+      "sha256": "81e24cb670da5015fd428eed877ecb44a0e520ae7ac69b06ce6ff9206a710a6a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/effects_probe_v1_no_trigger.py",
+      "sha256": "1e0b215bb62399c6b64cf0830d6c393d72859a61763c1e99266018bbfda32758"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/run_probe.py",
+      "sha256": "c6337e619e03ea97300383f87496e45517a796231b0e8dc6d27012d02632a8f3"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/run_cpu.py",
+      "sha256": "66c1b96f4040e2bd929405f274ed20d3c61f9a15f9d84d1dcbd43d0bf98923bd"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/write_receipt.py",
+      "sha256": "56bad59e77b05387268936a92fb9a1dcab00006c1974390e98f8de6a34dd0694"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/ci-ubuntu-111194921868.log",
+      "sha256": "91046b8ef0a9d403b4e302411a85d04c548ee8026a4ffd8e2a4c56c94b9f8aad"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/ci-macos-111194921938.log",
+      "sha256": "047e75973921d305582ce1a7e2b1c6f646b56ec5c7b6e4d7fd63a314713a95e0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/pr86-before.json",
+      "sha256": "31ea2b271f32121e77fd1218206c718459eb96016b3be50fcfed7dd510fad2a6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOBILE_EFFECTS_CI_20261003/pr86-after.json",
+      "sha256": "07eed48d472638ff80f26eb058395f70fd7e909c77b5100c038301cda4fae885"
+    }
+  ]
+}

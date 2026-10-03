@@ -1776,3 +1776,48 @@ The 151/183/122 selections overlap and are not summed. Historical physical
 failures and all prior receipts remain unchanged; no CI-wide or new physical
 admission is inferred. Documentation validation only: links, hashes, exact Git
 receipt versions and diff checks; no test/runtime/SDK/GPU execution.
+
+### 2026-10-03 — Isolate the mobile progress decision fixture from suite GC
+
+PR86 Ubuntu job111194921868 on `b0723e0` reported `unverified` instead of
+`confirmed` for the unit progress case. Its log lacks the verdict reason or
+reader timing, so the remote cause remains unknown. A source-bound external
+probe now preserves a controlled mechanism: adding 80 ms of automatic-GC
+callback work inside read4 causes all four geometric decision cases to return
+`reader_timeout`; without the intervention all four pass. An earlier probe
+that triggered no automatic collection also passed and remains retained.
+
+Apply the existing `healthy_episode_gc` fixture only to this four-case family;
+retain the original geometry, thresholds and assertions, adding the verdict
+reason to its failure message. Validate the same controlled probe afterward,
+plus the existing independent delayed-reader veto and the affected test file.
+No new timeout, runtime change, simulator or GPU use is authorized by this fix.
+
+The controlled comparison is complete: baseline GC intervention gives four
+`reader_timeout` failures (81–101 ms read4); the isolated candidate restores all
+four original geometry verdicts with the same intervention. A real 80 ms reader
+delay still gives four `unverified/reader_timeout` refusals with cyclic GC off.
+The existing committed delayed-reader negative also passes without change.
+The final affected selection is 368 PASS / 0 SKIP in 33.51 s, with source and
+all four protected-store states unchanged. Ruff F/E9 and diff checks pass.
+No production or shared helper changes; the original CI cause is not proven.
+The later Mac86 failure is a separate exact-one-TCP-pair fixture assertion,
+preserved for the existing independently reviewed TCP fix. Raw logs, all
+controlled failures and source bindings are indexed in
+`benchmark/results/mobile_effects_ci_fixture_20261003.json`.
+
+### 2026-10-03 — Preserve TCP timeout coverage across caller scheduling
+
+macOS CI on PR84 retained `unverified/reader_timeout` but failed a test-only
+assumption that the independent reader makes exactly one TCP connection. A
+controlled delayed caller reproduces that same assertion failure: the real
+socket can expire and reconnect before `begin()` resumes to cancel its sampler.
+Both ordinary and delayed schedules now require the original 40 ms timeout
+verdict and allow only read-only hello/state messages. Runtime, clocks, limits,
+measured-support gates and controller ownership are unchanged. The controlled
+schedule does not claim to identify the historical OS scheduling event.
+
+Retained causal baseline: 1 failed; corrected focal: 2 passed; affected support
+and effect suite: 389 passed in 40.24 s. All 1,599 source inputs and four stores
+are unchanged across validation. No native SDK, GPU, simulation or local macOS
+execution. Receipt: benchmark/results/mobile_support_tcp_scheduling_20261003.json.

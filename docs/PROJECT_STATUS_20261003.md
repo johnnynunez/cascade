@@ -45,23 +45,44 @@ complete owned closure. They used independent physical/camera witnesses but no
 LLM host. [Green receipt](evidence/project-status-20261003/kitchen-mcp-300s.json),
 [orange receipt](evidence/project-status-20261003/kitchen-mcp-orange-complete.json).
 
-**The latest real OpenClaw/Qwen trial 12 remains FAIL at the unchanged 300 s
-MCP limit.** On `f674fa64`, one green pick was attempted; no retry, reset or
-orange task followed. Partial release near the destination was observed, but
-it does not replace the missing completed placement/home/campaign result.
-Return-home timing is an inference from joint readback and control flow:
-there is no exact home-start command receipt. The previous private-path attempt
-timed out during placement. Four units, eleven process births and four ports
-closed; software containment does not establish physical rest or normal campaign
-shutdown. External embedding requests returned 429 despite local Qwen inference.
-[Latest source-bound report](evidence/project-status-20261003/realhost-trial12-observer.json).
+The earlier real-host attempt on `f674fa64` remains **FAIL** at the unchanged
+300 s MCP limit: one green pick, no retry/reset/orange case, and no completed
+placement/home result. Return-home timing was inferred from joint readback and
+control flow, without an exact home-start command receipt. Its resource closure
+and external embedding 429 errors remain in the
+[earlier source-bound report](evidence/project-status-20261003/realhost-trial12-observer.json).
 
-[PR #86](https://github.com/johnnynunez/cascade/pull/86) adds optional target
-receipts and preserves the launcher flag. Both diagnostics default **off**.
-They distinguish queue acknowledgement, first setter return, repeats and an
-available physics boundary; none is itself task success. The instrumented
-real-host harness has CPU/preflight review, but no executed episode or replay
-has supplied the missing command timing or demonstrated a speedup.
+**The subsequent instrumented OpenClaw/Qwen trial also remains FAIL.** Source
+`ef773697183f676973244ceb513d44f74a177792` used the same 300000 ms MCP deadline;
+the first green-cube pick/place agent turn lasted **303.910 s** and returned a
+timeout. The grasp reported verified after 125.708 s, but no completed task,
+placement/home audit, retry, reset or orange case followed. The last passive
+cube position was 2.015 mm from the destination center with open fingers; that
+endpoint does not establish placement, rest or whole-task acceptance.
+[Retained command audit](evidence/project-status-20261003/realhost-trial12-command-audit.json).
+
+The optional [PR #86](https://github.com/johnnynunez/cascade/pull/86) target and
+motion diagnostics remain **off by default**. This episode exercised them,
+but coverage is partial: the **16 MiB** budget retained 6019 events
+(16777178 compact bytes) and dropped **1102**. Eight stream starts and seven
+returns survive, without `skill_end`; the final stream cannot be reconstructed.
+The two last retained command IDs lack setter observations; partial logging does
+not establish that those commands were lost.
+For the two complete 225-waypoint streams, nominal **7.5 s** became **64.571 s**
+and **80.238 s** of wall time, each spanning 11.367 simulated seconds. Fresh
+post-ACK anchors contributed **3.75 simulated seconds** beyond the nominal
+intervals. These are measured costs of the existing no-catch-up contract, not
+authorization to remove its progress/freshness checks. ACK median was 0.544 ms;
+a setter return still does not prove a subsequent solve. The shared-GPU run
+does not isolate an OS, GPU, renderer or kernel cause and demonstrates no speedup.
+
+The audit preserves launcher exit 1 and false campaign lifecycle/normal-shutdown
+flags. Separately, both MCP teardown receipts report complete software cleanup;
+park was skipped under e-stop and physical rest remains unverified. The four
+owned units and four ports closed, and six foreign process births remained
+intact. Resource containment does not turn this failed campaign into a pass.
+The new audit adds command timing to this episode only; it does not retrospectively
+supply receipts for the earlier failed run or replay an action.
 
 ## Fastening and locomotion
 

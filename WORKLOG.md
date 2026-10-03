@@ -1695,3 +1695,14 @@ On PR93 base `f06837ce`, all eight feedback cases reproduced the missing-harness
 - 151 CPU/static-geometry tests pass, 0 skip; one original physical reset test deselected. Twenty cancellation controls include the real SafeArm/ArmBase boundary with intercepted writes.
 - Preserved the initial fixture errors and missing-LFS-mesh failure; 26 SO101 assets and two gripper meshes verified against hashes/OIDs, sources and protected stores unchanged. No GPU, new native physics episode or physical admission.
 - Receipt: `benchmark/results/mujoco_withdrawal_cancellation_20261003.json`.
+
+### 2026-10-03 — Retain instrumented trial 12 failure and partial command evidence
+
+Documentation-only follow-up to a1977d3. Added the unchanged offline audit of
+the ef773697 real-host episode: MCP timeout after a 303.910-second agent turn,
+partial 16 MiB diagnostics with 1102 dropped events, and measured command/physics
+clock costs without OS/GPU attribution or changed gates. The earlier f674fa64
+failure and all prior portable receipts remain intact. Separate software
+closure from missing task/home/rest acceptance. No code, tests, model inference,
+GPU, physical action, shared environment or learned store changed; validation
+is limited to relative links, source/evidence hashes and documentation diff.

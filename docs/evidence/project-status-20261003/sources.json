@@ -60,6 +60,11 @@
       "origin": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/ATTACHMENT_PHYSICAL01_AUDIT.json",
       "sha256": "865f53e565a02f6f3b02d31b2abc6a64fc54ed9671fbbfa7b147b6794d6e4782"
     },
+    "realhost-trial12-command-audit.json": {
+      "bytes": 61404,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_AUDIT_20261003/audit.json",
+      "sha256": "f6182093c8e9ce926b7a663d74f336cbb10f2c91fffc8fca0e66bfb394670ee7"
+    },
     "realhost-trial12-observer.json": {
       "bytes": 37185,
       "origin": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/EPISODE01_RESULT.json",

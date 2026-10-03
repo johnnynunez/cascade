@@ -1806,6 +1806,21 @@ preserved for the existing independently reviewed TCP fix. Raw logs, all
 controlled failures and source bindings are indexed in
 `benchmark/results/mobile_effects_ci_fixture_20261003.json`.
 
+### 2026-10-03 — Keep late exception debt on its admitted task
+
+`RobotRuntime` could release a failed motion, let the trusted host start a new
+task, then add the old motion's uncertainty to that new task from its ordinary
+exception handler. Bind that final accounting to the existing admission task
+ID. The inner cancellation fence still records uncertainty before ownership
+release; pre-admission validation failures retain their existing behavior.
+
+A controlled two-thread handoff reproduces one failure with two controls on
+`3e696d4`; the fix passes 78 runtime, cancellation, conversation-stop and handoff
+tests across four files (1.88 s). Preserve the first invalid file-selection
+invocation as an execution error with zero tests. Sources and protected stores
+remain unchanged during checks. No physical run or new physical admission.
+Evidence: `benchmark/results/task_exception_epoch_20261003.json`.
+
 ### 2026-10-03 — Preserve TCP timeout coverage across caller scheduling
 
 macOS CI on PR84 retained `unverified/reader_timeout` but failed a test-only

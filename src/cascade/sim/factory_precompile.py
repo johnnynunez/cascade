@@ -47,10 +47,11 @@ class ModuleVariant:
                     {"key": self.kernel.key, "signature": self.kernel.sig}}
 
 
-def admitted_sdk():
+def admitted_sdk(sdk_recipe=None):
     """Finite imports, checked against reviewed sources before any factory call."""
+    from .factory_sdk import selected_pins
     modules, sources = {}, {}
-    for name, expected in json.loads(_PINS.read_text()).items():
+    for name, expected in selected_pins(json.loads(_PINS.read_text()), sdk_recipe).items():
         module = importlib.import_module(name)
         path = Path(module.__file__).resolve()
         actual = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -484,12 +485,12 @@ def physical_snapshot(scene, wp):
     return rows
 
 
-def precompile_factory(scene, *, recipe):
+def precompile_factory(scene, *, recipe, sdk_recipe=None):
     """Precompile within the original solver's option scope, zero physics steps."""
     _require(recipe == PRECOMPILE_RECIPE, "unknown precompile selector")
     import warp as wp
     from .factory_model import model_fingerprint
-    modules, sources = admitted_sdk()
+    modules, sources = admitted_sdk() if sdk_recipe is None else admitted_sdk(sdk_recipe)
     admission = recipe_admission(scene, modules)
     scene.precompile_receipt = {"recipe": recipe, "sdk_sources": sources,
         "admission": admission, "loaded": [], "ok": False, "physics_admission": False}

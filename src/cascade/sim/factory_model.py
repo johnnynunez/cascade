@@ -179,7 +179,9 @@ def check_authored_joint(name, position, lower, upper, margin):
 class FactoryBoundModel:
     """Constructed scene plus immutable identity; not physical task admission."""
 
-    def __init__(self, scene, *, clock=time.monotonic, precompile=None):
+    def __init__(self, scene, *, clock=time.monotonic, precompile=None, sdk_recipe=None):
+        from .factory_sdk import INTERNAL_PINS, validate_sdk_recipe
+        validate_sdk_recipe(sdk_recipe)
         from .newton_screw_seating import SeatingScene
         if type(scene) is not SeatingScene or scene.step_id != 0 or scene.time_s != 0:
             raise FasteningFault("binding requires the exact fresh mounted SeatingScene")
@@ -213,14 +215,17 @@ class FactoryBoundModel:
         compilation = None
         if precompile is not None:
             from .factory_precompile import precompile_factory
-            compilation = precompile_factory(scene, recipe=precompile)
+            compilation = precompile_factory(scene, recipe=precompile, **(
+                {} if sdk_recipe is None else {"sdk_recipe": sdk_recipe}))
         self._fingerprint = model_fingerprint(scene)
         source_names = ("factory_model.py", "factory_owner.py", "factory_observation.py",
-            "factory_recipe.py",
+            "factory_recipe.py", "factory_sdk.py",
             "newton_screw_contact.py", "newton_screw_seating.py", "threading_verification.py",
             "microduck_contact_support.py")
         sources = {str(Path(__file__).with_name(n).resolve()): hashlib.sha256(Path(__file__).with_name(n).read_bytes()).hexdigest()
                    for n in source_names}
+        if sdk_recipe is not None:
+            sources[str(INTERNAL_PINS.resolve())] = hashlib.sha256(INTERNAL_PINS.read_bytes()).hexdigest()
         if compilation is not None:
             for name in ("factory_precompile.py", "factory_precompile_pins.json", "factory_mjdata_layout.json"):
                 path = Path(__file__).with_name(name).resolve()
@@ -233,7 +238,8 @@ class FactoryBoundModel:
         self.document = {"schema_version": 1, "recipe": scene.fixture_recipe,
             "authoring": self._authoring,
             "mounted_tool": True, "preengaged_nut": True, "pickup": False, "seating_claim": False,
-            "sources": sources, "sdk_sources": sdk_sources(),
+            "sources": sources, "sdk_recipe": sdk_recipe,
+            "sdk_sources": sdk_sources() if sdk_recipe is None else sdk_sources(sdk_recipe),
             "factory_files": _files(scene.assets), "robot_files": _files(scene.robot_asset.parent),
             "model": self._fingerprint, "geometry": self.geometry.descriptor, "actuators": actuators,
             "limits": asdict(self.limits), "pitch_m": .0025,
@@ -269,7 +275,8 @@ class FactoryBoundModel:
             check_authored_joint(row.name, position, lower[index], upper[index], self.limits.joint_margin_rad)
             self.initial_control[row.control_index] = position + row.reference_rad
         self.initial_control[self.joints[-1].control_index] = 0.
-        self.observer = FactoryObserver(scene, self.binding, self.limits, self.geometry, self.joints)
+        self.observer = FactoryObserver(scene, self.binding, self.limits, self.geometry, self.joints,
+            **({} if sdk_recipe is None else {"sdk_recipe": sdk_recipe}))
 
     def check_immutable(self):
         if model_fingerprint(self.scene) != self._fingerprint:

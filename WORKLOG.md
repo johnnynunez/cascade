@@ -610,3 +610,13 @@ leave it unavailable. No SDK reads or physical clock/pacing changes were added.
 Final freeze02 selection: 414 PASS / 0 SKIP, 21.09 s, 760 inputs and protected
 stores identical; Ruff F/E9 and diff check pass. Freeze01 and all 17 files are
 retained outside this checkout, as are its 409-PASS receipt and earlier failures.
+
+## 2026-10-03 — Preserve the opt-in target receipt flag at the ordinary Isaac launcher
+
+The diagnostic bridge flag introduced in 2bab2379 was filtered out by the
+ordinary `isaac_launch.clean_environment` allowlist. Add only that key, keeping
+the default absent and values literal; the MCP-only evidence directory remains
+excluded from the bridge environment. Tests call the real sanitizer and the
+real Python child launcher without Kit/GPU. The causal baseline and isolated
+controls are retained outside this checkout under `../validation/flag-causal`.
+No pacing, duration, safety gate, simulator recipe or runtime verdict changes.

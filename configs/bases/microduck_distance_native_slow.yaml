@@ -1,0 +1,38 @@
+# Explicit slow native validation candidate; NOT real-time/hardware admission.
+# Action wall25s derives from measured <=7.512 wall seconds / physics second:
+# ceil(3*7.512 + 2*.5 RPC budget + 1 host scheduling allowance) = 25.
+# Physical3s deadline, lease, freshness, drift and rest limits stay unchanged.
+# Use a separately reviewed model identity whose controller wall cap is25s.
+extends: microduck_distance_candidate
+admission: pending_slow_native_geometric_validation
+safety:
+  max_wall_duration_s: 25.0
+# Frozen previous native diagnostic limits, except total wall capacity/quota.
+# Quota covers ceil(29/.02)+1 reads; it is not additional motion credit.
+verifier:
+  sample_interval_s: 0.02
+  read_timeout_s: 0.5
+  max_wall_duration_s: 29.0
+  settle_timeout_s: 3.0
+  settle_window_s: 0.2
+  min_motion_samples: 5
+  min_settle_samples: 3
+  max_samples: 1451
+  max_history: 30
+  max_state_age_s: 0.5
+  max_sample_gap_s: 0.15
+  max_position_abs_m: 2.0
+  max_linear_speed_m_s: 1.0
+  max_angular_speed_rad_s: 6.0
+  min_height_m: 0.06
+  max_tilt_rad: 0.5
+  min_progress_ratio: 0.8
+  max_progress_ratio: 1.25
+  translation_tolerance_m: 0.015
+  rotation_tolerance_rad: 0.04
+  max_lateral_drift_m: 0.02
+  max_heading_drift_rad: 0.08
+  stop_linear_speed_m_s: 0.02
+  stop_angular_speed_rad_s: 0.1
+  stop_drift_m: 0.005
+  stop_drift_rad: 0.03

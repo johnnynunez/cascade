@@ -1,0 +1,320 @@
+{
+  "version": 1,
+  "base_commit": "075c08c32eec235e3c06e8c7ff8e27c3b74174fa",
+  "scope": "Test-only isolation of unrelated cyclic collection during semantic support episodes; no runtime, SDK or physical change.",
+  "original_failure": {
+    "source": "dfa0af28f82e86c46979ae1f1642c8fc2eb9686a",
+    "test": "test_one_loaded_sole_proves_rest_and_pair_order_does_not_change_meaning[False]",
+    "observed": "unverified/reader_timeout",
+    "pytest": "323 passed,1 failed",
+    "cause": "Unknown: original log contains neither reader duration nor GC instrumentation."
+  },
+  "controlled_injection": "External inherited SUPPORT_CI plugin lowers automatic GC thresholds at scripted read4 and holds its GC callback80ms. Controlled interference, not measured natural GC latency or proof of original cause.",
+  "controlled_results": {
+    "old-gc": {
+      "exit_code": 1,
+      "injections": 12,
+      "read_timeout_s": [
+        0.04
+      ],
+      "verdicts": [
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        }
+      ],
+      "step4_gc_enabled": [
+        true
+      ],
+      "max_callback_hold_s": 0.08007239300059155,
+      "step4_rtt_range_s": [
+        0.08048143499763682,
+        0.09423320402856916
+      ]
+    },
+    "fixed-gc": {
+      "exit_code": 0,
+      "injections": 0,
+      "read_timeout_s": [
+        0.04
+      ],
+      "verdicts": [
+        {
+          "status": "confirmed",
+          "reason": "independent rest check required"
+        },
+        {
+          "status": "confirmed",
+          "reason": "independent rest check required"
+        },
+        {
+          "status": "refuted",
+          "reason": "no admitted sole has positive upward solved reaction"
+        },
+        {
+          "status": "refuted",
+          "reason": "no admitted sole has positive upward solved reaction"
+        },
+        {
+          "status": "refuted",
+          "reason": "no admitted sole has positive upward solved reaction"
+        },
+        {
+          "status": "refuted",
+          "reason": "no admitted sole has positive upward solved reaction"
+        },
+        {
+          "status": "refuted",
+          "reason": "no admitted sole has positive upward solved reaction"
+        },
+        {
+          "status": "refuted",
+          "reason": "forbidden external robot contact in independent support evidence"
+        },
+        {
+          "status": "refuted",
+          "reason": "forbidden external robot contact in independent support evidence"
+        },
+        {
+          "status": "refuted",
+          "reason": "no admitted sole has positive upward solved reaction"
+        },
+        {
+          "status": "confirmed",
+          "reason": "independent rest check required"
+        },
+        {
+          "status": "unverified",
+          "reason": "solved support unavailable: incomplete solve extraction"
+        },
+        {
+          "status": "confirmed",
+          "reason": "independent rest check required"
+        }
+      ],
+      "step4_gc_enabled": [
+        false
+      ],
+      "max_callback_hold_s": null,
+      "step4_rtt_range_s": [
+        4.9505033530294895e-05,
+        9.672704618424177e-05
+      ]
+    },
+    "negative-readers": {
+      "exit_code": 0,
+      "injections": 0,
+      "read_timeout_s": [
+        0.04
+      ],
+      "verdicts": [
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        }
+      ],
+      "step4_gc_enabled": [
+        false
+      ],
+      "max_callback_hold_s": null,
+      "step4_rtt_range_s": [
+        0.08010390104027465,
+        0.08019168500322849
+      ]
+    }
+  },
+  "counts": {
+    "old_injected": {
+      "passed": 1,
+      "failed": 11
+    },
+    "patched_injected": {
+      "passed": 12,
+      "failed": 0
+    },
+    "late_readers_walk_stop_and_tcp": {
+      "passed": 3,
+      "failed": 0
+    },
+    "final": {
+      "passed": 395,
+      "failed": 0,
+      "skipped": 0,
+      "pytest_time_s": 40.115
+    }
+  },
+  "unchanged_contract": {
+    "read_timeout_s": 0.04,
+    "production_diff_empty": true,
+    "clock_mutations": false,
+    "sampler_still_real": true,
+    "no_unverified_positive_credit": true
+  },
+  "file_sha256": {
+    "tests/test_mobile_support.py": "3f0700b2356e41f308c0f6dcc6d092ae1a6c04c943ec11e49fad6e7050763f3f",
+    "tests/mobile_tick_fixture.py": "ef1c4d0a5ba6718f6a1874eae4ebf330e46db4b7807e0f19dd5afb85fa336752",
+    "tests/test_mobile_effects.py": "14e0785aeaa95e3303ba6b54d1a9381d694286db4203b9732021144617cdd27d",
+    "src/cascade/agent/base_effects.py": "1785276e72c76021be1cc8c2e834c971719012dd9ae00832eb2553da2b3f9b80"
+  },
+  "source_unchanged_during_checks": true,
+  "protected_stores_after": {
+    "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "/home/johnny/.cascade/grasp_memory.json": null,
+    "/home/johnny/.cascade/beliefs.json": null
+  },
+  "physical_task_pass": false,
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/old-gc/pytest.log",
+      "sha256": "4f4ebecdf7a2e5e693b8f2a2bd0be41d309ad34205730f6439472cf45e2a5e6a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/old-gc/junit.xml",
+      "sha256": "5660c8a42409bb25a645b24fb42921b1aa80526fd7d05cdcb4396c9a057c6201"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/old-gc/result.json",
+      "sha256": "cc49b4f6e1a75947b455d51befdc01fecf6c1a5af35d025c5cfef93d9177eebb"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/old-gc/inputs.json",
+      "sha256": "974b685a67f998436df863981398990433c83f8a05cab8dc3fd539eab8a9eef8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/fixed-gc/pytest.log",
+      "sha256": "f52374e97af0712d6485d3eda79434c340af2d58e32b4137fb31cd9ca2eda2f5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/fixed-gc/junit.xml",
+      "sha256": "43279e63d5711e6fe7a234a2f8eed8a7fda78098808803059d32ed47cf1e2eaf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/fixed-gc/result.json",
+      "sha256": "4c23000a1c0c6a8a3a239bc0477e5bc8046c71511fdb8498e25caaa8605da446"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/fixed-gc/inputs.json",
+      "sha256": "0b1456999d04076677580ef782fca08bd87461311b64240c21cae208307bcf9e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/negative-readers/pytest.log",
+      "sha256": "649825ff3f2d47110fe81ef64865a16ab498e6f3f318b83469364c16a1c91225"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/negative-readers/junit.xml",
+      "sha256": "c5f31b7ba177d3a4d2dd439ba44ebf23d4fface3cdb58bf3a234cdd229ea94fa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/negative-readers/result.json",
+      "sha256": "4c7b27d1be78998028282a0fc0aa474b0e6b98c78e13565bf93582fbcfd3e4b1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/negative-readers/inputs.json",
+      "sha256": "eabc848febfad8246f66e693f859941490002107ffe9a3c225e3b4d4f9a351d6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_PUBLICATION/focused-final-01/pytest.log",
+      "sha256": "f34e37c6930f281fc7736bb2a11b81aadd967231db663437e406d8578591e9af"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_PUBLICATION/focused-final-01/junit.xml",
+      "sha256": "1f57de4126cf6ddef6b5254f7e751738000518da6a5d5d3cf228540c663b56e8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_PUBLICATION/focused-final-01/result.json",
+      "sha256": "c461956299f43deca80559ab67ec23f9585ce76320994811200f0e3b13b7752d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_PUBLICATION/focused-final-01/inputs.json",
+      "sha256": "03451e2d9253b36c4067c2ca9185e37890f7ffa489e20fea7bdf07d5df15431d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/PUBLISH_ISAAC_OBSERVER_20261003/cpu-main-01/pytest.log",
+      "sha256": "362c94bf29e6781037d95a4a40bf23069b7bdbffa394210f2f2d207980dab8a5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/PUBLISH_ISAAC_OBSERVER_20261003/cpu-main-01/junit.xml",
+      "sha256": "2170b88b3f84c293207fcc91a98b0a29c5e517638f55a6b8d1deeb7b08efc61e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/PUBLISH_ISAAC_OBSERVER_20261003/cpu-main-01/result.json",
+      "sha256": "c69285c6a2bfab2ebac4e75c69eca20157f7857c27bb0cce702c534fc6dc8f68"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/PUBLISH_ISAAC_OBSERVER_20261003/cpu-main-01/source-sha256.json",
+      "sha256": "5e43b4b05c3f0158966899e3434ea6044fb7ff82494d6b0c5bd61211daf1a368"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/support_probe.py",
+      "sha256": "bdb8fda358f1e8975d559bc09df18f69d1b32a94d7c568d5974dc3a88204f502"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/old-gc.json",
+      "sha256": "62b1484f7d02cf38ff07d69ca722b7113b37c55e1ca76142b80ded2b38c3064a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/fixed-gc.json",
+      "sha256": "e8cf569f9e9ac27bc45ef5c7a92a14cc85050543026f48eb68e084941de2553e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_FIXTURE/negative-readers.json",
+      "sha256": "7ee963f5ea8b9a8ae4b7ae50e4b724017673cbce20944d548a29690ae3478ca0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/SUPPORT_REST_PUBLICATION/run_control.py",
+      "sha256": "56a3956485ae70ae01176309d39bfeaa9de4065ee2ba9c6df3375da87832d317"
+    }
+  ]
+}

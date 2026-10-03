@@ -60,8 +60,8 @@ class TransformSample:
     rotation_wxyz: tuple
     stamp: SpatialStamp
     static: bool = False
-    position_error_m: float = 0.
-    angular_error_rad: float = 0.
+    position_error_m: float | None = 0.
+    angular_error_rad: float | None = 0.
 
     def __post_init__(self):
         identifier(self.parent, "parent frame"); identifier(self.child, "child frame")
@@ -75,7 +75,8 @@ class TransformSample:
             raise ValueError("rotation must be a unit quaternion")
         object.__setattr__(self, "rotation_wxyz", q)
         for key in ("position_error_m", "angular_error_rad"):
-            object.__setattr__(self, key, number(getattr(self, key), key, minimum=0))
+            if getattr(self, key) is not None:
+                object.__setattr__(self, key, number(getattr(self, key), key, minimum=0))
 
     @property
     def matrix(self):

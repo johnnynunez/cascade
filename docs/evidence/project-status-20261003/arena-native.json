@@ -1,0 +1,742 @@
+{
+  "format_version": 1,
+  "date": "2026-10-02",
+  "scope": "optional real Arena/PhysX CASCADE foundation + final-consumer cancellation only",
+  "preflight_pass": true,
+  "task_success": false,
+  "physical_stop_verified": false,
+  "source_base": "f73686216deafbcb219be7cbc214d6dfbc0c0734",
+  "arena_pin": "c8d04e2199b86abbbb301bb22cec0effd83c4e63",
+  "isaaclab_pin": "ae37b028ea415c91ea2bc32609efcd759ed2b974",
+  "raw_directory": "/home/johnny/Projects/demo/cascade-lab/ARENA_NEXT/native02",
+  "receipt": {
+    "preflight_pass": true,
+    "task_success": false,
+    "physical_stop_verified": false,
+    "recipe_variant": "existing Isaac6.1rc26 PhysX; not Arena uv.lock parity",
+    "argv": [
+      "cascade/benchmark/arena/native_preflight.py",
+      "--out",
+      "native02",
+      "--arena-source",
+      "IsaacLab-Arena",
+      "--lab-source",
+      "IsaacLab",
+      "--sdk-version-file",
+      "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/isaac-newton160/VERSION",
+      "--python-deps",
+      "python-deps",
+      "--expected-gpu-uuid",
+      "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+      "--capture",
+      "--/app/settings/persistent=false",
+      "--/exts/isaacsim.core.simulation_manager/default_engine=physx",
+      "--/exts/isaacsim.physics.newton/auto_switch_on_startup=false",
+      "--/plugins/carb.tasking.plugin/threadCount=4",
+      "--/plugins/omni.tbb.globalcontrol/maxThreadCount=4",
+      "--/exts/isaacsim.core.simulation_manager/enable_default_callbacks=false",
+      "--/renderer/multiGpu/activeCudaGpus=0,"
+    ],
+    "pid": 191769,
+    "source_inventory_sha256": "c47f1205018a324c0496de87caee21724c0f8425a63c8a69bf1888ae40c5941a",
+    "sdk_version": "6.1.0-rc.26+develop.0.2469084b.local",
+    "episodes": [
+      {
+        "label": "foundation",
+        "epoch": "b8060c01547c4f48b7ed98774bf22b64",
+        "result": {
+          "ok": true,
+          "execution_ok": true,
+          "error": null,
+          "completed_steps": 20,
+          "actions_produced": 20,
+          "postcondition": {
+            "status": "unverified",
+            "reason": "foundation only; no task, tracking, contact or braking admission"
+          },
+          "physical_stop_verified": false
+        },
+        "task_done": {
+          "ok": true,
+          "task_complete": true,
+          "success": false,
+          "summary": "foundation is not task admission",
+          "unverified": [
+            "arena_policy.run_policy_steps"
+          ]
+        },
+        "catalog": {
+          "ok": true,
+          "resources": [
+            {
+              "resource_id": "arena/franka",
+              "kind": "actuator",
+              "robot_id": "arena_franka",
+              "capabilities": [
+                "bounded_zero_action_preflight"
+              ],
+              "controller_id": "arena/native/env0",
+              "writer_id": "arena/zero_action",
+              "synthetic": false,
+              "admission": "unvalidated",
+              "metadata": {
+                "epoch": "b8060c01547c4f48b7ed98774bf22b64",
+                "model_scene_sha256": "5709065025a90e74572c9cb2b76b1d9b1f8cc91846a62a7bc6554ac8931a339c"
+              }
+            }
+          ],
+          "metadata_source": "configured_profile"
+        },
+        "stop_receipts": [],
+        "denied_repeat": {
+          "ok": false,
+          "error": "RuntimeError: preflight episode already used, stopped or closed"
+        },
+        "unchanged_after_denial": true,
+        "runtime_close": {
+          "ok": true,
+          "domains": {
+            "arena_policy": {
+              "ok": true
+            }
+          }
+        },
+        "completed_steps": 20,
+        "actions_produced": 20,
+        "physics_steps": 160,
+        "cube_z_initial_m": 0.20000000298023224,
+        "cube_z_minimum_m": 0.02099967561662197,
+        "cube_gravity_response": true,
+        "joint_names": [
+          "panda_joint1",
+          "panda_joint2",
+          "panda_joint3",
+          "panda_joint4",
+          "panda_joint5",
+          "panda_joint6",
+          "panda_joint7",
+          "panda_finger_joint1",
+          "panda_finger_joint2"
+        ],
+        "body_names": [
+          "panda_link0",
+          "panda_link1",
+          "panda_link2",
+          "panda_link3",
+          "panda_link4",
+          "panda_link5",
+          "panda_link6",
+          "panda_link7",
+          "panda_hand",
+          "panda_leftfinger",
+          "panda_rightfinger"
+        ],
+        "frames": [
+          {
+            "path": "frame-000.png",
+            "snapshot_sha256": "b374db22725072508be473ee432f1afd6db6eebf4ed9180e3de966de153af6d3",
+            "mean_rgb": 155.89414171006945,
+            "std_rgb": 79.04528018154564
+          },
+          {
+            "path": "frame-001.png",
+            "snapshot_sha256": "4bccd4294d92d6f3347d07df1db9d87ffd223fd4ca46400caf6ee89e4fb92249",
+            "mean_rgb": 155.99375651041666,
+            "std_rgb": 78.29473202595028
+          },
+          {
+            "path": "frame-002.png",
+            "snapshot_sha256": "310961a894bae6f5d91137fe4f3b82521e237a9d7a8bc37e67c878e81cc18556",
+            "mean_rgb": 155.8429318576389,
+            "std_rgb": 78.35015488543004
+          },
+          {
+            "path": "frame-003.png",
+            "snapshot_sha256": "ea3acd2ff3dd1bab7b8a35c979b6e68f038fc84996fa9fda70dc915b85725ff3",
+            "mean_rgb": 155.7997873263889,
+            "std_rgb": 78.39397461283062
+          },
+          {
+            "path": "frame-004.png",
+            "snapshot_sha256": "f226bdcc83aec039115963a7e3a2c26feb694a531ea5e812ad9e3d21f7494af6",
+            "mean_rgb": 155.73508897569445,
+            "std_rgb": 78.42835988753815
+          },
+          {
+            "path": "frame-005.png",
+            "snapshot_sha256": "ed558f4084777c85be88e8ca5bf61d3a4b66dca53fcc809251cd2a6c314ee871",
+            "mean_rgb": 155.71187608506943,
+            "std_rgb": 78.45150521004994
+          },
+          {
+            "path": "frame-006.png",
+            "snapshot_sha256": "4652a3924bf08b9889d20283ffe8444579a76f031d0fe0035fd88dcbc01f2a09",
+            "mean_rgb": 155.73972005208333,
+            "std_rgb": 78.42855295369928
+          },
+          {
+            "path": "frame-007.png",
+            "snapshot_sha256": "1dea6fb2f06dd6b59bf44507e6a4ef90c604d74263ec6f5bc810b0f7b24d2d35",
+            "mean_rgb": 155.7630251736111,
+            "std_rgb": 78.40515029595734
+          },
+          {
+            "path": "frame-008.png",
+            "snapshot_sha256": "35825f1ea5b2034a8ed9df3331d7a5b8ddb2e2d05608d3bd074973e9bd695200",
+            "mean_rgb": 155.77913411458334,
+            "std_rgb": 78.39214727989673
+          },
+          {
+            "path": "frame-009.png",
+            "snapshot_sha256": "3859fb2a1ed5f3bd8ec4780573ffd23098a0d5ccf1b26639c5143dd49114e971",
+            "mean_rgb": 155.79509982638888,
+            "std_rgb": 78.37975136968106
+          },
+          {
+            "path": "frame-010.png",
+            "snapshot_sha256": "39035fa3ce45c1c213e02232e8903c522dbe2c3e2f38554aa2906f05987bc4f6",
+            "mean_rgb": 155.80485785590278,
+            "std_rgb": 78.36770878367994
+          },
+          {
+            "path": "frame-011.png",
+            "snapshot_sha256": "73265142f1bd146a62f6c5d073f4d51f5c7c35b91e914d471b25561753f938b2",
+            "mean_rgb": 155.80913953993056,
+            "std_rgb": 78.36954044105892
+          },
+          {
+            "path": "frame-012.png",
+            "snapshot_sha256": "8cbd4ce95cc58d08efbc8c7b6ac1a07501cb142fd1f3aa74b8471c8191890ae7",
+            "mean_rgb": 155.8171875,
+            "std_rgb": 78.3652286693459
+          },
+          {
+            "path": "frame-013.png",
+            "snapshot_sha256": "da3a4d3ae61ee5e2b8cad1a57be34d453f36167efd42e4387e074f19cd2fe459",
+            "mean_rgb": 155.8558224826389,
+            "std_rgb": 78.33355440015181
+          },
+          {
+            "path": "frame-014.png",
+            "snapshot_sha256": "a5fb3903f2903cbc994292c0fe4a6d6b8ac852fcce33e2a2c21ff88cd9fd3d55",
+            "mean_rgb": 155.88078993055555,
+            "std_rgb": 78.31281056725
+          },
+          {
+            "path": "frame-015.png",
+            "snapshot_sha256": "59a70fdf2570a917bce1289e8fc70020d4616cac005e80dba879af1ef786dd47",
+            "mean_rgb": 155.90221788194444,
+            "std_rgb": 78.29227680894344
+          },
+          {
+            "path": "frame-016.png",
+            "snapshot_sha256": "887f8345253cb2f7bbe41ca06c95e970a6c95b33ac572d2f2089d73546e69cc8",
+            "mean_rgb": 155.91207248263888,
+            "std_rgb": 78.2851964718339
+          },
+          {
+            "path": "frame-017.png",
+            "snapshot_sha256": "030ece8a204859b653b88a16a69e7409a80dccecc3fb30c3ff6e88ff16b4bd03",
+            "mean_rgb": 155.90621310763888,
+            "std_rgb": 78.29288314276731
+          },
+          {
+            "path": "frame-018.png",
+            "snapshot_sha256": "3b13b29cbc9b15ffb0ab86fdbd2789cc0534128c4670fd7ce384b69d50f7c765",
+            "mean_rgb": 155.916533203125,
+            "std_rgb": 78.27965926585395
+          },
+          {
+            "path": "frame-019.png",
+            "snapshot_sha256": "bbc3c0cb3643917f3974f3e04c330097c8fd731ff98f19e75101ab424981fcc3",
+            "mean_rgb": 155.9437966579861,
+            "std_rgb": 78.25306174839794
+          },
+          {
+            "path": "frame-020.png",
+            "snapshot_sha256": "8b5ff95661375fb973cddb91304e3d31c702a787ce1aae407e7c381f099e215e",
+            "mean_rgb": 155.96471354166667,
+            "std_rgb": 78.23219872123127
+          }
+        ]
+      },
+      {
+        "label": "cancel",
+        "epoch": "ec612b66915b47a78d74cac37edfa210",
+        "result": {
+          "ok": false,
+          "execution_ok": false,
+          "error": "operation superseded by stop",
+          "domain_result": {
+            "ok": false,
+            "execution_ok": false,
+            "error": "RuntimeError: native consumer cancelled before env.step",
+            "completed_steps": 8,
+            "actions_produced": 9,
+            "postcondition": {
+              "status": "unverified",
+              "reason": "foundation only; no task, tracking, contact or braking admission"
+            },
+            "physical_stop_verified": false
+          }
+        },
+        "task_done": {
+          "ok": true,
+          "task_complete": true,
+          "success": false,
+          "summary": "foundation is not task admission",
+          "unverified": [
+            "arena_policy.run_policy_steps",
+            "robot stopped"
+          ]
+        },
+        "catalog": {
+          "ok": true,
+          "resources": [
+            {
+              "resource_id": "arena/franka",
+              "kind": "actuator",
+              "robot_id": "arena_franka",
+              "capabilities": [
+                "bounded_zero_action_preflight"
+              ],
+              "controller_id": "arena/native/env0",
+              "writer_id": "arena/zero_action",
+              "synthetic": false,
+              "admission": "unvalidated",
+              "metadata": {
+                "epoch": "ec612b66915b47a78d74cac37edfa210",
+                "model_scene_sha256": "5709065025a90e74572c9cb2b76b1d9b1f8cc91846a62a7bc6554ac8931a339c"
+              }
+            }
+          ],
+          "metadata_source": "configured_profile"
+        },
+        "stop_receipts": [
+          {
+            "ok": true,
+            "latched": true,
+            "generation": 1,
+            "domains": {
+              "arena_policy": {
+                "ok": true,
+                "physical_stop_verified": false
+              }
+            },
+            "physical_stop_verified": false
+          }
+        ],
+        "denied_repeat": {
+          "ok": false,
+          "error": "ValueError: robot stopped; explicit reset_stop required"
+        },
+        "unchanged_after_denial": true,
+        "runtime_close": {
+          "ok": true,
+          "domains": {
+            "arena_policy": {
+              "ok": true
+            }
+          }
+        },
+        "completed_steps": 8,
+        "actions_produced": 9,
+        "physics_steps": 64,
+        "cube_z_initial_m": 0.20000000298023224,
+        "cube_z_minimum_m": 0.02099967561662197,
+        "cube_gravity_response": true,
+        "joint_names": [
+          "panda_joint1",
+          "panda_joint2",
+          "panda_joint3",
+          "panda_joint4",
+          "panda_joint5",
+          "panda_joint6",
+          "panda_joint7",
+          "panda_finger_joint1",
+          "panda_finger_joint2"
+        ],
+        "body_names": [
+          "panda_link0",
+          "panda_link1",
+          "panda_link2",
+          "panda_link3",
+          "panda_link4",
+          "panda_link5",
+          "panda_link6",
+          "panda_link7",
+          "panda_hand",
+          "panda_leftfinger",
+          "panda_rightfinger"
+        ],
+        "frames": [
+          {
+            "path": "frame-000.png",
+            "snapshot_sha256": "cfd9f6090f0f5b71037c442a0d54033dc7f876c69b2b3a455ee3784c17512a0b",
+            "mean_rgb": 155.96337890625,
+            "std_rgb": 78.22721844859703
+          },
+          {
+            "path": "frame-001.png",
+            "snapshot_sha256": "60c34b37cd18a15028f0a85b62545ae6f24268febb533e3033e102d23198fea6",
+            "mean_rgb": 155.99971354166667,
+            "std_rgb": 78.18463344845985
+          },
+          {
+            "path": "frame-002.png",
+            "snapshot_sha256": "f8cd552e3a3fe669c371a0331eb34f573be8bba4d863dccb3c940d1d8a37afca",
+            "mean_rgb": 156.0333420138889,
+            "std_rgb": 78.14539647268168
+          },
+          {
+            "path": "frame-003.png",
+            "snapshot_sha256": "bcc6849ba8480486a376921ba16f9b2811a6ac43f7d15b46dede6dc37a4602ff",
+            "mean_rgb": 156.02551323784724,
+            "std_rgb": 78.13492373852452
+          },
+          {
+            "path": "frame-004.png",
+            "snapshot_sha256": "c91e1d9507f3d66b0279e777035548dda53a06b52f75c3cccf941983afb492f2",
+            "mean_rgb": 156.03090277777778,
+            "std_rgb": 78.12877742179622
+          },
+          {
+            "path": "frame-005.png",
+            "snapshot_sha256": "0215d2a3865af9bf2b1fdef01bd9b8473b4acb338084f7cbf18b681f42fc0bba",
+            "mean_rgb": 156.02249782986112,
+            "std_rgb": 78.13363457513397
+          },
+          {
+            "path": "frame-006.png",
+            "snapshot_sha256": "5569362173083767b7f947b620d7e8824222e67c6161239c77b7568d85b1fe7a",
+            "mean_rgb": 156.006640625,
+            "std_rgb": 78.14673487493835
+          },
+          {
+            "path": "frame-007.png",
+            "snapshot_sha256": "51a7b94f91cd319489e27fe2bd471f2a80b5e627bb83cf59bef2853efbd02b06",
+            "mean_rgb": 156.01498806423612,
+            "std_rgb": 78.1395206225827
+          },
+          {
+            "path": "frame-008.png",
+            "snapshot_sha256": "fb9bf05418507c12b06aff61556e65d2297bcf417f5f27cacba7bf0eb7a28e6a",
+            "mean_rgb": 156.01986002604167,
+            "std_rgb": 78.13489325902009
+          }
+        ]
+      }
+    ],
+    "device": {
+      "properties": "_CudaDeviceProperties(name='NVIDIA RTX PRO 6000 Blackwell Workstation Edition', major=12, minor=0, total_memory=97337MB, multi_processor_count=188, uuid=4c811d02-a79b-2837-425e-5f62ac3c578a, pci_bus_id=193, pci_device_id=0, pci_domain_id=0, L2_cache_size=128MB)",
+      "uuid": "4c811d02-a79b-2837-425e-5f62ac3c578a",
+      "visible_count": 1
+    },
+    "versions": {
+      "torch": "2.12.0+cu130",
+      "numpy": "2.3.1",
+      "gymnasium": "1.3.0",
+      "hydra-core": "1.3.7",
+      "pydantic": "2.11.10",
+      "warp-lang": "1.17.0"
+    },
+    "capture_variant": {
+      "pose_xyz": [
+        0.8,
+        -1.0,
+        0.9
+      ],
+      "rotation_xyzw": [
+        0.47459768047458667,
+        0.18949507500516063,
+        0.3187348423871819,
+        0.7982836328557344
+      ],
+      "size": [
+        640,
+        480
+      ],
+      "policy_input": false,
+      "physics_mutation": false
+    },
+    "physics_dt_s": 0.008333333333333333,
+    "control_dt_s": 0.06666666666666667,
+    "physics_class": "isaaclab_physx.physics.physx_manager_cfg.PhysxCfg",
+    "native_rigid_objects": [
+      "dex_cube"
+    ],
+    "model_scene_sha256": "5709065025a90e74572c9cb2b76b1d9b1f8cc91846a62a7bc6554ac8931a339c",
+    "environment_closed": true,
+    "source_unchanged": true,
+    "app_close_requested": true,
+    "intended_exit_code": 0
+  },
+  "independent_audit": {
+    "passed": true,
+    "scope": "source-bound native foundation and final-consumer veto, not task/braking/clock-hard-real-time admission",
+    "source_count": 4295,
+    "episodes": [
+      {
+        "label": "foundation",
+        "epoch": "b8060c01547c4f48b7ed98774bf22b64",
+        "observations": 21,
+        "control_steps": 20,
+        "physics_solves": 160,
+        "sim_duration_s": 1.3333333333333333,
+        "max_joint_delta_rad": 0.0,
+        "cube_z_initial_m": 0.20000000298023224,
+        "cube_z_minimum_m": 0.02099967561662197,
+        "cube_vz_minimum_m_s": -1.3080024719238281,
+        "observations_sha256": "35de0fb65a21974db844a0721c634f60dd0b210ea6298473570cc59dc46845fe"
+      },
+      {
+        "label": "cancel",
+        "epoch": "ec612b66915b47a78d74cac37edfa210",
+        "observations": 9,
+        "control_steps": 8,
+        "physics_solves": 64,
+        "sim_duration_s": 0.5333333333333334,
+        "max_joint_delta_rad": 0.0,
+        "cube_z_initial_m": 0.20000000298023224,
+        "cube_z_minimum_m": 0.02099967561662197,
+        "cube_vz_minimum_m_s": -1.3080024719238281,
+        "observations_sha256": "48c57341b66a6d60e323d5db4411aa2a24df431eec4c584fa876e5d98498d51a"
+      }
+    ],
+    "audit_script_sha256": "14cde2445540966bea39c851528b3598574f24604f97b53ed8b1997082b6050c",
+    "raw_rgb_limit": "initial frame follows reset before first solve; robot rendering initially stale. Presentation starts completed solve frame1. RGB is illustrative, not verified pixel-pose binding."
+  },
+  "closure": {
+    "outer_exit_code": 0,
+    "remaining_owned_births": [],
+    "scope_state": "ActiveState=inactive\nSubState=dead\n",
+    "closure_ok": true
+  },
+  "process_ownership": {
+    "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d",
+    "monotonic_s": 215080.072998323,
+    "scope": "cascade-arena-native-02.scope",
+    "processes": [
+      {
+        "pid": 191759,
+        "start_ticks": 21506166,
+        "cmdline": [
+          "timeout",
+          "--kill-after=15s",
+          "240s",
+          "python3",
+          "sdk_python.py",
+          "cascade/benchmark/arena/native_preflight.py",
+          "--out",
+          "native02",
+          "--arena-source",
+          "IsaacLab-Arena",
+          "--lab-source",
+          "IsaacLab",
+          "--sdk-version-file",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/isaac-newton160/VERSION",
+          "--python-deps",
+          "python-deps",
+          "--expected-gpu-uuid",
+          "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+          "--capture"
+        ]
+      },
+      {
+        "pid": 191760,
+        "start_ticks": 21506170,
+        "cmdline": [
+          "python3",
+          "sdk_python.py",
+          "cascade/benchmark/arena/native_preflight.py",
+          "--out",
+          "native02",
+          "--arena-source",
+          "IsaacLab-Arena",
+          "--lab-source",
+          "IsaacLab",
+          "--sdk-version-file",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/isaac-newton160/VERSION",
+          "--python-deps",
+          "python-deps",
+          "--expected-gpu-uuid",
+          "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+          "--capture"
+        ]
+      },
+      {
+        "pid": 191761,
+        "start_ticks": 21506172,
+        "cmdline": [
+          "/bin/bash",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/isaac-newton160/python.sh",
+          "cascade/benchmark/arena/native_preflight.py",
+          "--out",
+          "native02",
+          "--arena-source",
+          "IsaacLab-Arena",
+          "--lab-source",
+          "IsaacLab",
+          "--sdk-version-file",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/isaac-newton160/VERSION",
+          "--python-deps",
+          "python-deps",
+          "--expected-gpu-uuid",
+          "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+          "--capture"
+        ]
+      },
+      {
+        "pid": 191769,
+        "start_ticks": 21506173,
+        "cmdline": [
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/isaac-newton160/kit/python/bin/python3",
+          "cascade/benchmark/arena/native_preflight.py",
+          "--out",
+          "native02",
+          "--arena-source",
+          "IsaacLab-Arena",
+          "--lab-source",
+          "IsaacLab",
+          "--sdk-version-file",
+          "/home/johnny/Projects/demo/cascade-lab/MICRODUCK/isaac-newton160/VERSION",
+          "--python-deps",
+          "python-deps",
+          "--expected-gpu-uuid",
+          "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a",
+          "--capture"
+        ]
+      }
+    ]
+  },
+  "retained_attempts": [
+    {
+      "attempt": "foundation01",
+      "foundation_pass": false,
+      "preflight_pass": null,
+      "error": "ModuleNotFoundError: No module named 'isaaclab_arena_curobo'",
+      "steps": 0,
+      "completed_native_episodes": [],
+      "receipt_sha256": "8225b8714728e06996587b7316b1f31b033d2bb09d5ca1d26fa3aae805611a99",
+      "log_sha256": "3e269dab4aefe59401243076d79230ddb1e9fc73991a585f63325e642348e335"
+    },
+    {
+      "attempt": "foundation02",
+      "foundation_pass": false,
+      "preflight_pass": null,
+      "error": "ModuleNotFoundError: No module named 'pinocchio'",
+      "steps": 0,
+      "completed_native_episodes": [],
+      "receipt_sha256": "46f8211770224d41d60abd39d9f4798b8937101be497172319ff0c2315508f27",
+      "log_sha256": "fc1f36a64dd26a67820ddd6df94b88fae78f1096cbe0b0482fb7e3cfb93d10e5"
+    },
+    {
+      "attempt": "foundation03",
+      "foundation_pass": false,
+      "preflight_pass": null,
+      "error": "AttributeError: 'SimulationContext' object has no attribute 'current_time'",
+      "steps": 0,
+      "completed_native_episodes": [],
+      "receipt_sha256": "649eccf9136676ddd9f7df79674c29ea1fd745495ecf6fbf1e454da1405d21fb",
+      "log_sha256": "c7fce5d818b1ccddefc78e624a86c9616ebf95b36b4da53fd8c64e515394f87c"
+    },
+    {
+      "attempt": "foundation04",
+      "foundation_pass": true,
+      "preflight_pass": null,
+      "error": null,
+      "steps": 20,
+      "completed_native_episodes": [],
+      "receipt_sha256": "c84410db3636cf35c9d1fbafe00765590024a767b15eae878674bef8497b2f1c",
+      "log_sha256": "bf16f0d361f810c8728ea1e52a686f5eaaafc903003baeb1a6c7dcd416d9074f"
+    },
+    {
+      "attempt": "native01",
+      "foundation_pass": null,
+      "preflight_pass": false,
+      "error": "RuntimeError: Inplace update to inference tensor outside InferenceMode is not allowed.You can make a clone to get a normal tensor before doing inplace update.See https://github.com/pytorch/rfcs/pull/17 for more details.",
+      "steps": null,
+      "completed_native_episodes": [
+        [
+          "foundation",
+          20
+        ]
+      ],
+      "receipt_sha256": "adddfcd6d9670c1ae643506b86577f266aed919f3ff08f55fa0952326af87814",
+      "log_sha256": "91688159cb50a43868ad7608230b2a4904bf818d012a41f087198f30a57998e6"
+    }
+  ],
+  "artifacts_sha256": {
+    "cancel/frame-000.png": "6dfce427f38487f2dcd38df8542c335505394c704ff3f042c4cc0cb11dc2e946",
+    "cancel/frame-001.png": "fce3d0d37ae75aa952825ea0c031f950854f32054ef7cd43f73c6272c0ce24d0",
+    "cancel/frame-002.png": "4c6011963e9908b422bb51c0d4d7dd77451a91e5b8e3c5585ed9acf975023eb6",
+    "cancel/frame-003.png": "305926c48c45522f0e3b5a58deac6e37ea95554386ff1aebefd21d1b3bcc2bd3",
+    "cancel/frame-004.png": "eda866868e0b3467cd712ba2c225842bc739b96ec559ea8ea45881e4fa80bfcf",
+    "cancel/frame-005.png": "06884659d1e09b972f80580bb1e549e5e9543bee463f062974bf0db145cae211",
+    "cancel/frame-006.png": "c023981d93608cae6e7f6905e3cb63a380177e217a494baa771599c453ec2ce3",
+    "cancel/frame-007.png": "30748ded1e9932ec4e9e91297a3f37511a68dea356573068ab1349d7888cd5db",
+    "cancel/frame-008.png": "e4abc96177f05873f641273411a7863276f242f19ed0a94b32fcb997b88d8e78",
+    "cancel/observations.jsonl": "48c57341b66a6d60e323d5db4411aa2a24df431eec4c584fa876e5d98498d51a",
+    "cancel-complete.mp4": "451f17dfca543ba968d965bd9a74cacaa11e7ccaa408e04b505ffe1815ae3e1a",
+    "closure.json": "d4cf913e6d861e6128a0b9a00230c8ba35618599fbb67bb76d3496dd32b69bc7",
+    "foundation/frame-000.png": "ee12cad5c25c946b39f2dd648dfb4f2211f78d0846cdbd46952fd0200d58ff6d",
+    "foundation/frame-001.png": "ba3ad34ed134a246df281feb84d3c8b0f29a93e660c634a4e679159aaa5f0e5f",
+    "foundation/frame-002.png": "b1a05d2209bdc7d569ec44b2920537049812bd60e21f9591fda4159d6ff75e3f",
+    "foundation/frame-003.png": "1ee67126efcf0a09202a4e6828e62ca031d60d6226e88dc236ca88f73c88c25f",
+    "foundation/frame-004.png": "7538ef4275239a8352bee0f15deb37d8d5e4a200f1651ecd1ac620048d31e382",
+    "foundation/frame-005.png": "89a421e2bb9a0b44aa5c9ba3ec3b6354f08ebf1b1e32f4c0e1dc0118ecf0c2f5",
+    "foundation/frame-006.png": "9807bb82893293fb6f1077face49033bc7f6ec842bccd39a4e89af3884d3284a",
+    "foundation/frame-007.png": "ce2d4dab498b0bdf043a2b0a013761d5ea6f9b33e1072e817997ecab9c29080f",
+    "foundation/frame-008.png": "88da2878931a1633e151839182dcccc528e9b792ec89b5021e697578ae0c3eee",
+    "foundation/frame-009.png": "55a5dd3239f61c71b73df68d2fabe252cac415155c3fca4e6383a32a8ef7a7f9",
+    "foundation/frame-010.png": "3fd642bcc6debb8a2cb8a2b0edced003f34b18290a6bc81c61d56cc2cfc76e5a",
+    "foundation/frame-011.png": "e9963600fc13d06f83d97c218d0c70a41e9638fb9cdc884b45bd729a53cf2e4c",
+    "foundation/frame-012.png": "86c0da24182c255aab050d987e358ad9246c0a59b47621b68aaafbec9c2430e1",
+    "foundation/frame-013.png": "47e1d9f7b802cce240587d337fb5cdbdc4ea7c33842107c9273af46691778077",
+    "foundation/frame-014.png": "ad512ce098d937daa9b18cc9495a340cb604649ab5d806fb3ba58b11956108f9",
+    "foundation/frame-015.png": "23e37aa285d3c3f157bece05fc38142373ca54d07cde67428084f4732b76844b",
+    "foundation/frame-016.png": "9799b64f252c229d6a471418c91dbaccdcf27f11e2966f7cf6e0a44847940741",
+    "foundation/frame-017.png": "b8dba4cda461a21cf9499191a87de32d426260d5d7ba5fddd800ba0af2bbb184",
+    "foundation/frame-018.png": "88898df8b2728e2de72b4aefa9e6546497fefa062250b61eadb03bbd33d9074f",
+    "foundation/frame-019.png": "b1fb4bcc58cf336b36bca9542c54175b93bb004c2a3261771034cb23ea878883",
+    "foundation/frame-020.png": "a80098fde792457812c32702fdac93288616693c5f70db79172e954f86cece56",
+    "foundation/observations.jsonl": "35de0fb65a21974db844a0721c634f60dd0b210ea6298473570cc59dc46845fe",
+    "foundation-complete.mp4": "f1b2b507b040561f0c4cee3cd03658b97906772807dbc7db8fec2db7f71c2d00",
+    "foundation-presentation.mp4": "dbf772da78026852eca39908a863495b077aa482b7b3fab977353b2d96024020",
+    "model-scene.usda": "5709065025a90e74572c9cb2b76b1d9b1f8cc91846a62a7bc6554ac8931a339c",
+    "native_owner.py": "5663b26b4607e2ff1949735b6d9fb5db54346bee2a49c82078e31f56a7bf41a9",
+    "native_preflight.py": "80590ff760fdb630a5657beee01f6f060396968bb5f7a784e0a0d843a26ba465",
+    "process-owner.json": "8c41e5979ed98c2547cca8c81a5f8b8036f847e57eeeb556741c2dd6746de0ab",
+    "receipt.json": "db630fec17f1eb9bfaa7a9cbd6458dae438a9a93b57e313fb362bb70c101d54f",
+    "sdk_python.py": "2fab831930bc677c09df9d4f01c37eba8ef632b9427284e8b85ceb92e2b68049",
+    "source-after.json": "383cc7d13cbd79b64d6fa415b3b11fcaf708829072e431b29c48857172a2dca1",
+    "source-before.json": "383cc7d13cbd79b64d6fa415b3b11fcaf708829072e431b29c48857172a2dca1",
+    "upstream-recorder/dataset_20261002_213933_rank0.hdf5": "a11ec0c037331b5bcf390e86a2d998222c840a5b9b978f4704e5e894074dac88",
+    "independent-audit.json": "4a29fa0505244524ebb28ff87adeb8bf1c7a8f6423266270f9f343059dbb5b88",
+    "../native02.log": "81579e9093efd3173a034cf6de41b8b9274c87eddd10c8728dd3f51eb99baf1d",
+    "../focused-final.log": "bbe8b013908d1f61775a8ae0d2fc438a73bc6d6884d1a0d4b728d1daa8e8637b",
+    "../private-deps-requirements.txt": "176aa6782e4b4d0b23e09f924ed1d3aae18990a3aeccefa9a009f8a7a34099c7",
+    "../private-deps-install.log": "26093ce4a81655fed96d4cacf074292a4dc860f997844570dc40bad16380b2fe"
+  },
+  "published_artifacts_sha256": {
+    "docs/evidence/arena-native/foundation-20261002.mp4": "dbf772da78026852eca39908a863495b077aa482b7b3fab977353b2d96024020",
+    "benchmark/results/images/arena-native-foundation-20261002.png": "1ee67126efcf0a09202a4e6828e62ca031d60d6226e88dc236ca88f73c88c25f"
+  },
+  "cpu_validation": {
+    "command": "PYTHONPATH=src <task-venv>/bin/python -m pytest tests/test_arena_native_owner.py tests/test_arena_adapters.py tests/test_robot_runtime.py -q",
+    "passed": 77,
+    "seconds": 1.63
+  },
+  "limits": [
+    "Existing Isaac6.1rc26 variant; not uv.lock parity or Newton execution.",
+    "Short unterminated environment episodes; no official completed benchmark score.",
+    "Zero action holds joint positions; this is not commanded motion tracking.",
+    "State reader is a separate observation path in the same simulator process, not an independent process or real sensor.",
+    "Source inventory does not attest every SDK binary or remote texture.",
+    "Stop veto prevents further admitted steps; physics is not advanced to measure braking or rest.",
+    "No lease or real-time deadline guarantee; an admitted native call can run past wall deadline.",
+    "Raw frame0 has pre-first-solve robot render lag; presentation starts frame1. RGB is not pixel-to-pose attested.",
+    "No writes to physical joints/objects after the normal upstream env.reset; observer camera configured separately.",
+    "No SDK installation or intentional shared-source/environment change; task-specific dependencies/caches."
+  ]
+}

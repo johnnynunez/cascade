@@ -215,9 +215,13 @@ class BridgeClient:
     def state(self, *, timeout_s: float | None = None) -> dict:
         return self.request({"op": "state"}, timeout_s=timeout_s)
 
-    def set_joints(self, q: np.ndarray, *, timeout_s: float | None = None) -> None:
-        self.request({"op": "set_joints", "q": [float(x) for x in np.asarray(q).ravel()]},
-                     timeout_s=timeout_s)
+    def set_joints(self, q: np.ndarray, *, timeout_s: float | None = None,
+                   command_id: str | None = None) -> dict | None:
+        request = {"op": "set_joints", "q": [float(x) for x in np.asarray(q).ravel()]}
+        if command_id is not None:
+            request["command_id"] = command_id
+        response = self.request(request, timeout_s=timeout_s)
+        return response.get("target_receipt")  # Legacy bridges return None.
 
     def gripper(self, pos: float, effort: float = 1.0) -> None:
         self.request({"op": "gripper", "pos": float(pos), "effort": float(effort)})

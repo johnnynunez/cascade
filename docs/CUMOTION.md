@@ -181,6 +181,42 @@ the Isaac client leaves the simulator's articulation drives active.
 
 ## Physical runtime validation — 2026-10-02
 
+### Kitchen selection candidate — 2026-10-03
+
+`isaac_kitchen_cumotion` explicitly extends `isaac_kitchen_gpu`, retaining its
+grasp, placement, safety, occupancy and timing configuration. It adds the same
+planner recipe and home park pose as `isaac_cumotion`. It is usable through the
+ordinary demo/MCP `--arm` selection, but has **no native kitchen acceptance**.
+
+The existing skill-path campaign can select it explicitly:
+
+```bash
+python benchmark/diagnostics/kitchen_acceptance.py --port 8681 --engine physx \
+  --arm-profile isaac_kitchen_cumotion --camera-renderer ovrtx \
+  --objects green_cube --rounds 1 --fail-fast --output runs/kitchen-cumotion-01
+```
+
+The producer and optional SDK must already be configured separately. The
+renderer argument is an expectation, not a launcher or environment override.
+Without these new options the campaign keeps `isaac_kitchen_gpu` and its
+existing behavior. Occupancy remains a separate explicit `--occupancy nvblox`
+selection; omitting it does not validate mapping or retained NV payload guards.
+
+The selected campaign checks the prepared ordinary planner and already cached
+captures at phase/curve handoff boundaries. Missing or contradictory evidence
+rejects that boundary; it makes no extra camera/state request. Original
+freshness, physical-clock, contact, occupancy and path checks remain in charge.
+Per-curve receipts retain the existing `MotionPlan`, model/world/request hashes,
+physical duration, command/safety sample counts and executor outcome. Candidate
+status remains `execution_authorized: false`; executor completion alone is not
+physical success. A run without a successful pick-phase native curve cannot
+claim selected-cuMotion acceptance. The independent kitchen audit is unchanged.
+The source inventory additionally binds the actual URDF/XRDF and selection
+helper. These CPU contracts do not admit the kitchen recipe, Newton, hardware,
+continuous clearance or a real host/LLM campaign.
+
+### Retained tabletop native evidence
+
 The normal `pick_and_place("green object", "drop zone")` task completed in an
 isolated Isaac tabletop scene using cuMotion for every arm movement and OVRTX
 for the real RGB-D/mask observations. The application source was

@@ -1,0 +1,243 @@
+{
+  "version": 1,
+  "date": "2026-10-03",
+  "base_commit": "8a62a49f465969ff8d104fce505b8e5c0644fd28",
+  "branch": "fix/legacy-task-completion",
+  "scope": "CPU-only legacy task completion gate; no new physical or stop-verification claim",
+  "contract": {
+    "registered_effects": "cascade.agent.effects.POSTCONDITIONS",
+    "task_boundary": "trusted host begin_task; not a tool; no controller/payload reset",
+    "verdict_source": "local checker Postcondition, matched skill/kind, never actor postcondition fields",
+    "debt": "cumulative per task/arm/action; no implicit repair by later success, read, reset_scene, or task_done",
+    "active_calls": "rebind refused while pending; exceptions/cancellation close as non-confirmed",
+    "completion": "legacy task_done, TaskReport and fast-path credit honor debt; read-only success remains allowed"
+  },
+  "limits": [
+    "Existing checker contracts are preserved, including commanded-home confirmation.",
+    "No new physical verifier for cosmetic/composite skills outside POSTCONDITIONS.",
+    "Does not infer completion of unexecuted natural-language goals or add an external concurrent-host ownership protocol.",
+    "No actuation, native physics, model inference, GPU, voice or video changes."
+  ],
+  "validation": [
+    {
+      "id": "original_observable_probe",
+      "passed": 3,
+      "seconds": 0.18,
+      "meaning": "pre-fix tests deliberately document false success for direct/reflex screw and valid read-only success"
+    },
+    {
+      "id": "first_focused",
+      "passed": 33,
+      "failed": 1,
+      "seconds": 0.48,
+      "failure": "new two-arm fixture used wrong ArmRig constructor; corrected to list/names"
+    },
+    {
+      "id": "first_wiring",
+      "passed": 265,
+      "failed": 8,
+      "seconds": 49.58,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "failures": [
+        "SensorDomain has no begin_task: adapter narrowed to manipulation/locomotion.",
+        "Four __new__-constructed ASPIRE fixtures omitted new ledger initialization.",
+        "Mock E2E/memory expected task success despite unverified lift/release; execution assertions retained and completion expectation corrected.",
+        "Positive fast-path mock pick had no physical witness; positive now uses observed open-jaw feedback, while v6 preserves unverified fast-path refusal."
+      ]
+    },
+    {
+      "id": "corrected_focused_wiring",
+      "passed": 51,
+      "seconds": 5.24,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    {
+      "id": "first_causal_baseline",
+      "failed": 3,
+      "seconds": 0.22,
+      "meaning": "two behavioral false-success failures plus a new-ledger API assertion absent on old source; all retained"
+    },
+    {
+      "id": "final_causal_baseline",
+      "failed": 2,
+      "passed": 1,
+      "deselected": 24,
+      "seconds": 0.2,
+      "base": "8a62a49f465969ff8d104fce505b8e5c0644fd28",
+      "meaning": "same three observable acceptance tests: both old false-success paths fail; read-only control passes"
+    },
+    {
+      "id": "new_adversarial_file",
+      "passed": 27,
+      "seconds": 0.35
+    },
+    {
+      "id": "final_checkpoint",
+      "passed": 51,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 5.23,
+      "source_inventory_files": 1579,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true
+    }
+  ],
+  "environment": {
+    "interpreter": "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+    "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/cascade/src",
+    "CUDA_VISIBLE_DEVICES": "-1",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "normal_conftest": true,
+    "private_CASCADE_paths": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/checkpoint-tests/stores",
+    "HOME_reassigned": false
+  },
+  "final_pytest_targets": [
+    "tests/test_review_regressions_v6.py",
+    "tests/test_review_regressions_v5.py",
+    "tests/test_orchestrator_e2e.py::test_grasp_and_place_happy_path",
+    "tests/test_streaming_fastpath.py::test_orchestrator_reflex_path_never_calls_llm",
+    "tests/test_robot_mcp.py::test_composed_cli_mock_is_an_explicit_passive_catalog_check",
+    "tests/test_aspire_admission.py::test_dispatch_trace_preserves_resolved_arm_and_pre_call_subject",
+    "tests/test_aspire_admission.py::test_trace_keeps_placement_subject_before_skill_clears_it",
+    "tests/test_memory_harness.py::test_orchestrator_injects_captioned_frames_once_per_request",
+    "tests/test_verifier_crash.py::test_mutation_guard_verifier_result_is_not_a_plain_pass"
+  ],
+  "checks": {
+    "AST": "passed",
+    "git_diff_check": "passed",
+    "independent_read_only_review": "OV: no material blocker; root approved explicit-registry scope"
+  },
+  "files": {
+    "WORKLOG.md": "9ba3fb107854e4479ae9d628d086cdd857dd9e0ade859add709afc5976d04253",
+    "src/cascade/agent/orchestrator.py": "43fa7789cf60ebda1be5a256e690be87244d52b2974def7c89afa737a07cf7b5",
+    "src/cascade/apps/robot_runtime.py": "2e82ced0032b2dbbae950ec1524d0840fdae8113b880a330100eb428a3eb7905",
+    "src/cascade/skills/runtime.py": "014ac4aad1502a503c4d43f2dd721f69ec1184ab126b757886f1e7c79f3f38e3",
+    "tests/test_aspire_admission.py": "b39856e21e7149d3a1e2f590b1414cc0de448574afc57984d76298a32c9caf24",
+    "tests/test_memory_harness.py": "3698396dc9847fddd185bc74bc5af6aee5ba18109d73cb848a8a1afb7997764f",
+    "tests/test_orchestrator_e2e.py": "3a4f8d87b4b63eba9b0bc1033030092cf2a5c3bcce5cdf8e4d74b142bdfb6b85",
+    "tests/test_streaming_fastpath.py": "f08a8cac48959f9d2425b1f6d9b2c3a3ff6e784933ec13106b14ac0966460bb8",
+    "tests/test_verifier_crash.py": "986d2e8d6f227cb237cde9d09af6bb5d45b8465e570b2ce999c0ec45b4bb645a",
+    "src/cascade/agent/task_effects.py": "2efb3c55d8b9656a9a75949d629a5e9af85008e9ff5188db8d648e4462d82862",
+    "tests/test_review_regressions_v6.py": "7f7c9c9091b808b9a9b3d211a35397c361f77d73129d047721fa52d0634cb558",
+    "docs/LEGACY_TASK_COMPLETION.md": "76870aba6b2031eae077f9e397183d7c7364f592f853f0989c7af6f803e80d36"
+  },
+  "artifacts": {
+    "probe/receipt.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/probe/receipt.json",
+      "sha256": "3b58c0dcbe32968200ed93e901de822468a46f93c9e1af916f88460e28c51bb2"
+    },
+    "probe/pytest.log": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/probe/pytest.log",
+      "sha256": "e6cbc4c1da572f1c913992dec2cde873e23df72b0e423a19d110af3ee902563c"
+    },
+    "probe/test_legacy_taskdone_gap_probe.py": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/probe/test_legacy_taskdone_gap_probe.py",
+      "sha256": "98826b83cc1af202c79db050529caa8d6543a07f067b185d7d60a9c2c722881a"
+    },
+    "fix-targeted/pytest.log": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-targeted/pytest.log",
+      "sha256": "a72681a4123d4a1a60edcfee089c4c839447f63ef0afa8b646e13c6b6f8c9cbb"
+    },
+    "fix-targeted-02/pytest.log": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-targeted-02/pytest.log",
+      "sha256": "2d9fc4b8571f4df50f3931ba85303a299fa293453a90332facf7595ecdf21835"
+    },
+    "fix-wiring-01/pytest.log": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-01/pytest.log",
+      "sha256": "c19ed3d1b1980328851a7fa58376c92468c37b1776543c2a9dcdf091a402518c"
+    },
+    "fix-wiring-01/junit.xml": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-01/junit.xml",
+      "sha256": "f7a0f33ead510c14dcb0578a713b6276c91a0d1766205f5058d5b3f09e3d3367"
+    },
+    "fix-wiring-01/source-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-01/source-before.json",
+      "sha256": "a6a060ad71bbc8d61c57290203bc69dcb9d35e2d0332d79c9336279cf025c0d0"
+    },
+    "fix-wiring-01/source-after.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-01/source-after.json",
+      "sha256": "a6a060ad71bbc8d61c57290203bc69dcb9d35e2d0332d79c9336279cf025c0d0"
+    },
+    "fix-wiring-01/protected-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-01/protected-before.json",
+      "sha256": "be97d626f0e6db9c0e9b3ebe3b11f25c83f0af0d4443d81c3269a249c7eb1aeb"
+    },
+    "fix-wiring-01/protected-after.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-01/protected-after.json",
+      "sha256": "be97d626f0e6db9c0e9b3ebe3b11f25c83f0af0d4443d81c3269a249c7eb1aeb"
+    },
+    "fix-wiring-02/pytest.log": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-02/pytest.log",
+      "sha256": "78b8d03ac7154aceaed7414a5eb574b6fc5a9c45a362c1f39011e82c889bc737"
+    },
+    "fix-wiring-02/junit.xml": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-02/junit.xml",
+      "sha256": "23863bef13d5aa3fa452a1c55224fca0a82f51003048565700a72b0abfe15630"
+    },
+    "fix-wiring-02/source-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-02/source-before.json",
+      "sha256": "546375f824d29dcedf5b766a83006664f1d520375757fcc0c79514391a275707"
+    },
+    "fix-wiring-02/source-after.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-02/source-after.json",
+      "sha256": "546375f824d29dcedf5b766a83006664f1d520375757fcc0c79514391a275707"
+    },
+    "fix-wiring-02/protected-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-02/protected-before.json",
+      "sha256": "be97d626f0e6db9c0e9b3ebe3b11f25c83f0af0d4443d81c3269a249c7eb1aeb"
+    },
+    "fix-wiring-02/protected-after.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-wiring-02/protected-after.json",
+      "sha256": "be97d626f0e6db9c0e9b3ebe3b11f25c83f0af0d4443d81c3269a249c7eb1aeb"
+    },
+    "baseline-red/pytest.log": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/baseline-red/pytest.log",
+      "sha256": "bc12c753aa46b59efbca78f089d68d120001d22196c4693ccffd816bc5577c00"
+    },
+    "baseline-red/junit.xml": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/baseline-red/junit.xml",
+      "sha256": "0407b3a9a3282506ff9454b1654d5d2d37a285fb858660af327b075c1ffbe923"
+    },
+    "baseline-red-02/pytest.log": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/baseline-red-02/pytest.log",
+      "sha256": "89072729f9c9a5cae58b36ef5c2ed96eda72d8af95ab62a2e428030200483521"
+    },
+    "baseline-red-02/junit.xml": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/baseline-red-02/junit.xml",
+      "sha256": "bf43312b030da85dee2c87b6d5ad833ea4a6227cc0ef7c32e1888450a495bf07"
+    },
+    "fix-final/pytest.log": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/fix-final/pytest.log",
+      "sha256": "3ac0012c395f9b30655e47f635c3ffffa8641722a7af52b1544ef4f93f45e209"
+    },
+    "checkpoint-tests/pytest.log": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/checkpoint-tests/pytest.log",
+      "sha256": "5ace9b684813cfb59bc607ea7ecc9b24e2ee0276cb745c1c20026ecd8926444a"
+    },
+    "checkpoint-tests/junit.xml": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/checkpoint-tests/junit.xml",
+      "sha256": "96d9c335c2b2eccaf68dc0c691a103866e14ab1f6a01d148e86c6e2505c4fcde"
+    },
+    "checkpoint-tests/source-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/checkpoint-tests/source-before.json",
+      "sha256": "25f766c67c3c94333c8889376a47212e0edb01c88e6fe91d67bafb49fc51b45b"
+    },
+    "checkpoint-tests/source-after.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/checkpoint-tests/source-after.json",
+      "sha256": "25f766c67c3c94333c8889376a47212e0edb01c88e6fe91d67bafb49fc51b45b"
+    },
+    "checkpoint-tests/protected-before.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/checkpoint-tests/protected-before.json",
+      "sha256": "be97d626f0e6db9c0e9b3ebe3b11f25c83f0af0d4443d81c3269a249c7eb1aeb"
+    },
+    "checkpoint-tests/protected-after.json": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/LEGACY_TASKDONE_REVIEW/checkpoint-tests/protected-after.json",
+      "sha256": "be97d626f0e6db9c0e9b3ebe3b11f25c83f0af0d4443d81c3269a249c7eb1aeb"
+    }
+  }
+}

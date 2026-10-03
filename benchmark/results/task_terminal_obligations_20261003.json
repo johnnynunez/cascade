@@ -1,0 +1,51 @@
+{
+  "base": "381d65ff5a36c0a862a7c0c7a2ac9a3b2425538a",
+  "scope": "CPU software completion and cancellation; no physical admission",
+  "baseline": {
+    "failed": 3,
+    "passed": 2,
+    "causes": [
+      "two exhausted reports lose existing obligations",
+      "pre-existing composed BaseException cancellation permits completion"
+    ]
+  },
+  "retained_initial_focal": {
+    "passed": 130,
+    "failed": 2,
+    "cause": "new test incorrectly expected begin_task to return task_id; fixed test to inspect existing task identity, no API change"
+  },
+  "final": {
+    "passed": 141,
+    "skipped": 0,
+    "failed": 0,
+    "pytest_elapsed_s": 19.82
+  },
+  "source_and_four_protected_stores_unchanged": true,
+  "normal_conftest": true,
+  "HOME_changed": false,
+  "interpretation": "All normal report exits retain debt; cancellation still propagates. Existing motion admission and physical limits are unchanged.",
+  "files": {
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/baseline-01/result.json": "3bdd75fd2ce3472b5ac86b7b5749acaf6d5a868563450c5cbf7f931a02d1b11e",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/baseline-01/pytest.log": "bb2070b6f7e0bb9cde64152a8ad48661265a2b7aaeaa3e120200e82db3d03ee9",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/baseline-01/before.json": "1e104254a531d54027f287d255fdd8f48fcc5e249caee25150d246664b631f97",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/baseline-01/after.json": "1e104254a531d54027f287d255fdd8f48fcc5e249caee25150d246664b631f97",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/baseline-01/junit.xml": "0ad27eed77a08a42ebccb36ec63cdfc8ae4c9ae2477b2e072cda52ec5c378475",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/focused-01/result.json": "f17052ff0ce9bdbf147694b77c05efad9ce2117100d3d0853812b7d3914a6e9a",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/focused-01/pytest.log": "bf840891b42bc7f6dcd0543330f0bf77bc147c09a69c712b7ed4d9153f9089c2",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/focused-01/before.json": "801a8a0c1876d3805ee81804d7fcfe2f4b9212561f165f97d5b90d4e22b4cce3",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/focused-01/after.json": "801a8a0c1876d3805ee81804d7fcfe2f4b9212561f165f97d5b90d4e22b4cce3",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/focused-01/junit.xml": "93809abc2a3ed0b4dd9178f8ebfa90a47a968df0e3fb9ea4cfcfc782e10d8c74",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/focused-02/result.json": "57d0799822833acbda18325b11950f7211cb281b4834c4aa8d9a99ffc46fe475",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/focused-02/pytest.log": "9fcd19efcdd1ed466bcec143e57bf75b77cb27345dcb1b04cfd639327f6706ad",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/focused-02/before.json": "66533ebb25d5f7e25f9f7453114c715f5fcaf73da88565b30af5080cb4377adf",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/focused-02/after.json": "66533ebb25d5f7e25f9f7453114c715f5fcaf73da88565b30af5080cb4377adf",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/focused-02/junit.xml": "f0b02304a32f26d538af3a5688db79b90e32a578c606ffe159dd904ee8fd8948",
+    "/home/johnny/Projects/demo/cascade-lab/TASK_TERMINAL_FIX_20261003/run_checks.py": "ac76f0b73c6123b51639d08aa25f4a9c297497c6b1b80d739bf3ec2ded1b8e03",
+    "/home/johnny/.hermes/cache/scratch/marketing-review-90/source/tests/test_r90_independent_review.py": "95c96e03efb9d0253df8b65c490677dca6eb3492fb850eb81b987a03d351aa14"
+  },
+  "source": {
+    "src/cascade/agent/orchestrator.py": "d50972d54009f7b6d4445e007654a7397d65b20e17f77853df0cf69f0a400abc",
+    "src/cascade/robotics/runtime.py": "d14635ff72c4283925963a1b8cd16a7ee4ddf7b9bb6b6dbbfeb9e247e0bacc4b",
+    "tests/test_review_regressions_v7.py": "cd81e9ff346e58e4574824e925d16c20bcef6cd3d97ea30b33b17a10c4e33059"
+  }
+}

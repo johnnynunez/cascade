@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "kind": "rgbd_binary_reference_cpu",
+  "native_executed": false,
+  "physical_admission": false,
+  "geometry_admission": false,
+  "base_commit": "5f71c01ff569895b601eb0302f7f1d2ebc0c2654",
+  "source_sha256": {
+    "benchmark/rgbd/binary_reference.py": "4d41890d81f11105bbb3750b002f5b3d29745ed92fecff5fe506d17f48a0e21b",
+    "benchmark/rgbd/ground_texture.py": "d29b0a9907cdc9fd37a01f57f917cc62afd018ad73ec0fb39804a7e1228946e5",
+    "benchmark/rgbd/planar_reference.py": "34b999f5bd8b5b07889e8fda28a4abe019fe6ea16edb8fcd6c42355c2c4dcfad",
+    "benchmark/rgbd/assets/ground_binary_reference.png": "1debc536631b0a9701c82d27db51129bc826bbc23e549f45d8b6ef56f1dbc0eb",
+    "tests/test_rgbd_binary_reference.py": "0dfe7db3e84f45781a646b6dd34c04523778c0a7374d615fc886026f197ad9c3",
+    "tests/test_rgbd_ground_texture.py": "6d53bb5ee5389f70e30819a721e09d60ecec77231504b04a4f3f9e49c141b069",
+    "tests/test_rgbd_live_reference.py": "21e64eec055ad0f587c413fb6438be0a96e874aef6f05d5a375fbe2ba87c48f0",
+    "tests/fixtures/rgbd_binary_occluded_corners.json": "031058fb4cff48fbb11cb31160dd306bcf5b1711effc6e107fea0a388d2cfee4"
+  },
+  "scope": "CPU raster, actual OpenCV detection, in-process MCP handler and separate OpenUSD authoring; no native renderer or external MCP host.",
+  "tests": {
+    "focused_passed": 117,
+    "focused_skipped": 5,
+    "focused_s": 24.9,
+    "skip_reason": "pxr absent in ordinary test environment:2 ground-authoring,1 mesh-authoring,2 native-bridge USD controls",
+    "openusd_cpu_passed": 2,
+    "openusd_cpu_s": 1.21,
+    "inputs_unchanged": 1617,
+    "protected_stores_unchanged": true,
+    "review_followup": {
+      "scope": "Test-only corner portability; detector and production/benchmark consumers unchanged after117P run.",
+      "passed": 42,
+      "s": 3.95,
+      "inputs_unchanged": 1619,
+      "protected_stores_unchanged": true
+    }
+  },
+  "local_evidence_root": "RGBD_BINARY_REFERENCE",
+  "artifact_sha256": {
+    "checks-01/receipt.json": "a2f8ea21a2647b02b01cc72a384fa350c3a676d492451df15b620857d82c6fb2",
+    "checks-01/before.json": "00204b7704558338137f0362c4b39be23ceb498ba12fca90331188c01294f602",
+    "checks-01/after.json": "00204b7704558338137f0362c4b39be23ceb498ba12fca90331188c01294f602",
+    "checks-01/focused.log": "0a5fe8e1ddf46f28c634cf2e72f4c2f69bb70f8dad2c4124b2f2fd283363ee00",
+    "checks-01/openusd_cpu.log": "c1867a18177e260cb78b29d328080a7b6f7580451f467a4f536f84155e69cd48",
+    "checks-01/environment.json": "38998af5cad9111ed607466bf7f8cc7d0397ab5a862fc13f4721b440bde18828",
+    "run_checks.py": "f325dcc960e88b87291fda715de8ca8c303bf6e8c3f2f75f486dc569c6bf5f39",
+    "design_layout.py": "3fb028e91efd15910ce47b6117cfc06ebe51de8cb9a2be78b4e06c505646e4c1",
+    "authoring-01/receipt.json": "d5cefda378b05da08e58f7cc5b46807c7a20046bfe6367e6ae6d6803f43a7e22",
+    "checks-02/receipt.json": "baa94516514849134bc238c2ce5858d7fa7beac26952a93e38ba8e0c82e54d20",
+    "checks-02/before.json": "1bfed9bb50442c7a1e9aaf9fa564746d42756449870560f1d97149c2c01d5702",
+    "checks-02/after.json": "1bfed9bb50442c7a1e9aaf9fa564746d42756449870560f1d97149c2c01d5702",
+    "checks-02/focused.log": "17e90976f571f0488c02c19c198318f04b702f35da1bdc27f0ce089019359b07",
+    "run_final_focal.py": "81997fa9c436f6fc5e9b154f6b73db79ce75627b255bf068a50deb32927ee93c",
+    "occlusion-opencv5.json": "031058fb4cff48fbb11cb31160dd306bcf5b1711effc6e107fea0a388d2cfee4"
+  },
+  "board_sha256": "5b0fb9bbaaac4ae0a581d5f5ba1bb460c513f466e6a30e9b76a31c8cb736adac",
+  "board": {
+    "schema": 3,
+    "kind": "existing_ground_binary_texture",
+    "columns": 8,
+    "rows": 6,
+    "square_m": 0.024,
+    "origin_xyz_m": [
+      0.09,
+      -0.13,
+      0.0
+    ],
+    "axes": "world_x_y",
+    "units": "m",
+    "surface": "existing_collision_plane_visual_material",
+    "background_below_m": 0.0,
+    "texture": {
+      "width": 4000,
+      "height": 4000,
+      "format": "RGB8_PNG",
+      "row_zero": "positive_world_y",
+      "texel_m": 0.0005,
+      "color_space": "raw",
+      "wrap_s": "clamp",
+      "wrap_t": "clamp"
+    },
+    "ground": {
+      "path": "/World/Ground",
+      "axis": "Z",
+      "width_m": 2.0,
+      "length_m": 2.0,
+      "world_transform": "identity",
+      "st": [
+        [
+          1.0,
+          1.0
+        ],
+        [
+          0.0,
+          1.0
+        ],
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          0.0
+        ]
+      ],
+      "st_interpolation": "vertex",
+      "st_element_size": 1
+    },
+    "tag_size_m": 0.036,
+    "tag_center_outside_squares": 1.25,
+    "tag_ids": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "tag_top_row": "positive_world_y",
+    "tag_quiet_zone_m": 0.005999999999999999,
+    "detector": {
+      "implementation": "OpenCV ArucoDetector",
+      "opencv_version": "5.0.0",
+      "dictionary": "DICT_4X4_50",
+      "dictionary_bytes_sha256": "b2b70c2de99fe36a2b7c96a4611639a3c6f61e11cd97c153ed25c7565ee5b50b",
+      "parameters": {
+        "adaptiveThreshConstant": 7.0,
+        "adaptiveThreshWinSizeMax": 23,
+        "adaptiveThreshWinSizeMin": 3,
+        "adaptiveThreshWinSizeStep": 10,
+        "aprilTagCriticalRad": 0.1745329201221466,
+        "aprilTagDeglitch": 0,
+        "aprilTagMaxLineFitMse": 10.0,
+        "aprilTagMaxNmaxima": 10,
+        "aprilTagMinClusterPixels": 5,
+        "aprilTagMinWhiteBlackDiff": 5,
+        "aprilTagQuadDecimate": 0.0,
+        "aprilTagQuadSigma": 0.0,
+        "cornerRefinementMaxIterations": 30,
+        "cornerRefinementMethod": 1,
+        "cornerRefinementMinAccuracy": 0.1,
+        "cornerRefinementWinSize": 5,
+        "detectInvertedMarker": false,
+        "errorCorrectionRate": 0.0,
+        "markerBorderBits": 1,
+        "maxErroneousBitsInBorderRate": 0.0,
+        "maxMarkerPerimeterRate": 4.0,
+        "minCornerDistanceRate": 0.05,
+        "minDistanceToBorder": 3,
+        "minGroupDistance": 0.20999999344348907,
+        "minMarkerDistanceRate": 0.125,
+        "minMarkerLengthRatioOriginalImg": 0.0,
+        "minMarkerPerimeterRate": 0.03,
+        "minOtsuStdDev": 5.0,
+        "minSideLengthCanonicalImg": 32,
+        "perspectiveRemoveIgnoredMarginPerCell": 0.13,
+        "perspectiveRemovePixelPerCell": 4,
+        "polygonalApproxAccuracyRate": 0.03,
+        "relativeCornerRefinmentWinSize": 0.30000001192092896,
+        "useAruco3Detection": false,
+        "validBitIdThreshold": 0.49000000953674316
+      },
+      "expected_ids": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "border_cells": 1,
+      "min_projected_cell_edge_px": 2.0,
+      "quiet_zone_frame_margin_px": 24.0,
+      "checker_quadrant_fraction": 0.2,
+      "min_checker_contrast_rgb8": 48.0,
+      "max_checker_diagonal_spread_rgb8": 32.0,
+      "use_tags_for_metric_fit": false
+    }
+  },
+  "texture": {
+    "sha256": "1debc536631b0a9701c82d27db51129bc826bbc23e549f45d8b6ef56f1dbc0eb",
+    "bytes": 59511,
+    "board_sha256": "5b0fb9bbaaac4ae0a581d5f5ba1bb460c513f466e6a30e9b76a31c8cb736adac",
+    "rectangles_sha256": "c7d379ac93fcd217c462eecca9e2f553a5e87da2a7be2aebcdd8de26f5f8c1e6"
+  },
+  "authoring_prediction": {
+    "independent_calibration_measurement": false,
+    "source_capture_sha256": "1bbc768ec890ba5c3bf85a9b3340d3e82485e8cad239cd1c804c84d7304a2932",
+    "source_model_identity_sha256": "c24f01bc3293cbd239b376e6bd5bfdcbac55b0c5fca5cd7fb75dc59bc9b3dd65",
+    "background_margin_px": 37.5591391768869,
+    "minimum_projected_cell_edge_px": 2.640271124795274,
+    "occlusion_validated": false
+  },
+  "limitations": [
+    "No native binary entrypoint or model admission yet; new source/scene/bitmap must be bound before native execution.",
+    "Tag support/contrast controls do not prove all possible occlusions or a calibrated confidence.",
+    "Historical colored native failure remains failure; no old captures or model IDs are relabeled."
+  ],
+  "upstream": {
+    "opencv_release_commit": "40738fb16ceddb5fb3fea747585f7ce6abb0605b",
+    "api": "https://github.com/opencv/opencv/blob/40738fb16ceddb5fb3fea747585f7ce6abb0605b/modules/objdetect/include/opencv2/objdetect/aruco_detector.hpp",
+    "license": "https://github.com/opencv/opencv/blob/40738fb16ceddb5fb3fea747585f7ce6abb0605b/LICENSE"
+  },
+  "initial_test_sha256": "f36b3589e7562e0bc797a5b2ea59dfc886f27e5e891702fbc33befe296f4cae2"
+}

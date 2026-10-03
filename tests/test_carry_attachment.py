@@ -121,11 +121,13 @@ def test_jaw_schema_and_retained_limits_are_authority_not_only_two_values(change
 
 @pytest.mark.parametrize("error", [TypeError("callback internal"), SafetyViolation("cancelled")])
 def test_safe_arm_stretch_read_validates_existing_callback_before_begin_or_stream(error):
-    from cascade.safety.harness import SafeArm
+    from cascade.safety.harness import SafeArm, SafetyHarness
     events = []
     raw = S(get_state=lambda: events.append("read") or RobotState(q=np.zeros(2)),
             stream_to=lambda *a, **kw: events.append("stream"))
     harness = S(check_release_episode=lambda **kw: None, begin_motion=lambda **kw: events.append("begin"))
+    harness._pending_model_withdrawal = None
+    harness.check_model_withdrawal = SafetyHarness.check_model_withdrawal.__get__(harness)
     arm = SafeArm(raw, harness)
     def veto(state):
         events.append("feedback"); raise error

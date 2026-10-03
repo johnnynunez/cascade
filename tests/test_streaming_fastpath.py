@@ -389,8 +389,11 @@ def test_orchestrator_reflex_path_never_calls_llm(tmp_path):
             ExplodingLLM(), runtime, decompose=False,
             fast_planner=FastPlanner(ExperienceMemory(tmp_path / "exp.json")),
         )
-        report = agent.run_task("pick and place the red object")
+        # Open-jaw feedback is observable in this mock; the static camera
+        # cannot independently confirm a pick/place, so it is not a success fixture.
+        report = agent.run_task("open gripper")
         assert report.success, report.summary
+        assert report.tool_log[0]["result"]["postcondition"]["status"] == "confirmed"
         assert report.path == "reflex"
         assert report.duration_s > 0
     finally:

@@ -93,6 +93,8 @@ def test_registered_rgbd_has_bounded_immutable_depth_and_explicit_pixel_intrinsi
                          b"\x01\x02\x03" * 2, struct.pack("<ff", .1, 0),
                          [100, 0, .5, 0, 100, 0, 0, 0, 1])
     encoded = observation(payload).as_dict()["payload"]
+    assert set(encoded) == {'modality', 'units', 'metadata', 'width', 'height',
+                            'rgb8', 'depth_m_f32le', 'intrinsics'}
     assert encoded["units"]["depth_m_f32le"] == "m"
     assert encoded["depth_m_f32le"]["encoding"] == "base64"
     json.dumps(encoded, allow_nan=False)

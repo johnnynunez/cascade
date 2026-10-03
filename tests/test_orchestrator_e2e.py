@@ -51,7 +51,9 @@ def test_grasp_and_place_happy_path(runtime_and_arm, tmp_path):
     with runtime.watcher.paused():
         report = agent.run_task("move the red cube to the front-left of the table")
 
-        assert report.success
+        # The static mock cannot independently observe lift/release. The
+        # motion path completes, but task_done must retain that uncertainty.
+        assert report.success is False and report.unverified
         assert report.steps == 4
         results = {e["tool"]: e["result"] for e in report.tool_log}
         assert results["get_observation"]["ok"]

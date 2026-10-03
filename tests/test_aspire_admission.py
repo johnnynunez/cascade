@@ -63,6 +63,8 @@ def test_distilled_note_retains_scope_and_does_not_claim_causality(tmp_path):
 def runtime(tmp_path):
     # Use real dispatch, serialization and verification, not a copy of execute().
     rt: Any = SkillRuntime.__new__(SkillRuntime)
+    from cascade.agent.task_effects import TaskEffects
+    rt._task_effects = TaskEffects()
     rt._arm = object()
     rt._arm_override = threading.local()
     rt.arm_rig = None

@@ -177,7 +177,7 @@ def test_orchestrator_injects_captioned_frames_once_per_request(runtime_and_arm)
     agent = AgentOrchestrator(llm, runtime, advisor=None, decompose=False, max_steps=10,
                               memory_frames_k=4)
     report = agent.run_task("move the red cube to the front-left")
-    assert report.success
+    assert report.success is False and report.unverified  # static mock has no lift/release witness
     # request 4 (task_done turn) follows one observation and two motions:
     # saw + grasp + place + current view
     req = llm.requests[3]["messages"]

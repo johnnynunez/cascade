@@ -1,6 +1,7 @@
-# Project status — updated 2 October 2026
+# Historical project status — updated 2 October 2026
 
-This is the current source and acceptance index. Dated experiment reports remain
+The [3 October capability and acceptance index](PROJECT_STATUS_20261003.md)
+supersedes this historical index. Dated experiment reports remain
 historical evidence; their successful cases and failures are not rewritten when
 a later source is merged. See [Spark setup](DGX_SPARK_SETUP.md) for installation,
 [Spark delivery](SPARK_DELIVERY.md) for native proof and campaign contracts, and

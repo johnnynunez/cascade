@@ -306,7 +306,7 @@ class BasePostconditionChecker:
                 if state[key] != previous[key]:
                     self._reject(op, f"conflicting {key}")
                     return
-            generation_budget = 2 if op.skill in ("walk_velocity", "turn") else 1
+            generation_budget = 2 if op.skill in ("walk_velocity", "walk_distance", "turn") else 1
             if current and (state["generation"] < op.last_generation or
                             state["generation"] > op.first_generation + generation_budget):
                 self._reject(op, "generation regressed or unrelated operation invalidated window")
@@ -441,12 +441,12 @@ class BasePostconditionChecker:
             return verdict
         if not any(entry["phase"] == "before" for entry in op.samples):
             return verdict
-        if (op.skill in ("walk_velocity", "turn") and
+        if (op.skill in ("walk_velocity", "walk_distance", "turn") and
                 sum(entry["phase"] == "during" for entry in op.samples) < self._limits["min_motion_samples"]):
             verdict["reason"] = "insufficient advancing samples during execution"
             return verdict
         effect_states = states
-        if op.skill in ("walk_velocity", "turn"):
+        if op.skill in ("walk_velocity", "walk_distance", "turn"):
             try:
                 effect_states = self._admitted_states(op, verdict, states)
             except (ValueError, TypeError, KeyError) as exc:
@@ -459,6 +459,15 @@ class BasePostconditionChecker:
         status, reason = self._motion_verdict(op.skill, op.args, metrics)
         if settle_status == "unverified" or (status == "confirmed" and settle_status == "refuted"):
             status, reason = settle_status, settle_reason
+        if op.skill == "walk_distance":
+            outcome, interval = self._distance_outcome(op, effect_states)
+            metrics["distance_outcome"] = outcome
+            verdict["evidence"]["distance_outcome_interval"] = interval
+            # Admission clipping limits positive credit, not negative evidence.
+            # Coast/retreat before the final quiet suffix cannot disappear.
+            if interval["first_veto"] is not None and status == "confirmed":
+                status = "refuted"
+                reason = "post-completion distance outcome: " + interval["first_veto"]["reason"]
         # Entire observed episode retains forbidden support and unavailable
         # channels. Swing/flight during locomotion does not require ground load;
         # its terminal settle window does. Zero-twist balance requires support
@@ -492,6 +501,41 @@ class BasePostconditionChecker:
             status, reason = "unverified", "execution failed; favorable final state cannot repair execution"
         verdict.update(status=status, reason=reason)
         return verdict
+
+    def _distance_outcome(self, op, effect_states):
+        """Veto-only geometry through every later valid observation, in O(n).
+
+        Use the same independent baseline as positive motion credit. Late or
+        cancelled in-flight returns may veto, but neither this check nor its
+        metrics supply missing admitted motion or a positive rest window.
+        Keep the first violation even if subsequent travel returns to the goal.
+        """
+        baseline, completed = effect_states[0], effect_states[-1]
+        observed = [e["state"] for e in op.observations if e["valid"] and
+                    e["state"]["step"] > baseline["step"]]
+        previous = baseline
+        body, yaw, path, rotation = [0., 0.], 0., 0., 0.
+        first_veto = None
+        for state in observed:
+            dx, dy, dyaw, travel = self._planar_increment(previous, state)
+            body[0] += dx
+            body[1] += dy
+            yaw += dyaw
+            path += travel
+            rotation += abs(dyaw)
+            previous = state
+            if first_veto is None and state["step"] >= completed["step"]:
+                current = {"body_displacement_m": body, "yaw_change_rad": yaw}
+                status, reason = self._motion_verdict(op.skill, op.args, current)
+                if status == "refuted":
+                    first_veto = {"step": state["step"], "sim_time_s": state["sim_time_s"],
+                                  "reason": reason, **deepcopy(current)}
+        return ({"body_displacement_m": body, "yaw_change_rad": yaw,
+                 "path_length_m": path, "rotation_path_rad": rotation},
+                {"baseline_step": baseline["step"], "baseline_sim_time_s": baseline["sim_time_s"],
+                 "completion_step": completed["step"], "last_step": previous["step"],
+                 "last_sim_time_s": previous["sim_time_s"], "first_veto": first_veto,
+                 "scope": "veto only; includes valid confirmation-ineligible observations"})
 
     def _admitted_states(self, op, verdict, states):
         """Clip to measured admission/completion boundaries, never interpolate.
@@ -533,8 +577,8 @@ class BasePostconditionChecker:
         effect = [s for s in states if start <= s["sim_time_s"] <= end and
                   (s["generation"] == generation or
                    (s["sim_time_s"] == start and s["generation"] == generation - 1))]
-        # A turn may deliberately stop early. The first completed-generation
-        # sample bounds that end, not any later quiet-window motion.
+        # A geometric turn/distance goal may deliberately stop early. The first
+        # completed-generation sample bounds that end, not later quiet-window motion.
         stopped = next((s for s in states if s["generation"] == completed and
                         start < s["sim_time_s"] <= end), None)
         if stopped is not None:
@@ -637,21 +681,27 @@ class BasePostconditionChecker:
         return math.acos(max(-1., min(1., 1 - 2 * (x*x + y*y))))
 
     @classmethod
+    def _planar_increment(cls, before, after):
+        yaw = cls._yaw(before)
+        delta = cls._yaw(after) - yaw
+        dyaw = math.atan2(math.sin(delta), math.cos(delta))
+        heading = yaw + dyaw / 2
+        dx, dy = (after["position_world"][i] - before["position_world"][i] for i in (0, 1))
+        return (math.cos(heading)*dx + math.sin(heading)*dy,
+                -math.sin(heading)*dx + math.cos(heading)*dy, dyaw, math.hypot(dx, dy))
+
+    @classmethod
     def _measure(cls, states):
         body = [0., 0.]
         angle = 0.
         path = 0.
         rotation_path = 0.
         for before, after in zip(states, states[1:]):
-            yaw = cls._yaw(before)
-            delta = cls._yaw(after) - yaw
-            dyaw = math.atan2(math.sin(delta), math.cos(delta))
-            heading = yaw + dyaw / 2
-            dx, dy = (after["position_world"][i] - before["position_world"][i] for i in (0, 1))
-            body[0] += math.cos(heading)*dx + math.sin(heading)*dy
-            body[1] += -math.sin(heading)*dx + math.cos(heading)*dy
+            dx, dy, dyaw, travel = cls._planar_increment(before, after)
+            body[0] += dx
+            body[1] += dy
             angle += dyaw
-            path += math.hypot(dx, dy)
+            path += travel
             rotation_path += abs(dyaw)
         return {"body_displacement_m": body, "yaw_change_rad": angle,
                 "path_length_m": path, "rotation_path_rad": rotation_path,
@@ -669,6 +719,8 @@ class BasePostconditionChecker:
                 value = finite_real(args["angle_rad"], "angle_rad")
                 if abs(value) > math.pi:
                     raise ValueError("ambiguous requested turn")
+            elif skill == "walk_distance":
+                finite_real(args["distance_m"], "distance_m")
             elif skill == "walk_velocity":
                 values = {key: finite_real(args[key], key) for key in ("vx", "vy", "wz", "duration_s")}
                 if values["duration_s"] <= 0:
@@ -689,12 +741,19 @@ class BasePostconditionChecker:
                 return "confirmed", "independent measured yaw matches requested angle"
             except (KeyError, TypeError):
                 return "unverified", "invalid caller intent"
-        if skill != "walk_velocity":
+        if skill == "walk_distance":
+            # The target is geometric caller intent, not the internal speed times
+            # its timeout cap. Actor-reported travel never supplies evidence.
+            expected = [args["distance_m"], 0., 0.]
+            if abs(expected[0]) * self._limits["min_progress_ratio"] <= self._limits["translation_tolerance_m"]:
+                return "unverified", "requested effect below configured resolution"
+        elif skill == "walk_velocity":
+            try:
+                expected = [args[key] * args["duration_s"] for key in ("vx", "vy", "wz")]
+            except (KeyError, TypeError):
+                return "unverified", "invalid caller intent"
+        else:
             return "unverified", "unsupported skill"
-        try:
-            expected = [args[key] * args["duration_s"] for key in ("vx", "vy", "wz")]
-        except (KeyError, TypeError):
-            return "unverified", "invalid caller intent"
         if not any(expected):
             if (metrics["path_length_m"] > self._limits["max_lateral_drift_m"] or
                     metrics["rotation_path_rad"] > self._limits["max_heading_drift_rad"]):

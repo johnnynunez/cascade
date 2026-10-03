@@ -1971,6 +1971,14 @@ Preserve all 32 earlier portable receipts and add three byte-exact records.
 Documentation-only source/hash/link review; no runtime, SDK, simulation or
 shared-store changes. CI on newly published heads remains separately pending.
 
+## 2026-10-03 — Grasp evidence parity fixture and Git provenance timeout
+
+PR95 macOS job 111206181366 failed only the logging-completeness assertion: command/read trace and result parity had already passed, but real `git status` exceeded the unchanged 2 s post-attempt provenance timeout. This separate test-only topic starts at main 67f0b61; it does not modify PR95 or production logging.
+
+The parity fixture now supplies clearly synthetic metadata for the two exact Git commands through a module-local namespace. Source-file hashing, NPZ/JSON persistence, hashes and actuator/read parity remain real. Two negative controls run a real sleeper under the 2 s subprocess budget and retain `logging_ok=false`, `source_at_flush/TimeoutExpired`, identical commands/results and the original actor exception. The dedicated actual-Git provenance test remains unchanged.
+
+Validation: controlled baseline 1 FAIL at the same assertion; isolated parity 1 PASS; final file 18 PASS (4.47 s). A development-only wrong terminal-event expectation produced 17 PASS / 1 FAIL and is retained before correction. Ruff F/E9 and diff checks pass. Each run preserves its source inventory and four shared stores; production is byte-identical to base. No native/GPU run, no physical admission or diagnosis of the remote scheduler/GC/storage cause. Source-bound logs and receipts: `benchmark/results/grasp_evidence_ci_fixture_20261003.json`.
+
 ## 2026-10-03 — Isolate the healthy renewal transport fixture
 
 PR85 macOS job 111207760474 failed the slow software producer case with stale/future feedback after 11 renewals / 92 solves. Its log does not identify the original delay's cause. A controlled automatic-GC callback after an actual TCP read reproduces the same freshness veto in both normal/slow cases; using the existing bounded `healthy_episode_gc` fixture removes that unrelated collection from the positive episode. Clocks, .2 s freshness, .3 s lease, 5 s action wall budget, per-solve publication and all positive assertions remain unchanged.

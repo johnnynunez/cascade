@@ -14,6 +14,7 @@ import pytest
 from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc  # noqa: PLC0414 — shared pytest fixture
 
 from cascade.control.mobile_base import BaseState
+from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc  # noqa: PLC0414 — shared pytest fixture
 
 
 def limits(**updates):
@@ -737,20 +738,49 @@ def test_insufficient_after_window_does_not_refute_motion_from_partial_history()
         checker.close()
 
 
-def test_zero_twist_must_stay_balanced_not_wander_out_and_back():
+def test_zero_twist_must_stay_balanced_not_wander_out_and_back(healthy_episode_gc):
+    # Geometry needs healthy scripted reads; deadline refusal is tested separately.
     def make(n):
         x = 0.004 * min(max(n - 1, 0), max(7 - n, 0))
         return state(n, position_world=(x, 0., 0.3))
     verdict = run_window(ScriptedReader(make), args=dict(vx=0., vy=0., wz=0., duration_s=0.1))
-    assert verdict["status"] == "refuted"
+    assert verdict["status"] == "refuted", verdict["reason"]
     assert "drift" in verdict["reason"]
 
 
-def test_zero_twist_does_not_confirm_if_velocity_nonzero_during_balancing_then_stops():
+def test_zero_twist_does_not_confirm_if_velocity_nonzero_during_balancing_then_stops(healthy_episode_gc):
     reader = ScriptedReader(lambda n: state(n, linear_velocity_world=(0.1 if n < 7 else 0., 0., 0.)))
     verdict = run_window(reader, args=dict(vx=0., vy=0., wz=0., duration_s=0.1))
-    assert verdict["status"] == "refuted"
+    assert verdict["status"] == "refuted", verdict["reason"]
     assert "balance" in verdict["reason"]
+
+
+@pytest.mark.parametrize("violation", ["drift", "velocity"])
+def test_balance_gc_isolation_preserves_late_reader_veto(violation, healthy_episode_gc):
+    import gc
+
+    captured = []
+    def make(n):
+        updates = (
+            {"position_world": (0.004 * min(max(n - 1, 0), max(7 - n, 0)), 0., .3)}
+            if violation == "drift" else
+            {"linear_velocity_world": (0.1 if n < 7 else 0., 0., 0.)}
+        )
+        value = state(n, generation=1 if n == 4 else 0, **updates)
+        if n == 4:
+            assert not gc.isenabled()
+            captured.append(value)
+            time.sleep(2 * limits()["read_timeout_s"])
+        return value
+
+    verdict = run_window(ScriptedReader(make), args=dict(vx=0., vy=0., wz=0., duration_s=.1))
+    assert verdict["status"] == "unverified" and verdict["reason"] == "reader_timeout"
+    assert verdict["limits"]["read_timeout_s"] == .04
+    assert verdict["evidence"]["channel_failed"]
+    late = next(s for s in verdict["evidence"]["observations"] if s["state"]["step"] == 4)
+    assert late["state"] == captured[0].as_dict()  # Retain the original capture time.
+    assert late["observed_monotonic_s"] - late["read_started_monotonic_s"] > .04
+    assert any(s["state"]["step"] > 4 for s in verdict["evidence"]["observations"])
 
 
 def test_expired_wall_window_cannot_use_new_after_outcome_snapshots():

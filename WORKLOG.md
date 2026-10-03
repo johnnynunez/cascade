@@ -1870,3 +1870,52 @@ final corrected source passed 393 tests, including primary-plus-zero failure
 and stop-before-format ordering. These selections overlap. Sources and protected stores remained unchanged; an initial
 invalid test-file invocation is retained separately. No native run or physical
 admission follows. Receipt: `benchmark/results/factory_error_containment_20261003.json`.
+
+## PR87 ARM balance fixture isolation — 2026-10-03
+
+Scope: CPU software tests only. The ARM job on eb55cf91 reported one balance
+classification as unverified instead of refuted; it did not record the reason.
+An external source-bound control injects 80 ms of automatic cyclic-GC callback
+work during scripted read four. Both zero-twist semantic cases then hit the
+unchanged 40 ms reader budget. This demonstrates a fixture vulnerability, not
+the cause of the original CI event. Reuse the existing `healthy_episode_gc`
+fixture only for those cases, with direct late-reader negatives preserving the
+original captured state and later healthy reads. No runtime, verifier threshold,
+physics, hardware, native SDK, or GPU change. Validation receipt follows below.
+
+Validation: the unmodified pair passed without injection, then both failed
+`reader_timeout` under controlled automatic GC (95.035/81.414 ms read RTT).
+The candidate passed both semantic cases with the existing fixture, while real
+80 ms delayed reads still caused both expected refusals with GC disabled. The
+normal affected-file plus fixture selection passed **336 tests in 33.60 s**,
+including two new negatives checking retained capture timestamps and later
+healthy observations. Ruff F/E9 and diff checks passed. All runs used private
+stores, and source/protected-store hashes were unchanged. The retained CI failure
+was **5699 passed / 1 failed / 269 skipped / 4 deselected**; no GC cause is inferred
+from its missing verdict reason. See
+`benchmark/results/mobile_balance_arm_fixture_20261003.json` for raw bindings.
+
+## PR87 macOS measured-distance fixture schedule — 2026-10-03
+
+CPU test-only follow-up from 1e9c8902. The macOS job rejected the positive 20 mm
+kinematic fixture; its printed result omitted the internal error. A controlled
+slow relative-wait producer reproduces refusal before sufficient toy travel,
+without attributing this schedule to that uninstrumented CI run. The positive
+geometry test now uses ten explicit original .002 steps per fixture read with
+its automatic motion producer disabled, matching the existing inert geometry
+control. ACK, post-admission baseline, stopping, real wall budget, and mock
+unverified outcome remain unchanged. A held-reader negative exercises the real
+wall watchdog independently of those explicit steps. No production code or
+physical/native/GPU execution changes. Retained results and hashes follow.
+
+Validation: the original pair passed normally, but with the controlled slow
+producer both hit the unchanged 2 s wall deadline at ±14.8 mm measured travel.
+The candidate pair passed with that same control, measuring ±20 mm from the
+post-ACK baseline. Holding the original first admitted read for 2.1 s still
+caused both wall-deadline refusals and no baseline/travel credit. The normal
+selection passed **106 tests in 3.16 s** (distance control, mobile safety and
+mobile base), including the event-driven blocked-read negative. Ruff F/E9 and
+diff checks passed. Sources and all four protected stores were unchanged during
+checks. The macOS failure remains retained: 5667 passed, 1 failed, 303 skipped,
+4 deselected; its internal error/cadence were not recorded. See
+`benchmark/results/walk_distance_positive_fixture_20261003.json` for bindings.

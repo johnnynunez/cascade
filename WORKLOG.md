@@ -740,3 +740,32 @@ native replay or physical closure is claimed. See
 `benchmark/results/motion_lifecycle_journal_20261003.json` for hashes, retained
 red sources, logs and limits. All simulator/driver/control/runtime files outside
 `motion_evidence.py` remain byte-identical to base `789d1d5`.
+
+### 2026-10-03 — Isolate the mobile progress decision fixture from suite GC
+
+PR86 Ubuntu job111194921868 on `b0723e0` reported `unverified` instead of
+`confirmed` for the unit progress case. Its log lacks the verdict reason or
+reader timing, so the remote cause remains unknown. A source-bound external
+probe now preserves a controlled mechanism: adding 80 ms of automatic-GC
+callback work inside read4 causes all four geometric decision cases to return
+`reader_timeout`; without the intervention all four pass. An earlier probe
+that triggered no automatic collection also passed and remains retained.
+
+Apply the existing `healthy_episode_gc` fixture only to this four-case family;
+retain the original geometry, thresholds and assertions, adding the verdict
+reason to its failure message. Validate the same controlled probe afterward,
+plus the existing independent delayed-reader veto and the affected test file.
+No new timeout, runtime change, simulator or GPU use is authorized by this fix.
+
+The controlled comparison is complete: baseline GC intervention gives four
+`reader_timeout` failures (81–101 ms read4); the isolated candidate restores all
+four original geometry verdicts with the same intervention. A real 80 ms reader
+delay still gives four `unverified/reader_timeout` refusals with cyclic GC off.
+The existing committed delayed-reader negative also passes without change.
+The final affected selection is 368 PASS / 0 SKIP in 33.51 s, with source and
+all four protected-store states unchanged. Ruff F/E9 and diff checks pass.
+No production or shared helper changes; the original CI cause is not proven.
+The later Mac86 failure is a separate exact-one-TCP-pair fixture assertion,
+preserved for the existing independently reviewed TCP fix. Raw logs, all
+controlled failures and source bindings are indexed in
+`benchmark/results/mobile_effects_ci_fixture_20261003.json`.

@@ -11,6 +11,8 @@ import time
 
 import pytest
 
+from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc  # noqa: PLC0414 — shared pytest fixture
+
 from cascade.control.mobile_base import BaseState
 
 
@@ -183,10 +185,12 @@ def run_window(reader, skill="walk_velocity", args=None, result=None, **updates)
 
 @pytest.mark.parametrize("scale,expected", [(0., "refuted"), (1., "confirmed"),
                                               (-1., "refuted"), (3., "refuted")])
-def test_walk_requires_measured_progress_of_correct_sign_and_size(scale, expected):
+def test_walk_requires_measured_progress_of_correct_sign_and_size(scale, expected, healthy_episode_gc):
+    # This geometry comparison needs a healthy reader, not unrelated suite heap
+    # collection inside its unchanged 40 ms deadline. Real delays still veto.
     reader = ScriptedReader(lambda n: state(n, position_world=(min(n - 1, 5) * 0.002 * scale, 0., 0.3)))
     verdict = run_window(reader)
-    assert verdict["status"] == expected
+    assert verdict["status"] == expected, verdict["reason"]
     assert verdict["metrics"]["body_displacement_m"][0] == pytest.approx(0.01 * scale)
     assert {item["phase"] for item in verdict["evidence"]["samples"]} == {"before", "during", "after"}
     assert verdict["evidence"]["provenance"]["source"] == "scripted-software-fixture"

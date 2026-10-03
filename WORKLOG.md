@@ -675,3 +675,11 @@ hardware admission was tested. See benchmark/results/generalized_joints_20261003
 - Full annotation checks bind original RGB/capture/epoch/model/calibration/clock and recorded ages; no fresh acquisition, authority or runtime/native source changes. Corrected planning assumption: native02 explicitly used 2 s age/read limits.
 - Normal conftest: 36 PASS, 1 SKIP (`pxr` absent), 10.34 s, 1596 source inputs and protected store unchanged. Separate OpenUSD 0.25.5 CPU authoring PASS on final source: 53 visual meshes, no physics schema additions, 239 existing prims unchanged. No Kit/GPU/model inference.
 - Synthetic image/consumer controls detect focal, translation, units, offset and axis errors; stale/foreign/mutated data is refused. Actual RTX board visibility, native model/collider invariance and live geometry remain pending a reviewed future recipe. Evidence: `benchmark/results/rgbd_planar_reference_cpu_20261003.json`; external source-bound logs in sibling `RGBD_XY_VALIDATION/evidence/`.
+
+# 2026-10-03 — Prepared native planar-reference wiring (no launch)
+
+- Added a benchmark entrypoint through the existing bridge/backend factory. The visual-only board precedes the original camera/export/play sequence; source and actual scene enter the new canonical model identity. Strict existing-stage and native recipe comparisons refuse any body/shape/collider/configuration change.
+- Added the 17-point consumer over the real in-process MCP handler, retaining one exact SensorHub capture and all projection receipts; image-only homography never reads camera K/T/depth. A complete fresh set is required, with the unchanged 2 s age/read bounds.
+- CPU: 71 PASS, 2 OpenUSD-import SKIP, 15.49 s; 1601 inputs/protected store unchanged. Separate installed OpenUSD 0.25.5 CPU probe: 254 existing prims unchanged, 53 visual meshes, time-sample/collision/points mutation controls rejected. No Kit/GPU/native launch.
+- Development caught non-content repr addresses for USD list operations and legitimate infinite joint bounds; content serialization now preserves both explicitly. Previous native01/02 sources/packets remain untouched. External campaign/owner/check-only recipe lives in sibling RGBD_XY_NATIVE; no execution approval or model admission follows from CPU preparation.
+- Portable CPU receipt: benchmark/results/rgbd_planar_native_preparation_20261003.json.

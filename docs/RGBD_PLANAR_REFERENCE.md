@@ -73,3 +73,40 @@ Primary algorithm/material references:
 [OpenUSD Preview Surface specification](https://openusd.org/release/spec_usdpreviewsurface.html).
 Runtime module versions and binary/source hashes must be recorded separately from
 these documentation versions.
+# Prepared native entrypoint
+
+`benchmark/rgbd/native_bridge.py` reuses the ordinary MicroDuck bridge admission,
+signal owner and bounded runner through its existing `backend_factory` argument.
+It requires explicit reference-document and canonical-model SHA256 pins. It adds
+the four benchmark sources to the effective-model source manifest; the ordinary
+builder rehashes them after opening the backend. Check-only performs asset,
+policy, BAM and reference-document admission without opening Kit, sockets or an
+output directory.
+
+The subclass authors the visual board immediately before the parent's unchanged
+camera setup. Export, play, two bootstrap solves and initial pose assignment stay
+in their original order. No extra application updates, solves or motion/reset
+clients are added. Existing USD values, metadata, connections, relationships and
+time samples must remain equal. List operations are compared by content, and
+unlimited USD joint bounds are retained as typed infinity tokens in this
+diagnostic snapshot. The new subtree must contain the 53 expected visual meshes
+and no physics schema. After opening, all prior native recipe fields, shape/body
+labels, masses, solver/BAM properties and calibration must match exactly. An
+extra imported visual shape is a rejection, even if it appears harmless.
+
+The actual exported scene and canonical model must acquire new digests. An
+unchanged camera calibration digest is legitimate. Old captures are never
+relabelled. `benchmark/rgbd/live_reference.py` obtains the exact retained typed
+capture after an ordinary MCP sensor read, fits the RGB-only reference and calls
+the ordinary `spatial.annotate_pixel` handler for all 17 held-out pixels. It
+retains every result and refuses an extra reader RPC. The original two-second
+age bound applies to every annotation; fit time does not renew it. Missing,
+ambiguous, stale or inaccurate sets remain recorded failures.
+
+The external task-owned campaign prepares an 80-solve episode, camera every 20,
+180-second inner and 240-second outer bounds, private cache/stores and a new
+nonce-labelled process scope. It requires one complete fresh geometry set for
+the combined planar diagnostic and reports producer/consumer/geometry/closure
+separately. CPU controls exercise the real in-process MCP handler over explicitly
+synthetic raster observations. They establish neither a native render nor a
+physical calibration. No native XY episode has been executed at this checkpoint.

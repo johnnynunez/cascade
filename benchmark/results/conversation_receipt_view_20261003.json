@@ -1,0 +1,34 @@
+{
+  "scope": "CPU conversation receipt transport view; no model/audio/native episode",
+  "tests": {
+    "passed": 115,
+    "skipped": 0,
+    "seconds": 1.26,
+    "source_inputs": 1611
+  },
+  "source_manifest_sha256": "642008c0ce165c576ab3cbf799d10d615dbcb1c2d91b6044db1ed660dc4d6de0",
+  "test_result_sha256": "28b3416c88052925edbbc8ab24334c21fb86ee2bb265f406577afb6587f81c91",
+  "causal_comparison_sha256": "9f5c022a5d9f85b1b210788251932e6e34d2787bf412793d11e885bc4a206031",
+  "original_result_bytes": 1836087,
+  "old_speech_bytes": 92,
+  "new_speech_bytes": 20495,
+  "original_native_receipt_replay": "Hermes episode03, passed through a synthetic owner for serialization only",
+  "verdict_and_metrics_preserved": true,
+  "full_runtime_trace_exact": true,
+  "authority_and_unverified_ledger_unchanged": true,
+  "limits": [
+    "No new TTS or audio generation",
+    "Not a diagnosis of video TTS absence; supervisor stop independently revokes the session",
+    "Unknown bulky structures retain explicit transport failure",
+    "Full source remains local; publication frozen"
+  ],
+  "base": "9a3e0e19ecb16cd6948d58de4878a92c7dee807c",
+  "files": {
+    "src/cascade/conversation/receipts.py": "48188f3aea9750e46030f27a898114f3bf3e1b81d236660e165bd008b04887ab",
+    "src/cascade/conversation/session.py": "ab3c6cbec81ee0075fdb3fd2de6b8cf17dde9da8bbcde6253e3302e11a173f00",
+    "tests/test_conversation_receipt_view.py": "ab0d481cdb87991fa7761eacaa396459b9886131732e0346b6e5a0e073b6a121",
+    "docs/CONVERSATION.md": "86add06bd5794062e7fbb947c05052b01a974ae62c90614ec091830b591655d6"
+  },
+  "independent_review_sha256": "ec96e62dd7119dcc1ad7bf362ad396d7a2abc874d4b67da4ae6272bce1f1b05e",
+  "independent_control_sha256": "937599be8f7016cac574083b163a28d0f590bfd74f65d1ff438da88901847c2a"
+}

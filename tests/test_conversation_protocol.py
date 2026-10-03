@@ -104,8 +104,10 @@ class Wire:
 async def rig(*, gateway=False, **options):
     robot = Robot()
     runtime = RobotRuntime({"body": robot})
-    domain = ConversationDomain(runtime, robot_id="fixture", allow_tools=("body.walk_velocity", "body.read"),
-                                allow_motion=True, **options)
+    allow_motion = options.pop("allow_motion", True)
+    allowed = ("body.walk_velocity", "body.read") if allow_motion else ("body.read",)
+    domain = ConversationDomain(runtime, robot_id="fixture", allow_tools=allowed,
+                                allow_motion=allow_motion, **options)
     wire = Wire()
     app = web.Application()
     app.router.add_get("/v1/realtime", wire.handle)
@@ -117,6 +119,7 @@ async def rig(*, gateway=False, **options):
     media = QueueMediaIO()
     session = ConversationSession(domain, factory(), media)
     gate = ConversationGateway(domain, factory)
+    wire.session = lambda: gate.session if gateway else session
     try:
         if gateway:
             origin = await gate.start(port=0)
@@ -137,8 +140,16 @@ async def rig(*, gateway=False, **options):
         await runner.cleanup()
 
 
-async def created(wire, rid="r1"):
-    await wire.emit({"type": "response.created", "response": {"id": rid, "status": "in_progress"}})
+async def created(wire, rid="r1", *, request=None, automatic=False):
+    # Healthy fixtures include a real admitted input. Raw unsolicited created
+    # events are exercised separately as protocol failures.
+    if not automatic and request is None:
+        await wire.session().text("fixture input")
+        request = await wire.next("response.create")
+    response = {"id": rid, "status": "in_progress"}
+    if request is not None:
+        response["metadata"] = request["response"]["metadata"]
+    await wire.emit({"type": "response.created", "response": response})
 
 
 async def call(wire, *, rid="r1", cid="c1", alias="robot_tool_0", args=None):
@@ -208,8 +219,7 @@ def test_noncompleted_response_never_executes_staged_tool(status):
     async def scenario():
         async with rig() as (robot, _, _, wire, session, media, *_):
             await created(wire); await call(wire); await terminal(wire, status=status)
-            await created(wire, "barrier")
-            await wire.emit({"type": "response.output_audio_transcript.done", "response_id": "barrier", "transcript": "done"})
+            await wire.emit({"type": "conversation.item.input_audio_transcription.completed", "transcript": "done"})
             assert (await asyncio.wait_for(media.receive(), 3))["text"] == "done"
             assert robot.calls == [] and not session.closed
     asyncio.run(scenario())
@@ -264,17 +274,19 @@ def test_protocol_fault_closes_and_stops_without_action(fault):
 def test_barge_in_flushes_and_invalidates_partial_tool_without_stopping_idle_first_speech():
     async def scenario():
         async with rig() as (robot, runtime, _, wire, _, media, *_):
-            await wire.emit({"type": "input_audio_buffer.speech_started"})
+            await wire.emit({"type": "input_audio_buffer.speech_started", "item_id": "u1"})
             assert (await asyncio.wait_for(media.receive(), 3))["type"] == "flush"
             assert not runtime.stopped
-            await created(wire); await call(wire)
-            await wire.emit({"type": "input_audio_buffer.speech_started"})
+            await wire.emit({"type": "input_audio_buffer.speech_stopped", "item_id": "u1"})
+            await created(wire, automatic=True); await call(wire)
+            await wire.emit({"type": "input_audio_buffer.speech_started", "item_id": "u2"})
             event = await asyncio.wait_for(media.receive(), 3)
             assert event["type"] == "flush" and event["generation"] == 2
             assert await asyncio.to_thread(robot.stopped.wait, 3)
             await terminal(wire)
-            await created(wire, "barrier")
-            await wire.emit({"type": "response.output_audio_transcript.done", "response_id": "barrier", "transcript": "done"})
+            assert (await asyncio.wait_for(media.receive(), 3))["type"] == "authority_revoked"
+            # An input transcript is display-only and provides an ordered wire barrier.
+            await wire.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "u2", "transcript": "done"})
             assert (await asyncio.wait_for(media.receive(), 3))["text"] == "done"
             assert robot.calls == []
     asyncio.run(scenario())
@@ -449,13 +461,14 @@ def test_barge_in_while_response_creation_is_delayed_invalidates_old_input():
     async def scenario():
         async with rig() as (robot, runtime, _, wire, session, media, *_):
             await session.text("walk forward")
-            await wire.next("response.create")
-            await wire.emit({"type": "input_audio_buffer.speech_started"})
+            request = await wire.next("response.create")
+            await wire.emit({"type": "input_audio_buffer.speech_started", "item_id": "u2"})
             await asyncio.wait_for(media.receive(), 3)
             assert runtime.stopped
-            await created(wire); await call(wire); await terminal(wire)
-            result = await wire.next("conversation.item.create")
-            assert "stale execution generation" in json.loads(result["item"]["output"])["error"]
+            await created(wire, request=request); await call(wire); await terminal(wire)
+            assert (await asyncio.wait_for(media.receive(), 3))["type"] == "authority_revoked"
+            await wire.emit({"type": "conversation.item.input_audio_transcription.completed", "transcript": "barrier"})
+            assert (await asyncio.wait_for(media.receive(), 3))["text"] == "barrier"
             assert robot.calls == []
     asyncio.run(scenario())
 
@@ -528,8 +541,8 @@ def test_cli_builds_real_synthetic_profile_and_serves_tool_result(tmp_path):
                     binding = await (await client.post(url + "/api/session", json={"robot_id": "conversation_mock"})).json()
                     async with client.ws_connect(url + "/api/media?ticket=" + binding["ticket"]) as ws:
                         await ws.send_json({"type": "text", "session_id": binding["session_id"], "text": "read the IMU"})
-                        await wire.next("response.create")
-                        await created(wire)
+                        request = await wire.next("response.create")
+                        await created(wire, request=request)
                         await call(wire, args={"sensor_id": "imu"})
                         await terminal(wire)
                         output = await wire.next("conversation.item.create")

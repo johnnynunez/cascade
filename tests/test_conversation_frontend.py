@@ -193,7 +193,7 @@ check().catch(error=>{console.error(error);process.exitCode=1;});
 
 @pytest.mark.skipif(NODE is None, reason="Node is optional for browser connection lifecycle validation")
 @pytest.mark.parametrize("case", ["old_socket", "pending_connect_stop", "pending_reset_stop",
-                                 "pending_reset_status_stop", "pending_reset_reply_stop"])
+                                 "pending_reset_status_stop", "pending_reset_reply_stop", "authority_revoked"])
 def test_browser_connection_ownership_survives_late_callbacks_and_operator_stop(case):
     script = r"""
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
@@ -227,7 +227,16 @@ vm.createContext(sandbox);vm.runInContext(fs.readFileSync(process.argv[1],'utf8'
 const click=id=>elements.get(id).onclick();
 async function waitGate(){for(let i=0;i<20 && !release;i++)await Promise.resolve();assert(release);}
 async function check(){
-  if(kind==='old_socket') {
+  if(kind==='authority_revoked') {
+    await click('connect'); const current=sockets[0]; current.onopen();
+    const count=requests.length;
+    await current.onmessage({data:JSON.stringify({type:'authority_revoked',session_id:'session-1',reconnect_required:true})});
+    assert.equal(requests.length,count,'speech-only revocation must not issue HTTP stop/reset');
+    assert.equal(elements.get('mic').disabled,true); assert.equal(elements.get('send').disabled,true);
+    assert.equal(elements.get('disconnect').disabled,false);
+    assert.equal(vm.runInContext('playbackAllowed',sandbox),false);
+    assert(elements.get('status').textContent.includes('Disconnect and reconnect'));
+  } else if(kind==='old_socket') {
     await click('connect');const old=sockets[0];old.onopen();
     await click('disconnect');await click('reset');await click('connect');
     const current=sockets[1];current.onopen();const count=requests.length;

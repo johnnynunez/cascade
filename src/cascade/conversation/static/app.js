@@ -88,6 +88,11 @@ $('connect').onclick = async () => {
           if (transcripts.size > 128) transcripts.delete(transcripts.keys().next().value);
           if (final) log(speaker + ': ' + text);
         }
+        else if (event.type === 'authority_revoked') {
+          mute(); playbackAllowed = false; flush();
+          $('mic').disabled = $('send').disabled = true;
+          status('Conversation interrupted. Disconnect and reconnect; reset a latched stop explicitly.');
+        }
         else if (event.type === 'tool_result') log(event.tool + ': ' + JSON.stringify(event.result));
       } catch (error) { if (current()) await fail(error); }
     };

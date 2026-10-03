@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "scope": "Software protocol/input authority regression, no new speech inference or physical robot action. Native greetings originally requested no tools.",
+  "pre_fix_commit": "80d0122",
+  "source_sha256": {
+    "src/cascade/conversation/session.py": "daafcd35b35ac1a968044e7dea126f63db8685ec236bb739419288eb580537d3",
+    "src/cascade/conversation/static/app.js": "9a338903f9f220a23090f0116e1f7adf99895765e7e72052ca04ffc4823fa01c",
+    "tests/test_conversation_protocol.py": "ad6e70d00f8cd5ae2b428a0b809f41c9006a12319b8c3d88b7edeee6822892a7",
+    "tests/test_conversation_input_origin.py": "57c537d07350d21bb00e119aaae0fb1b47293d8318706fe5a18af17eea0ccd2a",
+    "tests/test_conversation_frontend.py": "5d6a399e9b03ae0cf00f2704f708d83bf0a713572b0373962cc774f234a7e273",
+    "tests/fixtures/conversation_input_origin_20261002.json": "b91a76cde3aa4def9632e1dd6cb64bae5f2f272e95f519c0463a577ff1e5f259",
+    "tests/fixtures/conversation_hf_metadata_20261002.json": "8eaf4cc611254b72ce7ec366d3813c0d173936f80238974bc0c8db96d71f2e68"
+  },
+  "native_trace_fixture": "../../tests/fixtures/conversation_input_origin_20261002.json",
+  "native_trace_preservation": "Selected events unchanged including local observed_monotonic; original full result hashes in fixture. Only separately injected test tool events claim admission rejection.",
+  "clock_scope": "Only ConversationSession module clock is replaced for deterministic recorded-spacing replay. Domain and RobotRuntime use real monotonic admission clocks. This establishes local speech_started receipt deadlines, not microphone capture age.",
+  "negative_control": {
+    "status": "expected_failure",
+    "cases": 2,
+    "reason": "Both pre-fix replays returned ok=True for an expired injected readonly tool.",
+    "artifact": "CONVERSATION_EVENTS/origin-old-failure.log",
+    "sha256": "28bdde4ce7420d0f08b25da08bab749b1cf02aa33684b201a558fd513c5fc791"
+  },
+  "updated_suite": {
+    "passed": 104,
+    "command": "python -m pytest tests/test_conversation*.py -q",
+    "artifact": "CONVERSATION_EVENTS/origin-new-tests.log",
+    "sha256": "532b4c88d9c9a31db5dfeda198814168111b8488ca02850c6acc81d507301721"
+  },
+  "upstream_metadata_probe": {
+    "scope": "Actual pinned HF RealtimeService/ResponseHandler without inference, models or network. Its exact serialized bytes are replayed over an owned local WebSocket.",
+    "source": "https://github.com/huggingface/speech-to-speech/blob/411399d34555b2169823a6eaeb7f8ff192db89db/src/speech_to_speech/api/openai_realtime/handlers/response.py",
+    "fixture": "../../tests/fixtures/conversation_hf_metadata_20261002.json",
+    "probe_script_artifact": "CONVERSATION_EVENTS/probe_hf_metadata.py",
+    "probe_script_sha256": "6e6e0c739370f787c3a4b28b26ea2f785b20805d507eaf510b68c1f61f6a36d7"
+  },
+  "limits": [
+    "Untagged automatic VAD responses are ambiguous after interruption: reconnect is required.",
+    "speech_only revocation itself does not stop runtime; disconnect retains its explicit stop policy.",
+    "Continuations may produce audio after an expired intent; tools retain the original deadline.",
+    "No new physical or native speech-tool admission result."
+  ]
+}

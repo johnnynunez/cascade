@@ -484,6 +484,96 @@ and returned `refuted`. A separately injected TCP delay still returned
 `unverified` with GC disabled. These controls establish fixture behavior, not
 the unrecorded cause of the original suite failure or physical robot validation.
 
+
+### 2026-10-02 — preserve utterance authority across delayed VAD and continuations
+
+Native Kokoro greeting traces showed that the pinned provider emits
+`speech_stopped` late, after much of model inference. The previous session
+started its tool deadline there, admitted unsolicited `response.created`, and
+renewed deadlines for tool continuations. Two deterministic replays of the exact
+native event payloads against archived 80d0122 actually admitted an injected
+expired readonly tool; both now reject it at the real domain/runtime boundary.
+The original greetings requested no tool and remain speech-only evidence.
+
+InputContext is immutable and bound at local text submission or receipt of a
+unique `speech_started` item. Stopped events only confirm that item. Text and
+tool-continuation requests carry a nonce echoed in response metadata; every
+continuation retains its original turn, runtime generation and deadline.
+Ambiguous automatic responses after cancellation cannot reacquire authority;
+the UI mutes/disables input and asks for explicit disconnect/reconnect. This
+revocation sends no robot stop in speech_only mode. Initial idle speech remains
+benign. The source does not pretend the pinned server honors manual VAD
+create_response=False, nor equate provider event receipt with microphone age.
+
+104 conversation/hosting CPU tests pass, including real local WebSockets/HTTP,
+old/stale/replayed IDs, nonce mismatch, two onsets before old stopped/created,
+operator-stop/disconnect during flush, text-send cancellation, browser status
+and unchanged earlier safety cases. An isolated actual pinned HF handler
+(no models, network or inference) emitted exact nonce-echo JSON bytes which
+were admitted by a local WebSocket regression. Ruff and git diff checks pass.
+Compact source/log/fixture hashes are in
+benchmark/results/conversation_input_origin_20261002.json. All changes remain
+local while the integration coordinator owns GitHub publication.
+
+
+### 2026-10-03 — Priority stop follow-up on the coordinator integration
+
+Applied the reviewed aggregate stop correction from 4c7b4d7 to the existing
+92aa1e5 + support-flight fixture + input-origin composition, without importing
+unpublished gait or provider-hosting features. Declared stop tools retain their
+authority checks and bypass an outstanding action; a reserved worker prevents
+trace IO from starving stop delivery. Cancelled consumers retain one trace
+obligation. Close reports pending delivery/action/records, and terminal close
+is idempotent without presenting its old ACK as a new stop.
+
+The production diff applied unchanged. The synthetic Owner in the new stop
+fixture uses already-admitted walk_velocity instead of unpublished
+walk_distance; all priority, cancellation, identity, deadline and closure
+assertions are unchanged. Source-specific verification will be recorded in the
+external LOCAL_MERGE_REVIEW packet. No GitHub write or native run was performed.
+
+## Adjacent staged stop before provider output (2026-10-03)
+
+When a completed model response staged an operation followed by a declared stop,
+Session sent the operation's result to the provider before dispatching that stop.
+A retained send could therefore delay a stop that the model had already requested.
+Session now retains results only while the next staged tool is declared `effect=stop`.
+It dispatches each original call in its existing order through ConversationDomain,
+with the same input context, request ID, generation and deadline, then emits the
+retained function outputs in their original order. It does not synthesize a stop,
+move one ahead of an unfinished operation, or skip any admission gate. An ordinary
+sequence without an adjacent stop keeps its prior dispatch/output ordering.
+
+The exact final regression fails on isolated source 4c7b4d7 because the synthetic
+owner's stop event is unset when a held provider send starts; it passes on this
+change before that send is released. Seven further controls cover preceding
+operation completion, expiry, catalog/generation changes, context cancellation,
+ordinary sequencing and a stop after an intervening operation. The focused
+conversation/priority/composed-runtime suite passes 158 tests in 3.85 s; Ruff and
+whitespace checks pass. Source/store snapshots and causal logs are retained
+outside the repo in CONVERSATION_STOP_ORDER/evidence. No model inference, browser,
+simulator, physical actuation or publication was performed. Demo snapshots remain
+unchanged; this is a software dispatch-order correction, not physical stop proof.
+
+### 2026-10-03 — Bounded speech view of observed tool outcomes
+
+A retained native movement result is 1,836,087 JSON bytes: the prior conversation
+path replaced it with a 92-byte transport error. Added a bounded view for traced
+results, omitting only known image/sample/evidence attachments with SHA256
+references. Retained verdicts, metrics, IDs, bindings and ACKs are unchanged.
+Small outputs keep exact serialization; absent trace or oversized remaining
+fields keep the explicit failure. Encoding runs outside the audio event loop,
+with cancellation rechecked before send and adjacent stop already dispatched.
+
+115 CPU checks passed in 1.26 s; 1,611 source inputs and protected stores were
+unchanged. Same-input causal replay through the actual session and synthetic
+owner fails on the original source and passes with a 20,495-byte view; full
+traces remain exact and the synthetic task stays unverified. Independent
+read-only review and a separate formatter control passed; Ruff F/E9 and diff
+checks are clean. No LLM, TTS, native motion or audio was executed. This does
+not repair or explain the video's absent output speech; supervisor stop can
+independently revoke that session. Publication/merge freeze remains active.
+
 ### 2026-10-03 — Planned passive generalized joint observations
 
 Work is isolated from source `5f50b8b` in GENERALIZED_JOINTS. The bounded feature

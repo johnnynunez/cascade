@@ -149,6 +149,10 @@ class RuntimeMotionPlanner:
             self.prepare()
             return self._planner.plan_profile(*args, **kwargs)
 
+    def configuration_rejection(self, position):
+        with self._lock:
+            return self.prepare().configuration_rejection(position)
+
     def close(self):
         with self._lock:
             self._closed = True

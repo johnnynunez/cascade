@@ -155,3 +155,48 @@ def test_halt_during_ranked_candidate_vet_still_prevents_all_commands(monkeypatc
     with pytest.raises(MotionHalted):
         rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
     assert all(c[0] == 'read' for c in calls)
+
+
+@pytest.mark.parametrize('phase', ['pregrasp', 'grasp', 'carry'])
+def test_native_endpoint_rejection_selects_next_feasible_before_actuation(monkeypatch, phase):
+    rt, calls, fix, frame, _ = configured_runtime(monkeypatch)
+    rt.cfg.grasp._data.update(pre_carry_lift=True, carry_height_m=.3)
+    real_harness(rt)
+    seen = []
+    height = {'pregrasp': .15, 'grasp': .05, 'carry': .3}[phase]
+    def inspect(q):
+        seen.append(q.copy())
+        return 'cuMotion model self collision' if np.isclose(q[0], .20) and np.isclose(q[2], height) else None
+    rt.arm.motion_planner = SimpleNamespace(configuration_rejection=inspect)
+    from cascade.skills import runtime as module
+    select = module.select_grasp
+    class SelectionComplete(Exception):
+        pass
+    def selected(*args, **kwargs):
+        grasp, _, _ = select(*args, **kwargs)
+        assert grasp.position[0] == .21
+        raise SelectionComplete
+    monkeypatch.setattr(module, 'select_grasp', selected)
+    with pytest.raises(SelectionComplete):
+        rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
+    assert any(np.isclose(q[0], .20) and np.isclose(q[2], height) for q in seen)
+    assert all(c[0] == 'read' for c in calls)
+
+
+@pytest.mark.parametrize('cancel', [False, True])
+@pytest.mark.parametrize('scene_enabled', [False, True])
+def test_native_endpoint_rejection_or_cancellation_never_opens_gripper(monkeypatch, cancel, scene_enabled):
+    rt, calls, fix, frame, _ = configured_runtime(monkeypatch)
+    if not scene_enabled:
+        monkeypatch.delenv('CASCADE_OBSERVED_FINGER_GATE')
+    harness = real_harness(rt)
+    def inspect(q):
+        if cancel:
+            harness.halt('cancel native candidate inspection')
+            harness.clear_halt()
+        return 'cuMotion model self collision'
+    rt.arm.motion_planner = SimpleNamespace(configuration_rejection=inspect)
+    with pytest.raises(MotionHalted if cancel else NoExecutableGrasp,
+                       match='halt|collision'):
+        rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
+    assert all(c[0] == 'read' for c in calls)

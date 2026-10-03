@@ -126,7 +126,8 @@ def model_binding(tmp_path):
     return config, arm, kin
 
 
-def test_runtime_binding_is_lazy_and_rechecks_urdf_bytes(tmp_path, monkeypatch):
+@pytest.mark.parametrize('operation', ['plan_profile', 'configuration_rejection'])
+def test_runtime_binding_is_lazy_and_rechecks_urdf_bytes(tmp_path, monkeypatch, operation):
     config, arm, kin = model_binding(tmp_path)
     factory = []
     monkeypatch.setattr('cascade.planning.runtime.make_motion_planner', lambda cfg: factory.append(cfg))
@@ -136,7 +137,7 @@ def test_runtime_binding_is_lazy_and_rechecks_urdf_bytes(tmp_path, monkeypatch):
     from pathlib import Path
     Path(arm.model).write_text('<robot name="changed"/>')
     with pytest.raises(PlanningError, match='model changed'):
-        bound.plan_profile([0, 0], [0, .1])
+        getattr(bound, operation)(*([[0, 0], [0, .1]] if operation == 'plan_profile' else [[0, 0]]))
     assert not factory
     bound.close()
 

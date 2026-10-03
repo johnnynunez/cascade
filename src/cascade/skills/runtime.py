@@ -1827,7 +1827,9 @@ class SkillRuntime:
         """
         scene_enabled = os.environ.get("CASCADE_OBSERVED_FINGER_GATE") == "1"
         carry_attachment.check(self)
-        scene_halt_generation = self.arm.harness._halt_generation if scene_enabled else None
+        # Native endpoint inspection also runs without the observed-finger
+        # gate; a stop/clear during that passive work must invalidate it.
+        scene_halt_generation = self.arm.harness._halt_generation
         self._reconcile_held()
         if self.held_object:
             raise SkillError(f"already holding {self.held_object!r}; place it first")
@@ -1977,6 +1979,17 @@ class SkillRuntime:
         approach_deadline = time.monotonic() + PLAN_BUDGET_S
 
         def _vet(g, q_pre, q_grasp):
+            planner = getattr(self.arm, "motion_planner", None)
+            if planner is not None:
+                # IK and the harness do not contain the native planner's
+                # self-collision spheres. Reject endpoints before choosing a
+                # grasp, while another independently vetted candidate can win.
+                for phase, q in (("pregrasp", q_pre), ("grasp", q_grasp)):
+                    _scene_cancel()
+                    reason = planner.configuration_rejection(q)
+                    _scene_cancel()
+                    if reason:
+                        return f"{phase} unsafe: {reason}"
             # The approach leg executes BEFORE allow_grasp_descent opens the
             # cylinder: vet the pregrasp with NO exemption, or a candidate
             # that needed one is guaranteed to abort at the end of the
@@ -2068,6 +2081,12 @@ class SkillRuntime:
                     if (not lifted.success
                             or np.max(np.abs(lifted.q - q_pre)) > np.pi):
                         return "grasp cannot reach the configured carry height"
+                    if planner is not None:
+                        _scene_cancel()
+                        reason = planner.configuration_rejection(lifted.q)
+                        _scene_cancel()
+                        if reason:
+                            return f"grasp carry lift unsafe: {reason}"
                     for fraction in (.15, .3, .45, .6, .75, .9, 1.):
                         reason = harness.vet_pose(q_pre + fraction * (lifted.q - q_pre))
                         if reason:

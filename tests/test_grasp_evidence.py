@@ -235,7 +235,10 @@ def test_unwritable_directory_is_visible_without_masking_robot_exception(monkeyp
     assert evidence._ACTIVE.get() is None
 
 
-def test_array_write_failure_still_publishes_a_receipt_with_explicit_error(monkeypatch, tmp_path):
+@pytest.mark.parametrize('metadata_timeout', [False, True])
+def test_array_write_failure_still_publishes_a_receipt_with_explicit_error(
+        monkeypatch, tmp_path, synthetic_git_metadata, metadata_timeout):
+    synthetic_git_metadata.status_timeout = metadata_timeout
     monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path))
     def no_space(*args, **kwargs):
         raise OSError('disk full')
@@ -245,7 +248,11 @@ def test_array_write_failure_still_publishes_a_receipt_with_explicit_error(monke
     assert result['held'] == 'orange'
     doc = receipt(tmp_path)
     assert doc['logging_ok'] is False
-    assert doc['logging_errors'][0]['message'] == 'disk full'
+    errors = {e['operation']: e for e in doc['logging_errors']}
+    assert errors['write_arrays']['message'] == 'disk full'
+    assert set(errors) == ({'source_at_flush', 'write_arrays'} if metadata_timeout else {'write_arrays'})
+    if metadata_timeout:
+        assert errors['source_at_flush']['type'] == 'TimeoutExpired'
     assert 'arrays' not in doc
 
 

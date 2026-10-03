@@ -706,3 +706,16 @@ Validation: all 28 previous copies are byte-identical; 32 portable receipt hashe
 The same-thread GC interval was also compared directly with the retained raw
 trace rows and shown nested inside contact_records. Only docs and WORKLOG change;
 production, tests, scripts, configs and benchmark files remain byte-identical.
+
+
+### 2026-10-03 — Verified owner and CI follow-ups
+
+Document PR85 owner error containment at 5c21af4 (393 CPU passes), PR87 explicit
+positive-distance fixtures at 40e36d90 (106 passes), and PR90 read-only TCP
+reconnection fixture at 80035374 (68 passes). Selections overlap with earlier
+receipts and are not combined. The existing native Factory failures remain
+bound to cce88808; no new runtime physical result is inferred.
+
+Preserve all 32 earlier portable receipts and add three byte-exact records.
+Documentation-only source/hash/link review; no runtime, SDK, simulation or
+shared-store changes. CI on newly published heads remains separately pending.

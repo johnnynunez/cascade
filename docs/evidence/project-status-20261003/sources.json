@@ -28,6 +28,12 @@
       "sha256": "72c3562cd1ca27f9b31a8bca4234ba8e5a562f344c1ff71c3b0695e1b5f4f53b",
       "source_commit": "cce88808d4bded97a84c02a562cb3ceb997de954"
     },
+    "factory-error-containment-cpu.json": {
+      "bytes": 7300,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ERROR_CONTAINMENT_20261003/cascade/benchmark/results/factory_error_containment_20261003.json",
+      "sha256": "d05c616ddc0f3c3034d954a8075b0499a48562295a534c201fc1e6e8a8c8934f",
+      "source_commit": "5c21af4e207ad1fe67a1715bdc4bec6894eff859"
+    },
     "factory-final-outcome-cpu.json": {
       "bytes": 3654,
       "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FINAL_OUTCOME/cascade/benchmark/results/factory_final_outcome_20261003.json",
@@ -103,6 +109,12 @@
       "sha256": "698a351a212ef1d9d8c0cf54e84139755b36d9645555516f5b670c83cd3e0575",
       "source_commit": "09650fd5ded039637e39982d262b905b02ee2533"
     },
+    "mobile-distance-positive-fixture-cpu.json": {
+      "bytes": 29993,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR87_DISTANCE_20261003/cascade/benchmark/results/walk_distance_positive_fixture_20261003.json",
+      "sha256": "5f9525d8572c78d9abcc2549a1ceae50dfabc761665e74a6dcfbe2320cdc61b6",
+      "source_commit": "40e36d901b80fb3860cd812d40e1d90927ede9e5"
+    },
     "mujoco-reset-callback-cancellation-cpu.json": {
       "bytes": 2990,
       "origin": "/home/johnny/Projects/demo/cascade-lab/WITHDRAWAL_RESET_BOUNDARIES_20261003/cascade/benchmark/results/mujoco_reset_callback_cancellation_20261003.json",
@@ -155,6 +167,12 @@
       "origin": "/home/johnny/Projects/demo/cascade-lab/TASK_EXCEPTION_EPOCH_20261003/cascade/benchmark/results/task_exception_epoch_20261003.json",
       "sha256": "cd130e948745b0e870f30502b64ab9b1f9cf576c066275ad3592289d71525aac",
       "source_commit": "92cc6c11906d36cda9ac880be699186714555d91"
+    },
+    "task-tcp-fixture-publication.json": {
+      "bytes": 2444,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR90_20261003/CHECKPOINT.json",
+      "sha256": "a8e0518339b1d9abe974b16c11beee5b4cda598b2956f0a76c403e9c7fd3d1e4",
+      "source_commit": "80035374a11a4a8d37965802c8b83c8285295def"
     },
     "task-terminal-obligations-cpu.json": {
       "bytes": 4055,

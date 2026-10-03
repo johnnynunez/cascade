@@ -320,6 +320,9 @@ class Reference:
 
 
 def reference_from_rgb(rgb, board=Board()):
+    from .checker_accuracy import AccuracyBoard, accuracy_reference_from_rgb
+    if type(board) is AccuracyBoard:
+        return accuracy_reference_from_rgb(rgb, board)
     from .binary_layout_a import BinaryLayoutABoard, layout_reference_from_rgb
     if type(board) is BinaryLayoutABoard:
         return layout_reference_from_rgb(rgb, board)

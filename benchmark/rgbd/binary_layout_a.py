@@ -209,7 +209,8 @@ def detected_layout_tags(rgb, board):
     return tags, stats
 
 
-def layout_reference_from_rgb(rgb, board):
+def detect_layout_corners(rgb, board):
+    """Observed corners only; reference acceptance remains a separate gate."""
     tags, _ = detected_layout_tags(rgb, board)
     cv2, _, _ = binary._api()
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
@@ -232,8 +233,11 @@ def layout_reference_from_rgb(rgb, board):
     if len(candidates) != 1:
         raise ValueError("binary checker orientation is ambiguous")
     binary._require_checker_contrast(gray, candidates[0])
+    return np.array(candidates[0].reshape(-1, 2), dtype=float, copy=True)
+
+
+def layout_reference_from_rgb(rgb, board):
     return reference_from_corners(
-        candidates[0].reshape(-1, 2),
-        board,
+        detect_layout_corners(rgb, board), board,
         rgb_sha256=hashlib.sha256(rgb.tobytes()).hexdigest(),
     )

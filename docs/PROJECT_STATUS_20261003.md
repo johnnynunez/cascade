@@ -79,7 +79,17 @@ The v3 compiler recipe binds concrete contact-writer types and loaded symbols;
 39 loads and 22 predicates, with scene/native clocks and steps unchanged at zero.
 Both owned processes closed naturally; six foreign process births and the
 source/SDK/assets/stores were preserved. The observed 82.512 s on a shared GPU
-is not a performance claim. A separate v3 readiness harness is prepared but has not run at this snapshot.
+is not a performance claim.
+
+The subsequent v3 ordinary readiness episode also **failed**, after 309 native
+solves and 0.515 simulated seconds. The solve owner rejected a stale/future
+state after 8.280 wall seconds, before the unchanged 10-second startup limit.
+The retained quiet segment spans steps 55–309, only 0.423 simulated seconds of
+the required 0.5; it cannot establish readiness. Both owned processes exited
+naturally and six foreign process births remained intact. Exact rejection age
+and stage were not recorded, so the cause cannot be assigned to GPU, GC or
+scheduling. No fastening action or reset was requested, and physical stop was
+not verified. [Retained v3 failure and independent audit](evidence/project-status-20261003/factory-readiness-v3-review.json).
 **Ordinary readiness and fastening remain unadmitted.**
 Compilation success is not a solved task.
 [Readiness failure](evidence/project-status-20261003/factory-readiness-v2-review.json),

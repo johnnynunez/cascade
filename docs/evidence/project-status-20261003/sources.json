@@ -20,6 +20,11 @@
       "origin": "/home/johnny/Projects/demo/cascade-lab/PROJECT_STATUS_NEXT/cascade/docs/evidence/robot-modularity/factory-readiness-v2-review.json",
       "sha256": "9b614b8276602b4ccef30cbe2f78d68a381930f0165ce5ed2f912226d5922719"
     },
+    "factory-readiness-v3-review.json": {
+      "bytes": 3775,
+      "origin": "/home/johnny/Projects/demo/cascade-lab/FACTORY_CONTACT_WRITER_READINESS_V3_INDEPENDENT/terminal-summary.json",
+      "sha256": "9f8676158cf72e3e87b305662f948063766558ad9931a529f9adb1d45a2b1293"
+    },
     "github-publication.json": {
       "bytes": 7542,
       "origin": "/home/johnny/Projects/demo/cascade-lab/PUBLISH_STATUS_20261003/github-publication-03.json",

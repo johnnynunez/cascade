@@ -1,0 +1,980 @@
+{
+  "scope": "One saved native row for synthetic readback replay; no new solver or task proof",
+  "source_commit": "07080fad79957f0b0bcd806e918febce71e15dd6",
+  "source_sha256": "11892e18877f504f4b04ff61bf4a7b62796ced6b1821b2863b612ca872d73ff9",
+  "capture_source": "def capture(self, steps, before):\n        \"\"\"Called only by the existing arm step writer, once per nonempty batch.\"\"\"\n        try:\n            self.guard()\n            d, mj, m = self.world.data, self.mj, self.model\n            clock = float(d.time)\n            if (type(steps) is not int or steps <= 0 or not np.isfinite(clock)\n                    or abs(clock-self.last_final_time-steps*float(m.opt.timestep)) > 1e-9):\n                raise ValueError('placement batch clock did not advance')\n            if (not np.isfinite(d.qvel).all() or not np.isfinite(d.ctrl).all()\n                    or any(d.warning[getattr(mj.mjtWarning, 'mjWARN_'+name)].number\n                           for name in ('CONTACTFULL', 'CNSTRFULL', 'BADQPOS', 'BADQVEL', 'BADQACC', 'BADCTRL'))):\n                raise ValueError('placement native contact/state channel unavailable')\n            if (not isinstance(before, dict) or before['qpos'].shape != (m.nq,)\n                    or before['qvel'].shape != (m.nv,)\n                    or not np.isfinite(before['qpos']).all() or not np.isfinite(before['qvel']).all()\n                    or abs(clock-before['time_s']-float(m.opt.timestep)) > 1e-9):\n                raise ValueError('placement last-solve input binding unavailable')\n            self.step += steps\n            final_lower, final_upper = self.geometry()\n            final_footprints = {name: {'lower_m': final_lower[g].min(axis=0).tolist(),\n                                      'upper_m': final_upper[g].max(axis=0).tolist()}\n                                for name, g in self.objects.items()}\n            for name, (_, _, va) in self.bodies.items():\n                final_footprints[name].update(linear_speed_m_s=float(np.linalg.norm(d.qvel[va:va+3])),\n                                             angular_speed_rad_s=float(np.linalg.norm(d.qvel[va+3:va+6])))\n            lower, upper = self.geometry(before['qpos'])\n            if (not np.allclose(self.scratch.geom_xpos, d.geom_xpos, rtol=0, atol=1e-10)\n                    or not np.allclose(self.scratch.geom_xmat, d.geom_xmat, rtol=0, atol=1e-10)):\n                raise ValueError('placement solved geometry differs from captured input phase')\n            grip = (float(before['qpos'][self.arm._grip_qadr])-self.arm._grip_closed)/(self.arm._grip_open-self.arm._grip_closed)\n            if not np.isfinite(grip):\n                raise ValueError('placement physical gripper coordinate unavailable')\n            if grip < .98:\n                self.closed_seen, self.open_since = True, None\n            elif self.closed_seen and self.open_since is None:\n                self.open_since = before['time_s']\n            objects = {}\n            for name, geoms in self.objects.items():\n                body, _, va = self.bodies[name]\n                velocity = before['qvel'][va:va+6]\n                if velocity.shape != (6,):\n                    raise ValueError('placement free-body velocity unavailable')\n                objects[name] = {'position_m': self.scratch.xpos[body].tolist(),\n                    'lower_m': lower[geoms].min(axis=0).tolist(), 'upper_m': upper[geoms].max(axis=0).tolist(),\n                    'linear_speed_m_s': float(np.linalg.norm(velocity[:3])),\n                    'angular_speed_rad_s': float(np.linalg.norm(velocity[3:])),\n                    'support_up_n': 0., 'support_contacts': 0, 'other_loaded_contacts': 0, 'arm_active_contacts': 0}\n            # Iterate each actual contact once, even with two coincident named\n            # planes. Nothing is duplicated per support alias.\n            contacts = []\n            for i in range(int(d.ncon)):\n                contact = d.contact[i]\n                if int(contact.efc_address) < 0:\n                    continue\n                force = np.zeros(6)\n                mj.mj_contactForce(m, d, i, force)\n                frame = np.asarray(contact.frame).reshape(3, 3)\n                if (not np.isfinite(force).all() or not np.isfinite(frame).all()\n                        or not np.isfinite(contact.pos).all() or force[0] < 0\n                        or not np.allclose(frame @ frame.T, np.eye(3), rtol=0, atol=1e-8)):\n                    raise ValueError('placement solved contact force unavailable')\n                a, b = int(contact.geom1), int(contact.geom2)\n                if not 0 <= a < m.ngeom or not 0 <= b < m.ngeom:\n                    raise ValueError('placement contact geometry unavailable')\n                contacts.append({'index': i, 'geom': [a, b], 'efc_address': int(contact.efc_address),\n                    'position_m': np.asarray(contact.pos).tolist(), 'frame_a_to_b': frame.tolist(),\n                    'force_torque_contact': force.tolist()})\n                world_force = frame.T @ force[:3]  # wrench on geom2\n                for name, geoms in self.objects.items():\n                    if (a in geoms) == (b in geoms):\n                        continue\n                    other = b if a in geoms else a\n                    sign = -1 if a in geoms else 1\n                    if other in self.robot:\n                        objects[name]['arm_active_contacts'] += 1\n                    if other in self.support:\n                        if force[0] > 0 and sign*frame[0, 2] > 0 and sign*world_force[2] > 0:\n                            objects[name]['support_up_n'] += float(sign*world_force[2])\n                            objects[name]['support_contacts'] += 1\n                    elif force[0] > 0:\n                        objects[name]['other_loaded_contacts'] += 1\n            for name in self.confirmed_prefix:\n                value = objects[name]\n                if (not self.region.contains(value['lower_m'], value['upper_m'])\n                        or value['support_up_n'] <= 0 or value['other_loaded_contacts'] or value['arm_active_contacts']\n                        or value['linear_speed_m_s'] > .02 or value['angular_speed_rad_s'] > .2):\n                    self.prefix_faults.setdefault(name, {'step': self.step, 'solve_time_s': before['time_s'],\n                                                         'measurement': deepcopy(value)})\n            self.rows.append({'epoch': self.epoch, 'model_sha256': self.identity,\n                'step': self.step, 'time_s': before['time_s'], 'final_state_time_s': clock,\n                'last_force_interval_s': [before['time_s'], clock], 'final_footprints': final_footprints,\n                'batch_steps': steps, 'gripper_open_fraction': grip, 'open_since_s': self.open_since,\n                'solve_qpos': before['qpos'].tolist(), 'solve_qvel': before['qvel'].tolist(),\n                'final_qpos': d.qpos.tolist(), 'final_qvel': d.qvel.tolist(), 'ctrl': d.ctrl.tolist(),\n                'native_contact_count': int(d.ncon), 'solved_contacts': contacts,\n                'final_gripper_open_fraction': (float(d.qpos[self.arm._grip_qadr])-self.arm._grip_closed)/(self.arm._grip_open-self.arm._grip_closed),\n                'state_sha256': state_digest(d), 'objects': objects})\n            self.last_final_time = clock\n        except Exception as exc:\n            self.error = f'{type(exc).__name__}: {exc}'",
+  "physical_proof_sha256": "7da833ffe21f0443d571ef6a5ea36253ccdb26f332d63aac10cd1d14cea275c5",
+  "registry": {
+    "scene_path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_DESTINATION_REGION/cascade/assets/mjcf/so101/_scene_demo_generated.xml",
+    "sdk": "3.14.0",
+    "support_geom_ids": [
+      0,
+      1
+    ],
+    "robot_geom_ids": [
+      7,
+      9,
+      12,
+      14,
+      16,
+      18,
+      21,
+      23,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      39,
+      40,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49
+    ],
+    "object_geom_ids": {
+      "red_cube": [
+        50
+      ],
+      "blue_cube": [
+        51
+      ]
+    },
+    "body_qpos_dof": {
+      "red_cube": [
+        9,
+        6,
+        6
+      ],
+      "blue_cube": [
+        10,
+        13,
+        12
+      ]
+    },
+    "geom_names": [
+      "floor",
+      "demo_floor",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      "fixed_jaw_box1",
+      "fixed_jaw_box2",
+      "fixed_jaw_sph_tip1",
+      "fixed_jaw_sph_tip2",
+      "fixed_jaw_sph_tip3",
+      null,
+      "fixed_jaw_box3",
+      "fixed_jaw_box4",
+      "fixed_jaw_box5",
+      "fixed_jaw_box6",
+      "fixed_jaw_box7",
+      null,
+      "camera_box1",
+      "camera_box2",
+      null,
+      null,
+      null,
+      "moving_jaw_box1",
+      "moving_jaw_sph_tip1",
+      "moving_jaw_sph_tip2",
+      "moving_jaw_sph_tip3",
+      "moving_jaw_box2",
+      "moving_jaw_box3",
+      "red_cube",
+      "blue_cube"
+    ],
+    "descriptor": {
+      "region": {
+        "version": 1,
+        "name": "drop zone",
+        "frame": "robot_base",
+        "bounds_xy_m": [
+          [
+            0.15,
+            -0.16
+          ],
+          [
+            0.24,
+            -0.08
+          ]
+        ]
+      },
+      "support": {
+        "geoms": [
+          "floor"
+        ],
+        "optional_geoms": [
+          "demo_floor"
+        ],
+        "position_m": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "quaternion_wxyz": [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "root": "base",
+      "joints": [
+        "shoulder_pan",
+        "shoulder_lift",
+        "elbow_flex",
+        "wrist_flex",
+        "wrist_roll"
+      ],
+      "gripper": "gripper",
+      "open_pos": 0.6,
+      "closed_pos": -0.15,
+      "qadr": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "dadr": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "grip_qadr": 5
+    }
+  },
+  "row": {
+    "epoch": "7ee2d2a40130491db4b13766dd0ce343",
+    "model_sha256": "960044a6f5b786905770e9a4085c26df343d37fb3fa4d482a00a292394498db4",
+    "step": 11712,
+    "time_s": 58.5550000000115,
+    "final_state_time_s": 58.560000000011506,
+    "last_force_interval_s": [
+      58.5550000000115,
+      58.560000000011506
+    ],
+    "final_footprints": {
+      "red_cube": {
+        "lower_m": [
+          0.20694050395749747,
+          -0.15946643309006941,
+          -3.070598750336967e-05
+        ],
+        "upper_m": [
+          0.24351487340161293,
+          -0.12289206364595416,
+          0.04996929401249677
+        ],
+        "linear_speed_m_s": 3.992945599471694e-15,
+        "angular_speed_rad_s": 9.353182012603166e-08
+      },
+      "blue_cube": {
+        "lower_m": [
+          0.14250000000000002,
+          0.14300000000000002,
+          -3.070598861299942e-05
+        ],
+        "upper_m": [
+          0.177334,
+          0.177834,
+          0.049969294011387
+        ],
+        "linear_speed_m_s": 1.1791487831088696e-11,
+        "angular_speed_rad_s": 0.0
+      }
+    },
+    "batch_steps": 12,
+    "gripper_open_fraction": 0.9999975388776118,
+    "open_since_s": 43.55500000000383,
+    "solve_qpos": [
+      4.6028390214483387e-10,
+      -0.23965401488611626,
+      0.38035775512955033,
+      1.4300075102655774,
+      -0.9600000000025023,
+      0.5999981541582088,
+      0.22522768867955517,
+      -0.1411792483680118,
+      0.0249692940124967,
+      0.9996710587217543,
+      2.2745739683545635e-16,
+      -1.847400565559398e-15,
+      0.02564711200362452,
+      0.159917,
+      0.160417,
+      0.02496929401144596,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "solve_qvel": [
+      -7.611246781111816e-09,
+      6.872459986277373e-07,
+      1.725154839027738e-05,
+      1.7729664237600748e-07,
+      -7.031732243324631e-10,
+      -5.869973521727708e-09,
+      6.842377185966788e-15,
+      1.4925179406994976e-16,
+      1.049037787892048e-15,
+      1.0115490188133582e-13,
+      -5.877823258048485e-13,
+      3.132659577330883e-07,
+      0.0,
+      0.0,
+      -1.1308522142016162e-10,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "final_qpos": [
+      4.234262805720342e-10,
+      -0.23965401153846802,
+      0.3803578224563282,
+      1.4300075111062491,
+      -0.9600000000058259,
+      0.5999981541305311,
+      0.2252276886795552,
+      -0.1411792483680118,
+      0.0249692940124967,
+      0.9996710587157572,
+      2.9603834848708176e-16,
+      -2.088635890591716e-15,
+      0.025647112237377156,
+      0.159917,
+      0.160417,
+      0.024969294011387002,
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "final_qvel": [
+      -7.371524314559936e-09,
+      6.695296469608887e-07,
+      1.3465355573747655e-05,
+      1.6813434254815752e-07,
+      -6.647209059863028e-10,
+      -5.535529741390881e-09,
+      3.9831650531824705e-15,
+      2.749868477417716e-16,
+      -4.8917818995723676e-17,
+      2.4948561431436004e-14,
+      -9.716595043295136e-14,
+      9.353182012597786e-08,
+      0.0,
+      0.0,
+      -1.1791487831088696e-11,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "ctrl": [
+      0.0,
+      -0.24,
+      0.38,
+      1.43,
+      -0.96,
+      0.6
+    ],
+    "native_contact_count": 16,
+    "solved_contacts": [
+      {
+        "index": 0,
+        "geom": [
+          0,
+          50
+        ],
+        "efc_address": 6,
+        "position_m": [
+          0.20872669921759934,
+          -0.15946643308235256,
+          -1.5352993751681365e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705077725843,
+          1.8331711719238641e-09,
+          2.031611982068318e-09,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 1,
+        "geom": [
+          0,
+          50
+        ],
+        "efc_address": 9,
+        "position_m": [
+          0.24351487339389605,
+          -0.1576802378299677,
+          -1.535299375161718e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705077724354,
+          -2.0316074546208933e-09,
+          1.833175317951611e-09,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 2,
+        "geom": [
+          0,
+          50
+        ],
+        "efc_address": 12,
+        "position_m": [
+          0.2069405039652145,
+          -0.12467825890605586,
+          -1.535299375167616e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705077725307,
+          2.031607836041131e-09,
+          -1.8331666444776127e-09,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 3,
+        "geom": [
+          0,
+          50
+        ],
+        "efc_address": 15,
+        "position_m": [
+          0.2417286781415112,
+          -0.122892063653671,
+          -1.5352993751611976e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705077723821,
+          -1.833170790504781e-09,
+          -2.0316033085942855e-09,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 4,
+        "geom": [
+          1,
+          50
+        ],
+        "efc_address": 18,
+        "position_m": [
+          0.20872669921759934,
+          -0.15946643308235256,
+          -1.5352993751681365e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705077725843,
+          1.8331711719238641e-09,
+          2.031611982068318e-09,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 5,
+        "geom": [
+          1,
+          50
+        ],
+        "efc_address": 21,
+        "position_m": [
+          0.24351487339389605,
+          -0.1576802378299677,
+          -1.535299375161718e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705077724354,
+          -2.0316074546208933e-09,
+          1.833175317951611e-09,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 6,
+        "geom": [
+          1,
+          50
+        ],
+        "efc_address": 24,
+        "position_m": [
+          0.2069405039652145,
+          -0.12467825890605586,
+          -1.535299375167616e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705077725307,
+          2.031607836041131e-09,
+          -1.8331666444776127e-09,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 7,
+        "geom": [
+          1,
+          50
+        ],
+        "efc_address": 27,
+        "position_m": [
+          0.2417286781415112,
+          -0.122892063653671,
+          -1.5352993751611976e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705077723821,
+          -1.833170790504781e-09,
+          -2.0316033085942855e-09,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 8,
+        "geom": [
+          0,
+          51
+        ],
+        "efc_address": 30,
+        "position_m": [
+          0.14250000000000002,
+          0.14300000000000002,
+          -1.5352994277021553e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705093088822,
+          -0.0,
+          -0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 9,
+        "geom": [
+          0,
+          51
+        ],
+        "efc_address": 33,
+        "position_m": [
+          0.177334,
+          0.14300000000000002,
+          -1.5352994277021553e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705093088822,
+          -0.0,
+          -0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 10,
+        "geom": [
+          0,
+          51
+        ],
+        "efc_address": 36,
+        "position_m": [
+          0.14250000000000002,
+          0.177834,
+          -1.5352994277021553e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705093088822,
+          -0.0,
+          -0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 11,
+        "geom": [
+          0,
+          51
+        ],
+        "efc_address": 39,
+        "position_m": [
+          0.177334,
+          0.177834,
+          -1.5352994277021553e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705093088822,
+          -0.0,
+          -0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 12,
+        "geom": [
+          1,
+          51
+        ],
+        "efc_address": 42,
+        "position_m": [
+          0.14250000000000002,
+          0.14300000000000002,
+          -1.5352994277021553e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705093088822,
+          -0.0,
+          -0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 13,
+        "geom": [
+          1,
+          51
+        ],
+        "efc_address": 45,
+        "position_m": [
+          0.177334,
+          0.14300000000000002,
+          -1.5352994277021553e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705093088822,
+          -0.0,
+          -0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 14,
+        "geom": [
+          1,
+          51
+        ],
+        "efc_address": 48,
+        "position_m": [
+          0.14250000000000002,
+          0.177834,
+          -1.5352994277021553e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705093088822,
+          -0.0,
+          -0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 15,
+        "geom": [
+          1,
+          51
+        ],
+        "efc_address": 51,
+        "position_m": [
+          0.177334,
+          0.177834,
+          -1.5352994277021553e-05
+        ],
+        "frame_a_to_b": [
+          [
+            0.0,
+            0.0,
+            1.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        ],
+        "force_torque_contact": [
+          0.07439705093088822,
+          -0.0,
+          -0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "final_gripper_open_fraction": 0.9999975388407082,
+    "state_sha256": "90968f4716161853a4f32c3773a19d442dec13e74c433655e354e395c6f23589",
+    "objects": {
+      "red_cube": {
+        "position_m": [
+          0.22522768867955517,
+          -0.1411792483680118,
+          0.0249692940124967
+        ],
+        "lower_m": [
+          0.2069405039652143,
+          -0.1594664330823526,
+          -3.07059875033662e-05
+        ],
+        "upper_m": [
+          0.24351487339389605,
+          -0.122892063653671,
+          0.049969294012496765
+        ],
+        "linear_speed_m_s": 6.923935436837732e-15,
+        "angular_speed_rad_s": 3.132659577336561e-07,
+        "support_up_n": 0.5951764062179866,
+        "support_contacts": 8,
+        "other_loaded_contacts": 0,
+        "arm_active_contacts": 0
+      },
+      "blue_cube": {
+        "position_m": [
+          0.159917,
+          0.160417,
+          0.02496929401144596
+        ],
+        "lower_m": [
+          0.14250000000000002,
+          0.14300000000000002,
+          -3.0705988554043107e-05
+        ],
+        "upper_m": [
+          0.177334,
+          0.177834,
+          0.04996929401144596
+        ],
+        "linear_speed_m_s": 1.1308522142016162e-10,
+        "angular_speed_rad_s": 0.0,
+        "support_up_n": 0.5951764074471058,
+        "support_contacts": 8,
+        "other_loaded_contacts": 0,
+        "arm_active_contacts": 0
+      }
+    }
+  }
+}

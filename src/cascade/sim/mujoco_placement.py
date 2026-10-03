@@ -218,7 +218,17 @@ class PlacementHistory:
 
     def geometry(self, qpos=None):
         """Detached final-state FK, never a dynamics update of live data."""
-        self.guard()
+        with self.world.lock:
+            self.guard()
+            return self._validated_geometry(qpos)
+
+    def _validated_geometry(self, qpos=None):
+        """Scratch FK within this admission's validated world-lock scope.
+
+        No model validation is reused across calls. The capture only invokes
+        this local helper between its complete fingerprint and saved output;
+        it has no external callback or model writer in that interval.
+        """
         self.scratch.qpos[:] = self.world.data.qpos if qpos is None else qpos
         if not np.isfinite(self.scratch.qpos).all():
             raise ValueError('placement coordinates are non-finite')
@@ -233,6 +243,10 @@ class PlacementHistory:
 
     def capture(self, steps, before):
         """Called only by the existing arm step writer, once per nonempty batch."""
+        with self.world.lock:
+            self._capture_locked(steps, before)
+
+    def _capture_locked(self, steps, before):
         try:
             self.guard()
             d, mj, m = self.world.data, self.mj, self.model
@@ -250,14 +264,14 @@ class PlacementHistory:
                     or abs(clock-before['time_s']-float(m.opt.timestep)) > 1e-9):
                 raise ValueError('placement last-solve input binding unavailable')
             self.step += steps
-            final_lower, final_upper = self.geometry()
+            final_lower, final_upper = self._validated_geometry()
             final_footprints = {name: {'lower_m': final_lower[g].min(axis=0).tolist(),
                                       'upper_m': final_upper[g].max(axis=0).tolist()}
                                 for name, g in self.objects.items()}
             for name, (_, _, va) in self.bodies.items():
                 final_footprints[name].update(linear_speed_m_s=float(np.linalg.norm(d.qvel[va:va+3])),
                                              angular_speed_rad_s=float(np.linalg.norm(d.qvel[va+3:va+6])))
-            lower, upper = self.geometry(before['qpos'])
+            lower, upper = self._validated_geometry(before['qpos'])
             if (not np.allclose(self.scratch.geom_xpos, d.geom_xpos, rtol=0, atol=1e-10)
                     or not np.allclose(self.scratch.geom_xmat, d.geom_xmat, rtol=0, atol=1e-10)):
                 raise ValueError('placement solved geometry differs from captured input phase')

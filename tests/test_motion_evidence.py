@@ -13,7 +13,25 @@ from cascade.control import simulation_motion
 from cascade.control.isaac_arm import IsaacArm
 from cascade.sim.target_receipts import TargetReceipts
 from cascade.types import RobotState, SafetyViolation
-from test_review_regressions_v5 import runtime as runtime
+from cascade.agent.effects import PostconditionChecker
+from cascade.agent.trace import TraceLogger
+from cascade.config import load_demo_config
+from cascade.memory import BeliefStore, EpisodicMemory
+from cascade.skills.runtime import SkillRuntime
+
+
+@pytest.fixture
+def runtime(tmp_path):
+    # Real dispatcher and isolated stores, without an actuator or solver.
+    rt = SkillRuntime(
+        camera=None, depth_provider=None, detector=None, extrinsics=None,
+        kin=None, safe_arm=SimpleNamespace(), memory=EpisodicMemory(),
+        beliefs=BeliefStore(), trace=TraceLogger(tmp_path / "run"),
+        cfg=load_demo_config(camera="mock", arm="mock", llm="mock"),
+    )
+    rt.observe = lambda: None
+    rt.effects = PostconditionChecker()
+    return rt
 
 
 class Sim:

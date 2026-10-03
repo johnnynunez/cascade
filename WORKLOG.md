@@ -620,3 +620,14 @@ excluded from the bridge environment. Tests call the real sanitizer and the
 real Python child launcher without Kit/GPU. The causal baseline and isolated
 controls are retained outside this checkout under `../validation/flag-causal`.
 No pacing, duration, safety gate, simulator recipe or runtime verdict changes.
+
+### 2026-10-03 — Isolated Isaac command-evidence publication composition
+
+Applied only the command-evidence and launcher opt-in changes on main `0fe33fbb`.
+The motion-evidence tests now define their small real-dispatch fixture locally;
+the unrelated, unpublished review-v5 module is not a dependency. The grasp
+telemetry fixture retains the main-branch guard interface rather than importing
+the unpublished MuJoCo withdrawal API. Product behavior is unchanged from the
+two selected patches. The affected 16-file CPU selection passed 422 tests in
+21.83 s, with 707 source/config/test inputs and protected stores unchanged.
+Ruff F/E9 and diff checks passed. This adds no native or physical acceptance.

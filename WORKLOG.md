@@ -657,3 +657,23 @@ The ordinary point path consumes the same measured pose as region preview,
 and its private handoff is an in-call guard, not single-use actuation authority.
 No physical episode, GPU, renderer or publication was launched for this change.
 See docs/MUJOCO_PLACEMENT_ATTACHMENT.md and the source-bound benchmark receipt.
+
+The 313-test checkpoint is retained in local commit 326720e7, before independent
+review exposed a stop/reset race inside SafeArm's first start-state read.
+The original external control reaches backend dispatch after cancellation;
+the corrected consumer keeps the original token through all carry segments and
+checks it around reads, stream start and waypoint approvals. The real release
+owner must retain that token before opening. No SDK/callback runs under the
+short stop lock, and no deadline, planning geometry or physical criterion was
+relaxed. Fifteen new consumer/transfer controls pass with native writes and
+integration intercepted, plus the two-case external control (only its caught
+exception types changed to include SafetyViolation).
+
+The final selection passes 539 tests in 61.16 s with all inputs/stores unchanged.
+Its earlier 382 PASS / 5 FAIL selection is retained: the five incomplete harness
+doubles also fail against the exact old harness. They now bind the real
+withdrawal guard; grasp_evidence's two-line migration matches root 9b97b654.
+The optional cancellation check is only invoked for an explicit token. A
+separate 147-test callback/legacy selection passes. Ruff F/E9 adds no findings;
+two pre-existing unused imports in the carry test remain. No new physical
+episode, renderer or GPU was run; the original two-pick FAIL remains unchanged.

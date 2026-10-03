@@ -361,10 +361,12 @@ class Withdrawal:
             raise SkillError("release geometry planning deadline expired")
 
     def _check_replan_cancellation(self):
+        # A stop followed by reset must also invalidate the pre-opening plan;
+        # only the measured-state checks below are specific to postrelease.
+        if self.cancellation != self.harness._observation_cancel_generation:
+            raise SkillError("model withdrawal context was cancelled")
         if not getattr(self, "_postrelease_bound", False):
             return
-        if self.cancellation != self.harness._observation_cancel_generation:
-            raise SkillError("postrelease geometry context was cancelled")
         if (self.world.data is not self._bound_data
                 or getattr(self.world, "placement_history", None) is not self._bound_history
                 or getattr(self._bound_history, "epoch", None) != self._bound_epoch):

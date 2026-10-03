@@ -49,6 +49,7 @@ class MeasuredAim:
                 or self.history.world is not self.world):
             raise HeldObservationInvalid('placement attachment lacks its bound model/epoch observer')
         self.harness = self.arm.harness
+        self._stream_started = False
         self.generation = self.harness._halt_generation
         self.cancellation = self.harness._observation_cancel_generation
         with self.world.lock:
@@ -129,6 +130,47 @@ class MeasuredAim:
                 'final_state_time_s': self.clock, 'state_sha256': self.state,
                 'generation': self.generation, 'cancellation_token': self.cancellation,
                 'tool_to_body': self._attachment.tolist()}
+
+    def transport_guard(self):
+        """Keep identity/cancellation during legitimate motion, not old qpos."""
+        if any(a is not b for a, b in zip(self.channel, self._channel())):
+            raise HeldObservationInvalid('placement transport channel binding changed')
+        with self.world.lock:
+            if (coordinate_binding(self.runtime, self.raw) != self.coordinates
+                    or self.history.epoch != self.epoch or self.history.identity != self.identity
+                    or self._labels() != self.labels):
+                raise HeldObservationInvalid('placement transport model/epoch binding changed')
+            self.history.guard()
+            clock = float(self.world.data.time)
+            if not np.isfinite(clock) or clock < self.clock:
+                raise HeldObservationInvalid('placement transport clock regressed')
+            self.harness._check_halt_generation(self.generation)
+            self.harness.check_motion_cancellation(self.cancellation)
+
+    def before_stream(self):
+        # This runs after both SafeArm and the backend read their start state.
+        # The first stream consumes the original snapshot/deadline. Later
+        # segments preserve its cancellation context through normal motion.
+        if not self._stream_started:
+            self.guard()
+            self._stream_started = True
+        else:
+            self.transport_guard()
+
+    def motion_arguments(self):
+        return {'_halt_generation': self.generation, '_cancellation_token': self.cancellation,
+                'before_stream': self.before_stream}
+
+    def admit_release(self, withdrawal):
+        from .mujoco_withdrawal import Withdrawal
+        self.transport_guard()
+        if (type(withdrawal) is not Withdrawal or withdrawal.arm is not self.arm
+                or withdrawal.world is not self.world or withdrawal.generation != self.generation
+                or withdrawal.cancellation != self.cancellation
+                or withdrawal._bound_history is not self.history
+                or withdrawal._bound_epoch != self.epoch
+                or withdrawal.model is not self.world.model):
+            raise HeldObservationInvalid('release did not retain the observed motion context')
 
 
 def _geometry_binding(geometry):

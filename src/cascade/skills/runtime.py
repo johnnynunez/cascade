@@ -2630,6 +2630,7 @@ class SkillRuntime:
             try:
                 lifted = carry_attachment.move(self,
                     lift.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                    **({} if aim is None else aim.motion_arguments()),
                 )
             except carry_attachment.AttachmentInvalid:
                 raise
@@ -2638,7 +2639,8 @@ class SkillRuntime:
             if not lifted:
                 raise _PreCarryLiftError("pre-carry lift did not settle; keeping the grasp")
             self.memory.add("action", f"reached planned carry height {hover[2]:.3f} m before horizontal transport")
-        if not carry_attachment.move(self, pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5))):
+        if not carry_attachment.move(self, pre.q, duration_s=float(gcfg.get("move_duration_s", 2.5)),
+                                     **({} if aim is None else aim.motion_arguments())):
             raise SkillError("did not settle above the place target")
         self.arm.harness.allow_grasp_descent(target[:2], z_min=release_z - 0.02)
         from . import release_episode
@@ -2646,13 +2648,18 @@ class SkillRuntime:
         model_withdrawal = None
         withdrawal_completed = False
         try:
-            if not carry_attachment.move(self, low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0))):
+            if not carry_attachment.move(self, low.q, duration_s=float(gcfg.get("descend_duration_s", 2.0)),
+                                         **({} if aim is None else aim.motion_arguments())):
                 raise SkillError("did not settle at place pose")
             # A grasp ceiling must not collapse withdrawal onto release. An
             # explicitly capable simulator plans from its actual colliders;
             # full-pose IK and the existing safety path still have to succeed.
             try:
+                if aim is not None:
+                    aim.transport_guard()
                 model_withdrawal = mujoco_withdrawal.prepare(self, make_transform(R, target))
+                if aim is not None:
+                    aim.admit_release(model_withdrawal)
             except (SkillError, SafetyViolation, ValueError) as exc:
                 raise _PostPlaceRetreatPlanError(str(exc)) from exc
             if model_withdrawal is not None:
@@ -2664,6 +2671,8 @@ class SkillRuntime:
                     release = release_episode.begin(self, retreat.q,
                         float(gcfg.get("descend_duration_s", 2.0)))
                 if model_withdrawal is not None and release is None:
+                    if aim is not None:
+                        aim.admit_release(model_withdrawal)
                     model_withdrawal.retain()
                     try:
                         model_withdrawal.open_hand()

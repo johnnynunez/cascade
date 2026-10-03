@@ -50,6 +50,22 @@ profile with this observation capability; the requested object point does not
 move. Existing held-observation/slip checks still run. The reported object
 point and effective TCP aim remain separate.
 
+The original cancellation token also reaches every actual carry segment, not
+just its geometric preview. `SafeArm` checks it after reading the start state,
+before/after the existing waypoint approval and stream-start callback, and
+after the stream returns. The first stream rechecks the measured snapshot and
+original planning deadline; subsequent streams preserve identity, epoch and
+cancellation while allowing legitimate joint/time progress. The short stop
+lock only compares the token/latch; it runs no callback, SDK operation or I/O.
+An already admitted backend call is not claimed to be interruptible.
+
+Before opening, the runtime requires a real `Withdrawal` with the same arm,
+world, model, observer epoch, halt generation and cancellation token. Its debt
+is retained before opening, and the withdrawal checks that original token at
+its command boundary. A stop followed by reset cannot renew the old carry or
+opening permission. Calls without this optional token retain the legacy
+streamer path; no planner or backend can silently drop its required callback.
+
 Profiles without `mj_delivery_area` retain the legacy world-offset aiming path;
 this patch supplies no new observation authority for Isaac, hardware, Warp or
 an unconfigured MuJoCo scene. Existing static no-attachment pose vectors remain
@@ -66,9 +82,19 @@ through `skill_place_at`, and an unsafe target overlapping the placed prefix.
 Actual carry, release, rest and prefix preservation still require a separately
 authorized physical episode.
 
-Validation: 313 directed tests passed in 38.35 s, including 44 new cases and the
-existing no-attachment, placement, withdrawal, refusal and held-observation
-regressions. The first combined check's single failed clock assertion and its
-correction remain in the receipt. Test elapsed time is diagnostic under shared
-host use, not a causal performance benchmark. See
+The earlier 313-test checkpoint is preserved at `326720e7`; subsequent review
+found that stop/reset inside the first `SafeArm` read could still reach backend
+dispatch. The external control retains its original red result. With the
+consumer fence, the same cancelled case produces no backend dispatch; the
+healthy control still reaches the intercepted boundary. The control only adds
+`SafetyViolation` to its caught public failure types.
+
+Final validation: 539 directed tests passed in 61.16 s, including 59 new
+attachment/fence cases. An expanded intermediate selection retained five
+failures from incomplete legacy harness doubles; all five also failed with the
+exact old harness. The doubles now bind the real withdrawal guard. The earlier
+clock-assertion failure is retained separately. Sources and protected stores
+were unchanged during validation; Ruff found no new F/E9 findings (two old
+unused imports remain in the carry test). Test elapsed time is diagnostic
+under shared host use, not a causal performance benchmark. See
 `benchmark/results/mujoco_attachment_aim_20261003.json` for pins and raw hashes.

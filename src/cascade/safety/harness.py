@@ -140,6 +140,20 @@ class SafetyHarness:
         with self._observation_lock:
             self._estopped = False
 
+    def check_motion_cancellation(self, token: int | None) -> None:
+        """Keep an observed command context invalid after stop is cleared.
+
+        Only inspect the monotonic token/latch under this short lock. No
+        callback, geometry, device read or command may run while holding it.
+        """
+        if token is None:
+            return
+        if type(token) is not int or token < 0:
+            raise SafetyViolation('motion cancellation token must be a nonnegative integer')
+        with self._observation_lock:
+            if token != self._observation_cancel_generation or self._estopped:
+                raise SafetyViolation('observed motion context was cancelled')
+
     # ── halt / redirect (VoLo's monitor-halt-redirect) ───────────────────
 
     def halt(self, reason: str) -> None:
@@ -709,10 +723,15 @@ class SafeArm:
                     _halt_generation: int | None = None,
                     _trajectory_preflight=None,
                     _linear_tool_path=False,
+                    _cancellation_token: int | None = None,
                     **backend_kw) -> bool:
+        if _cancellation_token is not None:
+            self.harness.check_motion_cancellation(_cancellation_token)
         self.harness.check_model_withdrawal(command=True, target=q_target,
                                            duration=duration_s, joint_margin=joint_margin)
         if self.motion_planner is not None:
+            if _cancellation_token is not None:
+                raise SafetyViolation('observed cancellation context requires the bound joint streamer')
             from ..planning.runtime import execute
             try:
                 return execute(self, q_target, duration_s, joint_margin=joint_margin,
@@ -730,6 +749,8 @@ class SafeArm:
         # backstop for anything else).
         self.harness.check_release_episode(target=q_target, duration=duration_s)
         start_state = self._arm.get_state()
+        if _cancellation_token is not None:
+            self.harness.check_motion_cancellation(_cancellation_token)
         feedback_guard = backend_kw.get("feedback_guard")
         if feedback_guard is not None:
             # Reuse the stretching read. A lost attachment or cancelled
@@ -764,15 +785,31 @@ class SafeArm:
                           "before_stream": lambda: self.harness.check_stream_start(
                               halt_generation=_halt_generation)}
 
+        if _cancellation_token is not None:
+            original_approve, original_before = approve, backend_kw.get('before_stream')
+            def approve(q_prev, q_next, dt):
+                self.harness.check_motion_cancellation(_cancellation_token)
+                original_approve(q_prev, q_next, dt)
+                self.harness.check_motion_cancellation(_cancellation_token)
+            def before_stream():
+                self.harness.check_motion_cancellation(_cancellation_token)
+                if original_before is not None:
+                    original_before()
+                self.harness.check_motion_cancellation(_cancellation_token)
+            backend_kw = {**backend_kw, 'before_stream': before_stream}
+
         try:
             # `backend_kw` forwards backend-specific hints (e.g. a measured
             # descend-bias compensation) without this layer knowing what they
             # mean. Silently dropped by backends that do not accept them, so a
             # hint never becomes a hard dependency.
             try:
-                return self._arm.stream_to(q_target, duration_s,
-                                           approve=approve,
-                                           **backend_kw)
+                result = self._arm.stream_to(q_target, duration_s,
+                                             approve=approve,
+                                             **backend_kw)
+                if _cancellation_token is not None:
+                    self.harness.check_motion_cancellation(_cancellation_token)
+                return result
             except TypeError as exc:
                 if any(key in backend_kw for key in ("preflight", "before_stream", "feedback_guard")):
                     # Safety callbacks are mandatory, never backend hints. A

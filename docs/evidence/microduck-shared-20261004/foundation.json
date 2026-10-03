@@ -1,0 +1,288 @@
+{
+  "scope": "Shared native zero-command foundation only; no locomotion, fleet task or real-time admission",
+  "raw_artifact_location": "cascade-lab/MICRODUCK_SHARED_SCENE_20261003/<run>",
+  "sdk_recipe": "isaac62_48b2d951",
+  "cases": [
+    {
+      "run": "native-one-02",
+      "source": "452b19e4ff6185e22261f6c31683ed8daf2ea5c6",
+      "administrative_ok": true,
+      "input_hashes_unchanged": true,
+      "protected_stores_unchanged": true,
+      "scope_closed": true,
+      "native_exit_code": 0,
+      "audit_sha256": "3a58be087fce4facb4f6fc20dbb325b8efaf7d7cd688cf1a2aae9d321c9a0871",
+      "audit": {
+        "passed": true,
+        "scope": "native shared-scene zero-command foundation; no walking/fleet task admission",
+        "robots": {
+          "duck00": {
+            "model_identity_sha256": "9db5833e45f9fc048f5c26ef9eaab39f9e035105f642a2fc736084c1c14734a2",
+            "epoch": "9843c6a79b6646d4b955cb0885360ace",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.002758954573118853,
+            "max_tilt_rad": 0.013795436535019457,
+            "final_position": [
+              0.0024677026085555553,
+              0.00011129951599286869,
+              0.11702275276184082
+            ]
+          }
+        },
+        "physical_rows": 800,
+        "global_solves": 800,
+        "frames": 9,
+        "support_probes": 9,
+        "artifacts": {
+          "physics.jsonl": "2897b5287604becc72722e6d6805a412465b504b00f643c55307d3daeaa9ba71",
+          "policy.jsonl": "32fdd9ff8f84e0b24ce2db517814e71376cdd5f1eac6453cf3fce69d0aa32316",
+          "frames.jsonl": "8db28da6bddcdaac77fb1b26e3a92279fcc241d3634fe5ccdd9790e067ea63c9",
+          "support-probe.jsonl": "2f2b0d74991101e38b62f712894c1a52c290767d54bee7c6070e909fef68f7ea",
+          "model-identity.json": "c09fd434995b1651d5a4f12ad7408b2eee924685703d6bdcc8dd4c57331ba379",
+          "receipt.json": "b9964105430bcfa58fb0eeb2a64247d9a7ed92cb8016ed6a07c510ded02aadef"
+        }
+      }
+    },
+    {
+      "run": "native-two-01",
+      "source": "1b3f0097288b8ff6ca5e5789b238f174a2c43b66",
+      "administrative_ok": true,
+      "input_hashes_unchanged": true,
+      "protected_stores_unchanged": true,
+      "scope_closed": true,
+      "native_exit_code": 0,
+      "audit_sha256": "d12222aeb5df63457dd247c4b19f581f3f16f7eb38c2becb20a7ef3f5e3a4620",
+      "audit": {
+        "passed": true,
+        "scope": "native shared-scene zero-command foundation; no walking/fleet task admission",
+        "robots": {
+          "duck00": {
+            "model_identity_sha256": "09e030088564442a736d04ab49b3267fefbec07d448312f17e7715c0a0a2e52f",
+            "epoch": "8073325068794cceb245b597ea0461cd",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.002759010757114653,
+            "max_tilt_rad": 0.013795671222711942,
+            "final_position": [
+              0.002467708196491003,
+              0.0001112986501539126,
+              0.11702275276184082
+            ]
+          },
+          "duck01": {
+            "model_identity_sha256": "1849299c3025d749f86de3f748d4628312437ddba02140da7c0d0618dc7b798b",
+            "epoch": "6e382b393fd0488f97d10f3eb83c7cd9",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.002759282949419095,
+            "max_tilt_rad": 0.013795729603999328,
+            "final_position": [
+              2.0024678707122803,
+              0.00011131916107842699,
+              0.11702274531126022
+            ]
+          }
+        },
+        "physical_rows": 800,
+        "global_solves": 800,
+        "frames": 9,
+        "support_probes": 9,
+        "artifacts": {
+          "physics.jsonl": "d956850ee696349e01ad0fd695ef4beea6f2c007aa4ac4d21da684239f6a79c7",
+          "policy.jsonl": "79ba06a22de7c52b57e3a8299d9f832fd7038b876079cafc93d51f0a3fd544a7",
+          "frames.jsonl": "2d8f3dd4ee7a8a61a0ceb0726152798161efff02ed3a1298a0c5e7fff46a5c1c",
+          "support-probe.jsonl": "64e43a007de9ac17d1b26b33855d7809cc3e626fed9c040167328370530d16d6",
+          "model-identity.json": "be6a6ff11a0decaf7251259656a46944df5c2b5023de24c41f216a8a1d259b43",
+          "receipt.json": "5361d231b2f2b9b66bf4c676a8072288ccb62d953071e9112d7ac8b70c60a5f2"
+        }
+      }
+    },
+    {
+      "run": "native-twelve-02",
+      "source": "38ee1076f1c08bf34e76bda9b2fc5a4ccbb0bf91",
+      "administrative_ok": true,
+      "input_hashes_unchanged": true,
+      "protected_stores_unchanged": true,
+      "scope_closed": true,
+      "native_exit_code": 0,
+      "audit_sha256": "a0d7248869a4bac3a8edf8cb2b5400a9e6269d46506c9f6b7c76fcafddc846d5",
+      "audit": {
+        "passed": true,
+        "scope": "native shared-scene zero-command foundation; no walking/fleet task admission",
+        "robots": {
+          "duck00": {
+            "model_identity_sha256": "438386a2c8c83a53d9cde900b2fb151be41a5a7bdc8b5f847d0523f7f82502f1",
+            "epoch": "f7b014c36f0b4a6886848fc3edf69384",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.002758925786315644,
+            "max_tilt_rad": 0.013795400224744653,
+            "final_position": [
+              0.002454408211633563,
+              0.00011107249883934855,
+              0.1170227974653244
+            ],
+            "last_2s_min_sole_support_n": 7.2261501252651215
+          },
+          "duck01": {
+            "model_identity_sha256": "6fde6ea7c4d9dba41bb9ba78f42b677df00c3e178fde170c478959fcb99c763a",
+            "epoch": "76ec71df42de45da8a6d1c8bbb0ae16b",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.0027592799742864453,
+            "max_tilt_rad": 0.013795522787061618,
+            "final_position": [
+              2.0024683475494385,
+              0.0001109093427658081,
+              0.11702273041009903
+            ],
+            "last_2s_min_sole_support_n": 7.226495981216431
+          },
+          "duck02": {
+            "model_identity_sha256": "4964f9582e93ff28ae06e7a59c8714b1b9b6bc9b046e7d4eebc79bc79eb55587",
+            "epoch": "47fb934a760f4015877cf56f9542c81b",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.0027585663790115635,
+            "max_tilt_rad": 0.013795595957983915,
+            "final_position": [
+              4.00247049331665,
+              0.00011083100253017619,
+              0.11702270060777664
+            ],
+            "last_2s_min_sole_support_n": 7.226559832692146
+          },
+          "duck03": {
+            "model_identity_sha256": "2bdc4124cc7e8f8f1356a79811a563cc874e04ec6a92bc9dfd8887a99bb7af4b",
+            "epoch": "1f4fd07534e3472ca7bfde7cacec2e16",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.002758092884923901,
+            "max_tilt_rad": 0.013795864328641237,
+            "final_position": [
+              6.002471446990967,
+              0.000110830798803363,
+              0.11702268570661545
+            ],
+            "last_2s_min_sole_support_n": 7.226268708705902
+          },
+          "duck04": {
+            "model_identity_sha256": "3ec7040bc45a0a372b404dcd0684541aa6cb7d5af7de10097a2a476d663a38e0",
+            "epoch": "c7e02234b3184e089b38670022b95c96",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.0027589058928049553,
+            "max_tilt_rad": 0.013795401814335527,
+            "final_position": [
+              0.0024689892306923866,
+              2.0001132488250732,
+              0.11702273041009903
+            ],
+            "last_2s_min_sole_support_n": 7.226481668651104
+          },
+          "duck05": {
+            "model_identity_sha256": "c2f7fe44bb197ba12a66343ff858641a15fe9f26d0bad8505abe1250fc13bec9",
+            "epoch": "851413c3ccd1472f81d8b9283c45eae4",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.0027592849735730276,
+            "max_tilt_rad": 0.013795389565411728,
+            "final_position": [
+              2.0024704933166504,
+              2.0001132488250732,
+              0.11702367663383484
+            ],
+            "last_2s_min_sole_support_n": 7.226523317396641
+          },
+          "duck06": {
+            "model_identity_sha256": "edf60457678b36aba79aa03a406364c15d9d91b2c3b7ebcfbed1d567bcb6f6e8",
+            "epoch": "ca066b115fec47dab3e65a9bab1e0c9c",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.002758570476965193,
+            "max_tilt_rad": 0.013795313035815458,
+            "final_position": [
+              4.002471446990967,
+              2.000112295150757,
+              0.11702270805835724
+            ],
+            "last_2s_min_sole_support_n": 7.226354710757732
+          },
+          "duck07": {
+            "model_identity_sha256": "5d069cd0164a4ea87d7e36b875fd1dba0b8c30c60f72e81790924d9707b5147f",
+            "epoch": "4e961ce525f7485fa7cdbcb06537e1bf",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.002758116157155018,
+            "max_tilt_rad": 0.013795466091436715,
+            "final_position": [
+              6.002466201782227,
+              2.0001118183135986,
+              0.11702277511358261
+            ],
+            "last_2s_min_sole_support_n": 7.226305663585663
+          },
+          "duck08": {
+            "model_identity_sha256": "ef986fe663eed855eb8138b35fe9585595b87264878a8dcb75ffcb71b3e65884",
+            "epoch": "5fe073e2c6184a91a92f9dc1044d1aef",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.0027588990127427066,
+            "max_tilt_rad": 0.013795142332344069,
+            "final_position": [
+              0.0024729566648602486,
+              4.00012731552124,
+              0.11702316254377365
+            ],
+            "last_2s_min_sole_support_n": 7.226165972650051
+          },
+          "duck09": {
+            "model_identity_sha256": "918ebee19322cdeb2baa46305ded7d3c2fbe51a6c46acfcf54a51a224bb8e846",
+            "epoch": "4105f74ce25f4d3b864fc63904f5c4c6",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.0027592959640665273,
+            "max_tilt_rad": 0.013795262259811203,
+            "final_position": [
+              2.002472400665283,
+              4.000125408172607,
+              0.1170235201716423
+            ],
+            "last_2s_min_sole_support_n": 7.226556651294231
+          },
+          "duck10": {
+            "model_identity_sha256": "da324135205300103f436488efa4a2c8d24aa6bfc37cccbae132e6feda4e9767",
+            "epoch": "06daac7cadcc439b8de1846c11f60af1",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.0027585814703053268,
+            "max_tilt_rad": 0.013795210846553262,
+            "final_position": [
+              4.002462863922119,
+              4.000126838684082,
+              0.11702386289834976
+            ],
+            "last_2s_min_sole_support_n": 7.226265825331211
+          },
+          "duck11": {
+            "model_identity_sha256": "80be11c52de01b3fc299b81212e055960499455ce372a497d45a762b3c927dce",
+            "epoch": "22120a6029a4416a95b7d036f5461eb3",
+            "policy_rows": 200,
+            "max_xy_displacement_from_first_solve_m": 0.0027581271935248316,
+            "max_tilt_rad": 0.01379515092052481,
+            "final_position": [
+              6.002458095550537,
+              4.000127792358398,
+              0.11702366173267365
+            ],
+            "last_2s_min_sole_support_n": 7.226091668009758
+          }
+        },
+        "physical_rows": 800,
+        "global_solves": 800,
+        "frames": 9,
+        "support_probes": 9,
+        "artifacts": {
+          "physics.jsonl": "af5fdf2eca73e1dbaa62309ac8aba87217a19c7657f6067eff6b6be02badff38",
+          "policy.jsonl": "cd262d979770a9c34fd0a11f56fb2cbbe5297f298f9dcba12c406420775e70db",
+          "frames.jsonl": "cbaf91b8975c7467753799aa16e22e15cfaf56bb87c58b362ac6e1919b96a804",
+          "support-probe.jsonl": "275533c24fd6dacecc9130bbade4178750144d58e055145d09b1de62adc4a4ba",
+          "model-identity.json": "afe0b752bf43c09d665129c3cbe38fb9355009b913800d0e1881d806338a149d",
+          "receipt.json": "09e482dbb8fa856527e44aa9c5016e2575a75880ac3ca28032ff41203292567d"
+        }
+      }
+    }
+  ],
+  "retained_failure": {
+    "run": "native-twelve-01",
+    "error": "Single-robot contact storage512 was smaller than shared MuJoCo naconmax1227; rejected before controlled steps.",
+    "fix": "Allocate contact/constraint storage by declared robot count; retain complete solved contacts."
+  }
+}

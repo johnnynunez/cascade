@@ -6,8 +6,9 @@ sensing and read-only spatial domains behind explicit resource contracts.
 MCP and bounded skill graphs dispatch registered tools; the optional
 [conversation supervisor](CONVERSATION.md) adds speech without owning joints.
 The existing arm/mobile entrypoints remain available. `FleetRuntime` coordinates
-separate robot runtimes; this repository has no validated
-twelve-robot scene or shared whole-body controller.
+separate robot runtimes. A [native MicroDuck foundation](MICRODUCK.md) has run
+1, 2 and 12 robots with zero velocity commands in one scene; commanded fleet
+tasks and a shared whole-body controller remain unvalidated.
 
 The architecture targets robot and backend interfaces, not a particular build.
 Isaac Sim, MuJoCo and hardware drivers are adapter implementations. Robot

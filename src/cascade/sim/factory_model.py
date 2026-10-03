@@ -13,6 +13,7 @@ from ..control.fastening import FasteningBinding, FasteningFault, FasteningLimit
 from .factory_observation import (
     FactoryGeometry, FactoryObserver, actuator_descriptor, joint_mapping, sdk_sources,
 )
+from .factory_recipe import MARGIN_RECIPE, seating_recipe
 
 
 def _digest(value):
@@ -141,6 +142,40 @@ def _files(directory):
             for p in sorted(Path(directory).rglob("*")) if p.is_file()}
 
 
+def authoring_descriptor(scene):
+    """Actual authoring inputs and follower table, never a physical admission."""
+    recipe = seating_recipe(scene.fixture_recipe)
+    if (tuple(scene.fixture_center_xy_m) != recipe.center_xy_m
+            or not np.array_equal(scene._center_xy, recipe.center_xy_m)
+            or not np.array_equal(scene.fixture_position, (*recipe.center_xy_m, 0.))
+            or scene.ik_margin_rad != recipe.ik_margin_rad
+            or scene.intersect_position_control_range is not recipe.intersect_position_control_range
+            or scene._initial_nut_z != .069
+            or not np.array_equal(scene.socket_offset, [.012, 0., -.115])):
+        raise FasteningFault("mounted fixture authoring differs from the declared recipe")
+    arrays = {"entry_rad": np.asarray(scene.entry), "bottom_rad": np.asarray(scene.bottom),
+              "follower_heights_m": np.asarray(scene._heights),
+              "follower_targets_rad": np.asarray(scene._targets),
+              "ik_ranges_rad": np.asarray(scene.ik_ranges)}
+    shapes = ((5,), (5,), (43,), (43, 5), (5, 2))
+    for (name, value), shape in zip(arrays.items(), shapes, strict=True):
+        if value.shape != shape or not np.isfinite(value).all():
+            raise FasteningFault(f"invalid mounted authoring array: {name}")
+    if not np.array_equal(arrays["follower_heights_m"], np.linspace(.027, .069, 43)):
+        raise FasteningFault("mounted follower height grid differs from the recipe")
+    return {**asdict(recipe), "initial_nut_z_m": scene._initial_nut_z,
+            "fixture_origin_m": list(scene.fixture_position),
+            "socket_offset_m": scene.socket_offset.tolist(),
+            **{name: value.tolist() for name, value in arrays.items()}}
+
+
+def check_authored_joint(name, position, lower, upper, margin):
+    if not lower+margin <= position <= upper-margin:
+        raise FasteningFault("authored initial joint state is outside the admitted margin: "
+            f"joint={name} q_rad={position:.17g} lower_rad={lower:.17g} "
+            f"upper_rad={upper:.17g} margin_rad={margin:.17g}")
+
+
 class FactoryBoundModel:
     """Constructed scene plus immutable identity; not physical task admission."""
 
@@ -168,8 +203,16 @@ class FactoryBoundModel:
             caps.append(float(min(abs(force[0]), abs(force[1]))))
         self.limits = FasteningLimits(tuple(lower), tuple(upper), tuple(caps),
             (-.15, -.36, -.02), (.4, .36, .4), 0.)
+        self._authoring = authoring_descriptor(scene)
+        if scene.fixture_recipe == MARGIN_RECIPE:
+            if any(row.reference_rad != 0 for row in self.joints[:-1]):
+                raise FasteningFault("mounted margin recipe requires zero native joint references")
+            for target in (scene.entry, scene.bottom, *scene._targets):
+                for i, position in enumerate(target):
+                    check_authored_joint(self.joints[i].name, float(position), lower[i], upper[i], scene.ik_margin_rad)
         self._fingerprint = model_fingerprint(scene)
         source_names = ("factory_model.py", "factory_owner.py", "factory_observation.py",
+            "factory_recipe.py",
             "newton_screw_contact.py", "newton_screw_seating.py", "threading_verification.py",
             "microduck_contact_support.py")
         sources = {str(Path(__file__).with_name(n).resolve()): hashlib.sha256(Path(__file__).with_name(n).read_bytes()).hexdigest()
@@ -179,7 +222,8 @@ class FactoryBoundModel:
                          "apps/factory_runtime.py", "apps/robot_runtime.py"):
             p = package/relative
             sources[str(p)] = hashlib.sha256(p.read_bytes()).hexdigest()
-        self.document = {"schema_version": 1, "recipe": "factory_m20_fixed_axis_v1",
+        self.document = {"schema_version": 1, "recipe": scene.fixture_recipe,
+            "authoring": self._authoring,
             "mounted_tool": True, "preengaged_nut": True, "pickup": False, "seating_claim": False,
             "sources": sources, "sdk_sources": sdk_sources(),
             "factory_files": _files(scene.assets), "robot_files": _files(scene.robot_asset.parent),
@@ -198,7 +242,8 @@ class FactoryBoundModel:
         self.binding = FasteningBinding(_digest(self.document), self.limits.sha256,
             "so101_factory_m20", "fixed_factory_bolt_m20_loose", "factory_nut_m20_loose",
             "mounted_spring_socket", names[:-1], tuple(scene.model.shape_label),
-            (thread, *tools), thread, tools, self.document["dt_s"])
+            (thread, *tools), thread, tools, self.document["dt_s"],
+            fixture_origin_m=tuple(scene.fixture_position), fixture_recipe=scene.fixture_recipe)
         # Initial-condition conversion only, BEFORE the first solve. It copies
         # the already-authored state, introduces no extra force or FK pose write.
         scene.solver._update_mjc_data(scene.solver.mjw_data, scene.model, scene.state)
@@ -211,8 +256,7 @@ class FactoryBoundModel:
             raise FasteningFault("unexpected initial control layout")
         for index, row in enumerate(self.joints[:-1]):
             position = float(q[row.newton_q])
-            if not lower[index]+self.limits.joint_margin_rad <= position <= upper[index]-self.limits.joint_margin_rad:
-                raise FasteningFault("authored initial joint state is outside the admitted margin")
+            check_authored_joint(row.name, position, lower[index], upper[index], self.limits.joint_margin_rad)
             self.initial_control[row.control_index] = position + row.reference_rad
         self.initial_control[self.joints[-1].control_index] = 0.
         self.observer = FactoryObserver(scene, self.binding, self.limits, self.geometry, self.joints)
@@ -220,3 +264,5 @@ class FactoryBoundModel:
     def check_immutable(self):
         if model_fingerprint(self.scene) != self._fingerprint:
             raise FasteningFault("native model/mapping/geometry changed after identity binding")
+        if authoring_descriptor(self.scene) != self._authoring:
+            raise FasteningFault("mounted authoring changed after identity binding")

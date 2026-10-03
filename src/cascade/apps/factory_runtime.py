@@ -15,17 +15,18 @@ import time
 from ..control.fastening import FasteningFault, check_solve
 from ..robotics.contracts import ResourceDescriptor
 from ..skills.fastening_runtime import FasteningDomain, TURN_SPEC
+from ..sim.factory_recipe import seating_recipe
 
 ROBOT_ID = "so101_factory_m20"
 CONTROLLER_ID = "factory_newton:private_m20"
-RECIPE = "factory_m20_fixed_axis_v1"
 
 
 def validate_factory_profile(profile):
     required = {"kind", "recipe", "assets", "robot_asset", "device", "model_identity_sha256"}
     if not isinstance(profile, dict) or set(profile)-required-{"robot_id"} or required-set(profile):
         raise ValueError("fastening requires the explicit fixed Factory profile fields")
-    if (profile["kind"] != "fastening" or profile["recipe"] != RECIPE
+    seating_recipe(profile["recipe"])
+    if (profile["kind"] != "fastening"
             or profile.get("robot_id", ROBOT_ID) != ROBOT_ID):
         raise ValueError("only the mounted fixed-axis SO-101 Factory M20 recipe is implemented")
     for name in ("assets", "robot_asset"):
@@ -64,7 +65,8 @@ def prepare_factory_model(profile, cache_dir):
     from ..sim.newton_screw_seating import SeatingScene
     from ..sim.factory_model import FactoryBoundModel
     scene = SeatingScene(profile["assets"], profile["robot_asset"], Path(cache_dir),
-                         device=profile["device"], drive=False, substeps=10)
+                         device=profile["device"], drive=False, substeps=10,
+                         recipe=profile["recipe"])
     if not scene.model.device.is_cuda:
         raise FasteningFault("requested CUDA Factory model did not resolve to a CUDA device")
     return FactoryBoundModel(scene)

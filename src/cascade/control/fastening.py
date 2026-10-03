@@ -117,8 +117,10 @@ class FasteningBinding:
         object.__setattr__(self, "tool_contact_pairs", tools)
         _number(self.dt_s, "dt_s", positive=True)
         object.__setattr__(self, "fixture_origin_m", _vector(self.fixture_origin_m, 3, "fixture origin"))
-        if self.fixture_recipe != "factory_m20_fixed_axis_v1" or self.thread_pitch_m != .0025:
+        if self.fixture_recipe not in {"factory_m20_fixed_axis_v1", "factory_m20_fixed_axis_margin_v2"} or self.thread_pitch_m != .0025:
             raise ValueError("only the fixed +Z Factory M20 2.5 mm recipe is implemented")
+        if self.fixture_recipe == "factory_m20_fixed_axis_margin_v2" and self.fixture_origin_m != (.23, 0., 0.):
+            raise ValueError("mounted margin recipe requires its declared fixture origin")
 
     @property
     def sha256(self):

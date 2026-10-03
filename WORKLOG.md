@@ -707,3 +707,31 @@ MJWarp model/seven option layouts also passed inspection without constructing a
 solver or taking a physics step. Sources/stores were stable within final checks;
 SDK/assets/harness/stores still match the closed V2 baseline. Root reviewed the
 code delta. No new GPU run, native pin, readiness or physical admission exists.
+
+### 2026-10-03 — diagnose the initial mounted joint-margin rejection
+
+Preparation V3 on 8f7f5b3 passed SDK and array binding but rejected the authored
+initial joint state against the unchanged 0.02 rad margin. Its native counters
+and time remained zero, closure was natural, and all inputs/foreign identities
+were retained. Preserve that checkout and investigate in a separate worktree:
+measure the exact initial IK, joint/control intersections and MuJoCo/Newton
+reference offsets on CPU before changing the fixture recipe. Add diagnostic
+joint values without changing the rejection. Any corrected authoring must retain
+the legacy recipe, solve within the guard's margins without clipping, and carry
+a new explicit identity. No GPU, readiness, motion, tolerance relaxation, shared
+store modification or publication is part of this checkpoint.
+
+Measured cause: legacy wrist_flex=1.64468204 rad leaves 13.377956 mrad below
+its effective 1.65806 upper bound; all six MuJoCo/Newton references are zero.
+With unchanged IK residual criterion, three declared CPU placement comparisons
+rejected x=.25/.26 and accepted x=.23 across all 43 follower targets. The new
+explicit margin-v2 profile moves the complete thread fixture 10 mm toward the
+base and solves within 25 mrad of joint/control bounds; the 20 mrad guard and legacy
+default/recipe/profile are unchanged. Model identity now binds/rechecks actual
+authoring parameters and targets; diagnostic rejection names q/bounds/margin.
+398 targeted tests passed in 2.27 s with 669 source inputs and protected stores
+unchanged. Exact Newton 1.6 CPU import/FK passed all 43 positions with maximum
+weighted residual 1.069e-7, without Factory SDF/collision/solver/dynamics. An
+earlier CPU import lacked trimesh and is retained separately. Ruff F/E9 and
+diffcheck passed. No new GPU attempt, model pin or physical admission exists;
+independent code review and future native preparation remain separate gates.

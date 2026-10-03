@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 from cascade.sim.newton_screw_contact import ThreadingScene
+from cascade.sim.factory_recipe import LEGACY_RECIPE, seating_recipe
 
 
 class SeatingScene(ThreadingScene):
@@ -20,7 +21,8 @@ class SeatingScene(ThreadingScene):
     shoulder_z_m = .023
     nut_half_height_m = .008
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, recipe=LEGACY_RECIPE, **kwargs):
+        self._configure_recipe(recipe)
         self._seat_contact_records = []
         self._tool_fixture_records = []
         self._nut_bolt_records = []
@@ -33,13 +35,7 @@ class SeatingScene(ThreadingScene):
         super().__init__(*args, **kwargs)
         # Millimetre-spaced IK targets follow measured nut height. They do not
         # impose axial motion on the nut or prescribe a pitch to the controller.
-        self._heights = np.linspace(.027, self._initial_nut_z, 43)
-        seed = self.entry.copy()
-        targets = []
-        for height in reversed(self._heights):
-            seed = self._ik(np.r_[self._center_xy, height], seed)
-            targets.append(seed)
-        self._targets = np.asarray(list(reversed(targets)))
+        self._prepare_follower()
         shape_map = self.solver.mjc_geom_to_newton_shape.numpy()[0]
         labels = self._names(self.model.shape_label)
         self._all_tool_geoms = {int(np.flatnonzero(shape_map == index)[0])
@@ -61,6 +57,22 @@ class SeatingScene(ThreadingScene):
         if native.nu != len(self._actuators):
             raise RuntimeError('unexpected actuator created for passive socket inserts')
 
+    def _configure_recipe(self, name):
+        recipe = seating_recipe(name)  # Reject unknown authoring before SDK IO.
+        self.fixture_recipe = recipe.name
+        self.fixture_center_xy_m = recipe.center_xy_m
+        self.ik_margin_rad = recipe.ik_margin_rad
+        self.intersect_position_control_range = recipe.intersect_position_control_range
+
+    def _prepare_follower(self):
+        self._heights = np.linspace(.027, self._initial_nut_z, 43)
+        seed = self.entry.copy()
+        targets = []
+        for height in reversed(self._heights):
+            seed = self._ik(np.r_[self._center_xy, height], seed)
+            targets.append(seed)
+        self._targets = np.asarray(list(reversed(targets)))
+
     def _add_fixture(self, builder, cache):
         import trimesh
         mesh = trimesh.creation.annulus(r_min=.011, r_max=.018, height=.003, sections=96)
@@ -70,7 +82,7 @@ class SeatingScene(ThreadingScene):
                         margin=.005, cache_dir=Path(cache))
         cfg = builder.ShapeConfig(margin=0., mu=.15, ke=1e7, kd=1e4,
                                   gap=.005, density=8000., mu_torsional=0., mu_rolling=0.)
-        builder.add_shape_mesh(-1, xform=self.wp.transform(self.wp.vec3(.24,0,.0215),
+        builder.add_shape_mesh(-1, xform=self.wp.transform(self.wp.vec3(*self._center_xy, .0215),
             self.wp.quat_identity()), mesh=shape, cfg=cfg, label='seat_ring', color=(.6,.4,.15))
 
     def _robot_xml(self, clearance):

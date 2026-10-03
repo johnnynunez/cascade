@@ -11,7 +11,7 @@ from cascade.control.fastening import FasteningFault, FasteningUpload, check_sol
 from cascade.sim.factory_model import (
     FactoryBoundModel, MAPPING_ARRAYS, NATIVE_OPTION_ARRAYS, NATIVE_OPTION_SCALARS,
     STATIC_MJW_ARRAYS, STATIC_NEWTON_ARRAYS,
-    _array_digest, model_fingerprint,
+    _array_digest, authoring_descriptor, model_fingerprint,
 )
 from cascade.sim.factory_owner import FactoryNewtonBackend, FactorySolveOwner, NativeSolveClock, _Request
 from test_factory_observation import Array
@@ -298,7 +298,13 @@ def model_fixture():
     native.opt.run_collision_detection = False
     solver = NS(mj_model=model, mjw_model=native, use_mujoco_cpu=False, _use_mujoco_contacts=False,
                 **{n: Array([[0]], np.int32) for n in MAPPING_ARRAYS})
-    return NS(mujoco=mj, model=NS(**arrays), solver=solver)
+    return NS(mujoco=mj, model=NS(**arrays), solver=solver,
+        fixture_recipe="factory_m20_fixed_axis_v1", fixture_center_xy_m=(.24, 0.),
+        _center_xy=np.array([.24, 0.]), fixture_position=np.array([.24, 0., 0.]),
+        ik_margin_rad=.001, intersect_position_control_range=False,
+        _initial_nut_z=.069, socket_offset=np.array([.012, 0., -.115]),
+        entry=np.zeros(5), bottom=np.zeros(5), _heights=np.linspace(.027, .069, 43),
+        _targets=np.zeros((43, 5)), ik_ranges=np.tile([-2., 2.], (5, 1)))
 
 
 def binding_interface_fixture():
@@ -412,6 +418,7 @@ def test_bound_identity_detects_compiled_native_geometry_and_mapping_mutations(m
     scene = model_fixture()
     bound = object.__new__(FactoryBoundModel)
     bound.scene, bound._fingerprint = scene, model_fingerprint(scene)
+    bound._authoring = authoring_descriptor(scene)
     bound.check_immutable()
     if mutation == "compiled_gain": scene.solver.mj_model.actuator_gainprm[0, 0] += 1
     elif mutation == "native_gain": scene.solver.mjw_model.actuator_gainprm.value[0] += 1

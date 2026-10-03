@@ -266,6 +266,47 @@ the external harness. The owner's independent 120-host-second lifetime starts
 at `owner.start()`. No automatic reset or motion occurs during readiness.
 Neither these limits nor the existing turn/rest gates were extended.
 
+#### Explicit initial-posture variant (2026-10-03, CPU authoring only)
+
+Preparation V3 on `8f7f5b37128419fa10ef5a8b93fa6a9fad7e0373` failed
+before a valid model pin: the legacy initial `wrist_flex` was
+`1.6446820497512817` rad after float32 storage. Its joint/control intersection
+ends at `1.65806` rad, leaving about `0.013378` rad, below the unchanged
+`0.02` rad guard. All other controlled joints passed this CPU comparison.
+The failed native process measured scene/native step and time zero and closed
+naturally with exit 1; it did not run an owner or readiness. The full failure and
+closure remain in `benchmark/results/factory_initial_margin_20261003.json`.
+
+`factory_m20_mounted` and the default `SeatingScene` preserve the legacy recipe
+and physical placement. The separate profile
+`factory_m20_mounted_margin_v2` selects `factory_m20_fixed_axis_margin_v2`:
+move the **whole static bolt, pre-engaged nut and seat ring** 10 mm toward the
+base to `(0.23, 0)` m; keep their heights, thread geometry and mounted socket
+unchanged. Solve the arm IK within the actual joint/position-control intersection
+with `0.025` rad clearance. There is no joint clipping, gain/torque change,
+residual relaxation or reuse of earlier physical success. Both profiles still
+ship with null device and model pin.
+
+Selection used only pinned CPU kinematics. With the same vertical socket target,
+`x=0.24`, `0.25` and `0.26` m failed the stricter IK residual bound; `x=0.23` m
+passed all 43 heights from 0.069 to 0.027 m. Minimum joint clearance was
+`0.025004558855823644` rad; maximum weighted residual was
+`2.107337996387422e-10`, against the existing `1e-5` criterion. The actual Newton
+1.6 importer and CPU FK independently retained zero reference offsets for all
+six controlled joints, and the 43 float32 targets had maximum weighted residual
+`1.0687176054905729e-7`. This control constructed no Factory SDF, collision
+pipeline or physics solver and took no dynamics steps. The first CPU importer
+invocation lacked `trimesh`; its failure is retained separately from the second
+invocation with the declared read-only mesh dependency.
+
+The model document binds the consumed recipe, center, socket offset, IK margin,
+range intersection, entry and all follower targets. Binding checks the variant
+parameters and every authored target; immutable checks also reject later target
+table changes. Initial rejection now includes joint name, q, bounds and margin.
+This new geometry/identity still needs a separately reviewed native preparation,
+fresh readiness and task measurement. Kinematic reachability does not establish
+thread/tool contact, collision freedom during motion, seating or physical stop.
+
 Detached all-solve records, readiness, action and closure receipts are persisted
 outside the priority stop/write path. A persistence failure revokes authority,
 leaves the evidence fault sticky, refuses reset and makes any task result

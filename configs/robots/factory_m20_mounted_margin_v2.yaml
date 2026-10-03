@@ -1,0 +1,13 @@
+# Explicit authoring variant: fixture x=0.23 m, joint/control IK margin=0.025 rad.
+# Guard margin remains 0.02 rad. No native admission or v1 evidence transfer.
+# Select a CUDA device and prepare a new exact model pin in an owned process.
+version: 1
+robot_id: so101_factory_m20
+domains:
+  fastening:
+    kind: fastening
+    recipe: factory_m20_fixed_axis_margin_v2
+    assets: ${assets}/factory/nut_bolt
+    robot_asset: ${assets}/mjcf/so101/so101.xml
+    device: null
+    model_identity_sha256: null

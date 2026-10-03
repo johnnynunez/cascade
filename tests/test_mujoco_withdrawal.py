@@ -37,6 +37,7 @@ def model_runtime(request):
     raw.connect()
     harness = SafetyHarness(SafetyLimits.from_config(cfg.safety), kin)
     rt = SimpleNamespace(arm=SafeArm(raw, harness), kin=kin, cfg=cfg,
+                         _grip_open=raw._grip_open, _grip_closed=raw._grip_closed,
                          _profile_q=lambda key, _: np.asarray(cfg.arm.get(key), float))
     yield rt
     raw.disconnect()
@@ -202,7 +203,6 @@ def test_occupied_preflight_is_terminal_before_carry_release_or_recovery(monkeyp
 
 def retained(rt):
     plan = withdrawal.prepare(rt, captured(rt, CAPTURE[0]['rows'][1]))
-    rt._grip_open = 1.
     plan.retain()
     return plan
 
@@ -247,6 +247,11 @@ def test_failed_or_ambiguous_write_retains_common_barrier(model_runtime, monkeyp
         monkeypatch.setattr(rt.arm.raw, 'set_gripper', failed)
         action = plan.open_hand
     else:
+        # The failed transport is reached only after measured opening and
+        # the held-state handoff. No physical opening is simulated here.
+        rt.held_object = None
+        rt.arm.raw.world.data.qpos[rt.arm.raw._grip_qadr] = rt.arm.raw._grip_open
+        rt._gripper_width_frac = lambda: 1.
         monkeypatch.setattr(rt.arm.raw, 'stream_to', failed)
         action = plan.withdraw
     with pytest.raises(RuntimeError, match='possible write'):
@@ -387,6 +392,7 @@ def test_optional_generated_plane_absent_in_plain_scene_is_admitted(model_runtim
     spec = world.mj.MjSpec.from_file(str(ROOT/'assets/mjcf/so101/scene.xml'))
     world.model = spec.compile()
     plan = withdrawal.Withdrawal.__new__(withdrawal.Withdrawal)
+    plan.runtime = rt
     plan.raw, plan.model, plan.mj, plan.harness = raw, world.model, world.mj, rt.arm.harness
     root, support, joints = plan._admit_model()
     assert world.mj.mj_id2name(world.model, world.mj.mjtObj.mjOBJ_BODY, root) == 'base'

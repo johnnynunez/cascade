@@ -2728,6 +2728,7 @@ class SkillRuntime:
         result = {}
         if model_withdrawal is not None:
             result["release_clearance"] = model_withdrawal.receipt()
+            retreat_target = model_withdrawal.target[:3, 3].copy()
         if release_error is not None:
             result.update(ok=False, stage="release", error=release_error, home_skipped=True)
         if retreat_target is not None:

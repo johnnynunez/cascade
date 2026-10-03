@@ -35,11 +35,16 @@ class Withdrawal:
                 or self.arm.motion_planner is not None):
             raise SkillError("release geometry requires the native MuJoCo C world and joint-route planner")
         self.model, self.mj = self.world.model, self.world.mj
+        self._bound_engine, self._bound_ctrl = self.raw._engine, self.raw._ctrl
+        self._bound_data = self.world.data
+        self._bound_history = getattr(self.world, "placement_history", None)
+        self._bound_epoch = getattr(self._bound_history, "epoch", None)
         if self.model.opt.disableflags & self.mj.mjtDisableBit.mjDSBL_NATIVECCD:
             raise SkillError("release collider distance requires native convex collision detection")
         if self.model.npair:
             raise SkillError("release adapter does not admit explicit contact-pair overrides")
         self.generation = self.harness._halt_generation
+        self.cancellation = self.harness._observation_cancel_generation
         self.clearance = float(self.harness.limits.table_clearance)
         if not np.isfinite(self.clearance) or self.clearance <= 0:
             raise SkillError("release clearance must be a positive existing safety distance")
@@ -85,6 +90,10 @@ class Withdrawal:
         if bounds.shape != (self.model.ngeom, 6) or not np.isfinite(bounds).all() or (bounds[:, 3:] < 0).any():
             raise SkillError("release collision bounds unavailable")
         self.deadline = min(time.monotonic() + PLAN_BUDGET_S, deadline if deadline is not None else float("inf"))
+        from ..sim.mujoco_placement import model_digest
+        self._model_identity = model_digest(self.model, {})
+        self._coordinate_binding = self._coordinates()
+        self._planned_open_rad = float(self.raw._grip_open)
         self.data = self._snapshot()
         self.q_start = self.data.qpos[self.raw._qadr].copy()
         self._pose(self.q_start)
@@ -100,6 +109,10 @@ class Withdrawal:
             self.q_start = np.asarray(carry_goals[-1], dtype=float).copy()
             self._pose(self.q_start)
         self._release_envelope()
+        self._plan_escape(release_pose)
+
+    def _plan_escape(self, release_pose):
+        """The same bounded candidate families for preview and actual release."""
         lower, upper = self._bounds()
         # Separate withdrawal from the *grasp* height ceiling. Actual full-pose
         # IK, workspace and joint/path limits determine whether this is possible.
@@ -110,9 +123,9 @@ class Withdrawal:
             raise SkillError("release needs the complete commanded placement pose")
         current_height = float(self.kin.fk(self.q_start)[2, 3])
         self.target[2, 3] = math.ceil((current_height + delta) * 1000.) / 1000.
-        self.duration = float(runtime.cfg.grasp.get("descend_duration_s", 2.))
+        self.duration = float(self.runtime.cfg.grasp.get("descend_duration_s", 2.))
         candidates = []
-        home = runtime._profile_q("home_q", "move home")
+        home = self.runtime._profile_q("home_q", "move home")
         home_radius = np.linalg.norm(self.kin.fk(home)[:2, 3])
         radius = np.linalg.norm(self.target[:2, 3])
         poses = [("full_pose_lift", self.target.copy())]
@@ -174,9 +187,26 @@ class Withdrawal:
         joints = [mj.mj_name2id(model, mj.mjtObj.mjOBJ_JOINT, name) for name in names]
         actual = {j for j in range(model.njnt) if self._descendant(int(model.jnt_bodyid[j]), root)}
         if (set(joints) != actual or any(j < 0 or model.jnt_type[j] != mj.mjtJoint.mjJNT_HINGE for j in joints)
+                or self.raw.n_joints != len(joints)-1
                 or [int(model.jnt_qposadr[j]) for j in joints[:-1]] != list(self.raw._qadr)
+                or [int(model.jnt_dofadr[j]) for j in joints[:-1]] != list(self.raw._dadr)
                 or int(model.jnt_qposadr[joints[-1]]) != self.raw._grip_qadr):
             raise SkillError("release articulation joint inventory or coordinate binding differs")
+        actuator_names = list(self.raw._act_names) + [self.raw._grip_act]
+        if (len(actuator_names) != len(joints)
+                or any(not isinstance(name, str) for name in actuator_names)
+                or len(set(actuator_names)) != len(actuator_names)):
+            raise SkillError("release actuator names are missing or duplicated")
+        actuators = [mj.mj_name2id(model, mj.mjtObj.mjOBJ_ACTUATOR, name)
+                     for name in actuator_names]
+        if (any(a < 0 for a in actuators)
+                or actuators != list(self.raw._aidx) + [self.raw._grip_aidx]):
+            raise SkillError("release actuator coordinate binding differs")
+        if (not np.isfinite([self.raw._grip_open, self.raw._grip_closed,
+                             self.raw._grip_ctrl_scale, self.raw._grip_ctrl_offset]).all()
+                or self.runtime._grip_open != self.raw._grip_open
+                or self.runtime._grip_closed != self.raw._grip_closed):
+            raise SkillError("release jaw observation and command units differ")
         support_names = plane.get("geoms")
         optional_names = plane.get("optional_geoms", [])
         if (not isinstance(support_names, list) or not support_names
@@ -215,8 +245,20 @@ class Withdrawal:
     def _binding_guard(self):
         if (self.runtime.arm is not self.arm or self.arm.raw is not self.raw
                 or self.raw.world is not self.world or self.world.model is not self.model
-                or self.arm.harness is not self.harness or self.runtime.kin is not self.kin):
+                or self.arm.harness is not self.harness or self.runtime.kin is not self.kin
+                or self.raw._engine is not self._bound_engine
+                or self.raw._model is not self.model or self.raw._data is not self.world.data
+                or self._bound_engine.model is not self.model
+                or self._bound_engine.data is not self.world.data
+                or self.raw._lock is not self.world.lock or self._bound_engine.lock is not self.world.lock
+                or self.raw._ctrl is not self._bound_ctrl
+                or self.raw._ctrl.shape != (self.model.nu,)):
             raise SkillError("release geometry binding changed")
+        # Cheap mapping guard also runs at every scoped command/sample. Model
+        # fingerprinting remains at planning/preflight, not per waypoint.
+        if (hasattr(self, "_coordinate_binding")
+                and self._coordinates() != self._coordinate_binding):
+            raise SkillError("release native model changed after planning: driver coordinates")
 
     def retain(self):
         """Install debt BEFORE an opening can write or fail ambiguously."""
@@ -263,6 +305,7 @@ class Withdrawal:
                 raise SafetyViolation("model withdrawal cleanup requires its own scope")
             return
         owner.harness._check_halt_generation(owner.generation)
+        owner._check_replan_cancellation()
         if owner.harness.estopped or owner.harness.halted is not None:
             raise SafetyViolation("model withdrawal is stopped")
         if gripper and kind != "open":
@@ -287,6 +330,8 @@ class Withdrawal:
 
     def complete(self, *, generation=None):
         self._binding_guard()
+        if generation is None:
+            self._check_replan_cancellation()
         self.harness._check_halt_generation(self.generation if generation is None else generation)
         if self.harness.estopped or self.harness.halted is not None:
             raise SafetyViolation("model withdrawal completion cancelled")
@@ -302,8 +347,33 @@ class Withdrawal:
         self.harness._check_halt_generation(self.generation)
         if self.harness.estopped:
             raise SkillError("release withdrawal cancelled")
+        self._check_replan_cancellation()
         if time.monotonic() >= self.deadline:
             raise SkillError("release geometry planning deadline expired")
+
+    def _check_replan_cancellation(self):
+        if not getattr(self, "_postrelease_bound", False):
+            return
+        if self.cancellation != self.harness._observation_cancel_generation:
+            raise SkillError("postrelease geometry context was cancelled")
+        if (self.world.data is not self._bound_data
+                or getattr(self.world, "placement_history", None) is not self._bound_history
+                or getattr(self._bound_history, "epoch", None) != self._bound_epoch):
+            raise SkillError("postrelease data/history epoch binding changed")
+
+    def _coordinates(self):
+        raw = self.raw
+        return (raw.n_joints, tuple(raw._qadr), tuple(raw._dadr), tuple(raw._aidx),
+                tuple(raw._joint_names), tuple(raw._act_names),
+                raw._grip_qadr, raw._grip_aidx, raw._grip_joint, raw._grip_act,
+                raw._grip_open, raw._grip_closed, raw._grip_ctrl_scale, raw._grip_ctrl_offset,
+                self.runtime._grip_open, self.runtime._grip_closed, raw._ctrl.dtype.str)
+
+    def _check_model_identity(self):
+        from ..sim.mujoco_placement import model_digest
+        if (self._coordinates() != self._coordinate_binding
+                or model_digest(self.model, {}) != self._model_identity):
+            raise SkillError("release native model changed after planning")
 
     def _snapshot(self):
         self.guard()
@@ -318,7 +388,7 @@ class Withdrawal:
         self.guard()
         self.data.qpos[self.raw._qadr] = q
         if open_hand:
-            self.data.qpos[self.raw._grip_qadr] = self.raw._grip_open
+            self.data.qpos[self.raw._grip_qadr] = self._planned_open_rad
         self.mj.mj_kinematics(self.model, self.data)
         if not np.isfinite(self.data.geom_xpos).all() or not np.isfinite(self.data.geom_xmat).all():
             raise SkillError("release FK geometry is non-finite")
@@ -470,17 +540,80 @@ class Withdrawal:
         if fraction is None or not math.isfinite(fraction) or fraction < .98:
             raise SkillError("release requires actual open-jaw feedback before withdrawal")
 
+    def _replan_after_open(self):
+        """Refresh geometry without releasing the original actuation debt.
+
+        The fixture has no continuous solve owner: its world lock prevents a
+        driver step during this bounded scratch plan. Stop never needs that
+        lock. A changed state before the eventual command is rejected again.
+        """
+        from ..sim.mujoco_placement import state_digest
+        candidate = copy(self)
+        candidate.deadline = time.monotonic()+PLAN_BUDGET_S
+        candidate._postrelease_bound = True
+        previous = self.receipt()
+        with self._scope("plan"), self.world.lock:
+            candidate.guard()
+            if self.runtime.held_object:
+                raise SkillError("postrelease withdrawal requires an empty tool")
+            candidate._check_model_identity()
+            candidate._require_open()
+            snapshot = state_digest(self.world.data)
+            data_object = self.world.data
+            candidate.data = candidate._snapshot()
+            candidate._planned_open_rad = float(candidate.data.qpos[self.raw._grip_qadr])
+            candidate.q_start = candidate.data.qpos[self.raw._qadr].copy()
+            candidate._pose(candidate.q_start)
+            del candidate.envelope
+            candidate._release_envelope()
+            candidate._plan_escape(self.kin.fk(candidate.q_start))
+            candidate._check_model_identity()
+            candidate.guard()
+            if self.world.data is not data_object or state_digest(data_object) != snapshot:
+                raise SkillError("physical state changed during postrelease planning")
+            candidate._postrelease_state = snapshot
+            candidate._postrelease_data = data_object
+            candidate.postrelease = {
+                "source": "measured final qpos after actual opening; detached FK",
+                "state_sha256": snapshot, "model_sha256": self._model_identity,
+                "simulation_time_s": float(data_object.time),
+                "generation": candidate.generation, "cancellation": candidate.cancellation,
+                "history_epoch": candidate._bound_epoch,
+                "joints_rad": candidate.q_start.tolist(),
+                "measured_gripper_rad": candidate._planned_open_rad,
+                "tcp_from_kinematics_m": self.kin.fk(candidate.q_start)[:3, 3].tolist(),
+                "previous_plan": previous, "full_escape_and_home_checked": True,
+                "physical_task_verdict": False,
+            }
+            # Keep self as the unique pending authority. Only validated
+            # scratch-plan fields are replaced; no generation is renewed.
+            for name in ("data", "q_start", "q", "target", "envelope", "method",
+                         "rejections", "duration", "deadline", "_planned_open_rad",
+                         "_postrelease_bound", "_postrelease_state", "_postrelease_data",
+                         "postrelease"):
+                setattr(self, name, getattr(candidate, name))
+        return self.postrelease
+
     def withdraw(self):
+        self._replan_after_open()
         def preflight(actual, duration):
-            self.deadline = time.monotonic()+PLAN_BUDGET_S
-            self.data = self._snapshot()
-            self._require_open()
-            reason = vet_segment(self.harness, actual, self.q, duration,
-                                 deadline=self.deadline, stretch=False)
-            if reason:
-                raise SkillError("unsafe actual release escape: " + reason)
-            self._escape_segment(actual, self.q, duration)
-            self._clear()
+            from ..sim.mujoco_placement import state_digest
+            with self.world.lock:
+                self.guard()
+                self._check_model_identity()
+                if (self.world.data is not self._postrelease_data
+                        or state_digest(self.world.data) != self._postrelease_state
+                        or not np.array_equal(actual, self.q_start)):
+                    raise SkillError("physical state changed before postrelease command")
+                self.data = self._snapshot()
+                self._require_open()
+                reason = vet_segment(self.harness, actual, self.q, duration,
+                                     deadline=self.deadline, stretch=False)
+                if reason:
+                    raise SkillError("unsafe actual release escape: " + reason)
+                self._escape_segment(actual, self.q, duration)
+                self._clear()
+                self.guard()
         with self._scope("move", target=self.q, duration=self.duration):
             return self.arm.move_joints(self.q, duration_s=self.duration,
                                         _preflight=preflight, _halt_generation=self.generation)
@@ -523,6 +656,10 @@ class Withdrawal:
         # geometry grant no authority to this explicitly requested recovery.
         del recovery.q, recovery.q_start, recovery.target
         recovery.generation = self.harness._halt_generation
+        recovery.cancellation = self.harness._observation_cancel_generation
+        recovery._bound_data = self.world.data
+        recovery._bound_history = getattr(self.world, "placement_history", None)
+        recovery._bound_epoch = getattr(recovery._bound_history, "epoch", None)
         recovery.clearance = float(self.harness.limits.table_clearance)
         if not math.isfinite(recovery.clearance) or recovery.clearance <= 0:
             raise SkillError("release recovery clearance unavailable")
@@ -570,4 +707,5 @@ class Withdrawal:
                      "quaternion_wxyz": self.model.geom_quat[g].tolist()}
                     for g in self.support_geoms],
                 "method": self.method, "rejected_candidates": self.rejections,
-                "released_envelope_m": [v.tolist() for v in self.envelope]}
+                "released_envelope_m": [v.tolist() for v in self.envelope],
+                **({"postrelease_replan": self.postrelease} if hasattr(self, "postrelease") else {})}

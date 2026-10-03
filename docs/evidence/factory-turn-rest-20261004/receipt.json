@@ -1,0 +1,283 @@
+{
+  "command_deadline_margin_at_stop_ack_s": 0.15180371099995682,
+  "command_to_stop_ack_wall_s": 39.84819628900004,
+  "device": {
+    "alias": "cuda:0",
+    "is_cuda": true,
+    "pci_bus_id": "00000000:C1:00",
+    "uuid": "GPU-4c811d02-a79b-2837-425e-5f62ac3c578a"
+  },
+  "epoch": "cc282224897e40f48f13ec1399fd14a4",
+  "isaac_source_head": "48b2d951919bbb7330de3c2aad54e15369fa0183",
+  "lifecycle": {
+    "exit": 0,
+    "forced": false,
+    "inputs_unchanged": true,
+    "owner_thread_closed": true,
+    "remaining_births": [],
+    "remaining_members": [],
+    "runtime_complete": true,
+    "signals": []
+  },
+  "limitations": [
+    "Single shared-GPU episode, narrow command deadline margin; no repeatability or performance isolation claim.",
+    "One-turn request satisfies existing 0.05-turn tolerance; the measured final rotation is 0.9586495698489806 turns.",
+    "Mounted tool and pre-engaged nut only; no pickup, engagement, seating, withdrawal, preload or hardware admission.",
+    "Production MCP handler invoked in-process; no stdio or LLM in this episode.",
+    "Measurement figure is derived from this episode's retained solve stream; no scene-rendered video was captured.",
+    "SDK recipe and zero-pair reuse were both present; no isolated causal speedup or elimination of GC is claimed."
+  ],
+  "model_identity_sha256": "fe61b52ae92f0080398a5a0f9b59e72f88ae3429b9468504f008648dc35acf8d",
+  "native_records": {
+    "complete": true,
+    "contacts": 554646,
+    "count": 2047,
+    "generations": {
+      "0": 360,
+      "1": 1,
+      "2": 1350,
+      "3": 336
+    }
+  },
+  "persisted_recheck": {
+    "all_stop_generation_and_after_ack": true,
+    "first_quiet_window_step": 1742,
+    "full_quiet_window_rows": 301,
+    "last_quiet_window_step": 2042,
+    "linear_and_angular_speed_and_exact_zero_effort_gates_passed": true,
+    "new_observation": false,
+    "physical_and_host_rest_deadlines_passed": true,
+    "pre_stop_and_final_verdicts_equal_live": true
+  },
+  "phase_trace": {
+    "complete": true,
+    "dropped": 0,
+    "events": 47648,
+    "gc_enabled": true,
+    "gc_thresholds": [
+      700,
+      10,
+      10
+    ],
+    "gen2_intervals": [
+      {
+        "ended_monotonic_s": 7476.927269019,
+        "started_monotonic_s": 7476.578464183,
+        "thread": 130939008759744,
+        "wall_s": 0.348804836
+      },
+      {
+        "ended_monotonic_s": 7523.949059479,
+        "started_monotonic_s": 7523.523680856,
+        "thread": 130939008759744,
+        "wall_s": 0.425378623
+      },
+      {
+        "ended_monotonic_s": 7524.706734936,
+        "started_monotonic_s": 7524.176385043,
+        "thread": 130939008759744,
+        "wall_s": 0.530349893
+      }
+    ],
+    "max_controller_accept_age_s": 0.10842840099940076,
+    "max_controller_accept_age_step": 2047,
+    "owner_thread_ids": [
+      130929140811456
+    ]
+  },
+  "preparation": {
+    "admission_predicates": 22,
+    "admission_sha256": "c9adf546d1c7ce22db7780d750def78f63e646cd2957bf735eca6f91a32d7cd3",
+    "loaded_variants": 39,
+    "model_identity_sha256": "fe61b52ae92f0080398a5a0f9b59e72f88ae3429b9468504f008648dc35acf8d",
+    "ok": true,
+    "physical_snapshot_sha256": "b962186b810b03c509a1cd50b87a49f427ed5e6aacfd11c5ef17e8c8659c4ae5",
+    "physics_admission": false,
+    "readiness_admission": false,
+    "scene_and_native_solves": 0
+  },
+  "readiness": {
+    "binding_sha256": "efe97ffdde1a45e607d07a06ed7fbf7dbf3c7a23a48477123b3eb18eefc7e4c3",
+    "captured_monotonic_s": 7476.085050427,
+    "epoch": "cc282224897e40f48f13ec1399fd14a4",
+    "generation": 0,
+    "latched": true,
+    "physical_task_admission": false,
+    "quiet_interval_sim_s": 0.5000000121071935,
+    "ready": true,
+    "step": 358
+  },
+  "readiness_wall_s": 6.757276467000338,
+  "retained_artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/analyze_result.py": "0a443730a35bcba83eb6f6c2384a1504091ce5aafc0e17c1e81af4e95459f11d",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/prepare-01/receipt.json": "52101b76cacf2f3c00f80db635bc04cb3039ae8da4e3655e62f30822681a0495",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/prepare-02/native/native-result.json": "fd63e30452ffbe3de895ad35cd8363c2beb4cd6cc6640a3046f0ceb7ad59e864",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/prepare-02/native/precompile.json": "8fd10268997367e07ed55fe0adf9d29a82d16f790be1f88ee3c18c21499642f4",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/prepare-02/receipt.json": "51f8ce6a3d7468da77d0cd39d1fd3d6d733b644f4790ece17df8ed5850d1a077",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/prepare-plan-01.json": "c52f0703a6daf3ca10e3658e990b40b52a08c86818ecf91f66182f1d6665222d",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/prepare-plan-02.json": "2b718ccc173710991cdb9f16003262ca1322f234b29354eb4c44781c7c8f5a7f",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/pytest-sdk-selection.log": "9e15274c31a09f18a9e1ce8c7769f575aaaab19455c5c885a190121d6a8e92b8",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/turn-01/native/constructed-binding.json": "fe899fddcfbc1f071810ef9bfd892d9f6207ee8faa535330d8cbfa94d1ba1392",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/turn-01/native/constructed-model.json": "c5030875b301a06c7853df3a7e1cd8f18ec3427f12c684a5be7e6d44d0ca1ff6",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/turn-01/native/native-result.json": "587e660d7673682fc7c2083c91f3a3b0cc7313440691d971955cbf3d5390a4d0",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/turn-01/native/phase-trace.json": "7ec6915bb38a7907c7ca85932d16b33c0de6f69664db730d8df77d25fcb17acc",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/turn-01/native/runtime/domains/fastening/solves.jsonl": "7cb40bac324ae0f3a9b68348a675c649859f047f6c754da4ff988b57681ad942",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/turn-01/receipt.json": "7d72714283e86f6f057585cfe17a1345ebbeec89709330fb00bb86b4165e916a",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/turn-01/scope/closure.json": "4b51bbd4587acd09db49af21dd0b8ec0c18cad53640bf7d603f3bdbc3fe512fa",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_TURN_RECOVERY_20261004/turn-plan-01.json": "767246d01e0bf0143089c694a585be05c8a74dec410170eedfb1da526f55d889"
+  },
+  "sdk_recipe": "isaacsim_48b2d951_newton_1_6_1rc1",
+  "source_head": "c7f6ec3b3495b961060033e919f148e743d6d3dd",
+  "task_result": {
+    "admission": {
+      "admission_step": 361,
+      "admission_time_s": 0.6016666812356561,
+      "admitted_monotonic_s": 7476.983793004,
+      "binding_sha256": "efe97ffdde1a45e607d07a06ed7fbf7dbf3c7a23a48477123b3eb18eefc7e4c3",
+      "deadline_monotonic_s": 7516.983793004,
+      "end_simulation_time_s": 4.601666681235656,
+      "epoch": "cc282224897e40f48f13ec1399fd14a4",
+      "generation": 2
+    },
+    "execution_ok": true,
+    "final_threading": {
+      "checks": {
+        "axial_advance": true,
+        "axis_alignment": true,
+        "fixed_fixture": true,
+        "requested_fastener_rotation": true,
+        "thread_and_tool_contact": true,
+        "thread_pitch": true
+      },
+      "measured": {
+        "axial_advance_m": 0.0023984163999557495,
+        "contact_rotation_fraction": 1.0,
+        "elapsed_s": 2.8000000678002834,
+        "max_axis_tilt_rad": 0.007405884624379113,
+        "max_fixture_rotation_rad": 0.0,
+        "max_fixture_translation_m": 0.0,
+        "max_pitch_error_m": 2.8865152582598997e-05,
+        "max_radial_offset_m": 0.0001504272911565136,
+        "samples": 1681,
+        "turns": 0.9586495698489806
+      },
+      "reason": "measured fastener advancement follows thread pitch",
+      "seating_verified": false,
+      "status": "confirmed",
+      "threading_verified": true
+    },
+    "ok": true,
+    "physical_stop_verified": true,
+    "postcondition": {
+      "pre_stop_threading": {
+        "checks": {
+          "axial_advance": true,
+          "axis_alignment": true,
+          "fixed_fixture": true,
+          "requested_fastener_rotation": true,
+          "thread_and_tool_contact": true,
+          "thread_pitch": true
+        },
+        "measured": {
+          "axial_advance_m": 0.0023715123534202576,
+          "contact_rotation_fraction": 1.0,
+          "elapsed_s": 2.2483333877753466,
+          "max_axis_tilt_rad": 0.007405884624379113,
+          "max_fixture_rotation_rad": 0.0,
+          "max_fixture_translation_m": 0.0,
+          "max_pitch_error_m": 2.8865152582598997e-05,
+          "max_radial_offset_m": 0.0001504272911565136,
+          "samples": 1350,
+          "turns": 0.950691209476947
+        },
+        "reason": "measured fastener advancement follows thread pitch",
+        "seating_verified": false,
+        "status": "confirmed",
+        "threading_verified": true
+      },
+      "reason": "independent threading retained through observed rest",
+      "rest": {
+        "generation": 3,
+        "last_step": 2042,
+        "samples": 331,
+        "status": "confirmed",
+        "window_sim_s": 0.5000000121071935,
+        "zero_spindle_effort": true
+      },
+      "seating_verified": false,
+      "status": "confirmed",
+      "threading": {
+        "checks": {
+          "axial_advance": true,
+          "axis_alignment": true,
+          "fixed_fixture": true,
+          "requested_fastener_rotation": true,
+          "thread_and_tool_contact": true,
+          "thread_pitch": true
+        },
+        "measured": {
+          "axial_advance_m": 0.0023984163999557495,
+          "contact_rotation_fraction": 1.0,
+          "elapsed_s": 2.8000000678002834,
+          "max_axis_tilt_rad": 0.007405884624379113,
+          "max_fixture_rotation_rad": 0.0,
+          "max_fixture_translation_m": 0.0,
+          "max_pitch_error_m": 2.8865152582598997e-05,
+          "max_radial_offset_m": 0.0001504272911565136,
+          "samples": 1681,
+          "turns": 0.9586495698489806
+        },
+        "reason": "measured fastener advancement follows thread pitch",
+        "seating_verified": false,
+        "status": "confirmed",
+        "threading_verified": true
+      }
+    },
+    "pre_stop_threading": {
+      "checks": {
+        "axial_advance": true,
+        "axis_alignment": true,
+        "fixed_fixture": true,
+        "requested_fastener_rotation": true,
+        "thread_and_tool_contact": true,
+        "thread_pitch": true
+      },
+      "measured": {
+        "axial_advance_m": 0.0023715123534202576,
+        "contact_rotation_fraction": 1.0,
+        "elapsed_s": 2.2483333877753466,
+        "max_axis_tilt_rad": 0.007405884624379113,
+        "max_fixture_rotation_rad": 0.0,
+        "max_fixture_translation_m": 0.0,
+        "max_pitch_error_m": 2.8865152582598997e-05,
+        "max_radial_offset_m": 0.0001504272911565136,
+        "samples": 1350,
+        "turns": 0.950691209476947
+      },
+      "reason": "measured fastener advancement follows thread pitch",
+      "seating_verified": false,
+      "status": "confirmed",
+      "threading_verified": true
+    },
+    "preload_verified": false,
+    "rest": {
+      "generation": 3,
+      "last_step": 2042,
+      "samples": 331,
+      "status": "confirmed",
+      "window_sim_s": 0.5000000121071935,
+      "zero_spindle_effort": true
+    },
+    "seating_verified": false,
+    "stop": {
+      "accepted_monotonic_s": 7516.831989293,
+      "generation": 3,
+      "latched": true,
+      "ok": true,
+      "physical_stop_verified": false
+    },
+    "synthetic": false,
+    "verified": true
+  },
+  "verdict": "PASS_NATIVE_MOUNTED_TURN_AND_REST_CLOSED"
+}

@@ -30,10 +30,11 @@ SDK_SOURCES.update({
 })
 
 
-def sdk_sources():
+def sdk_sources(sdk_recipe=None):
     """Check actual loaded implementation, not a caller's complete=True flag."""
+    from .factory_sdk import selected_pins
     found = {}
-    for name, expected in SDK_SOURCES.items():
+    for name, expected in selected_pins(SDK_SOURCES, sdk_recipe).items():
         path = Path(importlib.import_module(name).__file__).resolve()
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest != expected:
@@ -352,12 +353,12 @@ class FactoryObserver:
     between solves are supported; only the owner may access these SDK arrays.
     """
 
-    def __init__(self, scene, binding, limits, geometry, joints):
+    def __init__(self, scene, binding, limits, geometry, joints, *, sdk_recipe=None):
         self.scene, self.binding, self.limits = scene, binding, limits
         self.geometry, self.joints = geometry, joints
         if tuple(scene.model.shape_label) != binding.collider_names:
             raise FasteningFault("observer collider registry differs from binding")
-        self.sources = sdk_sources()
+        self.sources = sdk_sources() if sdk_recipe is None else sdk_sources(sdk_recipe)
         self.output = scene.newton.Contacts(int(scene.solver.mjw_data.naconmax), 0,
             device=scene.model.device, requested_attributes={"force"})
         self._last_step = 0

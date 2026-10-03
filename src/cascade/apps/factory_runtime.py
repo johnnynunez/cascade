@@ -39,8 +39,10 @@ def _retain_error_note(error, message):
 
 def validate_factory_profile(profile):
     required = {"kind", "recipe", "assets", "robot_asset", "device", "model_identity_sha256"}
-    if not isinstance(profile, dict) or set(profile)-required-{"robot_id", "precompile"} or required-set(profile):
+    if not isinstance(profile, dict) or set(profile)-required-{"robot_id", "precompile", "sdk_recipe"} or required-set(profile):
         raise ValueError("fastening requires the explicit fixed Factory profile fields")
+    from ..sim.factory_sdk import validate_sdk_recipe
+    validate_sdk_recipe(profile.get("sdk_recipe"))
     seating_recipe(profile["recipe"])
     if "precompile" in profile:
         from ..sim.factory_precompile import PRECOMPILE_RECIPE
@@ -82,7 +84,9 @@ def prepare_factory_model(profile, cache_dir):
     if profile["device"] is None:
         raise FasteningFault("Factory device is unprepared; select an explicit CUDA ordinal before construction")
     from ..sim.factory_observation import sdk_sources
-    sdk_sources()  # Refuse an unreviewed implementation before model construction.
+    sdk_recipe = profile.get("sdk_recipe")
+    sdk_options = {} if sdk_recipe is None else {"sdk_recipe": sdk_recipe}
+    sdk_sources(**sdk_options)  # Refuse an unreviewed implementation before model construction.
     from ..sim.newton_screw_seating import SeatingScene
     from ..sim.factory_model import FactoryBoundModel
     scene = SeatingScene(profile["assets"], profile["robot_asset"], Path(cache_dir),
@@ -92,7 +96,7 @@ def prepare_factory_model(profile, cache_dir):
         raise FasteningFault("requested CUDA Factory model did not resolve to a CUDA device")
     if "precompile" in profile:
         try:
-            model = FactoryBoundModel(scene, precompile=profile["precompile"])
+            model = FactoryBoundModel(scene, precompile=profile["precompile"], **sdk_options)
         except BaseException as error:
             try:
                 if hasattr(scene, "precompile_receipt"):
@@ -102,7 +106,7 @@ def prepare_factory_model(profile, cache_dir):
             raise
         _write(Path(cache_dir).parent/"precompile.json", scene.precompile_receipt)
         return model
-    return FactoryBoundModel(scene)
+    return FactoryBoundModel(scene, **sdk_options)
 
 
 def _new_owner(model):

@@ -433,6 +433,47 @@ def test_builder_passes_explicit_compilation_selection(monkeypatch, tmp_path):
     assert calls == [((scene,), {'precompile':pre.PRECOMPILE_RECIPE})]
 
 
+def test_internal_sdk_is_explicit_and_passes_through_both_guards(monkeypatch, tmp_path):
+    import cascade.sim.factory_model as model
+    import cascade.sim.factory_observation as observation
+    import cascade.sim.newton_screw_seating as seating
+    from cascade.sim.factory_sdk import INTERNAL_SDK_RECIPE
+    profile = load_robot_config('factory_m20_precompile_writer_v3').domains.fastening.as_dict()
+    calls = []
+    monkeypatch.setattr(observation, 'sdk_sources', lambda **kw: calls.append(('sdk', kw)))
+    scene = NS(model=NS(device=NS(is_cuda=True)), precompile_receipt={})
+    monkeypatch.setattr(seating, 'SeatingScene', lambda *args, **kw: scene)
+    monkeypatch.setattr(model, 'FactoryBoundModel', lambda *args, **kw: calls.append(('model', kw)))
+    prepare_factory_model(profile | {'device': 'cuda:0', 'sdk_recipe': INTERNAL_SDK_RECIPE}, tmp_path)
+    assert calls == [('sdk', {'sdk_recipe': INTERNAL_SDK_RECIPE}),
+                     ('model', {'precompile': pre.PRECOMPILE_RECIPE, 'sdk_recipe': INTERNAL_SDK_RECIPE})]
+    with pytest.raises(ValueError, match='SDK recipe'):
+        prepare_factory_model(profile | {'device': 'cuda:0', 'sdk_recipe': 'auto'}, tmp_path)
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize('guard', ['readback', 'compiler'])
+def test_sdk_source_mix_refused_before_native_construction(monkeypatch, tmp_path, guard):
+    import cascade.sim.factory_sdk as sdk
+    import cascade.sim.factory_observation as observation
+    first, second = tmp_path / 'first.py', tmp_path / 'second.py'
+    first.write_text('old compatible channel')
+    second.write_text('new explicit source')
+    pins = {'mujoco_warp._src.support': hashlib.sha256(first.read_bytes()).hexdigest(),
+            'newton._src.solvers.mujoco.solver_mujoco': hashlib.sha256(second.read_bytes()).hexdigest()}
+    pinfile = tmp_path / 'pins.json'
+    pinfile.write_text(__import__('json').dumps(pins))
+    monkeypatch.setattr(sdk, 'INTERNAL_PINS', pinfile)
+    modules = {name: NS(__file__=str(path)) for name, path in zip(pins, (first, second), strict=True)}
+    target = observation if guard == 'readback' else pre
+    monkeypatch.setattr(target.importlib, 'import_module', modules.__getitem__)
+    check = observation.sdk_sources if guard == 'readback' else pre.admitted_sdk
+    check(sdk.INTERNAL_SDK_RECIPE)
+    second.write_text('legacy solver mixed into new source set')
+    with pytest.raises(FasteningFault, match='SDK'):
+        check(sdk.INTERNAL_SDK_RECIPE)
+
+
 def test_persistence_failure_preserves_primary_error_without_python311_notes(monkeypatch, tmp_path, caplog):
     import cascade.apps.factory_runtime as runtime
     import cascade.sim.factory_model as model

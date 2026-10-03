@@ -6,6 +6,7 @@ from the software-only tests of this orchestration.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 import math
 import time
 
@@ -14,6 +15,19 @@ import numpy as np
 from cascade.apps.signal_stop import SignalRequest
 from cascade.control.microduck_policy import POLICY_JOINTS, observation
 from cascade.sim.microduck_state import body_frame_vectors
+
+
+@dataclass
+class StagedTick:
+    sample: dict
+    identity: dict
+    policy_slot: bool
+    command: np.ndarray
+    candidate: tuple | None
+
+    @property
+    def prepared(self):
+        return self.sample, self.identity, self.policy_slot
 
 
 def positive(value, name):
@@ -135,17 +149,17 @@ class MicroduckStepper:
                 raise RuntimeError('controller identity/epoch changed during episode')
         return command, identity
 
-    def _check_wall(self):
+    def _check_wall(self, *, checkpoint=True):
         # Gate new work after a slow call returns; this cannot interrupt an
         # already-running native operation. An external process timeout is
         # still required to bound uncooperative inference/GPU calls.
-        if self.checkpoint is not None:
+        if checkpoint and self.checkpoint is not None:
             self.checkpoint()
         elapsed = self.clock() - self.start_wall
         if not math.isfinite(elapsed) or elapsed < 0 or elapsed >= self.max_wall_s:
             raise RuntimeError('wall duration limit reached/clock regressed')
 
-    def _policy_slot(self, sample, command, identity):
+    def _policy_slot(self, sample, command, identity, *, stage_only=False, retry=0):
         """Commit at most ONE action per regular 50Hz slot.
 
         A stop that crosses inference invalidates that speculative computation.
@@ -156,7 +170,7 @@ class MicroduckStepper:
         a later stop cannot undo it. No permission lock covers ONNX or GPU work.
         """
         previous = self.policy.previous_action
-        for attempt in range(2):
+        for attempt in range(1 if stage_only else 2):
             self._check_wall()
             obs = observation(sample['q'], sample['dq'], sample['angular_velocity'],
                               sample['gravity_body'], previous, command)
@@ -164,7 +178,7 @@ class MicroduckStepper:
             record.update(observation_step=sample['step'], observation_sim_time_s=sample['sim_time'],
                           observation=obs[0].tolist(), commands=command.tolist(), status='pending',
                           attempt=self.policy_attempts, policy_slot=self.steps // 4,
-                          retry=attempt, committed=False)
+                          retry=retry+attempt, committed=False)
             self.policy_records.append(record)
             self.last_policy = record
             self.policy_attempts += 1
@@ -178,6 +192,10 @@ class MicroduckStepper:
                         or type(clock_time) not in (int, float) or not math.isfinite(clock_time)
                         or abs(clock_time - sample['sim_time']) > clock_tolerance(sample['sim_time'])):
                     raise RuntimeError('physics clock changed during inference; stale input not committed')
+                if stage_only:
+                    self._check_wall()
+                    record['status'] = 'staged'
+                    return action, targets, record
                 # Only a pure 14-value history copy is committed under this
                 # lock. Uploads and BAM/Kit calls happen after releasing it.
                 with self.controller._lock:
@@ -213,10 +231,11 @@ class MicroduckStepper:
                 raise
         raise RuntimeError('repeated command invalidation during inference; no action committed')
 
-    def _prepare_tick(self, *, prepare_actuator=True):
+    def _tick_inputs(self, *, reset_records=True):
         if not self.started or self.closed or self.failure:
             raise RuntimeError('stepper not running; lifecycle restart required')
-        self.policy_records = []
+        if reset_records:
+            self.policy_records = []
         self._check_wall()
         if self.steps >= self.max_steps:
             raise RuntimeError('step limit reached')
@@ -229,6 +248,16 @@ class MicroduckStepper:
             raise RuntimeError('uncommanded physics step/time change')
         command, identity = self._control_snapshot(sample['sim_time'])
         policy_slot = self.steps % 4 == 0
+        return sample, command, identity, policy_slot
+
+    def _stage_tick(self, *, retry=0):
+        """Shared owner only: no history, target or native control mutation."""
+        sample, command, identity, policy_slot = self._tick_inputs(reset_records=retry == 0)
+        candidate = self._policy_slot(sample, command, identity, stage_only=True, retry=retry) if policy_slot else None
+        return StagedTick(sample, identity, policy_slot, command, candidate)
+
+    def _prepare_tick(self, *, prepare_actuator=True):
+        sample, command, identity, policy_slot = self._tick_inputs()
         if policy_slot:
             self._policy_slot(sample, command, identity)
         prepared = sample, identity, policy_slot

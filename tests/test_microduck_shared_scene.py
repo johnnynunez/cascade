@@ -143,7 +143,7 @@ def test_preparation_failure_never_solves_partial_batch_or_publishes():
     with pytest.raises(RuntimeError): fleet.tick()
 
 
-def test_stop_during_another_robots_inference_vetoes_pending_shared_solve():
+def test_repeated_stop_during_peer_inference_withholds_without_mutating_history():
     fleet, owner, steppers = shared()
     fleet.start()
     original = steppers[1].policy.preview
@@ -151,9 +151,13 @@ def test_stop_during_another_robots_inference_vetoes_pending_shared_solve():
         steppers[0].controller.stop(latch=True)
         return original(obs)
     steppers[1].policy.preview = crossed
-    with pytest.raises(RuntimeError, match='shared preparation'): fleet.tick()
+    assert fleet.tick() is None
     assert owner.step_count == 2
-    assert all(s.failure for s in steppers)
+    assert all(not s.failure and s.policy_commits == 0 and s.steps == 0 for s in steppers)
+    assert all(not s.actuator.targets for s in steppers)
+    assert all([r['status'] for r in s.policy_records] == ['discarded', 'discarded'] for s in steppers)
+    steppers[1].policy.preview = original
+    assert fleet.tick()['duck0']['step'] == 3
 
 
 @pytest.mark.parametrize('bad', ['epoch', 'model', 'robot', 'clock'])

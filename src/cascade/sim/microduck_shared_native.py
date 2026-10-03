@@ -128,7 +128,9 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         recipe = build_model_identity(self.admission, self.receipt,
                                       repo=repo, runtime_scene=runtime_scene)['recipe']
         recipe.update(schema='cascade.microduck.shared-scene.v1', shared={
-            'placements': self.placements, 'actuators': self.receipt['shared_actuators'],
+            'placements': self.placements,
+            'actuators': [{key: member[key] for key in recipe['bam']}
+                          for member in self.receipt['shared_actuators']],
             'native_model_properties': self.receipt['shared_model_properties']})
         digest = hashlib.sha256(canonical_bytes(recipe)).hexdigest()
         self.layout = self._layout_for(digest)

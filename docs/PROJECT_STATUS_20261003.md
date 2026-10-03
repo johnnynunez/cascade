@@ -26,7 +26,8 @@ already in main (including task-effect accounting in #90 and RGB-D in #91). The
 Four reproduced software defects have source-bound CPU fixes published in the
 following PRs. These selections overlap, particularly the three #93 selections;
 the counts must not be summed. They establish neither a fully green CI matrix
-nor new physical admission, and no physical episode was rerun for these fixes.
+nor new physical admission. Subsequent Factory startup checks are recorded
+separately below.
 
 | PR and source | Corrected behavior | CPU evidence |
 | --- | --- | --- |
@@ -136,11 +137,37 @@ naturally and six foreign process births remained intact. Exact rejection age
 and stage were not recorded, so the cause cannot be assigned to GPU, GC or
 scheduling. No fastening action or reset was requested, and physical stop was
 not verified. [Retained v3 failure and independent audit](evidence/project-status-20261003/factory-readiness-v3-review.json).
-**Ordinary readiness and fastening remain unadmitted.**
-Compilation success is not a solved task.
 [Readiness failure](evidence/project-status-20261003/factory-readiness-v2-review.json),
 [v3 CPU receipt](evidence/project-status-20261003/factory-contact-writer-cpu.json),
 [v3 native preparation](evidence/project-status-20261003/factory-native-v3-prepare.json).
+
+The subsequent source `cce88808d4bded97a84c02a562cb3ceb997de954`, with model
+`69d9a46aaba9304df44828cbca1460a1a4166b9d58c9625b3b6f6bdacf07ed00`, passed a
+separate preparation: 39 compiler loads, 22 predicates and **zero scene/native
+solves**, with no owner started. Preparation and readiness used distinct epochs.
+The preparation process closed naturally; this admits neither readiness nor a
+fastening task. [Preparation audit](evidence/project-status-20261003/factory-current-preparation-review.json).
+
+Its ordinary readiness attempt remains **FAIL**, now with a bound age diagnostic.
+At `controller_accept_solve`, step **303** was rejected with capture-to-check age
+**0.43165935698 s**, exceeding the unchanged **0.2 s** limit. The retained raw
+quiet span before that row is steps **64–302**, **0.3966666763 simulated seconds**,
+short of the required **0.5 s**. Rejected row 303 cannot supply readiness credit;
+even including its raw values would give only 0.398333343 s. The failure occurred
+after 8.938 wall seconds inside the unchanged 10-second readiness budget.
+[Readiness audit](evidence/project-status-20261003/factory-current-readiness-review.json),
+[bound error and age extraction](evidence/project-status-20261003/factory-current-age-diagnostic.json).
+
+All 303 raw solve records retain the original arm hold and zero spindle command
+and observed effort. These records do not establish that every row was accepted
+live, and do not verify physical stop. The owner thread closed but its fault and
+`ok: false` remain. The scope exited naturally with code 1, all three tracked
+owned processes closed, six foreign process births were unchanged, and the
+source/SDK/assets/stores inventories matched before and after. No turn, reset or
+task was requested. The age diagnostic measures a gap, not its cause: it assigns
+no GPU, garbage-collection or scheduling attribution and renews no timestamp.
+**Ordinary readiness and fastening remain unadmitted.** Compilation success,
+zero spindle effort and resource closure do not establish a solved task.
 
 MicroDuck has four recorded fresh-start forward/reverse **30 mm** passes, a
 separate small negative turn and priority cancellation with observed rest.

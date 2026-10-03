@@ -667,3 +667,18 @@ The 151/183/122 selections overlap and are not summed. Historical physical
 failures and all prior receipts remain unchanged; no CI-wide or new physical
 admission is inferred. Documentation validation only: links, hashes, exact Git
 receipt versions and diff checks; no test/runtime/SDK/GPU execution.
+
+### 2026-10-03 — Preserve current Factory preparation PASS and readiness FAIL
+
+Documentation-only follow-up on `06805d13`: source `cce8880`/model `69d9a46a`
+passed zero-solve preparation, then failed ordinary readiness. Step303 was
+rejected at controller acceptance with age 0.43165935698 s above 0.2 s; the
+preceding raw quiet span 64–302 covers 0.3966666763 s below the required 0.5 s. Neither the raw
+zero-spindle records nor a closed owner thread clears its fault or proves rest.
+Retain natural scope exit 1, all three tracked own processes closed, six foreign
+births unchanged and unchanged input inventories. No turn/reset/task requested;
+no GC/GPU/scheduling cause inferred. Add only the three small byte-exact audits,
+including the bound error extractor, and extend their copy manifest. Preserve
+all 25 prior portable receipts and earlier failed episodes. Validation is limited
+to evidence hashes, relative links and docs diff; no tests, SDK imports, model
+inference, simulator, GPU query, action or new native run.

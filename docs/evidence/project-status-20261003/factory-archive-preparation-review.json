@@ -1,0 +1,115 @@
+{
+  "verdict": "PASS_PREPARATION_CLOSED_ONLY",
+  "head": "4bda2183a30074f8ad105ce497876301ce8fc0ed",
+  "repo": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_MERGE_READY_20261003/cascade",
+  "model_identity_sha256": "01595b62c1b4856e41c7e8f83be6ee91b6414bda742aea7e6a7ed0b3e8daa94d",
+  "epoch": "9fbe851152224054a80d2dfc5d2258a9",
+  "compiler_audit": {
+    "ok": true,
+    "loaded_variants": 39,
+    "scene_and_native_solves": 0,
+    "admission_predicates": 22,
+    "admission_sha256": "c9adf546d1c7ce22db7780d750def78f63e646cd2957bf735eca6f91a32d7cd3",
+    "physical_snapshot_sha256": "47f3773c3aaa689510e97abcd880f9a20942d157a28733039070d1523a3e2c25",
+    "model_identity_sha256": "01595b62c1b4856e41c7e8f83be6ee91b6414bda742aea7e6a7ed0b3e8daa94d",
+    "physics_admission": false,
+    "readiness_admission": false
+  },
+  "canonical_model_digest_recomputed": true,
+  "inputs_unchanged_and_current_hashes_verified": 6422,
+  "artifact_hashes_verified": 12,
+  "private_cache_hashes_verified": 281,
+  "five_stores_unchanged": {
+    "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "/home/johnny/.cascade/grasp_memory.json": null,
+    "/home/johnny/.cascade/beliefs.json": null,
+    "/home/johnny/.cascade/spatial_memory.json": null,
+    "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+  },
+  "owned_births_absent_now": [
+    {
+      "expected": {
+        "pid": 1436953,
+        "start_ticks": 28327770,
+        "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d"
+      },
+      "observed": null,
+      "original_absent": true
+    },
+    {
+      "expected": {
+        "pid": 1436955,
+        "start_ticks": 28327774,
+        "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d"
+      },
+      "observed": null,
+      "original_absent": true
+    }
+  ],
+  "natural_scope_client_exit": 0,
+  "signals": [],
+  "forced_closure": false,
+  "six_peer_births_unchanged_in_terminal_observation": true,
+  "reviewer_gpu_query_or_native_import": false,
+  "readiness_admission": false,
+  "physical_task_admission": false,
+  "limits": [
+    "Zero-solve preparation only; no owner, readiness, motion, reset or seating.",
+    "Recorded peer observations do not guarantee performance isolation.",
+    "Reviewer did not repeat compilation, GPU queries or physical checks."
+  ],
+  "refs": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_PREPARE02_REVIEW_20261003/review.py",
+      "sha256": "a06372830b098d5e6cd34b45f7ee8935196954746295e952b3b377c7a376dc09"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/prepare/plan.json",
+      "sha256": "27d2cce6d9d11f4b1d9f4d5cca31680f85eab6b54db02673b47041777b80d73a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/prepare/authorized-plan-02.json",
+      "sha256": "62ca62d2367a54bd0c56cb0a572c16cdc156054391f173989558eb8735121e7b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/ROOT_NATIVE_PREPARATION_AUTHORIZATION_02.json",
+      "sha256": "0c30cb1e6339bd07b92215bb00988e2325fe7e3bb6ab9fc7edf9deead7edda75"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/root-stores-before-native-02.json",
+      "sha256": "663a534673744b705e72f3471d4b9fe8e94a83d62f0e398ee7037feee87d85ea"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/native-prepare-02/receipt.json",
+      "sha256": "4bef79b0b3cb5aa152396e3e28a4d3718a2d88a42e1872214168673fd992d856"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/native-prepare-02/inputs-before.json",
+      "sha256": "f77b226d93f8ff52332ed79202e107fbd7c805eb066df31833f2e08bd8a33524"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/native-prepare-02/inputs-after.json",
+      "sha256": "f77b226d93f8ff52332ed79202e107fbd7c805eb066df31833f2e08bd8a33524"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/native-prepare-02/native/native-result.json",
+      "sha256": "cde71ccbebec8f9754e105a91dd7e028da163e80cafe672b9fc50111c34a867b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/native-prepare-02/native/model.json",
+      "sha256": "86127bd4f866827e7d485d725db800b3db1233a044fe8955ac0ebd83c4bd3afa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/native-prepare-02/native/binding.json",
+      "sha256": "028fcb8c0ffe343ccfa561ad086c34611e9ec4f9f70f74294dcfba025b81a1f6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/native-prepare-02/native/precompile.json",
+      "sha256": "0914ad424f122972270d96870a1659feeaa8634f8a0d351df7d57c702c22c92b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_NATIVE_PLAN_20261003/prepare/preparation_audit.py",
+      "sha256": "11f1932554b01ddc8e384806030520bfd1800b729c944af220cd2a3231c96a23"
+    }
+  ]
+}

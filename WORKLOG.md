@@ -2006,3 +2006,24 @@ the corresponding controls pass in the final selection. Four skips need CPU FK
 assets and seven need the pinned MuJoCo3.12 ABI. No native/GPU/push was performed.
 Receipts: `benchmark/results/factory_raw_archive_20261003.json` and its replay
 comparison. New source/model identity is required before later native validation.
+
+### 2026-10-03 — Integrated main and first Factory readiness pass
+
+PRs85–98 are merged at main274fa3a9; all five jobs in CI37128674952 passed,
+including macOS and both Linux architectures. Its complete tree equals the
+reviewed Factory source4bda2183. Publish separate byte-exact independent audits
+for preparation02 and readiness01, preserving earlier refusals and failures.
+
+New model01595b62 preparation passed39loads/22predicates/zero solves, without
+starting an owner. In a separate epoch, ordinary readiness passed .5000000121s
+quiet over steps59–359 in9.787795156s of the unchanged10s deadline. All361 raw
+rows retained original hold/zero spindle effort and returned from controller
+acceptance. Both processes exited naturally; source/SDK/assets and five stores
+were unchanged. No turn/reset or post-command physical rest was verified.
+
+The margin is only .2122s and the trace still contains a .417793s gen2GC interval
+on another thread after readiness. This single instrumented episode proves
+neither repeatability nor a general performance cause. Raw decode can occur
+while the owner lives; post-close phase export and the remaining drain follow
+join. Documentation and receipt validation only; this publication does not
+replay physics or transfer old task success to the integrated source.

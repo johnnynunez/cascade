@@ -1,0 +1,47 @@
+{
+  "observed_at": "2026-10-03T14:37:02.028672+00:00",
+  "main_sha": "274fa3a9d48d96a8b1402dfeb2fe79c45e67037e",
+  "run_url": "https://github.com/johnnynunez/cascade/actions/runs/37128674952",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "booth pages and camera extension",
+      "conclusion": "success",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/37128674952/job/111219161332",
+      "completedAt": "2026-10-03T14:10:05Z"
+    },
+    {
+      "name": "minimal install, no accelerator",
+      "conclusion": "success",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/37128674952/job/111219161374",
+      "completedAt": "2026-10-03T14:10:08Z"
+    },
+    {
+      "name": "ubuntu-latest / py3.12",
+      "conclusion": "success",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/37128674952/job/111219161419",
+      "completedAt": "2026-10-03T14:21:07Z"
+    },
+    {
+      "name": "macos-latest / py3.12",
+      "conclusion": "success",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/37128674952/job/111219161505",
+      "completedAt": "2026-10-03T14:34:15Z"
+    },
+    {
+      "name": "ubuntu-24.04-arm / py3.12",
+      "conclusion": "success",
+      "url": "https://github.com/johnnynunez/cascade/actions/runs/37128674952/job/111219161693",
+      "completedAt": "2026-10-03T14:20:28Z"
+    }
+  ],
+  "source_receipt": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/MERGE_AUTHORIZED_20261003/main-ci-complete.json",
+    "sha256": "9fad90a397553748d1c55d9374fc89cfc99ffabd7cab45d73ff455695cb7b5af"
+  },
+  "merged_pr_range": [
+    85,
+    98
+  ],
+  "physical_admission": false
+}

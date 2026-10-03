@@ -1,0 +1,283 @@
+{
+  "audit_verdict": "PASS_NATIVE_READINESS_CLOSED_ONLY",
+  "head": "4bda2183a30074f8ad105ce497876301ce8fc0ed",
+  "model_sha256": "01595b62c1b4856e41c7e8f83be6ee91b6414bda742aea7e6a7ed0b3e8daa94d",
+  "epoch": "6eed234fd7674e7b8da18dcc20039e3b",
+  "pre_owner_preparation": {
+    "ok": true,
+    "loaded_variants": 39,
+    "scene_and_native_solves": 0,
+    "admission_predicates": 22,
+    "admission_sha256": "c9adf546d1c7ce22db7780d750def78f63e646cd2957bf735eca6f91a32d7cd3",
+    "physical_snapshot_sha256": "b9af936e4a7f1b2bd7f7ef62b8282b84a527dfef987f14f8d0d21251332cd4fe",
+    "model_identity_sha256": "01595b62c1b4856e41c7e8f83be6ee91b6414bda742aea7e6a7ed0b3e8daa94d",
+    "physics_admission": false,
+    "readiness_admission": false
+  },
+  "readiness": {
+    "binding_sha256": "472a100995f41abb46efff9ef68ead961f5fba11def7793253bbb08b29b3448c",
+    "captured_monotonic_s": 283987.465214836,
+    "epoch": "6eed234fd7674e7b8da18dcc20039e3b",
+    "generation": 0,
+    "latched": true,
+    "physical_task_admission": false,
+    "quiet_interval_sim_s": 0.5000000121071935,
+    "ready": true,
+    "step": 359
+  },
+  "quiet_prefix": {
+    "first_step": 59,
+    "last_step": 359,
+    "duration_sim_s": 0.5000000121071935,
+    "generation": 0,
+    "all_thread_and_tool_contacts_positive": true
+  },
+  "readiness_wall_s": 9.787795156007633,
+  "deadline_remaining_s": 0.2122048439923674,
+  "raw_rows": 361,
+  "generations": {
+    "0": 360,
+    "2": 1
+  },
+  "journal_files": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/runtime/domains/fastening/solves.jsonl": {
+      "count": 361,
+      "sha256": "13eb8b13646c94562c333fa626a2de8f3f851ea6b9f4a271035e946528bee913"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/post-close-solves.jsonl": {
+      "count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "all_native_controls_equal_initial_hold": true,
+  "all_spindle_commands_and_efforts_zero": true,
+  "all_qfrc_applied_zero": true,
+  "all_solves_accepted_by_controller": true,
+  "scene_and_native_clock_recurrence_verified": true,
+  "trace_events": 7988,
+  "trace_pairs": 3994,
+  "trace_complete": true,
+  "controller_wrapper_age_max": {
+    "step": 360,
+    "entry_minus_capture_s": 0.05401920998701826,
+    "return_minus_capture_s": 0.05595989100402221
+  },
+  "controller_wrapper_age_is_not_exact_internal_check_clock": true,
+  "advance_return_to_queue_start_max": {
+    "step": 302,
+    "wall_s": 0.000306546
+  },
+  "gap_includes_pickle_encoding_and_unattributed_python_scheduling_overhead": true,
+  "queue_duration_max_s": 7.7508e-05,
+  "gc_intervals_by_generation": {
+    "0": 682,
+    "1": 62,
+    "2": 1
+  },
+  "gc_largest_three": [
+    {
+      "phase": 8,
+      "thread_id": 123364005992320,
+      "step": -1,
+      "event": 2,
+      "generation": 2,
+      "start_ns": 283987509667582,
+      "end_ns": 283987927460814,
+      "wall_s": 0.417793232,
+      "thread_cpu_s": 0.417656834,
+      "capture_s": -1.0
+    },
+    {
+      "phase": 8,
+      "thread_id": 123352481900224,
+      "step": -1,
+      "event": 2,
+      "generation": 1,
+      "start_ns": 283977839765610,
+      "end_ns": 283977841275496,
+      "wall_s": 0.001509886,
+      "thread_cpu_s": 0.001501722,
+      "capture_s": -1.0
+    },
+    {
+      "phase": 8,
+      "thread_id": 123364005992320,
+      "step": -1,
+      "event": 2,
+      "generation": 1,
+      "start_ns": 283987942803831,
+      "end_ns": 283987943471827,
+      "wall_s": 0.000667996,
+      "thread_cpu_s": 0.000545709,
+      "capture_s": -1.0
+    }
+  ],
+  "phase_spans_nested_not_summed": true,
+  "timings_include_observer_overhead": true,
+  "runtime_closure": {
+    "complete": true,
+    "domains": {
+      "fastening": {
+        "ok": true,
+        "owner": {
+          "error": null,
+          "ok": true,
+          "owner_thread_closed": true,
+          "pending_records": 2,
+          "physical_stop_verified": false,
+          "zero_spindle": {
+            "before_step": 361,
+            "completed_monotonic_s": 283988.286027077,
+            "generation": 2,
+            "physical_stop_verified": false,
+            "uploaded": true
+          }
+        },
+        "physical_stop_verified": false,
+        "stop": {
+          "accepted_monotonic_s": 283988.261258078,
+          "generation": 1,
+          "latched": true,
+          "ok": true,
+          "physical_stop_verified": false
+        }
+      }
+    },
+    "ok": true
+  },
+  "owner_drain": {
+    "absolute_deadline_monotonic_s": 284138.574362414,
+    "advance_calls_observed": 361,
+    "ended_monotonic_s": 283988.28892349,
+    "ok": true,
+    "owner_constructed": true,
+    "owner_error": null,
+    "owner_thread_closed": true,
+    "physical_stop_verified": false,
+    "started_monotonic_s": 283988.288920736,
+    "zero_spindle": {
+      "before_step": 361,
+      "completed_monotonic_s": 283988.286027077,
+      "generation": 2,
+      "physical_stop_verified": false,
+      "uploaded": true
+    }
+  },
+  "scope_exit": 0,
+  "owned_births_absent": [
+    {
+      "expected": {
+        "pid": 1441521,
+        "start_ticks": 28389857,
+        "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d"
+      },
+      "observed_now": null,
+      "original_absent": true
+    },
+    {
+      "expected": {
+        "pid": 1441523,
+        "start_ticks": 28389861,
+        "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d"
+      },
+      "observed_now": null,
+      "original_absent": true
+    }
+  ],
+  "six_foreign_births_same_in_terminal_observation": true,
+  "input_file_hashes_reverified": 6436,
+  "artifact_hashes_verified": 22,
+  "cache_hashes_verified": 282,
+  "five_stores_unchanged": {
+    "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "/home/johnny/.cascade/grasp_memory.json": null,
+    "/home/johnny/.cascade/beliefs.json": null,
+    "/home/johnny/.cascade/spatial_memory.json": null,
+    "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+  },
+  "readiness_success_is_not_motion_stop_or_thread_seating_acceptance": true,
+  "motion_reset_calls": [],
+  "physical_task_admission": false,
+  "separate_stop_rest_verified": false,
+  "reviewer_native_imports_gpu_queries_or_new_runs": false,
+  "limits": [
+    "One instrumented shared-device startup episode; no general performance/GC-cause claim.",
+    "Readiness succeeded with a small wall margin; budgets were not changed.",
+    "Closing thread and zero upload do not prove a separate post-stop rest window.",
+    "Raw-record decode may occur after _ready while owner lives, as well as after join."
+  ],
+  "refs": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_NATIVE_REVIEW_20261003/review.py",
+      "sha256": "3a923e741b1f6084b0562a0ca19ab6b5550b3e2805963212fecc8d7ef5dab3b9"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/readiness/authorized-plan-01.json",
+      "sha256": "1c9c23cd2aabf89c343d9d923ab9ffdc9daf0029e3a064feae7f2f76c073e296"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/readiness/plan.json",
+      "sha256": "c478efccfd0dbc2f3612f51dd20a39e106f1dc76840c50aaab257ef5f321fdda"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/receipt.json",
+      "sha256": "7eafa90a154eb5eb05d56815b6f953347ef8c05a6fee3cd9cc7f7374962aa3bd"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/native-result.json",
+      "sha256": "1625bd469e4d912057fd3f7a610bbb25438586f0644fc31335a1ddafda413d1a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/constructed-model.json",
+      "sha256": "86127bd4f866827e7d485d725db800b3db1233a044fe8955ac0ebd83c4bd3afa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/constructed-binding.json",
+      "sha256": "028fcb8c0ffe343ccfa561ad086c34611e9ec4f9f70f74294dcfba025b81a1f6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/runtime/domains/fastening/precompile.json",
+      "sha256": "046cb5230e66c5e75e5be467e2d0c537c988b38672ecfe6e8f3dd69782b80676"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/phase-trace.json",
+      "sha256": "b5e66bb4ed72b510ee99520812388cc55f1ccc4fd74df68e467c2e105bba5d36"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/scope/closure.json",
+      "sha256": "57928ff223661ae1645966e9a1a82bc1c91ad5d6841e483ae395ca9592610a96"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/inputs-before.json",
+      "sha256": "2c2637e144edf1ada02638b86b190b9c65aa53161255fb0884631b2ad990f718"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/inputs-after.json",
+      "sha256": "2c2637e144edf1ada02638b86b190b9c65aa53161255fb0884631b2ad990f718"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/runtime/domains/fastening/solves.jsonl",
+      "sha256": "13eb8b13646c94562c333fa626a2de8f3f851ea6b9f4a271035e946528bee913"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/native-readiness-01/native/post-close-solves.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/root-stores-before-native-01.json",
+      "sha256": "663a534673744b705e72f3471d4b9fe8e94a83d62f0e398ee7037feee87d85ea"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/root-stores-after-native-01.json",
+      "sha256": "663a534673744b705e72f3471d4b9fe8e94a83d62f0e398ee7037feee87d85ea"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/ADDENDUM_RAW_DECODE.json",
+      "sha256": "0e244ae7cc7a63a3ae2cdf375173133ee85753a27cab7eebbeb666caeaa4c601"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARCHIVE_READINESS_PLAN_20261003/readiness/preparation_audit.py",
+      "sha256": "11f1932554b01ddc8e384806030520bfd1800b729c944af220cd2a3231c96a23"
+    }
+  ]
+}

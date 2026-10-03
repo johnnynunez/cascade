@@ -1,4 +1,6 @@
 """Telemetry must explain attempts without adding robot reads or commands."""
+import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
@@ -98,6 +100,41 @@ def receipt(directory):
     files = list(directory.glob('*.json'))
     assert len(files) == 1
     return json.loads(files[0].read_text())
+
+
+@pytest.fixture
+def synthetic_git_metadata(monkeypatch):
+    """Only Git metadata is synthetic; file hashes and receipt writes stay real."""
+    state = SimpleNamespace(calls=[], status_timeout=False, timeouts=[])
+    real_run = subprocess.run
+    repo = str(Path(evidence.__file__).resolve().parents[3])
+
+    def run(argv, *, capture_output, text, check, timeout):
+        assert argv[:3] == ['git', '-C', repo]
+        assert capture_output is True and text is True and check is True
+        assert timeout == 2.0  # the production provenance budget is unchanged
+        command = argv[3:]
+        assert command in (['rev-parse', 'HEAD'],
+                           ['status', '--porcelain', '--untracked-files=no'])
+        state.calls.append(command)
+        if command[0] == 'status' and state.status_timeout:
+            # Exercise the real subprocess timeout/cleanup path, without
+            # depending on repository size or the host's Git scheduling.
+            try:
+                real_run([sys.executable, '-c', 'import time; time.sleep(30)'],
+                         capture_output=capture_output, text=text, check=check,
+                         timeout=timeout)
+            except subprocess.TimeoutExpired as exc:
+                state.timeouts.append(exc.timeout)
+                raise subprocess.TimeoutExpired(argv, exc.timeout) from exc
+            raise AssertionError('controlled metadata process did not time out')
+        value = ('synthetic-grasp-evidence-test-head\n' if command[0] == 'rev-parse'
+                 else ' M synthetic-test-metadata\n')
+        return subprocess.CompletedProcess(argv, 0, stdout=value, stderr='')
+
+    # Replace this module's namespace, not the shared subprocess.run function.
+    monkeypatch.setattr(evidence, 'subprocess', SimpleNamespace(run=run))
+    return state
 
 
 @pytest.mark.parametrize('source_status', ['healthy', 'git_timeout'])
@@ -403,3 +440,38 @@ def test_existing_memory_prior_and_nudge_are_captured_before_candidate_mutation(
         relative = 'assets/grasp_geometry/' + name
         assert doc['source']['sha256'][relative] == hashlib.sha256(
             (Path(__file__).parents[1] / relative).read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize('actor_fails', [False, True])
+def test_git_metadata_timeout_preserves_commands_result_and_actor_exception(
+        monkeypatch, tmp_path, synthetic_git_metadata, actor_fails):
+    synthetic_git_metadata.status_timeout = True
+    traces, outcomes = [], []
+    for enabled in (False, True):
+        monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path) if enabled else '')
+        rt, calls, fix, frame = runtime(monkeypatch, fail=actor_fails)
+        if actor_fails:
+            with pytest.raises(SkillError, match='original descent transport failure') as error:
+                rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
+            outcomes.append((type(error.value), str(error.value)))
+        else:
+            outcomes.append(rt.skill_grasp_object('orange', _fix=fix, _frame=frame))
+        traces.append(calls.copy())
+    assert outcomes[0] == outcomes[1]
+    assert traces[0] == traces[1]
+    assert synthetic_git_metadata.timeouts == [2.0]
+    doc = receipt(tmp_path)
+    assert doc['logging_ok'] is False
+    assert doc['dropped_events'] == 0
+    assert len(doc['logging_errors']) == 1
+    error = doc['logging_errors'][0]
+    assert error['operation'] == 'source_at_flush' and error['type'] == 'TimeoutExpired'
+    assert "'status', '--porcelain', '--untracked-files=no'" in error['message']
+    assert 'timed out after 2.0 seconds' in error['message']
+    assert 'git_tracked_status_porcelain' not in doc['source']
+    assert doc['source']['sha256']['src/cascade/skills/runtime.py'] == hashlib.sha256(
+        (Path(__file__).parents[1] / 'src/cascade/skills/runtime.py').read_bytes()).hexdigest()
+    arrays = tmp_path / doc['arrays']['path']
+    assert hashlib.sha256(arrays.read_bytes()).hexdigest() == doc['arrays']['sha256']
+    assert doc['events'][-1]['kind'] == ('attempt_exception' if actor_fails else 'result')
+    assert evidence._ACTIVE.get() is None

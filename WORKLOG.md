@@ -769,3 +769,19 @@ The later Mac86 failure is a separate exact-one-TCP-pair fixture assertion,
 preserved for the existing independently reviewed TCP fix. Raw logs, all
 controlled failures and source bindings are indexed in
 `benchmark/results/mobile_effects_ci_fixture_20261003.json`.
+
+### 2026-10-03 — Preserve TCP timeout coverage across caller scheduling
+
+macOS CI on PR84 retained `unverified/reader_timeout` but failed a test-only
+assumption that the independent reader makes exactly one TCP connection. A
+controlled delayed caller reproduces that same assertion failure: the real
+socket can expire and reconnect before `begin()` resumes to cancel its sampler.
+Both ordinary and delayed schedules now require the original 40 ms timeout
+verdict and allow only read-only hello/state messages. Runtime, clocks, limits,
+measured-support gates and controller ownership are unchanged. The controlled
+schedule does not claim to identify the historical OS scheduling event.
+
+Retained causal baseline: 1 failed; corrected focal: 2 passed; affected support
+and effect suite: 389 passed in 40.24 s. All 1,599 source inputs and four stores
+are unchanged across validation. No native SDK, GPU, simulation or local macOS
+execution. Receipt: benchmark/results/mobile_support_tcp_scheduling_20261003.json.

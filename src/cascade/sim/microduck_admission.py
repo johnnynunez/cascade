@@ -16,6 +16,7 @@ import threading
 class _Request:
     operation: str
     arguments: dict
+    owner_alive: object = None
     event: threading.Event = field(default_factory=threading.Event)
     result: dict | None = None
     error: Exception | None = None
@@ -39,6 +40,9 @@ class BoundaryAdmission:
             raise ValueError('unsupported boundary operation')
         controller = self.controllers[robot_id]
         arguments = deepcopy(request)
+        owner_alive = arguments.pop('_owner_alive', None)
+        if owner_alive is not None and not callable(owner_alive):
+            raise ValueError('invalid transport owner guard')
         received = arguments.setdefault('_received_wall', controller._clock())
         now = controller._clock()
         if type(received) not in (int, float) or not math.isfinite(received) or received > now:
@@ -46,7 +50,7 @@ class BoundaryAdmission:
         remaining = min(controller.lease_s, controller.max_action_wall_s) - (now - received)
         if remaining <= 0:
             raise ValueError('command expired before boundary admission')
-        item = _Request(operation, arguments)
+        item = _Request(operation, arguments, owner_alive)
         with self._lock:
             if self.closed:
                 raise RuntimeError('boundary admission closed')
@@ -57,10 +61,10 @@ class BoundaryAdmission:
         with self._lock:
             if self._pending.get(robot_id) is item:
                 del self._pending[robot_id]
-            if item.error is None and (not arrived or not self._live(controller, received)):
+            if item.error is None and (not arrived or not self._live(controller, received, owner_alive)):
                 if item.result is not None:
                     controller.stop(latch=True)
-                item.error = RuntimeError('boundary deadline expired; operation withdrawn')
+                item.error = RuntimeError('boundary deadline expired or owner channel closed; operation withdrawn')
             if item.error is not None:
                 raise item.error
             if item.result is None:
@@ -68,9 +72,14 @@ class BoundaryAdmission:
             return deepcopy(item.result)
 
     @staticmethod
-    def _live(controller, received):
+    def _live(controller, received, owner_alive=None):
         age = controller._clock() - received
-        return 0 <= age < min(controller.lease_s, controller.max_action_wall_s)
+        if not 0 <= age < min(controller.lease_s, controller.max_action_wall_s):
+            return False
+        try:
+            return owner_alive is None or owner_alive() is True
+        except Exception:
+            return False
 
     def drain(self):
         """Simulation thread only, immediately before preparing a new tick."""
@@ -85,12 +94,12 @@ class BoundaryAdmission:
                 controller = self.controllers[robot_id]
                 try:
                     received = item.arguments['_received_wall']
-                    if not self._live(controller, received):
-                        raise ValueError('command expired in boundary admission')
+                    if not self._live(controller, received, item.owner_alive):
+                        raise ValueError('command expired or owner channel closed in boundary admission')
                     item.result = getattr(controller, item.operation)(item.arguments)
-                    if not self._live(controller, received):
+                    if not self._live(controller, received, item.owner_alive):
                         controller.stop(latch=True)
-                        raise ValueError('command expired during boundary admission; permission revoked')
+                        raise ValueError('command expired or owner channel closed during admission; permission revoked')
                 except Exception as exc:
                     item.error = exc
                 item.event.set()

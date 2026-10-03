@@ -10,6 +10,7 @@ import copy
 import math
 import ipaddress
 import json
+import selectors
 import socket
 import threading
 import time
@@ -535,6 +536,22 @@ class MobileBridgeServer:
         conn.settimeout(self.IO_TIMEOUT_S)
         conn.sendall(wire)
 
+    def _owner_alive(self, owner, conn):
+        """Nonblocking admission guard while the control worker awaits a reply.
+
+        Only this worker reads its socket. Readability now means EOF or illegal
+        pipelining; do not consume bytes, wait for the peer, or change timeouts.
+        """
+        with self._guard:
+            if self._halt.is_set() or self._owners.get(owner) is not conn:
+                return False
+        try:
+            with selectors.DefaultSelector() as readiness:
+                readiness.register(conn, selectors.EVENT_READ)
+                return not readiness.select(timeout=0)
+        except (OSError, ValueError):
+            return False
+
     def _serve(self, conn):
         role, owner, owner_conn = "reader", None, None
         handshaken = False
@@ -599,6 +616,10 @@ class MobileBridgeServer:
                     elif op in {"command_velocity", "renew"} and request.get("owner") != owner:
                         result = {"ok": False, "error": "request owner differs from channel owner"}
                     else:
+                        if op in {"command_velocity", "reset_stop"}:
+                            # Trusted transport metadata, never a wire-supplied
+                            # liveness claim. The broker checks it at admission.
+                            request["_owner_alive"] = lambda: self._owner_alive(owner, owner_conn)
                         if op == "reset_stop":
                             # A queued reset must retain its control-channel
                             # owner even when the wire request omits it.

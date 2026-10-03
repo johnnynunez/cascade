@@ -16,7 +16,7 @@ accounting and RGB-D without admitting unvalidated physical capabilities.
 
 | Area | Implemented and measured | Remaining boundary |
 | --- | --- | --- |
-| Manipulation | SafeArm control, observed grasp/release guards, task-effect accounting and measured withdrawal. Historical OVRTX/cuMotion PhysX pick/place/home passed; the original two-object MuJoCo delivery test now passes on the separate attachment-aim candidate. | Broader task/campaign reliability, hardware and acceptance of later source compositions. |
+| Manipulation | SafeArm control, observed grasp/release guards, task-effect accounting and measured withdrawal. Historical OVRTX/cuMotion PhysX pick/place/home passed. The original two-object MuJoCo delivery test also passed in one new episode on integrated main `274fa3a9`, including release, support, rest, both home returns and retention of the first object. | Broader task/campaign reliability, hardware and acceptance of later source compositions. |
 | Fastening | Mounted Factory domain, per-solve observation, exclusive owner and bounded startup/action contracts. On the integrated source tree, zero-solve preparation and one native readiness episode passed the unchanged limits. A separate earlier mounted-socket experiment measured threading, seating and retention. | The configured domain still has no successful native turn-and-rest task episode. Tool pickup, initial engagement, withdrawal and calibrated preload remain unproved. |
 | Locomotion | Optional measured `walk_distance`, cancellation and independent support/rest checks; historical fresh-start ±30 mm episodes passed. | Published candidate profiles have no new model/support admission. The 0.1 m software ceiling is not measured 0.1 m capability or general gait acceptance. |
 | Sensing and spatial memory | Passive, bounded sensor providers; identity/epoch/age checks; observed calibrated RGB-D and retained pixel-to-surface annotations without constructing an arm. | Independent metric XY/general-3D accuracy, moving-camera calibration and per-AOV synchronization. No physical SLAM or `go_to` execution is admitted. |
@@ -61,6 +61,32 @@ The earlier [OVRTX/cuMotion integration](MANIPULATION_ASSEMBLY_20261002.md)
 completed a PhysX GPU grasp, lift, placement and home in 126.19 s. That result
 remains distinct from ordinary MuJoCo delivery, the mounted-socket experiment
 and the complete kitchen campaign.
+
+The original two-pick test has now been revalidated on integrated main
+`274fa3a9d48d96a8b1402dfeb2fe79c45e67037e`: **1 passed in 161.17 s**, using the
+ordinary runtime with mock LLM, MuJoCo 3.14 and Mesa software rendering on CPU.
+This new episode uses epoch `459727548a2c47dc8a9c64f427a0cd2e`; its observed
+placement and withdrawal model digests retain their distinct scopes.
+[Independent physical audit](evidence/project-status-20261003/mujoco-main-two-pick-review.json),
+[unchanged test and verifier](evidence/project-status-20261003/mujoco-main-physical-contract.json).
+
+Both placements pass actual opening, positive solved support, full collision
+footprint containment and the original rest gates, with no active arm contact
+or other loaded contact in the settling windows. Red supplies **11 samples over
+0.600 s**; blue and retained red after the second home each supply **12 over
+0.660 s**. Both measured home errors are below **0.000358 rad**, within the
+unchanged **0.03 rad** tolerance. Final distances to the original drop point are
+**25.776 mm** and **30.657 mm**, below the unchanged **60 mm** criterion.
+
+The offline audit reconstructs all **512** saved state digests, contact support
+and counts, velocities, gripper fractions and box footprints from the raw
+records and generated scene. Fourteen negative audit controls reject. The
+supervisor exits zero with natural closure and no signals; **1,854 source files,
+26 assets, 5,687 SDK files and five protected stores** remain unchanged.
+This is one episode with observations at existing driver batch boundaries,
+not every substep or a reliability/performance benchmark. The audit does not
+recompile the model, exercise reset or admit hardware, Isaac, GPU or an LLM-host
+campaign. The historical AIM result and Trial12 failures below remain separate.
 
 The original two-pick test on local source `d273dc4f` passed in **157.36 s**
 using MuJoCo 3.14 and Mesa software rendering on CPU. Both placements were

@@ -2027,3 +2027,20 @@ neither repeatability nor a general performance cause. Raw decode can occur
 while the owner lives; post-close phase export and the remaining drain follow
 join. Documentation and receipt validation only; this publication does not
 replay physics or transfer old task success to the integrated source.
+
+### 2026-10-03 — Integrated-main MuJoCo two-pick revalidation
+
+The unchanged original two-pick node passed once on source `274fa3a9` in 161.17 s,
+using MuJoCo 3.14/Mesa CPU and the ordinary runtime with mock LLM. New epoch
+`459727548a2c47dc8a9c64f427a0cd2e` binds both raw proofs. Independent offline audit
+reconstructed 512 stored states, contacts, velocities, jaws and box footprints;
+14 negative controls reject. Red has 11 samples/0.600 s; blue and retained red
+have 12/0.660 s. Release, support, containment and rest pass. Both home errors
+are below 0.000358 rad; the original 60 mm bound passes at 25.776/30.657 mm.
+
+Supervisor exit 0, natural closure without signals; 1,854 source files, 26 assets,
+5,687 SDK files and five protected stores unchanged. Publish byte-exact audit
+and original-contract check in `docs/evidence/project-status-20261003`. This is
+one episode observed at batch boundaries, without all-substep, repeated,
+hardware, Isaac/GPU or LLM-host acceptance. Historical AIM and Trial12 FAIL
+records remain untouched.

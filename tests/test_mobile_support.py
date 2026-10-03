@@ -4,6 +4,8 @@ import json
 
 import pytest
 
+from mobile_tick_fixture import healthy_episode_gc as healthy_episode_gc  # noqa: PLC0414 — shared pytest fixture
+
 from cascade.agent.base_effects import BasePostconditionChecker
 from cascade.control.mobile_base import BaseState
 from cascade.control.mobile_support import support_contract
@@ -150,14 +152,50 @@ def test_self_contact_neither_supplies_support_nor_refutes_allowed_support():
 
 
 @pytest.mark.parametrize("vx,expected", [(.1, "confirmed"), (0., "refuted")])
-def test_gait_flight_is_allowed_but_zero_twist_balance_requires_continuous_load(vx, expected):
+def test_gait_flight_is_allowed_but_zero_twist_balance_requires_continuous_load(vx, expected, healthy_episode_gc):
+    # This semantic support episode excludes unrelated cyclic heap collection;
+    # the real sampler and its 40 ms read budget remain unchanged.
     def make(n):
         record = fixture_support(n)
         if n == 4:
             record["contacts"] = []
         return state(n, support=record, position_world=(min(n - 1, 5) * .02 * vx, 0., .3))
     verdict = run_window(ScriptedReader(make), args=dict(vx=vx, vy=0., wz=0., duration_s=.1))
-    assert verdict["status"] == expected, verdict["reason"]
+    observed = verdict["evidence"]["observations"]
+    diagnostic = {"reason": verdict["reason"], "attempts": verdict["evidence"]["attempts"],
+                  "rejected": verdict["evidence"]["rejected"],
+                  "max_read_s": max((s["observed_monotonic_s"] - s["read_started_monotonic_s"]
+                                     for s in observed), default=None)}
+    assert verdict["status"] == expected, diagnostic
+    flight = next(s for s in observed if s["state"]["step"] == 4)
+    assert flight["valid"] and flight["confirmation_eligible"]
+    assert flight["state"]["support"]["contacts"] == ()
+    assert any(s["state"]["step"] == 4 and s["phase"] == "during"
+               for s in verdict["evidence"]["samples"])
+    support_check = next(s for s in verdict["evidence"]["support_checks"] if s["step"] == 4)
+    assert support_check["status"] == expected
+
+
+def test_support_episode_gc_isolation_does_not_hide_a_late_reader(healthy_episode_gc):
+    import gc
+    import time
+    captured = []
+    def make(n):
+        value = state(n, generation=1 if n == 4 else 0,
+                      position_world=(min(n - 1, 5) * .002, 0., .3))
+        if n == 4:
+            assert not gc.isenabled()
+            captured.append(value)
+            time.sleep(2 * limits()["read_timeout_s"])
+        return value
+    verdict = run_window(ScriptedReader(make))
+    assert verdict["status"] == "unverified" and verdict["reason"] == "reader_timeout"
+    assert verdict["limits"]["read_timeout_s"] == .04
+    assert verdict["evidence"]["channel_failed"]
+    late = next(s for s in verdict["evidence"]["observations"] if s["state"]["step"] == 4)
+    assert late["state"] == captured[0].as_dict()  # No capture timestamp rejuvenation.
+    assert late["observed_monotonic_s"] - late["read_started_monotonic_s"] > .04
+    assert any(s["state"]["step"] > 4 for s in verdict["evidence"]["observations"])
 
 
 def test_flight_does_not_waive_unknown_contact_channel_during_walking():
@@ -259,4 +297,49 @@ def test_pending_stop_flight_does_not_receive_or_require_rest_credit():
         assert verdict["evidence"]["samples"][0]["state"]["step"] == 2
         assert verdict["metrics"]["settle_samples"] >= 3
     finally:
+        checker.close()
+
+
+def test_support_gc_isolation_preserves_real_tcp_read_deadline(truth_server, healthy_episode_gc):
+    import gc
+    import threading
+    from cascade.sim.base_truth import BaseTruthReader
+
+    profile, payload, requests = truth_server
+    entered, release = threading.Event(), threading.Event()
+    captured = []
+    def delayed():
+        assert not gc.isenabled()
+        value = state(1).as_dict()
+        captured.append(value)
+        entered.set()
+        assert release.wait(2), "test did not release its blocked TCP response"
+        return {"ok": True, "state": value}
+    payload["state"] = delayed
+    reader = BaseTruthReader(profile)
+    checker = BasePostconditionChecker(reader, limits=limits(), support_contract=fixture_support_contract())
+    try:
+        token = checker.begin("stop_navigation", {})  # Must time out while reply is held.
+        assert entered.wait(2)
+        release.set()
+        verdict = checker.finish(token, {"ok": True})
+        assert verdict["status"] == "unverified" and verdict["reason"] == "reader_timeout"
+        assert verdict["limits"]["read_timeout_s"] == .04
+        assert verdict["evidence"]["channel_failed"]
+        # Baseline availability is timed from begin, before the worker may be
+        # scheduled; a late-starting worker can have a shorter individual RTT.
+        evidence = verdict["evidence"]
+        assert evidence["finished_monotonic_s"] - evidence["started_monotonic_s"] >= .04
+        observed = evidence["observations"]
+        if observed:
+            assert len(observed) == 1
+            assert observed[0]["state"]["step"] == captured[0]["step"] == 1
+            assert observed[0]["state"]["support"] == captured[0]["support"]
+        else:
+            # A scheduler delay can also exhaust the unchanged socket budget;
+            # that stronger transport refusal still cannot become a confirmation.
+            assert "timed out" in reader.last_error or "deadline" in reader.last_error
+        assert [r["op"] for r in requests] == ["hello", "state"]
+    finally:
+        release.set()
         checker.close()

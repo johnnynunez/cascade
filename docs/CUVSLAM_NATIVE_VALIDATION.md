@@ -67,3 +67,10 @@ obstacle maps, base pose, controller tracking or navigation admission.
 The focused CPU spatial regressions also passed: **86 passed in 1.70 s**, across
 `test_spatial_cuvslam.py`, `test_spatial_rgbd.py`, `test_spatial_providers.py` and
 `test_spatial_mcp.py`. The local log is `pytest-spatial-20261004.log`.
+
+The [lifecycle follow-up receipt](evidence/spatial/cuvslam-native-lifecycle-20261004.json)
+repeats the same 12-frame native exercise with the validation CLI now returning
+a failure status if either owner fails to close. Both owners are always given
+a cleanup attempt, and an existing receipt is never overwritten. The rerun
+passed with final translation error 0.01203 m and both owners closed successfully.
+The original receipt above remains unchanged.

@@ -1,0 +1,117 @@
+{
+  "base_commit": "e5211aef39b7b30fb56a6cca188c4b17224c31b9",
+  "controls": {
+    "CUDA_VISIBLE_DEVICES": "-1",
+    "inputs": 760,
+    "inputs_unchanged": true,
+    "normal_conftest": true,
+    "passed": 414,
+    "protected_stores_unchanged": true,
+    "pytest_wall_s": 21.09,
+    "skipped": 0,
+    "wrapper_wall_s": 21.454255473974627
+  },
+  "evidence": {
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/baseline-grasp-01.log": "d6d67715eb18e3fb463571b1fa52ec1c915f5eeec799ae4bc225b15fbd445c77",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/bootstrap-before.log": "982f0ac1c7dcc6daa2da896e6dc9b2bddc2be1d9a86434f9355289ee8dcdc581",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/bootstrap-causal.json": "e73723d5a0fe9b4062ffb878007318aaae1c997f9f59310613714ce3de28e9ef",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/bootstrap_causal.py": "dda011e1c422b8b69e2b017ed20c0d14a7cda883aa8cc3d7b4c81e78440d1202",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/boundary-before.log": "23beb79edeecc4d09779f9b34f419148528a4baf620ae838bccd920f22cd1d4a",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/focused-01/pytest.log": "9ae04129a41ecd51864a32252c4ea520f6f7c3f62a1023de1620773098bccae9",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/focused-01/receipt.json": "1303f3edb3586e649520b1d19018442d857c26b80819ee92d703eaba4b04222b",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/focused-final-01/junit.xml": "d9ca8fd629e6f92bb49551d7836ac7b158b653b94bcb8303bbdd8d13e6f623ee",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/focused-final-01/pytest.log": "26a30e5085a9fd037c2afb33cb3214df097f06ccca86281a3092e819d35ca280",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/focused-final-01/receipt.json": "73d134e39c71892a1a9aaaefc95ae30b8fbeb8e0759c8e26832f652c52c42167",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/focused-final-02/after.json": "ce2dde86d0c1cb55acd785cd55dcfcebc03f75d5e509292351c473b2a4c8e38a",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/focused-final-02/before.json": "ce2dde86d0c1cb55acd785cd55dcfcebc03f75d5e509292351c473b2a4c8e38a",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/focused-final-02/junit.xml": "1c13b028581cf725a1798eb4aeea7a29eaac6278918f05b96300cf5ff9d1cf31",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/focused-final-02/pytest.log": "2fcb4ce5d957d5f4031b05e5deac60314d719bcfb9ec86de58e4b582fbed158c",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/focused-final-02/receipt.json": "4779e6a704ab3a9a5ebf5f8860eb02cb4612c1d793653963e32ff06b08aad6cb",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/review-source-01.json": "62b82c4158c5ce5ccd87caa7169048ede15a10994459c7a5a1aa99f523901f95",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/run_focused_final.py": "b12b3d46db7c9d859e37f67077a8b8d64feac1a3097156a1da5590517d7f55ba",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/run_focused_final02.py": "605d32fddec054fd37fe979688af1fd5763a60ccf476de8a6f079c44e0088ffd",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/targeted-02.log": "a7c51c27fcbbf2f119a467357450f782ffa5212eeb23af5d85a59cce9a50b0c6"
+  },
+  "invariants": [
+    "no additional SDK reads/RPCs/physics updates",
+    "None send_joint_target return; legacy ACK supported",
+    "unchanged waits/pacing/limits/verdict logic",
+    "host-only arm/stream/home context and bounded post-action flush",
+    "first setter receipt distinct from repetitions; missing/superseded/invalid/overflow evidence incomplete"
+  ],
+  "limitations": [
+    "producer submission is not effect/settle/braking evidence",
+    "PhysX boundary uses existing completed-update history; Newton missing boundary stays incomplete",
+    "on-disk source hashes at flush are not imported-code/remote-process attestation",
+    "opt-in copying/wire/logging overhead not yet measured natively"
+  ],
+  "previous_controls": {
+    "CUDA_VISIBLE_DEVICES": "-1",
+    "inputs": 760,
+    "inputs_unchanged": true,
+    "normal_conftest": true,
+    "passed": 414,
+    "protected_stores_unchanged": true,
+    "pytest_wall_s": 21.09,
+    "skipped": 0,
+    "wrapper_wall_s": 21.454255473974627
+  },
+  "retained_failures": [
+    {
+      "cause": "test TCP client omitted connect; corrected fixture only; terminal output retained in tool transcript",
+      "failed": 2,
+      "passed": 14,
+      "phase": "initial new tests"
+    },
+    {
+      "cause": "pre-existing grasp telemetry double omitted new model-withdrawal guard; baseline e521 reproduced same AttributeError; bound real guard with no pending debt",
+      "failed": 5,
+      "passed": 272,
+      "phase": "focused-01"
+    },
+    {
+      "cause": "basetemp parent absent; neither bootstrap branch ran; preserved setup failure",
+      "errors": 2,
+      "phase": "bootstrap-before test setup"
+    },
+    {
+      "cause": "direct bridge optional import lacked checkout src; no Kit or SDK imported",
+      "new_disabled_exit": 0,
+      "new_enabled_exit": 0,
+      "old_disabled_exit": 0,
+      "old_enabled_exit": 1,
+      "phase": "bootstrap actual-AST causal"
+    },
+    {
+      "cause": "app.update advanced then raised before frame-history handling, retaining old diagnostic boundary; capture/record failures already invalidated",
+      "failed": 1,
+      "passed": 2,
+      "phase": "boundary-before"
+    }
+  ],
+  "review_followup": {
+    "bootstrap": "isolated actual optional initialization imports exact checkout when enabled; disabled does not alter sys.path or import cascade",
+    "scope": "freeze02 local; freeze01 retained byte-exact externally",
+    "supersession": "before setter receipt; old setter may be in flight and later return",
+    "update_boundary": "cleared before every existing update attempt; failures cannot reuse previous boundary"
+  },
+  "schema_version": 1,
+  "scope": "CPU-only opt-in command submission evidence; no native/hardware/physical admission or performance claim",
+  "source_sha256": {
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/demo/scene/own_assets.json": "8ca1b991805b2f5764fa85f9e77466d233ef5addbc5932ba423e5d8789c82922",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/demo/scene_identity.py": "c4c86ba5c354b2d775623bf643cc6da9e7ec599e1c34dbd2fd38925b6b1bb2e3",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/deploy/brev/prepare_bundle.py": "f673451160855d38cc000c01273a040bb4ad2acb6f58f71a1b57d77794167ffc",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/docs/ISAAC_COMMAND_EVIDENCE.md": "66c7e9a1995b3558c99e96abaace77a167820e94c40d33c15db7ea4a3f8db8fd",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/scripts/isaac_bridge.py": "7eb05ad5f2fa3d06f3b76d3bbda5f634e48de8c9c52ffd2149510496660da6cc",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/src/cascade/control/isaac_arm.py": "9d6e43f1da860a594c22511fe6f6a50a7fe647e5a9e64f4bb345d00398381fa2",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/src/cascade/control/motion_evidence.py": "8676d5470fcea09daa802fce9b3fc640e6a7e0db9649c8a4577d80608f0d26ae",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/src/cascade/control/simulation_motion.py": "0dd37925d20b43e53428a224df2c0ddd4242a95169bb78229479884605b4b242",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/src/cascade/grasping/evidence.py": "55c6583a3f19e1bd73db31feb0ab197ef26ae781e405e68540d38d2eec073689",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/src/cascade/sim/bridge_client.py": "41cb9cbaa7867532561b21d0ffdd54fa9bcc08107d4bccb5c22dd21f64ae1a9b",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/src/cascade/sim/target_receipts.py": "05b587370f4e76dabe61366311ea78c5fe9781cd1e831b70fbdc54e9f8d34b24",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/src/cascade/skills/runtime.py": "60ddb5aa76e1f5cf3e1f4de83ff7ea37ff775b3cc5e21d2a285a1ffad179cddf",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/tests/test_grasp_evidence.py": "d6196ef692e2cc3a828f97c61a4c8888cf86b112c279d76bb4ae45982f9416c9",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/tests/test_isaac_target_receipts.py": "b270635c1a920ccb560e96fa0b96097732a4764dab3d2ed29d4b466c488af4b7",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_EVIDENCE/cascade/tests/test_motion_evidence.py": "e86ed5589739444142458548cba6630b11b5fba3655e6948372eac8640afc5d2"
+  }
+}

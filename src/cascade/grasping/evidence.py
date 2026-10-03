@@ -33,6 +33,7 @@ _SOURCE_FILES = (
     "src/cascade/skills/runtime.py", "src/cascade/memory/grasp_memory.py",
     "src/cascade/skills/held_observation.py", "src/cascade/sim/truth.py",
     "src/cascade/control/isaac_arm.py", "src/cascade/control/arm_base.py",
+    "src/cascade/control/motion_evidence.py", "src/cascade/sim/target_receipts.py",
     "src/cascade/skills/carry_attachment.py", "src/cascade/sim/startup_readiness.py",
     "src/cascade/safety/harness.py", "src/cascade/apps/mcp_server.py", "scripts/launch.sh",
     "src/cascade/grasping/observed_scene.py", "src/cascade/control/simulation_motion.py",

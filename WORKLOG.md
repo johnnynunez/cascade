@@ -573,3 +573,40 @@ read-only review and a separate formatter control passed; Ruff F/E9 and diff
 checks are clean. No LLM, TTS, native motion or audio was executed. This does
 not repair or explain the video's absent output speech; supervisor stop can
 independently revoke that session. Publication/merge freeze remains active.
+
+## 2026-10-03 — opt-in Isaac command evidence (in progress)
+
+Independent checkout from e5211ae. Parent approved passive command evidence
+only: queued ACK, first setter-returned target and repetitions, existing state
+clocks and nested home stream boundaries. Defaults, commands, safety checks,
+post-ACK pacing, waits and verdicts must remain unchanged. No SDK reads, RPCs,
+physics updates, native runs or shared-store writes are authorized by this
+change. The new optional evidence uses bounded memory and flushes after action.
+Source campaigns and precompilation harnesses remain immutable.
+
+Command-evidence CPU checkpoint: 409 PASS / 0 SKIP in 21.47 s across 16 files
+(including portable bundle checks), 760 code/config inputs and all three
+protected stores identical before/after. Ruff F/E9 and diff check passed.
+The first focused run's five grasp-evidence failures are retained; a clean
+base e5211ae reproduces the missing check_model_withdrawal method on its old
+SimpleNamespace test harness. Only that fixture now binds the real guard with
+no pending debt. Two initial new TCP tests omitted connect and were corrected.
+No bridge pacing, action limits, physics or independent verdict changed. This
+feature is optional and has no native validation/performance claim. Receipt:
+benchmark/results/isaac_command_evidence_cpu_20261003.json. Source remains local
+for review; no publication or simulator launch.
+
+Review follow-up (freeze02): optional direct-script import now explicitly uses
+this checkout's src, without depending on PYTHONPATH. The actual bootstrap AST
+failed only when enabled in freeze01 and passes enabled/disabled now. The first
+attempt to run that test had two temporary-directory setup errors, retained
+separately; it was not evidence of the import defect. Supersession is named
+`superseded_before_setter_receipt`: the earlier target may already be in flight
+and still return successfully. Its immutable first write is retained. Every
+update attempt clears the diagnostic boundary before the existing SDK update.
+A controlled update that advances then raises previously reused the old clock
+(1 FAIL / 2 PASS across update/capture/record failure cases); now all three
+leave it unavailable. No SDK reads or physical clock/pacing changes were added.
+Final freeze02 selection: 414 PASS / 0 SKIP, 21.09 s, 760 inputs and protected
+stores identical; Ruff F/E9 and diff check pass. Freeze01 and all 17 files are
+retained outside this checkout, as are its 409-PASS receipt and earlier failures.

@@ -3,8 +3,12 @@
   "scene_name": "paai-cocina-asier-v1",
   "files": {
     "scripts/isaac_bridge.py": {
-      "sha256": "4ad8a3a0f581684ca87976328ad224a207a9b4badababeae456bd7b43a74438b",
-      "size_bytes": 115720
+      "sha256": "7eb05ad5f2fa3d06f3b76d3bbda5f634e48de8c9c52ffd2149510496660da6cc",
+      "size_bytes": 118446
+    },
+    "src/cascade/sim/target_receipts.py": {
+      "sha256": "05b587370f4e76dabe61366311ea78c5fe9781cd1e831b70fbdc54e9f8d34b24",
+      "size_bytes": 6536
     },
     "scripts/isaac_ovrtx.py": {
       "sha256": "3b4b0048caf92416e4c261f25d9bc10ec1205ca2502a775faf45d03be4cf8568",
@@ -51,8 +55,8 @@
       "size_bytes": 12797
     },
     "demo/scene_identity.py": {
-      "sha256": "5c0e5755df2d7a965e153441f8ffb95ec6f4aa73ecc288b9e8046d5eae0b5f0b",
-      "size_bytes": 10100
+      "sha256": "c4c86ba5c354b2d775623bf643cc6da9e7ec599e1c34dbd2fd38925b6b1bb2e3",
+      "size_bytes": 10142
     },
     "demo/scene/cocina_asier_sources.json": {
       "sha256": "c7c51f4d606cff2aab8984856512d65799a16e4172e69671b63b615f8ce0eae9",

@@ -182,7 +182,10 @@ ports and bound identities. Each endpoint retains the existing reader, control,
 renew and stop channels. Commands and resets wait in a bounded per-robot queue
 until the simulation owner drains it before a tick, preserving their original
 receipt deadline. Expired, cancelled or closed requests cannot run on a later
-tick. Stop bypasses the queue and withdraws pending commands immediately;
+tick. A nonblocking control-channel guard rejects observed EOF or invalid
+pipelining before admission, after the mutating callback and before the reply;
+discarding an admitted reset restores its latch. Stop bypasses the queue and
+withdraws pending commands immediately;
 crossing a prepared tick can contain the entire shared scene. Stop ACKs do not
 prove physical rest. CPU/TCP regressions cover these contracts, partial listener
 startup rollback and shutdown with pending commands. Native command execution,

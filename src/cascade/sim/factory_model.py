@@ -81,6 +81,36 @@ def _collision_route(solver):
     return route
 
 
+def _buffer_digest(owner, name, *, optional_int32_shape=None, allow_infinite=False):
+    try:
+        value = getattr(owner, name)
+    except AttributeError as exc:
+        raise FasteningFault(f"required model interface is unavailable: {name}") from exc
+    if value is None:
+        if optional_int32_shape is not None:
+            return {"present": False, "declared_dtype": "int32",
+                    "declared_shape": list(optional_int32_shape)}
+        raise FasteningFault(f"required model array is unavailable: {name}")
+    array = value.numpy()
+    if optional_int32_shape is not None and (
+            array.dtype != np.dtype("int32") or array.shape != optional_int32_shape):
+        raise FasteningFault(f"invalid optional model array layout: {name}")
+    return {"present": True, **_array_digest(array, allow_infinite=allow_infinite)}
+
+
+def _newton_array_fingerprint(model):
+    # Newton 1.6 Model declares shape_filter: int32[shape_count] | None.
+    # Its builder does not populate that field. Unlike the required collision
+    # group and material arrays, absence is legitimate and must remain explicit
+    # in the identity. A later None <-> array change cannot retain the pin.
+    if type(model.shape_count) is not int or model.shape_count <= 0:
+        raise FasteningFault("Factory model requires positive shape_count")
+    return {name: _buffer_digest(model, name,
+                optional_int32_shape=(model.shape_count,) if name == "shape_filter" else None,
+                allow_infinite=name in {"joint_limit_lower", "joint_limit_upper"})
+            for name in STATIC_NEWTON_ARRAYS}
+
+
 def model_fingerprint(scene):
     """Compiled MuJoCo geometry/actuation plus actual Newton collision/FK arrays.
 
@@ -91,13 +121,11 @@ def model_fingerprint(scene):
     mj = scene.mujoco
     binary = np.zeros(mj.mj_sizeModel(scene.solver.mj_model), np.uint8)
     mj.mj_saveModel(scene.solver.mj_model, buffer=binary)
-    arrays = {name: _array_digest(getattr(scene.model, name).numpy(),
-              allow_infinite=name in {"joint_limit_lower", "joint_limit_upper"})
-              for name in STATIC_NEWTON_ARRAYS}
-    maps = {name: _array_digest(getattr(scene.solver, name).numpy()) for name in MAPPING_ARRAYS}
-    native = {name: _array_digest(getattr(scene.solver.mjw_model, name).numpy())
+    arrays = _newton_array_fingerprint(scene.model)
+    maps = {name: _buffer_digest(scene.solver, name) for name in MAPPING_ARRAYS}
+    native = {name: _buffer_digest(scene.solver.mjw_model, name)
               for name in STATIC_MJW_ARRAYS}
-    options = {name: _array_digest(getattr(scene.solver.mjw_model.opt, name).numpy())
+    options = {name: _buffer_digest(scene.solver.mjw_model.opt, name)
                for name in NATIVE_OPTION_ARRAYS}
     options.update({name: int(getattr(scene.solver.mjw_model.opt, name))
                     for name in NATIVE_OPTION_SCALARS})

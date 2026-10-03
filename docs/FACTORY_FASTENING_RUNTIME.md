@@ -328,3 +328,28 @@ and 16 option fields declared in the pinned SDK, and checked the owner method
 signatures and step counter. These checks do not establish native buffer
 coverage, readiness, physical task success or a valid model pin. See the
 [SDK-interface receipt](../benchmark/results/factory_sdk_interface_20261003.json).
+
+Preparation V2 on `af463859` passed that mode check but failed while fingerprinting
+a Newton array whose value was `None`. The exception diagnostic measured scene
+and native counters at step 0 / time 0 in epoch `d77aab0af99a4a3ebed35fdee401deee`.
+The process again exited 1 naturally, with no owner or action and no model pin;
+all inputs and the six peer births were unchanged. Its construction interval
+was 8.8466 s under shared load. Neither duration is a performance comparison.
+
+A minimal real Newton 1.6 CPU builder isolated `shape_filter` as the only absent
+field among the 33 fingerprint arrays and reproduced the production error.
+The SDK declares that optional field but its builder does not populate it.
+Its absence is now represented explicitly as `present: false` with declared
+`int32[shape_count]` layout. If present, the exact layout is required. Missing
+attributes and every other required array still reject; no absence is converted
+to an empty array. Presence transitions and changes to shape, dtype or values
+invalidate the identity.
+
+The corrected CPU suite passed 375 tests in 1.56 s. A second CPU construction
+passed the new Newton fingerprint and recorded actual layouts for all 43
+selected MJWarp arrays and seven option arrays using `put_model`, without a
+solver or simulation step. The SDK/asset/harness/protected-store inventories
+still match the closed V2 run. Static review also records when actuator mappings
+can be absent: only without mapped actuators, which this fixture already refuses.
+These CPU observations do not instantiate or admit the full Factory fixture.
+See the [optional-array receipt](../benchmark/results/factory_optional_array_20261003.json).

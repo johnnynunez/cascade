@@ -685,3 +685,25 @@ failed prepare receipt and six unchanged foreign process identities are retained
 in benchmark/results/factory_sdk_interface_20261003.json. A new external harness
 variant will inspect the exact failed preparation traceback frame for original
 scene counters without replacing the scene class or granting a valid model pin.
+
+### 2026-10-03 — inspect optional native arrays after preparation V2
+
+The second shared prepare-only attempt on af463859 failed when fingerprinting a
+Newton model field that was None. The exception checkpoint measured scene/native
+step and time zero; owned closure and unchanged input/peer records were retained.
+No pin or task admission resulted. Before a correction, reproduce the array
+layout with the exact SDK on CPU, inspect allocation conditions for every bound
+array and distinguish an explicitly optional field from missing required data.
+Preserve optional absence in the fingerprint and reject later presence, value,
+shape or dtype changes. No None-to-empty conversion, omitted required arrays,
+solver/verifier changes or additional GPU run are authorized by this work item.
+
+CPU causal control with the pinned real Newton builder reproduced the old
+fingerprint error and isolated shape_filter as the only None field. The corrected
+code preserves its declared optional absence, rejects the other 88 required
+arrays when unavailable and fingerprints all presence/layout/value changes.
+375 targeted tests passed in 1.56 s; the real CPU builder fingerprint and all 43
+MJWarp model/seven option layouts also passed inspection without constructing a
+solver or taking a physics step. Sources/stores were stable within final checks;
+SDK/assets/harness/stores still match the closed V2 baseline. Root reviewed the
+code delta. No new GPU run, native pin, readiness or physical admission exists.

@@ -290,7 +290,8 @@ def model_fixture():
        <joint name="arm"/><geom size=".1"/></body></worldbody>
        <actuator><motor joint="arm"/></actuator></mujoco>''')
     arrays = {n: Array([1.]) for n in STATIC_NEWTON_ARRAYS}
-    arrays.update(shape_label=["arm"], body_label=["arm"], joint_label=["arm"])
+    arrays.update(shape_filter=None, shape_count=1,
+                  shape_label=["arm"], body_label=["arm"], joint_label=["arm"])
     native = NS(**{n: Array([1.]) for n in STATIC_MJW_ARRAYS})
     native.opt = NS(**{n: Array([1.]) for n in NATIVE_OPTION_ARRAYS},
                     **{n: 1 for n in NATIVE_OPTION_SCALARS})
@@ -344,6 +345,65 @@ def test_bound_identity_rechecks_the_actual_collision_route(field):
     owner = scene.solver.mjw_model.opt if field == "run_collision_detection" else scene.solver
     setattr(owner, field, True)
     with pytest.raises(FasteningFault, match="collision"):
+        bound.check_immutable()
+
+
+def test_optional_shape_filter_has_explicit_absence_not_an_empty_array():
+    scene = model_fixture()
+    record = model_fingerprint(scene)["newton_arrays"]["shape_filter"]
+    assert record == {"present": False, "declared_dtype": "int32", "declared_shape": [1]}
+
+
+@pytest.mark.parametrize("change", ["appears", "disappears", "value", "dtype", "shape", "missing"])
+def test_optional_array_presence_values_and_layout_cannot_change_under_a_model_pin(change):
+    scene = model_fixture()
+    if change != "appears": scene.model.shape_filter = Array([0], np.int32)
+    bound = object.__new__(FactoryBoundModel)
+    bound.scene, bound._fingerprint = scene, model_fingerprint(scene)
+    if change == "appears": scene.model.shape_filter = Array([0], np.int32)
+    elif change == "disappears": scene.model.shape_filter = None
+    elif change == "value": scene.model.shape_filter.value[0] = 1
+    elif change == "dtype": scene.model.shape_filter.value = np.array([0.], np.float32)
+    elif change == "shape": scene.model.shape_filter.value = np.zeros((1, 1), np.int32)
+    else: del scene.model.shape_filter
+    with pytest.raises(FasteningFault): bound.check_immutable()
+
+
+@pytest.mark.parametrize("value", [np.zeros(0, np.int32), np.zeros((1, 1), np.int32),
+                                  np.zeros(1, np.int64), np.zeros(1, np.float32)])
+def test_present_optional_shape_filter_must_match_the_declared_sdk_layout(value):
+    scene = model_fixture()
+    scene.model.shape_filter = Array(value, value.dtype)
+    with pytest.raises(FasteningFault, match="shape_filter"):
+        model_fingerprint(scene)
+
+
+REQUIRED_MODEL_ARRAYS = (
+    *(("model", name) for name in STATIC_NEWTON_ARRAYS if name != "shape_filter"),
+    *(("solver", name) for name in MAPPING_ARRAYS),
+    *(("native", name) for name in STATIC_MJW_ARRAYS),
+    *(("options", name) for name in NATIVE_OPTION_ARRAYS),
+)
+
+
+@pytest.mark.parametrize("group,name", REQUIRED_MODEL_ARRAYS)
+def test_no_other_required_model_array_can_be_none(group, name):
+    scene = model_fixture()
+    owner = {"model": scene.model, "solver": scene.solver,
+             "native": scene.solver.mjw_model, "options": scene.solver.mjw_model.opt}[group]
+    setattr(owner, name, None)
+    with pytest.raises(FasteningFault, match=f"required model array is unavailable: {name}"):
+        model_fingerprint(scene)
+
+
+@pytest.mark.parametrize("kind", ["dtype", "shape"])
+def test_required_array_layout_changes_cannot_keep_the_existing_pin(kind):
+    scene = model_fixture()
+    bound = object.__new__(FactoryBoundModel)
+    bound.scene, bound._fingerprint = scene, model_fingerprint(scene)
+    a = scene.model.shape_transform.value
+    scene.model.shape_transform.value = a.astype(np.float64) if kind == "dtype" else a.reshape(1, 1)
+    with pytest.raises(FasteningFault, match="changed after identity"):
         bound.check_immutable()
 
 

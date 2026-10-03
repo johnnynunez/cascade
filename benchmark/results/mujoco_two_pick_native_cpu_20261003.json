@@ -1,0 +1,560 @@
+{
+  "schema": 1,
+  "result": "PASS_CLOSED",
+  "source_head": "d273dc4f35d19b71c958f6445370ebea2a904888",
+  "test": "tests/test_memory_task_mujoco.py::test_memory_frames_record_two_physics_confirmed_picks",
+  "original_test_assertions_reached": true,
+  "pytest": "1 passed in 157.36s",
+  "source_clean_at_audit": true,
+  "inputs_verified": {
+    "source_count": 1693,
+    "asset_count": 26,
+    "source_sha256": "c5d99ca7ace79e3ec0a0453b8a20a2feac29c9e91fe4733237a45909bb20c38d"
+  },
+  "versions": {
+    "mujoco": "3.14.0",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "pin": "4.1.0",
+    "pytest": "9.1.1",
+    "PyOpenGL": "3.1.10"
+  },
+  "environment": {
+    "MUJOCO_GL": "egl",
+    "PYOPENGL_PLATFORM": "egl",
+    "__EGL_VENDOR_LIBRARY_FILENAMES": "/usr/share/glvnd/egl_vendor.d/50_mesa.json",
+    "LIBGL_ALWAYS_SOFTWARE": "1",
+    "GALLIUM_DRIVER": "llvmpipe",
+    "CUDA_VISIBLE_DEVICES": "-1",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM:src:/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/cascade/src",
+    "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/beliefs.json",
+    "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/envelope.json",
+    "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/grasp.json"
+  },
+  "terminal": {
+    "exit_code": 0,
+    "elapsed_s": 158.2449705899926,
+    "forced_outer_termination": false,
+    "launcher_absent": true,
+    "owned_pgid_members": [],
+    "source_unchanged": true,
+    "assets_unchanged": true,
+    "protected_stores_unchanged": true,
+    "protected_stores": {
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+      "/home/johnny/.cascade/grasp_memory.json": null
+    },
+    "owner": {
+      "pid": 1010949,
+      "birth": 26564723,
+      "pgid": 1010949,
+      "state": "R",
+      "started_monotonic_s": 265647.233837414,
+      "command": [
+        "/home/johnny/Projects/demo/cascade-lab/ROBOT_INTEGRATION/venv/bin/python",
+        "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/run_contact_case.py",
+        "original-attachment-two-pick-01",
+        "src",
+        "observe"
+      ]
+    },
+    "launcher_log_sha256": "c529dc3be6908cba3dda0909fe7256f3fe3b75853214435450c7e6cdb5036ac3",
+    "result_present": true,
+    "supervisor_sha256": "470a57ea50c25e43d260976b7b8986ffa94ee23cafd250b950e3b9e43f3ba8f7"
+  },
+  "protected_stores_after_independent_audit": {
+    "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "/home/johnny/.cascade/grasp_memory.json": null,
+    "/home/johnny/.cascade/beliefs.json": null,
+    "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+  },
+  "model_identity": {
+    "placement_model_and_descriptor_sha256": "62060df4f3b0b8e86e8f0a06988858c705d8ea413fae77be0c3963cf2fbf2004",
+    "release_model_empty_descriptor_sha256": "ffcc49f162342c16ba3a1e86fde949ee96c00dd8da99cd27d73a3c8eed5ad945",
+    "epoch": "f5afd9d89e8f43da8501413b691b9511",
+    "sdk": "3.14.0",
+    "different_digest_scopes": "Placement includes explicit descriptor; withdrawal hashes the same compiled model with empty descriptor. These two digests are not expected equal."
+  },
+  "region": {
+    "version": 2,
+    "name": "drop zone",
+    "frame": "robot_base",
+    "bounds_xy_m": [
+      [
+        0.13,
+        -0.18
+      ],
+      [
+        0.27,
+        -0.06
+      ]
+    ],
+    "planning_margin_m": 0.02,
+    "capacity_scope": "all_free_bodies"
+  },
+  "support_planes": [
+    "floor",
+    "demo_floor"
+  ],
+  "cases": {
+    "red_cube": {
+      "ordinary_ok": true,
+      "postcondition_status": "confirmed",
+      "channel": "physics",
+      "duration_s": 59.69,
+      "target_xy_m": [
+        0.17094864419651928,
+        -0.11999999999999998
+      ],
+      "target_tcp_m": [
+        0.16985660771865765,
+        -0.10235774944792891,
+        0.045000000000000005
+      ],
+      "distance_to_selected_target_xy_m": 0.0037579482555623943,
+      "home": {
+        "attempted": true,
+        "ok": true,
+        "at": "home"
+      },
+      "after_home_window": {
+        "samples": 11,
+        "first_step": 11712,
+        "last_step": 11832,
+        "duration_s": 0.600000000000307,
+        "solve_time_range_s": [
+          58.5550000000115,
+          59.15500000001181
+        ],
+        "last_final_state_time_s": 59.16000000001181,
+        "max_sample_gap_s": 0.060000000000030695,
+        "min_support_up_n": 0.5951764062178975,
+        "min_support_contact_count": 8,
+        "max_raw_contact_reconstruction_error_n": 0.0,
+        "max_arm_active_contacts": 0,
+        "max_other_loaded_contacts": 0,
+        "max_linear_speed_m_s": 2.7460707335350333e-14,
+        "max_angular_speed_rad_s": 3.669870454126604e-07,
+        "min_gripper_open_fraction": 0.9999975384663502,
+        "final_position_from_integrated_qpos_m": [
+          0.1742826936724021,
+          -0.12173386538804197,
+          0.024969294012496635
+        ],
+        "final_footprint_m": {
+          "lower": [
+            0.15682303084108562,
+            -0.1391935282193585,
+            -3.070598750343212e-05
+          ],
+          "upper": [
+            0.19174235650371857,
+            -0.10427420255672544,
+            0.0499692940124967
+          ]
+        },
+        "outer_region_border_m": {
+          "x_min": 0.026823030841085616,
+          "x_max": 0.07825764349628145,
+          "y_min": 0.04080647178064151,
+          "y_max": 0.04427420255672544
+        },
+        "distance_to_original_point_xy_m": 0.025775688815846565
+      },
+      "retained_batch_records": 256,
+      "escape_after_open": "joint_0_first",
+      "postrelease_replan": {
+        "source": "measured final qpos after actual opening; detached FK",
+        "state_sha256": "5ea3abc2abe9471c578b0cc020e615ff00f4a971bee67e712af0f7f893df363e",
+        "model_sha256": "ffcc49f162342c16ba3a1e86fde949ee96c00dd8da99cd27d73a3c8eed5ad945",
+        "simulation_time_s": 44.16000000000414,
+        "generation": 0,
+        "cancellation": 0,
+        "history_epoch": "f5afd9d89e8f43da8501413b691b9511",
+        "joints_rad": [
+          0.6976111545324487,
+          -0.16669618420792473,
+          0.4152764304053842,
+          1.3229531152525889,
+          -0.8244431437418535
+        ],
+        "measured_gripper_rad": 0.5999981543444054,
+        "tcp_from_kinematics_m": [
+          0.16974472488391457,
+          -0.1022435043901457,
+          0.044882730830320086
+        ],
+        "previous_plan": {
+          "channel": "mujoco_collision_bounds",
+          "clearance_m": 0.02,
+          "tcp_target_m": [
+            0.20481879987927112,
+            0.005737483412537875,
+            0.044860389276104515
+          ],
+          "tool_body": "gripper",
+          "object_geoms": [
+            50,
+            51
+          ],
+          "physical_task_verdict": false,
+          "articulation_root": "base",
+          "support_plane": {
+            "geoms": [
+              "floor"
+            ],
+            "optional_geoms": [
+              "demo_floor"
+            ],
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "effective_support_planes": [
+            {
+              "geom": "floor",
+              "position_m": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "quaternion_wxyz": [
+                1.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "geom": "demo_floor",
+              "position_m": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "quaternion_wxyz": [
+                1.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "method": "joint_0_first",
+          "rejected_candidates": [],
+          "released_envelope_m": [
+            [
+              0.13853917730263496,
+              -0.15571302736989762,
+              -0.008386963657450161
+            ],
+            [
+              0.21032714285929802,
+              -0.08392506181323456,
+              0.0634010018992129
+            ]
+          ]
+        },
+        "full_escape_and_home_checked": true,
+        "physical_task_verdict": false
+      },
+      "raw_proof": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/placement/94da0fce72c8415484f346d9c81e36b5.json",
+        "sha256": "c430c8b0685fd487042f11d1526651a554b920434bc83e3201e86711e14cdfdd"
+      }
+    },
+    "blue_cube": {
+      "ordinary_ok": true,
+      "postcondition_status": "confirmed",
+      "channel": "physics",
+      "duration_s": 93.84,
+      "target_xy_m": [
+        0.2308711487565286,
+        -0.12
+      ],
+      "target_tcp_m": [
+        0.2301044087437868,
+        -0.13764211351791222,
+        0.045000000000000005
+      ],
+      "distance_to_selected_target_xy_m": 0.0015994499700894636,
+      "home": {
+        "attempted": true,
+        "ok": true,
+        "at": "home"
+      },
+      "after_home_window": {
+        "samples": 12,
+        "first_step": 30240,
+        "last_step": 30372,
+        "duration_s": 0.6599999999993997,
+        "solve_time_range_s": [
+          151.194999999935,
+          151.8549999999344
+        ],
+        "last_final_state_time_s": 151.8599999999344,
+        "max_sample_gap_s": 0.05999999999994543,
+        "min_support_up_n": 0.5951764062178986,
+        "min_support_contact_count": 8,
+        "max_raw_contact_reconstruction_error_n": 0.0,
+        "max_arm_active_contacts": 0,
+        "max_other_loaded_contacts": 0,
+        "max_linear_speed_m_s": 1.3998485594431355e-14,
+        "max_angular_speed_rad_s": 5.757618314586978e-07,
+        "min_gripper_open_fraction": 0.9999975385620493,
+        "final_position_from_integrated_qpos_m": [
+          0.23061606205316312,
+          -0.11842102217223124,
+          0.024969294012496677
+        ],
+        "final_footprint_m": {
+          "lower": [
+            0.21318712794005593,
+            -0.1358499562853384,
+            -3.0705987503331506e-05
+          ],
+          "upper": [
+            0.24804499616627032,
+            -0.10099208805912406,
+            0.04996929401249668
+          ]
+        },
+        "outer_region_border_m": {
+          "x_min": 0.08318712794005592,
+          "x_max": 0.021955003833729697,
+          "y_min": 0.04415004371466158,
+          "y_max": 0.04099208805912406
+        },
+        "distance_to_original_point_xy_m": 0.030656751729818337
+      },
+      "retained_batch_records": 256,
+      "escape_after_open": "joint_1_first",
+      "postrelease_replan": {
+        "source": "measured final qpos after actual opening; detached FK",
+        "state_sha256": "130b0e0946f65b4fe6d188740b34c82f0430b9d72a3315c05b503a2b4a7e288d",
+        "model_sha256": "ffcc49f162342c16ba3a1e86fde949ee96c00dd8da99cd27d73a3c8eed5ad945",
+        "simulation_time_s": 121.07999999996237,
+        "generation": 0,
+        "cancellation": 0,
+        "history_epoch": "f5afd9d89e8f43da8501413b691b9511",
+        "joints_rad": [
+          0.5957113986910628,
+          0.35968123539647523,
+          -0.2615334612082119,
+          1.4735633032276532,
+          2.2151961524576502
+        ],
+        "measured_gripper_rad": 0.5999981513567395,
+        "tcp_from_kinematics_m": [
+          0.23003616340336516,
+          -0.13757204712370152,
+          0.044835631507919596
+        ],
+        "previous_plan": {
+          "channel": "mujoco_collision_bounds",
+          "clearance_m": 0.02,
+          "tcp_target_m": [
+            0.2339416986592071,
+            -0.14021975490546698,
+            0.1730720763131818
+          ],
+          "tool_body": "gripper",
+          "object_geoms": [
+            50,
+            51
+          ],
+          "physical_task_verdict": false,
+          "articulation_root": "base",
+          "support_plane": {
+            "geoms": [
+              "floor"
+            ],
+            "optional_geoms": [
+              "demo_floor"
+            ],
+            "position_m": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "quaternion_wxyz": [
+              1.0,
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "effective_support_planes": [
+            {
+              "geom": "floor",
+              "position_m": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "quaternion_wxyz": [
+                1.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "geom": "demo_floor",
+              "position_m": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "quaternion_wxyz": [
+                1.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            }
+          ],
+          "method": "joint_1_first",
+          "rejected_candidates": [
+            {
+              "candidate": "joint_0_first",
+              "reason": "release escape intersects native colliders"
+            },
+            {
+              "candidate": "joint_0_last",
+              "reason": "release escape intersects native colliders"
+            }
+          ],
+          "released_envelope_m": [
+            [
+              0.19470515871033953,
+              -0.15583948576372333,
+              -0.010245302764773152
+            ],
+            [
+              0.2664617446596603,
+              -0.0840828998144025,
+              0.061511283184547676
+            ]
+          ]
+        },
+        "full_escape_and_home_checked": true,
+        "physical_task_verdict": false
+      },
+      "raw_proof": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/placement/f4cc0ec7ab654384ae9a48dcbcf25681.json",
+        "sha256": "03ff6ee3fa52c1700d05468ae63f7001f274a996049fac3a732496e11492c708"
+      }
+    }
+  },
+  "red_prefix_after_blue_home": {
+    "window": {
+      "samples": 12,
+      "first_step": 30240,
+      "last_step": 30372,
+      "duration_s": 0.6599999999993997,
+      "solve_time_range_s": [
+        151.194999999935,
+        151.8549999999344
+      ],
+      "last_final_state_time_s": 151.8599999999344,
+      "max_sample_gap_s": 0.05999999999994543,
+      "min_support_up_n": 0.5951764062178266,
+      "min_support_contact_count": 8,
+      "max_raw_contact_reconstruction_error_n": 0.0,
+      "max_arm_active_contacts": 0,
+      "max_other_loaded_contacts": 0,
+      "max_linear_speed_m_s": 1.982202023443581e-14,
+      "max_angular_speed_rad_s": 5.858010547166111e-07,
+      "min_gripper_open_fraction": 0.9999975385620493,
+      "final_position_from_integrated_qpos_m": [
+        0.17428269367320218,
+        -0.12173386538744062,
+        0.024969294012496656
+      ],
+      "final_footprint_m": {
+        "lower": [
+          0.15682315617825207,
+          -0.13919340288239074,
+          -3.070598750335579e-05
+        ],
+        "upper": [
+          0.19174223116815228,
+          -0.1042743278924905,
+          0.04996929401249667
+        ]
+      },
+      "outer_region_border_m": {
+        "x_min": 0.026823156178252067,
+        "x_max": 0.07825776883184773,
+        "y_min": 0.040806597117609256,
+        "y_max": 0.0442743278924905
+      },
+      "distance_to_original_point_xy_m": 0.025775688815007844
+    },
+    "position_change_since_red_home_m": 1.0008776917147917e-12,
+    "retired_area_obligations": []
+  },
+  "final_object_footprint_x_gap_m": 0.021444896771903643,
+  "original_six_cm": {
+    "threshold_unchanged_m": 0.06,
+    "red_distance_m": 0.025775688815007844,
+    "blue_distance_m": 0.030656751729818337,
+    "both_pass": true
+  },
+  "visual_inspection": {
+    "frames": [
+      "0000_pick_and_place_before.jpg",
+      "0000_pick_and_place_after.jpg",
+      "0001_pick_and_place_after.jpg"
+    ],
+    "observed": "Initial two cubes, then red placed separately, then both separated with arm home; images are not support-force or settling proof."
+  },
+  "limits": [
+    "One CPU MuJoCo3.14 episode, no repetition, hardware, Isaac or GPU admission.",
+    "No physics assistance, weld or object pose writes; measured attachment is planning geometry.",
+    "Support/contact/velocity records are last-solve intervals of existing driver batches, not every substep. Integrated final qpos/footprint has separately recorded time.",
+    "The external phase observer is diagnostic and is not the admitted phase-coherent journal.",
+    "20mm planned border margin and 20mm interobject spacing are distinct from whole-footprint containment in the outer region.",
+    "Wall elapsed is observed under shared-host concurrency, not a performance benchmark.",
+    "Prior region/retreat failures and the rejected consumer cancellation race remain separately retained."
+  ],
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/ATTACHMENT_FREEZE_02.json": "2bfc873e743cccacaffc33a73b41f5b057ebe237781665b687a90218fab6f732",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/ATTACHMENT_PHYSICAL_PLAN_01.json": "97d7c078b0c7902ab4939bb6949b5c94c687119607ead3dc27cd363b07134377",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/supervise_attachment.py": "470a57ea50c25e43d260976b7b8986ffa94ee23cafd250b950e3b9e43f3ba8f7",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/run_contact_case.py": "56a3956485ae70ae01176309d39bfeaa9de4065ee2ba9c6df3375da87832d317",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/phase_observer_contact.py": "346efb472c1296b09f4e55552981037a567c53343d38d897a8eeceecc730019c",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01-owner.json": "de4a32a9ded4ab2fa7bdb43492ac52bc45299f16f03dbee9cfd6659e1076e294",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01-launcher.log": "c529dc3be6908cba3dda0909fe7256f3fe3b75853214435450c7e6cdb5036ac3",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/audit_attachment_physical_01.py": "dfbeef2d73de731ae05e96d61986c0316b90168d663067c83ab1e8643f97a8d2",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/trace.jsonl": "44927900a50f01d967c38067356cc5da1751599419954e049a3ac78a7c15a8f0",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/terminal.json": "9ed3b5ab77f57e1097000f88ec063d162923648f60b819858e41e99221ba6091",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/result.json": "1549a9294eb8db449a8f293216e95ef92accc68f900d0bea3a4c86cc258270d1",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/inputs.json": "c5d99ca7ace79e3ec0a0453b8a20a2feac29c9e91fe4733237a45909bb20c38d",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/pytest.log": "ae86fe7c858707dfb8debf4d8f0c87c453939b925162e01da9ea52d5b29b0826",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/junit.xml": "8c74931a0f7aa15a67d03a81b640f466611bd69b02a1fda96499259e65782a30",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/phases.json": "9f1ab130e2515e855dfb48a3a6c839881c314a6171d8b3529dc1c32e5775fa52",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0000_pick_and_place_after.jpg": "434ecc052f278117f41a372f2ab01e0a53da6bed6fbc1c2ca6fefbc887a1f2c1",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0000_pick_and_place_before.jpg": "4eba065cb0a2dd1947d882a541b87326af2704b902749e17a05be7941b80ecc3",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0001_pick_and_place_after.jpg": "eeec0bc0ab8f1673ebbfec54edb145aab8b02c28ee06a32980a69d9d581ade13",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0001_pick_and_place_before.jpg": "434ecc052f278117f41a372f2ab01e0a53da6bed6fbc1c2ca6fefbc887a1f2c1",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0002_get_observation_after.jpg": "096d45161b4aca0803af142d56160854f3266b8a1776ddfa24f05f4bf235cfce",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0002_get_observation_before.jpg": "eeec0bc0ab8f1673ebbfec54edb145aab8b02c28ee06a32980a69d9d581ade13",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0003_count_objects_after.jpg": "096d45161b4aca0803af142d56160854f3266b8a1776ddfa24f05f4bf235cfce",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/keyframes/0003_count_objects_before.jpg": "096d45161b4aca0803af142d56160854f3266b8a1776ddfa24f05f4bf235cfce",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/placement/94da0fce72c8415484f346d9c81e36b5.json": "c430c8b0685fd487042f11d1526651a554b920434bc83e3201e86711e14cdfdd",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/original-attachment-two-pick-01/tmp/test_memory_frames_record_two_0/run/placement/f4cc0ec7ab654384ae9a48dcbcf25681.json": "03ff6ee3fa52c1700d05468ae63f7001f274a996049fac3a732496e11492c708"
+  }
+}

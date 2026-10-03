@@ -1,0 +1,516 @@
+{
+  "version": 1,
+  "scope": "manipulation topic extraction, software checks and comparison to separately captured physical episode; no repeated physical task",
+  "physical_source": "d273dc4f35d19b71c958f6445370ebea2a904888",
+  "extraction_base": "70d22deab7f4abb5e5e691386b4b5f952647abca",
+  "merged_main": "67f0b61c490f1a83529ecd9143b0361737b3897b",
+  "final_code_head": "9d73e68c153d5e669a310324be1f9639292fc2fd",
+  "imported_commits": [
+    "22cac914",
+    "c62b239",
+    "07080fad",
+    "e353096e",
+    "e2d89c81",
+    "0b73a48d",
+    "7a52d956",
+    "326720e7",
+    "d273dc4"
+  ],
+  "conflict_resolution": [
+    "c62b239: current main annotate_result plus placement-refusal delta; do not introduce absent turn_screw guard.",
+    "07080fad: preserve main execute without absent TaskEffects plumbing; add region obligation handling.",
+    "67f0b61 merge: preserve both independent WORKLOG additions; topic production bytes unchanged."
+  ],
+  "publication_only_fixture_change": "test_configured_zone_observation explicitly supplies arm:{} for a non-region fixture; no production alteration",
+  "validation": {
+    "focused": {
+      "directory": "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/focused-composition-02",
+      "passed": 575,
+      "failed": 0,
+      "skipped": 0,
+      "receipt": {
+        "exit_code": 0,
+        "elapsed_s": 69.20795758697204,
+        "source_unchanged": true,
+        "protected_stores_unchanged": true,
+        "protected_stores": {
+          "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+          "/home/johnny/.cascade/grasp_memory.json": null,
+          "/home/johnny/.cascade/beliefs.json": null,
+          "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+        },
+        "artifacts": {
+          "pytest.log": "4c0d6c7a456b2ad8ce9f33d806ad663c73e3505d384efd1109a9c31ed8ce4fa4",
+          "junit.xml": "a4c35384193f1fbe5276c316164293e75aa74e4dc8fe1f71a1aa6bcc187be0c6",
+          "inputs.json": "a0670cf1a7b45cf59152106208cebd8c6bf9125e48cc1312bd6f07e8ceae8471"
+        }
+      }
+    },
+    "reader_and_destination": {
+      "directory": "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-03",
+      "passed": 106,
+      "failed": 0,
+      "skipped": 0,
+      "receipt": {
+        "exit_code": 0,
+        "elapsed_s": 1.1654174290015362,
+        "source_unchanged": true,
+        "protected_stores_unchanged": true,
+        "protected_stores": {
+          "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+          "/home/johnny/.cascade/grasp_memory.json": null,
+          "/home/johnny/.cascade/beliefs.json": null,
+          "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+        },
+        "artifacts": {
+          "pytest.log": "6249386f06143fc3e99c7b721c4e74034d6cb90c15a28bd293ba10ca895fe677",
+          "junit.xml": "948ffcc06bcc6449c07f5a99d3129f3887746651a8bbf8f9d668557dd6818993",
+          "inputs.json": "28d70fc281a3dfd03025983dc9c4f0a13c0449e589698496e4b5c54625e2d080"
+        }
+      }
+    },
+    "src_config_inputs_unchanged_since_focused": 260,
+    "source_comparison": {
+      "physical_head": "d273dc4f35d19b71c958f6445370ebea2a904888",
+      "publication_head": "9d73e68c153d5e669a310324be1f9639292fc2fd",
+      "extraction_base": "70d22deab7f4abb5e5e691386b4b5f952647abca",
+      "merged_main": "67f0b61c490f1a83529ecd9143b0361737b3897b",
+      "source_comparison": {
+        "configs/arms/so101_mjwarp.yaml": {
+          "physical": "0f2b0851a5c6f558d9ee1ce384f694f8095507de6cff4d757ac1baec1374996e",
+          "publication": "0f2b0851a5c6f558d9ee1ce384f694f8095507de6cff4d757ac1baec1374996e",
+          "equal": true
+        },
+        "configs/arms/so101_mujoco.yaml": {
+          "physical": "838be712360a9e2498d787b449f50f781f1dda0507cc460f1162f5101541265b",
+          "publication": "838be712360a9e2498d787b449f50f781f1dda0507cc460f1162f5101541265b",
+          "equal": true
+        },
+        "configs/arms/so101_mujoco_region_v1.yaml": {
+          "physical": "0ae056e1f3d38d635801877732d056648b332282eeb56e56389a5644fd468f02",
+          "publication": "0ae056e1f3d38d635801877732d056648b332282eeb56e56389a5644fd468f02",
+          "equal": true
+        },
+        "src/cascade/agent/effects.py": {
+          "physical": "ecdd020be28c0e3e9d34c82ff54e96252de179295d94b85a163f77644d2cc5f0",
+          "publication": "a9fc3487690d4ed7bc654cdfb004b7cffbf53bcad651177023a86ac88dcc3a7b",
+          "equal": false
+        },
+        "src/cascade/control/mujoco_arm.py": {
+          "physical": "1e60b232e1dc7a03a3b52d2779ab8761421c273837e5ee723c6d523b2abe9b47",
+          "publication": "1e60b232e1dc7a03a3b52d2779ab8761421c273837e5ee723c6d523b2abe9b47",
+          "equal": true
+        },
+        "src/cascade/safety/harness.py": {
+          "physical": "9738719279d7fdb530305bef63bdca8e868f0b9139974738a5922a499b4a4ef6",
+          "publication": "9738719279d7fdb530305bef63bdca8e868f0b9139974738a5922a499b4a4ef6",
+          "equal": true
+        },
+        "src/cascade/sim/mujoco_placement.py": {
+          "physical": "812d2484f98cb566a5bcb97104b9e6981f362128eb0e34c038eff850f3990c3b",
+          "publication": "812d2484f98cb566a5bcb97104b9e6981f362128eb0e34c038eff850f3990c3b",
+          "equal": true
+        },
+        "src/cascade/sim/mujoco_world.py": {
+          "physical": "9c813c036a8cc1397b583c91d95fbd9bd14db1b2270e0eba241f179b1eb56102",
+          "publication": "9c813c036a8cc1397b583c91d95fbd9bd14db1b2270e0eba241f179b1eb56102",
+          "equal": true
+        },
+        "src/cascade/sim/truth.py": {
+          "physical": "64e43ac5c8167c6093e6cfbd58b48c8862010e41b6dc1b2fabc1bf00a42ac7de",
+          "publication": "64e43ac5c8167c6093e6cfbd58b48c8862010e41b6dc1b2fabc1bf00a42ac7de",
+          "equal": true
+        },
+        "src/cascade/skills/mujoco_placement_aim.py": {
+          "physical": "5d4012924f3d76165e04d5d9dcc7c9842a50f9271a36b8a6e4180e75f5623bb0",
+          "publication": "5d4012924f3d76165e04d5d9dcc7c9842a50f9271a36b8a6e4180e75f5623bb0",
+          "equal": true
+        },
+        "src/cascade/skills/mujoco_region.py": {
+          "physical": "9862e10e5fff49720981d15b49519cd4e917d4b7b5f407d011df8dae61baf65c",
+          "publication": "9862e10e5fff49720981d15b49519cd4e917d4b7b5f407d011df8dae61baf65c",
+          "equal": true
+        },
+        "src/cascade/skills/mujoco_withdrawal.py": {
+          "physical": "698e1460fe74ac33d3783f81212eea385565c0686293b86ce7c3859438a7a2f6",
+          "publication": "698e1460fe74ac33d3783f81212eea385565c0686293b86ce7c3859438a7a2f6",
+          "equal": true
+        },
+        "src/cascade/skills/place_geometry.py": {
+          "physical": "dad61a5f97b964beb37d52ab78b85dda136bcfc277bf13a5bc17d7ae44332f39",
+          "publication": "dad61a5f97b964beb37d52ab78b85dda136bcfc277bf13a5bc17d7ae44332f39",
+          "equal": true
+        },
+        "src/cascade/skills/placement_packing.py": {
+          "physical": "13cddef80970701b2f892bb9b7b285a4cb3bdf4c51fb1f1269f1ecd83fbfff7a",
+          "publication": "13cddef80970701b2f892bb9b7b285a4cb3bdf4c51fb1f1269f1ecd83fbfff7a",
+          "equal": true
+        },
+        "src/cascade/skills/runtime.py": {
+          "physical": "3ab72818e5bca7a38b2ebc0aa02b12caf094fc71b7397262cab1abb7f16c99c4",
+          "publication": "cfd75e998458e96e070b279df69535d6d061464288b7c90dc69dc9ef925fd9f8",
+          "equal": false
+        },
+        "tests/fixtures/mujoco_postrelease_e2d89c8.json": {
+          "physical": "d9f1c817e4aba20e8de38fc4606bae6cd0bf4946c9044d50b9af09eba2808291",
+          "publication": "d9f1c817e4aba20e8de38fc4606bae6cd0bf4946c9044d50b9af09eba2808291",
+          "equal": true
+        },
+        "tests/fixtures/mujoco_release_states.json": {
+          "physical": "7246c19bc4767164632e61a4648dd4eca264f67631ed0f12f713c3e36e60d533",
+          "publication": "7246c19bc4767164632e61a4648dd4eca264f67631ed0f12f713c3e36e60d533",
+          "equal": true
+        },
+        "tests/fixtures/place_geometry_original.json": {
+          "physical": "cb8fb465e7a1b3c727d8a0223000117accf7d24c69cdc74b8e314a85b9f56ba4",
+          "publication": "cb8fb465e7a1b3c727d8a0223000117accf7d24c69cdc74b8e314a85b9f56ba4",
+          "equal": true
+        },
+        "tests/fixtures/placement_attachment_7a52.json": {
+          "physical": "981e300eecca1ff20c7c7aa9c6a5ea194e700374dd98fe01431101e90e6ac6d5",
+          "publication": "981e300eecca1ff20c7c7aa9c6a5ea194e700374dd98fe01431101e90e6ac6d5",
+          "equal": true
+        },
+        "tests/fixtures/placement_capture_07080fa.json": {
+          "physical": "de54bacf7a6b9e94910418a6cabb79a946d6a5bad420584c8972aab3b75efbaa",
+          "publication": "de54bacf7a6b9e94910418a6cabb79a946d6a5bad420584c8972aab3b75efbaa",
+          "equal": true
+        },
+        "tests/fixtures/refused-placement-20261003.json": {
+          "physical": "285c4299c56b2650dc36594fcf85fe2eea56684d06b5c451d5846aaea5b68189",
+          "publication": "285c4299c56b2650dc36594fcf85fe2eea56684d06b5c451d5846aaea5b68189",
+          "equal": true
+        },
+        "tests/test_carry_attachment.py": {
+          "physical": "110b1ee89fd72d5c1c2328a718df77c8699f0c7b50bf153de9f0ac2065f2a10d",
+          "publication": "110b1ee89fd72d5c1c2328a718df77c8699f0c7b50bf153de9f0ac2065f2a10d",
+          "equal": true
+        },
+        "tests/test_configured_zone_observation.py": {
+          "physical": "7480da5c2eda57e63f78dc548cd8805fd74cce29b12809f898b05d27acf49e93",
+          "publication": "9dcd84484c5d44b1433b060c3994d9b03817aaca539de86f5178301e38f78a2e",
+          "equal": false
+        },
+        "tests/test_grasp_evidence.py": {
+          "physical": "d6196ef692e2cc3a828f97c61a4c8888cf86b112c279d76bb4ae45982f9416c9",
+          "publication": "d6196ef692e2cc3a828f97c61a4c8888cf86b112c279d76bb4ae45982f9416c9",
+          "equal": true
+        },
+        "tests/test_mujoco_capture_cost.py": {
+          "physical": "da96eba6e4d002e59a1d7b8eaa861d8a6e9bb9471116e9fc6c9b4f860f3f26f6",
+          "publication": "da96eba6e4d002e59a1d7b8eaa861d8a6e9bb9471116e9fc6c9b4f860f3f26f6",
+          "equal": true
+        },
+        "tests/test_mujoco_placement_diagnostic.py": {
+          "physical": "7dacb965fb5add5693ead9ba646ae16633d914895ff00ce1e65b1b71cdc8e8ca",
+          "publication": "7dacb965fb5add5693ead9ba646ae16633d914895ff00ce1e65b1b71cdc8e8ca",
+          "equal": true
+        },
+        "tests/test_mujoco_postrelease.py": {
+          "physical": "d551b5c9f2d6ae8cc22900cd43292d4f8c9015074687f862d8a549daa2b8a235",
+          "publication": "d551b5c9f2d6ae8cc22900cd43292d4f8c9015074687f862d8a549daa2b8a235",
+          "equal": true
+        },
+        "tests/test_mujoco_region.py": {
+          "physical": "7cbaa03bc6f0d527585c02d2727d27499b78e22617fcef629e67d4b38ab30e04",
+          "publication": "7cbaa03bc6f0d527585c02d2727d27499b78e22617fcef629e67d4b38ab30e04",
+          "equal": true
+        },
+        "tests/test_mujoco_region_native.py": {
+          "physical": "8702bb23a8b3c9665ee5efc1a1881c6d7e2a6b490087424c469ccdae4effc1ef",
+          "publication": "8702bb23a8b3c9665ee5efc1a1881c6d7e2a6b490087424c469ccdae4effc1ef",
+          "equal": true
+        },
+        "tests/test_mujoco_region_v2.py": {
+          "physical": "86337bfc010ce5a212afb70ac9680610bfbe36b8686fb64b861356f46eb3a022",
+          "publication": "86337bfc010ce5a212afb70ac9680610bfbe36b8686fb64b861356f46eb3a022",
+          "equal": true
+        },
+        "tests/test_mujoco_withdrawal.py": {
+          "physical": "53344ef8797a6a31d704061c57b0dac908aa85127fd856fd67b4e6a24ecd6a7c",
+          "publication": "53344ef8797a6a31d704061c57b0dac908aa85127fd856fd67b4e6a24ecd6a7c",
+          "equal": true
+        },
+        "tests/test_mujoco_withdrawal_physics.py": {
+          "physical": "d39e8eaddb1cc9b5796d044b5eabb208d9c4e3d166331697566eada2fe28cc92",
+          "publication": "d39e8eaddb1cc9b5796d044b5eabb208d9c4e3d166331697566eada2fe28cc92",
+          "equal": true
+        },
+        "tests/test_placement_attachment.py": {
+          "physical": "9088e6d9cbbd6697633e4c54229036fdbf88d184cc7dee9dbca39f9546134912",
+          "publication": "9088e6d9cbbd6697633e4c54229036fdbf88d184cc7dee9dbca39f9546134912",
+          "equal": true
+        },
+        "tests/test_placement_attachment_fence.py": {
+          "physical": "223913cacd2d5a7c890e59ce6b9f85424e1a20f2dd024e5c5b8daff8c3da7c61",
+          "publication": "223913cacd2d5a7c890e59ce6b9f85424e1a20f2dd024e5c5b8daff8c3da7c61",
+          "equal": true
+        },
+        "tests/test_placement_packing.py": {
+          "physical": "e769850403b35457d311b6b91161086d50ef0b863a4bf9da8daca04d2caa451d",
+          "publication": "e769850403b35457d311b6b91161086d50ef0b863a4bf9da8daca04d2caa451d",
+          "equal": true
+        },
+        "tests/test_placement_refusal.py": {
+          "physical": "881f4e849102b30c383d4995ab86d81f89166b887d29f3e00b261afba8846fa6",
+          "publication": "881f4e849102b30c383d4995ab86d81f89166b887d29f3e00b261afba8846fa6",
+          "equal": true
+        }
+      },
+      "runtime_method_ast_equal": {
+        "skill_grasp_at_pixel": true,
+        "_gesture_joint": true,
+        "_gripper_width_m": true,
+        "_reobserve": true,
+        "skill_pick_and_place": true,
+        "_close_two_stage": true,
+        "skill_list_arms": true,
+        "_verify_configured_placement": true,
+        "begin_task_budget": true,
+        "_update_beliefs_from_frame": true,
+        "_gripper_width_frac": true,
+        "_adopt_unknown_held": true,
+        "skill_move_home": true,
+        "_vlm_ground_fix": true,
+        "backends": true,
+        "observe_fresh": true,
+        "_plan_grasps": true,
+        "arm": true,
+        "_show_status": true,
+        "_supported_release_height": true,
+        "_wait_gripper_closed": true,
+        "skill_halt_motion": true,
+        "_held_object_observation": true,
+        "_visual_diff": true,
+        "skill_localize_object": true,
+        "skill_close_live_view": true,
+        "_destination_fix": true,
+        "skill_preview_grasp": true,
+        "skill_point_at": true,
+        "skill_task_done": false,
+        "skill_move_relative": true,
+        "skill_reset_scene": true,
+        "_fix_from_belief": true,
+        "__init__": false,
+        "skill_close_gripper": true,
+        "skill_locate_pixel": true,
+        "_select_arm": true,
+        "skill_recall_memory": true,
+        "_belief_pose": true,
+        "skill_grasp_object": true,
+        "_resolve_query": true,
+        "frame_jpeg": true,
+        "skill_turn_screw": true,
+        "_grasp_with_persistence": true,
+        "skill_analyze_scene": true,
+        "skill_sort_by_color": true,
+        "_profile_q": true,
+        "_grasp_support_height": true,
+        "_grasp_retry_verdict": true,
+        "skill_get_observation": true,
+        "attach_verifier": true,
+        "_screw_joint": true,
+        "skill_open_gripper": true,
+        "skill_wave": true,
+        "skill_live_view_status": true,
+        "_describe_observation": true,
+        "_configured_zones": true,
+        "skill_open_live_view": true,
+        "skill_list_objects": true,
+        "_tcp": true,
+        "skill_annotated_view": true,
+        "_reset_camera_frames": true,
+        "execute": false,
+        "_held_object_offset": true,
+        "skill_push_object": true,
+        "_reconcile_held": true,
+        "_target_resolution": true,
+        "skill_handover": true,
+        "skill_place_on_object": true,
+        "_other_cams": true,
+        "skill_describe_scene": true,
+        "skill_place_at": true,
+        "_localize": true,
+        "skill_count_objects": true,
+        "_localization_workspace_bounds": true,
+        "observe": true,
+        "_show_detections": true,
+        "end_task_budget": true,
+        "skill_probe_point": true,
+        "skill_throw": true,
+        "_visual_query": true,
+        "_tool_axis_order": true
+      },
+      "physical_only_methods": [
+        "_execute_skill",
+        "begin_task",
+        "task_effects",
+        "unverified_actions"
+      ],
+      "publication_only_methods": [],
+      "scope": "No episode is run. Two context conflicts remove unrelated TaskEffects and turn_screw branches absent from main; placement and motion methods remain identical."
+    },
+    "compiled_model_comparison": {
+      "scope": "compiled model and descriptor only; no new physical admission",
+      "sdk": "3.14.0",
+      "placement_digest": "62060df4f3b0b8e86e8f0a06988858c705d8ea413fae77be0c3963cf2fbf2004",
+      "withdrawal_digest": "ffcc49f162342c16ba3a1e86fde949ee96c00dd8da99cd27d73a3c8eed5ad945",
+      "native_data_time_s": 0.0,
+      "mj_step_calls": 0,
+      "descriptor": {
+        "region": {
+          "version": 2,
+          "name": "drop zone",
+          "frame": "robot_base",
+          "bounds_xy_m": [
+            [
+              0.13,
+              -0.18
+            ],
+            [
+              0.27,
+              -0.06
+            ]
+          ],
+          "planning_margin_m": 0.02,
+          "capacity_scope": "all_free_bodies"
+        },
+        "support": {
+          "geoms": [
+            "floor"
+          ],
+          "optional_geoms": [
+            "demo_floor"
+          ],
+          "position_m": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "quaternion_wxyz": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "root": "base",
+        "joints": [
+          "shoulder_pan",
+          "shoulder_lift",
+          "elbow_flex",
+          "wrist_flex",
+          "wrist_roll"
+        ],
+        "gripper": "gripper",
+        "open_pos": 0.6,
+        "closed_pos": -0.15,
+        "qadr": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "dadr": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "grip_qadr": 5
+      },
+      "compiled_model_sizes": {
+        "nq": 20,
+        "nv": 18,
+        "ngeom": 52,
+        "nu": 6
+      }
+    },
+    "physical_plan_assets_postcheck": {
+      "plan_path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/ATTACHMENT_PHYSICAL_PLAN_01.json",
+      "plan_sha256": "97d7c078b0c7902ab4939bb6949b5c94c687119607ead3dc27cd363b07134377",
+      "count": 27,
+      "current_equals_before_plan": true,
+      "sha256": {
+        "scene_box.xml": "14c3826f23889587e63b88ef9a0e7d72318ffe13078fad8287c56dbdb9ba9ad8",
+        "so101.xml": "5ad49f2b45c083baac9ffe5d4d3213a5da7eac8039095bb2df177a697aae8308",
+        "README.md": "e2344e7c14290bed85c7907247aecb8bf6cb4392e3de0d7c45680efe9bb9b5a9",
+        "CHANGELOG.md": "d9ba6fe2c0d9cd4b536600d354111fd7a3d60c6f0a7bf46eb70f2106af14ec81",
+        "so101.png": "fca552381f318dab5b1f9a69007e79d905d91c9d1bebbfdf267b78d924a9c46d",
+        "_scene_demo_generated.xml": "28a865b07aae60c17f13f8d1f48bed369815b3c139984f3a4cdfa8f82bce7f8c",
+        "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+        "scene.xml": "d3037f0fd36b61a9b6805b2c79831e7a392276d0f490145d01f718542eee9150",
+        "assets/motor_holder_so101_wrist_v1.stl": "887f92e6013cb64ea3a1ab8675e92da1e0beacfd5e001f972523540545e08011",
+        "assets/sts3215_03a_no_horn_v1.stl": "75ef3781b752e4065891aea855e34dc161a38a549549cd0970cedd07eae6f887",
+        "assets/wrist_roll_follower_so101_gripper_v1.stl": "65f32debcf265420c0160afe004f8befc5df4b3e578fd59ebaa62eade0371224",
+        "assets/rotation_pitch_so101_v1.stl": "9be900cc2a2bf718102841ef82ef8d2873842427648092c8ed2ca1e2ef4ffa34",
+        "assets/wrist_roll_pitch_so101_v2.stl": "6c7ec5525b4d8b9e397a30ab4bb0037156a5d5f38a4adf2c7d943d6c56eda5ae",
+        "assets/moving_jaw_so101_gripper_part1_v1.stl": "d10f6c671d26f62988ec95efee9370a0657b5833b3c5f8aad59fd69a87ef2aee",
+        "assets/moving_jaw_so101_gripper_v1.stl": "e8a5dc040b98e27453a5b74f9087d1dbca14589cf9a17c4de7868d5ab98413cd",
+        "assets/base_motor_holder_so101_v1.stl": "8cd2f241037ea377af1191fffe0dd9d9006beea6dcc48543660ed41647072424",
+        "assets/moving_jaw_so101_v1.stl": "785a9dded2f474bc1d869e0d3dae398a3dcd9c0c345640040472210d2861fa9d",
+        "assets/wrist_roll_follower_so101_gripper_part0_v1.stl": "370eb470a6ab48b08febcaeb5274d2bcc91246692532ce12c795fb82977def72",
+        "assets/sts3215_03a_v1.stl": "a37c871fb502483ab96c256baf457d36f2e97afc9205313d9c5ab275ef941cd0",
+        "assets/motor_holder_so101_base_v1.stl": "31242ae6fb59d8b15c66617b88ad8e9bded62d57c35d11c0c43a70d2f4caa95b",
+        "assets/wrist_roll_follower_so101_camera_mount.stl": "58c457b33a26d9c9bb337aa351173e7123f84719a93f486541adef6eba57ae21",
+        "assets/moving_jaw_so101_gripper_part0_v1.stl": "3a92e115d1934d4c45cff808c4eff2ea10361a137a7f89940033a1f8a821b88c",
+        "assets/waveshare_mounting_plate_so101_v2.stl": "e197e24005a07d01bbc06a8c42311664eaeda415bf859f68fa247884d0f1a6e9",
+        "assets/wrist_roll_follower_so101_v1.stl": "4b17b410a12d64ec39554abc3e8054d8a97384b2dc4a8d95a5ecb2a93670f5f4",
+        "assets/upper_arm_so101_v1.stl": "475056e03a17e71919b82fd88ab9a0b898ab50164f2a7943652a6b2941bb2d4f",
+        "assets/base_so101_v2.stl": "bb12b7026575e1f70ccc7240051f9d943553bf34e5128537de6cd86fae33924d",
+        "assets/under_arm_so101_v1.stl": "d01d1f2de365651dcad9d6669e94ff87ff7652b5bb2d10752a66a456a86dbc71"
+      },
+      "scope": "Offline bytes-only after the physical episode; automated episode asset guard counted26files, excludes generated scene. This adds current comparison of the generated XML to its prelaunch plan pin."
+    },
+    "ruff_new_F_E9": 0,
+    "ruff_existing_F401": 2
+  },
+  "retained_nonpassing_checks": {
+    "focused-composition-01": "Unknown test_effects.py path: collection error, zero tests. Corrected command only.",
+    "truth-compatibility-01": "89 passed/17 failed: seven missing pinned kitchen release assets errors, ten partial fixture errors from absent cfg.arm.",
+    "truth-compatibility-02": "99 passed/7 failed: fixture corrected, release assets remained absent because initial materialization consulted source-only manifest. No production edits."
+  },
+  "physical_audit": {
+    "path": "benchmark/results/mujoco_two_pick_native_cpu_20261003.json",
+    "sha256": "865f53e565a02f6f3b02d31b2abc6a64fc54ed9671fbbfa7b147b6794d6e4782",
+    "result": "PASS_CLOSED",
+    "limits": "One original CPU MuJoCo3.14 episode on the separately pinned source; no Isaac/GPU/hardware/general-scene admission."
+  },
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/composition-source-comparison-before-fixture.json": "edfe30748abd6d379310a4e1aa4eb33df30bbe8666f0e82c1659bf9f0606a2e4",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/composition-source-comparison-final.json": "404d6651680655a8272f7c4b732f4d3999ed4bebbce60a05450f669faf998d2e",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/composition-model-comparison.json": "37c4ff3fc273e160dc4ba28b031bc46985abf49cd41e724c2a0b969b5e2a2242",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/compare_sources.py": "7f7637e8873f8abac6d45ea38110824b381189f3b1579cc5c8594a8d7f97719c",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/compare_model.py": "fc74d866f9ac4e7c2e42c9295520c44ab81fafd2d18454346ec1b453b7a4da23",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/assets-copy.json": "7d80033a4f048e3cfdee672437e5acb6303bf830831a5c3ba8b31a0b7cf96f58",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/kitchen-assets-copy.json": "d855e5bebfd4d2b62c1214c4183e7a21683064af46444769cbeee05f01ae77ed",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/run_contact_case.py": "598f5f472b0b3e79d8569dc9e023a992e96f92188d4a0aefe869ace09786c2d1",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/test-nodes.json": "e5d29d447fce0baa361b94e93c94a3587a09b16a48f3337cbd76bb5121df8e5d",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/ruff-final.json": "05b473a29b71291ac78d8b7f93212c43687329841c8b98b7991f30a7bc77c1da",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/physical-plan-assets-postcheck.json": "4e37ecd5279ff97b0be71de9974601003cb14fae1d882bc9603c588a815489e3",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/focused-composition-01/inputs.json": "73663685d1aca0824a979f4dba9717aabee9b49066197b984d79a106b412057f",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/focused-composition-01/result.json": "a07a61bb4ed97bf6e48763416898ebf9c8d4a89296e37608eece60a5efb253db",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/focused-composition-01/pytest.log": "2dc65a42c2138f03539d39e467fbfb851fea61850995d9f541c425acf5fce66a",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/focused-composition-01/junit.xml": "bb147510a21d81534da7f74f988f4f85f8def9f71077f55b2412ce7fe97dd1f8",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/focused-composition-02/inputs.json": "a0670cf1a7b45cf59152106208cebd8c6bf9125e48cc1312bd6f07e8ceae8471",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/focused-composition-02/result.json": "8fd3850e29d84a5a2613e8de66804d33a420ca4a9f040a1a03e73486f24df7ff",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/focused-composition-02/pytest.log": "4c0d6c7a456b2ad8ce9f33d806ad663c73e3505d384efd1109a9c31ed8ce4fa4",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/focused-composition-02/junit.xml": "a4c35384193f1fbe5276c316164293e75aa74e4dc8fe1f71a1aa6bcc187be0c6",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-01/inputs.json": "e210249aeeca437548dbf75aceea1897ba19e1375f14e0d7f8ffad496321efd8",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-01/result.json": "faac25d75f6d348947a8a8c3f91ac5d8c42bbe69bc29701e8edb37d08dba6d45",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-01/pytest.log": "0fc163e0c8b8f65d2f79eaea9487cb27a83e067d3f5d2b494dccc0b69aa8473c",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-01/junit.xml": "fb3da6f1671b812465f6adbdcf2dbedebac64ad252b0d829fc2e084dbe221b4d",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-02/inputs.json": "ceda74deafdda5769cc5599477b57ceb55b38daa5aebe1cecccc0c6a656b0c03",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-02/result.json": "0ad6f9ce81be43cee93cfe09a4a949ea9559e91857d7e36dd4d418531cc150fa",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-02/pytest.log": "23dc59961d506fbf0907dfe10d0be15bf084f849e127f06fb4d6b1ab75c2b7ba",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-02/junit.xml": "173384cb451d9a7837ba5a20993e8491099d7d5dc54ef4b32d1b2f41ecc1ab99",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-03/inputs.json": "28d70fc281a3dfd03025983dc9c4f0a13c0449e589698496e4b5c54625e2d080",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-03/result.json": "f14f3f2babba20457d0ee1da46ef5c067f1ff07c1874e09913dc1129c4e0a0fe",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-03/pytest.log": "6249386f06143fc3e99c7b721c4e74034d6cb90c15a28bd293ba10ca895fe677",
+    "/home/johnny/Projects/demo/cascade-lab/MANIPULATION_PUBLISH/truth-compatibility-03/junit.xml": "948ffcc06bcc6449c07f5a99d3129f3887746651a8bbf8f9d668557dd6818993",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/ATTACHMENT_PHYSICAL01_AUDIT.json": "865f53e565a02f6f3b02d31b2abc6a64fc54ed9671fbbfa7b147b6794d6e4782",
+    "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM_REVIEW/review-02.json": "3e44e3c3784ecaa30f92cdee4d834812be40e2350c4b5e3d1567c768e051489e"
+  }
+}

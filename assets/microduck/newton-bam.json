@@ -89,6 +89,22 @@
       "joint_effort_limit": 0.96,
       "stiff_frictionloss": false,
       "physics_dt": 0.005
+    },
+    "official_infer_nominal_no_delay": {
+      "kp_fw": 200.0,
+      "vin": 7.4,
+      "max_current": null,
+      "vin_drop_gain": 0.1,
+      "vin_min": 6.0,
+      "min_delay": 0,
+      "max_delay": 0,
+      "delay_hold_prob": 0.0,
+      "delay_update_period": 0,
+      "delay_seed": 17,
+      "max_effort": 0.9634015946604082,
+      "joint_effort_limit": 0.9634015946604082,
+      "stiff_frictionloss": true,
+      "physics_dt": 0.005
     }
   },
   "limits": [
@@ -100,5 +116,14 @@
     "No PhysX or MuJoCo-C support; no body-wrench contribution in upstream load estimator.",
     "Profiles are named candidate configurations, not historical ONNX-training provenance or physically admitted defaults.",
     "Model/mesh/weight licenses are separate; this BSD notice does not relicense MicroDuck assets."
-  ]
+  ],
+  "profile_provenance": {
+    "official_infer_nominal_no_delay": {
+      "source": "https://github.com/pollen-robotics/microduck_rl/blob/8d0db74916a4f833d1d9b95d6a1d7f4d13b9d5ec/scripts/infer_policy.py",
+      "source_sha256": "03bfd0642a880cd379e057536ee819bd1377d4af7b5206a57907d10afd1d4270",
+      "parameters": "Official inference defaults: kp200,vin7.4,sag.1,vin_min6,currentNone,delay0,stiff friction; voltage effort cap = vin*kt/R.",
+      "scope": "Actuator parameter correspondence only. Native Newton/MJWarp and CPU MuJoCo plants/solvers are distinct; neither this name nor parameter matching admits gait.",
+      "historical_difference": "Earlier nominal profiles keep soft friction and .96 Nm cap, explicitly preserved as separate candidates, not exact official inference settings."
+    }
+  }
 }

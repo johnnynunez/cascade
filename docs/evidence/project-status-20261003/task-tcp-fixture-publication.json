@@ -1,0 +1,45 @@
+{
+  "head": "80035374a11a4a8d37965802c8b83c8285295def",
+  "base": "92cc6c11906d36cda9ac880be699186714555d91",
+  "source_commit": "62dcd0fe94bea2403110110ea1ea275c5abaec0c",
+  "scope": "Exact reviewed TCP test AST; all surrounding definitions unchanged from PR90 base; WORKLOG append preserves both entries. No production diff.",
+  "validation": "68 passed,0skip,7.16s; source/protected stores unchanged",
+  "retained_invalid_invocation": "candidate-01 absent test file,exit4,zero tests",
+  "review_note": "Initial comparison of entire test file to source branch rejected unrelated pre-existing fixture differences. Push of reviewed cherry-pick completed before corrected AST comparison; reviewed patch and tests are unchanged. This record verifies the final published head.",
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR90_20261003/FETCH.json",
+      "sha256": "3d5df2c74f0bc326dc70a51e0d03f33dc7a4d4b54cd75b9b5fc652cef9eaae11"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR90_20261003/FETCH_API.json",
+      "sha256": "9c8f2cf335a44fdcf505482d3f0813545431ff4b407e2dae81fbd9fc14aaa7a0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR90_20261003/macos-job.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR90_20261003/macos-job-api.log",
+      "sha256": "48a5bba105516cf5dbce181d9223f5b50343a42b0944c11090dfea0fd7d81bc5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR90_20261003/candidate-01/result.json",
+      "sha256": "d4d6b323d3982d7c062515ef54530cdb810e5cef19baff3beaa8bdc6118a9d67"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR90_20261003/candidate-02/result.json",
+      "sha256": "0b32d33ac809343b582cf18f2ff226767b56c2e0c3eb3d3501471572f04e827e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR90_20261003/candidate-02/junit.xml",
+      "sha256": "694977bd4dfeb741972096ac5c5a10e5b0588d714ba7a769fb958a7c53c88a0a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR90_20261003/candidate-02/pytest.log",
+      "sha256": "5f404f60c290586bfa6c20e281f4965e07fd665a274a93242d0bea5003342861"
+    }
+  ],
+  "test_sha256": "3a1bd8ee2d949208910d9691b3b3ee3d7a85923f366d5028848e32d0ed25c154",
+  "publication": "published"
+}

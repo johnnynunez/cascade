@@ -1,0 +1,331 @@
+{
+  "version": 2,
+  "base_head": "7a52d956cae5ad14e2c7b717fabf1f692e3755a8",
+  "scope": "optional native MuJoCo region attachment aiming; CPU geometry/contract validation only",
+  "physical_task_pass": false,
+  "historical_physical_episode": "7a52 original-postrelease-two-pick-01 remains FAIL+CLOSED; red confirmed, blue refused before carry/release while held",
+  "change": "destination-oriented measured tool-to-body translation shared by region preview and ordinary place_at; original target/z/3s/gates retained; original cancellation retained at actual stream and pre-opening consumer boundaries",
+  "validation": {
+    "passed": 539,
+    "failed": 0,
+    "skipped": 0,
+    "pytest_time_s": 61.147,
+    "new_attachment_and_fence_cases": 59,
+    "files": 24,
+    "source_unchanged": true,
+    "protected_stores_unchanged": true,
+    "ruff_new_F_E9": 0,
+    "ruff_preexisting_findings": 2,
+    "limits": "shared host, OMP/BLAS1/CUDA-1, no performance-causality claim; no new two-pick episode/renderer/GPU. New static replay tests prohibit mj_step/mj_step1/mj_step2 and native push_ctrl."
+  },
+  "tested_sources": {
+    "src/cascade/skills/mujoco_placement_aim.py": "5d4012924f3d76165e04d5d9dcc7c9842a50f9271a36b8a6e4180e75f5623bb0",
+    "src/cascade/skills/mujoco_region.py": "9862e10e5fff49720981d15b49519cd4e917d4b7b5f407d011df8dae61baf65c",
+    "src/cascade/skills/mujoco_withdrawal.py": "698e1460fe74ac33d3783f81212eea385565c0686293b86ce7c3859438a7a2f6",
+    "src/cascade/skills/place_geometry.py": "dad61a5f97b964beb37d52ab78b85dda136bcfc277bf13a5bc17d7ae44332f39",
+    "src/cascade/skills/runtime.py": "3ab72818e5bca7a38b2ebc0aa02b12caf094fc71b7397262cab1abb7f16c99c4",
+    "tests/test_placement_attachment.py": "9088e6d9cbbd6697633e4c54229036fdbf88d184cc7dee9dbca39f9546134912",
+    "tests/fixtures/placement_attachment_7a52.json": "981e300eecca1ff20c7c7aa9c6a5ea194e700374dd98fe01431101e90e6ac6d5",
+    "src/cascade/safety/harness.py": "9738719279d7fdb530305bef63bdca8e868f0b9139974738a5922a499b4a4ef6",
+    "tests/test_placement_attachment_fence.py": "223913cacd2d5a7c890e59ce6b9f85424e1a20f2dd024e5c5b8daff8c3da7c61",
+    "tests/test_carry_attachment.py": "110b1ee89fd72d5c1c2328a718df77c8699f0c7b50bf153de9f0ac2065f2a10d",
+    "tests/test_grasp_evidence.py": "d6196ef692e2cc3a828f97c61a4c8888cf86b112c279d76bb4ae45982f9416c9"
+  },
+  "protected_stores_after": {
+    "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+    "/home/johnny/.cascade/grasp_memory.json": null,
+    "/home/johnny/.cascade/beliefs.json": null,
+    "/home/johnny/Projects/demo/cascade/runs/beliefs.json": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+  },
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-controls-01/inputs.json",
+      "sha256": "05bf4d10cda26ed58ca61c68d472cc4414e9885a922ce4bd31ab78cc3c551f76"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-controls-01/result.json",
+      "sha256": "f67c3c2f355247c2f31119bfebecf27c7603ae1247166f77fefe301092541593"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-controls-01/junit.xml",
+      "sha256": "8d41d41be59968b1b57ff69183f4a4ecc8f86a28123f50d86c85f3b33df66ba9"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-controls-01/pytest.log",
+      "sha256": "c8c81578d9bca69f9d32aa5bb5ee648a08626dd36fd7d3b22c6b27b86dfad5ff"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-regressions-01/inputs.json",
+      "sha256": "b269989490d52b1eada19f61e30b7e5870788149f90b5ab3cdd961104dc00693"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-regressions-01/result.json",
+      "sha256": "e106e6da090699f633076d293d692d0da3a38dd330dd0fd56c5bb55ed0539366"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-regressions-01/junit.xml",
+      "sha256": "75e15b84e0db71dc7b4e227d7d74ecc3bc365ef5431ed83186a08deeb94fc337"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-regressions-01/pytest.log",
+      "sha256": "e9c8ad85d98e6125af21c84e8244817e8b831fc0c1f9792c9a15a25a51ea4b19"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-edge-controls-02/inputs.json",
+      "sha256": "0c19ef5fe6318b1cd8b8b697113bec62397c3a0adf743d42dee548563e3e6803"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-edge-controls-02/result.json",
+      "sha256": "a350885b931f6e265ff72f5a30e6d962b74154210938579234d9945d4c0f0624"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-edge-controls-02/junit.xml",
+      "sha256": "f7b9d23ef5c38dd0661eceb9a2f5d84a201c1ebb24a53b3b47a2ecb5ebf8cedd"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-edge-controls-02/pytest.log",
+      "sha256": "11bcff26fd07cf2bf20315a487492126f8765661edd94eecdfc0744af4c06f63"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-regressions-final/inputs.json",
+      "sha256": "0535e25abdcb0f81e77db2910b5033ae74865058287aaf402be16ee0a0640284"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-regressions-final/result.json",
+      "sha256": "6f0533756cba14c6b6bc653d76fa9bf2609accf9fdc95bbd0cf98387a14db7e3"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-regressions-final/junit.xml",
+      "sha256": "6b9e082ffc505dc8e9937c63cb33d817663bb18db17b267e841404b6ed123eed"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/attachment-regressions-final/pytest.log",
+      "sha256": "b541b22edb6ed215effaaba97175d73040ab086d3aa035d16bac4f952717a3cf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/ruff-final.log",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/assets-copy.json",
+      "sha256": "9e8ecfc34f5994319d1521c5f60cade7a2bfa3ac5edcc2e6f418cccc459eb85f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/run_contact_case.py",
+      "sha256": "56a3956485ae70ae01176309d39bfeaa9de4065ee2ba9c6df3375da87832d317"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_POSTRELEASE_REPLAN/BLUE_PREFLIGHT_CAUSAL_AUDIT.json",
+      "sha256": "594bcf2b1697d329e1b972000b5c2a457ba64569d3d9fe9e507fd6680eeb361f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_POSTRELEASE_REPLAN/BLUE_PREFLIGHT_CAUSAL_AUDIT.md",
+      "sha256": "ee893abd033b315266c05f15f32b05b198e1f3842a58e7cc10de1351979d2742"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_POSTRELEASE_REPLAN/POSTRELEASE_PHYSICAL01_AUDIT.json",
+      "sha256": "aae84901f69054ad11b2f769aab6545f9a57ddf6d723442558e22fd58aaaf0b5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-controls-01/inputs.json",
+      "sha256": "a502b32d50c131103a969a0db3b33c87e5a39279ad93ba7cba2ec9b6325ae208"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-controls-01/result.json",
+      "sha256": "6e304fa70ffdb1ea4c91b3d65721bade61bd99c27b369240b2c5e90de1b966eb"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-controls-01/junit.xml",
+      "sha256": "df0a7178e3aa60d52938c35554e6ca0a925d8ebc841ca6ddf4050972c5b07c52"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-controls-01/pytest.log",
+      "sha256": "79073876dc9cdc5cb83b29ab078822896330af40763f3526dc35a47129f3f621"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-controls-02/inputs.json",
+      "sha256": "420c7e5444803f8fd4258a58c6d0c648906cb9eb1f39740d271c845ffb0e8a56"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-controls-02/result.json",
+      "sha256": "a178d5f28557b8e827948c21a8915cb1fab6d812ace4c93f373149fc08917565"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-controls-02/junit.xml",
+      "sha256": "e4891de76b7e0d0dfa8c105d4f76df762c1f8ea3bc7bf1fd17b264cc5aa2264e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-controls-02/pytest.log",
+      "sha256": "c9a0fe8191e693d59bb3e0708fe1ce73eed929b3fb0f7eb8be00d3233a6e9f51"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-external-review-01/inputs.json",
+      "sha256": "c34780f61f6bbe305bc45fc3b4badb6024787c4ed0962939fc0db545b3af9cc4"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-external-review-01/result.json",
+      "sha256": "46b90977bd5a9f3d0ea16c2cd6319501abe234a9e3cf3b0d7802d8492b293bb0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-external-review-01/junit.xml",
+      "sha256": "b952d216206ac4da8727a28db329fa4a1635a7009ae65f43bd36c120ec2fe25c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-external-review-01/pytest.log",
+      "sha256": "39dacea465ce2b83039fed38f2280dee7a68a29cf5a3a16237c606db6a05bba9"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-regressions-01/inputs.json",
+      "sha256": "84df63e6eab35d80503edeb9dbd3abd398c997b06ab2122281fa2b634261d0bc"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-regressions-01/result.json",
+      "sha256": "967532b042965bf43cfcfccf49793ddbad208b9353e3473353f87bd4d6b1583f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-regressions-01/junit.xml",
+      "sha256": "3e9218bc53e9cbd6d68b3eb3e98993e37c0ca4aaff651ddd88d8e5c6dbb63336"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-regressions-01/pytest.log",
+      "sha256": "99d88ba81ba7b32517dc82bfdd6c54c903424c68c7fa98e53df28830edcc2597"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/legacy-fixture-baseline-01/inputs.json",
+      "sha256": "99418fba06ac515993b15537fec5198ae6a41628e27d1b6214630cfc45615aa6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/legacy-fixture-baseline-01/result.json",
+      "sha256": "1937a562e81622a945a0e937e830af6c1df26b715c6d68485a553ff7b8cd99aa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/legacy-fixture-baseline-01/junit.xml",
+      "sha256": "45d68b26c8b2dd277dc18cac9a318b1cc30ad4c37f370b698a5ced698438bc50"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/legacy-fixture-baseline-01/pytest.log",
+      "sha256": "6512139eb7a5a67093476a635d4bab08033f2641a521ab3352d79f9c834a9c80"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/callback-compatibility-01/inputs.json",
+      "sha256": "1830670ed9340f8cdedfc5b88c5adc3d9f8fddab1c3a3251c818e6369c69aa47"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/callback-compatibility-01/result.json",
+      "sha256": "4bdfdb570a5ce0db13b2d84d365044bec69184c09c17f391af14c71b7f8954c6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/callback-compatibility-01/junit.xml",
+      "sha256": "c2c6e6343b765df284b6a07427249e958b6a014793e9fdb03f5aa65c685dd6c2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/callback-compatibility-01/pytest.log",
+      "sha256": "ffb12329105d9e2e87c4dc2402d02d66c81c48e81291b5b1728e3a17b8243ec2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-regressions-final/inputs.json",
+      "sha256": "e1a25b88d9d01aed74e58fbec8b7d58b29ab3b769d6863d6b7866209db5d520a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-regressions-final/result.json",
+      "sha256": "a64c0573a5fe4d57424ca63211af2bd09d928a7d80396f076027334da3dc3da0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-regressions-final/junit.xml",
+      "sha256": "621dbe598e357aa7bc31f546fd838f1f02ff772d1a3a996f44366358f59a0905"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-regressions-final/pytest.log",
+      "sha256": "25fc12b418843e38f8cc330ce0e3a0ef2dbdfeacb7b720cc4071b3479ba60d1e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/checkpoint-313-receipt.json",
+      "sha256": "008706942f26837a02353ba1eca830f6d074decf74e2a986c4bcc6bf422b8ea2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/ATTACHMENT_FREEZE_01.json",
+      "sha256": "776a31351dc156808cdd210678a52d7e3ccf49087ac98e29407e0c4db093087c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/handoff-control-delta.json",
+      "sha256": "2cc0f9594d23c701a0d4bab4446b3c685b55317d81e10918df08e5ed2a1a7858"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/test_handoff_race_fixed.py",
+      "sha256": "bd6cc6148606a109786dbdc235c2e873ebe2f6c4ef768a9210e5097d7577897e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/baseline_harness_swap.py",
+      "sha256": "5a714a4e9c5f06feac421a18d559daa7c39d467873e83a1d2bb5ffc403c0c41a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/baseline_harness_326720e7.py",
+      "sha256": "059ca5b732c87516ebadd3705f5811ddd7b8a48e2bbdbaff9c4dc32fd1565c67"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/ruff-fence.json",
+      "sha256": "48bdd64b7eed99061e99e9f1fd556dd22c7da1e397271dfb4d82eb71accfc873"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/fence-regressions-01/frozen-source/src/cascade/safety/harness.py",
+      "sha256": "c17b7f9dacc477f1a9060d5e92c7b2e797cc230c95fc4a8629c3905c50edd6c6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM_REVIEW/probe-receipt.json",
+      "sha256": "2640169358094f9c824219f9c80fd5ca9d41138d20471bdf68813a04e0e5e45f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM_REVIEW/test_handoff_race.py",
+      "sha256": "064485495122a2d62f8a1b44d6f152fc3af100717e5ab6fdff5d47811888d770"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM_REVIEW/probe.log",
+      "sha256": "e5c1576592a234d1db09958bfc0910c25852f428e5b869061dd1f0957a0db2f5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM_REVIEW/junit.xml",
+      "sha256": "f754602c46fdbd48e5c9098f3dfe0a7e4097fd7337d76b610618d535ead5d3b2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM_REVIEW/before.json",
+      "sha256": "1098e648c2a1b9b2f3d9d6192556a14d779036588ccd20112f175540445bb3ce"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM_REVIEW/after.json",
+      "sha256": "1098e648c2a1b9b2f3d9d6192556a14d779036588ccd20112f175540445bb3ce"
+    }
+  ],
+  "checkpoint_313": {
+    "commit": "326720e7b8db98ee7356b8df7ccf5fc76e56f123",
+    "receipt": "/home/johnny/Projects/demo/cascade-lab/MUJOCO_ATTACHMENT_AIM/checkpoint-313-receipt.json",
+    "sha256": "008706942f26837a02353ba1eca830f6d074decf74e2a986c4bcc6bf422b8ea2",
+    "not_admitted": "Later review found cancellation could be cleared inside the first SafeArm read before dispatch."
+  },
+  "consumer_fence": {
+    "scope": "opt-in token on every carry segment; bound real Withdrawal before retain/open; no SDK or callback under stop lock",
+    "first_stream": "original snapshot and unchanged3s deadline",
+    "later_streams": "preserve model/epoch/coordinates/cancellation while allowing physical state progress",
+    "inflight_limit": "Cannot retract an already admitted backend call. No new physical episode performed.",
+    "external_control": {
+      "old": "1 PASS,1 FAIL; stop/reset reaches backend spy",
+      "new": "2 PASS; cancelled branch has zero dispatch, healthy branch still reaches spy",
+      "control_delta": "Only catches SafetyViolation alongside SkillError, preserving injection and assertions",
+      "native_writes_or_steps": 0
+    }
+  },
+  "retained_failures": [
+    {
+      "run": "fence-regressions-01",
+      "passed": 382,
+      "failed": 5,
+      "cause": "Incomplete legacy harness doubles omit check_model_withdrawal. Two first expose optional check_motion_cancellation(None); new hook now strictly opt-in."
+    },
+    {
+      "run": "legacy-fixture-baseline-01",
+      "failed": 5,
+      "method": "External plugin loads byte-exact326720e7 harness in module namespace; all five fail on missing model-withdrawal guard, no production changes or integration.",
+      "harness_sha256": "059ca5b732c87516ebadd3705f5811ddd7b8a48e2bbdbaff9c4dc32fd1565c67"
+    }
+  ],
+  "fixture_repairs": "Bind real SafetyHarness.check_model_withdrawal with pendingNone; grasp fixture two lines match root9b97b654. No noop safety fallback or criterion change."
+}

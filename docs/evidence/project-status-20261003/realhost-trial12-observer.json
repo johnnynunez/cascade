@@ -1,0 +1,919 @@
+{
+  "schema": 1,
+  "verdict": "FAIL",
+  "retry_performed": false,
+  "source_head": "f674fa64330274b17faa942cc3ae34682edbbf4f",
+  "scope": "One original OpenClaw/Qwen proof; green action cancelled at unchanged MCP300. No reset or orange action. Partial release is not campaign success.",
+  "final_receipt": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/attempts/0c92f78ff8ea4a9cbbaee77feefb519e/final.json",
+    "sha256": "54d87a2fc4fcbb242d01ea65de49da769d7013e4ae261488878e0a8751bf680f"
+  },
+  "frozen_input_count": 44415,
+  "frozen_inputs_unchanged": true,
+  "session_id": "cascade-proof-f69149c2dfb94e82aaef69d49fdf9690",
+  "owner_record": {
+    "repo": "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade",
+    "profile": "cascade-trial12-realhost-observer-01",
+    "state_dir": "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01",
+    "owner": "3ba16d8e4c4e4de3ba092a7c046a98d4",
+    "schema": 1,
+    "pid": 692080,
+    "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:24567354",
+    "command": "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/venv/bin/python -m cascade.apps.mcp_server --launch-owner 3ba16d8e4c4e4de3ba092a7c046a98d4 --launch-state-dir /home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01",
+    "role": "mcp",
+    "instance_id": "6edd824467304dc3a799406ba99e596c",
+    "registered_at": 1791000571.318426,
+    "run_dir": "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/mcp_692080_1d76771ecbaa4c2d9f56eed133c6570c"
+  },
+  "observer_sources": {
+    "demo/kitchen/observer/observer.py": {
+      "new_path": "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/demo/kitchen/observer/observer.py",
+      "new_sha256": "60c781ce59046a935acf5eff5f68a0d5e8adfaea9ef2a9448163e5a420332bab",
+      "failed_realhost_source": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_TEARDOWN/cascade/demo/kitchen/observer/observer.py",
+      "failed_realhost_sha256": "cbb0ba863443a3a96633bf788eae3ccc98b8f38cbb7b50b8117340cf1965c977",
+      "validated_previous_source": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade/demo/kitchen/observer/observer.py",
+      "validated_previous_sha256": "60c781ce59046a935acf5eff5f68a0d5e8adfaea9ef2a9448163e5a420332bab",
+      "different_from_failed_recipe": true
+    },
+    "demo/kitchen/physics/gpu_proof_audit.py": {
+      "new_path": "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/demo/kitchen/physics/gpu_proof_audit.py",
+      "new_sha256": "1b288253a470df06d73dc37faf20d124290df66abacd8384a3858f78df9eab27",
+      "failed_realhost_source": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_TEARDOWN/cascade/demo/kitchen/physics/gpu_proof_audit.py",
+      "failed_realhost_sha256": "f85392450376bf6a320138198612530d26f08ab4a95962a20047f3f3ceb26fb2",
+      "validated_previous_source": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_LATENCY/cascade/demo/kitchen/physics/gpu_proof_audit.py",
+      "validated_previous_sha256": "1b288253a470df06d73dc37faf20d124290df66abacd8384a3858f78df9eab27",
+      "different_from_failed_recipe": true
+    }
+  },
+  "host": {
+    "scene_duration_ms": 27621,
+    "pick_turn_duration_ms": 303890,
+    "pick_terminal": {
+      "runId": "58b640fc-815a-4044-b037-1884ef936150",
+      "sessionId": "cascade-proof-f69149c2dfb94e82aaef69d49fdf9690",
+      "turnId": "58b640fc-815a-4044-b037-1884ef936150",
+      "requested": {
+        "provider": "custom-127-0-0-1-18088",
+        "model": "Qwen/Qwen3.8-27B"
+      },
+      "effective": {
+        "provider": "custom-127-0-0-1-18088",
+        "model": "Qwen/Qwen3.8-27B",
+        "responseModel": "Qwen/Qwen3.8-27B"
+      },
+      "successfulToolNames": [],
+      "rerouted": false
+    },
+    "tool_summary": {
+      "calls": 1,
+      "tools": [
+        "cascade__pick_and_place"
+      ],
+      "failures": 1
+    },
+    "final_narration": "I attempted to place the green cube in the green square, but the action timed out and did not complete. The placement was not successful. Let me know if you'd like me to try again."
+  },
+  "trace": [
+    {
+      "skill": "describe_scene",
+      "duration_ms": 17245.5,
+      "ok": true
+    }
+  ],
+  "action_result_retained": false,
+  "cancellation": {
+    "host_timeout_s": 300,
+    "explicit_client_cancellation_logged": true,
+    "priority_estop_logged": true,
+    "no_complete_skill_result_or_place_timing": true,
+    "no_physical_robot_rest_claim": true
+  },
+  "grasp": {
+    "duration_s": 127.85468307399424,
+    "phases": [
+      {
+        "phase": "planning",
+        "elapsed_s": 1.8100851850176696,
+        "until_next_phase_s": 2.420978248002939
+      },
+      {
+        "phase": "open",
+        "elapsed_s": 4.2310634330206085,
+        "until_next_phase_s": 0.07669778499985114
+      },
+      {
+        "phase": "home",
+        "elapsed_s": 4.30776121802046,
+        "until_next_phase_s": 13.840867894992698
+      },
+      {
+        "phase": "pregrasp",
+        "elapsed_s": 18.148629113013158,
+        "until_next_phase_s": 65.5742781579902
+      },
+      {
+        "phase": "descent",
+        "elapsed_s": 83.72290727100335,
+        "until_next_phase_s": 17.79415191800217
+      },
+      {
+        "phase": "close",
+        "elapsed_s": 101.51705918900552,
+        "until_next_phase_s": 2.312365827994654
+      },
+      {
+        "phase": "lift",
+        "elapsed_s": 103.82942501700018,
+        "until_next_phase_s": 23.792096385994228
+      },
+      {
+        "phase": "verify",
+        "elapsed_s": 127.6215214029944,
+        "until_next_phase_s": 0.23316167099983431
+      }
+    ],
+    "final_event": {
+      "kind": "result",
+      "phase": "verify",
+      "elapsed_s": 127.85465336899506,
+      "data": {
+        "result": {
+          "held": "green cube",
+          "grip_profile": "rigid",
+          "grip_verified": true,
+          "gripper_open_frac": 0.47,
+          "grasp_width_m": 0.059
+        }
+      }
+    }
+  },
+  "independent_observer": {
+    "samples": 2006,
+    "first_step": 2358,
+    "last_step": 7926,
+    "sim_duration_s": 46.4,
+    "server_wall_duration_s": 304.71452139201574,
+    "sim_per_wall": 0.15227367500581412,
+    "observer_round_trip_s": {
+      "min": 0.010581919981632382,
+      "median": 0.08305634750286117,
+      "mean": 0.0868314768447605,
+      "p95_nearest_rank": 0.155060090997722,
+      "max": 0.37658583000302315
+    },
+    "server_sample_intervals_s": {
+      "min": 0.03731845098081976,
+      "median": 0.14825403300346807,
+      "mean": 0.15197731740250162,
+      "p95_nearest_rank": 0.23476816399488598,
+      "max": 0.36602890901849605
+    },
+    "camera_checks_only": {
+      "cam0": {
+        "invalid_rows": 0,
+        "age_s": {
+          "min": 0.12436268699821085,
+          "median": 0.38653661450371146,
+          "mean": 0.3961792534135208,
+          "p95_nearest_rank": 0.6724208329978865,
+          "max": 1.110774026979925
+        }
+      },
+      "side": {
+        "invalid_rows": 0,
+        "age_s": {
+          "min": 0.12436268699821085,
+          "median": 0.38653661450371146,
+          "mean": 0.3961792534135208,
+          "p95_nearest_rank": 0.6724208329978865,
+          "max": 1.110774026979925
+        }
+      },
+      "proof": {
+        "invalid_rows": 0,
+        "age_s": {
+          "min": 0.12436268699821085,
+          "median": 0.38653661450371146,
+          "mean": 0.3961792534135208,
+          "p95_nearest_rank": 0.6724208329978865,
+          "max": 1.110774026979925
+        }
+      }
+    },
+    "first_green_position_m": [
+      0.24000000953674316,
+      0.010000009089708328,
+      0.02999999934039739
+    ],
+    "last_green_position_m": [
+      0.1454574316740036,
+      -0.2783321142196655,
+      0.02999999934039739
+    ],
+    "max_green_center_z_m": 0.13664261997841026,
+    "last_sample_pick_elapsed_s": 304.70254363000276
+  },
+  "partial_object_release_window": {
+    "criterion": "center within 2 cm, center height within 1 mm of .03 m, jaws >=.98 open, jaw contacts zero and positive net vertical load >.4 N; descriptive retained subset, not full placement acceptance",
+    "original_phase_marks": {
+      "pick_begin": {
+        "monotonic": 245701.284155986,
+        "unix": 1791000599.0138674
+      }
+    },
+    "full_original_placement_reset_acceptance": false,
+    "first_elapsed_s": 262.02362381399143,
+    "last_elapsed_s": 304.70254363000276,
+    "samples": 278,
+    "continuous_sim_duration_s": 7.0,
+    "continuous_wall_duration_s": 42.67891981601133,
+    "first_step": 7086,
+    "last_step": 7926,
+    "last_center_distance_m": 0.009960305610068889,
+    "max_object_linear_speed_m_s": 0.004957279426048031,
+    "last_contact": {
+      "channel": "physx_gpu_contact_tensor",
+      "device": "cuda:0",
+      "sensor_paths": [
+        "/World_Props/green_cube"
+      ],
+      "filter_paths": [
+        [
+          "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_left",
+          "/tn__00armrs_asmv3_hJ6D/Geometry/base_link/link1/link2/link3/link4/link5/link6/gripper_end/gripper_right"
+        ]
+      ],
+      "net_force_n": [
+        0.0,
+        0.0,
+        0.49050000309944153
+      ],
+      "jaw_forces_n": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "jaw_contact_counts": [
+        0,
+        0
+      ],
+      "physics_dt_s": 0.008333333333333333,
+      "physics_step": 7926
+    }
+  },
+  "terminal_phase_inference": {
+    "classification": "return_home after release and upward withdrawal",
+    "status": "inference from measured joints and unchanged control-flow, not a retained phase command receipt",
+    "evidence": [
+      {
+        "elapsed_s": 259.9599595439795,
+        "step": 7052,
+        "q_native_rad": [
+          -1.0594412088394165,
+          -1.794831395149231,
+          -1.3354747295379639,
+          1.1164956092834473,
+          -1.5456365872523747e-05,
+          -0.5456576347351074
+        ],
+        "max_home_error_rad": 1.1164956092834473,
+        "joint_speed_norm_rad_s": 0.17314755074311422,
+        "green_position_m": [
+          0.13994325697422028,
+          -0.269485741853714,
+          0.046075657021028074
+        ],
+        "open_fraction": 0.46639778887632805
+      },
+      {
+        "elapsed_s": 269.96602697399794,
+        "step": 7256,
+        "q_native_rad": [
+          -1.0592526197433472,
+          -1.803297519683838,
+          -1.4815160036087036,
+          1.2464197874069214,
+          8.706389053259045e-06,
+          -0.5372764468193054
+        ],
+        "max_home_error_rad": 1.2464197874069214,
+        "joint_speed_norm_rad_s": 0.277733237187596,
+        "green_position_m": [
+          0.1454574316740036,
+          -0.2783321142196655,
+          0.02999999934039739
+        ],
+        "open_fraction": 0.9999802559617124
+      },
+      {
+        "elapsed_s": 279.98486715598847,
+        "step": 7454,
+        "q_native_rad": [
+          -1.0593585968017578,
+          -1.811523199081421,
+          -1.7315263748168945,
+          1.4940747022628784,
+          3.520759491948411e-05,
+          -0.5347919464111328
+        ],
+        "max_home_error_rad": 1.4940747022628784,
+        "joint_speed_norm_rad_s": 0.08843566997350462,
+        "green_position_m": [
+          0.1454574465751648,
+          -0.2783321142196655,
+          0.02999999934039739
+        ],
+        "open_fraction": 1.0000008940696583
+      },
+      {
+        "elapsed_s": 285.0032325219945,
+        "step": 7550,
+        "q_native_rad": [
+          -1.0440312623977661,
+          -1.8047082424163818,
+          -1.7227163314819336,
+          1.4735205173492432,
+          3.952354018110782e-05,
+          -0.5276768803596497
+        ],
+        "max_home_error_rad": 1.4735205173492432,
+        "joint_speed_norm_rad_s": 0.23169242832291106,
+        "green_position_m": [
+          0.1454574316740036,
+          -0.2783321142196655,
+          0.02999999934039739
+        ],
+        "open_fraction": 0.9999244138609705
+      },
+      {
+        "elapsed_s": 290.0258921379864,
+        "step": 7660,
+        "q_native_rad": [
+          -0.8566633462905884,
+          -1.6879878044128418,
+          -1.622692346572876,
+          1.2092063426971436,
+          -1.4085183465795126e-05,
+          -0.4356171488761902
+        ],
+        "max_home_error_rad": 1.2092063426971436,
+        "joint_speed_norm_rad_s": 0.6691240108339479,
+        "green_position_m": [
+          0.1454574316740036,
+          -0.2783321440219879,
+          0.02999999934039739
+        ],
+        "open_fraction": 0.999960362911815
+      },
+      {
+        "elapsed_s": 295.00122118898435,
+        "step": 7758,
+        "q_native_rad": [
+          -0.5290902853012085,
+          -1.4946424961090088,
+          -1.4550737142562866,
+          0.7470744252204895,
+          -9.738586959429085e-05,
+          -0.27165400981903076
+        ],
+        "max_home_error_rad": 0.7470744252204895,
+        "joint_speed_norm_rad_s": 0.7350278254346879,
+        "green_position_m": [
+          0.1454574465751648,
+          -0.2783321142196655,
+          0.02999999747775224
+        ],
+        "open_fraction": 0.9996994808361012
+      },
+      {
+        "elapsed_s": 299.96420268699876,
+        "step": 7852,
+        "q_native_rad": [
+          -0.2126876413822174,
+          -1.3145756721496582,
+          -1.2978601455688477,
+          0.30060291290283203,
+          -7.970947626745328e-05,
+          -0.11115141957998276
+        ],
+        "max_home_error_rad": 0.30060291290283203,
+        "joint_speed_norm_rad_s": 0.6572536908760563,
+        "green_position_m": [
+          0.1454574316740036,
+          -0.2783321142196655,
+          0.02999999747775224
+        ],
+        "open_fraction": 0.9993707984779656
+      },
+      {
+        "elapsed_s": 304.70254363000276,
+        "step": 7926,
+        "q_native_rad": [
+          -0.06106182187795639,
+          -1.233760952949524,
+          -1.2264795303344727,
+          0.086614228785038,
+          -4.756549242301844e-05,
+          -0.03261616826057434
+        ],
+        "max_home_error_rad": 0.086614228785038,
+        "joint_speed_norm_rad_s": 0.1430078720325478,
+        "green_position_m": [
+          0.1454574316740036,
+          -0.2783321142196655,
+          0.02999999934039739
+        ],
+        "open_fraction": 0.9999257922183604
+      }
+    ],
+    "native_home_target_rad": [
+      0.0,
+      -1.2,
+      -1.2,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "reason": "After open jaws and supported cube, joints first rise at fixed joint1 near -1.059; from about284s multiple joints converge toward configured home, still outside settle range at cancellation. skill_pick_and_place calls skill_move_home after skill_place_at retreat. The final skill result/phase marker is absent, so no exact home command-start time is invented.",
+    "reset_executed": false,
+    "orange_executed": false
+  },
+  "comparison_to_PATH": {
+    "retained_report": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_PATH/EPISODE01_RESULT.json",
+      "sha256": "ed7767e42f654970985e36b8b46d80455437d9b9d780201d06c634031eabe22c"
+    },
+    "old_observer": {
+      "samples": 1841,
+      "first_step": 2310,
+      "last_step": 6170,
+      "sim_duration_s": 32.166666666666664,
+      "server_wall_duration_s": 308.9762887980032,
+      "sim_per_wall": 0.10410723357382284,
+      "observer_round_trip_s": {
+        "min": 0.033308774000033736,
+        "median": 0.1440540769835934,
+        "mean": 0.14616436226994908,
+        "p95_nearest_rank": 0.2147273519949522,
+        "max": 0.6368740949837957
+      },
+      "server_sample_intervals_s": {
+        "min": 0.06570154597284272,
+        "median": 0.16361565999977756,
+        "mean": 0.16792189608587132,
+        "p95_nearest_rank": 0.22802984900772572,
+        "max": 0.6435968470177613
+      },
+      "camera_checks_only": {
+        "cam0": {
+          "invalid_rows": 0,
+          "age_s": {
+            "min": 0.1180235389911104,
+            "median": 0.4412764289882034,
+            "mean": 0.4632894349054485,
+            "p95_nearest_rank": 0.7522472349810414,
+            "max": 1.7028737450018525
+          }
+        },
+        "side": {
+          "invalid_rows": 0,
+          "age_s": {
+            "min": 0.1180235389911104,
+            "median": 0.4412764289882034,
+            "mean": 0.4632894349054485,
+            "p95_nearest_rank": 0.7522472349810414,
+            "max": 1.7028737450018525
+          }
+        },
+        "proof": {
+          "invalid_rows": 0,
+          "age_s": {
+            "min": 0.1180235389911104,
+            "median": 0.4412764289882034,
+            "mean": 0.4632894349054485,
+            "p95_nearest_rank": 0.7522472349810414,
+            "max": 1.7028737450018525
+          }
+        }
+      },
+      "first_green_position_m": [
+        0.24000000953674316,
+        0.010000009089708328,
+        0.02999999934039739
+      ],
+      "last_green_position_m": [
+        0.18852442502975464,
+        -0.2237434685230255,
+        0.12783202530048515
+      ],
+      "max_green_center_z_m": 0.12913997472427513,
+      "last_sample_pick_elapsed_s": 308.9357226199936
+    },
+    "current_observer": {
+      "samples": 2006,
+      "first_step": 2358,
+      "last_step": 7926,
+      "sim_duration_s": 46.4,
+      "server_wall_duration_s": 304.71452139201574,
+      "sim_per_wall": 0.15227367500581412,
+      "observer_round_trip_s": {
+        "min": 0.010581919981632382,
+        "median": 0.08305634750286117,
+        "mean": 0.0868314768447605,
+        "p95_nearest_rank": 0.155060090997722,
+        "max": 0.37658583000302315
+      },
+      "server_sample_intervals_s": {
+        "min": 0.03731845098081976,
+        "median": 0.14825403300346807,
+        "mean": 0.15197731740250162,
+        "p95_nearest_rank": 0.23476816399488598,
+        "max": 0.36602890901849605
+      },
+      "camera_checks_only": {
+        "cam0": {
+          "invalid_rows": 0,
+          "age_s": {
+            "min": 0.12436268699821085,
+            "median": 0.38653661450371146,
+            "mean": 0.3961792534135208,
+            "p95_nearest_rank": 0.6724208329978865,
+            "max": 1.110774026979925
+          }
+        },
+        "side": {
+          "invalid_rows": 0,
+          "age_s": {
+            "min": 0.12436268699821085,
+            "median": 0.38653661450371146,
+            "mean": 0.3961792534135208,
+            "p95_nearest_rank": 0.6724208329978865,
+            "max": 1.110774026979925
+          }
+        },
+        "proof": {
+          "invalid_rows": 0,
+          "age_s": {
+            "min": 0.12436268699821085,
+            "median": 0.38653661450371146,
+            "mean": 0.3961792534135208,
+            "p95_nearest_rank": 0.6724208329978865,
+            "max": 1.110774026979925
+          }
+        }
+      },
+      "first_green_position_m": [
+        0.24000000953674316,
+        0.010000009089708328,
+        0.02999999934039739
+      ],
+      "last_green_position_m": [
+        0.1454574316740036,
+        -0.2783321142196655,
+        0.02999999934039739
+      ],
+      "max_green_center_z_m": 0.13664261997841026,
+      "last_sample_pick_elapsed_s": 304.70254363000276
+    },
+    "old_grasp_s": 187.5101731660252,
+    "current_grasp_s": 127.85468307399424,
+    "conclusion": "Observed round-trip/phase differences are descriptive, not isolated causal estimates. The optimized source is now actually used; shared GPU/CPU load and sampled grasp/trajectory differ, and both real-host episodes failed MCP300."
+  },
+  "external_dependency": {
+    "automatic_openai_embedding_429_count": 3,
+    "llm_local": true,
+    "credential_values_recorded": false,
+    "wholly_offline_claim": false
+  },
+  "closure": {
+    "normal_shutdown": false,
+    "runtime_teardown_verified": false,
+    "observed_lifecycle_complete": false,
+    "closures": [
+      {
+        "role": "ggx-cold-readiness",
+        "unit": "cascade-trial12-ggx-cold-readiness-62d2b64d4ba84f67a3b87225093993bb.service",
+        "create_ack": true,
+        "ok": true,
+        "forced": false,
+        "ordinary": true,
+        "before": {
+          "state": {
+            "Description": "CASCADE realhost owner 62d2b64d4ba84f67a3b87225093993bb",
+            "LoadState": "loaded",
+            "ActiveState": "active",
+            "SubState": "exited",
+            "InvocationID": "0d9c34e0e2e347c8a0e546fcc4fc14b3",
+            "MainPID": "0",
+            "Result": "success",
+            "ExecMainStartTimestampMonotonic": "245558783286",
+            "ExecMainExitTimestampMonotonic": "245574889641",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "0",
+            "ControlGroup": ""
+          },
+          "members": []
+        },
+        "remaining": [],
+        "terminal": {
+          "ExecMainCode": "1",
+          "ExecMainStatus": "0",
+          "ExecMainStartTimestampMonotonic": "245558783286",
+          "ExecMainExitTimestampMonotonic": "245574889641",
+          "Result": "success"
+        },
+        "escaped_alive": []
+      },
+      {
+        "role": "launcher",
+        "unit": "cascade-trial12-launcher-99ed196c05cd4180961d71e75be3e9ab.service",
+        "create_ack": true,
+        "ok": true,
+        "forced": false,
+        "ordinary": true,
+        "before": {
+          "state": {
+            "Description": "CASCADE realhost owner 99ed196c05cd4180961d71e75be3e9ab",
+            "LoadState": "loaded",
+            "ActiveState": "deactivating",
+            "SubState": "stop-sigterm",
+            "InvocationID": "66038fe8501948c4abf8eca524e8a02a",
+            "MainPID": "0",
+            "Result": "exit-code",
+            "ExecMainStartTimestampMonotonic": "245574948558",
+            "ExecMainExitTimestampMonotonic": "246007727164",
+            "ExecMainCode": "1",
+            "ExecMainStatus": "1",
+            "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/cascade-trial12-launcher-99ed196c05cd4180961d71e75be3e9ab.service"
+          },
+          "members": [
+            {
+              "pid": 688066,
+              "start_ticks": 24557645,
+              "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d"
+            }
+          ]
+        },
+        "remaining": [],
+        "terminal": {
+          "ExecMainCode": "1",
+          "ExecMainStatus": "1",
+          "ExecMainStartTimestampMonotonic": "245574948558",
+          "ExecMainExitTimestampMonotonic": "246007727164",
+          "Result": "exit-code"
+        },
+        "escaped_alive": []
+      },
+      {
+        "role": "ggx",
+        "unit": "cascade-trial12-ggx-49480821bb4044d3b221c6855261683c.service",
+        "create_ack": true,
+        "ok": true,
+        "forced": false,
+        "ordinary": true,
+        "before": {
+          "state": {
+            "Description": "CASCADE realhost owner 49480821bb4044d3b221c6855261683c",
+            "LoadState": "loaded",
+            "ActiveState": "active",
+            "SubState": "running",
+            "InvocationID": "5bff2a71dfc04c3dbbd5ea43cfecbd26",
+            "MainPID": "687193",
+            "Result": "success",
+            "ExecMainStartTimestampMonotonic": "245553760406",
+            "ExecMainExitTimestampMonotonic": "0",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/cascade-trial12-ggx-49480821bb4044d3b221c6855261683c.service"
+          },
+          "members": [
+            {
+              "pid": 687193,
+              "start_ticks": 24555376,
+              "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d"
+            }
+          ]
+        },
+        "remaining": [],
+        "terminal": {
+          "ExecMainCode": "2",
+          "ExecMainStatus": "15",
+          "ExecMainStartTimestampMonotonic": "245553760406",
+          "ExecMainExitTimestampMonotonic": "246009429187",
+          "Result": "success"
+        },
+        "escaped_alive": []
+      },
+      {
+        "role": "qwen",
+        "unit": "cascade-trial12-qwen-0c5c05684ede47fdb147b5348c95b2ec.service",
+        "create_ack": true,
+        "ok": true,
+        "forced": false,
+        "ordinary": true,
+        "before": {
+          "state": {
+            "Description": "CASCADE realhost owner 0c5c05684ede47fdb147b5348c95b2ec",
+            "LoadState": "loaded",
+            "ActiveState": "active",
+            "SubState": "running",
+            "InvocationID": "bad71cfcd4a345039e3ae8acf002dfc4",
+            "MainPID": "687039",
+            "Result": "success",
+            "ExecMainStartTimestampMonotonic": "245553285891",
+            "ExecMainExitTimestampMonotonic": "0",
+            "ExecMainCode": "0",
+            "ExecMainStatus": "0",
+            "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/cascade-trial12-qwen-0c5c05684ede47fdb147b5348c95b2ec.service"
+          },
+          "members": [
+            {
+              "pid": 687039,
+              "start_ticks": 24555328,
+              "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d"
+            }
+          ]
+        },
+        "remaining": [],
+        "terminal": {
+          "ExecMainCode": "1",
+          "ExecMainStatus": "0",
+          "ExecMainStartTimestampMonotonic": "245553285891",
+          "ExecMainExitTimestampMonotonic": "246009739134",
+          "Result": "success"
+        },
+        "escaped_alive": []
+      }
+    ],
+    "listeners_remaining": {},
+    "retained_mcp_teardown": {
+      "schema": 1,
+      "ok": true,
+      "complete": true,
+      "scope": "software_teardown",
+      "physical_rest_verified": false,
+      "stages": [
+        {
+          "stage": "stop",
+          "ok": true,
+          "complete": true
+        },
+        {
+          "stage": "runtime",
+          "ok": true,
+          "complete": true,
+          "result": {
+            "schema": 1,
+            "ok": true,
+            "complete": true,
+            "scope": "software_teardown",
+            "physical_rest_verified": false,
+            "stages": [
+              {
+                "stage": "park",
+                "ok": true,
+                "complete": true,
+                "result": {
+                  "schema": 1,
+                  "ok": true,
+                  "complete": true,
+                  "scope": "software_teardown",
+                  "physical_rest_verified": false,
+                  "stages": [
+                    {
+                      "stage": "0",
+                      "ok": true,
+                      "complete": true,
+                      "skipped": "estopped"
+                    }
+                  ],
+                  "pending_threads": []
+                }
+              },
+              {
+                "stage": "beliefs",
+                "ok": true,
+                "complete": true
+              },
+              {
+                "stage": "watcher",
+                "ok": true,
+                "complete": true
+              },
+              {
+                "stage": "stream_server",
+                "ok": true,
+                "complete": true
+              },
+              {
+                "stage": "viewer",
+                "ok": true,
+                "complete": true
+              },
+              {
+                "stage": "cameras",
+                "ok": true,
+                "complete": true,
+                "result": {
+                  "schema": 1,
+                  "ok": true,
+                  "complete": true,
+                  "scope": "software_teardown",
+                  "physical_rest_verified": false,
+                  "stages": [
+                    {
+                      "stage": "isaac",
+                      "ok": true,
+                      "complete": true
+                    },
+                    {
+                      "stage": "isaac_side",
+                      "ok": true,
+                      "complete": true
+                    },
+                    {
+                      "stage": "kitchen",
+                      "ok": true,
+                      "complete": true
+                    }
+                  ],
+                  "pending_threads": []
+                }
+              },
+              {
+                "stage": "arms",
+                "ok": true,
+                "complete": true,
+                "result": {
+                  "schema": 1,
+                  "ok": true,
+                  "complete": true,
+                  "scope": "software_teardown",
+                  "physical_rest_verified": false,
+                  "stages": [
+                    {
+                      "stage": "isaac_kitchen_gpu",
+                      "ok": true,
+                      "complete": true
+                    }
+                  ],
+                  "pending_threads": []
+                }
+              }
+            ],
+            "pending_threads": []
+          }
+        }
+      ],
+      "pending_threads": [],
+      "pid": 692080,
+      "runtime_built": true
+    },
+    "absence_audit": {
+      "path": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/EPISODE01_CLOSURE_AUDIT.json",
+      "sha256": "2f2d4340f081f5efbde9c7d3b51a905794f4b0af2f1b639f628c7a337ce8aa51"
+    },
+    "note": "All owned resources were contained; this does not promote the failed task into ordinary campaign completion or verify arm rest."
+  },
+  "files": {
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/attempts/0c92f78ff8ea4a9cbbaee77feefb519e/final.json": "54d87a2fc4fcbb242d01ea65de49da769d7013e4ae261488878e0a8751bf680f",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/plan-approved-01.json": "c6322f4d3855399842ad919479db1caaf2ac0b217a53de768a3da75430afcc68",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/manifest-approved-01.json": "9876870228afc3f4f59a0e46a9d46ef2b2430759941be49274913e9f5ef6a7f4",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/ROOT_OBSERVER_REVIEW.json": "e969b932cf5aed1d5e8a1016b363c383a07b48872616a29d61bc41a440219b40",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/EPISODE01_CLOSURE_AUDIT.json": "2f2d4340f081f5efbde9c7d3b51a905794f4b0af2f1b639f628c7a337ce8aa51",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/analyze_episode01.py": "0ef321ef4a97c004329d20f334f445883502448af80b7d5f73245e29b5421bbc",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/episode-01/sequence.json": "5b1c10f95a86ef262159b182dc7ca67fcc07d23202ed99cbc4d5cb97ec3b2ea7",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/episode-01/lifecycle.json": "18bdae6b2cc996ce0abe13b8c334f092253022bbd027fdc6eafc272586738818",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/episode-01/units/launcher.log": "3362bcc2224775eaebd0a8a1f2f13d018e9f780a96509188ae427c28f8666324",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01/openclaw-gateway.log": "272b2b757c01814a59bce67271451811fada17eb136ef1794de8a04cffba7bf3",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01/cascade-proof-f69149c2dfb94e82aaef69d49fdf9690/01-scene.json": "29f084abd901672aff0289ca8e3de244bd772d06d8331544d1b01aced8882f4b",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01/cascade-proof-f69149c2dfb94e82aaef69d49fdf9690/case-1/02-pick.json": "8adb35a7dace1f60f39fa484c6ea62c152f3274d8a2af1fd532a6aa2193af5b9",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/episode-01/grasp-evidence/1791000601893325124-692080-3f500ab235b14016bb2b4d526788363d.json": "c94194179101054e570eaf50045ffb66a685aabdfb6fdfa8a428f536a483fb1f",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/mcp_692080_1d76771ecbaa4c2d9f56eed133c6570c/trace.jsonl": "7714529668d0d6619c63903f7172becafee360d9bb203ddd8daf08b7017cb838",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/mcp_692080_1d76771ecbaa4c2d9f56eed133c6570c/server.log": "ce5bbf08d8b81abd236f87e0d2b070a416cc094d466170a475a79437ba5455ae",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/mcp_692080_1d76771ecbaa4c2d9f56eed133c6570c/teardown.json": "ff441b577b5477079e519808ffecaa8e8714fc85825f9ef9e5e2be808dd71a0e",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_PATH/EPISODE01_RESULT.json": "ed7767e42f654970985e36b8b46d80455437d9b9d780201d06c634031eabe22c",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_TEARDOWN/cascade/runs/trial12-realhost-path-01-c9e2a74800bb4fa5a7ef1f1bfc700f09/launch/profile-cascade-trial12-realhost-path-01/cascade-proof-6113cad9110e4b519bdf15e88c434cf0/case-1/physics/samples.jsonl": "fda05dfde2bbf4b9ec4a3e6ae884d2c6eb764ea2c67fc3eb903ded780361030d",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01/cascade-proof-f69149c2dfb94e82aaef69d49fdf9690/case-1/physics/phases.json": "1bb35eebee9ac79067461b869ef6b3e75a8e868bd85c0f8957d4dcca9e9ecaef",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01/cascade-proof-f69149c2dfb94e82aaef69d49fdf9690/case-1/physics/ping-before.json": "22cdce8feacdf08f57283d75b21182c2147a207f2100a1107ba684e0641ce6ec",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01/cascade-proof-f69149c2dfb94e82aaef69d49fdf9690/case-1/physics/metadata.json": "ac30e949a4827927e00c2941a7b9421f313d0a5a9bfe24911eef5d3985e2b551",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01/cascade-proof-f69149c2dfb94e82aaef69d49fdf9690/case-1/physics/first-scene-geometry.json": "c940633d89865fe4625dca7afd372e8ad998fe16847c27e97c7cf2ec6cc0eb3e",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01/cascade-proof-f69149c2dfb94e82aaef69d49fdf9690/case-1/physics/wire.jsonl": "7f877d3b68be1e834a8f36af85f72bc04f9a39a04a5ab8dacb5ac5afa565d6d8",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01/cascade-proof-f69149c2dfb94e82aaef69d49fdf9690/case-1/physics/snapshot-code.py": "25a7551f4745725f7cf660f475247c6aa8d1ed13ef21ca8ca2f2ad868e685e62",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01/cascade-proof-f69149c2dfb94e82aaef69d49fdf9690/case-1/physics/ping-after.json": "22cdce8feacdf08f57283d75b21182c2147a207f2100a1107ba684e0641ce6ec",
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_OBSERVER/cascade/runs/trial12-realhost-observer-01-0eb043e56ba0476a8ad9d55c1b2a0dfe/launch/profile-cascade-trial12-realhost-observer-01/cascade-proof-f69149c2dfb94e82aaef69d49fdf9690/case-1/physics/samples.jsonl": "5d64036b21106ea47f43e41e9c6c311af32be0da464ed7d3bf6347ed555be459",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/episode-01/units/ggx-closure.json": "d5d820c1d3bea8b561839abfad7fedabd7af5796c55f31d8ec111d53afde848b",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/episode-01/units/ggx-cold-readiness-closure.json": "2d39b757b9ca5351b4dc0f60d8817b2dab50d02959913c4f499f8abaa0243a67",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/episode-01/units/qwen-closure.json": "db99998b16035d2653fa94ca088a836cba0043eb5f0d240be951f531b6b6cea4",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/episode-01/units/launcher-closure.json": "4a4b1447cb5f734d78d305120b23fa8020fc8dc168be433fb31bc7c5f22af004",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/episode-01/python-execs/692079-c1f6671b526846f4996ee7d3f169ad1b.json": "9fdc90f32cc10bf400e6bab80240dcc88a584c9ca6d774671ac3b3ff69c85883",
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_OBSERVER/episode-01/python-execs/691772-5c02cf2fa617484eaf7ac2ae3406dbcf.json": "94c79b9bb883256860aba43ec96bf95f5dc3d1fb72c0c4fdd2f7ca1d787a9fab"
+  }
+}

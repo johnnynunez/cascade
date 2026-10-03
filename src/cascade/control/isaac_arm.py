@@ -17,6 +17,7 @@ from ..sim.bridge_client import BridgeClient, BridgeError
 from ..sim.isaac_reset import validate_isaac_reset
 from ..types import RobotState
 from .arm_base import ArmBase
+from . import motion_evidence
 
 
 class IsaacArm(ArmBase):
@@ -72,6 +73,11 @@ class IsaacArm(ArmBase):
         sample = self._client.state() if timeout_s is None else self._client.state(timeout_s=timeout_s)
         state = self._decode_state(sample)
         grasp_evidence.event("isaac_feedback", state=state, bridge_t=sample.get("t"))
+        if motion_evidence.active():
+            motion_evidence.event("isaac_state", endpoint=self._client._addr,
+                                  q_local=state.q, q_asset=sample.get("q"),
+                                  physics_clock=state.physics_clock,
+                                  target_receipts=sample.get("target_receipts"))
         return state
 
     def _decode_state(self, s: dict) -> RobotState:
@@ -139,12 +145,21 @@ class IsaacArm(ArmBase):
             raise BridgeError("soft-stopped; call resume()")
         # local -> asset convention for the bridge's raw DOF targets
         q_asset = np.asarray(q, dtype=float)[: self.n_joints] * self._signs
+        evidence_id = motion_evidence.command_id()
+        evidence_args = {} if evidence_id is None else {"command_id": evidence_id}
+        if motion_evidence.active():
+            motion_evidence.event("target_request", command_id=evidence_id, endpoint=self._client._addr,
+                                  robot_id=self._cfg.get("bridge_robot_id"),
+                                  q_local=q, q_asset=q_asset, joint_signs=self._signs)
         if timeout_s is None:
-            self._client.set_joints(q_asset)
+            receipt = self._client.set_joints(q_asset, **evidence_args)
         else:
-            self._client.set_joints(q_asset, timeout_s=timeout_s)
+            receipt = self._client.set_joints(q_asset, timeout_s=timeout_s, **evidence_args)
         self._acknowledged_joint_targets += 1
         grasp_evidence.event("isaac_joint_target_sent", q_local=q, q_asset=q_asset)
+        if motion_evidence.active():
+            motion_evidence.event("target_ack", command_id=evidence_id, endpoint=self._client._addr,
+                                  queued_receipt=receipt)
 
     def stream_to(self, q_target, duration_s, rate_hz=None, approve=None,
                   settle_tol=None, settle_timeout_s=None, preflight=None,

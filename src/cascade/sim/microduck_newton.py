@@ -211,13 +211,23 @@ def read_native_state(ns, *, q_indices, dof_indices, root_index, max_contacts, m
                 contact_pairs=[[shapes[int(pairs[0][i])], shapes[int(pairs[1][i])]] for i in active])
 
 
-def prepare_native_model(ns, dof_indices, *, source_cap, newton):
+def prepare_native_model(ns, dof_indices, *, source_cap, newton, effort_cap=None):
     """Explicit startup-only XML -> BAM replacements, with fail-closed readback."""
     import math
     import numpy as np
     from cascade.control.microduck_actuator import M6_PARAMETERS
     if not math.isclose(source_cap, .96, rel_tol=0, abs_tol=1e-12):
         raise ValueError('verified XML effort cap must be 0.96 Nm')
+    # The official inference loader explicitly replaces the XML position
+    # actuator with a motor bounded by V*kt/R. Preserve the old XML-cap recipe
+    # separately; neither setting is chosen from observed motion quality.
+    if effort_cap is None:
+        effort_cap = source_cap
+    official_cap = 7.4 * M6_PARAMETERS['kt'] / M6_PARAMETERS['R']
+    if (type(effort_cap) not in (int, float) or not math.isfinite(effort_cap)
+            or not any(math.isclose(effort_cap, cap, rel_tol=0, abs_tol=1e-12)
+                       for cap in (source_cap, official_cap))):
+        raise ValueError('effort cap must match the XML or pinned official nominal inference recipe')
     expected = {'joint_damping': .053, 'joint_armature': .0018, 'joint_effort_limit': 1e6,
                 'joint_friction': .0048, 'joint_target_mode': 0, 'joint_target_ke': 0, 'joint_target_kd': 0}
     before, arrays = {}, {}
@@ -230,7 +240,7 @@ def prepare_native_model(ns, dof_indices, *, source_cap, newton):
             raise ValueError(f'unexpected native source property: {name}')
         before[name], arrays[name] = a[dof_indices].tolist(), a
     overrides = {'joint_damping': M6_PARAMETERS['friction_viscous'],
-                 'joint_armature': M6_PARAMETERS['armature'], 'joint_effort_limit': source_cap}
+                 'joint_armature': M6_PARAMETERS['armature'], 'joint_effort_limit': effort_cap}
     for name, value in overrides.items():
         arrays[name][dof_indices] = value
         getattr(ns.model, name).assign(arrays[name])
@@ -267,7 +277,7 @@ def read_native_body_properties(ns):
                 newton_gravity_vectors_m_s2=gravity.astype(float).tolist())
 
 
-def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None):
+def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None, calibration=None):
     """Main-thread capture with both physical clocks held fixed during render."""
     import time
     import numpy as np
@@ -275,6 +285,8 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None):
     checkpoint()
     before = (ns.simulation_step_count, float(ns.sim_time))
     captured_at = time.monotonic()  # conservative: includes render and encoding latency
+    camera_calibration = calibration() if calibration is not None else None
+    checkpoint()
     ns.update_fabric()
     for _ in range(updates):
         checkpoint()
@@ -284,19 +296,51 @@ def capture_bound_rgb(ns, app, readback, *, updates, checkpoint=lambda: None):
         checkpoint()
         if (ns.simulation_step_count, float(ns.sim_time)) != before:
             raise RuntimeError('render advanced uncontrolled physics')
-    data, _ = readback.get_data('rgb')
+    before_render_times = None
+    if calibration is not None:
+        data, _, before_render_times = readback.get_data_bound('rgb', checkpoint=checkpoint)
+    else:
+        data, _ = readback.get_data('rgb')
     checkpoint()
     if data is None:
         raise RuntimeError('overview RGB unavailable')
     rgb = np.asarray(data.numpy() if hasattr(data, 'numpy') else data).copy()
     if rgb.dtype != np.uint8 or rgb.shape != (480, 640, 3):
         raise ValueError('overview must produce uint8 RGB[480,640,3]')
+    extra = {}
+    if calibration is not None:
+        checkpoint()
+        depth, _, depth_times = readback.get_data_bound('distance_to_image_plane', checkpoint=checkpoint)
+        checkpoint()
+        if before_render_times != depth_times:
+            raise RuntimeError('RGB-D channels have different render product references')
+        if depth is None:
+            raise RuntimeError('overview registered metric depth unavailable')
+        checkpoint()
+        depth = np.asarray(depth.numpy() if hasattr(depth, 'numpy') else depth).copy()
+        checkpoint()
+        if depth.dtype != np.float32 or depth.shape not in ((480, 640), (480, 640, 1)):
+            raise ValueError('overview depth must be float32[480,640]')
+        depth = depth.reshape(480, 640)
+        if (depth < 0).any():
+            raise ValueError('negative overview depth')
+        depth[~np.isfinite(depth)] = 0.  # renderer far clip/unavailable pixels, never inferred depth
+        checkpoint()
+        after_calibration = calibration()
+        checkpoint()
+        if camera_calibration != after_calibration:
+            raise RuntimeError('camera calibration changed during RGB-D capture')
+        extra = dict(depth_m=depth, calibration=camera_calibration,
+                     rgbd_render_times={'rgb': before_render_times, 'depth': depth_times})
+    checkpoint()
     times = readback.get_render_times()
     checkpoint()
     validate_render_times(times, before[1])
+    if before_render_times is not None and times != before_render_times:
+        raise RuntimeError('RGB-D render product changed during readback')
     if (ns.simulation_step_count, float(ns.sim_time)) != before:
         raise RuntimeError('camera read advanced physics')
-    return dict(rgb=rgb, step=before[0], sim_time_s=before[1], captured_at=captured_at, render_times=times)
+    return dict(rgb=rgb, step=before[0], sim_time_s=before[1], captured_at=captured_at, render_times=times, **extra)
 
 
 def disable_source_actuators(stage):
@@ -342,7 +386,7 @@ def synchronize_camera_authoring(app, timeline, manager, native_stage, *, checkp
     return dict(app_updates=1, before=before, after=after)
 
 
-def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer):
+def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer, rgbd=False):
     """Author a stable product for CameraSensor's supported asset-RP path.
 
     Isaac Sim 6.1 SensorRuntime._find_asset_render_product discovers a
@@ -370,7 +414,8 @@ def create_overview_sensor(stage, camera, sensor_factory, *, sync_renderer):
                           variability=Sdf.VariabilityUniform).Set('LdrColor')
     product.CreateRelationship('orderedVars', custom=False).SetTargets([color_path])
     sync_renderer()
-    sensor = sensor_factory(camera, resolution=(480, 640), annotators=['rgb'])
+    sensor = sensor_factory(camera, resolution=(480, 640),
+                            annotators=['rgb', 'distance_to_image_plane'] if rgbd else ['rgb'])
     actual = sensor.render_product.GetPrim()
     resolution = actual.GetAttribute('resolution').Get()
     observed = dict(path=str(actual.GetPath()),
@@ -398,7 +443,14 @@ class KitNewtonBackend:
         self._closed = False
         self._captures = 0
         self._last_support_solve = None
+        self._calibration_reader = None
         self.signals = None
+        self._solver_graph = None
+        self._solved_read = None
+        self._reuse_solved_read = getattr(args, 'reuse_solved_read', False)
+        if type(self._reuse_solved_read) is not bool or (self._reuse_solved_read
+                and getattr(args, 'solver_cuda_graph', False) is not True):
+            raise ValueError('same-solve read reuse requires explicit bound solver graph mode')
 
     def _checkpoint(self):
         if self.signals is not None:
@@ -428,6 +480,7 @@ class KitNewtonBackend:
             sys.argv = saved
 
     def _initialize(self):
+        self._solved_read = None
         self._checkpoint()
         import copy
         import math
@@ -544,7 +597,8 @@ class KitNewtonBackend:
         self.receipt['support_contract']['gravity_world_m_s2'] = self.receipt['native_body_properties']['gravity_world_m_s2'][:]
         self.receipt['support_extraction'] = extraction_provenance()
         self._checkpoint()
-        self.receipt['native_model_properties'] = prepare_native_model(ns, ds, source_cap=.96, newton=newton)
+        self.receipt['native_model_properties'] = prepare_native_model(ns, ds, source_cap=.96, newton=newton,
+            effort_cap=self.admission['bam_params']['joint_effort_limit'])
         self._checkpoint()
         self.bam = NewtonBamAdapter(ns, source_root=self.args.bam_source_root,
                                     q_indices=qs, dof_indices=ds, params=self.admission['bam_params'])
@@ -566,6 +620,15 @@ class KitNewtonBackend:
         self.bam.reset()  # no armed target until successful ONNX inference
         self.receipt['initialization'] = {'root_z_m': .125, 'home_q': HOME_Q.tolist(), 'pose_writes_in_episode': False}
         self.receipt['bam'] = self.bam.telemetry()
+        self._checkpoint()
+        import inspect
+        from cascade.sim.microduck_solver_graph import SolverGraphContract
+        self._solver_graph = SolverGraphContract(ns,
+            enabled=getattr(self.args, 'solver_cuda_graph', False), wp=wp, dt=self._dt,
+            source_path=inspect.getfile(type(ns)))
+        self.receipt['configuration']['use_cuda_graph'] = self._solver_graph.enabled
+        self.receipt['configuration']['solver_graph_stage_sha256'] = self._solver_graph.source_sha256
+        self.receipt['configuration']['reuse_solved_read'] = self._reuse_solved_read
 
     def _create_camera(self, stage):
         self._checkpoint()
@@ -590,7 +653,8 @@ class KitNewtonBackend:
         def sync_renderer():
             self.receipt['camera_authoring_sync'] = synchronize_camera_authoring(
                 self.app, self.timeline, self.SM, acquire_stage(), checkpoint=self._checkpoint)
-        sensor = create_overview_sensor(stage, camera, CameraSensor, sync_renderer=sync_renderer)
+        rgbd = getattr(self.args, 'camera_rgbd', False)
+        sensor = create_overview_sensor(stage, camera, CameraSensor, sync_renderer=sync_renderer, rgbd=rgbd)
         self._checkpoint()
         product = str(sensor.render_product.GetPath())
         self.readback = CpuCameraReadback(sensor, render_product_id=product)
@@ -600,6 +664,13 @@ class KitNewtonBackend:
             annotator.attach([product])
             times[name] = annotator
         self.receipt['camera'] = dict(name='overview', render_product=product, resolution=[480, 640])
+        self._calibration_reader = None
+        if rgbd:
+            from cascade.sim.mobile_rgbd import calibration_record, read_static_calibration
+            self._calibration_reader = lambda: read_static_calibration(stage, OVERVIEW_CAMERA)
+            observed, digest = calibration_record(self._calibration_reader())
+            self.receipt['rgbd_camera'] = {'calibration': observed, 'calibration_sha256': digest,
+                                         'render_product': product, 'annotator': 'distance_to_image_plane'}
 
     @property
     def physics_clock(self):
@@ -619,32 +690,50 @@ class KitNewtonBackend:
 
     def _guard(self):
         ns = self.ns
-        if (not ns.initialized or ns.model is not self._model or ns.cfg.time_step_app
-                or ns.cfg.use_cuda_graph or ns.cfg.num_substeps != 1 or ns.graph is not None
+        if (self._closed or not ns.initialized or ns.model is not self._model or ns.cfg.time_step_app
+                or ns.cfg.num_substeps != 1
                 or self.dt != self._dt or str(self.SM.get_active_physics_engine()).lower() != 'newton'
                 or self._layout != (tuple(ns.model.joint_label), tuple(ns.model.body_label), tuple(ns.model.shape_label))):
             raise RuntimeError('frozen Newton model/clock/manual-step contract changed')
+        if self._solver_graph is None:
+            raise RuntimeError('solver execution mode was not bound during initialization')
+        self._solver_graph.check()
 
     def read(self):
+        # This backend has a single main-thread state writer and exposes no
+        # pose/reset API between solves. The duplicate pre-tick read can reuse
+        # the preceding post-solve payload after guards revalidate clock/model/
+        # buffer ownership. This never publishes or refreshes a sample's age.
+        import copy
         from cascade.sim.microduck_contact_support import read_support
         self._guard()
         clock = self.physics_clock
+        key = (clock, self._last_support_solve)
+        if self._reuse_solved_read and self._solved_read is not None and self._solved_read[0] == key:
+            return copy.deepcopy(self._solved_read[1])
         sample = read_native_state(self.ns, q_indices=self.q_indices, dof_indices=self.dof_indices,
             root_index=self.root_index, max_contacts=self.admission['limits']['max_contacts'],
             max_constraints=self.admission['limits']['max_constraints'])
         sample['support'] = read_support(self.ns, last_solved_clock=self._last_support_solve,
             source_admitted=self.receipt['support_extraction']['source_admitted'])
+        sample['solver_graph'] = self._solver_graph.telemetry()
         if self.physics_clock != clock:
             raise RuntimeError('physics advanced during native state/support read')
+        if self._reuse_solved_read:
+            self._solved_read = (key, copy.deepcopy(sample))
         return sample
 
     def step(self):
         # No app update, target write, model notification or rendering here.
         import math
         from cascade.sim.microduck_stepper import clock_tolerance
+        self._checkpoint()
+        self._guard()
         before = self.physics_clock
+        self._solved_read = None
         self._last_support_solve = None
         self.SM.step(steps=1)
+        self._guard()
         after = self.physics_clock
         if (after[0] != before[0] + 1 or not math.isclose(after[1], before[1] + self._dt,
                                                        rel_tol=0, abs_tol=clock_tolerance(after[1]))):
@@ -663,11 +752,13 @@ class KitNewtonBackend:
         self._checkpoint()
         self._guard()
         result = capture_bound_rgb(self.ns, self.app, self.readback,
-            updates=16 if self._captures == 0 else 3, checkpoint=self._checkpoint)
+            updates=16 if self._captures == 0 else 3, checkpoint=self._checkpoint,
+            calibration=self._calibration_reader)
         self._captures += 1
         return result
 
     def contain(self, reason):
+        self._solved_read = None
         self.receipt['containment'] = str(reason)
         if self.timeline is not None:
             self.timeline.pause()  # no stop/reset callback or pose write
@@ -683,7 +774,8 @@ class KitNewtonBackend:
             errors.append(str(exc))
         if self.readback is not None:
             for cleanup in (self.readback.detach_render_times,
-                            lambda: self.readback.detach_annotators(['rgb']),
+                            lambda: self.readback.detach_annotators(
+                                ['rgb', 'distance_to_image_plane'] if self._calibration_reader else ['rgb']),
                             self.readback._invalidate_sensor):
                 # CameraSensor 6.1 has no public close: its own destructor calls
                 # _invalidate_sensor (subscription + render product teardown).

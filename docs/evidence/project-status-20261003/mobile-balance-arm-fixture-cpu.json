@@ -1,0 +1,322 @@
+{
+  "version": 1,
+  "scope": "CPU software fixture repair only; no native simulator, GPU, hardware, runtime or verifier change",
+  "base_head": "eb55cf91c6ed986e29be4e3d1167862f189ca801",
+  "ci": {
+    "pull_request": 87,
+    "head": "eb55cf91c6ed986e29be4e3d1167862f189ca801",
+    "run": 37122405050,
+    "job": 111200962766,
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/37122405050/job/111200962766",
+    "counts": {
+      "passed": 5699,
+      "failed": 1,
+      "skipped": 269,
+      "deselected": 4,
+      "elapsed_s": 518.53
+    },
+    "node": "tests/test_mobile_effects.py::test_zero_twist_does_not_confirm_if_velocity_nonzero_during_balancing_then_stops",
+    "expected": "refuted",
+    "observed": "unverified",
+    "reason": "not recorded in original CI",
+    "gc_causation_established": false
+  },
+  "change": {
+    "isolated_cases": [
+      "zero_twist_drift",
+      "zero_twist_nonzero_velocity"
+    ],
+    "fixture": "existing healthy_episode_gc; restores prior mode",
+    "read_timeout_s": 0.04,
+    "real_delay_s": 0.08,
+    "new_negative_cases": 2,
+    "runtime_unchanged": true,
+    "coverage": "Original classifications preserved; real read delay overrides geometric evidence and remains unverified even after later healthy samples. Original captured state is retained."
+  },
+  "runs": {
+    "baseline-observe": {
+      "exit_code": 0,
+      "elapsed_s": 1.224061259010341,
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "pytest": {
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.767"
+      },
+      "verdicts": [
+        {
+          "status": "refuted",
+          "reason": "balance drift during zero twist"
+        },
+        {
+          "status": "refuted",
+          "reason": "balance velocities exceed rest limits"
+        }
+      ],
+      "step4_read_elapsed_s": [
+        0.00010526995174586773,
+        8.567998884245753e-05
+      ],
+      "step4_gc_enabled": [
+        true,
+        true
+      ],
+      "injection_count": 0
+    },
+    "baseline-gc": {
+      "exit_code": 1,
+      "elapsed_s": 1.4770658090128563,
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "pytest": {
+        "tests": "2",
+        "failures": "2",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.976"
+      },
+      "verdicts": [
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        }
+      ],
+      "step4_read_elapsed_s": [
+        0.09503496199613437,
+        0.08141354098916054
+      ],
+      "step4_gc_enabled": [
+        true,
+        true
+      ],
+      "injection_count": 2
+    },
+    "candidate-gc": {
+      "exit_code": 0,
+      "elapsed_s": 1.2729559290455654,
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "pytest": {
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.799"
+      },
+      "verdicts": [
+        {
+          "status": "refuted",
+          "reason": "balance drift during zero twist"
+        },
+        {
+          "status": "refuted",
+          "reason": "balance velocities exceed rest limits"
+        }
+      ],
+      "step4_read_elapsed_s": [
+        0.00021772098261862993,
+        0.00020875799236819148
+      ],
+      "step4_gc_enabled": [
+        false,
+        false
+      ],
+      "injection_count": 0
+    },
+    "candidate-real-delay": {
+      "exit_code": 1,
+      "elapsed_s": 1.4193997730035335,
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "pytest": {
+        "tests": "2",
+        "failures": "2",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.975"
+      },
+      "verdicts": [
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        },
+        {
+          "status": "unverified",
+          "reason": "reader_timeout"
+        }
+      ],
+      "step4_read_elapsed_s": [
+        0.0801317419973202,
+        0.0801161490380764
+      ],
+      "step4_gc_enabled": [
+        false,
+        false
+      ],
+      "injection_count": 0
+    },
+    "final-focused": {
+      "exit_code": 0,
+      "elapsed_s": 34.01593465800397,
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "pytest": {
+        "tests": "336",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "33.597"
+      }
+    }
+  },
+  "interpretation": "Injected automatic GC demonstrates a fixture vulnerability, not the cause of the original ARM event. The two failures in candidate-real-delay are expected negative controls: rejection remained reader_timeout with GC disabled. Final normal suite includes explicit assertions for those refusals.",
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-observe/result.json",
+      "sha256": "665e860f2920506c96948af145c38faeb7ee2cde01c2f170204a8bc173c2969e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-observe/before.json",
+      "sha256": "59fef1095371b88d84718c4f180c4d77cbd3f5171a6507c376a936ffefcfcfc7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-observe/after.json",
+      "sha256": "59fef1095371b88d84718c4f180c4d77cbd3f5171a6507c376a936ffefcfcfc7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-observe/junit.xml",
+      "sha256": "238ab12fe1e3d09de249c8a9908f8ba42255c28372f988667fc9ef77e792c3f0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-observe/pytest.log",
+      "sha256": "e0ad24c248c70513f4a2f78b6f272caa7dce4ff4b8b824ea6992c7a7bec4c77a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-observe/probe.json",
+      "sha256": "a5fe034f19ab1299c647fab6b60d0f865b39667ab3b65c6fb8003cbef041a6d3"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-gc/result.json",
+      "sha256": "9ac18f2c97065111d8fbaae181b64b48b844e8dca6e05646d9a5a5ab92b60bd7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-gc/before.json",
+      "sha256": "59fef1095371b88d84718c4f180c4d77cbd3f5171a6507c376a936ffefcfcfc7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-gc/after.json",
+      "sha256": "59fef1095371b88d84718c4f180c4d77cbd3f5171a6507c376a936ffefcfcfc7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-gc/junit.xml",
+      "sha256": "b290bd3dd89fe77e15ebeb8849a950e5e4122b84b7ac5198b42ed07349437833"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-gc/pytest.log",
+      "sha256": "992fe103c1da154bc640f1f04eba715c05f36f776148a38136f1a90fb8d211b2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/baseline-gc/probe.json",
+      "sha256": "cc37ea263a8a9372333bc7be3cee3ee504e4fdabde405bfe3d57d1867cc5cefd"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-gc/result.json",
+      "sha256": "b3e0b520a24042ffd09654a2212fa014e6d9fbd3fc3957f0fa30faef5aa16409"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-gc/before.json",
+      "sha256": "c1c0ca432bf9ffa4e356bc0e6a9713477b90cf1d0798952873d3cd9a5f8e4f13"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-gc/after.json",
+      "sha256": "c1c0ca432bf9ffa4e356bc0e6a9713477b90cf1d0798952873d3cd9a5f8e4f13"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-gc/junit.xml",
+      "sha256": "b704c0d1f3767de3e58ec9a638d4890b1267c648085a98ea011c73b07f404d46"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-gc/pytest.log",
+      "sha256": "f62c784a4ad189e78dba04de0b7c8e2dfb60ed101e5d5dec5811ac95000ad903"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-gc/probe.json",
+      "sha256": "8cd8cb2ecc36b904d21dac8f3f091365be377a77e7ddddb35e0257576176e3c4"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-real-delay/result.json",
+      "sha256": "2ffd493c134494f519256b9ee395c902894c606f40cd7c9a1a74a8a08e6dfcaa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-real-delay/before.json",
+      "sha256": "c1c0ca432bf9ffa4e356bc0e6a9713477b90cf1d0798952873d3cd9a5f8e4f13"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-real-delay/after.json",
+      "sha256": "c1c0ca432bf9ffa4e356bc0e6a9713477b90cf1d0798952873d3cd9a5f8e4f13"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-real-delay/junit.xml",
+      "sha256": "dd82223c4684235147a6569905a439d8cea27ed6498d1b7bee2761f80f1f6d0c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-real-delay/pytest.log",
+      "sha256": "60e0cd791ec8a568d2db979eb74ecf2e52083f2ddd99418930ececd208f7f781"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/candidate-real-delay/probe.json",
+      "sha256": "cf2bf12630e632a312eb82aea142a0bbd56939fbba5a4f41bab8f6fa3d0508fe"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/final-focused/result.json",
+      "sha256": "b52fffbbd38c5d800d71711312a68b4c3466afb31d98edbc654d5f55ded9cc12"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/final-focused/before.json",
+      "sha256": "c1c0ca432bf9ffa4e356bc0e6a9713477b90cf1d0798952873d3cd9a5f8e4f13"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/final-focused/after.json",
+      "sha256": "c1c0ca432bf9ffa4e356bc0e6a9713477b90cf1d0798952873d3cd9a5f8e4f13"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/final-focused/junit.xml",
+      "sha256": "fd25187dd5eb7a463a0537e265987d1a4f98575d23317f7b85f36e3fc41412cf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/final-focused/pytest.log",
+      "sha256": "4282bc758f1e608b65c9122488a97119a915ea7705c8cf8c066f634264914a2c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/evidence/ci-arm-111200962766.log",
+      "sha256": "7ead1abc17ec19c40f816f905c8c044afc5134d7753f57cb3e2471e12d330a72"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/effects_probe.py",
+      "sha256": "81e24cb670da5015fd428eed877ecb44a0e520ae7ac69b06ce6ff9206a710a6a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/run_probe.py",
+      "sha256": "c6337e619e03ea97300383f87496e45517a796231b0e8dc6d27012d02632a8f3"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/run_cpu.py",
+      "sha256": "66c1b96f4040e2bd929405f274ed20d3c61f9a15f9d84d1dcbd43d0bf98923bd"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/cascade/tests/test_mobile_effects.py",
+      "sha256": "b92e1e3d87885a2a6f369aeeeeb2cdb15fd875cfe342438f6704fda7fed4e6a3"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/ARM_PR87_20261003/cascade/tests/mobile_tick_fixture.py",
+      "sha256": "ef1c4d0a5ba6718f6a1874eae4ebf330e46db4b7807e0f19dd5afb85fa336752"
+    }
+  ]
+}

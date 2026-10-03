@@ -1,0 +1,140 @@
+{
+  "schema": 1,
+  "base": "485a0b8f8234b0154eed23bd7445c5388ea07216",
+  "first_composition": "690068bba883760a51573f2947006758363f0605",
+  "final_head": "167be813664b51a2aab9a8992d78c603dcd88c80",
+  "scope": "Local integration of PR85/90/87/93 terminal-effect fixes, PR85 observation-age prerequisite and two PR93 followups. PR94 absent. No remote operations, GPU, new physical episode or fullsuite.",
+  "phases": [
+    {
+      "head": "690068bba883760a51573f2947006758363f0605",
+      "passed": 985,
+      "failed": 3,
+      "skipped": 0,
+      "deselected": 1,
+      "pytest_s": 114.07,
+      "reason": "Old postrelease fake_move fixture signature lacks newly required cancellation token; receipt retained unchanged."
+    },
+    {
+      "head": "fe0a49ee66e382de5865de46d483b271ac868c82",
+      "fixture_patch": "a86cfca4a6c483566d8c8e4ddfba9b1fcea173ab",
+      "baseline_failed": 3,
+      "passed_after": 122,
+      "skipped": 0,
+      "pytest_s": 32.85,
+      "reason": "Exact-base causal reproduction and test-only signature/token identity correction; original geometry/cancellation negatives unchanged."
+    },
+    {
+      "head": "167be813664b51a2aab9a8992d78c603dcd88c80",
+      "passed": 264,
+      "failed": 0,
+      "skipped": 0,
+      "deselected": 1,
+      "pytest_s": 37.2,
+      "reason": "Affected reset/postrelease/cancellation plus task-ledger/composed runtime/MCP after both93followups; no repetition of unaffected Factory/mobile selection."
+    }
+  ],
+  "coverage_join": {
+    "unique_cases": 1044,
+    "latest_source_bound_outcomes_all_pass": true,
+    "interpretation": "Join of explicitly distinct source-bound selections, not a single all-green fullsuite or all-cases run on finalhead. Only changed93paths and their composition rerun at finalhead.",
+    "original_failed_cases_resolved_in_final": [
+      [
+        "tests.test_mujoco_postrelease",
+        "test_first_command_has_fresh_exact_target_or_is_refused[clean-so101_mujoco]"
+      ],
+      [
+        "tests.test_mujoco_postrelease",
+        "test_first_command_has_fresh_exact_target_or_is_refused[state_drift-so101_mujoco]"
+      ],
+      [
+        "tests.test_mujoco_postrelease",
+        "test_first_command_has_fresh_exact_target_or_is_refused[cancel-so101_mujoco]"
+      ]
+    ],
+    "new_cases_after_first_selection": 56
+  },
+  "invariants": {
+    "final_sources": 1817,
+    "source_unchanged": true,
+    "assets": 28,
+    "assets_unchanged": true,
+    "protected_stores": 4,
+    "protected_unchanged": true,
+    "HOME_unchanged": true,
+    "normal_conftest": true,
+    "owned_process_absent": true,
+    "no_production_resolution_changes": true,
+    "old_485_and_690_retained": true
+  },
+  "working_tree_status": "",
+  "refs": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_TERMINAL_20261003/FREEZE_01.json",
+      "sha256": "ae69f0995bee4b39743455ccaa4e12f9748901b676782e3cd8b994609b820c00"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_TERMINAL_20261003/composition-equivalence.json",
+      "sha256": "6beae32a7a146335f03048ee8574191b8941e4720fad41dee3892401e07183d2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_TERMINAL_20261003/asset-materialization.json",
+      "sha256": "660fc7f6229ce98a2f581ddff91632a9cc5ac1705ae0a89130ceecd86a8c8baa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_TERMINAL_20261003/selection.json",
+      "sha256": "92ee39bc009d7f005abf146cefbf9247b95050760bcfd9b4c900aa4139fb03ac"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_TERMINAL_20261003/run_focused.py",
+      "sha256": "de3f4288db1afa64ffe707dda763864f1deaf1fd0631ce7c75b3dd8ac9272cfc"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_TERMINAL_20261003/focused-01/result.json",
+      "sha256": "821efb8e1d7510f11b0b3fd21b5f7a8755bb6d58c640999e94a374be176a1bc6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_TERMINAL_20261003/focused-01/junit.xml",
+      "sha256": "1be3a15139f5c8e762954230021d190a62040678c245f9697c41041e376db431"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_TERMINAL_20261003/focused-01/pytest.log",
+      "sha256": "18161db566c84687756d859c536e8369d69ca96e84f9337be4df2b8b83e21fb5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_FIXES_20261003/FREEZE_01.json",
+      "sha256": "f73babf69b7fb7d65c455c06c114df30b06f984add4a377b8d7814447845c3b3"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_FIXES_20261003/composition-equivalence.json",
+      "sha256": "869eb3240464502a9169f630ffd8ad49f008f1c685c05ac126c1bce7e9f556eb"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_FIXES_20261003/previous-composition-retention.json",
+      "sha256": "7ef30334d48c387ffa7389ffed5b9824423f024fb9f88f60ad7dcc27c6ebd4bf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_FIXES_20261003/focused-01/result.json",
+      "sha256": "7dc6fd8670ecf0a4bd23f34416c6fe5c85e9cb56f865fec0f84165cf395c3aea"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_FIXES_20261003/focused-01/junit.xml",
+      "sha256": "8253b3cca65535b9f322d25a18c825852528f2b87d04d7bd55462e23c70634a6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_FIXES_20261003/FOCUSED_FAILURE_01.json",
+      "sha256": "dbfe36662b6f23f93d3988fbffe7ac196ebc2fc99912c898a3dac1e54f99e28f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/POSTRELEASE_TOKEN_FIX_20261003/EVIDENCE.json",
+      "sha256": "1513ed28ea614ea9fd518dfbbe10293099b074e381e3a9bdddb035b1236ec927"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/POSTRELEASE_TOKEN_FIX_20261003/COMMIT_FREEZE_01.json",
+      "sha256": "58fc6a12c8568d4fe6a36d0dbbb6a2fa052165d23b86bdf61c5cccec09af63bf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MODULAR_COMPOSITION_FIXES_REVIEW_20261003/review.json",
+      "sha256": "49261d04ac9dd19b23ef55cb91c76c905d02e74e529cae12a39ea77593e6d71e"
+    }
+  ]
+}

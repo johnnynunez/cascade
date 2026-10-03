@@ -1,0 +1,35 @@
+{
+  "source_commit": "baab480d79460f8139290f1a2d689e409f79cffb",
+  "plan_review_sha256": "a174a6886ae8ea4b7f3cab438e72566e9f9e2870387b071b062839d7c5f566a6",
+  "native_receipt_sha256": "7106b48b5e4e837aebbf5d4ebbe40597375c4d4ea6ba823725edcac85eb2fa77",
+  "audit_sha256": "32413a830ae478839e1a5273ba007d696775cf9a9b23f98852fa6e6420d2285a",
+  "report_sha256": "4058fbf9eef484d8b1f6a6d18c779e118620728e0ac79b3a26318cd22fb26adb",
+  "model_identity_sha256": "1c9138dfd08c48303c78795a96b7eb6dec28717f7faf3f3f1b4fec2e90dcc547",
+  "artifact_hashes_verified": 78,
+  "reader_successes": 4,
+  "reader_attempts": 45,
+  "spatial_successes": 20,
+  "spatial_attempts": 20,
+  "native_solves": 80,
+  "policy_evaluations": 20,
+  "native_captures": 5,
+  "source_and_stores_unchanged": true,
+  "resources_closed": true,
+  "scope": "fresh native v2 RGB-D through TCP and actual MCP handler to retained spatial annotations",
+  "limits": [
+    "No stdio/LLM host",
+    "Ground Z selected samples only; no independent XY or general 3D calibration",
+    "No per-AOV timestamps",
+    "No locomotion, physical control or hardware admission"
+  ],
+  "reviewer_actions": [
+    "reviewed harness delta and preflight before launch",
+    "verified raw artifact hashes after close",
+    "inspected result and independent audit consistency"
+  ],
+  "reviewer_did_not": [
+    "rerun physics",
+    "independently rerun complete offline audit",
+    "inspect images from this new run"
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "scope": "CPU diagnostic lifecycle retention only; no simulation, SDK, native replay or physical admission",
+  "base_commit": "789d1d547a39f11b2f9d353d6b1b597e3a886cc2",
+  "physical_acceptance": false,
+  "native_executed": false,
+  "source_sha256": {
+    "WORKLOG.md": "b05917d79793f69e63344772c058ad38823975b79866de587f84ebc9032138f5",
+    "src/cascade/control/motion_evidence.py": "b3369524416ed947d22f9de79f1f38406c7f64399c219ab4a54d2f71ee1ca3de",
+    "tests/test_motion_evidence_lifecycle.py": "c1ad47cb2f0a83d2e2d534923c369b952ae8da2e3b12ccdd2ea497934d9da1a4",
+    "docs/ISAAC_COMMAND_EVIDENCE.md": "d6459614b2885090bb5462c6567955f58fe9790d1c7c4360928297e9f4fceec0"
+  },
+  "unchanged_from_base_sha256": {
+    "scripts/isaac_bridge.py": "7eb05ad5f2fa3d06f3b76d3bbda5f634e48de8c9c52ffd2149510496660da6cc",
+    "src/cascade/sim/target_receipts.py": "05b587370f4e76dabe61366311ea78c5fe9781cd1e831b70fbdc54e9f8d34b24",
+    "src/cascade/sim/bridge_client.py": "41cb9cbaa7867532561b21d0ffdd54fa9bcc08107d4bccb5c22dd21f64ae1a9b",
+    "src/cascade/control/isaac_arm.py": "9d6e43f1da860a594c22511fe6f6a50a7fe647e5a9e64f4bb345d00398381fa2",
+    "src/cascade/control/simulation_motion.py": "0dd37925d20b43e53428a224df2c0ddd4242a95169bb78229479884605b4b242",
+    "src/cascade/skills/runtime.py": "fc001902c4a8ca6cee37ed6f01915aead05455e00f46d2ca45c56f3cecd67b49",
+    "tests/test_motion_evidence.py": "335bd1c373d7f9b277c9207ad877d76d4129e8bbcf63856f6ef94983f6507138"
+  },
+  "contract": {
+    "existing_total_event_budget": 30000,
+    "existing_total_serialized_event_bytes": 16777216,
+    "reserved_lifecycle_max_events": 128,
+    "reserved_lifecycle_max_bytes": 65536,
+    "small_budget_rule": "reserve min(maximum, total//4) independently; both zero if either zero",
+    "prefix_events": 29872,
+    "prefix_bytes": 16711680,
+    "byte_scope": "sum of event JSON UTF-8 bytes; excludes document envelope/metadata, Python container overhead and serialization temporaries",
+    "lifecycle_only_existing_types": true,
+    "time_capture": "one existing local monotonic capture per record, reused unchanged",
+    "loss_or_truncation_never_repairs_submission_coverage": true,
+    "field_char_limits": {
+      "phase": 96,
+      "stream": 64,
+      "exception_type": 96,
+      "error": 512
+    },
+    "new_commands_sdk_reads_physics_steps": 0
+  },
+  "validation": {
+    "baseline_red": {
+      "failed": 24,
+      "passed": 0,
+      "pytest_elapsed_s": 0.28,
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "scope": "new contract absent; malformed exception formatter also masks original"
+    },
+    "candidate_initial": {
+      "passed": 33,
+      "failed": 0,
+      "pytest_elapsed_s": 0.27
+    },
+    "candidate_final": {
+      "passed": 141,
+      "failed": 0,
+      "skipped": 0,
+      "files": 7,
+      "pytest_elapsed_s": 2.56,
+      "wall_elapsed_s": 3.027501269010827,
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "synthetic_sequence_controls": [
+        "normal",
+        "slow ACK",
+        "physical step jump",
+        "cancel",
+        "frozen clock"
+      ],
+      "original_control_exception_identity_preserved": true
+    },
+    "ruff_F_E9": "PASS",
+    "diff_check": "PASS"
+  },
+  "independent_review": {
+    "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_REVIEW_20261003/review.json",
+    "sha256": "78f8c13f1b3c0d0d6c1b8744a90c47ec0caf5aa84f1063125d0c1090a1d126ac",
+    "scope": "read-only source review; 141 tests owner-reported, not rerun"
+  },
+  "limitations": [
+    "Earlier trial12 FAIL remains unchanged; no new native timing/coverage claim.",
+    "Compact end/returned/settled values are host observations, not independent physical-stop/rest/task/teardown proof.",
+    "The detailed prefix retains its schema/precision/adjudicator but its capacity is reduced by the explicit reservation.",
+    "No logger overhead optimization or throughput claim.",
+    "Full source and protected-store hashes are before/after bound to each separate CPU run."
+  ],
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/baseline-red-01/result.json",
+      "sha256": "48d1c9b6467ffe440311586d271e146780e6cd944918bc0736aa1835d0d7b9e0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/baseline-red-01/before.json",
+      "sha256": "ee1908e0cfeadbdb5becec7904750d8318eef252aca977b74977e27a52e0abe7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/baseline-red-01/after.json",
+      "sha256": "ee1908e0cfeadbdb5becec7904750d8318eef252aca977b74977e27a52e0abe7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/baseline-red-01/pytest.log",
+      "sha256": "6694cc4ba3619d324ec887abb52f7fb6d9255be78cf3afaf1fd99c3549bf30b7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/baseline-red-01/junit.xml",
+      "sha256": "540f81c8ef2b1721b0f39d0bc73035e2f415a9f98e9aeebf8f3b4b26ca91e5e8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/candidate-01/result.json",
+      "sha256": "ff695f2b8b1935802bdf0537798b60ef23194bbecce457cf0ffda78a36f81a93"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/candidate-01/before.json",
+      "sha256": "d8eb38e9fd5245877fe4929df0a7ae600192ec9c679027cbee38c0ca0cf03f39"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/candidate-01/after.json",
+      "sha256": "d8eb38e9fd5245877fe4929df0a7ae600192ec9c679027cbee38c0ca0cf03f39"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/candidate-01/pytest.log",
+      "sha256": "a37571aa28850f526a0645386223138a2bdd0c1ef1ba91efad68493f03950742"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/candidate-01/junit.xml",
+      "sha256": "55d9602a3afd48872df3f4bec746c11962197890b576461714b3192d28003b02"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/candidate-02/result.json",
+      "sha256": "74100c7d8c37fea4d27d3fbd4fd92a4539974c8bf2ea52daec6d110c6686fd0d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/candidate-02/before.json",
+      "sha256": "2ca76fadce2aff83fd712657572bacf994c54be0cb96b4272b07603a44ef1631"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/candidate-02/after.json",
+      "sha256": "2ca76fadce2aff83fd712657572bacf994c54be0cb96b4272b07603a44ef1631"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/candidate-02/pytest.log",
+      "sha256": "9ef7507933f1d46a5744ed65ce9a81d1744d59dd215a37ac883b78903f60aa4d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/candidate-02/junit.xml",
+      "sha256": "145d4f40f760d10c654ce8e681a597a44f4277327d7cb2f715c968d43c4a1bc9"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/baseline-red-01/source/src/cascade/control/motion_evidence.py",
+      "sha256": "8676d5470fcea09daa802fce9b3fc640e6a7e0db9649c8a4577d80608f0d26ae"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/baseline-red-01/source/tests/test_motion_evidence_lifecycle.py",
+      "sha256": "375bc86945078e7b49b0b342a263165dde7d5865dde4ce9039b57a02d0816574"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/run_cpu.py",
+      "sha256": "898c11d192a900a6ffec40b00208dacb892a9022be04d63d061eb5830f2121a4"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_20261003/close_evidence.py",
+      "sha256": "a6e1baa9a025c3a0118b6d92dbcdbe355993e1d5514c2cccc6c7f1573cbc87ab"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_REVIEW_20261003/review.json",
+      "sha256": "78f8c13f1b3c0d0d6c1b8744a90c47ec0caf5aa84f1063125d0c1090a1d126ac"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MOTION_LIFECYCLE_JOURNAL_REVIEW_20261003/REVIEW.md",
+      "sha256": "acfbf0d6ccee83af8e6a7c5c0808551256e72177ed4d48d434900c450660ad7b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/TRIAL12_COMMAND_AUDIT_20261003/audit.json",
+      "sha256": "f6182093c8e9ce926b7a663d74f336cbb10f2c91fffc8fca0e66bfb394670ee7"
+    }
+  ]
+}

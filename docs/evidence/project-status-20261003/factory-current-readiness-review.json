@@ -1,0 +1,120 @@
+{
+  "age_fault": {
+    "age_s": 0.43165935698198155,
+    "binding_sha256": "4684f0a8f60f390d294b7b836f0269edca24d6dc36812c0a0a7cb7df337e62b7",
+    "captured_monotonic_s": 274352.692784397,
+    "checked_monotonic_s": 274353.124443754,
+    "epoch": "067dff135391437eb152038303d7a7b3",
+    "generation": 0,
+    "max_observation_age_s": 0.2,
+    "model_identity_sha256": "69d9a46aaba9304df44828cbca1460a1a4166b9d58c9625b3b6f6bdacf07ed00",
+    "reason": "stale",
+    "simulation_time_s": 0.5050000122282654,
+    "stage": "controller_accept_solve",
+    "step": 303
+  },
+  "artifacts_verified": 21,
+  "audit_errors": [],
+  "cache_files_verified": 281,
+  "epoch": "067dff135391437eb152038303d7a7b3",
+  "final_counters": {
+    "native_step": 303,
+    "native_time_s": [
+      0.504999577999115
+    ],
+    "scene_step": 303,
+    "scene_time_s": 0.5050000122282654
+  },
+  "foreign_births_retained_in_owner_receipt": true,
+  "fresh_model_preowner_audit": {
+    "admission_predicates": 22,
+    "admission_sha256": "c9adf546d1c7ce22db7780d750def78f63e646cd2957bf735eca6f91a32d7cd3",
+    "loaded_variants": 39,
+    "model_identity_sha256": "69d9a46aaba9304df44828cbca1460a1a4166b9d58c9625b3b6f6bdacf07ed00",
+    "ok": true,
+    "physical_snapshot_sha256": "8dbbaf53db2bee7de332f6c8fda67a819efbc039ea31de73b2dc1a08d784ad0e",
+    "physics_admission": false,
+    "readiness_admission": false,
+    "scene_and_native_solves": 0
+  },
+  "gpu_queries_during_review": false,
+  "inputs_unchanged": true,
+  "last_rejected_row_quiet_by_raw_values": true,
+  "model": "69d9a46aaba9304df44828cbca1460a1a4166b9d58c9625b3b6f6bdacf07ed00",
+  "native_or_sdk_imports_during_review": false,
+  "own_births_absent_now": true,
+  "owner_fault_retained": true,
+  "owner_thread_closed": true,
+  "physical_stop_verified": false,
+  "quiet_interpretation": "Retained raw physical-value spans only; do not certify per-row live acceptance. Step303 was rejected before journal.publish. No .5s qualifying window exists even counting rejected raw row.",
+  "raw_journal_integrity": {
+    "all_native_controls_equal_original_hold": true,
+    "all_spindle_commands_and_observed_efforts_zero": true,
+    "binding_sha256": "4684f0a8f60f390d294b7b836f0269edca24d6dc36812c0a0a7cb7df337e62b7",
+    "complete": true,
+    "count": 303,
+    "epoch": "067dff135391437eb152038303d7a7b3",
+    "files": {
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/post-close-solves.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/runtime/domains/fastening/solves.jsonl": "f7dc7852846d1b000c336771db70b3bbf10869035fc0baf58cfa8c07618b5431"
+    },
+    "first_step": 1,
+    "last_step": 303,
+    "physical_task_admission": false
+  },
+  "raw_quiet_before_rejected_step": [
+    {
+      "duration_sim_s": 0.3966666762717068,
+      "first_step": 64,
+      "last_step": 302
+    }
+  ],
+  "raw_quiet_runs": [
+    {
+      "duration_sim_s": 0.3983333429787308,
+      "first_step": 64,
+      "last_step": 303
+    }
+  ],
+  "readiness_window_wall_s": 8.938388152979314,
+  "refs": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/age-diagnostic-01.json": "4aba7757c02218570059729838915da07d997074171ccec73fef45258e2d7abe",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/inputs-after.json": "97764473e16f70e1d79a82e9a7d77c0c136df6a80d925d3b75f9f260c3d92c39",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/inputs-before.json": "97764473e16f70e1d79a82e9a7d77c0c136df6a80d925d3b75f9f260c3d92c39",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/before-owner-drain.json": "9477c794ba9853746d787c8b71f6b8494cd2b37cd424f9423778f8b31e6d2dc4",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/configs/llm/mock.yaml": "237784c3d74e6b0c6a5d8b38525ee5119b202fbbf3c43b66c6e0313d5ef040b2",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/configs/robots/factory_candidate.yaml": "6b0a9652435f3cc82c199944cc712b97fb24df89402e82af9dce262a71535f9b",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/constructed-binding.json": "300db05cb6309af2232e2474789cbcd461e28e5f455ffbd32770f0fbfc02e53b",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/constructed-model.json": "5e53ce5e2d984a66890627a851ac8184d0510f4c02d1a954a84aec9f1b4844bf",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/native-result.json": "815655ae23e5ee55a38a40a45c0479369d13d78536d67a09098606b3eac8b59d",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/post-close-solves.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/runtime/domains/fastening/closure.json": "712404d1909a90423a659482907167f091ecc13a2b6ae06fff0e0eafc9b8f08b",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/runtime/domains/fastening/factory-profile.json": "26add2cef5597398941162ff73f756ad414fb73f0fe3c2189a0d1bbf307e89d6",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/runtime/domains/fastening/model.json": "5e53ce5e2d984a66890627a851ac8184d0510f4c02d1a954a84aec9f1b4844bf",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/runtime/domains/fastening/precompile.json": "245e3762f3ee3bf04461ec075c0f35caf73e23464ec4afb42081922b274abbde",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/runtime/domains/fastening/sdf-cache/185af971d49b0c411c1e858f8785d4ec.sdf.npz": "279c50c419ebd412e65d34e075bf00444efbf074f0ddd4c8967120190f768a8e",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/runtime/domains/fastening/sdf-cache/3105187c42ff49ff0cb3e861b6756fd5.sdf.npz": "5c264e73ebe4817c5ea7a078a0b99bd782ec31c43ae69a6e5c2dae70cdfc5e0f",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/runtime/domains/fastening/sdf-cache/fec43a5f0ac63d387a0456adac9ebd52.sdf.npz": "4ad361eb049808211ac282f8743d7d7215b1f144282ae307481fbcbb57f4fff3",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/runtime/domains/fastening/solves.jsonl": "f7dc7852846d1b000c336771db70b3bbf10869035fc0baf58cfa8c07618b5431",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/native/runtime/domains/fastening/startup-failure.json": "69ce35f0a3c945a8b5bacc977bd190e39befb19cd33b3184790a79271362a6c7",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/receipt.json": "becc4f0bd16c8ccaa4187b25460d089485a26dcd9618c5f871446b4169edcc8c",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/scope/closure.json": "3714719c01bf2758571d647980d60961a86c58fa743f875b7741fc5ab823c538",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/scope/owner.json": "e3cdbf45d2c5dbce50917f8109bf7ff4c2c1e2c44e7a284b6b68a67b82f9819f",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/native-readiness-01/scope/service.log": "bfc91bc69a65142c46afeb7ecf3f3ee2cad2a48cbd1977b6e44999af304165ba",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_AGE_DIAGNOSTIC_PREP/readiness/plan-approved-01.json": "bb51cb74f1d8e6a5f350679f58f9ff23bbd67b6eefe87d245836c52b71f9ba42"
+  },
+  "required_quiet_window_sim_s": 0.5,
+  "reviewed_utc": "2026-10-03T12:10:54.064383+00:00",
+  "schema_version": 1,
+  "scope_closed_naturally": true,
+  "scope_exit": 1,
+  "source": "cce88808d4bded97a84c02a562cb3ceb997de954",
+  "verdict": "FAIL_READINESS_NATURALLY_CLOSED",
+  "zero_spindle": {
+    "before_step": 303,
+    "completed_monotonic_s": 274353.124652261,
+    "generation": 2,
+    "physical_stop_verified": false,
+    "uploaded": true
+  }
+}

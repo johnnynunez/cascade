@@ -1,0 +1,339 @@
+"""Measured-distance control regressions. Kinematic fixtures prove no gait."""
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
+import math
+import threading
+
+import pytest
+
+from cascade.control.mock_base import MockMobileBase
+from cascade.safety.base_harness import SafeBase
+from cascade.skills.mobile_runtime import tool_specs_for_profiles
+from test_mobile_safety import limits
+from test_mobile_base import state_fields
+from mobile_support_fixture import support_contract, support
+
+
+def distance_limits(**updates):
+    value = dict(speed_m_s=.1, max_distance_m=.05, tolerance_m=.002,
+                 max_lateral_drift_m=.01, max_heading_drift_rad=.08,
+                 min_height_m=.06, max_tilt_rad=.5)
+    value.update(updates)
+    return value
+
+
+def configured(raw, **updates):
+    return SafeBase(raw, limits(max_duration_s=.4, max_state_age_s=.5,
+                               max_no_progress_s=.5),
+                    distance_control=distance_limits(**updates))
+
+
+class _SteppedDistanceMock(MockMobileBase):
+    """Explicit kinematic fixture steps; no scheduler-dependent motion producer."""
+
+    def get_state(self):
+        for _ in range(10):
+            self.advance()  # Ten original .002 steps, not a position/clock rewrite.
+        return super().get_state()
+
+
+@pytest.mark.parametrize("distance", [.02, -.02])
+def test_distance_stops_on_measured_travel_and_never_claims_mock_physics(distance):
+    raw = _SteppedDistanceMock(wall_lease_s=2., dt_s=.002, auto_step=False)
+    safe = configured(raw)
+    safe.connect()
+    try:
+        result = safe.walk_distance(distance)
+        assert result["execution_ok"], result.get("error", result)
+        assert result["ok"] is False and result["outcome"] == "unverified"
+        assert result["command"]["vx"] == math.copysign(.1, distance)
+        assert result["command"]["duration_s"] == .4
+        assert result["requested_distance_m"] == distance
+        assert abs(result["measured_distance_m"] - distance) <= .002
+        baseline = result["distance_baseline"]
+        assert baseline["sim_time_s"] > result["ack"]["start_sim_time_s"]
+        assert baseline["generation"] == result["ack"]["generation"]
+        assert result["measured"]["after"]["sim_time_s"] < result["ack"]["end_sim_time_s"]
+        samples = result["measured"]["samples"]
+        assert all(b["step"] - a["step"] == 10 for a, b in zip(samples, samples[1:]))
+        assert all(b["sim_time_s"] - a["sim_time_s"] == pytest.approx(.02)
+                   for a, b in zip(samples, samples[1:]))
+        assert samples[0]["position_world"][0] == samples[1]["position_world"][0] == 0.
+        assert result["measured_distance_m"] == pytest.approx(
+            samples[-1]["position_world"][0] - baseline["position_world"][0])
+        assert result["stop_ack"]["generation"] == result["ack"]["generation"] + 1
+        assert raw.get_state().linear_velocity_world == (0., 0., 0.)
+    finally:
+        safe.disconnect()
+
+
+def test_explicit_distance_steps_do_not_waive_a_blocked_read_wall_deadline():
+    entered, release, stopped = threading.Event(), threading.Event(), threading.Event()
+
+    class Blocked(_SteppedDistanceMock):
+        def get_state(self):
+            value = super().get_state()
+            if value.generation == 1 and not entered.is_set():
+                self.captured = value
+                entered.set()
+                assert release.wait(3.), "test did not release blocked state read"
+            return value  # Preserve the actual snapshot captured before the delay.
+
+        def stop(self, *, latch=True):
+            result = super().stop(latch=latch)
+            if latch and entered.is_set():
+                stopped.set()
+            return result
+
+    raw = Blocked(wall_lease_s=2., dt_s=.002, auto_step=False)
+    safe = configured(raw)
+    safe.connect()
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(safe.walk_distance, .02)
+            try:
+                assert entered.wait(1.)
+                assert stopped.wait(2.5), "original watchdog did not stop blocked dispatch"
+                assert not pending.done()  # Stop is independent of the held reader.
+            finally:
+                release.set()
+            result = pending.result(1.)
+        assert not result["execution_ok"] and result["error"] == "wall deadline expired", result
+        assert not result["ok"] and result["outcome"] == "unverified"
+        assert safe.harness.limits["max_wall_duration_s"] == 2.
+        assert raw.captured.generation == 1 and raw.captured.sim_time_s == pytest.approx(.06)
+        assert result["distance_baseline"] is None  # The late row gained no credit.
+        assert raw.get_state().latched
+    finally:
+        release.set()
+        safe.disconnect()
+
+
+def test_profile_is_opt_in_and_original_velocity_semantics_are_unchanged():
+    raw = MockMobileBase(wall_lease_s=2.)
+    default = SafeBase(raw, limits())
+    assert "walk_distance" not in default.capabilities
+    assert not default.walk_distance(.02)["execution_ok"]
+    profile = {"capabilities": ["walk_velocity", "turn", "stop_navigation"]}
+    assert "walk_distance" not in {s["name"] for s in tool_specs_for_profiles([profile])}
+    profile["capabilities"] = ["walk_distance", "turn", "stop_navigation"]
+    tools = {s["name"] for s in tool_specs_for_profiles([profile])}
+    assert "walk_distance" in tools and "walk_velocity" not in tools
+    assert configured(raw).harness.limits["max_vx"] == default.harness.limits["max_vx"]
+
+
+def test_slow_native_validation_changes_only_compute_capacity_not_physical_bounds():
+    from cascade.config import load_profile
+
+    original = load_profile('bases', 'microduck_isaac').as_dict()
+    candidate = load_profile('bases', 'microduck_distance_candidate').as_dict()
+    slow = load_profile('bases', 'microduck_distance_native_slow').as_dict()
+    assert original['safety']['max_wall_duration_s'] == candidate['safety']['max_wall_duration_s'] == 8.
+    assert slow['safety'] == {**candidate['safety'], 'max_wall_duration_s': 25.}
+    assert slow['distance_control'] == candidate['distance_control']
+    assert slow['safety']['max_duration_s'] == 3.
+    assert slow['verifier']['settle_timeout_s'] == 3.
+    assert slow['verifier']['max_state_age_s'] == .5
+    assert slow['verifier']['max_samples'] == math.ceil(29/.02)+1
+    assert slow['model_identity_sha256'] is None  # Never trust a live hello as admission.
+
+
+@pytest.mark.parametrize("bad", [None, True, 0., .001, .051, float("nan"), float("inf")])
+def test_invalid_distance_refused_before_connect_or_motion(bad):
+    raw = MockMobileBase(wall_lease_s=2.)
+    result = configured(raw).walk_distance(bad)
+    assert not result["execution_ok"] and not raw.connected
+
+
+@pytest.mark.parametrize("field,value", [("speed_m_s", .3), ("tolerance_m", .06),
+    ("max_tilt_rad", math.pi), ("max_heading_drift_rad", math.pi),
+    ("max_distance_m", 0), ("speed_m_s", True)])
+def test_distance_contract_rejects_inconsistent_bounds(field, value):
+    with pytest.raises(ValueError):
+        configured(MockMobileBase(wall_lease_s=2.), **{field: value})
+
+
+def test_preadmission_drift_and_commanded_velocity_cannot_substitute_for_motion():
+    class DriftingInert(MockMobileBase):
+        dispatched = False
+
+        def command_velocity(self, command, *, generation):
+            self.dispatched = True
+            self.command_ack = super().command_velocity(command, generation=generation)
+            return self.command_ack
+
+        def get_state(self):
+            # This geometry control uses explicit kinematic fixture steps. A
+            # relative-wait producer can exhaust the real wall budget before
+            # its .4 simulated seconds and exercise a different refusal. Keep
+            # every original .002 step, without a scheduler-driven producer.
+            for _ in range(10):
+                self.advance()
+            state = super().get_state()
+            # Distinct pre-admission0 and post-admission.02, then stationary.
+            return replace(state, position_world=(.02 if self.dispatched else 0., 0., .2),
+                           linear_velocity_world=(0., 0., 0.))
+
+    raw = DriftingInert(wall_lease_s=2., dt_s=.002, auto_step=False)
+    safe = configured(raw)
+    safe.connect()
+    try:
+        result = safe.walk_distance(.02)
+        assert not result["execution_ok"] and "did not reach" in result["error"], result
+        assert result["measured"]["before"]["position_world"][0] == 0.
+        assert result["distance_baseline"]["position_world"][0] == .02
+        assert result["measured_distance_m"] == 0.
+        assert result["command"] == dict(vx=.1, vy=0., wz=0., duration_s=.4)
+        samples = result["measured"]["samples"]
+        assert all(b["step"] - a["step"] == 10 for a, b in zip(samples, samples[1:]))
+        assert raw.command_ack["accepted"] is True
+        assert raw.command_ack["end_sim_time_s"] - raw.command_ack["start_sim_time_s"] == pytest.approx(.4)
+        assert samples[-1]["sim_time_s"] >= raw.command_ack["end_sim_time_s"]
+        assert all(row["position_world"][0] == .02 for row in samples[2:])
+        assert all(row["linear_velocity_world"] == [0., 0., 0.] for row in samples)
+        assert result["outcome"] == "unverified" and not result["ok"]
+        assert raw.get_state().latched
+    finally:
+        safe.disconnect()
+
+
+@pytest.mark.parametrize("fault", ["lateral", "heading", "low", "tilt"])
+def test_distance_control_stops_on_geometric_fault(fault):
+    class Broken(MockMobileBase):
+        reads_after_command = 0
+
+        def get_state(self):
+            state = super().get_state()
+            if state.controller_status == "active":
+                self.reads_after_command += 1
+                if self.reads_after_command > 2:
+                    if fault == "lateral":
+                        return replace(state, position_world=(state.position_world[0], .02, .2))
+                    if fault == "low":
+                        return replace(state, position_world=(state.position_world[0], 0., .04))
+                    angle = .2 if fault == "heading" else .7
+                    q = ((math.cos(angle/2), 0., 0., math.sin(angle/2)) if fault == "heading"
+                         else (math.cos(angle/2), math.sin(angle/2), 0., 0.))
+                    return replace(state, orientation_wxyz=q)
+            return state
+
+    raw = Broken(wall_lease_s=2., dt_s=.002)
+    safe = configured(raw)
+    safe.connect()
+    try:
+        result = safe.walk_distance(.02)
+        assert not result["execution_ok"], result
+        assert "drift exceeded" in result["error"] or "posture bound" in result["error"]
+        assert raw.get_state().latched
+    finally:
+        safe.disconnect()
+
+
+def test_priority_stop_invalidates_blocked_distance_dispatch_without_replay():
+    entered, release = threading.Event(), threading.Event()
+
+    class Delayed(MockMobileBase):
+        def command_velocity(self, command, *, generation):
+            entered.set()
+            assert release.wait(2.)
+            return super().command_velocity(command, generation=generation)
+
+    raw = Delayed(wall_lease_s=2., dt_s=.002)
+    safe = configured(raw)
+    safe.connect()
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(safe.walk_distance, .02)
+            assert entered.wait(2.)
+            stop = safe.stop(latch=True)
+            release.set()
+            result = pending.result(2.)
+        assert stop["ok"] and stop["latched"]
+        assert not result["execution_ok"] and result["delivery_uncertain"]
+        assert raw.get_state().position_world[0] == 0.
+    finally:
+        release.set()
+        safe.disconnect()
+
+
+@pytest.mark.parametrize("fault", ["missing", "unavailable", "forbidden", "identity"])
+def test_physical_distance_requires_complete_bound_contact_channel(fault):
+    from cascade.control.mobile_base import BaseState
+
+    raw = MockMobileBase(wall_lease_s=2.)
+    safe = SafeBase(raw, limits(), distance_control=distance_limits(), support_contract=support_contract())
+    fields = state_fields()
+    fields.update(measurement_kind="physics", model_identity_sha256='e'*64)
+    observed = support(fields['step'], fields['sim_time_s'])
+    observed.update(epoch=fields['epoch'], model_identity_sha256='e'*64)
+    fields['support'] = observed
+    if fault == "missing":
+        fields['support'] = None
+    elif fault == "unavailable":
+        observed.update(status="unavailable", reason="force channel missing", contacts=[])
+    elif fault == "forbidden":
+        observed['contacts'][0]['shape_b'] = '/Fixture/trunk'
+    else:
+        fields['model_identity_sha256'] = observed['model_identity_sha256'] = 'f'*64
+    with pytest.raises(ValueError, match="contact|identity"):
+        safe._distance_state(BaseState.from_dict(fields))
+
+
+def test_known_empty_contact_solve_is_allowed_during_swing_not_counted_as_rest():
+    from cascade.control.mobile_base import BaseState
+
+    safe = SafeBase(MockMobileBase(wall_lease_s=2.), limits(),
+                    distance_control=distance_limits(), support_contract=support_contract())
+    fields = state_fields()
+    fields.update(measurement_kind="physics", model_identity_sha256='e'*64)
+    fields['support'] = {**support(fields['step'], fields['sim_time_s']),
+                         'epoch': fields['epoch'], 'model_identity_sha256': 'e'*64, 'contacts': []}
+    safe._distance_state(BaseState.from_dict(fields))
+    # This is only the moving-phase veto. Independent rest still needs load.
+    with pytest.raises(ValueError, match="positive solved sole support"):
+        safe._distance_state(BaseState.from_dict(fields), require_load=True)
+
+
+def test_side_face_friction_cannot_substitute_for_upward_sole_normal():
+    from cascade.control.mobile_base import BaseState
+
+    safe = SafeBase(MockMobileBase(wall_lease_s=2.), limits(),
+                    distance_control=distance_limits(), support_contract=support_contract())
+    fields = state_fields()
+    fields.update(measurement_kind="physics", model_identity_sha256='e'*64)
+    fields['support'] = {**support(fields['step'], fields['sim_time_s']),
+                         'epoch': fields['epoch'], 'model_identity_sha256': 'e'*64}
+    fields['support']['contacts'][0].update(normal_a_to_b_world=[1., 0., 0.],
+        force_on_b_world_n=[1., 0., 1.], normal_force_n=1.)
+    with pytest.raises(ValueError, match="positive solved sole support"):
+        safe._distance_state(BaseState.from_dict(fields), require_load=True)
+
+
+def test_motion_only_observed_after_command_expiry_has_no_distance_credit():
+    class LateMotion(MockMobileBase):
+        end = None
+
+        def command_velocity(self, command, *, generation):
+            ack = super().command_velocity(command, generation=generation)
+            self.end = ack['end_sim_time_s']
+            return ack
+
+        def get_state(self):
+            self.advance(.03)
+            state = super().get_state()
+            late = self.end is not None and state.sim_time_s > self.end
+            return replace(state, position_world=(.02 if late else 0., 0., .2),
+                           linear_velocity_world=(0., 0., 0.))
+
+    raw = LateMotion(wall_lease_s=2., auto_step=False)
+    safe = configured(raw)
+    safe.connect()
+    try:
+        result = safe.walk_distance(.02)
+        assert not result['execution_ok'] and 'before simulation deadline' in result['error']
+        assert result['measured_distance_m'] == 0.
+        assert result['measured']['after']['position_world'][0] == .02
+        assert result['measured']['after']['sim_time_s'] > raw.end
+        assert raw.get_state().latched
+    finally:
+        safe.disconnect()

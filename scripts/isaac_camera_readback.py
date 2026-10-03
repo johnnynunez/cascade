@@ -23,6 +23,27 @@ class CpuCameraReadback:
         for annotator in self._render_times.values():
             annotator.detach()
 
+    def get_data_bound(self, annotator, *, checkpoint=lambda: None):
+        """Bracket one AOV read with this product's capture reference.
+
+        CameraSensor RGB/depth arrays have no per-AOV timestamp in their info.
+        This records the public product reference around each read, without
+        updating the app or manufacturing an independent pixel clock.
+        """
+        import copy
+        checkpoint()
+        before = self.get_render_times()
+        checkpoint()
+        before = copy.deepcopy(before)
+        data, info = self.get_data(annotator)
+        checkpoint()
+        after = self.get_render_times()
+        checkpoint()
+        after = copy.deepcopy(after)
+        if before != after:
+            raise RuntimeError('render product changed during AOV readback')
+        return data, info, after
+
     def __getattr__(self, name):
         return getattr(self._sensor, name)
 

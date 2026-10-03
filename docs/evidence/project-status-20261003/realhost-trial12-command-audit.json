@@ -1,0 +1,1537 @@
+{
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/assets/grasp_geometry/physx_finger_cooking_source.json": {
+      "bytes": 141102,
+      "sha256": "71c979464eadae33d4dcf00aaa256609d592b5752e32f9b23b6b0fb6277114ef"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/assets/grasp_geometry/rebot_rs_fingers.json": {
+      "bytes": 797431,
+      "sha256": "cccd4778c2a99ace06183c5d74ff787536ec399ccb06e704a4058fd452dac7b0"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/assets/grasp_geometry/rebot_rs_fingers_physx.json": {
+      "bytes": 939021,
+      "sha256": "fb58af87addb6f614ccb4e86146d398a762dbf791d89d0cd92ef9be9b65c52cc"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/configs/arms/isaac_kitchen_gpu.yaml": {
+      "bytes": 846,
+      "sha256": "83424052cf1231cb7956cabebb38cc857c60bc132e00345f9f73a47085fffcc3"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/mcp_1119663_9edcea7e5ecd4b408d3332d04e115685/server.log": {
+      "bytes": 183,
+      "sha256": "1df85dd344f1c0bc800b0b4b712e023e2a815efa4f3fa0b8dcb798bdc6ca5552"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/mcp_1119663_9edcea7e5ecd4b408d3332d04e115685/teardown.json": {
+      "bytes": 231,
+      "sha256": "12b711330cbd1869f07748fd3f5ee41e795580e382afdc4be7e8f9f6f0b1b7da"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/mcp_1119981_1e67ae407e40477585ce8109ef1c13e6/server.log": {
+      "bytes": 1927,
+      "sha256": "c614e74125d32c353252996ff76b37aa8c5abe033a37fe890179cf927b59b671"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/mcp_1119981_1e67ae407e40477585ce8109ef1c13e6/teardown.json": {
+      "bytes": 1545,
+      "sha256": "14eeb2fb0612cb77f01f00f2a1096ca17b3b12f9fc9afac5706bf4c20e5d1199"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/mcp_1119981_1e67ae407e40477585ce8109ef1c13e6/trace.jsonl": {
+      "bytes": 5072,
+      "sha256": "032ba1d5566fa39f7189b92e66ae26005fc9d73c6410d80a016fda78ae204472"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/cascade-proof-2f86595e91e94766938e2b81b477f12c/01-scene.json": {
+      "bytes": 10816,
+      "sha256": "3afd3231df57e3b70b5399e78a922f99e1f116da71c0b4a7117a4d757d21a73c"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/cascade-proof-2f86595e91e94766938e2b81b477f12c/case-1/02-pick.json": {
+      "bytes": 9718,
+      "sha256": "835963476bcb63e7dc934f9bf96ee1ebda8b70e753647997e5dfb36ec0d73644"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/cascade-proof-2f86595e91e94766938e2b81b477f12c/case-1/physics/first-scene-geometry.json": {
+      "bytes": 2583,
+      "sha256": "961ec3d472dc967927e8c93811d1cb9976e695c2cc4507ce6c9a0e86c1291888"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/cascade-proof-2f86595e91e94766938e2b81b477f12c/case-1/physics/metadata.json": {
+      "bytes": 2633,
+      "sha256": "64d5b696a00ef71bcec65deaae667fff64820258deb3b4f48c1ef396504ad989"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/cascade-proof-2f86595e91e94766938e2b81b477f12c/case-1/physics/phases.json": {
+      "bytes": 92,
+      "sha256": "4379575e44cf9716a4ad0b71a5318b90ae654088dd09a3a0a6e31ffc38576ad7"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/cascade-proof-2f86595e91e94766938e2b81b477f12c/case-1/physics/ping-after.json": {
+      "bytes": 1178,
+      "sha256": "3fbe991b01b645a4f18c99fa9aa66741c8b13e4bf01b35de0abb034e1b72213b"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/cascade-proof-2f86595e91e94766938e2b81b477f12c/case-1/physics/ping-before.json": {
+      "bytes": 1178,
+      "sha256": "3fbe991b01b645a4f18c99fa9aa66741c8b13e4bf01b35de0abb034e1b72213b"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/cascade-proof-2f86595e91e94766938e2b81b477f12c/case-1/physics/samples.jsonl": {
+      "bytes": 16745824,
+      "sha256": "20e326422f99fe98c67bfa0ae162e3fb12a494d97a0ba3b6a39bf07cdbb00ab3"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/cascade-proof-2f86595e91e94766938e2b81b477f12c/case-1/physics/snapshot-code.py": {
+      "bytes": 16845,
+      "sha256": "25a7551f4745725f7cf660f475247c6aa8d1ed13ef21ca8ca2f2ad868e685e62"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/cascade-proof-2f86595e91e94766938e2b81b477f12c/case-1/physics/wire.jsonl": {
+      "bytes": 7599398,
+      "sha256": "c4041071039230e1afd9718e80fa218dfc51621a85c90a817f31afa7d39380f9"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/isaac_bridge.log": {
+      "bytes": 40093,
+      "sha256": "fdaf954265c7ffff7db8e07ab03424cf19e49851db8a4104c3fed135055397d6"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/openclaw-gateway.log": {
+      "bytes": 11388,
+      "sha256": "6cec9c1144444d4e5d52173a1619b1b7da17625de760ee0fa2a6a0dbc07ebb37"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/processes/mcp_7d78e0d6b1a1494da8b724692fdcc427.json": {
+      "bytes": 1091,
+      "sha256": "42b9a0ff1bbd9e9e8dcf881d6913e06a49ef865b002c82b5edb0650217dc8b5b"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/processes/mcp_f32b05535f464b18bd36f91454e5fdb7.json": {
+      "bytes": 1092,
+      "sha256": "bdd23496fc9e1dae16e98690da7c13657aa209c08fff41cb568664c1e269271d"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/trial12-command-evidence-01-efaa7a4801124c99910cf4a749ad6ff7/launch/profile-cascade-trial12-command-evidence-01/proof.json": {
+      "bytes": 470,
+      "sha256": "8adc401466d758ffe8eee89be81ce13ac63e5e5b77732335ff60a1f9870ff894"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/scripts/isaac_bridge.py": {
+      "bytes": 118446,
+      "sha256": "7eb05ad5f2fa3d06f3b76d3bbda5f634e48de8c9c52ffd2149510496660da6cc"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/scripts/isaac_camera_readback.py": {
+      "bytes": 2489,
+      "sha256": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/scripts/isaac_frame_history.py": {
+      "bytes": 8529,
+      "sha256": "c36737445e041a8da303f0cb77e0247a23710080f6d9b743fd24d16aedf64e5b"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/scripts/isaac_launch.py": {
+      "bytes": 8840,
+      "sha256": "bc97415a776399c8ec8093bb0fd8e82084e056b7613498c241873c3564172faf"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/scripts/isaac_python_spans.py": {
+      "bytes": 8141,
+      "sha256": "6f89d58e9eeddf5a9ef5055352e0dbf93768c43c013d0e7042e3c29b29835b40"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/scripts/launch.sh": {
+      "bytes": 64251,
+      "sha256": "fedd0c6fb5ef887182c9feacf43b6c9346d160be063e1b916de3ce5b4b084b7c"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/apps/mcp_server.py": {
+      "bytes": 62386,
+      "sha256": "bff04f1fd05491cf75be9e262c61c19be11f377f3c09e151d38fe48916d43217"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/control/arm_base.py": {
+      "bytes": 8646,
+      "sha256": "08c5f4dc10553eb24f2e7abccf33d28c26c0362f8d3bf92ef500a3deb27f77d6"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/control/isaac_arm.py": {
+      "bytes": 11922,
+      "sha256": "9d6e43f1da860a594c22511fe6f6a50a7fe647e5a9e64f4bb345d00398381fa2"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/control/lazy_arm.py": {
+      "bytes": 4553,
+      "sha256": "26dece03bda9373bd01221947b5871baf29c844fa63ef853b3e862993cd1494d"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/control/motion_evidence.py": {
+      "bytes": 11381,
+      "sha256": "8676d5470fcea09daa802fce9b3fc640e6a7e0db9649c8a4577d80608f0d26ae"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/control/motion_profile.py": {
+      "bytes": 4962,
+      "sha256": "abc1f23d87ca8ed228e42ff2913ac9095882aa3614f96751e176970b08da0c27"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/control/simulation_motion.py": {
+      "bytes": 13845,
+      "sha256": "0dd37925d20b43e53428a224df2c0ddd4242a95169bb78229479884605b4b242"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/grasping/evidence.py": {
+      "bytes": 14039,
+      "sha256": "55c6583a3f19e1bd73db31feb0ab197ef26ae781e405e68540d38d2eec073689"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/grasping/force.py": {
+      "bytes": 2175,
+      "sha256": "accb6f790da865a6691e3e5778a8957c52cd6c0bb5f3c674d0e1fe46d4fae755"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/grasping/graspgenx_backend.py": {
+      "bytes": 19270,
+      "sha256": "e67a21b1205d07e69edfbd1166ac29caecda356d9477af24c22e65efaa130838"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/grasping/observed_scene.py": {
+      "bytes": 25899,
+      "sha256": "4316b86e7e5e189ef72ef401d955204841d3a2cb80c1ca70e374a269c8ba16cd"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/grasping/planning_budget.py": {
+      "bytes": 2020,
+      "sha256": "8ae9580334fb3560a6e51c507ef66a79b6882a5804b630dc83d97aae40de8d55"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/grasping/selector.py": {
+      "bytes": 7375,
+      "sha256": "49c089991bfecae12c79ac3a3ca7ff629aa6fb337db33606f01ed820378099a3"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/memory/grasp_memory.py": {
+      "bytes": 17453,
+      "sha256": "3d82593be6f114c85366eed4aed62f3c76d3f28a6eb79902f7789e0f8035d53b"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/safety/harness.py": {
+      "bytes": 41057,
+      "sha256": "98290c86ef485c38724aa7018f93e23d0fbb31f192664abeb64f8582cbb90456"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/sim/bridge_client.py": {
+      "bytes": 10701,
+      "sha256": "41cb9cbaa7867532561b21d0ffdd54fa9bcc08107d4bccb5c22dd21f64ae1a9b"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/sim/startup_readiness.py": {
+      "bytes": 13307,
+      "sha256": "8aaaa771ba3d14c9eed3752f9a4ea49ca38b1fe3101f3a8fc18c99c716da5676"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/sim/target_receipts.py": {
+      "bytes": 6536,
+      "sha256": "05b587370f4e76dabe61366311ea78c5fe9781cd1e831b70fbdc54e9f8d34b24"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/sim/truth.py": {
+      "bytes": 30802,
+      "sha256": "f9bc7056328d840ce9bc3ef8f2243f8ec57512aff08ecd4b053ba8a3047f76ee"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/skills/carry_attachment.py": {
+      "bytes": 9552,
+      "sha256": "c37c1517a53698efee5cb8e39a07ad947147278487c517cd1ff01656a75c955c"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/skills/held_observation.py": {
+      "bytes": 14175,
+      "sha256": "959783ebdcd783d9d72b7b5fa87407c2e41e0091b27e870cd093595824090b19"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/src/cascade/skills/runtime.py": {
+      "bytes": 247513,
+      "sha256": "60ddb5aa76e1f5cf3e1f4de83ff7ea37ff775b3cc5e21d2a285a1ffad179cddf"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/attempts/5731a61f57da4300a079669634daa731/final.json": {
+      "bytes": 28616,
+      "sha256": "b9201913a989325428073f41c882ff3d944330c6a03bf0ecb96d3e642e54d3fe"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/episode-01/ggx-pre-isaac-readiness.json": {
+      "bytes": 1039,
+      "sha256": "ff279024037770e9c796a6c66db014b5d47f63cc262ade101496c510bca9509c"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/episode-01/grasp-evidence/1791023268568898301-1119981-1676ff4bf443401eb7698ac4be164666.json": {
+      "bytes": 4331156,
+      "sha256": "64171a3c295c6ff8e0ee0eea2d18ad2ef4822d182ab6f875c05afaa67ddc397b"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/episode-01/lifecycle.json": {
+      "bytes": 20934,
+      "sha256": "93efce2f0d502395ec3d29f28527e8a8b6eab5e3afa73c6e84c62fbeb63b0f19"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/episode-01/motion-evidence/4db18cf320b84efba8ec81877b8e14a0.json": {
+      "bytes": 16784648,
+      "sha256": "157e88cb0cd0fcbe7d4924bd56666a8d4629fa86d580a2e37871a82d88270c66"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/episode-01/sequence.json": {
+      "bytes": 2219,
+      "sha256": "ea4afc1b856a2d5dc390e950cfd89de47a2a593361e347f38afec14a4b9f5150"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/episode-01/units/ggx-closure.json": {
+      "bytes": 1194,
+      "sha256": "c5376f48079b1c935383ea0d225e4e2ba59929b68fa42cfe53eb418a26db1822"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/episode-01/units/ggx-cold-readiness-closure.json": {
+      "bytes": 975,
+      "sha256": "8b293c131ff7deba5cf05993785aa2afa8ad16c9d0c65bc80c051d498e141dc2"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/episode-01/units/launcher-closure.json": {
+      "bytes": 1228,
+      "sha256": "a186a68efde091a5de4b2cdeb0a5fb1cb44c4c87b8d4664de3f0b7326ef499ad"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/episode-01/units/launcher.log": {
+      "bytes": 9274,
+      "sha256": "85bf6ce57f09718cb4b4c5964f660517b6d43ce8d7306b01107884b0d472548d"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/episode-01/units/qwen-closure.json": {
+      "bytes": 1196,
+      "sha256": "adbe4f233efb2b5f5a790321fa09e17652fd13776cd986885753402002623df5"
+    },
+    "/home/johnny/Projects/demo/cascade-lab/TRIAL12_REALHOST_COMMAND_EVIDENCE/plan-approved-operational-01.json": {
+      "bytes": 16661,
+      "sha256": "3ce236347bd15b4371a8d27c7a2b098865c59e55a9afaefb859b470ca189f243"
+    }
+  },
+  "audited_at_utc": "2026-10-03T10:43:57.416354+00:00",
+  "binding": {
+    "bridge_endpoint": [
+      "127.0.0.1",
+      8749
+    ],
+    "camera_recipe": {
+      "camera_every": 6,
+      "cameras": [
+        "isaac",
+        "isaac_side",
+        "isaac_proof"
+      ],
+      "height": 360,
+      "width": 640
+    },
+    "exclusive_gpu": false,
+    "motion_recording_id": "4db18cf320b84efba8ec81877b8e14a0",
+    "performance_isolation_claim": false,
+    "physics_attestation_after": {
+      "backend": "physx",
+      "broadphase": "GPU",
+      "cpu_fallback_allowed": false,
+      "cuda_context_present": true,
+      "device": "cuda:0",
+      "fallback_log_count": 0,
+      "gpu_dynamics": true,
+      "required": true,
+      "tensor_device": "cuda:0",
+      "tensor_device_ordinal": 0
+    },
+    "physics_attestation_before": {
+      "backend": "physx",
+      "broadphase": "GPU",
+      "cpu_fallback_allowed": false,
+      "cuda_context_present": true,
+      "device": "cuda:0",
+      "fallback_log_count": 0,
+      "gpu_dynamics": true,
+      "required": true,
+      "tensor_device": "cuda:0",
+      "tensor_device_ordinal": 0
+    },
+    "physics_dt_s": 0.008333333333333333,
+    "physics_epoch": "8f58dad26994466ba232461183b1b13c",
+    "pid": 1119981,
+    "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+    "scene_assets_sha256": "4447052d2e09f15e1b2663b9c70c46063d9ac3e087baaa1094a12130167abee6",
+    "scene_config_sha256": "c9a41e06a302d2913cbeb9ab64ae91983af769d0fb04961e720f35412be93e03",
+    "scene_content_sha256": "dcd2cb205732685b53ca6e3573061cf3e7f4ea9f245095c8639b5fde76010618",
+    "target_receipt_instances": [
+      "a72a7c5536d744e2ac59488254743276"
+    ]
+  },
+  "budgets": {
+    "camera_freshness_s": 2,
+    "existing_host_witness_settle_wall_s": 90,
+    "ggx_feasibility_s": 8,
+    "host_motion_turn_s": 360,
+    "host_process_exit_grace_s": 30,
+    "mcp_request_ms": 300000,
+    "proof_timeout_scale": 1
+  },
+  "command_latencies": {
+    "accepted_to_first_setter_return_wall_s": {
+      "max": 0.20008037303341553,
+      "median": 0.03530731098726392,
+      "min": 0.0014116959646344185,
+      "n": 738,
+      "sum": 45.7515373590868
+    },
+    "request_to_ack_wall_s": {
+      "max": 0.017297669022809714,
+      "median": 0.0005443130212370306,
+      "min": 0.00020563200814649463,
+      "n": 740,
+      "sum": 0.9564995098626241
+    },
+    "scope": "setter return does not prove a subsequent solve, motion or contact"
+  },
+  "grasp": {
+    "duration_s": 125.70768854196649,
+    "ggx_effective_status": {
+      "architecture": "x86_64",
+      "capability": [
+        12,
+        0
+      ],
+      "cuda": "12.8",
+      "device": "cuda:0",
+      "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+      "learned": true,
+      "status": "ok",
+      "torch": "2.7.0+cu128"
+    },
+    "logging_ok": true,
+    "observed_finger_gate": {
+      "geometry_sha256": "fb58af87addb6f614ccb4e86146d398a762dbf791d89d0cd92ef9be9b65c52cc",
+      "physics_engine": "physx",
+      "scene": {
+        "camera": "cam0",
+        "capture_t": 268371.938274665,
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "observed_points": 221208,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "robot_pixels_excluded": 9192,
+        "scope": "observed surfaces only; no occlusion or continuous-path certificate",
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "target_points": 1398
+      }
+    },
+    "planning_selected_elapsed_s": 4.204533334996086,
+    "result": {
+      "grasp_width_m": 0.048,
+      "grip_profile": "rigid",
+      "grip_verified": true,
+      "gripper_open_frac": 0.47,
+      "held": "green cube"
+    }
+  },
+  "input_count_reported_by_owner": 46162,
+  "inputs_unchanged_reported_by_owner": true,
+  "interpretation": [
+    "Immediate failure is the unchanged300s MCP deadline;300s is not a robot physics budget.",
+    "Seven fully retained streams report settled; their total wall time is the dominant measured prefix cost. No per-stream120s timeout is present in this retained prefix.",
+    "Each225-waypoint nominal7.5s stream includes3.75s additional measured physics advance between ready and fresh post-ACK anchor. This matches current no-catch-up semantics; changing that contract needs separate safety review.",
+    "RPC ACK median is below1ms. Recorded execution and simulator pacing dominate these ACK transport times; no GPU/process/kernel root cause is isolated in the shared-GPU experiment.",
+    "Motion logger reached its16MiB byte budget before host timeout, not its30000-event budget. Missing IDs739/740 are the last retained submissions and cannot establish lost commands.",
+    "Final passive cube position is near the requested zone, but tool cancelled before normal completion, pick_end/full audit absent, and no home/whole-task success can be assigned.",
+    "Both per-process MCP teardown receipts report software completion; the owner global lifecycle fields remain false because original proof failed. Neither is physical-rest evidence.",
+    "Gateway background embedding quota error is present; no causal link to300s pick timeout established."
+  ],
+  "lifecycle": {
+    "closures": [
+      {
+        "before": {
+          "members": [],
+          "state": {
+            "ActiveState": "active",
+            "ControlGroup": "",
+            "Description": "CASCADE realhost owner 37f6ba6049d6411bb5d3ea358afe87a2",
+            "ExecMainCode": "1",
+            "ExecMainExitTimestampMonotonic": "268238400247",
+            "ExecMainStartTimestampMonotonic": "268222218383",
+            "ExecMainStatus": "0",
+            "InvocationID": "a344210ebfb3459a9b7a57160308b954",
+            "LoadState": "loaded",
+            "MainPID": "0",
+            "Result": "success",
+            "SubState": "exited"
+          }
+        },
+        "create_ack": true,
+        "escaped_alive": [],
+        "forced": false,
+        "ok": true,
+        "ordinary": true,
+        "remaining": [],
+        "role": "ggx-cold-readiness",
+        "terminal": {
+          "ExecMainCode": "1",
+          "ExecMainExitTimestampMonotonic": "268238400247",
+          "ExecMainStartTimestampMonotonic": "268222218383",
+          "ExecMainStatus": "0",
+          "Result": "success"
+        },
+        "unit": "cascade-trial12-ggx-cold-readiness-37f6ba6049d6411bb5d3ea358afe87a2.service"
+      },
+      {
+        "before": {
+          "members": [
+            {
+              "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d",
+              "pid": 1112495,
+              "start_ticks": 26824007
+            }
+          ],
+          "state": {
+            "ActiveState": "deactivating",
+            "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/cascade-trial12-launcher-243beb630c054b8d8b2bec157b824300.service",
+            "Description": "CASCADE realhost owner 243beb630c054b8d8b2bec157b824300",
+            "ExecMainCode": "1",
+            "ExecMainExitTimestampMonotonic": "268679106315",
+            "ExecMainStartTimestampMonotonic": "268238452797",
+            "ExecMainStatus": "1",
+            "InvocationID": "b2850228fd8d419fa9cc9eda215ceef4",
+            "LoadState": "loaded",
+            "MainPID": "0",
+            "Result": "exit-code",
+            "SubState": "stop-sigterm"
+          }
+        },
+        "create_ack": true,
+        "escaped_alive": [],
+        "forced": false,
+        "ok": true,
+        "ordinary": true,
+        "remaining": [],
+        "role": "launcher",
+        "terminal": {
+          "ExecMainCode": "1",
+          "ExecMainExitTimestampMonotonic": "268679106315",
+          "ExecMainStartTimestampMonotonic": "268238452797",
+          "ExecMainStatus": "1",
+          "Result": "exit-code"
+        },
+        "unit": "cascade-trial12-launcher-243beb630c054b8d8b2bec157b824300.service"
+      },
+      {
+        "before": {
+          "members": [
+            {
+              "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d",
+              "pid": 1111315,
+              "start_ticks": 26821740
+            }
+          ],
+          "state": {
+            "ActiveState": "active",
+            "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/cascade-trial12-ggx-49e40ac4f1cd424bb41f454eab47eb98.service",
+            "Description": "CASCADE realhost owner 49e40ac4f1cd424bb41f454eab47eb98",
+            "ExecMainCode": "0",
+            "ExecMainExitTimestampMonotonic": "0",
+            "ExecMainStartTimestampMonotonic": "268217404892",
+            "ExecMainStatus": "0",
+            "InvocationID": "499e22754f9a49e893d8f8eae9ae3f19",
+            "LoadState": "loaded",
+            "MainPID": "1111315",
+            "Result": "success",
+            "SubState": "running"
+          }
+        },
+        "create_ack": true,
+        "escaped_alive": [],
+        "forced": false,
+        "ok": true,
+        "ordinary": true,
+        "remaining": [],
+        "role": "ggx",
+        "terminal": {
+          "ExecMainCode": "2",
+          "ExecMainExitTimestampMonotonic": "268680532481",
+          "ExecMainStartTimestampMonotonic": "268217404892",
+          "ExecMainStatus": "15",
+          "Result": "success"
+        },
+        "unit": "cascade-trial12-ggx-49e40ac4f1cd424bb41f454eab47eb98.service"
+      },
+      {
+        "before": {
+          "members": [
+            {
+              "boot_id": "8fee0744-f7b5-43de-b87b-b40045e98c2d",
+              "pid": 1111149,
+              "start_ticks": 26821693
+            }
+          ],
+          "state": {
+            "ActiveState": "active",
+            "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/cascade-trial12-qwen-cbd4e247d28d466c9f48535fe6a0072b.service",
+            "Description": "CASCADE realhost owner cbd4e247d28d466c9f48535fe6a0072b",
+            "ExecMainCode": "0",
+            "ExecMainExitTimestampMonotonic": "0",
+            "ExecMainStartTimestampMonotonic": "268216932005",
+            "ExecMainStatus": "0",
+            "InvocationID": "51b8080a054740b18e1902a49a178030",
+            "LoadState": "loaded",
+            "MainPID": "1111149",
+            "Result": "success",
+            "SubState": "running"
+          }
+        },
+        "create_ack": true,
+        "escaped_alive": [],
+        "forced": false,
+        "ok": true,
+        "ordinary": true,
+        "remaining": [],
+        "role": "qwen",
+        "terminal": {
+          "ExecMainCode": "1",
+          "ExecMainExitTimestampMonotonic": "268680844041",
+          "ExecMainStartTimestampMonotonic": "268216932005",
+          "ExecMainStatus": "0",
+          "Result": "success"
+        },
+        "unit": "cascade-trial12-qwen-cbd4e247d28d466c9f48535fe6a0072b.service"
+      }
+    ],
+    "expected_ports": {
+      "bridge": 8749,
+      "gateway": 18891,
+      "ggx": 5599,
+      "qwen": 18088
+    },
+    "limit": "MCP Python wait statuses retained. Original gateway helper may send group SIGKILL; gateway-child exit codes are not exported.",
+    "listeners_remaining": {},
+    "mcp_processes": [
+      {
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:26833954",
+        "instance_id": "7d78e0d6b1a1494da8b724692fdcc427",
+        "pid": 1119981,
+        "run_dir": "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/mcp_1119981_1e67ae407e40477585ce8109ef1c13e6",
+        "teardown": {
+          "complete": true,
+          "ok": true,
+          "pending_threads": [],
+          "physical_rest_verified": false,
+          "pid": 1119981,
+          "runtime_built": true,
+          "schema": 1,
+          "scope": "software_teardown",
+          "stages": [
+            {
+              "complete": true,
+              "ok": true,
+              "stage": "stop"
+            },
+            {
+              "complete": true,
+              "ok": true,
+              "result": {
+                "complete": true,
+                "ok": true,
+                "pending_threads": [],
+                "physical_rest_verified": false,
+                "schema": 1,
+                "scope": "software_teardown",
+                "stages": [
+                  {
+                    "complete": true,
+                    "ok": true,
+                    "result": {
+                      "complete": true,
+                      "ok": true,
+                      "pending_threads": [],
+                      "physical_rest_verified": false,
+                      "schema": 1,
+                      "scope": "software_teardown",
+                      "stages": [
+                        {
+                          "complete": true,
+                          "ok": true,
+                          "skipped": "estopped",
+                          "stage": "0"
+                        }
+                      ]
+                    },
+                    "stage": "park"
+                  },
+                  {
+                    "complete": true,
+                    "ok": true,
+                    "stage": "beliefs"
+                  },
+                  {
+                    "complete": true,
+                    "ok": true,
+                    "stage": "watcher"
+                  },
+                  {
+                    "complete": true,
+                    "ok": true,
+                    "stage": "stream_server"
+                  },
+                  {
+                    "complete": true,
+                    "ok": true,
+                    "stage": "viewer"
+                  },
+                  {
+                    "complete": true,
+                    "ok": true,
+                    "result": {
+                      "complete": true,
+                      "ok": true,
+                      "pending_threads": [],
+                      "physical_rest_verified": false,
+                      "schema": 1,
+                      "scope": "software_teardown",
+                      "stages": [
+                        {
+                          "complete": true,
+                          "ok": true,
+                          "stage": "isaac"
+                        },
+                        {
+                          "complete": true,
+                          "ok": true,
+                          "stage": "isaac_side"
+                        },
+                        {
+                          "complete": true,
+                          "ok": true,
+                          "stage": "kitchen"
+                        }
+                      ]
+                    },
+                    "stage": "cameras"
+                  },
+                  {
+                    "complete": true,
+                    "ok": true,
+                    "result": {
+                      "complete": true,
+                      "ok": true,
+                      "pending_threads": [],
+                      "physical_rest_verified": false,
+                      "schema": 1,
+                      "scope": "software_teardown",
+                      "stages": [
+                        {
+                          "complete": true,
+                          "ok": true,
+                          "stage": "isaac_kitchen_gpu"
+                        }
+                      ]
+                    },
+                    "stage": "arms"
+                  }
+                ]
+              },
+              "stage": "runtime"
+            }
+          ]
+        }
+      },
+      {
+        "birth": "8fee0744-f7b5-43de-b87b-b40045e98c2d:26833634",
+        "instance_id": "f32b05535f464b18bd36f91454e5fdb7",
+        "pid": 1119663,
+        "run_dir": "/home/johnny/Projects/demo/cascade-lab/REALHOST_COMMAND_EVIDENCE/cascade/runs/mcp_1119663_9edcea7e5ecd4b408d3332d04e115685",
+        "teardown": {
+          "complete": true,
+          "ok": true,
+          "pending_threads": [],
+          "physical_rest_verified": false,
+          "pid": 1119663,
+          "runtime_built": false,
+          "schema": 1,
+          "scope": "software_teardown",
+          "stages": [
+            {
+              "complete": true,
+              "ok": true,
+              "stage": "stop"
+            }
+          ]
+        }
+      }
+    ],
+    "normal_shutdown": false,
+    "observed_lifecycle_complete": false,
+    "original_foreign_births_still_present": true,
+    "runtime_teardown_verified": false
+  },
+  "motion_logging": {
+    "dropped_events": 1102,
+    "logging_complete": false,
+    "logging_errors": 0,
+    "scope": "existing commands/observations only; submission is not motion or physical acceptance",
+    "submission_coverage": {
+      "acknowledged": 740,
+      "complete": false,
+      "first_setter_observed": 738,
+      "missing_command_ids": [
+        "859932e11c1f46f78e4c0f1b1727f6fd",
+        "fe836ee327e44e6b884636e3df240a0c"
+      ],
+      "physical_acceptance": false,
+      "problems": [],
+      "requested": 740
+    }
+  },
+  "passive_physics": {
+    "elapsed_server_wall_s": 304.6659099289682,
+    "elapsed_sim_s": 47.38333333333333,
+    "last_contact_counts": [
+      0,
+      0
+    ],
+    "last_green_cube": {
+      "angular_velocity_rad_s": [
+        -0.0003254892653785646,
+        0.0003075956192333251,
+        1.8475913066140492e-06
+      ],
+      "linear_velocity_m_s": [
+        -8.852813152770977e-06,
+        7.153590559028089e-06,
+        -6.80028460919857e-06
+      ],
+      "orientation_wxyz": [
+        0.9998639822006226,
+        -4.3732455878853216e-07,
+        -5.82661868975265e-07,
+        0.016493843868374825
+      ],
+      "position_m": [
+        0.13799229264259338,
+        -0.2698253393173218,
+        0.02999999934039739
+      ],
+      "tensor_device": "cuda:0"
+    },
+    "last_green_xy_distance_to_zone_center_m": 0.0020152903480784947,
+    "last_gripper": {
+      "indices": [
+        6,
+        7
+      ],
+      "lower": [
+        0.0,
+        0.0
+      ],
+      "open_fraction": 0.9992407858484866,
+      "open_fractions": [
+        0.9984753132093651,
+        1.0000062584876082
+      ],
+      "q": [
+        0.049923766404390335,
+        0.05000031366944313
+      ],
+      "qd": [
+        0.008586482144892216,
+        4.2512983782216907e-05
+      ],
+      "upper": [
+        0.05000000074505806,
+        0.05000000074505806
+      ]
+    },
+    "last_q_asset": [
+      -0.364268958568573,
+      -1.3942296504974365,
+      -1.363063931465149,
+      0.4971486032009125,
+      -0.00026336341397836804,
+      -0.7752736806869507,
+      0.049923766404390335,
+      0.05000031366944313
+    ],
+    "last_server_monotonic_s": 268672.54862598,
+    "max_green_height_m": 0.12729820610187675,
+    "metadata_complete": true,
+    "metadata_errors": [],
+    "physics_step_first": 2416,
+    "physics_step_last": 8102,
+    "samples": 2006,
+    "scope": "descriptive raw endpoint, not an independent placement/home/rest acceptance; pick_end not recorded",
+    "sim_time_first_s": 20.133333333333333,
+    "sim_time_last_s": 67.51666666666667,
+    "sim_to_wall_ratio": 0.15552555041153307
+  },
+  "plan_sha256": "3ce236347bd15b4371a8d27c7a2b098865c59e55a9afaefb859b470ca189f243",
+  "retained_compact_event_bytes": 16777178,
+  "retained_event_counts": {
+    "isaac_state": 2303,
+    "post_ack_anchor": 739,
+    "skill_begin": 1,
+    "stream_begin": 8,
+    "stream_returned": 7,
+    "target_ack": 740,
+    "target_request": 740,
+    "waypoint_ack": 741,
+    "waypoint_ready": 740
+  },
+  "schema": 1,
+  "scope": "offline read-only audit; no simulation, model invocation, RPC, action retry or task-verifier rerun",
+  "source_flush_hashes_independently_rechecked": {
+    "assets/grasp_geometry/physx_finger_cooking_source.json": {
+      "current_sha256": "71c979464eadae33d4dcf00aaa256609d592b5752e32f9b23b6b0fb6277114ef",
+      "expected_sha256": "71c979464eadae33d4dcf00aaa256609d592b5752e32f9b23b6b0fb6277114ef",
+      "matches": true
+    },
+    "assets/grasp_geometry/rebot_rs_fingers.json": {
+      "current_sha256": "cccd4778c2a99ace06183c5d74ff787536ec399ccb06e704a4058fd452dac7b0",
+      "expected_sha256": "cccd4778c2a99ace06183c5d74ff787536ec399ccb06e704a4058fd452dac7b0",
+      "matches": true
+    },
+    "assets/grasp_geometry/rebot_rs_fingers_physx.json": {
+      "current_sha256": "fb58af87addb6f614ccb4e86146d398a762dbf791d89d0cd92ef9be9b65c52cc",
+      "expected_sha256": "fb58af87addb6f614ccb4e86146d398a762dbf791d89d0cd92ef9be9b65c52cc",
+      "matches": true
+    },
+    "configs/arms/isaac_kitchen_gpu.yaml": {
+      "current_sha256": "83424052cf1231cb7956cabebb38cc857c60bc132e00345f9f73a47085fffcc3",
+      "expected_sha256": "83424052cf1231cb7956cabebb38cc857c60bc132e00345f9f73a47085fffcc3",
+      "matches": true
+    },
+    "scripts/isaac_bridge.py": {
+      "current_sha256": "7eb05ad5f2fa3d06f3b76d3bbda5f634e48de8c9c52ffd2149510496660da6cc",
+      "expected_sha256": "7eb05ad5f2fa3d06f3b76d3bbda5f634e48de8c9c52ffd2149510496660da6cc",
+      "matches": true
+    },
+    "scripts/isaac_camera_readback.py": {
+      "current_sha256": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+      "expected_sha256": "28c4523b08410db254c83e70f52c36f0f34488e6964dd6aebb561b638df8b9cd",
+      "matches": true
+    },
+    "scripts/isaac_frame_history.py": {
+      "current_sha256": "c36737445e041a8da303f0cb77e0247a23710080f6d9b743fd24d16aedf64e5b",
+      "expected_sha256": "c36737445e041a8da303f0cb77e0247a23710080f6d9b743fd24d16aedf64e5b",
+      "matches": true
+    },
+    "scripts/isaac_launch.py": {
+      "current_sha256": "bc97415a776399c8ec8093bb0fd8e82084e056b7613498c241873c3564172faf",
+      "expected_sha256": "bc97415a776399c8ec8093bb0fd8e82084e056b7613498c241873c3564172faf",
+      "matches": true
+    },
+    "scripts/isaac_python_spans.py": {
+      "current_sha256": "6f89d58e9eeddf5a9ef5055352e0dbf93768c43c013d0e7042e3c29b29835b40",
+      "expected_sha256": "6f89d58e9eeddf5a9ef5055352e0dbf93768c43c013d0e7042e3c29b29835b40",
+      "matches": true
+    },
+    "scripts/launch.sh": {
+      "current_sha256": "fedd0c6fb5ef887182c9feacf43b6c9346d160be063e1b916de3ce5b4b084b7c",
+      "expected_sha256": "fedd0c6fb5ef887182c9feacf43b6c9346d160be063e1b916de3ce5b4b084b7c",
+      "matches": true
+    },
+    "src/cascade/apps/mcp_server.py": {
+      "current_sha256": "bff04f1fd05491cf75be9e262c61c19be11f377f3c09e151d38fe48916d43217",
+      "expected_sha256": "bff04f1fd05491cf75be9e262c61c19be11f377f3c09e151d38fe48916d43217",
+      "matches": true
+    },
+    "src/cascade/control/arm_base.py": {
+      "current_sha256": "08c5f4dc10553eb24f2e7abccf33d28c26c0362f8d3bf92ef500a3deb27f77d6",
+      "expected_sha256": "08c5f4dc10553eb24f2e7abccf33d28c26c0362f8d3bf92ef500a3deb27f77d6",
+      "matches": true
+    },
+    "src/cascade/control/isaac_arm.py": {
+      "current_sha256": "9d6e43f1da860a594c22511fe6f6a50a7fe647e5a9e64f4bb345d00398381fa2",
+      "expected_sha256": "9d6e43f1da860a594c22511fe6f6a50a7fe647e5a9e64f4bb345d00398381fa2",
+      "matches": true
+    },
+    "src/cascade/control/lazy_arm.py": {
+      "current_sha256": "26dece03bda9373bd01221947b5871baf29c844fa63ef853b3e862993cd1494d",
+      "expected_sha256": "26dece03bda9373bd01221947b5871baf29c844fa63ef853b3e862993cd1494d",
+      "matches": true
+    },
+    "src/cascade/control/motion_evidence.py": {
+      "current_sha256": "8676d5470fcea09daa802fce9b3fc640e6a7e0db9649c8a4577d80608f0d26ae",
+      "expected_sha256": "8676d5470fcea09daa802fce9b3fc640e6a7e0db9649c8a4577d80608f0d26ae",
+      "matches": true
+    },
+    "src/cascade/control/motion_profile.py": {
+      "current_sha256": "abc1f23d87ca8ed228e42ff2913ac9095882aa3614f96751e176970b08da0c27",
+      "expected_sha256": "abc1f23d87ca8ed228e42ff2913ac9095882aa3614f96751e176970b08da0c27",
+      "matches": true
+    },
+    "src/cascade/control/simulation_motion.py": {
+      "current_sha256": "0dd37925d20b43e53428a224df2c0ddd4242a95169bb78229479884605b4b242",
+      "expected_sha256": "0dd37925d20b43e53428a224df2c0ddd4242a95169bb78229479884605b4b242",
+      "matches": true
+    },
+    "src/cascade/grasping/evidence.py": {
+      "current_sha256": "55c6583a3f19e1bd73db31feb0ab197ef26ae781e405e68540d38d2eec073689",
+      "expected_sha256": "55c6583a3f19e1bd73db31feb0ab197ef26ae781e405e68540d38d2eec073689",
+      "matches": true
+    },
+    "src/cascade/grasping/force.py": {
+      "current_sha256": "accb6f790da865a6691e3e5778a8957c52cd6c0bb5f3c674d0e1fe46d4fae755",
+      "expected_sha256": "accb6f790da865a6691e3e5778a8957c52cd6c0bb5f3c674d0e1fe46d4fae755",
+      "matches": true
+    },
+    "src/cascade/grasping/graspgenx_backend.py": {
+      "current_sha256": "e67a21b1205d07e69edfbd1166ac29caecda356d9477af24c22e65efaa130838",
+      "expected_sha256": "e67a21b1205d07e69edfbd1166ac29caecda356d9477af24c22e65efaa130838",
+      "matches": true
+    },
+    "src/cascade/grasping/observed_scene.py": {
+      "current_sha256": "4316b86e7e5e189ef72ef401d955204841d3a2cb80c1ca70e374a269c8ba16cd",
+      "expected_sha256": "4316b86e7e5e189ef72ef401d955204841d3a2cb80c1ca70e374a269c8ba16cd",
+      "matches": true
+    },
+    "src/cascade/grasping/planning_budget.py": {
+      "current_sha256": "8ae9580334fb3560a6e51c507ef66a79b6882a5804b630dc83d97aae40de8d55",
+      "expected_sha256": "8ae9580334fb3560a6e51c507ef66a79b6882a5804b630dc83d97aae40de8d55",
+      "matches": true
+    },
+    "src/cascade/grasping/selector.py": {
+      "current_sha256": "49c089991bfecae12c79ac3a3ca7ff629aa6fb337db33606f01ed820378099a3",
+      "expected_sha256": "49c089991bfecae12c79ac3a3ca7ff629aa6fb337db33606f01ed820378099a3",
+      "matches": true
+    },
+    "src/cascade/memory/grasp_memory.py": {
+      "current_sha256": "3d82593be6f114c85366eed4aed62f3c76d3f28a6eb79902f7789e0f8035d53b",
+      "expected_sha256": "3d82593be6f114c85366eed4aed62f3c76d3f28a6eb79902f7789e0f8035d53b",
+      "matches": true
+    },
+    "src/cascade/safety/harness.py": {
+      "current_sha256": "98290c86ef485c38724aa7018f93e23d0fbb31f192664abeb64f8582cbb90456",
+      "expected_sha256": "98290c86ef485c38724aa7018f93e23d0fbb31f192664abeb64f8582cbb90456",
+      "matches": true
+    },
+    "src/cascade/sim/bridge_client.py": {
+      "current_sha256": "41cb9cbaa7867532561b21d0ffdd54fa9bcc08107d4bccb5c22dd21f64ae1a9b",
+      "expected_sha256": "41cb9cbaa7867532561b21d0ffdd54fa9bcc08107d4bccb5c22dd21f64ae1a9b",
+      "matches": true
+    },
+    "src/cascade/sim/startup_readiness.py": {
+      "current_sha256": "8aaaa771ba3d14c9eed3752f9a4ea49ca38b1fe3101f3a8fc18c99c716da5676",
+      "expected_sha256": "8aaaa771ba3d14c9eed3752f9a4ea49ca38b1fe3101f3a8fc18c99c716da5676",
+      "matches": true
+    },
+    "src/cascade/sim/target_receipts.py": {
+      "current_sha256": "05b587370f4e76dabe61366311ea78c5fe9781cd1e831b70fbdc54e9f8d34b24",
+      "expected_sha256": "05b587370f4e76dabe61366311ea78c5fe9781cd1e831b70fbdc54e9f8d34b24",
+      "matches": true
+    },
+    "src/cascade/sim/truth.py": {
+      "current_sha256": "f9bc7056328d840ce9bc3ef8f2243f8ec57512aff08ecd4b053ba8a3047f76ee",
+      "expected_sha256": "f9bc7056328d840ce9bc3ef8f2243f8ec57512aff08ecd4b053ba8a3047f76ee",
+      "matches": true
+    },
+    "src/cascade/skills/carry_attachment.py": {
+      "current_sha256": "c37c1517a53698efee5cb8e39a07ad947147278487c517cd1ff01656a75c955c",
+      "expected_sha256": "c37c1517a53698efee5cb8e39a07ad947147278487c517cd1ff01656a75c955c",
+      "matches": true
+    },
+    "src/cascade/skills/held_observation.py": {
+      "current_sha256": "959783ebdcd783d9d72b7b5fa87407c2e41e0091b27e870cd093595824090b19",
+      "expected_sha256": "959783ebdcd783d9d72b7b5fa87407c2e41e0091b27e870cd093595824090b19",
+      "matches": true
+    },
+    "src/cascade/skills/runtime.py": {
+      "current_sha256": "60ddb5aa76e1f5cf3e1f4de83ff7ea37ff775b3cc5e21d2a285a1ffad179cddf",
+      "expected_sha256": "60ddb5aa76e1f5cf3e1f4de83ff7ea37ff775b3cc5e21d2a285a1ffad179cddf",
+      "matches": true
+    }
+  },
+  "source_head": "ef773697183f676973244ceb513d44f74a177792",
+  "source_manifest_sha256": "b24fa1630717381cb1fb0e7b63c4ce46556d4e1e1e24b96030f1c9b2bca8c136",
+  "streams": [
+    {
+      "begin_monotonic_s": 268375.473058248,
+      "index": 1,
+      "last_retained_monotonic_s": 268388.825395774,
+      "last_retained_physics": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 2810,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 23.416666666666668,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "nominal_retained_dt_sum_s": 1.5,
+      "physics_begin": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 2526,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 21.05,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "q_goal": [
+        0.0,
+        1.2,
+        1.2,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "q_start": [
+        -0.0001283630554098636,
+        1.202299952507019,
+        1.198663592338562,
+        -0.00022326513135340065,
+        1.221073233637071e-07,
+        2.7980030381513643e-07
+      ],
+      "ready_to_post_ack_fresh_sim_wait_s": {
+        "max": 0.016666666666669272,
+        "median": 0.01666666666666572,
+        "min": 0.01666666666666572,
+        "n": 45,
+        "sum": 0.7499999999999893
+      },
+      "retained_sim_span_s": 2.366666666666667,
+      "retained_sim_to_wall_ratio": 0.17724736676715003,
+      "retained_wall_span_s": 13.352337525982875,
+      "returned_settled": true,
+      "scope": "returned flag is executor completion; no independent task acceptance",
+      "stream_id": "0b750eea634949af88c94b945bc72dc0",
+      "waypoints_retained": 45
+    },
+    {
+      "begin_monotonic_s": 268389.274747961,
+      "index": 2,
+      "last_retained_monotonic_s": 268453.845668534,
+      "last_retained_physics": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 4184,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 34.86666666666667,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "nominal_retained_dt_sum_s": 7.5,
+      "physics_begin": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 2820,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 23.5,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "q_goal": [
+        -0.022390375593105968,
+        1.4725289254474587,
+        1.138652294349064,
+        -1.2203120125918314,
+        0.01684485397011057,
+        1.1729600114440295
+      ],
+      "q_start": [
+        -0.00012862493167631328,
+        1.20229971408844,
+        1.1986637115478516,
+        -0.00022373883984982967,
+        1.1749903450208876e-07,
+        2.8100660642849107e-07
+      ],
+      "ready_to_post_ack_fresh_sim_wait_s": {
+        "max": 0.016666666666672825,
+        "median": 0.01666666666666572,
+        "min": 0.01666666666666572,
+        "n": 225,
+        "sum": 3.749999999999986
+      },
+      "retained_sim_span_s": 11.366666666666667,
+      "retained_sim_to_wall_ratio": 0.17603383327673464,
+      "retained_wall_span_s": 64.5709205729654,
+      "returned_settled": true,
+      "scope": "returned flag is executor completion; no independent task acceptance",
+      "stream_id": "7de2295beaca4ef2b8377524b252d2ac",
+      "waypoints_retained": 225
+    },
+    {
+      "begin_monotonic_s": 268454.295309381,
+      "index": 3,
+      "last_retained_monotonic_s": 268471.581114471,
+      "last_retained_physics": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 4564,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 38.03333333333333,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "nominal_retained_dt_sum_s": 2.0,
+      "physics_begin": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 4190,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 34.916666666666664,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "q_goal": [
+        -0.025170591640238132,
+        1.4942642129770098,
+        0.9905123350393359,
+        -1.0504167224948757,
+        0.01674425590168688,
+        1.170192825501975
+      ],
+      "q_start": [
+        -0.022540010511875153,
+        1.47507905960083,
+        1.1384971141815186,
+        -1.2203075885772705,
+        0.016842380166053772,
+        1.1729059219360352
+      ],
+      "ready_to_post_ack_fresh_sim_wait_s": {
+        "max": 0.016666666666672825,
+        "median": 0.01666666666666572,
+        "min": 0.01666666666666572,
+        "n": 60,
+        "sum": 1.0000000000000284
+      },
+      "retained_sim_span_s": 3.116666666666667,
+      "retained_sim_to_wall_ratio": 0.1803020831504438,
+      "retained_wall_span_s": 17.285805090039503,
+      "returned_settled": true,
+      "scope": "returned flag is executor completion; no independent task acceptance",
+      "stream_id": "7921fa083cc049b3bfaefa3520602bb6",
+      "waypoints_retained": 60
+    },
+    {
+      "begin_monotonic_s": 268474.026841468,
+      "index": 4,
+      "last_retained_monotonic_s": 268496.316440643,
+      "last_retained_physics": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 4982,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 41.516666666666666,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "nominal_retained_dt_sum_s": 2.0,
+      "physics_begin": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 4608,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 38.4,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "q_goal": [
+        -0.022390375593105968,
+        1.4725289254474587,
+        1.138652294349064,
+        -1.2203120125918314,
+        0.01684485397011057,
+        1.1729600114440295
+      ],
+      "q_start": [
+        -0.02542971260845661,
+        1.4960825443267822,
+        0.9900074005126953,
+        -1.0513266324996948,
+        0.017652694135904312,
+        1.178645133972168
+      ],
+      "ready_to_post_ack_fresh_sim_wait_s": {
+        "max": 0.016666666666672825,
+        "median": 0.01666666666666572,
+        "min": 0.01666666666666572,
+        "n": 60,
+        "sum": 1.0000000000000284
+      },
+      "retained_sim_span_s": 3.116666666666667,
+      "retained_sim_to_wall_ratio": 0.13982605259966782,
+      "retained_wall_span_s": 22.289599174982868,
+      "returned_settled": true,
+      "scope": "returned flag is executor completion; no independent task acceptance",
+      "stream_id": "28a3d657f3e64db6b0eed2889e9b5bed",
+      "waypoints_retained": 60
+    },
+    {
+      "begin_monotonic_s": 268497.317567221,
+      "index": 5,
+      "last_retained_monotonic_s": 268519.025957224,
+      "last_retained_physics": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 5372,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 44.766666666666666,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "nominal_retained_dt_sum_s": 2.0,
+      "physics_begin": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 4998,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 41.65,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "q_goal": [
+        -0.02254359261778867,
+        1.4965069779313145,
+        1.3949176938361876,
+        -1.455317543723583,
+        0.016844670280262652,
+        1.1838205192930484
+      ],
+      "q_start": [
+        -0.022544080391526222,
+        1.4751451015472412,
+        1.1384896039962769,
+        -1.2202726602554321,
+        0.016844509169459343,
+        1.1838175058364868
+      ],
+      "ready_to_post_ack_fresh_sim_wait_s": {
+        "max": 0.016666666666672825,
+        "median": 0.01666666666666572,
+        "min": 0.01666666666666572,
+        "n": 60,
+        "sum": 1.0000000000000284
+      },
+      "retained_sim_span_s": 3.116666666666667,
+      "retained_sim_to_wall_ratio": 0.1435696827924241,
+      "retained_wall_span_s": 21.708390003012028,
+      "returned_settled": true,
+      "scope": "returned flag is executor completion; no independent task acceptance",
+      "stream_id": "b289b10f246c492688ee03fe21a4ee2d",
+      "waypoints_retained": 60
+    },
+    {
+      "begin_monotonic_s": 268519.314217186,
+      "index": 6,
+      "last_retained_monotonic_s": 268599.551765342,
+      "last_retained_physics": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 6740,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 56.166666666666664,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "nominal_retained_dt_sum_s": 7.5,
+      "physics_begin": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 5376,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 44.8,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "q_goal": [
+        1.092966697686529,
+        1.783765293065257,
+        1.7025952089193637,
+        -1.489641950428228,
+        1.1236352815938376e-05,
+        2.2993799667626753
+      ],
+      "q_start": [
+        -0.02269420213997364,
+        1.499170184135437,
+        1.3947309255599976,
+        -1.4551129341125488,
+        0.016842253506183624,
+        1.1946362257003784
+      ],
+      "ready_to_post_ack_fresh_sim_wait_s": {
+        "max": 0.016666666666672825,
+        "median": 0.01666666666666572,
+        "min": 0.01666666666666572,
+        "n": 225,
+        "sum": 3.7500000000001066
+      },
+      "retained_sim_span_s": 11.366666666666667,
+      "retained_sim_to_wall_ratio": 0.14166268695757162,
+      "retained_wall_span_s": 80.23754815600114,
+      "returned_settled": true,
+      "scope": "returned flag is executor completion; no independent task acceptance",
+      "stream_id": "b0456664499b4b318b6b28029d874399",
+      "waypoints_retained": 225
+    },
+    {
+      "begin_monotonic_s": 268599.770282227,
+      "index": 7,
+      "last_retained_monotonic_s": 268623.239837184,
+      "last_retained_physics": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 7118,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 59.31666666666667,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "nominal_retained_dt_sum_s": 2.0,
+      "physics_begin": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 6744,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 56.2,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "q_goal": [
+        1.0930216243537771,
+        1.7644479537628128,
+        1.3383082899987138,
+        -1.1446627982288926,
+        6.418392718991431e-06,
+        2.2994348795441026
+      ],
+      "q_start": [
+        1.0926672220230103,
+        1.787609577178955,
+        1.702441692352295,
+        -1.4896595478057861,
+        1.0466449566592928e-05,
+        2.3100969791412354
+      ],
+      "ready_to_post_ack_fresh_sim_wait_s": {
+        "max": 0.016666666666672825,
+        "median": 0.01666666666666572,
+        "min": 0.01666666666666572,
+        "n": 60,
+        "sum": 1.0000000000000284
+      },
+      "retained_sim_span_s": 3.116666666666667,
+      "retained_sim_to_wall_ratio": 0.13279615537561676,
+      "retained_wall_span_s": 23.4695549570024,
+      "returned_settled": true,
+      "scope": "returned flag is executor completion; no independent task acceptance",
+      "stream_id": "5d7ccbd3ceb44671ab7c34e601cc0ccd",
+      "waypoints_retained": 60
+    },
+    {
+      "begin_monotonic_s": 268623.986709983,
+      "index": 8,
+      "last_retained_monotonic_s": 268626.016122102,
+      "last_retained_physics": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 7156,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 59.63333333333333,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "nominal_retained_dt_sum_s": 0.16666666666666666,
+      "physics_begin": {
+        "clock": "SimulationManager",
+        "engine": "physx",
+        "epoch": "8f58dad26994466ba232461183b1b13c",
+        "physics_dt_s": 0.008333333333333333,
+        "physics_step": 7136,
+        "robot_id": "/tn__00armrs_asmv3_hJ6D/Geometry/base_link",
+        "sim_time": 59.46666666666667,
+        "source": [
+          "127.0.0.1",
+          8749
+        ],
+        "version": 1
+      },
+      "q_goal": [
+        1.092966697686529,
+        1.783765293065257,
+        1.7025952089193637,
+        -1.489641950428228,
+        1.1236352815938376e-05,
+        2.2993799667626753
+      ],
+      "q_start": [
+        1.0927759408950806,
+        1.7679928541183472,
+        1.338158130645752,
+        -1.1448073387145996,
+        9.016900548886042e-06,
+        2.303170680999756
+      ],
+      "ready_to_post_ack_fresh_sim_wait_s": {
+        "max": 0.016666666666672825,
+        "median": 0.01666666666666572,
+        "min": 0.01666666666666572,
+        "n": 4,
+        "sum": 0.06666666666666998
+      },
+      "retained_sim_span_s": 0.1666666666666643,
+      "retained_sim_to_wall_ratio": 0.08212558952690462,
+      "retained_wall_span_s": 2.0294121190090664,
+      "returned_settled": null,
+      "scope": "returned flag is executor completion; no independent task acceptance",
+      "stream_id": "04035f170ae242e2a91596f352dfc868",
+      "waypoints_retained": 5
+    }
+  ],
+  "verdict": {
+    "case1": {
+      "agent_duration_s": 303.91,
+      "destination": "green square",
+      "object": "green cube",
+      "physical_task_verified": false,
+      "tool_summary": {
+        "calls": 1,
+        "failures": 1,
+        "tools": [
+          "cascade__pick_and_place"
+        ]
+      }
+    },
+    "case2": {
+      "destination": "open box",
+      "executed": false,
+      "object": "orange"
+    },
+    "failure": "MCP error -32001 Request timed out on first pick_and_place; original launcher exit1",
+    "original_proof_verified": false,
+    "pass": false,
+    "scene_successful_tools": [
+      "cascade__describe_scene"
+    ]
+  }
+}

@@ -44,6 +44,18 @@ mj_gripper_joint: gripper
 mj_actuators: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
 mj_gripper_actuator: gripper
 
+# Physical collision subtree used to plan an actual post-release withdrawal.
+# This names model geometry, not a new grasp/carry height or actuator setting.
+mj_release_tool_body: gripper
+mj_release_articulation_root: base
+mj_release_support_plane:
+  # The generated demo wrapper includes scene.xml AND its own coincident plane.
+  # Both existing colliders are declared; no physics is removed or merged.
+  geoms: [floor]
+  optional_geoms: [demo_floor]  # Absent in the unwrapped scene.xml / scene_box.xml.
+  position_m: [0.0, 0.0, 0.0]
+  quaternion_wxyz: [1.0, 0.0, 0.0, 0.0]
+
 # Physics steps advanced per streamed waypoint. The waypoint stream runs at
 # 50 Hz (20 ms) and this MJCF sets timestep="0.005", so 4 steps is exactly one
 # real-time tick -- and exactly zero margin for a joint that cannot track its
@@ -71,3 +83,18 @@ settle_timeout_s: 4.0
 # Set to open a MuJoCo viewer window alongside the run. Off by default: it
 # needs a display, and the framework's own dashboard already shows the cameras.
 view: false
+
+# Semantic drop area on the explicitly declared horizontal support, within
+# this profile's workspace. Reachability is checked for each measured payload;
+# the rectangle does not promise that every point has a feasible 5-DoF pose.
+# Region2 reserves 20 mm planned boundary margin plus 20 mm physical object
+# separation for the complete measured free-body inventory. The outer region
+# is centered on the existing drop-zone point, sized for geometry/capacity;
+# the actual verifier still requires containment, support, release and rest.
+mj_delivery_area:
+  version: 2
+  name: drop zone
+  frame: robot_base
+  bounds_xy_m: [[0.13, -0.18], [0.27, -0.06]]
+  planning_margin_m: 0.02
+  capacity_scope: all_free_bodies

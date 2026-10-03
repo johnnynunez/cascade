@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "scope": "Software correction with retained rounded physical observations; no new physical trial",
+  "base_commit": "1aafb7d7f3f77cb4961ef0517f7c4a7260da032c",
+  "production_sha256": "ecdd020be28c0e3e9d34c82ff54e96252de179295d94b85a163f77644d2cc5f0",
+  "test_sha256": "881f4e849102b30c383d4995ab86d81f89166b887d29f3e00b261afba8846fa6",
+  "runs": {
+    "causal-before-01": {
+      "exit_code": 1,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "9",
+        "skipped": "0",
+        "tests": "12",
+        "time": "0.745",
+        "timestamp": "2026-10-03T06:51:12.426175+02:00",
+        "hostname": "johnny-Ubuntu"
+      }
+    },
+    "causal-after-01": {
+      "exit_code": 4,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "0",
+        "time": "0.001",
+        "timestamp": "2026-10-03T06:51:56.607776+02:00",
+        "hostname": "johnny-Ubuntu"
+      }
+    },
+    "causal-after-02": {
+      "exit_code": 1,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "9",
+        "skipped": "0",
+        "tests": "92",
+        "time": "18.521",
+        "timestamp": "2026-10-03T06:52:26.587086+02:00",
+        "hostname": "johnny-Ubuntu"
+      }
+    },
+    "causal-after-03": {
+      "exit_code": 0,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "197",
+        "time": "19.191",
+        "timestamp": "2026-10-03T06:54:07.802456+02:00",
+        "hostname": "johnny-Ubuntu"
+      }
+    },
+    "causal-after-04": {
+      "exit_code": 0,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "199",
+        "time": "19.164",
+        "timestamp": "2026-10-03T07:04:10.185312+02:00",
+        "hostname": "johnny-Ubuntu"
+      }
+    },
+    "final-focal-01": {
+      "exit_code": 0,
+      "source_unchanged": true,
+      "protected_stores_unchanged": true,
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "14",
+        "time": "0.714",
+        "timestamp": "2026-10-03T07:05:05.923409+02:00",
+        "hostname": "johnny-Ubuntu"
+      }
+    }
+  },
+  "failed_attempts_retained": {
+    "causal-after-01": "Mistyped test filename: collection error, no tests",
+    "causal-after-02": "Two stale verified flag defects plus seven missing kitchen asset errors"
+  },
+  "test_change_after_199_pass": "Only local runtime variable renamed rt for Ruff; final 14-case replay passes",
+  "peer_review": {
+    "agent": "/root/cumotion_integration",
+    "result": "No material blocker in guard or annotate_result delta",
+    "scope": "Read-only source review, no independent test execution"
+  },
+  "assets_postcheck": {
+    "exact_files": 8,
+    "all_hashes_match": true
+  },
+  "ruff": "No new production findings; new regression file passes",
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-before-01/result.json": "42a5699303a8130e77c04724cc279b6bb14818307a3bea4aa6b782eccfe84632",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-before-01/source-sha256.json": "877ec12f3b77ead8389c647c2bdb429a7cda6db925f049d3304f33c1e65ca1a1",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-before-01/pytest.log": "9cb807ee6e9f040291e81fa1237a147c4baf6ff996087772f527241fa34efa6a",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-before-01/junit.xml": "6bb6bd5d92b63fd33ff1ea2a0d8c799d3180b70a1881d2f16ae4578bcecc01af",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-01/result.json": "540d2059944d003b66903bc067ae9b377bdeabb6ec08f0d07639da5a332fa354",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-01/source-sha256.json": "25844c573620b718a814311f0828ea51d16d60a9d0d7fc1f7b042c90dfcd43a8",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-01/pytest.log": "bd460995e088f37e7c6f9d3a733f63f7e4cf01a551b9964679e642ddec1bb4e1",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-01/junit.xml": "16cb8a518cb3cff7bfed9a9920143b83aadac0e034e29a27aae051173b270f3f",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-02/result.json": "3f3015fdb5d8ffea0686824cdb4398a36bbc1e17bd90cb3b2e18bb2cbe8a7bcf",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-02/source-sha256.json": "25844c573620b718a814311f0828ea51d16d60a9d0d7fc1f7b042c90dfcd43a8",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-02/pytest.log": "a4ee1a9e8fb5f6536795a72b28a99833708b3e8b00ae47e8057b4784ef261e4c",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-02/junit.xml": "c5f5fe7ca7b470c4956f16d0f2d931e516d3b99c43afdef003b7695e2c810803",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-03/result.json": "1c9991ffcde1f363138be1e41e9fda62a2e12784a020bcdc20743027dbd6a224",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-03/source-sha256.json": "8c143a9989a80cc21d99fcc09d4660b46ab9071bfbccff4b6f90006527dd50c1",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-03/pytest.log": "b0631a85eb4df37ee6d6c759008ddb490e4f781f5707180eb11e2ce134f1e838",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-03/junit.xml": "e6f0f71e7f17d2e9472723d1fa208a6df52376dbe93ade3ad22c4077e4dea05b",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-04/result.json": "17d8ab46cdf59ce2a2699b94ef5326db619b6eaae3a2ee191f7560125b7be12d",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-04/source-sha256.json": "c47e38dd86179a1c45cecb83c433ebf0049db64926394fabd276aa73bb446553",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-04/pytest.log": "1eaaf81694af5abb5a033b14b4e062d1fc46191e52185f451a9e6df8ee884297",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/causal-after-04/junit.xml": "9426e5cde518797e1c0640204f7b23c0c22f3efe6cc0b1c6dcde0c903935f73d",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/final-focal-01/result.json": "1fbc945961315b17448eb644be509527e6d47c59fd4e9684c7a0141cb52259fa",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/final-focal-01/source-sha256.json": "268ca7f56de5e7427bcd2993392f00f1f10a451c2aae1f1e3f9550771a4fc78c",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/final-focal-01/pytest.log": "7ce54d4f8241dc4817326e1568126626d6b5cb49346def5ca78039daf10e550d",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/final-focal-01/junit.xml": "6ddad9cc0a8161dcffac599a35f8d7baf0bf8d71188e02c095c351bb809cf638",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/kitchen-assets.json": "7544855d989d81cc0cd410603d066692eefe92cc5495988ff55af268a0bc88c6",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/ruff-differential.json": "9156ff247cff6fbbeec254ba162f7479c52b83aab40e4b8a7eb46a3b2777a86a",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/cascade/src/cascade/agent/effects.py": "ecdd020be28c0e3e9d34c82ff54e96252de179295d94b85a163f77644d2cc5f0",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/cascade/tests/test_placement_refusal.py": "881f4e849102b30c383d4995ab86d81f89166b887d29f3e00b261afba8846fa6",
+    "/home/johnny/Projects/demo/cascade-lab/PLACEMENT_REFUSAL/cascade/tests/fixtures/refused-placement-20261003.json": "285c4299c56b2650dc36594fcf85fe2eea56684d06b5c451d5846aaea5b68189"
+  }
+}

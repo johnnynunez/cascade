@@ -1,6 +1,6 @@
 # Documentation index
 
-Start with [current source and acceptance](PROJECT_STATUS_20261001.md). It
+Start with [current source and acceptance](PROJECT_STATUS_20261003.md). It
 separates merged software, current physical runs and historical measurements.
 The install examples pin the physical source; a later documentation-only commit
 does not change which code produced those measurements.

@@ -16,7 +16,8 @@ DELIVERY_ALIASES = ["green square", "delivery area", "delivery zone", "green del
 
 def configured_runtime():
     rt = SkillRuntime.__new__(SkillRuntime)
-    rt.cfg = Cfg({"grasp": {"drop_zone": [.14, -.27], "drop_zone_name": "green square",
+    # This synthetic destination fixture explicitly has no native delivery region.
+    rt.cfg = Cfg({"arm": {}, "grasp": {"drop_zone": [.14, -.27], "drop_zone_name": "green square",
                             "open_box": {"center_xy_m": [.3, -.14]}, "home_after_place": False}})
     rt._localize = lambda *_a, **_kw: pytest.fail("Configured zone used object detection")
     rt._object_pose = lambda *_: pytest.fail("Configured zone used physics planning")

@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "scope": "CPU implementation validation and read-only retained native diagnosis; no v3 CUDA preparation or physical admission",
+  "base_commit": "16653c845e8c48cc267cd499eeca21d9049ed3ef",
+  "recipe": "factory_nv19_contact_writer_compile_v3",
+  "source_sha256": {
+    "src/cascade/sim/factory_precompile.py": "5a7b45221db5d632e7cdea24e844cf925ffe7002edae148d8e03d5c37aa6b54c",
+    "tests/test_factory_precompile.py": "a75bdd9b7327b2d7086b68479fa8e908ed3ce329ace5226634594546ecf093d7",
+    "tests/test_factory_generic_kernels.py": "b4240e1d418dc0fb643491f1871713b9470f5b0e8cccfd975888e256ff0a99f8",
+    "configs/robots/factory_m20_precompile_writer_v3.yaml": "a24d6220194ebf929da407225c4b04491afdcda706e2f04d57da64d58e9676e4"
+  },
+  "controls": {
+    "focused-final-01": {
+      "exit_code": 0,
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "11",
+        "tests": "503",
+        "time": "1.999",
+        "timestamp": "2026-10-03T10:47:07.866475+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "receipt_sha256": "3082d6ef7c242b0e9d24c4c163dedb059fca9f9696c3c255585011f94bb14182",
+      "log_sha256": "cb698c2284c75fc4d0c0e2f820fc7371bf09f5ba4cc580ca91f724675b66615b",
+      "inputs_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    "causal-inventory-01": {
+      "exit_code": 1,
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "1",
+        "skipped": "0",
+        "tests": "1",
+        "time": "0.218",
+        "timestamp": "2026-10-03T10:47:07.881724+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "receipt_sha256": "36157b523f5f6f7b87d02e2d8d2a514b4d848e4c6fa0b9e97015f7e1aaadbf92",
+      "log_sha256": "9265160dc0204fa4b1a15d7e8c92046347dd382fc578e0b135be15da87f6bc32",
+      "inputs_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    "causal-symbol-01": {
+      "exit_code": 1,
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "1",
+        "skipped": "0",
+        "tests": "1",
+        "time": "0.216",
+        "timestamp": "2026-10-03T10:47:07.893512+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "receipt_sha256": "2d40b98c51e2a81a430d011962ab5caf61e6ad38615287a97edf814fe2eb5f5c",
+      "log_sha256": "fd2e9daa2909028725342827be60e7866e2144dbb6985bd99641cd4565cc0e35",
+      "inputs_unchanged": true,
+      "protected_stores_unchanged": true
+    },
+    "pinned-abi-01": {
+      "exit_code": 0,
+      "junit": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "7",
+        "time": "0.484",
+        "timestamp": "2026-10-03T10:48:46.093291+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "receipt_sha256": "5a9f0bfb744513377848e59a42086a7bb5d136d5ea483c32f11641d07efb4bc2",
+      "log_sha256": "26cfc42555d8c796de181fa500fabdff8ed3619b71253e857d0525317da1603b",
+      "inputs_unchanged": true,
+      "protected_stores_unchanged": true
+    }
+  },
+  "independent_definition_review": {
+    "sha256": "40b463485076ef28191543acf4d29f8aae5887afcfe4eddff8662644c01aa561",
+    "three_empty_modules_confirmed_in_retained_ptx": true,
+    "three_concrete_hashes_match_first_step": true,
+    "native_runtime_initialized": false
+  },
+  "preserved_development_failure": {
+    "path": "FACTORY_GENERIC_KERNELS/cpu-dev-01",
+    "result": "92 passed, 1 failed: withdrawal test expected validation after load_robot_config instead of its existing internal validation; only the expectation was corrected"
+  },
+  "native_predecessor": {
+    "source": "16653c845e8c48cc267cd499eeca21d9049ed3ef",
+    "result": "readiness-v2 failed at unchanged 10s;20 steps plus1 drain, no fastening action",
+    "root_review_sha256": "9b614b8276602b4ccef30cbe2f78d68a381930f0165ce5ed2f912226d5922719"
+  },
+  "remaining": [
+    "Fresh zero-step native preparation with new model identity",
+    "Separate readiness check with unchanged deadline",
+    "Ordinary physical fastening action and independent verification"
+  ]
+}

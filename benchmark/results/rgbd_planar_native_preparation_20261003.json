@@ -1,0 +1,55 @@
+{
+  "scope": "Prepared benchmark native entry and real in-process MCP over synthetic RGB-D; no native render/physics run",
+  "base_commit": "39317be33a35618bb55e582c1efb7552eb64010c",
+  "native_launch": false,
+  "physical_admission": false,
+  "source_sha256": {
+    "benchmark/rgbd/native_bridge.py": "efe611a9bc696bdb218cda1dc26f3e563a53461fd79a9ae62a19c0d62240aa85",
+    "benchmark/rgbd/live_reference.py": "643d5ac042d689fe0e674fe92e51db63148b3b659df3e2040683e99403435df4",
+    "tests/test_rgbd_native_bridge.py": "6df86be0980eefe3312f802e788c61565b2e859c9a6b55c96794c6e5166641be",
+    "tests/test_rgbd_live_reference.py": "49238bb636c8da741a40898c781b95a93904fef041d07823b7d5fcb1e59b51bf"
+  },
+  "cpu": {
+    "passed": 71,
+    "skipped": 2,
+    "wall_s": 15.49,
+    "normal_conftest": true,
+    "inputs_unchanged": 1601,
+    "skips": [
+      "test_rgbd_planar_reference.py OpenUSD unavailable in ordinary venv",
+      "test_rgbd_native_bridge.py OpenUSD unavailable in ordinary venv"
+    ],
+    "pytest_sha256": "e959c123a0f7225c7f61c667fb1ab8be79cc3a5ba1b4e6b43615833f69551629",
+    "receipt_sha256": "87a53913d74677f0c63ca5e72564e8642af7969d82e9071035583b520564167e"
+  },
+  "usd_cpu": {
+    "version": "0.25.5",
+    "passed": true,
+    "existing_prims_unchanged": 254,
+    "visual_meshes": 53,
+    "rejected_mutations": [
+      "time_sample",
+      "collision",
+      "points"
+    ],
+    "receipt_sha256": "6e002a5b8f426ce3ecc0f3fcf0005d247a8f6ebd6de3b4aae4e329bc17c3b6b0",
+    "output_sha256": "310ef31e5a6b85cdea9fe9027d5830a72534ef03a9135b2389717d7888f0286e",
+    "no_kit_imports": true
+  },
+  "limits": {
+    "solves_after_bootstrap": 80,
+    "bootstrap_solves": 2,
+    "camera_every": 20,
+    "max_age_s": 2.0,
+    "read_timeout_s": 2.0,
+    "inner_wall_s": 180,
+    "outer_wall_s": 240
+  },
+  "limitations": [
+    "RTX board visibility and unique-color detection untested",
+    "No native body/shape invariance measured for this board",
+    "No live planar native geometry or physical admission",
+    "Pending frozen check-only and launch review"
+  ],
+  "external_artifact_root": "RGBD_XY_NATIVE, sibling of this checkout; paths are local evidence, not repository links"
+}

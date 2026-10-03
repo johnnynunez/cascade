@@ -621,7 +621,7 @@ def _park_gripper(arm) -> None:
         closer()
 
 
-def _park_arm(runtime, duration_s: float = 2.0) -> None:
+def _park_arm(runtime, duration_s: float = 2.0) -> dict:
     """Slowly drive every arm to its zero pose before torque is cut.
 
     `disconnect()` disables torque, so an arm left at the working height drops
@@ -642,33 +642,47 @@ def _park_arm(runtime, duration_s: float = 2.0) -> None:
     # without attempting task recovery. Other backends keep their existing
     # park-before-disconnect policy: cutting hardware torque aloft can drop
     # the arm and payload. Decide per arm, including in mixed backend rigs.
+    from ..lifecycle import teardown_receipt
+
+    stages = []
     retained = ("held_object", "_held_provisional", "_contact_episode",
                 "_carry_attachment", "_release_episode")
     possible_load = any(getattr(runtime, name, None) is not None for name in retained)
     rig = getattr(runtime, "arm_rig", None)
     arms = list(rig) if rig is not None and len(rig) > 1 else [runtime.arm]
-    for arm in arms:
+    for index, arm in enumerate(arms):
+        stage = {"stage": str(index), "ok": True, "complete": True}
+        stages.append(stage)
         if arm is None:
+            stage["skipped"] = "absent"
             continue
         try:
             if arm.harness.estopped:
+                stage["skipped"] = "estopped"
                 continue
             if not getattr(arm.raw, "connected", True):
+                stage["skipped"] = "not_connected"
                 continue
             if getattr(arm.raw, "disconnect_preserves_drive_state", False) and (
                     possible_load
                     or getattr(arm.harness, "_pending_contact_episode", None) is not None
                     or getattr(arm.harness, "_pending_release_episode", None) is not None):
                 print("[cascade] park skipped: retained or possible payload/contact/release")
+                stage["skipped"] = "retained_or_possible_load"
                 continue
             print("[cascade] parking arm to safe rest pose before disconnect")
             # joint_margin=0 lets the park reach the mechanical stop (an exact
             # zero on the reBot's joint 2/3, whose lower limit IS 0); every
             # other safety gate (workspace, table, velocity) still runs.
-            arm.move_joints(_park_pose(arm), duration_s=duration_s, joint_margin=0.0)
+            completed = arm.move_joints(_park_pose(arm), duration_s=duration_s, joint_margin=0.0)
             _park_gripper(arm)
+            if completed is False:
+                stage.update(ok=False, complete=False,
+                             errors=[{"type": "ParkIncomplete", "message": "move_joints returned false"}])
         except Exception as e:  # a failed park must not block teardown
             print(f"[cascade] park skipped ({type(e).__name__}: {e})")
+            stage.update(ok=False, complete=False, errors=[{"type": type(e).__name__, "message": str(e)}])
+    return teardown_receipt(stages)
 
 
 def owned_threads(runtime) -> list:
@@ -697,8 +711,8 @@ def owned_threads(runtime) -> list:
     return out
 
 
-def shutdown_runtime(runtime, arm) -> None:
-    """Stop threads and hardware in dependency order; never raises.
+def shutdown_runtime(runtime, arm) -> dict:
+    """Close in dependency order and return every observed software result.
 
     `arm` is the primary raw backend, kept as a positional for the many call
     sites that predate the arm rig. When a rig is present EVERY arm is
@@ -713,18 +727,27 @@ def shutdown_runtime(runtime, arm) -> None:
     YOLOE inference (> 5 s) outlive shutdown and abort the launcher's
     runtime check at interpreter exit.
     """
-    import contextlib
+    import copy
+    from ..lifecycle import retain_teardown_attempt, teardown_receipt, teardown_step
 
-    if getattr(runtime, "robot_mode", None) in {"mobile", "composed"}:
-        runtime.close()
-        return
+    previous = getattr(runtime, "_shutdown_receipt", None)
+    delegated = getattr(runtime, "robot_mode", None) in {"mobile", "composed"}
+    if isinstance(previous, dict) and (not delegated or previous.get("complete") is True):
+        return copy.deepcopy(previous)
+    if delegated:
+        # Delegated owners track unfinished IO and already-closed domains. Let
+        # them finish cleanup after a pending call; never repeat legacy parking.
+        receipt = retain_teardown_attempt(previous,
+            teardown_receipt([teardown_step("runtime", runtime.close)]))
+        runtime._shutdown_receipt = copy.deepcopy(receipt)
+        return receipt
 
     threads = owned_threads(runtime)
 
     def _save_beliefs():
         # Persist the world model FIRST: it is the only step whose input the
-        # later steps destroy, and a failure here must not skip hardware
-        # teardown (contextlib.suppress below covers that).
+        # later steps destroy, and a failure here is retained without skipping
+        # the remaining teardown stages.
         path = getattr(runtime, "beliefs_path", None)
         if path is None:
             return
@@ -734,33 +757,34 @@ def shutdown_runtime(runtime, arm) -> None:
     def _disconnect_arms():
         rig = getattr(runtime, "arm_rig", None)
         if rig is not None:
-            rig.disconnect()   # includes the primary; never raises
-        else:
-            arm.disconnect()
+            return rig.disconnect()  # includes the primary and per-arm results
+        return arm.disconnect()
 
-    def _park():
-        _park_arm(runtime)
-
-    for step in (
-        _park,
-        _save_beliefs,
-        lambda: runtime.watcher.stop() if runtime.watcher is not None else None,
-        lambda: runtime.stream_server.stop() if getattr(runtime, "stream_server", None) else None,
-        lambda: runtime.viewer.stop() if getattr(runtime, "viewer", None) else None,
-        lambda: runtime.rig.close() if getattr(runtime, "rig", None) else runtime.camera.close(),
-        _disconnect_arms,
+    stages = []
+    for name, step in (
+        ("park", lambda: _park_arm(runtime)),
+        ("beliefs", _save_beliefs),
+        ("watcher", lambda: runtime.watcher.stop() if runtime.watcher is not None else None),
+        ("stream_server", lambda: runtime.stream_server.stop() if getattr(runtime, "stream_server", None) else None),
+        ("viewer", lambda: runtime.viewer.stop() if getattr(runtime, "viewer", None) else None),
+        ("cameras", lambda: runtime.rig.close() if getattr(runtime, "rig", None) else runtime.camera.close()),
+        ("arms", _disconnect_arms),
     ):
-        with contextlib.suppress(Exception):
-            step()
+        stages.append(teardown_step(name, step))
 
+    pending = []
     for label, thread in threads:
         if thread.is_alive():
+            pending.append({"owner": label, "thread": thread.name})
             # Every owner above waits without a bound, so this only fires if
             # an owner regresses to a bounded join. Name it: the alternative
             # is an unexplained abort at interpreter exit.
             print(f"[cascade] WARNING: {label} thread {thread.name!r} is still running "
                   "after shutdown; native code may abort the process at exit",
                   file=sys.stderr)
+    receipt = teardown_receipt(stages, pending_threads=pending)
+    runtime._shutdown_receipt = copy.deepcopy(receipt)
+    return receipt
 
 
 def _empty_cfg():

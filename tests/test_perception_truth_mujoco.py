@@ -30,40 +30,21 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from conftest import REPO
+from mujoco_gl_probe import probe_offscreen_gl
 
 ROBOT_MJCF = REPO / "assets" / "mjcf" / "so101" / "so101.xml"
 
 
-def _has_mujoco() -> bool:
-    try:
-        import mujoco  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
-
-
-def _can_render() -> bool:
-    """A headless box may have no GL context at all; skip rather than fail."""
-    if not _has_mujoco() or not ROBOT_MJCF.exists():
-        return False
-    try:
-        import mujoco
-
-        m = mujoco.MjModel.from_xml_string(
-            "<mujoco><worldbody><geom type='box' size='.1 .1 .1'/>"
-            "</worldbody></mujoco>"
-        )
-        mujoco.Renderer(m, height=64, width=64).close()
-        return True
-    except Exception:  # noqa: BLE001
-        return False
+_offscreen_gl = probe_offscreen_gl(
+    ROBOT_MJCF, height=64, width=64,
+    model_xml="<mujoco><worldbody><geom type='box' size='.1 .1 .1'/></worldbody></mujoco>",
+)
 
 
 needs_render = pytest.mark.skipif(
-    not _can_render(),
+    not _offscreen_gl.available,
     reason="needs `mujoco`, a GL context, and "
-           "`python scripts/fetch_robot_assets.py so101`",
+           f"`python scripts/fetch_robot_assets.py so101`: {_offscreen_gl.reason}",
 )
 
 POSITIONS = [(0.25, 0.00), (0.22, 0.07), (0.29, -0.05),

@@ -4,9 +4,12 @@ CASCADE implements modular robot domains, bounded tool execution, independent
 observations and explicit outcome verification. Physical acceptance belongs to
 an exact model, source and episode; a declaration, passing software test or
 successful simulator startup does not admit a new robot. This index separates
-implemented capabilities, measured results and remaining work. The table also
-includes reviewed candidates in open PRs; it does not claim every capability is
-already in main (including task-effect accounting in #90 and RGB-D in #91). The
+implemented capabilities, measured results and remaining work. PRs **#85–98 are
+merged** at main `274fa3a9d48d96a8b1402dfeb2fe79c45e67037e`; all five jobs of
+[its CI run](https://github.com/johnnynunez/cascade/actions/runs/37128674952)
+passed, including macOS, Linux x86 and Linux ARM. This integrates task-effect
+accounting and RGB-D without admitting unvalidated physical capabilities.
+[Bound CI receipt](evidence/project-status-20261003/integrated-main-ci.json). The
 [1–2 October index](PROJECT_STATUS_20261001.md) preserves earlier source history.
 
 ## Capability and evidence
@@ -14,7 +17,7 @@ already in main (including task-effect accounting in #90 and RGB-D in #91). The
 | Area | Implemented and measured | Remaining boundary |
 | --- | --- | --- |
 | Manipulation | SafeArm control, observed grasp/release guards, task-effect accounting and measured withdrawal. Historical OVRTX/cuMotion PhysX pick/place/home passed; the original two-object MuJoCo delivery test now passes on the separate attachment-aim candidate. | Broader task/campaign reliability, hardware and acceptance of later source compositions. |
-| Fastening | Mounted Factory domain, per-solve observation, exclusive owner and bounded startup/action contracts; explicit contact-writer compiler recipe passed native zero-solve preparation. A separate earlier mounted-socket experiment measured threading, seating and retention. | The configured domain has no successful native readiness/action episode. Tool pickup, initial engagement, withdrawal and calibrated preload remain unproved. |
+| Fastening | Mounted Factory domain, per-solve observation, exclusive owner and bounded startup/action contracts. On the integrated source tree, zero-solve preparation and one native readiness episode passed the unchanged limits. A separate earlier mounted-socket experiment measured threading, seating and retention. | The configured domain still has no successful native turn-and-rest task episode. Tool pickup, initial engagement, withdrawal and calibrated preload remain unproved. |
 | Locomotion | Optional measured `walk_distance`, cancellation and independent support/rest checks; historical fresh-start ±30 mm episodes passed. | Published candidate profiles have no new model/support admission. The 0.1 m software ceiling is not measured 0.1 m capability or general gait acceptance. |
 | Sensing and spatial memory | Passive, bounded sensor providers; identity/epoch/age checks; observed calibrated RGB-D and retained pixel-to-surface annotations without constructing an arm. | Independent metric XY/general-3D accuracy, moving-camera calibration and per-AOV synchronization. No physical SLAM or `go_to` execution is admitted. |
 | Speech | Browser/media gateway, real speech-provider path, original-intent deadlines, priority stop and bounded observed-result views. One continuous synthetic-input/native-motion recording exists. | That motion video contains no spoken robot reply. General dialogue/action reliability, microphone/speaker hardware and public hosted service remain unvalidated. |
@@ -25,8 +28,8 @@ already in main (including task-effect accounting in #90 and RGB-D in #91). The
 
 Reproduced software defects and focused fixture fixes have source-bound CPU
 checks published in the following PRs. These selections overlap, particularly the three #93 selections;
-the counts must not be summed. They establish neither a fully green CI matrix
-nor new physical admission. Subsequent Factory startup checks are recorded
+the counts must not be summed. The selections do not establish physical
+admission; the separate integrated-main CI receipt is linked above. Subsequent Factory startup checks are recorded
 separately below.
 
 | PR and source | Corrected behavior | CPU evidence |
@@ -117,6 +120,33 @@ supply receipts for the earlier failed run or replay an action.
 
 ## Fastening and locomotion
 
+The latest Factory startup measurement uses source
+`4bda2183a30074f8ad105ce497876301ce8fc0ed`, whose complete Git tree equals merged
+main `274fa3a9`, and model
+`01595b62c1b4856e41c7e8f83be6ee91b6414bda742aea7e6a7ed0b3e8daa94d`.
+After a retained refusal caused by an extra GPU process, a separately authorized
+preparation passed with **39 compiler loads, 22 predicates and zero solves**.
+It started no owner or motion. [Preparation audit](evidence/project-status-20261003/factory-archive-preparation-review.json).
+
+A new instrumented readiness episode in epoch `6eed234fd7674e7b8da18dcc20039e3b`
+then **passed**: steps **59–359** supplied **0.5000000121 simulated seconds** of
+continuous quiet with positive thread/tool contacts, within **9.787795156 wall
+seconds** of the unchanged **10 s** deadline. The margin was only **0.2122 s**;
+this single shared-device episode does not establish repeatability or general
+performance. All **361** retained solve rows preserve the initial arm hold and
+zero spindle command/effort, and every controller acceptance returned normally.
+Both owned processes closed naturally with exit zero; five protected stores and
+all source/SDK/assets inventories were unchanged. No turn or reset was requested.
+**Readiness passes for this episode; fastening and post-command physical rest
+remain unvalidated.** [Independent native audit](evidence/project-status-20261003/factory-archive-readiness-review.json).
+
+The complete 7,988-event phase trace still contains a 417.793 ms generation-2 GC
+interval, on a different thread after readiness. The result does not mean GC
+was removed or prove a general cause or speedup. Ordinary raw-record decoding
+can occur after readiness while the owner is alive; only phase export and the
+remaining post-close drain are guaranteed to follow owner join. Earlier failed
+episodes below retain their original source, model, clocks and verdicts.
+
 The historical mounted-socket experiment measured 15.365 turns, 38.155 mm
 advance, seating and two seconds of zero spindle-motor torque. The arm/socket
 remained engaged; it was not tool withdrawal or preload calibration. Ordinary
@@ -171,7 +201,7 @@ owned processes closed, six foreign process births were unchanged, and the
 source/SDK/assets/stores inventories matched before and after. No turn, reset or
 task was requested. The age diagnostic measures a gap, not its cause: it assigns
 no GPU, garbage-collection or scheduling attribution and renews no timestamp.
-**Ordinary readiness and fastening remain unadmitted.** Compilation success,
+**That source's ordinary readiness and fastening remain unadmitted.** Compilation success,
 zero spindle effort and resource closure do not establish a solved task.
 
 A subsequent **instrumented** readiness episode on the same `cce88808` source

@@ -42,7 +42,9 @@ bounds; general dialogue reliability and a public hosted service remain pending.
 The read-only [spatial domain](docs/SPATIAL_PROVIDERS.md) adds capture-time
 transforms, landmark memory and synthetic planar route proposals. The separate
 [observed RGB-D path](docs/RGBD_SPATIAL_OBSERVATIONS.md) retains calibrated
-surface annotations. Neither supplies physical SLAM or navigation execution.
+surface annotations. An optional cuVSLAM provider estimates local RGB-D poses in
+an isolated process; native localization validation and navigation execution
+remain pending. Surface annotations do not constitute a collision map.
 Coordinating twelve robots in one scene is an implementation target, not an
 existing twelve-robot acceptance result.
 

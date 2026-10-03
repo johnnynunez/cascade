@@ -10,9 +10,45 @@ explicit `SensorHub` to these same transform and memory contracts. It records
 selected surface pixels as caller annotations, using capture-bound calibration
 and provenance. It does not construct a grid or expose route planning.
 
-This is the first implementation of the replay increment proposed in
+The replay implements the first increment proposed in
 [the HomeBody comparison](HOMEBODY_COMPARISON.md). It is not a HomeBody port,
-SLAM system, physical localization source or admitted mobile-manipulation stack.
+physical localization source or admitted mobile-manipulation stack.
+
+## Optional cuVSLAM localization
+
+The `spatial` domain also accepts a `cuvslam` configuration for an optional
+RGB-D SLAM estimator. Its [reviewed Python API](https://github.com/nvidia-isaac/cuVSLAM/blob/b405f132b8fb1d861a570f3aea64c2c5d4b59525/python/cuvslam2.cpp)
+is cuVSLAM 17.0.0; it is not installed or imported by default. A profile contains
+`kind: spatial`, `robot_id` and `cuvslam`, whose required settings are
+`sensor_domain`, `sensor_id`, `map_id`, `map_epoch`, `map_frame_id`,
+`binding_sha256` (the installed `pycuvslam*.so`) and `max_gap_s` (0–5 seconds,
+exclusive of zero); `max_poses` defaults to 256 and is capped at 4096. Optional
+`timeout_s` bounds each SDK call, including warmup (default 5 seconds, maximum 60).
+The configured `map_epoch` is a label; each domain creates and reports a unique
+session epoch, so restarting with the same profile cannot reuse a map origin.
+Construction only binds the robot's existing calibrated SensorHub.
+`warmup_localization` first uses an exact retained capture's calibration to
+initialize an isolated SDK process; it admits no pose or image. After warmup,
+`track_capture` consumes fresh `{epoch, sequence, capture_sha256}` captures; an application must feed
+captures within the configured gap independently of LLM response time.
+`get_localization` reads its last still-fresh estimate. Neither tool acquires a
+frame or steps physics. CPU contract tests pass; native replay remains pending.
+
+The estimator uses synchronous odometry/SLAM with an in-memory pose graph and
+reports an estimated optical-camera pose in a new local map frame, with unknown
+uncertainty and possible loop-closure jumps. It ignores simulated
+`world_from_camera`, never supplies obstacle/free-space geometry, and grants no
+motion admission. Registered pinhole RGB-D must have zero skew; explicit pixel
+center offsets are preserved. The Python binding requires `uint16` depth, so
+meters are rounded to millimeters; overflow, positive depths rounding to zero
+and all-invalid frames are rejected. Calibration changes, lost tracking,
+capture gaps, stale results or stop invalidate the map session; rebuild with a
+new map epoch to resume. Native tracking runs in one owned process so the SDK's
+GIL does not block actuator threads. IPC deadlines and stop invalidate results
+and terminate that worker; close has a bounded kill/reap path and reports
+incomplete cleanup if still busy. The installed
+extension hash and library version are checked, while the upstream source pin
+documents the reviewed API rather than certifying all linked SDK libraries.
 
 ## Contracts
 

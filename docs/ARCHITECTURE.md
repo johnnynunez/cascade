@@ -24,7 +24,10 @@ The optional [spatial domain](SPATIAL_PROVIDERS.md) resolves source-bound
 capture transforms and landmark memory and plans on immutable planar maps.
 Its synthetic replay uses the same composed MCP route without actuator resources;
 the [RGB-D observation domain](RGBD_SPATIAL_OBSERVATIONS.md) adds retained surface
-annotations. Physical localization, SLAM and route execution remain pending.
+annotations. The optional cuVSLAM provider estimates local RGB-D poses in an
+isolated process with capture, calibration and map-epoch checks. Native
+localization validation, collision-map construction and route execution remain
+pending.
 
 The optional [MicroDuck path](MICRODUCK.md) selects `MobileRig`, `SafeBase` and
 `MobileSkillRuntime` before arm construction. It shares CASCADE's MCP, traces

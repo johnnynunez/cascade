@@ -14,16 +14,19 @@ from cascade.sensing.hub import SensorDescriptor
 from cascade.spatial.rgbd import RgbdSpatialDomain
 from test_rgbd_planar_reference import projection_episode
 from test_rgbd_ground_texture import ground_capture
+from test_rgbd_binary_reference import binary_capture
 from benchmark.rgbd.planar_reference import Board
 
 
 @pytest.mark.parametrize('mutation', [None, 'fx', 'fy', 'stale', 'extra_rpc'])
-@pytest.mark.parametrize('surface', ['historical_mesh', 'ground_texture'])
+@pytest.mark.parametrize('surface', ['historical_mesh', 'ground_texture', 'binary_ground'])
 def test_live_reference_uses_ordinary_mcp_and_exact_retained_capture(monkeypatch, tmp_path, mutation, surface):
     previous = cv2.getNumThreads()
     cv2.setNumThreads(1)
     try:
-        if surface == 'ground_texture':
+        if surface == 'binary_ground':
+            board, capture = binary_capture(mutation)
+        elif surface == 'ground_texture':
             board, capture = ground_capture(mutation)
         else:
             _, _, capture = projection_episode(mutation if mutation in {'fx', 'fy'} else None,

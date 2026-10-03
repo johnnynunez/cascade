@@ -10,6 +10,7 @@ from benchmark.rgbd.ground_texture import (
     texture_rectangles, texture_rgb, write_texture,
 )
 from benchmark.rgbd.planar_reference import Board, reference_from_rgb
+from benchmark.rgbd.binary_reference import BinaryGroundBoard
 
 
 def ground_capture(mutation=None):
@@ -122,7 +123,8 @@ def test_aliased_cpu_resample_still_rejects_at_original_fit_thresholds():
         cv2.setNumThreads(old_threads)
 
 
-def test_cpu_usd_authoring_preserves_physics_purpose_and_adds_no_geometry(tmp_path):
+@pytest.mark.parametrize('board', [GroundTextureBoard(), BinaryGroundBoard()])
+def test_cpu_usd_authoring_preserves_physics_purpose_and_adds_no_geometry(tmp_path, board):
     pytest.importorskip('pxr', reason='OpenUSD SDK unavailable in ordinary CPU environment')
     from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
     stage = Usd.Stage.CreateInMemory()
@@ -134,7 +136,6 @@ def test_cpu_usd_authoring_preserves_physics_purpose_and_adds_no_geometry(tmp_pa
     UsdPhysics.MaterialAPI.Apply(material.GetPrim()).CreateDynamicFrictionAttr(1.)
     UsdShade.MaterialBindingAPI.Apply(plane.GetPrim()).Bind(material, materialPurpose='physics')
     path = tmp_path/'texture.png'
-    board = GroundTextureBoard()
     write_texture(path, board=board)
     receipt = author_ground_texture(stage, path, board=board)
     assert receipt['physics_binding'] == '/World/Ground.material:binding:physics'

@@ -54,6 +54,9 @@ class GroundTextureBoard(Board):
 
 def texture_rectangles(board):
     """Exact half-open texel-edge rectangles, rejecting unrepresentable metrics."""
+    from .binary_reference import BinaryGroundBoard, binary_rectangles
+    if type(board) is BinaryGroundBoard:
+        return binary_rectangles(board)
     if type(board) is not GroundTextureBoard:
         raise ValueError('explicit GroundTextureBoard required')
     x, y = (Fraction(str(v)) for v in board.origin_xyz_m[:2])

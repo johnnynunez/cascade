@@ -320,6 +320,9 @@ class Reference:
 
 
 def reference_from_rgb(rgb, board=Board()):
+    from .binary_reference import BinaryGroundBoard, binary_reference_from_rgb
+    if type(board) is BinaryGroundBoard:
+        return binary_reference_from_rgb(rgb, board)
     corners = detect_corners(rgb, board)
     return reference_from_corners(
         corners, board, rgb_sha256=hashlib.sha256(rgb.tobytes()).hexdigest()

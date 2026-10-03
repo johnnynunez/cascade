@@ -683,3 +683,29 @@ hardware admission was tested. See benchmark/results/generalized_joints_20261003
 - CPU: 71 PASS, 2 OpenUSD-import SKIP, 15.49 s; 1601 inputs/protected store unchanged. Separate installed OpenUSD 0.25.5 CPU probe: 254 existing prims unchanged, 53 visual meshes, time-sample/collision/points mutation controls rejected. No Kit/GPU/native launch.
 - Development caught non-content repr addresses for USD list operations and legitimate infinite joint bounds; content serialization now preserves both explicitly. Previous native01/02 sources/packets remain untouched. External campaign/owner/check-only recipe lives in sibling RGBD_XY_NATIVE; no execution approval or model admission follows from CPU preparation.
 - Portable CPU receipt: benchmark/results/rgbd_planar_native_preparation_20261003.json.
+
+# 2026-10-03 — Explicit binary planar reference, CPU candidate
+
+- Added schema-3 Ground bitmap with fixed ArUco IDs and exact 0.5 mm texel
+  geometry; colored/default recipes and PNG remain intact. Oracle consumes
+  RGB plus declared board only, preserving 35 corners and the 18/17 split.
+- Actual CPU detector controls reject missing/duplicate/foreign/reordered
+  geometry, corrupted bits, occlusion and insufficient pixel/margin support.
+  A local contrast gate rejects an occluded corner that OpenCV otherwise
+  inferred despite passing the unchanged fit residuals. No calibrated
+  confidence, semantic object identity or navigation authority is introduced.
+- Normal conftest: 117 PASS / 5 explicit OpenUSD-import SKIP, 24.90 s.
+  Separate installed OpenUSD CPU: 2 PASS / 1.21 s, preserved original Ground
+  geometry and physics binding for both variants. 1617 source inputs and
+  protected stores remained identical during the checks; Ruff F/E9 passes.
+- Review follow-up changes only the corner test: retain OpenCV5.0's actual
+  inferred grid and inject it to test the contrast guard; permit newer real
+  detectors to reject earlier. Final binary focal: 42 PASS / 3.95 s, 1619
+  inputs/stores unchanged. Runtime and detector bytes remained unchanged.
+- Existing real MCP handler/Hub/spatial fan-out verified on declared synthetic
+  pixels, including wrong X/Y calibration, stale capture and extra-RPC vetoes.
+  Authoring uses retained K/T only to forecast placement (37.56 px margin,
+  2.64 px minimum cell); it is separate from the independent RGB oracle.
+- No native entrypoint, GPU launch, new physical/geometry admission or remote
+  publication. Previous native Ground FAIL remains unchanged. See
+  `docs/RGBD_BINARY_REFERENCE.md` and its compact receipt for scope and pins.

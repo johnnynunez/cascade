@@ -219,43 +219,47 @@ def newton_identity():
     return pong
 
 
-def _run_probe(monkeypatch, pong, requested_engine):
+@pytest.fixture
+def bridge_probe(monkeypatch):
+    """Exercise either engine's real launcher probe over one owned TCP server."""
     requests = []
 
-    class Bridge(socketserver.StreamRequestHandler):
-        def handle(self):
-            for line in self.rfile:
-                op = json.loads(line)["op"]
-                requests.append(op)
-                reply = pong if op == "ping" else {"ok": True, "q": [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]}
-                self.wfile.write(json.dumps(reply).encode() + b"\n")
-                self.wfile.flush()
+    def run(pong, requested_engine):
+        class Bridge(socketserver.StreamRequestHandler):
+            def handle(self):
+                for line in self.rfile:
+                    op = json.loads(line)["op"]
+                    requests.append(op)
+                    reply = pong if op == "ping" else {"ok": True, "q": [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]}
+                    self.wfile.write(json.dumps(reply).encode() + b"\n")
+                    self.wfile.flush()
 
-    with socketserver.ThreadingTCPServer((loopback_host(), 0), Bridge) as server:
-        server.daemon_threads = True
-        worker = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": .01}, daemon=True)
-        worker.start()
-        try:
-            blocks = re.findall(r"<<'PYEOF'[^\n]*\n(.*?)\nPYEOF", LAUNCH.read_text(), flags=re.DOTALL)
-            [probe] = [block for block in blocks if "Isaac bridge answers:" in block]
-            monkeypatch.setenv("CASCADE_INSTALL_PROFILE", "spark")
-            monkeypatch.setenv("CASCADE_ISAAC_DT", "0.008333333333333333")
-            monkeypatch.setattr(sys, "argv", ["-", str(server.server_address[1]), requested_engine,
-                                               "/fixture/kitchen_config.json", "a" * 64, "2", "", "c" * 64])
-            from cascade.sim import bridge_client
-            real_client = bridge_client.BridgeClient
-            monkeypatch.setattr(bridge_client, "BridgeClient",
-                                lambda **kwargs: real_client(host=loopback_host(), **kwargs))
-            exec(compile(probe, str(LAUNCH), "exec"), {})
-        finally:
-            server.shutdown()
-            worker.join(timeout=2)
-    return requests
+        with socketserver.ThreadingTCPServer((loopback_host(), 0), Bridge) as server:
+            server.daemon_threads = True
+            worker = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": .01}, daemon=True)
+            worker.start()
+            try:
+                blocks = re.findall(r"<<'PYEOF'[^\n]*\n(.*?)\nPYEOF", LAUNCH.read_text(), flags=re.DOTALL)
+                [probe] = [block for block in blocks if "Isaac bridge answers:" in block]
+                monkeypatch.setenv("CASCADE_INSTALL_PROFILE", "spark")
+                monkeypatch.setenv("CASCADE_ISAAC_DT", "0.008333333333333333")
+                monkeypatch.setattr(sys, "argv", ["-", str(server.server_address[1]), requested_engine,
+                                                   "/fixture/kitchen_config.json", "a" * 64, "2", "", "c" * 64])
+                from cascade.sim import bridge_client
+                real_client = bridge_client.BridgeClient
+                monkeypatch.setattr(bridge_client, "BridgeClient",
+                                    lambda **kwargs: real_client(host=loopback_host(), **kwargs))
+                exec(compile(probe, str(LAUNCH), "exec"), {})
+            finally:
+                server.shutdown()
+                worker.join(timeout=2)
+    return run, requests
 
 
 @pytest.mark.parametrize("fault", [None, "mujoco_cpu", "arrays_elsewhere", "no_newton_block", "physx_requested",
                                    "no_context"])
-def test_spark_probe_attests_newton_from_its_own_stage(monkeypatch, fault, capsys):
+def test_spark_probe_attests_newton_from_its_own_stage(bridge_probe, fault, capsys):
+    run, requests = bridge_probe
     pong = newton_identity()
     requested = "newton"
     if fault == "mujoco_cpu":
@@ -269,11 +273,12 @@ def test_spark_probe_attests_newton_from_its_own_stage(monkeypatch, fault, capsy
     elif fault == "no_context":
         pong["gpu_attestation"]["cuda_context_present"] = False
     if fault is None:
-        assert _run_probe(monkeypatch, pong, requested) == ["ping", "state"]
+        run(pong, requested)
+        assert requests == ["ping", "state"]
         assert "engine=newton" in capsys.readouterr().out
     else:
         with pytest.raises(AssertionError):
-            _run_probe(monkeypatch, pong, requested)
+            run(pong, requested)
 
 
 @pytest.mark.parametrize("fault", [
@@ -281,8 +286,9 @@ def test_spark_probe_attests_newton_from_its_own_stage(monkeypatch, fault, capsy
     "wrong_ordinal", "fallback_allowed", "wrong_scene", "wrong_dt",
     "wrong_kitchen", "missing_content", "wrong_content",
 ])
-def test_spark_probe_requires_actual_brev_runtime_identity(monkeypatch, fault, capsys):
+def test_spark_probe_requires_actual_brev_runtime_identity(bridge_probe, fault, capsys):
     """A healthy socket cannot substitute for the live engine/device/scene."""
+    run, requests = bridge_probe
     pong = runtime_identity()
     if fault == "newton":
         pong["engine"] = "newton"
@@ -310,41 +316,11 @@ def test_spark_probe_requires_actual_brev_runtime_identity(monkeypatch, fault, c
         pong.pop("scene_content_sha256")
     elif fault == "wrong_content":
         pong["scene_content_sha256"] = "d" * 64
-    requests = []
-
-    class Bridge(socketserver.StreamRequestHandler):
-        def handle(self):
-            for line in self.rfile:
-                op = json.loads(line)["op"]
-                requests.append(op)
-                reply = pong if op == "ping" else {"ok": True, "q": [0.0, 1.2, 1.2, 0.0, 0.75, 0.0]}
-                self.wfile.write(json.dumps(reply).encode() + b"\n")
-                self.wfile.flush()
-
-    with socketserver.ThreadingTCPServer((loopback_host(), 0), Bridge) as server:
-        server.daemon_threads = True
-        worker = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": .01}, daemon=True)
-        worker.start()
-        try:
-            blocks = re.findall(r"<<'PYEOF'[^\n]*\n(.*?)\nPYEOF", LAUNCH.read_text(), flags=re.DOTALL)
-            [probe] = [block for block in blocks if "Isaac bridge answers:" in block]
-            monkeypatch.setenv("CASCADE_INSTALL_PROFILE", "spark")
-            monkeypatch.setenv("CASCADE_ISAAC_DT", "0.008333333333333333")
-            monkeypatch.setattr(sys, "argv", ["-", str(server.server_address[1]), "physx",
-                                               "/fixture/kitchen_config.json", "a" * 64, "2", "", "c" * 64])
-            # Preserve the real TCP client while honoring the repository's VPN-safe host fixture.
-            from cascade.sim import bridge_client
-            real_client = bridge_client.BridgeClient
-            monkeypatch.setattr(bridge_client, "BridgeClient",
-                                lambda **kwargs: real_client(host=loopback_host(), **kwargs))
-            if fault is None:
-                exec(compile(probe, str(LAUNCH), "exec"), {})
-                assert "state_ok=True" in capsys.readouterr().out
-                assert requests == ["ping", "state"]
-            else:
-                with pytest.raises(AssertionError):
-                    exec(compile(probe, str(LAUNCH), "exec"), {})
-                assert requests == ["ping"], "invalid identity must fail before later runtime activity"
-        finally:
-            server.shutdown()
-            worker.join(timeout=2)
+    if fault is None:
+        run(pong, "physx")
+        assert "state_ok=True" in capsys.readouterr().out
+        assert requests == ["ping", "state"]
+    else:
+        with pytest.raises(AssertionError):
+            run(pong, "physx")
+        assert requests == ["ping"], "invalid identity must fail before later runtime activity"

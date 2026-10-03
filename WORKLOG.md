@@ -604,6 +604,20 @@ freshness/replay gates were unchanged. Shared envelope SHA-256 still matches the
 protected baseline and grasp memory remains absent. No GPU, native robot or
 hardware admission was tested. See benchmark/results/generalized_joints_20261003.json.
 
+
+## 2026-10-03 — retain runtime teardown failures
+
+Task-owned clone `RUNTIME_TEARDOWN_RECEIPT/cascade`, base125e248. A read-only real-host preflight found shutdown_runtime suppressed stage errors and ArmRig/CameraRig only logged member failures, while MCP could exit with a handled143. Implemented structured software-only receipts and per-stage continuation, preserved errors/pending workers and first-receipt history, propagated through composed manipulation and MCP. MCP persists teardown.json and refuses a clean exit on unsuccessful teardown or persistence failure. Existing parking/stop/driver torque policy remains unchanged.
+
+Evidence: eight baseline causal tests fail in0.17s; final eight-file selection165PASS/45.11s,655source files and protected store identical before/after. Prior exploratory121PASS/1FAIL was a mock fixture returning Mock rather than the synchronous None contract; corrected fixture only. A mistyped test path produced a separate collection error/no tests and is retained externally. Ruff is not installed in the reused environment; no install was attempted. AST/diff validation performed separately. No services, models, simulator, GPU, publication or shared environment mutation. See docs/RUNTIME_TEARDOWN_RECEIPTS.md and benchmark/results/runtime_teardown_receipt_20261003.json.
+
+
+## 2026-10-03 — finish pending teardown without erasing failure
+
+Independent review of cfff2f2 reproduced a real composed owner whose read outlasted the unchanged five-second drain budget. After the reader returned, shutdown_runtime and MCP caches prevented its close from running. Explicit repeat calls now resume only incomplete delegated cleanup; legacy park/disconnect and the first MCP stop are not repeated. RobotRuntime propagates current complete separately from sticky historical ok, preserves direct and nested attempts, and never recasts a cached failed receipt as successful. Composed domains still require dictionary receipts; legacy synchronous drivers keep None.
+
+Causal baseline: 3 failures/1 passing no-repeat control in10.16s; a separate source export adds2 causal failures/.19s for direct history and nested completion. Final six-file selection139PASS/45.74s,568source/test/config hashes and protected stores unchanged. Added explicit persistence-error history controls; intermediate74PASS/30.53s retained as earlier limited evidence. Ruff F/E9 and diff checks pass. No native model, GPU, service, host campaign, publication or shared environment writes. Receipt: benchmark/results/runtime_teardown_retry_20261003.json. Earlier lifecycle failure remains failed even after cleanup becomes complete.
+
 ### 2026-10-03 — ordinary fastening postcondition
 
 The ordinary `turn_screw` routine counts commanded wrist strokes. Its nested

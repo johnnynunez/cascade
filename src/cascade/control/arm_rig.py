@@ -106,13 +106,17 @@ class ArmRig:
                     pass
             raise
 
-    def disconnect(self) -> None:
-        """Disconnect every arm; never raises (teardown path)."""
+    def disconnect(self) -> dict:
+        """Disconnect every arm and retain each result; never short-circuit."""
+        from ..lifecycle import teardown_receipt, teardown_step
+
+        stages = []
         for name in self._order:
-            try:
-                self.arms[name].disconnect()
-            except Exception as e:
-                print(f"[armrig] disconnect {name}: {e}", file=sys.stderr)
+            stage = teardown_step(name, self.arms[name].disconnect)
+            stages.append(stage)
+            if not stage["ok"]:
+                print(f"[armrig] disconnect {name}: {stage}", file=sys.stderr)
+        return teardown_receipt(stages)
 
     def stop(self) -> None:
         """E-stop every arm, even if one raises.

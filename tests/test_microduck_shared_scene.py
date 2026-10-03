@@ -329,3 +329,28 @@ def test_fleet_identity_is_not_a_usd_path_or_short_slug():
     kw['robots'] = {name: '/World/Duck0'}
     binding, = bind_scene(**kw).robots
     assert binding.robot_id == name and binding.root_path == '/World/Duck0'
+
+
+@pytest.mark.parametrize('operation', ['stop', 'close'])
+def test_stop_failure_still_revokes_peers_and_close_attempts_native_cleanup(operation):
+    fleet, owner, steppers = shared()
+    fleet.start()
+    primary = OSError('first controller cannot stop')
+    def stop_failure(*, latch):
+        raise primary
+    def containment_failure(reason):
+        raise RuntimeError('containment also failed')
+    steppers[0].controller.stop = stop_failure
+    owner.contain = containment_failure
+    with pytest.raises(OSError) as caught:
+        getattr(fleet, operation)()
+    assert caught.value is primary
+    assert steppers[1].controller.state()['latched']
+    if operation == 'close':
+        assert all(s.closed for s in steppers)
+        assert owner.closed == 1
+        assert fleet.containment_errors == [('stop:duck0', 'OSError'), ('owner_contain', 'RuntimeError')]
+        fleet.close()
+        assert owner.closed == 1
+    else:
+        assert owner.closed == 0

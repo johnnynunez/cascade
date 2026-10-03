@@ -315,15 +315,36 @@ class SharedMicroduckStepper:
                     if robot_id is None or binding.robot_id == robot_id]
         if not selected:
             raise ValueError('unknown robot identity')
-        return {name: controller.stop(latch=True) for name, controller in selected}
+        result, first = {}, None
+        for name, controller in selected:
+            try:
+                result[name] = controller.stop(latch=True)
+            except BaseException as exc:
+                self.containment_errors.append(('stop:' + name, type(exc).__name__))
+                if first is None:
+                    first = exc
+        if first is not None:
+            raise first
+        return result
 
     def close(self):
         if not self.closed:
             self.closed = True
-            self.stop()
+            first = None
+            try:
+                self.stop()
+            except BaseException as exc:
+                first = exc
             for s in self.steppers:
                 s.closed = True
-            try:
-                self.owner.contain('shared lifecycle shutdown; no physical stop verdict')
-            finally:
-                self.owner.close()
+            for name, action in (('owner_contain', lambda: self.owner.contain(
+                    'shared lifecycle shutdown; no physical stop verdict')),
+                                 ('owner_close', self.owner.close)):
+                try:
+                    action()
+                except BaseException as exc:
+                    self.containment_errors.append((name, type(exc).__name__))
+                    if first is None:
+                        first = exc
+            if first is not None:
+                raise first

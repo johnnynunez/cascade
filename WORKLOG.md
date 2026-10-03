@@ -1706,3 +1706,24 @@ failure and all prior portable receipts remain intact. Separate software
 closure from missing task/home/rest acceptance. No code, tests, model inference,
 GPU, physical action, shared environment or learned store changed; validation
 is limited to relative links, source/evidence hashes and documentation diff.
+
+### PR93 cancellation between reset callbacks — 2026-10-03
+
+- Independent controls on fe0a49ee: 38 pass / 9 fail because verification, capture or depth returned after stop/reset and the next callback still ran; failure and pending debt already remained correct.
+- Fence verification→memory→capture→depth→describe boundaries and preserve actual forgotten-belief count if clearing finished before cancellation. No replay or rollback of completed work.
+- Exact supplied 47 controls pass; expanded seven-file selection 183 pass, 0 skip, one original physical reset test deselected. Source snapshots and protected stores unchanged; no native/GPU/physical acceptance.
+- Preserve initial six new-test KeyErrors from assuming an optional earlier-failure counter; fixture assertion corrected without changing production.
+- Receipt: `benchmark/results/mujoco_reset_callback_cancellation_20261003.json`.
+
+
+### 2026-10-03 — Postrelease delivery fixture preserves cancellation token
+
+The synthetic first-command substitute now accepts the explicit cancellation
+token passed by the ordinary withdrawal caller and asserts that it remains the
+original plan token. Exact target, state-drift, stop/reset and no-send assertions
+remain intact; no runtime, physics or safety guard changes. On exact fe0a49ee,
+the three parameter variants reproduced the old signature failure. The corrected
+postrelease, cancellation, withdrawal and attachment-fence selection passes
+122 CPU/static-geometry tests in 32.85 s, with 1,643 inputs, 26 SO101 assets and
+four protected stores unchanged. No GPU or physical episode. Original red and
+green evidence remains in POSTRELEASE_TOKEN_FIX_20261003 outside the checkout.

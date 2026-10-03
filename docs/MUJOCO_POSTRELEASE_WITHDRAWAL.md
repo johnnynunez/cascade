@@ -87,3 +87,13 @@ retains the original 2 failing / 4 passing causal controls and the final
 These cover stop/reset during waypoint approval, reset reads, final observation
 and completion, plus legitimate explicit recovery. No new physical episode
 or transfer of the earlier two-object physical admission is claimed.
+
+A further cancellation check runs after reset verification, each memory update,
+capture, depth processing and observation analysis. A stop/reset during one
+callback prevents the next callback. Work completed before cancellation is not
+undone; the response preserves the actual forgotten-belief count. This closes
+a prompt-cancellation gap in the earlier fix, which already returned failure
+and retained withdrawal debt in all nine reproduced cases. The
+[callback-boundary receipt](../benchmark/results/mujoco_reset_callback_cancellation_20261003.json)
+records 47 exact independent controls and 183 passing selected CPU tests, with
+the original physical reset episode deliberately excluded.

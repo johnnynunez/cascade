@@ -166,10 +166,11 @@ def test_first_command_has_fresh_exact_target_or_is_refused(model_runtime, monke
     rt = model_runtime
     plan = ready(rt)
     sent = []
-    def fake_move(goal, *, duration_s, _preflight, _halt_generation):
+    def fake_move(goal, *, duration_s, _preflight, _halt_generation, _cancellation_token):
         # Only a synthetic delivery boundary: no driver or integration call.
         assert plan.method == 'joint_3_last'
         assert _halt_generation == plan.generation == 0
+        assert _cancellation_token == plan.cancellation
         rt.arm.harness.check_model_withdrawal(command=True, target=goal, duration=duration_s)
         if case == 'state_drift':
             plan.world.data.qpos[rt.arm.raw._grip_qadr] -= .000001

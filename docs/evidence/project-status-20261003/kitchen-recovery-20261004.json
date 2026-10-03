@@ -552,7 +552,35 @@
         "path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/attempts/433c568bf28e4f2ea12a759eb25f67e2/final.json",
         "sha256": "1c62d1b5efc91e1217091b5621fa3c3f7fa920bd4c185e5136431e64be170077"
       },
-      "deployment_overlay": "Private bridge ports are bound in the frozen input manifest; source_head names the underlying checkout revision."
+      "deployment_overlay": "Private bridge ports are bound in the frozen input manifest; source_head names the underlying checkout revision.",
+      "placement_images": [
+        {
+          "object": "green",
+          "image": {
+            "retained_path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-1/physics/placed-proof.jpg",
+            "published_path": "kitchen-green-20261004.jpg",
+            "sha256": "8deeada54f5a748bda03f450eccef8cb6744119ef3d885db53d49e851807ae0e"
+          },
+          "capture_metadata": {
+            "path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-1/physics/placed-frames.json",
+            "sha256": "24333e6f47f8c6bb7868c020ec69be39537d23a2128b6a07bf1bbbe717a1ea3d"
+          },
+          "scope": "Unmodified post-placement image from the same episode; physical verdict is in the separate proof."
+        },
+        {
+          "object": "orange",
+          "image": {
+            "retained_path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-2/physics/placed-proof.jpg",
+            "published_path": "kitchen-orange-20261004.jpg",
+            "sha256": "da2f64b3b53a1a7ba76c6677f2785d8dbeaa7a6f20c85afba10a77568a3868e3"
+          },
+          "capture_metadata": {
+            "path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/cascade/runs/trial12-internal-01/launch/profile-cascade-trial12-internal-01/cascade-proof-3c1908c0dfc84ea0b66235284b4c9a3a/case-2/physics/placed-frames.json",
+            "sha256": "60a3e56c3103acabb3505a33ee1009c75d808b5b0b810448f3e9854210ef0a22"
+          },
+          "scope": "Unmodified post-placement image from the same episode; physical verdict is in the separate proof."
+        }
+      ]
     }
   ],
   "raw_artifact_location": "Paths are relative to the retained cascade-lab directory."

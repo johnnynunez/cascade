@@ -105,6 +105,8 @@ All six owned scopes closed ordinarily with no forced cleanup or remaining
 listeners, and all **238,854 inventoried inputs** remained unchanged. This is one
 shared-GPU campaign, not a repeatability or isolated performance result.
 [Recovery receipts, physical summaries and original artifact hashes](evidence/project-status-20261003/kitchen-recovery-20261004.json).
+Unmodified placement images: [green cube](evidence/project-status-20261003/kitchen-green-20261004.jpg)
+and [orange](evidence/project-status-20261003/kitchen-orange-20261004.jpg).
 
 The preceding recovery failures are retained in that same receipt. The first
 rejected an orange pregrasp with native self-collision. The new candidate check

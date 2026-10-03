@@ -97,11 +97,14 @@ def ground_snapshot(stage):
             'up_axis': str(UsdGeom.GetStageUpAxis(stage))}
 
 
-def reference_backend(base):
+def reference_backend(base, *, author=None, descriptor=None):
+    # Explicit benchmark variant dependencies; no global recipe substitution.
+    author = author_checked_ground if author is None else author
+    descriptor = texture_descriptor if descriptor is None else descriptor
     class GroundReferenceBackend(base):
         def _create_camera(self, stage):
             self._checkpoint()
-            self.receipt['ground_reference_fixture'] = author_checked_ground(
+            self.receipt['ground_reference_fixture'] = author(
                 stage, self.admission['ground_reference_descriptor'])
             self._ground_stage = stage
             self._ground_authored = ground_snapshot(stage)
@@ -132,7 +135,7 @@ def reference_backend(base):
             self._check_ground('after_bootstrap')
             # Check source bytes again after bootstrap; the ordinary identity
             # builder will independently rehash SOURCES, including the PNG.
-            if texture_descriptor() != self.admission['ground_reference_descriptor']:
+            if descriptor() != self.admission['ground_reference_descriptor']:
                 raise ValueError('Ground PNG/descriptor changed during bootstrap')
             check = common.native_invariance(self.receipt, self.admission['planar_reference_identity'])
             self.receipt['planar_physics_invariance'] = check

@@ -52,11 +52,11 @@ the separate real-detector test also accepts an earlier rejection by a newer
 SDK. It does not require future OpenCV versions to repeat the inference.
 
 The authoring path keeps the existing Ground geometry, physics material, ST
-mapping and shader contract. A future entrypoint must bind the new bitmap,
+mapping and shader contract. The CPU checkpoint required a future entrypoint to bind the new bitmap,
 descriptor, source and composed scene into a new model identity and repeat the
 complete native physics/label comparison. No old frame or model is relabeled.
 The historical native entrypoint still selects the colored fixture. This
-checkpoint adds no binary native entrypoint or model admission; a future
+checkpoint added no binary native entrypoint or model admission; a future
 entrypoint must include `binary_reference.py` and its effective detector
 descriptor in the recipe/source binding, in addition to the PNG and actual
 composed USD. No missing source can be justified by the old model identity.
@@ -98,3 +98,45 @@ is pinned to release commit `40738fb16ceddb5fb3fea747585f7ce6abb0605b`;
 the [license](https://github.com/opencv/opencv/blob/40738fb16ceddb5fb3fea747585f7ce6abb0605b/LICENSE)
 is Apache-2.0. This uses OpenCV's ArUco detector, not a claimed execution of
 the separate AprilRobotics implementation.
+
+
+The separate native-preparation candidate adds
+`benchmark/rgbd/binary_native_bridge.py`. Its consumer descriptor is a required
+canonical JSON input authenticated by SHA-256 and included in the model sources.
+This prepared host uses OpenCV 5.0.0 in the consumer and 4.14.0 in the Isaac SDK.
+Both real CPU interpreters report the same dictionary bytes. The SDK authors
+only the bitmap; it must reproduce the committed PNG exactly and records its
+actual authoring version/package code hashes in the composed USD. It does not
+claim to have executed the consumer detector. The consumer descriptor also binds
+its actual package code inventory. `reference_from_rgb` checks the active
+implementation and all parameters itself before detection, without relying on
+the campaign caller to enforce that condition. Foreign versions, parameters,
+codebooks, implementation hashes and malformed declarations reject.
+
+The native entrypoint injects explicit author/descriptor dependencies into the
+existing guarded Ground factory. Camera/export/bootstrap order is unchanged;
+complete Ground/ancestor/material/ST checks run after camera creation and after
+bootstrap. Model construction rehashes the new helpers, declaration and PNG;
+the composed scene binds consumer and generator metadata. The previous colored
+entrypoint and bitmap retain their default behavior. New scene/model identities
+are required; no previous model admission transfers to this candidate.
+
+CPU preparation passed 152 tests with six explicit missing-OpenUSD skips in the
+ordinary interpreter. Three installed OpenUSD CPU checks separately passed,
+including actual metadata/physics binding and stronger ancestor material
+rejection. The 1624 inputs and protected stores stayed unchanged. External
+campaign controls retain failed checks, timeout and implementation drift without
+opening Kit. Full local evidence is in `RGBD_BINARY_NATIVE/`; the portable
+[preparation receipt](../benchmark/results/rgbd_binary_native_preparation_20261003.json)
+binds those inputs and actual interpreter reports.
+
+The prepared campaign retains 80 recorded solves after the original two
+bootstrap solves, 20 policy commits, five captures, 180 s inner/240 s outer
+bounds and 2 s capture-age/read bounds. It checks the first recorded epoch/step,
+model identity, original height/tilt limits, controller faults and contact-channel
+completeness. Known-empty contact rows are retained and never called measured
+support or balanced rest. The native standing policy still controls balance;
+there is no external locomotion/reset client. A future native run must separately
+pass producer/closure, passive live reader and the 17-point planar geometry
+consumer. This preparation has launched no Kit, renderer or GPU work and makes
+no new physical or native geometry claim.

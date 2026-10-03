@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from fractions import Fraction
+from functools import lru_cache
 import hashlib
+import json
+from pathlib import Path
+import re
 
 import numpy as np
 
@@ -43,6 +47,23 @@ def _api():
     return cv2, dictionary, params
 
 
+@lru_cache(maxsize=2)
+def _opencv_package_sha256(root):
+    # Bind the imported package's code bytes, including modules not exercised by
+    # this frame. External before/after inventories also detect later disk drift.
+    root = Path(root)
+    files = {
+        str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in sorted(root.rglob("*"))
+        if p.is_file() and (p.suffix == ".py" or ".so" in p.name or ".pyd" in p.name)
+    }
+    if not files:
+        raise ValueError("OpenCV code inventory unavailable")
+    return hashlib.sha256(
+        json.dumps(files, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
 def detector_recipe():
     cv2, dictionary, params = _api()
     values = {
@@ -51,9 +72,11 @@ def detector_recipe():
         if not name.startswith("_")
         and type(getattr(params, name)) in (int, float, bool)
     }
+
     return {
         "implementation": "OpenCV ArucoDetector",
         "opencv_version": cv2.__version__,
+        "opencv_package_sha256": _opencv_package_sha256(str(Path(cv2.__file__).parent)),
         "dictionary": "DICT_4X4_50",
         "dictionary_bytes_sha256": hashlib.sha256(
             dictionary.bytesList.tobytes()
@@ -70,11 +93,61 @@ def detector_recipe():
     }
 
 
+def canonical_detector_json(value):
+    """Bound immutable consumer declaration, not a producer detector claim."""
+    if not isinstance(value, str) or len(value.encode("utf-8")) > 32768:
+        raise ValueError("bounded canonical consumer detector JSON required")
+    try:
+        parsed = json.loads(value)
+        canonical = json.dumps(
+            parsed, sort_keys=True, separators=(",", ":"), allow_nan=False
+        )
+        if canonical != value or not isinstance(parsed, dict):
+            raise ValueError("noncanonical consumer detector")
+        template = detector_recipe()
+        if set(parsed) != set(template):
+            raise ValueError("unknown consumer detector fields")
+        if not isinstance(parsed["opencv_version"], str) or not re.fullmatch(
+            r"\d+\.\d+\.\d+", parsed["opencv_version"]
+        ):
+            raise ValueError("consumer OpenCV version required")
+        for key in ("dictionary_bytes_sha256", "opencv_package_sha256"):
+            if not isinstance(parsed[key], str) or not re.fullmatch(
+                r"[0-9a-f]{64}", parsed[key]
+            ):
+                raise ValueError("consumer codebook/implementation digest required")
+        # Descriptor policies are fixed for this explicit benchmark variant.
+        for key in set(template) - {
+            "opencv_version",
+            "dictionary_bytes_sha256",
+            "opencv_package_sha256",
+            "parameters",
+        }:
+            if json.dumps(parsed[key], sort_keys=True) != json.dumps(
+                template[key], sort_keys=True
+            ):
+                raise ValueError("consumer detector policy differs")
+        parameters = parsed["parameters"]
+        if not isinstance(parameters, dict) or set(parameters) != set(
+            template["parameters"]
+        ):
+            raise ValueError("unknown consumer detector parameters")
+        if any(
+            type(v) is not type(template["parameters"][key]) or not np.isfinite(v)
+            for key, v in parameters.items()
+        ):
+            raise ValueError("finite consumer detector parameters required")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("invalid canonical consumer detector declaration") from exc
+    return canonical
+
+
 @dataclass(frozen=True)
 class BinaryGroundBoard(Board):
     square_m: float = 0.024
     origin_xyz_m: tuple = (0.09, -0.13, 0.0)
     tag_size_m: float = 0.036
+    consumer_detector_json: str | None = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -88,6 +161,23 @@ class BinaryGroundBoard(Board):
             raise ValueError("finite tag size required")
         if not 0.02 <= self.tag_size_m <= 0.05 or self.tag_size_m > 1.5 * self.square_m:
             raise ValueError("bounded tag with declared checker clearance required")
+        if self.consumer_detector_json is not None:
+            canonical_detector_json(self.consumer_detector_json)
+
+    def consumer_detector(self):
+        return (
+            detector_recipe()
+            if self.consumer_detector_json is None
+            else json.loads(self.consumer_detector_json)
+        )
+
+    def require_consumer_implementation(self):
+        if json.dumps(self.consumer_detector(), sort_keys=True) != json.dumps(
+            detector_recipe(), sort_keys=True
+        ):
+            raise ValueError(
+                "declared consumer detector differs from the active implementation"
+            )
 
     def marker_centers_xy(self):
         return np.asarray(
@@ -125,7 +215,7 @@ class BinaryGroundBoard(Board):
             tag_ids=list(IDS),
             tag_top_row="positive_world_y",
             tag_quiet_zone_m=self.tag_size_m / CELLS,
-            detector=detector_recipe(),
+            detector=self.consumer_detector(),
         )
         return description
 
@@ -135,6 +225,11 @@ def binary_rectangles(board):
     if type(board) is not BinaryGroundBoard:
         raise ValueError("explicit BinaryGroundBoard required")
     cv2, dictionary, _ = _api()
+    if (
+        hashlib.sha256(dictionary.bytesList.tobytes()).hexdigest()
+        != board.consumer_detector()["dictionary_bytes_sha256"]
+    ):
+        raise ValueError("producer dictionary differs from the consumer codebook")
     x, y = (Fraction(str(v)) for v in board.origin_xyz_m[:2])
     s = Fraction(str(board.square_m))
     tag = Fraction(str(board.tag_size_m))
@@ -345,6 +440,7 @@ def _require_checker_contrast(gray, grid):
 
 
 def binary_reference_from_rgb(rgb, board):
+    board.require_consumer_implementation()
     return reference_from_corners(
         detect_binary_corners(rgb, board),
         board,

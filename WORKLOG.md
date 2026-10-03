@@ -709,3 +709,23 @@ hardware admission was tested. See benchmark/results/generalized_joints_20261003
 - No native entrypoint, GPU launch, new physical/geometry admission or remote
   publication. Previous native Ground FAIL remains unchanged. See
   `docs/RGBD_BINARY_REFERENCE.md` and its compact receipt for scope and pins.
+
+
+# 2026-10-03 — Binary native entrypoint preparation, CPU only
+
+- Added explicit immutable/authenticated consumer descriptor and benchmark
+  entrypoint, retaining the original guarded Ground factory and complete native
+  comparator. Consumer5.0 and SDK author4.14 are separately identified; exact
+  dictionary/PNG authoring does not claim cross-version detector execution.
+- Consumer validates its own actual version/package code/parameters before
+  detection. New source/bitmap/declaration and actual USD metadata enter the new
+  model identity. Historical frames, model pins and colored entrypoint remain.
+- CPU:152 PASS/6 missing-pxr SKIP in27.07s; installed OpenUSD CPU3 PASS/3.01s.
+  1624 inputs/protected stores unchanged. External campaign five methods cover
+  seven failure subcases plus module/codebook/import drift and exact authoring.
+- Passive recording diagnostics preserve original two bootstrap solves and
+  all80 observed rows, epoch/model/support-channel/fault alarms. Known-empty
+  contacts never imply physical support/rest. No external actuation/reset client.
+- No Kit/GPU/renderer/native campaign launched. External final plan/check-only
+  remains preparation subject to root review and a coordinated resource window.
+  See docs/RGBD_BINARY_REFERENCE.md and its new CPU preparation receipt.

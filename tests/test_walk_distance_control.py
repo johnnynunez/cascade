@@ -100,23 +100,39 @@ def test_preadmission_drift_and_commanded_velocity_cannot_substitute_for_motion(
 
         def command_velocity(self, command, *, generation):
             self.dispatched = True
-            return super().command_velocity(command, generation=generation)
+            self.command_ack = super().command_velocity(command, generation=generation)
+            return self.command_ack
 
         def get_state(self):
+            # This geometry control uses explicit kinematic fixture steps. A
+            # relative-wait producer can exhaust the real wall budget before
+            # its .4 simulated seconds and exercise a different refusal. Keep
+            # every original .002 step, without a scheduler-driven producer.
+            for _ in range(10):
+                self.advance()
             state = super().get_state()
             # Distinct pre-admission0 and post-admission.02, then stationary.
             return replace(state, position_world=(.02 if self.dispatched else 0., 0., .2),
                            linear_velocity_world=(0., 0., 0.))
 
-    raw = DriftingInert(wall_lease_s=2., dt_s=.002)
+    raw = DriftingInert(wall_lease_s=2., dt_s=.002, auto_step=False)
     safe = configured(raw)
     safe.connect()
     try:
         result = safe.walk_distance(.02)
-        assert not result["execution_ok"] and "did not reach" in result["error"]
+        assert not result["execution_ok"] and "did not reach" in result["error"], result
         assert result["measured"]["before"]["position_world"][0] == 0.
         assert result["distance_baseline"]["position_world"][0] == .02
         assert result["measured_distance_m"] == 0.
+        assert result["command"] == dict(vx=.1, vy=0., wz=0., duration_s=.4)
+        samples = result["measured"]["samples"]
+        assert all(b["step"] - a["step"] == 10 for a, b in zip(samples, samples[1:]))
+        assert raw.command_ack["accepted"] is True
+        assert raw.command_ack["end_sim_time_s"] - raw.command_ack["start_sim_time_s"] == pytest.approx(.4)
+        assert samples[-1]["sim_time_s"] >= raw.command_ack["end_sim_time_s"]
+        assert all(row["position_world"][0] == .02 for row in samples[2:])
+        assert all(row["linear_velocity_world"] == [0., 0., 0.] for row in samples)
+        assert result["outcome"] == "unverified" and not result["ok"]
         assert raw.get_state().latched
     finally:
         safe.disconnect()

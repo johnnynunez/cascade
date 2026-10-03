@@ -1,0 +1,59 @@
+{
+  "assertions": [
+    "preadmissionX0/postadmissionbaselineX.02",
+    "every later measuredX remains.02 and measured velocityzero",
+    "actual accepted ACK spans.4sim; finalsample reaches its end",
+    "each observed step advances by10; no command-twist travel credit",
+    "measured distance0; execution_okfalse/outcomeunverified/okfalse; latchtrue"
+  ],
+  "base_head": "09650fd5ded039637e39982d262b905b02ee2533",
+  "change": "Only the stationary geometry fixture uses auto_step=False and ten explicit original .002sim advance calls per read. It stores the actual command ACK for horizon assertions.",
+  "ci": {
+    "checkout_merge_sha": "6d7edce6e7ad2654d07a0766fd1f213271831aef",
+    "head_sha": "09650fd5ded039637e39982d262b905b02ee2533",
+    "log_sha256": "0ee491d151c0f2dfa37ab28a5e8bf6c4c1d1e0071da23dd7e499d2eae26887f1",
+    "observed_failure": "Expected measured-distance refusal; observed wall deadline expired. No producer cadence was recorded in the original CI failure.",
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/37118464810/job/111189738373"
+  },
+  "controlled_interference": {
+    "baseline": "1 FAIL in2.22s, wall deadline expired",
+    "baseline_last_sim_time_s": 0.3060000000000002,
+    "baseline_published_steps": 153,
+    "candidate": "1 PASS in0.24s",
+    "description": "Only DriftingInert automatic producer waits .013wall per original .002sim step; no CI cause attribution",
+    "receipts": {
+      "baseline_sha256": "4b2f4fc5503e0d244c6f24096b6ab8d74d8cc7d7fb28a440f3498bc41c7582d8",
+      "candidate_sha256": "b6501a7a0576e40d8124f5396598c5dd4a9c91f26c5d21699b84974d051187d0",
+      "plugin_sha256": "beaff8aa446c360497b8008e3879918f56ba730e2224753b905909fb100a9ed1"
+    }
+  },
+  "kind": "test_only_walk_distance_geometry_fixture",
+  "macos_rerun_performed": false,
+  "native_validation": false,
+  "no_threshold_relaxation": true,
+  "preserved_exploratory_failure": "candidate-01 reached the intended rejection, then failed a newly added assertion reading result[ack], absent from failed results; fixed by retaining the actual ACK in the fixture.",
+  "production_changed": false,
+  "schema_version": 1,
+  "test_source_sha256": "430ecbb7195639e3bfc52edf17eeca1beaecda8f0f6f0ef385f39198a4093612",
+  "unchanged_contract": {
+    "distance_tolerance_m": 0.002,
+    "no_progress_s": 0.5,
+    "poll_interval_s": 0.002,
+    "requested_distance_m": 0.02,
+    "simulation_command_duration_s": 0.4,
+    "simulation_step_s": 0.002,
+    "state_age_s": 0.5,
+    "wall_duration_s": 2.0,
+    "wall_lease_s": 2.0
+  },
+  "validation": {
+    "controlled_case_overlaps_selection": true,
+    "passed": 35,
+    "receipt_sha256": "52f97b8711117d09ba48ff079e428b67694827cc526dc92a5c174bf1b973b6b0",
+    "ruff_F_E9": "PASS",
+    "seconds": 1.06,
+    "selection": "walk-distance file plus existing stationary-clock, blocked-command watchdog, stop/reset and Python-interruption controls",
+    "sources_count": 1621,
+    "sources_stores_unchanged": true
+  }
+}

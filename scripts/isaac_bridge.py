@@ -559,74 +559,8 @@ _PROP_DIMENSIONS.update({spec.name: spec.dimensions for spec in _SCENE_PROP_SPEC
 _PROP_VISUAL_DIMENSIONS = dict(_PROP_DIMENSIONS)
 _PROP_VISUAL_DIMENSIONS.update({spec.name: spec.visual_dimensions for spec in _SCENE_PROP_SPECS})
 
-# YCB props from the Isaac asset library: textured REAL objects the
-# open-vocab detector actually recognizes (flat-shaded cubes register as
-# nothing). Skipped gracefully when the asset CDN is unreachable.
-try:
-    from isaacsim.storage.native import get_assets_root_path
-
-    _assets = get_assets_root_path()
-    if _assets:
-        # Spawn AT rest height: dropping groceries onto the table reads
-        # as "flying cereal" -- born settled = realistic from frame one.
-        # NOTE: the tomato_soup_can YCB is excluded -- its mesh ships a baked
-        # cm->m scale (extent ±3.38 vs true ±0.034 m) that PhysX boundingCube
-        # reads unscaled, producing a ~100x collider that detonates the
-        # contact solver every boot. cracker_box is excluded too: at ~20 cm
-        # it exceeds the 90 mm jaw (ungraspable) and its size dominates the
-        # frame, hiding the graspable cubes. The banana (~4 cm across) is
-        # kept -- a real textured object the open-vocab detector recognises
-        # AND the parallel jaw can actually pick up.
-        # NOTE: banana temporarily disabled -- being debugged separately for a
-        # spawn instability. Cubes are the reliable graspable/perception props.
-        YCB: list = [
-        ]
-        for name, usd_file, pos in YCB:
-            prim_path = f"/World_Props/{name}"
-            prim = stage.DefinePrim(prim_path, "Xform")
-            prim.GetReferences().AddReference(
-                f"{_assets}/Isaac/Props/YCB/Axis_Aligned/{usd_file}"
-            )
-            xf = UsdGeom.Xformable(prim)
-            xf.ClearXformOpOrder()
-            world = (pos[0], pos[1], pos[2] + BASE_Z)
-            # These YCB USDs are authored in METERS (verified: a 0.01 scale
-            # made them millimetric and they tunneled through the table).
-            rot = Gf.Matrix4d().SetRotate(
-                Gf.Quatd(0.5, 0.5, 0.5, 0.5)  # YCB axis fix
-            )
-            trs = Gf.Matrix4d(1.0)
-            trs.SetTranslateOnly(Gf.Vec3d(*[v * U for v in world]))
-            xf.AddTransformOp().Set(rot * trs)  # row-vector order
-            if not prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                UsdPhysics.RigidBodyAPI.Apply(prim)
-            mass = UsdPhysics.MassAPI.Apply(prim)
-            mass.CreateMassAttr(0.1)
-            # The Axis_Aligned YCB variants are VISUAL-ONLY: without
-            # colliders the groceries fall straight through the table. Their
-            # shipped meshes are non-watertight/non-manifold, so SDF fails,
-            # convexDecomposition makes degenerate hulls, and even a convex
-            # hull of the raw (mis-scaled/rotated) mesh can explode the
-            # contact solver (soup can gains 260 m/s on the first tick).
-            # For a robust object-agnostic booth demo the collider MUST be
-            # stable, so we wrap each YCB in a boundingCube (its own AABB) --
-            # an exact-enough parallel-jaw grasp target that never leaks
-            # contacts. The textured visual mesh is untouched, so the
-            # open-vocab detector still sees a real banana / box / can.
-            n_col = 0
-            for desc in Usd.PrimRange(prim):
-                if desc.IsA(UsdGeom.Mesh):
-                    UsdPhysics.CollisionAPI.Apply(desc)
-                    _bind_pmat(desc)
-                    mcol = UsdPhysics.MeshCollisionAPI.Apply(desc)
-                    mcol.CreateApproximationAttr("boundingCube")
-                    n_col += 1
-            print(f"[bridge] YCB {name}: {n_col} boundingCube colliders", flush=True)
-            print(f"[bridge] YCB prop {name} at {pos}", flush=True)
-    else:
-        print("[bridge] YCB props skipped: asset root unreachable", flush=True)
-except Exception as e:
-    print(f"[bridge] YCB props skipped: {e}", flush=True)
+# Kitchen props are authored locally above. Do not probe remote asset roots
+# for the disabled YCB experiment: an empty asset list must not block startup.
 
 
 # ── cameras: overhead (matches configs/cameras/isaac.yaml extrinsics) ────

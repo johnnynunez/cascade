@@ -551,7 +551,8 @@
       "retained_prelaunch_refusal": {
         "path": "TRIAL12_COMPLETE_LIFECYCLE_20261004/attempts/433c568bf28e4f2ea12a759eb25f67e2/final.json",
         "sha256": "1c62d1b5efc91e1217091b5621fa3c3f7fa920bd4c185e5136431e64be170077"
-      }
+      },
+      "deployment_overlay": "Private bridge ports are bound in the frozen input manifest; source_head names the underlying checkout revision."
     }
   ],
   "raw_artifact_location": "Paths are relative to the retained cascade-lab directory."

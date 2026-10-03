@@ -96,7 +96,7 @@ source-bound phases, not a full suite or all cases run on the final head.
 cuMotion/GraspGen-X Isaac runtime. Green cube → green square took **169.026 s**;
 orange → open box took **231.163 s**, each below the unchanged 300-second MCP
 limit. Both cases passed actual jaw opening, observed bilateral lift, complete
-destination footprint, solved support, settled motion and advancing camera
+destination footprint, support geometry, settled motion and advancing camera
 checks, followed by successful scene resets. Final XY errors were **3.815 mm**
 and **6.803 mm**; measured final windows were **0.500 s** and **0.517 s**.
 

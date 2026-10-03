@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "base_commit": "d112c10a6e05f0fe3c16b39293ce56d6e0d200ac",
+  "scope": "ship unresolved device; explicit CUDA required before construction; CPU-only",
+  "passed": 50,
+  "pytest_seconds": 0.44,
+  "native_run": false,
+  "physical_admission": false,
+  "run": {
+    "repository": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade",
+    "head": "d112c10a6e05f0fe3c16b39293ce56d6e0d200ac",
+    "command": [
+      "/home/johnny/Projects/demo/cascade-lab/ROBOT_MODULARITY/venv/bin/python",
+      "-m",
+      "pytest",
+      "tests/test_factory_config.py",
+      "tests/test_device_and_profiles.py",
+      "-q",
+      "--basetemp=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/tmp",
+      "--junitxml=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/junit.xml",
+      "-o",
+      "cache_dir=/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/pytest-cache"
+    ],
+    "environment": {
+      "PYTHONPATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/cascade/src",
+      "CUDA_VISIBLE_DEVICES": "-1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "CASCADE_ENVELOPE_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/envelope.json",
+      "CASCADE_GRASP_MEMORY_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/grasp-memory.json",
+      "CASCADE_BELIEFS_PATH": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/beliefs.json",
+      "XDG_CACHE_HOME": "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/cache"
+    },
+    "exit_code": 0,
+    "elapsed_s": 0.7081622669938952,
+    "source_count": 666,
+    "source_unchanged": true,
+    "protected_before": {
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+      "/home/johnny/.cascade/grasp_memory.json": null
+    },
+    "protected_after": {
+      "/home/johnny/.cascade/envelope.json": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2",
+      "/home/johnny/.cascade/grasp_memory.json": null
+    },
+    "protected_unchanged": true,
+    "artifacts": {
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/before.json": "6c18f890a42216ca804e1db9ac8ee38785fc01700e00298f46523128dbdd91d5",
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/after.json": "6c18f890a42216ca804e1db9ac8ee38785fc01700e00298f46523128dbdd91d5",
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/pytest.log": "3b5960f73f508ce0ee733a8205fb1870d1a7a6ffa0e6438ab1b03bef1167ac87",
+      "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/junit.xml": "21431750e24ac066d1ef805a95311843dfe77b6c8e46eae843d9f0994d76b902"
+    }
+  },
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection-final/result.json": "471bc989a69ec59d3abcfe1114894ecccfcd0fbcff797bb2e66ae76c10e02ed4",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/stage3-device-selection/result.json": "c268601f2da5f46a4c5396cd08b849d4fd51351bb5871b8028312bf2ba411880"
+  },
+  "source_sha256": {
+    "configs/robots/factory_m20_mounted.yaml": "2f6dd80a61e5dcecaf1e2c0c2fca0f8c01046df222aa3e772e2ca62db3396dc0",
+    "src/cascade/apps/factory_runtime.py": "1aa3cc1ecfbd11490007812c8bd193f4e5c3a1cda208d16afff10d6299091009",
+    "tests/test_factory_config.py": "bfb790d364690ab25ccff4dd484c6663055cb88bbc62594b8f671776538f9e81"
+  },
+  "retained_failure": "The first edit accidentally indented the YAML device key two extra spaces; 23 config parser failures, 27 passes. Fixed indentation only; final original global device-policy test and targeted tests pass.",
+  "admission": "device:null is unresolved; no auto or CPU fallback. Preparation/build reject unresolved selection before SDK/output creation, even with a model pin."
+}

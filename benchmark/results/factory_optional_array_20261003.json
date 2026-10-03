@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "base_commit": "af46385970f83ebd07816bf2f080a038e21bcf0f",
+  "scope": "explicit optional shape_filter absence; required array availability and identity preservation",
+  "new_gpu_run": false,
+  "physical_admission": false,
+  "model_pin": null,
+  "retained_native_V2_failure": {
+    "failure": "None.numpy in STATIC_NEWTON_ARRAYS fingerprint; native traceback did not retain comprehension variable",
+    "epoch": "d77aab0af99a4a3ebed35fdee401deee",
+    "measured_scene_step": 0,
+    "measured_native_step": 0,
+    "measured_scene_time_s": 0.0,
+    "measured_native_time_s": [
+      0.0
+    ],
+    "native_exit": 1,
+    "natural_closed": true,
+    "foreign_peer_births_unchanged": 6,
+    "inputs_unchanged": true,
+    "construction_wall_s": 8.846572567010298,
+    "performance_claim": false
+  },
+  "cpu_causal_control": {
+    "sdk": {
+      "newton": "1.6.0",
+      "mujoco": "3.12.0",
+      "mujoco_warp": "3.12.0",
+      "warp": "1.17.0"
+    },
+    "device": "cpu",
+    "CUDA_VISIBLE_DEVICES": "-1",
+    "solver_constructed": false,
+    "solves": 0,
+    "before": "actual old fingerprint reproduced AttributeError; real minimal builder has only shape_filter=None among33fields",
+    "after": "new Newton fingerprint preserves optional absence; actual put_model layouts for43model+7option fields captured",
+    "limitation": "Minimal CPU models are not the full Factory fixture. Original negative has no separate prehash receipt; positive has before/after source+stores. SDK/assets/harness/stores afterwards match closedV2 inventories."
+  },
+  "contract": {
+    "optional_array": "shape_filter",
+    "none_is_not_empty": true,
+    "absent_fingerprint": {
+      "present": false,
+      "declared_dtype": "int32",
+      "declared_shape": "[shape_count]"
+    },
+    "present_requirement": "exact int32[shape_count]",
+    "other_required_arrays": 88,
+    "presence_layout_value_changes_invalidate_identity": true
+  },
+  "validation": {
+    "passed": 375,
+    "pytest_s": 1.56,
+    "source_inputs": 666,
+    "source_unchanged": true,
+    "protected_stores_unchanged": true,
+    "ruff_F_E9": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "artifacts": {
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARRAY_AUDIT/array-contract-audit.json": "5e519ecf75d33ed6dff700427f5bfa97a5af070f04a0f8875defb0c3cd666b5f",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARRAY_AUDIT/cpu-before/result.json": "6b36ccb20e542b7da7b491db436406219ea74ebcf57db1b7af49ebcea0e7e4fe",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARRAY_AUDIT/cpu-before.stdout": "e4ce1f3453e6de871e6af7441f3567b54d0be7edff4add4ce9d0537c9e180205",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARRAY_AUDIT/cpu-before.stderr": "7e8a472f6dd20e780fdc747647c1a63b9eb829b8c0a321985c8a026cb0bbf1ea",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARRAY_AUDIT/cpu_model_probe.py": "d6b82ee8333422745b95fdb50f77472e067f4b4eecd3ea20ded718a35ff87f2a",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARRAY_AUDIT/cpu_model_probe_after.py": "6ab612fe05ab9e3a0f9c41f66b70d5a7d2457da6ba343e0b15a9838d1eb486aa",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARRAY_AUDIT/cpu-after/result.json": "2e2800a4a12c87ebbfc0b0f53b52be38cfc5ec44ef5a0cf125e674a306b3fa4f",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_ARRAY_AUDIT/cpu-after-control/receipt.json": "b916b748984a2c54669d5ec9276c68a47a726e6b9bfe6e0434e12b39967bb593",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_FASTENING/validation/optional-model-array/result.json": "ff5f6e37d217419db4f845a7ae709677bbafb7a598a0e3c27681e0b4fc53e5db",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V2/native-prepare-01/terminal-summary.json": "18bd41d115eb3c1faafa54830b54f63b8ffa937491b3c5829ec76b4125596974",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V2/native-prepare-01/receipt.json": "db32eff28d0929f4b7db02c91850b7b2671ee4d803dafaf1b25ddac3c417f12d",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V2/native-prepare-01/native/native-result.json": "4c9984097491ebd7784fabd5748399d0f69c9539d2c55c3c560793955a66a984",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_NATIVE_SHARED_PREP_V2/native-prepare-01/scope/closure.json": "530f89175c549e03f5986909a424194bb4f5c1a8c13a6ab0d03ff55c6bb72dcc",
+    "/home/johnny/Projects/demo/cascade-lab/FACTORY_EFFORT_REVIEW/factory-observation-sdk-audit.json": "bbacc75a116f0aa17f3d1d5ccd86331819f26fb23efdf247254a5fca9c55a480"
+  },
+  "source_sha256": {
+    "src/cascade/sim/factory_model.py": "eafa9861c4e91b44ccf95ff79e0da06c459bee62b52b2f720d28e68216e66bef",
+    "tests/test_factory_owner.py": "dd86de2ce91d54b816fa75546e0fd53e2396dbcaf754df79885e322596a310c9"
+  }
+}

@@ -25,7 +25,9 @@ def make_base(profile: dict):
     raise ValueError(f"unsupported mobile backend: {profile['type']!r}")
 
 
-def build_mobile_runtime(cfg, run_dir, *, checkers=None):
+def build_mobile_runtime(cfg, run_dir, *, checkers=None, navigation_source=None, navigation_settings=None):
+    if (navigation_source is None) != (navigation_settings is None):
+        raise ValueError("navigation requires both an explicit source and settings")
     profiles = cfg.bases
     from ..sim.mobile_frames import MobileFrameReader, camera_profiles
 
@@ -73,6 +75,13 @@ def build_mobile_runtime(cfg, run_dir, *, checkers=None):
             rt.verifier_errors[name] = f"independent verifier unavailable: {exc}"
             if reader is not None and hasattr(reader, "close"):
                 reader.close()
+    if navigation_source is not None:
+        from ..spatial.navigation import NavigationDomain
+        try:
+            rt = NavigationDomain(rt, navigation_source, navigation_settings)
+        except BaseException:
+            rt.close()
+            raise
     return rt, rig
 
 

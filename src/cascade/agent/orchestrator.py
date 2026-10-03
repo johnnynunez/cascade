@@ -92,7 +92,7 @@ class AgentOrchestrator:
         elif self._mobile:
             from ..skills.mobile_runtime import SYSTEM_PROMPT as MOBILE_PROMPT
 
-            self.system_prompt = MOBILE_PROMPT
+            self.system_prompt = getattr(runtime, "system_prompt", MOBILE_PROMPT)
             self.tool_specs = runtime.tool_specs
         else:
             self.system_prompt = SYSTEM_PROMPT

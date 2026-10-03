@@ -244,7 +244,7 @@ class MobileSkillRuntime:
                 self._connected.add(name)
         return self.base_rig.get(name)
 
-    def execute(self, name, args=None):
+    def execute(self, name, args=None, *, admission_check=None):
         started = time.monotonic()
         with self._gate:
             task_id = self._task_id
@@ -261,7 +261,9 @@ class MobileSkillRuntime:
                 raise ValueError("unknown or missing mobile arguments")
             if self._closed:
                 raise RuntimeError("mobile runtime closed")
-            result = self._dispatch(name, arguments, task_id=task_id)
+            if admission_check is not None and not callable(admission_check):
+                raise ValueError("admission_check must be a passive callable")
+            result = self._dispatch(name, arguments, task_id=task_id, admission_check=admission_check)
         except Exception as exc:
             result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
         result.setdefault("task_id", task_id)
@@ -292,7 +294,7 @@ class MobileSkillRuntime:
                                 data=_without_images(result))
         return result
 
-    def _dispatch(self, name, args, *, task_id):
+    def _dispatch(self, name, args, *, task_id, admission_check=None):
         if name == "list_bases":
             return {"ok": True, "bases": [
                 {"name": n, **b.metadata, "capabilities": sorted(self._capabilities[n]),
@@ -359,7 +361,7 @@ class MobileSkillRuntime:
         if name in MOTION_SKILLS:
             if name not in self._capabilities[selected]:
                 raise ValueError(f"base {selected!r} does not support {name}")
-            return self._motion(name, args, selected, task_id=task_id)
+            return self._motion(name, args, selected, task_id=task_id, admission_check=admission_check)
         if name == "camera_snapshot":
             return self._camera_observation(selected, args.get("camera"))
         if selected in self.observation_readers:
@@ -401,7 +403,7 @@ class MobileSkillRuntime:
         self.memory.add("observation", text, data={"frame": copy.deepcopy(meta), "verdict": verdict}, thumb_jpeg=frame.jpeg)
         return {"ok": True, "base": selected, "frame": meta, "image_jpeg_b64": base64.b64encode(frame.jpeg).decode()}
 
-    def _motion(self, name, args, selected, *, task_id):
+    def _motion(self, name, args, selected, *, task_id, admission_check=None):
         with self._gate:
             if self._active or self._resetting or self._latched or self._closed or task_id != self._task_id:
                 return {"ok": False, "execution_ok": False, "error": "motion active, stopped or closed",
@@ -427,7 +429,10 @@ class MobileSkillRuntime:
             if cancelled:
                 result = {"ok": False, "execution_ok": False, "error": "cancelled before dispatch"}
             else:
-                result = getattr(base, name)(**{k: v for k, v in args.items() if k != "base"})
+                values = {k: v for k, v in args.items() if k != "base"}
+                if admission_check is not None:
+                    values["admission_check"] = admission_check
+                result = getattr(base, name)(**values)
             # A checker cannot mutate away execution errors/uncertain delivery.
             if token is not None:
                 try:

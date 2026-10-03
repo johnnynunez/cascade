@@ -21,6 +21,31 @@ already in main (including task-effect accounting in #90 and RGB-D in #91). The
 | Structure and whole-body control | Typed embodiment and passive generalized-joint observations; domains expose only registered resources/tools. | Mixed physical mobile manipulation is refused. No admitted humanoid balance, dexterous-hand or generic whole-body controller. |
 | Evaluation | Source-bound VAB and Arena integration/cancellation preflights ran real simulation. | Neither is a completed benchmark task or a predictor of general deployment success. |
 
+## Published software corrections
+
+Four reproduced software defects have source-bound CPU fixes published in the
+following PRs. These selections overlap, particularly the three #93 selections;
+the counts must not be summed. They establish neither a fully green CI matrix
+nor new physical admission, and no physical episode was rerun for these fixes.
+
+| PR and source | Corrected behavior | CPU evidence |
+| --- | --- | --- |
+| [#85](https://github.com/johnnynunez/cascade/pull/85), `cce8880` | Final threading verdict includes the unchanged stop/rest interval, so observed unwinding cannot retain a pre-stop success. Late positive motion cannot rescue an earlier failed result. | [402 passed](evidence/project-status-20261003/factory-final-outcome-cpu.json). |
+| [#87](https://github.com/johnnynunez/cascade/pull/87), `09650fd5` | `walk_distance` retains a veto for excess drift after command completion, including valid late observations. Original positive-credit, support and cancellation gates remain intact. | [566 passed](evidence/project-status-20261003/mobile-distance-final-outcome-cpu.json). |
+| [#90](https://github.com/johnnynunez/cascade/pull/90), `3e696d49` | Terminal reports retain unresolved task effects and earlier fast-path history. Admitted motion cancellation records uncertainty before `BaseException` propagates. | [141 passed](evidence/project-status-20261003/task-terminal-obligations-cpu.json). |
+| [#93](https://github.com/johnnynunez/cascade/pull/93), `7b765a6` | Withdrawal/home consumers preserve the cancellation token; completion validates original or registered reset context and clears debt atomically. Checks between reset callbacks prevent later work after detected cancellation; completed belief clearing remains reported. | [151 passed: token/context](evidence/project-status-20261003/mujoco-withdrawal-cancellation-cpu.json); [183 passed: callback boundaries](evidence/project-status-20261003/mujoco-reset-callback-cancellation-cpu.json); [122 passed: consumer-token fixture](evidence/project-status-20261003/mujoco-withdrawal-publication.json). |
+
+The #93 head combines `fe0a49ee`, callback fix `7a6f078d` and fixture update
+`a86cfca4`. Its checks are cooperative callback boundaries, not rollback of
+already-executed reset work. Historical Trial12, Factory readiness and RGB-D
+geometry failures below keep their original sources and verdicts.
+
+The [local composition follow-up](evidence/project-status-20261003/terminal-fixes-composition.json)
+on `167be813` passed 264 tests with one physical test deselected. The preceding
+985-pass/3-fixture-failure result is retained; those three failures were resolved
+by the token-aware fixture update. Its 1044-case coverage union spans distinct
+source-bound phases, not a full suite or all cases run on the final head.
+
 ## Manipulation and trial 12
 
 The earlier [OVRTX/cuMotion integration](MANIPULATION_ASSEMBLY_20261002.md)

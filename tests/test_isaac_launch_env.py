@@ -137,13 +137,14 @@ def test_isaac_environment_does_not_inherit_agent_python_or_profiler(tmp_path):
 
 
 @pytest.mark.parametrize("value", [None, "1", "0", "true"])
-def test_explicit_bridge_spans_flag_is_preserved_without_creating_a_default(value):
+@pytest.mark.parametrize("flag", ["CASCADE_ISAAC_PYTHON_SPANS", "CASCADE_ISAAC_PYTHON_TIMINGS"])
+def test_explicit_bridge_spans_flag_is_preserved_without_creating_a_default(value, flag):
     original = {"HOME": "/home/test", "NSYS_PROFILING_SESSION_ID": "must-not-propagate"}
     if value is not None:
-        original["CASCADE_ISAAC_PYTHON_SPANS"] = value
+        original[flag] = value
     env = adapter().clean_environment(original, source=None)
-    assert ("CASCADE_ISAAC_PYTHON_SPANS" in env) == (value is not None)
-    assert env.get("CASCADE_ISAAC_PYTHON_SPANS") == value
+    assert (flag in env) == (value is not None)
+    assert env.get(flag) == value
     assert "NSYS_PROFILING_SESSION_ID" not in env
 
 

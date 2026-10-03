@@ -1,4 +1,4 @@
-"""Optional, non-authoritative Python zones for the Isaac bridge.
+"""Optional, non-authoritative Python zones and bounded CPU timing totals.
 
 This module imports only the standard library. The factory must be called
 *after* SimulationApp exists; the default path never imports Carbonite.
@@ -17,6 +17,8 @@ import time
 
 _CLOCK_SAMPLE_INTERVAL_NS = 1_000_000_000
 _MAX_CLOCK_SAMPLES = 2048
+_TIMING_REPORT_INTERVAL_NS = 10_000_000_000
+_MAX_TIMING_ZONES = 32
 
 
 class _NoZone:
@@ -33,8 +35,16 @@ _NO_ZONE = _NoZone()
 class _Zone:
     def __init__(self, owner, name):
         self.owner, self.name, self.begun = owner, name, False
+        self.started = None
 
     def __enter__(self):
+        if self.owner.timings and not self.name.startswith('bridge.clock_') and self.name != 'bridge.profiler_preflight':
+            try:
+                self.started = self.owner.timing_clock()
+            except Exception as exc:
+                self.owner.fail('timing_begin', exc)
+        if not self.owner.enabled:
+            return self
         try:
             self.owner.backend.begin_with_location(
                 1, self.name, "isaac_bridge", self.owner.source_path, 0)
@@ -49,6 +59,11 @@ class _Zone:
                 self.owner.backend.end(1)
             except Exception as exc:
                 self.owner.fail("end", exc)
+        if self.started is not None:
+            try:
+                self.owner.add_timing(self.name, self.started, bool(_exc[0]))
+            except Exception as exc:
+                self.owner.fail('timing_end', exc)
         return False
 
 
@@ -56,8 +71,12 @@ class PythonSpans:
     """No tensor/SDK reads, global tracing hooks, or per-loop event storage."""
 
     def __init__(self, *, enabled=False, backend=None, source_path="",
-                 clock_ns=time.monotonic_ns, emit=print):
+                 clock_ns=time.monotonic_ns, emit=print, timings=False,
+                 cpu_clock_ns=time.thread_time_ns):
         self.enabled = enabled
+        self.timings, self.cpu_clock_ns = timings, cpu_clock_ns
+        self.timing_totals = {}
+        self.timing_start = self.timing_thread_id = self.last_timing_report = None
         self.backend = backend
         self.source_path = source_path
         self.clock_ns, self.emit = clock_ns, emit
@@ -89,9 +108,63 @@ class PythonSpans:
         # more zones; already-entered scopes still attempt their matching end.
 
     def zone(self, name):
-        if not self.enabled or self.error_count:
+        if not (self.enabled or self.timings) or self.error_count:
             return _NO_ZONE
         return _Zone(self, name)
+
+    def timing_clock(self):
+        thread_id = threading.get_native_id()
+        wall, cpu = self.clock_ns(), self.cpu_clock_ns()
+        if type(wall) is not int or type(cpu) is not int or min(wall, cpu) < 0:
+            raise ValueError('invalid timing clock')
+        if self.timing_thread_id is None:
+            self.timing_thread_id, self.timing_start = thread_id, wall
+        if self.timing_thread_id != thread_id:
+            raise ValueError('timing zone changed native thread')
+        return wall, cpu
+
+    def add_timing(self, name, started, failed):
+        if self.error_count:
+            return
+        finished = self.timing_clock()
+        wall, cpu = (end - start for start, end in zip(started, finished))
+        if min(wall, cpu) < 0:
+            raise ValueError('timing clock regressed')
+        if name not in self.timing_totals:
+            if len(self.timing_totals) >= _MAX_TIMING_ZONES or len(name) > 128:
+                raise ValueError('timing zone budget exceeded')
+            self.timing_totals[name] = {'count': 0, 'exceptions': 0}
+        record = self.timing_totals[name]
+        record['count'] += 1
+        record['exceptions'] += int(failed)
+        for kind, value in (('wall', wall), ('thread_cpu', cpu)):
+            total, low, high = f'{kind}_total_ns', f'{kind}_min_ns', f'{kind}_max_ns'
+            record[total] = record.get(total, 0) + value
+            record[low] = min(record.get(low, value), value)
+            record[high] = max(record.get(high, value), value)
+
+    def report_timings(self, *, final=False):
+        if not self.timings or (self.error_count and not final):
+            return
+        try:
+            now, _ = self.timing_clock()
+            previous = self.timing_start if self.last_timing_report is None else self.last_timing_report
+            if now < previous:
+                raise ValueError('timing report clock regressed')
+            if not final and now - previous < _TIMING_REPORT_INTERVAL_NS:
+                return
+            self.last_timing_report = now
+            self.emit('[bridge-python-spans] ' + json.dumps({
+                'event': 'timing_summary', 'final': final,
+                'diagnostic_valid': not bool(self.error_count), 'error_count': self.error_count,
+                'pid': os.getpid(), 'native_thread_id': self.timing_thread_id,
+                'source_path': self.source_path, 'source_sha256': self.source_sha256,
+                'helper_sha256': self.helper_sha256, 'started_monotonic_ns': self.timing_start,
+                'snapshot_monotonic_ns': now, 'zones': self.timing_totals,
+                'scope': 'completed inclusive zones; nested totals overlap; thread CPU excludes other threads and GPU',
+            }), flush=True)
+        except Exception as exc:
+            self.fail('timing_report', exc)
 
     def anchor_once(self):
         """Emit one same-thread clock bracket; its zone must exist in the trace.
@@ -129,6 +202,7 @@ class PythonSpans:
         No catch-up, sleep, SDK read, or growing event history. These markers
         qualify CPU event order; they do not calibrate Tracy or GPU durations.
         """
+        self.report_timings()
         if not self.enabled or self.error_count:
             return
         try:
@@ -168,6 +242,7 @@ class PythonSpans:
             self.fail("clock_sample", exc)
 
     def report(self):
+        self.report_timings(final=True)
         if not self.enabled:
             return
         try:
@@ -183,18 +258,20 @@ class PythonSpans:
 
 def from_environment(source_path):
     enabled = os.environ.get("CASCADE_ISAAC_PYTHON_SPANS", "0") == "1"
-    spans = PythonSpans(enabled=enabled, source_path=source_path)
-    if enabled:
+    timings = os.environ.get("CASCADE_ISAAC_PYTHON_TIMINGS", "0") == "1"
+    spans = PythonSpans(enabled=enabled, timings=timings, source_path=source_path)
+    if enabled or timings:
         try:
-            backend = importlib.import_module("carb.profiler")
-            if (not callable(backend.begin_with_location) or not callable(backend.end)
-                    or not backend.is_profiler_active()):
-                raise RuntimeError("active Carbonite profiler is required")
-            spans.backend = backend
             spans.source_sha256 = hashlib.sha256(Path(source_path).read_bytes()).hexdigest()
             spans.helper_sha256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-            with spans.zone("bridge.profiler_preflight"):
-                pass
+            if enabled:
+                backend = importlib.import_module("carb.profiler")
+                if (not callable(backend.begin_with_location) or not callable(backend.end)
+                        or not backend.is_profiler_active()):
+                    raise RuntimeError("active Carbonite profiler is required")
+                spans.backend = backend
+                with spans.zone("bridge.profiler_preflight"):
+                    pass
         except Exception as exc:
             spans.fail("initialization", exc)
     return spans

@@ -48,6 +48,7 @@ def test_disabled_helper_import_and_scopes_never_import_carb(monkeypatch):
 
     monkeypatch.setattr(builtins, '__import__', checked)
     monkeypatch.delenv('CASCADE_ISAAC_PYTHON_SPANS', raising=False)
+    monkeypatch.delenv('CASCADE_ISAAC_PYTHON_TIMINGS', raising=False)
     helper = runpy.run_path(str(HELPER))
     spans = helper['from_environment']('nonexistent-source-is-not-read')
     with spans.zone('bridge.loop'):
@@ -124,10 +125,10 @@ def test_factory_checks_backend_and_hashes_sources_only_when_enabled(monkeypatch
     assert unavailable.first_error['stage'] == 'initialization'
 
 
-def _loop(*, enabled, failure=None, stopped=False, finger_step=None, partial=False):
+def _loop(*, enabled, failure=None, stopped=False, finger_step=None, partial=False, timings=False):
     events, written = [], []
     backend = Backend(failure)
-    spans = PythonSpans(enabled=enabled, backend=backend)
+    spans = PythonSpans(enabled=enabled, backend=backend, timings=timings)
     spans.anchor_once()
     targets = np.array([[0., -1., -1., 0., .1, .2, .025, .035]])
 
@@ -251,9 +252,12 @@ def test_disabled_periodic_sampling_does_not_read_clock_backend_or_log():
     def forbidden(*args, **kwargs):
         pytest.fail('Disabled sampling performed work')
 
-    spans = PythonSpans(clock_ns=forbidden, emit=forbidden)
+    spans = PythonSpans(clock_ns=forbidden, cpu_clock_ns=forbidden, emit=forbidden)
     for _ in range(3):
         spans.sample_clock_if_due()
+        with spans.zone('disabled'):
+            pass
+    spans.report()
     assert spans.clock_sample_count == 0 and spans.last_clock_sample is None
 
 
@@ -367,3 +371,101 @@ def test_periodic_clock_regression_after_a_not_due_poll_invalidates():
     clock.now -= 1
     spans.sample_clock_if_due()
     assert spans.error_count and records[-1]['event'] == 'diagnostic_error'
+
+
+def test_inclusive_timing_totals_preserve_nested_exception_and_bound_output():
+    wall, cpu, output = Clock(), Clock(), []
+    spans = PythonSpans(timings=True, clock_ns=wall, cpu_clock_ns=cpu,
+                        emit=lambda line, **kw: output.append(json.loads(line.split(' ', 1)[1])))
+    original = KeyboardInterrupt('native cancellation')
+    with pytest.raises(KeyboardInterrupt) as caught:
+        with spans.zone('outer'):
+            wall.now += 20
+            cpu.now += 5
+            with spans.zone('inner'):
+                wall.now += 50
+                cpu.now += 10
+                raise original
+    assert caught.value is original
+    with spans.zone('outer'):
+        wall.now += 30
+        cpu.now += 7
+    spans.sample_clock_if_due()
+    assert not output
+    wall.now += 10_000_000_000
+    spans.sample_clock_if_due()
+    spans.sample_clock_if_due()
+    assert len(output) == 1
+    outer, inner = output[0]['zones']['outer'], output[0]['zones']['inner']
+    assert outer == {'count': 2, 'exceptions': 1, 'wall_total_ns': 100,
+        'wall_min_ns': 30, 'wall_max_ns': 70, 'thread_cpu_total_ns': 22,
+        'thread_cpu_min_ns': 7, 'thread_cpu_max_ns': 15}
+    assert inner['wall_total_ns'] == 50 and inner['thread_cpu_total_ns'] == 10
+    assert output[0]['diagnostic_valid'] and 'nested totals overlap' in output[0]['scope']
+    for _ in range(1000):
+        with spans.zone('inner'):
+            wall.now += 1
+            cpu.now += 1
+    spans.report()
+    assert len(output) == 2 and output[-1]['final']
+    assert len(spans.timing_totals) == 2 and output[-1]['zones']['inner']['count'] == 1001
+
+
+@pytest.mark.parametrize('stopped', [False, True])
+def test_timing_only_preserves_real_loop_actions(stopped):
+    off = _loop(enabled=False, stopped=stopped)
+    on = _loop(enabled=False, timings=True, stopped=stopped)
+    assert on[0] == off[0] and on[2].events == []
+    assert len(on[1]) == len(off[1])
+    if not stopped:
+        np.testing.assert_array_equal(on[1][0], off[1][0])
+
+
+def test_timing_only_factory_never_imports_native_profiler(monkeypatch):
+    monkeypatch.delenv('CASCADE_ISAAC_PYTHON_SPANS', raising=False)
+    monkeypatch.setenv('CASCADE_ISAAC_PYTHON_TIMINGS', '1')
+    helper = runpy.run_path(str(HELPER))
+    monkeypatch.setattr(helper['importlib'], 'import_module',
+                        lambda name: pytest.fail('Timing-only mode imported a profiler'))
+    spans = helper['from_environment'](str(REPO / 'scripts/isaac_bridge.py'))
+    assert not spans.enabled and spans.timings and not spans.error_count
+    assert len(spans.source_sha256) == len(spans.helper_sha256) == 64
+    with spans.zone('bridge.loop'):
+        pass
+    assert spans.timing_totals['bridge.loop']['count'] == 1
+    assert spans.timing_totals['bridge.loop']['wall_total_ns'] >= 0
+
+
+@pytest.mark.parametrize('fault', ['capacity', 'clock', 'thread', 'emit'])
+def test_timing_fault_only_invalidates_diagnostics(fault):
+    wall, cpu, output = Clock(), Clock(), []
+    spans = PythonSpans(timings=True, clock_ns=wall, cpu_clock_ns=cpu,
+                        emit=lambda line, **kw: output.append(line))
+    if fault == 'capacity':
+        for i in range(32):
+            with spans.zone(str(i)):
+                pass
+    elif fault == 'thread':
+        spans.timing_thread_id = -1
+    elif fault == 'emit':
+        spans.emit = lambda *a, **kw: (_ for _ in ()).throw(OSError('broken sink'))
+    native = ValueError('original operation')
+    with pytest.raises(ValueError) as caught:
+        with spans.zone('failing'):
+            if fault == 'clock':
+                wall.now -= 1
+            if fault == 'emit':
+                spans.report()
+            raise native
+    assert caught.value is native and spans.error_count
+    assert len(spans.timing_totals) <= 32
+    calls = wall.calls, cpu.calls
+    with spans.zone('after-error'):
+        pass
+    assert (wall.calls, cpu.calls) == calls
+    spans.report()
+    if fault != 'emit':
+        final = json.loads(output[-1].split(' ', 1)[1])
+        # An invalid clock/thread cannot author a new trustworthy timestamp.
+        assert final['event'] == ('diagnostic_error' if fault in ('clock', 'thread') else 'timing_summary')
+        assert not final['diagnostic_valid']

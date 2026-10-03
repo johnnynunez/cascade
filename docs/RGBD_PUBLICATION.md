@@ -41,3 +41,14 @@ tool. Previously reported detector/geometry failures are not converted to passes
 
 See [observed RGB-D](OBSERVED_RGBD.md), [spatial observations](RGBD_SPATIAL_OBSERVATIONS.md),
 and [checker accuracy](RGBD_CHECKER_ACCURACY.md) for each explicit contract.
+
+## Teardown follow-up from main
+
+The branch subsequently merged main `70d22deab7f4abb5e5e691386b4b5f952647abca`
+(PR83) through `43928e6c01b438c02ebb5d417c21a40713ce2fe3`. Only the append log conflicted;
+both histories were preserved. The [follow-up receipt](../benchmark/results/rgbd_teardown_composition_20261003.json)
+records 103 passing runtime/MCP/teardown composition checks in 13.11 seconds,
+with all 1662 inputs and protected stores unchanged. Earlier broad and
+optional checks above remain historical receipts for their explicitly named
+source revisions; they were not rerun or relabeled. The latest runtime shutdown
+semantics are retained, and no new native/physical acceptance is claimed.

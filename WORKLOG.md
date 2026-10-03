@@ -998,3 +998,71 @@ protected stores unchanged. Baseline01 also preserves one incorrect test
 expectation of the timeout wording (budget vs physical rest deadline), fixed
 before baseline02. All original repro/data are retained. Receipt:
 benchmark/results/factory_final_outcome_20261003.json. CPU only; no SDK/GPU run.
+## 2026-10-03 — opt-in Isaac command evidence (in progress)
+
+Independent checkout from e5211ae. Parent approved passive command evidence
+only: queued ACK, first setter-returned target and repetitions, existing state
+clocks and nested home stream boundaries. Defaults, commands, safety checks,
+post-ACK pacing, waits and verdicts must remain unchanged. No SDK reads, RPCs,
+physics updates, native runs or shared-store writes are authorized by this
+change. The new optional evidence uses bounded memory and flushes after action.
+Source campaigns and precompilation harnesses remain immutable.
+
+Command-evidence CPU checkpoint: 409 PASS / 0 SKIP in 21.47 s across 16 files
+(including portable bundle checks), 760 code/config inputs and all three
+protected stores identical before/after. Ruff F/E9 and diff check passed.
+The first focused run's five grasp-evidence failures are retained; a clean
+base e5211ae reproduces the missing check_model_withdrawal method on its old
+SimpleNamespace test harness. Only that fixture now binds the real guard with
+no pending debt. Two initial new TCP tests omitted connect and were corrected.
+No bridge pacing, action limits, physics or independent verdict changed. This
+feature is optional and has no native validation/performance claim. Receipt:
+benchmark/results/isaac_command_evidence_cpu_20261003.json. Source remains local
+for review; no publication or simulator launch.
+
+Review follow-up (freeze02): optional direct-script import now explicitly uses
+this checkout's src, without depending on PYTHONPATH. The actual bootstrap AST
+failed only when enabled in freeze01 and passes enabled/disabled now. The first
+attempt to run that test had two temporary-directory setup errors, retained
+separately; it was not evidence of the import defect. Supersession is named
+`superseded_before_setter_receipt`: the earlier target may already be in flight
+and still return successfully. Its immutable first write is retained. Every
+update attempt clears the diagnostic boundary before the existing SDK update.
+A controlled update that advances then raises previously reused the old clock
+(1 FAIL / 2 PASS across update/capture/record failure cases); now all three
+leave it unavailable. No SDK reads or physical clock/pacing changes were added.
+Final freeze02 selection: 414 PASS / 0 SKIP, 21.09 s, 760 inputs and protected
+stores identical; Ruff F/E9 and diff check pass. Freeze01 and all 17 files are
+retained outside this checkout, as are its 409-PASS receipt and earlier failures.
+
+## 2026-10-03 — Preserve the opt-in target receipt flag at the ordinary Isaac launcher
+
+The diagnostic bridge flag introduced in 2bab2379 was filtered out by the
+ordinary `isaac_launch.clean_environment` allowlist. Add only that key, keeping
+the default absent and values literal; the MCP-only evidence directory remains
+excluded from the bridge environment. Tests call the real sanitizer and the
+real Python child launcher without Kit/GPU. The causal baseline and isolated
+controls are retained outside this checkout under `../validation/flag-causal`.
+No pacing, duration, safety gate, simulator recipe or runtime verdict changes.
+
+### 2026-10-03 — Isolated Isaac command-evidence publication composition
+
+Applied only the command-evidence and launcher opt-in changes on main `0fe33fbb`.
+The motion-evidence tests now define their small real-dispatch fixture locally;
+the unrelated, unpublished review-v5 module is not a dependency. The grasp
+telemetry fixture retains the main-branch guard interface rather than importing
+the unpublished MuJoCo withdrawal API. Product behavior is unchanged from the
+two selected patches. The affected 16-file CPU selection passed 422 tests in
+21.83 s, with 707 source/config/test inputs and protected stores unchanged.
+Ruff F/E9 and diff checks passed. This adds no native or physical acceptance.
+
+Publication composition follow-up: merged actual main `075c08c` without rebasing
+the topic. Only the worklog append conflicted; all production merged unchanged.
+The 17 topic files other than this log remain byte-identical to `b4ea52b`;
+removing the three runtime instrumentation hunks reproduces main exactly.
+The affected observer, generalized-joint MCP, packaging and command-evidence
+selection passed 206 tests in 5.79 s, with 715 inputs and protected stores
+unchanged. The earlier temporary composition against non-main `1275c294`
+passed 247 tests and was aborted before commit after correcting the branch
+identification; its evidence remains separate. No Factory implementation is
+introduced by this topic. No native run or physical-admission claim.

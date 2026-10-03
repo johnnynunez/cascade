@@ -1041,6 +1041,11 @@ _PROP_SPAWNS = {name: tuple(pos) for name, pos, *_ in PROPS}
 
 _state_lock = threading.Lock()
 _motion_clock_epoch = uuid.uuid4().hex
+_target_receipts = None
+if os.environ.get("CASCADE_ISAAC_TARGET_RECEIPTS", "0") == "1":
+    sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
+    from cascade.sim.target_receipts import TargetReceipts
+    _target_receipts = TargetReceipts(args.prim, [names[i] for i in ARM_IDX], _motion_clock_epoch)
 # Hold the elbow-raised, forward-facing ready pose in raw asset DOFs.
 # CASCADE_BRIDGE_NO_TARGETS=1: asset-inspection mode -- apply NO runtime targets
 # so the asset's own authored joint state/drive targets are what you see
@@ -1364,7 +1369,7 @@ class Handler(socketserver.StreamRequestHandler):
                 q = art.get_dof_positions().numpy()[0].astype(float)
                 dq = art.get_dof_velocities().numpy()[0].astype(float)
                 clock = _motion_clock_snapshot()
-                return {
+                result = {
                     "ok": True,
                     "q": [float(q[i]) for i in ARM_IDX],
                     "dq": [float(dq[i]) for i in ARM_IDX],
@@ -1373,12 +1378,19 @@ class Handler(socketserver.StreamRequestHandler):
                     "physics_clock": clock,
                     "attachment": _attachment_state_snapshot(q, clock),
                 }
+                if globals().get("_target_receipts") is not None:
+                    result["target_receipts"] = _target_receipts.snapshot()
+                return result
             return self._on_main(read_state)
         if op == "set_joints":
+            receipt = None
             with _state_lock:
                 _targets["q"] = [float(x) for x in req["q"]][:6]
                 _targets["stopped"] = False
-            return {"ok": True}
+                if globals().get("_target_receipts") is not None:
+                    receipt = _target_receipts.queued(_targets["q"], req.get("command_id"))
+                    _targets["receipt_sequence"] = None if receipt is None else receipt["sequence"]
+            return {"ok": True, "target_receipt": receipt} if receipt is not None else {"ok": True}
         if op == "gripper":
             with _state_lock:
                 _targets["grip_frac"] = float(np.clip(req["pos"], 0.0, 1.0))
@@ -1387,6 +1399,9 @@ class Handler(socketserver.StreamRequestHandler):
             with _state_lock:
                 _targets["stopped"] = True
                 _targets["q"] = None
+                if globals().get("_target_receipts") is not None:
+                    _targets["receipt_sequence"] = None
+                    _target_receipts.stop()
             return {"ok": True}
         if op == "reset_props":
             # Both settling and read-back run between sim steps on Kit's
@@ -1625,6 +1640,8 @@ def _invalidate_frame_history():
     _camera_frame_errors.clear()
     _pending_camera_publications.clear()
     _motion_clock_epoch = uuid.uuid4().hex
+    if globals().get("_target_receipts") is not None:
+        _target_receipts.invalidate(_motion_clock_epoch)
     _last_camera_capture_started = None
     if globals().get("_ovrtx") is not None:
         _ovrtx.latest = None
@@ -1635,6 +1652,8 @@ def _step_with_frame_history():
     """Exactly one existing Kit update, followed by its private state copy."""
     started = time.monotonic()
     wrist_T = copy.deepcopy(_wrist_T)
+    if globals().get("_target_receipts") is not None:
+        _target_receipts.update_started()
     with _profile_zone("bridge.app_update"):
         app.update()
     finished = time.monotonic()
@@ -1642,12 +1661,19 @@ def _step_with_frame_history():
         try:
             current = SimulationManager._simulation_manager_interface.get_current_time()
             payload = _capture_frame_state(started, wrist_T)
+            _history_time = float(SimulationManager.get_simulation_time())
+            _history_step = int(SimulationManager.get_num_physics_steps())
             _frame_history.record(
                 reference=(current.numerator, current.denominator),
-                simulation_time=float(SimulationManager.get_simulation_time()),
-                physics_step=int(SimulationManager.get_num_physics_steps()),
+                simulation_time=_history_time,
+                physics_step=_history_step,
                 started_monotonic=started, finished_monotonic=finished,
                 epoch=_motion_clock_epoch, payload=payload)
+            if globals().get("_target_receipts") is not None and engine == "physx":
+                _target_receipts.completed_update({"engine": engine, "clock": "SimulationManager",
+                    "epoch": _motion_clock_epoch, "robot_id": args.prim,
+                    "physics_step": _history_step, "sim_time": _history_time,
+                    "physics_dt_s": args.dt, "observed_monotonic_s": finished})
             if globals().get("_ovrtx") is not None:
                 _ovrtx.capture(epoch=_motion_clock_epoch,
                     physics_step=int(SimulationManager.get_num_physics_steps()),
@@ -2146,6 +2172,8 @@ def _resume_scene():
         _targets["q"] = None if _NO_TARGETS else list(HOME_Q)
         _targets["grip_frac"] = None if _NO_TARGETS else 1.0
         _targets["stopped"] = False
+        if globals().get("_target_receipts") is not None:
+            _targets["receipt_sequence"] = None
     # Props: the USD re-parse already rebirths them at their authored spawn
     # poses. The old code skipped this under Newton because "RigidPrim
     # teleports leave latent NaNs that detonate the sim on the next contact"
@@ -2219,16 +2247,20 @@ try:
                 q6 = _targets["q"]
                 gf = _targets["grip_frac"]
                 stopped = _targets["stopped"]
+                receipt_sequence = _targets.get("receipt_sequence")
             if not stopped:
+                _target_stage = "get"
                 try:
                     with _profile_zone("bridge.targets.get"):
                         _target_tensor = art.get_dof_position_targets()
                     with _profile_zone("bridge.targets.numpy"):
+                        _target_stage = "numpy"
                         try:
                             _target_array = _target_tensor.numpy()[0]
                         finally:
                             del _target_tensor
                     with _profile_zone("bridge.targets.compose"):
+                        _target_stage = "compose"
                         try:
                             tgt = _target_array.astype(np.float32).copy()
                         finally:
@@ -2246,9 +2278,17 @@ try:
                                     # close as fast as under PhysX, not at ~3 m/s.
                                     want = float(np.clip(want, tgt[i] - _FINGER_STEP, tgt[i] + _FINGER_STEP))
                                 tgt[i] = want
+                    _target_before_write = None
+                    if globals().get("_target_receipts") is not None and receipt_sequence is not None:
+                        _target_before_write = _target_receipts.copy_target(tgt)
                     with _profile_zone("bridge.targets.set"):
+                        _target_stage = "set"
                         art.set_dof_position_targets(tgt.reshape(1, -1))
-                except Exception:
+                    if globals().get("_target_receipts") is not None and receipt_sequence is not None:
+                        _target_receipts.setter_returned(receipt_sequence, _target_before_write, ARM_IDX)
+                except Exception as _target_error:
+                    if globals().get("_target_receipts") is not None and receipt_sequence is not None:
+                        _target_receipts.setter_failed(receipt_sequence, _target_error, stage=_target_stage)
                     pass  # stale view during a Stop/Play transition
             step += 1
             capture_due = _camera_capture_due(step)

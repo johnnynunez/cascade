@@ -15,6 +15,7 @@ import numpy as np
 from ..types import SafetyViolation
 from .arm_base import PREFLIGHT_MAX_DRIFT_RAD, PREFLIGHT_REBIND_BUDGET_S, prepare_stream
 from .motion_profile import nominal_profile, profile_counts
+from . import motion_evidence
 
 
 def positive(value, name):
@@ -191,6 +192,7 @@ class SimulationMotion:
         return self._stream_targets(start, profile.end, profile, settle_tol, settle_timeout_s,
                                     bind_first_edge=True)
 
+    @motion_evidence.stream
     def _stream_targets(self, start, target, targets, settle_tol, settle_timeout_s,
                         *, bind_first_edge=False):
         self.q_previous = start
@@ -207,7 +209,11 @@ class SimulationMotion:
                     break
                 time.sleep(min(.005, self.remaining()))
             self.check()
+            motion_evidence.event("waypoint_ready", index=index, q=command, dt=self.dt,
+                                  previous_anchor_sim_time=last_command_time,
+                                  clock=self.last_state.physics_clock)
             self.arm.send_joint_target(command, timeout_s=min(self.remaining(), self.arm.motion_rpc_timeout_s))
+            motion_evidence.event("waypoint_ack", index=index)
             self.remaining()
             self.q_previous = command
             # Anchor after acknowledgement AND a newer physics step. Time
@@ -221,6 +227,7 @@ class SimulationMotion:
             # Discard surplus simulated time. Never emit multiple commands
             # against one resumed step or leap to a late profile position.
             last_command_time = self.clock.time
+            motion_evidence.event("post_ack_anchor", index=index, clock=self.last_state.physics_clock)
         return self.settle(target, settle_tol, settle_timeout_s)
 
     def settle(self, target, tol, timeout_s):

@@ -147,6 +147,19 @@ def test_explicit_bridge_spans_flag_is_preserved_without_creating_a_default(valu
     assert "NSYS_PROFILING_SESSION_ID" not in env
 
 
+@pytest.mark.parametrize("value", [None, "1", "0"])
+def test_target_receipts_opt_in_survives_actual_bridge_environment_sanitizer(value):
+    original = {"CASCADE_MOTION_EVIDENCE_DIR": "/private/mcp-only"}
+    if value is not None:
+        original["CASCADE_ISAAC_TARGET_RECEIPTS"] = value
+    preserved = dict(original)
+    actual = adapter().clean_environment(original, source=None)
+    assert ("CASCADE_ISAAC_TARGET_RECEIPTS" in actual) == (value is not None)
+    assert actual.get("CASCADE_ISAAC_TARGET_RECEIPTS") == value
+    assert original == preserved
+    assert "CASCADE_MOTION_EVIDENCE_DIR" not in actual
+
+
 def test_environment_adapter_does_not_create_eula_consent():
     module = adapter()
     env = module.clean_environment({"HOME": "/home/test"}, source=None)
@@ -162,6 +175,7 @@ def test_launch_adapter_runs_real_child_with_exit_status_and_sanitized_env(tmp_p
                                  "CASCADE_REQUIRE_CUDA": "1", "CASCADE_ISAAC_DT": "0.008333333333333333",
                                  "CASCADE_ISAAC_CONTACT_MASK": "1",
                                  "CASCADE_ISAAC_PYTHON_SPANS": "1",
+                                 "CASCADE_ISAAC_TARGET_RECEIPTS": "1",
                                  "PAAI_CAMERA_VIDEO_CONFIG": str(tmp_path / "optional-video.json")},
                             capture_output=True, text=True, timeout=10)
     assert result.returncode == 17
@@ -171,6 +185,7 @@ def test_launch_adapter_runs_real_child_with_exit_status_and_sanitized_env(tmp_p
     assert env["CASCADE_ISAAC_DT"] == "0.008333333333333333"
     assert env["CASCADE_ISAAC_CONTACT_MASK"] == "1"
     assert env["CASCADE_ISAAC_PYTHON_SPANS"] == "1"
+    assert env["CASCADE_ISAAC_TARGET_RECEIPTS"] == "1"
     assert "PAAI_CAMERA_VIDEO_CONFIG" not in env
 
 

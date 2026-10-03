@@ -9,6 +9,8 @@ instead of crashing the loop.
 
 from __future__ import annotations
 
+from ..control import motion_evidence
+
 import logging
 import os
 import sys
@@ -581,7 +583,8 @@ class SkillRuntime:
             # second arm can never leave every later skill pointed at it.
             prev_arm = getattr(self._arm_override, "arm", None)
             self._arm_override.arm = selected
-            with hold:
+            with motion_evidence.record_skill(name, resolved_arm, trace_context,
+                                              enabled=name in _MOTION_SKILLS), hold:
                 try:
                     if name in _MOTION_SKILLS:
                         carry_attachment.check(self)
@@ -3892,6 +3895,7 @@ class SkillRuntime:
             self._carry_attachment = None  # The existing explicit scene reset completed.
         return out
 
+    @motion_evidence.phase("home")
     def skill_move_home(self, *, _halt_generation=None) -> dict:
         carry_attachment.check(self)
         home = self._profile_q("home_q", "move home")

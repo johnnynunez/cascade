@@ -769,3 +769,11 @@ OpenUSD libraries; the successful private conversion recipe avoids coinstalling
 another wheel over those `pxr` paths. No shared dependency environment changed.
 Report and raw artifact hashes: `docs/MICRODUCK_DISTANCE_CANDIDATE.md` and
 `docs/evidence/robot-modularity/microduck-distance-candidate.json`.
+
+## Locomotion publication: current main composition
+
+Merged GitHub main075c08c through d9aa5a6 without rebase or conflict. Preserved
+publication freeze01 and all44 artifacts. Runtime/MCP, distance, sensing and
+kitchen-observer selection:332PASS/0SKIP in40.25s;1,612inputs and protected
+stores unchanged. Factory is absent from this main; no Factory or native claim.
+Receipt:docs/evidence/robot-modularity/microduck-locomotion-main-composition.json.

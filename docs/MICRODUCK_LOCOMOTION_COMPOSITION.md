@@ -30,6 +30,20 @@ stores. Ruff F/E9 and syntax checks passed. An initial invocation named a
 nonexistent test file and collected no tests; the invocation and correction are
 retained. No production or test semantics changed to obtain these results.
 
+## Merge onto current main
+
+The publication branch subsequently merged GitHub main
+`075c08c32eec235e3c06e8c7ff8e27c3b74174fa` through merge commit
+`d9aa5a6474dc9d86a0f493935be52e89cfee7b59`, without conflicts or source
+changes to the locomotion implementation. The previous publication freeze and
+all 44 referenced artifacts were retained. The
+[main-composition receipt](evidence/robot-modularity/microduck-locomotion-main-composition.json)
+records 332 passing CPU checks in 40.25 seconds across runtime/MCP, distance,
+sensing/generalized observations and the newly merged kitchen observer code.
+All 1,612 source inputs and protected stores remained unchanged. Factory was
+not yet present on this main revision and is not covered by this selection.
+No native episode or physical admission was added.
+
 ## Retained aggregate composition
 
 The aggregate at `9b97b65486e4b48d3e7e7a5fe5bb3970ac5c30e8` lacked

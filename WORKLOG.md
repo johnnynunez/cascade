@@ -669,3 +669,9 @@ hardware admission was tested. See benchmark/results/generalized_joints_20261003
 - Ruff F/E9 and diff checks pass; protected stores unchanged. Evidence:
   `benchmark/results/rgbd_pixel_centers_20261003.json`. No new native launch,
   new model admission or publication; a new native recipe still needs admission.
+# 2026-10-03 — CPU independent planar RGB-D reference
+
+- Added benchmark-only visual checkerboard authoring, image-only orientation/corner detection, fixed-split homography and exact-pixel geometry comparison. The oracle never consumes K, extrinsics, depth, producer pixel offsets or raycasts.
+- Full annotation checks bind original RGB/capture/epoch/model/calibration/clock and recorded ages; no fresh acquisition, authority or runtime/native source changes. Corrected planning assumption: native02 explicitly used 2 s age/read limits.
+- Normal conftest: 36 PASS, 1 SKIP (`pxr` absent), 10.34 s, 1596 source inputs and protected store unchanged. Separate OpenUSD 0.25.5 CPU authoring PASS on final source: 53 visual meshes, no physics schema additions, 239 existing prims unchanged. No Kit/GPU/model inference.
+- Synthetic image/consumer controls detect focal, translation, units, offset and axis errors; stale/foreign/mutated data is refused. Actual RTX board visibility, native model/collider invariance and live geometry remain pending a reviewed future recipe. Evidence: `benchmark/results/rgbd_planar_reference_cpu_20261003.json`; external source-bound logs in sibling `RGBD_XY_VALIDATION/evidence/`.

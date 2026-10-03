@@ -1016,3 +1016,11 @@ final corrected source passed 393 tests, including primary-plus-zero failure
 and stop-before-format ordering. These selections overlap. Sources and protected stores remained unchanged; an initial
 invalid test-file invocation is retained separately. No native run or physical
 admission follows. Receipt: `benchmark/results/factory_error_containment_20261003.json`.
+
+## 2026-10-03 — Isolate the healthy renewal transport fixture
+
+PR85 macOS job 111207760474 failed the slow software producer case with stale/future feedback after 11 renewals / 92 solves. Its log does not identify the original delay's cause. A controlled automatic-GC callback after an actual TCP read reproduces the same freshness veto in both normal/slow cases; using the existing bounded `healthy_episode_gc` fixture removes that unrelated collection from the positive episode. Clocks, .2 s freshness, .3 s lease, 5 s action wall budget, per-solve publication and all positive assertions remain unchanged.
+
+Two negative tests retain the actual captured state for 250 ms with cyclic GC disabled. The producer/renewal continue, freshness still rejects, the command/stop ACK generations remain bound, the latch is delivered and threads close. Synthetic transport motion remains physically unverified. Production and the shared GC helper are unchanged.
+
+Validation: baseline 2 PASS; controlled GC 2 FAIL stale/future; candidate under the same GC injection 2 PASS; real 250 ms return delay 2 expected FAIL at the same positive assertion; final IsaacBase+tick helper 81 PASS (6.33 s). Initial negative controls correctly vetoed stale state but failed an ACK-location assertion; that test-only mistake is retained and corrected to inspect the actual server response. Source inventories and four protected stores remain unchanged in every run. Ruff F/E9 and diff checks pass; no GPU/native run or CI cause attribution. Full bindings: `benchmark/results/mobile_renewal_macos_fixture_20261003.json`.

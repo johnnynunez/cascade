@@ -1,0 +1,445 @@
+{
+  "schema": "cascade.mobile-renewal-fixture.v1",
+  "base_commit": "5c21af4e207ad1fe67a1715bdc4bec6894eff859",
+  "scope": "software TCP test fixture only; no production change or physics/GPU execution",
+  "ci": {
+    "pr": 85,
+    "run": 37124780485,
+    "job": 111207760474,
+    "head": "5c21af4e207ad1fe67a1715bdc4bec6894eff859",
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/37124780485/job/111207760474",
+    "failed_node": "tests/test_isaac_base.py::test_safe_base_uses_real_socket_renewal_and_two_advancing_preflight_reads[slow-producer]",
+    "counts": {
+      "failed": 1,
+      "passed": 6064,
+      "skipped": 314,
+      "deselected": 4,
+      "pytest_s": 1088.98
+    },
+    "observed": "stale or future-dated feedback;11 successful renewals,92 synthetic solves,producer errors=[]",
+    "cause_limit": "CI records no age/RTT/GC timing; the actual source of its delay is not established."
+  },
+  "change": "Use the existing bounded healthy_episode_gc fixture only for this positive normal/slow producer contract. Add negative normal/slow socket tests retaining the captured state for250ms with cyclic GC off; require freshness veto, same command generation, advancing producer and renewals, delivered stop/latch and thread cleanup. No physics, timestamps or budgets changed.",
+  "unchanged_contract": {
+    "state_age_s": 0.2,
+    "lease_s": 0.3,
+    "action_wall_s": 5.0,
+    "command_simulation_s": 0.45,
+    "each_synthetic_solve_s": 0.005,
+    "producer_wall_intervals_s": [
+      0.005,
+      0.025
+    ],
+    "positive_physical_verdict": "unverified",
+    "gc_helper": "existing quiescent_cyclic_gc restores the prior mode; reference counting remains active"
+  },
+  "controls": [
+    {
+      "label": "baseline-observe",
+      "returncode": 0,
+      "pytest": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "2",
+        "time": "2.937",
+        "timestamp": "2026-10-03T15:41:17.291202+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "probe": {
+        "mode": "observe",
+        "holds": [],
+        "all_original_states_unchanged": true,
+        "results": [
+          {
+            "execution_ok": true,
+            "ok": false,
+            "outcome": "unverified",
+            "error": null
+          },
+          {
+            "execution_ok": true,
+            "ok": false,
+            "outcome": "unverified",
+            "error": null
+          }
+        ],
+        "max_returned_state_age_s": 0.025604178954381496
+      }
+    },
+    {
+      "label": "baseline-gc",
+      "returncode": 1,
+      "pytest": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "2",
+        "skipped": "0",
+        "tests": "2",
+        "time": "0.843",
+        "timestamp": "2026-10-03T15:41:20.567426+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "probe": {
+        "mode": "gc",
+        "holds": [
+          {
+            "type": "automatic_gc_callback",
+            "start": 279982.995781062,
+            "end": 279983.245843967,
+            "generation": 2
+          },
+          {
+            "type": "automatic_gc_callback",
+            "start": 279983.372478141,
+            "end": 279983.622575058,
+            "generation": 1
+          }
+        ],
+        "all_original_states_unchanged": true,
+        "results": [
+          {
+            "execution_ok": false,
+            "ok": false,
+            "outcome": "unverified",
+            "error": "stale or future-dated feedback"
+          },
+          {
+            "execution_ok": false,
+            "ok": false,
+            "outcome": "unverified",
+            "error": "stale or future-dated feedback"
+          }
+        ],
+        "max_returned_state_age_s": 0.2710763840004802
+      }
+    },
+    {
+      "label": "candidate-gc",
+      "returncode": 0,
+      "pytest": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "2",
+        "time": "2.955",
+        "timestamp": "2026-10-03T15:42:43.285430+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "probe": {
+        "mode": "gc",
+        "holds": [],
+        "all_original_states_unchanged": true,
+        "results": [
+          {
+            "execution_ok": true,
+            "ok": false,
+            "outcome": "unverified",
+            "error": null
+          },
+          {
+            "execution_ok": true,
+            "ok": false,
+            "outcome": "unverified",
+            "error": null
+          }
+        ],
+        "max_returned_state_age_s": 0.025462071993388236
+      }
+    },
+    {
+      "label": "candidate-real-delay",
+      "returncode": 1,
+      "pytest": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "2",
+        "skipped": "0",
+        "tests": "2",
+        "time": "0.813",
+        "timestamp": "2026-10-03T15:42:46.553359+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "probe": {
+        "mode": "delay",
+        "holds": [
+          {
+            "type": "reader_return_delay",
+            "start": 280068.994497238,
+            "end": 280069.24456424,
+            "gc_enabled": false
+          },
+          {
+            "type": "reader_return_delay",
+            "start": 280069.328303356,
+            "end": 280069.578382286,
+            "gc_enabled": false
+          }
+        ],
+        "all_original_states_unchanged": true,
+        "results": [
+          {
+            "execution_ok": false,
+            "ok": false,
+            "outcome": "unverified",
+            "error": "stale or future-dated feedback"
+          },
+          {
+            "execution_ok": false,
+            "ok": false,
+            "outcome": "unverified",
+            "error": "stale or future-dated feedback"
+          }
+        ],
+        "max_returned_state_age_s": 0.268989939999301
+      }
+    },
+    {
+      "label": "candidate-negative",
+      "returncode": 1,
+      "pytest": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "2",
+        "skipped": "0",
+        "tests": "2",
+        "time": "0.796",
+        "timestamp": "2026-10-03T15:42:47.657348+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "source_unchanged": true,
+      "protected_unchanged": true
+    },
+    {
+      "label": "final-targeted",
+      "returncode": 0,
+      "pytest": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "81",
+        "time": "6.327",
+        "timestamp": "2026-10-03T15:43:39.031991+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "source_unchanged": true,
+      "protected_unchanged": true
+    }
+  ],
+  "retained_development_failure": "candidate-negative correctly rejected stale feedback, then2new assertions failed because failed motion results do not expose ack. Tests now obtain unchanged command/stop ACKs from actual server dispatch; production result schema was not modified.",
+  "final_source_inventory_count": 689,
+  "protected": [
+    {
+      "path": "/home/johnny/.cascade/envelope.json",
+      "sha256": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2"
+    },
+    {
+      "path": "/home/johnny/.cascade/grasp_memory.json",
+      "sha256": null
+    },
+    {
+      "path": "/home/johnny/.cascade/beliefs.json",
+      "sha256": null
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade/runs/beliefs.json",
+      "sha256": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+    }
+  ],
+  "checks": {
+    "ruff_F_E9": "PASS",
+    "git_diff_check": "PASS",
+    "production_byte_equal_to_base": true
+  },
+  "limits": [
+    "Controlled GC callback establishes fixture susceptibility, not original CI cause.",
+    "The explicit250ms reader hold still rejects even with GC disabled.",
+    "Socket server and per-step publisher are synthetic; no hardware/native admission.",
+    "Separate overlapping checks are not summed; no performance claim."
+  ],
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-observe/result.json",
+      "sha256": "f4d3403756f45d948f367f5672e8ac450b485857d39918b0386b3dc13d234ae9"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-observe/before.json",
+      "sha256": "8f38422c1c124070e2742a3033cfcd9c0cd20aa10c6775560c94140bf553ca21"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-observe/after.json",
+      "sha256": "8f38422c1c124070e2742a3033cfcd9c0cd20aa10c6775560c94140bf553ca21"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-observe/pytest.log",
+      "sha256": "fc9734c68347d5352e7c7bbc2360f1849074eff006f1b48a1b0482c553b51761"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-observe/junit.xml",
+      "sha256": "63ea5fb1af676c53e272260c48b8427d32fb4a85a2e0d8a521019eff865d8026"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-observe/probe-calls.json",
+      "sha256": "0abbcb25f2e2f2390cfe39e79503d94bcbc34e3d2156be18729e24af2a9fe7de"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-gc/result.json",
+      "sha256": "fe8305a1dd1afa31e2557079e24e7c8205307c74a90ad5a958662d2be386762c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-gc/before.json",
+      "sha256": "8f38422c1c124070e2742a3033cfcd9c0cd20aa10c6775560c94140bf553ca21"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-gc/after.json",
+      "sha256": "8f38422c1c124070e2742a3033cfcd9c0cd20aa10c6775560c94140bf553ca21"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-gc/pytest.log",
+      "sha256": "d3cc82cb3391e8cd6ac55f908c6b57761b126ba0dcec05227e8893ba5a768d1f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-gc/junit.xml",
+      "sha256": "3f612216242180bcecc4862040b27682b3f8ddc94e17a47c8790bb69395edcf6"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/baseline-gc/probe-calls.json",
+      "sha256": "1c5bd71a198f2acbcc6008c4557750ac5aa6b31875cfbb7db07dee4cbbfa3b17"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-gc/result.json",
+      "sha256": "f8809fd94063679200fee39ed0bd21538cc721ef16f5a7e757bdbd8ba6d2b24d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-gc/before.json",
+      "sha256": "60e2b078fd987a4cc26dc5e14296289928b62e4aa99db7321ab2bcf48bed5f8f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-gc/after.json",
+      "sha256": "60e2b078fd987a4cc26dc5e14296289928b62e4aa99db7321ab2bcf48bed5f8f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-gc/pytest.log",
+      "sha256": "68f46d3332eabf53d697fa732dd404c5dc2f20c82ccc7b68f0022bc7e811aece"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-gc/junit.xml",
+      "sha256": "5082867a1252165135c9f682279d29c9d36dc343d992b8c6a65463a58f2c4195"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-gc/probe-calls.json",
+      "sha256": "faa4927d806eeba886703eb0893f227f3af82cf0c20517424f0821279f389bc8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-real-delay/result.json",
+      "sha256": "7267c8867b6533f5fd64dd08d5f00eee5b744418101e771bd2e17f05f614bffe"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-real-delay/before.json",
+      "sha256": "60e2b078fd987a4cc26dc5e14296289928b62e4aa99db7321ab2bcf48bed5f8f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-real-delay/after.json",
+      "sha256": "60e2b078fd987a4cc26dc5e14296289928b62e4aa99db7321ab2bcf48bed5f8f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-real-delay/pytest.log",
+      "sha256": "1cd398663409f8d9b3f8de435c5ca2ab4eb6f482b3940b0e68d918afbe2ba44e"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-real-delay/junit.xml",
+      "sha256": "acf657edb0058c57a06115ddb23040414d84c60ec154abdb2e3d40195bbfc55b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-real-delay/probe-calls.json",
+      "sha256": "876603eaee71fe2d70f5d6288071b7bacf0b34714692aeceed0a870f7178c97b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-negative/result.json",
+      "sha256": "dbdbb0c41c7af311905a99790541799be7fef8ea2020636fe15a4f8782b34ce5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-negative/before.json",
+      "sha256": "60e2b078fd987a4cc26dc5e14296289928b62e4aa99db7321ab2bcf48bed5f8f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-negative/after.json",
+      "sha256": "60e2b078fd987a4cc26dc5e14296289928b62e4aa99db7321ab2bcf48bed5f8f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-negative/pytest.log",
+      "sha256": "7fb432dac4bcf96aaaec0ae8dc0e557b030ef2feabb5939b91d09b2016095959"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/candidate-negative/junit.xml",
+      "sha256": "e55a495607600b0eb8fca6725ed19314be6dbcdffafd0a4fc7d0d57b8a162609"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/final-targeted/result.json",
+      "sha256": "a1c6961b7893b5810a3c30637e35e684ff672701c4b5f2b8fe48d974c0f48f1c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/final-targeted/before.json",
+      "sha256": "75cbcf22a7e600e8084e735e096a7f11584272c73ed870058b0a0c058c24c98d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/final-targeted/after.json",
+      "sha256": "75cbcf22a7e600e8084e735e096a7f11584272c73ed870058b0a0c058c24c98d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/final-targeted/pytest.log",
+      "sha256": "b65395752d55d3de96ff8c77dfb1cb3a7e1efa4839ac1013a815d8966e983dd0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/final-targeted/junit.xml",
+      "sha256": "f4bb49a58df5b9a99649b4710839ec01c0b9fc01830a02867f8bb4151052ed2b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/FETCH.json",
+      "sha256": "2c92758ebf39442bef6fa89cd5aafa458fa9edb1e23d8e7939ace89f1f8384dd"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/PR.json",
+      "sha256": "40c90a2acb67de004bcbe3b076579cb6b45ac4bb319f4722919193a8b99de5dc"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/evidence/macos-job.log",
+      "sha256": "2150d166502bd5000d405127572b1d19a9a867e24babbf107af84688f48ee30d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/run_checks.py",
+      "sha256": "2b02c4f7dd24b86f34319bf2a8b5feec872fcf69263aa8df531ca2f71b6db508"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/renewal_probe.py",
+      "sha256": "93bbdba8bfcac992bfee15536715b85223ffbf269ac213007b90287bc1299b1c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/cascade/tests/test_isaac_base.py",
+      "sha256": "5c18e314dc8652ed100462d241c1cb68301da4c6666f042703248e1020aed4f1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/cascade/tests/mobile_tick_fixture.py",
+      "sha256": "ef1c4d0a5ba6718f6a1874eae4ebf330e46db4b7807e0f19dd5afb85fa336752"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/cascade/src/cascade/safety/base_harness.py",
+      "sha256": "5cb4ec13a1d2be7485a592fa8884386b8d466e51735c62fc0c33b3e1826b71a5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/MACOS_PR85_RENEWAL_20261003/cascade/src/cascade/control/isaac_base.py",
+      "sha256": "b44edaf75a48d96b70318e58775add3785dd6647d9d4db30db1fb1bd48bf4378"
+    }
+  ]
+}

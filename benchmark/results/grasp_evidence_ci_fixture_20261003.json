@@ -1,0 +1,528 @@
+{
+  "schema": "cascade.grasp-evidence-ci-fixture.v1",
+  "base_commit": "67f0b61c490f1a83529ecd9143b0361737b3897b",
+  "scope": "test-only Git metadata seam; no production changes; no native/physics/GPU run",
+  "remote_failure": {
+    "pr": 95,
+    "head": "1845907dc0778b4800fc0e3f3404d2489f0d4486",
+    "run": 37124225219,
+    "job": 111206181366,
+    "url": "https://github.com/johnnynunez/cascade/actions/runs/37124225219/job/111206181366",
+    "failed": 1,
+    "passed": 6866,
+    "skipped": 494,
+    "deselected": 4,
+    "pytest_s": 1131.95,
+    "node": "tests/test_grasp_evidence.py::test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result",
+    "observed_error": "source_at_flush/TimeoutExpired: git status exceeded 2.0 s; result and command/read parity assertions preceding logging_ok passed",
+    "cause_limit": "No OS/GC/storage/scheduler cause established."
+  },
+  "implementation": {
+    "metadata": "Explicit opt-in fixture replaces evidence.subprocess namespace only; two expected Git commands return clearly synthetic metadata. Real file fingerprints, event/array/JSON writes, hashes and command/result assertions are retained. Dedicated source-provenance test remains unmodified and uses actual Git.",
+    "negative_controls": "Success and actor-failure cases launch a real sleeping subprocess under the unchanged 2.0 s production timeout. TimeoutExpired reaches the logger, logging_ok stays false, and commands/results/original actor exception match disabled logging. subprocess.run owns and reaps its timed-out child.",
+    "runtime_timeout_s": 2.0,
+    "production_changed": false
+  },
+  "runs": [
+    {
+      "name": "baseline-normal",
+      "exit_code": 0,
+      "pytest": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "1",
+        "time": "0.773",
+        "timestamp": "2026-10-03T15:22:35.898666+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "receipt": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-normal/result.json",
+        "sha256": "2a984f35821f3180275bef3d375787efe7f267ac1a523f7c0006d8fedcb94328"
+      }
+    },
+    {
+      "name": "baseline-timeout",
+      "exit_code": 1,
+      "pytest": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "1",
+        "skipped": "0",
+        "tests": "1",
+        "time": "2.222",
+        "timestamp": "2026-10-03T15:22:37.024131+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "receipt": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-timeout/result.json",
+        "sha256": "28c9ac88cae60803b5d5b8cb76a488e175991445d7aedb628f542f0cd9249aac"
+      }
+    },
+    {
+      "name": "candidate-timeout",
+      "exit_code": 0,
+      "pytest": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "1",
+        "time": "0.207",
+        "timestamp": "2026-10-03T15:25:12.756270+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "receipt": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-timeout/result.json",
+        "sha256": "ad70e31144bfc319cff5d1a5476f8258e271c47b0d20649290bb4ad05370a3b8"
+      }
+    },
+    {
+      "name": "candidate-file",
+      "exit_code": 1,
+      "pytest": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "1",
+        "skipped": "0",
+        "tests": "18",
+        "time": "4.511",
+        "timestamp": "2026-10-03T15:25:13.309264+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "receipt": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/result.json",
+        "sha256": "632688b01467362222c2bca7867d8d630eba0fc5a205cad834547e1502114aaa"
+      }
+    },
+    {
+      "name": "final-file",
+      "exit_code": 0,
+      "pytest": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "18",
+        "time": "4.471",
+        "timestamp": "2026-10-03T15:25:43.722682+02:00",
+        "hostname": "johnny-Ubuntu"
+      },
+      "source_unchanged": true,
+      "protected_unchanged": true,
+      "receipt": {
+        "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/result.json",
+        "sha256": "d883207e1222d5ecd8afb505bc1accc0005918f74cae2e78a77332d329d1e874"
+      }
+    }
+  ],
+  "retained_development_failure": "candidate-file: 17 pass/1 fail because the new test incorrectly expected attempt_result instead of the existing result event. Corrected only that assertion; no production edit.",
+  "limits": [
+    "Synthetic manipulation transport; no physical admission claim.",
+    "Controlled sleeper demonstrates the timeout mechanism and fixture independence, not cause of remote host delay.",
+    "Candidate-timeout fixture intentionally replaces the external injection; separate negative cases preserve real timeout coverage.",
+    "Counts are separate overlapping checks, not summed."
+  ],
+  "final_source_inventory_count": 662,
+  "protected_stores": [
+    {
+      "path": "/home/johnny/.cascade/envelope.json",
+      "sha256": "56a2f090c7e34fa2a31467966da033b33c52db438f2ad5f91bf0d0a03e16b1a2"
+    },
+    {
+      "path": "/home/johnny/.cascade/grasp_memory.json",
+      "sha256": null
+    },
+    {
+      "path": "/home/johnny/.cascade/beliefs.json",
+      "sha256": null
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade/runs/beliefs.json",
+      "sha256": "0d52ae24a16671beca8907d1000e2d256c1ab541533968075dd0ca31556cfb27"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-normal/result.json",
+      "sha256": "2a984f35821f3180275bef3d375787efe7f267ac1a523f7c0006d8fedcb94328"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-normal/before.json",
+      "sha256": "69491c7dd4287c19551b5b3f64e8f91a3ef25f470b5942bb40685f851eb0c610"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-normal/after.json",
+      "sha256": "69491c7dd4287c19551b5b3f64e8f91a3ef25f470b5942bb40685f851eb0c610"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-normal/pytest.log",
+      "sha256": "c3015b35bbe497af98bf5a2b3ceb02f809f7f7feb0377d20d0fae299787ed553"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-normal/junit.xml",
+      "sha256": "692494a88c0b35e4923ed2b59a23870b64f7e23dc27d85cbfe69ec8dcb2cdc39"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-normal/tmp/test_enabled_and_disabled_have0/1791033756049587897-1370749-71124484f10e4f36a53338828c877aff.json",
+      "sha256": "46fe3dfc369fa4a16b9fc3305a63084ab2573f2e8fcf148aa0cb114ae9f14969"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-normal/tmp/test_enabled_and_disabled_have0/1791033756049587897-1370749-71124484f10e4f36a53338828c877aff.json",
+      "sha256": "46fe3dfc369fa4a16b9fc3305a63084ab2573f2e8fcf148aa0cb114ae9f14969"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-timeout/result.json",
+      "sha256": "28c9ac88cae60803b5d5b8cb76a488e175991445d7aedb628f542f0cd9249aac"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-timeout/before.json",
+      "sha256": "69491c7dd4287c19551b5b3f64e8f91a3ef25f470b5942bb40685f851eb0c610"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-timeout/after.json",
+      "sha256": "69491c7dd4287c19551b5b3f64e8f91a3ef25f470b5942bb40685f851eb0c610"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-timeout/pytest.log",
+      "sha256": "f3c324537ca279da2a0ff692de6bd4c30d29b7ee4b0c5eae65a68c168a0f3423"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-timeout/junit.xml",
+      "sha256": "2dd14389fa70381ec761ed34c0fdbf8af4c12c40c3f90be243665c6f70b468d8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-timeout/probe-calls.json",
+      "sha256": "185676d94fce869e015ce2ce2c8c3c733cb8eaa67f4ff8133e4ad62c6d337e2b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-timeout/tmp/test_enabled_and_disabled_have0/1791033757195628223-1370892-020420b574104c4cacce88278438d22c.json",
+      "sha256": "86dc3c9302777e912239e74a2a9649245ba657d89a2cc8cea252c8835f1a7ecd"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/baseline-timeout/tmp/test_enabled_and_disabled_have0/1791033757195628223-1370892-020420b574104c4cacce88278438d22c.json",
+      "sha256": "86dc3c9302777e912239e74a2a9649245ba657d89a2cc8cea252c8835f1a7ecd"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-timeout/result.json",
+      "sha256": "ad70e31144bfc319cff5d1a5476f8258e271c47b0d20649290bb4ad05370a3b8"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-timeout/before.json",
+      "sha256": "82b7dc329eae96bd298096ab9b4fd6ebe65f733b24a3546a116cd8b2a3d29676"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-timeout/after.json",
+      "sha256": "82b7dc329eae96bd298096ab9b4fd6ebe65f733b24a3546a116cd8b2a3d29676"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-timeout/pytest.log",
+      "sha256": "8989a153a4f265bdf8bf8abfcbf7ce96cf91c69ee66d543244ebf0fc2c9d041d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-timeout/junit.xml",
+      "sha256": "1bbbae826c201e1e1c949e8b4c212295d49a7ec7b7cd16ec342caf319242d2c0"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-timeout/probe-calls.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-timeout/tmp/test_enabled_and_disabled_have0/1791033912929900883-1372279-b17d634e794e4ca395cbaea06da0a8ae.json",
+      "sha256": "4501d72fe2fbb084ff58029f43e55c26eaaad905bf6087d32da3bb191ec21da1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-timeout/tmp/test_enabled_and_disabled_have0/1791033912929900883-1372279-b17d634e794e4ca395cbaea06da0a8ae.json",
+      "sha256": "4501d72fe2fbb084ff58029f43e55c26eaaad905bf6087d32da3bb191ec21da1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/result.json",
+      "sha256": "632688b01467362222c2bca7867d8d630eba0fc5a205cad834547e1502114aaa"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/before.json",
+      "sha256": "82b7dc329eae96bd298096ab9b4fd6ebe65f733b24a3546a116cd8b2a3d29676"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/after.json",
+      "sha256": "82b7dc329eae96bd298096ab9b4fd6ebe65f733b24a3546a116cd8b2a3d29676"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/pytest.log",
+      "sha256": "b0c2d05e621216ec03ff96c77283b7e3d5b84c6093ac60267188a25af6a83ae5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/junit.xml",
+      "sha256": "a04c161c356f1b572b4bb464549e8ecff8a1769d474806595a257ccf26689984"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_array_write_failure_still0/1791033917679912287-1372284-4635c9987c01496480923e6c36c06d7d.json",
+      "sha256": "f3dca80e4f94174167659a27586ef89ba7e41b84e05bf1c4369f6cec5d427217"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_array_write_failure_still0/1791033917679912287-1372284-4635c9987c01496480923e6c36c06d7d.json",
+      "sha256": "f3dca80e4f94174167659a27586ef89ba7e41b84e05bf1c4369f6cec5d427217"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_attempt_buffer_copies_arr0/1791033917712403817-1372284-cc3c11a279214dc4814ce2f9bfc90305.json",
+      "sha256": "5ad3a687f04125a074745b62e59b74fee76f92bb2f8f2b070a468ffa89e5e550"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_attempt_buffer_copies_arr0/1791033917712403817-1372284-cc3c11a279214dc4814ce2f9bfc90305.json",
+      "sha256": "5ad3a687f04125a074745b62e59b74fee76f92bb2f8f2b070a468ffa89e5e550"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_capture_error_and_truncat0/1791033917743325971-1372284-04ce2a9eac9f4424ab73c52c96da75ff.json",
+      "sha256": "75cbe386284f0895e6e66799ad71269c65416ea1d12a55c861e0684508324f7d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_capture_error_and_truncat0/1791033917743325971-1372284-04ce2a9eac9f4424ab73c52c96da75ff.json",
+      "sha256": "75cbe386284f0895e6e66799ad71269c65416ea1d12a55c861e0684508324f7d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_enabled_and_disabled_have0/1791033913471002813-1372284-a7c931e0f05c48e698fe2c1aa78c1729.json",
+      "sha256": "6b3ba0c400ae15dfb8133f1c84d8e21279afe35478a1830d60643f1a9099a30b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_enabled_and_disabled_have0/1791033913471002813-1372284-a7c931e0f05c48e698fe2c1aa78c1729.json",
+      "sha256": "6b3ba0c400ae15dfb8133f1c84d8e21279afe35478a1830d60643f1a9099a30b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_evidence_never_queries_li0/1791033917728779275-1372284-176cb79784d34b15937875edbbe16275.json",
+      "sha256": "fd1791c4a486169c43f3314bd898452ca448019309e58f89c66c5f588d018229"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_evidence_never_queries_li1/1791033917736504340-1372284-fe360112e025440591e173061385736b.json",
+      "sha256": "83522073fda1559a745396a74fadd5b21ac44456f44a7d49a7a4cd691c2565c7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_evidence_never_queries_li1/1791033917736504340-1372284-fe360112e025440591e173061385736b.json",
+      "sha256": "83522073fda1559a745396a74fadd5b21ac44456f44a7d49a7a4cd691c2565c7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_existing_memory_prior_and0/1791033917809920512-1372284-0125e7a3518a48629963b1c557ea424e.json",
+      "sha256": "c25b30b902db4f0772dd651046f7d56096fb7ba394d54b23a55d8b62380e989d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_existing_memory_prior_and0/1791033917809920512-1372284-0125e7a3518a48629963b1c557ea424e.json",
+      "sha256": "c25b30b902db4f0772dd651046f7d56096fb7ba394d54b23a55d8b62380e989d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_failed_attempt_preserves_0/1791033917620210106-1372284-db71e4ee768e4d9ea5d77cd3ac8c5fd3.json",
+      "sha256": "bb7afec725f8b2588ed3b2f70c4e6832975ce6c51091f14c80496bee53cb732c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_failed_attempt_preserves_0/1791033917620210106-1372284-db71e4ee768e4d9ea5d77cd3ac8c5fd3.json",
+      "sha256": "bb7afec725f8b2588ed3b2f70c4e6832975ce6c51091f14c80496bee53cb732c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_git_metadata_timeout_pres0/1791033913512163834-1372284-b7701dbdba824106bf042c826d743a0b.json",
+      "sha256": "c1f86d121881d5266c6ae8197b04f87e1523afe9c298161207f7f506d358d7e7"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_git_metadata_timeout_pres1/1791033915570208259-1372284-9cad6d0ffa3b4a5ea4cd0cf7d620f676.json",
+      "sha256": "4f75e8dd424959a601a9b31076a416923dc61f807c8eda5a756588a18ba2f652"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_git_metadata_timeout_pres1/1791033915570208259-1372284-9cad6d0ffa3b4a5ea4cd0cf7d620f676.json",
+      "sha256": "4f75e8dd424959a601a9b31076a416923dc61f807c8eda5a756588a18ba2f652"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_malformed_ggx_response_ke0/1791033917776738171-1372284-de9c4c1d9120490bb062d6039a230f26.json",
+      "sha256": "1d65437ff811b7d4a57be5f7b34f9edebca14351c9295a758c9e45bf85a0322a"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_malformed_ggx_response_ke1/1791033917786693457-1372284-d94dc5ecc01a45efa4726a3e7dbeb3d2.json",
+      "sha256": "b8c74a08d0274045253565ba611775023b935edb1d55ca4b2e29dceb2939cf76"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_malformed_ggx_response_ke2/1791033917792859121-1372284-4eac309480c341b4822f674040cb333e.json",
+      "sha256": "db9bd52f5741c6640bd3a4e8d74141b7f96e912b773f8468e771a1b88297c7ed"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_malformed_ggx_response_ke3/1791033917800649276-1372284-85e1cf3dcec940159287d06e154ef81c.json",
+      "sha256": "f36245731b54d6d64895b8bda73a0391bc6fd6d8fee61bcfb0aed9e1ff59b22d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_malformed_ggx_response_ke3/1791033917800649276-1372284-85e1cf3dcec940159287d06e154ef81c.json",
+      "sha256": "f36245731b54d6d64895b8bda73a0391bc6fd6d8fee61bcfb0aed9e1ff59b22d"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_real_planner_wire_capture0/1791033917768933064-1372284-c45f7738e7f943f1b977b449dc463b9c.json",
+      "sha256": "e0093751637695d3444e9b9565be6fce99cf0fe19565eb069f9a4cb76a1f2ec2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_real_planner_wire_capture0/1791033917768933064-1372284-c45f7738e7f943f1b977b449dc463b9c.json",
+      "sha256": "e0093751637695d3444e9b9565be6fce99cf0fe19565eb069f9a4cb76a1f2ec2"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_rgbd_masks_and_effective_0/1791033917719768905-1372284-54c6561e3c8041249be7205d90937a4f.json",
+      "sha256": "4d3d9438b2b3fdfcaf0775f3f8cc2c45e743d5c7ba67c165eb236441de0e1fae"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/candidate-file/tmp/test_rgbd_masks_and_effective_0/1791033917719768905-1372284-54c6561e3c8041249be7205d90937a4f.json",
+      "sha256": "4d3d9438b2b3fdfcaf0775f3f8cc2c45e743d5c7ba67c165eb236441de0e1fae"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/result.json",
+      "sha256": "d883207e1222d5ecd8afb505bc1accc0005918f74cae2e78a77332d329d1e874"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/before.json",
+      "sha256": "e4944384343728b57fadae4e2fb20f0df607bdb798cb921c96482737265a0348"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/after.json",
+      "sha256": "e4944384343728b57fadae4e2fb20f0df607bdb798cb921c96482737265a0348"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/pytest.log",
+      "sha256": "e7886e58d82d84ef0a4b83e4b23020789a09e95d719d89e350434ebfca1494e3"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/junit.xml",
+      "sha256": "90db9152c08d17ee9566413770bf00dfe85cdd8c4fe5ac5a903b29c33777a939"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_array_write_failure_still0/1791033948058455058-1373105-7dda899490df42bd933583c3ca081512.json",
+      "sha256": "47af212f908fc363109e82573ad103eba03a191e3e01d5673812fbb95685e313"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_array_write_failure_still0/1791033948058455058-1373105-7dda899490df42bd933583c3ca081512.json",
+      "sha256": "47af212f908fc363109e82573ad103eba03a191e3e01d5673812fbb95685e313"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_attempt_buffer_copies_arr0/1791033948085435770-1373105-4c6022ea6cf64e59b20428683d463b98.json",
+      "sha256": "078dba765edba7e81236843e3dc2230efcb433f6807c57a9ef28be0537881ad5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_attempt_buffer_copies_arr0/1791033948085435770-1373105-4c6022ea6cf64e59b20428683d463b98.json",
+      "sha256": "078dba765edba7e81236843e3dc2230efcb433f6807c57a9ef28be0537881ad5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_capture_error_and_truncat0/1791033948117090187-1373105-fcd34fc65bab43c59de144967b5f5d89.json",
+      "sha256": "eafcaba44026644f0ee047f32b95791a8da8a1133b2978abe5bb9e8a970f2ebe"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_capture_error_and_truncat0/1791033948117090187-1373105-fcd34fc65bab43c59de144967b5f5d89.json",
+      "sha256": "eafcaba44026644f0ee047f32b95791a8da8a1133b2978abe5bb9e8a970f2ebe"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_enabled_and_disabled_have0/1791033943873762694-1373105-de36e63eb3cf4f0290193e92a9717ad1.json",
+      "sha256": "e3e46a80f2952faa229b02bf4d761d2e940c15ae860ba885e3f1dab0025a4991"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_enabled_and_disabled_have0/1791033943873762694-1373105-de36e63eb3cf4f0290193e92a9717ad1.json",
+      "sha256": "e3e46a80f2952faa229b02bf4d761d2e940c15ae860ba885e3f1dab0025a4991"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_evidence_never_queries_li0/1791033948102635911-1373105-c839c9f69c44428f888d431f1b138cef.json",
+      "sha256": "384a3a60275c909d22b25ae03a80ec2dc4a615a1788687b301a741097cb14402"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_evidence_never_queries_li1/1791033948109374806-1373105-7e6ddbf0053148b4a87e362d2c4bebdf.json",
+      "sha256": "9d84e1018ea053a5a9af15391d46fa085f06d2dac03207f366300ce9c58721bf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_evidence_never_queries_li1/1791033948109374806-1373105-7e6ddbf0053148b4a87e362d2c4bebdf.json",
+      "sha256": "9d84e1018ea053a5a9af15391d46fa085f06d2dac03207f366300ce9c58721bf"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_existing_memory_prior_and0/1791033948182547839-1373105-ccfb7098313f455296c35c88283b3d97.json",
+      "sha256": "24d33dbb743885a49bfa82d6a12fd552ed3530f142b117f2003218b0745b3975"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_existing_memory_prior_and0/1791033948182547839-1373105-ccfb7098313f455296c35c88283b3d97.json",
+      "sha256": "24d33dbb743885a49bfa82d6a12fd552ed3530f142b117f2003218b0745b3975"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_failed_attempt_preserves_0/1791033948001023199-1373105-77ed6027cc0149c58ac6ade1891d901a.json",
+      "sha256": "15eed5c01975f643f11eeef165137674e8aea5e118489b88247a2aea47e3109b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_failed_attempt_preserves_0/1791033948001023199-1373105-77ed6027cc0149c58ac6ade1891d901a.json",
+      "sha256": "15eed5c01975f643f11eeef165137674e8aea5e118489b88247a2aea47e3109b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_git_metadata_timeout_pres0/1791033943913297092-1373105-8ca813db9be54478bbcac7084e87433c.json",
+      "sha256": "ef48ea9fc3d3a938ee37c4feec42104f15fa74e31c042d5a54cfe98cdeda544c"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_git_metadata_timeout_pres1/1791033945952362972-1373105-6b46f3aa30b24306b2016d6be5de458d.json",
+      "sha256": "71b34b05c905332da756ed25100668d86875f1a214256901391388822ea8bc76"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_git_metadata_timeout_pres1/1791033945952362972-1373105-6b46f3aa30b24306b2016d6be5de458d.json",
+      "sha256": "71b34b05c905332da756ed25100668d86875f1a214256901391388822ea8bc76"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_malformed_ggx_response_ke0/1791033948150566033-1373105-e24ecbf3a51f47c1a05bae6bb355e7c1.json",
+      "sha256": "65ba45a19a4a6de22c1649cd146877e3670625f4691c2f564799bd9eef3dcac5"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_malformed_ggx_response_ke1/1791033948157970101-1373105-1079618ed5fa4dcab8dee229a9847bc4.json",
+      "sha256": "de686417691a7c615b3ed61562ab78f858a3edb070d119e9694a5e277dd822a3"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_malformed_ggx_response_ke2/1791033948164990615-1373105-419b18a676fe43329dfb21e6d03b0eaa.json",
+      "sha256": "4f3d8bbbce1b15a452477034b39c5fbb73fddab6e4893b2abae9335e55de709b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_malformed_ggx_response_ke3/1791033948172785536-1373105-40408e1967744332a03bea21b9cb3d8a.json",
+      "sha256": "bcfc2650d84a3971cf3c17eaa3d5a6cfd7652b0fd0d501c7790b4048b15968e1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_malformed_ggx_response_ke3/1791033948172785536-1373105-40408e1967744332a03bea21b9cb3d8a.json",
+      "sha256": "bcfc2650d84a3971cf3c17eaa3d5a6cfd7652b0fd0d501c7790b4048b15968e1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_real_planner_wire_capture0/1791033948142785013-1373105-fc1b62447f7342d2b0da85eae5c89746.json",
+      "sha256": "881594c5a6a1a2d7e812a85e303b079ad00eb5c71a97e2b8d27aeadeba1bf5f1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_real_planner_wire_capture0/1791033948142785013-1373105-fc1b62447f7342d2b0da85eae5c89746.json",
+      "sha256": "881594c5a6a1a2d7e812a85e303b079ad00eb5c71a97e2b8d27aeadeba1bf5f1"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_rgbd_masks_and_effective_0/1791033948094210000-1373105-8359d839c8c045c0b81d0d3213550212.json",
+      "sha256": "2fdf35805c25b5291e1d4eb6bc4dd7ceab24a3fb17013c2362e5a1164c037354"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/evidence/final-file/tmp/test_rgbd_masks_and_effective_0/1791033948094210000-1373105-8359d839c8c045c0b81d0d3213550212.json",
+      "sha256": "2fdf35805c25b5291e1d4eb6bc4dd7ceab24a3fb17013c2362e5a1164c037354"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/run_checks.py",
+      "sha256": "2b02c4f7dd24b86f34319bf2a8b5feec872fcf69263aa8df531ca2f71b6db508"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/git_timeout_probe.py",
+      "sha256": "fa8ae74ccad8cca7cd80e492c2c73ec2d74acfcafbdf0ae641ad47041054ac7b"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/PR95_MACOS_REVIEW_20261003/review.json",
+      "sha256": "9ee547c28d865ca3ab615f0a7ee8f32fe250f53909ed3a14490e9b0731d35737"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/PR95_MACOS_REVIEW_20261003/ci-macos-111206181366.log",
+      "sha256": "839781d17471c23c87df640fd179b213590e64ced5d7ea814119be5e7044cb9f"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/cascade/tests/test_grasp_evidence.py",
+      "sha256": "f7e51ac28ee2c692c02abc9fac591719075ca9f1e4a75e14f0bf6c317d925493"
+    },
+    {
+      "path": "/home/johnny/Projects/demo/cascade-lab/GRASP_EVIDENCE_CI_20261003/cascade/src/cascade/grasping/evidence.py",
+      "sha256": "0c110f1fc08a7c4059730a7cd45d1cd314be29ff5643002140bd492ca5567b6b"
+    }
+  ]
+}

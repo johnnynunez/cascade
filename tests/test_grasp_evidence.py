@@ -3,6 +3,8 @@ from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -98,7 +100,43 @@ def receipt(directory):
     return json.loads(files[0].read_text())
 
 
-def test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result(monkeypatch, tmp_path):
+@pytest.fixture
+def synthetic_git_metadata(monkeypatch):
+    """Only Git metadata is synthetic; file hashes and receipt writes stay real."""
+    state = SimpleNamespace(calls=[], status_timeout=False, timeouts=[])
+    real_run = subprocess.run
+    repo = str(Path(evidence.__file__).resolve().parents[3])
+
+    def run(argv, *, capture_output, text, check, timeout):
+        assert argv[:3] == ['git', '-C', repo]
+        assert capture_output is True and text is True and check is True
+        assert timeout == 2.0  # the production provenance budget is unchanged
+        command = argv[3:]
+        assert command in (['rev-parse', 'HEAD'],
+                           ['status', '--porcelain', '--untracked-files=no'])
+        state.calls.append(command)
+        if command[0] == 'status' and state.status_timeout:
+            # Exercise the real subprocess timeout/cleanup path, without
+            # depending on repository size or the host's Git scheduling.
+            try:
+                real_run([sys.executable, '-c', 'import time; time.sleep(30)'],
+                         capture_output=capture_output, text=text, check=check,
+                         timeout=timeout)
+            except subprocess.TimeoutExpired as exc:
+                state.timeouts.append(exc.timeout)
+                raise subprocess.TimeoutExpired(argv, exc.timeout) from exc
+            raise AssertionError('controlled metadata process did not time out')
+        value = ('synthetic-grasp-evidence-test-head\n' if command[0] == 'rev-parse'
+                 else ' M synthetic-test-metadata\n')
+        return subprocess.CompletedProcess(argv, 0, stdout=value, stderr='')
+
+    # Replace this module's namespace, not the shared subprocess.run function.
+    monkeypatch.setattr(evidence, 'subprocess', SimpleNamespace(run=run))
+    return state
+
+
+def test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result(
+        monkeypatch, tmp_path, synthetic_git_metadata):
     monkeypatch.delenv('CASCADE_GRASP_EVIDENCE_DIR', raising=False)
     rt, calls, fix, frame = runtime(monkeypatch)
     before = rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
@@ -111,6 +149,11 @@ def test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result(
     assert calls == expected  # includes EVERY bridge read, joint command, gripper command
     doc = receipt(tmp_path)
     assert doc['logging_ok'] is True
+    assert doc['source']['git_head'] == 'synthetic-grasp-evidence-test-head'
+    assert synthetic_git_metadata.calls == [
+        ['rev-parse', 'HEAD'], ['status', '--porcelain', '--untracked-files=no']]
+    assert doc['source']['sha256']['src/cascade/skills/runtime.py'] == hashlib.sha256(
+        (Path(__file__).parents[1] / 'src/cascade/skills/runtime.py').read_bytes()).hexdigest()
     assert doc['started_unix_ns'] <= doc['finished_unix_ns']
     assert doc['started_monotonic_s'] == 0.
     assert {'selected', 'jaw_datum', 'localized', 'isaac_feedback', 'ik_targets',
@@ -123,6 +166,41 @@ def test_enabled_and_disabled_have_identical_actuator_commands_reads_and_result(
     loc = next(e['data'] for e in doc['events'] if e['kind'] == 'localized')
     assert loc['frame_id'] == 42 and loc['capture']['t'] == 15.
     assert loc['position_base_m'] == fix.position.tolist()
+
+
+@pytest.mark.parametrize('actor_fails', [False, True])
+def test_git_metadata_timeout_preserves_commands_result_and_actor_exception(
+        monkeypatch, tmp_path, synthetic_git_metadata, actor_fails):
+    synthetic_git_metadata.status_timeout = True
+    traces, outcomes = [], []
+    for enabled in (False, True):
+        monkeypatch.setenv('CASCADE_GRASP_EVIDENCE_DIR', str(tmp_path) if enabled else '')
+        rt, calls, fix, frame = runtime(monkeypatch, fail=actor_fails)
+        if actor_fails:
+            with pytest.raises(SkillError, match='original descent transport failure') as error:
+                rt.skill_grasp_object('orange', _fix=fix, _frame=frame)
+            outcomes.append((type(error.value), str(error.value)))
+        else:
+            outcomes.append(rt.skill_grasp_object('orange', _fix=fix, _frame=frame))
+        traces.append(calls.copy())
+    assert outcomes[0] == outcomes[1]
+    assert traces[0] == traces[1]
+    assert synthetic_git_metadata.timeouts == [2.0]
+    doc = receipt(tmp_path)
+    assert doc['logging_ok'] is False
+    assert doc['dropped_events'] == 0
+    assert len(doc['logging_errors']) == 1
+    error = doc['logging_errors'][0]
+    assert error['operation'] == 'source_at_flush' and error['type'] == 'TimeoutExpired'
+    assert "'status', '--porcelain', '--untracked-files=no'" in error['message']
+    assert 'timed out after 2.0 seconds' in error['message']
+    assert 'git_tracked_status_porcelain' not in doc['source']
+    assert doc['source']['sha256']['src/cascade/skills/runtime.py'] == hashlib.sha256(
+        (Path(__file__).parents[1] / 'src/cascade/skills/runtime.py').read_bytes()).hexdigest()
+    arrays = tmp_path / doc['arrays']['path']
+    assert hashlib.sha256(arrays.read_bytes()).hexdigest() == doc['arrays']['sha256']
+    assert doc['events'][-1]['kind'] == ('attempt_exception' if actor_fails else 'result')
+    assert evidence._ACTIVE.get() is None
 
 
 def test_cached_aim_uses_close_pose_not_postlift_tcp(monkeypatch):

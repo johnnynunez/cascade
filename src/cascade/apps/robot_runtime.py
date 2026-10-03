@@ -146,7 +146,7 @@ class DomainAdapter:
         return {"ok": True, "halted": True, "physical_stop_verified": False}
 
     def begin_task(self):
-        if self.profile["kind"] == "locomotion":
+        if self.profile["kind"] in {"locomotion", "manipulation"}:
             self.runtime.begin_task()
 
     def close(self):

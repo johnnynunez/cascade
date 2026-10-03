@@ -293,6 +293,19 @@ class PostconditionChecker:
             handler = getattr(self, f"_check_{kind}", None)
             if handler is not None:
                 handler(pc, args, result, before or {})
+            # A transported object can be near its destination while still in
+            # the jaws after release was refused. Keep the independent pose
+            # evidence and any refutation, but do not turn an incomplete
+            # placement into success. Execution reports can veto a positive
+            # verdict; they cannot supply independent proof of release.
+            if (kind in ("relocated", "released_at", "released_on")
+                    and pc.status == CONFIRMED
+                    and (result.get("ok") is False or result.get("holding"))):
+                pc.status = UNVERIFIED
+                pc.evidence += (
+                    "; placement execution failed or reports an object still held; "
+                    "release is not established"
+                )
         except Exception as e:
             pc.status, pc.evidence = UNVERIFIED, f"verification error: {type(e).__name__}: {e}"
         self.history.append(pc)
@@ -708,12 +721,13 @@ def annotate_result(result: dict, pc: Postcondition | None) -> dict:
     if pc is None:
         return result
     result["postcondition"] = pc.as_dict()
+    # Replace stale/self-reported credit even when execution already failed.
+    result["verified"] = pc.confirmed
     if pc.skill == "turn_screw" and pc.status == UNVERIFIED:
         # This skill's request is a physical fastening outcome. A completed
         # wrist routine must not train a successful reflex/envelope entry.
         # Other skills retain their existing ok/verified convention.
         result.setdefault("execution_ok", result.get("ok") is True)
-        result["verified"] = False
         result["verification_note"] = pc.evidence
         if result.get("ok"):
             result["ok"] = False
@@ -723,8 +737,5 @@ def annotate_result(result: dict, pc: Postcondition | None) -> dict:
         result["error"] = f"postcondition failed: {pc.evidence}"
         result["self_reported_ok"] = True
     elif pc.status == UNVERIFIED and result.get("ok"):
-        result["verified"] = False
         result["verification_note"] = pc.evidence
-    elif pc.confirmed:
-        result["verified"] = True
     return result

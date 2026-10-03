@@ -841,6 +841,79 @@ The final support/helper/effects selection on main 075c08c passes 395 tests in
 The controlled original 12 verdicts all timed out; one test accidentally
 accepted unverified without its reason, now strengthened. Raw source-bound
 receipts are linked from benchmark/results/mobile_support_rest_fixture_20261003.json.
+### 2026-10-03 — ordinary fastening postcondition
+
+The ordinary `turn_screw` routine counts commanded wrist strokes. Its nested
+`physical_verification: unverified` was absent from the standard postcondition
+registry, so trace/memory and the reflex path could record success without
+observing fastener motion. This isolated branch starts at coordinator
+2067019b8d7397110d0f139f11e116ff5f1bd9b6. The planned correction now adds an explicit
+unverified fastening postcondition, preserves execution/failure information, and
+prevents unobserved fastening from receiving success credit. No pose-only, wrist-only or
+self-reported result will prove threading or seating. The Factory contact
+scene/controller is not connected by this correction.
+
+Adversarial checks exercise ordinary dispatch, memory, trace and reflex learning,
+alongside existing error/command regressions. Tests were deferred until the
+coordinator closed the native voice window. Final validation: 154 passed in
+20.88 s; the 15 new cases alone passed in 0.25 s, while the same cases on base206
+gave 14 expected failures and one unchanged-convention pass. The initial extended
+run's sole failure was a 900-character static source guard; shortening its nearby
+comment preserved the guard and runtime semantics. Sources (649 files) and
+protected memory stayed unchanged during every run. Ruff F/E9 and diff checks
+passed. Details and hashes: benchmark/results/fastening_postcondition_20261003.json.
+No simulator, model or service was started. The physical fixture integration
+remains a separate explicit profile/controller/observer/lifecycle task, described
+in docs/FASTENING_RUNTIME_GAP.md; this correction grants no physical admission.
+
+## Legacy completion obligations — 3 October 2026
+
+- Baseline `8a62a49`: real legacy dispatch marked `turn_screw` unverified, but both direct LLM and failed-reflex→LLM `task_done(success=true)` produced a successful TaskReport. The original three-control probe is retained outside the checkout; the two causal acceptance tests fail on that baseline and the read-only control passes.
+- Added a task/arm/action ledger only for the existing `POSTCONDITIONS` registry. Local checker verdicts, rather than actor/LLM fields, settle obligations. Unknown/failed effects remain cumulative across later calls and model-accessible resets; only the trusted host opens a new task. Preparation failures and cancellation release active ownership without success credit.
+- `task_done`, TaskReport and fast-path credit now consult that ledger. Individual actuator/checker contracts remain unchanged, including the limited historical commanded-home check. Passive sensor domains do not implement or need an effect boundary.
+- Retained the first wiring run (265 passed, 8 failed): one adapter bug, four `__new__` fixture initialization omissions, and three obsolete static-mock success expectations. Fixed the adapter/fixtures; the mock E2E and memory checks preserve all execution assertions while reporting unverified, and the positive fast-path fixture uses independently read open-jaw feedback.
+- No GPU, physical processes, protected learned-store mutation or voice/video changes. Final targeted tests and inventories are linked from `benchmark/results/legacy_task_completion_20261003.json`; no new full-suite claim.
+
+### 2026-10-03 — refuse positive placement credit after failed release
+
+The retained MuJoCo withdrawal experiment reported a failed placement while
+still holding the blue cube, yet the proximity-only postcondition confirmed it.
+Placement execution failure or explicit possession now vetoes positive credit,
+preserving the independent measurements and any refutation. Annotation derives
+`verified` from the current postcondition even for already-failed executions;
+it preserves the actor's error and does not turn a home-only failure into a
+placement refusal. No motion or verifier tolerance changes.
+
+The original replay was nine expected failures and three passing controls;
+the corrected production passes 199 focused checks. Final test-only naming
+cleanup passes all 14 new regressions. Sources and protected stores remain
+unchanged during each check; the rounded retained trace is not a new physical
+run. See docs/PLACEMENT_REFUSAL_VERIFICATION.md and its source-bound receipt.
+The separate two-cube physical failure remains open. No push or merge.
+
+## Minimal-install task-effect smoke correction — 3 October 2026
+
+The minimal-install job on 0249f718 correctly returns exit1: the SO-101 mock
+exhausted its air-grasp attempts and the static camera refuted displacement.
+The task ledger prevents a later mock-LLM greeting from concealing that debt.
+This isolated fix retains the nine absent optional dependencies and exercises
+the real CLI pipeline with explicit mock/analytic inputs and private stores.
+The existing mock-jaw contact hook permits the whole SO-101 grasp/place/home
+command path; the static image still cannot independently confirm relocation.
+Assertions bind TaskReport, trace, task effects and teardown instead of accepting
+an arbitrary nonzero exit. A separate read-only task must still succeed. No
+runtime, verifier, motion limits, shared stores or GPU behavior changed.
+
+A fresh private `uv sync --frozen --extra dev --extra kinematics` reproduced
+the original CLI exit1 in 7.87 s with all nine optional imports absent. The
+final selection passes 36 tests in 2.21 s (two CLI cases, task-effect ledger,
+and teardown failure/pending/exit controls); 1,610 checkout inputs and the
+protected learned store stayed identical. The retained initial test run also
+records why the synthetic completed path may be unverified rather than refuted:
+its own belief update is explicitly not independent evidence. Both verdicts
+deny completion. External evidence: `MINIMAL_INSTALL_LEDGER_20261003/evidence/`
+(`baseline/result.json`, `smoke-02/pytest.log`, `focused-01/result.json`).
+
 
 ### 2026-10-03 — Preserve explicitly owned Spark model endpoints
 
@@ -1305,3 +1378,9 @@ Retained causal baseline: 1 failed; corrected focal: 2 passed; affected support
 and effect suite: 389 passed in 40.24 s. All 1,599 source inputs and four stores
 are unchanged across validation. No native SDK, GPU, simulation or local macOS
 execution. Receipt: benchmark/results/mobile_support_tcp_scheduling_20261003.json.
+
+## 2026-10-03: Terminal reports retain unresolved effects and cancellation
+
+All normal orchestrator reports now use a common ledger-aware finalizer, including step-budget exhaustion. Failed fast-path calls remain in the same task tool history with an explicit tier. Composed motion cancellation records uncertainty before releasing admission, then re-raises the original interruption; later successful motion cannot erase it. Reads and host-only task boundaries retain their prior meaning.
+
+Exact PR90 head `381d65ff` reproduced three review counterexamples (two omitted-debt reports and one pre-existing composed cancellation false success), with two controls passing. Final eight-file CPU selection: **141 passed, 0 skipped in 19.82 s**; source and four protected stores unchanged. The initial two new-test failures were an incorrect assumption that `RobotRuntime.begin_task()` returns an ID; only that test assumption changed. No GPU, SDK, physical episode, shared environment modification or production limit change. Evidence: `benchmark/results/task_terminal_obligations_20261003.json` and external `TASK_TERMINAL_FIX_20261003/{baseline-01,focused-01,focused-02}`.

@@ -222,6 +222,14 @@ class RobotRuntime:
                     return {"ok": False, "execution_ok": False, "error": "operation superseded by stop",
                             "domain_result": result}
                 return result
+            except BaseException:
+                # Cancellation must propagate, but first retain uncertainty
+                # while this task still owns admission. A finally-only release
+                # otherwise lets global completion forget an interrupted write.
+                if descriptor.effect == "motion":
+                    with self._gate:
+                        self._unverified.add(name)
+                raise
             finally:
                 with self._gate:
                     self._active = False

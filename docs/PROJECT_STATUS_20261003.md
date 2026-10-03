@@ -23,8 +23,8 @@ already in main (including task-effect accounting in #90 and RGB-D in #91). The
 
 ## Published software corrections
 
-Four reproduced software defects have source-bound CPU fixes published in the
-following PRs. These selections overlap, particularly the three #93 selections;
+Reproduced software defects and focused fixture fixes have source-bound CPU
+checks published in the following PRs. These selections overlap, particularly the three #93 selections;
 the counts must not be summed. They establish neither a fully green CI matrix
 nor new physical admission. Subsequent Factory startup checks are recorded
 separately below.
@@ -32,8 +32,13 @@ separately below.
 | PR and source | Corrected behavior | CPU evidence |
 | --- | --- | --- |
 | [#85](https://github.com/johnnynunez/cascade/pull/85), `cce8880` | Final threading verdict includes the unchanged stop/rest interval, so observed unwinding cannot retain a pre-stop success. Late positive motion cannot rescue an earlier failed result. | [402 passed](evidence/project-status-20261003/factory-final-outcome-cpu.json). |
+| [#85](https://github.com/johnnynunez/cascade/pull/85), `5c21af4` | Backend exception formatting cannot erase an owner fault or strand queued admissions. Stop precedes formatting, and failed zero upload remains a separate failed outcome. No native result is transferred to this fix. | [393 passed](evidence/project-status-20261003/factory-error-containment-cpu.json). |
 | [#87](https://github.com/johnnynunez/cascade/pull/87), `09650fd5` | `walk_distance` retains a veto for excess drift after command completion, including valid late observations. Original positive-credit, support and cancellation gates remain intact. | [566 passed](evidence/project-status-20261003/mobile-distance-final-outcome-cpu.json). |
+| [#87](https://github.com/johnnynunez/cascade/pull/87), `1e9c8902` | Two zero-twist balance fixtures isolate unrelated cyclic GC with the existing helper. Real delayed reads still reject at the unchanged 40 ms limit; runtime and physical criteria are unchanged. Controlled GC reproduces the fixture failure but does not establish the original ARM CI cause. | [336 passed](evidence/project-status-20261003/mobile-balance-arm-fixture-cpu.json). |
+| [#87](https://github.com/johnnynunez/cascade/pull/87), `40e36d90` | Positive distance fixtures advance the mock through its original small steps without relying on a background worker. A held read still reaches the unchanged wall deadline, triggers independent stop and earns no late credit. This controlled reproduction does not identify the original macOS scheduling cause. | [106 passed](evidence/project-status-20261003/mobile-distance-positive-fixture-cpu.json). |
 | [#90](https://github.com/johnnynunez/cascade/pull/90), `3e696d49` | Terminal reports retain unresolved task effects and earlier fast-path history. Admitted motion cancellation records uncertainty before `BaseException` propagates. | [141 passed](evidence/project-status-20261003/task-terminal-obligations-cpu.json). |
+| [#90](https://github.com/johnnynunez/cascade/pull/90), `92cc6c11` | An admitted motion's ordinary exception cannot attach its uncertainty to a new task begun after admission release. Same-task debt, early validation refusals and cancellation accounting remain intact. | [78 passed](evidence/project-status-20261003/task-exception-epoch-cpu.json). |
+| [#90](https://github.com/johnnynunez/cascade/pull/90), `80035374` | The TCP timeout fixture permits read-only reconnects after a delayed caller resumes. Its real 40 ms limit, negative verdict and production code remain unchanged. | [68 passed](evidence/project-status-20261003/task-tcp-fixture-publication.json). |
 | [#93](https://github.com/johnnynunez/cascade/pull/93), `7b765a6` | Withdrawal/home consumers preserve the cancellation token; completion validates original or registered reset context and clears debt atomically. Checks between reset callbacks prevent later work after detected cancellation; completed belief clearing remains reported. | [151 passed: token/context](evidence/project-status-20261003/mujoco-withdrawal-cancellation-cpu.json); [183 passed: callback boundaries](evidence/project-status-20261003/mujoco-reset-callback-cancellation-cpu.json); [122 passed: consumer-token fixture](evidence/project-status-20261003/mujoco-withdrawal-publication.json). |
 
 The #93 head combines `fe0a49ee`, callback fix `7a6f078d` and fixture update
@@ -168,6 +173,34 @@ task was requested. The age diagnostic measures a gap, not its cause: it assigns
 no GPU, garbage-collection or scheduling attribution and renews no timestamp.
 **Ordinary readiness and fastening remain unadmitted.** Compilation success,
 zero spindle effort and resource closure do not establish a solved task.
+
+A subsequent **instrumented** readiness episode on the same `cce88808` source
+and `69d9a46a` model also ended **FAIL + CLOSED**, in new epoch
+`17817f0741da4303bebed4da366f82d5`. Step **309** was rejected at
+`controller_accept_solve`: its original capture-to-check age was
+**441.3566 ms**, above the unchanged **200 ms** limit. The raw quiet prefix is
+steps **63–308**, **0.4083333432 simulated seconds**, below the required **0.5 s**;
+including rejected row 309 would still give only 0.4100000099 s. Readiness failed
+after 9.17247 wall seconds within its unchanged 10-second budget. No turn, reset
+or fastening task was requested.
+
+The complete phase trace records a same-thread **generation-2 cyclic-GC interval
+of 432.885 ms wall / 427.607 ms thread CPU**, wholly inside the step-309
+`contact_records` interval (439.388 ms). These are nested intervals, not additive
+timings. This localizes an observed pause in **this instrumented episode**; it
+does not identify retained objects or explain the earlier uninstrumented
+failures. GC was neither disabled nor forced, and no extra SDK reads were added.
+The timings include instrumentation overhead and do not establish isolated GPU
+or whole-system performance. [Phase and terminal audit](evidence/project-status-20261003/factory-phase-diagnostic-review.json),
+[bound original error](evidence/project-status-20261003/factory-phase-age-diagnostic.json).
+
+All 309 raw rows preserve the arm hold and zero spindle command/observed effort;
+they do not prove live consumer acceptance or physical stop. The owner thread
+closed with its original fault and `ok: false`. The process scope exited
+naturally with code 1, both tracked owned processes were absent, six foreign
+process births were unchanged, and source/SDK/assets/stores matched before and
+after. The complete diagnostic trace and resource closure do not promote the
+readiness or task verdict.
 
 MicroDuck has four recorded fresh-start forward/reverse **30 mm** passes, a
 separate small negative turn and priority cancellation with observed rest.

@@ -1934,3 +1934,39 @@ diff checks passed. Sources and all four protected stores were unchanged during
 checks. The macOS failure remains retained: 5667 passed, 1 failed, 303 skipped,
 4 deselected; its internal error/cadence were not recorded. See
 `benchmark/results/walk_distance_positive_fixture_20261003.json` for bindings.
+## Status addendum: instrumented Factory refusal and software follow-ups — 2026-10-03
+
+Documentation-only follow-up from f3f357629e5c77fdcf4d2aef67f9eb0024673243.
+Preserve all 28 existing portable receipts and their original bytes. Add the
+source/model/epoch-bound Factory phase diagnostic: step 309 rejected at
+441.3566 ms age under the unchanged 200 ms gate, quiet span below 0.5 simulated
+seconds, no task. The same-thread generation-2 GC interval was measured inside
+contact_records in this episode; this does not identify retained objects or
+attribute prior failures. Natural administrative closure retains the owner fault
+and does not verify readiness or physical stop. Copy the terminal audit and
+bound error byte-for-byte, without raw trace/log expansion.
+
+Also preserve the earlier software receipts and add PR90 task-epoch exception
+accounting (92cc6c11, 78 CPU passes) and PR87 balance-fixture isolation (1e9c8902,
+336 CPU passes). These overlapping selections are not summed or presented as
+physical validation. This documentation task performs hash/link checks only;
+no new tests, SDK/model imports, native execution, GPU queries, or publication.
+
+Validation: all 28 previous copies are byte-identical; 32 portable receipt hashes,
+70 referenced artifact hashes and 36 relative documentation links checked.
+The same-thread GC interval was also compared directly with the retained raw
+trace rows and shown nested inside contact_records. Only docs and WORKLOG change;
+production, tests, scripts, configs and benchmark files remain byte-identical.
+
+
+### 2026-10-03 — Verified owner and CI follow-ups
+
+Document PR85 owner error containment at 5c21af4 (393 CPU passes), PR87 explicit
+positive-distance fixtures at 40e36d90 (106 passes), and PR90 read-only TCP
+reconnection fixture at 80035374 (68 passes). Selections overlap with earlier
+receipts and are not combined. The existing native Factory failures remain
+bound to cce88808; no new runtime physical result is inferred.
+
+Preserve all 32 earlier portable receipts and add three byte-exact records.
+Documentation-only source/hash/link review; no runtime, SDK, simulation or
+shared-store changes. CI on newly published heads remains separately pending.

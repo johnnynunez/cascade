@@ -38,6 +38,13 @@ class SharedKitNewtonBackend(KitNewtonBackend):
         self._shared_read = None
         self._bound_identity = False
 
+    def _app_config(self):
+        if self._sdk_recipe is None:
+            raise ValueError('shared foundation requires the explicit internal SDK recipe')
+        # Internal SimulationApp supports CUDA-index renderer selection, honoring
+        # CUDA_VISIBLE_DEVICES rather than selecting physical Vulkan GPU zero.
+        return super()._app_config() | {'active_cuda_gpus': [int(self.args.device.split(':')[1])]}
+
     def _author_robots(self, stage):
         from pxr import Gf, UsdGeom
         removed = []

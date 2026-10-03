@@ -463,6 +463,11 @@ class KitNewtonBackend:
         if self.signals is not None:
             self.signals.checkpoint(persistent=True)
 
+    def _app_config(self):
+        return {'headless': True, 'disable_viewport_updates': True,
+                'multi_gpu': False, 'width': 320, 'height': 240, 'renderer': 'RayTracedLighting',
+                'physics_gpu': int(self.args.device.split(':')[1])}
+
     def open(self):
         import sys
         from isaacsim import SimulationApp
@@ -475,9 +480,7 @@ class KitNewtonBackend:
             defer = self.signals.defer if self.signals is not None else nullcontext
             with defer():
                 # Acquire the handle so cleanup can find it even if interrupted.
-                self.app = SimulationApp({'headless': True, 'disable_viewport_updates': True,
-                    'multi_gpu': False, 'width': 320, 'height': 240, 'renderer': 'RayTracedLighting',
-                    'physics_gpu': int(self.args.device.split(':')[1])}, experience=str(self.experience))
+                self.app = SimulationApp(self._app_config(), experience=str(self.experience))
             self._checkpoint()
             self._initialize()
         except BaseException:

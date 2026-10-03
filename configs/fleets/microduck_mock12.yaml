@@ -1,0 +1,18 @@
+# Twelve independent software fixtures; no physics or model inference admission.
+version: 1
+deadline_s: 30
+max_workers: 12
+max_steps: 6
+robots:
+  - {profile: microduck_conversation_mock, mock_id: duck01}
+  - {profile: microduck_conversation_mock, mock_id: duck02}
+  - {profile: microduck_conversation_mock, mock_id: duck03}
+  - {profile: microduck_conversation_mock, mock_id: duck04}
+  - {profile: microduck_conversation_mock, mock_id: duck05}
+  - {profile: microduck_conversation_mock, mock_id: duck06}
+  - {profile: microduck_conversation_mock, mock_id: duck07}
+  - {profile: microduck_conversation_mock, mock_id: duck08}
+  - {profile: microduck_conversation_mock, mock_id: duck09}
+  - {profile: microduck_conversation_mock, mock_id: duck10}
+  - {profile: microduck_conversation_mock, mock_id: duck11}
+  - {profile: microduck_conversation_mock, mock_id: duck12}

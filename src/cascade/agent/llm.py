@@ -37,6 +37,9 @@ class LLMResponse:
 class LLMClient:
     supports_vision = False
 
+    def close(self) -> None:
+        """Release this client's owned IO after its last chat call has returned."""
+
     def chat(
         self,
         system: str,
@@ -162,6 +165,9 @@ class OpenAICompatClient(LLMClient):
         """Provider-specific HTTP fields; empty for standard OpenAI."""
         return {}
 
+    def close(self) -> None:
+        self._client.close()
+
     def _call_with_param_fallback(self, kwargs: dict):
         """Newer OpenAI models reject max_tokens (want max_completion_tokens);
         some local servers reject parallel_tool_calls. Retry without the
@@ -186,6 +192,9 @@ class OpenAICompatClient(LLMClient):
 
 class AnthropicClient(LLMClient):
     supports_vision = True
+
+    def close(self) -> None:
+        self._client.close()
 
     def __init__(self, model: str = "claude-sonnet-5", temperature: float = 0.2):
         import anthropic

@@ -62,6 +62,7 @@ cascade-record = "cascade.apps.record:main"
 cascade-mcp = "cascade.apps.mcp_server:main"
 cascade-view = "cascade.apps.viewer:main"
 cascade-conversation = "cascade.apps.conversation:main"
+cascade-fleet = "cascade.apps.fleet:main"
 
 [build-system]
 requires = ["setuptools>=68"]

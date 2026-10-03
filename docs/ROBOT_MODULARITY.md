@@ -144,11 +144,40 @@ waiting on any member's existing timeout and parking policy. CPU tests exercise
 twelve concurrent synthetic robot runtimes, isolated stops, late dispatch
 rejection and independent traces/debts.
 
-This is a Python coordination API, not a native twelve-MicroDuck scene or a
-fleet MCP/CLI demo. A shared physical world still needs one admitted simulation
+This coordination API does not create a native twelve-MicroDuck scene.
+A shared physical world still needs one admitted simulation
 owner with distinct robot states, policy histories, contact registries and
 perception/verifier identities, plus shared-space collision coordination.
 The existing refusal of mixed physical actuation inside one robot is unchanged.
+
+Run independent agent episodes with:
+
+```bash
+python -m cascade.apps.fleet --fleet microduck_mock12 --llm mock \
+  --task "inspect and move briefly" --run-dir runs/fleet-example
+```
+
+The coordinator delegates one explicit task to each robot's `AgentOrchestrator`.
+Clients, conversation histories and runtime evidence stay separate; configured
+workers bound concurrent inference. `--llm mock` is a labelled scripted diagnostic
+inside the agent loop. Its short kinematic movement is not physical locomotion
+or a model deciding to walk. A real LLM profile uses the existing client API.
+
+`--fleet` also accepts a YAML file with `version: 1`, `robots`, `deadline_s`,
+`max_workers` and `max_steps`. Each robot entry selects `profile` and optionally
+`config_dir` and `task`; relative config directories resolve beside that file.
+Native profiles retain their exact backend IDs, connection endpoints and model
+pins. `mock_id` is only available for unmounted mock mobile fixtures. The entire
+resource graph is checked before any robot is built. No simulator or model
+server is launched by this application.
+
+`FleetAgents.stop(robot_id)` cancels one agent; `stop()` and SIGINT/SIGTERM cancel
+all. The original episode generation and deadline fence every tool call and late
+inference result. HTTP already in flight may remain pending; the report records
+that instead of claiming cancellation. `catalog.json`, per-robot trace directories
+and `report.json` retain assignments, outcomes, unresolved actions and shutdown.
+Use a new run directory for each episode. Shared-world collision coordination,
+physical fleet admission and a fleet MCP frontend remain separate work.
 
 ## Observation and policy contracts
 

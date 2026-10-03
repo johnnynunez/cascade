@@ -58,12 +58,15 @@ flowchart TD
 
 Solid arrows describe existing interfaces, not admission of every combination.
 The fleet runtime routes concurrent tasks to isolated robot runtimes; the
-native MicroDuck bridge currently owns one robot. Twelve native agents need a
-shared scene owner: read one physical step, evaluate each robot's policy/BAM,
-perform one scene solve, then publish observations bound to each robot. Calling
-twelve current steppers would advance the shared scene twelve times. Per-robot
-policy history, cancellation and balance-preserving stop must remain separate.
-There is no measured twelve-robot episode or real-time performance guarantee.
+optional shared MicroDuck backend now owns one scene for up to twelve robots.
+It reads one physical step, evaluates each robot's policy/BAM, performs one
+scene solve and publishes observations with separate robot identities. Native
+zero-command episodes with one, two and twelve robots passed the
+[foundation checks](evidence/microduck-shared-20261004/foundation.json).
+Independent agent motion, collision coordination and physical per-robot/global
+stop still require native validation. A stop during shared tick preparation
+currently contains the whole scene; this does not establish continued motion of
+unaffected peers. No real-time performance guarantee is claimed.
 
 | Module | Implemented responsibility | Deliberate boundary |
 | --- | --- | --- |
@@ -76,7 +79,8 @@ There is no measured twelve-robot episode or real-time performance guarantee.
 | `control/microduck_policy.py`, `sim/microduck_stepper.py` | Pinned ONNX contract and physics-clock policy application | Robot-specific implementation; no generic humanoid policy loader or second writer to head joints |
 | `robotics/graph.py` | Immutable bounded DAG of registered skills, outcome and data edges | No graph-generated code, online self-editing or automatic stop reset |
 | `eval/vab.py`, `eval/arena.py`, `eval/trials.py` | Optional external API adapters and bound independent verdicts | Upstream success alone does not grant physical admission |
-| `robotics/fleet.py`, `apps/fleet.py`, `apps/fleet_mcp.py` | Concurrent task routing, an independent agent episode per robot, and bounded fleet MCP with per-robot/global stop | Shared-space coordination and shared-scene physics remain pending |
+| `robotics/fleet.py`, `apps/fleet.py`, `apps/fleet_mcp.py` | Concurrent task routing, an independent agent episode per robot, and bounded fleet MCP with per-robot/global stop | Native independent agent motion and shared-space collision coordination remain pending |
+| `sim/microduck_shared.py`, `sim/microduck_shared_native.py`, `sim/microduck_admission.py` | One scene solve for separate policy histories, robot observations and opt-in TCP endpoints | Native zero-command foundation is measured; endpoint actuation/stop validation and peer continuation remain pending |
 
 ## Capability boundaries
 
@@ -84,17 +88,17 @@ There is no measured twelve-robot episode or real-time performance guarantee.
 | --- | --- | --- |
 | Talk and understand tool intents | Local browser/provider/session path with bounded audio and curated tools | Reliable general dialogue, hardware audio and public service operation |
 | Interact with objects | Arm skills, SafeArm, grasp/release observations, optional cuMotion and OVRTX | Validation for each body/tool/scene; whole-body mobile manipulation |
-| Turn a fastener | Mounted Factory domain with per-solve observations and final rest checks | Successful configured full task, acquisition/engagement/withdrawal and calibrated preload |
+| Turn a fastener | Mounted Factory domain with per-solve observations and final rest checks | Repeatability of the measured mounted turn/rest episode; acquisition, engagement, withdrawal and calibrated preload |
 | Walk or turn | MicroDuck MobileBase, pinned policy, BAM, command leases and independent support/rest checks | General gait, longer paths and other robot/model/controller combinations |
 | Perceive and remember space | Passive sensors, measured-frame contracts and retained RGB-D surface annotations | Physical SLAM/localization, metric reconstruction admission and execution of planned routes |
 | Describe different bodies | Fixed/floating roots, links, transmissions and typed scalar/generalized joint observations | Drivers and control mappings for each mechanism; dynamic whole-body control |
 | Sense touch | Contact, estimated-force and tactile-image contracts | Calibrated tactile device drivers and task-specific tactile verification |
-| Coordinate twelve robots | Concurrent fleet runtime, agent CLI and MCP with independent robot identities, ownership and stop state; twelve-member mock diagnostics | Shared native scene, collision interaction and measured physical fleet stop/reset |
+| Coordinate twelve robots | Concurrent fleet runtime, agent CLI/MCP and one shared native scene; separate identities and zero-command support measured for twelve robots | Independent native agent tasks, collision interaction and measured physical fleet stop/reset |
 
 `ResourceDescriptor.admission` is declared metadata (for example `unvalidated`
 or `software_only`), not an automatic certificate state
 machine. Keep capability declaration, software execution and physical evidence
-distinct. A future fleet must preserve each robot's source/model/epoch and
+distinct. Every fleet must preserve each robot's source/model/epoch and
 unresolved outcomes; a successful aggregate response cannot promote another
 robot's unverified result.
 
@@ -145,9 +149,9 @@ waiting on any member's existing timeout and parking policy. CPU tests exercise
 twelve concurrent synthetic robot runtimes, isolated stops, late dispatch
 rejection and independent traces/debts.
 
-This coordination API does not create a native twelve-MicroDuck scene.
-A shared physical world still needs one admitted simulation
-owner with distinct robot states, policy histories, contact registries and
+This coordination API does not itself create a physical scene. The optional
+shared MicroDuck backend provides that scene owner; composition still requires
+one admitted simulation owner with distinct robot states, policy histories, contact registries and
 perception/verifier identities, plus shared-space collision coordination.
 The existing refusal of mixed physical actuation inside one robot is unchanged.
 

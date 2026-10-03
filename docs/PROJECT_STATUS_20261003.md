@@ -1,4 +1,4 @@
-# Project status — 3 October 2026
+# Project status — updated 4 October 2026
 
 CASCADE implements modular robot domains, bounded tool execution, independent
 observations and explicit outcome verification. Physical acceptance belongs to
@@ -6,7 +6,7 @@ an exact model, source and episode; a declaration, passing software test or
 successful simulator startup does not admit a new robot. This index separates
 implemented capabilities, measured results and remaining work. The architecture
 and [SVG / PNG diagram](ROBOT_MODULARITY.md) now distinguish the existing
-single-robot domains from fleet coordination and the pending shared scene. Current
+single-robot domains, fleet coordination and the shared-scene foundation. Current
 software includes Isaac Sim source-installation detection in
 [PR #109](https://github.com/johnnynunez/cascade/pull/109); source updates do not
 transfer acceptance from earlier physical episodes. The dated source and CI
@@ -18,12 +18,12 @@ The [1–2 October index](PROJECT_STATUS_20261001.md) preserves earlier history.
 
 | Area | Implemented and measured | Remaining boundary |
 | --- | --- | --- |
-| Manipulation | SafeArm control, observed grasp/release guards, task-effect accounting and measured withdrawal. Historical OVRTX/cuMotion PhysX pick/place/home passed. The original two-object MuJoCo delivery test also passed in one new episode on integrated main `274fa3a9`, including release, support, rest, both home returns and retention of the first object. | Broader task/campaign reliability, hardware and acceptance of later source compositions. |
+| Manipulation | SafeArm control, observed grasp/release guards, task-effect accounting and measured withdrawal. A complete ordinary OpenClaw/Qwen Isaac kitchen episode passed on 4 October, including both placements, resets and ordinary process closure; [source-bound recovery receipts](evidence/project-status-20261003/kitchen-recovery-20261004.json). Historical OVRTX/cuMotion PhysX pick/place/home passed. The original two-object MuJoCo delivery test also passed in one new episode on integrated main `274fa3a9`, including release, support, rest, both home returns and retention of the first object. | Broader task/campaign reliability, hardware and acceptance of later source compositions. |
 | Fastening | The explicit optional SDK recipe passed a native ordinary reset/one-turn/rest episode on 2026-10-04: final 0.958650 turns within the existing 0.05-turn tolerance, 2.398416 mm advance, 0.5 simulated seconds of rest, all 2,047 solves retained and owned closure complete. [Bound result](FACTORY_FASTENING_RUNTIME.md#native-mounted-turn-and-rest-2026-10-04). | One shared-GPU episode with only 0.151804 s command deadline margin; repeatability remains unproved. Tool pickup, initial engagement, seating, withdrawal and calibrated preload remain unproved by this configured domain. |
 | Locomotion | Optional measured `walk_distance`, cancellation and independent support/rest checks; historical fresh-start ±30 mm episodes passed. | Published candidate profiles have no new model/support admission. The 0.1 m software ceiling is not measured 0.1 m capability or general gait acceptance. |
-| Sensing and spatial memory | Passive, bounded sensor providers; identity/epoch/age checks; observed calibrated RGB-D and retained pixel-to-surface annotations without constructing an arm. | Independent metric XY/general-3D accuracy, moving-camera calibration and per-AOV synchronization. No physical SLAM or `go_to` execution is admitted. |
+| Sensing and spatial memory | Passive, bounded sensor providers; identity/epoch/age checks; observed calibrated RGB-D and retained pixel-to-surface annotations. The optional cuVSLAM provider passed a [twelve-frame synthetic RGB-D native replay](CUVSLAM_NATIVE_VALIDATION.md), including worker/hub closure. Optional navigation enforces registered base pose, complete swept volume, uncertainty and arrival/rest contracts in CPU tests. | Independent metric XY/general-3D accuracy, moving-camera calibration and per-AOV synchronization. No physical SLAM or `go_to` execution is admitted. |
 | Speech | Browser/media gateway, real speech-provider path, original-intent deadlines, priority stop and bounded observed-result views. One continuous synthetic-input/native-motion recording exists. | That motion video contains no spoken robot reply. General dialogue/action reliability, microphone/speaker hardware and public hosted service remain unvalidated. |
-| Fleet coordination | Concurrent `FleetRuntime` routes tasks to independent robot runtimes with separate ownership and stop state. | The multi-agent application and native shared scene remain in progress. No shared-scene 12-MicroDuck demo has run. |
+| Fleet coordination | Concurrent `FleetRuntime`, independent agent CLI and bounded fleet MCP are implemented. One shared native scene passed [zero-command foundation checks with 1, 2 and 12 MicroDucks](evidence/microduck-shared-20261004/foundation.json), with 800 global solves and 200 policy evaluations per robot. | Native independent agent tasks, endpoint actuation/stop/reset and collision coordination remain pending. Shared tick cancellation currently contains the whole scene; this does not prove peer continuation or real-time operation. |
 | Structure and whole-body control | Typed embodiment and passive generalized-joint observations; domains expose only registered resources/tools. | Mixed physical mobile manipulation is refused. No admitted humanoid balance, dexterous-hand or generic whole-body controller. |
 | Evaluation | Source-bound VAB and Arena integration/cancellation preflights ran real simulation. | Neither is a completed benchmark task or a predictor of general deployment success. |
 
@@ -35,20 +35,27 @@ tests and CASCADE's source-installation check after #109. Deployment
 configuration selects the concrete dependencies; these checks do not validate
 a kitchen task or a MicroDuck policy on that installation.
 
+The latest recovery campaign completed both ordinary OpenClaw/Qwen kitchen
+cases within the unchanged 300-second MCP limit and closed every owned process
+normally. The [measured result below](#manipulation-and-trial-12) binds its source,
+physical checks and closure. Earlier failures remain historical evidence.
+
 The first kitchen attempt stopped at the old 6.1-only metadata gate. The second
 passed that gate but blocked in remote asset discovery for an empty YCB list;
 it was cancelled through its owned supervisor before a robot tool action.
 [PR #110](https://github.com/johnnynunez/cascade/pull/110) removes the unused
 lookup and dead object-spawning block without changing the locally authored
 scene. The subsequent native retry confirmed grasp but reached the unchanged
-300-second deadline during release/retreat. Complete placement, rest and home
-remain unverified, including the post-release joint-stability behavior from
+300-second deadline during release/retreat. That attempt did not verify complete placement, rest or home, including the
+post-release joint-stability behavior from
 [PR #107](https://github.com/johnnynunez/cascade/pull/107).
 
 MicroDuck's BAM, support extraction and graph guards bind an explicit Newton
-configuration. Compatibility checks are implemented; a single-robot native
-episode is still required before shared-scene fleet validation. No model or
-source hash is automatically treated as physically admitted.
+configuration. The new shared-scene foundation passed native zero-command
+checks for one, two and twelve robots, including observed support and ordinary
+owned closure. Those episodes do not admit locomotion or agent tasks through
+later endpoint code. No model or source hash is automatically treated as
+physically admitted.
 
 ## Published software corrections
 
@@ -83,12 +90,37 @@ source-bound phases, not a full suite or all cases run on the final head.
 
 ## Manipulation and trial 12
 
+**The complete recovery campaign passed on 4 October.** Frozen source
+`47de1fbe7a53eadd55023c5f39dcc17fbcb1fb91` (the composed tree of main
+`e5ac96f9`) ran one persistent OpenClaw/Qwen session through the ordinary
+cuMotion/GraspGen-X Isaac runtime. Green cube → green square took **169.026 s**;
+orange → open box took **231.163 s**, each below the unchanged 300-second MCP
+limit. Both cases passed actual jaw opening, observed bilateral lift, complete
+destination footprint, solved support, settled motion and advancing camera
+checks, followed by successful scene resets. Final XY errors were **3.815 mm**
+and **6.803 mm**; measured final windows were **0.500 s** and **0.517 s**.
+
+The original launcher shutdown and runtime teardown checks both passed.
+All six owned scopes closed ordinarily with no forced cleanup or remaining
+listeners, and all **238,854 inventoried inputs** remained unchanged. This is one
+shared-GPU campaign, not a repeatability or isolated performance result.
+[Recovery receipts, physical summaries and original artifact hashes](evidence/project-status-20261003/kitchen-recovery-20261004.json).
+
+The preceding recovery failures are retained in that same receipt. The first
+rejected an orange pregrasp with native self-collision. The new candidate check
+rejects that saved endpoint before selection; fresh episodes use their own
+candidates, so the successful run is not a controlled speedup comparison. A
+second episode verified both placements but failed ordinary process closure:
+the launcher exited before its Isaac descendants. The descendant-waiting fix
+in [PR #127](https://github.com/johnnynunez/cascade/pull/127) is exercised by the
+complete campaign above. Neither earlier failure is relabeled as a pass.
+
 The earlier [OVRTX/cuMotion integration](MANIPULATION_ASSEMBLY_20261002.md)
 completed a PhysX GPU grasp, lift, placement and home in 126.19 s. That result
 remains distinct from ordinary MuJoCo delivery, the mounted-socket experiment
 and the complete kitchen campaign.
 
-The latest ordinary OpenClaw/Qwen kitchen attempt used source `9b08094`,
+The earlier 3 October ordinary OpenClaw/Qwen kitchen attempt used source `9b08094`,
 cuMotion 1.1.0 and Isaac cameras in epoch `1497ff1f`. Seven planned curves
 completed; the eighth was refused before motion because joint feedback changed
 between planning and execution. `pick_and_place` failed during post-place retreat

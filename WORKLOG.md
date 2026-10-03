@@ -791,3 +791,27 @@ Real SDK CPU control now observes1,627arrays including IK data plus authoring
 and class fields; both physical digests are identical. Earlier receipts and
 byte-matching pre-review helper/runtime sources are retained under external
 validation/review-source-01-retained. No new native process or solve.
+
+## 2026-10-03 — Factory explicit-pair compiler admission
+
+Preserved native preparation on a2c40c83 as FAIL/CLOSED: the constructor guard
+assumed `nxn`, but the unchanged pinned CollisionPipeline defaults to explicit
+pairs. No finite-plan load or solve completed. New optional selector/profile
+v2 requires the exact BroadPhaseExplicit type and owned int32 pair inventory;
+it uses the SDK's precomputed-pair kernel handle without changing physics.
+The old selector/profile is withdrawn, not reinterpreted.
+
+Admission now retains all 22 values/errors/verdicts before deciding, including
+missing SDK attributes and serializable nonfinite clock rejection. Normal
+preparation persists the report even when a guard rejects. Full scene/model
+snapshot fencing and the 39 reviewed definitions remain; io.py layout source
+is now pinned too. The predicate-by-predicate SDK audit and retained failure
+are linked from benchmark/results/factory_precompile_explicit_cpu_20261003.json.
+
+Validation: seven focused files 466 passed, 4 optional skips, 1.92 s; 556 inputs
+and protected stores unchanged. Real pinned SDK CPU pipeline with exact source
+kwargs reproduces the old rejection, accepts the explicit branch and builds
+39 definitions with equal snapshots/zero solves/zero finite compiler loads.
+CPU builder allocation kernels do run. Reduced CPU CSR width75 remains refused
+against native90; it is not the full Factory geometry. No new GPU/readiness
+run, limit change, SDK patch, push or physical-admission claim.

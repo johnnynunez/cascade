@@ -20,7 +20,7 @@ import numpy as np
 
 from ..control.fastening import FasteningFault
 
-PRECOMPILE_RECIPE = "factory_nv19_dense_compile_v1"
+PRECOMPILE_RECIPE = "factory_nv19_explicit_compile_v2"
 _PINS = Path(__file__).with_name("factory_precompile_pins.json")
 
 
@@ -60,54 +60,132 @@ def _require(condition, message):
         raise FasteningFault("unsupported finite precompilation recipe: " + message)
 
 
-def validate_recipe(scene):
-    """Reject branch changes instead of pretending this inventory covers them."""
+def recipe_admission(scene, modules):
+    """Read every finite-branch predicate before deciding; never load a kernel.
+
+    Each row retains observed values (or a read error), expected semantics and
+    its verdict. A failed earlier predicate cannot hide later configuration.
+    """
     from .factory_recipe import MARGIN_RECIPE
-    solver = scene.solver
-    m, d, narrow = solver.mjw_model, solver.mjw_data, scene.pipeline.narrow_phase
-    _require(scene.fixture_recipe == MARGIN_RECIPE, "mounted margin v2 required")
-    _require(scene.model.device.is_cuda, "CUDA model required")
-    _require(int(solver._deterministic) == 0 and solver._deterministic_max_records == 0,
-             "compiler determinism recipe")
-    _require(scene.step_id == 0 and scene.time_s == 0 and solver._step == 0,
-             "construction must precede every solve")
-    _require(np.array_equal(d.time.numpy(), np.zeros(1, dtype=np.float32)), "nonzero native time")
-    _require(m.nv == 19 and d.nworld == 1 and not m.is_sparse, "nv19/single-world/dense")
-    _require(m.nflex == 0 and m.ntendon == 0 and m.nplugin == 0, "flex/tendon/plugin")
-    _require(int(m.opt.solver) == 2 and int(m.opt.cone) == 1 and int(m.opt.integrator) == 3,
-             "Newton/elliptic/implicitfast")
-    _require(int(m.opt.enableflags) == 0 and int(m.opt.disableflags) == 524288,
-             "sleep/island/disable flags changed")
-    _require(m.opt.iterations == 50 and m.opt.ls_iterations == 100, "solver iteration recipe")
-    _require(not solver.use_mujoco_cpu and not solver._use_mujoco_contacts
-             and not m.opt.run_collision_detection, "collision route")
-    _require(not any(vars(m.callback).values()), "custom physics callbacks")
-    _require(scene.pipeline.broad_phase_mode == "nxn", "broad phase")
-    _require(narrow.reduce_contacts and narrow.has_meshes and not narrow.has_heightfields
-             and not narrow.split_gjk_mpr and not narrow.speculative
-             and narrow.hydroelastic_sdf is None and not narrow.deterministic,
-             "Newton collision/reduction branch")
-    _require(narrow.block_dim == 128 and narrow.tile_size_mesh_mesh == 256
-             and narrow.mesh_triangle_block_dim == 32, "Newton launch dimensions")
-    _require(d.njmax == 4096 and m.nv_pad == 20, "constraint/tile dimensions")
-    expected = {"actuator_velocity": 32, "contact_jac_tiled": 32,
-                "small_cholesky": 64, "cholesky_factorize_solve": 32,
-                "update_gradient_JTDAJ_dense": 128, "update_gradient_cholesky": 64,
-                "linesearch_iterative": 32}
-    _require(all(getattr(m.block_dim, name) == value for name, value in expected.items()),
-             "MJWarp block dimensions")
-    _require(len(m.M_tiles) == 2 and {tile.elemid.size == 0 for tile in m.M_tiles} == {False, True},
-             "two reviewed mass-matrix tile branches")
-    _require({(tile.size, tile.elemid.size == 0) for tile in m.M_tiles} == {(6, True), (13, False)}
-             and all(tile.adr.size > 0 for tile in m.M_tiles), "mass tiles")
-    _require(m.M_colind.shape == (90,), "mass matrix storage recipe")
-    _require(d.qLD.shape[1] == m.qLD_block_total, "sparse mass factor tail")
+    solver, model, pipeline = (getattr(scene, name, None) for name in ('solver', 'model', 'pipeline'))
+    m, d = getattr(solver, 'mjw_model', None), getattr(solver, 'mjw_data', None)
+    narrow = getattr(pipeline, 'narrow_phase', None)
+    rows = []
+
+    def plain(value):
+        if isinstance(value, np.ndarray):
+            array = np.ascontiguousarray(value)
+            return {'dtype': str(array.dtype), 'shape': list(array.shape),
+                    'sha256': hashlib.sha256(array.tobytes()).hexdigest(),
+                    **({'values': plain(array.tolist())} if array.size <= 16 else {})}
+        if isinstance(value, np.generic):
+            return plain(value.item())
+        if isinstance(value, dict):
+            return {str(k): plain(v) for k, v in value.items()}
+        if isinstance(value, (tuple, list)):
+            return [plain(v) for v in value]
+        if value is None or type(value) in (bool, int, str):
+            return value
+        if type(value) is float and np.isfinite(value):
+            return value
+        return {'type': type(value).__module__ + '.' + type(value).__qualname__,
+                'callable': callable(value), 'unsupported_value': True}
+
+    def check(name, expected, read, predicate):
+        row = {'name': name, 'expected': expected, 'passed': False}
+        try:
+            observed = read()
+            row['observed'] = plain(observed)
+            row['passed'] = bool(predicate(observed))
+        except Exception as exc:
+            row['error'] = f'{type(exc).__name__}: {exc}'
+        rows.append(row)
+
+    check('fixture_recipe', MARGIN_RECIPE, lambda: scene.fixture_recipe, lambda v: v == MARGIN_RECIPE)
+    check('device', 'CUDA', lambda: model.device.is_cuda, lambda v: v is True)
+    check('determinism', [0, 0], lambda: [int(solver._deterministic), solver._deterministic_max_records], lambda v: v == [0, 0])
+    check('clocks', 'scene step/time and native step zero',
+          lambda: [scene.step_id, scene.time_s, solver._step], lambda v: v == [0, 0., 0])
+    check('native_time', 'float32[1] zero', lambda: d.time.numpy(),
+          lambda v: v.dtype == np.float32 and v.shape == (1,) and np.array_equal(v, np.zeros(1, np.float32)))
+    check('dense_world', [19, 1, False], lambda: [m.nv, d.nworld, m.is_sparse], lambda v: v == [19, 1, False])
+    check('unsupported_model_features', [0, 0, 0], lambda: [m.nflex, m.ntendon, m.nplugin], lambda v: v == [0, 0, 0])
+    check('solver_options', [2, 1, 3], lambda: [int(m.opt.solver), int(m.opt.cone), int(m.opt.integrator)], lambda v: v == [2, 1, 3])
+    check('flags', [0, 524288], lambda: [int(m.opt.enableflags), int(m.opt.disableflags)], lambda v: v == [0, 524288])
+    check('iterations', [50, 100], lambda: [m.opt.iterations, m.opt.ls_iterations], lambda v: v == [50, 100])
+    check('collision_route', [False, False, False],
+          lambda: [solver.use_mujoco_cpu, solver._use_mujoco_contacts, m.opt.run_collision_detection],
+          lambda v: all(x is False for x in v))
+    check('callbacks', 'all absent', lambda: vars(m.callback), lambda v: not any(v.values()))
+    check('broad_phase_mode', 'explicit', lambda: pipeline.broad_phase_mode, lambda v: v == 'explicit')
+    check('broad_phase_type', 'exact pinned BroadPhaseExplicit class',
+          lambda: {'type': type(pipeline.broad_phase).__module__ + '.' + type(pipeline.broad_phase).__qualname__,
+                   'exact_type': type(pipeline.broad_phase) is modules['newton._src.geometry.broad_phase_nxn'].BroadPhaseExplicit},
+          lambda v: v['exact_type'])
+
+    def pairs():
+        pair_array = pipeline.shape_pairs_filtered.numpy()
+        return {'pairs': pair_array, 'owned_model_array': pipeline.shape_pairs_filtered is model.shape_contact_pairs,
+                'model_shape_count': model.shape_count, 'max_pairs': pipeline.shape_pairs_max,
+                'exclusions_absent': pipeline.shape_pairs_excluded is None,
+                'excluded_count': pipeline.shape_pairs_excluded_count,
+                'candidate_capacity': narrow.max_candidate_pairs}
+
+    def valid_pairs(v):
+        a = v['pairs']
+        return (a.dtype == np.int32 and a.ndim == 2 and a.shape[1] == 2 and len(a) > 0
+                and v['owned_model_array'] and v['exclusions_absent'] and v['excluded_count'] == 0
+                and v['max_pairs'] == v['candidate_capacity'] == len(a)
+                and np.all(a >= 0) and np.all(a < v['model_shape_count'])
+                and np.all(a[:, 0] != a[:, 1])
+                and len(np.unique(np.sort(a, axis=1), axis=0)) == len(a))
+
+    check('explicit_pairs', 'own int32[N,2], unique in-range pairs, exact capacity, no exclusions', pairs, valid_pairs)
+    check('collision_features', [True, True, False, False, False, True, False],
+          lambda: [narrow.reduce_contacts, narrow.has_meshes, narrow.has_heightfields,
+                   narrow.split_gjk_mpr, narrow.speculative, narrow.hydroelastic_sdf is None, narrow.deterministic],
+          lambda v: v == [True, True, False, False, False, True, False])
+    check('newton_launch_dimensions', [128, 256, 32],
+          lambda: [narrow.block_dim, narrow.tile_size_mesh_mesh, narrow.mesh_triangle_block_dim], lambda v: v == [128, 256, 32])
+    check('constraint_dimensions', [4096, 20], lambda: [d.njmax, m.nv_pad], lambda v: v == [4096, 20])
+    expected = {'actuator_velocity': 32, 'contact_jac_tiled': 32, 'small_cholesky': 64,
+                'cholesky_factorize_solve': 32, 'update_gradient_JTDAJ_dense': 128,
+                'update_gradient_cholesky': 64, 'linesearch_iterative': 32}
+    check('mjwarp_launch_dimensions', expected,
+          lambda: {name: getattr(m.block_dim, name) for name in expected}, lambda v: v == expected)
+    check('mass_tiles', 'two tiles: scalar6 and dense13, nonempty addresses',
+          lambda: [{'size': t.size, 'elemid_count': t.elemid.size, 'addresses': t.adr.numpy()} for t in m.M_tiles],
+          lambda v: len(v) == 2 and {(t['size'], t['elemid_count'] == 0) for t in v} == {(6, True), (13, False)}
+              and all(t['addresses'].size > 0 for t in v))
+    check('mass_storage', [90], lambda: list(m.M_colind.shape), lambda v: v == [90])
+    check('mass_factor_tail', 'qLD has no extra sparse factor tail',
+          lambda: {'qLD_shape': list(d.qLD.shape), 'qLD_block_total': m.qLD_block_total},
+          lambda v: len(v['qLD_shape']) == 2 and v['qLD_shape'][1] == v['qLD_block_total'])
+    return {'recipe': PRECOMPILE_RECIPE, 'accepted': all(r['passed'] for r in rows),
+            'predicates': rows, 'rejected': [r['name'] for r in rows if not r['passed']],
+            'physics_admission': False}
+
+
+def validate_recipe(scene, modules=None):
+    if modules is None:
+        modules, _ = admitted_sdk()
+    report = recipe_admission(scene, modules)
+    if not report['accepted']:
+        raise FasteningFault('unsupported finite precompilation recipe: ' + ', '.join(report['rejected']))
+    return report
 
 
 def compilation_plan(scene, modules, wp):
     """Materialize only pure cached factories, using the actual model's fields."""
-    validate_recipe(scene)
-    m, d = scene.solver.mjw_model, scene.solver.mjw_data
+    validate_recipe(scene, modules)
+    variants = (*_newton_variants(scene, modules, wp),
+                *_mujoco_variants(scene.solver.mjw_model, scene.solver.mjw_data, modules, wp))
+    _require(len(variants) == 39, "inventory count")
+    return variants
+
+
+def _newton_variants(scene, modules, wp):
+    """Owned explicit-pair path; the SDK's module name also contains NXN code."""
     narrow = scene.pipeline.narrow_phase
     variants = []
 
@@ -119,11 +197,12 @@ def compilation_plan(scene, modules, wp):
         variants.append(ModuleVariant(label, value.module, block, tuple(params)))
 
     prefix = "newton._src."
-    for name, block in (("sim.collide", 256), ("geometry.broad_phase_nxn", 256),
+    for name, block in (("sim.collide", 256),
                         ("geometry.narrow_phase", 256), ("geometry.contact_reduction_global", 256),
                         ("geometry.contact_reduction_global", narrow.block_dim),
                         ("geometry.sdf_contact", 256)):
         static(prefix + name, block)
+    kernel("newton.explicit_pairs", modules[prefix + "geometry.broad_phase_nxn"]._nxn_broadphase_precomputed_pairs, 256)
     kernel("newton.primitive", narrow.primitive_kernel, narrow.block_dim)
     kernel("newton.gjk_mpr", narrow.narrow_phase_kernel, narrow.block_dim)
     kernel("newton.mesh_triangle_reducer",
@@ -136,8 +215,7 @@ def compilation_plan(scene, modules, wp):
     kernel("newton.export_reduced", narrow.export_reduced_contacts_kernel,
            modules[prefix + "geometry.contact_reduction_global"].EXPORT_REDUCED_CONTACTS_BLOCK_DIM)
 
-    variants.extend(_mujoco_variants(m, d, modules, wp))
-    _require(len(variants) == 39, "inventory count")
+    _require(len(variants) == 11, "Newton inventory count")
     return tuple(variants)
 
 
@@ -300,7 +378,11 @@ def precompile_factory(scene, *, recipe):
     import warp as wp
     from .factory_model import model_fingerprint
     modules, sources = admitted_sdk()
-    validate_recipe(scene)
+    admission = recipe_admission(scene, modules)
+    scene.precompile_receipt = {"recipe": recipe, "sdk_sources": sources,
+        "admission": admission, "loaded": [], "ok": False, "physics_admission": False}
+    if not admission["accepted"]:
+        raise FasteningFault("unsupported finite precompilation recipe: " + ", ".join(admission["rejected"]))
     before = physical_snapshot(scene, wp)
     identity = model_fingerprint(scene)
     started = time.monotonic()
@@ -330,7 +412,7 @@ def precompile_factory(scene, *, recipe):
         audit_error = exc
     unchanged = before == after and identity == after_identity
     device = {"alias": str(scene.model.device), "cuda_arch": scene.model.device.arch}
-    receipt = {"recipe": recipe, "sdk_sources": sources, "loaded": loaded,
+    receipt = {"recipe": recipe, "sdk_sources": sources, "admission": admission, "loaded": loaded,
                "device": device, "warp_version": wp.__version__,
                "wall_s": time.monotonic() - started,
                "physical_before": before, "physical_after": after,
@@ -346,7 +428,7 @@ def precompile_factory(scene, *, recipe):
     if error is not None:
         raise error
     # Timing and scratch-buffer bytes are evidence, not reproducible identity.
-    return {"recipe": recipe, "sdk_sources": sources, "device": device,
+    return {"recipe": recipe, "sdk_sources": sources, "admission": admission, "device": device,
             "warp_version": wp.__version__,
             "variants": [row.describe() for row in plan],
             "module_hashes": [row["module_sha256"] for row in loaded],

@@ -6,7 +6,7 @@ domains:
   fastening:
     kind: fastening
     recipe: factory_m20_fixed_axis_margin_v2
-    precompile: factory_nv19_dense_compile_v1
+    precompile: factory_nv19_explicit_compile_v2
     assets: ${assets}/factory/nut_bolt
     robot_asset: ${assets}/mjcf/so101/so101.xml
     device: null

@@ -2,6 +2,7 @@
   "mujoco_warp._src.constraint": "001a2e7630ca05a61b406daf0bca2f769f8a580f7134629d5b45f37bd8f473d1",
   "mujoco_warp._src.derivative": "35e5406ff89cabe9d5d6651eb016411347e6b7ab2b76962f069cc2d9220d9c85",
   "mujoco_warp._src.forward": "7b7ffa3d914b6adf65f228261e207998d5bed1e59d4fb17f5bc6ac796aacf490",
+  "mujoco_warp._src.io": "f9214e355f92a89583d85af04867403d1e8f81fcd45c907114d0baa279aa507d",
   "mujoco_warp._src.passive": "0529a92fa4904ff20a7e2a5dc5a0a9ae35e3f86c3a337d4216c7b9b6307bc29c",
   "mujoco_warp._src.sensor": "f5c0793d97374c7c58e1b8f065ab1386069875a8fd39c1aebdd4ce861b3526d3",
   "mujoco_warp._src.smooth": "f2993c13ba76c85d9d948eda316de76c987dbecb765b34f31df8e8c9d3d99554",

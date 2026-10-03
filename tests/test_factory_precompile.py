@@ -58,6 +58,10 @@ def fixture(monkeypatch):
     for name, names in factories.items():
         for fname in names:
             setattr(modules["mujoco_warp._src." + name], fname, factory(name, fname))
+    class BroadPhaseExplicit: pass
+    modules['newton._src.geometry.broad_phase_nxn'].BroadPhaseExplicit = BroadPhaseExplicit
+    modules['newton._src.geometry.broad_phase_nxn']._nxn_broadphase_precomputed_pairs = NS(module=Module('explicit_pairs'))
+    pairs = Buffer(np.array([[0, 1], [1, 2]], dtype=np.int32))
     modules['mujoco_warp._src.types'].DisableBit = NS(WARMSTART=256)
     modules['mujoco_warp._src.types'].TILE_SIZE_JTDAJ_DENSE = 16
     modules['newton._src.geometry.narrow_phase'].mesh_triangle_contacts_to_reducer_kernel = NS(module=Module('triangle'))
@@ -76,7 +80,7 @@ def fixture(monkeypatch):
     narrow = NS(reduce_contacts=True, has_meshes=True, has_heightfields=False,
                 split_gjk_mpr=False, speculative=False, hydroelastic_sdf=None,
                 deterministic=False, block_dim=128, tile_size_mesh_mesh=256,
-                mesh_triangle_block_dim=32, counts=Buffer([0]))
+                mesh_triangle_block_dim=32, max_candidate_pairs=2, counts=Buffer([0]))
     for name in ('primitive_kernel', 'narrow_phase_kernel', 'mesh_mesh_contacts_kernel',
                  'mesh_mesh_contacts_kernel_precomputed', 'export_reduced_contacts_kernel'):
         setattr(narrow, name, NS(module=Module(name)))
@@ -85,10 +89,10 @@ def fixture(monkeypatch):
         socket_offset = np.array([.012, 0., -.115])
     scene = Scene(fixture_recipe='factory_m20_fixed_axis_margin_v2', step_id=0, time_s=0.,
         drive=False, epoch='fixture_epoch', _active=False, _targets=np.zeros((43,5)),
-        model=NS(device=NS(is_cuda=True,arch=120,context="fixture_context"), mesh_edge_centers=Buffer([1]), mesh_edge_halves=Buffer([2])),
+        model=NS(shape_count=3, shape_contact_pairs=pairs, device=NS(is_cuda=True,arch=120,context="fixture_context"), mesh_edge_centers=Buffer([1]), mesh_edge_halves=Buffer([2])),
         state=NS(joint_q=Buffer([0.]), nested=NS(force=Buffer([0.]))),
         next=NS(joint_q=Buffer([0.])), control=NS(ctrl=Buffer([0.])),
-        contacts=NS(count=Buffer([0])), pipeline=NS(broad_phase_mode='nxn', narrow_phase=narrow),
+        contacts=NS(count=Buffer([0])), pipeline=NS(broad_phase_mode='explicit', broad_phase=BroadPhaseExplicit(), shape_pairs_filtered=pairs, shape_pairs_max=2, shape_pairs_excluded=None, shape_pairs_excluded_count=0, narrow_phase=narrow),
         solver=NS(mjw_model=m, mjw_data=d, _step=0, use_mujoco_cpu=False,
                   _use_mujoco_contacts=False, _deterministic=False, _deterministic_max_records=0, _scoped_mujoco_warp_execution=nullcontext))
     def load(module, **kwargs):
@@ -115,6 +119,99 @@ def test_finite_plan_uses_actual_tiles_owned_handles_and_effective_launch_dims(f
     assert mesh.module is f.scene.pipeline.narrow_phase.mesh_mesh_contacts_kernel_precomputed.module
     assert mesh.parameters == (True,) and mesh.block_dim == 256
     assert next(p for p in plan if p.label == 'solver._update_gradient_cholesky').parameters == (19, False)
+    explicit = next(p for p in plan if p.label == 'newton.explicit_pairs')
+    assert explicit.module is f.modules['newton._src.geometry.broad_phase_nxn']._nxn_broadphase_precomputed_pairs.module
+    assert not any(p.label == 'newton._src.geometry.broad_phase_nxn' for p in plan)
+
+
+def test_all_admission_predicates_survive_multiple_rejections_before_any_load(fixture):
+    import json
+    f = fixture
+    f.scene.fixture_recipe = 'unknown'
+    f.scene.pipeline.broad_phase_mode = 'nxn'
+    f.scene.solver.mjw_model.M_colind.shape = (89,)
+    del f.scene.solver.mjw_model.block_dim.linesearch_iterative
+    with pytest.raises(FasteningFault, match='fixture_recipe.*broad_phase_mode.*mjwarp_launch_dimensions.*mass_storage'):
+        pre.precompile_factory(f.scene, recipe=pre.PRECOMPILE_RECIPE)
+    receipt = f.scene.precompile_receipt
+    report = receipt['admission']
+    assert len(report['predicates']) == 22
+    assert report['rejected'] == ['fixture_recipe', 'broad_phase_mode', 'mjwarp_launch_dimensions', 'mass_storage']
+    assert report['predicates'][-1]['passed']  # Reads after every rejection still run.
+    assert not report['accepted'] and not receipt['ok']
+    assert 'AttributeError' in next(row for row in report['predicates'] if row['name'] == 'mjwarp_launch_dimensions')['error']
+    json.dumps(receipt, allow_nan=False)
+    assert f.loaded == f.calls == []
+
+
+@pytest.mark.parametrize('fault', ['mode', 'class', 'copy', 'float', 'shape', 'duplicate', 'out_of_range', 'self', 'capacity', 'exclusion'])
+def test_explicit_pair_route_requires_owned_exact_typed_inventory(fixture, fault):
+    f = fixture; p = f.scene.pipeline
+    if fault == 'mode': p.broad_phase_mode = 'nxn'
+    elif fault == 'class': p.broad_phase = NS()
+    elif fault == 'copy': p.shape_pairs_filtered = Buffer(p.shape_pairs_filtered.numpy())
+    elif fault == 'float': p.shape_pairs_filtered.data = p.shape_pairs_filtered.data.astype(float)
+    elif fault == 'shape': p.shape_pairs_filtered.data = p.shape_pairs_filtered.data.reshape(4)
+    elif fault == 'duplicate': p.shape_pairs_filtered.data[1] = [1, 0]
+    elif fault == 'out_of_range': p.shape_pairs_filtered.data[1] = [1, 3]
+    elif fault == 'self': p.shape_pairs_filtered.data[1] = [1, 1]
+    elif fault == 'capacity': p.shape_pairs_max += 1
+    elif fault == 'exclusion': p.shape_pairs_excluded = Buffer([0])
+    with pytest.raises(FasteningFault, match='broad_phase|explicit_pairs'):
+        pre.precompile_factory(f.scene, recipe=pre.PRECOMPILE_RECIPE)
+    assert not f.scene.precompile_receipt['admission']['accepted'] and not f.loaded
+
+
+def test_rejected_admission_is_persisted_by_normal_preparation(fixture, monkeypatch, tmp_path):
+    import json
+    import cascade.sim.factory_model as model
+    import cascade.sim.factory_observation as observation
+    import cascade.sim.newton_screw_seating as seating
+    f = fixture
+    f.scene.pipeline.broad_phase_mode = 'nxn'
+    monkeypatch.setattr(observation, 'sdk_sources', lambda: {})
+    monkeypatch.setattr(seating, 'SeatingScene', lambda *a, **k: f.scene)
+    monkeypatch.setattr(model, 'FactoryBoundModel',
+        lambda scene, *, precompile: pre.precompile_factory(scene, recipe=precompile))
+    profile = load_robot_config('factory_m20_precompile_explicit_v2').domains.fastening.as_dict()
+    with pytest.raises(FasteningFault, match='broad_phase_mode'):
+        prepare_factory_model(profile | {'device': 'cuda:0'}, tmp_path/'sdf')
+    saved = json.loads((tmp_path/'precompile.json').read_text())
+    assert saved['admission']['rejected'] == ['broad_phase_mode']
+    assert len(saved['admission']['predicates']) == 22 and not saved['ok']
+
+
+@pytest.mark.parametrize('missing', ['sdk_class', 'pair_array', 'narrow_phase', 'solver'])
+def test_missing_sdk_attribute_records_rejection_and_keeps_later_predicates(fixture, missing):
+    import json
+    f = fixture
+    if missing == 'sdk_class':
+        del f.modules['newton._src.geometry.broad_phase_nxn'].BroadPhaseExplicit
+    elif missing == 'pair_array':
+        del f.scene.pipeline.shape_pairs_filtered
+    elif missing == 'narrow_phase':
+        del f.scene.pipeline.narrow_phase
+    else:
+        del f.scene.solver
+    with pytest.raises(FasteningFault, match='unsupported'):
+        pre.precompile_factory(f.scene, recipe=pre.PRECOMPILE_RECIPE)
+    report = f.scene.precompile_receipt['admission']
+    assert len(report['predicates']) == 22
+    assert report['predicates'][-1]['name'] == 'mass_factor_tail'
+    assert any('AttributeError' in row.get('error', '') for row in report['predicates'])
+    assert not report['accepted'] and f.calls == f.loaded == []
+    json.dumps(f.scene.precompile_receipt, allow_nan=False)
+
+
+def test_nonfinite_native_clock_is_rejected_with_serializable_report(fixture):
+    import json
+    fixture.scene.solver.mjw_data.time.data[0] = np.nan
+    with pytest.raises(FasteningFault, match='native_time'):
+        pre.precompile_factory(fixture.scene, recipe=pre.PRECOMPILE_RECIPE)
+    report = fixture.scene.precompile_receipt['admission']
+    assert report['rejected'] == ['native_time'] and len(report['predicates']) == 22
+    json.dumps(fixture.scene.precompile_receipt, allow_nan=False)
+    assert fixture.calls == fixture.loaded == []
 
 
 @pytest.mark.parametrize('owner,field,value', [
@@ -282,7 +379,7 @@ def test_compiler_scope_is_active_for_factories_and_loads_and_restored(fixture):
 
 def test_profile_is_opt_in_passive_and_null_pinned(monkeypatch):
     no_sdk(monkeypatch)
-    cfg = load_robot_config('factory_m20_precompile_v1')
+    cfg = load_robot_config('factory_m20_precompile_explicit_v2')
     profile = cfg.domains.fastening.as_dict()
     validate_factory_profile(profile)
     assert profile['precompile'] == pre.PRECOMPILE_RECIPE
@@ -292,9 +389,9 @@ def test_profile_is_opt_in_passive_and_null_pinned(monkeypatch):
     assert 'precompile' not in load_robot_config('factory_m20_mounted_margin_v2').domains.fastening.as_dict()
 
 
-@pytest.mark.parametrize('selector', [None, True, '', 'all', 'force_load'])
+@pytest.mark.parametrize('selector', [None, True, '', 'all', 'force_load', 'factory_nv19_dense_compile_v1'])
 def test_unknown_profile_selector_cannot_silently_fall_back(selector):
-    profile = load_robot_config('factory_m20_precompile_v1').domains.fastening.as_dict()
+    profile = load_robot_config('factory_m20_precompile_explicit_v2').domains.fastening.as_dict()
     with pytest.raises(ValueError, match='precompile'):
         validate_factory_profile(profile | {'precompile':selector})
 
@@ -308,7 +405,7 @@ def test_builder_passes_explicit_compilation_selection(monkeypatch, tmp_path):
     monkeypatch.setattr(seating, 'SeatingScene', lambda *args, **kw: scene)
     calls = []
     monkeypatch.setattr(model, 'FactoryBoundModel', lambda *args, **kw: calls.append((args, kw)))
-    profile = load_robot_config('factory_m20_precompile_v1').domains.fastening.as_dict()
+    profile = load_robot_config('factory_m20_precompile_explicit_v2').domains.fastening.as_dict()
     prepare_factory_model(profile | {'device':'cuda:0'}, tmp_path)
     assert calls == [((scene,), {'precompile':pre.PRECOMPILE_RECIPE})]
 
@@ -328,7 +425,7 @@ def test_persistence_failure_preserves_primary_error_without_python311_notes(mon
     def write(*args): raise OSError('receipt sink failed')
     monkeypatch.setattr(model, 'FactoryBoundModel', construct)
     monkeypatch.setattr(runtime, '_write', write)
-    profile = load_robot_config('factory_m20_precompile_v1').domains.fastening.as_dict()
+    profile = load_robot_config('factory_m20_precompile_explicit_v2').domains.fastening.as_dict()
     with pytest.raises(OriginalFailure) as caught:
         prepare_factory_model(profile | {'device':'cuda:0'}, tmp_path)
     assert caught.value is primary

@@ -20,7 +20,7 @@ def _roadmap():
 def test_readme_roadmap_separates_acceptance_and_future_backend_work():
     roadmap = " ".join(_roadmap().split())
     acceptance, future = roadmap.split("**Newton parity.**", 1)
-    assert "docs/PROJECT_STATUS_20261001.md" in acceptance
+    assert "docs/PROJECT_STATUS_20261003.md" in acceptance
     assert all(word in acceptance for word in (
         "Spark", "nvblox", "acceptance", "five-object", "restart"
     ))
